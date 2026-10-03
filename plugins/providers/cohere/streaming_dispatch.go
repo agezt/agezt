@@ -12,10 +12,10 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
-func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(agent.Chunk) error) error {
+func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(llm.Chunk) error) error {
 	switch eventName {
 	case "message-start":
 		// id + model echoed; nothing to capture if non-empty model
@@ -42,7 +42,7 @@ func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(agen
 		text := f.Delta.Message.Content.Text
 		if text != "" {
 			st.textParts.WriteString(text)
-			if err := onChunk(agent.Chunk{TextDelta: text}); err != nil {
+			if err := onChunk(llm.Chunk{TextDelta: text}); err != nil {
 				return err
 			}
 		}
@@ -88,12 +88,12 @@ func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(agen
 		}
 		st.openTools[f.Index] = ot
 		st.toolOrder = append(st.toolOrder, f.Index)
-		start := &agent.ToolCall{
+		start := &llm.ToolCall{
 			ID:    id,
 			Name:  tc.Function.Name,
 			Input: json.RawMessage(`{}`),
 		}
-		if err := onChunk(agent.Chunk{ToolUseStart: start}); err != nil {
+		if err := onChunk(llm.Chunk{ToolUseStart: start}); err != nil {
 			return err
 		}
 
@@ -123,7 +123,7 @@ func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(agen
 			return nil
 		}
 		ot.argsBuf.WriteString(args)
-		if err := onChunk(agent.Chunk{ToolInputJSONDelta: args}); err != nil {
+		if err := onChunk(llm.Chunk{ToolInputJSONDelta: args}); err != nil {
 			return err
 		}
 
@@ -139,7 +139,7 @@ func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(agen
 		if !ok {
 			return nil
 		}
-		if err := onChunk(agent.Chunk{ToolUseStop: ot.id}); err != nil {
+		if err := onChunk(llm.Chunk{ToolUseStop: ot.id}); err != nil {
 			return err
 		}
 

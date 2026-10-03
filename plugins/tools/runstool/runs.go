@@ -18,7 +18,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 )
@@ -39,7 +39,7 @@ type history interface {
 	Tail(n int) ([]*event.Event, error)
 }
 
-// Tool implements agent.Tool. Created unbound via New(); Bind wires the journal.
+// Tool implements toolapi.Tool. Created unbound via New(); Bind wires the journal.
 type Tool struct {
 	hist history
 }
@@ -54,11 +54,11 @@ func (t *Tool) Bind(h history) {
 	}
 }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "runs",
-		Capability: agent.ToolCapability{Name: string(edict.CapRunsRead)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapRunsRead)},
 		Description: "Recall your OWN past runs from the journal: op=recent lists recent " +
 			"runs (intent, status, cost, when); op=stats gives aggregate totals " +
 			"(completed/failed/success-rate/spend); op=search finds past runs whose intent " +
@@ -73,8 +73,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "query": {"type":"string", "description":"For search: case-insensitive substring to match against run intents."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"Read recent journal events and fold them into run history or aggregate statistics.",
 			},
@@ -101,11 +101,11 @@ type runRec struct {
 	TSMS    int64  `json:"last_ts_unix_ms"`
 }
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("runs: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("runs: parse input: %w", err)
 	}
 	if t.hist == nil {
 		return errResult("run history is not available on this daemon"), nil
@@ -263,14 +263,14 @@ func clip(runs []runRec, n int) []runRec {
 	return runs
 }
 
-func okJSON(v any) agent.Result {
+func okJSON(v any) toolapi.Result {
 	enc, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return errResult("marshal: " + err.Error())
 	}
-	return agent.Result{Output: string(enc)}
+	return toolapi.Result{Output: string(enc)}
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: "runs: " + msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: "runs: " + msg, IsError: true}
 }

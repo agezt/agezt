@@ -11,7 +11,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -27,7 +27,7 @@ const DefaultTimeout = 30 * time.Second
 // output.
 const MaxOutputBytes = 64 * 1024
 
-// Tool is the in-process shell tool implementation of agent.Tool.
+// Tool is the in-process shell tool implementation of toolapi.Tool.
 type Tool struct {
 	// Warden is the isolation engine commands run through. If nil, a
 	// process-default engine (warden.New(nil)) is used — events go
@@ -68,19 +68,19 @@ func NewWithWarden(w warden.Engine) *Tool {
 // Name returns the tool's canonical name.
 func (t *Tool) Name() string { return "shell" }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
 	workDir := t.WorkDir
 	if workDir == "" {
 		workDir = "process working directory"
 	}
-	return agent.ToolDef{
+	return toolapi.ToolDef{
 		Name:       "shell",
-		Capability: agent.ToolCapability{Name: string(edict.CapShell)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapShell)},
 		Description: "Run a command in the operating system's default shell. " +
 			"Returns combined stdout+stderr. Output is truncated to 64 KiB.",
-		Effect: agent.ToolEffect{
-			Class: agent.EffectIrreversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectIrreversible,
 			PredictedEffects: []string{
 				"execute an operating-system command in the configured working directory",
 				"may read, write, start processes, or contact the network depending on the command",

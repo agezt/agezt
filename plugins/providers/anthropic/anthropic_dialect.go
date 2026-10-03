@@ -12,7 +12,8 @@ package anthropic
 import (
 	"encoding/json"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
@@ -38,7 +39,7 @@ type anthRequest struct {
 // applyParams copies the universal sampling knobs Anthropic understands. The
 // reasoning knob is handled separately (mapped to a thinking budget) and so is
 // ignored here. An unset Params leaves the request unchanged.
-func (wire *anthRequest) applyParams(p agent.Params) {
+func (wire *anthRequest) applyParams(p llm.Params) {
 	if p.IsZero() {
 		return
 	}
@@ -114,7 +115,7 @@ type anthCacheControl struct {
 // silently ignores the marker when the prefix is below the minimum cacheable size
 // (so it's safe to always set), and cache reads bill at ~0.1× input (M289-291),
 // turning the repeated tools into a real saving (surfaced by `agt cache`).
-func buildAnthTools(tools []agent.ToolDef, fwd map[string]string) []anthTool {
+func buildAnthTools(tools []toolapi.ToolDef, fwd map[string]string) []anthTool {
 	if len(tools) == 0 {
 		return nil
 	}
@@ -169,15 +170,15 @@ type anthResponse struct {
 }
 
 // anthUsageToAgent maps Anthropic's split token counts to the canonical
-// agent.Usage (M290). Anthropic reports input_tokens EXCLUDING cached prompt
+// llm.Usage (M290). Anthropic reports input_tokens EXCLUDING cached prompt
 // tokens, with cache_read_input_tokens and cache_creation_input_tokens reported
 // separately — so the real prompt size is their sum. Cache reads are marked
 // cached (billed at the cheaper cache-read rate, M289) and cache-creation as
 // cache-write (billed at the cache-write premium, M291). Before this, the two
 // cache counts were dropped, so cached prompt tokens were billed at zero (an
 // under-count when caching was on).
-func anthUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens int, model string) agent.Usage {
-	return agent.Usage{
+func anthUsageToAgent(inputTokens, cacheRead, cacheCreation, outputTokens int, model string) llm.Usage {
+	return llm.Usage{
 		InputTokens:           inputTokens + cacheRead + cacheCreation,
 		CachedInputTokens:     cacheRead,
 		CacheWriteInputTokens: cacheCreation,

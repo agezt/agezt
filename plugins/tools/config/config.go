@@ -11,7 +11,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/roster"
@@ -19,7 +19,7 @@ import (
 	"github.com/agezt/agezt/kernel/settings"
 )
 
-// Tool implements agent.Tool. It is constructed in buildTools() before the kernel
+// Tool implements toolapi.Tool. It is constructed in buildTools() before the kernel
 // exists; SetKernel binds the kernel afterwards so live-apply fields (provider /
 // model) can rebuild the provider in place via Reload().
 type Tool struct {
@@ -33,11 +33,11 @@ func New(baseDir string) *Tool { return &Tool{baseDir: baseDir} }
 // SetKernel binds the kernel for live reloads (called once the kernel is open).
 func (t *Tool) SetKernel(k *kernelruntime.Kernel) { t.kernel = k }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name: "config",
-		Capability: agent.ToolCapability{
+		Capability: toolapi.ToolCapability{
 			// schema/get — and anything unrecognised — is the read axis, so a garbled
 			// call cannot silently gain write.
 			Name:  string(edict.CapConfigRead),
@@ -53,8 +53,8 @@ func (t *Tool) Definition() agent.ToolDef {
 			"set (write one; empty value clears it; scope=agent writes to the acting agent's private override map, scope=global writes the daemon config; provider/model apply live only for global writes), " +
 			"register (add your own schema section — fields must be namespaced AGEZT_* and cannot shadow a built-in), " +
 			"unregister (remove a registered section). Use this to let a skill configure itself.",
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"read Config Center schema or setting presence for schema/get operations",
 				"write, clear, register, or unregister settings for set/register/unregister operations",
@@ -89,11 +89,11 @@ type input struct {
 	Force   bool            `json:"force,omitempty"`
 }
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("config: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("config: parse input: %w", err)
 	}
 	switch in.Op {
 	case "schema":
@@ -113,7 +113,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 
 func (t *Tool) registry() *settings.Registry { return settings.NewRegistry(t.baseDir) }
 
-func (t *Tool) doSchema() (agent.Result, error) {
+func (t *Tool) doSchema() (toolapi.Result, error) {
 	var b strings.Builder
 	for _, sec := range t.registry().Sections() {
 		tag := ""
@@ -133,10 +133,10 @@ func (t *Tool) doSchema() (agent.Result, error) {
 			fmt.Fprintf(&b, "  %s (%s)%s — %s\n", f.Env, typ, secret, f.Label)
 		}
 	}
-	return agent.Result{Output: strings.TrimRight(b.String(), "\n")}, nil
+	return toolapi.Result{Output: strings.TrimRight(b.String(), "\n")}, nil
 }
 
-func (t *Tool) doGet(ctx context.Context, in input) (agent.Result, error) {
+func (t *Tool) doGet(ctx context.Context, in input) (toolapi.Result, error) {
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
 		return errf("name required"), nil
@@ -149,7 +149,7 @@ func (t *Tool) doGet(ctx context.Context, in input) (agent.Result, error) {
 	if !ok {
 		return errf("unknown setting %q", name), nil
 	}
-	agentSlug := agent.AgentFromContext(ctx)
+	agentSlug := toolapi.AgentFromContext(ctx)
 	agentOverrides := kernelruntime.AgentConfigOverrides(ctx)
 	if scope == "agent" {
 		if agentSlug == "" {
@@ -159,22 +159,22 @@ func (t *Tool) doGet(ctx context.Context, in input) (agent.Result, error) {
 			return errf("agent-scoped overrides do not support secret fields"), nil
 		}
 		if value, ok := agentOverrides[name]; ok {
-			return agent.Result{Output: fmt.Sprintf("%s=%s (agent override: %s)", name, value, agentSlug)}, nil
+			return toolapi.Result{Output: fmt.Sprintf("%s=%s (agent override: %s)", name, value, agentSlug)}, nil
 		}
-		return agent.Result{Output: fmt.Sprintf("%s: not set for agent %s", name, agentSlug)}, nil
+		return toolapi.Result{Output: fmt.Sprintf("%s: not set for agent %s", name, agentSlug)}, nil
 	}
 	if scope != "global" && !field.Secret {
 		if value, ok := agentOverrides[name]; ok {
-			return agent.Result{Output: fmt.Sprintf("%s=%s (agent override: %s)", name, value, agentSlug)}, nil
+			return toolapi.Result{Output: fmt.Sprintf("%s=%s (agent override: %s)", name, value, agentSlug)}, nil
 		}
 	}
 	if field.Secret {
 		vault := creds.NewStore(t.baseDir)
 		_ = vault.Load()
 		if vault.Has(name) {
-			return agent.Result{Output: name + ": set (secret, value not shown)"}, nil
+			return toolapi.Result{Output: name + ": set (secret, value not shown)"}, nil
 		}
-		return agent.Result{Output: name + ": not set"}, nil
+		return toolapi.Result{Output: name + ": not set"}, nil
 	}
 	val := os.Getenv(name)
 	if val == "" {
@@ -182,10 +182,10 @@ func (t *Tool) doGet(ctx context.Context, in input) (agent.Result, error) {
 		_ = store.Load()
 		val, _ = store.Get(name)
 	}
-	return agent.Result{Output: fmt.Sprintf("%s=%s", name, val)}, nil
+	return toolapi.Result{Output: fmt.Sprintf("%s=%s", name, val)}, nil
 }
 
-func (t *Tool) doSet(ctx context.Context, in input) (agent.Result, error) {
+func (t *Tool) doSet(ctx context.Context, in input) (toolapi.Result, error) {
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
 		return errf("name required"), nil
@@ -209,7 +209,7 @@ func (t *Tool) doSet(ctx context.Context, in input) (agent.Result, error) {
 		return errf("%s is locked and cannot be cleared", name), nil
 	}
 	if scope == "agent" {
-		agentSlug := agent.AgentFromContext(ctx)
+		agentSlug := toolapi.AgentFromContext(ctx)
 		if agentSlug == "" {
 			return errf("scope=agent requires a named agent run"), nil
 		}
@@ -240,9 +240,9 @@ func (t *Tool) doSet(ctx context.Context, in input) (agent.Result, error) {
 			return errf("unknown agent %q", agentSlug), nil
 		}
 		if value == "" {
-			return agent.Result{Output: fmt.Sprintf("%s cleared from agent override (%s)", name, agentSlug)}, nil
+			return toolapi.Result{Output: fmt.Sprintf("%s cleared from agent override (%s)", name, agentSlug)}, nil
 		}
-		return agent.Result{Output: fmt.Sprintf("%s saved in agent override (%s)", name, agentSlug)}, nil
+		return toolapi.Result{Output: fmt.Sprintf("%s saved in agent override (%s)", name, agentSlug)}, nil
 	}
 	if field.Secret {
 		vault := creds.NewStore(t.baseDir)
@@ -275,9 +275,9 @@ func (t *Tool) doSet(ctx context.Context, in input) (agent.Result, error) {
 	if field.Apply == settings.ApplyLive && !field.Secret && t.kernel != nil {
 		_ = os.Setenv(name, value)
 		if _, _, err := t.kernel.Reload(); err != nil {
-			return agent.Result{Output: fmt.Sprintf("%s saved, but live reload failed: %v", name, err), IsError: true}, nil
+			return toolapi.Result{Output: fmt.Sprintf("%s saved, but live reload failed: %v", name, err), IsError: true}, nil
 		}
-		return agent.Result{Output: name + " applied live"}, nil
+		return toolapi.Result{Output: name + " applied live"}, nil
 	}
-	return agent.Result{Output: name + " saved — restart to apply"}, nil
+	return toolapi.Result{Output: name + " saved — restart to apply"}, nil
 }

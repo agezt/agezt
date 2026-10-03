@@ -9,7 +9,7 @@ package cadence
 
 import (
 	"fmt"
-	"github.com/agezt/agezt/kernel/jsonstore"
+	"github.com/agezt/agezt/kernel/platform/filestore"
 	"github.com/agezt/agezt/kernel/ulid"
 	"strings"
 	"time"
@@ -17,7 +17,7 @@ import (
 
 func OpenStore(dir string) (*Store, error) {
 	s := &Store{}
-	path, err := jsonstore.LoadFrom(dir, "schedules.json", &s.entries)
+	path, err := filestore.LoadFrom(dir, "schedules.json", &s.entries)
 	if err != nil {
 		return nil, fmt.Errorf("cadence: %w", err)
 	}

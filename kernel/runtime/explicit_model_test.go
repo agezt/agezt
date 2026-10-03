@@ -6,8 +6,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
-
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
@@ -23,10 +23,10 @@ import (
 // ModelChain, which wins over the task chain (M787 precedence).
 func TestRunWith_ExplicitModelBeatsTaskChain(t *testing.T) {
 	var served []string
-	prov := &mock.Provider{Responder: func(agent.CompletionRequest) agent.CompletionResponse {
+	prov := &mock.Provider{Responder: func(llm.CompletionRequest) llm.CompletionResponse {
 		return mock.FinalText("ok")
 	}}
-	prov.OnRequest = func(r agent.CompletionRequest) { served = append(served, r.Model) }
+	prov.OnRequest = func(r llm.CompletionRequest) { served = append(served, r.Model) }
 
 	reg := governor.NewRegistry()
 	if err := reg.Register(&governor.ProviderInfo{
@@ -47,7 +47,7 @@ func TestRunWith_ExplicitModelBeatsTaskChain(t *testing.T) {
 		BaseDir:  t.TempDir(),
 		Provider: gov,
 		Model:    "default-model",
-		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:    map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // malformedFrameStream has a broken content_block_delta BETWEEN two valid text
@@ -40,7 +40,7 @@ data: {"type":"message_stop"}
 // providers and this parser's own EOF handling. The text before AND after the bad
 // frame is preserved (M451).
 func TestParseStream_ToleratesMalformedFrame(t *testing.T) {
-	resp, err := parseStream(strings.NewReader(malformedFrameStream), func(agent.Chunk) error { return nil })
+	resp, err := parseStream(strings.NewReader(malformedFrameStream), func(llm.Chunk) error { return nil })
 	if err != nil {
 		t.Fatalf("a malformed mid-stream frame must not abort the stream: %v", err)
 	}

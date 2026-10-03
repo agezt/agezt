@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/bus"
 )
 
 // Center is the main Config Center implementation.
@@ -23,6 +24,9 @@ type Center struct {
 	classifier *SecretClassifier
 	policy     *AccessPolicy
 	auditLog   *AuditLogger
+	// vault holds secret-rated values (UseVault); nil keeps them in the
+	// (0600) entry files, as for a tenant kernel or a test.
+	vault SecretStore
 
 	mu sync.RWMutex
 }
@@ -72,6 +76,13 @@ func Open(cfg *Config) (*Center, error) {
 }
 
 // SetApprovalRegistry sets the approval registry for HITL support.
+// SetBus journals every config access as a config.access event.
+func (c *Center) SetBus(b *bus.Bus) {
+	c.auditLog.mu.Lock()
+	defer c.auditLog.mu.Unlock()
+	c.auditLog.bus = b
+}
+
 func (c *Center) SetApprovalRegistry(registry *approval.Registry) {
 	c.policy.SetRegistry(registry)
 }

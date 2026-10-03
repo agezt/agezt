@@ -308,7 +308,7 @@ func (s *Server) handlePulseSubscribe(ctx context.Context, conn net.Conn, req Re
 				})
 				notice := &event.Event{
 					Subject: dropNoticeSubject,
-					Kind:    event.Kind("agezt.pulse.dropped"),
+					Kind:    event.KindPulseDropped,
 					Actor:   "agezt",
 					Payload: payload,
 					// Seq=0, Hash="" — IsEphemeral() returns true.

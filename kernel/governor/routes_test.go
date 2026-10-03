@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
 )
 
@@ -124,10 +124,10 @@ func TestGovernor_TaskRouteHoistsPreferredProvider(t *testing.T) {
 	}
 
 	// Plan task → api should win.
-	resp, err := g.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "m2",
 		TaskType: "plan",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
 	})
 	if err != nil {
 		t.Fatalf("plan Complete: %v", err)
@@ -145,10 +145,10 @@ func TestGovernor_TaskRouteHoistsPreferredProvider(t *testing.T) {
 	// Non-plan task (default behaviour) → sub should win.
 	api.calls.Store(0)
 	sub.calls.Store(0)
-	resp, err = g.Complete(context.Background(), agent.CompletionRequest{
+	resp, err = g.Complete(context.Background(), llm.CompletionRequest{
 		Model: "m1",
 		// No TaskType → default subscription-first ordering.
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
 	})
 	if err != nil {
 		t.Fatalf("default Complete: %v", err)
@@ -180,10 +180,10 @@ func TestGovernor_TaskRouteFallsThroughOnFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	resp, err := g.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "model-o",
 		TaskType: "plan",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -216,10 +216,10 @@ func TestGovernor_TaskRouteIgnoresUnknownProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	_, err = g.Complete(context.Background(), agent.CompletionRequest{
+	_, err = g.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "m",
 		TaskType: "plan",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -250,10 +250,10 @@ func TestGovernor_TaskRoutePreservesOrderInList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	_, err = g.Complete(context.Background(), agent.CompletionRequest{
+	_, err = g.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "ms",
 		TaskType: "code",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -288,10 +288,10 @@ func TestGovernor_TaskRouteOnlyAppliesToMatchingType(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	// "code" is NOT in the routes → default subscription-first applies.
-	_, err = g.Complete(context.Background(), agent.CompletionRequest{
+	_, err = g.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "ms",
 		TaskType: "code",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)

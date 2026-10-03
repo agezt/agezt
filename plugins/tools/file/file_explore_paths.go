@@ -17,7 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func (t *Tool) resolve(rel string) (string, error) {
@@ -129,18 +129,18 @@ func withinRoot(root, child string) bool {
 	return !strings.HasPrefix(rel, "..") && rel != ".."
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: msg, IsError: true}
 }
 
-func fileObservation(path, output string) agent.Result {
+func fileObservation(path, output string) toolapi.Result {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		path = "."
 	}
-	return agent.Result{
+	return toolapi.Result{
 		Output:            output,
-		ObservationTrust:  agent.ObservationUntrusted,
+		ObservationTrust:  toolapi.ObservationUntrusted,
 		ObservationSource: "workspace:" + filepath.ToSlash(path),
 	}
 }

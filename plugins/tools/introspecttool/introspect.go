@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/standing"
 )
@@ -113,7 +113,7 @@ type Source interface {
 	Standing() []standing.Order
 }
 
-// Tool implements agent.Tool. Created unbound via New(); Bind wires the Source.
+// Tool implements toolapi.Tool. Created unbound via New(); Bind wires the Source.
 type Tool struct {
 	src Source
 }
@@ -128,11 +128,11 @@ func (t *Tool) Bind(s Source) {
 	}
 }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "introspect",
-		Capability: agent.ToolCapability{Name: string(edict.CapIntrospect)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapIntrospect)},
 		Description: "Read THIS daemon's OWN live state — use this to report on AGEZT's health " +
 			"instead of guessing. op=overview (default) gives the at-a-glance snapshot: version, " +
 			"model, uptime, halted, active runs, registered tools, memory/world/skill counts, " +
@@ -147,8 +147,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "op": {"type":"string", "enum":["overview","reaper","schedules","standing"], "description":"What to read (default overview)."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"Read the daemon's current health, schedule, standing-order, approval, and delegation posture.",
 			},
@@ -163,12 +163,12 @@ type input struct {
 	Op string `json:"op"`
 }
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in input
 	if len(raw) > 0 {
 		if err := json.Unmarshal(raw, &in); err != nil {
-			return agent.Result{}, fmt.Errorf("introspect: parse input: %w", err)
+			return toolapi.Result{}, fmt.Errorf("introspect: parse input: %w", err)
 		}
 	}
 	if t.src == nil {

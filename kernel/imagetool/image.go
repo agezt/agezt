@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
@@ -31,7 +31,7 @@ type ImageGen interface {
 	HasImage() bool
 }
 
-// Tool implements agent.Tool over an ImageGen adapter. SaveArtifact is bound to
+// Tool implements toolapi.Tool over an ImageGen adapter. SaveArtifact is bound to
 // the kernel's artifact store after runtime.Open.
 type Tool struct {
 	gen          ImageGen
@@ -41,10 +41,10 @@ type Tool struct {
 // New returns the `image_generate` agent tool over the given adapter.
 func New(g ImageGen) *Tool { return &Tool{gen: g} }
 
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "image_generate",
-		Capability: agent.ToolCapability{Name: string(edict.CapProviderCall)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapProviderCall)},
 		Description: "Generate one or more images from a text prompt. The images are saved as artifacts you can attach " +
 			"to a message — they are not returned inline. Use a vivid, specific prompt. Optional: size (e.g. 1024x1024), " +
 			"quality (standard|hd), n (number of images, default 1).",
@@ -58,7 +58,7 @@ func (t *Tool) Definition() agent.ToolDef {
   },
   "required": ["prompt"]
 }`),
-		Effect: agent.ToolEffect{Class: agent.EffectReadOnly},
+		Effect: toolapi.ToolEffect{Class: toolapi.EffectReadOnly},
 	}
 }
 
@@ -69,34 +69,34 @@ type imageToolInput struct {
 	N       int    `json:"n"`
 }
 
-func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
+func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Result, error) {
 	if t.gen == nil || !t.gen.HasImage() {
-		return agent.Result{Output: "image generation is not configured (set AGEZT_IMAGE_URL + AGEZT_IMAGE_MODEL)", IsError: true}, nil
+		return toolapi.Result{Output: "image generation is not configured (set AGEZT_IMAGE_URL + AGEZT_IMAGE_MODEL)", IsError: true}, nil
 	}
 	var in imageToolInput
 	if err := json.Unmarshal(input, &in); err != nil {
-		return agent.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
 	}
 	if strings.TrimSpace(in.Prompt) == "" {
-		return agent.Result{Output: "image_generate needs a prompt", IsError: true}, nil
+		return toolapi.Result{Output: "image_generate needs a prompt", IsError: true}, nil
 	}
 	images, mime, err := t.gen.GenerateImage(ctx, in.Prompt, in.Size, in.Quality, in.N)
 	if err != nil {
-		return agent.Result{Output: "image generation failed: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "image generation failed: " + err.Error(), IsError: true}, nil
 	}
 	if len(images) == 0 {
-		return agent.Result{Output: "no images were generated", IsError: true}, nil
+		return toolapi.Result{Output: "no images were generated", IsError: true}, nil
 	}
 	if t.SaveArtifact == nil {
-		return agent.Result{Output: fmt.Sprintf("generated %d image(s) of %s, but artifact storage is unavailable to persist them", len(images), mime), IsError: true}, nil
+		return toolapi.Result{Output: fmt.Sprintf("generated %d image(s) of %s, but artifact storage is unavailable to persist them", len(images), mime), IsError: true}, nil
 	}
 	refs := make([]string, 0, len(images))
 	for i, img := range images {
 		ref, err := t.SaveArtifact(img)
 		if err != nil {
-			return agent.Result{Output: fmt.Sprintf("saving image %d failed: %v", i, err), IsError: true}, nil
+			return toolapi.Result{Output: fmt.Sprintf("saving image %d failed: %v", i, err), IsError: true}, nil
 		}
 		refs = append(refs, ref)
 	}
-	return agent.Result{Output: fmt.Sprintf("generated %d image(s) of %s, saved as artifact(s): %s", len(images), mime, strings.Join(refs, ", "))}, nil
+	return toolapi.Result{Output: fmt.Sprintf("generated %d image(s) of %s, saved as artifact(s): %s", len(images), mime, strings.Join(refs, ", "))}, nil
 }

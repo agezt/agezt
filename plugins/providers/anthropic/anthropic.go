@@ -12,12 +12,14 @@ import (
 	"strings"
 
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/agent"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
-func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok, thinkingBudget int, params agent.Params, extra json.RawMessage) ([]byte, error) {
+func encodeRequest(model, system string, msgs []llm.Message, tools []toolapi.ToolDef, maxTok, thinkingBudget int, params llm.Params, extra json.RawMessage) ([]byte, error) {
 	// A per-request reasoning effort (M997) overrides the construction-time
 	// thinking budget when set; otherwise the env/default budget stands.
 	if b, ok := provopts.ThinkingBudget(params.ReasoningEffort, maxTok); ok {
@@ -80,11 +82,11 @@ func parseImageDataURL(s string) (mediaType, data string, ok bool) {
 // canonicalToAnth converts one canonical Message into one Anthropic message.
 // Returns (nil, nil) when the message has no Anthropic representation
 // (e.g. role=system, which Anthropic carries as a top-level field).
-func canonicalToAnth(m agent.Message, fwd map[string]string) (*anthMessage, error) {
+func canonicalToAnth(m llm.Message, fwd map[string]string) (*anthMessage, error) {
 	switch m.Role {
-	case agent.RoleSystem:
+	case llm.RoleSystem:
 		return nil, nil
-	case agent.RoleUser:
+	case llm.RoleUser:
 		// Vision (M241): a user message may carry image attachments as RFC 2397
 		// data: URLs. Emit each as an Anthropic type=image block BEFORE the text
 		// block (the order Anthropic recommends). A non-data-URL entry (e.g. a
@@ -100,7 +102,7 @@ func canonicalToAnth(m agent.Message, fwd map[string]string) (*anthMessage, erro
 		}
 		blocks = append(blocks, anthBlock{Type: "text", Text: m.Content})
 		return &anthMessage{Role: "user", Content: blocks}, nil
-	case agent.RoleAssistant:
+	case llm.RoleAssistant:
 		var blocks []anthBlock
 		if strings.TrimSpace(m.Content) != "" {
 			blocks = append(blocks, anthBlock{Type: "text", Text: m.Content})
@@ -122,7 +124,7 @@ func canonicalToAnth(m agent.Message, fwd map[string]string) (*anthMessage, erro
 			blocks = []anthBlock{{Type: "text", Text: ""}}
 		}
 		return &anthMessage{Role: "assistant", Content: blocks}, nil
-	case agent.RoleTool:
+	case llm.RoleTool:
 		if m.ToolCallID == "" {
 			return nil, errors.New("anthropic: role=tool requires tool_call_id")
 		}
@@ -139,7 +141,7 @@ func canonicalToAnth(m agent.Message, fwd map[string]string) (*anthMessage, erro
 	}
 }
 
-func decodeResponse(body []byte) (*agent.CompletionResponse, error) {
+func decodeResponse(body []byte) (*llm.CompletionResponse, error) {
 	var ar anthResponse
 	if err := json.Unmarshal(body, &ar); err != nil {
 		return nil, fmt.Errorf("anthropic: parse response: %w", err)
@@ -148,7 +150,7 @@ func decodeResponse(body []byte) (*agent.CompletionResponse, error) {
 	var (
 		textParts      []string
 		reasoningParts []string
-		toolCalls      []agent.ToolCall
+		toolCalls      []llm.ToolCall
 	)
 	for _, b := range ar.Content {
 		switch b.Type {
@@ -161,7 +163,7 @@ func decodeResponse(body []byte) (*agent.CompletionResponse, error) {
 			if len(input) == 0 {
 				input = json.RawMessage(`{}`)
 			}
-			toolCalls = append(toolCalls, agent.ToolCall{
+			toolCalls = append(toolCalls, llm.ToolCall{
 				ID:    b.ID,
 				Name:  b.Name,
 				Input: input,
@@ -169,19 +171,19 @@ func decodeResponse(body []byte) (*agent.CompletionResponse, error) {
 		}
 	}
 
-	stop := agent.StopReason(ar.StopReason)
+	stop := llm.StopReason(ar.StopReason)
 	switch ar.StopReason {
 	case "end_turn", "stop_sequence":
-		stop = agent.StopEndTurn
+		stop = llm.StopEndTurn
 	case "tool_use":
-		stop = agent.StopToolUse
+		stop = llm.StopToolUse
 	case "max_tokens":
-		stop = agent.StopMaxTokens
+		stop = llm.StopMaxTokens
 	}
 
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:      llm.RoleAssistant,
 			Content:   strings.Join(textParts, ""),
 			ToolCalls: toolCalls,
 		},

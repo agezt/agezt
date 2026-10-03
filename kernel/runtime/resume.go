@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/resume"
 )
@@ -26,7 +26,7 @@ func (k *Kernel) ResumeStore() *resume.Store { return k.resume }
 // WithResumeSeed carries a suspended run's prior conversation and iteration into
 // a resume dispatch, so RunWith continues the interrupted loop instead of
 // starting fresh. Set by the daemon's resumer; read only by RunWith.
-func WithResumeSeed(ctx context.Context, messages []agent.Message, iter int) context.Context {
+func WithResumeSeed(ctx context.Context, messages []llm.Message, iter int) context.Context {
 	if len(messages) == 0 {
 		return ctx
 	}
@@ -42,11 +42,11 @@ func WithResumeOwned(ctx context.Context, kind string) context.Context {
 }
 
 type resumeSeed struct {
-	messages []agent.Message
+	messages []llm.Message
 	iter     int
 }
 
-func resumeSeedFromCtx(ctx context.Context) ([]agent.Message, int, bool) {
+func resumeSeedFromCtx(ctx context.Context) ([]llm.Message, int, bool) {
 	s, ok := ctx.Value(ctxKeyResumeSeed).(resumeSeed)
 	if !ok || len(s.messages) == 0 {
 		return nil, 0, false
@@ -132,12 +132,12 @@ func (k *Kernel) buildResumeTicket(ctx context.Context, corr, intent, kind strin
 // (the loop keeps appending after this returns) and is a no-op once the ticket is
 // gone (clean completion deleted it). Returns nil when resume is disabled, so the
 // loop pays zero overhead.
-func (k *Kernel) resumeCheckpointFn(corr string) func(int, []agent.Message) {
+func (k *Kernel) resumeCheckpointFn(corr string) func(int, []llm.Message) {
 	if k.resume == nil {
 		return nil
 	}
-	return func(iter int, messages []agent.Message) {
-		snap := append([]agent.Message(nil), messages...)
+	return func(iter int, messages []llm.Message) {
+		snap := append([]llm.Message(nil), messages...)
 		if err := k.resume.Snapshot(corr, snap, iter); err != nil {
 			k.publishResumeAnomaly("snapshot_failed", corr, err)
 		}

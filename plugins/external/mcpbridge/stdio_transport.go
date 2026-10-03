@@ -18,6 +18,8 @@ import (
 	"os/exec"
 	"sync"
 	"time"
+
+	"github.com/agezt/agezt/kernel/platform/sandbox"
 )
 
 type stdioTransport struct {
@@ -35,7 +37,11 @@ type stdioTransport struct {
 // Returns an error if the child fails to start; on success the
 // caller owns the transport and must close() it.
 func newStdioTransport(path string, args []string, deliver transportDeliver) (*stdioTransport, error) {
-	cmd := exec.Command(path, args...)
+	cmd := sandbox.Command(path, args...)
+	// The bridge is itself a plugin child: its environment is already the
+	// scrubbed base plus the variables the operator granted it
+	// (AGEZT_PLUGIN_ENV), which the MCP server it fronts needs. Pass it on.
+	cmd.Env = os.Environ()
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("stdio mcp: stdin pipe: %w", err)

@@ -13,7 +13,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/plugins/tools/browser"
 	httptool "github.com/agezt/agezt/plugins/tools/http"
@@ -21,44 +22,49 @@ import (
 )
 
 func buildHTTP(d toolreg.BuildDeps) (toolreg.Built, error) {
+	e, desc := httpEgress(d)
 	ht := httptool.New()
-	httpRestricted := false
+	ht.AllowAll, ht.AllowedHosts = e.AnyHost, e.AllowedHosts
+	ht.AllowLoopback, ht.AllowPrivate = e.AllowLoopback, e.AllowPrivate
+	if e.AllowPrivate {
+		fmt.Fprintln(d.Stderr, "WARNING: AGEZT_HTTP_ALLOW_PRIVATE=1 lets the http and fetch tools reach the private network.")
+	}
+	return toolreg.Built{Tool: ht, Desc: "http(" + desc + ")"}, nil
+}
+
+// httpEgress is the egress posture of the two tools governed as the http.*
+// capabilities — http and fetch — so restricting one restricts both. fetch used
+// to ignore AGEZT_HTTP_ALLOWED_HOSTS, which left an unrestricted download path
+// beside a restricted http tool.
+//
+// Default-ALLOW (M818, owner law): any PUBLIC host is reachable out of the box;
+// the opt-OUT is a non-empty AGEZT_HTTP_ALLOWED_HOSTS (comma-separated), which
+// RESTRICTS the tools to just those hosts. The SSRF egress guard (loopback /
+// private / cloud-metadata refused) is the hard floor and stays on regardless —
+// relaxed only by the explicit AGEZT_HTTP_ALLOW_* flags. AGEZT_ALLOW_ALL=1 (and
+// AGEZT_HTTP_ALLOW_ALL=1 for hosts) is the master permissive switch (M611).
+func httpEgress(d toolreg.BuildDeps) (netout.Egress, string) {
+	var e netout.Egress
 	if hostsCSV := d.Get(brand.EnvPrefix + "HTTP_ALLOWED_HOSTS"); strings.TrimSpace(hostsCSV) != "" {
-		ht.AllowedHosts = splitHosts(ht.AllowedHosts, hostsCSV)
-		httpRestricted = len(ht.AllowedHosts) > 0
+		e.AllowedHosts = splitHosts(nil, hostsCSV)
 	}
-	if !httpRestricted {
-		ht.AllowAll = true // default-allow: no allowlist pinned ⇒ any public host
-	}
-	// Master permissive switch (M611): AGEZT_ALLOW_ALL=1 implies the full open
-	// posture for the network tools too — any host, including loopback and the
-	// private network — so "everything allowed" really means everything. It also
-	// overrides a pinned allowlist back to open.
-	if d.AllowAll || d.Get(brand.EnvPrefix+"HTTP_ALLOW_ALL") == "1" {
-		ht.AllowAll = true
-		httpRestricted = false
-	}
-	// Egress guard (M16): by default the http tool refuses internal/metadata
-	// addresses even for allowlisted/AllowAll hosts. Relax per range for local use.
+	e.AnyHost = len(e.AllowedHosts) == 0 || d.AllowAll || d.Get(brand.EnvPrefix+"HTTP_ALLOW_ALL") == "1"
+	e.AllowLoopback = d.AllowAll || d.Get(brand.EnvPrefix+"HTTP_ALLOW_LOOPBACK") == "1"
+	e.AllowPrivate = d.AllowAll || d.Get(brand.EnvPrefix+"HTTP_ALLOW_PRIVATE") == "1"
+
 	egress := "guarded"
-	if d.AllowAll || d.Get(brand.EnvPrefix+"HTTP_ALLOW_LOOPBACK") == "1" {
-		ht.AllowLoopback = true
+	switch {
+	case e.AllowLoopback && e.AllowPrivate:
+		egress = "loopback+private-ok"
+	case e.AllowLoopback:
 		egress = "loopback-ok"
+	case e.AllowPrivate:
+		egress = "private-ok"
 	}
-	if d.AllowAll || d.Get(brand.EnvPrefix+"HTTP_ALLOW_PRIVATE") == "1" {
-		ht.AllowPrivate = true
-		if egress == "loopback-ok" {
-			egress = "loopback+private-ok"
-		} else {
-			egress = "private-ok"
-		}
-		fmt.Fprintln(d.Stderr, "WARNING: AGEZT_HTTP_ALLOW_PRIVATE=1 lets the http tool reach the private network.")
+	if e.AnyHost {
+		return e, "any host, egress=" + egress
 	}
-	desc := fmt.Sprintf("http(any host, egress=%s)", egress)
-	if httpRestricted {
-		desc = fmt.Sprintf("http(hosts=%d, egress=%s)", len(ht.AllowedHosts), egress)
-	}
-	return toolreg.Built{Tool: ht, Desc: desc}, nil
+	return e, fmt.Sprintf("hosts=%d, egress=%s", len(e.AllowedHosts), egress)
 }
 
 // buildBrowserRead — same allowlist pattern as http (uses AGEZT_BROWSER_* env
@@ -89,11 +95,18 @@ func buildBrowserRead(d toolreg.BuildDeps) (toolreg.Built, error) {
 		br.AllowPrivate = true
 		fmt.Fprintln(d.Stderr, "WARNING: AGEZT_BROWSER_ALLOW_PRIVATE=1 lets browser.read reach the private network.")
 	}
-	// Browser cookies (M1.mm) — handled out-of-band by the browser.cookies tool
-	// (registered when AGEZT_BROWSER_COOKIES=1); left as a no-op here.
 	desc := "browser.read(any host)"
 	if browserRestricted {
 		desc = fmt.Sprintf("browser.read(hosts=%d)", len(br.AllowedHosts))
+	}
+	// Session cookie jar (M1.mm), opt-in. A refactor once replaced this with a
+	// comment pointing at browser.cookies — a different tool, gated by
+	// AGEZT_BROWSER_ACTIONS — so the documented setting silently did nothing.
+	if d.Get(brand.EnvPrefix+"BROWSER_COOKIES") == "1" {
+		if err := br.EnableCookies(); err != nil {
+			return toolreg.Built{}, fmt.Errorf("%sBROWSER_COOKIES: %w", brand.EnvPrefix, err)
+		}
+		desc += "+cookies"
 	}
 	return toolreg.Built{Tool: br, Desc: desc}, nil
 }
@@ -161,7 +174,7 @@ func buildBrowserAction(d toolreg.BuildDeps) (toolreg.Built, *browser.ActionTool
 	} else {
 		ba.SessionRoot = filepath.Join(d.BaseDir, "browser-sessions")
 	}
-	extra := map[string]agent.Tool{}
+	extra := map[string]toolapi.Tool{}
 	for _, tool := range browser.NewActionVerbTools(ba) {
 		extra[tool.Definition().Name] = tool
 	}

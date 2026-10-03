@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
 )
@@ -23,7 +23,7 @@ type flakyProvider struct {
 }
 
 func (p *flakyProvider) Name() string { return p.name }
-func (p *flakyProvider) Complete(ctx context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (p *flakyProvider) Complete(ctx context.Context, _ llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	n := p.calls.Add(1)
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func TestGovernor_RetryInPlaceOnTransient(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	resp, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "m"})
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "m"})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestGovernor_NoRetryOnNonTransient(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	resp, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "m"})
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "m"})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
@@ -118,12 +118,12 @@ type tornStreamProvider struct {
 	fakeProvider
 }
 
-func (p *tornStreamProvider) CompleteStream(ctx context.Context, _ agent.CompletionRequest, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func (p *tornStreamProvider) CompleteStream(ctx context.Context, _ llm.CompletionRequest, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	p.calls.Add(1)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err := onChunk(agent.Chunk{TextDelta: "partial "}); err != nil {
+	if err := onChunk(llm.Chunk{TextDelta: "partial "}); err != nil {
 		return nil, err
 	}
 	return nil, errors.New("upstream 503 mid-stream")
@@ -146,7 +146,7 @@ func TestGovernor_StreamInterruptedIsTerminal(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	_, err = g.CompleteStream(context.Background(), agent.CompletionRequest{Model: "m"}, func(agent.Chunk) error { return nil })
+	_, err = g.CompleteStream(context.Background(), llm.CompletionRequest{Model: "m"}, func(llm.Chunk) error { return nil })
 	if err == nil {
 		t.Fatal("CompleteStream succeeded, want a terminal stream-interrupted error")
 	}
@@ -158,5 +158,35 @@ func TestGovernor_StreamInterruptedIsTerminal(t *testing.T) {
 	}
 	if got := fallback.calls.Load(); got != 0 {
 		t.Errorf("fallback calls = %d, want 0 (no fallback after output started)", got)
+	}
+}
+
+// TestGovernor_NoInPlaceRetryOfRefusedDial: a refused dial reaches the
+// governor only after the provider adapter's own retry (TransientError) gave
+// up, so it falls back immediately instead of being retried again here —
+// stacking the two layers multiplied the attempts and delayed the fallback a
+// dead endpoint (e.g. a stopped local model server) needs.
+func TestGovernor_NoInPlaceRetryOfRefusedDial(t *testing.T) {
+	b, _ := newBus(t)
+	primary := &fakeProvider{name: "p1", err: errors.New(`Post "http://127.0.0.1:11434/api/chat": dial tcp 127.0.0.1:11434: connect: connection refused`)}
+	fallback := &fakeProvider{name: "p2", resp: okResp("p2", 1, 1)}
+	r := governor.NewRegistry()
+	mustRegister(t, r,
+		&governor.ProviderInfo{Name: "p1", Provider: primary, AuthMode: governor.AuthLocal},
+		&governor.ProviderInfo{Name: "p2", Provider: fallback, IsFallback: true},
+	)
+	g, err := governor.New(governor.Config{Registry: r, Bus: b, RetryBaseDelay: time.Millisecond})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "m"})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if resp.Message.Content != "ok from p2" {
+		t.Errorf("answered by %q, want the fallback", resp.Message.Content)
+	}
+	if got := primary.calls.Load(); got != 1 {
+		t.Errorf("primary calls = %d, want 1 (the adapter already retried the dial)", got)
 	}
 }

@@ -10,7 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestOllamaCoverageIdentityEndpointAndErrors(t *testing.T) {
@@ -38,7 +39,7 @@ func TestOllamaCoverageIdentityEndpointAndErrors(t *testing.T) {
 	// (the localhost URL); the model check fires before HTTP, so even without a
 	// model the local server can be reached if model is set. We just exercise the
 	// empty-model branch via the constructor.
-	if _, err := New().Complete(context.Background(), agent.CompletionRequest{Model: ""}); err != ErrNoModel {
+	if _, err := New().Complete(context.Background(), llm.CompletionRequest{Model: ""}); err != ErrNoModel {
 		t.Fatalf("default missing model error = %v", err)
 	}
 }
@@ -57,21 +58,21 @@ func TestOllamaCoverageCanonicalAndImageData(t *testing.T) {
 		}
 	}
 
-	assistant, err := canonicalToOllama(agent.Message{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "c1", Name: "tool"}}})
+	assistant, err := canonicalToOllama(llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "c1", Name: "tool"}}})
 	if err != nil {
 		t.Fatalf("assistant canonical: %v", err)
 	}
 	if assistant.Role != "assistant" || len(assistant.ToolCalls) != 1 || string(assistant.ToolCalls[0].Function.Arguments) != "{}" {
 		t.Fatalf("assistant canonical = %+v", assistant)
 	}
-	if _, err := canonicalToOllama(agent.Message{Role: agent.RoleTool, Content: "out"}); err == nil || !strings.Contains(err.Error(), "tool_call_id") {
+	if _, err := canonicalToOllama(llm.Message{Role: llm.RoleTool, Content: "out"}); err == nil || !strings.Contains(err.Error(), "tool_call_id") {
 		t.Fatalf("tool without id = %v", err)
 	}
-	if _, err := canonicalToOllama(agent.Message{Role: "alien", Content: "x"}); err == nil || !strings.Contains(err.Error(), "unknown role") {
+	if _, err := canonicalToOllama(llm.Message{Role: "alien", Content: "x"}); err == nil || !strings.Contains(err.Error(), "unknown role") {
 		t.Fatalf("unknown role = %v", err)
 	}
 
-	withImg, err := canonicalToOllama(agent.Message{Role: agent.RoleUser, Content: "describe", Images: []string{"data:image/png;base64,AAAA", "plain.png"}})
+	withImg, err := canonicalToOllama(llm.Message{Role: llm.RoleUser, Content: "describe", Images: []string{"data:image/png;base64,AAAA", "plain.png"}})
 	if err != nil {
 		t.Fatalf("user canonical: %v", err)
 	}
@@ -85,7 +86,7 @@ func TestOllamaCoverageEncodeAndDecodeBranches(t *testing.T) {
 	topP := 0.5
 	seed := int64(42)
 	stop := []string{"END"}
-	body, err := encodeRequest("m", "", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, []agent.ToolDef{{Name: "plain"}}, 0, true, agent.Params{Temperature: &temp, TopP: &topP, Seed: &seed, Stop: stop}, json.RawMessage(`{"options":{"num_predict":99}}`))
+	body, err := encodeRequest("m", "", []llm.Message{{Role: llm.RoleUser, Content: "hi"}}, []toolapi.ToolDef{{Name: "plain"}}, 0, true, llm.Params{Temperature: &temp, TopP: &topP, Seed: &seed, Stop: stop}, json.RawMessage(`{"options":{"num_predict":99}}`))
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}
@@ -110,7 +111,7 @@ func TestOllamaCoverageEncodeAndDecodeBranches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decodeResponse: %v", err)
 	}
-	if resp.StopReason != agent.StopToolUse || resp.Message.Content != "partial" || len(resp.Message.ToolCalls) != 1 || string(resp.Message.ToolCalls[0].Input) != "{}" || resp.Message.ToolCalls[0].ID != "call-0" || resp.Usage.InputTokens != 3 || resp.Usage.OutputTokens != 4 {
+	if resp.StopReason != llm.StopToolUse || resp.Message.Content != "partial" || len(resp.Message.ToolCalls) != 1 || string(resp.Message.ToolCalls[0].Input) != "{}" || resp.Message.ToolCalls[0].ID != "call-0" || resp.Usage.InputTokens != 3 || resp.Usage.OutputTokens != 4 {
 		t.Fatalf("decoded response = %+v", resp)
 	}
 	// Default tool-call id is generated only when the wire omits it.
@@ -131,7 +132,7 @@ func TestOllamaCoverageHTTPStatusPropagation(t *testing.T) {
 	defer srv.Close()
 	p := New()
 	p.Endpoint = srv.URL
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{Model: "m", Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}}})
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{Model: "m", Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}}})
 	if err == nil {
 		t.Fatal("expected error for 400")
 	}

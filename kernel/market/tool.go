@@ -17,11 +17,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
-// Tool implements agent.Tool. It holds a lazy getter for the marketplace
+// Tool implements toolapi.Tool. It holds a lazy getter for the marketplace
 // manager because the daemon wires the manager (SetMarket) AFTER runtime.Open —
 // Manager is bound to Kernel.Market once the Kernel exists, and resolves at
 // Invoke.
@@ -36,10 +36,10 @@ func NewTool() *Tool { return &Tool{} }
 // model, so a large catalogue can't flood the context.
 const maxMarketSearchRows = 25
 
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "market",
-		Capability: agent.ToolCapability{Name: string(edict.CapMarket)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapMarket)},
 		Description: "Discover and install capability packs from the marketplace when you lack a capability the task needs. " +
 			"A pack bundles skills, MCP servers, and CLI tools; installing it makes those available to you from your next step on. " +
 			"op=search lists packs (optional query); op=show inspects one pack's contents; op=install materializes a pack. " +
@@ -64,14 +64,14 @@ type marketToolInput struct {
 	Marketplace string `json:"marketplace"`
 }
 
-func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
+func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Result, error) {
 	mgr := t.resolve()
 	if mgr == nil {
-		return agent.Result{Output: "marketplace is not available on this daemon", IsError: true}, nil
+		return toolapi.Result{Output: "marketplace is not available on this daemon", IsError: true}, nil
 	}
 	var in marketToolInput
 	if err := json.Unmarshal(input, &in); err != nil {
-		return agent.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
 	}
 	switch strings.TrimSpace(in.Op) {
 	case "search", "":
@@ -81,7 +81,7 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	case "install":
 		return t.install(ctx, mgr, in.Marketplace, in.Pack)
 	default:
-		return agent.Result{Output: fmt.Sprintf("unknown op %q (use search|show|install)", in.Op), IsError: true}, nil
+		return toolapi.Result{Output: fmt.Sprintf("unknown op %q (use search|show|install)", in.Op), IsError: true}, nil
 	}
 }
 
@@ -92,13 +92,13 @@ func (t *Tool) resolve() *Manager {
 	return t.Manager()
 }
 
-func (t *Tool) search(mgr *Manager, query string) (agent.Result, error) {
+func (t *Tool) search(mgr *Manager, query string) (toolapi.Result, error) {
 	listings, err := mgr.List(query)
 	if err != nil {
-		return agent.Result{Output: "search failed: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "search failed: " + err.Error(), IsError: true}, nil
 	}
 	if len(listings) == 0 {
-		return agent.Result{Output: "no packs match. Try op=search with an empty query to see the full catalogue."}, nil
+		return toolapi.Result{Output: "no packs match. Try op=search with an empty query to see the full catalogue."}, nil
 	}
 	var b strings.Builder
 	shown := listings
@@ -119,16 +119,16 @@ func (t *Tool) search(mgr *Manager, query string) (agent.Result, error) {
 			l.Name, nonEmpty(l.Category, "uncategorized"), l.SkillCount, l.MCPCount, l.ToolCount, state, l.Description)
 	}
 	b.WriteString("Install one with op=install, pack=<name>.")
-	return agent.Result{Output: b.String()}, nil
+	return toolapi.Result{Output: b.String()}, nil
 }
 
-func (t *Tool) show(mgr *Manager, marketplace, pack string) (agent.Result, error) {
+func (t *Tool) show(mgr *Manager, marketplace, pack string) (toolapi.Result, error) {
 	if strings.TrimSpace(pack) == "" {
-		return agent.Result{Output: "op=show needs a pack name", IsError: true}, nil
+		return toolapi.Result{Output: "op=show needs a pack name", IsError: true}, nil
 	}
 	p, _, installed, err := mgr.Show(marketplace, pack)
 	if err != nil {
-		return agent.Result{Output: "show failed: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "show failed: " + err.Error(), IsError: true}, nil
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s @ %s [%s]%s\n", p.Name, p.Version, nonEmpty(p.Category, "uncategorized"), iff(installed, " (installed)", ""))
@@ -146,17 +146,17 @@ func (t *Tool) show(mgr *Manager, marketplace, pack string) (agent.Result, error
 	if len(p.ToolRequirements) > 0 {
 		fmt.Fprintf(&b, "- CLI tools needed: %s (install via the Toolbox)\n", strings.Join(p.ToolRequirements, ", "))
 	}
-	return agent.Result{Output: b.String()}, nil
+	return toolapi.Result{Output: b.String()}, nil
 }
 
-func (t *Tool) install(ctx context.Context, mgr *Manager, marketplace, pack string) (agent.Result, error) {
+func (t *Tool) install(ctx context.Context, mgr *Manager, marketplace, pack string) (toolapi.Result, error) {
 	if strings.TrimSpace(pack) == "" {
-		return agent.Result{Output: "op=install needs a pack name", IsError: true}, nil
+		return toolapi.Result{Output: "op=install needs a pack name", IsError: true}, nil
 	}
-	corr := agent.CorrelationFromContext(ctx)
+	corr := toolapi.CorrelationFromContext(ctx)
 	rec, err := mgr.Install(corr, marketplace, pack, "", nil)
 	if err != nil {
-		return agent.Result{Output: "install failed: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "install failed: " + err.Error(), IsError: true}, nil
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "installed %s: %d skill(s) now active, %d MCP server(s) registered",
@@ -165,7 +165,7 @@ func (t *Tool) install(ctx context.Context, mgr *Manager, marketplace, pack stri
 		fmt.Fprintf(&b, ". This pack also needs CLI tools (%s) — ask the operator to install them in the Toolbox", strings.Join(rec.ToolReqs, ", "))
 	}
 	b.WriteString(". The new skills are available from your next step.")
-	return agent.Result{Output: b.String()}, nil
+	return toolapi.Result{Output: b.String()}, nil
 }
 
 func nonEmpty(s, fallback string) string {

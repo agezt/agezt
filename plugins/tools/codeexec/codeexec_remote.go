@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -26,7 +26,7 @@ func (t *Tool) invokeSSH(
 	allowNet bool,
 	timeout time.Duration,
 	codeBytes int,
-) agent.Result {
+) toolapi.Result {
 	remoteDir := remoteWorkDir(cfg, dir, projectSlug)
 	if strings.TrimSpace(remoteDir) == "" {
 		return errResult("ssh remote workdir is empty")
@@ -119,7 +119,7 @@ func (t *Tool) invokeK8s(
 	allowNet bool,
 	timeout time.Duration,
 	codeBytes int,
-) agent.Result {
+) toolapi.Result {
 	remoteDir := k8sWorkDir(cfg, dir, projectSlug)
 	if strings.TrimSpace(remoteDir) == "" {
 		return errResult("k8s remote workdir is empty")
@@ -211,7 +211,7 @@ func (t *Tool) invokeModal(
 	allowNet bool,
 	timeout time.Duration,
 	codeBytes int,
-) agent.Result {
+) toolapi.Result {
 	if len(packages) > 0 {
 		if lang != LangPython {
 			return errResult(`packages are only supported for python; for deno/JS, import npm packages inline instead, e.g. import x from "npm:cheerio"`)

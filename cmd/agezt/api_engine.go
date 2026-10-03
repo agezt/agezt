@@ -54,18 +54,12 @@ func (e kernelAPIEngine) RunModel(ctx context.Context, corr, intent, model strin
 	// Structured-output request (M314): a client's response_format flows to the
 	// provider's CompletionRequest.JSONMode. No-op when false.
 	ctx = kernelruntime.WithJSONMode(ctx, jsonMode)
-	// Carry any multimodal attachments (M246) the same way the control plane
-	// does, so a vision request to the OpenAI-compatible API reaches the model.
-	if len(images) > 0 {
-		// Pre-gate vision capability (M255): the API path bypasses the control
-		// plane's M91 gate, so reject a non-vision model here with a clear error
-		// rather than wasting a provider call.
-		if err := visionGate(e.k, model, images); err != nil {
-			return "", err
-		}
-		ctx = kernelruntime.WithImages(ctx, images)
+	admission, err := e.k.AdmitImages(ctx, corr, model, intent, images)
+	if err != nil {
+		return "", err
 	}
-	return e.k.RunWith(ctx, corr, intent)
+	ctx = kernelruntime.WithImages(ctx, admission.Images)
+	return e.k.RunWith(ctx, corr, admission.Intent)
 }
 
 // UsageFor implements openaiapi.UsageReporter (M282): sum the REAL provider

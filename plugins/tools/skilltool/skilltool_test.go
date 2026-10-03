@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/skill"
 )
 
@@ -120,7 +120,7 @@ func TestLearn_AuthorsADraft(t *testing.T) {
 
 func TestLearn_CorrelationFromContextIsPassedThrough(t *testing.T) {
 	f := newFake()
-	ctx := agent.WithCorrelation(context.Background(), "run-XYZ")
+	ctx := toolapi.WithCorrelation(context.Background(), "run-XYZ")
 	invokeCtx(t, ctx, newTool(f), map[string]any{"op": "learn", "name": "n", "body": "b"})
 	if f.lastCorr != "run-XYZ" {
 		t.Errorf("Create corr = %q, want run-XYZ (the run that authored it)", f.lastCorr)

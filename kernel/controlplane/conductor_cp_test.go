@@ -8,7 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/runtime"
 )
@@ -18,21 +19,21 @@ import (
 type conductorFakeProvider struct{}
 
 func (conductorFakeProvider) Name() string { return "conductor-cp-fake" }
-func (conductorFakeProvider) Complete(_ context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (conductorFakeProvider) Complete(_ context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	text := "ok"
 	if strings.Contains(strings.ToLower(req.System), "verifier") {
 		text = "PASS: looks correct"
 	}
-	return &agent.CompletionResponse{
-		Message:    agent.Message{Role: agent.RoleAssistant, Content: text},
-		StopReason: agent.StopEndTurn,
+	return &llm.CompletionResponse{
+		Message:    llm.Message{Role: llm.RoleAssistant, Content: text},
+		StopReason: llm.StopEndTurn,
 	}, nil
 }
 
 func TestConductor_RolesAndAskViaControlPlane(t *testing.T) {
 	_, _, client, _ := startPairWithConfig(t, runtime.Config{
 		Provider: conductorFakeProvider{},
-		Tools:    map[string]agent.Tool{},
+		Tools:    map[string]toolapi.Tool{},
 		CouncilMembers: func() []runtime.CouncilMember {
 			return []runtime.CouncilMember{
 				{Seat: "A", Model: "model-a"}, {Seat: "B", Model: "model-b"}, {Seat: "C", Model: "model-c"},

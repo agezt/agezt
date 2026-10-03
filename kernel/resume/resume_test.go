@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 func newStore(t *testing.T) *Store {
@@ -29,10 +29,10 @@ func sampleTicket(corr string) *Ticket {
 		MaxCostMc:    5000,
 		WakeSource:   "standing",
 		Resumable:    true,
-		Messages: []agent.Message{
-			{Role: agent.RoleUser, Content: "do the thing"},
-			{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "c1", Name: "shell", Input: []byte(`{"cmd":"ls"}`)}}},
-			{Role: agent.RoleTool, ToolCallID: "c1", Content: "a\nb\n"},
+		Messages: []llm.Message{
+			{Role: llm.RoleUser, Content: "do the thing"},
+			{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "c1", Name: "shell", Input: []byte(`{"cmd":"ls"}`)}}},
+			{Role: llm.RoleTool, ToolCallID: "c1", Content: "a\nb\n"},
 		},
 		Iter: 3,
 	}
@@ -87,7 +87,7 @@ func TestSnapshotPreservesStatusAndMetadata(t *testing.T) {
 	if _, err := s.MarkSuspendedAll(); err != nil {
 		t.Fatalf("MarkSuspendedAll: %v", err)
 	}
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
 	if err := s.Snapshot("run-xyz", msgs, 7); err != nil {
 		t.Fatalf("Snapshot: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestSnapshotPreservesStatusAndMetadata(t *testing.T) {
 
 func TestSnapshotOnMissingIsNoop(t *testing.T) {
 	s := newStore(t)
-	if err := s.Snapshot("run-gone", []agent.Message{{Content: "x"}}, 1); err != nil {
+	if err := s.Snapshot("run-gone", []llm.Message{{Content: "x"}}, 1); err != nil {
 		t.Fatalf("Snapshot on missing should be nil, got %v", err)
 	}
 	if _, ok, _ := s.Get("run-gone"); ok {
@@ -208,7 +208,7 @@ func TestOversizedSnapshotDropped(t *testing.T) {
 	}
 	tk := sampleTicket("run-big")
 	big := strings.Repeat("x", 8192)
-	tk.Messages = []agent.Message{{Role: agent.RoleTool, ToolCallID: "c1", Content: big}}
+	tk.Messages = []llm.Message{{Role: llm.RoleTool, ToolCallID: "c1", Content: big}}
 	if err := s.Put(tk); err != nil {
 		t.Fatalf("Put: %v", err)
 	}

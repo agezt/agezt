@@ -7,15 +7,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // TestEncodeRequest_JSONMode (M311): JSONMode sets OpenAI's
 // response_format:{type:json_object}; off omits it; streaming honours it too.
 func TestEncodeRequest_JSONMode(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "return json"}}
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "return json"}}
 
-	on, err := encodeRequest("gpt-4o", "", msgs, nil, 0, true, agent.Params{}, nil)
+	on, err := encodeRequest("gpt-4o", "", msgs, nil, 0, true, llm.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,12 +31,12 @@ func TestEncodeRequest_JSONMode(t *testing.T) {
 		t.Errorf("JSONMode should set response_format type=json_object: %s", on)
 	}
 
-	off, _ := encodeRequest("gpt-4o", "", msgs, nil, 0, false, agent.Params{}, nil)
+	off, _ := encodeRequest("gpt-4o", "", msgs, nil, 0, false, llm.Params{}, nil)
 	if strings.Contains(string(off), "response_format") {
 		t.Errorf("JSONMode=false must omit response_format: %s", off)
 	}
 
-	st, _ := encodeStreamRequest("gpt-4o", "", msgs, nil, 0, true, agent.Params{}, nil)
+	st, _ := encodeStreamRequest("gpt-4o", "", msgs, nil, 0, true, llm.Params{}, nil)
 	if !strings.Contains(string(st), `"response_format"`) || !strings.Contains(string(st), "json_object") {
 		t.Errorf("streaming JSONMode missing response_format: %s", st)
 	}

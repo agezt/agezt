@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/netguard"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
@@ -46,7 +46,7 @@ var httpClientFor = func(timeout time.Duration) *http.Client {
 // refresh (used after a 401). Backed by chatgptauth.Manager in production.
 type TokenFunc func(ctx context.Context, force bool) (access, accountID string, err error)
 
-// Provider implements agent.Provider over the ChatGPT Responses backend.
+// Provider implements llm.Provider over the ChatGPT Responses backend.
 type Provider struct {
 	ID              string
 	Model           string
@@ -85,7 +85,7 @@ func (p *Provider) session() string {
 }
 
 // Complete sends one request, retrying once after a forced token refresh on 401.
-func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (p *Provider) Complete(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	if p.Token == nil {
 		return nil, fmt.Errorf("openairesponses: no token source")
 	}
@@ -199,7 +199,7 @@ type reqBody struct {
 	Store             bool            `json:"store"`
 	Stream            bool            `json:"stream"`
 	// Per-request sampling knobs (M997). The Responses API accepts top-level
-	// temperature/top_p; the other agent.Params knobs (top_k, seed, stop,
+	// temperature/top_p; the other llm.Params knobs (top_k, seed, stop,
 	// penalties) are not part of the Responses request shape, so they are
 	// omitted. Nil-able so an unset Params leaves the body unchanged.
 	Temperature *float64 `json:"temperature,omitempty"`
@@ -215,7 +215,7 @@ func (p *Provider) instructionsFor(model string) string {
 	return codexInstructions
 }
 
-func (p *Provider) buildBody(req agent.CompletionRequest, model string) ([]byte, error) {
+func (p *Provider) buildBody(req llm.CompletionRequest, model string) ([]byte, error) {
 	instructions := p.instructionsFor(model)
 	if s := strings.TrimSpace(req.System); s != "" {
 		instructions += "\n\n" + s

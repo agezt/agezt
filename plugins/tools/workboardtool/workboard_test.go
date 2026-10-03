@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/workboard"
 )
 
@@ -22,7 +22,7 @@ func TestToolCreateClaimCommentComplete(t *testing.T) {
 	tool := New()
 	tool.Bind(fh)
 
-	ctx := agent.WithAgent(agent.WithCorrelation(context.Background(), "run-123"), "builder")
+	ctx := toolapi.WithAgent(toolapi.WithCorrelation(context.Background(), "run-123"), "builder")
 	res, err := tool.Invoke(ctx, json.RawMessage(`{"op":"create","title":"Ship workboard","assignee":"builder","idempotency_key":"wb-1"}`))
 	if err != nil || res.IsError {
 		t.Fatalf("create res=%+v err=%v", res, err)
@@ -73,7 +73,7 @@ func TestToolRetryPolicyFail(t *testing.T) {
 	tool := New()
 	tool.Bind(fh)
 
-	ctx := agent.WithAgent(agent.WithCorrelation(context.Background(), "run-123"), "builder")
+	ctx := toolapi.WithAgent(toolapi.WithCorrelation(context.Background(), "run-123"), "builder")
 	res, err := tool.Invoke(ctx, json.RawMessage(`{"op":"create","title":"Retry","assignee":"builder","max_attempts":2,"escalate_to":"lead"}`))
 	if err != nil || res.IsError {
 		t.Fatalf("create res=%+v err=%v", res, err)
@@ -328,7 +328,7 @@ func TestWorkboard_BlockAndUnblock(t *testing.T) {
 	}
 	tl := New()
 	tl.Bind(&fakeKernel{st: st})
-	ctx := agent.WithAgent(context.Background(), "builder")
+	ctx := toolapi.WithAgent(context.Background(), "builder")
 	res, _ := tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"block-test"}`))
 	var created struct{ Task struct{ ID string } }
 	json.Unmarshal([]byte(res.Output), &created)
@@ -348,7 +348,7 @@ func TestWorkboard_ArchiveAndLink(t *testing.T) {
 	}
 	tl := New()
 	tl.Bind(&fakeKernel{st: st})
-	ctx := agent.WithAgent(context.Background(), "builder")
+	ctx := toolapi.WithAgent(context.Background(), "builder")
 	// Create the dependency task first.
 	res, _ := tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"prereq"}`))
 	var dep struct{ Task struct{ ID string } }
@@ -397,7 +397,7 @@ func TestWorkboard_List(t *testing.T) {
 	}
 	tl := New()
 	tl.Bind(&fakeKernel{st: st})
-	ctx := agent.WithAgent(context.Background(), "builder")
+	ctx := toolapi.WithAgent(context.Background(), "builder")
 	// Create two tasks.
 	tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"Task One","tenant":"team-a"}`))
 	tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"Task Two","tenant":"team-a"}`))
@@ -422,7 +422,7 @@ func TestWorkboard_ListWithStatusFilter(t *testing.T) {
 	}
 	tl := New()
 	tl.Bind(&fakeKernel{st: st})
-	ctx := agent.WithAgent(context.Background(), "builder")
+	ctx := toolapi.WithAgent(context.Background(), "builder")
 	tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"Task One","status":"triage"}`))
 	tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"Task Two","status":"ready"}`))
 	res, _ := tl.Invoke(ctx, json.RawMessage(`{"op":"list","status":"triage"}`))
@@ -454,7 +454,7 @@ func TestWorkboard_ListLimits(t *testing.T) {
 	}
 	tl := New()
 	tl.Bind(&fakeKernel{st: st})
-	ctx := agent.WithAgent(context.Background(), "builder")
+	ctx := toolapi.WithAgent(context.Background(), "builder")
 	for i := 0; i < 5; i++ {
 		tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"Task"}`))
 	}
@@ -476,7 +476,7 @@ func TestWorkboard_Policy(t *testing.T) {
 	}
 	tl := New()
 	tl.Bind(&fakeKernel{st: st})
-	ctx := agent.WithAgent(context.Background(), "builder")
+	ctx := toolapi.WithAgent(context.Background(), "builder")
 	res, _ := tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"policy-test"}`))
 	var created struct{ Task struct{ ID string } }
 	json.Unmarshal([]byte(res.Output), &created)
@@ -490,4 +490,4 @@ func TestWorkboard_Policy(t *testing.T) {
 	}
 }
 
-var _ agent.Tool = New()
+var _ toolapi.Tool = New()

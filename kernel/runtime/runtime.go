@@ -9,9 +9,11 @@ package runtime
 import (
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/mcp"
 	"github.com/agezt/agezt/kernel/memory"
@@ -50,10 +52,10 @@ type Config struct {
 	TenantID string
 
 	// Provider is the LLM provider the agent loop will drive.
-	Provider agent.Provider
+	Provider llm.Provider
 
 	// Tools are the in-process tools advertised to the model.
-	Tools map[string]agent.Tool
+	Tools map[string]toolapi.Tool
 
 	// ScriptRunner executes forged script tools (M794) in the code-exec
 	// sandbox. When set, every run is additionally offered the toolforge
@@ -198,6 +200,12 @@ type Config struct {
 	// the kernel constructs the default registry (M100); an explicitly
 	// supplied registry carries its own timeout.
 	ApprovalTimeout time.Duration
+
+	// ConfigVault, when set, holds the config center's secret-rated values
+	// (the daemon passes its encrypted vault). Nil keeps them in the 0600
+	// entry files. A tenant kernel must NOT inherit the primary's: its keys
+	// would share the primary vault's configcenter: namespace.
+	ConfigVault configcenter.SecretStore
 
 	// AutoApproveCapabilities is a daemon-wide operator grant for capabilities
 	// that should not block in live HITL mode. It is applied to every run and

@@ -8,7 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestOllamaStreamingParseStreamTextAndTools(t *testing.T) {
@@ -19,7 +20,7 @@ func TestOllamaStreamingParseStreamTextAndTools(t *testing.T) {
 	}, "\n")
 
 	var chunks []string
-	resp, err := parseStream(strings.NewReader(stream), "llama", func(c agent.Chunk) error {
+	resp, err := parseStream(strings.NewReader(stream), "llama", func(c llm.Chunk) error {
 		if c.TextDelta != "" {
 			chunks = append(chunks, "text:"+c.TextDelta)
 		}
@@ -46,7 +47,7 @@ func TestOllamaStreamingParseStreamTextAndTools(t *testing.T) {
 	if resp.Usage.InputTokens != 3 || resp.Usage.OutputTokens != 2 {
 		t.Fatalf("usage = %+v", resp.Usage)
 	}
-	if resp.StopReason != agent.StopToolUse {
+	if resp.StopReason != llm.StopToolUse {
 		t.Fatalf("stop = %v", resp.StopReason)
 	}
 	for _, want := range []string{"text:hello ", "text:world", "start:lookup", "args:{\"q\":1}", "stop:c1"} {
@@ -59,7 +60,7 @@ func TestOllamaStreamingParseStreamTextAndTools(t *testing.T) {
 func TestOllamaStreamingParseStreamErrorFromCallback(t *testing.T) {
 	stream := `{"message":{"role":"assistant","content":"hi"}}` + "\n"
 	boom := errors.New("client abort")
-	_, err := parseStream(strings.NewReader(stream), "m", func(c agent.Chunk) error { return boom })
+	_, err := parseStream(strings.NewReader(stream), "m", func(c llm.Chunk) error { return boom })
 	if err == nil || !strings.Contains(err.Error(), "client abort") {
 		t.Fatalf("expected callback error, got %v", err)
 	}
@@ -71,7 +72,7 @@ func TestOllamaStreamingParseStreamToolWithoutIDAndLengthStop(t *testing.T) {
 		`{"model":"llama","done":true,"done_reason":"length"}`,
 	}, "\n")
 	var starts []string
-	_, err := parseStream(strings.NewReader(stream), "llama", func(c agent.Chunk) error {
+	_, err := parseStream(strings.NewReader(stream), "llama", func(c llm.Chunk) error {
 		if c.ToolUseStart != nil {
 			starts = append(starts, c.ToolUseStart.ID+":"+c.ToolUseStart.Name)
 		}
@@ -93,17 +94,17 @@ func TestOllamaStreamingParseStreamBadFramesAndEmptyLines(t *testing.T) {
 		`{"message":{"role":"assistant","content":"hello"}}`,
 		`{"done":true,"done_reason":"stop"}`,
 	}, "\n")
-	resp, err := parseStream(strings.NewReader(stream), "m", func(c agent.Chunk) error { return nil })
+	resp, err := parseStream(strings.NewReader(stream), "m", func(c llm.Chunk) error { return nil })
 	if err != nil {
 		t.Fatalf("parseStream: %v", err)
 	}
-	if resp.Message.Content != "hello" || resp.StopReason != agent.StopEndTurn {
+	if resp.Message.Content != "hello" || resp.StopReason != llm.StopEndTurn {
 		t.Fatalf("response = %+v", resp)
 	}
 }
 
 func TestOllamaStreamingEncodeAndCompleteValidation(t *testing.T) {
-	body, err := encodeStreamRequest("m", "", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, []agent.ToolDef{{Name: "plain"}}, 32, true, agent.Params{}, json.RawMessage(`{"options":{"num_predict":32}}`))
+	body, err := encodeStreamRequest("m", "", []llm.Message{{Role: llm.RoleUser, Content: "hi"}}, []toolapi.ToolDef{{Name: "plain"}}, 32, true, llm.Params{}, json.RawMessage(`{"options":{"num_predict":32}}`))
 	if err != nil {
 		t.Fatalf("encodeStreamRequest: %v", err)
 	}
@@ -114,10 +115,10 @@ func TestOllamaStreamingEncodeAndCompleteValidation(t *testing.T) {
 		}
 	}
 
-	if _, err := New().CompleteStream(t.Context(), agent.CompletionRequest{Model: ""}, func(agent.Chunk) error { return nil }); !errors.Is(err, ErrNoModel) {
+	if _, err := New().CompleteStream(t.Context(), llm.CompletionRequest{Model: ""}, func(llm.Chunk) error { return nil }); !errors.Is(err, ErrNoModel) {
 		t.Fatalf("missing model stream error = %v", err)
 	}
-	if _, err := New().CompleteStream(t.Context(), agent.CompletionRequest{Model: "m"}, nil); err == nil || !strings.Contains(err.Error(), "non-nil onChunk") {
+	if _, err := New().CompleteStream(t.Context(), llm.CompletionRequest{Model: "m"}, nil); err == nil || !strings.Contains(err.Error(), "non-nil onChunk") {
 		t.Fatalf("nil onChunk stream error = %v", err)
 	}
 }

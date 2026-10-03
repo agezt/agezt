@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 func f64(v float64) *float64 { return &v }
@@ -16,8 +16,8 @@ func i64(v int64) *int64     { return &v }
 // TestEncodeRequest_ParamsUnset (M997): an unset Params must leave the body
 // free of any sampling field — the default-preserving contract.
 func TestEncodeRequest_ParamsUnset(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
-	body, err := encodeRequest("gpt-4o", "", msgs, nil, 0, false, agent.Params{}, nil)
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
+	body, err := encodeRequest("gpt-4o", "", msgs, nil, 0, false, llm.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,8 +31,8 @@ func TestEncodeRequest_ParamsUnset(t *testing.T) {
 // TestEncodeRequest_ParamsSet (M997): set knobs appear with their values; nil
 // knobs stay absent.
 func TestEncodeRequest_ParamsSet(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
-	p := agent.Params{
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
+	p := llm.Params{
 		Temperature:     f64(0.2),
 		TopP:            f64(0.9),
 		Seed:            i64(42),
@@ -74,9 +74,9 @@ func TestEncodeRequest_ParamsSet(t *testing.T) {
 // TestEncodeRequest_ProviderOptionsMerge (M997): a ProviderOptions["openai"]
 // object is overlaid onto the wire body; an unset map changes nothing.
 func TestEncodeRequest_ProviderOptionsMerge(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
 	extra := json.RawMessage(`{"logprobs":true,"top_logprobs":5}`)
-	body, err := encodeRequest("gpt-4o", "", msgs, nil, 0, false, agent.Params{}, extra)
+	body, err := encodeRequest("gpt-4o", "", msgs, nil, 0, false, llm.Params{}, extra)
 	if err != nil {
 		t.Fatal(err)
 	}

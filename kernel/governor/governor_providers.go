@@ -10,7 +10,7 @@ package governor
 import (
 	"slices"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 func (g *Governor) Providers() []*ProviderInfo {
@@ -53,7 +53,7 @@ func (g *Governor) sortPrimary() []*ProviderInfo {
 // The primary sort is cached in sortedPrimary (rebuilt on Replace) to avoid
 // O(n log n) sort on every Complete call. Replace also updates the cache
 // when a provider's AuthMode changes (e.g. creds rotation adds OAuth).
-func (g *Governor) routeChain(req agent.CompletionRequest) []*ProviderInfo {
+func (g *Governor) routeChain(req llm.CompletionRequest) []*ProviderInfo {
 	// Snapshot the routing slices under the chain lock — Replace mutates them on
 	// the hot-reload path concurrently with Complete (which calls this unlocked).
 	g.chainMu.RLock()

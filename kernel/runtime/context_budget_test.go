@@ -8,8 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -29,11 +30,11 @@ func allowDump() *edict.Engine {
 // dumpTool returns a fixed large output so context builds up across rounds.
 type dumpTool struct{ out string }
 
-func (d dumpTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "dump", Description: "emit a blob", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (d dumpTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "dump", Description: "emit a blob", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
-func (d dumpTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
-	return agent.Result{Output: d.out}, nil
+func (d dumpTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
+	return toolapi.Result{Output: d.out}, nil
 }
 
 // TestRun_AutoContextBudgetFromCatalog: with ContextBudgetAuto and a catalog
@@ -62,7 +63,7 @@ func TestRun_AutoContextBudgetFromCatalog(t *testing.T) {
 		Catalog:           cat,
 		ContextBudgetAuto: true,
 		Edict:             allowDump(),
-		Tools:             map[string]agent.Tool{"dump": dumpTool{out: strings.Repeat("Z", 2000)}},
+		Tools:             map[string]toolapi.Tool{"dump": dumpTool{out: strings.Repeat("Z", 2000)}},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -99,7 +100,7 @@ func TestRun_ContextProtectFirstPlumbsThrough(t *testing.T) {
 			mock.FinalText("done"),
 		)
 	}
-	tools := map[string]agent.Tool{"dump": dumpTool{out: strings.Repeat("Z", 2000)}}
+	tools := map[string]toolapi.Tool{"dump": dumpTool{out: strings.Repeat("Z", 2000)}}
 
 	compactedCount := func(k *runtime.Kernel) int {
 		n := 0
@@ -155,7 +156,7 @@ func TestRun_ContextSummarizeEmbedsAbstractiveSummary(t *testing.T) {
 	sawSummaryInContext := false
 	toolTurns := 0
 
-	prov := &mock.Provider{Responder: func(req agent.CompletionRequest) agent.CompletionResponse {
+	prov := &mock.Provider{Responder: func(req llm.CompletionRequest) llm.CompletionResponse {
 		// A summarisation call is a single user message with the M398 prompt.
 		if len(req.Messages) == 1 && strings.HasPrefix(req.Messages[0].Content, "Summarize this tool output") {
 			return mock.FinalText(canned)
@@ -177,7 +178,7 @@ func TestRun_ContextSummarizeEmbedsAbstractiveSummary(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir: t.TempDir(), Provider: prov, Model: "m",
 		ContextBudget: 200, ContextSummarize: true, Edict: allowDump(),
-		Tools: map[string]agent.Tool{"dump": dumpTool{out: strings.Repeat("Z", 2000)}},
+		Tools: map[string]toolapi.Tool{"dump": dumpTool{out: strings.Repeat("Z", 2000)}},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -207,7 +208,7 @@ func TestRun_AutoBudgetOffForUnknownModel(t *testing.T) {
 		Catalog:           catalog.NewEmpty(),
 		ContextBudgetAuto: true,
 		Edict:             allowDump(),
-		Tools:             map[string]agent.Tool{"dump": dumpTool{out: strings.Repeat("Z", 2000)}},
+		Tools:             map[string]toolapi.Tool{"dump": dumpTool{out: strings.Repeat("Z", 2000)}},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -254,7 +255,7 @@ func TestRun_ContextSummarizeReasoningHeadroom(t *testing.T) {
 
 			gotMax := 0
 			toolTurns := 0
-			prov := &mock.Provider{Responder: func(req agent.CompletionRequest) agent.CompletionResponse {
+			prov := &mock.Provider{Responder: func(req llm.CompletionRequest) llm.CompletionResponse {
 				if len(req.Messages) == 1 && strings.HasPrefix(req.Messages[0].Content, "Summarize this tool output") {
 					gotMax = req.MaxTokens
 					return mock.FinalText("one-line summary")
@@ -269,7 +270,7 @@ func TestRun_ContextSummarizeReasoningHeadroom(t *testing.T) {
 			k, err := runtime.Open(runtime.Config{
 				BaseDir: t.TempDir(), Provider: prov, Model: "mockmodel", Catalog: cat,
 				ContextBudget: 200, ContextSummarize: true, Edict: allowDump(),
-				Tools: map[string]agent.Tool{"dump": dumpTool{out: strings.Repeat("Z", 2000)}},
+				Tools: map[string]toolapi.Tool{"dump": dumpTool{out: strings.Repeat("Z", 2000)}},
 			})
 			if err != nil {
 				t.Fatalf("Open: %v", err)

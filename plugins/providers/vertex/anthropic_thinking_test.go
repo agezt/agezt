@@ -7,14 +7,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // TestEncodeAnthropicOnVertex_ThinkingEnabled (M321): a positive budget sends an
 // enabled thinking block and bumps max_tokens above the budget (Anthropic's rule).
 func TestEncodeAnthropicOnVertex_ThinkingEnabled(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hard problem"}}
-	body, err := encodeAnthropicOnVertexRequest("", msgs, nil, 1000, 4096, false, agent.Params{}, nil)
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hard problem"}}
+	body, err := encodeAnthropicOnVertexRequest("", msgs, nil, 1000, 4096, false, llm.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,9 +39,9 @@ func TestEncodeAnthropicOnVertex_ThinkingEnabled(t *testing.T) {
 // TestEncodeAnthropicOnVertex_ThinkingDisabledByDefault: budget 0 (and negative,
 // the Gemini-only "dynamic" value) omit the block — wire byte-identical.
 func TestEncodeAnthropicOnVertex_ThinkingDisabledByDefault(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
 	for _, budget := range []int{0, -1} {
-		body, _ := encodeAnthropicOnVertexRequest("", msgs, nil, 100, budget, false, agent.Params{}, nil)
+		body, _ := encodeAnthropicOnVertexRequest("", msgs, nil, 100, budget, false, llm.Params{}, nil)
 		if strings.Contains(string(body), "thinking") {
 			t.Errorf("budget %d must omit thinking: %s", budget, body)
 		}
@@ -51,8 +51,8 @@ func TestEncodeAnthropicOnVertex_ThinkingDisabledByDefault(t *testing.T) {
 // TestEncodeAnthropicOnVertex_ThinkingClampsBudget: a sub-1024 budget is clamped
 // up to Anthropic's floor.
 func TestEncodeAnthropicOnVertex_ThinkingClampsBudget(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "x"}}
-	body, _ := encodeAnthropicOnVertexRequest("", msgs, nil, 8000, 500, false, agent.Params{}, nil)
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "x"}}
+	body, _ := encodeAnthropicOnVertexRequest("", msgs, nil, 8000, 500, false, llm.Params{}, nil)
 	var req struct {
 		Thinking *struct {
 			BudgetTokens int `json:"budget_tokens"`
@@ -115,7 +115,7 @@ data: {"type":"message_stop"}
 
 `
 	var reasoning, text strings.Builder
-	resp, err := parseAnthropicSSE(strings.NewReader(sse), "claude-opus-4-7@20251031", func(c agent.Chunk) error {
+	resp, err := parseAnthropicSSE(strings.NewReader(sse), "claude-opus-4-7@20251031", func(c llm.Chunk) error {
 		reasoning.WriteString(c.ReasoningDelta)
 		text.WriteString(c.TextDelta)
 		return nil

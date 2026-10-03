@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 )
 
@@ -67,7 +68,7 @@ func NewMetadataTokenSource(baseURL string, httpClient *http.Client) *MetadataTo
 		baseURL = DefaultMetadataBaseURL
 	}
 	if httpClient == nil {
-		httpClient = http.DefaultClient
+		httpClient = netout.MetadataClient(0)
 	}
 	return &MetadataTokenSource{
 		baseURL: strings.TrimRight(baseURL, "/"),

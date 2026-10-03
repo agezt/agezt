@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -95,7 +95,7 @@ func TestRun_WellTypedArgsStillRun(t *testing.T) {
 	_, _, c2, _ := startPairWithConfig(t, runtime.Config{
 		Provider: mock.New(mock.FinalText("ok")),
 		Warden:   dockerWarden,
-		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(dockerWarden)},
+		Tools:    map[string]toolapi.Tool{"shell": shell.NewWithWarden(dockerWarden)},
 	})
 	plan, err = c2.Call(context.Background(), controlplane.CmdRun,
 		map[string]any{"intent": "x", "dry_run": true, "execution_profile": "docker"})
@@ -153,7 +153,7 @@ func TestRun_WellTypedArgsStillRun(t *testing.T) {
 
 	_, _, c3, _ := startPairWithConfig(t, runtime.Config{
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools:    map[string]agent.Tool{"remote_run": remoteRunFooterTool{wantPeer: "nodeC"}},
+		Tools:    map[string]toolapi.Tool{"remote_run": remoteRunFooterTool{wantPeer: "nodeC"}},
 	})
 	plan, err = c3.Call(context.Background(), controlplane.CmdRun,
 		map[string]any{"intent": "x", "dry_run": true, "execution_profile": "remote-agezt", "remote_peer": "nodeC"})
@@ -212,25 +212,25 @@ type remoteRunFooterTool struct {
 	wantPeer string
 }
 
-func (remoteRunFooterTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "remote_run", Description: "test remote run", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (remoteRunFooterTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "remote_run", Description: "test remote run", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
-func (t remoteRunFooterTool) Invoke(_ context.Context, input json.RawMessage) (agent.Result, error) {
+func (t remoteRunFooterTool) Invoke(_ context.Context, input json.RawMessage) (toolapi.Result, error) {
 	var in struct {
 		Peer string `json:"peer"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
-		return agent.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
 	}
 	if t.wantPeer != "" && in.Peer != t.wantPeer {
-		return agent.Result{Output: "remote_run peer = " + in.Peer + ", want " + t.wantPeer, IsError: true}, nil
+		return toolapi.Result{Output: "remote_run peer = " + in.Peer + ", want " + t.wantPeer, IsError: true}, nil
 	}
 	peer := t.wantPeer
 	if peer == "" {
 		peer = "nodeB"
 	}
-	return agent.Result{Output: "ok\n\n[peer=" + peer + " model=m correlation=run-abc]"}, nil
+	return toolapi.Result{Output: "ok\n\n[peer=" + peer + " model=m correlation=run-abc]"}, nil
 }
 
 func TestRun_RejectsExecutionProfileBlockedByPolicy(t *testing.T) {

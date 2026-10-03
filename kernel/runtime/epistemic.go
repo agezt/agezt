@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
@@ -31,7 +31,7 @@ func (d epistemicDecision) escalates() bool { return d.Action == "escalate" }
 // epistemicGate is deliberately outside the model. It treats the model's tool
 // call as a proposal, then uses tool metadata plus journaled outcomes to decide
 // whether the normal policy verdict needs human escalation.
-func (k *Kernel) epistemicGate(toolName string, cap edict.Capability, input json.RawMessage, def agent.ToolDef, bundle approvalBundle) epistemicDecision {
+func (k *Kernel) epistemicGate(toolName string, cap edict.Capability, input json.RawMessage, def toolapi.ToolDef, bundle approvalBundle) epistemicDecision {
 	if def.Name == "" {
 		if tool, ok := k.tools[toolName]; ok {
 			def = tool.Definition()
@@ -65,7 +65,7 @@ func (k *Kernel) epistemicGate(toolName string, cap edict.Capability, input json
 	if confidence < confidenceFloor(class) {
 		signals = append(signals, fmt.Sprintf("low_effect_confidence:%.2f", confidence))
 	}
-	if schemaPermissive(def.InputSchema) && class != string(agent.EffectReadOnly) {
+	if schemaPermissive(def.InputSchema) && class != string(toolapi.EffectReadOnly) {
 		signals = append(signals, "permissive_schema_effectful_tool")
 	}
 

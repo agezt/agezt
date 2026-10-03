@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 func TestOpenAIStreamingParseStreamTextAndReasoning(t *testing.T) {
@@ -20,7 +20,7 @@ func TestOpenAIStreamingParseStreamTextAndReasoning(t *testing.T) {
 	}, "\n")
 
 	var chunks []string
-	resp, err := parseStream(strings.NewReader(stream), func(c agent.Chunk) error {
+	resp, err := parseStream(strings.NewReader(stream), func(c llm.Chunk) error {
 		if c.TextDelta != "" {
 			chunks = append(chunks, "text:"+c.TextDelta)
 		}
@@ -55,7 +55,7 @@ func TestOpenAIStreamingParseStreamToolCallAndStopSignals(t *testing.T) {
 	}, "\n")
 
 	var starts, deltas, stops int
-	resp, err := parseStream(strings.NewReader(stream), func(c agent.Chunk) error {
+	resp, err := parseStream(strings.NewReader(stream), func(c llm.Chunk) error {
 		if c.ToolUseStart != nil {
 			starts++
 		}
@@ -73,7 +73,7 @@ func TestOpenAIStreamingParseStreamToolCallAndStopSignals(t *testing.T) {
 	if starts != 1 || deltas != 2 || stops != 1 {
 		t.Fatalf("chunk counts = %d/%d/%d", starts, deltas, stops)
 	}
-	if resp.StopReason != agent.StopToolUse || len(resp.Message.ToolCalls) != 1 {
+	if resp.StopReason != llm.StopToolUse || len(resp.Message.ToolCalls) != 1 {
 		t.Fatalf("response = %+v", resp)
 	}
 	if string(resp.Message.ToolCalls[0].Input) != `{"city":"izmir"}` {
@@ -84,7 +84,7 @@ func TestOpenAIStreamingParseStreamToolCallAndStopSignals(t *testing.T) {
 func TestOpenAIStreamingParseStreamErrorFromCallback(t *testing.T) {
 	stream := `data: {"choices":[{"index":0,"delta":{"content":"hello"}}]}` + "\n"
 	boom := errors.New("client abort")
-	_, err := parseStream(strings.NewReader(stream), func(c agent.Chunk) error { return boom })
+	_, err := parseStream(strings.NewReader(stream), func(c llm.Chunk) error { return boom })
 	if err == nil || !strings.Contains(err.Error(), "client abort") {
 		t.Fatalf("expected callback error, got %v", err)
 	}
@@ -98,30 +98,30 @@ func TestOpenAIStreamingParseStreamMissingDoneAndBadFrames(t *testing.T) {
 		``, // empty line ignored
 		// EOF (no [DONE])
 	}, "\n")
-	resp, err := parseStream(strings.NewReader(stream), func(c agent.Chunk) error { return nil })
+	resp, err := parseStream(strings.NewReader(stream), func(c llm.Chunk) error { return nil })
 	if err != nil {
 		t.Fatalf("parseStream EOF: %v", err)
 	}
 	if resp.Message.Content != "only text" {
 		t.Fatalf("EOF assemble content = %q", resp.Message.Content)
 	}
-	if resp.StopReason != agent.StopEndTurn {
+	if resp.StopReason != llm.StopEndTurn {
 		t.Fatalf("EOF stop = %v", resp.StopReason)
 	}
 }
 
 func TestOpenAIStreamingParseStreamStopVariants(t *testing.T) {
-	cases := map[string]agent.StopReason{
-		"stop":          agent.StopEndTurn,
-		"length":        agent.StopMaxTokens,
-		"tool_calls":    agent.StopToolUse,
-		"function_call": agent.StopToolUse,
-		"unsupported":   agent.StopEndTurn,
+	cases := map[string]llm.StopReason{
+		"stop":          llm.StopEndTurn,
+		"length":        llm.StopMaxTokens,
+		"tool_calls":    llm.StopToolUse,
+		"function_call": llm.StopToolUse,
+		"unsupported":   llm.StopEndTurn,
 	}
 	for finish, want := range cases {
 		t.Run(finish, func(t *testing.T) {
 			stream := `data: {"choices":[{"index":0,"delta":{},"finish_reason":"` + finish + `"}]}` + "\n" + `data: [DONE]`
-			resp, err := parseStream(strings.NewReader(stream), func(c agent.Chunk) error { return nil })
+			resp, err := parseStream(strings.NewReader(stream), func(c llm.Chunk) error { return nil })
 			if err != nil {
 				t.Fatalf("parseStream: %v", err)
 			}
@@ -135,11 +135,11 @@ func TestOpenAIStreamingParseStreamStopVariants(t *testing.T) {
 func TestOpenAIStreamingAssembleStopFallbackForTools(t *testing.T) {
 	// finish_reason missing but tool calls present — fall back to StopToolUse.
 	stream := `data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"lookup","arguments":"{}"}}]}}]}` + "\n" + `data: [DONE]`
-	resp, err := parseStream(strings.NewReader(stream), func(c agent.Chunk) error { return nil })
+	resp, err := parseStream(strings.NewReader(stream), func(c llm.Chunk) error { return nil })
 	if err != nil {
 		t.Fatalf("parseStream: %v", err)
 	}
-	if resp.StopReason != agent.StopToolUse {
+	if resp.StopReason != llm.StopToolUse {
 		t.Fatalf("tool fallback stop = %v", resp.StopReason)
 	}
 }
@@ -172,10 +172,10 @@ func TestOpenAIProviderIdentityAndErrors(t *testing.T) {
 }
 
 func TestOpenAICompleteValidation(t *testing.T) {
-	if _, err := (&Provider{}).Complete(t.Context(), agent.CompletionRequest{Model: "m"}); !errors.Is(err, ErrNoAPIKey) {
+	if _, err := (&Provider{}).Complete(t.Context(), llm.CompletionRequest{Model: "m"}); !errors.Is(err, ErrNoAPIKey) {
 		t.Fatalf("missing key = %v", err)
 	}
-	if _, err := (&Provider{APIKey: "k"}).Complete(t.Context(), agent.CompletionRequest{}); !errors.Is(err, ErrNoModel) {
+	if _, err := (&Provider{APIKey: "k"}).Complete(t.Context(), llm.CompletionRequest{}); !errors.Is(err, ErrNoModel) {
 		t.Fatalf("missing model = %v", err)
 	}
 }

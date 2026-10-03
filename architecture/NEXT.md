@@ -1,0 +1,480 @@
+# NEXT — handoff for the next coding agent
+
+> **Owner update, 2026-10-03:** continue directly on the shared `main`, without
+> new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
+> W2.2a is complete; the next open item is §4.2 (agent-profile resume).
+> Read this handoff, verify the current state, then measure the next item's premise
+> before changing code. The original handoff contained a stale claim about channels:
+> they already used the vision sidecar; the API and channel rejection audit differed.
+
+---
+
+## 1. What this project is and what we are doing
+
+AGEZT is a Go daemon (`cmd/agezt`) plus CLI (`cmd/agt`) plus a React console (`frontend/`, embedded via
+`go:embed` in `kernel/webui/dist`). It runs governed AI agents: providers, tools, a policy engine
+(Edict), a hash-chained journal, memory, channels, workflows and schedules.
+
+The owner asked for a **clean-architecture redesign**, done as a **module-by-module strangler** on
+`main`. There is no rewrite branch, and `main` stays shippable after every PR.
+
+Authoritative documents (read in this order):
+
+| File | What it is |
+|---|---|
+| `architecture/20-target-architecture.md` | The target: layers L0–L7, three pipelines (Operation `app.Dispatch`, Run `runs.Start`, Tool `tools.Invoke`), modules |
+| `architecture/21-migration-roadmap.md` | Waves W0–W5, the PR-by-PR plan, **§1 working rules**, **§5 owner decisions**. Rows marked ✅ are done; each records what was measured and what changed |
+| `architecture/00-README.md` | Codemap index; **§9 is the findings register** (open defects; ✅ = fixed) |
+| `architecture/01…12-*.md` | Codemap of the current system, per area. Update the relevant one in the same PR that changes the structure it describes |
+| `CHANGELOG/unreleased/current.md` | User-facing changelog. Security fixes go under `### Security` |
+
+Layer map in code: `kernel/contract/*` (L1, stdlib-only contracts), `kernel/platform/*` (L2: `filestore`,
+`netout`, `sandbox`), then modules, `kernel/app` (L4, not created yet), adapters, `plugins/` (L6), `cmd/` (L7).
+`tools/archcheck/layers.json` places every package; the allowlists only shrink.
+
+---
+
+## 2. Where things stand (2026-10-03)
+
+### 2.1 Consolidated delivery and original stack
+
+**Delivery:** #612 contains the entire original stack and the W2.2a follow-up.
+Merge it with history preserved, then close the superseded PRs and continue on `main`.
+The only commits unique to earlier branch heads are identical cherry-picks of the
+`TestMarkInstanceDead` repeatability fix; the top branch includes that fix too.
+The table below is historical, not an instruction to recreate a stack.
+
+| PR | Branch | Content |
+|---|---|---|
+| #595 | `arch/w0-archcheck` | codemap 00–12, target 20, roadmap 21, `tools/archcheck` (W0.1–W0.2) |
+| #596 | `fix/w0-correctness` | W0.3–W0.5 security/correctness P0s, dead code |
+| #597 | `arch/w1-contracts` | W1.1 contracts move to `kernel/contract/{llm,toolapi,channelapi}` |
+| #598 | `arch/w1-repoint` | W1.2 importers use contracts (archcheck 196 → 145) |
+| #599 | `arch/w1-store` | W1.3 `platform/filestore`, vault/settings merge-on-save under a cross-process lock |
+| #600 | `arch/w1-netout` | W1.4 `platform/netout` (Egress / OperatorClient / MetadataClient) |
+| #606 | `arch/w1-sandbox` | W1.5 `platform/sandbox`, no child inherits daemon secrets |
+| #607 | `arch/w1-eventlog` | W1.6a event-kind registry closed (`TestKindRegistryIsClosed`) |
+| #608 | `arch/w1-journal-recover` | W1.6c corrupt journal record quarantined, not fatal |
+| #609 | `arch/w1-approvals` | W1.7 approvals re-ask after restart (pinned by test), not persisted |
+| #610 | `arch/w1-config` | W1.8 configcenter: restart persistence, secrets in vault, lock fix, `config.access` journaled |
+| #611 | `arch/w2-ingress` | W2.0 a direct `agt run --agent` is bound by the whole profile (`WithAgentProfile`) |
+| #612 | `arch/w2-dispatch` | W2.1a dispatch journals every non-`ReadOnly` op (`op.invoked/completed/failed`) |
+
+Every branch from `fix/w0-correctness` on also carries the same commit
+`test(channel): TestMarkInstanceDead survives -count=N` (cherry-picked down the stack, see §5.3).
+
+### 2.2 CI state when this was written
+
+- All Go gates pass locally on `arch/w2-dispatch`.
+- `secrets (gitleaks)` failed on #612 because of a synthetic key literal in a test. Fixed by rewriting the
+  branch (the key is now joined at run time), and gitleaks is clean locally.
+- `race-depth (linux, cgo)` failed on #596–#612 for two reasons:
+  1. `TestMarkInstanceDead` was not repeatable under `-count=20`. **Fixed** on every branch.
+  2. `kernel/controlplane` hit the 10-minute `go test` timeout under `-race -count=20`. On #595 it took
+     487 s of 600 s, and locally the package takes the same 37–52 s with or without these PRs. The likely
+     cause is runner contention: about 13 stacked PRs run race-depth at once on shared self-hosted runners.
+     **Not a code bug as far as measured.** If it still fails, rerun that one job when the runners are quiet
+     (`gh run rerun <run-id> --failed`). If it fails alone too, report it to the owner. Do not raise the
+     timeout or cut the stress count without asking.
+
+---
+
+## 3. First thing to do in a new session
+
+1. `git status --short`, `git fetch origin`, and `gh pr view 612` — confirm delivery
+   and preserve any concurrent work. If delivery is pending, finish its checks and merge.
+2. On the shared checkout, use `main` and fast-forward from `origin/main` when clean.
+   **Do not create or switch to another task branch.** The owner's explicit instruction
+   supersedes the original branch-per-PR recipe.
+3. Read the authoritative target and roadmap, then start the first open item in §4.
+4. Use isolated temporary `AGEZT_HOME` directories for runtime verification; never the
+   owner's real state or password-protected `.dev-home` console.
+5. Read `MEMORY.md` in the Claude memory directory if available
+   (`~/.claude/projects/D--Codebox-PROJECTS-AGEZT/memory/`), especially
+   `architecture-redesign-2026-10.md` for the standing invariants.
+
+---
+
+## 4. The next work items, in recommended order
+
+The roadmap lists W2.1 (op framework) before W2.2 (runs). I recommend doing the **defect-driven** slices
+first, because each one fixes something real and lands safely. The framework work (4.4) has no measured
+defect behind it, and it gets easier once 4.1–4.3 have reduced the number of side paths. W2 items are
+independent of each other, so this reordering is within the plan. Say so in the PR body.
+
+**Rule for every item: measure the premise before building.** Twice the roadmap's claim was wrong:
+approvals were not lost on restart, and the journal index was not urgent. Once the real defect was the
+opposite of the claim (W2.0). Write the measurement into the roadmap row.
+
+### 4.1 ✅ W2.2a — shared image admission (completed)
+
+**Measured result:** REST/OpenAI rejected even with a vision sidecar; channels already captioned, contrary to the original claim below. Channels lacked correlated rejection audit and accepted empty captions. `Kernel.AdmitImages` now serves all three adapters, preserves channel artifacts/captions, consumes raw images after captioning, and returns the existing control-plane rejection message. Actual adapter tests failed on old code; four separate mutations prove sidecar use, raw-image removal, rejection correlation and model precedence.
+
+The following is the original task context, retained for the measurement trail.
+
+**Defect (measured in W2.0):** a run with images on a non-vision model behaves differently depending on
+where it came from:
+- **Control plane** (`kernel/controlplane/server_handle_run.go`, the console and `agt run`): asks a vision
+  model to describe the images (`k.DescribeImages`, M821) and continues.
+- **REST/OpenAI** (`cmd/agezt/api_engine.go:63`) and **every channel** (`cmd/agezt/main_channels_handler.go:33`):
+  hard-reject via `visionGate` → `gateVisionWith` (`cmd/agezt/main_channels.go:18`).
+
+So a photo sent over Telegram/WhatsApp to a daemon whose model lacks vision is refused, while the same
+photo in the console works.
+
+**Do:**
+- Put one function in `kernel/runtime`, e.g. `(*Kernel).AdmitImages(ctx, corr, model, intent, images)`.
+  It returns the new intent, the remaining images and an error, and it performs the confirm-or-caption-or-reject
+  logic plus the `governor.capability` / `KindCapabilityRejected` event the control plane emits today.
+- Call it from all three sites, and delete `visionGate` / `gateVisionWith` if nothing else uses them.
+  Check `cmd/agezt/coverage_media_test.go`, which tests them.
+
+**Tests:** a channel-style and a REST-style run with an image on a non-vision model, plus a configured
+vision sidecar, must caption (red on old code). With no sidecar it must still reject with the same message.
+
+**Note:** this is the first slice of the roadmap's `RunRequest`/`runs.Start`, so name it with that in mind.
+
+### 4.2 W2.2b — named agents with a soul or model can't resume after a restart (verify first)
+
+**Claim** (findings register 9.2; `architecture/04-agent-runtime.md` gotcha 6):
+- `buildResumeTicket` (`kernel/runtime/resume.go:96–127`) marks a ticket `Resumable=false` whenever
+  `systemFromCtx` or `modelFromCtx` is set.
+- `WithAgentProfile` sets both for any agent with a soul or model, so such runs are **quarantined at boot**
+  instead of resumed, even though the resumer (`cmd/agezt/main_standing_resume.go`) re-applies
+  `WithAgentProfile` and would rebuild them exactly.
+
+**Measure:** write the test first. Start a run AS an agent with a soul, kill it mid-run (the resume tests in
+`kernel/runtime` show how), reopen, and assert that it resumes. Expect red.
+
+**Fix direction (target §3.2 step 5):** the ticket stores the *agent slug* plus the *explicit per-run
+overrides*, not the resolved context. A system/model that came from the profile is reconstructible and
+must not block resume. Only a per-run `--system`/`--model`/`--tools` that the ticket does not record
+should block it, or record those too.
+
+**Careful:** the resume path is crash-loop-guarded (attempt counter fsynced before dispatch). Don't weaken
+that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re-asks.
+
+### 4.3 W2.3 — tool side paths that skip policy or audit (verify each one)
+
+The findings register (9.1, "Side paths skip governance/audit") lists:
+1. workflow tool nodes journal no policy/tool events;
+2. Council grounding calls `web_search` without a policy check;
+3. the Conductor verifier executes model-written code without a `code.exec` policy decision;
+4. `toolexec` emits no `tool.result` on deny.
+
+These are "read from code, not runtime-verified". **Verify each with a test** that drives the path and
+inspects the journal. The fix target is one invoker (target §3.3, `app/tools.Invoke`): lookup → policy
+decision (Edict, trust ceiling, agent tool policy) → journal `tool.call`/`tool.result` → execute. Do it
+in slices, one side path per PR or one invoker PR plus re-pointing PRs.
+
+**Constraints:**
+- Default-allow posture: every capability is LevelAllow by default and restriction is opt-out. Don't add new denials.
+- Tool capability must be mapped: an unmapped tool name means an unknown capability, which Edict default-denies.
+
+### 4.4 W2.x — File Manager and rollback restore write files with no op, policy or journal
+
+Findings register 9.1: the web console's File Manager and rollback-restore write the filesystem directly
+from the web UI layer: `kernel/webui/files_route.go` and `kernel/webui/rollback.go`
+(+ `rollback_helpers.go`). Confirm with a test that inspects the journal. Now that W2.1a exists, the fix is
+to make them control-plane ops: then dispatch journals them automatically (op audit), and they can take
+a policy check. The web UI then calls the op instead of touching the disk.
+
+### 4.5 W2.1b — the op framework proper (transport independence)
+
+**Today's state, after W2.1a:**
+- The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
+  resolve → tenant authz → tenant routing → stream mode → **audit**.
+- Every handler, though, writes straight to `net.Conn` (`s.writeResp(conn, …)`), so nothing outside the
+  socket protocol can reuse them.
+- The web UI proxies to ops through a fixed 198-entry route table, and REST/OpenAI/agentgw are separate
+  hand-written surfaces.
+
+**Do (roadmap W2.1, then W2.4…n):**
+- Introduce `kernel/app` with `OpSpec{Name, Input type, Authz, Tenancy, Stream, ReadOnly}` and handlers of
+  the shape `func(ctx, Input) (Output, error)`.
+- Make the control plane an *adapter* that decodes `Request.Args` into `Input` and encodes the result.
+- Pilot the domain `status`/`version` (read-only, low risk), then migrate domains in the order of
+  roadmap §3, **one domain per PR, deleting the old handler in the same PR**.
+- Benchmark dispatch overhead (budget < 50 µs/op excluding audit I/O).
+
+**Invariants to keep:** `dispatch_registry_test.go` (registry ↔ protocol constants 1:1),
+`tenant_auth_test.go`, `TestRegistry_TenantAllowedImpliesTenantRouted`, and the op-audit tests
+(`dispatch_audit_test.go`). A new read-only op must be marked `ReadOnly` or it gets journaled on every
+console poll.
+
+### 4.6 Later (W3–W5)
+
+See roadmap §2 W3–W5: dissolve `runtime.Kernel` into modules in increasing-coupling order, unify
+triggers (W4.1, cadence system tasks through policy — owner-approved), channel supervisor and
+conversation store, email DKIM/SPF, self-update signing, generated OpenAPI/SDKs, and allowlists → 0.
+
+Cheap open findings you can fold in when you touch that area (register §9):
+- seat `"container"` never maps to the container execution profile;
+- `shell` `timeout_ms` is uncapped;
+- a changed operator-profile facet text creates a second active record;
+- artifact GC can delete blobs still referenced by a journal `raw_ref`;
+- `reranktool` can panic on a short `scores` slice;
+- the boot banner says 6 guardians, but 7 ship.
+
+---
+
+## 5. How to work here (procedures that worked)
+
+### 5.1 Definition of done for one PR
+
+1. **One concern.** Moves and rewrites are separate PRs, and a move uses type aliases so importers don't churn.
+2. **A regression test, mutation-verified.** Show it red against the old code. Do that by restoring the
+   file from a copy (`cp f $TEMP/f.bak; <break it>; go test …; cp $TEMP/f.bak f`). **Never use
+   `git checkout -- f`**: it also wipes your uncommitted fix. Break each guarantee separately and list the
+   mutations in the PR body.
+3. **Run the source package's tests**, not only the new package's. An extraction once shipped red that way.
+4. **Gates, all green** (exact commands in §5.2).
+5. **Docs in the same PR:**
+   - the codemap file for the area;
+   - the roadmap row (✅ plus what was measured and what changed, or ⏸ deferred with the numbers);
+   - the findings register row (✅ when fixed);
+   - `CHANGELOG/unreleased/current.md` for anything a user or operator would notice.
+6. **Commits:** the code commit first, then a separate `docs(arch): record <wave> — …` commit. The message
+   explains *why*, names the measured defect, and says how the test was verified.
+7. **PR body:** a "Stacked on #N" line if stacked, then *What was measured*, *Change*, *Verification*
+   (tests + mutations + gates), *Docs*, and *Not in this PR*.
+8. **Owner override (2026-10-03):** merge the validated stack into `main`, then work directly in the shared `main` checkout. Do not create another task branch.
+
+### 5.2 Gate commands (run from repo root; Windows Git Bash works)
+
+```sh
+go build ./... && go vet ./...
+GOMAXPROCS=4 go test ./... -count=1            # cap CPU: the owner's machine has 32 cores, don't peg them
+git ls-files '*.go' | tr -d '\r' | xargs gofmt -l   # must print nothing (tr strips CRLF on Windows)
+go run ./tools/archcheck          # ratchet; `-update` only to TIGHTEN after removing edges
+go run ./tools/deadcodecheck
+go run ./tools/depscheck
+go run ./tools/docclaimscheck
+go run ./tools/changelog-lint
+go run ./tools/structure-md -check -out .project/STRUCTURE.generated   # after adding/renaming a package or doc.go
+gitleaks detect --no-banner --redact -s . -b .gitleaks-baseline --log-opts="main..HEAD"   # CI scans ALL commits
+cd frontend && npm test && npm run build      # only when frontend/ is touched; npm, not pnpm
+```
+
+`make check` runs most of these. On Windows, `go vet ./...` catches copylocks that `go test` doesn't.
+
+### 5.3 Historical: a fix that belonged to an earlier PR in the stack
+
+The owner has retired the branch stack. The recipe below is retained as historical
+context; subsequent work uses the shared `main`.
+
+Commit it on the **earliest** branch that contains the bug, push, then cherry-pick the same commit onto
+every later branch in order and push each one:
+
+```sh
+for b in <later branches in stack order>; do
+  git checkout -q $b && git cherry-pick <sha> >/dev/null && git push -q origin $b || { echo "stop at $b"; break; }
+done
+```
+
+Check that each branch's local head equals `origin/<branch>` before picking (the loop in the last
+session silently did nothing the first time). Rewrite history (`reset --soft` + recommit +
+`push --force-with-lease`) **only on your own unmerged PR branch**, and only when the bad content must
+leave history, as with a gitleaks hit.
+
+### 5.4 Reading CI logs
+
+```sh
+gh pr checks <n>
+gh api --allow-escape-sequences repos/agezt/agezt/actions/jobs/<job-id>/logs | sed 's/\x1b\[[0-9;]*m//g' > $TEMP/job.log
+```
+
+`gh run view --log-failed` refuses while sibling jobs still run; the jobs API works.
+
+### 5.5 Linux-only behaviour from Windows
+
+The Ubuntu WSL distro has no Go toolchain. Cross-compile the test binary and run it there:
+
+```sh
+GOOS=linux go test -c -o $TEMP/x.test ./kernel/<pkg>
+cd $TEMP && wsl.exe -d Ubuntu -e sh -c './x.test -test.run <Name>'
+```
+
+Tests that build helpers with `go` fail there, so filter them out with `-test.run`. Tests that need
+`os.Args[0]` must use `os.Executable()`.
+
+### 5.6 Measuring "which handlers do X without Y" (call graph)
+
+A whole-program VTA call graph over `./cmd/agezt` takes about 6 s. The source of the tool that found the
+W2.1a audit gap is in the appendix. Put it in a scratch directory outside the repo with its own `go.mod`
+(`require golang.org/x/tools v0.47.0`), then `go mod tidy && go run . <repo-path>`.
+
+**Cut traversal at the module boundary**, or `sync.Once` closures make every handler reach every sink.
+It inspects handlers only. Since W2.1a, dispatch journals ops above the handler, so the tool still
+reports those 54 handlers; that's expected. Treat the output as evidence, not truth: confirm the interesting cases with a runtime probe test, then
+delete the probe.
+
+---
+
+## 6. Gotchas that cost time before
+
+- **Stale documents:** security reports, `docs/*AUDIT*` and even this roadmap go stale in weeks.
+  Re-verify against the source before acting. **Run** CI gates; don't trust a report about them.
+- **The editor's LSP diagnostics are routinely stale** after branch switches and big edits. Trust
+  `go build` / `go test`.
+- **Bash heredocs swallow `\n` inside Python string literals**, which turns Go `"\n"` into a real newline
+  and breaks the build. Use the Edit tool for Go strings that contain escapes.
+- **CRLF:** strip `\r` from Windows-produced file lists before `xargs`. Git warns "LF will be replaced by
+  CRLF" on docs; that's harmless.
+- **Synthetic secrets in tests** (anything key-shaped) trip gitleaks and GitHub push protection. Build them
+  at run time from parts (`strings.Join([]string{"abc", "def"}, "")`). Never click an "unblock secret" URL.
+- **Package-global state in tests** must be fully reset in `t.Cleanup`. race-depth runs `-count=20`.
+- **A test that turns red after a security fix often pinned the vulnerable behaviour.** Rewrite it; don't
+  revert the fix. Check sibling packages for the same pin.
+- **"Test-only" is not "dead":** `deadcodecheck` runs without `-test`, so guards look unreachable. Ask what
+  the test asserts before deleting.
+- **New `AGEZT_*` env vars** read in `cmd/agezt` must be added to the control plane's `configEnvVars`
+  (alphabetical), or a guard test fails.
+- **New event kinds** go in `kernel/event/kinds.go` as constants and must be emitted or consumed in
+  production code (`TestKindRegistryIsClosed`). Never `event.Kind("literal")`.
+- **New control-plane ops:** register in the domain's `register…Commands`, add the protocol constant (the
+  1:1 test), set `TenantAllowed` + `TenantRouted` only for tenant-safe ops, and set **`ReadOnly`** for reads.
+- **A new way of running AS an agent** must call `runtime.WithAgentProfile` and layer explicit per-run flags
+  on top. Never copy profile fields by hand (the W2.0 bug).
+- **HTTP clients** come from `kernel/platform/netout`, child processes from `kernel/platform/sandbox`, store
+  files from `kernel/platform/filestore`. archcheck's forbidden-call ratchet rejects bare
+  `http.Client`/`exec.Command`/`os.WriteFile` elsewhere.
+- **Query-string args proxied by the web UI are text:** numeric keys must be listed in `numericQueryArgs`
+  (`kernel/webui/webui_proxy.go`).
+
+---
+
+## 7. Owner laws and decisions (don't relitigate)
+
+- **Strategy:** strangler; layers under `kernel/`; storage stays JSON files + journal (no SQLite); dead
+  `contract/gen` halves deleted; cadence system tasks go through policy (W4.1).
+- **5.5′:** approvals are not persisted; a resumed run re-asks.
+- **5.6:** a corrupt mid-journal record is quarantined and the daemon continues.
+- **W1.8:** do not merge `settings` and configcenter; that's a product decision for the owner.
+- **Default-allow:** capabilities are allowed by default; restriction is opt-out. Hard denies, SSRF guards,
+  budgets and explicit HITL stay.
+- **Rate limiting:** only the token-free `/hooks` path is throttled. Don't add throttles to authenticated
+  run endpoints without asking.
+- **`code_exec` is deliberately max-capability** (network on). Don't tighten it without asking; secret
+  scrubbing, isolation and audit are non-negotiable.
+- **No default provider or model** ships in the daemon. Models come only via routing/chains.
+- **Boot resilience:** recoverable config mismatches warn and degrade; they never fail boot.
+- **Never live-verify against the owner's real `~/.agezt`.** Use an isolated `AGEZT_HOME` in a temp dir.
+- **The `.dev-home` console has a password.** Never fetch or enter it, and don't automate the browser
+  against it. Verify UI via vitest, or ask the owner.
+- **Ask the owner** (one question, recommended option first) only for real product decisions. Otherwise
+  pick the conventional option, say so, and proceed.
+- The owner writes in Turkish. Answer in Turkish when they write Turkish; code, commits, PRs and docs are
+  English.
+
+---
+
+## Appendix — call-graph audit tool (`main.go`)
+
+```go
+package main
+
+// Usage: go run . <path-to-agezt-repo>
+// Lists control-plane handlers that reach a persistent write but never a journal publish.
+import (
+	"fmt"
+	"go/types"
+	"os"
+	"sort"
+	"strings"
+
+	"golang.org/x/tools/go/callgraph"
+	"golang.org/x/tools/go/callgraph/cha"
+	"golang.org/x/tools/go/callgraph/vta"
+	"golang.org/x/tools/go/packages"
+	"golang.org/x/tools/go/ssa"
+	"golang.org/x/tools/go/ssa/ssautil"
+)
+
+const mod = "github.com/agezt/agezt/"
+
+func main() {
+	pkgs, err := packages.Load(&packages.Config{Mode: packages.LoadAllSyntax, Dir: os.Args[1]}, "./cmd/agezt")
+	if err != nil {
+		panic(err)
+	}
+	prog, _ := ssautil.AllPackages(pkgs, ssa.InstantiateGenerics)
+	prog.Build()
+	all := ssautil.AllFunctions(prog)
+	cg := vta.CallGraph(all, cha.CallGraph(prog))
+	cg.DeleteSyntheticNodes()
+
+	pkgOf := func(f *ssa.Function) string {
+		if f.Pkg == nil {
+			return ""
+		}
+		return f.Pkg.Pkg.Path()
+	}
+	isPublish := func(f *ssa.Function) bool { // the "Y" — change these predicates per question
+		p := pkgOf(f)
+		return (p == mod+"kernel/bus" && strings.HasPrefix(f.Name(), "Publish")) ||
+			(p == mod+"kernel/journal" && f.Name() == "Append")
+	}
+	isWrite := func(f *ssa.Function) bool { // the "X"
+		switch p, n := pkgOf(f), f.Name(); p {
+		case "os":
+			return n == "WriteFile" || n == "Rename" || n == "Remove" || n == "RemoveAll" || n == "Create" || n == "MkdirAll"
+		case mod + "kernel/platform/filestore":
+			return n == "Save"
+		}
+		return false
+	}
+
+	var rows []string
+	for fn := range all {
+		if pkgOf(fn) != mod+"kernel/controlplane" || !strings.HasPrefix(fn.Name(), "handle") {
+			continue
+		}
+		recv := fn.Signature.Recv()
+		if recv == nil {
+			continue
+		}
+		if pt, ok := recv.Type().(*types.Pointer); !ok || pt.Elem().(*types.Named).Obj().Name() != "Server" {
+			continue
+		}
+		start := cg.Nodes[fn]
+		if start == nil {
+			continue
+		}
+		parent := map[*callgraph.Node]*callgraph.Node{start: nil}
+		queue := []*callgraph.Node{start}
+		var writes, pub bool
+		var path string
+		for len(queue) > 0 {
+			n := queue[0]
+			queue = queue[1:]
+			if n != start {
+				pub = pub || isPublish(n.Func)
+				if !writes && isWrite(n.Func) {
+					writes = true
+					var p []string
+					for c := n; c != nil; c = parent[c] {
+						p = append([]string{c.Func.Name()}, p...)
+					}
+					path = strings.Join(p, " -> ")
+				}
+				if !strings.HasPrefix(pkgOf(n.Func), mod) {
+					continue // cut at the module boundary: stdlib/third-party are sinks only
+				}
+			}
+			for _, e := range n.Out {
+				if _, ok := parent[e.Callee]; !ok {
+					parent[e.Callee] = n
+					queue = append(queue, e.Callee)
+				}
+			}
+		}
+		if writes && !pub {
+			rows = append(rows, fn.Name()+"\n    "+path)
+		}
+	}
+	sort.Strings(rows)
+	fmt.Println(strings.Join(rows, "\n"))
+	fmt.Println(len(rows), "handlers write without publishing")
+}
+```

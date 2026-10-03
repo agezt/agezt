@@ -129,3 +129,27 @@ func mustWrite(t *testing.T, path, body string) {
 		t.Fatalf("write %s: %v", path, err)
 	}
 }
+
+// The deliverables describe the branch that wrote them. After that branch
+// merged, measuring them against any other branch (or against main itself,
+// where the range is empty) reported every branch-relative count as a drift,
+// and the gate went red on main and on every unrelated PR. Only a branch that
+// adds or edits a deliverable is checked.
+func TestTouchesDeliverables(t *testing.T) {
+	docs := []doc{{path: ".project/REVIEW-MAP.md"}, {path: ".project/PR-BODY.md"}}
+	cases := []struct {
+		name    string
+		changed []string
+		want    bool
+	}{
+		{"unrelated branch", []string{"tools/archcheck/main.go", "Makefile"}, false},
+		{"empty range (push to main)", nil, false},
+		{"edits a deliverable", []string{"kernel/x.go", ".project/REVIEW-MAP.md"}, true},
+		{"same basename elsewhere is not a deliverable", []string{"docs/REVIEW-MAP.md"}, false},
+	}
+	for _, c := range cases {
+		if got := touchesDeliverables(c.changed, docs); got != c.want {
+			t.Errorf("%s: touchesDeliverables = %v, want %v", c.name, got, c.want)
+		}
+	}
+}

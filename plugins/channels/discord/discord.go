@@ -36,6 +36,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -112,7 +113,7 @@ func New(cfg Config) *Channel {
 	}
 	client := cfg.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		client = netout.OperatorClient(30 * time.Second)
 	}
 	var pub ed25519.PublicKey
 	if b, err := hex.DecodeString(cfg.PublicKey); err == nil && len(b) == ed25519.PublicKeySize {

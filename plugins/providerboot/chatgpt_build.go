@@ -11,6 +11,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/chatgptauth"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/plugins/providers/openairesponses"
 )
@@ -35,7 +36,7 @@ func newChatGPTProvider(mgr *chatgptauth.Manager, model string, set chatgptModel
 
 // buildChatGPTPrimary builds the ChatGPT provider for use as the primary
 // (AGEZT_PROVIDER=chatgpt). ok is false when not signed in.
-func buildChatGPTPrimary(baseDir, modelOverride string) (prov agent.Provider, desc string, auth governor.AuthMode, ok bool) {
+func buildChatGPTPrimary(baseDir, modelOverride string) (prov llm.Provider, desc string, auth governor.AuthMode, ok bool) {
 	mgr := chatgptauth.NewManager(baseDir)
 	if !mgr.HasTokens() {
 		return nil, "", "", false

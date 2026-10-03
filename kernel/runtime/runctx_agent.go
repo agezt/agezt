@@ -10,20 +10,28 @@ package runtime
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/agent"
+	"strings"
+
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/roster"
-	"strings"
 )
 
-// application (its model resolves before the vision gate).
+// WithAgentProfile binds a run to a roster profile (M790): its system prompt
+// (soul + standing instructions + tasks), model and ordered fallbacks, tool
+// allow/deny lists, trust ceiling, lifecycle, retry and noise policy, config
+// overrides, memory scope, workdir, and ledger identity. Every way of running
+// an agent goes through it, so no entry point grants an agent more than its
+// profile does. The per-run cost ceiling is NOT applied here — callers layer
+// it so their own explicit budget wins; callers likewise layer explicit
+// per-run model/system overrides on top.
 func WithAgentProfile(ctx context.Context, p roster.Profile) context.Context {
 	noise := effectiveAgentNoisePolicy(p)
 	if p.System {
 		ctx = context.WithValue(ctx, ctxKeySystemAgent, true)
 	}
-	if sys := agentProfileSystem(p); sys != "" {
+	if sys := AgentProfileSystem(p); sys != "" {
 		ctx = WithSystem(ctx, sys)
 	}
 	if p.Lifecycle.Mode != "" || p.Lifecycle.RetireOnComplete {
@@ -74,7 +82,7 @@ func WithAgentProfile(ctx context.Context, p roster.Profile) context.Context {
 	ctx = memory.WithScope(ctx, scope)
 	// The agent's working directory (M792): file/shell tools operate inside
 	// this workspace subdirectory. Escape-proofed by the setter.
-	ctx = agent.WithWorkdir(ctx, p.Workdir)
+	ctx = toolapi.WithWorkdir(ctx, p.Workdir)
 	// And its identity + daily ceiling for the Governor's ledger (M793).
 	return WithAgentIdent(ctx, p.Slug, p.MaxDailyMc)
 }
@@ -129,9 +137,9 @@ func WithAgentIdent(ctx context.Context, slug string, dailyMc int64) context.Con
 		return ctx
 	}
 	// Also stamp the agent slug under the kernel/agent key so provenance-aware
-	// tools (memory, M851) can read who is acting via agent.AgentFromContext —
+	// tools (memory, M851) can read who is acting via toolapi.AgentFromContext —
 	// the runtime key here is private and additionally carries the daily ceiling.
-	ctx = agent.WithAgent(ctx, slug)
+	ctx = toolapi.WithAgent(ctx, slug)
 	return context.WithValue(ctx, ctxKeyAgentIdent, agentIdent{slug: slug, dailyMc: dailyMc})
 }
 

@@ -16,13 +16,13 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
-// CompleteStream implements agent.StreamingProvider for Bedrock's
+// CompleteStream implements llm.StreamingProvider for Bedrock's
 // `invoke-with-response-stream` endpoint.
 //
 // **Wire format (the new bit):** AWS uses its own binary framing —
@@ -54,7 +54,7 @@ import (
 // would reject valid streams. If a future incident shows malformed
 // frames in the wild, add validation behind a flag rather than as a
 // hard fail.
-func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionRequest, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func (p *Provider) CompleteStream(ctx context.Context, req llm.CompletionRequest, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	if !p.hasAuth() {
 		return nil, ErrNoBearerToken
 	}

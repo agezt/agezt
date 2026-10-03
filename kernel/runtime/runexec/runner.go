@@ -8,14 +8,16 @@ package runexec
 
 import (
 	"context"
+	"time"
+
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/resume"
 	"github.com/agezt/agezt/kernel/skill"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/kernel/worldmodel"
-	"time"
 )
 
 // Runner owns the kernel's run engine. The Runner speaks to
@@ -149,8 +151,8 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// (RunAssured/RunWithRetry) or the resumer already created one for this corr.
 	var ownedHere bool
 	runCtx, ownedHere = r.k.ClaimResumeTicket(runCtx, corr, intent, resume.KindRun, 0)
-	var resumeCheckpoint func(int, []agent.Message)
-	var resumePriorMessages []agent.Message
+	var resumeCheckpoint func(int, []llm.Message)
+	var resumePriorMessages []llm.Message
 	var resumeStartIter int
 	if kind, owned := r.k.ResumeOwnedKindFromCtx(runCtx); ownedHere || (owned && kind == resume.KindRun) {
 		resumeCheckpoint = r.k.ResumeCheckpointFn(corr)

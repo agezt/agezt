@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
 )
@@ -288,8 +288,8 @@ func TestMemoryToolRememberRecallForget(t *testing.T) {
 type fakeDistiller struct{ body string }
 
 func (f fakeDistiller) Name() string { return "fake" }
-func (f fakeDistiller) Complete(_ context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
-	return &agent.CompletionResponse{Message: agent.Message{Role: agent.RoleAssistant, Content: f.body}, StopReason: agent.StopEndTurn}, nil
+func (f fakeDistiller) Complete(_ context.Context, _ llm.CompletionRequest) (*llm.CompletionResponse, error) {
+	return &llm.CompletionResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: f.body}, StopReason: llm.StopEndTurn}, nil
 }
 
 func TestDistillStoresExtractedFacts(t *testing.T) {

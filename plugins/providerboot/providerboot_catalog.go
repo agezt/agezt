@@ -15,8 +15,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/plugins/providers/compat"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -56,10 +56,10 @@ func catalogModelIDs(cat *catalog.Catalog, providerID string) []string {
 // resolved per-run from routing / a fallback chain (or ErrNoModelConfigured).
 func demoEchoProvider() *mock.Provider {
 	p := mock.New()
-	p.Responder = func(req agent.CompletionRequest) agent.CompletionResponse {
+	p.Responder = func(req llm.CompletionRequest) llm.CompletionResponse {
 		text := ""
 		for i := len(req.Messages) - 1; i >= 0; i-- {
-			if req.Messages[i].Role == agent.RoleUser {
+			if req.Messages[i].Role == llm.RoleUser {
 				text = strings.TrimSpace(req.Messages[i].Content)
 				if text != "" {
 					break
@@ -77,7 +77,7 @@ func demoEchoProvider() *mock.Provider {
 // BuildFromCatalog finalises a catalog entry into a wire Provider.
 // Shared by both the explicit-id path and the alternate-registration path.
 // Credentials resolve through d.Lookup (the chained vault+env resolver).
-func BuildFromCatalog(d Deps, entry *catalog.Provider, modelOverride string) (agent.Provider, string, string, governor.AuthMode, error) {
+func BuildFromCatalog(d Deps, entry *catalog.Provider, modelOverride string) (llm.Provider, string, string, governor.AuthMode, error) {
 	lookup := d.Lookup
 	// The daemon has NO default run model. AGEZT_MODEL, when set, is the model
 	// every run uses unless per-task routing or a fallback chain overrides it.

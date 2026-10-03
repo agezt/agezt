@@ -13,7 +13,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/agezt/agezt/kernel/agent"
+
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func (p *Plugin) deathError() error {
@@ -227,22 +228,22 @@ func verifyToolAllowlist(advertised []ToolDef, allowed []string) error {
 }
 
 // Tools returns the plugin's tool definitions wrapped as
-// agent.Tool implementations. The optional prefix is prepended
+// toolapi.Tool implementations. The optional prefix is prepended
 // to each tool name (e.g. prefix="my-plugin." turns the plugin's
 // "search" into "my-plugin.search") — useful when registering
 // multiple plugins to avoid name collisions.
-func (p *Plugin) Tools(prefix string) map[string]agent.Tool {
-	out := make(map[string]agent.Tool, len(p.tools))
+func (p *Plugin) Tools(prefix string) map[string]toolapi.Tool {
+	out := make(map[string]toolapi.Tool, len(p.tools))
 	for _, def := range p.tools {
 		name := prefix + def.Name
 		out[name] = &remoteTool{
 			plugin: p,
-			def: agent.ToolDef{
+			def: toolapi.ToolDef{
 				Name:        name,
 				Description: def.Description,
 				InputSchema: def.InputSchema,
-				Effect: agent.ToolEffect{
-					Class: agent.EffectCompensable,
+				Effect: toolapi.ToolEffect{
+					Class: toolapi.EffectCompensable,
 					PredictedEffects: []string{
 						"Forward this call to an operator-installed plugin process.",
 					},

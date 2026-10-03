@@ -13,9 +13,11 @@ import (
 	"os"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/channelwire"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/pulse"
 )
 
@@ -88,7 +90,7 @@ func wireInstances(insts []channelwire.Instance) []chanInstance {
 	}
 	return out
 }
-func startInstances(ctx context.Context, stdout io.Writer, kind, label, disabledHint string, insts []chanInstance) {
+func startInstances(ctx context.Context, b *bus.Bus, stdout, stderr io.Writer, kind, label, disabledHint string, insts []chanInstance) {
 	if len(insts) == 0 {
 		if disabledHint != "" {
 			fmt.Fprintf(stdout, "  %-16s : %s\n", label, disabledHint)
@@ -96,7 +98,7 @@ func startInstances(ctx context.Context, stdout io.Writer, kind, label, disabled
 		return
 	}
 	for _, in := range insts {
-		go in.ch.Start(ctx)
+		go runChannel(ctx, b, stderr, in.key, in.ch)
 		who := in.key
 		if who == kind {
 			who = "default"
@@ -104,6 +106,43 @@ func startInstances(ctx context.Context, stdout io.Writer, kind, label, disabled
 		fmt.Fprintf(stdout, "  %-16s : %s [%s]\n", label, in.desc, who)
 	}
 }
+
+// runChannel runs one channel instance and reports when it stops serving.
+//
+// It used to be a bare `go ch.Start(ctx)` whose error went nowhere: a webhook
+// listener whose port was taken, or a channel whose credentials were refused,
+// died at boot while the console, `agt status` and the notify tool kept calling
+// it live — and a panic in a loop without its own guard took the whole daemon
+// down. Now a panic is contained (channel.Guard journals it), and an error or
+// panic while the daemon is still running marks the instance dead, journals a
+// channel error and logs it. A nil return is not treated as death: a channel
+// may legitimately hand its work to its own goroutines.
+func runChannel(ctx context.Context, b *bus.Bus, stderr io.Writer, key string, ch channel.Channel) {
+	var err error
+	panicked := true
+	channel.Guard(b, key, func() {
+		err = ch.Start(ctx)
+		panicked = false
+	})
+	if ctx.Err() != nil || (err == nil && !panicked) {
+		return // shutdown, or a clean return
+	}
+	reason := "panicked"
+	if err != nil {
+		reason = err.Error()
+	}
+	channel.MarkInstanceDead(key)
+	if b != nil && !panicked { // Guard already journaled the panic
+		_, _ = b.Publish(event.Spec{
+			Subject: "channel." + key + ".error",
+			Kind:    event.KindChannelError,
+			Actor:   "channel-" + key,
+			Payload: map[string]any{"channel": key, "error": reason, "stopped": true},
+		})
+	}
+	fmt.Fprintf(stderr, "WARNING: channel %s stopped: %s\n", key, reason)
+}
+
 func instanceSinks(groups ...[]chanInstance) []pulse.BriefSink {
 	var out []pulse.BriefSink
 	for _, g := range groups {

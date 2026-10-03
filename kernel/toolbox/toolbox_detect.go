@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/agezt/agezt/kernel/platform/sandbox"
 )
 
 // ToolStatus is the per-tool detection result for the wire.
@@ -46,7 +48,8 @@ const versionTimeout = 3 * time.Second
 func probeVersion(ctx context.Context, bin string, args []string) string {
 	cctx, cancel := context.WithTimeout(ctx, versionTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(cctx, bin, args...)
+	cmd := sandbox.CommandContext(cctx, bin, args...)
+	cmd.Env = sandbox.HelperEnv()
 	out, err := cmd.CombinedOutput()
 	if err != nil && len(out) == 0 {
 		return ""

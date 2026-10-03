@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestDecodeAudio(t *testing.T) {
@@ -58,7 +58,7 @@ func TestVoiceToolTranscribe(t *testing.T) {
 	if res.IsError || res.Output != "transcript: hi" {
 		t.Fatalf("res = %+v", res)
 	}
-	if res.ObservationTrust != agent.ObservationUntrusted {
+	if res.ObservationTrust != toolapi.ObservationUntrusted {
 		t.Fatalf("transcript should be untrusted, got %q", res.ObservationTrust)
 	}
 }

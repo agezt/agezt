@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
 )
@@ -22,7 +22,7 @@ func TestBudgetScopes_AllJournalTheirScope(t *testing.T) {
 	for _, tc := range []struct {
 		scope string
 		cfg   Config
-		req   agent.CompletionRequest
+		req   llm.CompletionRequest
 		want  map[string]any // extra identifying fields beyond spent/ceiling/scope
 	}{
 		{
@@ -32,13 +32,13 @@ func TestBudgetScopes_AllJournalTheirScope(t *testing.T) {
 		{
 			scope: "task",
 			cfg:   Config{TaskBudgets: map[string]int64{"research": 100}},
-			req:   agent.CompletionRequest{TaskType: "research"},
+			req:   llm.CompletionRequest{TaskType: "research"},
 			want:  map[string]any{"task_type": "research"},
 		},
 		{
 			scope: "agent",
 			cfg:   Config{},
-			req:   agent.CompletionRequest{Agent: "scout", AgentDailyCeilingMc: 100},
+			req:   llm.CompletionRequest{Agent: "scout", AgentDailyCeilingMc: 100},
 			want:  map[string]any{"agent": "scout"},
 		},
 	} {
@@ -93,11 +93,11 @@ func TestGateBudgets_InapplicableScopesDoNotRefuse(t *testing.T) {
 	g.spentByTaskToday["research"] = 999 // another task type is over its cap
 	g.mu.Unlock()
 
-	req := agent.CompletionRequest{TaskType: "coding"} // no cap configured
+	req := llm.CompletionRequest{TaskType: "coding"} // no cap configured
 	if err := g.gateBudgets(&req); err != nil {
 		t.Errorf("a task type with no configured cap must pass: %v", err)
 	}
-	bare := agent.CompletionRequest{} // no task type, no agent, no global ceiling
+	bare := llm.CompletionRequest{} // no task type, no agent, no global ceiling
 	if err := g.gateBudgets(&bare); err != nil {
 		t.Errorf("a request subject to no ceiling must pass: %v", err)
 	}

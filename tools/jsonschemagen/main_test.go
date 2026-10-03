@@ -99,9 +99,16 @@ func TestEndToEndContract(t *testing.T) {
 	}
 	s := string(data)
 	// Spot-check that base schemas made it through.
-	for _, name := range []string{"Event", "RegisterParams", "Capability", "ToolSchema", "ModelInfo"} {
+	for _, name := range []string{"Event", "RegisterParams", "Capability", "ToolSchema", "ToolInvocation"} {
 		if !strings.Contains(s, "type "+name+" ") {
 			t.Errorf("generated output missing type %s", name)
+		}
+	}
+	// The contract is tools-only (architecture/21 §5.4): the never-implemented
+	// provider and channel halves must not come back unannounced.
+	for _, name := range []string{"ModelInfo", "ProviderCompletionRequest", "UnifiedMessage"} {
+		if strings.Contains(s, "type "+name+" ") {
+			t.Errorf("generated output has %s — a plugin kind the kernel does not implement", name)
 		}
 	}
 	if !strings.Contains(s, "DO NOT EDIT") {

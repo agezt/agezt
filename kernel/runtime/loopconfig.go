@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/governor"
 )
 
@@ -39,7 +40,7 @@ func (k *Kernel) buildLoopConfig(runCtx context.Context, corr, model string) age
 	// BEFORE the allowlist filter so a restricted run only sees the dynamic
 	// tools its allowlist grants (M794/M796).
 	runTools := k.mergeMCPTools(k.mergeScriptTools(k.tools))
-	runTools = applyAgentToolPolicy(runTools, agentToolPolicyFromCtx(runCtx))
+	runTools = AgentTools(runCtx, runTools)
 	runTools = applyAgentNoisePolicyToPromptTools(runTools, runCtx)
 	if allow, ok := toolsFromCtx(runCtx); ok {
 		runTools = filterTools(runTools, allow)
@@ -101,6 +102,6 @@ func (k *Kernel) buildLoopConfig(runCtx context.Context, corr, model string) age
 		ContextBudget:        ctxBudget,               // M393/M394 (SPEC-10 §3)
 		ContextProtectFirst:  cfg.ContextProtectFirst, // M395
 		SummarizeElided:      summarizeElided,         // M398
-		ContextRescueMarkers: []string{agent.DefaultContextRescueMarker},
+		ContextRescueMarkers: []string{toolapi.DefaultContextRescueMarker},
 	}
 }

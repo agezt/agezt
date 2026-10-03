@@ -5,7 +5,7 @@ package bedrock
 import (
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // TestDecodeMistralOnBedrock_HardcodesAssistantRole pins M484: the canonical
@@ -19,8 +19,8 @@ func TestDecodeMistralOnBedrock_HardcodesAssistantRole(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if resp.Message.Role != agent.RoleAssistant {
-		t.Errorf("role = %q, want %q (must be hard-coded, not taken from the wire)", resp.Message.Role, agent.RoleAssistant)
+	if resp.Message.Role != llm.RoleAssistant {
+		t.Errorf("role = %q, want %q (must be hard-coded, not taken from the wire)", resp.Message.Role, llm.RoleAssistant)
 	}
 	if resp.Message.Content != "hi there" {
 		t.Errorf("content = %q", resp.Message.Content)

@@ -11,10 +11,11 @@ import (
 	"strings"
 
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/agent"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
-func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(agent.Chunk) error) error {
+func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(llm.Chunk) error) error {
 	switch eventName {
 	case "message_start":
 		var f struct {
@@ -65,19 +66,19 @@ func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(agen
 			// in the open block so message-level concatenation works.
 			st.openBlock.textBuf.WriteString(f.ContentBlock.Text)
 			if f.ContentBlock.Text != "" {
-				if err := onChunk(agent.Chunk{TextDelta: f.ContentBlock.Text}); err != nil {
+				if err := onChunk(llm.Chunk{TextDelta: f.ContentBlock.Text}); err != nil {
 					return err
 				}
 			}
 		case "tool_use":
 			st.openBlock.toolID = f.ContentBlock.ID
 			st.openBlock.toolName = f.ContentBlock.Name
-			start := &agent.ToolCall{
+			start := &llm.ToolCall{
 				ID:    f.ContentBlock.ID,
 				Name:  f.ContentBlock.Name,
 				Input: json.RawMessage(`{}`),
 			}
-			if err := onChunk(agent.Chunk{ToolUseStart: start}); err != nil {
+			if err := onChunk(llm.Chunk{ToolUseStart: start}); err != nil {
 				return err
 			}
 		}
@@ -104,21 +105,21 @@ func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(agen
 		case "text_delta":
 			st.openBlock.textBuf.WriteString(f.Delta.Text)
 			if f.Delta.Text != "" {
-				if err := onChunk(agent.Chunk{TextDelta: f.Delta.Text}); err != nil {
+				if err := onChunk(llm.Chunk{TextDelta: f.Delta.Text}); err != nil {
 					return err
 				}
 			}
 		case "input_json_delta":
 			st.openBlock.inputBuf.WriteString(f.Delta.PartialJSON)
 			if f.Delta.PartialJSON != "" {
-				if err := onChunk(agent.Chunk{ToolInputJSONDelta: f.Delta.PartialJSON}); err != nil {
+				if err := onChunk(llm.Chunk{ToolInputJSONDelta: f.Delta.PartialJSON}); err != nil {
 					return err
 				}
 			}
 		case "thinking_delta": // extended thinking (M318)
 			st.openBlock.textBuf.WriteString(f.Delta.Thinking)
 			if f.Delta.Thinking != "" {
-				if err := onChunk(agent.Chunk{ReasoningDelta: f.Delta.Thinking}); err != nil {
+				if err := onChunk(llm.Chunk{ReasoningDelta: f.Delta.Thinking}); err != nil {
 					return err
 				}
 			}
@@ -139,12 +140,12 @@ func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(agen
 			if input == "" {
 				input = "{}"
 			}
-			st.finishedTools = append(st.finishedTools, agent.ToolCall{
+			st.finishedTools = append(st.finishedTools, llm.ToolCall{
 				ID:    ob.toolID,
 				Name:  ob.toolName,
 				Input: json.RawMessage(input),
 			})
-			if err := onChunk(agent.Chunk{ToolUseStop: ob.toolID}); err != nil {
+			if err := onChunk(llm.Chunk{ToolUseStop: ob.toolID}); err != nil {
 				return err
 			}
 		}
@@ -194,19 +195,19 @@ func dispatchSSEFrame(eventName, data string, st *streamState, onChunk func(agen
 // assembleResponse converts the accumulated streamState into the same
 // CompletionResponse shape Complete returns. Done once per stream
 // when message_stop arrives (or on EOF).
-func assembleResponse(st *streamState) *agent.CompletionResponse {
-	stop := agent.StopReason(st.stopReason)
+func assembleResponse(st *streamState) *llm.CompletionResponse {
+	stop := llm.StopReason(st.stopReason)
 	switch st.stopReason {
 	case "end_turn", "stop_sequence":
-		stop = agent.StopEndTurn
+		stop = llm.StopEndTurn
 	case "tool_use":
-		stop = agent.StopToolUse
+		stop = llm.StopToolUse
 	case "max_tokens":
-		stop = agent.StopMaxTokens
+		stop = llm.StopMaxTokens
 	}
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:      llm.RoleAssistant,
 			Content:   st.textParts.String(),
 			ToolCalls: st.finishedTools,
 		},

@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 )
 
-func (g *Governor) preflightAndRoute(req *agent.CompletionRequest) ([]*ProviderInfo, error) {
+func (g *Governor) preflightAndRoute(req *llm.CompletionRequest) ([]*ProviderInfo, error) {
 	if err := g.runPreflight(req); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (g *Governor) preflightAndRoute(req *agent.CompletionRequest) ([]*ProviderI
 // actual provider call for one chain entry — Complete passes the non-streaming
 // call, CompleteStream the streaming one — so routing, fallback and usage
 // accounting are identical for both.
-func (g *Governor) runChain(ctx context.Context, req agent.CompletionRequest, chain []*ProviderInfo, callOne func(*ProviderInfo) (*agent.CompletionResponse, error)) (*agent.CompletionResponse, error) {
+func (g *Governor) runChain(ctx context.Context, req llm.CompletionRequest, chain []*ProviderInfo, callOne func(*ProviderInfo) (*llm.CompletionResponse, error)) (*llm.CompletionResponse, error) {
 	// Skip providers whose circuit breaker is open, UNLESS that would skip the
 	// whole chain — then try them all rather than hard-fail (a possibly-recovered
 	// provider beats a guaranteed outage). M997.
@@ -153,7 +153,7 @@ func (g *Governor) ProviderHealth() map[string]string {
 // the next provider. Terminal errors (cancel, budget, stream-interrupted) and
 // non-transient provider errors (auth, invalid request) return immediately —
 // retrying those wastes time at best and duplicates output at worst.
-func (g *Governor) callWithRetry(ctx context.Context, req agent.CompletionRequest, p *ProviderInfo, callOne func(*ProviderInfo) (*agent.CompletionResponse, error)) (*agent.CompletionResponse, error) {
+func (g *Governor) callWithRetry(ctx context.Context, req llm.CompletionRequest, p *ProviderInfo, callOne func(*ProviderInfo) (*llm.CompletionResponse, error)) (*llm.CompletionResponse, error) {
 	retries := g.cfg.ProviderRetries
 	if retries == 0 {
 		retries = DefaultProviderRetries
@@ -206,6 +206,13 @@ func (g *Governor) callWithRetry(ctx context.Context, req agent.CompletionReques
 // text errors (no structured status crosses the plugin boundary), so this is
 // a deliberately conservative substring match — an unrecognised error falls
 // back to the next provider immediately, the historical behaviour.
+//
+// "connection refused" is deliberately NOT a marker: a refused dial can only
+// happen inside client.Do, which every provider adapter already retries with
+// backoff (plugins/providers/internal/retry, TransientError). Retrying it here
+// too multiplied the attempts (governor × adapter) and delayed the fallback a
+// dead endpoint needs. Reset/EOF stay: they can also strike while a response
+// body or stream is read, outside the adapter's retry.
 func isTransient(err error) bool {
 	if err == nil {
 		return false
@@ -217,7 +224,7 @@ func isTransient(err error) bool {
 		"500", "502", "503", "504",
 		"internal server error", "bad gateway", "service unavailable", "gateway timeout",
 		"timeout", "timed out", "deadline exceeded",
-		"connection refused", "connection reset", "broken pipe",
+		"connection reset", "broken pipe",
 		"unexpected eof", "eof",
 		"temporarily unavailable", "try again",
 	} {

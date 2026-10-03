@@ -15,12 +15,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
-func encodeAnthropicOnVertexRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok, thinkingBudget int, stream bool, params agent.Params, extra json.RawMessage) ([]byte, error) {
+func encodeAnthropicOnVertexRequest(system string, msgs []llm.Message, tools []toolapi.ToolDef, maxTok, thinkingBudget int, stream bool, params llm.Params, extra json.RawMessage) ([]byte, error) {
 	// A per-request reasoning effort (M997) overrides the construction-time
 	// thinking budget when set; otherwise the env/default budget stands.
 	if b, ok := provopts.ThinkingBudget(params.ReasoningEffort, maxTok); ok {
@@ -75,11 +76,11 @@ func parseImageDataURL(s string) (mediaType, data string, ok bool) {
 	return mt, payload, true
 }
 
-func canonicalToAnthVx(m agent.Message, fwd map[string]string) (*anthVxMessage, error) {
+func canonicalToAnthVx(m llm.Message, fwd map[string]string) (*anthVxMessage, error) {
 	switch m.Role {
-	case agent.RoleSystem:
+	case llm.RoleSystem:
 		return nil, nil
-	case agent.RoleUser:
+	case llm.RoleUser:
 		// Vision (M245): a user message may carry image attachments as RFC 2397
 		// data: URLs. Emit each as a type=image block before the text block. A
 		// non-data-URL entry (e.g. a legacy bare filename) is skipped.
@@ -94,7 +95,7 @@ func canonicalToAnthVx(m agent.Message, fwd map[string]string) (*anthVxMessage, 
 		}
 		blocks = append(blocks, anthVxBlock{Type: "text", Text: m.Content})
 		return &anthVxMessage{Role: "user", Content: blocks}, nil
-	case agent.RoleAssistant:
+	case llm.RoleAssistant:
 		var blocks []anthVxBlock
 		if strings.TrimSpace(m.Content) != "" {
 			blocks = append(blocks, anthVxBlock{Type: "text", Text: m.Content})
@@ -115,7 +116,7 @@ func canonicalToAnthVx(m agent.Message, fwd map[string]string) (*anthVxMessage, 
 			blocks = []anthVxBlock{{Type: "text", Text: ""}}
 		}
 		return &anthVxMessage{Role: "assistant", Content: blocks}, nil
-	case agent.RoleTool:
+	case llm.RoleTool:
 		if m.ToolCallID == "" {
 			return nil, errors.New("vertex: role=tool requires tool_call_id")
 		}

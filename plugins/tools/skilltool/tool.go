@@ -8,16 +8,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/skill"
 )
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "skill",
-		Capability: agent.ToolCapability{Name: string(edict.CapSkill)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapSkill)},
 		Description: "Teach yourself a reusable procedure and manage your own skills. " +
 			"op=learn distills a repeatable how-to into a named, versioned skill (a draft); " +
 			"op=list shows your skills with their status and usage; op=show returns one skill's " +
@@ -45,8 +45,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "reason":      {"type":"string", "description":"For op=retire (optional): why you're pulling the skill."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"Read skill records and bundled resources.",
 				"Learn, promote, or quarantine reusable skills that affect future retrieval and behavior.",
@@ -70,17 +70,17 @@ type input struct {
 	Reason      string   `json:"reason"`
 }
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("skill: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("skill: parse input: %w", err)
 	}
 	f := t.current()
 	if f == nil {
 		return errResult("skill learning is not available on this daemon"), nil
 	}
-	corr := agent.CorrelationFromContext(ctx)
+	corr := toolapi.CorrelationFromContext(ctx)
 
 	switch in.Op {
 	case "learn":
@@ -126,7 +126,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		}
 		v := skillView(sk)
 		v["body"] = sk.Body
-		v[agent.DefaultContextRescueMarker] = "skill_body"
+		v[toolapi.DefaultContextRescueMarker] = "skill_body"
 		if len(sk.Lineage) > 0 {
 			v["lineage"] = sk.Lineage
 		}
@@ -172,7 +172,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		}
 		return okJSON(map[string]any{
 			"id": shortID(sk.ID), "name": sk.Name, "dir": bundles.Dir(sk.Name),
-			"files": files, "count": len(files), agent.DefaultContextRescueMarker: "skill_files",
+			"files": files, "count": len(files), toolapi.DefaultContextRescueMarker: "skill_files",
 		}), nil
 
 	case "read":
@@ -193,7 +193,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		}
 		return okJSON(map[string]any{
 			"id": shortID(sk.ID), "name": sk.Name, "path": in.Path,
-			"content": string(data), "bytes": len(data), agent.DefaultContextRescueMarker: "skill_resource",
+			"content": string(data), "bytes": len(data), toolapi.DefaultContextRescueMarker: "skill_resource",
 		}), nil
 
 	case "":
@@ -261,20 +261,20 @@ func skillView(s skill.Skill) map[string]any {
 	return v
 }
 
-func okEntry(msg string, s skill.Skill) agent.Result {
+func okEntry(msg string, s skill.Skill) toolapi.Result {
 	v := skillView(s)
 	v["message"] = msg
 	return okJSON(v)
 }
 
-func okJSON(v any) agent.Result {
+func okJSON(v any) toolapi.Result {
 	enc, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return errResult("marshal: " + err.Error())
 	}
-	return agent.Result{Output: string(enc)}
+	return toolapi.Result{Output: string(enc)}
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: "skill: " + msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: "skill: " + msg, IsError: true}
 }

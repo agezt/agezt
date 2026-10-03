@@ -118,6 +118,16 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		defer cancel()
 		dc.Ctx = cctx
 	}
+	if !spec.ReadOnly {
+		audit := beginOpAudit(dc)
+		defer func() {
+			if r := recover(); r != nil {
+				audit.end(true)
+				panic(r) // recoverConn answers the caller
+			}
+			audit.end(false)
+		}()
+	}
 	spec.Handler(dc)
 }
 
@@ -151,6 +161,9 @@ func (s *Server) recoverConn(conn net.Conn, req *Request) {
 // method form above keeps the fire-and-forget shape every other
 // handler relies on.
 func writeResp(conn net.Conn, resp Response) error {
+	if ac, ok := conn.(*auditedConn); ok {
+		ac.record(resp)
+	}
 	enc, err := json.Marshal(resp)
 	if err != nil {
 		return err

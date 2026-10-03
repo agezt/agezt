@@ -26,6 +26,7 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -75,7 +76,7 @@ func New(cfg Config) *Channel {
 	}
 	client := cfg.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		client = netout.OperatorClient(30 * time.Second)
 	}
 	return &Channel{
 		cfg:     cfg,

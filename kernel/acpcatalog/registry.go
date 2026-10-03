@@ -17,6 +17,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 // OfficialRegistryURL is the stable v1 index published by the ACP project.
@@ -94,7 +96,7 @@ type RegistryClient struct {
 func NewRegistryClient(url string) *RegistryClient {
 	return &RegistryClient{
 		URL:  url,
-		HTTP: &http.Client{Timeout: 6 * time.Second},
+		HTTP: netout.OperatorClient(6 * time.Second),
 		TTL:  registryCacheTTL,
 		Now:  time.Now,
 	}
@@ -150,7 +152,7 @@ func (c *RegistryClient) fetch(ctx context.Context) (Registry, error) {
 	req.Header.Set("User-Agent", "agezt-acp-registry/1")
 	client := c.HTTP
 	if client == nil {
-		client = &http.Client{Timeout: 6 * time.Second}
+		client = netout.OperatorClient(6 * time.Second)
 	}
 	resp, err := client.Do(req)
 	if err != nil {

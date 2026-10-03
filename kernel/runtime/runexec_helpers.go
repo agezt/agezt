@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/roster"
 )
 
@@ -99,19 +99,19 @@ const elidedSummaryInputCap = 8 << 10
 // loop swallows them and falls back to the deterministic head snippet.
 // maxTokens is caller-chosen: tight for plain models, roomy for reasoning
 // models whose chain of thought eats the budget first (M926).
-func makeElidedSummarizer(provider agent.Provider, model, corr string, maxTokens int) func(context.Context, string) (string, error) {
+func makeElidedSummarizer(provider llm.Provider, model, corr string, maxTokens int) func(context.Context, string) (string, error) {
 	return func(ctx context.Context, output string) (string, error) {
 		in := output
 		if len(in) > elidedSummaryInputCap {
 			in = in[:elidedSummaryInputCap]
 		}
-		resp, err := provider.Complete(ctx, agent.CompletionRequest{
+		resp, err := provider.Complete(ctx, llm.CompletionRequest{
 			Model:         model,
 			CorrelationID: corr,
 			TaskType:      "summarize",
 			MaxTokens:     maxTokens,
-			Messages: []agent.Message{{
-				Role:    agent.RoleUser,
+			Messages: []llm.Message{{
+				Role:    llm.RoleUser,
 				Content: "Summarize this tool output in one short line for an agent's working memory. Output only the summary.\n\n" + in,
 			}},
 		})

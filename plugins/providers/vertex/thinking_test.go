@@ -7,15 +7,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // TestEncodeRequest_ThinkingEnabled (M320): a non-zero budget sends a
 // thinkingConfig with includeThoughts:true and carries the budget verbatim
 // (Gemini-on-Vertex, parallel to the Generative Language provider, M319).
 func TestEncodeRequest_ThinkingEnabled(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hard problem"}}
-	body, err := encodeRequest("", msgs, nil, 2048, false, 1024, agent.Params{}, nil)
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hard problem"}}
+	body, err := encodeRequest("", msgs, nil, 2048, false, 1024, llm.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,8 +45,8 @@ func TestEncodeRequest_ThinkingEnabled(t *testing.T) {
 // TestEncodeRequest_ThinkingDynamicBudget: -1 (dynamic) is a distinct opt-in
 // and must be sent (not treated as "off").
 func TestEncodeRequest_ThinkingDynamicBudget(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "x"}}
-	body, _ := encodeRequest("", msgs, nil, 0, false, -1, agent.Params{}, nil)
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "x"}}
+	body, _ := encodeRequest("", msgs, nil, 0, false, -1, llm.Params{}, nil)
 	var req struct {
 		GenerationConfig *struct {
 			ThinkingConfig *struct {
@@ -66,8 +66,8 @@ func TestEncodeRequest_ThinkingDynamicBudget(t *testing.T) {
 // TestEncodeRequest_ThinkingDisabledByDefault: budget 0 omits thinkingConfig
 // entirely — the request wire is byte-identical to a non-thinking run.
 func TestEncodeRequest_ThinkingDisabledByDefault(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
-	body, _ := encodeRequest("", msgs, nil, 100, false, 0, agent.Params{}, nil)
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
+	body, _ := encodeRequest("", msgs, nil, 100, false, 0, llm.Params{}, nil)
 	if strings.Contains(string(body), "thinkingConfig") {
 		t.Errorf("budget 0 must omit thinkingConfig: %s", body)
 	}
@@ -111,7 +111,7 @@ data: {"candidates":[{"content":{"role":"model","parts":[{"text":" is 42."}]},"f
 
 `
 	var reasoning, text strings.Builder
-	resp, err := parseStream(strings.NewReader(sse), "gemini-2.5-flash", func(c agent.Chunk) error {
+	resp, err := parseStream(strings.NewReader(sse), "gemini-2.5-flash", func(c llm.Chunk) error {
 		reasoning.WriteString(c.ReasoningDelta)
 		text.WriteString(c.TextDelta)
 		return nil

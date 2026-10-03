@@ -18,8 +18,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/toolforge"
 )
@@ -198,7 +198,7 @@ func (k *Kernel) RemoveScriptTool(corr, ref string) (bool, error) {
 // a script must never shadow a real tool). Returns the input map untouched
 // when there is nothing to offer, so the common no-scripts path stays
 // allocation-free.
-func (k *Kernel) mergeScriptTools(tools map[string]agent.Tool) map[string]agent.Tool {
+func (k *Kernel) mergeScriptTools(tools map[string]toolapi.Tool) map[string]toolapi.Tool {
 	if k.toolForge == nil || k.cfg.ScriptRunner == nil {
 		return tools
 	}
@@ -206,7 +206,7 @@ func (k *Kernel) mergeScriptTools(tools map[string]agent.Tool) map[string]agent.
 	if len(active) == 0 {
 		return tools
 	}
-	out := make(map[string]agent.Tool, len(tools)+len(active))
+	out := make(map[string]toolapi.Tool, len(tools)+len(active))
 	for name, t := range tools {
 		out[name] = t
 	}
@@ -232,7 +232,7 @@ const defaultForgedSchema = `{
   "additionalProperties": true
 }`
 
-// forgedTool adapts one ACTIVE script-tool record to agent.Tool: the call's
+// forgedTool adapts one ACTIVE script-tool record to toolapi.Tool: the call's
 // raw JSON input rides into the sandbox (the script reads it from
 // ./stdin.txt) and combined stdout+stderr comes back as the result.
 type forgedTool struct {
@@ -240,7 +240,7 @@ type forgedTool struct {
 	runner toolforge.Runner
 }
 
-func (t forgedTool) Definition() agent.ToolDef {
+func (t forgedTool) Definition() toolapi.ToolDef {
 	schema := strings.TrimSpace(t.st.InputSchema)
 	if schema == "" {
 		schema = defaultForgedSchema
@@ -248,12 +248,12 @@ func (t forgedTool) Definition() agent.ToolDef {
 	desc := strings.TrimSpace(t.st.Description) +
 		" (Forged script tool: a vetted " + t.st.Language +
 		" script run in the sandbox; this call's JSON input is available to it as ./stdin.txt.)"
-	return agent.ToolDef{
+	return toolapi.ToolDef{
 		Name:        forgedToolName(t.st.Name),
 		Description: desc,
 		InputSchema: json.RawMessage(schema),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectCompensable,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectCompensable,
 			PredictedEffects: []string{
 				"Execute a promoted agent-authored script inside the configured sandbox.",
 			},
@@ -264,14 +264,14 @@ func (t forgedTool) Definition() agent.ToolDef {
 	}
 }
 
-func (t forgedTool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+func (t forgedTool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	in := string(raw)
 	if strings.TrimSpace(in) == "" {
 		in = "{}"
 	}
 	out, isErr, err := t.runner.RunScript(ctx, t.st.Language, t.st.Code, in)
 	if err != nil {
-		return agent.Result{Output: forgedToolName(t.st.Name) + ": " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: forgedToolName(t.st.Name) + ": " + err.Error(), IsError: true}, nil
 	}
-	return agent.Result{Output: out, IsError: isErr}, nil
+	return toolapi.Result{Output: out, IsError: isErr}, nil
 }

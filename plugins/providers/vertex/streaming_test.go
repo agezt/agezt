@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/vertex"
 )
 
@@ -65,10 +65,10 @@ func TestCompleteStream_Vertex_TextEndToEnd(t *testing.T) {
 	p.Endpoint = apiSrv.URL + "/v1/projects/test-project/locations/us-central1/publishers/google/models/gemini-1.5-flash:streamGenerateContent?alt=sse"
 
 	var got strings.Builder
-	resp, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
+	resp, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
 		Model:    "gemini-1.5-flash",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "Say hi"}},
-	}, func(c agent.Chunk) error {
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "Say hi"}},
+	}, func(c llm.Chunk) error {
 		got.WriteString(c.TextDelta)
 		return nil
 	})
@@ -112,16 +112,16 @@ func TestCompleteStream_Vertex_ToolCallLifecycle(t *testing.T) {
 	p.Endpoint = apiSrv.URL + "/anything"
 
 	var (
-		gotStart   *agent.ToolCall
+		gotStart   *llm.ToolCall
 		gotInput   string
 		gotStop    string
 		startCount int
 		stopCount  int
 	)
-	resp, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
+	resp, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
 		Model:    "gemini-1.5-pro",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "list files"}},
-	}, func(c agent.Chunk) error {
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "list files"}},
+	}, func(c llm.Chunk) error {
 		if c.ToolUseStart != nil {
 			gotStart = c.ToolUseStart
 			startCount++
@@ -157,7 +157,7 @@ func TestCompleteStream_Vertex_ToolCallLifecycle(t *testing.T) {
 	if len(resp.Message.ToolCalls) != 1 {
 		t.Fatalf("want 1 tool call, got %d", len(resp.Message.ToolCalls))
 	}
-	if resp.StopReason != agent.StopToolUse {
+	if resp.StopReason != llm.StopToolUse {
 		t.Errorf("stop = %q, want tool_use (must override finishReason=STOP when tools present)", resp.StopReason)
 	}
 }
@@ -177,10 +177,10 @@ func TestCompleteStream_Vertex_HTTPError(t *testing.T) {
 	p := vertex.New(ts, "test-project", "us-central1")
 	p.Endpoint = apiSrv.URL + "/anything"
 
-	_, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
+	_, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
 		Model:    "m",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
-	}, func(c agent.Chunk) error { return nil })
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
+	}, func(c llm.Chunk) error { return nil })
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -195,9 +195,9 @@ func TestCompleteStream_Vertex_HTTPError(t *testing.T) {
 
 func TestCompleteStream_Vertex_NoTokenSource(t *testing.T) {
 	p := vertex.New(nil, "p", "us-central1")
-	_, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
-	}, func(c agent.Chunk) error { return nil })
+	_, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
+	}, func(c llm.Chunk) error { return nil })
 	if err != vertex.ErrNoTokenSource {
 		t.Errorf("got %v, want ErrNoTokenSource", err)
 	}
@@ -209,8 +209,8 @@ func TestCompleteStream_Vertex_NilOnChunkRejected(t *testing.T) {
 	sa, _ := vertex.ParseServiceAccountJSON(generateTestSAJSON(t, tokSrv.URL))
 	ts, _ := vertex.NewTokenSource(sa, "", nil)
 	p := vertex.New(ts, "p", "us-central1")
-	_, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+	_, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	}, nil)
 	if err == nil || !strings.Contains(err.Error(), "non-nil onChunk") {
 		t.Errorf("got %v, want nil-callback rejection", err)
@@ -272,4 +272,4 @@ func TestResolveStreamEndpoint_Vertex(t *testing.T) {
 }
 
 // Compile-time guard — *Provider must satisfy StreamingProvider.
-var _ agent.StreamingProvider = (*vertex.Provider)(nil)
+var _ llm.StreamingProvider = (*vertex.Provider)(nil)

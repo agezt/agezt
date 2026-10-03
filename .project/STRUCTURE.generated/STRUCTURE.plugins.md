@@ -40,7 +40,7 @@
 - **`plugins/providers/anthropic`** — Package anthropic is the in-process Anthropic Messages-API Provider.
 - **`plugins/providers/bedrock`** — Package bedrock is the in-process AWS Bedrock Provider.
 - **`plugins/providers/cohere`** — Package cohere is the in-process Cohere v2 chat Provider.
-- **`plugins/providers/compat`** — Package compat builds a wire `agent.Provider` from a `catalog.Provider` entry — no per-provider Go package needed.
+- **`plugins/providers/compat`** — Package compat builds a wire `llm.Provider` from a `catalog.Provider` entry — no per-provider Go package needed.
 - **`plugins/providers/embed`** — Package embed is the OpenAI-compatible embeddings client (M901) — the first real implementation of the kernel's memory.Embedder seam (M884, DECISIONS C5 "provider embeddings opt-in").
 - **`plugins/providers/google`** — Package google is the in-process Google Gemini Provider, talking to the Generative Language API at generativelanguage.googleapis.com.
 - **`plugins/providers/image`** — Package image is the OpenAI-compatible image-generation client (M997) — the image-modality sibling of plugins/providers/embed and plugins/providers/voice.

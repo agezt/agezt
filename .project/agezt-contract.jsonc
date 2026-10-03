@@ -7,6 +7,13 @@
 //
 // Format: this is a readable contract spec. Machine source of truth is the
 // JSON Schema blocks (under "$schemas"); SDK types are generated from them.
+//
+// 2026-10 (owner decision, architecture/21-migration-roadmap.md §5.4): the
+// out-of-process plugin surface is TOOLS ONLY. The never-implemented channel,
+// provider, coding_agent, memory, storage and tunnel halves were removed
+// rather than left looking specified. Note that the SHIPPED tool protocol is
+// kernel/plugin/protocol.go (line-JSON initialize / tool/invoke / host/invoke,
+// not JSON-RPC 2.0 register); reconciling this file with it is roadmap W5.2.
 
 // =====================================================================
 // 0. WIRE PROTOCOL
@@ -59,7 +66,7 @@
     "type":"object",
     "required":["kind"],
     "properties":{
-      "kind":{"enum":["channel","provider","tool","coding_agent","memory","storage","tunnel"]},
+      "kind":{"enum":["tool"]},
       "attributes":{"type":"object","additionalProperties":{"type":"string"}}
     }
   },
@@ -131,7 +138,11 @@
     }
   },
 
-  // EventKind values (string form; grow append-only). Base set for MVP:
+  // EventKind values: the authoritative list is kernel/event/kinds.go, kept
+  // closed by kernel/event/registry_guard_test.go (every emitted kind declared,
+  // every declared kind used). A kind string, once journaled, is never reused
+  // for a different meaning. The list below is the original MVP plan, not a
+  // validation enum — several of these were never implemented:
   // agent.spawned/suspended/resumed/died/crashed
   // task.received, plan.proposed (DAG layer), node.started/completed/failed, task.completed
   // tool.invoked/result, llm.request/token/response
@@ -154,19 +165,6 @@
       "inline_b64":{"type":"string"},   // if <= 32 KiB (DECISIONS B5)
       "blob_digest":{"type":"string"},  // else content-addressed
       "size":{"type":"integer"}
-    }
-  },
-
-  "UnifiedMessage": {
-    "type":"object",
-    "properties":{
-      "channel_kind":{"type":"string"},
-      "channel_id":{"type":"string"},
-      "sender":{"type":"string"},
-      "text":{"type":"string"},
-      "attachments":{"type":"array","items":{"$ref":"#/Attachment"}},
-      "platform_ts_ms":{"type":"integer"},
-      "platform_meta":{"type":"object","additionalProperties":{"type":"string"}}
     }
   },
 
@@ -293,63 +291,13 @@
       "error":{"$ref":"#/PluginError"},
       "done":{"type":"boolean"}
     }
-  },
-
-  // =====================================================================
-  // 5. PROVIDER interface (base layer)
-  // =====================================================================
-  //
-  // provider.complete(ProviderCompletionRequest) -> stream ProviderChunk
-  // provider.embed({inputs,model})               -> {vectors, usage}
-  // provider.listModels()                         -> {models:[ModelInfo]}
-  // provider.reportLimits()                       -> Limits
-  //
-  // The provider plugin TRANSLATES Agezt's canonical ToolDef/ToolCall to/from
-  // its backend dialect (OpenAI/OpenAI-compatible/Anthropic/Gemini/...). SPEC-15.
-
-  "ProviderCompletionRequest": {
-    "type":"object",
-    "required":["messages","model"],
-    "properties":{
-      "messages":{"type":"array","items":{"$ref":"#/ChatMessage"}},
-      "tools":{"type":"array","items":{"$ref":"#/ToolDef"}},
-      "options":{"$ref":"#/CompletionOptions"},
-      "model":{"type":"string"}
-    }
-  },
-  "ProviderChunk": {"$ref":"#/CompletionChunk"},
-  "ModelInfo": {
-    "type":"object",
-    "required":["id","context_window"],
-    "properties":{
-      "id":{"type":"string"},
-      "context_window":{"type":"integer"},
-      "modalities":{"type":"array","items":{"type":"string"}},
-      "tool_use":{"type":"boolean"},
-      "json_mode":{"type":"boolean"},
-      "prompt_caching":{"type":"boolean"},
-      "reasoning":{"type":"boolean"},
-      "input_microcents_per_mtok":{"type":"integer"},
-      "output_microcents_per_mtok":{"type":"integer"}
-    }
-  },
-  "Limits": {
-    "type":"object",
-    "properties":{
-      "rpm":{"type":"integer"},"tpm":{"type":"integer"},
-      "remaining":{"type":"integer"},"reset_unix_ms":{"type":"integer"},
-      "auth_mode":{"enum":["subscription","api-key","local"]}
-    }
   }
 
   // =====================================================================
-  // APPEND-ONLY GROWTH (added when their layers are built; DECISIONS B0b):
-  //   Channel:      channel.start/send/signal/stop  (+ OutboundMessage, WidgetRef)
-  //   CodingAgent:  codingAgent.startSession/send/approve/endSession  (+ ACP variant, SPEC-15)
-  //   Memory:       memory.write/query/forget/snapshot  (+ MemoryRecord)
-  //   Storage:      storage.appendJournal/readJournal/kvGet/kvSet/capabilities
-  //   Tunnel:       tunnel.up/down/status
-  // These are specified in SPEC-04; their JSON-RPC methods + schemas are added
-  // here as each layer lands, never renumbering or breaking existing methods.
+  // APPEND-ONLY GROWTH (DECISIONS B0b): further plugin kinds (channel,
+  // provider, coding agent, memory, storage, tunnel) are added here only when
+  // the kernel implements them out-of-process — never specified ahead of the
+  // code. Today channels and providers are in-process Go interfaces
+  // (kernel/channel, kernel/agent); see architecture/20-target-architecture.md §6.
   // =====================================================================
 }

@@ -126,9 +126,9 @@ func askPolicyLabel(p edict.AskPolicy) string { return p.String() }
 // registerEdictCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
 func registerEdictCommands() {
 	register(
-		commandSpec{Cmd: CmdEdictShow, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleEdictShow(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdEdictTest, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleEdictTest(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdEdictDenyList, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleEdictDenyList(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdEdictShow, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleEdictShow(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdEdictTest, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleEdictTest(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdEdictDenyList, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleEdictDenyList(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdEdictDenyAdd, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleEdictDenyAdd(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdEdictDenyRemove, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleEdictDenyRemove(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdEdictSetLevel, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleEdictSetLevel(dc.Conn, dc.Req) }},

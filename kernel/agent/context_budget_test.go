@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -152,7 +153,7 @@ func TestRun_ContextCompactionPayloadReportsSkillRescue(t *testing.T) {
 		CorrelationID:        "corr-rescue",
 		ContextBudget:        5000,
 		ContextProtectLast:   2,
-		ContextRescueMarkers: []string{agent.DefaultContextRescueMarker},
+		ContextRescueMarkers: []string{toolapi.DefaultContextRescueMarker},
 	}, "read skill resource then dump repeatedly"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}

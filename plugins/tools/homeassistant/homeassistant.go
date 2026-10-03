@@ -15,8 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 // DefaultTimeout caps a single HA request.
@@ -27,7 +28,7 @@ const DefaultTimeout = 30 * time.Second
 // returns guidance to query a specific entity instead of silently truncating.
 const MaxResponseBytes = 256 * 1024
 
-// Tool is the Home Assistant control tool (agent.Tool).
+// Tool is the Home Assistant control tool (toolapi.Tool).
 type Tool struct {
 	// BaseURL is the Home Assistant root (e.g. "http://homeassistant.local:8123").
 	BaseURL string
@@ -56,12 +57,12 @@ func (t *Tool) client() *http.Client {
 	if t.HTTP != nil {
 		return t.HTTP
 	}
-	return &http.Client{Timeout: DefaultTimeout}
+	return netout.OperatorClient(DefaultTimeout)
 }
 
-// Definition implements agent.Tool. The description names which axes are enabled
+// Definition implements toolapi.Tool. The description names which axes are enabled
 // so the model doesn't attempt an operation that's fail-closed off.
-func (t *Tool) Definition() agent.ToolDef {
+func (t *Tool) Definition() toolapi.ToolDef {
 	var enabled []string
 	if len(t.ReadEntities) > 0 {
 		enabled = append(enabled, "get_states (read "+strings.Join(t.ReadEntities, ", ")+")")
@@ -73,9 +74,9 @@ func (t *Tool) Definition() agent.ToolDef {
 	if avail == "" {
 		avail = "(nothing enabled)"
 	}
-	return agent.ToolDef{
+	return toolapi.ToolDef{
 		Name: "homeassistant",
-		Capability: agent.ToolCapability{
+		Capability: toolapi.ToolCapability{
 			// get_states — and anything unrecognised — is the read axis. Actuating the
 			// physical world must never be what an unparsed call falls back to.
 			Name:  string(edict.CapHomeAssistantRead),
@@ -98,8 +99,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "data":      {"type":"object","description":"For call_service: extra service data (e.g. {\"brightness\":128} or {\"temperature\":20}). Merged with entity_id."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectIrreversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectIrreversible,
 			PredictedEffects: []string{
 				"Read allow-listed Home Assistant entity states.",
 				"Call allow-listed Home Assistant services that may actuate physical devices.",
@@ -119,8 +120,8 @@ type haInput struct {
 	Data      json.RawMessage `json:"data,omitempty"`
 }
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in haInput
 	if err := json.Unmarshal(raw, &in); err != nil {
 		return errResult("invalid input: " + err.Error()), nil
@@ -142,7 +143,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 
 // getStates reads entity state(s), gated and (for bulk reads) filtered by the
 // read allowlist.
-func (t *Tool) getStates(ctx context.Context, in haInput) (agent.Result, error) {
+func (t *Tool) getStates(ctx context.Context, in haInput) (toolapi.Result, error) {
 	if len(t.ReadEntities) == 0 {
 		return errResult("homeassistant: reading states is not enabled (no read allowlist configured)"), nil
 	}
@@ -159,7 +160,7 @@ func (t *Tool) getStates(ctx context.Context, in haInput) (agent.Result, error) 
 		if status/100 != 2 {
 			return errResult(fmt.Sprintf("homeassistant: get state %q returned status %d", id, status)), nil
 		}
-		return agent.Result{Output: string(body)}, nil
+		return toolapi.Result{Output: string(body)}, nil
 	}
 
 	// Bulk read: fetch all, then FILTER to the allowlist so a non-allowed entity
@@ -186,11 +187,11 @@ func (t *Tool) getStates(ctx context.Context, in haInput) (agent.Result, error) 
 	if err != nil {
 		return errResult("marshal: " + err.Error()), nil
 	}
-	return agent.Result{Output: string(out)}, nil
+	return toolapi.Result{Output: string(out)}, nil
 }
 
 // callService actuates a Home Assistant service, gated by the service allowlist.
-func (t *Tool) callService(ctx context.Context, in haInput) (agent.Result, error) {
+func (t *Tool) callService(ctx context.Context, in haInput) (toolapi.Result, error) {
 	domain := strings.ToLower(strings.TrimSpace(in.Domain))
 	service := strings.ToLower(strings.TrimSpace(in.Service))
 	if domain == "" || service == "" {
@@ -233,7 +234,7 @@ func (t *Tool) callService(ctx context.Context, in haInput) (agent.Result, error
 	}
 	// HA returns the list of states it changed. Surface it (capped) so the model
 	// can confirm the action took effect.
-	return agent.Result{Output: fmt.Sprintf("called %s ok\n%s", key, string(body))}, nil
+	return toolapi.Result{Output: fmt.Sprintf("called %s ok\n%s", key, string(body))}, nil
 }
 
 // do performs one request with the bearer token and a size-capped body read.

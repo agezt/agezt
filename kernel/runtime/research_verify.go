@@ -7,8 +7,9 @@ package runtime
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/agent"
 	"sync"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // parallel (like councilRound), returning claims with their verdicts filled.
@@ -27,11 +28,11 @@ func (k *Kernel) verifyResearchClaims(ctx context.Context, corr, model string, s
 		go func(i int, c ResearchClaim) {
 			defer wg.Done()
 			c.Verdict = "uncertain"
-			resp, err := k.completeAux(ctx, corr, "research-verify", agent.CompletionRequest{
+			resp, err := k.completeAux(ctx, corr, "research-verify", llm.CompletionRequest{
 				Model:     model,
 				MaxTokens: researchVerifyMaxTokens,
 				System:    researchVerifySystem,
-				Messages:  []agent.Message{{Role: agent.RoleUser, Content: buildResearchVerifyPrompt(c, byID)}},
+				Messages:  []llm.Message{{Role: llm.RoleUser, Content: buildResearchVerifyPrompt(c, byID)}},
 			})
 			if err != nil {
 				c.Note = "verifier error: " + err.Error()

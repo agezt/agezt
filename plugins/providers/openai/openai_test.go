@@ -10,7 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/openai"
 )
 
@@ -39,10 +40,10 @@ func TestComplete_TextResponse(t *testing.T) {
 
 	p := openai.New("sk-test")
 	p.Endpoint = srv.URL
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "gpt-4o-mini",
 		System:   "you are terse",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hello"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hello"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -50,7 +51,7 @@ func TestComplete_TextResponse(t *testing.T) {
 	if resp.Message.Content != "hi" {
 		t.Errorf("content=%q", resp.Message.Content)
 	}
-	if resp.StopReason != agent.StopEndTurn {
+	if resp.StopReason != llm.StopEndTurn {
 		t.Errorf("stop=%q", resp.StopReason)
 	}
 	if resp.Usage.InputTokens != 3 || resp.Usage.OutputTokens != 1 {
@@ -103,10 +104,10 @@ func TestComplete_ToolCalls(t *testing.T) {
 
 	p := openai.New("sk-test")
 	p.Endpoint = srv.URL
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "gpt-4o-mini",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "list files"}},
-		Tools: []agent.ToolDef{{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "list files"}},
+		Tools: []toolapi.ToolDef{{
 			Name:        "shell",
 			Description: "run a shell command",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"command":{"type":"string"}}}`),
@@ -115,7 +116,7 @@ func TestComplete_ToolCalls(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
-	if resp.StopReason != agent.StopToolUse {
+	if resp.StopReason != llm.StopToolUse {
 		t.Errorf("stop=%q want tool_use", resp.StopReason)
 	}
 	if len(resp.Message.ToolCalls) != 1 {
@@ -148,14 +149,14 @@ func TestComplete_RoundtripWithToolResult(t *testing.T) {
 
 	p := openai.New("sk-test")
 	p.Endpoint = srv.URL
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model: "gpt-4o-mini",
-		Messages: []agent.Message{
-			{Role: agent.RoleUser, Content: "list"},
-			{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{
+		Messages: []llm.Message{
+			{Role: llm.RoleUser, Content: "list"},
+			{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{
 				ID: "call_abc", Name: "shell", Input: json.RawMessage(`{"command":"ls"}`),
 			}}},
-			{Role: agent.RoleTool, ToolCallID: "call_abc", Content: "a.txt\nb.txt"},
+			{Role: llm.RoleTool, ToolCallID: "call_abc", Content: "a.txt\nb.txt"},
 		},
 	})
 	if err != nil {
@@ -223,7 +224,7 @@ func TestResolveEndpoint(t *testing.T) {
 				p.BaseURL = srv.URL + extractBase(c.baseURL)
 			}
 			p.APIKey = "k"
-			if _, err := p.Complete(context.Background(), agent.CompletionRequest{Model: "m"}); err != nil {
+			if _, err := p.Complete(context.Background(), llm.CompletionRequest{Model: "m"}); err != nil {
 				t.Fatalf("Complete: %v", err)
 			}
 			wantPath := extractPath(c.want)
@@ -260,7 +261,7 @@ func extractBase(u string) string {
 
 func TestComplete_NoAPIKey(t *testing.T) {
 	p := openai.New("")
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{Model: "m"})
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{Model: "m"})
 	if err != openai.ErrNoAPIKey {
 		t.Errorf("got %v want ErrNoAPIKey", err)
 	}
@@ -283,7 +284,7 @@ func TestComplete_CustomAuthHeader(t *testing.T) {
 	p.Endpoint = srv.URL
 	p.AuthHeader = "api-key"
 	p.AuthScheme = "" // raw value, no Bearer prefix
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{Model: "deployment-name"})
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{Model: "deployment-name"})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
@@ -310,7 +311,7 @@ func TestComplete_DefaultAuthIsBearer(t *testing.T) {
 
 	p := openai.New("sk")
 	p.Endpoint = srv.URL
-	if _, err := p.Complete(context.Background(), agent.CompletionRequest{Model: "m"}); err != nil {
+	if _, err := p.Complete(context.Background(), llm.CompletionRequest{Model: "m"}); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
 	if seen != "Bearer sk" {
@@ -327,7 +328,7 @@ func TestComplete_APIError(t *testing.T) {
 
 	p := openai.New("k")
 	p.Endpoint = srv.URL
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{Model: "m"})
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{Model: "m"})
 	var apiErr *openai.APIError
 	if !errorsAs(err, &apiErr) {
 		t.Fatalf("got %v want APIError", err)
@@ -371,9 +372,9 @@ func TestComplete_CapturesReasoningContent(t *testing.T) {
 
 	p := openai.New("sk-test")
 	p.Endpoint = srv.URL
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "deepseek-reasoner",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "answer?"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "answer?"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)

@@ -12,8 +12,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/strutil"
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/compat"
 )
 
@@ -162,7 +162,7 @@ func autoPickFromCatalog(cat *catalog.Catalog, lookup func(string) string) *cata
 // Matches the Governor's pricing arithmetic (kernel/governor/pricing.go)
 // so `agt provider check` cost agrees with what the daemon would
 // account for the same call.
-func computeCostMicrocents(model *catalog.Model, usage agent.Usage) int64 {
+func computeCostMicrocents(model *catalog.Model, usage llm.Usage) int64 {
 	if model == nil || model.Cost == nil {
 		return 0
 	}

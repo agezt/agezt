@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
-
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -23,11 +23,11 @@ import (
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
 
-func startPair(t *testing.T, prov agent.Provider) (*runtime.Kernel, *controlplane.Server, *controlplane.Client, string) {
+func startPair(t *testing.T, prov llm.Provider) (*runtime.Kernel, *controlplane.Server, *controlplane.Client, string) {
 	t.Helper()
 	return startPairWithConfig(t, runtime.Config{
 		Provider: prov,
-		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:    map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 	})
 }
 
@@ -151,7 +151,7 @@ func TestRun_ResultCarriesUsage(t *testing.T) {
 func TestRun_ModelOverride(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
 	var gotModel string
-	prov.OnRequest = func(req agent.CompletionRequest) {
+	prov.OnRequest = func(req llm.CompletionRequest) {
 		if req.Model != "" {
 			gotModel = req.Model
 		}
@@ -173,7 +173,7 @@ func TestRun_ModelOverride(t *testing.T) {
 func TestRun_SystemOverride(t *testing.T) {
 	prov := mock.New(mock.FinalText("aye"))
 	var gotSystem string
-	prov.OnRequest = func(req agent.CompletionRequest) {
+	prov.OnRequest = func(req llm.CompletionRequest) {
 		if req.System != "" {
 			gotSystem = req.System
 		}
@@ -247,7 +247,7 @@ func TestHaltViaControlPlane(t *testing.T) {
 type cpBlockingProvider struct{}
 
 func (cpBlockingProvider) Name() string { return "cp-blocking" }
-func (cpBlockingProvider) Complete(ctx context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (cpBlockingProvider) Complete(ctx context.Context, _ llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	<-ctx.Done()
 	return nil, ctx.Err()
 }

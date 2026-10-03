@@ -11,7 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -112,7 +113,7 @@ func TestRun_RoutesToTenantKernel(t *testing.T) {
 		return runtime.Open(runtime.Config{
 			BaseDir:  baseDir,
 			Provider: mock.New(mock.FinalText("tenant-" + id)),
-			Tools:    map[string]agent.Tool{},
+			Tools:    map[string]toolapi.Tool{},
 		})
 	})
 	if err != nil {
@@ -189,13 +190,13 @@ func TestTenantStats_AggregatesPerTenant(t *testing.T) {
 		p := mock.New()
 		// Responder answers every request, so a tenant can run multiple tasks
 		// without exhausting a one-shot scripted response.
-		p.Responder = func(agent.CompletionRequest) agent.CompletionResponse {
+		p.Responder = func(llm.CompletionRequest) llm.CompletionResponse {
 			return mock.FinalText("tenant-" + id)
 		}
 		return runtime.Open(runtime.Config{
 			BaseDir:  baseDir,
 			Provider: p,
-			Tools:    map[string]agent.Tool{},
+			Tools:    map[string]toolapi.Tool{},
 		})
 	})
 	if err != nil {

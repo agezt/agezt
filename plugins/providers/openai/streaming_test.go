@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // sampleOAITextStream is a representative text-only SSE response.
@@ -67,7 +67,7 @@ data: [DONE]
 
 func TestParseStream_OAITextOnly(t *testing.T) {
 	var deltas []string
-	resp, err := parseStream(strings.NewReader(sampleOAITextStream), func(c agent.Chunk) error {
+	resp, err := parseStream(strings.NewReader(sampleOAITextStream), func(c llm.Chunk) error {
 		if c.TextDelta != "" {
 			deltas = append(deltas, c.TextDelta)
 		}
@@ -79,7 +79,7 @@ func TestParseStream_OAITextOnly(t *testing.T) {
 	if resp.Message.Content != "pong!" {
 		t.Errorf("content = %q, want 'pong!'", resp.Message.Content)
 	}
-	if resp.StopReason != agent.StopEndTurn {
+	if resp.StopReason != llm.StopEndTurn {
 		t.Errorf("stop = %q, want end_turn", resp.StopReason)
 	}
 	if resp.Usage.InputTokens != 12 || resp.Usage.OutputTokens != 3 {
@@ -97,11 +97,11 @@ func TestParseStream_OAITextOnly(t *testing.T) {
 
 func TestParseStream_OAIToolCall(t *testing.T) {
 	var (
-		gotStart    *agent.ToolCall
+		gotStart    *llm.ToolCall
 		jsonFragmts []string
 		gotStop     string
 	)
-	resp, err := parseStream(strings.NewReader(sampleOAIToolCallStream), func(c agent.Chunk) error {
+	resp, err := parseStream(strings.NewReader(sampleOAIToolCallStream), func(c llm.Chunk) error {
 		if c.ToolUseStart != nil {
 			gotStart = c.ToolUseStart
 		}
@@ -133,7 +133,7 @@ func TestParseStream_OAIToolCall(t *testing.T) {
 	if tc.ID != "call_abc" || tc.Name != "shell" || string(tc.Input) != `{"command":"ls -la"}` {
 		t.Errorf("assembled tool call wrong: %+v input=%s", tc, tc.Input)
 	}
-	if resp.StopReason != agent.StopToolUse {
+	if resp.StopReason != llm.StopToolUse {
 		t.Errorf("stop = %q, want tool_use", resp.StopReason)
 	}
 	if resp.Usage.InputTokens != 40 || resp.Usage.OutputTokens != 18 {
@@ -144,7 +144,7 @@ func TestParseStream_OAIToolCall(t *testing.T) {
 func TestParseStream_OAIParallelTools(t *testing.T) {
 	starts := map[string]string{} // id → name
 	args := map[string]*strings.Builder{}
-	resp, err := parseStream(strings.NewReader(sampleOAIParallelToolStream), func(c agent.Chunk) error {
+	resp, err := parseStream(strings.NewReader(sampleOAIParallelToolStream), func(c llm.Chunk) error {
 		if c.ToolUseStart != nil {
 			starts[c.ToolUseStart.ID] = c.ToolUseStart.Name
 			args[c.ToolUseStart.ID] = &strings.Builder{}
@@ -179,7 +179,7 @@ func TestParseStream_OAIParallelTools(t *testing.T) {
 
 func TestParseStream_OAI_OnChunkAborts(t *testing.T) {
 	calls := 0
-	_, err := parseStream(strings.NewReader(sampleOAITextStream), func(c agent.Chunk) error {
+	_, err := parseStream(strings.NewReader(sampleOAITextStream), func(c llm.Chunk) error {
 		calls++
 		if c.TextDelta != "" {
 			return &abortErr{"caller cancelled"}
@@ -209,7 +209,7 @@ data: {"id":"x","model":"gpt-4o-mini","choices":[{"index":0,"delta":{},"finish_r
 data: [DONE]
 
 `
-	resp, err := parseStream(strings.NewReader(garbageStream), func(c agent.Chunk) error { return nil })
+	resp, err := parseStream(strings.NewReader(garbageStream), func(c llm.Chunk) error { return nil })
 	if err != nil {
 		t.Fatalf("garbage frame should not kill stream: %v", err)
 	}
@@ -236,11 +236,11 @@ func TestCompleteStream_OAI_EndToEnd(t *testing.T) {
 
 	p := &Provider{APIKey: "test-key", Endpoint: srv.URL, HTTP: srv.Client()}
 	var got strings.Builder
-	resp, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
+	resp, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
 		Model:    "gpt-4o-mini",
 		System:   "Be terse.",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "Say 'pong' in one word."}},
-	}, func(c agent.Chunk) error {
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "Say 'pong' in one word."}},
+	}, func(c llm.Chunk) error {
 		got.WriteString(c.TextDelta)
 		return nil
 	})
@@ -281,10 +281,10 @@ func TestCompleteStream_OAI_AzureAuthHeader(t *testing.T) {
 		AuthHeader: "api-key",
 		AuthScheme: "",
 	}
-	_, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
+	_, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
 		Model:    "m",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
-	}, func(c agent.Chunk) error { return nil })
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
+	}, func(c llm.Chunk) error { return nil })
 	if err != nil {
 		t.Fatalf("CompleteStream: %v", err)
 	}
@@ -297,10 +297,10 @@ func TestCompleteStream_OAI_HTTPError(t *testing.T) {
 	}))
 	defer srv.Close()
 	p := &Provider{APIKey: "x", Endpoint: srv.URL, HTTP: srv.Client()}
-	_, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
+	_, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
 		Model:    "m",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
-	}, func(c agent.Chunk) error { return nil })
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
+	}, func(c llm.Chunk) error { return nil })
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -312,8 +312,8 @@ func TestCompleteStream_OAI_HTTPError(t *testing.T) {
 
 func TestCompleteStream_OAI_NilOnChunkRejected(t *testing.T) {
 	p := &Provider{APIKey: "k"}
-	_, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+	_, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	}, nil)
 	if err == nil || !strings.Contains(err.Error(), "non-nil onChunk") {
 		t.Errorf("got %v, want nil-callback rejection", err)
@@ -321,7 +321,7 @@ func TestCompleteStream_OAI_NilOnChunkRejected(t *testing.T) {
 }
 
 // Compile-time guard — *Provider must satisfy StreamingProvider.
-var _ agent.StreamingProvider = (*Provider)(nil)
+var _ llm.StreamingProvider = (*Provider)(nil)
 
 // reasoning stream: a DeepSeek-R1-style stream that emits reasoning_content
 // deltas before the answer tokens (M317).
@@ -341,7 +341,7 @@ data: [DONE]
 // the answer text.
 func TestParseStream_Reasoning(t *testing.T) {
 	var reasoning, text strings.Builder
-	resp, err := parseStream(strings.NewReader(sampleOAIReasoningStream), func(c agent.Chunk) error {
+	resp, err := parseStream(strings.NewReader(sampleOAIReasoningStream), func(c llm.Chunk) error {
 		reasoning.WriteString(c.ReasoningDelta)
 		text.WriteString(c.TextDelta)
 		return nil

@@ -13,7 +13,8 @@ import (
 	"strings"
 
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/agent"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 )
 
@@ -68,7 +69,7 @@ type Config struct {
 	// Typically the same provider the operator's runs use, but the
 	// caller can pass a cheaper/faster one (planners benefit less
 	// from frontier models than executors do).
-	Provider agent.Provider
+	Provider llm.Provider
 	// Model overrides the provider's default model when set.
 	// Empty falls back to the provider's own default.
 	Model string
@@ -122,12 +123,12 @@ func GenerateFromIntent(ctx context.Context, cfg Config, frame intentmodel.Frame
 		return "", Plan{}, err
 	}
 
-	req := agent.CompletionRequest{
+	req := llm.CompletionRequest{
 		System:    sys,
 		Model:     cfg.Model,
 		MaxTokens: maxTok,
-		Messages: []agent.Message{
-			{Role: agent.RoleUser, Content: intentFrame},
+		Messages: []llm.Message{
+			{Role: llm.RoleUser, Content: intentFrame},
 		},
 		// Hint the Governor's per-task-type routing (M1.cc): operators
 		// can pin planner LLM calls to a specific provider via

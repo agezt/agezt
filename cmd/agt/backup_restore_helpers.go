@@ -73,7 +73,7 @@ func pointInTimeRestore(homeOverride, toDir, atSpec string, stdout, stderr io.Wr
 		fmt.Fprintf(stderr, "%s restore: no journal at %s\n", brand.CLI, srcJournal)
 		return 1
 	}
-	j, err := journal.Open(srcJournal, journal.Options{})
+	j, err := journal.Open(srcJournal, journal.Options{FailOnCorruption: true})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s restore: open source journal: %v\n", brand.CLI, err)
 		return 1

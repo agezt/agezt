@@ -7,7 +7,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/journal"
@@ -40,7 +41,7 @@ func TestGovernorEvents_CarryRunCorrelation(t *testing.T) {
 		prov := &fakeProvider{name: "p", resp: okResp("m", 1, 1)}
 		mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: prov, AuthMode: governor.AuthAPIKey})
 		g, _ := governor.New(governor.Config{Registry: r, Bus: b})
-		if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "m", CorrelationID: corr}); err != nil {
+		if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "m", CorrelationID: corr}); err != nil {
 			t.Fatalf("Complete: %v", err)
 		}
 		assertCorr(t, j, event.KindRoutingDecision, corr)
@@ -56,7 +57,7 @@ func TestGovernorEvents_CarryRunCorrelation(t *testing.T) {
 			&governor.ProviderInfo{Name: "local", Provider: good, AuthMode: governor.AuthLocal, IsFallback: true},
 		)
 		g, _ := governor.New(governor.Config{Registry: r, Bus: b})
-		if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "m", CorrelationID: corr}); err != nil {
+		if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "m", CorrelationID: corr}); err != nil {
 			t.Fatalf("Complete: %v", err)
 		}
 		assertCorr(t, j, event.KindProviderFallback, corr)
@@ -69,8 +70,8 @@ func TestGovernorEvents_CarryRunCorrelation(t *testing.T) {
 		mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: prov, AuthMode: governor.AuthAPIKey})
 		g, _ := governor.New(governor.Config{Registry: r, Bus: b, RateLimitPerMin: 1})
 		// First call admitted; second exceeds the 1/min gate.
-		_, _ = g.Complete(context.Background(), agent.CompletionRequest{Model: "m", CorrelationID: "run-first"})
-		if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "m", CorrelationID: corr}); !errors.Is(err, governor.ErrRateLimited) {
+		_, _ = g.Complete(context.Background(), llm.CompletionRequest{Model: "m", CorrelationID: "run-first"})
+		if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "m", CorrelationID: corr}); !errors.Is(err, governor.ErrRateLimited) {
 			t.Fatalf("second call err = %v, want ErrRateLimited", err)
 		}
 		assertCorr(t, j, event.KindRateLimited, corr)
@@ -83,8 +84,8 @@ func TestGovernorEvents_CarryRunCorrelation(t *testing.T) {
 		mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: prov, AuthMode: governor.AuthAPIKey})
 		g, _ := governor.New(governor.Config{Registry: r, Bus: b, DailyCeilingMicrocents: 200_000})
 		// First call spends past the ceiling; second is blocked pre-flight.
-		_, _ = g.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6", CorrelationID: "run-first"})
-		if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "claude-sonnet-4-6", CorrelationID: corr}); !errors.Is(err, governor.ErrBudgetExceeded) {
+		_, _ = g.Complete(context.Background(), llm.CompletionRequest{Model: "claude-sonnet-4-6", CorrelationID: "run-first"})
+		if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "claude-sonnet-4-6", CorrelationID: corr}); !errors.Is(err, governor.ErrBudgetExceeded) {
 			t.Fatalf("second call err = %v, want ErrBudgetExceeded", err)
 		}
 		// The blocked (second) call's event is the one carrying corr; it is the
@@ -102,8 +103,8 @@ func TestGovernorEvents_CarryRunCorrelation(t *testing.T) {
 			ModelToolCapable:       capLookup(map[string]bool{"mini": false, "big": true}),
 			ToolCapableAlternative: altLookup(map[string]string{"mini": "big"}),
 		})
-		if _, err := g.Complete(context.Background(), agent.CompletionRequest{
-			Model: "mini", Tools: []agent.ToolDef{{Name: "shell"}}, CorrelationID: corr,
+		if _, err := g.Complete(context.Background(), llm.CompletionRequest{
+			Model: "mini", Tools: []toolapi.ToolDef{{Name: "shell"}}, CorrelationID: corr,
 		}); err != nil {
 			t.Fatalf("Complete: %v", err)
 		}
@@ -119,8 +120,8 @@ func TestGovernorEvents_CarryRunCorrelation(t *testing.T) {
 			Registry: r, Bus: b, StrictModelCapabilities: true,
 			ModelToolCapable: capLookup(map[string]bool{"mini": false}),
 		})
-		if _, err := g.Complete(context.Background(), agent.CompletionRequest{
-			Model: "mini", Tools: []agent.ToolDef{{Name: "shell"}}, CorrelationID: corr,
+		if _, err := g.Complete(context.Background(), llm.CompletionRequest{
+			Model: "mini", Tools: []toolapi.ToolDef{{Name: "shell"}}, CorrelationID: corr,
 		}); !errors.Is(err, governor.ErrModelLacksToolUse) {
 			t.Fatalf("err = %v, want ErrModelLacksToolUse", err)
 		}

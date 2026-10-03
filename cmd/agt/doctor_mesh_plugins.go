@@ -49,9 +49,17 @@ func checkPlugins() doctorCheck {
 				"the daemon will refuse to start — fix the spec: AGEZT_PLUGIN_TOOLS=\"<prefix>=<tool>+<tool>,…\"")
 		}
 	}
+	var envGrants plugin.ToolAllowlistSpec
+	if grantSpec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PLUGIN_ENV")); grantSpec != "" {
+		envGrants, err = plugin.ParseToolAllowlistSpec(grantSpec)
+		if err != nil {
+			return fail("plugins", "AGEZT_PLUGIN_ENV is malformed: "+err.Error(),
+				"the daemon will refuse to start — fix the spec: AGEZT_PLUGIN_ENV=\"<prefix>=<VAR>+<VAR>,…\"")
+		}
+	}
 
-	// Stale pin/tool entries (a prefix with no matching plugin) are the daemon's
-	// startup WARNINGs — surface them here too so a typo'd prefix is caught.
+	// Stale pin/tool/env entries (a prefix with no matching plugin) are the
+	// daemon's startup WARNINGs — surface them here too so a typo'd prefix is caught.
 	var stale []string
 	for _, p := range pins.UnusedPins(prefixes) {
 		stale = append(stale, "pin:"+p)
@@ -59,12 +67,15 @@ func checkPlugins() doctorCheck {
 	for _, p := range allowed.Unused(prefixes) {
 		stale = append(stale, "tools:"+p)
 	}
+	for _, p := range envGrants.Unused(prefixes) {
+		stale = append(stale, "env:"+p)
+	}
 	if len(stale) > 0 {
 		sort.Strings(stale)
 		return warn("plugins",
 			fmt.Sprintf("%d plugin(s) configured, but these entries reference no plugin prefix: %s",
 				len(entries), strings.Join(stale, ", ")),
-			"fix the prefix or remove the stale AGEZT_PLUGIN_PINS/AGEZT_PLUGIN_TOOLS entry")
+			"fix the prefix or remove the stale AGEZT_PLUGIN_PINS/AGEZT_PLUGIN_TOOLS/AGEZT_PLUGIN_ENV entry")
 	}
 
 	detail := fmt.Sprintf("%d plugin(s) configured", len(entries))

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"testing"
 
@@ -113,9 +114,9 @@ func TestPersistInboundImages(t *testing.T) {
 	}
 }
 
-// TestVisionGate wires the kernel-backed wrapper: no images passes, and an
+// TestImageAdmission wires the kernel-backed wrapper: no images passes, and an
 // image with an unknown/non-vision model is rejected (mirrors the M255 gate).
-func TestVisionGate(t *testing.T) {
+func TestImageAdmission(t *testing.T) {
 	k, err := kernelruntime.Open(kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("unused")),
@@ -125,10 +126,10 @@ func TestVisionGate(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if err := visionGate(k, "some-model", nil); err != nil {
-		t.Errorf("visionGate with no images should pass, got %v", err)
+	if _, err := k.AdmitImages(context.Background(), "plain", "some-model", "hello", nil); err != nil {
+		t.Errorf("AdmitImages with no images should pass, got %v", err)
 	}
-	if err := visionGate(k, "definitely-not-a-vision-model", []string{"data:image/png;base64,AAA"}); err == nil {
-		t.Error("visionGate should reject an image run on a non-vision model")
+	if _, err := k.AdmitImages(context.Background(), "image", "definitely-not-a-vision-model", "describe", []string{"data:image/png;base64,AAA"}); err == nil {
+		t.Error("AdmitImages should reject an image run on a non-vision model")
 	}
 }

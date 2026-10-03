@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
 )
 
@@ -53,7 +53,7 @@ func TestSnapshot_NoConcurrentMapRaceWithRecordUsage(t *testing.T) {
 			default:
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-			_, _ = g.Complete(ctx, agent.CompletionRequest{
+			_, _ = g.Complete(ctx, llm.CompletionRequest{
 				Model:         "mock",
 				TaskType:      "demo",
 				CorrelationID: "race",

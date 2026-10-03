@@ -5,6 +5,8 @@ package agent
 import (
 	"strings"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func bigToolMsg(id string, n int) Message {
@@ -226,7 +228,7 @@ func TestCompactMessages_RescuesMarkedToolOutputs(t *testing.T) {
 		{Role: RoleTool, Content: ordinary, ToolCallID: "log-read-2"},
 	}
 	before, _ := contextSize("sys", msgs)
-	out, stats := compactMessagesDetailed("sys", msgs, before-900, 2, 0, nil, []string{DefaultContextRescueMarker})
+	out, stats := compactMessagesDetailed("sys", msgs, before-900, 2, 0, nil, []string{toolapi.DefaultContextRescueMarker})
 	if stats.Rescued != 1 || stats.RescuedChars != len(rescued) {
 		t.Fatalf("rescue stats = %+v, want one rescued skill resource", stats)
 	}

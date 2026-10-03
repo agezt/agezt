@@ -16,7 +16,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
 )
@@ -27,7 +27,7 @@ type Runner interface {
 	Conduct(ctx context.Context, corr string, cfg runtime.ConductorConfig) (runtime.ConductorResult, error)
 }
 
-// Tool is the `conductor` implementation of agent.Tool.
+// Tool is the `conductor` implementation of toolapi.Tool.
 type Tool struct {
 	runner Runner
 }
@@ -38,11 +38,11 @@ func New() *Tool { return &Tool{} }
 // SetRunner injects the conductor orchestrator (the kernel), done by the daemon.
 func (t *Tool) SetRunner(r Runner) { t.runner = r }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "conductor",
-		Capability: agent.ToolCapability{Name: string(edict.CapCodeExec)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapCodeExec)},
 		Description: "Run the Conductor — three roles on (usually) DIFFERENT models collaborate to solve a hard, " +
 			"verifiable task: a THINKER plans, a WORKER writes the solution, and a VERIFIER checks it (RUNNING the " +
 			"worker's code when it can), looping until the verifier accepts or the round cap is hit. Best for coding, " +
@@ -60,8 +60,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "plan":       {"type":"boolean", "description":"Tailor per-role instructions with a planning call first (default false)."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"Run several model calls (and possibly a sandboxed code run) to solve and verify a task, returning the answer and transcript.",
 			},
@@ -81,11 +81,11 @@ type input struct {
 	Plan      bool   `json:"plan,omitempty"`
 }
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("conductor: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("conductor: parse input: %w", err)
 	}
 	if t.runner == nil {
 		return errResult("conductor unavailable"), nil
@@ -93,7 +93,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	if strings.TrimSpace(in.Task) == "" {
 		return errResult("task required"), nil
 	}
-	corr := agent.CorrelationFromContext(ctx)
+	corr := toolapi.CorrelationFromContext(ctx)
 	res, err := t.runner.Conduct(ctx, corr, runtime.ConductorConfig{
 		Task:      in.Task,
 		Thinker:   in.Thinker,
@@ -113,9 +113,9 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		"plan":   res.Plan,
 		"steps":  res.Steps,
 	}, "", "  ")
-	return agent.Result{Output: string(out)}, nil
+	return toolapi.Result{Output: string(out)}, nil
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: "conductor: " + msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: "conductor: " + msg, IsError: true}
 }

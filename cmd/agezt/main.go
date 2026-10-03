@@ -332,6 +332,14 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.Binary, err)
 		return 1
 	}
+	// Close plugin children at shutdown. Deferred before the kernel opens, so
+	// it runs after the kernel's own Close: in-flight runs finish with their
+	// plugin tools still alive.
+	defer func() {
+		if err := toolSet.Close(); err != nil {
+			fmt.Fprintf(stderr, "%s: closing tools: %v\n", brand.Binary, err)
+		}
+	}()
 
 	// OnReload is invoked by the control plane's `provider_reload`
 	// command (and `agt provider reload`). It re-reads the vault,
@@ -485,7 +493,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	cfg := kernelruntime.Config{
 		BaseDir:          baseDir,
-		Provider:         gov, // Governor implements agent.Provider
+		Provider:         gov, // Governor implements llm.Provider
 		Tools:            tools,
 		Plugins:          pluginManifest,
 		ToolCapabilities: pluginToolCaps, // M900: manifest-declared policy axes
@@ -776,6 +784,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// plus a shared web research brief (via the always-registered web_search tool).
 	// Default on; AGEZT_COUNCIL_WEBSEARCH=off convenes the panel with the date only.
 	cfg.CouncilWebSearch = dcfg.Misc.CouncilWebSearch
+	cfg.ConfigVault = credStore // config-center secrets live in the vault
 
 	var openErr error
 	k, openErr = kernelruntime.Open(cfg)
@@ -784,6 +793,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 		return 1
 	}
 	defer k.Close()
+	if rec := k.Journal().Recovery(); rec != nil {
+		// Owner decision 5.6: a corrupt record mid-journal no longer stops the
+		// daemon, but it must never pass unnoticed.
+		fmt.Fprintf(stderr, "WARNING: journal: corrupt record at seq %d — everything from there was quarantined (%d bytes kept in %s) and the chain resumed; a journal.recovered event records it. Inspect the quarantined files before deleting them. Cause: %s\n",
+			rec.BreakSeq, rec.Bytes, strings.Join(rec.Quarantined, ", "), rec.Reason)
+	}
 
 	// Post-Open dependency injection (config's kernel, the artifact index for
 	// fetch/browser.action/artifacts/code_exec, the db data lake, the
@@ -1036,11 +1051,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 			}
 			tcfg := cfg // copy the primary config value
 			tcfg.BaseDir = tdir
-			tcfg.TenantID = id   // stamp tenant identity onto every run's ctx (M219)
-			tcfg.Provider = tgov // isolated spend ledger + per-tenant ceiling
-			tcfg.Warden = nil    // fresh per-tenant warden (isolated HALT)
-			tcfg.Edict = nil     // fresh per-tenant policy engine
-			tcfg.OnReload = nil  // no per-tenant reload wiring yet
+			tcfg.TenantID = id     // stamp tenant identity onto every run's ctx (M219)
+			tcfg.Provider = tgov   // isolated spend ledger + per-tenant ceiling
+			tcfg.Warden = nil      // fresh per-tenant warden (isolated HALT)
+			tcfg.Edict = nil       // fresh per-tenant policy engine
+			tcfg.OnReload = nil    // no per-tenant reload wiring yet
+			tcfg.ConfigVault = nil // never the primary's vault: keys would share its namespace
 			tk, oerr := kernelruntime.Open(tcfg)
 			if oerr != nil {
 				return nil, oerr
@@ -1190,7 +1206,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		if label == "" {
 			label = m.Kind
 		}
-		startInstances(ctx, stdout, m.Kind, label, m.DisabledHint, insts)
+		startInstances(ctx, k.Bus(), stdout, stderr, m.Kind, label, m.DisabledHint, insts)
 		allInsts = append(allInsts, insts)
 	}
 	channelSinks := combineSinks(instanceSinks(allInsts...)...)
@@ -1555,7 +1571,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 			// code_exec wiring — the bus bind (M683, code.executed events) and the
 			// Conductor's Verifier backend (M997) — moved to its registry spec's
 			// Configure hook. Only the banner remains; the type assertion here is
-			// display-only (Languages() isn't on agent.Tool).
+			// display-only (Languages() isn't on toolapi.Tool).
 			name: "code_exec tool",
 			run: func() (string, error) {
 				if ce, ok := tools["code_exec"].(*codeexec.Tool); ok {
@@ -1834,9 +1850,3 @@ func channelHistoryLimit() int {
 // tomorrow?" is understood, then runs the governed loop under the message's
 // correlation. With no prior context (or history disabled) it runs the raw
 // message text — unchanged first-turn behavior.
-// visionGate rejects an image-carrying run whose effective model is not a
-// confirmed vision-capable model, mirroring the control plane's M91 gate
-// (server.go) so the OpenAI API and channel run paths — which call RunWith
-// directly, bypassing that gate — give a clear pre-flight error instead of a
-// wasted provider call and a cryptic downstream failure (M255). Confirmed-or-
-// reject: an unknown or unpriced-but-known non-vision model is refused.

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 func f64(v float64) *float64 { return &v }
@@ -17,8 +17,8 @@ func f64(v float64) *float64 { return &v }
 // maxTokens / JSON mode / thinking budget either, generationConfig is omitted
 // entirely.
 func TestEncodeRequest_ParamsUnset(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
-	body, err := encodeRequest("", msgs, nil, 0, false, 0, agent.Params{}, nil)
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
+	body, err := encodeRequest("", msgs, nil, 0, false, 0, llm.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,8 +33,8 @@ func TestEncodeRequest_ParamsUnset(t *testing.T) {
 // (Gemini nests them, unlike OpenAI's top-level placement); nil knobs stay
 // absent. Gemini has no seed / penalties, so those Params fields are dropped.
 func TestEncodeRequest_ParamsSet(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
-	p := agent.Params{
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
+	p := llm.Params{
 		Temperature: f64(0.2),
 		TopP:        f64(0.9),
 		Stop:        []string{"STOP"},
@@ -80,9 +80,9 @@ func TestEncodeRequest_ParamsSet(t *testing.T) {
 // TestEncodeRequest_ProviderOptionsMerge (M997): a ProviderOptions["google"]
 // object is overlaid onto the wire body; an unset map changes nothing.
 func TestEncodeRequest_ProviderOptionsMerge(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
 	extra := json.RawMessage(`{"cachedContent":"projects/p/locations/l/cachedContents/c"}`)
-	body, err := encodeRequest("", msgs, nil, 0, false, 0, agent.Params{}, extra)
+	body, err := encodeRequest("", msgs, nil, 0, false, 0, llm.Params{}, extra)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/state"
 )
 
@@ -38,7 +39,7 @@ type Relevance interface {
 // LLM refine; the full world-model relevance/decay signals land with Memory.
 type Salience struct {
 	state      *state.FileStore
-	provider   agent.Provider // optional; only used when useLLM
+	provider   llm.Provider // optional; only used when useLLM
 	model      string
 	relevance  Relevance // optional world-model relevance signal
 	dial       Dial
@@ -227,10 +228,10 @@ func (s *Salience) refineWithLLM(ctx context.Context, d Delta) (float64, string,
 		Score  float64 `json:"score"`
 		Reason string  `json:"reason"`
 	}
-	if _, err := agent.GenerateObject(ctx, s.provider, agent.CompletionRequest{
+	if _, err := agent.GenerateObject(ctx, s.provider, llm.CompletionRequest{
 		Model:    s.model,
 		System:   salienceSystem,
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: user}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: user}},
 		TaskType: "salience",
 	}, nil, &out); err != nil {
 		return 0, "", false

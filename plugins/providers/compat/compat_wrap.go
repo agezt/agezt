@@ -11,8 +11,8 @@ package compat
 import (
 	"context"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 func FirstModelID(p *catalog.Provider) string {
@@ -28,24 +28,24 @@ func FirstModelID(p *catalog.Provider) string {
 	return best
 }
 
-// namedProvider wraps an inner agent.Provider so the Name() it reports
+// namedProvider wraps an inner llm.Provider so the Name() it reports
 // matches the catalog provider id instead of the wire-family default
 // ("anthropic", "ollama"). The Governor's registry is keyed on Name();
 // keeping it aligned with the catalog id is what lets `agt catalog
 // list` and the daemon's logs use the same identifier.
 type namedProvider struct {
 	name  string
-	inner agent.Provider
+	inner llm.Provider
 }
 
 func (n *namedProvider) Name() string { return n.name }
-func (n *namedProvider) Complete(ctx context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (n *namedProvider) Complete(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	return n.inner.Complete(ctx, req)
 }
 
 // namedStreamingProvider is the streaming-aware variant of
 // namedProvider. It's returned by wrapNamed when the inner provider
-// implements agent.StreamingProvider, so type-asserting on the
+// implements llm.StreamingProvider, so type-asserting on the
 // wrapped value preserves the inner's streaming capability.
 //
 // This is split into a sibling type rather than always implementing
@@ -57,18 +57,18 @@ func (n *namedProvider) Complete(ctx context.Context, req agent.CompletionReques
 // what it says.
 type namedStreamingProvider struct {
 	namedProvider
-	streamingInner agent.StreamingProvider
+	streamingInner llm.StreamingProvider
 }
 
-func (n *namedStreamingProvider) CompleteStream(ctx context.Context, req agent.CompletionRequest, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func (n *namedStreamingProvider) CompleteStream(ctx context.Context, req llm.CompletionRequest, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	return n.streamingInner.CompleteStream(ctx, req, onChunk)
 }
 
 // wrapNamed returns a wrapper that preserves the inner provider's
-// capabilities. Always implements agent.Provider; additionally
-// implements agent.StreamingProvider if the inner does.
-func wrapNamed(name string, p agent.Provider) agent.Provider {
-	if sp, ok := p.(agent.StreamingProvider); ok {
+// capabilities. Always implements llm.Provider; additionally
+// implements llm.StreamingProvider if the inner does.
+func wrapNamed(name string, p llm.Provider) llm.Provider {
+	if sp, ok := p.(llm.StreamingProvider); ok {
 		return &namedStreamingProvider{
 			namedProvider:  namedProvider{name: name, inner: p},
 			streamingInner: sp,

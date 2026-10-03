@@ -10,6 +10,10 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/platform/filestore"
 )
 
 // AuditLogger handles audit logging for config access events.
@@ -17,6 +21,9 @@ type AuditLogger struct {
 	mu     sync.Mutex
 	dir    string
 	config *Config
+	// bus, when set, journals every access as config.access. The file log
+	// stays for its Query API; the journal is the tamper-evident record.
+	bus *bus.Bus
 }
 
 // NewAuditLogger creates a new audit logger.
@@ -75,6 +82,35 @@ func (a *AuditLogger) Log(req *ConfigAccessRequest, decision AccessDecision, pol
 
 	// Write to disk
 	a.writeToFile(entry)
+	a.publish(entry)
+}
+
+// publish journals the access. Agents read secrets through the config center,
+// and that audit trail used to live only in this package's own files, outside
+// the hash-chained journal. The event carries the decision, never the value
+// log: the journal has no purge path, so a value preview written there could
+// never be removed.
+func (a *AuditLogger) publish(entry *AuditEntry) {
+	if a.bus == nil {
+		return
+	}
+	actor := entry.AgentID
+	if actor == "" {
+		actor = "config_center"
+	}
+	_, _ = a.bus.Publish(event.Spec{
+		Subject:       "config.access",
+		Kind:          event.KindConfigAccess,
+		Actor:         actor,
+		CorrelationID: entry.RunID,
+		Payload: map[string]any{
+			"key":         entry.Key,
+			"agent_id":    entry.AgentID,
+			"decision":    string(entry.Decision),
+			"policy":      entry.Policy,
+			"reason_code": entry.ReasonCode,
+		},
+	})
 }
 
 // previewValue returns a preview of a value appropriate for logging.
@@ -105,12 +141,13 @@ func (a *AuditLogger) writeToFile(entry *AuditEntry) {
 
 	filename := filepath.Join(a.dir, fmt.Sprintf("audit_%s.jsonl", time.Now().Format("2006-01-02")))
 
-	if err := os.MkdirAll(a.dir, 0o755); err != nil {
+	if err := filestore.EnsureDir(a.dir); err != nil {
 		slog.Warn("config center: audit dir create failed", "dir", a.dir, "error", err)
 		return
 	}
 
-	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	// 0600: entries carry value previews (and full public values).
+	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, filestore.FilePerm)
 	if err != nil {
 		slog.Warn("config center: audit log open failed", "file", filename, "error", err)
 		return

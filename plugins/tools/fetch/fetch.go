@@ -7,9 +7,12 @@
 // the artifact store / file manager, where the operator can preview and download
 // it. The capability is a plain network GET (edict CapHTTPGet).
 //
-// Like the http/web_search tools it goes through a netguard-protected client
-// that refuses internal/metadata addresses (SSRF guard), relaxed only by the
-// explicit AllowLoopback/AllowPrivate flags.
+// It is governed as the same capability as the http tool's GET (http.get), so it
+// takes the same egress posture (kernel/platform/netout): the operator's host
+// allowlist when one is pinned, re-checked on every redirect, and the dial-time
+// guard that refuses internal/metadata addresses unless AllowLoopback /
+// AllowPrivate opt back in. It used to ignore the allowlist, so restricting the
+// http tool left a second, unrestricted way to download from any host.
 package fetch
 
 import (
@@ -23,10 +26,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/artifact"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/netguard"
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 // DefaultTimeout caps a single download.
@@ -41,11 +44,17 @@ type Indexer interface {
 	PutEntry(meta artifact.Entry, data []byte, createdMs int64) (artifact.Entry, error)
 }
 
-// Tool is the `fetch` implementation of agent.Tool.
+// Tool is the `fetch` implementation of toolapi.Tool.
 type Tool struct {
 	// HTTP overrides the default client; when nil a netguard-protected client is
 	// built (default-deny to internal/metadata addresses).
 	HTTP *stdhttp.Client
+	// AllowedHosts / AllowAll are the host allowlist, with the http tool's
+	// semantics (netout.Egress): AllowAll = any public host; otherwise only
+	// AllowedHosts. New() starts with AllowAll; the daemon applies the same
+	// posture as the http tool.
+	AllowedHosts []string
+	AllowAll     bool
 	// AllowLoopback / AllowPrivate relax the egress guard for the default client.
 	AllowLoopback bool
 	AllowPrivate  bool
@@ -64,7 +73,7 @@ const DefaultUserAgent = "agezt-fetch/1.0"
 
 // New returns a Tool with safe defaults.
 func New() *Tool {
-	return &Tool{UserAgent: DefaultUserAgent, Now: func() int64 { return time.Now().UnixMilli() }}
+	return &Tool{AllowAll: true, UserAgent: DefaultUserAgent, Now: func() int64 { return time.Now().UnixMilli() }}
 }
 
 // SetIndex injects the artifact index (done by the daemon after the kernel opens,
@@ -81,24 +90,25 @@ func (t *Tool) client() *stdhttp.Client {
 	if t.HTTP != nil {
 		return t.HTTP
 	}
-	var opts []netguard.Option
-	if t.AllowLoopback {
-		opts = append(opts, netguard.AllowLoopback())
-	}
-	if t.AllowPrivate {
-		opts = append(opts, netguard.AllowPrivate())
-	}
-	if t.OnBlock != nil {
-		opts = append(opts, netguard.OnBlock(t.OnBlock))
-	}
-	return netguard.New(opts...).HTTPClient(DefaultTimeout)
+	return t.egress().Client(DefaultTimeout)
 }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// egress is this tool's outbound posture (kernel/platform/netout).
+func (t *Tool) egress() netout.Egress {
+	return netout.Egress{
+		AnyHost:       t.AllowAll,
+		AllowedHosts:  t.AllowedHosts,
+		AllowLoopback: t.AllowLoopback,
+		AllowPrivate:  t.AllowPrivate,
+		OnBlock:       t.OnBlock,
+	}
+}
+
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "fetch",
-		Capability: agent.ToolCapability{Name: string(edict.CapHTTPGet)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapHTTPGet)},
 		Description: "Download a URL and SAVE its bytes as an artifact (file) — use this to keep " +
 			"an image, PDF, or other file from the web (it appears in the Files view and can be " +
 			"downloaded). Returns the artifact {id, mime, size, name}. For reading a page's TEXT " +
@@ -111,8 +121,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "name": {"type":"string", "description":"Optional file name for the saved artifact."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"Download bytes from an HTTP(S) URL with GET.",
 				"Persist the downloaded content into the artifact store for later viewing or reuse.",
@@ -129,11 +139,11 @@ type fetchInput struct {
 	Name string `json:"name,omitempty"`
 }
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in fetchInput
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("fetch: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("fetch: parse input: %w", err)
 	}
 	u := strings.TrimSpace(in.URL)
 	if u == "" {
@@ -141,6 +151,13 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	}
 	if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
 		return errResult("url must be an absolute http/https URL"), nil
+	}
+	parsed, err := url.Parse(u)
+	if err != nil || parsed.Hostname() == "" {
+		return errResult("url must be an absolute http/https URL"), nil
+	}
+	if !t.egress().HostAllowed(parsed.Hostname()) {
+		return errResult(fmt.Sprintf("fetch: %v: %s", netout.ErrHostDenied, parsed.Hostname())), nil
 	}
 	if t.index == nil {
 		return errResult("artifact store unavailable"), nil
@@ -203,9 +220,9 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 		"saved": true,
 		"note":  "saved to the Files view; reference it by id",
 	}, "", "  ")
-	return agent.Result{
+	return toolapi.Result{
 		Output:            string(out),
-		ObservationTrust:  agent.ObservationUntrusted,
+		ObservationTrust:  toolapi.ObservationUntrusted,
 		ObservationSource: u,
 	}, nil
 }
@@ -240,6 +257,6 @@ func nameFromURL(raw string) string {
 	return "download"
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: "fetch: " + msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: "fetch: " + msg, IsError: true}
 }

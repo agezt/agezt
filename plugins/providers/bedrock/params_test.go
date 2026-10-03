@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 func f64(v float64) *float64 { return &v }
@@ -16,8 +16,8 @@ func f64(v float64) *float64 { return &v }
 // anthropic-on-bedrock body free of any sampling field — the default-preserving
 // contract every adapter upholds.
 func TestAnthropicOnBedrock_ParamsUnset(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
-	body, err := encodeAnthropicOnBedrockRequest("", msgs, nil, 100, agent.Params{}, nil)
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
+	body, err := encodeAnthropicOnBedrockRequest("", msgs, nil, 100, llm.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,8 +31,8 @@ func TestAnthropicOnBedrock_ParamsUnset(t *testing.T) {
 // TestAnthropicOnBedrock_ParamsSet (M997): set sampling knobs appear with their
 // values; a ReasoningEffort turns on the thinking block.
 func TestAnthropicOnBedrock_ParamsSet(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
-	p := agent.Params{
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
+	p := llm.Params{
 		Temperature:     f64(0.2),
 		TopP:            f64(0.9),
 		Stop:            []string{"STOP"},
@@ -68,9 +68,9 @@ func TestAnthropicOnBedrock_ParamsSet(t *testing.T) {
 // TestAnthropicOnBedrock_ProviderOptionsMerge (M997): a ProviderOptions["bedrock"]
 // object is overlaid onto the wire body; an unset map changes nothing.
 func TestAnthropicOnBedrock_ProviderOptionsMerge(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
 	extra := json.RawMessage(`{"anthropic_beta":["interleaved-thinking-2025-05-14"]}`)
-	body, err := encodeAnthropicOnBedrockRequest("", msgs, nil, 100, agent.Params{}, extra)
+	body, err := encodeAnthropicOnBedrockRequest("", msgs, nil, 100, llm.Params{}, extra)
 	if err != nil {
 		t.Fatal(err)
 	}

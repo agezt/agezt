@@ -33,7 +33,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 )
 
@@ -50,7 +50,7 @@ type llamaBedrockRequest struct {
 // applyParams copies the two sampling knobs Bedrock Llama understands; an unset
 // Params leaves the request unchanged. top_k/stop/seed/penalties/ReasoningEffort
 // have no Bedrock-Llama equivalent and are ignored.
-func (wire *llamaBedrockRequest) applyParams(p agent.Params) {
+func (wire *llamaBedrockRequest) applyParams(p llm.Params) {
 	if p.IsZero() {
 		return
 	}
@@ -75,7 +75,7 @@ type llamaBedrockResponse struct {
 // since 3.x is what's broadly available on Bedrock today we
 // target only that. Operators on Llama 2 should pin to the older
 // model id and accept that the v2 template isn't covered.
-func llama3Template(system string, msgs []agent.Message) string {
+func llama3Template(system string, msgs []llm.Message) string {
 	var sb strings.Builder
 	sb.WriteString("<|begin_of_text|>")
 	if system != "" {
@@ -96,19 +96,19 @@ func llama3Template(system string, msgs []agent.Message) string {
 	return sb.String()
 }
 
-func llamaRole(r agent.Role) string {
+func llamaRole(r llm.Role) string {
 	switch r {
-	case agent.RoleAssistant:
+	case llm.RoleAssistant:
 		return "assistant"
-	case agent.RoleUser:
+	case llm.RoleUser:
 		return "user"
-	case agent.RoleSystem:
+	case llm.RoleSystem:
 		return "system"
 	}
 	return "user"
 }
 
-func encodeMetaLlamaOnBedrockRequest(system string, msgs []agent.Message, maxTok int, params agent.Params, extra json.RawMessage) ([]byte, error) {
+func encodeMetaLlamaOnBedrockRequest(system string, msgs []llm.Message, maxTok int, params llm.Params, extra json.RawMessage) ([]byte, error) {
 	if len(msgs) == 0 {
 		return nil, errors.New("bedrock-llama: at least one message required")
 	}
@@ -124,7 +124,7 @@ func encodeMetaLlamaOnBedrockRequest(system string, msgs []agent.Message, maxTok
 	return provopts.Merge(body, extra)
 }
 
-func decodeMetaLlamaOnBedrockResponse(body []byte, model string) (*agent.CompletionResponse, error) {
+func decodeMetaLlamaOnBedrockResponse(body []byte, model string) (*llm.CompletionResponse, error) {
 	var wire llamaBedrockResponse
 	if err := json.Unmarshal(body, &wire); err != nil {
 		return nil, fmt.Errorf("bedrock-llama: parse response: %w", err)
@@ -132,17 +132,17 @@ func decodeMetaLlamaOnBedrockResponse(body []byte, model string) (*agent.Complet
 	if wire.Generation == "" {
 		return nil, errors.New("bedrock-llama: response generation empty")
 	}
-	stop := agent.StopEndTurn
+	stop := llm.StopEndTurn
 	if strings.EqualFold(wire.StopReason, "length") {
-		stop = agent.StopMaxTokens
+		stop = llm.StopMaxTokens
 	}
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:    agent.RoleAssistant,
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:    llm.RoleAssistant,
 			Content: wire.Generation,
 		},
 		StopReason: stop,
-		Usage: agent.Usage{
+		Usage: llm.Usage{
 			Model:        model,
 			InputTokens:  wire.PromptTokenCount,
 			OutputTokens: wire.GenerationTokenCount,

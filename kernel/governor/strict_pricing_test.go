@@ -12,7 +12,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/journal"
@@ -34,7 +34,7 @@ func newStrictGov(t *testing.T, strict bool) (*governor.Governor, *fakeProvider,
 func TestStrictPricing_RefusesUnknownModel(t *testing.T) {
 	g, prov, j := newStrictGov(t, true)
 
-	_, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "totally-unknown-model-xyz"})
+	_, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "totally-unknown-model-xyz"})
 	if !errors.Is(err, governor.ErrUnpricedModel) {
 		t.Fatalf("err = %v, want ErrUnpricedModel", err)
 	}
@@ -57,7 +57,7 @@ func TestStrictPricing_RefusesUnknownModel(t *testing.T) {
 func TestStrictPricing_AllowsKnownFreeAndPriced(t *testing.T) {
 	for _, model := range []string{"claude-sonnet-4-6", "llama3.2"} {
 		g, prov, _ := newStrictGov(t, true)
-		if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: model}); err != nil {
+		if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: model}); err != nil {
 			t.Errorf("model %q refused under strict pricing: %v", model, err)
 		}
 		if prov.calls.Load() != 1 {
@@ -72,7 +72,7 @@ func TestStrictPricing_EmptyModelRefusedNoModelConfigured(t *testing.T) {
 	// provider is never called. (Previously an empty model passed through to the
 	// provider's own default; that default no longer exists.)
 	g, prov, _ := newStrictGov(t, true)
-	_, err := g.Complete(context.Background(), agent.CompletionRequest{Model: ""})
+	_, err := g.Complete(context.Background(), llm.CompletionRequest{Model: ""})
 	var e *governor.ErrNoModelConfigured
 	if !errors.As(err, &e) {
 		t.Errorf("empty model: got %v, want *ErrNoModelConfigured", err)
@@ -84,7 +84,7 @@ func TestStrictPricing_EmptyModelRefusedNoModelConfigured(t *testing.T) {
 
 func TestStrictPricing_OffByDefaultAllowsUnknown(t *testing.T) {
 	g, prov, _ := newStrictGov(t, false)
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "totally-unknown-model-xyz"}); err != nil {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "totally-unknown-model-xyz"}); err != nil {
 		t.Errorf("unknown model rejected with strict pricing OFF (regression): %v", err)
 	}
 	if prov.calls.Load() != 1 {

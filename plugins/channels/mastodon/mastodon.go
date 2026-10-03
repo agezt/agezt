@@ -29,6 +29,7 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -65,7 +66,7 @@ type Channel struct {
 func New(cfg Config) *Channel {
 	client := cfg.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		client = netout.OperatorClient(30 * time.Second)
 	}
 	poll := cfg.PollSecs
 	if poll <= 0 {
@@ -129,7 +130,7 @@ func (c *Channel) poll(ctx context.Context) {
 		if n.ID > c.since {
 			c.since = n.ID
 		}
-		c.dispatch(ctx, n)
+		channel.Guard(c.bus, "mastodon", func() { c.dispatch(ctx, n) })
 	}
 }
 

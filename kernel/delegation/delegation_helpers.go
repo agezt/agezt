@@ -2,16 +2,13 @@ package delegation
 
 // Provenance: SPDX-License-Identifier: MIT kernel/delegation utility helpers
 //             (SpawnLink, BudgetCostMicrocents, KeyedModelChain,
-//             AppendUniqueStrings, AppendUniqueString, ValidateSpawnTask,
-//             FormatDuration). Extracted from delegation.go during Day 211 god-file
-//             refactor (#90). Public API unchanged.
+//             AppendUniqueStrings, AppendUniqueString). Extracted from
+//             delegation.go during Day 211 god-file refactor (#90).
 
 import (
 	"encoding/json"
-	"fmt"
 	"slices"
 	"strings"
-	"time"
 )
 
 func SpawnLink(payload json.RawMessage) (child, parent string) {
@@ -73,23 +70,4 @@ func AppendUniqueString(in []string, value string) []string {
 		return in
 	}
 	return append(in, value)
-}
-func ValidateSpawnTask(task string) error {
-	if strings.TrimSpace(task) == "" {
-		return fmt.Errorf("sub-agent task is empty")
-	}
-	if len(task) > 10000 {
-		return fmt.Errorf("sub-agent task too long (%d chars, max 10000)", len(task))
-	}
-	return nil
-}
-func FormatDuration(d time.Duration) string {
-	switch {
-	case d < time.Second:
-		return fmt.Sprintf("%dms", d.Milliseconds())
-	case d < time.Minute:
-		return fmt.Sprintf("%.1fs", d.Seconds())
-	default:
-		return fmt.Sprintf("%.1fm", d.Minutes())
-	}
 }

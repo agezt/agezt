@@ -18,17 +18,6 @@ const observationDeltaMaxLines = 24
 // approval on every later action.
 const DefaultDirectiveTaintWindow = 1
 
-// ObservationTrust marks whether a tool result is trusted operational output or
-// untrusted external-world data. The model may reason over untrusted data, but
-// it must not treat it as an instruction source.
-type ObservationTrust string
-
-const (
-	ObservationTrustDefault ObservationTrust = ""
-	ObservationTrusted      ObservationTrust = "trusted"
-	ObservationUntrusted    ObservationTrust = "untrusted"
-)
-
 // ObservationBoundary is the audit record produced when a tool result crosses
 // from the world/tool layer into the model's context.
 type ObservationBoundary struct {

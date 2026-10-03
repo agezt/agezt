@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -34,8 +34,8 @@ func TestResearchCoverageDefinitionAndHelpers(t *testing.T) {
 	if def.Name != "research" {
 		t.Fatalf("Name = %q", def.Name)
 	}
-	if def.Effect.Class != agent.EffectReversible {
-		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, agent.EffectReversible)
+	if def.Effect.Class != toolapi.EffectReversible {
+		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, toolapi.EffectReversible)
 	}
 	if !strings.Contains(def.Description, "deep-research") {
 		t.Fatalf("description should mention deep-research, got %q", def.Description)
@@ -105,8 +105,8 @@ func TestResearchCoverageInvokeHappyPath(t *testing.T) {
 	if fr.gotQ != "q" || fr.gotOpts.MaxSubQuestions != 4 || fr.gotOpts.MaxSources != 9 || fr.gotOpts.Verify || fr.gotOpts.MaxVerifyClaims != 7 {
 		t.Fatalf("runner got %+v %+v", fr.gotQ, fr.gotOpts)
 	}
-	if res.ObservationTrust != agent.ObservationUntrusted {
-		t.Fatalf("ObservationTrust = %v, want %v", res.ObservationTrust, agent.ObservationUntrusted)
+	if res.ObservationTrust != toolapi.ObservationUntrusted {
+		t.Fatalf("ObservationTrust = %v, want %v", res.ObservationTrust, toolapi.ObservationUntrusted)
 	}
 	if res.ObservationSource != "research:web" {
 		t.Fatalf("ObservationSource = %q", res.ObservationSource)

@@ -9,7 +9,7 @@ package governor
 import (
 	"fmt"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -29,7 +29,7 @@ type preflightStep struct {
 	// Name identifies the step in test failures. It is not journaled — each
 	// step publishes its own event with its own subject and kind.
 	Name string
-	Run  func(g *Governor, req *agent.CompletionRequest) error
+	Run  func(g *Governor, req *llm.CompletionRequest) error
 }
 
 // preflightSteps is the cascade, in the order it runs.
@@ -45,7 +45,7 @@ var preflightSteps = []preflightStep{
 }
 
 // runPreflight walks the cascade, stopping at the first refusal.
-func (g *Governor) runPreflight(req *agent.CompletionRequest) error {
+func (g *Governor) runPreflight(req *llm.CompletionRequest) error {
 	for _, step := range preflightSteps {
 		if err := step.Run(g, req); err != nil {
 			return err
@@ -63,7 +63,7 @@ func (g *Governor) runPreflight(req *agent.CompletionRequest) error {
 // A configured model CHAIN (M703) supersedes the single override for that task
 // type: completeChained has already set req.Model to the chain's current model,
 // so this must not clobber it.
-func (g *Governor) applyTaskModelOverride(req *agent.CompletionRequest) error {
+func (g *Governor) applyTaskModelOverride(req *llm.CompletionRequest) error {
 	if len(g.cfg.TaskModelOverrides) == 0 || req.TaskType == "" {
 		return nil
 	}
@@ -83,7 +83,7 @@ func (g *Governor) applyTaskModelOverride(req *agent.CompletionRequest) error {
 // model (M37), BEFORE the strict gate would reject it. A miss leaves req.Model
 // unchanged so the gate (if on) still rejects. Journaled, so `agt why` explains
 // why the served model differs from the requested one.
-func (g *Governor) downRouteToolModel(req *agent.CompletionRequest) error {
+func (g *Governor) downRouteToolModel(req *llm.CompletionRequest) error {
 	if !g.cfg.DownRouteToolModels || g.cfg.ToolCapableAlternative == nil ||
 		g.cfg.ModelToolCapable == nil || len(req.Tools) == 0 {
 		return nil
@@ -110,7 +110,7 @@ func (g *Governor) downRouteToolModel(req *agent.CompletionRequest) error {
 // lacks tool use (M25), turning a confusing deep upstream failure into a clear,
 // journaled error. Checked against the FINAL req.Model, after any override or
 // down-route. Unknown models are never blocked; non-tool requests pass.
-func (g *Governor) gateModelToolUse(req *agent.CompletionRequest) error {
+func (g *Governor) gateModelToolUse(req *llm.CompletionRequest) error {
 	if !g.cfg.StrictModelCapabilities || g.cfg.ModelToolCapable == nil || len(req.Tools) == 0 {
 		return nil
 	}
@@ -130,7 +130,7 @@ func (g *Governor) gateModelToolUse(req *agent.CompletionRequest) error {
 // schema-constrained tool-argument path (CH-02). Tool schemas are always
 // validated at the kernel boundary; this notes that invalid tool calls will be
 // caught AFTER sampling rather than made impossible by the sampler. Not fatal.
-func (g *Governor) noteStrictToolArgsDegradation(req *agent.CompletionRequest) error {
+func (g *Governor) noteStrictToolArgsDegradation(req *llm.CompletionRequest) error {
 	if len(req.Tools) == 0 || g.cfg.ModelStrictToolArgsNative == nil {
 		return nil
 	}
@@ -150,7 +150,7 @@ func (g *Governor) noteStrictToolArgsDegradation(req *agent.CompletionRequest) e
 // use this is neither fatal nor rerouted — the provider honours it via
 // prompt-instructed JSON — but nothing used to record that the native path was
 // skipped. Only flagged when the catalog KNOWS the model is non-native.
-func (g *Governor) noteJSONModeDegradation(req *agent.CompletionRequest) error {
+func (g *Governor) noteJSONModeDegradation(req *llm.CompletionRequest) error {
 	if !req.JSONMode || g.cfg.ModelJSONNative == nil {
 		return nil
 	}
@@ -167,7 +167,7 @@ func (g *Governor) noteJSONModeDegradation(req *agent.CompletionRequest) error {
 // gateRate is the frequency check, deliberately ahead of spend: a call blocked
 // here never reaches a provider or the budget ledger. Admitted calls are
 // counted.
-func (g *Governor) gateRate(req *agent.CompletionRequest) error {
+func (g *Governor) gateRate(req *llm.CompletionRequest) error {
 	admitted, used, limit := g.admitRate()
 	if admitted {
 		return nil
@@ -191,7 +191,7 @@ func (g *Governor) gateRate(req *agent.CompletionRequest) error {
 // hold either way. This gate is now the stricter of two live protections rather
 // than the only one: it refuses an unpriced model instead of ESTIMATING its
 // cost, for operators who would rather stop than bill a guess.
-func (g *Governor) gateStrictPricing(req *agent.CompletionRequest) error {
+func (g *Governor) gateStrictPricing(req *llm.CompletionRequest) error {
 	if !g.cfg.StrictPricing || req.Model == "" || modelIsPriced(req.Model) {
 		return nil
 	}
@@ -205,7 +205,7 @@ func (g *Governor) gateStrictPricing(req *agent.CompletionRequest) error {
 	return fmt.Errorf("%w: %q", ErrUnpricedModel, req.Model)
 }
 
-func (g *Governor) publishCapability(req *agent.CompletionRequest, kind event.Kind, payload map[string]any) {
+func (g *Governor) publishCapability(req *llm.CompletionRequest, kind event.Kind, payload map[string]any) {
 	g.publish(event.Spec{
 		Subject:       "governor.capability",
 		Kind:          kind,

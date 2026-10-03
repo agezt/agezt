@@ -12,13 +12,10 @@ type Kind string
 // is added as their layers come online (Pulse, Memory/Forge, Channels,
 // Operability, …). See INDEX.md §2 for the full destination list.
 const (
-	// Agent lifecycle (P0-LIFE-04).
-	KindAgentSpawned   Kind = "agent.spawned"
-	KindAgentSuspended Kind = "agent.suspended"
-	KindAgentResumed   Kind = "agent.resumed"
-	KindAgentDied      Kind = "agent.died"
-	KindAgentCrashed   Kind = "agent.crashed"
-	KindAgentRetry     Kind = "agent.retry"
+	// Agent lifecycle (P0-LIFE-04). agent.spawned/suspended/resumed/died/crashed
+	// were declared here for years and never emitted (W1.6); deleted. Run
+	// lifecycle is task.* and subagent.spawned.
+	KindAgentRetry Kind = "agent.retry"
 
 	// Task / orchestration (tool-loop core; DAG layer adds plan/node kinds
 	// later per DECISIONS B0d).
@@ -88,6 +85,13 @@ const (
 	// plane). The deny floor is security-critical, so every change is an
 	// auditable event in the same journal as the decisions it governs.
 	KindPolicyChanged Kind = "policy.changed"
+	// KindPolicyAutoApproved: a session-scoped operator grant satisfied an
+	// approval-class capability without prompting.
+	KindPolicyAutoApproved Kind = "policy.auto_approved"
+	// KindPromptInjectionWarned: the prompt-injection guard saw an effectful
+	// action downstream of directive-like untrusted content and did NOT block it
+	// (warn mode, or the operator trusted the run).
+	KindPromptInjectionWarned Kind = "prompt_injection.warned"
 
 	// Governor (P1-CONDUIT-*).
 	KindRoutingDecision  Kind = "routing.decision"
@@ -231,8 +235,16 @@ const (
 	KindApprovalDenied    Kind = "approval.denied"
 	KindApprovalTimeout   Kind = "approval.timeout"
 
-	// Config Center (config.access, rating-based access control).
+	// Config Center (config.access, rating-based access control): every
+	// agent read of a config value, with the decision — never the value.
 	KindConfigAccess Kind = "config.access"
+
+	// Operations: every state-changing control-plane op, journaled by the
+	// dispatcher — op name, caller, arguments with secrets redacted — and
+	// then its outcome. Read-only ops are not journaled.
+	KindOpInvoked   Kind = "op.invoked"
+	KindOpCompleted Kind = "op.completed"
+	KindOpFailed    Kind = "op.failed"
 
 	// Scheduler / DAG (SPEC-02 §4; TASKS P1-SCHED-*).
 	KindPlanStarted   Kind = "plan.started"
@@ -263,6 +275,12 @@ const (
 	KindBriefingSent  Kind = "briefing.sent"
 	KindPulsePaused   Kind = "pulse.paused"
 	KindPulseResumed  Kind = "pulse.resumed"
+	// KindJournalRecovered is the first event of a chain resumed after Open
+	// quarantined a corrupt suffix: break seq, reason, quarantined files.
+	KindJournalRecovered Kind = "journal.recovered"
+	// KindPulseDropped is the synthetic, never-journaled notice the pulse
+	// stream sends a subscriber that fell behind and lost events.
+	KindPulseDropped Kind = "agezt.pulse.dropped"
 	// KindSelfRepairPanic records a RECOVERED panic in the auto-repair
 	// coordinator, which subscribes to the pulse observer and dispatches a
 	// governed repair run on a bare `go`. That run drives providers, tools,
@@ -311,7 +329,6 @@ const (
 	KindWorldRelationUpserted Kind = "worldmodel.relation.upserted" // an edge created/reinforced
 	KindWorldRetrieved        Kind = "worldmodel.retrieved"         // entities resolved into a run's context
 	KindWorldForgotten        Kind = "worldmodel.forgotten"         // a node/edge tombstoned (soft delete)
-	KindWorldSuperseded       Kind = "worldmodel.superseded"        // a node replaced by a newer version
 
 	// Forge — auditable self-improvement (SPEC-05 §5). Skill lifecycle is a
 	// journaled state machine so `agt skill history` and `agt why` explain
@@ -348,9 +365,6 @@ const (
 	// behaviour from the journal and recalibrates; the report (observations,
 	// adjustments applied, advisory proposals) is itself journaled.
 	KindReflectionCompleted Kind = "reflection.completed"
-
-	// Journal self-events (used for snapshot/verify boundaries).
-	KindJournalSegmentRotated Kind = "journal.segment_rotated"
 
 	// Outbound webhooks (P7-API-02). The webhook dispatcher POSTs journal
 	// events to operator-configured endpoints; each delivery attempt's outcome
@@ -456,4 +470,19 @@ const (
 	// Taste overlay: curated "what good looks like" exemplars were injected into
 	// a run's system prompt (kernel/taste).
 	KindTasteInjected Kind = "taste.injected"
+
+	// Capability marketplace (control plane): pack and source changes, plus the
+	// ephemeral install/uninstall progress stream.
+	KindMarketPackInstalled     Kind = "market.pack.installed"
+	KindMarketPackUninstalled   Kind = "market.pack.uninstalled"
+	KindMarketSourceAdded       Kind = "market.source.added"
+	KindMarketSourceRemoved     Kind = "market.source.removed"
+	KindMarketSynced            Kind = "market.synced"
+	KindMarketInstallProgress   Kind = "market.install.progress"
+	KindMarketUninstallProgress Kind = "market.uninstall.progress"
+
+	// Host CLI toolbox: an install was requested / finished, and its progress stream.
+	KindToolboxInstallRequested Kind = "toolbox.install.requested"
+	KindToolboxInstalled        Kind = "toolbox.installed"
+	KindToolboxProgress         Kind = "toolbox.progress"
 )

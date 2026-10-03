@@ -15,12 +15,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
-func encodeRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, params agent.Params, extra json.RawMessage) ([]byte, error) {
+func encodeRequest(model, system string, msgs []llm.Message, tools []toolapi.ToolDef, maxTok int, params llm.Params, extra json.RawMessage) ([]byte, error) {
 	fwd, _ := toolname.Maps(tools)
 	wire := cohereRequest{
 		Model:     model,
@@ -62,16 +63,16 @@ func encodeRequest(model, system string, msgs []agent.Message, tools []agent.Too
 	return provopts.Merge(body, extra)
 }
 
-func canonicalToCohere(m agent.Message, fwd map[string]string) (*cohereMessage, error) {
+func canonicalToCohere(m llm.Message, fwd map[string]string) (*cohereMessage, error) {
 	switch m.Role {
-	case agent.RoleSystem:
+	case llm.RoleSystem:
 		if strings.TrimSpace(m.Content) == "" {
 			return nil, nil
 		}
 		return &cohereMessage{Role: "system", Content: m.Content}, nil
-	case agent.RoleUser:
+	case llm.RoleUser:
 		return &cohereMessage{Role: "user", Content: m.Content}, nil
-	case agent.RoleAssistant:
+	case llm.RoleAssistant:
 		cm := &cohereMessage{Role: "assistant", Content: m.Content}
 		for _, tc := range m.ToolCalls {
 			args := tc.Input
@@ -88,7 +89,7 @@ func canonicalToCohere(m agent.Message, fwd map[string]string) (*cohereMessage, 
 			})
 		}
 		return cm, nil
-	case agent.RoleTool:
+	case llm.RoleTool:
 		if m.ToolCallID == "" {
 			return nil, errors.New("cohere: role=tool requires tool_call_id")
 		}

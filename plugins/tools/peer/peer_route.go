@@ -12,28 +12,28 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/strutil"
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/meshctx"
 )
 
-func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
+func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Result, error) {
 	var in struct {
 		Peer  string `json:"peer"`
 		Task  string `json:"task"`
 		Model string `json:"model"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
-		return agent.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
 	}
 	task := strings.TrimSpace(in.Task)
 	if task == "" {
-		return agent.Result{Output: "task is required", IsError: true}, nil
+		return toolapi.Result{Output: "task is required", IsError: true}, nil
 	}
 	// Mesh loop guard (M209): if this run is already at the hop limit, delegating
 	// further would push the peer past it (and be refused there). Refuse locally with a
 	// clear message rather than make a doomed round-trip. A non-delegated run is hop 0.
 	if maxHops := meshctx.MaxHopsFromEnv(); meshctx.Hop(ctx) >= maxHops {
-		return agent.Result{Output: fmt.Sprintf(
+		return toolapi.Result{Output: fmt.Sprintf(
 			"remote_run: mesh delegation hop limit (%d) reached — refusing to delegate further to avoid a federation loop",
 			maxHops), IsError: true}, nil
 	}
@@ -51,7 +51,7 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	// that serve it in order (M203).
 	candidates, err := t.routeCandidates(ctx, strings.TrimSpace(in.Peer), model)
 	if err != nil {
-		return agent.Result{Output: err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: err.Error(), IsError: true}, nil
 	}
 
 	// Forward the model only when the caller pinned one; an absent/empty model lets
@@ -77,9 +77,9 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 				continue
 			}
 			if len(candidates) == 1 {
-				return agent.Result{Output: fmt.Sprintf("remote_run: POST %s failed: %v", endpoint, perr), IsError: true}, nil
+				return toolapi.Result{Output: fmt.Sprintf("remote_run: POST %s failed: %v", endpoint, perr), IsError: true}, nil
 			}
-			return agent.Result{Output: fmt.Sprintf("remote_run: all %d peers serving %q unreachable (%s); last error: %v",
+			return toolapi.Result{Output: fmt.Sprintf("remote_run: all %d peers serving %q unreachable (%s); last error: %v",
 				len(candidates), model, strings.Join(tried, ", "), perr), IsError: true}, nil
 		}
 
@@ -101,13 +101,13 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 			if resp.CorrelationID != "" {
 				out += fmt.Sprintf(" (peer correlation: %s)", resp.CorrelationID)
 			}
-			return agent.Result{Output: out, IsError: true}, nil
+			return toolapi.Result{Output: out, IsError: true}, nil
 		}
 
-		return agent.Result{Output: render(peer.Name, resp.Model, resp.CorrelationID, resp.Answer)}, nil
+		return toolapi.Result{Output: render(peer.Name, resp.Model, resp.CorrelationID, resp.Answer)}, nil
 	}
 	// routeCandidates returns a non-empty list or an error, so the loop always returns.
-	return agent.Result{Output: "remote_run: no candidate peer", IsError: true}, nil
+	return toolapi.Result{Output: "remote_run: no candidate peer", IsError: true}, nil
 }
 
 func render(peerName, model, corr, answer string) string {

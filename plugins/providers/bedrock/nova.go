@@ -38,7 +38,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 )
 
@@ -72,7 +72,7 @@ type novaInferenceConfig struct {
 // applyParams maps the universal sampling knobs onto Nova's inferenceConfig
 // fields. An unset Params leaves the request unchanged; seed/penalties/
 // ReasoningEffort have no Nova equivalent.
-func (c *novaInferenceConfig) applyParams(p agent.Params) {
+func (c *novaInferenceConfig) applyParams(p llm.Params) {
 	if p.IsZero() {
 		return
 	}
@@ -103,7 +103,7 @@ type novaBedrockResponse struct {
 // through, and any other canonical role (system-as-message, tool) folds
 // into a user message so the model still sees the content — Nova rejects
 // unknown roles and empty content, so empty messages are skipped.
-func encodeNovaOnBedrockRequest(system string, msgs []agent.Message, maxTok int, params agent.Params, extra json.RawMessage) ([]byte, error) {
+func encodeNovaOnBedrockRequest(system string, msgs []llm.Message, maxTok int, params llm.Params, extra json.RawMessage) ([]byte, error) {
 	out := novaBedrockRequest{
 		SchemaVersion:   "messages-v1",
 		InferenceConfig: novaInferenceConfig{MaxTokens: maxTok},
@@ -152,7 +152,7 @@ func encodeNovaOnBedrockRequest(system string, msgs []agent.Message, maxTok int,
 // canonical CompletionResponse. Unlike the Mistral adapter, Nova returns
 // token counts inline (usage.inputTokens/outputTokens), so the governor
 // sees real spend.
-func decodeNovaOnBedrockResponse(body []byte, model string) (*agent.CompletionResponse, error) {
+func decodeNovaOnBedrockResponse(body []byte, model string) (*llm.CompletionResponse, error) {
 	var wire novaBedrockResponse
 	if err := json.Unmarshal(body, &wire); err != nil {
 		return nil, fmt.Errorf("bedrock-nova: parse response: %w", err)
@@ -164,24 +164,24 @@ func decodeNovaOnBedrockResponse(body []byte, model string) (*agent.CompletionRe
 	if sb.Len() == 0 {
 		return nil, errors.New("bedrock-nova: response has no output text")
 	}
-	stop := agent.StopEndTurn
+	stop := llm.StopEndTurn
 	switch wire.StopReason {
 	case "max_tokens":
-		stop = agent.StopMaxTokens
+		stop = llm.StopMaxTokens
 	case "end_turn", "stop_sequence", "":
-		stop = agent.StopEndTurn
+		stop = llm.StopEndTurn
 	}
 	role := wire.Output.Message.Role
 	if role == "" {
-		role = string(agent.RoleAssistant)
+		role = string(llm.RoleAssistant)
 	}
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:    agent.Role(role),
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:    llm.Role(role),
 			Content: sb.String(),
 		},
 		StopReason: stop,
-		Usage: agent.Usage{
+		Usage: llm.Usage{
 			InputTokens:  wire.Usage.InputTokens,
 			OutputTokens: wire.Usage.OutputTokens,
 			Model:        model,

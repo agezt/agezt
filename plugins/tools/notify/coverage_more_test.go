@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestNotifyCoverageKinds(t *testing.T) {
@@ -44,8 +44,8 @@ func TestNotifyCoverageDefinition(t *testing.T) {
 	if def.Name != "notify" {
 		t.Fatalf("Name = %q", def.Name)
 	}
-	if def.Effect.Class != agent.EffectCompensable {
-		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, agent.EffectCompensable)
+	if def.Effect.Class != toolapi.EffectCompensable {
+		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, toolapi.EffectCompensable)
 	}
 	if !strings.Contains(def.Description, "(none configured yet)") {
 		t.Fatalf("description should list empty state, got %q", def.Description)

@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/artifact"
@@ -15,6 +14,8 @@ import (
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/datalake"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
@@ -53,13 +54,13 @@ type KernelAPI interface {
 	Warden() warden.Engine
 	Approvals() *approval.Registry
 	Scheduler() *scheduler.Executor
-	Provider() agent.Provider
+	Provider() llm.Provider
 	Memory() *memory.Manager
 	AgentGateway() *agentgw.Gateway
 	Schedules() *cadence.Store
 
 	// Day 14 — live reads.
-	Tools() map[string]agent.Tool
+	Tools() map[string]toolapi.Tool
 	World() *worldmodel.Graph
 	Forge() *skill.Forge
 	StartTime() time.Time

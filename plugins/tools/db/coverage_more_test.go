@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/datalake"
 )
 
@@ -22,8 +22,8 @@ func TestDBCoverageDefinitionAndHelpers(t *testing.T) {
 	if !strings.Contains(def.Description, "Personal Data Lake") {
 		t.Fatalf("description should mention Data Lake, got %q", def.Description)
 	}
-	if def.Effect.Class != agent.EffectCompensable {
-		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, agent.EffectCompensable)
+	if def.Effect.Class != toolapi.EffectCompensable {
+		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, toolapi.EffectCompensable)
 	}
 	schema := string(def.InputSchema)
 	for _, op := range []string{`"list_collections"`, `"create_collection"`, `"insert"`, `"query"`} {
@@ -38,9 +38,9 @@ func TestDBCoverageDefinitionAndHelpers(t *testing.T) {
 		ctx  context.Context
 		want string
 	}{
-		{name: "agent+corr", ctx: agent.WithAgent(agent.WithCorrelation(context.Background(), "run-1"), "tester"), want: "tester:run-1"},
-		{name: "agent only", ctx: agent.WithAgent(context.Background(), "tester"), want: "tester"},
-		{name: "corr only", ctx: agent.WithCorrelation(context.Background(), "run-1"), want: "run-1"},
+		{name: "agent+corr", ctx: toolapi.WithAgent(toolapi.WithCorrelation(context.Background(), "run-1"), "tester"), want: "tester:run-1"},
+		{name: "agent only", ctx: toolapi.WithAgent(context.Background(), "tester"), want: "tester"},
+		{name: "corr only", ctx: toolapi.WithCorrelation(context.Background(), "run-1"), want: "run-1"},
 		{name: "default", ctx: context.Background(), want: "agent"},
 	}
 	for _, tc := range cases {

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -44,8 +44,8 @@ func TestChatSummarize_ReturnsBriefing(t *testing.T) {
 // front of the transcript (convo.TranscriptIntent's preamble rule).
 func TestChatSummarize_FoldsPriorSummaryAsSystem(t *testing.T) {
 	prov := mock.New(mock.FinalText("updated briefing"))
-	var reqs []agent.CompletionRequest
-	prov.OnRequest = func(r agent.CompletionRequest) { reqs = append(reqs, r) }
+	var reqs []llm.CompletionRequest
+	prov.OnRequest = func(r llm.CompletionRequest) { reqs = append(reqs, r) }
 	_, _, c, _ := startPair(t, prov)
 
 	if _, err := c.Call(context.Background(), controlplane.CmdChatSummarize, map[string]any{

@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/bedrock"
 )
 
@@ -143,8 +143,8 @@ func TestCompleteStream_AssemblesTextResponse(t *testing.T) {
 	var got strings.Builder
 	resp, err := p.CompleteStream(
 		context.Background(),
-		agent.CompletionRequest{Model: "anthropic.claude-opus-4-7"},
-		func(c agent.Chunk) error {
+		llm.CompletionRequest{Model: "anthropic.claude-opus-4-7"},
+		func(c llm.Chunk) error {
 			got.WriteString(c.TextDelta)
 			return nil
 		},
@@ -158,8 +158,8 @@ func TestCompleteStream_AssemblesTextResponse(t *testing.T) {
 	if resp.Message.Content != "Hello, world" {
 		t.Errorf("assembled text = %q, want %q", resp.Message.Content, "Hello, world")
 	}
-	if resp.StopReason != agent.StopEndTurn {
-		t.Errorf("stop = %q, want %q", resp.StopReason, agent.StopEndTurn)
+	if resp.StopReason != llm.StopEndTurn {
+		t.Errorf("stop = %q, want %q", resp.StopReason, llm.StopEndTurn)
 	}
 	if resp.Usage.InputTokens != 7 || resp.Usage.OutputTokens != 12 {
 		t.Errorf("usage = %+v, want in=7 out=12", resp.Usage)
@@ -205,8 +205,8 @@ func TestCompleteStream_AssemblesToolCall(t *testing.T) {
 	)
 	resp, err := p.CompleteStream(
 		context.Background(),
-		agent.CompletionRequest{Model: "anthropic.claude-opus-4-7"},
-		func(c agent.Chunk) error {
+		llm.CompletionRequest{Model: "anthropic.claude-opus-4-7"},
+		func(c llm.Chunk) error {
 			if c.ToolUseStart != nil {
 				gotStarts++
 				if c.ToolUseStart.ID != "tool_1" || c.ToolUseStart.Name != "weather" {
@@ -244,8 +244,8 @@ func TestCompleteStream_AssemblesToolCall(t *testing.T) {
 	if string(tc.Input) != `{"city":"Istanbul"}` {
 		t.Errorf("tool input = %s, want {\"city\":\"Istanbul\"}", string(tc.Input))
 	}
-	if resp.StopReason != agent.StopToolUse {
-		t.Errorf("stop = %q, want %q", resp.StopReason, agent.StopToolUse)
+	if resp.StopReason != llm.StopToolUse {
+		t.Errorf("stop = %q, want %q", resp.StopReason, llm.StopToolUse)
 	}
 }
 
@@ -253,8 +253,8 @@ func TestCompleteStream_RejectsNonAnthropicModel(t *testing.T) {
 	p := bedrock.New("test", "us-east-1")
 	_, err := p.CompleteStream(
 		context.Background(),
-		agent.CompletionRequest{Model: "meta.llama3-70b-instruct-v1:0"},
-		func(agent.Chunk) error { return nil },
+		llm.CompletionRequest{Model: "meta.llama3-70b-instruct-v1:0"},
+		func(llm.Chunk) error { return nil },
 	)
 	if err == nil {
 		t.Fatal("expected error for non-anthropic model")
@@ -268,8 +268,8 @@ func TestCompleteStream_RejectsMissingBearer(t *testing.T) {
 	p := &bedrock.Provider{Region: "us-east-1"}
 	_, err := p.CompleteStream(
 		context.Background(),
-		agent.CompletionRequest{Model: "anthropic.claude-opus-4-7"},
-		func(agent.Chunk) error { return nil },
+		llm.CompletionRequest{Model: "anthropic.claude-opus-4-7"},
+		func(llm.Chunk) error { return nil },
 	)
 	if err != bedrock.ErrNoBearerToken {
 		t.Errorf("err = %v, want ErrNoBearerToken", err)
@@ -280,7 +280,7 @@ func TestCompleteStream_RejectsNilOnChunk(t *testing.T) {
 	p := &bedrock.Provider{BearerToken: "x", Region: "us-east-1"}
 	_, err := p.CompleteStream(
 		context.Background(),
-		agent.CompletionRequest{Model: "anthropic.claude-opus-4-7"},
+		llm.CompletionRequest{Model: "anthropic.claude-opus-4-7"},
 		nil,
 	)
 	if err == nil || !strings.Contains(err.Error(), "non-nil onChunk") {
@@ -302,8 +302,8 @@ func TestCompleteStream_SurfacesAPIErrorOnNon2xx(t *testing.T) {
 	}
 	_, err := p.CompleteStream(
 		context.Background(),
-		agent.CompletionRequest{Model: "anthropic.claude-opus-4-7"},
-		func(agent.Chunk) error { return nil },
+		llm.CompletionRequest{Model: "anthropic.claude-opus-4-7"},
+		func(llm.Chunk) error { return nil },
 	)
 	apiErr, ok := err.(*bedrock.APIError)
 	if !ok {
@@ -336,8 +336,8 @@ func TestCompleteStream_SurfacesExceptionFrame(t *testing.T) {
 	}
 	_, err := p.CompleteStream(
 		context.Background(),
-		agent.CompletionRequest{Model: "anthropic.claude-opus-4-7"},
-		func(agent.Chunk) error { return nil },
+		llm.CompletionRequest{Model: "anthropic.claude-opus-4-7"},
+		func(llm.Chunk) error { return nil },
 	)
 	if err == nil {
 		t.Fatal("expected error from exception frame")
@@ -375,8 +375,8 @@ func TestCompleteStream_ReturnsPartialOnEOF(t *testing.T) {
 	var got strings.Builder
 	resp, err := p.CompleteStream(
 		context.Background(),
-		agent.CompletionRequest{Model: "anthropic.claude-opus-4-7"},
-		func(c agent.Chunk) error {
+		llm.CompletionRequest{Model: "anthropic.claude-opus-4-7"},
+		func(c llm.Chunk) error {
 			got.WriteString(c.TextDelta)
 			return nil
 		},
@@ -433,8 +433,8 @@ func TestCompleteStream_RejectsNonStringHeader(t *testing.T) {
 	}
 	_, err := p.CompleteStream(
 		context.Background(),
-		agent.CompletionRequest{Model: "anthropic.claude-opus-4-7"},
-		func(agent.Chunk) error { return nil },
+		llm.CompletionRequest{Model: "anthropic.claude-opus-4-7"},
+		func(llm.Chunk) error { return nil },
 	)
 	if err == nil {
 		t.Fatal("expected error for unsupported header type")
@@ -460,8 +460,8 @@ func TestCompleteStream_OnChunkErrorPropagates(t *testing.T) {
 	want := io.ErrClosedPipe // a sentinel — could be anything
 	_, err := p.CompleteStream(
 		context.Background(),
-		agent.CompletionRequest{Model: "anthropic.claude-opus-4-7"},
-		func(c agent.Chunk) error {
+		llm.CompletionRequest{Model: "anthropic.claude-opus-4-7"},
+		func(c llm.Chunk) error {
 			if c.TextDelta != "" {
 				return want
 			}

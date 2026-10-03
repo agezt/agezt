@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // FuzzParseEventStream hardens the AWS event-stream BINARY parser — the highest
@@ -24,6 +24,6 @@ func FuzzParseEventStream(f *testing.F) {
 	f.Add([]byte{0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00}) // huge totalLen
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		_, _ = parseEventStream(bytes.NewReader(data), "fuzz-model", func(agent.Chunk) error { return nil })
+		_, _ = parseEventStream(bytes.NewReader(data), "fuzz-model", func(llm.Chunk) error { return nil })
 	})
 }

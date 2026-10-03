@@ -2,7 +2,7 @@ package main
 
 // Provenance: SPDX-License-Identifier: MIT cmd/agt provider check --stream
 //             sub-command: probes a provider via its streaming path
-//             (agent.StreamingProvider), rendering incoming text chunks inline.
+//             (llm.StreamingProvider), rendering incoming text chunks inline.
 //             Extracted from check_all.go during Day 211 god-file refactor (#50).
 //             Public API unchanged.
 
@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/compat"
 )
 
@@ -32,7 +32,7 @@ func streamingUnsupportedMessage(family string) string {
 }
 
 // runStreamProbe issues the probe via the provider's streaming path
-// (agent.StreamingProvider) and renders incoming text chunks inline.
+// (llm.StreamingProvider) and renders incoming text chunks inline.
 // Errors out cleanly if the resolved provider doesn't implement
 // streaming — that's not a failure of the provider, it's a
 // not-yet-wired adapter, and the operator should know so they can
@@ -53,7 +53,7 @@ func runStreamProbe(entry *catalog.Provider, lookup func(string) string, stdout,
 		return 1
 	}
 
-	sp, ok := prov.(agent.StreamingProvider)
+	sp, ok := prov.(llm.StreamingProvider)
 	if !ok {
 		fmt.Fprintf(stderr, "%s\n", streamingUnsupportedMessage(string(entry.Family())))
 		return 2
@@ -66,15 +66,15 @@ func runStreamProbe(entry *catalog.Provider, lookup func(string) string, stdout,
 	defer cancel()
 
 	start := time.Now()
-	resp, err := sp.CompleteStream(ctx, agent.CompletionRequest{
+	resp, err := sp.CompleteStream(ctx, llm.CompletionRequest{
 		Model:    modelID,
 		System:   "Be terse.",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "Say 'pong' in one word."}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "Say 'pong' in one word."}},
 		// Bump MaxTokens above the regular probe so streaming has
 		// room to be visibly progressive on chatty models. Still
 		// trivially cheap.
 		MaxTokens: 64,
-	}, func(c agent.Chunk) error {
+	}, func(c llm.Chunk) error {
 		if c.TextDelta != "" {
 			fmt.Fprint(stdout, c.TextDelta)
 		}

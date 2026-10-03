@@ -7,7 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestCohereCoverageIdentityEndpointAndErrors(t *testing.T) {
@@ -29,16 +30,16 @@ func TestCohereCoverageIdentityEndpointAndErrors(t *testing.T) {
 }
 
 func TestCohereCoverageCanonicalValidationAndDefaults(t *testing.T) {
-	if msg, err := canonicalToCohere(agent.Message{Role: agent.RoleSystem, Content: "   "}, nil); err != nil || msg != nil {
+	if msg, err := canonicalToCohere(llm.Message{Role: llm.RoleSystem, Content: "   "}, nil); err != nil || msg != nil {
 		t.Fatalf("blank system = %#v err %v", msg, err)
 	}
-	if _, err := canonicalToCohere(agent.Message{Role: agent.RoleTool, Content: "out"}, nil); err == nil || !strings.Contains(err.Error(), "tool_call_id") {
+	if _, err := canonicalToCohere(llm.Message{Role: llm.RoleTool, Content: "out"}, nil); err == nil || !strings.Contains(err.Error(), "tool_call_id") {
 		t.Fatalf("tool without id error = %v", err)
 	}
-	if _, err := canonicalToCohere(agent.Message{Role: "alien", Content: "x"}, nil); err == nil || !strings.Contains(err.Error(), "unknown role") {
+	if _, err := canonicalToCohere(llm.Message{Role: "alien", Content: "x"}, nil); err == nil || !strings.Contains(err.Error(), "unknown role") {
 		t.Fatalf("unknown role error = %v", err)
 	}
-	msg, err := canonicalToCohere(agent.Message{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "call-1", Name: "tool"}}}, map[string]string{"tool": "wire_tool"})
+	msg, err := canonicalToCohere(llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "call-1", Name: "tool"}}}, map[string]string{"tool": "wire_tool"})
 	if err != nil {
 		t.Fatalf("assistant tool: %v", err)
 	}
@@ -48,7 +49,7 @@ func TestCohereCoverageCanonicalValidationAndDefaults(t *testing.T) {
 }
 
 func TestCohereCoverageEncodeAndDecodeEdges(t *testing.T) {
-	body, err := encodeRequest("command-r", "", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, []agent.ToolDef{{Name: "plain"}}, 0, agent.Params{}, json.RawMessage(`{"meta":"x"}`))
+	body, err := encodeRequest("command-r", "", []llm.Message{{Role: llm.RoleUser, Content: "hi"}}, []toolapi.ToolDef{{Name: "plain"}}, 0, llm.Params{}, json.RawMessage(`{"meta":"x"}`))
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}
@@ -65,7 +66,7 @@ func TestCohereCoverageEncodeAndDecodeEdges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decodeResponse: %v", err)
 	}
-	if resp.StopReason != agent.StopMaxTokens || resp.Message.Content != "partial" || len(resp.Message.ToolCalls) != 1 || string(resp.Message.ToolCalls[0].Input) != "{}" {
+	if resp.StopReason != llm.StopMaxTokens || resp.Message.Content != "partial" || len(resp.Message.ToolCalls) != 1 || string(resp.Message.ToolCalls[0].Input) != "{}" {
 		t.Fatalf("decoded response = %+v", resp)
 	}
 	if resp.Message.ToolCalls[0].ID != "call-0" {

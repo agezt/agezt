@@ -305,12 +305,12 @@ func (s *Server) handleBoardReplies(conn net.Conn, req Request) {
 // registerBoardCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
 func registerBoardCommands() {
 	register(
-		commandSpec{Cmd: CmdBoardRead, Handler: func(dc *DispatchCtx) { dc.S.handleBoardRead(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdBoardHelp, Handler: func(dc *DispatchCtx) { dc.S.handleBoardHelp(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdBoardRead, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleBoardRead(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdBoardHelp, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleBoardHelp(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdBoardSend, Handler: func(dc *DispatchCtx) { dc.S.handleBoardSend(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdBoardInbox, Handler: func(dc *DispatchCtx) { dc.S.handleBoardInbox(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdBoardInbox, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleBoardInbox(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdBoardAck, Handler: func(dc *DispatchCtx) { dc.S.handleBoardAck(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdBoardReplies, Handler: func(dc *DispatchCtx) { dc.S.handleBoardReplies(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdBoardGet, Handler: func(dc *DispatchCtx) { dc.S.handleBoardGet(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdBoardReplies, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleBoardReplies(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdBoardGet, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleBoardGet(dc.Conn, dc.Req) }},
 	)
 }

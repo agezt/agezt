@@ -7,8 +7,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 func TestCompatCoverageLookupHelpers(t *testing.T) {
@@ -82,17 +82,17 @@ func TestCompatCoverageWrapNamedAndStreaming(t *testing.T) {
 	if got := np.Name(); got != "alias" {
 		t.Fatalf("named provider Name = %q", got)
 	}
-	resp, err := np.Complete(context.Background(), agent.CompletionRequest{Model: "m", Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}}})
+	resp, err := np.Complete(context.Background(), llm.CompletionRequest{Model: "m", Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}}})
 	if err != nil || resp.Message.Content != "ok" {
 		t.Fatalf("named complete = %+v err %v", resp, err)
 	}
 
 	sp := wrapNamed("streaming", fakeStreamingProvider{outer: fakeProvider{name: "streaming", reply: "streamed"}})
-	if _, ok := sp.(agent.StreamingProvider); !ok {
+	if _, ok := sp.(llm.StreamingProvider); !ok {
 		t.Fatal("expected streaming wrapper to satisfy StreamingProvider")
 	}
 	// Drive the streaming surface; should return the canned reply.
-	streamed, err := sp.(agent.StreamingProvider).CompleteStream(context.Background(), agent.CompletionRequest{Model: "m", Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}}}, func(agent.Chunk) error { return nil })
+	streamed, err := sp.(llm.StreamingProvider).CompleteStream(context.Background(), llm.CompletionRequest{Model: "m", Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}}}, func(llm.Chunk) error { return nil })
 	if err != nil || streamed.Message.Content != "streamed" {
 		t.Fatalf("streamed complete = %+v err %v", streamed, err)
 	}
@@ -105,8 +105,8 @@ type fakeProvider struct {
 
 func (f fakeProvider) Name() string { return f.name }
 
-func (f fakeProvider) Complete(ctx context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
-	return &agent.CompletionResponse{Message: agent.Message{Role: agent.RoleAssistant, Content: f.reply}}, nil
+func (f fakeProvider) Complete(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
+	return &llm.CompletionResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: f.reply}}, nil
 }
 
 type fakeStreamingProvider struct {
@@ -115,15 +115,15 @@ type fakeStreamingProvider struct {
 
 func (f fakeStreamingProvider) Name() string { return f.outer.name }
 
-func (f fakeStreamingProvider) Complete(ctx context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (f fakeStreamingProvider) Complete(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	return f.outer.Complete(ctx, req)
 }
 
-func (f fakeStreamingProvider) CompleteStream(ctx context.Context, req agent.CompletionRequest, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
-	if err := onChunk(agent.Chunk{TextDelta: "x"}); err != nil {
+func (f fakeStreamingProvider) CompleteStream(ctx context.Context, req llm.CompletionRequest, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
+	if err := onChunk(llm.Chunk{TextDelta: "x"}); err != nil {
 		return nil, err
 	}
-	return &agent.CompletionResponse{Message: agent.Message{Role: agent.RoleAssistant, Content: f.outer.reply}}, nil
+	return &llm.CompletionResponse{Message: llm.Message{Role: llm.RoleAssistant, Content: f.outer.reply}}, nil
 }
 
 var _ = errors.New

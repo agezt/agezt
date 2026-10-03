@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -26,11 +26,11 @@ type flakyTool struct {
 	block     bool // when set, every call blocks until ctx is done
 }
 
-func (t *flakyTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "flaky", Description: "flaky", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (t *flakyTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "flaky", Description: "flaky", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
-func (t *flakyTool) Invoke(ctx context.Context, _ json.RawMessage) (agent.Result, error) {
+func (t *flakyTool) Invoke(ctx context.Context, _ json.RawMessage) (toolapi.Result, error) {
 	t.mu.Lock()
 	t.calls++
 	n := t.calls
@@ -38,12 +38,12 @@ func (t *flakyTool) Invoke(ctx context.Context, _ json.RawMessage) (agent.Result
 	t.mu.Unlock()
 	if block {
 		<-ctx.Done()
-		return agent.Result{}, ctx.Err()
+		return toolapi.Result{}, ctx.Err()
 	}
 	if n <= t.failUntil {
-		return agent.Result{Output: "transient boom", IsError: true}, nil
+		return toolapi.Result{Output: "transient boom", IsError: true}, nil
 	}
-	return agent.Result{Output: `{"ok":true}`, IsError: false}, nil
+	return toolapi.Result{Output: `{"ok":true}`, IsError: false}, nil
 }
 
 func (t *flakyTool) callCount() int {
@@ -52,12 +52,12 @@ func (t *flakyTool) callCount() int {
 	return t.calls
 }
 
-func openReliabilityKernel(t *testing.T, tool agent.Tool) *runtime.Kernel {
+func openReliabilityKernel(t *testing.T, tool toolapi.Tool) *runtime.Kernel {
 	t.Helper()
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("unused")),
-		Tools:    map[string]agent.Tool{"flaky": tool},
+		Tools:    map[string]toolapi.Tool{"flaky": tool},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)

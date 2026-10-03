@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
 )
 
@@ -38,7 +38,7 @@ func TestModelChain_SkipsUnservableModel(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err := g.Complete(context.Background(), agent.CompletionRequest{TaskType: "chat"})
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{TaskType: "chat"})
 	if err != nil {
 		t.Fatalf("chain should succeed on model-a after skipping mystery: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestModelChain_AllUnservableErrorsClean(t *testing.T) {
 		TaskModelChains: governor.TaskModelChains{"chat": {"mystery-1", "mystery-2"}},
 	})
 
-	_, err := g.Complete(context.Background(), agent.CompletionRequest{TaskType: "chat"})
+	_, err := g.Complete(context.Background(), llm.CompletionRequest{TaskType: "chat"})
 	if !errors.Is(err, governor.ErrModelUnservable) {
 		t.Fatalf("want ErrModelUnservable, got %v", err)
 	}
@@ -96,7 +96,7 @@ func TestModelChain_UnknownCoverageNotSkipped(t *testing.T) {
 		TaskModelChains: governor.TaskModelChains{"chat": {"mystery"}},
 	})
 
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{TaskType: "chat"}); err != nil {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{TaskType: "chat"}); err != nil {
 		t.Fatalf("unknown-coverage provider should still be tried: %v", err)
 	}
 	if mock.calls.Load() != 1 {

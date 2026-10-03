@@ -11,7 +11,8 @@ import (
 
 	"encoding/json"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	kruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -20,11 +21,11 @@ import (
 // predictable entry to assert on.
 type fileLikeTool struct{}
 
-func (fileLikeTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "file", Description: "Read and write files. Extra detail.", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (fileLikeTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "file", Description: "Read and write files. Extra detail.", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
-func (fileLikeTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
-	return agent.Result{Output: "ok"}, nil
+func (fileLikeTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
+	return toolapi.Result{Output: "ok"}, nil
 }
 
 // TestEnvironmentInject_ReachesSystemPrompt: with EnvironmentInject on, the
@@ -34,7 +35,7 @@ func TestEnvironmentInject_ReachesSystemPrompt(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
 	var system string
 	var mu sync.Mutex
-	prov.OnRequest = func(req agent.CompletionRequest) {
+	prov.OnRequest = func(req llm.CompletionRequest) {
 		mu.Lock()
 		system = req.System
 		mu.Unlock()
@@ -43,7 +44,7 @@ func TestEnvironmentInject_ReachesSystemPrompt(t *testing.T) {
 	k, err := kruntime.Open(kruntime.Config{
 		BaseDir:           t.TempDir(),
 		Provider:          prov,
-		Tools:             map[string]agent.Tool{"file": fileLikeTool{}},
+		Tools:             map[string]toolapi.Tool{"file": fileLikeTool{}},
 		System:            "YOU ARE A HELPFUL PERSONA",
 		EnvironmentInject: true,
 		WorkspaceRoot:     `/tmp/ws-test`,
@@ -81,7 +82,7 @@ func TestEnvironmentInject_ReachesSystemPrompt(t *testing.T) {
 func TestEnvironmentInject_OffByConfig(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
 	var system string
-	prov.OnRequest = func(req agent.CompletionRequest) { system = req.System }
+	prov.OnRequest = func(req llm.CompletionRequest) { system = req.System }
 
 	k, err := kruntime.Open(kruntime.Config{
 		BaseDir:           t.TempDir(),

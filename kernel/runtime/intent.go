@@ -59,7 +59,7 @@ func (k *Kernel) publishAutoApprove(corr, actor, capability, tool string) {
 	}
 	_, _ = k.bus.Publish(event.Spec{
 		Subject:       "policy.auto_approved",
-		Kind:          event.Kind("policy.auto_approved"),
+		Kind:          event.KindPolicyAutoApproved,
 		Actor:         actor,
 		CorrelationID: corr,
 		Payload: map[string]any{
@@ -74,7 +74,7 @@ func (k *Kernel) publishAutoApprove(corr, actor, capability, tool string) {
 // an effectful action downstream of directive-like untrusted content but did NOT
 // block it — because the guard is in warn mode or the operator trusted this run.
 // The chat surfaces this as a passive banner; `agt why` shows the guard would
-// have asked. Mirrors publishAutoApprove's unregistered-kind pattern.
+// have asked. Mirrors publishAutoApprove.
 func (k *Kernel) publishPromptInjectionWarned(corr, actor, tool, capability string, sources []string, trustedRun bool) {
 	if k == nil || k.bus == nil {
 		return
@@ -85,7 +85,7 @@ func (k *Kernel) publishPromptInjectionWarned(corr, actor, tool, capability stri
 	}
 	_, _ = k.bus.Publish(event.Spec{
 		Subject:       "prompt_injection.warned",
-		Kind:          event.Kind("prompt_injection.warned"),
+		Kind:          event.KindPromptInjectionWarned,
 		Actor:         actor,
 		CorrelationID: corr,
 		Payload: map[string]any{

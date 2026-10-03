@@ -13,12 +13,14 @@ import (
 	"strings"
 
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/agent"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
-func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool, thinkingBudget int, params agent.Params, extra json.RawMessage) ([]byte, error) {
+func encodeRequest(system string, msgs []llm.Message, tools []toolapi.ToolDef, maxTok int, jsonMode bool, thinkingBudget int, params llm.Params, extra json.RawMessage) ([]byte, error) {
 	// A per-request reasoning effort (M997) overrides the construction-time
 	// thinking budget when set; otherwise the env/default budget stands.
 	if b, ok := provopts.ThinkingBudget(params.ReasoningEffort, maxTok); ok {
@@ -77,11 +79,11 @@ func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, m
 	return provopts.Merge(body, extra)
 }
 
-func canonicalToVertex(m agent.Message, fwd map[string]string) (*vxContent, error) {
+func canonicalToVertex(m llm.Message, fwd map[string]string) (*vxContent, error) {
 	switch m.Role {
-	case agent.RoleSystem:
+	case llm.RoleSystem:
 		return nil, nil
-	case agent.RoleUser:
+	case llm.RoleUser:
 		// Vision (M245): emit each image attachment (data: URL) as an inlineData
 		// part before the text part; skip non-data-URL entries.
 		parts := make([]vxPart, 0, len(m.Images)+1)
@@ -92,7 +94,7 @@ func canonicalToVertex(m agent.Message, fwd map[string]string) (*vxContent, erro
 		}
 		parts = append(parts, vxPart{Text: m.Content})
 		return &vxContent{Role: "user", Parts: parts}, nil
-	case agent.RoleAssistant:
+	case llm.RoleAssistant:
 		var parts []vxPart
 		if strings.TrimSpace(m.Content) != "" {
 			parts = append(parts, vxPart{Text: m.Content})
@@ -110,7 +112,7 @@ func canonicalToVertex(m agent.Message, fwd map[string]string) (*vxContent, erro
 			parts = []vxPart{{Text: ""}}
 		}
 		return &vxContent{Role: "model", Parts: parts}, nil
-	case agent.RoleTool:
+	case llm.RoleTool:
 		if m.ToolCallID == "" {
 			return nil, errors.New("vertex: role=tool requires tool_call_id")
 		}
@@ -138,7 +140,7 @@ func canonicalToVertex(m agent.Message, fwd map[string]string) (*vxContent, erro
 	}
 }
 
-func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error) {
+func decodeResponse(body []byte, model string) (*llm.CompletionResponse, error) {
 	var vr vxResponse
 	if err := json.Unmarshal(body, &vr); err != nil {
 		return nil, fmt.Errorf("vertex: parse response: %w", err)
@@ -151,7 +153,7 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 	var (
 		textParts      []string
 		reasoningParts []string
-		toolCalls      []agent.ToolCall
+		toolCalls      []llm.ToolCall
 	)
 	for i, part := range cand.Content.Parts {
 		switch {
@@ -160,7 +162,7 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 			if len(args) == 0 {
 				args = json.RawMessage(`{}`)
 			}
-			toolCalls = append(toolCalls, agent.ToolCall{
+			toolCalls = append(toolCalls, llm.ToolCall{
 				ID:    "call-" + strconv.Itoa(i),
 				Name:  part.FunctionCall.Name,
 				Input: args,
@@ -173,22 +175,22 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 		}
 	}
 
-	var stop agent.StopReason
+	var stop llm.StopReason
 	switch {
 	case len(toolCalls) > 0:
-		stop = agent.StopToolUse
+		stop = llm.StopToolUse
 	default:
 		switch cand.FinishReason {
 		case "STOP", "":
-			stop = agent.StopEndTurn
+			stop = llm.StopEndTurn
 		case "MAX_TOKENS":
-			stop = agent.StopMaxTokens
+			stop = llm.StopMaxTokens
 		default:
-			stop = agent.StopEndTurn
+			stop = llm.StopEndTurn
 		}
 	}
 
-	usage := agent.Usage{Model: model}
+	usage := llm.Usage{Model: model}
 	if vr.UsageMetadata != nil {
 		usage.InputTokens = vr.UsageMetadata.PromptTokenCount
 		usage.CachedInputTokens = vr.UsageMetadata.CachedContentTokenCount
@@ -197,9 +199,9 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 		usage.OutputTokens = vr.UsageMetadata.CandidatesTokenCount + vr.UsageMetadata.ThoughtsTokenCount
 	}
 
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:      llm.RoleAssistant,
 			Content:   strings.Join(textParts, ""),
 			ToolCalls: toolCalls,
 		},

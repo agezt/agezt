@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
-
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
@@ -20,12 +20,12 @@ import (
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
 
-func newKernel(t *testing.T, prov agent.Provider) *runtime.Kernel {
+func newKernel(t *testing.T, prov llm.Provider) *runtime.Kernel {
 	t.Helper()
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
-		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:    map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -100,7 +100,7 @@ func TestRunWith_TimesOut(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:     t.TempDir(),
 		Provider:    &blockingProvider{}, // never returns until ctx done
-		Tools:       map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:       map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		MaxDuration: 30 * time.Millisecond,
 	})
 	if err != nil {
@@ -142,7 +142,7 @@ func TestRunWith_PerRunTimeoutOverride(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: &blockingProvider{}, // never returns until ctx done
-		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:    map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		// MaxDuration deliberately 0 — only the per-run override should bound it.
 	})
 	if err != nil {
@@ -169,7 +169,7 @@ func TestRunWith_HaltBeatsTimeout(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:     t.TempDir(),
 		Provider:    &blockingProvider{},
-		Tools:       map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:       map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		MaxDuration: 10 * time.Second, // far longer than the test
 	})
 	if err != nil {
@@ -204,7 +204,7 @@ func TestRunWith_CompletesUnderTimeout(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:     t.TempDir(),
 		Provider:    mock.New(mock.FinalText("done")),
-		Tools:       map[string]agent.Tool{},
+		Tools:       map[string]toolapi.Tool{},
 		MaxDuration: 5 * time.Second,
 	})
 	if err != nil {
@@ -229,7 +229,7 @@ func TestCancelRun_CancelsOneRunNotKernel(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: &blockingProvider{},
-		Tools:    map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:    map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -418,7 +418,7 @@ func TestConcurrentRuns_HaveDistinctCorrelations(t *testing.T) {
 type blockingProvider struct{}
 
 func (b *blockingProvider) Name() string { return "blocking" }
-func (b *blockingProvider) Complete(ctx context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (b *blockingProvider) Complete(ctx context.Context, _ llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	<-ctx.Done()
 	return nil, ctx.Err()
 }
@@ -426,10 +426,10 @@ func (b *blockingProvider) Complete(ctx context.Context, _ agent.CompletionReque
 type alwaysFinalProvider struct{}
 
 func (a *alwaysFinalProvider) Name() string { return "always-final" }
-func (a *alwaysFinalProvider) Complete(_ context.Context, _ agent.CompletionRequest) (*agent.CompletionResponse, error) {
-	return &agent.CompletionResponse{
-		Message:    agent.Message{Role: agent.RoleAssistant, Content: "ok"},
-		StopReason: agent.StopEndTurn,
+func (a *alwaysFinalProvider) Complete(_ context.Context, _ llm.CompletionRequest) (*llm.CompletionResponse, error) {
+	return &llm.CompletionResponse{
+		Message:    llm.Message{Role: llm.RoleAssistant, Content: "ok"},
+		StopReason: llm.StopEndTurn,
 	}, nil
 }
 
@@ -439,7 +439,7 @@ func TestKernel_Reload_InvokesOnReloadAndRefreshesCatalog(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools:    map[string]agent.Tool{},
+		Tools:    map[string]toolapi.Tool{},
 		OnReload: func() error {
 			called++
 			return onReloadErr
@@ -484,11 +484,11 @@ func TestKernel_Reload_InvokesOnReloadAndRefreshesCatalog(t *testing.T) {
 func TestKernel_Model_LiveSwap(t *testing.T) {
 	prov := mock.New()
 	// Stable reply across both runs (the scripted list would exhaust after one).
-	prov.Responder = func(agent.CompletionRequest) agent.CompletionResponse {
+	prov.Responder = func(llm.CompletionRequest) llm.CompletionResponse {
 		return mock.FinalText("ok")
 	}
 	var seen []string
-	prov.OnRequest = func(req agent.CompletionRequest) {
+	prov.OnRequest = func(req llm.CompletionRequest) {
 		// Per-run model the agent loop chose (empty for the synthetic
 		// reflection/verify calls is fine — we only assert the ones it sets).
 		if req.Model != "" {
@@ -499,7 +499,7 @@ func TestKernel_Model_LiveSwap(t *testing.T) {
 		BaseDir:  t.TempDir(),
 		Provider: prov,
 		Model:    "model-a",
-		Tools:    map[string]agent.Tool{},
+		Tools:    map[string]toolapi.Tool{},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -542,20 +542,20 @@ func TestKernel_DescribeImages_RoutesToVisionModel(t *testing.T) {
 	prov := mock.New()
 	var gotModel string
 	var gotImages []string
-	prov.OnRequest = func(req agent.CompletionRequest) {
+	prov.OnRequest = func(req llm.CompletionRequest) {
 		gotModel = req.Model
 		if len(req.Messages) > 0 {
 			gotImages = req.Messages[0].Images
 		}
 	}
-	prov.Responder = func(agent.CompletionRequest) agent.CompletionResponse {
+	prov.Responder = func(llm.CompletionRequest) llm.CompletionResponse {
 		return mock.FinalText("a photo of a cat on a sofa")
 	}
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:     t.TempDir(),
 		Provider:    prov,
 		Model:       "text-only-model",
-		Tools:       map[string]agent.Tool{},
+		Tools:       map[string]toolapi.Tool{},
 		VisionModel: func() (string, bool) { return "vision-model", true },
 	})
 	if err != nil {
@@ -584,7 +584,7 @@ func TestKernel_DescribeImages_NoVisionModel(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("x")),
-		Tools:    map[string]agent.Tool{},
+		Tools:    map[string]toolapi.Tool{},
 		// VisionModel nil → sidecar disabled.
 	})
 	if err != nil {
@@ -601,7 +601,7 @@ func TestKernel_Reload_NilOnReloadIsCatalogOnly(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools:    map[string]agent.Tool{},
+		Tools:    map[string]toolapi.Tool{},
 		// OnReload deliberately nil — the "no daemon-supplied rebuild"
 		// path. Must succeed and report providersReloaded=false.
 	})
@@ -626,7 +626,7 @@ func TestRunWith_RejectsDuplicateCorrelation(t *testing.T) {
 	started := make(chan struct{}, 1)
 	release := make(chan struct{})
 	prov := mock.New(mock.FinalText("done"))
-	prov.OnRequest = func(agent.CompletionRequest) {
+	prov.OnRequest = func(llm.CompletionRequest) {
 		select {
 		case started <- struct{}{}:
 		default:

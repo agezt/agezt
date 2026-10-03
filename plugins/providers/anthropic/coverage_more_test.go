@@ -7,7 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestAnthropicCoverageIdentityEndpointParamsAndErrors(t *testing.T) {
@@ -36,31 +37,31 @@ func TestAnthropicCoverageIdentityEndpointParamsAndErrors(t *testing.T) {
 	topP := 0.8
 	topK := 40
 	wire := anthRequest{}
-	wire.applyParams(agent.Params{Temperature: &temp, TopP: &topP, TopK: &topK, Stop: []string{"END"}})
+	wire.applyParams(llm.Params{Temperature: &temp, TopP: &topP, TopK: &topK, Stop: []string{"END"}})
 	if wire.Temperature != &temp || wire.TopP != &topP || wire.TopK != &topK || len(wire.StopSequences) != 1 {
 		t.Fatalf("applied params = %+v", wire)
 	}
 }
 
 func TestAnthropicCoverageCanonicalAndEncodeBranches(t *testing.T) {
-	if msg, err := canonicalToAnth(agent.Message{Role: agent.RoleSystem, Content: "ignored"}, nil); err != nil || msg != nil {
+	if msg, err := canonicalToAnth(llm.Message{Role: llm.RoleSystem, Content: "ignored"}, nil); err != nil || msg != nil {
 		t.Fatalf("system canonical = %#v err %v", msg, err)
 	}
-	assistant, err := canonicalToAnth(agent.Message{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "call-1", Name: "tool"}}}, map[string]string{"tool": "wire_tool"})
+	assistant, err := canonicalToAnth(llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "call-1", Name: "tool"}}}, map[string]string{"tool": "wire_tool"})
 	if err != nil {
 		t.Fatalf("assistant canonical: %v", err)
 	}
 	if assistant.Role != "assistant" || len(assistant.Content) != 1 || assistant.Content[0].Name != "wire_tool" || string(assistant.Content[0].Input) != "{}" {
 		t.Fatalf("assistant canonical = %+v", assistant)
 	}
-	if _, err := canonicalToAnth(agent.Message{Role: agent.RoleTool, Content: "out"}, nil); err == nil || !strings.Contains(err.Error(), "tool_call_id") {
+	if _, err := canonicalToAnth(llm.Message{Role: llm.RoleTool, Content: "out"}, nil); err == nil || !strings.Contains(err.Error(), "tool_call_id") {
 		t.Fatalf("tool without id = %v", err)
 	}
-	if _, err := canonicalToAnth(agent.Message{Role: "alien", Content: "x"}, nil); err == nil || !strings.Contains(err.Error(), "unknown role") {
+	if _, err := canonicalToAnth(llm.Message{Role: "alien", Content: "x"}, nil); err == nil || !strings.Contains(err.Error(), "unknown role") {
 		t.Fatalf("unknown role = %v", err)
 	}
 
-	body, err := encodeRequest("claude", "system", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, []agent.ToolDef{{Name: "plain"}}, 128, 0, agent.Params{}, json.RawMessage(`{"metadata":{"test":true}}`))
+	body, err := encodeRequest("claude", "system", []llm.Message{{Role: llm.RoleUser, Content: "hi"}}, []toolapi.ToolDef{{Name: "plain"}}, 128, 0, llm.Params{}, json.RawMessage(`{"metadata":{"test":true}}`))
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}
@@ -80,7 +81,7 @@ func TestAnthropicCoverageDecodeBranches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decodeResponse: %v", err)
 	}
-	if resp.StopReason != agent.StopToolUse || resp.Message.Content != "answer" || resp.ReasoningContent != "reason" || len(resp.Message.ToolCalls) != 1 || string(resp.Message.ToolCalls[0].Input) != "{}" {
+	if resp.StopReason != llm.StopToolUse || resp.Message.Content != "answer" || resp.ReasoningContent != "reason" || len(resp.Message.ToolCalls) != 1 || string(resp.Message.ToolCalls[0].Input) != "{}" {
 		t.Fatalf("decoded response = %+v", resp)
 	}
 	if resp.Usage.InputTokens != 6 || resp.Usage.CachedInputTokens != 2 || resp.Usage.CacheWriteInputTokens != 3 || resp.Usage.OutputTokens != 4 {

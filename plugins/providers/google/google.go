@@ -13,12 +13,14 @@ import (
 	"strings"
 
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/agent"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
-func encodeRequest(system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool, thinkingBudget int, params agent.Params, extra json.RawMessage) ([]byte, error) {
+func encodeRequest(system string, msgs []llm.Message, tools []toolapi.ToolDef, maxTok int, jsonMode bool, thinkingBudget int, params llm.Params, extra json.RawMessage) ([]byte, error) {
 	// A per-request reasoning effort (M997) overrides the construction-time
 	// thinking budget when set; otherwise the env/default budget stands.
 	if b, ok := provopts.ThinkingBudget(params.ReasoningEffort, maxTok); ok {
@@ -101,13 +103,13 @@ func parseImageDataURL(s string) (mediaType, data string, ok bool) {
 	return mt, payload, true
 }
 
-func canonicalToGemini(m agent.Message, fwd map[string]string) (*geminiContent, error) {
+func canonicalToGemini(m llm.Message, fwd map[string]string) (*geminiContent, error) {
 	switch m.Role {
-	case agent.RoleSystem:
+	case llm.RoleSystem:
 		// System messages fold into systemInstruction at the request
 		// level; per-message system roles are ignored here.
 		return nil, nil
-	case agent.RoleUser:
+	case llm.RoleUser:
 		// Vision (M243): a user message may carry image attachments as RFC 2397
 		// data: URLs. Emit each as an inlineData part before the text part. A
 		// non-data-URL entry (e.g. a legacy bare filename) has no deliverable
@@ -120,7 +122,7 @@ func canonicalToGemini(m agent.Message, fwd map[string]string) (*geminiContent, 
 		}
 		parts = append(parts, geminiPart{Text: m.Content})
 		return &geminiContent{Role: "user", Parts: parts}, nil
-	case agent.RoleAssistant:
+	case llm.RoleAssistant:
 		var parts []geminiPart
 		if strings.TrimSpace(m.Content) != "" {
 			parts = append(parts, geminiPart{Text: m.Content})
@@ -142,7 +144,7 @@ func canonicalToGemini(m agent.Message, fwd map[string]string) (*geminiContent, 
 			parts = []geminiPart{{Text: ""}}
 		}
 		return &geminiContent{Role: "model", Parts: parts}, nil
-	case agent.RoleTool:
+	case llm.RoleTool:
 		if m.ToolCallID == "" {
 			return nil, errors.New("google: role=tool requires tool_call_id (used as functionResponse name lookup)")
 		}
@@ -182,7 +184,7 @@ func canonicalToGemini(m agent.Message, fwd map[string]string) (*geminiContent, 
 	}
 }
 
-func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error) {
+func decodeResponse(body []byte, model string) (*llm.CompletionResponse, error) {
 	var gr geminiResponse
 	if err := json.Unmarshal(body, &gr); err != nil {
 		return nil, fmt.Errorf("google: parse response: %w", err)
@@ -195,7 +197,7 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 	var (
 		textParts      []string
 		reasoningParts []string
-		toolCalls      []agent.ToolCall
+		toolCalls      []llm.ToolCall
 	)
 	for i, part := range cand.Content.Parts {
 		switch {
@@ -206,7 +208,7 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 			}
 			// Gemini doesn't return per-call IDs; synthesize stable ones
 			// (SPEC-15: canonical ToolCall.ID is always non-empty).
-			toolCalls = append(toolCalls, agent.ToolCall{
+			toolCalls = append(toolCalls, llm.ToolCall{
 				ID:    "call-" + strconv.Itoa(i),
 				Name:  part.FunctionCall.Name,
 				Input: args,
@@ -219,22 +221,22 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 		}
 	}
 
-	var stop agent.StopReason
+	var stop llm.StopReason
 	switch {
 	case len(toolCalls) > 0:
-		stop = agent.StopToolUse
+		stop = llm.StopToolUse
 	default:
 		switch cand.FinishReason {
 		case "STOP", "":
-			stop = agent.StopEndTurn
+			stop = llm.StopEndTurn
 		case "MAX_TOKENS":
-			stop = agent.StopMaxTokens
+			stop = llm.StopMaxTokens
 		default:
-			stop = agent.StopEndTurn
+			stop = llm.StopEndTurn
 		}
 	}
 
-	usage := agent.Usage{Model: model}
+	usage := llm.Usage{Model: model}
 	if gr.UsageMetadata != nil {
 		usage.InputTokens = gr.UsageMetadata.PromptTokenCount
 		usage.CachedInputTokens = gr.UsageMetadata.CachedContentTokenCount
@@ -243,9 +245,9 @@ func decodeResponse(body []byte, model string) (*agent.CompletionResponse, error
 		usage.OutputTokens = gr.UsageMetadata.CandidatesTokenCount + gr.UsageMetadata.ThoughtsTokenCount
 	}
 
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:      llm.RoleAssistant,
 			Content:   strings.Join(textParts, ""),
 			ToolCalls: toolCalls,
 		},

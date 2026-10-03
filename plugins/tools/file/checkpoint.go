@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/atomicfile"
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 const (
@@ -45,7 +45,7 @@ func (t *Tool) checkpointFileSnapshot(ctx context.Context, action, relPath, absP
 	if strings.TrimSpace(t.rollbackBase) == "" {
 		return nil
 	}
-	cp, err := newFileSnapshotCheckpoint(action, agent.CorrelationFromContext(ctx), relPath, absPath, time.Now())
+	cp, err := newFileSnapshotCheckpoint(action, toolapi.CorrelationFromContext(ctx), relPath, absPath, time.Now())
 	if err != nil {
 		return err
 	}

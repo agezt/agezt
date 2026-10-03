@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/toolexec"
 )
@@ -18,13 +20,13 @@ var _ toolexec.EventPublisher = (*Kernel)(nil)
 var _ toolexec.NoiseNotifier = (*Kernel)(nil)
 
 // LookupTool implements toolexec.ToolLookup.
-func (k *Kernel) LookupTool(name string) (agent.Tool, bool) {
+func (k *Kernel) LookupTool(name string) (toolapi.Tool, bool) {
 	t, ok := k.tools[name]
 	return t, ok
 }
 
 // CheckPolicy implements toolexec.PolicyChecker.
-func (k *Kernel) CheckPolicy(ctx context.Context, tc agent.ToolCall) agent.PolicyVerdict {
+func (k *Kernel) CheckPolicy(ctx context.Context, tc llm.ToolCall) agent.PolicyVerdict {
 	return k.policyHook(ctx, tc)
 }
 
@@ -35,13 +37,13 @@ func (k *Kernel) PublishEvent(spec event.Spec) error {
 }
 
 // NotifyNoise implements toolexec.NoiseNotifier.
-func (k *Kernel) NotifyNoise(ctx context.Context, tc agent.ToolCall, res agent.Result) {
+func (k *Kernel) NotifyNoise(ctx context.Context, tc llm.ToolCall, res toolapi.Result) {
 	k.completeAgentNoiseNotify(ctx, tc, res)
 }
 
 // RunTool executes one registered in-process tool under the same schema and
 // policy gate used by agent/workflow tool calls, then journals tool.invoked and
 // tool.result under corr. The implementation is delegated to toolexec.Run.
-func (k *Kernel) RunTool(ctx context.Context, corr, callID, toolName string, args json.RawMessage) (agent.Result, error) {
+func (k *Kernel) RunTool(ctx context.Context, corr, callID, toolName string, args json.RawMessage) (toolapi.Result, error) {
 	return toolexec.Run(ctx, corr, callID, toolName, args, k, k, k, k)
 }

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // sampleCohereTextStream is a representative Cohere v2/chat SSE
@@ -62,7 +62,7 @@ data: {"type":"message-end","delta":{"finish_reason":"TOOL_CALL","usage":{"token
 
 func TestParseStream_CohereTextOnly(t *testing.T) {
 	var deltas []string
-	resp, err := parseStream(strings.NewReader(sampleCohereTextStream), "command-r-plus", func(c agent.Chunk) error {
+	resp, err := parseStream(strings.NewReader(sampleCohereTextStream), "command-r-plus", func(c llm.Chunk) error {
 		if c.TextDelta != "" {
 			deltas = append(deltas, c.TextDelta)
 		}
@@ -74,7 +74,7 @@ func TestParseStream_CohereTextOnly(t *testing.T) {
 	if resp.Message.Content != "pong!" {
 		t.Errorf("content = %q, want 'pong!'", resp.Message.Content)
 	}
-	if resp.StopReason != agent.StopEndTurn {
+	if resp.StopReason != llm.StopEndTurn {
 		t.Errorf("stop = %q", resp.StopReason)
 	}
 	if resp.Usage.InputTokens != 12 || resp.Usage.OutputTokens != 3 {
@@ -87,11 +87,11 @@ func TestParseStream_CohereTextOnly(t *testing.T) {
 
 func TestParseStream_CohereToolCall(t *testing.T) {
 	var (
-		gotStart    *agent.ToolCall
+		gotStart    *llm.ToolCall
 		jsonFragmts []string
 		gotStop     string
 	)
-	resp, err := parseStream(strings.NewReader(sampleCohereToolCallStream), "command-r-plus", func(c agent.Chunk) error {
+	resp, err := parseStream(strings.NewReader(sampleCohereToolCallStream), "command-r-plus", func(c llm.Chunk) error {
 		if c.ToolUseStart != nil {
 			gotStart = c.ToolUseStart
 		}
@@ -122,13 +122,13 @@ func TestParseStream_CohereToolCall(t *testing.T) {
 	if string(tc.Input) != `{"command":"ls -la"}` {
 		t.Errorf("assembled args = %s", tc.Input)
 	}
-	if resp.StopReason != agent.StopToolUse {
+	if resp.StopReason != llm.StopToolUse {
 		t.Errorf("stop = %q, want tool_use", resp.StopReason)
 	}
 }
 
 func TestParseStream_Cohere_OnChunkAborts(t *testing.T) {
-	_, err := parseStream(strings.NewReader(sampleCohereTextStream), "x", func(c agent.Chunk) error {
+	_, err := parseStream(strings.NewReader(sampleCohereTextStream), "x", func(c llm.Chunk) error {
 		if c.TextDelta != "" {
 			return &cancelErr{"aborted"}
 		}
@@ -157,7 +157,7 @@ event: message-end
 data: {"delta":{"finish_reason":"COMPLETE","usage":{"tokens":{"input_tokens":1,"output_tokens":1}}}}
 
 `
-	resp, err := parseStream(strings.NewReader(stream), "x", func(c agent.Chunk) error { return nil })
+	resp, err := parseStream(strings.NewReader(stream), "x", func(c llm.Chunk) error { return nil })
 	if err != nil {
 		t.Fatalf("malformed frame killed stream: %v", err)
 	}
@@ -184,10 +184,10 @@ func TestCompleteStream_Cohere_EndToEnd(t *testing.T) {
 
 	p := &Provider{APIKey: "test-key", Endpoint: srv.URL, HTTP: srv.Client()}
 	var got strings.Builder
-	resp, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
+	resp, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
 		Model:    "command-r-plus",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "Say pong"}},
-	}, func(c agent.Chunk) error {
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "Say pong"}},
+	}, func(c llm.Chunk) error {
 		got.WriteString(c.TextDelta)
 		return nil
 	})
@@ -212,10 +212,10 @@ func TestCompleteStream_Cohere_HTTPError(t *testing.T) {
 	}))
 	defer srv.Close()
 	p := &Provider{APIKey: "x", Endpoint: srv.URL, HTTP: srv.Client()}
-	_, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
+	_, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
 		Model:    "m",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
-	}, func(c agent.Chunk) error { return nil })
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
+	}, func(c llm.Chunk) error { return nil })
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -227,8 +227,8 @@ func TestCompleteStream_Cohere_HTTPError(t *testing.T) {
 
 func TestCompleteStream_Cohere_NilOnChunkRejected(t *testing.T) {
 	p := &Provider{APIKey: "k"}
-	_, err := p.CompleteStream(context.Background(), agent.CompletionRequest{
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+	_, err := p.CompleteStream(context.Background(), llm.CompletionRequest{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	}, nil)
 	if err == nil || !strings.Contains(err.Error(), "non-nil onChunk") {
 		t.Errorf("got %v, want nil-callback rejection", err)
@@ -238,7 +238,7 @@ func TestCompleteStream_Cohere_NilOnChunkRejected(t *testing.T) {
 func TestCompleteStream_Cohere_AssembledInputIsValidJSON(t *testing.T) {
 	// Sanity: the multi-frame tool args from sampleCohereToolCallStream
 	// reassemble to JSON that round-trips through encoding/json.
-	resp, err := parseStream(strings.NewReader(sampleCohereToolCallStream), "x", func(c agent.Chunk) error { return nil })
+	resp, err := parseStream(strings.NewReader(sampleCohereToolCallStream), "x", func(c llm.Chunk) error { return nil })
 	if err != nil {
 		t.Fatalf("parseStream: %v", err)
 	}
@@ -252,4 +252,4 @@ func TestCompleteStream_Cohere_AssembledInputIsValidJSON(t *testing.T) {
 }
 
 // Compile-time guard — *Provider must satisfy StreamingProvider.
-var _ agent.StreamingProvider = (*Provider)(nil)
+var _ llm.StreamingProvider = (*Provider)(nil)

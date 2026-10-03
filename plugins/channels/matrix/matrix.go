@@ -18,6 +18,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -69,7 +70,7 @@ func New(cfg Config) *Channel {
 	client := cfg.HTTPClient
 	if client == nil {
 		// Timeout must exceed the long-poll window so /sync isn't cut off mid-poll.
-		client = &http.Client{Timeout: 60 * time.Second}
+		client = netout.OperatorClient(60 * time.Second)
 	}
 	poll := cfg.PollTimeoutSecs
 	if poll <= 0 {

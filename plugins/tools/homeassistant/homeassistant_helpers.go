@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // matchAllowed reports whether target is permitted by patterns. A pattern is an
@@ -56,6 +56,6 @@ func (t *Tool) Capabilities() string {
 	return strings.Join(parts, ", ")
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: msg, IsError: true}
 }

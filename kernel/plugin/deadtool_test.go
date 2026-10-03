@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // TestRemoteTool_InvokeOnDeadPluginFailsCleanly locks in the SPEC-04 §0.2 /
@@ -32,7 +32,7 @@ func TestRemoteTool_InvokeOnDeadPluginFailsCleanly(t *testing.T) {
 
 	rt := &remoteTool{
 		plugin:     p,
-		def:        agent.ToolDef{Name: "demo.tool"},
+		def:        toolapi.ToolDef{Name: "demo.tool"},
 		remoteName: "tool",
 	}
 
@@ -40,7 +40,7 @@ func TestRemoteTool_InvokeOnDeadPluginFailsCleanly(t *testing.T) {
 	// waiting on a never-answered pending channel) fails loudly instead of
 	// hanging the suite.
 	type outcome struct {
-		res agent.Result
+		res toolapi.Result
 		err error
 	}
 	done := make(chan outcome, 1)

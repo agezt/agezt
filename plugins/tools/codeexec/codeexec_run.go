@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -65,7 +65,7 @@ func resolveTimeout(timeoutMS int64) time.Duration {
 	return timeout
 }
 
-func render(lang, projectSlug, dir string, ephemeral bool, timeout time.Duration, res *warden.Result) agent.Result {
+func render(lang, projectSlug, dir string, ephemeral bool, timeout time.Duration, res *warden.Result) toolapi.Result {
 	var head strings.Builder
 	fmt.Fprintf(&head, "[code_exec] language=%s", lang)
 	if projectSlug != "" {
@@ -93,22 +93,22 @@ func render(lang, projectSlug, dir string, ephemeral bool, timeout time.Duration
 
 	body := strings.TrimRight(string(combined), "\n")
 	if res.TimedOut {
-		return agent.Result{Output: fmt.Sprintf("%s\ntimed out after %s\n%s", header, timeout, body), IsError: true}
+		return toolapi.Result{Output: fmt.Sprintf("%s\ntimed out after %s\n%s", header, timeout, body), IsError: true}
 	}
 	if res.ExitCode != 0 {
-		return agent.Result{Output: fmt.Sprintf("%s\n%s\n[exit code %d]", header, body, res.ExitCode), IsError: true}
+		return toolapi.Result{Output: fmt.Sprintf("%s\n%s\n[exit code %d]", header, body, res.ExitCode), IsError: true}
 	}
 	if body == "" {
 		body = "(no output)"
 	}
-	return agent.Result{Output: header + "\n" + body}
+	return toolapi.Result{Output: header + "\n" + body}
 }
 
-func renderRemote(lang, projectSlug, remoteDir string, timeout time.Duration, res *warden.Result) agent.Result {
+func renderRemote(lang, projectSlug, remoteDir string, timeout time.Duration, res *warden.Result) toolapi.Result {
 	return renderRemoteProfile("ssh", lang, projectSlug, remoteDir, timeout, res)
 }
 
-func renderRemoteProfile(profile, lang, projectSlug, remoteDir string, timeout time.Duration, res *warden.Result) agent.Result {
+func renderRemoteProfile(profile, lang, projectSlug, remoteDir string, timeout time.Duration, res *warden.Result) toolapi.Result {
 	var head strings.Builder
 	fmt.Fprintf(&head, "[code_exec] language=%s isolation=%s remote_dir=%s", lang, profile, remoteDir)
 	if projectSlug != "" {
@@ -128,15 +128,15 @@ func renderRemoteProfile(profile, lang, projectSlug, remoteDir string, timeout t
 	}
 	body := strings.TrimRight(string(combined), "\n")
 	if res.TimedOut {
-		return agent.Result{Output: fmt.Sprintf("%s\ntimed out after %s\n%s", header, timeout, body), IsError: true}
+		return toolapi.Result{Output: fmt.Sprintf("%s\ntimed out after %s\n%s", header, timeout, body), IsError: true}
 	}
 	if res.ExitCode != 0 {
-		return agent.Result{Output: fmt.Sprintf("%s\n%s\n[exit code %d]", header, body, res.ExitCode), IsError: true}
+		return toolapi.Result{Output: fmt.Sprintf("%s\n%s\n[exit code %d]", header, body, res.ExitCode), IsError: true}
 	}
 	if body == "" {
 		body = "(no output)"
 	}
-	return agent.Result{Output: header + "\n" + body}
+	return toolapi.Result{Output: header + "\n" + body}
 }
 
 // publish journals one code.executed event per run so `agt why` and the run
@@ -166,6 +166,6 @@ func (t *Tool) publish(ctx context.Context, lang, projectSlug string, codeBytes 
 	})
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: "code_exec: " + msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: "code_exec: " + msg, IsError: true}
 }

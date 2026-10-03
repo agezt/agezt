@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
 )
 
@@ -31,10 +31,10 @@ func TestGovernor_TaskRouteRequire_RestrictsChain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	_, err = g.Complete(context.Background(), agent.CompletionRequest{
+	_, err = g.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "x",
 		TaskType: "embed",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err == nil {
 		t.Fatal("expected error — pinned provider failed and no fallback allowed")
@@ -62,10 +62,10 @@ func TestGovernor_TaskRouteRequire_AllowsSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	resp, err := g.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "model-x",
 		TaskType: "embed",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -93,10 +93,10 @@ func TestGovernor_TaskRouteRequire_NoMatchingTaskType(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	// "code" task: not in requires → default subscription-first applies.
-	_, err = g.Complete(context.Background(), agent.CompletionRequest{
+	_, err = g.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "sub-m",
 		TaskType: "code",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -124,10 +124,10 @@ func TestGovernor_TaskRouteRequire_UnregisteredProviderFailsClosed(t *testing.T)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	_, err = g.Complete(context.Background(), agent.CompletionRequest{
+	_, err = g.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "x",
 		TaskType: "embed",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err == nil {
 		t.Fatal("expected fail-closed when all required providers unregistered")
@@ -155,10 +155,10 @@ func TestGovernor_TaskRouteRequire_TakesPrecedenceOverTaskRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	resp, err := g.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "x",
 		TaskType: "plan",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)

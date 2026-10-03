@@ -9,25 +9,27 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/toolexec"
 )
 
-// fakeTool implements agent.Tool for testing.
+// fakeTool implements toolapi.Tool for testing.
 type fakeTool struct {
-	def    agent.ToolDef
-	invoke func(ctx context.Context, input json.RawMessage) (agent.Result, error)
+	def    toolapi.ToolDef
+	invoke func(ctx context.Context, input json.RawMessage) (toolapi.Result, error)
 }
 
-func (f *fakeTool) Definition() agent.ToolDef { return f.def }
-func (f *fakeTool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
+func (f *fakeTool) Definition() toolapi.ToolDef { return f.def }
+func (f *fakeTool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Result, error) {
 	return f.invoke(ctx, input)
 }
 
 // mockLookup implements toolexec.ToolLookup.
-type mockLookup map[string]agent.Tool
+type mockLookup map[string]toolapi.Tool
 
-func (m mockLookup) LookupTool(name string) (agent.Tool, bool) {
+func (m mockLookup) LookupTool(name string) (toolapi.Tool, bool) {
 	t, ok := m[name]
 	return t, ok
 }
@@ -37,7 +39,7 @@ type mockPolicy struct {
 	verdict agent.PolicyVerdict
 }
 
-func (m *mockPolicy) CheckPolicy(_ context.Context, _ agent.ToolCall) agent.PolicyVerdict {
+func (m *mockPolicy) CheckPolicy(_ context.Context, _ llm.ToolCall) agent.PolicyVerdict {
 	return m.verdict
 }
 
@@ -56,7 +58,7 @@ type mockNoise struct {
 	calls int
 }
 
-func (m *mockNoise) NotifyNoise(_ context.Context, _ agent.ToolCall, _ agent.Result) {
+func (m *mockNoise) NotifyNoise(_ context.Context, _ llm.ToolCall, _ toolapi.Result) {
 	m.calls++
 }
 
@@ -64,9 +66,9 @@ func TestRun_KnownTool_Allowed_Success(t *testing.T) {
 	ctx := context.Background()
 	tools := mockLookup{
 		"greet": &fakeTool{
-			def: agent.ToolDef{Name: "greet"},
-			invoke: func(_ context.Context, input json.RawMessage) (agent.Result, error) {
-				return agent.Result{Output: "hello"}, nil
+			def: toolapi.ToolDef{Name: "greet"},
+			invoke: func(_ context.Context, input json.RawMessage) (toolapi.Result, error) {
+				return toolapi.Result{Output: "hello"}, nil
 			},
 		},
 	}
@@ -110,9 +112,9 @@ func TestRun_DeniedByPolicy_Error(t *testing.T) {
 	ctx := context.Background()
 	tools := mockLookup{
 		"blocked": &fakeTool{
-			def: agent.ToolDef{Name: "blocked"},
-			invoke: func(_ context.Context, _ json.RawMessage) (agent.Result, error) {
-				return agent.Result{}, errors.New("should not be called")
+			def: toolapi.ToolDef{Name: "blocked"},
+			invoke: func(_ context.Context, _ json.RawMessage) (toolapi.Result, error) {
+				return toolapi.Result{}, errors.New("should not be called")
 			},
 		},
 	}
@@ -133,9 +135,9 @@ func TestRun_ToolInvokeError_JournalsAndNoise(t *testing.T) {
 	ctx := context.Background()
 	tools := mockLookup{
 		"flakey": &fakeTool{
-			def: agent.ToolDef{Name: "flakey"},
-			invoke: func(_ context.Context, _ json.RawMessage) (agent.Result, error) {
-				return agent.Result{}, errors.New("internal failure")
+			def: toolapi.ToolDef{Name: "flakey"},
+			invoke: func(_ context.Context, _ json.RawMessage) (toolapi.Result, error) {
+				return toolapi.Result{}, errors.New("internal failure")
 			},
 		},
 	}
@@ -160,12 +162,12 @@ func TestRun_InputSchemaRejection(t *testing.T) {
 	ctx := context.Background()
 	tools := mockLookup{
 		"strict": &fakeTool{
-			def: agent.ToolDef{
+			def: toolapi.ToolDef{
 				Name:        "strict",
 				InputSchema: json.RawMessage(`{"type":"object","required":["name"],"properties":{"name":{"type":"string"}}}`),
 			},
-			invoke: func(_ context.Context, _ json.RawMessage) (agent.Result, error) {
-				return agent.Result{}, errors.New("should not be called")
+			invoke: func(_ context.Context, _ json.RawMessage) (toolapi.Result, error) {
+				return toolapi.Result{}, errors.New("should not be called")
 			},
 		},
 	}

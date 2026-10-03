@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/toolreg"
 	artifactstool "github.com/agezt/agezt/plugins/tools/artifacts"
@@ -41,7 +41,7 @@ func specConfig() toolreg.Spec {
 			ct = configtool.New(d.BaseDir)
 			return toolreg.Built{Tool: ct, Desc: "config()"}, nil
 		},
-		Configure: func(_ agent.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.K != nil {
 				ct.SetKernel(d.K)
 			}
@@ -62,7 +62,7 @@ func specArtifacts() toolreg.Spec {
 			af = artifactstool.New()
 			return toolreg.Built{Tool: af, Desc: "artifacts(list/read/delete)"}, nil
 		},
-		Configure: func(_ agent.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.Artifacts != nil {
 				af.SetIndex(d.Artifacts)
 			}
@@ -83,7 +83,7 @@ func specDB() toolreg.Spec {
 			dbt = dbtool.New()
 			return toolreg.Built{Tool: dbt, Desc: "db(data-lake)"}, nil
 		},
-		Configure: func(_ agent.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.Lake != nil {
 				dbt.SetStore(d.Lake)
 			}
@@ -103,7 +103,7 @@ func specCouncil() toolreg.Spec {
 			ct = counciltool.New()
 			return toolreg.Built{Tool: ct, Desc: "council(consensus panel)"}, nil
 		},
-		Configure: func(_ agent.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.K != nil {
 				ct.SetRunner(d.K)
 			}
@@ -124,7 +124,7 @@ func specConductor() toolreg.Spec {
 			cond = conductortool.New()
 			return toolreg.Built{Tool: cond, Desc: "conductor(verify-driven panel)"}, nil
 		},
-		Configure: func(_ agent.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.K != nil {
 				cond.SetRunner(d.K)
 			}
@@ -146,7 +146,7 @@ func specResearch() toolreg.Spec {
 			rt = research.New()
 			return toolreg.Built{Tool: rt, Desc: "research(deep-research harness)"}, nil
 		},
-		Configure: func(_ agent.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.K != nil {
 				rt.SetRunner(d.K)
 			}
@@ -194,10 +194,10 @@ func specCodeExec() toolreg.Spec {
 			desc := fmt.Sprintf("code_exec(langs=%s, %s)", strings.Join(ce.Languages(), "/"), netTag)
 			return toolreg.Built{Tool: ce, Desc: desc}, nil
 		},
-		PreOpen: func(_ agent.Tool, cfg *runtime.Config) {
+		PreOpen: func(_ toolapi.Tool, cfg *runtime.Config) {
 			cfg.ScriptRunner = ce
 		},
-		Configure: func(_ agent.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.Artifacts != nil {
 				ce.SetIndex(d.Artifacts)
 			}

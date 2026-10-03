@@ -12,7 +12,8 @@ import (
 	"time"
 
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/agent"
+
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -55,7 +56,7 @@ func (k *Kernel) councilGrounding(ctx context.Context, corr, question string) (t
 // councilSearch runs the question through the web_search tool and returns the
 // parsed hits. Fail-soft: a tool error, an error result, or unparseable output all
 // yield nil so the council degrades to a date-only grounding.
-func councilSearch(ctx context.Context, tool agent.Tool, question string) []councilHit {
+func councilSearch(ctx context.Context, tool toolapi.Tool, question string) []councilHit {
 	q := strings.TrimSpace(question)
 	if r := []rune(q); len(r) > 300 {
 		q = strings.TrimSpace(string(r[:300]))

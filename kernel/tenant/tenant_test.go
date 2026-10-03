@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -318,7 +318,7 @@ func TestRegistry_RealKernelsAreIsolated(t *testing.T) {
 		k, err := runtime.Open(runtime.Config{
 			BaseDir:  baseDir,
 			Provider: mock.New(mock.FinalText("done-" + id)),
-			Tools:    map[string]agent.Tool{},
+			Tools:    map[string]toolapi.Tool{},
 		})
 		if err == nil {
 			kernels[id] = k

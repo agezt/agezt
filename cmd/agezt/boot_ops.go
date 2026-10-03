@@ -73,6 +73,60 @@ func runUpdate(stdout, stderr io.Writer) int {
 	return 0
 }
 
+// updateDrainer is the slice of the kernel an update needs: stop new work and
+// unwind in-flight runs, and undo that when the update does not happen.
+type updateDrainer interface {
+	DrainAndHalt(timeout time.Duration) (bool, int)
+	ResumeWith(reason string)
+}
+
+// updateApplyFunc is update.Service.Apply.
+type updateApplyFunc func(ctx context.Context, info *update.UpdateInfo, drain func(context.Context, time.Duration) update.DrainResult) error
+
+// applyAvailableUpdate installs info and reports whether the daemon must now
+// restart into the new binary.
+//
+// The kernel is halted only inside Apply's drain step — AFTER the binary was
+// downloaded and its checksum and signature verified — and resumed on every
+// failure after that point. It used to be the other way round: the checker
+// drained and halted FIRST and passed Apply a no-op drain, so a failed
+// download or a refused signature (the common case: no release key is
+// configured yet) left the daemon running but halted — no agent could run
+// until an operator noticed and resumed it by hand, while the log claimed
+// "daemon stays running". A drain timeout left it halted the same way.
+func applyAvailableUpdate(ctx context.Context, k updateDrainer, apply updateApplyFunc, info *update.UpdateInfo,
+	publish func(event.Spec), stdout, stderr io.Writer) bool {
+	halted := false
+	err := apply(ctx, info, func(_ context.Context, timeout time.Duration) update.DrainResult {
+		fmt.Fprintf(stdout, "%s: auto-update: %s verified, draining daemon\n", brand.Binary, info.Version)
+		halted = true
+		_, active := k.DrainAndHalt(timeout)
+		return update.DrainResult{Timeout: active > 0, ActiveRuns: active}
+	})
+	if err != nil {
+		if halted {
+			k.ResumeWith("auto-update to " + info.Version + " aborted: " + err.Error())
+		}
+		publish(event.Spec{
+			Subject: "update.failed", Kind: event.KindAnomalyDetected, Actor: "update-checker",
+			Payload: map[string]any{"version": info.Version, "error": err.Error()},
+		})
+		fmt.Fprintf(stderr, "%s: auto-update failed: %v (daemon stays running)\n", brand.Binary, err)
+		return false
+	}
+	if !halted {
+		// No drain configured (DrainTimeout 0): Apply swapped without one, so
+		// stop new work before the restart, as the checker always did.
+		k.DrainAndHalt(0)
+	}
+	publish(event.Spec{
+		Subject: "update.applied", Kind: event.KindInfo, Actor: "update-checker",
+		Payload: map[string]any{"version": info.Version},
+	})
+	fmt.Fprintf(stdout, "%s: auto-update: %s applied, restarting\n", brand.Binary, info.Version)
+	return true
+}
+
 // startUpdateChecker runs the background auto-update check loop.
 func startUpdateChecker(ctx context.Context, k *kernelruntime.Kernel, svc *update.Service, stdout, stderr io.Writer) {
 	ticker := time.NewTicker(svc.CheckInterval())
@@ -93,29 +147,10 @@ func startUpdateChecker(ctx context.Context, k *kernelruntime.Kernel, svc *updat
 			Subject: "update.available", Kind: event.KindInfo, Actor: "update-checker",
 			Payload: map[string]any{"current_version": result.Current, "new_version": info.Version, "url": info.URL},
 		})
-		fmt.Fprintf(stdout, "%s: auto-update: draining daemon for %s\n", brand.Binary, info.Version)
-		_, activeRuns := k.DrainAndHalt(svc.DrainTimeout())
-		if activeRuns > 0 {
-			fmt.Fprintf(stderr, "%s: auto-update: drain timeout (%d runs still active)\n", brand.Binary, activeRuns)
-			return
+		publish := func(s event.Spec) { _, _ = k.Bus().Publish(s) }
+		if applyAvailableUpdate(ctx, k, svc.Apply, info, publish, stdout, stderr) {
+			os.Exit(0)
 		}
-		err = svc.Apply(ctx, info, func(context.Context, time.Duration) update.DrainResult {
-			return update.DrainResult{}
-		})
-		if err != nil {
-			_, _ = k.Bus().Publish(event.Spec{
-				Subject: "update.failed", Kind: event.KindAnomalyDetected, Actor: "update-checker",
-				Payload: map[string]any{"version": info.Version, "error": err.Error()},
-			})
-			fmt.Fprintf(stderr, "%s: auto-update failed: %v (daemon stays running)\n", brand.Binary, err)
-			return
-		}
-		_, _ = k.Bus().Publish(event.Spec{
-			Subject: "update.applied", Kind: event.KindInfo, Actor: "update-checker",
-			Payload: map[string]any{"version": info.Version},
-		})
-		fmt.Fprintf(stdout, "%s: auto-update: %s applied, restarting\n", brand.Binary, info.Version)
-		os.Exit(0)
 	}
 
 	check()

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -22,7 +22,7 @@ func TestSubAgentSpendMicrocents_CycleGuardTerminates(t *testing.T) {
 	k, err := Open(Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools:    map[string]agent.Tool{},
+		Tools:    map[string]toolapi.Tool{},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)

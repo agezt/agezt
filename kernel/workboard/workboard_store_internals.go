@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/jsonstore"
+	"github.com/agezt/agezt/kernel/platform/filestore"
 )
 
 func (s *Store) mutate(id string, fn func(*Task, int64) error, now time.Time) (Task, error) {
@@ -50,7 +50,7 @@ func (s *Store) find(id string) *Task {
 }
 
 func (s *Store) saveLocked() error {
-	return jsonstore.Save(s.path, diskState{Version: storeVersion, Tasks: s.tasks})
+	return filestore.Save(s.path, diskState{Version: storeVersion, Tasks: s.tasks})
 }
 
 func (s *Store) dependsOnLocked(startID, targetID string, seen map[string]bool) bool {

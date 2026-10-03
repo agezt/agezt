@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 )
 
@@ -41,7 +42,7 @@ type Client struct {
 
 // New constructs a Client with the default HTTP timeout.
 func New(baseURL, model, apiKey string) *Client {
-	return &Client{BaseURL: baseURL, Model: model, APIKey: apiKey, HTTP: &http.Client{Timeout: DefaultTimeout}}
+	return &Client{BaseURL: baseURL, Model: model, APIKey: apiKey, HTTP: netout.OperatorClient(DefaultTimeout)}
 }
 
 // HasImage reports whether the client is configured enough to generate.
@@ -103,7 +104,7 @@ func (c *Client) GenerateImage(ctx context.Context, prompt, size, quality string
 	}
 	client := c.HTTP
 	if client == nil {
-		client = &http.Client{Timeout: DefaultTimeout}
+		client = netout.OperatorClient(DefaultTimeout)
 	}
 	resp, err := client.Do(req)
 	if err != nil {

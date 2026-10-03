@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -19,14 +20,14 @@ import (
 // grant covering the probe capability — the shipped default, which covers every
 // capability. Edict itself allows (UnknownAllow), so the ONLY thing that can
 // route the probe to approval is a fail-closed guard.
-func guardedAutoApproveKernel(t *testing.T, prov agent.Provider, invoked *int32, mode runtime.PromptInjectionMode) *runtime.Kernel {
+func guardedAutoApproveKernel(t *testing.T, prov llm.Provider, invoked *int32, mode runtime.PromptInjectionMode) *runtime.Kernel {
 	t.Helper()
 	// Safety net: a wrongful gate denies on timeout, it never hangs the test.
 	reg := approval.New(approval.Config{Timeout: 2 * time.Second})
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
-		Tools: map[string]agent.Tool{
+		Tools: map[string]toolapi.Tool{
 			"browser.read":  untrustedReadTool{},
 			"approvalprobe": probeTool{invoked: invoked},
 		},
@@ -86,7 +87,7 @@ func TestPromptInjectionGuard_AutoApproveStillSatisfiesAskAxis(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:                 t.TempDir(),
 		Provider:                prov,
-		Tools:                   map[string]agent.Tool{"approvalprobe": probeTool{invoked: &invoked}},
+		Tools:                   map[string]toolapi.Tool{"approvalprobe": probeTool{invoked: &invoked}},
 		Edict:                   edict.New(edict.Options{Levels: map[edict.Capability]edict.TrustLevel{"approvalprobe": edict.LevelAsk}, AskPolicy: edict.AskPrompt}),
 		Approvals:               reg,
 		PromptInjectionGuard:    runtime.PromptInjectionOn,

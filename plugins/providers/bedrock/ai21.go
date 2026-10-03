@@ -43,7 +43,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 )
 
@@ -66,7 +66,7 @@ type ai21JambaRequest struct {
 // applyParams copies the sampling knobs Jamba understands; an unset Params
 // leaves the request unchanged. top_k/seed/penalties/ReasoningEffort are not in
 // the Bedrock-Jamba shape and are ignored.
-func (wire *ai21JambaRequest) applyParams(p agent.Params) {
+func (wire *ai21JambaRequest) applyParams(p llm.Params) {
 	if p.IsZero() {
 		return
 	}
@@ -93,13 +93,13 @@ type ai21JambaResponse struct {
 	Usage   ai21JambaUsage    `json:"usage"`
 }
 
-func ai21JambaRole(r agent.Role) string {
+func ai21JambaRole(r llm.Role) string {
 	switch r {
-	case agent.RoleAssistant:
+	case llm.RoleAssistant:
 		return "assistant"
-	case agent.RoleSystem:
+	case llm.RoleSystem:
 		return "system"
-	case agent.RoleTool:
+	case llm.RoleTool:
 		// AI21 has no tool-result role; surface tool output as a
 		// user-role turn so the model still sees it. Bedrock's
 		// shape would reject "tool" role.
@@ -108,7 +108,7 @@ func ai21JambaRole(r agent.Role) string {
 	return "user"
 }
 
-func encodeAI21JambaOnBedrockRequest(system string, msgs []agent.Message, maxTok int, params agent.Params, extra json.RawMessage) ([]byte, error) {
+func encodeAI21JambaOnBedrockRequest(system string, msgs []llm.Message, maxTok int, params llm.Params, extra json.RawMessage) ([]byte, error) {
 	if len(msgs) == 0 {
 		return nil, errors.New("bedrock-ai21: at least one message required")
 	}
@@ -130,7 +130,7 @@ func encodeAI21JambaOnBedrockRequest(system string, msgs []agent.Message, maxTok
 	return provopts.Merge(body, extra)
 }
 
-func decodeAI21JambaOnBedrockResponse(body []byte, model string) (*agent.CompletionResponse, error) {
+func decodeAI21JambaOnBedrockResponse(body []byte, model string) (*llm.CompletionResponse, error) {
 	var wire ai21JambaResponse
 	if err := json.Unmarshal(body, &wire); err != nil {
 		return nil, fmt.Errorf("bedrock-ai21: parse response: %w", err)
@@ -142,19 +142,19 @@ func decodeAI21JambaOnBedrockResponse(body []byte, model string) (*agent.Complet
 	if choice.Message.Content == "" {
 		return nil, errors.New("bedrock-ai21: choice has empty content")
 	}
-	stop := agent.StopEndTurn
+	stop := llm.StopEndTurn
 	// OpenAI-style finish_reason: "stop" | "length" | "tool_calls" | "content_filter"
 	switch strings.ToLower(choice.FinishReason) {
 	case "length":
-		stop = agent.StopMaxTokens
+		stop = llm.StopMaxTokens
 	}
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:    agent.RoleAssistant,
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:    llm.RoleAssistant,
 			Content: choice.Message.Content,
 		},
 		StopReason: stop,
-		Usage: agent.Usage{
+		Usage: llm.Usage{
 			Model:        model,
 			InputTokens:  wire.Usage.PromptTokens,
 			OutputTokens: wire.Usage.CompletionTokens,

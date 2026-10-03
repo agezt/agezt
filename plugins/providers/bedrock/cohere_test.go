@@ -10,7 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/bedrock"
 )
 
@@ -38,14 +38,14 @@ func TestComplete_CohereOnBedrock_HappyPath(t *testing.T) {
 
 	p := bedrock.New("token", "us-east-1")
 	p.Endpoint = srv.URL
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:     "cohere.command-r-plus-v1:0",
 		System:    "be friendly",
 		MaxTokens: 512,
-		Messages: []agent.Message{
-			{Role: agent.RoleUser, Content: "what's up?"},
-			{Role: agent.RoleAssistant, Content: "not much, you?"},
-			{Role: agent.RoleUser, Content: "want to chat"},
+		Messages: []llm.Message{
+			{Role: llm.RoleUser, Content: "what's up?"},
+			{Role: llm.RoleAssistant, Content: "not much, you?"},
+			{Role: llm.RoleUser, Content: "want to chat"},
 		},
 	})
 	if err != nil {
@@ -54,7 +54,7 @@ func TestComplete_CohereOnBedrock_HappyPath(t *testing.T) {
 	if resp.Message.Content != "hello from cohere" {
 		t.Errorf("content = %q", resp.Message.Content)
 	}
-	if resp.Message.Role != agent.RoleAssistant {
+	if resp.Message.Role != llm.RoleAssistant {
 		t.Errorf("role = %q", resp.Message.Role)
 	}
 	if captured.Message != "want to chat" {
@@ -89,14 +89,14 @@ func TestComplete_CohereOnBedrock_MaxTokensStop(t *testing.T) {
 	defer srv.Close()
 	p := bedrock.New("t", "us-east-1")
 	p.Endpoint = srv.URL
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "cohere.command-r-v1:0",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "go"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "go"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
-	if resp.StopReason != agent.StopMaxTokens {
+	if resp.StopReason != llm.StopMaxTokens {
 		t.Errorf("stop = %q want max_tokens", resp.StopReason)
 	}
 }
@@ -107,9 +107,9 @@ func TestComplete_CohereOnBedrock_MaxTokensStop(t *testing.T) {
 func TestComplete_CohereOnBedrock_NoUserTurnErrors(t *testing.T) {
 	p := bedrock.New("t", "us-east-1")
 	p.Endpoint = "http://localhost:1"
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "cohere.command-r-v1:0",
-		Messages: []agent.Message{{Role: agent.RoleAssistant, Content: "hi"}},
+		Messages: []llm.Message{{Role: llm.RoleAssistant, Content: "hi"}},
 	})
 	if err == nil {
 		t.Fatal("expected error for assistant-only messages")

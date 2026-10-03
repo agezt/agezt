@@ -46,7 +46,7 @@ func TestCoverageHelperSinksAndInstances(t *testing.T) {
 	defer cancel()
 	insts := []chanInstance{{key: "slack", desc: "ready", ch: startRecordingChannel{started: started}, sink: single}}
 	buf.Reset()
-	startInstances(ctx, &buf, "slack", "Slack", "disabled", insts)
+	startInstances(ctx, nil, &buf, &buf, "slack", "Slack", "disabled", insts)
 	if out := buf.String(); !strings.Contains(out, "ready") || !strings.Contains(out, "default") {
 		t.Fatalf("startInstances output = %q", out)
 	}
@@ -57,7 +57,7 @@ func TestCoverageHelperSinksAndInstances(t *testing.T) {
 	}
 
 	buf.Reset()
-	startInstances(ctx, &buf, "slack", "Slack", "disabled", nil)
+	startInstances(ctx, nil, &buf, &buf, "slack", "Slack", "disabled", nil)
 	if out := buf.String(); !strings.Contains(out, "disabled") {
 		t.Fatalf("disabled startInstances output = %q", out)
 	}

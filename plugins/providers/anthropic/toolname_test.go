@@ -8,7 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 var anthNamePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
@@ -19,16 +20,16 @@ var anthNamePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
 // the wire — in the tools array AND in assistant-history tool_use blocks — must
 // now match ^[a-zA-Z0-9_-]{1,64}$.
 func TestToolNamesConformToAnthropicPattern(t *testing.T) {
-	tools := []agent.ToolDef{
+	tools := []toolapi.ToolDef{
 		{Name: "browser.read", Description: "fetch a page", InputSchema: json.RawMessage(`{"type":"object"}`)},
 		{Name: "shell", InputSchema: json.RawMessage(`{"type":"object"}`)},
 	}
-	msgs := []agent.Message{
-		{Role: agent.RoleUser, Content: "go"},
-		{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "c1", Name: "browser.read", Input: json.RawMessage(`{"url":"x"}`)}}},
-		{Role: agent.RoleTool, ToolCallID: "c1", Content: "ok"},
+	msgs := []llm.Message{
+		{Role: llm.RoleUser, Content: "go"},
+		{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "c1", Name: "browser.read", Input: json.RawMessage(`{"url":"x"}`)}}},
+		{Role: llm.RoleTool, ToolCallID: "c1", Content: "ok"},
 	}
-	body, err := encodeRequest("m", "", msgs, tools, 100, 0, agent.Params{}, nil)
+	body, err := encodeRequest("m", "", msgs, tools, 100, 0, llm.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

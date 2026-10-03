@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/bedrock"
 )
 
@@ -41,11 +41,11 @@ func TestComplete_DeepSeekOnBedrock(t *testing.T) {
 
 	p := bedrock.New("token", "us-east-1")
 	p.Endpoint = srv.URL
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:     "deepseek.r1-v1:0",
 		System:    "be precise",
 		MaxTokens: 512,
-		Messages:  []agent.Message{{Role: agent.RoleUser, Content: "what is 6*7?"}},
+		Messages:  []llm.Message{{Role: llm.RoleUser, Content: "what is 6*7?"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -56,7 +56,7 @@ func TestComplete_DeepSeekOnBedrock(t *testing.T) {
 	if resp.ReasoningContent != "6 times 7 is 42." {
 		t.Errorf("reasoning = %q", resp.ReasoningContent)
 	}
-	if resp.StopReason != agent.StopEndTurn {
+	if resp.StopReason != llm.StopEndTurn {
 		t.Errorf("stop = %q want end_turn", resp.StopReason)
 	}
 	if resp.Usage.InputTokens != 20 || resp.Usage.OutputTokens != 30 {
@@ -90,9 +90,9 @@ func TestComplete_DeepSeekRegionalAccepted(t *testing.T) {
 	defer srv.Close()
 	p := bedrock.New("t", "us-east-1")
 	p.Endpoint = srv.URL
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "us.deepseek.r1-v1:0",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
 	})
 	if err != nil {
 		t.Errorf("Complete: %v (regional DeepSeek profile should be accepted)", err)
@@ -111,9 +111,9 @@ func TestComplete_DeepSeekTruncatedThinking(t *testing.T) {
 	defer srv.Close()
 	p := bedrock.New("t", "us-east-1")
 	p.Endpoint = srv.URL
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "deepseek.r1-v1:0",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "go"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "go"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -124,7 +124,7 @@ func TestComplete_DeepSeekTruncatedThinking(t *testing.T) {
 	if resp.ReasoningContent != "" {
 		t.Errorf("reasoning = %q, want empty when no close tag", resp.ReasoningContent)
 	}
-	if resp.StopReason != agent.StopMaxTokens {
+	if resp.StopReason != llm.StopMaxTokens {
 		t.Errorf("stop = %q want max_tokens", resp.StopReason)
 	}
 }
@@ -137,9 +137,9 @@ func TestComplete_DeepSeekEmptyChoicesErrors(t *testing.T) {
 	defer srv.Close()
 	p := bedrock.New("t", "us-east-1")
 	p.Endpoint = srv.URL
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "deepseek.r1-v1:0",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err == nil {
 		t.Fatal("expected error on empty choices, got nil")

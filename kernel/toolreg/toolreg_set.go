@@ -9,43 +9,71 @@ package toolreg
 // Public API unchanged.
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
 func BuildAll(d BuildDeps) (*Set, error) {
-	s := &Set{tools: map[string]agent.Tool{}, claim: map[string]string{}, dropped: map[string]bool{}}
+	s := &Set{tools: map[string]toolapi.Tool{}, claim: map[string]string{}, dropped: map[string]bool{}}
 	for _, sp := range snapshot() {
 		if sp.Build == nil {
 			continue
 		}
 		b, err := sp.Build(d)
 		if err != nil {
+			_ = s.Close()
 			return nil, fmt.Errorf("tool %s: %w", sp.Name, err)
 		}
 		if b.Tool == nil && len(b.Extra) == 0 && len(b.Infos) == 0 {
+			if b.Close != nil {
+				_ = b.Close()
+			}
 			continue // env-gated off
 		}
+		// Record the pair before registering names, so a collision below still
+		// closes what this spec started.
+		s.pairs = append(s.pairs, pair{spec: sp, built: b})
 		if b.Tool != nil {
 			if err := s.add(b.Tool.Definition().Name, b.Tool, sp, d); err != nil {
+				_ = s.Close()
 				return nil, err
 			}
 		}
 		for _, name := range sortedKeys(b.Extra) {
 			if err := s.add(name, b.Extra[name], sp, d); err != nil {
+				_ = s.Close()
 				return nil, err
 			}
 		}
-		s.pairs = append(s.pairs, pair{spec: sp, built: b})
 	}
 	return s, nil
 }
 
-func (s *Set) add(name string, tl agent.Tool, sp Spec, d BuildDeps) error {
+// Close releases every built spec's resources (Built.Close), in reverse build
+// order, once. The daemon defers it after building the set: boot-spawned plugin
+// children used to be left running at shutdown — surviving only if they exited
+// on stdin EOF by themselves.
+func (s *Set) Close() error {
+	var errs []error
+	for i := len(s.pairs) - 1; i >= 0; i-- {
+		c := s.pairs[i].built.Close
+		if c == nil {
+			continue
+		}
+		s.pairs[i].built.Close = nil
+		if err := c(); err != nil {
+			errs = append(errs, fmt.Errorf("tool %s: close: %w", s.pairs[i].spec.Name, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (s *Set) add(name string, tl toolapi.Tool, sp Spec, d BuildDeps) error {
 	if prev, dup := s.claim[name]; dup {
 		if sp.YieldOnConflict {
 			// In-process wins: drop the later (plugin) claimant, keep the
@@ -65,8 +93,8 @@ func (s *Set) add(name string, tl agent.Tool, sp Spec, d BuildDeps) error {
 }
 
 // Tools returns the merged name → instance map (a copy; instances are shared).
-func (s *Set) Tools() map[string]agent.Tool {
-	out := make(map[string]agent.Tool, len(s.tools))
+func (s *Set) Tools() map[string]toolapi.Tool {
+	out := make(map[string]toolapi.Tool, len(s.tools))
 	for name, tl := range s.tools {
 		out[name] = tl
 	}
@@ -199,7 +227,7 @@ func (s *Set) NetguardGaps() []string {
 	return gaps
 }
 
-func sortedKeys(m map[string]agent.Tool) []string {
+func sortedKeys(m map[string]toolapi.Tool) []string {
 	if len(m) == 0 {
 		return nil
 	}

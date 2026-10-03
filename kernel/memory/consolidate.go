@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -141,7 +142,7 @@ type BrainDistillReport struct {
 // Best-effort per cluster: a provider error aborts the pass (budget/network
 // problems shouldn't burn more calls), a non-JSON answer just skips that
 // cluster.
-func (m *Manager) DistillBrain(ctx context.Context, corr string, provider agent.Provider, model string) (BrainDistillReport, error) {
+func (m *Manager) DistillBrain(ctx context.Context, corr string, provider llm.Provider, model string) (BrainDistillReport, error) {
 	if provider == nil {
 		return BrainDistillReport{}, errors.New("memory: brain distill requires a provider")
 	}
@@ -196,7 +197,7 @@ func (m *Manager) DistillBrain(ctx context.Context, corr string, provider agent.
 
 // consolidateCluster merges one cluster through the provider. ok=false means
 // the answer wasn't usable (skip, don't fail).
-func (m *Manager) consolidateCluster(ctx context.Context, corr string, provider agent.Provider, model string, cluster []Record) (Record, bool, error) {
+func (m *Manager) consolidateCluster(ctx context.Context, corr string, provider llm.Provider, model string, cluster []Record) (Record, bool, error) {
 	var b strings.Builder
 	for i, r := range cluster {
 		fmt.Fprintf(&b, "%d. [%s] %s: %s\n", i+1, r.Type, r.Subject, r.Content)
@@ -207,10 +208,10 @@ func (m *Manager) consolidateCluster(ctx context.Context, corr string, provider 
 	// an unusable answer (no schema-valid object after repair) is a skip, not a
 	// failure — the same disposition the hand-rolled parse had.
 	var parsed consolidateResult
-	if _, err := agent.GenerateObject(ctx, provider, agent.CompletionRequest{
+	if _, err := agent.GenerateObject(ctx, provider, llm.CompletionRequest{
 		Model:    model,
 		System:   consolidateSystem,
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "Related memory records:\n" + b.String()}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "Related memory records:\n" + b.String()}},
 		TaskType: "distill", // same budgeting/routing class as per-run distillation
 	}, nil, &parsed); err != nil {
 		if errors.Is(err, agent.ErrNoObjectGenerated) {

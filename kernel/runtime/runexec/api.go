@@ -15,6 +15,8 @@ import (
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/datalake"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/intent"
@@ -38,8 +40,8 @@ import (
 type KernelAPI interface {
 	Bus() *bus.Bus
 	Journal() *journal.Journal
-	Provider() agent.Provider
-	Tools() map[string]agent.Tool
+	Provider() llm.Provider
+	Tools() map[string]toolapi.Tool
 	MaxDuration() time.Duration
 	Model() string
 	Voice() voicetool.Voice
@@ -50,7 +52,7 @@ type KernelAPI interface {
 	SkillForgeMinTools() int
 	ShadowEval() bool
 	FoldRunTools(corr string) (int, []string)
-	CompleteAux(ctx context.Context, corr, taskType string, req agent.CompletionRequest) (*agent.CompletionResponse, error)
+	CompleteAux(ctx context.Context, corr, taskType string, req llm.CompletionRequest) (*llm.CompletionResponse, error)
 	UpdateProfile(ref string, mutate func(*roster.Profile)) (roster.Profile, bool, error)
 	SetProfileRetired(ref string, retired bool, reason ...string) (roster.Profile, error)
 	SetupRunState(corr string, parentCtx context.Context) (context.Context, context.CancelFunc, agent.Steerer, error)
@@ -71,11 +73,11 @@ type KernelAPI interface {
 	MaxCostFromCtx(ctx context.Context) int64
 	RunTimeoutFromCtx(ctx context.Context) time.Duration
 	ResumeOwnedKindFromCtx(ctx context.Context) (string, bool)
-	ResumeSeedFromCtx(ctx context.Context) ([]agent.Message, int, bool)
+	ResumeSeedFromCtx(ctx context.Context) ([]llm.Message, int, bool)
 	DisableHeuristicBypass(ctx context.Context) bool
 	BuildRunPrompt(runCtx context.Context, corr, actor, intent string, systemAgent bool, skillDirective skill.ActivationDirective) (string, []string)
-	InjectHostEnvironment(system string, tools map[string]agent.Tool) string
-	ResumeCheckpointFn(corr string) func(int, []agent.Message)
+	InjectHostEnvironment(system string, tools map[string]toolapi.Tool) string
+	ResumeCheckpointFn(corr string) func(int, []llm.Message)
 	ResolveRunModel(ctx context.Context) (string, bool)
 	MergeAutoApproveCapabilities(ctx context.Context, from map[string]bool) map[string]bool
 	WithActorCorrelation(ctx context.Context, actor, corr string) context.Context

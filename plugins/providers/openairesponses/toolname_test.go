@@ -10,7 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // respNamePattern is what the Responses backend validates function names against.
@@ -24,19 +25,19 @@ var respNamePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 // array AND in replayed function_call items — must now conform.
 func TestToolNamesConformToResponsesPattern(t *testing.T) {
 	p := New("chatgpt", "gpt-5.6-sol", staticToken)
-	tools := []agent.ToolDef{
+	tools := []toolapi.ToolDef{
 		{Name: "browser.read", Description: "fetch a page", InputSchema: json.RawMessage(`{"type":"object"}`)},
 		{Name: "shell", InputSchema: json.RawMessage(`{"type":"object"}`)},
 		{Name: "mcp:github/list issues", InputSchema: json.RawMessage(`{"type":"object"}`)},
 	}
-	body, err := p.buildBody(agent.CompletionRequest{
+	body, err := p.buildBody(llm.CompletionRequest{
 		Tools: tools,
-		Messages: []agent.Message{
-			{Role: agent.RoleUser, Content: "go"},
-			{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{
+		Messages: []llm.Message{
+			{Role: llm.RoleUser, Content: "go"},
+			{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{
 				{ID: "c1", Name: "browser.read", Input: json.RawMessage(`{"url":"x"}`)},
 			}},
-			{Role: agent.RoleTool, ToolCallID: "c1", Content: "ok"},
+			{Role: llm.RoleTool, ToolCallID: "c1", Content: "ok"},
 		},
 	}, "gpt-5.6-sol")
 	if err != nil {
@@ -98,9 +99,9 @@ func TestToolCallNamesRestored(t *testing.T) {
 
 	p := New("chatgpt", "gpt-5.6-sol", staticToken)
 	p.BaseURL = srv.URL
-	resp, err := p.Complete(t.Context(), agent.CompletionRequest{
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "go"}},
-		Tools:    []agent.ToolDef{{Name: "browser.read", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+	resp, err := p.Complete(t.Context(), llm.CompletionRequest{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "go"}},
+		Tools:    []toolapi.ToolDef{{Name: "browser.read", InputSchema: json.RawMessage(`{"type":"object"}`)}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)

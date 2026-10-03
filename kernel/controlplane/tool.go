@@ -8,10 +8,11 @@ package controlplane
 
 import (
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/agent"
-	"github.com/agezt/agezt/kernel/edict"
 	"net"
 	"sort"
+
+	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/edict"
 )
 
 // catalogProbe holds a representative input per input-branching tool so the
@@ -60,15 +61,15 @@ func (s *Server) handleToolList(conn net.Conn, req Request) {
 	})
 }
 
-func toolRollbackMode(class agent.EffectClass) string {
+func toolRollbackMode(class toolapi.EffectClass) string {
 	switch class {
-	case agent.EffectReadOnly:
+	case toolapi.EffectReadOnly:
 		return "none_needed"
-	case agent.EffectReversible:
+	case toolapi.EffectReversible:
 		return "rollbackable"
-	case agent.EffectCompensable:
+	case toolapi.EffectCompensable:
 		return "compensate"
-	case agent.EffectIrreversible:
+	case toolapi.EffectIrreversible:
 		return "audit_only"
 	default:
 		return "unknown"

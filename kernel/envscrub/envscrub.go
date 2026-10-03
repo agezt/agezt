@@ -24,6 +24,17 @@ func Scrubbed() []string {
 		"APPDATA": true, "LOCALAPPDATA": true, "PROGRAMDATA": true,
 		"TEMP": true, "TMP": true, "TMPDIR": true,
 		"PROGRAMFILES": true, "PROGRAMFILES(X86)": true, "PROGRAMW6432": true,
+		// Identity, terminal, timezone and XDG dirs: CLIs misbehave without them
+		// and none carries a secret.
+		"USER": true, "LOGNAME": true, "SHELL": true, "TERM": true, "TZ": true, "LANGUAGE": true,
+		"XDG_CONFIG_HOME": true, "XDG_DATA_HOME": true, "XDG_CACHE_HOME": true, "XDG_RUNTIME_DIR": true,
+		// Proxies: without them a child behind a corporate proxy cannot reach the
+		// network at all. (A proxy URL may embed credentials; the child needs them
+		// to use the proxy the operator configured.)
+		"HTTP_PROXY": true, "HTTPS_PROXY": true, "NO_PROXY": true, "ALL_PROXY": true,
+		// The ssh agent socket: git over ssh. The child can already read the
+		// operator's HOME, so the socket adds nothing a hostile child lacked.
+		"SSH_AUTH_SOCK": true,
 	}
 	var out []string
 	for _, kv := range os.Environ() {

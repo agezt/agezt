@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/compat"
 )
 
@@ -119,7 +119,7 @@ type probeResult struct {
 	reply          string
 	latency        time.Duration
 	stopReason     string
-	usage          agent.Usage
+	usage          llm.Usage
 	costMicrocents int64
 	err            error
 }
@@ -147,10 +147,10 @@ func runProbe(entry *catalog.Provider, lookup func(string) string) probeResult {
 	defer cancel()
 
 	start := time.Now()
-	resp, err := prov.Complete(ctx, agent.CompletionRequest{
+	resp, err := prov.Complete(ctx, llm.CompletionRequest{
 		Model:     modelID,
 		System:    "Be terse.",
-		Messages:  []agent.Message{{Role: agent.RoleUser, Content: "Say 'pong' in one word."}},
+		Messages:  []llm.Message{{Role: llm.RoleUser, Content: "Say 'pong' in one word."}},
 		MaxTokens: 16,
 	})
 	latency := time.Since(start)

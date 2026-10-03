@@ -4,7 +4,10 @@ package channel
 
 import (
 	"sort"
+	"strings"
 	"sync"
+
+	"github.com/agezt/agezt/kernel/contract/channelapi"
 )
 
 // mu guards the three process-global maps below (registry/live/liveInstances).
@@ -15,63 +18,12 @@ import (
 // remote-triggerable crash DoS — hence the lock (CWE-362, finding VULN-002).
 var mu sync.RWMutex
 
-// Manifest is a channel's self-description for the "systematik" channel layer:
-// the metadata the Channels wizard renders (display name, what it is, transport,
-// whether it's two-way) plus which Config Center section holds its account
-// fields and which of those are required to consider it configured. Channels
-// register a manifest so the console can list + configure them uniformly, and so
-// a new gateway can be added by name (register a manifest + an account schema)
-// without bespoke UI work.
-type Manifest struct {
-	Kind          string    `json:"kind"`           // stable id, e.g. "telegram" (matches Channel.Name())
-	Display       string    `json:"display"`        // human label, e.g. "Telegram"
-	Description   string    `json:"description"`    // one-line "what is this channel"
-	Transport     string    `json:"transport"`      // "long-poll" | "webhook" | "rest" | "smtp"
-	Duplex        bool      `json:"duplex"`         // true = two-way (can receive), false = outbound-only
-	ConfigSection string    `json:"config_section"` // settings/Config Center section ID holding its fields
-	RequiredEnv   []string  `json:"required_env"`   // env vars that must be set for the channel to start
-	DocsURL       string    `json:"docs_url,omitempty"`
-	Media         MediaCaps `json:"media"` // which non-text modalities this channel carries, per direction
-	// SetupSteps are terse "what you'll need / how to get credentials" bullets the
-	// guided Connect flow shows before the field form. Optional.
-	SetupSteps []string `json:"setup_steps,omitempty"`
-	// ConnectMethod tells the UI how to connect: "token" (default — paste fields),
-	// "qr" (scan, e.g. whatsappgw), "gateway" (self-hosted URL + reachability), or
-	// "oauth" (authorize in browser). Empty = "token".
-	ConnectMethod string `json:"connect_method,omitempty"`
-
-	// The three fields below drive derived STATUS reporting (`agt status`), so
-	// the daemon never needs a hand-maintained per-kind predicate list (which
-	// had silently drifted to cover 11 of the registered kinds). All optional.
-	//
-	// AddrEnv names the env var holding the channel's serve/endpoint address.
-	AddrEnv string `json:"addr_env,omitempty"`
-	// AllowlistEnv names the env var whose comma-separated value is the
-	// channel's recipient/room/channel allowlist.
-	AllowlistEnv string `json:"allowlist_env,omitempty"`
-	// InboundEnv lists env vars that must ALSO be set (beyond RequiredEnv) for
-	// the channel to actually receive inbound traffic. Meaningful only for
-	// Duplex channels; empty means inbound whenever configured.
-	InboundEnv []string `json:"inbound_env,omitempty"`
-
-	// BannerLabel is the short label the daemon's boot banner prints for this
-	// channel (e.g. "webhook channel", "ntfy push"). Empty → Kind is used.
-	BannerLabel string `json:"banner_label,omitempty"`
-	// DisabledHint is the boot-banner line printed when no instance of this
-	// channel is configured (e.g. "disabled (set AGEZT_TELEGRAM_TOKEN)").
-	// Empty → the channel stays silent when unconfigured.
-	DisabledHint string `json:"disabled_hint,omitempty"`
-}
-
-// MediaCaps describes a channel's non-text multimodal reach. Text is always
-// supported, so only image/voice are tracked, per direction. ImageOut/VoiceOut
-// report whether the channel can deliver an outbound attachment of that kind.
-type MediaCaps struct {
-	ImageIn  bool `json:"image_in,omitempty"`
-	VoiceIn  bool `json:"voice_in,omitempty"`
-	ImageOut bool `json:"image_out,omitempty"`
-	VoiceOut bool `json:"voice_out,omitempty"`
-}
+// Manifest and MediaCaps are contract types (kernel/contract/channelapi); the
+// registry below is process state and stays here.
+type (
+	Manifest  = channelapi.Manifest
+	MediaCaps = channelapi.MediaCaps
+)
 
 // registry is the process-wide set of registered channel manifests. The daemon
 // seeds it (plugins/builtinchannels.RegisterAll); adding a channel = one more
@@ -122,11 +74,41 @@ func SetLive(kinds []string) {
 	live = next
 }
 
-// IsLive reports whether a channel kind is currently running.
+// IsLive reports whether a channel kind is currently running: it was started
+// AND at least one of its instances has not died since.
 func IsLive(kind string) bool {
 	mu.RLock()
 	defer mu.RUnlock()
-	return live[kind]
+	if !live[kind] {
+		return false
+	}
+	known := false
+	for key := range liveInstances {
+		if base, _, _ := strings.Cut(key, "#"); base != kind {
+			continue
+		}
+		known = true
+		if !deadInstances[key] {
+			return true
+		}
+	}
+	return !known // no instance-level record: trust the kind-level flag
+}
+
+// deadInstances holds instances whose Start returned an error or panicked
+// while the daemon was still running. Kept apart from liveInstances so a
+// channel that dies BEFORE the daemon records the live set (a port already in
+// use fails within milliseconds) is not resurrected by SetLiveInstances.
+var deadInstances = map[string]bool{}
+
+// MarkInstanceDead records that a channel instance stopped serving. The
+// Channels view, `agt status` and the notify tool's targets then stop
+// reporting it as live — they used to keep claiming a channel whose listener
+// never bound was running.
+func MarkInstanceDead(key string) {
+	mu.Lock()
+	defer mu.Unlock()
+	deadInstances[key] = true
 }
 
 // InstanceKey addresses a channel account-instance: the bare kind for the
@@ -159,5 +141,5 @@ func SetLiveInstances(keys []string) {
 func IsLiveInstance(key string) bool {
 	mu.RLock()
 	defer mu.RUnlock()
-	return liveInstances[key]
+	return liveInstances[key] && !deadInstances[key]
 }

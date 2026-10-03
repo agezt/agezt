@@ -11,7 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func withLoopbackClient(t *testing.T) {
@@ -40,9 +41,9 @@ func TestCompleteTextAndUsage(t *testing.T) {
 
 	p := New("chatgpt", "gpt-5-codex", staticToken)
 	p.BaseURL = srv.URL
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		System:   "be brief",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -53,7 +54,7 @@ func TestCompleteTextAndUsage(t *testing.T) {
 	if resp.Usage.InputTokens != 11 || resp.Usage.OutputTokens != 7 {
 		t.Fatalf("usage = %+v", resp.Usage)
 	}
-	if resp.StopReason != agent.StopEndTurn {
+	if resp.StopReason != llm.StopEndTurn {
 		t.Fatalf("stop = %v", resp.StopReason)
 	}
 	// Headers + body shape.
@@ -85,14 +86,14 @@ func TestCompleteToolCall(t *testing.T) {
 	schema := json.RawMessage(`{"type":"object","properties":{"city":{"type":"string"}}}`)
 	p := New("chatgpt", "gpt-5-codex", staticToken)
 	p.BaseURL = srv.URL
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "weather?"}},
-		Tools:    []agent.ToolDef{{Name: "get_weather", Description: "w", InputSchema: schema}},
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "weather?"}},
+		Tools:    []toolapi.ToolDef{{Name: "get_weather", Description: "w", InputSchema: schema}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
-	if resp.StopReason != agent.StopToolUse || len(resp.Message.ToolCalls) != 1 {
+	if resp.StopReason != llm.StopToolUse || len(resp.Message.ToolCalls) != 1 {
 		t.Fatalf("expected one tool call, got %+v", resp.Message)
 	}
 	tc := resp.Message.ToolCalls[0]
@@ -133,8 +134,8 @@ func TestComplete401Refreshes(t *testing.T) {
 	}
 	p := New("chatgpt", "gpt-5-codex", tok)
 	p.BaseURL = srv.URL
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -153,8 +154,8 @@ func TestCompleteBackendError(t *testing.T) {
 	defer srv.Close()
 	p := New("chatgpt", "gpt-5-codex", staticToken)
 	p.BaseURL = srv.URL
-	if _, err := p.Complete(context.Background(), agent.CompletionRequest{
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+	if _, err := p.Complete(context.Background(), llm.CompletionRequest{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
 	}); err == nil {
 		t.Fatal("expected error on 400")
 	}

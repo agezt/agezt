@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -276,5 +277,52 @@ func TestSetPasswordStrict_ExplicitOverrideStillWins(t *testing.T) {
 	s.SetPasswordStrict(false)
 	if s.PasswordStrict() {
 		t.Fatal("an explicit SetPasswordStrict(false) must still lower the flag")
+	}
+}
+
+func postLoginFrom(t *testing.T, s *Server, remote, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/login?token=secret", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = remote
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	return rec
+}
+
+// TestLogin_LockoutIsPerClient — the lockout counter used to be one global
+// number, so anyone who could reach the login route locked EVERYONE out for
+// five minutes with eight wrong guesses (a trivially repeatable denial of
+// service on an exposed console). It is now per client: the guesser locks
+// itself out, the operator still gets in.
+func TestLogin_LockoutIsPerClient(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"ok": true}}
+	s, _ := newServer(t, fc, "secret")
+	s.SetPasswordFn(func() string { return "hunter2" })
+
+	for i := 0; i < maxLoginFails; i++ {
+		postLoginFrom(t, s, "198.51.100.7:4444", `{"password":"guess"}`)
+	}
+	if rec := postLoginFrom(t, s, "198.51.100.7:4444", `{"password":"hunter2"}`); rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("the guessing client: code=%d, want 429", rec.Code)
+	}
+	if rec := postLoginFrom(t, s, "203.0.113.5:5555", `{"password":"hunter2"}`); rec.Code != http.StatusOK {
+		t.Fatalf("the operator from another address: code=%d, want 200 — one client's guesses locked everyone out", rec.Code)
+	}
+}
+
+// TestLogin_GlobalBackstopBoundsDistributedGuessing — spreading guesses over
+// many addresses must still hit a ceiling.
+func TestLogin_GlobalBackstopBoundsDistributedGuessing(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"ok": true}}
+	s, _ := newServer(t, fc, "secret")
+	s.SetPasswordFn(func() string { return "hunter2" })
+
+	for i := 0; i < maxGlobalLoginFails; i++ {
+		remote := "198.51.100." + strconv.Itoa(i%250+1) + ":1" // never maxLoginFails from one address
+		postLoginFrom(t, s, remote, `{"password":"guess"}`)
+	}
+	if rec := postLoginFrom(t, s, "203.0.113.9:1", `{"password":"guess"}`); rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("after %d distributed failures: code=%d, want 429", maxGlobalLoginFails, rec.Code)
 	}
 }

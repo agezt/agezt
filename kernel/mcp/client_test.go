@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/agezt/agezt/kernel/platform/sandbox"
 )
 
 // fakeServer speaks just enough MCP over a pipe pair to drive the client:
@@ -130,18 +132,19 @@ func TestCall_ConnectionLost(t *testing.T) {
 }
 
 // TestScrubbedEnv: the load-bearing safety property — secrets and the whole
-// AGEZT_* namespace never reach a spawned server; PATH does.
+// AGEZT_* namespace never reach a spawned server; PATH does. Dial's base is
+// sandbox.IsolatedEnv.
 func TestScrubbedEnv(t *testing.T) {
 	t.Setenv("AGEZT_SECRET_PROBE", "leakme")
 	t.Setenv("MY_API_KEY", "leakme")
 	t.Setenv("PATH", os.Getenv("PATH")) // ensure present
-	for _, kv := range scrubbedEnv() {
+	for _, kv := range sandbox.IsolatedEnv() {
 		up := strings.ToUpper(kv)
 		if strings.HasPrefix(up, "AGEZT_") || strings.HasPrefix(up, "MY_API_KEY") {
 			t.Fatalf("secret leaked into child env: %s", kv)
 		}
 	}
-	joined := strings.Join(scrubbedEnv(), "\n")
+	joined := strings.Join(sandbox.IsolatedEnv(), "\n")
 	if !strings.Contains(strings.ToUpper(joined), "PATH=") {
 		t.Fatal("PATH missing from child env")
 	}

@@ -19,7 +19,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/platform/netout"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
@@ -71,11 +72,11 @@ func New(ts TokenMinter, project, location string) *Provider {
 		TokenSource: ts,
 		Project:     project,
 		Location:    location,
-		HTTP:        &http.Client{Timeout: DefaultTimeout},
+		HTTP:        netout.OperatorClient(DefaultTimeout),
 	}
 }
 
-// Name implements agent.Provider.
+// Name implements llm.Provider.
 func (p *Provider) Name() string { return "google-vertex" }
 
 // ErrNoTokenSource is returned by Complete when TokenSource is nil.
@@ -116,8 +117,8 @@ func (p *Provider) ResolveEndpoint(model string) string {
 		"/publishers/google/models/" + model + ":generateContent"
 }
 
-// Complete implements agent.Provider.
-func (p *Provider) Complete(ctx context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+// Complete implements llm.Provider.
+func (p *Provider) Complete(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	if p.TokenSource == nil {
 		return nil, ErrNoTokenSource
 	}

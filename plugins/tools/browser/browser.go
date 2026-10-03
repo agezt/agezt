@@ -11,14 +11,12 @@ package browser
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
 	stdhttp "net/http"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/netguard"
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 const DefaultTimeout = 30 * time.Second
@@ -33,7 +31,7 @@ const DefaultMaxChars = 64 * 1024
 // MaxChars accounts for HTML overhead (~10× tags+styles vs text).
 const MaxFetchBytes = 4 * 1024 * 1024
 
-// Tool is the browser tool implementation of agent.Tool.
+// Tool is the browser tool implementation of toolapi.Tool.
 type Tool struct {
 	// AllowedHosts mirrors the http tool's semantics: case-insensitive
 	// bare hostnames, "*.example.com" one-level wildcards. Empty +
@@ -94,37 +92,16 @@ func (t *Tool) client() *stdhttp.Client {
 	if t.HTTP != nil {
 		return t.HTTP
 	}
-	var opts []netguard.Option
-	if t.AllowLoopback {
-		opts = append(opts, netguard.AllowLoopback())
-	}
-	if t.AllowPrivate {
-		opts = append(opts, netguard.AllowPrivate())
-	}
-	if t.OnBlock != nil {
-		opts = append(opts, netguard.OnBlock(t.OnBlock))
-	}
-	c := netguard.New(opts...).HTTPClient(DefaultTimeout)
-	// Enforce the host allowlist on every redirect hop, not just the initial URL
-	// (M254, mirroring the http tool's M251 fix). netguard blocks internal IPs on
-	// each hop, but the host allowlist was checked only once — so an allowlisted
-	// page that 302-redirects to an arbitrary external host would be fetched
-	// anyway. Re-check per hop and cap the chain.
-	c.CheckRedirect = func(req *stdhttp.Request, via []*stdhttp.Request) error {
-		if len(via) >= maxRedirects {
-			return fmt.Errorf("browser: stopped after %d redirects", maxRedirects)
-		}
-		if !t.AllowAll && !hostAllowed(req.URL.Host, t.AllowedHosts) {
-			return fmt.Errorf("%w: %s (redirect target)", ErrHostDenied, req.URL.Host)
-		}
-		return nil
-	}
-	return c
+	// The egress posture re-checks the allowlist on every redirect hop (M254):
+	// an allowlisted page that 302s to an arbitrary host must not be fetched.
+	return netout.Egress{
+		AnyHost:       t.AllowAll,
+		AllowedHosts:  t.AllowedHosts,
+		AllowLoopback: t.AllowLoopback,
+		AllowPrivate:  t.AllowPrivate,
+		OnBlock:       t.OnBlock,
+	}.Client(DefaultTimeout)
 }
-
-// maxRedirects caps a single fetch's redirect chain. Matches Go's default; made
-// explicit because setting CheckRedirect replaces that default.
-const maxRedirects = 10
 
 // EnableCookies attaches a fresh in-memory cookie jar to the tool
 // (M1.mm). Wraps net/http/cookiejar so the daemon doesn't have to
@@ -138,11 +115,11 @@ func (t *Tool) EnableCookies() error {
 	return nil
 }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "browser.read",
-		Capability: agent.ToolCapability{Name: string(edict.CapBrowserRead)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapBrowserRead)},
 		Description: "Fetch a web page and return its visible text content " +
 			"(scripts, styles, and most markup stripped; HTML entities " +
 			"decoded). Use this for reading articles, documentation, blog " +
@@ -157,8 +134,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "max_chars": {"type":"integer", "description":"Optional truncation cap on returned text. Default 65536."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"Fetch one allow-listed web page with HTTP GET and return visible text to the model.",
 				"May send configured cookies to the target host when the browser cookie jar is enabled.",
@@ -175,7 +152,7 @@ type browserInput struct {
 	MaxChars int    `json:"max_chars,omitempty"`
 }
 
-// ErrHostDenied mirrors plugins/tools/http's sentinel.
-var ErrHostDenied = errors.New("browser: host not in allowlist")
+// ErrHostDenied is the shared allowlist sentinel (kernel/platform/netout).
+var ErrHostDenied = netout.ErrHostDenied
 
-// Invoke implements agent.Tool.
+// Invoke implements toolapi.Tool.

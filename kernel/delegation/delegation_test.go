@@ -70,33 +70,9 @@ func TestKeyedModelChain_NoOverrideFallback(t *testing.T) {
 	}
 }
 
-func TestValidateSpawnTask_Empty(t *testing.T) {
-	if err := delegation.ValidateSpawnTask(""); err == nil {
-		t.Fatal("expected error for empty task")
-	}
-}
-
-func TestValidateSpawnTask_Valid(t *testing.T) {
-	if err := delegation.ValidateSpawnTask("do something useful"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func TestAppendUniqueStrings_Dedup(t *testing.T) {
 	got := delegation.AppendUniqueStrings([]string{"a", "b"}, "b", "c")
 	if len(got) != 3 {
 		t.Fatalf("got %v, want [a b c]", got)
-	}
-}
-
-func TestFormatDuration(t *testing.T) {
-	if s := delegation.FormatDuration(500_000_000); s != "500ms" {
-		t.Fatalf("FormatDuration = %q, want 500ms", s)
-	}
-	if s := delegation.FormatDuration(1_500_000_000); s != "1.5s" {
-		t.Fatalf("FormatDuration = %q, want 1.5s", s)
-	}
-	if s := delegation.FormatDuration(150_000_000_000); s != "2.5m" {
-		t.Fatalf("FormatDuration = %q, want 2.5m", s)
 	}
 }

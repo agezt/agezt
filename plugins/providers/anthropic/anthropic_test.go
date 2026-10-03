@@ -12,13 +12,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestComplete_NoAPIKey(t *testing.T) {
 	p := New("")
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
 	})
 	if !errors.Is(err, ErrNoAPIKey) {
 		t.Errorf("got err=%v, want ErrNoAPIKey", err)
@@ -56,10 +57,10 @@ func TestComplete_HappyPath_TextOnly(t *testing.T) {
 
 	p := New("test-key")
 	p.Endpoint = srv.URL
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "test-model",
 		System:   "sys",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hello"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hello"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -67,7 +68,7 @@ func TestComplete_HappyPath_TextOnly(t *testing.T) {
 	if resp.Message.Content != "hello back" {
 		t.Errorf("Content=%q want %q", resp.Message.Content, "hello back")
 	}
-	if resp.StopReason != agent.StopEndTurn {
+	if resp.StopReason != llm.StopEndTurn {
 		t.Errorf("StopReason=%q want end_turn", resp.StopReason)
 	}
 	if resp.Usage.InputTokens != 3 || resp.Usage.OutputTokens != 2 {
@@ -92,14 +93,14 @@ func TestComplete_ToolUseResponse(t *testing.T) {
 
 	p := New("k")
 	p.Endpoint = srv.URL
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "m",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "list files"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "list files"}},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.StopReason != agent.StopToolUse {
+	if resp.StopReason != llm.StopToolUse {
 		t.Errorf("StopReason=%q want tool_use", resp.StopReason)
 	}
 	if len(resp.Message.ToolCalls) != 1 {
@@ -126,9 +127,9 @@ func TestComplete_APIError(t *testing.T) {
 
 	p := New("k")
 	p.Endpoint = srv.URL
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "m",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err == nil {
 		t.Fatal("expected error for 429")
@@ -143,13 +144,13 @@ func TestComplete_APIError(t *testing.T) {
 }
 
 func TestEncodeRequest_TranslatesRoles(t *testing.T) {
-	body, err := encodeRequest("m", "", []agent.Message{
-		{Role: agent.RoleSystem, Content: "ignored"}, // routed to top-level field by caller; encoder skips
-		{Role: agent.RoleUser, Content: "user1"},
-		{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "c1", Name: "shell", Input: json.RawMessage(`{"command":"ls"}`)}}},
-		{Role: agent.RoleTool, ToolCallID: "c1", Content: "file1\nfile2"},
-		{Role: agent.RoleAssistant, Content: "done"},
-	}, nil, 100, 0, agent.Params{}, nil)
+	body, err := encodeRequest("m", "", []llm.Message{
+		{Role: llm.RoleSystem, Content: "ignored"}, // routed to top-level field by caller; encoder skips
+		{Role: llm.RoleUser, Content: "user1"},
+		{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "c1", Name: "shell", Input: json.RawMessage(`{"command":"ls"}`)}}},
+		{Role: llm.RoleTool, ToolCallID: "c1", Content: "file1\nfile2"},
+		{Role: llm.RoleAssistant, Content: "done"},
+	}, nil, 100, 0, llm.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,9 +173,9 @@ func TestEncodeRequest_TranslatesRoles(t *testing.T) {
 }
 
 func TestEncodeRequest_SystemFieldRespected(t *testing.T) {
-	body, _ := encodeRequest("m", "you are precise", []agent.Message{
-		{Role: agent.RoleUser, Content: "hi"},
-	}, nil, 100, 0, agent.Params{}, nil)
+	body, _ := encodeRequest("m", "you are precise", []llm.Message{
+		{Role: llm.RoleUser, Content: "hi"},
+	}, nil, 100, 0, llm.Params{}, nil)
 	// M301: the system prompt is sent as a cache-marked block array so it is
 	// cached alongside the tools.
 	if !strings.Contains(string(body), `"text":"you are precise"`) {
@@ -188,18 +189,18 @@ func TestEncodeRequest_SystemFieldRespected(t *testing.T) {
 // TestEncodeRequest_EmptySystemOmitted verifies an empty system prompt is omitted
 // entirely (no empty block array) so a system-less request is unchanged.
 func TestEncodeRequest_EmptySystemOmitted(t *testing.T) {
-	body, _ := encodeRequest("m", "", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, nil, 100, 0, agent.Params{}, nil)
+	body, _ := encodeRequest("m", "", []llm.Message{{Role: llm.RoleUser, Content: "hi"}}, nil, 100, 0, llm.Params{}, nil)
 	if strings.Contains(string(body), `"system"`) {
 		t.Errorf("empty system must be omitted: %s", body)
 	}
 }
 
 func TestDecodeResponse_MapsStopReasons(t *testing.T) {
-	cases := map[string]agent.StopReason{
-		"end_turn":      agent.StopEndTurn,
-		"stop_sequence": agent.StopEndTurn,
-		"tool_use":      agent.StopToolUse,
-		"max_tokens":    agent.StopMaxTokens,
+	cases := map[string]llm.StopReason{
+		"end_turn":      llm.StopEndTurn,
+		"stop_sequence": llm.StopEndTurn,
+		"tool_use":      llm.StopToolUse,
+		"max_tokens":    llm.StopMaxTokens,
 	}
 	for in, want := range cases {
 		raw := []byte(`{"id":"x","role":"assistant","content":[{"type":"text","text":""}],"stop_reason":"` + in + `","usage":{}}`)
@@ -258,13 +259,13 @@ func TestEncodeRequest_PromptCacheMarksLastTool(t *testing.T) {
 
 	p := New("k")
 	p.Endpoint = srv.URL
-	tools := []agent.ToolDef{
+	tools := []toolapi.ToolDef{
 		{Name: "first", InputSchema: json.RawMessage(`{"type":"object"}`)},
 		{Name: "last", InputSchema: json.RawMessage(`{"type":"object"}`)},
 	}
-	if _, err := p.Complete(context.Background(), agent.CompletionRequest{
+	if _, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "claude-sonnet-4-6",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
 		Tools:    tools,
 	}); err != nil {
 		t.Fatalf("Complete: %v", err)

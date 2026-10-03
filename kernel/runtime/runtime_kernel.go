@@ -13,7 +13,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/artifact"
@@ -21,6 +20,7 @@ import (
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/datalake"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/journal"
@@ -79,11 +79,11 @@ type Kernel struct {
 	artIndex     *artifact.Index // metadata sidecar over artifacts (M822): browsable/deletable entries
 	lake         *datalake.Lake  // Personal Data Lake (M834): agent-built structured collections
 	reflect      *reflect.Engine
-	schedules    *cadence.Store        // persistent typed schedule store (autonomy)
-	schedEngine  *cadence.Engine       // live cadence resident, set by the daemon after Open
-	agentGW      *agentgw.Gateway      // agent subprocess gateway (agent SDK)
-	configCenter *configcenter.Center  // config center for agent SDK config access
-	tools        map[string]agent.Tool // cfg.Tools + the memory/world tools (when enabled)
+	schedules    *cadence.Store          // persistent typed schedule store (autonomy)
+	schedEngine  *cadence.Engine         // live cadence resident, set by the daemon after Open
+	agentGW      *agentgw.Gateway        // agent subprocess gateway (agent SDK)
+	configCenter *configcenter.Center    // config center for agent SDK config access
+	tools        map[string]toolapi.Tool // cfg.Tools + the memory/world tools (when enabled)
 
 	// conductorExec is the optional code-execution backend the Conductor's
 	// Verifier role uses to actually RUN a worker's code (M997). Injected once

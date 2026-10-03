@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/toolforge"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -31,7 +32,7 @@ func (r *stubRunner) RunScript(_ context.Context, language, code, inputJSON stri
 	return r.out, r.isErr, nil
 }
 
-func openForgeKernel(t *testing.T, prov agent.Provider, runner toolforge.Runner) *runtime.Kernel {
+func openForgeKernel(t *testing.T, prov llm.Provider, runner toolforge.Runner) *runtime.Kernel {
 	t.Helper()
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:      t.TempDir(),
@@ -80,9 +81,9 @@ func TestRunWith_OffersAndExecutesForgedTool(t *testing.T) {
 		testToolUse("c1", "forge_echo", map[string]any{"text": "merhaba"}),
 		mock.FinalText("done"),
 	)
-	var first agent.CompletionRequest
+	var first llm.CompletionRequest
 	seen := false
-	prov.OnRequest = func(r agent.CompletionRequest) {
+	prov.OnRequest = func(r llm.CompletionRequest) {
 		if !seen {
 			first, seen = r, true
 		}
@@ -98,7 +99,7 @@ func TestRunWith_OffersAndExecutesForgedTool(t *testing.T) {
 	}
 
 	// The model was OFFERED the forged tool, with the forge description note.
-	var def *agent.ToolDef
+	var def *toolapi.ToolDef
 	for i := range first.Tools {
 		if first.Tools[i].Name == "forge_echo" {
 			def = &first.Tools[i]
@@ -127,8 +128,8 @@ func TestRunWith_OffersAndExecutesForgedTool(t *testing.T) {
 // model — a draft (even tested) and a quarantined tool stay invisible.
 func TestRunWith_DraftAndQuarantineNeverOffered(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"), mock.FinalText("ok"))
-	var req agent.CompletionRequest
-	prov.OnRequest = func(r agent.CompletionRequest) { req = r }
+	var req llm.CompletionRequest
+	prov.OnRequest = func(r llm.CompletionRequest) { req = r }
 	runner := &stubRunner{}
 	k := openForgeKernel(t, prov, runner)
 
@@ -168,8 +169,8 @@ func TestRunWith_DraftAndQuarantineNeverOffered(t *testing.T) {
 // happens before the filter, so a restricted run can't smuggle them back.
 func TestRunWith_ToolAllowlistGatesForgedTools(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"), mock.FinalText("ok"))
-	var req agent.CompletionRequest
-	prov.OnRequest = func(r agent.CompletionRequest) { req = r }
+	var req llm.CompletionRequest
+	prov.OnRequest = func(r llm.CompletionRequest) { req = r }
 	runner := &stubRunner{}
 	k := openForgeKernel(t, prov, runner)
 	promoteEcho(t, k, runner)
@@ -216,7 +217,7 @@ func TestTestScriptTool_FailureRecordedAndPromoteRefused(t *testing.T) {
 	}
 }
 
-func toolNames(defs []agent.ToolDef) []string {
+func toolNames(defs []toolapi.ToolDef) []string {
 	out := make([]string, 0, len(defs))
 	for _, d := range defs {
 		out = append(out, d.Name)

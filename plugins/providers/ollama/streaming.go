@@ -14,13 +14,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 )
 
-// CompleteStream implements agent.StreamingProvider for Ollama.
+// CompleteStream implements llm.StreamingProvider for Ollama.
 // Unlike Anthropic / OpenAI / Google, Ollama doesn't use SSE — its
 // streaming format is JSON-lines (NDJSON): one complete JSON object
 // per `\n`-delimited line, no `data:` prefix, no event tags. The
@@ -31,7 +32,7 @@ import (
 // we synthesize the full ToolUseStart → ToolInputJSONDelta →
 // ToolUseStop lifecycle to keep the chunk contract consistent
 // across providers.
-func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionRequest, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func (p *Provider) CompleteStream(ctx context.Context, req llm.CompletionRequest, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	endpoint := p.resolveEndpoint()
 	if endpoint == "" {
 		return nil, ErrNoEndpoint
@@ -80,7 +81,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 // encodeStreamRequest mirrors encodeRequest but flips stream=true.
 // Kept separate so the non-streaming wire format stays byte-identical
 // to what existing tests verified.
-func encodeStreamRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTokens int, jsonMode bool, params agent.Params, extra json.RawMessage) ([]byte, error) {
+func encodeStreamRequest(model, system string, msgs []llm.Message, tools []toolapi.ToolDef, maxTokens int, jsonMode bool, params llm.Params, extra json.RawMessage) ([]byte, error) {
 	out := ollamaRequest{
 		Model:  model,
 		Stream: true,
@@ -121,7 +122,7 @@ func encodeStreamRequest(model, system string, msgs []agent.Message, tools []age
 
 type streamState struct {
 	textParts    strings.Builder
-	toolCalls    []agent.ToolCall
+	toolCalls    []llm.ToolCall
 	model        string
 	doneReason   string
 	inputTokens  int
@@ -131,7 +132,7 @@ type streamState struct {
 // parseStream consumes the NDJSON response body line-by-line until
 // EOF or a chunk with `done: true`. Empty lines are skipped (some
 // proxies introduce them).
-func parseStream(body io.Reader, model string, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func parseStream(body io.Reader, model string, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	scanner := bufio.NewScanner(body)
 	// Large tool inputs can blow the default 64K line limit, same as
 	// the SSE parsers in the other adapters.
@@ -158,7 +159,7 @@ func parseStream(body io.Reader, model string, onChunk func(agent.Chunk) error) 
 		// Text fragment in this chunk's message.
 		if frame.Message.Content != "" {
 			st.textParts.WriteString(frame.Message.Content)
-			if err := onChunk(agent.Chunk{TextDelta: frame.Message.Content}); err != nil {
+			if err := onChunk(llm.Chunk{TextDelta: frame.Message.Content}); err != nil {
 				return nil, err
 			}
 		}
@@ -174,21 +175,21 @@ func parseStream(body io.Reader, model string, onChunk func(agent.Chunk) error) 
 			if len(args) == 0 {
 				args = json.RawMessage(`{}`)
 			}
-			start := &agent.ToolCall{
+			start := &llm.ToolCall{
 				ID:    callID,
 				Name:  tc.Function.Name,
 				Input: args,
 			}
-			if err := onChunk(agent.Chunk{ToolUseStart: start}); err != nil {
+			if err := onChunk(llm.Chunk{ToolUseStart: start}); err != nil {
 				return nil, err
 			}
-			if err := onChunk(agent.Chunk{ToolInputJSONDelta: string(args)}); err != nil {
+			if err := onChunk(llm.Chunk{ToolInputJSONDelta: string(args)}); err != nil {
 				return nil, err
 			}
-			if err := onChunk(agent.Chunk{ToolUseStop: callID}); err != nil {
+			if err := onChunk(llm.Chunk{ToolUseStop: callID}); err != nil {
 				return nil, err
 			}
-			st.toolCalls = append(st.toolCalls, agent.ToolCall{
+			st.toolCalls = append(st.toolCalls, llm.ToolCall{
 				ID:    callID,
 				Name:  tc.Function.Name,
 				Input: args,
@@ -214,24 +215,24 @@ func parseStream(body io.Reader, model string, onChunk func(agent.Chunk) error) 
 	return assembleResponse(st), nil
 }
 
-func assembleResponse(st *streamState) *agent.CompletionResponse {
-	var stop agent.StopReason
+func assembleResponse(st *streamState) *llm.CompletionResponse {
+	var stop llm.StopReason
 	switch {
 	case len(st.toolCalls) > 0:
-		stop = agent.StopToolUse
+		stop = llm.StopToolUse
 	case st.doneReason == "length":
-		stop = agent.StopMaxTokens
+		stop = llm.StopMaxTokens
 	default:
-		stop = agent.StopEndTurn
+		stop = llm.StopEndTurn
 	}
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:      llm.RoleAssistant,
 			Content:   st.textParts.String(),
 			ToolCalls: st.toolCalls,
 		},
 		StopReason: stop,
-		Usage: agent.Usage{
+		Usage: llm.Usage{
 			InputTokens:  st.inputTokens,
 			OutputTokens: st.outputTokens,
 			Model:        st.model,

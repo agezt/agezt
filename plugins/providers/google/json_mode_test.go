@@ -6,16 +6,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // TestEncodeRequest_JSONMode (M312): JSONMode sets Gemini's
 // generationConfig.responseMimeType=application/json; off omits it; it composes
 // with maxOutputTokens.
 func TestEncodeRequest_JSONMode(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "return json"}}
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "return json"}}
 
-	on, err := encodeRequest("", msgs, nil, 0, true, 0, agent.Params{}, nil)
+	on, err := encodeRequest("", msgs, nil, 0, true, 0, llm.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,12 +23,12 @@ func TestEncodeRequest_JSONMode(t *testing.T) {
 		t.Errorf("JSONMode should set responseMimeType: %s", on)
 	}
 
-	off, _ := encodeRequest("", msgs, nil, 0, false, 0, agent.Params{}, nil)
+	off, _ := encodeRequest("", msgs, nil, 0, false, 0, llm.Params{}, nil)
 	if strings.Contains(string(off), "responseMimeType") {
 		t.Errorf("JSONMode=false must omit responseMimeType: %s", off)
 	}
 
-	both, _ := encodeRequest("", msgs, nil, 500, true, 0, agent.Params{}, nil)
+	both, _ := encodeRequest("", msgs, nil, 500, true, 0, llm.Params{}, nil)
 	if !strings.Contains(string(both), "responseMimeType") || !strings.Contains(string(both), "maxOutputTokens") {
 		t.Errorf("JSONMode should compose with maxOutputTokens: %s", both)
 	}

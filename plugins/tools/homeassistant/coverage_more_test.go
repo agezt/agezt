@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestHomeassistantCoverageDefinitionAndHelpers(t *testing.T) {
@@ -42,8 +42,8 @@ func TestHomeassistantCoverageDefinitionAndHelpers(t *testing.T) {
 	if def.Name != "homeassistant" {
 		t.Fatalf("Name = %q", def.Name)
 	}
-	if def.Effect.Class != agent.EffectIrreversible {
-		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, agent.EffectIrreversible)
+	if def.Effect.Class != toolapi.EffectIrreversible {
+		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, toolapi.EffectIrreversible)
 	}
 	if !strings.Contains(def.Description, "(nothing enabled)") {
 		t.Fatalf("description should list empty axes, got %q", def.Description)

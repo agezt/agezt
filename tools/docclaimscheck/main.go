@@ -86,6 +86,19 @@ func main() {
 		osExit(2)
 	}
 
+	// The deliverables' numbers describe the branch that WROTE them. Once that
+	// branch merged, every later branch measured against them fails — on a push
+	// to main the range is empty and every count is 0 — so the gate went red on
+	// main and on every unrelated PR the moment the audit landed. A claim is
+	// only checked on a branch that adds or edits the document making it.
+	// A failing `git diff` falls through to the full check (fail closed).
+	if changed, err := git("diff", "--name-only", base+"...HEAD"); err == nil &&
+		!touchesDeliverables(strings.Fields(string(changed)), docs) {
+		fmt.Println("OK: no deliverable is added or edited on this branch; their numbers " +
+			"describe the branch that wrote them, so there is nothing to re-measure.")
+		return
+	}
+
 	facts := collectFacts(base)
 
 	fails := 0
@@ -106,6 +119,19 @@ func main() {
 		osExit(1)
 	}
 	fmt.Println("OK: the deliverables' numbers match the branch.")
+}
+
+// touchesDeliverables reports whether any deliverable document is among the
+// paths a branch changed (git diff --name-only output, slash-separated).
+func touchesDeliverables(changed []string, docs []doc) bool {
+	for _, c := range changed {
+		for _, d := range docs {
+			if filepath.ToSlash(filepath.Clean(d.path)) == c {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // resolveBase verifies the comparison ref names a commit. gitField returns ""

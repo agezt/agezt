@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -124,6 +124,6 @@ func TestRunWith_ContextFailureAnalysisUsesRejectedSet(t *testing.T) {
 type failingProvider struct{}
 
 func (failingProvider) Name() string { return "failing" }
-func (failingProvider) Complete(context.Context, agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (failingProvider) Complete(context.Context, llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	return nil, errors.New("simulated provider failure")
 }

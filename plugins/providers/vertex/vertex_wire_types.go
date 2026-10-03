@@ -9,7 +9,7 @@ package vertex
 import (
 	"encoding/json"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // ----- dialect translation (canonical ↔ Vertex generateContent) -----
@@ -30,7 +30,7 @@ type vxGenConfig struct {
 	ThinkingConfig   *vxThinkingConfig `json:"thinkingConfig,omitempty"`   // M320
 	// Per-request sampling knobs (M997). Gemini-on-Vertex nests these inside
 	// generationConfig (NOT top-level), and has no seed / penalties. An unset
-	// agent.Params leaves every field nil/empty (omitempty), so the request
+	// llm.Params leaves every field nil/empty (omitempty), so the request
 	// stays byte-for-byte unchanged.
 	Temperature   *float64 `json:"temperature,omitempty"`
 	TopP          *float64 `json:"topP,omitempty"`
@@ -41,7 +41,7 @@ type vxGenConfig struct {
 // applyParams copies the universal sampling knobs Gemini understands into the
 // generationConfig. Reasoning is handled separately (mapped to a thinking
 // budget), so it is ignored here. An unset Params leaves the config unchanged.
-func (gc *vxGenConfig) applyParams(p agent.Params) {
+func (gc *vxGenConfig) applyParams(p llm.Params) {
 	if p.IsZero() {
 		return
 	}

@@ -14,8 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/artifact"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/edict"
 )
 
 const (
@@ -115,14 +116,14 @@ func (t *ActionTool) SetIndex(idx actionArtifactIndexer) { t.index = idx }
 // SetOnBlock installs the egress-guard audit callback (toolreg.NetguardAware).
 func (t *ActionTool) SetOnBlock(fn func(ip, reason string)) { t.OnBlock = fn }
 
-func (t *ActionTool) Definition() agent.ToolDef {
+func (t *ActionTool) Definition() toolapi.ToolDef {
 	hosts := strings.Join(t.AllowedHosts, ", ")
 	if t.AllowAll {
 		hosts = "all hosts allowed by tool config"
 	} else if hosts == "" {
 		hosts = "none configured"
 	}
-	return agent.ToolDef{
+	return toolapi.ToolDef{
 		Name: "browser.action",
 		Description: "Open a page in a real headless browser, run an ordered action list " +
 			"(goto, click, fill, type, press, select, check, uncheck, hover, scroll, wait), extract " +
@@ -167,8 +168,9 @@ func (t *ActionTool) Definition() agent.ToolDef {
     "max_chars": {"type":"integer", "description":"Maximum returned text chars; default 65536."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectIrreversible,
+		Capability: toolapi.ToolCapability{Name: string(edict.CapBrowserAction)},
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectIrreversible,
 			PredictedEffects: []string{
 				"launch a headless browser process and navigate to an allowed HTTP(S) page",
 				"perform user-like page actions that may trigger remote-side effects",

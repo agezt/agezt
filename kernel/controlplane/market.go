@@ -106,7 +106,7 @@ func (s *Server) handleMarketInstall(ctx context.Context, conn net.Conn, req Req
 	// final record. The webui market install proxy forwards these as SSE.
 	emit := func(e market.Event) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespEvent, Event: &event.Event{
-			Kind:    event.Kind("market.install.progress"),
+			Kind:    event.KindMarketInstallProgress,
 			Subject: "market.install",
 			Actor:   "market",
 			Payload: mustJSONRaw(e),
@@ -117,7 +117,7 @@ func (s *Server) handleMarketInstall(ctx context.Context, conn net.Conn, req Req
 		s.fail(conn, req, err)
 		return
 	}
-	s.publishMarket("market.pack.installed", map[string]any{
+	s.publishMarket(event.KindMarketPackInstalled, map[string]any{
 		"pack": rec.Name, "version": rec.Version, "marketplace": rec.Marketplace,
 		"skills": rec.SkillIDs, "mcp": rec.MCPServers, "tools": rec.ToolReqs, "unsigned": rec.Unsigned,
 	})
@@ -139,7 +139,7 @@ func (s *Server) handleMarketUninstall(ctx context.Context, conn net.Conn, req R
 	}
 	emit := func(e market.Event) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespEvent, Event: &event.Event{
-			Kind:    event.Kind("market.uninstall.progress"),
+			Kind:    event.KindMarketUninstallProgress,
 			Subject: "market.uninstall",
 			Actor:   "market",
 			Payload: mustJSONRaw(e),
@@ -149,7 +149,7 @@ func (s *Server) handleMarketUninstall(ctx context.Context, conn net.Conn, req R
 		s.fail(conn, req, err)
 		return
 	}
-	s.publishMarket("market.pack.uninstalled", map[string]any{"pack": name})
+	s.publishMarket(event.KindMarketPackUninstalled, map[string]any{"pack": name})
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"uninstalled": name}})
 }
 
@@ -189,7 +189,7 @@ func (s *Server) handleMarketAddSource(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	s.publishMarket("market.source.added", map[string]any{"source": src.Name, "url": src.URL})
+	s.publishMarket(event.KindMarketSourceAdded, map[string]any{"source": src.Name, "url": src.URL})
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: structToMap(src)})
 }
 
@@ -210,7 +210,7 @@ func (s *Server) handleMarketRemoveSource(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	s.publishMarket("market.source.removed", map[string]any{"source": name})
+	s.publishMarket(event.KindMarketSourceRemoved, map[string]any{"source": name})
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"removed": found, "name": name}})
 }
 
@@ -233,7 +233,7 @@ func (s *Server) handleMarketSync(ctx context.Context, conn net.Conn, req Reques
 		rows = append(rows, structToMap(r))
 		total += r.Packs
 	}
-	s.publishMarket("market.synced", map[string]any{"sources": len(rows), "packs": total})
+	s.publishMarket(event.KindMarketSynced, map[string]any{"sources": len(rows), "packs": total})
 	out := map[string]any{"results": rows, "synced": len(rows), "packs": total}
 	if err != nil {
 		out["partial_error"] = err.Error() // some sources synced, some failed
@@ -282,21 +282,21 @@ func (s *Server) market() *market.Manager {
 	return s.k.Market()
 }
 
-func (s *Server) publishMarket(kind string, payload map[string]any) {
+func (s *Server) publishMarket(kind event.Kind, payload map[string]any) {
 	if s.k == nil || s.k.Bus() == nil {
 		return
 	}
-	_, _ = s.k.Bus().Publish(event.Spec{Subject: "market", Kind: event.Kind(kind), Actor: "market", Payload: payload})
+	_, _ = s.k.Bus().Publish(event.Spec{Subject: "market", Kind: kind, Actor: "market", Payload: payload})
 }
 
 // registerMarketCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
 func registerMarketCommands() {
 	register(
-		commandSpec{Cmd: CmdMarketList, Handler: func(dc *DispatchCtx) { dc.S.handleMarketList(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdMarketShow, Handler: func(dc *DispatchCtx) { dc.S.handleMarketShow(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMarketList, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleMarketList(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMarketShow, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleMarketShow(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdMarketInstall, Streaming: StreamEvents, Handler: func(dc *DispatchCtx) { dc.S.handleMarketInstall(dc.Ctx, dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdMarketUninstall, Streaming: StreamEvents, Handler: func(dc *DispatchCtx) { dc.S.handleMarketUninstall(dc.Ctx, dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdMarketSources, Handler: func(dc *DispatchCtx) { dc.S.handleMarketSources(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdMarketSources, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleMarketSources(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdMarketAddSource, Handler: func(dc *DispatchCtx) { dc.S.handleMarketAddSource(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdMarketRemoveSource, Handler: func(dc *DispatchCtx) { dc.S.handleMarketRemoveSource(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdMarketSync, Handler: func(dc *DispatchCtx) { dc.S.handleMarketSync(dc.Ctx, dc.Conn, dc.Req) }},

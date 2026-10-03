@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -20,14 +20,14 @@ import (
 
 type epistemicTool struct {
 	name       string
-	class      agent.EffectClass
+	class      toolapi.EffectClass
 	confidence float64
 	failFirst  bool
 	calls      *int32
 }
 
-func (t epistemicTool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+func (t epistemicTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:        t.name,
 		Description: "epistemic test tool",
 		InputSchema: json.RawMessage(`{
@@ -36,7 +36,7 @@ func (t epistemicTool) Definition() agent.ToolDef {
 			"required":["target"],
 			"additionalProperties":false
 		}`),
-		Effect: agent.ToolEffect{
+		Effect: toolapi.ToolEffect{
 			Class:             t.class,
 			PredictedEffects:  []string{"touch epistemic target"},
 			AffectedResources: []string{"epistemic target"},
@@ -46,12 +46,12 @@ func (t epistemicTool) Definition() agent.ToolDef {
 	}
 }
 
-func (t epistemicTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
+func (t epistemicTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
 	n := atomic.AddInt32(t.calls, 1)
 	if t.failFirst && n == 1 {
-		return agent.Result{Output: "simulated matched failure", IsError: true}, nil
+		return toolapi.Result{Output: "simulated matched failure", IsError: true}, nil
 	}
-	return agent.Result{Output: "ok"}, nil
+	return toolapi.Result{Output: "ok"}, nil
 }
 
 func TestRunWith_EpistemicSignalsJournaledWithoutEscalation(t *testing.T) {
@@ -63,9 +63,9 @@ func TestRunWith_EpistemicSignalsJournaledWithoutEscalation(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
-		Tools: map[string]agent.Tool{
+		Tools: map[string]toolapi.Tool{
 			"freshprobe": epistemicTool{
-				name: "freshprobe", class: agent.EffectReadOnly, confidence: 0.9, calls: &calls,
+				name: "freshprobe", class: toolapi.EffectReadOnly, confidence: 0.9, calls: &calls,
 			},
 		},
 		Edict: edict.New(edict.Options{UnknownAllow: true}),
@@ -131,7 +131,7 @@ func TestRunWith_EpistemicEscalationRoutesLowConfidenceToApproval(t *testing.T) 
 		Provider:               prov,
 		Approvals:              reg,
 		EpistemicEscalation:    true,
-		Tools:                  map[string]agent.Tool{"riskprobe": epistemicTool{name: "riskprobe", class: agent.EffectCompensable, confidence: 0.3, calls: &calls}},
+		Tools:                  map[string]toolapi.Tool{"riskprobe": epistemicTool{name: "riskprobe", class: toolapi.EffectCompensable, confidence: 0.3, calls: &calls}},
 		Edict:                  edict.New(edict.Options{UnknownAllow: true}),
 		ApprovalTimeout:        5 * time.Second,
 		ToolCapabilities:       nil,
@@ -190,9 +190,9 @@ func TestRunWith_EpistemicEscalationMatchesHistoricalFailureConditions(t *testin
 		Provider:            prov,
 		Approvals:           reg,
 		EpistemicEscalation: true,
-		Tools: map[string]agent.Tool{
+		Tools: map[string]toolapi.Tool{
 			"histprobe": epistemicTool{
-				name: "histprobe", class: agent.EffectCompensable, confidence: 0.95, failFirst: true, calls: &calls,
+				name: "histprobe", class: toolapi.EffectCompensable, confidence: 0.95, failFirst: true, calls: &calls,
 			},
 		},
 		Edict: edict.New(edict.Options{UnknownAllow: true}),

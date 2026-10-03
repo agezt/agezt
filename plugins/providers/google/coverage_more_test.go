@@ -7,7 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestGoogleCoverageIdentityEndpointAndErrors(t *testing.T) {
@@ -28,24 +29,24 @@ func TestGoogleCoverageIdentityEndpointAndErrors(t *testing.T) {
 }
 
 func TestGoogleCoverageCanonicalEncodeAndDecodeBranches(t *testing.T) {
-	if c, err := canonicalToGemini(agent.Message{Role: agent.RoleSystem, Content: "ignored"}, nil); err != nil || c != nil {
+	if c, err := canonicalToGemini(llm.Message{Role: llm.RoleSystem, Content: "ignored"}, nil); err != nil || c != nil {
 		t.Fatalf("system canonical = %#v err %v", c, err)
 	}
-	assistant, err := canonicalToGemini(agent.Message{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{Name: "tool"}}}, map[string]string{"tool": "wire_tool"})
+	assistant, err := canonicalToGemini(llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{Name: "tool"}}}, map[string]string{"tool": "wire_tool"})
 	if err != nil {
 		t.Fatalf("assistant canonical: %v", err)
 	}
 	if assistant.Role != "model" || len(assistant.Parts) != 1 || assistant.Parts[0].FunctionCall.Name != "wire_tool" || string(assistant.Parts[0].FunctionCall.Args) != "{}" {
 		t.Fatalf("assistant canonical = %+v", assistant)
 	}
-	if _, err := canonicalToGemini(agent.Message{Role: agent.RoleTool, Content: "out"}, nil); err == nil || !strings.Contains(err.Error(), "tool_call_id") {
+	if _, err := canonicalToGemini(llm.Message{Role: llm.RoleTool, Content: "out"}, nil); err == nil || !strings.Contains(err.Error(), "tool_call_id") {
 		t.Fatalf("tool without id = %v", err)
 	}
-	if _, err := canonicalToGemini(agent.Message{Role: "alien", Content: "x"}, nil); err == nil || !strings.Contains(err.Error(), "unknown role") {
+	if _, err := canonicalToGemini(llm.Message{Role: "alien", Content: "x"}, nil); err == nil || !strings.Contains(err.Error(), "unknown role") {
 		t.Fatalf("unknown role = %v", err)
 	}
 
-	body, err := encodeRequest("system", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, []agent.ToolDef{{Name: "plain"}}, 9, true, -1, agent.Params{}, json.RawMessage(`{"safetySettings":[{"category":"test"}]}`))
+	body, err := encodeRequest("system", []llm.Message{{Role: llm.RoleUser, Content: "hi"}}, []toolapi.ToolDef{{Name: "plain"}}, 9, true, -1, llm.Params{}, json.RawMessage(`{"safetySettings":[{"category":"test"}]}`))
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}
@@ -66,7 +67,7 @@ func TestGoogleCoverageCanonicalEncodeAndDecodeBranches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decodeResponse: %v", err)
 	}
-	if resp.StopReason != agent.StopToolUse || resp.Message.Content != "answer" || resp.ReasoningContent != "reason" || resp.Usage.InputTokens != 2 || resp.Usage.CachedInputTokens != 1 || resp.Usage.OutputTokens != 7 || len(resp.Message.ToolCalls) != 1 {
+	if resp.StopReason != llm.StopToolUse || resp.Message.Content != "answer" || resp.ReasoningContent != "reason" || resp.Usage.InputTokens != 2 || resp.Usage.CachedInputTokens != 1 || resp.Usage.OutputTokens != 7 || len(resp.Message.ToolCalls) != 1 {
 		t.Fatalf("decoded response = %+v", resp)
 	}
 }

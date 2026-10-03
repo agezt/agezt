@@ -135,7 +135,7 @@ kernel/
 ├── Persistence stores (12)     # each opens its own <base>/<name>/ subdir
 │   ├── catalog/                # models.dev sync + 3-layer merge (api/local/custom)
 │   ├── creds/                  # vault (AES-256-GCM) + keyring + chain lookup
-│   ├── jsonstore/              # shared Load/Save primitive for the stores below
+│   ├── platform/filestore/     # Load/Save (0600/0700) + cross-process Lock for the stores below
 │   ├── memory/                 # tiered memory (Store pure + Manager/Graph bus-wrapped)
 │   ├── worldmodel/             # knowledge graph
 │   ├── skill/                  # skill bundles (BLAKE3 content-addressed)

@@ -2,8 +2,9 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-8 package(s):
+9 package(s):
 
+- **`tools/archcheck`** — Command archcheck enforces the layer architecture described in architecture/20-target-architecture.md: every package is placed in a layer (and, for L3, a module) by tools/archcheck/layers.json, and every in-module import edge must respect four rules — no upward dependency, no module reaching into another module's internals, no adapter bypassing the app layer, no plugin reaching past contracts and platform (see rules.go).
 - **`tools/changelog-lint`** — Command changelog-lint validates the split changelog layout produced by tools/changelog-split.
 - **`tools/changelog-split`** — Command changelog-split parses CHANGELOG.md and materializes the planned split structure under CHANGELOG/.
 - **`tools/deadcodecheck`** — Command deadcodecheck runs the Go deadcode analyzer and fails on new repository-local unreachable code.

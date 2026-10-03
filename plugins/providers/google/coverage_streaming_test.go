@@ -8,7 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestGoogleStreamingParseStreamTextAndReasoning(t *testing.T) {
@@ -18,7 +19,7 @@ func TestGoogleStreamingParseStreamTextAndReasoning(t *testing.T) {
 	}, "\n")
 
 	var texts int
-	resp, err := parseStream(strings.NewReader(stream), "gemini", func(c agent.Chunk) error {
+	resp, err := parseStream(strings.NewReader(stream), "gemini", func(c llm.Chunk) error {
 		if c.TextDelta != "" {
 			texts++
 		}
@@ -33,7 +34,7 @@ func TestGoogleStreamingParseStreamTextAndReasoning(t *testing.T) {
 	if resp.Usage.InputTokens != 4 || resp.Usage.CachedInputTokens != 1 || resp.Usage.OutputTokens != 5 {
 		t.Fatalf("usage = %+v", resp.Usage)
 	}
-	if resp.StopReason != agent.StopEndTurn {
+	if resp.StopReason != llm.StopEndTurn {
 		t.Fatalf("stop = %v", resp.StopReason)
 	}
 	if texts != 2 {
@@ -43,7 +44,7 @@ func TestGoogleStreamingParseStreamTextAndReasoning(t *testing.T) {
 
 func TestGoogleStreamingParseStreamReasoningPart(t *testing.T) {
 	stream := `data: {"candidates":[{"content":{"parts":[{"thought":true,"text":"reason"}]}}]}`
-	resp, err := parseStream(strings.NewReader(stream), "gemini", func(c agent.Chunk) error { return nil })
+	resp, err := parseStream(strings.NewReader(stream), "gemini", func(c llm.Chunk) error { return nil })
 	if err != nil {
 		t.Fatalf("parseStream: %v", err)
 	}
@@ -58,7 +59,7 @@ func TestGoogleStreamingParseStreamReasoningPart(t *testing.T) {
 func TestGoogleStreamingParseStreamFunctionCallWhole(t *testing.T) {
 	stream := `data: {"candidates":[{"content":{"parts":[{"functionCall":{"name":"lookup","args":{"q":1}}}]}},{"finishReason":"STOP"}]}`
 	var starts, deltas, stops int
-	resp, err := parseStream(strings.NewReader(stream), "gemini", func(c agent.Chunk) error {
+	resp, err := parseStream(strings.NewReader(stream), "gemini", func(c llm.Chunk) error {
 		if c.ToolUseStart != nil {
 			starts++
 		}
@@ -79,7 +80,7 @@ func TestGoogleStreamingParseStreamFunctionCallWhole(t *testing.T) {
 	if len(resp.Message.ToolCalls) != 1 || resp.Message.ToolCalls[0].ID != "call-0" || string(resp.Message.ToolCalls[0].Input) != `{"q":1}` {
 		t.Fatalf("tool calls = %+v", resp.Message.ToolCalls)
 	}
-	if resp.StopReason != agent.StopToolUse {
+	if resp.StopReason != llm.StopToolUse {
 		t.Fatalf("stop = %v", resp.StopReason)
 	}
 }
@@ -91,11 +92,11 @@ func TestGoogleStreamingParseStreamBadFramesAndEmpty(t *testing.T) {
 		`data: {"candidates":[]}`,
 		`data: {"candidates":[{"finishReason":"MAX_TOKENS","content":{"parts":[]}}],"usageMetadata":{"promptTokenCount":1}}`,
 	}, "\n")
-	resp, err := parseStream(strings.NewReader(stream), "gemini", func(agent.Chunk) error { return nil })
+	resp, err := parseStream(strings.NewReader(stream), "gemini", func(llm.Chunk) error { return nil })
 	if err != nil {
 		t.Fatalf("parseStream: %v", err)
 	}
-	if resp.StopReason != agent.StopMaxTokens {
+	if resp.StopReason != llm.StopMaxTokens {
 		t.Fatalf("max_tokens stop = %v", resp.StopReason)
 	}
 	if resp.Usage.InputTokens != 1 {
@@ -113,19 +114,19 @@ func TestGoogleStreamingResolveAndValidation(t *testing.T) {
 		t.Fatalf("explicit stream endpoint = %q", got)
 	}
 
-	if _, err := (&Provider{}).CompleteStream(t.Context(), agent.CompletionRequest{Model: "m"}, func(agent.Chunk) error { return nil }); !errors.Is(err, ErrNoAPIKey) {
+	if _, err := (&Provider{}).CompleteStream(t.Context(), llm.CompletionRequest{Model: "m"}, func(llm.Chunk) error { return nil }); !errors.Is(err, ErrNoAPIKey) {
 		t.Fatalf("missing key = %v", err)
 	}
-	if _, err := (&Provider{APIKey: "k"}).CompleteStream(t.Context(), agent.CompletionRequest{}, func(agent.Chunk) error { return nil }); !errors.Is(err, ErrNoModel) {
+	if _, err := (&Provider{APIKey: "k"}).CompleteStream(t.Context(), llm.CompletionRequest{}, func(llm.Chunk) error { return nil }); !errors.Is(err, ErrNoModel) {
 		t.Fatalf("missing model = %v", err)
 	}
-	if _, err := (&Provider{APIKey: "k"}).CompleteStream(t.Context(), agent.CompletionRequest{Model: "m"}, nil); err == nil || !strings.Contains(err.Error(), "non-nil onChunk") {
+	if _, err := (&Provider{APIKey: "k"}).CompleteStream(t.Context(), llm.CompletionRequest{Model: "m"}, nil); err == nil || !strings.Contains(err.Error(), "non-nil onChunk") {
 		t.Fatalf("nil onChunk = %v", err)
 	}
 }
 
 func TestGoogleStreamingEncodeAndCompleteValidation(t *testing.T) {
-	body, err := encodeRequest("system", []agent.Message{{Role: agent.RoleUser, Content: "hi"}}, []agent.ToolDef{{Name: "plain"}}, 0, true, -1, agent.Params{}, json.RawMessage(`{"safetySettings":[{"category":"test"}]}`))
+	body, err := encodeRequest("system", []llm.Message{{Role: llm.RoleUser, Content: "hi"}}, []toolapi.ToolDef{{Name: "plain"}}, 0, true, -1, llm.Params{}, json.RawMessage(`{"safetySettings":[{"category":"test"}]}`))
 	if err != nil {
 		t.Fatalf("encodeRequest: %v", err)
 	}

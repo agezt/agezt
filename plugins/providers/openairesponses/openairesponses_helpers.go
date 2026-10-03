@@ -10,7 +10,8 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
@@ -29,21 +30,21 @@ func contentText(kind, text string) map[string]any {
 // toInput maps AGEZT messages to Responses input items. fwd is the tool-name
 // mapping, so a replayed function_call goes out under the same wire name the
 // tool was offered under.
-func toInput(msgs []agent.Message, fwd map[string]string) []any {
+func toInput(msgs []llm.Message, fwd map[string]string) []any {
 	out := make([]any, 0, len(msgs))
 	for _, m := range msgs {
 		switch m.Role {
-		case agent.RoleUser:
+		case llm.RoleUser:
 			out = append(out, map[string]any{
 				"type": "message", "role": "user",
 				"content": []any{contentText("input_text", m.Content)},
 			})
-		case agent.RoleSystem:
+		case llm.RoleSystem:
 			out = append(out, map[string]any{
 				"type": "message", "role": "developer",
 				"content": []any{contentText("input_text", m.Content)},
 			})
-		case agent.RoleAssistant:
+		case llm.RoleAssistant:
 			if strings.TrimSpace(m.Content) != "" {
 				out = append(out, map[string]any{
 					"type": "message", "role": "assistant",
@@ -60,7 +61,7 @@ func toInput(msgs []agent.Message, fwd map[string]string) []any {
 					"arguments": args, "call_id": tc.ID,
 				})
 			}
-		case agent.RoleTool:
+		case llm.RoleTool:
 			out = append(out, map[string]any{
 				"type": "function_call_output", "call_id": m.ToolCallID, "output": m.Content,
 			})
@@ -69,7 +70,7 @@ func toInput(msgs []agent.Message, fwd map[string]string) []any {
 	return out
 }
 
-func toTools(defs []agent.ToolDef, fwd map[string]string) []toolDef {
+func toTools(defs []toolapi.ToolDef, fwd map[string]string) []toolDef {
 	if len(defs) == 0 {
 		return nil
 	}

@@ -48,8 +48,9 @@ func (s *Server) Handler() http.Handler {
 	router.Handle("/readyz", publicRoute, s.handleReady)
 	// /metrics is token-authed: unlike liveness/readiness it exposes spend and
 	// activity volume (financially/operationally sensitive). Prometheus scrapes it
-	// with a bearer_token.
-	metricsRoute := userRoute
+	// with a bearer_token. The counters are DAEMON-WIDE, so it takes the admin
+	// token: on the user tier a per-tenant token read the whole daemon's spend.
+	metricsRoute := adminRoute
 	metricsRoute.Method = "GET,HEAD"
 	router.Handle("/metrics", metricsRoute, s.handleMetrics)
 	router.Handle("/api/v1/health", userRoute, s.handleHealth)
@@ -152,11 +153,18 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w, http.MethodGet)
 		return
 	}
+	// Answer from the engine the request is bound to: a tenant request used to
+	// be answered from the primary kernel.
+	eng, _, err := s.bind(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid_tenant", err.Error())
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":        "ok",
 		"version":       s.version,
-		"default_model": s.eng.DefaultModel(),
-		"model_count":   len(s.eng.ModelIDs()),
+		"default_model": eng.DefaultModel(),
+		"model_count":   len(eng.ModelIDs()),
 	})
 }
 
@@ -167,7 +175,12 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w, http.MethodGet)
 		return
 	}
-	ids := s.eng.ModelIDs()
+	eng, _, err := s.bind(r) // the tenant's own model set, not the primary's
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid_tenant", err.Error())
+		return
+	}
+	ids := eng.ModelIDs()
 	seen := map[string]bool{}
 	out := make([]string, 0, len(ids)+1)
 	add := func(id string) {
@@ -177,11 +190,11 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 		seen[id] = true
 		out = append(out, id)
 	}
-	add(s.eng.DefaultModel())
+	add(eng.DefaultModel())
 	for _, id := range ids {
 		add(id)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"default": s.eng.DefaultModel(), "models": out})
+	writeJSON(w, http.StatusOK, map[string]any{"default": eng.DefaultModel(), "models": out})
 }
 
 // --- POST /api/v1/runs ---

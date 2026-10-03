@@ -10,8 +10,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 func TestParseCheckFlags(t *testing.T) {
@@ -126,7 +126,7 @@ func TestProbeToJSON(t *testing.T) {
 		reply:          "pong",
 		latency:        53 * time.Millisecond,
 		stopReason:     "end_turn",
-		usage:          agent.Usage{InputTokens: 12, OutputTokens: 3},
+		usage:          llm.Usage{InputTokens: 12, OutputTokens: 3},
 		costMicrocents: 21600,
 	}
 	jp := probeToJSON(entry, res)
@@ -251,19 +251,19 @@ func TestComputeCostMicrocents(t *testing.T) {
 	cases := []struct {
 		name  string
 		model *catalog.Model
-		usage agent.Usage
+		usage llm.Usage
 		want  int64
 	}{
 		{
 			name:  "nil model -> 0",
 			model: nil,
-			usage: agent.Usage{InputTokens: 100, OutputTokens: 50},
+			usage: llm.Usage{InputTokens: 100, OutputTokens: 50},
 			want:  0,
 		},
 		{
 			name:  "model with no cost -> 0",
 			model: &catalog.Model{ID: "free", Cost: nil},
-			usage: agent.Usage{InputTokens: 100, OutputTokens: 50},
+			usage: llm.Usage{InputTokens: 100, OutputTokens: 50},
 			want:  0,
 		},
 		{
@@ -272,7 +272,7 @@ func TestComputeCostMicrocents(t *testing.T) {
 			// 1000 in tokens × 5_000_000_000 mc/MTok / 1_000_000 = 5_000_000 mc
 			// 500  out tokens × 25_000_000_000 / 1_000_000 = 12_500_000 mc
 			// total = 17_500_000 microcents = $0.0175
-			usage: agent.Usage{InputTokens: 1000, OutputTokens: 500},
+			usage: llm.Usage{InputTokens: 1000, OutputTokens: 500},
 			want:  17_500_000,
 		},
 		{
@@ -281,13 +281,13 @@ func TestComputeCostMicrocents(t *testing.T) {
 			// 10 in × 150_000_000 / 1_000_000 = 1500 mc
 			// 5 out × 600_000_000 / 1_000_000 = 3000 mc
 			// total = 4500 mc = $0.0000045
-			usage: agent.Usage{InputTokens: 10, OutputTokens: 5},
+			usage: llm.Usage{InputTokens: 10, OutputTokens: 5},
 			want:  4500,
 		},
 		{
 			name:  "zero tokens -> 0",
 			model: &catalog.Model{ID: "x", Cost: &catalog.Cost{Input: 5, Output: 25}},
-			usage: agent.Usage{},
+			usage: llm.Usage{},
 			want:  0,
 		},
 	}

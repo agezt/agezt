@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/roster"
 )
 
@@ -263,7 +263,7 @@ func TestAssure_OmittedWhenZero(t *testing.T) {
 
 func TestCreatedScheduleBindsActingAgent(t *testing.T) {
 	f := &fakeStore{}
-	ctx := agent.WithAgent(context.Background(), "researcher")
+	ctx := toolapi.WithAgent(context.Background(), "researcher")
 	out, isErr := invokeCtx(t, ctx, newTool(f), map[string]any{"op": "every", "interval": "1h", "intent": "hourly digest"})
 	if isErr {
 		t.Fatalf("unexpected error: %v", out)
@@ -286,7 +286,7 @@ func TestManagedSubAgentCannotScheduleDirectWake(t *testing.T) {
 		}
 		return roster.Profile{Slug: "worker", Enabled: true, ParentAgent: "lead", DirectCallable: &no}, true
 	})
-	ctx := agent.WithAgent(context.Background(), "worker")
+	ctx := toolapi.WithAgent(context.Background(), "worker")
 	raw, _ := json.Marshal(map[string]any{"op": "every", "interval": "1h", "intent": "wake me"})
 	res, err := tool.Invoke(ctx, raw)
 	if err != nil {
@@ -312,7 +312,7 @@ func TestManagedSubAgentCannotScheduleDirectWake(t *testing.T) {
 
 func TestWorkflowTargetBindsActingAgent(t *testing.T) {
 	f := &fakeStore{}
-	ctx := agent.WithAgent(context.Background(), "researcher")
+	ctx := toolapi.WithAgent(context.Background(), "researcher")
 	out, isErr := invokeCtx(t, ctx, newTool(f), map[string]any{
 		"op":       "every",
 		"interval": "1h",
@@ -388,7 +388,7 @@ func TestToolTarget(t *testing.T) {
 
 func TestToolTargetBindsActingAgent(t *testing.T) {
 	f := &fakeStore{}
-	ctx := agent.WithAgent(context.Background(), "researcher")
+	ctx := toolapi.WithAgent(context.Background(), "researcher")
 	out, isErr := invokeCtx(t, ctx, newTool(f), map[string]any{
 		"op":      "in",
 		"delay":   "5m",

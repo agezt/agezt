@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/settings"
 )
 
@@ -28,7 +28,7 @@ func configScope(raw, def string) (string, error) {
 	}
 }
 
-func (t *Tool) doRegister(in input) (agent.Result, error) {
+func (t *Tool) doRegister(in input) (toolapi.Result, error) {
 	if len(in.Section) == 0 {
 		return errf("section required"), nil
 	}
@@ -39,10 +39,10 @@ func (t *Tool) doRegister(in input) (agent.Result, error) {
 	if err := t.registry().Register(sec); err != nil {
 		return errf("%s", err.Error()), nil
 	}
-	return agent.Result{Output: fmt.Sprintf("registered schema section %q (restart to apply its values)", sec.ID)}, nil
+	return toolapi.Result{Output: fmt.Sprintf("registered schema section %q (restart to apply its values)", sec.ID)}, nil
 }
 
-func (t *Tool) doUnregister(in input) (agent.Result, error) {
+func (t *Tool) doUnregister(in input) (toolapi.Result, error) {
 	id := strings.TrimSpace(in.ID)
 	if id == "" {
 		return errf("id required"), nil
@@ -52,11 +52,11 @@ func (t *Tool) doUnregister(in input) (agent.Result, error) {
 		return errf("%s", err.Error()), nil
 	}
 	if removed {
-		return agent.Result{Output: "unregistered " + id}, nil
+		return toolapi.Result{Output: "unregistered " + id}, nil
 	}
-	return agent.Result{Output: id + " was not registered"}, nil
+	return toolapi.Result{Output: id + " was not registered"}, nil
 }
 
-func errf(format string, a ...any) agent.Result {
-	return agent.Result{Output: fmt.Sprintf(format, a...), IsError: true}
+func errf(format string, a ...any) toolapi.Result {
+	return toolapi.Result{Output: fmt.Sprintf(format, a...), IsError: true}
 }

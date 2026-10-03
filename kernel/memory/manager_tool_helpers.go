@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // toolActor resolves who an agent's memory write should be attributed to (M851):
@@ -23,7 +23,7 @@ import (
 // "agent" (a default-identity run). Operator (console/CLI) and distilled writes
 // set their own actor at their call sites.
 func toolActor(ctx context.Context) string {
-	if slug := agent.AgentFromContext(ctx); slug != "" {
+	if slug := toolapi.AgentFromContext(ctx); slug != "" {
 		return slug
 	}
 	return "agent"

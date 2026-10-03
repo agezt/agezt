@@ -19,7 +19,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agezt/agezt/kernel/jsonstore"
+	"github.com/agezt/agezt/kernel/platform/filestore"
 	"lukechampine.com/blake3"
 )
 
@@ -208,7 +208,7 @@ func Open(dir string) (*FileStore, error) {
 		relations: make(map[string]Relation),
 	}
 	var gd graphData
-	path, err := jsonstore.LoadFrom(dir, "worldmodel.json", &gd)
+	path, err := filestore.LoadFrom(dir, "worldmodel.json", &gd)
 	if err != nil {
 		return nil, fmt.Errorf("worldmodel: %w", err)
 	}
@@ -226,7 +226,7 @@ func Open(dir string) (*FileStore, error) {
 
 // snapshotLocked writes the whole graph atomically. Caller holds s.mu.
 func (s *FileStore) snapshotLocked() error {
-	if err := jsonstore.Save(s.path, graphData{
+	if err := filestore.Save(s.path, graphData{
 		Entities:  s.entities,
 		Relations: s.relations,
 	}); err != nil {

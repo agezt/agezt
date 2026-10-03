@@ -1,42 +1,17 @@
 package main
 
 // Provenance: SPDX-License-Identifier: MIT cmd/agezt channel small helpers
-//             (visionGate, gateVisionWith, voiceReplyEnabled, audioExt, extForMime,
+//             (voiceReplyEnabled, audioExt, extForMime,
 //             splitNonEmpty). Extracted from main_channels.go during Day 211
 //             god-file refactor (#43, #66). Public API unchanged.
 
 import (
-	"fmt"
 	"os"
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/catalog"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
-func visionGate(k *kernelruntime.Kernel, model string, images []string) error {
-	return gateVisionWith(k.Catalog(), k.Model(), model, images)
-}
-func gateVisionWith(cat *catalog.Catalog, defaultModel, model string, images []string) error {
-	if len(images) == 0 {
-		return nil
-	}
-	eff := model
-	if eff == "" {
-		eff = defaultModel
-	}
-	visionOK := false
-	if cat != nil {
-		if _, m := cat.FindModel(eff); m != nil {
-			visionOK = m.SupportsVision()
-		}
-	}
-	if !visionOK {
-		return fmt.Errorf("model %q does not support vision (image input); attach images only to a vision-capable model", eff)
-	}
-	return nil
-}
 func voiceReplyEnabled() bool {
 	v := strings.ToLower(strings.TrimSpace(os.Getenv(brand.EnvPrefix + "VOICE_REPLY")))
 	return v != "off" && v != "0" && v != "false" && v != "no"

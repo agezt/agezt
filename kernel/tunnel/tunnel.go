@@ -20,11 +20,12 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os/exec"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/agezt/agezt/kernel/platform/sandbox"
 )
 
 // Config constructs a Tunnel.
@@ -232,7 +233,10 @@ func extractURL(line string) string {
 // cancelled (cloudflared/ngrok/tailscale are well-behaved, but a process-group
 // kill is correct and cheap).
 func execRun(ctx context.Context, name string, args []string, onLine func(string)) error {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := sandbox.CommandContext(ctx, name, args...)
+	// The tunnel binary gets its own credential variables and nothing else
+	// secret-shaped from the daemon.
+	cmd.Env = sandbox.HelperEnv("NGROK_AUTHTOKEN", "TUNNEL_TOKEN", "TUNNEL_ORIGIN_CERT")
 	setProcessGroup(cmd)
 	cmd.Cancel = func() error { killProcessTree(cmd); return nil }
 	cmd.WaitDelay = 5 * time.Second

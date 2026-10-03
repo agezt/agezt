@@ -41,11 +41,6 @@ const elidedHeadSnippetChars = 80
 // still capped so the stub stays small.
 const elidedSummaryChars = 160
 
-// DefaultContextRescueMarker is the stable marker a tool can include in its
-// textual result to request preservation across compaction. It is deliberately
-// namespaced so ordinary tool JSON does not trip it accidentally.
-const DefaultContextRescueMarker = "_agezt_context_rescue"
-
 // headSnippet returns the first n characters of s with internal whitespace runs
 // collapsed to single spaces, suffixed with "…" when truncated. It is the
 // extractive preview embedded in a compaction stub (M397): deterministic,

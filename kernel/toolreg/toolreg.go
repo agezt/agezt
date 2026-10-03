@@ -23,11 +23,11 @@ import (
 	"io"
 	"sync"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/datalake"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -76,10 +76,10 @@ type LateDeps struct {
 // means the tool declined to register (env-gated off) — not an error.
 type Built struct {
 	// Tool is the primary instance, keyed in the Set by Definition().Name.
-	Tool agent.Tool
+	Tool toolapi.Tool
 	// Extra holds additional instances the spec contributes (browser verb
 	// tools, plugin tool families), keyed by their registered name.
-	Extra map[string]agent.Tool
+	Extra map[string]toolapi.Tool
 	// Desc is the human "registered" summary line for the boot banner.
 	Desc string
 	// Caps maps tool name → declared Edict capability (M900 passthrough).
@@ -87,6 +87,10 @@ type Built struct {
 	// Infos are the plugin-manifest entries for external-plugin specs (one per
 	// spawned plugin; the plugin-host spec yields several from a single Build).
 	Infos []runtime.PluginInfo
+	// Close releases what Build started — the plugin host's child processes.
+	// Set.Close calls it once at daemon shutdown (and BuildAll calls it if the
+	// set it belonged to fails to build). Nil when there is nothing to release.
+	Close func() error
 }
 
 // Spec describes one first-party tool: how to build it and which lifecycle
@@ -97,11 +101,11 @@ type Spec struct {
 	// failure; returning a zero Built skips registration.
 	Build func(BuildDeps) (Built, error)
 	// PreOpen may mutate the runtime Config before runtime.Open.
-	PreOpen func(tool agent.Tool, cfg *runtime.Config)
+	PreOpen func(tool toolapi.Tool, cfg *runtime.Config)
 	// Configure injects post-Open dependencies.
-	Configure func(tool agent.Tool, d KernelDeps) error
+	Configure func(tool toolapi.Tool, d KernelDeps) error
 	// Late injects live-channel / board dependencies.
-	Late func(tool agent.Tool, d LateDeps) error
+	Late func(tool toolapi.Tool, d LateDeps) error
 	// Netguard marks the spec's instances as egress-guarded: Configure wires
 	// NetguardPublish into every instance implementing NetguardAware.
 	Netguard bool
@@ -175,7 +179,7 @@ type pair struct {
 // the lifecycle phases over them in registration order.
 type Set struct {
 	pairs   []pair
-	tools   map[string]agent.Tool
+	tools   map[string]toolapi.Tool
 	claim   map[string]string // tool name → spec name (collision reporting)
 	dropped map[string]bool   // names a YieldOnConflict spec lost to an earlier claimant
 }

@@ -3,9 +3,10 @@
 package configcenter
 
 import (
-	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/agezt/agezt/kernel/platform/filestore"
 )
 
 // Config holds the configuration for the Config Center.
@@ -201,8 +202,8 @@ func (c *Config) EnsureDefaults(baseDir string) {
 		c.Audit.RetentionDays = 90
 	}
 
-	// Ensure directory exists
-	os.MkdirAll(c.Dir, 0755)
+	// Ensure directory exists (0700: it holds entry files and the audit log).
+	_ = filestore.EnsureDir(c.Dir)
 }
 
 // Timeout returns the HITL timeout as a duration.

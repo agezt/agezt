@@ -19,7 +19,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/mcp"
 )
@@ -35,7 +35,7 @@ type Kernel interface {
 	MCPAttached() map[string]int
 }
 
-// Tool implements agent.Tool. Construct with New, then Bind the live kernel.
+// Tool implements toolapi.Tool. Construct with New, then Bind the live kernel.
 type Tool struct {
 	mu sync.RWMutex
 	k  Kernel
@@ -58,11 +58,11 @@ func (t *Tool) current() Kernel {
 	return t.k
 }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name: "mcp",
-		Capability: agent.ToolCapability{
+		Capability: toolapi.ToolCapability{
 			// list only reads registrations and live attachments. add/attach/detach/
 			// remove — and anything unrecognised — is self-install, the gated axis, so
 			// a garbled call lands on the grant rather than flowing.
@@ -90,8 +90,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "ref":         {"type":"string", "description":"For op=attach/detach/remove: the server's name or id."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectCompensable,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectCompensable,
 			PredictedEffects: []string{
 				"Register, attach, detach, list, or remove MCP server definitions.",
 				"Attach may spawn an external MCP process and expose newly discovered tools in future runs.",
@@ -112,17 +112,17 @@ type input struct {
 	Ref         string   `json:"ref"`
 }
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("mcp: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("mcp: parse input: %w", err)
 	}
 	k := t.current()
 	if k == nil {
 		return errResult("mcp self-install is not available on this daemon"), nil
 	}
-	corr := agent.CorrelationFromContext(ctx)
+	corr := toolapi.CorrelationFromContext(ctx)
 
 	switch in.Op {
 	case "add":
@@ -211,14 +211,14 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	}
 }
 
-func okJSON(v any) agent.Result {
+func okJSON(v any) toolapi.Result {
 	enc, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return errResult("marshal: " + err.Error())
 	}
-	return agent.Result{Output: string(enc)}
+	return toolapi.Result{Output: string(enc)}
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: "mcp: " + msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: "mcp: " + msg, IsError: true}
 }

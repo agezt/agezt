@@ -7,7 +7,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/convo"
 )
 
@@ -54,12 +54,12 @@ func (s *Server) handleChatSummarize(ctx context.Context, conn net.Conn, req Req
 	// ctx is already tied to the connection by dispatch (StreamLive): a
 	// disconnected client can't receive the briefing, so the summarize call is
 	// cancelled instead of being spent into a closed connection.
-	resp, err := provider.Complete(ctx, agent.CompletionRequest{
+	resp, err := provider.Complete(ctx, llm.CompletionRequest{
 		Model:     model,
 		TaskType:  "summarize",
 		MaxTokens: chatSummaryMaxTokens,
-		Messages: []agent.Message{{
-			Role: agent.RoleUser,
+		Messages: []llm.Message{{
+			Role: llm.RoleUser,
 			Content: "Condense this conversation into a compact briefing for the assistant's working memory. " +
 				"Preserve facts, names, numbers, decisions, preferences, and open questions; drop pleasantries. " +
 				"Output only the briefing.\n\n" + transcript,

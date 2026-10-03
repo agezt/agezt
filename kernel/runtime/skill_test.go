@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
-
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/skill"
@@ -32,7 +32,7 @@ func promoteToActive(t *testing.T, f *skill.Forge, id string) {
 func TestActiveSkillInjectedIntoSystemPrompt(t *testing.T) {
 	prov := mock.New(mock.FinalText("answered"))
 	var gotSystem string
-	prov.OnRequest = func(req agent.CompletionRequest) { gotSystem = req.System }
+	prov.OnRequest = func(req llm.CompletionRequest) { gotSystem = req.System }
 
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:     t.TempDir(),
@@ -72,7 +72,7 @@ func TestActiveSkillInjectedIntoSystemPrompt(t *testing.T) {
 func TestDraftSkillNotInjected(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
 	var gotSystem string
-	prov.OnRequest = func(req agent.CompletionRequest) { gotSystem = req.System }
+	prov.OnRequest = func(req llm.CompletionRequest) { gotSystem = req.System }
 
 	k, err := runtime.Open(runtime.Config{
 		BaseDir: t.TempDir(), Provider: prov, System: "base", SkillInject: true,
@@ -95,7 +95,7 @@ func TestDraftSkillNotInjected(t *testing.T) {
 func TestExplicitSkillDirectiveActivatesNamedSkill(t *testing.T) {
 	prov := mock.New(mock.FinalText("answered"))
 	var gotSystem, gotUser string
-	prov.OnRequest = func(req agent.CompletionRequest) {
+	prov.OnRequest = func(req llm.CompletionRequest) {
 		gotSystem = req.System
 		if len(req.Messages) > 0 {
 			gotUser = req.Messages[0].Content
@@ -158,7 +158,7 @@ func TestForgeProposesAfterMultiToolRun(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:            t.TempDir(),
 		Provider:           prov,
-		Tools:              map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:              map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SkillForge:         true,
 		SkillForgeMinTools: 1,
 	})
@@ -179,7 +179,7 @@ func TestForgeProposesAfterMultiToolRun(t *testing.T) {
 func TestForgeAndSkillOffByDefault(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
 	var gotSystem string
-	prov.OnRequest = func(req agent.CompletionRequest) { gotSystem = req.System }
+	prov.OnRequest = func(req llm.CompletionRequest) { gotSystem = req.System }
 	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: prov, System: "base"})
 	if err != nil {
 		t.Fatal(err)

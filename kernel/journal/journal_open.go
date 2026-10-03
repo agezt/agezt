@@ -78,10 +78,28 @@ func Open(dir string, opt Options) (*Journal, error) {
 	}
 
 	// Recover: scan every segment in order to find seq and head.
-	for _, s := range segs {
-		if err := j.scanSegment(s); err != nil {
-			return nil, err
+	//
+	// A corrupt record in the middle of the chain (disk damage, a manual edit,
+	// tampering) used to abort Open, and with it daemon boot. Owner decision
+	// 5.6 (architecture/21): quarantine + continue. The bytes from the first bad
+	// record onward are moved aside — never deleted — the chain resumes from the
+	// last verified event, and the first event of the resumed chain is a
+	// journal.recovered record naming what was quarantined.
+	for i, s := range segs {
+		good, err := j.scanSegment(s)
+		if err == nil {
+			continue
 		}
+		if !isCorruption(err) || opt.FailOnCorruption {
+			return nil, err // an I/O failure (nothing to quarantine), or the caller must not mutate
+		}
+		names, n, qerr := quarantineFrom(dir, segs[i:], good, j.now())
+		if qerr != nil {
+			return nil, fmt.Errorf("%w (quarantine failed: %v)", err, qerr)
+		}
+		j.recovery = &Recovery{BreakSeq: j.nextSeq, Reason: err.Error(), Quarantined: names, Bytes: n}
+		segs = segs[:i+1]
+		break
 	}
 
 	// Decide where to append: last segment if under threshold, else next.
@@ -117,6 +135,12 @@ func Open(dir string, opt Options) (*Journal, error) {
 		j.curBytes = good
 		if err := j.openCurrent(true); err != nil {
 			return nil, err
+		}
+	}
+	if j.recovery != nil {
+		if err := j.recordRecovery(); err != nil {
+			_ = j.Close()
+			return nil, fmt.Errorf("journal: record recovery: %w", err)
 		}
 	}
 	return j, nil

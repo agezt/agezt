@@ -9,12 +9,13 @@ package runexec
 import (
 	"context"
 	"fmt"
-	"github.com/agezt/agezt/kernel/agent"
+	"strings"
+
 	"github.com/agezt/agezt/kernel/assure"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/resume"
 	"github.com/agezt/agezt/kernel/roster"
-	"strings"
 )
 
 func (r *Runner) CompleteAgentLifecycle(ctx context.Context, corr string) {
@@ -188,6 +189,6 @@ func (r *Runner) MaybeShadowEval(ctx context.Context, corr, intent, answer strin
 // file stay used after the body moves settle. Removing them
 // would force a churn round for the next refactor slice.
 var (
-	_ = agent.RoleUser
+	_ = llm.RoleUser
 	_ = assure.Result{}
 )

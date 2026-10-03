@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
 )
 
@@ -28,7 +28,7 @@ func TestModelRoute_HoistsServingProvider(t *testing.T) {
 
 	// A request for model-b must hit beta (the provider that serves it), not the
 	// primary alpha.
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "model-b"}); err != nil {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "model-b"}); err != nil {
 		t.Fatal(err)
 	}
 	if beta.calls.Load() != 1 || alpha.calls.Load() != 0 {
@@ -38,7 +38,7 @@ func TestModelRoute_HoistsServingProvider(t *testing.T) {
 	// A request for model-a hits alpha (also the primary).
 	alpha.calls.Store(0)
 	beta.calls.Store(0)
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "model-a"}); err != nil {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "model-a"}); err != nil {
 		t.Fatal(err)
 	}
 	if alpha.calls.Load() != 1 || beta.calls.Load() != 0 {
@@ -58,7 +58,7 @@ func TestModelRoute_UnknownModelKeepsDefaultOrder(t *testing.T) {
 	g, _ := governor.New(governor.Config{Registry: r, Bus: b})
 
 	// A model no provider declares → default order (primary alpha runs).
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "mystery-model"}); err != nil {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "mystery-model"}); err != nil {
 		t.Fatal(err)
 	}
 	if alpha.calls.Load() != 1 {

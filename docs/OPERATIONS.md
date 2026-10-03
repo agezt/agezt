@@ -97,7 +97,8 @@ run data.
 
 The `/metrics` endpoint exposes Prometheus-format metrics. Unlike `/healthz`
 and `/readyz`, it is **token-authenticated** because it exposes spend and
-activity volume.
+activity volume. The counters are daemon-wide, so it takes the **daemon admin
+token** (`rest.token`); a per-tenant token gets 401.
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8800/metrics

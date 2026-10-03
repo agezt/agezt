@@ -1,0 +1,167 @@
+# 21 — Migration Roadmap (from today to the target architecture)
+
+> **Companion of** [20-target-architecture.md](20-target-architecture.md). **Strategy:** module-by-module
+> strangler. Each module's boundary is redesigned and its internals are rewritten where they are the
+> problem. `main` stays green after every PR. There is no long-lived rewrite branch.
+
+---
+
+## 1. Working rules (apply to every PR in every wave)
+
+1. **One concern per PR**, independently shippable. Gates:
+   - `go build ./... && go vet ./...`
+   - `GOMAXPROCS=4 go test ./...`
+   - `git ls-files '*.go' | xargs gofmt -l` (empty)
+   - frontend `npm test` + `npm run build` when touched
+   - `tools/archcheck` (from W0 on)
+2. **Run the SOURCE package's tests**, not only the new package's. An extraction once shipped red because
+   only the destination was tested.
+3. **Moves before rewrites.** First move code verbatim behind the new boundary, using Go type aliases or
+   forwarding shims so importers do not churn. Then rewrite internals in a separate PR. A diff that both
+   moves and changes is unreviewable.
+4. **Regression tests are mutation-verified.** Every bug fixed on the way gets a test that is shown red
+   against the old code. Restore from a file copy, never `git checkout --`.
+5. **Delete the shim in the same wave it was introduced.** Shims are tracked in the archcheck allowlist
+   with an owner wave; the allowlist may only shrink.
+6. **Update the codemap** (`architecture/0x-*.md`) in the PR that changes the structure it describes.
+7. **Behaviour changes are explicit.** A PR either preserves behaviour (says so) or changes it (says what,
+   why, and how the operator notices).
+
+---
+
+## 2. Waves
+
+```
+ W0 Guardrails + P0 fixes ──► W1 Contracts & platform ──► W2 App layer & single ingress
+                                                     └──► W3 Dissolve Kernel into modules ──► W4 Autonomy/channels/config
+                                                                                          └──► W5 Generated surfaces & cleanup
+```
+
+W2 and W3 can interleave per domain once W1 is done: migrate domain X's ops into `app`, then extract
+domain X's module.
+
+### W0 — Guardrails and the P0 defects (start immediately)
+
+| PR | Content | Exit check |
+|---|---|---|
+| W0.1 ✅ | **`tools/archcheck`**: declarative layer map (`tools/archcheck/layers.json`: every one of today's 200 packages → L0…L7 + module), rule engine over `go list -json`, ratchet allowlist (`tools/archcheck/allowlist.txt`), `make arch-check` + CI step. **Baseline 2026-10-02: 200 violations: 88 plugin-reach, 70 cross-module, 34 adapter-bypass, 8 upward.** | CI fails on any *new* forbidden edge, on fixed-but-still-listed edges, and on unplaced packages (ratchet verified on the real repo) |
+| W0.2 ✅ | **Forbidden-call rules in archcheck** (`tools/archcheck/calls.go`, stdlib `go/parser`, no new dependency): `exec` (`os/exec.Command*`), `http-client` (constructing `http.Client`, `http.DefaultClient`, `http.Get/Post/Head/PostForm`; an *injected* `*http.Client` field is fine), `raw-write` (`os.WriteFile`/`os.Create`). Legitimate homes are declared in `layers.json` `"calls"`; L0/L7 exempt. Per-package count ratchet in `tools/archcheck/calls-allowlist.txt`. **Baseline: 85 sites in 57 packages: 13 exec, 58 http-client, 14 raw-write.** Both ratchets analyse the union of linux/windows/darwin `go list` output, so the result is identical on every host (a host-only view flipped `kernel/creds` between 1 and 2 exec sites). | New unmanaged children/clients/writes fail CI; counts may only go down |
+| W0.3 ✅ | Security P0s: REST `/metrics` → admin token, `health`/`models` answer from the bound tenant engine; per-client login lockout + global backstop; channels run under `runChannel` (Start error/panic → instance marked dead + `channel.error`); `channel.Guard` per message on IRC/email/Mastodon; email allowlist case-insensitive (`NewFoldedAllowlist`); plugin children get the `envscrub` base + `AGEZT_PLUGIN_ENV` grants. **Correction:** the web console's unfiltered `/events` is not a tenant leak — the console admits only operator credentials | One regression test per item, each shown red against the old code |
+| W0.4 ✅ | Correctness P0s: `IsTransient` honours `TransientError` and the governor stops re-retrying a refused dial; `tool_search` declares `introspect`, `browser.action` + 10 verbs declare `browser.action`, guards build tools with opt-ins **enabled**; update checker drains inside `Apply` (after verification) and resumes on failure; anomaly breaker re-arms on `resume`; anomaly/alerter contain panics per event | Same |
+| W0.5 ✅ | Dead code removed: `kernel/runtime/compose`, `kernel/workflowexec`, duplicate `delegation` tool types, double `ErrHalted`/`ErrNoVisionModel` (now one identity), orphaned `update.Service.DrainTimeout`, never-implemented plugin kinds in `agezt-contract.jsonc`; `codegen-in-sync` now builds the generated package. `AGEZT_BROWSER_COOKIES` turned out to be a **lost feature**, not dead config — rewired. `runtime/accessors` deferred to W3 (dissolved with the Kernel) | deadcodecheck clean; archcheck 200 → 196 |
+
+### W1 — Contracts and platform foundations
+
+| PR | Content | Notes |
+|---|---|---|
+| W1.1 ✅ | `kernel/contract/{llm,toolapi,channelapi}`: the provider, tool and channel type/interface declarations **moved** out of `kernel/agent` and `kernel/channel`; `type X = llm.X` aliases left behind. archcheck gains `impure-contract` (P4): a `kernel/contract/...` package may import only the stdlib and other contracts. `kernel/event` was **not** moved — it already is a leaf (stdlib + the BLAKE3 hash that defines an event's identity), so a new path would rewrite every importer and fix no edge; it moves with the eventlog work (W1.6). Package names carry an `api` suffix where the bare noun would collide with the legacy package during the strangler (`channel` ↔ `channelapi`) or with ubiquitous identifiers (`tool`) | Zero behaviour change: aliases are type-identical, every importer compiles unchanged |
+| W1.2 ✅ | Every importer that used `kernel/agent` only for contract types now imports `contract/llm` / `contract/toolapi` directly (414 files, mechanical AST-safe rewrite + goimports). The **tool-invocation context** (`WithCorrelation`/`CorrelationFromContext`, `WithAgent`/`AgentFromContext`, `WithWorkdir`/`WorkdirFromContext`, `DefaultContextRescueMarker`) moved to `toolapi`: a tool and the loop must share one context key, so it is contract, not loop. The policy-hook context (`WithPolicyToolDef`, observation taint) stays in `agent` and moves with W1.7 | archcheck **196 → 145**: `governor`, `worldmodel`, `skill`, `market`, `controlplane`, 13 providers, 32 tools no longer import the loop. Remaining 3 `→ kernel/agent` edges (`memory`, `pulse` → `GenerateObject`; `providerboot` → provider middleware) are model-gateway helpers and move with `platform/modelgw` |
+| W1.3 ✅ | `kernel/platform/filestore` (named for what it is; `store` collided with local variables in 9 of the 16 importers): `kernel/jsonstore` moved here and all 13 stores repointed. Files are written **0600 in 0700 dirs** and existing installs tighten in place, matching the journal. A cross-process **`Lock`** (flock / LockFileEx on a sidecar file) is used by the vault and settings for **merge-on-save**: `Save` re-reads the file under the lock and applies only that Store's pending changes. **Not built, on measurement:** the per-path `Registry` and `Collection[T]`. Only `board` has more than one in-process holder, and it is already wired as one instance (M937). `Collection[T]` would rewrite 13 stores' locking discipline without fixing a measured defect; Phase 1.1 rejected it for the same reason | Fixes a real lost update: `agt provider creds set` while the daemon runs had its key deleted by the daemon's next vault save, and concurrent control-plane settings handlers reverted each other. A Store that cannot decrypt the vault now refuses to overwrite it, where it used to replace it with its own (possibly empty) map |
+| W1.4 ✅ | `kernel/platform/netout` is the only HTTP client factory. `Egress` (host allowlist + IP guard + allowlist re-checked per redirect) serves the agent-driven tools: http, fetch, browser.read, browser.action pre-check, web_search. `OperatorClient` (DefaultTransport behaviour on one shared transport; link-local/metadata refused) serves every operator-configured endpoint: 11 provider packages, 22 channels, webhooks, peers, update, ACP registry, STS/SSO, STT. `MetadataClient` is the named exception for AWS IMDS and the GCE token source. **Uniform retry not folded in:** retry stays in `plugins/providers/internal/retry` (its `TransientError` defect was fixed in W0.4); its 429/529 + Retry-After semantics are provider-specific, and moving it would change no behaviour | `fetch` honours `AGEZT_HTTP_ALLOWED_HOSTS` (it bypassed it). The http/browser allowlist matchers agreed on one grammar. A configured or synced URL can no longer reach 169.254.169.254. archcheck http-client allowlist **58 → 0** (call sites 85 → 27), so a bare client now fails CI |
+| W1.5 ✅ | `kernel/platform/sandbox`: `Command`/`CommandContext` preset the child env, so no child inherits the daemon's environment by omission. `IsolatedEnv` (launch allowlist + grants) is for agent-steered children: git under coding, ACP agents, browser driver, MCP servers. `HelperEnv` (all but secret-shaped names) is for operator helper CLIs: toolbox, tunnels, version probes. The launch allowlist gains proxies, `SSH_AUTH_SOCK`, identity, terminal, `TZ` and XDG dirs. `kernel/mcp`'s drifted private copy of the allowlist is deleted. Warden's container backend passes secrets by name, not in argv. Boot-spawned plugins are closed at shutdown (`toolreg.Built.Close`/`Set.Close`). **Not built:** a `Launcher.Start(ProcSpec)` that wraps warden. Warden stays the run-to-completion engine for shell/code_exec, and the env guarantee comes from `sandbox.Command` | Real leaks fixed: coding's git (repo hooks) and toolbox installers (npm/pip scripts) saw every provider key; container secrets were readable in the process list. archcheck exec allowlist **13 → 0** (call sites 27 → 14, all raw-write) |
+| W1.6a ✅ | **Kind registry closed.** 13 string-literal kinds became constants: `policy.auto_approved`, `prompt_injection.warned`, market ×7, toolbox ×3, `agezt.pulse.dropped`. 7 never-emitted kinds were deleted; `config.access` is reserved for W1.8. `TestKindRegistryIsClosed` keeps it closed. **Not done:** per-kind payload schemas (no consumer needs them yet) | Registry 164 → 170 kinds, 0 ad-hoc, 0 dead |
+| W1.6b ⏸ | **Sidecar index — deferred on measurement.** On the dev journal (8,396 events over 17 days, ≈490/day, 3.8 MB), a full `Range` costs **78 ms** and boot verification (`journal.Open`, rehashing every event) **323 ms**. Both are linear. 50+ callers use `Range`. At ≈10k events/day a year projects to ≈33 s per scan and ≈2 min boot verification, so the index (correlation/cause/kind/subject) and a verified-head checkpoint come when the journal nears ~500k events, not before | Re-measure with `journal.Open` + `Range` timing on a copy of a real journal |
+| W1.6c ✅ | **Corrupt mid-journal record → quarantine + continue** (decision 5.6). `journal.Open` copies the broken segment's tail and renames later segments to `*.quarantined-<UTC>` (nothing deleted), resumes the chain from the last verified event, appends `journal.recovered`, exposes `Recovery()` and prints a boot WARNING. `Options.FailOnCorruption` keeps agt's offline tools fail-closed | Boot no longer dies on one bad line; the gap is part of the audit trail |
+| W1.7 ✅ | **Measured; persistence dropped (decision 5.5′), structural move folded into W3.** (1) *Approvals across restart:* `TestApprovalWaitSurvivesShutdownAsReAsk` proves a run waiting on approval is resumable and the cancelled wait is **not** checkpointed as a denial: the loop returns on `ctx.Err()` before the checkpoint, so the resumed run re-asks and the tool never runs unapproved. Decision 5.5's premise ("a restart silently denies the queue") was wrong while resume is on (default). What a restart loses is the approval's **ID** (old links answer "unknown"), its **timer** and **one extra model call**; persisting approvals would restore only the ID. (2) *Guards behind one `Decide`:* the hook returns `agent.PolicyVerdict` (L3) and reads six run-context keys owned by `kernel/runtime`; moving it to an L2 `platform/policy` first needs those to move, which W3 does when it dissolves the runtime | No behaviour change; the re-ask behaviour is pinned by a test |
+| W1.8 ✅ | **configcenter made safe; the store merge is not a refactor.** Four measured defects fixed: (1) **no entry ever survived a restart**: the loader compared `name[:7]` with the six-byte `"entry_"`, present since M939; (2) **secret-rated values were plaintext** (0644, non-atomic, next to their SHA-256). They now live in the vault (`configcenter:<key>`, `UseVault`, plaintext migrated on boot), and files are `filestore` 0600/0700; (3) **`Get` held the center lock across an approval wait**, freezing every `Set` and then every `Get`; (4) **config access was not journaled**: `config.access` is now emitted, without the value, since the journal can't be purged. **Not merged:** `settings` (the operator's daemon config) and configcenter (an agent-readable KV with ratings, ACLs and HITL) serve different audiences. Unifying them changes product behaviour, so it's an owner decision, not cleanup | Raw-write ratchet 14 → 13; kind registry has 0 reserved kinds |
+
+### W2 — Application layer and single ingress
+
+| PR | Content | Notes |
+|---|---|---|
+| W2.0 ✅ | **Measured W2.2's premise first.** The "10 entry points bypass control-plane checks" claim was mostly feature asymmetry: REST/OpenAI do not offer `--tools`, execution profiles or `--agent`, so they have nothing to bypass. Two real drifts: (1) the **direct agent run** (`agt run --agent`, the console) was the outlier: standing orders, cadence, workboard, wake, escalation, delegation and resume all bind a run with `WithAgentProfile`, but `handleRun` copied a hand-picked subset, so a direct run was **offered tools the agent's `tool_deny` forbids**, ran without its **trust ceiling**, and lost its standing instructions, lifecycle, retry/noise policy and config overrides. It now calls `WithAgentProfile`, and the dry-run plan shapes its tool list with the loop's own `runtime.AgentTools`. (2) The **vision gate** differs: the control plane captions images with a vision sidecar (M821) and REST rejects them (M255). Left for W2.2's single `runs.Start` | `TestRun_AsAgent_AppliesWholeProfile`, red against the old handler (tools, instructions, plan) |
+| W2.1a ✅ | **The pipeline's audit step, built into the registry that exists.** The control plane already has W2.1's skeleton: `commandSpec` is the OpSpec seed (authenticate → resolve → tenant authz → tenant routing → stream mode). A parallel `kernel/app` registry would duplicate it while every handler still writes to a `net.Conn`, so the steps land here first and the registry moves when handlers become transport-independent. **Measured first:** a VTA call graph over `cmd/agezt` found 54 of 323 handlers that reach a persistent write but never `bus.Publish`/`journal.Append`. 43 are real mutations: provider keys and OAuth tokens, channel accounts, config-center entries and ACLs, config schema, config/routing/chains/persona/prompts/council/pulse settings, custom providers, schedules, data-lake writes, artifact and sandbox deletes, seats, taste, board acks and tenant tokens. The rest are reads that create a directory. A runtime probe confirmed `configcenter.set` and `schedule_add` left zero events. Dispatch now journals every op not declared `ReadOnly` (173 audited, 148 read-only): `op.invoked` with redacted arguments, then `op.completed` or `op.failed` (error response, panic, or no response). Omitting `ReadOnly` over-audits; it cannot under-audit | Every state change made through the control plane, and so through the web console, is in the hash-chained journal |
+| W2.1 | `kernel/app`: `OpSpec`, registry, `Dispatch` pipeline (authn → op → authz → tenant → validate → audit), streaming contract; generic JSON-schema derivation from Go types | Framework only, plus 1 pilot domain (`status`) |
+| W2.2a ✅ | **Measured image admission before building `runs.Start`.** REST/OpenAI rejected images on text-only models even with a configured vision sidecar; channels already captioned (the handoff claim was stale), but did not journal rejections and accepted empty captions. One `runtime.Kernel.AdmitImages` now serves control-plane, REST/OpenAI and every channel: confirm primary vision → caption and consume raw images → correlated `capability.rejected`. Channel artifacts keep the caption and survive rejection. No-sidecar errors use the existing control-plane message; cancellation remains cancellation | Actual adapter regressions red on old code; mutations independently cover sidecar use, raw-image removal, rejection correlation and explicit-model precedence. Full `RunRequest`/`runs.Start` remains W2.2 |
+| W2.2 | `app/runs.Start` + `RunRequest`; **re-point all 10 entry points** (`api_engine`, `main_cadence`, `main_channels_handler`, `main_standing*`, controlplane `server_handle_run`, `roster_escalation`, `workboard_dispatch`, `selfrepair_wake_agent`, overseer) | Admission gates now apply to REST/OpenAI/channels/triggers; resume ticket stores `{agent, RunRequest}` |
+| W2.3 | `app/tools.Invoke`; re-point agent loop, workflow nodes, `toolexec`, council grounding, conductor verifier | Every tool call journaled + policy-checked; side-path findings closed |
+| W2.4…W2.n | **Migrate control-plane domains** into `app` ops, one domain per PR, in the order of [§3](#3-domain-migration-order); control plane keeps a compatibility adapter until its last domain moves | 28 domains, ~321 ops |
+| W2.x | Web UI routes generated from `OpSpec.HTTP`; delete the 198-entry table; File Manager + rollback become ops (journaled, policy-checked) | Unjournaled writes fixed |
+| W2.y | REST, OpenAI and agentgw re-implemented as `app` adapters; agentgw socket path published to children via env | Tenant leaks and bypass closed; SDK default-socket mismatch fixed |
+
+### W3 — Dissolve `runtime.Kernel` into modules
+
+Extract in **increasing coupling order** (each step = move PR, then rewrite PR if needed):
+
+1. `modules/reasoning` (council, conductor, research): stateless, depends on runs/tools/modelgw only.
+2. `modules/knowledge` (memory, world, taste, profile distill). Fix the profile-facet supersede bug in the rewrite PR.
+3. `modules/skills` (+ builtin seeding; stop re-promoting operator-quarantined built-ins).
+4. `modules/artifacts` (artifact + datalake; GC respects journal `raw_ref` via eventlog index).
+5. `modules/board`.
+6. `modules/work` (workboard, OKR, proof, assure, seats; fix `"container"` seat → profile mapping).
+7. `modules/workflows` (move `runtime/workflowrun*` + draft + test-node; fix trigger `source` labels).
+8. `modules/agents` (roster, guardians, selfrepair, reaper, overseer ops). **This removes the
+   `kernel/controlplane`/`selfrepair` → `plugins/tools/overseertool` edge**; the overseer tool becomes an
+   L6 caller of `app` ops. Fix guardian reconcile resetting operator-lowered caps.
+9. `modules/extensions` (mcp, plugin host, toolforge, toolbox, acpcatalog).
+10. `modules/providers` (catalog, chatgptauth, providerboot).
+11. `modules/runs` last: what remains of `kernel/runtime` + `runexec` + `agent` loop + resume +
+    delegation + intervention. `kernel/runtime` is deleted when empty.
+
+**Exit:** `kernel/runtime` and `kernel/controlplane` (handlers) no longer exist; no type has more than 60 methods.
+
+### W4 — Autonomy, channels, config unification
+
+| PR | Content |
+|---|---|
+| W4.1 | `modules/triggers`: one `Trigger{Source: cron\|once\|event\|webhook\|observation\|continuous, Target: run\|workflow\|systemtask\|tool, Policy: trust ceiling, budget, noise}`. Migrate cadence, standing orders, pulse initiative bindings, workflow triggers and system tasks with lossless store migrations. **System tasks get capabilities and go through policy.** |
+| W4.2 | `modules/pulse` absorbs anomaly + alerter; initiative level persisted and live-editable. |
+| W4.3 | `modules/channels`: supervisor (start error → backoff restart + health), panic containment for every transport, **conversation store** (append inbound + every reply; replaces the per-message journal fold), accounts derived from config schema (RequiredEnv generated, qq/wechat/zalo get schemas), webhook ingress acks then runs async uniformly. |
+| W4.4 | Email inbound: DKIM/SPF verification (Authentication-Results trust or local DKIM verify), case-insensitive allowlists; IRC/Twitch allowlist by nick, not channel. |
+| W4.5 | Self-update: release-signing key injection at build, SHA in GitHub path, signature through apply. |
+
+### W5 — Generated surfaces and cleanup
+
+| PR | Content |
+|---|---|
+| W5.1 | OpenAPI from op registry; generated TS client in `frontend/src/app/api`; delete hand-written wrappers. |
+| W5.2 | Generated Python/TS/Rust/Go SDKs + server-produced golden fixtures consumed by every SDK test; retire `sdkparity` freshness check and self-validating fixtures. |
+| W5.3 | Frontend boundaries lint (features ↛ features, components/lib ↛ features); `designsystem.test` scans `features/`; delete test-only modules. |
+| W5.4 | Final: archcheck allowlist = 0, forbidden-call allowlist = 0, codemap docs regenerated, `docs/` stale architecture docs archived. |
+
+---
+
+## 3. Domain migration order (W2.4…)
+
+Order is by risk × leverage. Low-risk read paths come first to prove the framework; the destructive and
+streaming domains come last.
+
+| Order | Domains (control-plane file prefixes) | Why here |
+|---|---|---|
+| 1 | status, version, catalog, provider | read-mostly, pilot |
+| 2 | memory, world, taste, skill | will become modules early in W3 |
+| 3 | board, workboard, okr, storage/artifacts | |
+| 4 | schedule, standing, workflow, pulse, autonomy | precede W4 triggers |
+| 5 | tool, toolforge, toolbox, mcp, market, plugin | depend on W2.3 invoker |
+| 6 | config, settings, configcenter, channel(s), webhook, tunnel, update | depend on W1.8 |
+| 7 | roster (27 files), steer, runs, journal, edict, tenant, shutdown, remote | highest blast radius, streaming |
+
+---
+
+## 4. Risk register
+
+| Risk | Mitigation |
+|---|---|
+| Behavioural drift during moves (the B1 lesson) | Move-only PRs with aliases; source-package tests mandatory; boot-reload parity and tenant-boundary tests kept green |
+| Lossy store migrations (W1.3, W4.1) | Migrations are versioned, idempotent and keep the old file as `.bak` for one release; round-trip tests on real fixture homes (`.dev-home` snapshots) |
+| Long-running dual paths (old control-plane handler + new op) | Each domain PR deletes the old handler in the same PR; the compatibility adapter only routes |
+| Op registry becomes a new god table | Ops are registered *by modules* (`ops.go`); the registry holds descriptors only, not logic |
+| Generated clients break the console | Generate → typecheck → vitest in the same PR; the console's guard tests stay |
+| Performance of pipelines | Pipelines are plain function composition; benchmark `Dispatch` and `Invoke` overhead in W2.1/W2.3 (budget < 50 µs/op excluding audit I/O) |
+| Concurrent sessions editing main | Per owner rule work on `main`; use a worktree only when sessions actually overlap |
+
+---
+
+## 5. Owner decisions (5.1–5.5 DECIDED 2026-10-02; 5.6 DECIDED 2026-10-02)
+
+All five were decided by the owner as recommended: **5.1 (a) strangler · 5.2 (a) under `kernel/` · 5.3 (a) JSON + index · 5.4 (a) delete dead halves · 5.5 (a) persist approvals.** Also approved: **cadence system tasks go through policy** (W4.1).
+
+| # | Decision | Options | Decision |
+|---|---|---|---|
+| 5.1 | Strategy | (a) module-by-module strangler · (b) parallel `v2` tree rewritten from zero, cut over at the end | **(a)**: keeps 168k test lines as the spec and `main` shippable |
+| 5.2 | Package layout | (a) `kernel/{contract,platform,modules,app,adapters}` · (b) new top-level `contract/ platform/ modules/ app/ adapters/` | **(a)**: one root for the core, smaller import-path churn, `plugins/` unchanged |
+| 5.3 | Storage engine | (a) keep JSON files + eventlog sidecar index · (b) embedded pure-Go SQLite for stores and index (new large dependency) | **(a)** now; revisit after W1.6 benchmarks |
+| 5.4 | Out-of-process channel/provider plugins | (a) delete dead `contract/gen` halves, tools-only protocol · (b) implement `register` + kinds now | **(a)**; reintroduce when there is a real external channel/provider author |
+| 5.5 | Approvals across restart | (a) persist pending approvals · (b) keep in-memory (timeout ⇒ deny) | **(a)**: a restart should not silently deny the operator's queue |
+| 5.5′ | Approvals across restart — **revisited 2026-10-02** after measurement (W1.7) | (a) build persistence for ID continuity only · (b) don't: the resumed run already re-asks; document it | **(b) don't persist** (owner, 2026-10-02): the resumed run re-asks (pinned by `TestApprovalWaitSurvivesShutdownAsReAsk`); approval IDs change across a restart. Supersedes 5.5 |
+| 5.6 | Corrupt line in the middle of the journal (W1.6c) | (a) **keep fail-closed**: boot aborts until the operator repairs or restores (today) · (b) **quarantine + continue**: move the segment tail from the break point to `*.quarantined` (kept for forensics), resume the chain from the last verified event, journal a `journal.recovered` event naming the quarantined range, warn loudly. The daemon boots, and history after the break leaves the live chain · (c) **boot read-only**: daemon up, journal verified up to the break, every write refused until repaired (UI and doctor work, runs do not) | **(b) quarantine + continue** (owner, 2026-10-02): availability without losing evidence; the gap is journaled |

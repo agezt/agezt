@@ -33,7 +33,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
@@ -41,7 +41,7 @@ import (
 // The daemon wires it to the live channels' Send methods.
 type Sender func(ctx context.Context, kind, channelID, text string) error
 
-// Tool implements agent.Tool. Constructed unbound via New; the daemon calls Bind
+// Tool implements toolapi.Tool. Constructed unbound via New; the daemon calls Bind
 // once the live channels exist. Until bound, Invoke returns a clean error.
 type Tool struct {
 	mu      sync.RWMutex
@@ -87,21 +87,21 @@ func kinds(targets map[string][]string) []string {
 	return ks
 }
 
-func (t *Tool) Definition() agent.ToolDef {
+func (t *Tool) Definition() toolapi.ToolDef {
 	_, targets := t.snapshot()
 	avail := strings.Join(kinds(targets), ", ")
 	if avail == "" {
 		avail = "(none configured yet)"
 	}
-	return agent.ToolDef{
+	return toolapi.ToolDef{
 		Name:       "notify",
-		Capability: agent.ToolCapability{Name: string(edict.CapNotify)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapNotify)},
 		Description: "Proactively send a short message to the operator over a configured chat channel " +
 			"(" + avail + ") — e.g. progress on a long task, or an alert. " +
 			"The message goes ONLY to the operator's pre-configured chats; you cannot choose arbitrary " +
 			"recipients. Use sparingly, for things worth interrupting for.",
-		Effect: agent.ToolEffect{
-			Class: agent.EffectCompensable,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectCompensable,
 			PredictedEffects: []string{
 				"send an outbound message to the operator's configured channel allowlist",
 				"may interrupt or notify the operator outside the current run UI",
@@ -132,10 +132,10 @@ func (t *Tool) Definition() agent.ToolDef {
 	}
 }
 
-func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result, error) {
+func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Result, error) {
 	send, targets := t.snapshot()
 	if send == nil || len(targets) == 0 {
-		return agent.Result{Output: "notify is not configured (no channel with an allowlist)", IsError: true}, nil
+		return toolapi.Result{Output: "notify is not configured (no channel with an allowlist)", IsError: true}, nil
 	}
 
 	var in struct {
@@ -144,18 +144,18 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 		Severity string `json:"severity"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
-		return agent.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
 	}
 	text := strings.TrimSpace(in.Text)
 	if text == "" {
-		return agent.Result{Output: "text is required", IsError: true}, nil
+		return toolapi.Result{Output: "text is required", IsError: true}, nil
 	}
 
 	// Resolve which channel kinds to deliver to.
 	var deliver []string
 	if k := strings.ToLower(strings.TrimSpace(in.Channel)); k != "" {
 		if _, ok := targets[k]; !ok {
-			return agent.Result{Output: fmt.Sprintf("channel %q is not configured; available: %s", k, strings.Join(kinds(targets), ", ")), IsError: true}, nil
+			return toolapi.Result{Output: fmt.Sprintf("channel %q is not configured; available: %s", k, strings.Join(kinds(targets), ", ")), IsError: true}, nil
 		}
 		deliver = []string{k}
 	} else {
@@ -175,14 +175,14 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (agent.Result,
 	}
 
 	if sent == 0 {
-		return agent.Result{Output: "notify failed: " + strings.Join(errs, "; "), IsError: true}, nil
+		return toolapi.Result{Output: "notify failed: " + strings.Join(errs, "; "), IsError: true}, nil
 	}
 	out := fmt.Sprintf("notified the operator (%d recipient(s) across %s)", sent, strings.Join(deliver, ", "))
 	if len(errs) > 0 {
 		// Partial failure: surface it as an error result so the model (and any
 		// automation keying on IsError) doesn't treat a half-delivered alert as
 		// fully sent — the dangerous case for "I'll report back" messaging.
-		return agent.Result{Output: out + "; but some deliveries FAILED: " + strings.Join(errs, "; "), IsError: true}, nil
+		return toolapi.Result{Output: out + "; but some deliveries FAILED: " + strings.Join(errs, "; "), IsError: true}, nil
 	}
-	return agent.Result{Output: out}, nil
+	return toolapi.Result{Output: out}, nil
 }

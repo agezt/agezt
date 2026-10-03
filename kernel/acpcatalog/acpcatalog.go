@@ -21,6 +21,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/agezt/agezt/kernel/platform/sandbox"
 )
 
 // Agent is one catalog entry: an ACP-speaking coding agent and how to launch /
@@ -155,7 +157,9 @@ const versionTimeout = 3 * time.Second
 func probeVersion(ctx context.Context, bin string, args []string) string {
 	cctx, cancel := context.WithTimeout(ctx, versionTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(cctx, bin, args...).CombinedOutput()
+	cmd := sandbox.CommandContext(cctx, bin, args...)
+	cmd.Env = sandbox.HelperEnv() // an operator-side version probe, not an agent
+	out, err := cmd.CombinedOutput()
 	if err != nil && len(out) == 0 {
 		return ""
 	}

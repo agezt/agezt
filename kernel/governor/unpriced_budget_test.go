@@ -19,7 +19,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/journal"
@@ -53,13 +53,13 @@ func TestUnpricedModelConsumesBudgetHeadroom(t *testing.T) {
 	// call after it, forever — would be admitted.
 	g, _ := newUnpricedGov(t, governor.Config{DailyCeilingMicrocents: 1_000_000}, unpriced, 1_000_000, 1_000_000)
 
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: unpriced}); err != nil {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: unpriced}); err != nil {
 		t.Fatalf("first call refused: %v", err)
 	}
 	if spent := g.SpentMicrocents(); spent <= 0 {
 		t.Fatalf("spent=%d after billing an unpriced model — the ledger never moved", spent)
 	}
-	_, err := g.Complete(context.Background(), agent.CompletionRequest{Model: unpriced})
+	_, err := g.Complete(context.Background(), llm.CompletionRequest{Model: unpriced})
 	if !errors.Is(err, governor.ErrBudgetExceeded) {
 		t.Fatalf("second call err = %v, want ErrBudgetExceeded — the daily ceiling is bypassable", err)
 	}
@@ -72,7 +72,7 @@ func TestUnpricedModelExhaustsPerAgentCeiling(t *testing.T) {
 	const unpriced = "some-unpriced-model-9000"
 	g, _ := newUnpricedGov(t, governor.Config{}, unpriced, 1_000_000, 1_000_000)
 
-	req := agent.CompletionRequest{Model: unpriced, Agent: "researcher", AgentDailyCeilingMc: 1_000_000}
+	req := llm.CompletionRequest{Model: unpriced, Agent: "researcher", AgentDailyCeilingMc: 1_000_000}
 	if _, err := g.Complete(context.Background(), req); err != nil {
 		t.Fatalf("first call refused: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestUnpricedModelJournalsBudgetUnpricedWhenLax(t *testing.T) {
 	g, j := newUnpricedGov(t, governor.Config{}, unpriced, 1_000, 1_000)
 
 	for i := 0; i < 2; i++ {
-		if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: unpriced}); err != nil {
+		if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: unpriced}); err != nil {
 			t.Fatalf("call %d refused: %v", i, err)
 		}
 	}
@@ -129,7 +129,7 @@ func TestKnownModelsBillUnchanged(t *testing.T) {
 	t.Run("known-free model stays free", func(t *testing.T) {
 		g, j := newUnpricedGov(t, governor.Config{DailyCeilingMicrocents: 1_000_000}, "llama3.2", 1_000_000, 1_000_000)
 		for i := 0; i < 3; i++ {
-			if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "llama3.2"}); err != nil {
+			if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "llama3.2"}); err != nil {
 				t.Fatalf("call %d on a free local model refused: %v", i, err)
 			}
 		}
@@ -149,7 +149,7 @@ func TestKnownModelsBillUnchanged(t *testing.T) {
 		// use the OUTPUT side, where they differ (1500M vs the haiku entry's
 		// 400M), to prove the real price is still the one applied.
 		g, j := newUnpricedGov(t, governor.Config{}, "claude-haiku-4-5", 0, 1_000_000)
-		if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "claude-haiku-4-5"}); err != nil {
+		if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "claude-haiku-4-5"}); err != nil {
 			t.Fatalf("priced model refused: %v", err)
 		}
 		const want = int64(400_000_000) // 1 MTok output at the haiku rate

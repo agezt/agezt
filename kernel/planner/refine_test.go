@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/planner"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -17,12 +17,12 @@ import (
 // discards request details; we need the request body to confirm the
 // refine prompt carries both the original plan and the feedback.
 type capturingMock struct {
-	inner       agent.Provider
-	lastRequest agent.CompletionRequest
+	inner       llm.Provider
+	lastRequest llm.CompletionRequest
 }
 
 func (c *capturingMock) Name() string { return "capturing-mock" }
-func (c *capturingMock) Complete(ctx context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (c *capturingMock) Complete(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	c.lastRequest = req
 	return c.inner.Complete(ctx, req)
 }

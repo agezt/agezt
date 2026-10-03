@@ -16,10 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/executionprofile"
-	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
@@ -91,24 +89,19 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 			return
 		}
 		agentProf = &p
+		// The whole profile binds the run, exactly as it does a standing
+		// order, a cadence tick or a workboard dispatch: tool allow/deny,
+		// trust ceiling, standing instructions, memory scope, workdir, ledger
+		// identity. This handler once copied a subset by hand, so a direct
+		// run could use tools the agent was denied. Explicit per-run flags
+		// below layer on top of it.
+		ctx = runtime.WithAgentProfile(ctx, p)
 		if modelOverride == "" {
 			modelOverride = strings.TrimSpace(p.Model)
 		}
-		// The agent's memory follows it (M786): recalls — context injection
-		// and the memory tool — default to its scope (private notes + shared).
-		scope := strings.TrimSpace(p.MemoryScope)
-		if scope == "" {
-			scope = p.Slug
-		}
-		ctx = memory.WithScope(ctx, scope)
-		// And its working directory (M792): file/shell tools operate inside
-		// the profile's workspace subdirectory.
-		ctx = agent.WithWorkdir(ctx, p.Workdir)
-		// And its identity + daily ceiling for the Governor's ledger (M793).
-		ctx = runtime.WithAgentIdent(ctx, p.Slug, p.MaxDailyMc)
-		// Its own model fallback chain too (M787): primary (the resolved
-		// model — an explicit --model still wins the front slot) followed by
-		// the profile's ordered fallbacks; the Governor walks it in order.
+		// The fallback chain is rebuilt around the resolved primary (M787):
+		// an explicit --model, or the daemon default when the profile names
+		// no model, still takes the front slot.
 		if len(p.Fallbacks) > 0 {
 			primary := modelOverride
 			if primary == "" {
@@ -126,56 +119,21 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	// below) so the vision sidecar's journaled event links to this run.
 	corr := k.NewCorrelation()
 
-	// Vision capability gate (M91): a run carrying image attachments requires a
-	// model confirmed to accept image input. Unlike the M25 tool gate (which
-	// allows unknown models because many tolerate tool schemas), an image sent to
-	// a non-vision model is a guaranteed hard failure — so this denies unless the
-	// active model is confirmed vision-capable (confirmed-or-reject), pre-flight,
-	// before any provider call. Enforced here at the submission boundary so the
-	// agent loop and message type stay untouched.
+	// The runtime owns image admission for control-plane, API and channel runs.
 	imageRefs, _, ierr := argStringList(req.Args, "images")
 	if ierr != nil {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: ierr.Error()})
 		return
 	}
+	admission, ierr := k.AdmitImages(ctx, corr, modelOverride, intent, imageRefs)
+	if ierr != nil {
+		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: ierr.Error()})
+		return
+	}
+	intent = admission.Intent
+	imageRefs = admission.Images
 	if len(imageRefs) > 0 {
-		var visionOK bool
-		if cat := k.Catalog(); cat != nil {
-			if _, m := cat.FindModel(effModel); m != nil {
-				visionOK = m.SupportsVision()
-			}
-		}
-		if !visionOK {
-			// Vision SIDECAR (M821): rather than rejecting, ask a keyed vision model
-			// to describe the image(s) and inject that text into the intent, so a
-			// non-vision active model still "reads" the photo. Fall back to the hard
-			// rejection only when no vision model is configured.
-			caption, derr := k.DescribeImages(ctx, corr, imageRefs, "")
-			if derr == nil && strings.TrimSpace(caption) != "" {
-				intent += "\n\n[Image description (analyzed by a vision model):\n" + caption + "\n]"
-				imageRefs = nil // consumed by the sidecar; don't send raw images downstream
-			} else {
-				_, _ = k.Bus().Publish(event.Spec{
-					Subject: "governor.capability",
-					Kind:    event.KindCapabilityRejected,
-					Actor:   "controlplane",
-					Payload: map[string]any{
-						"model":            effModel,
-						"capability":       "vision",
-						"images_requested": len(imageRefs),
-					},
-				})
-				s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: fmt.Sprintf(
-					"model %q does not support vision (image input); add a vision-capable provider key or attach images only to a vision-capable model (see `agt provider check --caps`)",
-					effModel)})
-				return
-			}
-		}
-		// Gate passed or sidecar consumed the images (M93/M821): carry any remaining
-		// image refs into the run so they reach the initial user message.
-		if len(imageRefs) > 0 {
-			ctx = runtime.WithImages(ctx, imageRefs)
-		}
+		ctx = runtime.WithImages(ctx, imageRefs)
 	}
 	// Route this run to the override model when given (M148); the loop reads it
 	// via modelFromCtx, the same path the OpenAI API uses.
@@ -192,7 +150,8 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 	}
 	systemOverride := strings.TrimSpace(sysRaw)
 	if systemOverride == "" && agentProf != nil {
-		systemOverride = strings.TrimSpace(agentProf.Soul) // the agent's soul IS its system prompt
+		// The agent's soul, standing instructions and tasks ARE its system prompt.
+		systemOverride = strings.TrimSpace(runtime.AgentProfileSystem(*agentProf))
 	}
 	if systemOverride != "" {
 		ctx = runtime.WithSystem(ctx, systemOverride)
@@ -437,7 +396,7 @@ executionProfileDone:
 				in.ContextLimit = m.Limit.Context
 			}
 		}
-		for name := range k.Tools() {
+		for name := range runtime.AgentTools(ctx, k.Tools()) {
 			in.AllToolNames = append(in.AllToolNames, name)
 		}
 		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: buildRunPlan(in)})

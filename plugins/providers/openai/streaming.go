@@ -11,17 +11,18 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/internal/httpread"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 	"github.com/agezt/agezt/plugins/providers/internal/retry"
 	"github.com/agezt/agezt/plugins/providers/internal/toolname"
 )
 
-// CompleteStream implements agent.StreamingProvider. It POSTs to the
+// CompleteStream implements llm.StreamingProvider. It POSTs to the
 // Chat Completions endpoint with stream=true (and
 // stream_options.include_usage=true so the final chunk carries the
-// usage block) and parses the SSE stream into agent.Chunk callbacks.
+// usage block) and parses the SSE stream into llm.Chunk callbacks.
 // The returned CompletionResponse matches Complete for the same request.
 //
 // SSE shape (different from Anthropic):
@@ -43,7 +44,7 @@ import (
 // and Azure OpenAI. The auth header (Authorization vs api-key) and
 // auth scheme (Bearer vs raw) come from the same AuthHeader /
 // AuthScheme fields the non-streaming path uses.
-func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionRequest, onChunk func(agent.Chunk) error) (*agent.CompletionResponse, error) {
+func (p *Provider) CompleteStream(ctx context.Context, req llm.CompletionRequest, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	if p.APIKey == "" {
 		return nil, ErrNoAPIKey
 	}
@@ -105,7 +106,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req agent.CompletionReque
 // and adds stream_options.include_usage=true. Kept separate so the
 // non-streaming wire format stays byte-identical to what existing
 // tests verified.
-func encodeStreamRequest(model, system string, msgs []agent.Message, tools []agent.ToolDef, maxTok int, jsonMode bool, params agent.Params, extra json.RawMessage) ([]byte, error) {
+func encodeStreamRequest(model, system string, msgs []llm.Message, tools []toolapi.ToolDef, maxTok int, jsonMode bool, params llm.Params, extra json.RawMessage) ([]byte, error) {
 	type streamOptions struct {
 		IncludeUsage bool `json:"include_usage"`
 	}

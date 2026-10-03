@@ -8,8 +8,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/roster"
 )
 
@@ -800,4 +800,4 @@ func TestHasFlatProfileFields(t *testing.T) {
 	}
 }
 
-var _ = agent.Tool(New())
+var _ = toolapi.Tool(New())

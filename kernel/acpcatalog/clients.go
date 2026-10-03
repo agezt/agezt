@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 // OfficialClientsURL is the source-of-truth Clients page in the official ACP
@@ -61,7 +63,7 @@ type ClientsClient struct {
 func NewClientsClient(url string) *ClientsClient {
 	return &ClientsClient{
 		URL:  url,
-		HTTP: &http.Client{Timeout: 6 * time.Second},
+		HTTP: netout.OperatorClient(6 * time.Second),
 		TTL:  registryCacheTTL,
 		Now:  time.Now,
 	}
@@ -112,7 +114,7 @@ func (c *ClientsClient) fetch(ctx context.Context) ([]ClientEntry, string, error
 	req.Header.Set("User-Agent", "agezt-acp-clients/1")
 	client := c.HTTP
 	if client == nil {
-		client = &http.Client{Timeout: 6 * time.Second}
+		client = netout.OperatorClient(6 * time.Second)
 	}
 	resp, err := client.Do(req)
 	if err != nil {

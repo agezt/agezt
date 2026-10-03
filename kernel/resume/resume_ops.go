@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 func (s *Store) Put(t *Ticket) error {
@@ -59,7 +59,7 @@ func (s *Store) putLocked(t *Ticket) error {
 // its status and dispatch metadata. No-op (returns nil) if the ticket is gone —
 // the run start writes the ticket first, and a race where it was just deleted on
 // clean termination must not resurrect it.
-func (s *Store) Snapshot(corr string, msgs []agent.Message, iter int) error {
+func (s *Store) Snapshot(corr string, msgs []llm.Message, iter int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	t, ok, err := s.getLocked(corr)

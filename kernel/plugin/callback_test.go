@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/plugin"
 )
 
-// doubleTool is a tiny in-process agent.Tool the test wires into
+// doubleTool is a tiny in-process toolapi.Tool the test wires into
 // Plugin.Config.HostTools — it doubles the input string and returns
 // it. The fixture echoplugin's "callhost" tool invokes it via the
 // M1.cb host/invoke callback path.
@@ -20,20 +20,20 @@ type doubleTool struct {
 	calls int
 }
 
-func (d *doubleTool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+func (d *doubleTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:        "double",
 		Description: "Doubles the input string (test fixture for M1.cb).",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"text":{"type":"string"}}}`),
 	}
 }
-func (d *doubleTool) Invoke(_ context.Context, raw json.RawMessage) (agent.Result, error) {
+func (d *doubleTool) Invoke(_ context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	d.calls++
 	var args struct {
 		Text string `json:"text"`
 	}
 	_ = json.Unmarshal(raw, &args)
-	return agent.Result{Output: args.Text + args.Text}, nil
+	return toolapi.Result{Output: args.Text + args.Text}, nil
 }
 
 // TestCallback_HappyPath is the end-to-end M1.cb verification:
@@ -46,7 +46,7 @@ func TestCallback_HappyPath(t *testing.T) {
 	double := &doubleTool{}
 	p, err := plugin.Spawn(context.Background(), plugin.Config{
 		Path:      bin,
-		HostTools: map[string]agent.Tool{"double": double},
+		HostTools: map[string]toolapi.Tool{"double": double},
 	})
 	if err != nil {
 		t.Fatalf("Spawn: %v", err)
@@ -108,7 +108,7 @@ func TestCallback_ToolNotInAllowlist(t *testing.T) {
 	other := &doubleTool{}
 	p, err := plugin.Spawn(context.Background(), plugin.Config{
 		Path:      bin,
-		HostTools: map[string]agent.Tool{"something_else": other},
+		HostTools: map[string]toolapi.Tool{"something_else": other},
 	})
 	if err != nil {
 		t.Fatalf("Spawn: %v", err)

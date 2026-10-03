@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/builtintools"
@@ -81,7 +81,7 @@ func TestFirstPartyToolDefinitionsDeclareEffects(t *testing.T) {
 	}
 
 	checked := map[string]bool{}
-	checkTool := func(name string, tool agent.Tool) {
+	checkTool := func(name string, tool toolapi.Tool) {
 		if checked[name] {
 			return
 		}

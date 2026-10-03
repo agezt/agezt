@@ -11,13 +11,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/agezt/agezt/kernel/agent"
+	"strings"
+	"time"
+
 	"github.com/agezt/agezt/kernel/assure"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/resume"
 	"github.com/agezt/agezt/kernel/roster"
-	"strings"
-	"time"
 )
 
 func (r *Runner) RunWithRetry(ctx context.Context, corr, intent string, pol roster.RetryPolicy) (string, error) {
@@ -129,10 +130,10 @@ func (r *Runner) VerifyCompletion(ctx context.Context, corr, task, answer string
 	prompt := "You are a strict completion checker. Given a TASK and the ANSWER an agent produced, decide whether the answer FULLY accomplishes the task with nothing important left undone. Be skeptical: a plan or a promise to do it is NOT completion.\n\n" +
 		"Reply with ONLY a JSON object and no other text: {\"complete\": true|false, \"gap\": \"<concise description of what is still missing; empty string if complete>\"}.\n\n" +
 		"TASK:\n" + task + "\n\nANSWER:\n" + answer
-	resp, err := r.k.CompleteAux(ctx, corr, "verify", agent.CompletionRequest{
+	resp, err := r.k.CompleteAux(ctx, corr, "verify", llm.CompletionRequest{
 		Model:     r.k.Model(),
 		MaxTokens: assureVerifyMaxTokens,
-		Messages:  []agent.Message{{Role: agent.RoleUser, Content: prompt}},
+		Messages:  []llm.Message{{Role: llm.RoleUser, Content: prompt}},
 	})
 	if err != nil {
 		return assure.Verdict{}, err
@@ -191,10 +192,8 @@ func (r *Runner) PublishHeuristicBypass(ctx context.Context, corr, actor, intent
 }
 
 // ErrNoVisionModel is returned by DescribeImages when no vision-
-// capable model is available. Defined in this package (separate
-// identity from the canonical runtime.ErrNoVisionModel; same
-// text). The *Kernel.DescribeImages wrapper translates via
-// errors.Is so external callers see the canonical value.
+// capable model is available. This is the one definition;
+// runtime.ErrNoVisionModel re-exports this value.
 var ErrNoVisionModel = errors.New("runtime: no vision-capable model available")
 
 // DescribeImages runs the vision SIDECAR (M821): it sends the
@@ -217,10 +216,10 @@ func (r *Runner) DescribeImages(ctx context.Context, corr string, images []strin
 	if strings.TrimSpace(prompt) == "" {
 		prompt = "Describe the attached image(s) in detail and transcribe any visible text. Be thorough and factual."
 	}
-	resp, err := r.k.CompleteAux(ctx, corr, "vision", agent.CompletionRequest{
+	resp, err := r.k.CompleteAux(ctx, corr, "vision", llm.CompletionRequest{
 		Model:     model,
 		MaxTokens: visionDescribeMaxTokens,
-		Messages:  []agent.Message{{Role: agent.RoleUser, Content: prompt, Images: images}},
+		Messages:  []llm.Message{{Role: llm.RoleUser, Content: prompt, Images: images}},
 	})
 	if err != nil {
 		return "", err

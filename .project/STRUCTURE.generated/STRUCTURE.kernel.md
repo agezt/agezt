@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-91 package(s):
+94 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -19,11 +19,14 @@
 - **`kernel/cadence`** — Package cadence is the typed schedule subsystem (autonomy): it wakes agent tasks, workflows, daemon maintenance tasks, or approved tools on recurring, one-shot, daily, or continuous cadences.
 - **`kernel/cadence/systemtasks`** — Package systemtasks holds the executors behind cadence's built-in system tasks (catalog_sync, artifact_collect, memory_clean, memory_tidy, log_clean, graveyard_scan, profile_distill) — the daemon-side maintenance work a schedule entry with Target=system_task dispatches (Phase 2.6 extraction from cmd/agezt; the catalogue + validation already lived in kernel/cadence).
 - **`kernel/catalog`** — Package catalog is the live provider/model registry.
-- **`kernel/channel`** — Package channel defines the canonical messaging types every channel normalizes to (SPEC-04 §1.3) and the Channel interface a duplex messaging surface implements.
+- **`kernel/channel`** — Package channel is the in-process channel machinery: the inbound Allowlist, the panic Guard, the process-wide manifest/liveness registry, conversation history and message splitting.
 - **`kernel/channelwire`** — Package channelwire is the channel FACTORY layer (Phase 2.1 of docs/REFACTORING-SCAN-2026-08.md): each channel kind registers a Factory that builds its configured instances from a Deps bundle, and the daemon walks the manifest registry calling BuildKind per kind — one loop instead of 27 hand-listed builder call sites (the allInsts drift surface).
 - **`kernel/chatgptauth`** — Package chatgptauth manages the OAuth tokens for the "Sign in with ChatGPT" provider — the same subscription auth Codex CLI uses.
 - **`kernel/configcenter`** — Package configcenter is the typed, audited, environment-aware configuration surface of the daemon.
 - **`kernel/contextselect`** — Package contextselect provides context candidate scoring, selection, and failure analysis for agent runs.
+- **`kernel/contract/channelapi`** — Package channelapi is the messaging-channel contract: the platform-neutral inbound message every channel normalises to (UnifiedMessage, SPEC-04 §1.3), what the kernel hands a channel to deliver (Outbound, Attachment, Reply), the Channel interface a duplex surface implements, and the Manifest a channel registers to describe itself.
+- **`kernel/contract/llm`** — Package llm is the model-provider contract: the canonical conversation (Message, Role, ToolCall), one completion round trip (CompletionRequest, CompletionResponse, Usage, StopReason, Params) and the provider interfaces (Provider, StreamingProvider, Chunk).
+- **`kernel/contract/toolapi`** — Package toolapi is the tool contract: what a tool is (Tool, ToolDef, Result) and the governance metadata it declares (ToolCapability, ToolEffect, ObservationTrust).
 - **`kernel/controlplane`** — Package controlplane is the local control protocol between the agezt daemon and the agt CLI.
 - **`kernel/convo`** — Package convo collapses a multi-turn conversation into a single Agezt intent — the deliberate, lossy-by-design mapping that lets the single-intent governed loop carry conversational context.
 - **`kernel/creds`** — Package creds is the local credentials vault for provider env vars.
@@ -41,7 +44,6 @@
 - **`kernel/internal/testfixtures`** — Package testfixtures provides shared test helpers for kernel packages.
 - **`kernel/intervention`** — Package intervention defines the protocol grammar for safe live changes to a running agent.
 - **`kernel/journal`** — Package journal is the append-only, BLAKE3-hash-chained event log that backs the entire system.
-- **`kernel/jsonstore`** — Package jsonstore is the shared persistence plumbing for the kernel's single-file JSON stores (Phase 1.1 of docs/REFACTORING-SCAN-2026-08.md): a tolerant Load and an atomic Save that a dozen store packages previously hand-rolled with drifting behavior (four grew a Windows rename-retry, one silently swallowed corrupt files, two stripped BOMs, the rest did neither).
 - **`kernel/market`** — Package market is AGEZT's capability marketplace: it packages skills, MCP servers, and CLI-tool requirements into installable "packs", catalogues them in "marketplaces" (a built-in Official one plus, later, synced remotes), and installs a pack by materializing its parts into the systems that already run them — skills into the Forge, MCP servers into the MCP registry, tool needs reported to the Toolbox.
 - **`kernel/mcp`** — Package mcp is governed runtime self-install for MCP servers (M796): a durable registry of Model Context Protocol servers plus a minimal MCP client, so an agent (or operator) can ADD a server and ATTACH it while the daemon runs — no restart, no separate bridge binary, no env-var surgery.
 - **`kernel/memory`** — Package memory implements the memory store (ROADMAP §2.3): a journaled, content-addressed knowledge store that the agent loop reads as injected context and that the operator, the agent, and an auto-distiller can write to.
@@ -50,6 +52,9 @@
 - **`kernel/okr`** — Package okr is AGEZT's durable objectives-and-key-results spine: the layer that makes fleet work legible as progress toward goals rather than a flat task queue.
 - **`kernel/openaiapi`** — Package openaiapi serves an OpenAI-compatible HTTP surface (ROADMAP P7-API-01, SPEC-15 §3): POST /v1/chat/completions, POST /v1/responses, GET /v1/models and GET /v1/models/{id}, so any OpenAI client, SDK, or IDE can drive Agezt as if it were OpenAI.
 - **`kernel/planner`** — Package planner generates `scheduler.Plan`-shaped JSON from a natural-language intent by asking the configured Provider to emit a DAG.
+- **`kernel/platform/filestore`** — Package filestore is the persistence platform for the daemon's single-file JSON stores (architecture/20-target-architecture.md §5, layer L2): a tolerant Load, an atomic Save, and a cross-process Lock for files that more than one process writes (the vault and settings are written by both the daemon and `agt`).
+- **`kernel/platform/netout`** — Package netout is the outbound-HTTP platform (architecture/20-target- architecture.md §5, layer L2): the one place a client that dials out is built.
+- **`kernel/platform/sandbox`** — Package sandbox is the process platform (architecture/20-target-architecture.md §5, layer L2): the one place a child process is built outside kernel/warden's run-to-completion engine.
 - **`kernel/plugin`** — Package plugin is the kernel's out-of-process plugin host (M1.y).
 - **`kernel/plugin/testdata/echoplugin`** — Command echoplugin is a minimal reference implementation of the agezt plugin protocol.
 - **`kernel/plugin/testdata/floodplugin`** — Command floodplugin is a hostile-plugin fixture for the M177 frame bound: on startup it writes a large UN-terminated blob to stdout (no '\n'), simulating a plugin that floods the host's stdout reader.
@@ -64,7 +69,6 @@
 - **`kernel/roster`** — Package roster is the durable agent roster (M783): named, persistent agent profiles — an identity ("researcher", "ops-watcher") with its own soul (system prompt), model (+ ordered fallbacks), default task type, per-run spend ceiling, memory scope, and workspace subdirectory.
 - **`kernel/runtime`** — Package runtime wires the kernel subsystems (journal + state + bus + agent loop + providers + tools) into a single Kernel that the daemon hosts and the control plane drives.
 - **`kernel/runtime/accessors`** — Package accessors is the kernel's read-mostly surface extracted into a sub-package on Day 13 of the runtime split.
-- **`kernel/runtime/compose`** — Package compose is the kernel's composition-root surface extracted into a sub-package as the next step of the Day 12-20 sub-package split (lifecycle, accessors, types, compose).
 - **`kernel/runtime/lifecycle`** — Package lifecycle is the kernel's run-lifecycle surface extracted into a sub-package as the first step of the Day 12 sub-package split.
 - **`kernel/runtime/runexec`** — Package runexec owns the kernel's run engine.
 - **`kernel/runtime/types`** — Package types is the shared-type home for the value types the kernel/runtime sub-packages pass across the host/sub-package boundary.
@@ -93,5 +97,4 @@
 - **`kernel/webui`** — Package webui serves the Agezt Web UI (SPEC-07, decision A4): a React 19 + Vite single-page app, built to static assets and go:embed-ded into the daemon (see embed.go) — one binary, no Node at runtime, and no Go dependency added.
 - **`kernel/workboard`** — Package workboard is AGEZT's durable typed task queue.
 - **`kernel/workflow`** — Package workflow is the n8n-style workflow engine (M798): durable, named graphs of TYPED nodes — trigger, tool, llm, condition, transform, delay — wired by edges and carrying data between nodes with {{path}} templates.
-- **`kernel/workflowexec`** — Package workflowexec provides workflow graph execution: the RunWorkflow adapter and per-node dispatch.
 - **`kernel/worldmodel`** — Package worldmodel implements "World Model v1" (SPEC-05 §3): a journaled, content-addressed graph of the operator's world — the projects, repos, people, accounts, channels and topics they care about, and the weighted relations between them.

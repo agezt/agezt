@@ -12,7 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/vertex"
 )
 
@@ -73,11 +74,11 @@ func TestComplete_AnthropicModelRoutesToRawPredict(t *testing.T) {
 	// otherwise exercises the routing/encode/decode logic.
 	p.Endpoint = apiSrv.URL + "/v1/projects/test-project/locations/us-east5/publishers/anthropic/models/claude-opus-4-7@20251031:rawPredict"
 
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "claude-opus-4-7@20251031",
 		System:   "be terse",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
-		Tools: []agent.ToolDef{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
+		Tools: []toolapi.ToolDef{
 			{Name: "first", InputSchema: json.RawMessage(`{"type":"object"}`)},
 			{Name: "last", InputSchema: json.RawMessage(`{"type":"object"}`)},
 		},
@@ -88,7 +89,7 @@ func TestComplete_AnthropicModelRoutesToRawPredict(t *testing.T) {
 	if resp.Message.Content != "hi from vertex anthropic" {
 		t.Errorf("content = %q", resp.Message.Content)
 	}
-	if resp.StopReason != agent.StopEndTurn {
+	if resp.StopReason != llm.StopEndTurn {
 		t.Errorf("stop = %q", resp.StopReason)
 	}
 	if resp.Usage.InputTokens != 4 || resp.Usage.OutputTokens != 7 {
@@ -165,10 +166,10 @@ func TestComplete_AnthropicToolCallRoundTrip(t *testing.T) {
 	p := vertex.New(ts, "tp", "us-east5")
 	p.Endpoint = apiSrv.URL + "/x"
 
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model: "claude-opus-4-7@20251031",
-		Messages: []agent.Message{
-			{Role: agent.RoleUser, Content: "weather?"},
+		Messages: []llm.Message{
+			{Role: llm.RoleUser, Content: "weather?"},
 		},
 	})
 	if err != nil {
@@ -187,8 +188,8 @@ func TestComplete_AnthropicToolCallRoundTrip(t *testing.T) {
 	if !bytes.Contains(tc.Input, []byte(`"Istanbul"`)) {
 		t.Errorf("tool input = %s, missing Istanbul", string(tc.Input))
 	}
-	if resp.StopReason != agent.StopToolUse {
-		t.Errorf("stop = %q, want %q", resp.StopReason, agent.StopToolUse)
+	if resp.StopReason != llm.StopToolUse {
+		t.Errorf("stop = %q, want %q", resp.StopReason, llm.StopToolUse)
 	}
 }
 
@@ -220,9 +221,9 @@ func TestComplete_GeminiModelStillRoutesToGenerateContent(t *testing.T) {
 	p := vertex.New(ts, "tp", "us-central1")
 	p.Endpoint = apiSrv.URL + "/v1/projects/tp/locations/us-central1/publishers/google/models/gemini-1.5-flash:generateContent"
 
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "gemini-1.5-flash",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -290,8 +291,8 @@ func TestCompleteStream_AnthropicAssemblesText(t *testing.T) {
 	var got strings.Builder
 	resp, err := p.CompleteStream(
 		context.Background(),
-		agent.CompletionRequest{Model: "claude-opus-4-7@20251031"},
-		func(c agent.Chunk) error {
+		llm.CompletionRequest{Model: "claude-opus-4-7@20251031"},
+		func(c llm.Chunk) error {
 			got.WriteString(c.TextDelta)
 			return nil
 		},
@@ -305,7 +306,7 @@ func TestCompleteStream_AnthropicAssemblesText(t *testing.T) {
 	if resp.Message.Content != "Merhaba, dunya" {
 		t.Errorf("assembled = %q", resp.Message.Content)
 	}
-	if resp.StopReason != agent.StopEndTurn {
+	if resp.StopReason != llm.StopEndTurn {
 		t.Errorf("stop = %q", resp.StopReason)
 	}
 	if resp.Usage.InputTokens != 4 || resp.Usage.OutputTokens != 9 {
@@ -352,8 +353,8 @@ func TestCompleteStream_AnthropicToolUse(t *testing.T) {
 	)
 	resp, err := p.CompleteStream(
 		context.Background(),
-		agent.CompletionRequest{Model: "claude-sonnet-4-5@20250929"},
-		func(c agent.Chunk) error {
+		llm.CompletionRequest{Model: "claude-sonnet-4-5@20250929"},
+		func(c llm.Chunk) error {
 			if c.ToolUseStart != nil {
 				starts++
 			}
@@ -381,7 +382,7 @@ func TestCompleteStream_AnthropicToolUse(t *testing.T) {
 	if string(resp.Message.ToolCalls[0].Input) != `{"city":"Ankara"}` {
 		t.Errorf("assembled tool input = %s", string(resp.Message.ToolCalls[0].Input))
 	}
-	if resp.StopReason != agent.StopToolUse {
+	if resp.StopReason != llm.StopToolUse {
 		t.Errorf("stop = %q", resp.StopReason)
 	}
 }
@@ -410,8 +411,8 @@ func TestCompleteStream_GeminiModelStillUsesGeminiStreamPath(t *testing.T) {
 	var got strings.Builder
 	_, err := p.CompleteStream(
 		context.Background(),
-		agent.CompletionRequest{Model: "gemini-1.5-flash"},
-		func(c agent.Chunk) error {
+		llm.CompletionRequest{Model: "gemini-1.5-flash"},
+		func(c llm.Chunk) error {
 			got.WriteString(c.TextDelta)
 			return nil
 		},
@@ -446,8 +447,8 @@ func TestCompleteStream_AnthropicSurfacesAPIError(t *testing.T) {
 
 	_, err := p.CompleteStream(
 		context.Background(),
-		agent.CompletionRequest{Model: "claude-opus-4-7"},
-		func(agent.Chunk) error { return nil },
+		llm.CompletionRequest{Model: "claude-opus-4-7"},
+		func(llm.Chunk) error { return nil },
 	)
 	apiErr, ok := err.(*vertex.APIError)
 	if !ok {

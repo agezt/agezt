@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -101,35 +101,35 @@ func (k *Kernel) runSubAgentAsync(ctx context.Context, task, model, taskType, ag
 // tool context ends) and returns its result exactly once (M881). Only the
 // spawning run may collect — a foreign correlation asking for someone else's
 // spawn id is refused.
-func (k *Kernel) awaitSubAgent(ctx context.Context, spawnID string) (agent.Result, error) {
+func (k *Kernel) awaitSubAgent(ctx context.Context, spawnID string) (toolapi.Result, error) {
 	spawnID = strings.TrimSpace(spawnID)
 	if spawnID == "" {
-		return agent.Result{Output: "spawn_id required", IsError: true}, nil
+		return toolapi.Result{Output: "spawn_id required", IsError: true}, nil
 	}
 	k.spawnsMu.Lock()
 	h, ok := k.spawns[spawnID]
 	k.spawnsMu.Unlock()
 	if !ok {
-		return agent.Result{Output: fmt.Sprintf("unknown spawn id %q (already collected, cancelled, or never spawned)", spawnID), IsError: true}, nil
+		return toolapi.Result{Output: fmt.Sprintf("unknown spawn id %q (already collected, cancelled, or never spawned)", spawnID), IsError: true}, nil
 	}
 	if caller := correlationFromCtx(ctx); caller != "" && caller != h.parentCorr {
-		return agent.Result{Output: fmt.Sprintf("spawn %s belongs to another run", spawnID), IsError: true}, nil
+		return toolapi.Result{Output: fmt.Sprintf("spawn %s belongs to another run", spawnID), IsError: true}, nil
 	}
 	select {
 	case <-ctx.Done():
 		// The per-tool timeout (or a run-level cancel) fired while the child
 		// is still working. The handle stays collectable: the model can call
 		// delegate_await again; a genuine run cancel ends the loop upstream.
-		return agent.Result{Output: fmt.Sprintf("sub-agent %s is still running — call delegate_await again to keep waiting", spawnID), IsError: true}, nil
+		return toolapi.Result{Output: fmt.Sprintf("sub-agent %s is still running — call delegate_await again to keep waiting", spawnID), IsError: true}, nil
 	case <-h.done:
 	}
 	k.spawnsMu.Lock()
 	delete(k.spawns, spawnID)
 	k.spawnsMu.Unlock()
 	if h.err != nil {
-		return agent.Result{Output: "delegation failed: " + h.err.Error(), IsError: true}, nil
+		return toolapi.Result{Output: "delegation failed: " + h.err.Error(), IsError: true}, nil
 	}
-	return agent.Result{Output: h.answer}, nil
+	return toolapi.Result{Output: h.answer}, nil
 }
 
 // prepareSubAgent resolves and journals one delegation: every bound (depth,

@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
@@ -224,7 +224,7 @@ func TestDelegationBanner(t *testing.T) {
 	}
 
 	capped := open(t, kernelruntime.Config{
-		Tools:                      map[string]agent.Tool{},
+		Tools:                      map[string]toolapi.Tool{},
 		SubAgentTool:               true,
 		SubAgentMaxFanout:          3,
 		SubAgentMaxSpendMicrocents: 500_000_000, // $0.50

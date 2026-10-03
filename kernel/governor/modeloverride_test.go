@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
 )
 
@@ -18,7 +18,7 @@ type modelRecordingProvider struct {
 	gotModel string
 }
 
-func (p *modelRecordingProvider) Complete(ctx context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (p *modelRecordingProvider) Complete(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	p.gotModel = req.Model
 	return p.fakeProvider.Complete(ctx, req)
 }
@@ -38,10 +38,10 @@ func TestGovernor_TaskModelOverride_Applies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	_, err = g.Complete(context.Background(), agent.CompletionRequest{
+	_, err = g.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "expensive-default",
 		TaskType: "salience",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -66,10 +66,10 @@ func TestGovernor_TaskModelOverride_NoMatchingType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	_, err = g.Complete(context.Background(), agent.CompletionRequest{
+	_, err = g.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "expensive-default",
 		TaskType: "code",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -94,10 +94,10 @@ func TestGovernor_TaskModelOverride_EmptyTaskType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	_, err = g.Complete(context.Background(), agent.CompletionRequest{
+	_, err = g.Complete(context.Background(), llm.CompletionRequest{
 		Model: "user-pick",
 		// No TaskType.
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)

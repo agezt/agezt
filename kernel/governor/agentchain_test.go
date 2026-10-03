@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
 )
@@ -29,7 +29,7 @@ func TestPerRequestModelChain_FallsBack(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err := g.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{
 		ModelChain: []string{"model-a", "model-b"},
 	})
 	if err != nil {
@@ -77,7 +77,7 @@ func TestPerRequestModelChain_WinsOverTaskChain(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err := g.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{
 		TaskType:   "chat",
 		ModelChain: []string{"agent-model"},
 	})

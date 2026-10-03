@@ -17,21 +17,19 @@ import (
 	"mime"
 	stdhttp "net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/agezt/agezt/internal/strutil"
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/artifact"
-	"github.com/agezt/agezt/kernel/envscrub"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/platform/sandbox"
 )
 
 func runActionDriver(ctx context.Context, spec actionRunSpec) (actionRunOutput, error) {
-	cmd := exec.CommandContext(ctx, spec.NodePath, spec.DriverPath)
+	cmd := sandbox.CommandContext(ctx, spec.NodePath, spec.DriverPath)
 	cmd.Dir = spec.Dir
-	cmd.Env = envscrub.Scrubbed()
 	cmd.Stdin = bytes.NewReader(spec.Spec)
 	var stdout, stderr limitedBuffer
 	stdout.max = MaxActionDriverOutputBytes
@@ -218,8 +216,8 @@ func truncateActionOutput(s string) string {
 	return truncateUTF8(s, 4096) + "\n...[truncated]"
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: msg, IsError: true}
 }
 
 // ResolveActionDriverPath finds the bundled browser-use Playwright driver when

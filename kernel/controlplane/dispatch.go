@@ -79,12 +79,19 @@ const (
 //     TenantAllowed command must be TenantRouted, or a tenant token would
 //     read the PRIMARY kernel's data. whoami is the sole, explicit exception.
 //   - Streaming: see StreamMode.
+//   - ReadOnly: the command changes no state, so dispatch does not journal
+//     it. Every other command is journaled by dispatch itself — op.invoked
+//     before the handler runs, op.completed / op.failed after (see
+//     dispatch_audit.go) — so no handler can forget its audit record.
+//     Forgetting ReadOnly on a read only adds journal noise; the opposite
+//     mistake cannot happen by omission.
 type commandSpec struct {
 	Cmd           string
 	Handler       Handler
 	TenantAllowed bool
 	TenantRouted  bool
 	Streaming     StreamMode
+	ReadOnly      bool
 }
 
 // commandRegistry maps command name → spec. Populated once at init by

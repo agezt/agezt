@@ -10,7 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 )
@@ -23,21 +24,21 @@ type steerLoopProvider struct{}
 
 func (steerLoopProvider) Name() string { return "steer-loop" }
 
-func (steerLoopProvider) Complete(_ context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (steerLoopProvider) Complete(_ context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	for _, m := range req.Messages {
 		if strings.Contains(m.Content, "[operator steering] finish now") {
-			return &agent.CompletionResponse{
-				Message:    agent.Message{Role: agent.RoleAssistant, Content: "steered-done"},
-				StopReason: agent.StopEndTurn,
+			return &llm.CompletionResponse{
+				Message:    llm.Message{Role: llm.RoleAssistant, Content: "steered-done"},
+				StopReason: llm.StopEndTurn,
 			}, nil
 		}
 	}
-	return &agent.CompletionResponse{
-		Message: agent.Message{
-			Role:      agent.RoleAssistant,
-			ToolCalls: []agent.ToolCall{{ID: "t", Name: "tick", Input: json.RawMessage(`{}`)}},
+	return &llm.CompletionResponse{
+		Message: llm.Message{
+			Role:      llm.RoleAssistant,
+			ToolCalls: []llm.ToolCall{{ID: "t", Name: "tick", Input: json.RawMessage(`{}`)}},
 		},
-		StopReason: agent.StopToolUse,
+		StopReason: llm.StopToolUse,
 	}, nil
 }
 
@@ -46,12 +47,12 @@ func (steerLoopProvider) Complete(_ context.Context, req agent.CompletionRequest
 // MaxIter.
 type tickTool struct{}
 
-func (tickTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "tick", Description: "noop tick", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (tickTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "tick", Description: "noop tick", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
-func (tickTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
+func (tickTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
 	time.Sleep(10 * time.Millisecond)
-	return agent.Result{Output: "tick"}, nil
+	return toolapi.Result{Output: "tick"}, nil
 }
 
 // TestSteerRun_PauseInjectResume drives a live run: pause it, confirm it reports
@@ -61,7 +62,7 @@ func TestSteerRun_PauseInjectResume(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: steerLoopProvider{},
-		Tools:    map[string]agent.Tool{"tick": tickTool{}},
+		Tools:    map[string]toolapi.Tool{"tick": tickTool{}},
 		MaxIter:  500, // generous headroom so timing can't exhaust the loop
 	})
 	if err != nil {
@@ -149,10 +150,10 @@ type subDelegateSteerProvider struct{}
 
 func (subDelegateSteerProvider) Name() string { return "sub-steer" }
 
-func (subDelegateSteerProvider) Complete(_ context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (subDelegateSteerProvider) Complete(_ context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	var firstUser string
 	for _, m := range req.Messages {
-		if m.Role == agent.RoleUser {
+		if m.Role == llm.RoleUser {
 			firstUser = m.Content
 			break
 		}
@@ -161,29 +162,29 @@ func (subDelegateSteerProvider) Complete(_ context.Context, req agent.Completion
 		// Child path: end once steered, else keep ticking.
 		for _, m := range req.Messages {
 			if strings.Contains(m.Content, "[operator steering] finish now") {
-				return &agent.CompletionResponse{
-					Message:    agent.Message{Role: agent.RoleAssistant, Content: "child-steered-done"},
-					StopReason: agent.StopEndTurn,
+				return &llm.CompletionResponse{
+					Message:    llm.Message{Role: llm.RoleAssistant, Content: "child-steered-done"},
+					StopReason: llm.StopEndTurn,
 				}, nil
 			}
 		}
-		return &agent.CompletionResponse{
-			Message:    agent.Message{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "t", Name: "tick", Input: json.RawMessage(`{}`)}}},
-			StopReason: agent.StopToolUse,
+		return &llm.CompletionResponse{
+			Message:    llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "t", Name: "tick", Input: json.RawMessage(`{}`)}}},
+			StopReason: llm.StopToolUse,
 		}, nil
 	}
 	// Lead path: delegate once, then finish after the child's answer returns.
 	for _, m := range req.Messages {
-		if m.Role == agent.RoleTool {
-			return &agent.CompletionResponse{
-				Message:    agent.Message{Role: agent.RoleAssistant, Content: "lead-done"},
-				StopReason: agent.StopEndTurn,
+		if m.Role == llm.RoleTool {
+			return &llm.CompletionResponse{
+				Message:    llm.Message{Role: llm.RoleAssistant, Content: "lead-done"},
+				StopReason: llm.StopEndTurn,
 			}, nil
 		}
 	}
-	return &agent.CompletionResponse{
-		Message:    agent.Message{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "d", Name: "delegate", Input: json.RawMessage(`{"task":"CHILD-TASK loop until steered"}`)}}},
-		StopReason: agent.StopToolUse,
+	return &llm.CompletionResponse{
+		Message:    llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "d", Name: "delegate", Input: json.RawMessage(`{"task":"CHILD-TASK loop until steered"}`)}}},
+		StopReason: llm.StopToolUse,
 	}, nil
 }
 
@@ -195,7 +196,7 @@ func TestSteerRun_SubAgentIndividuallySteerable(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         subDelegateSteerProvider{},
-		Tools:            map[string]agent.Tool{"tick": tickTool{}},
+		Tools:            map[string]toolapi.Tool{"tick": tickTool{}},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 1,
 		MaxIter:          500, // headroom so timing can't exhaust the child loop

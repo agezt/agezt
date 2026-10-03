@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
 )
 
@@ -26,9 +26,9 @@ func TestComplete_NilResponse_ReturnsError(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	resp, err := g.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := g.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "m",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "q"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "q"}},
 	})
 	if err == nil {
 		t.Fatal("Complete returned a nil error for a (nil,nil) provider response; want an error, not a downstream panic")

@@ -10,20 +10,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
-// envFakeTool is a minimal agent.Tool with a controllable name/description for
+// envFakeTool is a minimal toolapi.Tool with a controllable name/description for
 // asserting the preamble's tool list.
 type envFakeTool struct {
 	name, desc string
 }
 
-func (f envFakeTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: f.name, Description: f.desc, InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (f envFakeTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: f.name, Description: f.desc, InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
-func (envFakeTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
-	return agent.Result{Output: "ok"}, nil
+func (envFakeTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
+	return toolapi.Result{Output: "ok"}, nil
 }
 
 // envShellTool also implements shellHinter so the preamble can report an exact,
@@ -37,7 +37,7 @@ func (s envShellTool) ShellHint() (string, string) { return s.bin, s.arg }
 
 func TestInjectEnvironment_CoreFields(t *testing.T) {
 	when := time.Date(2026, 6, 8, 12, 0, 0, 0, time.UTC)
-	tools := map[string]agent.Tool{
+	tools := map[string]toolapi.Tool{
 		"file":  envFakeTool{name: "file", desc: "Read, write, and search files within the workspace. Long details follow here."},
 		"shell": envShellTool{envFakeTool{name: "shell", desc: "Run a command."}, "cmd", "/C"},
 	}
@@ -71,7 +71,7 @@ func TestInjectEnvironment_CoreFields(t *testing.T) {
 
 func TestCapabilityBriefing_TunedToTools(t *testing.T) {
 	// A full tool set yields the emphatic, no-limits briefing with the relevant lines.
-	full := map[string]agent.Tool{
+	full := map[string]toolapi.Tool{
 		"shell":      envFakeTool{name: "shell", desc: "Run a command."},
 		"code_exec":  envFakeTool{name: "code_exec", desc: "Run code."},
 		"file":       envFakeTool{name: "file", desc: "Files."},
@@ -93,7 +93,7 @@ func TestCapabilityBriefing_TunedToTools(t *testing.T) {
 	}
 
 	// Tuned: no code_exec → no code line; no tool_forge → no forge line.
-	noCode := map[string]agent.Tool{"shell": full["shell"], "file": full["file"]}
+	noCode := map[string]toolapi.Tool{"shell": full["shell"], "file": full["file"]}
 	out2 := capabilityBriefing(noCode)
 	if strings.Contains(out2, "Python, Node/JavaScript") {
 		t.Errorf("briefing promised code execution without code_exec:\n%s", out2)
@@ -103,13 +103,13 @@ func TestCapabilityBriefing_TunedToTools(t *testing.T) {
 	}
 
 	// No build/run tools at all → empty briefing (nothing to promise).
-	if got := capabilityBriefing(map[string]agent.Tool{"notify": full["skill"]}); got != "" {
+	if got := capabilityBriefing(map[string]toolapi.Tool{"notify": full["skill"]}); got != "" {
 		t.Errorf("expected empty briefing with no build/run tools, got:\n%s", got)
 	}
 }
 
 func TestForgeBias_TunedToTools(t *testing.T) {
-	full := map[string]agent.Tool{
+	full := map[string]toolapi.Tool{
 		"code_exec":  envFakeTool{name: "code_exec", desc: "Run code."},
 		"tool_forge": envFakeTool{name: "tool_forge", desc: "Forge tools."},
 		"skill":      envFakeTool{name: "skill", desc: "Skills."},
@@ -128,17 +128,17 @@ func TestForgeBias_TunedToTools(t *testing.T) {
 	}
 
 	// Tuned: no tool_forge → no forge line; no code_exec → no script line.
-	noForge := map[string]agent.Tool{"code_exec": full["code_exec"]}
+	noForge := map[string]toolapi.Tool{"code_exec": full["code_exec"]}
 	if strings.Contains(forgeBias(noForge), "durable tool") {
 		t.Errorf("forge bias promised tool_forge when absent")
 	}
-	noCode := map[string]agent.Tool{"skill": full["skill"]}
+	noCode := map[string]toolapi.Tool{"skill": full["skill"]}
 	if strings.Contains(forgeBias(noCode), "Write a script") {
 		t.Errorf("forge bias promised code_exec when absent")
 	}
 
 	// None of code_exec/tool_forge/skill → empty (nothing to bias toward).
-	if got := forgeBias(map[string]agent.Tool{"notify": full["skill"]}); got != "" {
+	if got := forgeBias(map[string]toolapi.Tool{"notify": full["skill"]}); got != "" {
 		t.Errorf("expected empty forge bias with no relevant tools, got:\n%s", got)
 	}
 }

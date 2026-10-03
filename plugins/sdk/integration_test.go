@@ -14,7 +14,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/plugin"
 )
 
@@ -61,16 +61,16 @@ func buildGreetPlugin(t *testing.T) string {
 // into via sdk.CallHost / host/invoke.
 type upperTool struct{}
 
-func (upperTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "upper", Description: "uppercases text"}
+func (upperTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "upper", Description: "uppercases text"}
 }
 
-func (upperTool) Invoke(_ context.Context, input json.RawMessage) (agent.Result, error) {
+func (upperTool) Invoke(_ context.Context, input json.RawMessage) (toolapi.Result, error) {
 	var in struct {
 		Text string `json:"text"`
 	}
 	_ = json.Unmarshal(input, &in)
-	return agent.Result{Output: strings.ToUpper(in.Text)}, nil
+	return toolapi.Result{Output: strings.ToUpper(in.Text)}, nil
 }
 
 func spawnGreet(t *testing.T) *plugin.Plugin {
@@ -78,7 +78,7 @@ func spawnGreet(t *testing.T) *plugin.Plugin {
 	bin := buildGreetPlugin(t)
 	p, err := plugin.Spawn(context.Background(), plugin.Config{
 		Path:      bin,
-		HostTools: map[string]agent.Tool{"upper": upperTool{}},
+		HostTools: map[string]toolapi.Tool{"upper": upperTool{}},
 	})
 	if err != nil {
 		t.Fatalf("Spawn: %v", err)

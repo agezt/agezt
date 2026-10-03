@@ -47,9 +47,17 @@ func IsTransient(err error) bool {
 	if err == nil {
 		return false
 	}
-	// Context cancellation is not retryable
+	// Context cancellation is not retryable — checked first, so a cancelled
+	// request that an adapter wrapped as transient still stops immediately.
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
+	}
+	// The adapters' explicit signal: a request that never got an answer
+	// (connection refused/reset, DNS failure, ...). Without this check only
+	// net.Error timeouts retried and every other dial failure was final.
+	var te *TransientError
+	if errors.As(err, &te) {
+		return true
 	}
 	// Network errors — net.Error is an interface with Timeout() method
 	var netErr net.Error

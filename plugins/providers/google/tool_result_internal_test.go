@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // TestEncodeRequest_ToolResultControlBytesValidJSON pins M481: a tool result whose
@@ -15,11 +15,11 @@ import (
 // that are invalid JSON, failing the whole request encode and wedging the agent
 // loop on Gemini.
 func TestEncodeRequest_ToolResultControlBytesValidJSON(t *testing.T) {
-	msgs := []agent.Message{
-		{Role: agent.RoleUser, Content: "run it"},
-		{Role: agent.RoleTool, ToolCallID: "call-0", Content: "ANSI:\x1b[31mred\x1b[0m and NUL:\x00 done"},
+	msgs := []llm.Message{
+		{Role: llm.RoleUser, Content: "run it"},
+		{Role: llm.RoleTool, ToolCallID: "call-0", Content: "ANSI:\x1b[31mred\x1b[0m and NUL:\x00 done"},
 	}
-	body, err := encodeRequest("", msgs, nil, 0, false, 0, agent.Params{}, nil)
+	body, err := encodeRequest("", msgs, nil, 0, false, 0, llm.Params{}, nil)
 	if err != nil {
 		t.Fatalf("encodeRequest with control-byte tool result: %v", err)
 	}

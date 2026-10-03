@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // DefaultInitTimeout caps the initialize round-trip. Plugins that
@@ -155,7 +155,7 @@ type Config struct {
 	// invoke timeout caps the total damage. Operators wiring
 	// HostTools must avoid the cycle (don't re-include the
 	// plugin's own tools).
-	HostTools map[string]agent.Tool
+	HostTools map[string]toolapi.Tool
 }
 
 // Plugin manages one child process. Safe for concurrent calls.
@@ -242,18 +242,18 @@ type Plugin struct {
 
 // deathError returns the recorded cause of the plugin's death, or nil
 // if it has not been set. Safe to call from any goroutine (M178).
-func (r *remoteTool) Definition() agent.ToolDef { return r.def }
+func (r *remoteTool) Definition() toolapi.ToolDef { return r.def }
 
-func (r *remoteTool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+func (r *remoteTool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	if !r.plugin.IsAlive() {
-		return agent.Result{}, fmt.Errorf("plugin: tool %q unavailable (plugin process is dead: %v)",
+		return toolapi.Result{}, fmt.Errorf("plugin: tool %q unavailable (plugin process is dead: %v)",
 			r.def.Name, r.plugin.deathError())
 	}
 	res, err := r.plugin.Invoke(ctx, r.remoteName, raw)
 	if err != nil {
-		return agent.Result{}, err
+		return toolapi.Result{}, err
 	}
-	return agent.Result{
+	return toolapi.Result{
 		Output:  res.Output,
 		IsError: res.IsError,
 	}, nil

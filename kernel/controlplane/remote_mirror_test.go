@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -42,7 +42,7 @@ func TestRunRemoteExecutionProfileMirrorsPeerEventMetadata(t *testing.T) {
 
 	_, _, c, _ := startPairWithConfig(t, runtime.Config{
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools:    map[string]agent.Tool{"remote_run": remoteRunFooterTool{}},
+		Tools:    map[string]toolapi.Tool{"remote_run": remoteRunFooterTool{}},
 	})
 	var mirrored map[string]any
 	_, err := c.Stream(context.Background(), controlplane.CmdRun,
@@ -99,7 +99,7 @@ func TestRunRemoteExecutionProfileMirrorsRedactedPeerPayloads(t *testing.T) {
 
 	_, _, c, _ := startPairWithConfig(t, runtime.Config{
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools:    map[string]agent.Tool{"remote_run": remoteRunFooterTool{}},
+		Tools:    map[string]toolapi.Tool{"remote_run": remoteRunFooterTool{}},
 	})
 	var mirrored map[string]any
 	_, err := c.Stream(context.Background(), controlplane.CmdRun,
@@ -168,7 +168,7 @@ func TestRunRemoteExecutionProfileMirrorsPeerArtifactMetadata(t *testing.T) {
 
 	_, _, c, _ := startPairWithConfig(t, runtime.Config{
 		Provider: mock.New(mock.FinalText("ok")),
-		Tools:    map[string]agent.Tool{"remote_run": remoteRunFooterTool{}},
+		Tools:    map[string]toolapi.Tool{"remote_run": remoteRunFooterTool{}},
 	})
 	var mirrored map[string]any
 	_, err := c.Stream(context.Background(), controlplane.CmdRun,

@@ -64,8 +64,10 @@ func alertIssueKey(a Alert, ev *event.Event) string {
 
 // Start wires the notifier onto the bus: subscribe to everything, classify,
 // gate, deliver. Returns false (nothing started) when bus or sink is missing.
-// The goroutine stops on ctx cancellation or bus close; a panic in the loop is
-// recovered so a notifier bug can never crash the daemon (anomaly pattern).
+// The goroutine stops on ctx cancellation or bus close. A panic while handling
+// one event (a channel's delivery, say) is recovered and costs only that alert;
+// the recover used to sit outside the loop, so one panic silently ended
+// operator alerting for the rest of the daemon's life.
 func Start(ctx context.Context, b *bus.Bus, sink pulse.BriefSink, cfg Config) bool {
 	if b == nil || sink == nil {
 		return false
@@ -76,10 +78,7 @@ func Start(ctx context.Context, b *bus.Bus, sink pulse.BriefSink, cfg Config) bo
 	}
 	n := New(sink, cfg)
 	go func() {
-		defer func() {
-			sub.Cancel()
-			_ = recover() // a watcher panic must never take down the daemon
-		}()
+		defer sub.Cancel()
 		for {
 			select {
 			case <-ctx.Done():
@@ -88,11 +87,18 @@ func Start(ctx context.Context, b *bus.Bus, sink pulse.BriefSink, cfg Config) bo
 				if !ok {
 					return
 				}
-				n.Handle(ev)
+				handleSafely(n, ev)
 			}
 		}
 	}()
 	return true
+}
+
+// handleSafely confines a panic to the event that caused it: a notifier bug
+// must neither crash the daemon nor stop alerting.
+func handleSafely(n *Notifier, ev *event.Event) {
+	defer func() { _ = recover() }()
+	n.Handle(ev)
 }
 
 // payloadMap decodes an event payload object, tolerating nil/non-object

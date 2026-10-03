@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/google"
 )
 
@@ -26,9 +26,9 @@ func TestComplete_EmptyCandidatesErrorsNotPanic(t *testing.T) {
 
 	p := google.New("test-key")
 	p.Endpoint = srv.URL + "/v1beta/models/gemini-1.5-flash:generateContent"
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "gemini-1.5-flash",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err == nil {
 		t.Fatal("expected an error on empty candidates, got nil")

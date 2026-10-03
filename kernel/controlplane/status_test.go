@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/agent"
 
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -221,7 +221,7 @@ func TestStatus_Channels(t *testing.T) {
 func TestStatus_DelegationCeilings(t *testing.T) {
 	_, _, c, _ := startPairWithConfig(t, runtime.Config{
 		Provider:                   mock.New(mock.FinalText("ok")),
-		Tools:                      map[string]agent.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:                      map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:               true,
 		SubAgentMaxDepth:           0, // effective 1
 		SubAgentMaxFanout:          3,

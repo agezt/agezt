@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -23,16 +23,16 @@ type stubProvider struct {
 }
 
 func (s *stubProvider) Name() string { return s.name }
-func (s *stubProvider) Complete(_ context.Context, req agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (s *stubProvider) Complete(_ context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	s.callsSeen++
 	m := req.Model
 	if m == "" {
 		m = s.model
 	}
-	return &agent.CompletionResponse{
-		Message:    agent.Message{Role: agent.RoleAssistant, Content: "ok"},
-		StopReason: agent.StopEndTurn,
-		Usage:      agent.Usage{Model: m, InputTokens: s.inToks, OutputTokens: s.outToks},
+	return &llm.CompletionResponse{
+		Message:    llm.Message{Role: llm.RoleAssistant, Content: "ok"},
+		StopReason: llm.StopEndTurn,
+		Usage:      llm.Usage{Model: m, InputTokens: s.inToks, OutputTokens: s.outToks},
 	}, nil
 }
 
@@ -77,10 +77,10 @@ func TestTaskBudget_BlocksAfterCap(t *testing.T) {
 
 	// First call against "plan" — succeeds (pre-check passes; spend
 	// recorded post-call).
-	_, err := g.Complete(context.Background(), agent.CompletionRequest{
+	_, err := g.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "claude-opus-4-7",
 		TaskType: "plan",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
 	})
 	if err != nil {
 		t.Fatalf("first plan call: %v", err)
@@ -95,10 +95,10 @@ func TestTaskBudget_BlocksAfterCap(t *testing.T) {
 
 	// Second call against "plan" — rejected by the per-task budget
 	// pre-check; provider must NOT be invoked.
-	_, err = g.Complete(context.Background(), agent.CompletionRequest{
+	_, err = g.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "claude-opus-4-7",
 		TaskType: "plan",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
 	})
 	if err == nil {
 		t.Fatal("second plan call: expected ErrTaskBudgetExceeded")
@@ -117,10 +117,10 @@ func TestTaskBudget_BlocksAfterCap(t *testing.T) {
 
 	// Third call against a DIFFERENT task type — should succeed
 	// (per-task caps are scoped to their type).
-	_, err = g.Complete(context.Background(), agent.CompletionRequest{
+	_, err = g.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "claude-opus-4-7",
 		TaskType: "code",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "hi"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}},
 	})
 	if err != nil {
 		t.Errorf("call with un-capped task type 'code' rejected: %v", err)
@@ -141,18 +141,18 @@ func TestTaskBudget_NoTaskTypeBypassesCheck(t *testing.T) {
 	)
 
 	// Spend the cap on "plan".
-	_, err := g.Complete(context.Background(), agent.CompletionRequest{
+	_, err := g.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "claude-opus-4-7",
 		TaskType: "plan",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err != nil {
 		t.Fatalf("seed plan call: %v", err)
 	}
 	// Untagged call — should NOT be blocked.
-	_, err = g.Complete(context.Background(), agent.CompletionRequest{
+	_, err = g.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "claude-opus-4-7",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err != nil {
 		t.Errorf("untagged call rejected by per-task cap: %v", err)
@@ -167,10 +167,10 @@ func TestTaskBudget_NoTaskTypeBypassesCheck(t *testing.T) {
 func TestTaskBudget_NotConfiguredNeverBlocks(t *testing.T) {
 	g, stub := newGovernorWithTaskBudgets(t, nil, 0, "claude-opus-4-7")
 	for range 3 {
-		_, err := g.Complete(context.Background(), agent.CompletionRequest{
+		_, err := g.Complete(context.Background(), llm.CompletionRequest{
 			Model:    "claude-opus-4-7",
 			TaskType: "plan",
-			Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+			Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 		})
 		if err != nil {
 			t.Errorf("with no TaskBudgets, call rejected: %v", err)

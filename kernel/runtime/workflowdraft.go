@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/workflow"
 )
@@ -110,10 +110,10 @@ func (k *Kernel) draftLoop(ctx context.Context, corr, basePrompt, name, mode str
 	for attempt := 1; attempt <= 2; attempt++ {
 		// completeAux stamps CorrelationID (previously dropped here, leaving
 		// draft spend unattributable) alongside the workflow routing class.
-		resp, err := k.completeAux(ctx, corr, "workflow", agent.CompletionRequest{
+		resp, err := k.completeAux(ctx, corr, "workflow", llm.CompletionRequest{
 			Model:    model,
 			System:   workflowDraftSystem,
-			Messages: []agent.Message{{Role: agent.RoleUser, Content: prompt}},
+			Messages: []llm.Message{{Role: llm.RoleUser, Content: prompt}},
 		})
 		if err != nil {
 			return workflow.Workflow{}, fmt.Errorf("workflow %s: %w", mode, err)

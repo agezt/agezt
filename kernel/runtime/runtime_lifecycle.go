@@ -9,7 +9,6 @@ package runtime
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -19,7 +18,6 @@ import (
 	"github.com/agezt/agezt/kernel/assure"
 	"github.com/agezt/agezt/kernel/event"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
-	"github.com/agezt/agezt/kernel/runtime/runexec"
 )
 
 func (k *Kernel) Halted() bool { return k.halted }
@@ -83,16 +81,10 @@ func (k *Kernel) ArtifactStore() *artifact.Store { return k.artifacts }
 // DescribeImages runs the vision SIDECAR (M821). The body lives
 // in the runexec sub-package's Runner (Day 33); this wrapper
 // preserves the legacy *Kernel.DescribeImages public surface.
-// The Runner returns its own runexec.ErrNoVisionModel sentinel
-// (separate identity, same text) — the wrapper translates to
-// the canonical runtime.ErrNoVisionModel so external callers
-// can errors.Is the canonical value.
+// runtime.ErrNoVisionModel is the same value as the Runner's
+// sentinel, so the error passes through unchanged.
 func (k *Kernel) DescribeImages(ctx context.Context, corr string, images []string, hint string) (string, error) {
-	desc, err := k.runexec.DescribeImages(ctx, corr, images, hint)
-	if errors.Is(err, runexec.ErrNoVisionModel) {
-		return desc, ErrNoVisionModel
-	}
-	return desc, err
+	return k.runexec.DescribeImages(ctx, corr, images, hint)
 }
 
 // MaybeDistill folds the run's journal and, if the run made

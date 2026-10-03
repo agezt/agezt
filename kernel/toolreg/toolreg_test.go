@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -23,12 +23,12 @@ func resetRegistryForTest() {
 	registry = map[string]Spec{}
 }
 
-// fakeTool is a minimal agent.Tool with a fixed name.
+// fakeTool is a minimal toolapi.Tool with a fixed name.
 type fakeTool struct{ name string }
 
-func (f *fakeTool) Definition() agent.ToolDef { return agent.ToolDef{Name: f.name} }
-func (f *fakeTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
-	return agent.Result{}, nil
+func (f *fakeTool) Definition() toolapi.ToolDef { return toolapi.ToolDef{Name: f.name} }
+func (f *fakeTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
+	return toolapi.Result{}, nil
 }
 
 // fakeGuarded is a netguard-capable fake: it records the callback it received.
@@ -91,7 +91,7 @@ func TestBuildAllSkipsUnbuiltAndCollectsExtra(t *testing.T) {
 	Register(Spec{Name: "family", Build: func(BuildDeps) (Built, error) {
 		return Built{
 			Tool: &fakeTool{name: "family"},
-			Extra: map[string]agent.Tool{
+			Extra: map[string]toolapi.Tool{
 				"family.a": &fakeTool{name: "family.a"},
 				"family.b": &fakeTool{name: "family.b"},
 			},
@@ -154,7 +154,7 @@ func TestConfigureInvokesHooksInRegistrationOrder(t *testing.T) {
 		Register(Spec{
 			Name:  name,
 			Build: func(BuildDeps) (Built, error) { return Built{Tool: &fakeTool{name: name}}, nil },
-			Configure: func(tool agent.Tool, d KernelDeps) error {
+			Configure: func(tool toolapi.Tool, d KernelDeps) error {
 				order = append(order, name)
 				if tool.Definition().Name != name {
 					t.Errorf("Configure(%s) got tool %q", name, tool.Definition().Name)
@@ -183,7 +183,7 @@ func TestConfigureHookErrorNamesSpec(t *testing.T) {
 	Register(Spec{
 		Name:      "fragile",
 		Build:     func(BuildDeps) (Built, error) { return Built{Tool: &fakeTool{name: "fragile"}}, nil },
-		Configure: func(agent.Tool, KernelDeps) error { return errors.New("nope") },
+		Configure: func(toolapi.Tool, KernelDeps) error { return errors.New("nope") },
 	})
 	set, err := BuildAll(BuildDeps{})
 	if err != nil {
@@ -201,7 +201,7 @@ func TestConfigureAutoWiresNetguard(t *testing.T) {
 	extra := &fakeGuarded{fakeTool: fakeTool{name: "netmain.verb"}}
 	plain := &fakeTool{name: "plain"}
 	Register(Spec{Name: "netmain", Netguard: true, Build: func(BuildDeps) (Built, error) {
-		return Built{Tool: main, Extra: map[string]agent.Tool{"netmain.verb": extra}}, nil
+		return Built{Tool: main, Extra: map[string]toolapi.Tool{"netmain.verb": extra}}, nil
 	}})
 	Register(Spec{Name: "plain", Build: func(BuildDeps) (Built, error) {
 		return Built{Tool: plain}, nil
@@ -284,7 +284,7 @@ func TestBuildAllYieldOnConflictDropsLaterClaimant(t *testing.T) {
 	}})
 	Register(Spec{Name: "plugins", YieldOnConflict: true, Build: func(BuildDeps) (Built, error) {
 		return Built{
-			Extra: map[string]agent.Tool{
+			Extra: map[string]toolapi.Tool{
 				"px.shared": &fakeTool{name: "px.shared"}, // collides — must lose
 				"px.other":  &fakeTool{name: "px.other"},  // unique — must load
 			},
@@ -346,8 +346,8 @@ func TestApplyPreOpenAndConfigureLate(t *testing.T) {
 	Register(Spec{
 		Name:    "hooked",
 		Build:   func(BuildDeps) (Built, error) { return Built{Tool: &fakeTool{name: "hooked"}}, nil },
-		PreOpen: func(tool agent.Tool, cfg *runtime.Config) { calls = append(calls, "preopen") },
-		Late: func(tool agent.Tool, d LateDeps) error {
+		PreOpen: func(tool toolapi.Tool, cfg *runtime.Config) { calls = append(calls, "preopen") },
+		Late: func(tool toolapi.Tool, d LateDeps) error {
 			calls = append(calls, "late")
 			return nil
 		},

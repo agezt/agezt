@@ -19,8 +19,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/compat"
 )
 
@@ -137,9 +137,9 @@ func TestBuild_AnthropicFamilyRoutesToAnthropicWire(t *testing.T) {
 	if prov.Name() != "anthropic" {
 		t.Errorf("Name()=%q want catalog id 'anthropic'", prov.Name())
 	}
-	resp, err := prov.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := prov.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "claude-opus-4-7",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -195,9 +195,9 @@ func TestBuild_AnthropicThirdPartyBaseURLNoDoubleVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if _, err := prov.Complete(context.Background(), agent.CompletionRequest{
+	if _, err := prov.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "MiniMax-M2.7",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
 	}); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
@@ -238,9 +238,9 @@ func TestBuild_OpenAIFamilyRoutesToOpenAIWire(t *testing.T) {
 	if prov.Name() != "openai" {
 		t.Errorf("Name()=%q want catalog id 'openai'", prov.Name())
 	}
-	resp, err := prov.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := prov.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "gpt-4o-mini",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -297,9 +297,9 @@ func TestBuild_OpenAICompatibleFamilyRoutesToOpenAIWire(t *testing.T) {
 	if prov.Name() != "groq" {
 		t.Errorf("Name()=%q want 'groq'", prov.Name())
 	}
-	if _, err := prov.Complete(context.Background(), agent.CompletionRequest{
+	if _, err := prov.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "llama-3.3-70b-versatile",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
 	}); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
@@ -333,9 +333,9 @@ func TestBuild_OllamaFamilyRoutesToOllamaWire(t *testing.T) {
 	if prov.Name() != "ollama-local" {
 		t.Errorf("Name()=%q want 'ollama-local'", prov.Name())
 	}
-	resp, err := prov.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := prov.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "llama3.2",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -421,9 +421,9 @@ func TestBuild_VertexFamilyRoutesToVertexWire(t *testing.T) {
 	if prov.Name() != "google-vertex" {
 		t.Errorf("Name()=%q want 'google-vertex'", prov.Name())
 	}
-	resp, err := prov.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := prov.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "gemini-1.5-flash",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -497,9 +497,9 @@ func TestBuild_VertexFamilyRoutesClaudeToAnthropicWire(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	resp, err := prov.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := prov.Complete(context.Background(), llm.CompletionRequest{
 		Model:    model,
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -596,9 +596,9 @@ func TestBuild_VertexMetadataAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build (metadata auth): %v", err)
 	}
-	resp, err := prov.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := prov.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "gemini-1.5-flash",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -658,9 +658,9 @@ func TestBuild_BedrockFamilyRoutesToBedrockWire(t *testing.T) {
 	if prov.Name() != "amazon-bedrock" {
 		t.Errorf("Name()=%q want 'amazon-bedrock'", prov.Name())
 	}
-	resp, err := prov.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := prov.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "anthropic.claude-opus-4-7",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -777,9 +777,9 @@ func TestBuild_AzureFamilyRoutesToOpenAIWireWithAzureURL(t *testing.T) {
 	if prov.Name() != "azure" {
 		t.Errorf("Name()=%q want 'azure'", prov.Name())
 	}
-	resp, err := prov.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := prov.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "my-gpt4o-deployment",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -842,9 +842,9 @@ func TestBuild_AzureDeploymentNameEscapedIntoURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if _, err := prov.Complete(context.Background(), agent.CompletionRequest{
+	if _, err := prov.Complete(context.Background(), llm.CompletionRequest{
 		Model:    evilID,
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
 	}); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
@@ -892,9 +892,9 @@ func TestBuild_AzureURLBuildsFromResourceWhenAPIEmpty(t *testing.T) {
 	// Issue a Complete that will fail (network) but the error will
 	// embed the URL we tried to reach — proves the URL was built
 	// from the env'd resource.
-	_, err = prov.Complete(context.Background(), agent.CompletionRequest{
+	_, err = prov.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "my-deployment",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err == nil {
 		t.Fatal("expected network error")
@@ -989,9 +989,9 @@ func TestBuild_CohereFamilyRoutesToCohereWire(t *testing.T) {
 	if prov.Name() != "cohere" {
 		t.Errorf("Name()=%q want 'cohere'", prov.Name())
 	}
-	resp, err := prov.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := prov.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "command-r-plus",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -1051,9 +1051,9 @@ func TestBuild_GoogleFamilyRoutesToGeminiWire(t *testing.T) {
 	if prov.Name() != "google" {
 		t.Errorf("Name()=%q want 'google'", prov.Name())
 	}
-	resp, err := prov.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := prov.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "gemini-1.5-flash",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "ping"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "ping"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -1171,9 +1171,9 @@ func TestBuild_MistralRoutesThroughOpenAIWire(t *testing.T) {
 	if prov.Name() != "mistral" {
 		t.Errorf("Name()=%q want 'mistral'", prov.Name())
 	}
-	resp, err := prov.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := prov.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "mistral-small-latest",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "salut"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "salut"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -1283,7 +1283,7 @@ func TestFirstModelID_EmptyOrNil(t *testing.T) {
 
 // TestBuild_PreservesStreamingCapability locks in the M1.q.x
 // wrapNamed contract: when the inner adapter implements
-// agent.StreamingProvider (Anthropic in M1.q; OpenAI + family in
+// llm.StreamingProvider (Anthropic in M1.q; OpenAI + family in
 // M1.q.x), the wrapped provider returned by Build MUST still type-
 // assert as a StreamingProvider. Otherwise the namedProvider wrapper
 // silently dropped the capability — that bug would break
@@ -1314,8 +1314,8 @@ func TestBuild_PreservesStreamingCapability(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Build: %v", err)
 			}
-			if _, ok := prov.(agent.StreamingProvider); !ok {
-				t.Errorf("Build returned %T which does not implement agent.StreamingProvider — wrapper dropped the capability", prov)
+			if _, ok := prov.(llm.StreamingProvider); !ok {
+				t.Errorf("Build returned %T which does not implement llm.StreamingProvider — wrapper dropped the capability", prov)
 			}
 		})
 	}
@@ -1352,8 +1352,8 @@ func TestBuild_VertexPreservesStreamingCapability(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if _, ok := prov.(agent.StreamingProvider); !ok {
-		t.Errorf("Build returned %T which does not implement agent.StreamingProvider — wrapper dropped the capability for google-vertex", prov)
+	if _, ok := prov.(llm.StreamingProvider); !ok {
+		t.Errorf("Build returned %T which does not implement llm.StreamingProvider — wrapper dropped the capability for google-vertex", prov)
 	}
 }
 
@@ -1372,8 +1372,8 @@ func TestBuild_OllamaPreservesStreamingCapability(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if _, ok := prov.(agent.StreamingProvider); !ok {
-		t.Errorf("Build returned %T which does not implement agent.StreamingProvider — wrapper dropped capability for ollama", prov)
+	if _, ok := prov.(llm.StreamingProvider); !ok {
+		t.Errorf("Build returned %T which does not implement llm.StreamingProvider — wrapper dropped capability for ollama", prov)
 	}
 }
 
@@ -1399,8 +1399,8 @@ func TestBuild_BedrockAdvertisesStreaming(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if _, ok := prov.(agent.StreamingProvider); !ok {
-		t.Errorf("bedrock should advertise agent.StreamingProvider (M1.t shipped streaming), but did not")
+	if _, ok := prov.(llm.StreamingProvider); !ok {
+		t.Errorf("bedrock should advertise llm.StreamingProvider (M1.t shipped streaming), but did not")
 	}
 }
 

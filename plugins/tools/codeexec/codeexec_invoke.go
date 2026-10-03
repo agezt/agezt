@@ -16,15 +16,15 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/warden"
 )
 
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("code_exec: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("code_exec: parse input: %w", err)
 	}
 	lang := strings.TrimSpace(in.Language)
 	interp, ok := t.Runtimes[lang]

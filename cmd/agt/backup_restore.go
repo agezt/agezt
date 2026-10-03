@@ -207,7 +207,7 @@ func verifyHomeJournal(home string) (int64, string, error) {
 	if segs, _ := filepath.Glob(filepath.Join(dir, "*.jsonl")); len(segs) == 0 {
 		return 0, "", fmt.Errorf("no journal at %s", dir)
 	}
-	j, err := journal.Open(dir, journal.Options{})
+	j, err := journal.Open(dir, journal.Options{FailOnCorruption: true})
 	if err != nil {
 		return 0, "", fmt.Errorf("open journal: %w", err)
 	}

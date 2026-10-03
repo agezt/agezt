@@ -13,9 +13,9 @@ import ()
 
 func registerWorkboardCommands() {
 	register(
-		commandSpec{Cmd: CmdWorkboardList, Handler: func(dc *DispatchCtx) { dc.S.handleWorkboardList(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdWorkboardLanes, Handler: func(dc *DispatchCtx) { dc.S.handleWorkboardLanes(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdWorkboardShow, Handler: func(dc *DispatchCtx) { dc.S.handleWorkboardShow(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdWorkboardList, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleWorkboardList(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdWorkboardLanes, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleWorkboardLanes(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdWorkboardShow, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleWorkboardShow(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdWorkboardCreate, Handler: func(dc *DispatchCtx) { dc.S.handleWorkboardCreate(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdWorkboardClaim, Handler: func(dc *DispatchCtx) { dc.S.handleWorkboardClaim(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdWorkboardHeartbeat, Handler: func(dc *DispatchCtx) { dc.S.handleWorkboardHeartbeat(dc.Conn, dc.Req) }},
@@ -33,6 +33,6 @@ func registerWorkboardCommands() {
 		commandSpec{Cmd: CmdWorkboardReclaim, Handler: func(dc *DispatchCtx) { dc.S.handleWorkboardReclaim(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdWorkboardSweep, Handler: func(dc *DispatchCtx) { dc.S.handleWorkboardSweep(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdWorkboardDispatch, Handler: func(dc *DispatchCtx) { dc.S.handleWorkboardDispatch(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdWorkboardWatch, Handler: func(dc *DispatchCtx) { dc.S.handleWorkboardWatch(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdWorkboardWatch, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleWorkboardWatch(dc.Conn, dc.Req) }},
 	)
 }

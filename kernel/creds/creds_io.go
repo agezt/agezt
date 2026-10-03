@@ -10,10 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/agezt/agezt/internal/atomicfile"
+	"github.com/agezt/agezt/kernel/platform/filestore"
 )
 
 // Load reads the vault file. A missing file is treated as an empty
@@ -28,49 +29,60 @@ import (
 func (s *Store) Load() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	m, encrypted, openedWith, err := s.readFile(s.passphraseFn())
+	if err != nil {
+		return err
+	}
+	s.data, s.wasEncrypted, s.openedWith, s.pending = m, encrypted, openedWith, nil
+	return nil
+}
+
+// readFile decodes the vault file as it is on disk now. A missing or empty file
+// is an empty vault. An encrypted file is opened with the first passphrase that
+// works (empty candidates skipped) and reports which one did.
+func (s *Store) readFile(passphrases ...string) (data map[string]string, encrypted bool, openedWith string, err error) {
 	raw, err := os.ReadFile(s.Path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			s.data = map[string]string{}
-			s.wasEncrypted = false
-			return nil
+			return map[string]string{}, false, "", nil
 		}
-		return fmt.Errorf("creds: read %q: %w", s.Path, err)
+		return nil, false, "", fmt.Errorf("creds: read %q: %w", s.Path, err)
 	}
 	if len(raw) == 0 {
-		s.data = map[string]string{}
-		s.wasEncrypted = false
-		return nil
+		return map[string]string{}, false, "", nil
 	}
-	if isEncryptedVault(raw) {
-		passphrase := s.passphraseFn()
-		if passphrase == "" {
-			return ErrPassphraseRequired
+	if !isEncryptedVault(raw) {
+		// Legacy plaintext path (M1.o-compatible).
+		var m map[string]string
+		if err := json.Unmarshal(raw, &m); err != nil {
+			return nil, false, "", fmt.Errorf("creds: parse %q: %w", s.Path, err)
 		}
-		m, err := decryptVault(raw, passphrase)
-		if err != nil {
-			// A machine-derived key (M934) that fails usually means the vault
-			// file came from ANOTHER machine/user, or was encrypted with an
-			// explicit passphrase that is no longer in the env — say so, the
-			// bare "wrong passphrase" reads like corruption to an operator who
-			// never set one. (Only when the machine key was the one tried.)
-			if errors.Is(err, ErrWrongPassphrase) && strings.HasPrefix(passphrase, "machine-v1:") {
-				return fmt.Errorf("%w (the machine-bound key did not open it: the vault was likely encrypted on another machine/user, or with an explicit %s — set that env var to unlock)", err, PassphraseEnvVar)
-			}
-			return err
+		if m == nil {
+			m = map[string]string{}
 		}
-		s.data = m
-		s.wasEncrypted = true
-		return nil
+		return m, false, "", nil
 	}
-	// Legacy plaintext path (M1.o-compatible).
-	var m map[string]string
-	if err := json.Unmarshal(raw, &m); err != nil {
-		return fmt.Errorf("creds: parse %q: %w", s.Path, err)
+	var lastErr error = ErrPassphraseRequired
+	triedMachine := false
+	for i, p := range passphrases {
+		if p == "" || slices.Contains(passphrases[:i], p) {
+			continue
+		}
+		m, err := decryptVault(raw, p)
+		if err == nil {
+			return m, true, p, nil
+		}
+		lastErr = err
+		triedMachine = triedMachine || strings.HasPrefix(p, "machine-v1:")
 	}
-	s.data = m
-	s.wasEncrypted = false
-	return nil
+	// A machine-derived key (M934) that fails usually means the vault file came
+	// from ANOTHER machine/user, or was encrypted with an explicit passphrase
+	// that is no longer in the env — say so, the bare "wrong passphrase" reads
+	// like corruption to an operator who never set one.
+	if errors.Is(lastErr, ErrWrongPassphrase) && triedMachine {
+		return nil, false, "", fmt.Errorf("%w (the machine-bound key did not open it: the vault was likely encrypted on another machine/user, or with an explicit %s — set that env var to unlock)", lastErr, PassphraseEnvVar)
+	}
+	return nil, false, "", lastErr
 }
 
 // Save writes the vault file atomically (write-temp-then-rename) so a
@@ -83,29 +95,60 @@ func (s *Store) Load() error {
 // unset, Save writes plaintext. Operators "upgrade" a plaintext
 // vault by setting the env var and calling Save (e.g. via any
 // `agt provider creds set`).
+//
+// Save writes this Store's changes (Set/Remove since the last Load or Save)
+// onto the file as it is NOW, under a cross-process lock — not this Store's
+// whole map — so a key another process saved in the meantime survives. See
+// commitLocked.
 func (s *Store) Save() error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if err := os.MkdirAll(filepath.Dir(s.Path), 0755); err != nil {
-		return fmt.Errorf("creds: ensure dir: %w", err)
-	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.commitLocked(s.passphraseFn())
+}
 
+// commitLocked is the vault's only write path. Under the cross-process file
+// lock it re-reads the file, applies exactly this Store's pending changes, and
+// writes the result encrypted with writePass ("" writes plaintext). The merged
+// result becomes the in-memory view, so this Store also picks up whatever other
+// writers saved since it loaded.
+//
+// Re-reading is what makes concurrent writers safe: the daemon and `agt` each
+// hold a Store over the same file, and saving a whole in-memory map would let
+// the later save delete the keys the earlier one added. A file this Store
+// cannot open is an error — overwriting what it could not read is how a vault
+// gets clobbered.
+//
+// Caller holds s.mu for writing.
+func (s *Store) commitLocked(writePass string) error {
+	unlock, err := filestore.Lock(s.Path)
+	if err != nil {
+		return fmt.Errorf("creds: %w", err)
+	}
+	defer unlock()
+	merged, _, _, err := s.readFile(s.openedWith, s.passphraseFn(), writePass)
+	if err != nil {
+		return fmt.Errorf("creds: re-read before save: %w", err)
+	}
+	for name, v := range s.pending {
+		if v == nil {
+			delete(merged, name)
+		} else {
+			merged[name] = *v
+		}
+	}
 	var raw []byte
-	if passphrase := s.passphraseFn(); passphrase != "" {
-		out, err := encryptVault(s.data, passphrase)
-		if err != nil {
+	if writePass != "" {
+		if raw, err = encryptVault(merged, writePass); err != nil {
 			return fmt.Errorf("creds: encrypt: %w", err)
 		}
-		raw = out
-	} else {
-		out, err := json.MarshalIndent(s.data, "", "  ")
-		if err != nil {
-			return fmt.Errorf("creds: marshal: %w", err)
-		}
-		raw = out
+	} else if raw, err = json.MarshalIndent(merged, "", "  "); err != nil {
+		return fmt.Errorf("creds: marshal: %w", err)
 	}
-
-	return atomicWriteVault(s.Path, raw)
+	if err := atomicWriteVault(s.Path, raw); err != nil {
+		return err
+	}
+	s.data, s.pending, s.openedWith, s.wasEncrypted = merged, nil, writePass, writePass != ""
+	return nil
 }
 
 // atomicWriteVault writes data to path atomically: a UNIQUE temp file in the same
@@ -122,16 +165,17 @@ func atomicWriteVault(path string, data []byte) error {
 }
 
 // Rotate re-encrypts the vault under a new passphrase, atomically
-// replacing the on-disk file (M1.ee). Caller MUST have already
-// called Load successfully — Rotate reads the in-memory plaintext,
-// so a fresh Store with no Load would silently write an empty
-// vault under the new passphrase.
+// replacing the on-disk file (M1.ee). Like Save it re-reads the file under
+// the cross-process lock and re-encrypts THAT (plus this Store's pending
+// changes), so a key another process saved since this Store loaded is carried
+// over rather than dropped, and a Store that never loaded cannot write an
+// empty vault.
 //
 // Algorithm:
 //  1. Validate the new passphrase is non-empty (rejecting "" here
 //     prevents accidentally turning the vault plaintext without
 //     using `agt vault decrypt`).
-//  2. Re-encrypt the in-memory data under newPassphrase using the
+//  2. Re-encrypt the current file contents under newPassphrase using the
 //     standard encrypt path (fresh salt + nonce per save — see
 //     encrypt.go's encryptVault).
 //  3. Atomic write (write-temp + rename) so a crash mid-rotation
@@ -160,19 +204,11 @@ func (s *Store) Rotate(newPassphrase string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := os.MkdirAll(filepath.Dir(s.Path), 0755); err != nil {
-		return fmt.Errorf("creds: ensure dir: %w", err)
-	}
-	raw, err := encryptVault(s.data, newPassphrase)
-	if err != nil {
-		return fmt.Errorf("creds: rotate encrypt: %w", err)
-	}
-	if err := atomicWriteVault(s.Path, raw); err != nil {
+	if err := s.commitLocked(newPassphrase); err != nil {
 		return fmt.Errorf("creds: rotate: %w", err)
 	}
 	// In-memory passphrase function now points at the new value so
 	// subsequent Save() calls don't need the env var updated.
 	s.passphraseFn = func() string { return newPassphrase }
-	s.wasEncrypted = true
 	return nil
 }

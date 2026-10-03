@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 func f64(v float64) *float64 { return &v }
@@ -18,8 +18,8 @@ func iptr(v int) *int        { return &v }
 // of any sampling option — the default-preserving contract. With no MaxTokens
 // either, the whole `options` object stays omitted.
 func TestEncodeRequest_ParamsUnset(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
-	body, err := encodeRequest("llama3", "", msgs, nil, 0, false, agent.Params{}, nil)
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
+	body, err := encodeRequest("llama3", "", msgs, nil, 0, false, llm.Params{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,8 +36,8 @@ func TestEncodeRequest_ParamsUnset(t *testing.T) {
 // TestEncodeRequest_ParamsSet (M997): Ollama nests sampling knobs inside the
 // `options` map (alongside num_predict), keyed by Ollama's own option names.
 func TestEncodeRequest_ParamsSet(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
-	p := agent.Params{
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
+	p := llm.Params{
 		Temperature: f64(0.2),
 		TopP:        f64(0.9),
 		TopK:        iptr(40),
@@ -90,9 +90,9 @@ func TestEncodeRequest_ParamsSet(t *testing.T) {
 // TestEncodeRequest_ProviderOptionsMerge (M997): a ProviderOptions["ollama"]
 // object is overlaid onto the wire body; an unset map changes nothing.
 func TestEncodeRequest_ProviderOptionsMerge(t *testing.T) {
-	msgs := []agent.Message{{Role: agent.RoleUser, Content: "hi"}}
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hi"}}
 	extra := json.RawMessage(`{"keep_alive":"10m"}`)
-	body, err := encodeRequest("llama3", "", msgs, nil, 0, false, agent.Params{}, extra)
+	body, err := encodeRequest("llama3", "", msgs, nil, 0, false, llm.Params{}, extra)
 	if err != nil {
 		t.Fatal(err)
 	}

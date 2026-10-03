@@ -12,13 +12,13 @@ import (
 	"sort"
 	"time"
 
-	"github.com/agezt/agezt/kernel/jsonstore"
+	"github.com/agezt/agezt/kernel/platform/filestore"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
 func Open(dir string) (*Store, error) {
 	s := &Store{now: time.Now}
-	path, err := jsonstore.LoadFrom(dir, "standing.json", &s.orders)
+	path, err := filestore.LoadFrom(dir, "standing.json", &s.orders)
 	if err != nil {
 		return nil, fmt.Errorf("standing: %w", err)
 	}
@@ -175,5 +175,5 @@ func (s *Store) Count() int {
 }
 
 func (s *Store) save() error {
-	return jsonstore.Save(s.path, s.orders)
+	return filestore.Save(s.path, s.orders)
 }

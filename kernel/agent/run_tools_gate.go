@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -203,7 +204,7 @@ func executeToolJobs(ctx context.Context, cfg LoopConfig, jobs []*toolJob) {
 // without the DeadlineExceeded sentinel (e.g. the warden's "context deadline
 // exceeded" string) is still classified cleanly.
 func invokeToolJob(ctx context.Context, cfg LoopConfig, job *toolJob) {
-	toolCtx := WithCorrelation(ctx, cfg.CorrelationID)
+	toolCtx := toolapi.WithCorrelation(ctx, cfg.CorrelationID)
 	var toolCancel context.CancelFunc
 	if cfg.ToolTimeout > 0 {
 		toolCtx, toolCancel = context.WithTimeout(toolCtx, cfg.ToolTimeout)

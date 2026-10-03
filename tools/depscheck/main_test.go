@@ -70,8 +70,9 @@ func TestGoModOnlyListsCompiledDeps(t *testing.T) {
 		"golang.org/x/crypto":           true,
 		"golang.org/x/mod":              true,
 		// golang.org/x/net removed — now a DIRECT dep (browser tool PSL).
-		"golang.org/x/sync":    true,
-		"golang.org/x/sys":     true,
+		"golang.org/x/sync": true,
+		// golang.org/x/sys removed — now a DIRECT dep (platform/filestore's
+		// cross-process lock: flock / LockFileEx).
 		"golang.org/x/term":    true,
 		"golang.org/x/text":    true,
 		"golang.org/x/tools":   true,

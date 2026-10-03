@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -21,20 +21,20 @@ type failThenOKProvider struct {
 
 func (p *failThenOKProvider) Name() string { return "fail-then-ok" }
 
-func (p *failThenOKProvider) Complete(context.Context, agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (p *failThenOKProvider) Complete(context.Context, llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	p.calls++
 	if p.calls == 1 {
 		return nil, errors.New("transient provider failure")
 	}
 	if p.calls > 2 {
-		return &agent.CompletionResponse{
-			Message:    agent.Message{Role: agent.RoleAssistant, Content: `{"complete":true,"gap":""}`},
-			StopReason: agent.StopEndTurn,
+		return &llm.CompletionResponse{
+			Message:    llm.Message{Role: llm.RoleAssistant, Content: `{"complete":true,"gap":""}`},
+			StopReason: llm.StopEndTurn,
 		}, nil
 	}
-	return &agent.CompletionResponse{
-		Message:    agent.Message{Role: agent.RoleAssistant, Content: "recovered"},
-		StopReason: agent.StopEndTurn,
+	return &llm.CompletionResponse{
+		Message:    llm.Message{Role: llm.RoleAssistant, Content: "recovered"},
+		StopReason: llm.StopEndTurn,
 	}, nil
 }
 

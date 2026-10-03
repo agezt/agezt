@@ -12,7 +12,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
 )
 
@@ -45,7 +45,7 @@ func TestComplete_NegativeUsageDoesNotCreditLedger(t *testing.T) {
 	mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: prov, AuthMode: governor.AuthAPIKey})
 	g, _ := governor.New(governor.Config{Registry: r, Bus: b, DailyCeilingMicrocents: 1_000_000_000})
 
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "claude-opus-4-7"}); err != nil {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "claude-opus-4-7"}); err != nil {
 		t.Fatalf("call: %v", err)
 	}
 	if got := g.SpentMicrocents(); got < 0 {
@@ -63,13 +63,13 @@ func TestComplete_OverflowUsageTripsBudget(t *testing.T) {
 	mustRegister(t, r, &governor.ProviderInfo{Name: "p", Provider: prov, AuthMode: governor.AuthAPIKey})
 	g, _ := governor.New(governor.Config{Registry: r, Bus: b, DailyCeilingMicrocents: 1_000_000_000}) // $0.01
 
-	if _, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "claude-opus-4-7"}); err != nil {
+	if _, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "claude-opus-4-7"}); err != nil {
 		t.Fatalf("first call: %v", err)
 	}
 	if got := g.SpentMicrocents(); got <= 0 {
 		t.Fatalf("spent = %d; overflow must saturate to a large positive cost, not wrap negative", got)
 	}
-	_, err := g.Complete(context.Background(), agent.CompletionRequest{Model: "claude-opus-4-7"})
+	_, err := g.Complete(context.Background(), llm.CompletionRequest{Model: "claude-opus-4-7"})
 	if !errors.Is(err, governor.ErrBudgetExceeded) {
 		t.Errorf("second call after a saturating-cost call: got %v, want ErrBudgetExceeded", err)
 	}

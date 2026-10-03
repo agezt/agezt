@@ -46,7 +46,7 @@ func (s *Server) handleToolboxInstall(ctx context.Context, conn net.Conn, req Re
 		return
 	}
 
-	s.publishToolbox("toolbox.install.requested", map[string]any{"tools": names})
+	s.publishToolbox(event.KindToolboxInstallRequested, map[string]any{"tools": names})
 
 	installed := make([]string, 0, len(names))
 	failed := make([]string, 0)
@@ -67,13 +67,13 @@ func (s *Server) handleToolboxInstall(ctx context.Context, conn net.Conn, req Re
 			failed = append(failed, name)
 		}
 		// Journal the outcome (audit trail).
-		s.publishToolbox("toolbox.installed", map[string]any{
+		s.publishToolbox(event.KindToolboxInstalled, map[string]any{
 			"tool": res.Tool, "ok": res.OK, "skipped": res.Skipped,
 			"manager": res.Manager, "command": res.Command, "version": res.Version, "error": res.Error,
 		})
 		// Stream the per-tool progress to the browser.
 		s.writeResp(conn, Response{ID: req.ID, Type: RespEvent, Event: &event.Event{
-			Kind:    event.Kind("toolbox.progress"),
+			Kind:    event.KindToolboxProgress,
 			Subject: "toolbox.install",
 			Actor:   "toolbox",
 			Payload: mustJSONRaw(res),
@@ -88,13 +88,13 @@ func (s *Server) handleToolboxInstall(ctx context.Context, conn net.Conn, req Re
 }
 
 // publishToolbox records a toolbox lifecycle event on the bus (best-effort).
-func (s *Server) publishToolbox(kind string, payload map[string]any) {
+func (s *Server) publishToolbox(kind event.Kind, payload map[string]any) {
 	if s.k == nil || s.k.Bus() == nil {
 		return
 	}
 	_, _ = s.k.Bus().Publish(event.Spec{
 		Subject: "toolbox",
-		Kind:    event.Kind(kind),
+		Kind:    kind,
 		Actor:   "toolbox",
 		Payload: payload,
 	})

@@ -9,9 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	osexec "os/exec"
 	"strings"
 	"time"
+
+	"github.com/agezt/agezt/kernel/platform/sandbox"
 )
 
 // runCredentialProcess executes the configured `credential_process`
@@ -50,7 +51,7 @@ func runCredentialProcess(commandLine string) (map[string]string, time.Time) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), credentialProcessTimeout)
 	defer cancel()
-	cmd := osexec.CommandContext(ctx, parts[0], parts[1:]...)
+	cmd := sandbox.CommandContext(ctx, parts[0], parts[1:]...)
 	// Never inherit the daemon's environment (SEC-003). See credentialProcessEnv.
 	cmd.Env = credentialProcessEnv()
 	output, err := cmd.Output()

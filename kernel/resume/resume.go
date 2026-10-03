@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // Kind classifies how the run was dispatched, so the resumer re-enters through
@@ -68,9 +68,9 @@ type Ticket struct {
 	// Continuity snapshot. Messages is the loop's in-flight conversation as of
 	// Iter, captured at a safe boundary (a complete assistant→tool set). Dropped
 	// (with SnapshotDropped set) if the ticket would exceed the size cap.
-	Messages        []agent.Message `json:"messages,omitempty"`
-	Iter            int             `json:"iter,omitempty"`
-	SnapshotDropped bool            `json:"snapshot_dropped,omitempty"`
+	Messages        []llm.Message `json:"messages,omitempty"`
+	Iter            int           `json:"iter,omitempty"`
+	SnapshotDropped bool          `json:"snapshot_dropped,omitempty"`
 
 	// Resumable is false when the run used a per-run override this ticket can't
 	// faithfully reconstruct (ad-hoc system prompt, tool allowlist, or model).

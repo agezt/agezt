@@ -10,7 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/plugins/providers/cohere"
 )
 
@@ -37,10 +38,10 @@ func TestComplete_TextResponseAsBlocks(t *testing.T) {
 
 	p := cohere.New("co-key")
 	p.Endpoint = srv.URL + "/v2/chat"
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "command-r-plus",
 		System:   "be terse",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "salut"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "salut"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -48,7 +49,7 @@ func TestComplete_TextResponseAsBlocks(t *testing.T) {
 	if resp.Message.Content != "bonjour from cohere" {
 		t.Errorf("content=%q", resp.Message.Content)
 	}
-	if resp.StopReason != agent.StopEndTurn {
+	if resp.StopReason != llm.StopEndTurn {
 		t.Errorf("stop=%q", resp.StopReason)
 	}
 	if resp.Usage.InputTokens != 5 || resp.Usage.OutputTokens != 4 {
@@ -86,9 +87,9 @@ func TestComplete_TextResponseAsString(t *testing.T) {
 
 	p := cohere.New("k")
 	p.Endpoint = srv.URL + "/v2/chat"
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "command-r",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "x"}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "x"}},
 	})
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
@@ -121,10 +122,10 @@ func TestComplete_ToolCalls(t *testing.T) {
 
 	p := cohere.New("k")
 	p.Endpoint = srv.URL + "/v2/chat"
-	resp, err := p.Complete(context.Background(), agent.CompletionRequest{
+	resp, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "command-r",
-		Messages: []agent.Message{{Role: agent.RoleUser, Content: "list"}},
-		Tools: []agent.ToolDef{{
+		Messages: []llm.Message{{Role: llm.RoleUser, Content: "list"}},
+		Tools: []toolapi.ToolDef{{
 			Name: "shell", Description: "run shell",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"command":{"type":"string"}}}`),
 		}},
@@ -132,7 +133,7 @@ func TestComplete_ToolCalls(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
-	if resp.StopReason != agent.StopToolUse {
+	if resp.StopReason != llm.StopToolUse {
 		t.Errorf("stop=%q want tool_use", resp.StopReason)
 	}
 	if len(resp.Message.ToolCalls) != 1 {
@@ -164,14 +165,14 @@ func TestComplete_ToolResultRoundtrip(t *testing.T) {
 
 	p := cohere.New("k")
 	p.Endpoint = srv.URL + "/v2/chat"
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{
 		Model: "command-r",
-		Messages: []agent.Message{
-			{Role: agent.RoleUser, Content: "list"},
-			{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{
+		Messages: []llm.Message{
+			{Role: llm.RoleUser, Content: "list"},
+			{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{
 				ID: "tc_abc", Name: "shell", Input: json.RawMessage(`{"command":"ls"}`),
 			}}},
-			{Role: agent.RoleTool, ToolCallID: "tc_abc", Content: "a.txt\nb.txt"},
+			{Role: llm.RoleTool, ToolCallID: "tc_abc", Content: "a.txt\nb.txt"},
 		},
 	})
 	if err != nil {
@@ -210,7 +211,7 @@ func TestResolveEndpoint(t *testing.T) {
 			// Splice scheme+host of c.base with the test server.
 			suffix := suffixAfterHost(c.base)
 			p.BaseURL = srv.URL + suffix
-			if _, err := p.Complete(context.Background(), agent.CompletionRequest{Model: "m"}); err != nil {
+			if _, err := p.Complete(context.Background(), llm.CompletionRequest{Model: "m"}); err != nil {
 				t.Fatalf("Complete: %v", err)
 			}
 			if hit != c.wantSuffix {
@@ -234,7 +235,7 @@ func suffixAfterHost(u string) string {
 
 func TestComplete_NoAPIKey(t *testing.T) {
 	p := cohere.New("")
-	if _, err := p.Complete(context.Background(), agent.CompletionRequest{Model: "m"}); err != cohere.ErrNoAPIKey {
+	if _, err := p.Complete(context.Background(), llm.CompletionRequest{Model: "m"}); err != cohere.ErrNoAPIKey {
 		t.Errorf("got %v want ErrNoAPIKey", err)
 	}
 }
@@ -248,7 +249,7 @@ func TestComplete_APIError(t *testing.T) {
 
 	p := cohere.New("k")
 	p.Endpoint = srv.URL + "/v2/chat"
-	_, err := p.Complete(context.Background(), agent.CompletionRequest{Model: "m"})
+	_, err := p.Complete(context.Background(), llm.CompletionRequest{Model: "m"})
 	apiErr, ok := err.(*cohere.APIError)
 	if !ok {
 		t.Fatalf("got %v want *cohere.APIError", err)

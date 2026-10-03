@@ -225,8 +225,8 @@ func (s *Server) handleToolforgeRemove(conn net.Conn, req Request) {
 // registerToolforgeCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
 func registerToolforgeCommands() {
 	register(
-		commandSpec{Cmd: CmdToolforgeList, Handler: func(dc *DispatchCtx) { dc.S.handleToolforgeList(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdToolforgeShow, Handler: func(dc *DispatchCtx) { dc.S.handleToolforgeShow(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdToolforgeList, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleToolforgeList(dc.Conn, dc.Req) }},
+		commandSpec{Cmd: CmdToolforgeShow, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleToolforgeShow(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdToolforgeDraft, Handler: func(dc *DispatchCtx) { dc.S.handleToolforgeDraft(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdToolforgeEdit, Handler: func(dc *DispatchCtx) { dc.S.handleToolforgeEdit(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdToolforgeTest, Handler: func(dc *DispatchCtx) { dc.S.handleToolforgeTest(dc.Conn, dc.Req) }},

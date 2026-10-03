@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/meshctx"
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 func httpPost(ctx context.Context, endpoint, token string, body []byte) (int, []byte, error) {
@@ -32,7 +33,7 @@ func httpPost(ctx context.Context, endpoint, token string, body []byte) (int, []
 	// Forward the delegation hop count +1 so the peer (and the chain beyond it) is
 	// bounded against federation loops (M209).
 	req.Header.Set(meshctx.HopHeader, strconv.Itoa(meshctx.Hop(ctx)+1))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := netout.OperatorClient(0).Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -53,7 +54,7 @@ func httpListModels(ctx context.Context, p Peer) ([]string, error) {
 	if p.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+p.Token)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := netout.OperatorClient(0).Do(req)
 	if err != nil {
 		return nil, err
 	}

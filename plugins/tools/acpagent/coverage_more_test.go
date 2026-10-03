@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestACPAgentCoverageDefinitionAndHelpers(t *testing.T) {
@@ -22,8 +22,8 @@ func TestACPAgentCoverageDefinitionAndHelpers(t *testing.T) {
 	if len(def.InputSchema) == 0 {
 		t.Fatal("InputSchema should not be empty")
 	}
-	if def.Effect.Class != agent.EffectCompensable {
-		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, agent.EffectCompensable)
+	if def.Effect.Class != toolapi.EffectCompensable {
+		t.Fatalf("Effect.Class = %v, want %v", def.Effect.Class, toolapi.EffectCompensable)
 	}
 
 	shell, arg := platformShell()

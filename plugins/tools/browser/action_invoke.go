@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 type actionInput struct {
@@ -57,11 +57,11 @@ type browserViewport struct {
 	Height int `json:"height,omitempty"`
 }
 
-// Invoke implements agent.Tool.
-func (t *ActionTool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *ActionTool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in actionInput
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("browser.action: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("browser.action: parse input: %w", err)
 	}
 	if strings.TrimSpace(t.DriverPath) == "" {
 		return errResult("browser action driver not configured (set AGEZT_BROWSER_ACTION_DRIVER or disable AGEZT_BROWSER_ACTIONS)"), nil
@@ -99,7 +99,7 @@ func (t *ActionTool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Res
 
 	spec, err := json.Marshal(in)
 	if err != nil {
-		return agent.Result{}, fmt.Errorf("browser.action: marshal driver spec: %w", err)
+		return toolapi.Result{}, fmt.Errorf("browser.action: marshal driver spec: %w", err)
 	}
 	dir := strings.TrimSpace(t.DriverDir)
 	driver := strings.TrimSpace(t.DriverPath)
@@ -131,9 +131,9 @@ func (t *ActionTool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Res
 	}
 	normalized = t.finalizeTabOutput(normalized, in, source)
 	normalized = t.attachArtifacts(normalized)
-	return agent.Result{
+	return toolapi.Result{
 		Output:            normalized,
-		ObservationTrust:  agent.ObservationUntrusted,
+		ObservationTrust:  toolapi.ObservationUntrusted,
 		ObservationSource: source,
 	}, nil
 }

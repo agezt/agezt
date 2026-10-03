@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/runtime"
 )
@@ -29,7 +29,7 @@ type Runner interface {
 	Research(ctx context.Context, corr, question string, opts runtime.ResearchOptions) (runtime.ResearchReport, error)
 }
 
-// Tool is the `research` implementation of agent.Tool.
+// Tool is the `research` implementation of toolapi.Tool.
 type Tool struct {
 	runner Runner
 }
@@ -40,11 +40,11 @@ func New() *Tool { return &Tool{} }
 // SetRunner injects the research orchestrator (the kernel), done by the daemon.
 func (t *Tool) SetRunner(r Runner) { t.runner = r }
 
-// Definition implements agent.Tool.
-func (t *Tool) Definition() agent.ToolDef {
-	return agent.ToolDef{
+// Definition implements toolapi.Tool.
+func (t *Tool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{
 		Name:       "research",
-		Capability: agent.ToolCapability{Name: string(edict.CapResearch)},
+		Capability: toolapi.ToolCapability{Name: string(edict.CapResearch)},
 		Description: "Run the deep-research harness: break a question into sub-questions, gather " +
 			"independent web sources (search + fetch), and return a synthesized answer where every claim " +
 			"cites a numbered source [S1], [S2], .... Use it for open questions needing current, " +
@@ -62,8 +62,8 @@ func (t *Tool) Definition() agent.ToolDef {
     "max_verify_claims": {"type":"integer", "description":"Cap on claims to verify (default 6, max 12)."}
   }
 }`),
-		Effect: agent.ToolEffect{
-			Class: agent.EffectReversible,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectReversible,
 			PredictedEffects: []string{
 				"Run several web searches, fetch pages, and make model calls to synthesize a cited report.",
 			},
@@ -82,11 +82,11 @@ type input struct {
 	MaxVerifyClaims int    `json:"max_verify_claims,omitempty"`
 }
 
-// Invoke implements agent.Tool.
-func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, error) {
+// Invoke implements toolapi.Tool.
+func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
 	var in input
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return agent.Result{}, fmt.Errorf("research: parse input: %w", err)
+		return toolapi.Result{}, fmt.Errorf("research: parse input: %w", err)
 	}
 	if t.runner == nil {
 		return errResult("research unavailable"), nil
@@ -94,7 +94,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	if strings.TrimSpace(in.Question) == "" {
 		return errResult("question required"), nil
 	}
-	corr := agent.CorrelationFromContext(ctx)
+	corr := toolapi.CorrelationFromContext(ctx)
 	verify := in.Verify == nil || *in.Verify // default on
 	report, err := t.runner.Research(ctx, corr, in.Question, runtime.ResearchOptions{
 		MaxSubQuestions: in.MaxSubQuestions,
@@ -109,11 +109,11 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (agent.Result, e
 	if err != nil {
 		return errResult("encode report: " + err.Error()), nil
 	}
-	return agent.Result{
+	return toolapi.Result{
 		Output: string(out),
 		// The report is derived from external web content, so it must be rendered
 		// as data, never as an instruction channel back into the loop.
-		ObservationTrust:  agent.ObservationUntrusted,
+		ObservationTrust:  toolapi.ObservationUntrusted,
 		ObservationSource: "research:web",
 	}, nil
 }
@@ -157,6 +157,6 @@ func researchOutput(r runtime.ResearchReport) researchOut {
 	}
 }
 
-func errResult(msg string) agent.Result {
-	return agent.Result{Output: "research: " + msg, IsError: true}
+func errResult(msg string) toolapi.Result {
+	return toolapi.Result{Output: "research: " + msg, IsError: true}
 }

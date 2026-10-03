@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/plugins/providers/internal/provopts"
 )
 
@@ -26,7 +26,7 @@ type oaRequest struct {
 	Stream         bool              `json:"stream"`
 	ResponseFormat *oaResponseFormat `json:"response_format,omitempty"`
 	// Per-request sampling knobs (M997), promoted to the top level of the wire
-	// object. An unset agent.Params leaves every field nil/empty (omitempty), so
+	// object. An unset llm.Params leaves every field nil/empty (omitempty), so
 	// the request stays byte-for-byte unchanged.
 	oaParams
 }
@@ -46,7 +46,7 @@ type oaParams struct {
 
 // applyParams copies the universal sampling knobs from p. Only set fields are
 // carried over, so an empty Params leaves the embedded oaParams zero-valued.
-func (o *oaParams) applyParams(p agent.Params) {
+func (o *oaParams) applyParams(p llm.Params) {
 	if p.IsZero() {
 		return
 	}
@@ -176,7 +176,7 @@ type oaResponse struct {
 		PromptTokensDetails struct {
 			// CachedTokens is the subset of PromptTokens served from the
 			// provider's prompt cache (OpenAI + compatible gateways). Billed
-			// at the cache-read rate; threaded to agent.Usage.CachedInputTokens.
+			// at the cache-read rate; threaded to llm.Usage.CachedInputTokens.
 			CachedTokens int `json:"cached_tokens"`
 		} `json:"prompt_tokens_details"`
 		// PromptCacheHitTokens is DeepSeek's spelling of the same cache-read

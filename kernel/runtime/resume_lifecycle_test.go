@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/resume"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -118,12 +118,12 @@ func TestResume_TicketDeletedOnOperatorCancel(t *testing.T) {
 // conversation, and the ticket is cleared on clean completion via ResumeFinalize.
 func TestResume_ReDispatchSeedsConversationAndClears(t *testing.T) {
 	prov := mock.New(mock.FinalText("resumed-done"))
-	var seen []agent.Message
+	var seen []llm.Message
 	var mu sync.Mutex
-	prov.OnRequest = func(req agent.CompletionRequest) {
+	prov.OnRequest = func(req llm.CompletionRequest) {
 		mu.Lock()
 		if seen == nil {
-			seen = append([]agent.Message(nil), req.Messages...)
+			seen = append([]llm.Message(nil), req.Messages...)
 		}
 		mu.Unlock()
 	}
@@ -134,10 +134,10 @@ func TestResume_ReDispatchSeedsConversationAndClears(t *testing.T) {
 	t.Cleanup(func() { _ = k.Close() })
 
 	// A ticket left behind by a prior interrupted run.
-	prior := []agent.Message{
-		{Role: agent.RoleUser, Content: "orig intent"},
-		{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "c1", Name: "noop", Input: []byte(`{}`)}}},
-		{Role: agent.RoleTool, ToolCallID: "c1", Content: "earlier work"},
+	prior := []llm.Message{
+		{Role: llm.RoleUser, Content: "orig intent"},
+		{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "c1", Name: "noop", Input: []byte(`{}`)}}},
+		{Role: llm.RoleTool, ToolCallID: "c1", Content: "earlier work"},
 	}
 	if err := k.ResumeStore().Put(&resume.Ticket{
 		Corr: "corr-redispatch", Intent: "orig intent", Kind: resume.KindRun,

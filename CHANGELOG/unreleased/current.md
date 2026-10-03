@@ -4,6 +4,96 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Security: many control-plane changes left no audit record.** About forty operations changed
+  state without writing anything to the journal, including adding, removing or activating provider keys,
+  ChatGPT sign-in import and logout, channel accounts, config-center entries and their access lists,
+  routing, chains, persona, prompts, schedules, data-lake writes, and artifact and sandbox deletion. The
+  control plane now journals every state-changing operation itself, whether it comes from `agt` or the
+  web console: `op.invoked` (operation, caller, arguments with secrets redacted) and then `op.completed`
+  or `op.failed`. Read-only operations are not journaled.
+- **Security: running an agent directly ignored its tool restrictions.** `agt run --agent X`
+  and the console's run-as-agent applied only part of X's profile: the model was still offered
+  tools the profile's `tool_deny` forbids (or that its `tool_allow` omits), and the run had no
+  trust ceiling. Its standing instructions, lifecycle, retry and noise policy and config
+  overrides were dropped too. Standing orders, schedules, the workboard, wakes and delegation
+  always applied the whole profile; a direct run now does as well, and `--dry-run` lists the
+  tools the agent can actually use.
+- **Security: config-center secrets were stored in plaintext.** Every value agents can read
+  through the config center, secret-rated ones included, was written to
+  `configcenter/entry_*.json` in plaintext. The files were 0644 in a 0755 directory,
+  written non-atomically, next to a SHA-256 of the value; the audit log was 0644 too.
+  Secret-rated values now live in the daemon's encrypted vault as `configcenter:<key>`,
+  and their files keep neither the value nor its hash. Plaintext secrets left by older
+  versions move into the vault on the next boot. Files are written atomically, 0600 in a
+  0700 directory. Tenant kernels keep their secrets in their own 0600 files.
+- **Security: agents' config reads were not in the audit chain.** The config center logged
+  accesses only to its own files. Every access is now also journaled as `config.access`:
+  key, agent, run, decision, policy and reason, but never the value (the journal cannot be
+  purged).
+
+- **Security: several child processes inherited the daemon's entire environment** —
+  every provider API key, channel token and the vault passphrase — because Go's
+  `os/exec` treats an unset `Cmd.Env` as "inherit". Affected: git under the `coding`
+  tool (a hostile repository's hooks ran with the keys), the toolbox's
+  install/detect/outdated commands (npm/pip install scripts), tunnel binaries and ACP
+  version probes. Every child outside warden is now built by `kernel/platform/sandbox`,
+  whose `Command` presets a non-inheriting environment:
+  - agent-steered children (git, ACP agents, browser driver, MCP servers) get a launch
+    allowlist plus explicit grants;
+  - operator-triggered helper CLIs get everything except secret-shaped names, so
+    toolchain settings (`GOPATH`, `CARGO_HOME`, `NVM_DIR`, …) keep working;
+  - tunnels are granted their own token variables.
+
+  The launch allowlist now also carries proxies (`HTTP(S)_PROXY`, `NO_PROXY`,
+  `ALL_PROXY`), `SSH_AUTH_SOCK`, `USER`/`LOGNAME`/`SHELL`/`TERM`/`TZ`/`LANGUAGE` and the
+  XDG directories; until now scrubbed children behind a corporate proxy could not reach
+  the network. `tools/archcheck` keeps the exec allowlist empty.
+- **Security: secrets passed into a warden container were visible in the process list.**
+  The container backend passed child variables as `docker|podman run -e NAME=VALUE`,
+  putting granted secrets in argv. Secret-shaped variables now go as `-e NAME`, with
+  the value in the runtime CLI's own environment.
+
+- **Security: `fetch` ignored the http tool's host allowlist.** `fetch` is governed as
+  `http.get`, the same capability as the `http` tool's GET, but it never read
+  `AGEZT_HTTP_ALLOWED_HOSTS` (or `AGEZT_HTTP_ALLOW_LOOPBACK/PRIVATE`). With `http` pinned
+  to one host, an agent could still download from any host through `fetch`. Both tools
+  now take one egress posture computed from the same settings, and the allowlist is
+  re-checked on every redirect hop. **Behaviour change:** the http tool's `*.example.com`
+  now matches exactly one subdomain level, as its documentation always said; it used to
+  also match `a.b.example.com`, which the browser tool never did.
+- **Security: operator-configured endpoints would dial the cloud metadata service.**
+  Provider, image and rerank adapters, the 22 HTTP channels, outbound webhooks, peer nodes,
+  STS/SSO and the ACP registry used bare `http.Client`s, so a configured or catalog-synced
+  URL resolving to 169.254.169.254 (or any link-local address) was dialled. They now use
+  `netout.OperatorClient`. It behaves like `http.DefaultTransport` (HTTP(S)_PROXY,
+  connection pooling, HTTP/2, timeouts) on one shared transport, but its dialer refuses
+  link-local / metadata and the unspecified address. Loopback and private networks stay
+  reachable (local Ollama, LAN chat servers). Only AWS IMDS and the GCE metadata token
+  source, whose job is to ask the metadata service, use the named `netout.MetadataClient`.
+  `tools/archcheck` keeps the http-client allowlist empty, so a new bare client fails CI.
+
+- **Security: the daemon's JSON stores were world-readable.** memory.json (distilled
+  conversation content), worldmodel.json, roster.json, workboard.json, board.json and the
+  other single-file stores were written 0644 in 0755 directories, while the journal
+  recording the same material had already been hardened to 0600/0700. The shared store
+  layer (now `kernel/platform/filestore`, formerly `kernel/jsonstore`) writes 0600 files in
+  0700 directories and tightens existing installs in place, best-effort like the journal:
+  a filesystem that refuses chmod degrades, never fails boot.
+
+- **Security: out-of-process plugins received the daemon's entire environment** — every
+  provider API key, the vault passphrase, channel tokens — because the plugin host was given
+  `Config.Env = nil` ("inherit everything"); `docs/PLUGIN-SECURITY.md` claimed a minimal env
+  was passed. Plugins now start with the scrubbed base (`kernel/envscrub`) plus exactly the
+  variables `AGEZT_PLUGIN_ENV=prefix=VAR+VAR` grants them (malformed = refuse boot; checked
+  by `agt doctor`). **Behaviour change:** a plugin that read a daemon variable implicitly
+  needs a grant.
+- **Security: eight wrong console passwords from anyone locked everyone out for five
+  minutes.** The lockout counter was one daemon-wide number. It is now per client address,
+  with a global backstop of 64 failures per window against guesses spread over many
+  addresses.
+- **Security: a per-tenant REST token read the primary kernel's data.** `/metrics` (daemon-wide
+  spend and activity) now requires the admin token; `/api/v1/health` and `/api/v1/models`
+  answer from the tenant's own engine.
 - **Security: the branch protection required a status check that has never existed.**
 - **Security: there are two rulesets on `main` and they disagree about what this workflow is
   called — `main protection` (22200577) requires the status check `ci.yml`, `main ruleset`
@@ -177,6 +267,30 @@ This file holds the active `[Unreleased]` working set.
   out in the clear. False-positive-guarded against ordinary text.
 
 ### Added
+
+- **Architecture codemap + target architecture (`architecture/`).** `00-README.md` … `12-*.md`
+  map every package and file of the current system (purpose, persistence, events, wiring,
+  gotchas) with a findings register; `20-target-architecture.md` defines the clean layering
+  (L0 foundation … L7 root, three pipelines: operation / run / tool) and
+  `21-migration-roadmap.md` the module-by-module strangler plan (waves W0–W5, owner
+  decisions recorded).
+- **`tools/archcheck` — layer-architecture ratchet (W0.1).** `tools/archcheck/layers.json`
+  places every package in a layer (and L3 packages in a module); four rules (upward,
+  cross-module, adapter-bypass, plugin-reach) are evaluated over `go list`. The 200
+  pre-existing violations (88 plugin-reach, 70 cross-module, 34 adapter-bypass, 8 upward —
+  including the only kernel→plugins edges, `kernel/controlplane` and `kernel/selfrepair` →
+  `plugins/tools/overseertool`) are recorded in `tools/archcheck/allowlist.txt`. The check
+  fails on a new forbidden edge, on an allowlisted edge that no longer occurs (fixed debt
+  must be deleted from the list), and on a package no rule places. Wired as `make
+  arch-check` and a CI step.
+- **archcheck forbidden-call rules (W0.2).** Starting a child process (`os/exec`), building
+  an HTTP client (`http.Client{}`, `http.DefaultClient`, `http.Get/Post/...`) and raw file
+  writes (`os.WriteFile`/`os.Create`) are only legitimate in the platform package that owns
+  the guarantee (warden / netguard / jsonstore, declared in `layers.json`). The 85
+  pre-existing sites (13 exec, 58 http-client, 14 raw-write) are counted per package in
+  `tools/archcheck/calls-allowlist.txt`; counts may only go down. Both archcheck ratchets
+  analyse the union of linux/windows/darwin `go list` output, so the verdict does not
+  depend on the host the check runs on.
 
 - **Added: a gate that fails when the console's documented surface stops matching
   the shipped one.** `README.md` claimed 64 views across 36 rows and
@@ -609,6 +723,45 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Changed: every event kind the system emits is now declared in the registry.**
+  Thirteen kinds were minted from string literals, invisible to anything reading
+  `kernel/event/kinds.go`: `policy.auto_approved` and `prompt_injection.warned` (both
+  journaled audit events), the market pack/source/sync/progress kinds, the toolbox kinds
+  and the pulse stream's drop notice. They are now constants. Seven kinds declared for
+  years but never emitted are deleted: `agent.spawned/suspended/resumed/died/crashed`,
+  `worldmodel.superseded` and `journal.segment_rotated`. `config.access` stays, reserved:
+  the config center audits to its own file instead of the journal. A test now fails on
+  any new string-literal kind and on any declared kind nothing uses. Wire values are
+  unchanged and old journals read as before.
+
+- **Changed: the provider, tool and channel contracts now live in their own leaf packages
+  (`kernel/contract/llm`, `kernel/contract/toolapi`, `kernel/contract/channelapi`).** They
+  used to be declared in `kernel/agent` — next to the agent loop — and in `kernel/channel`,
+  next to process-global registry state and a bus-publishing panic guard. So every package
+  that only needed to *describe* a message or a tool depended on the loop or on the bus:
+  `memory`, `worldmodel` and `governor` all import `kernel/agent` for `Message`,
+  `Provider` and `Tool` alone. The old packages keep `type X = llm.X` aliases, which are
+  type-identical, so nothing changes at run time and no importer has to change yet; W1.2
+  repoints them (architecture/21). `tools/archcheck` gains an `impure-contract` rule: a
+  package under `kernel/contract/` may import only the standard library and other contract
+  packages. Layer order alone could not catch that — an L0 helper or a third-party module
+  is "below" L1 but still logic. `kernel/event` was deliberately left where it is: it
+  already imports nothing but the stdlib and the BLAKE3 hash that defines an event's
+  identity, so moving it would rewrite 61 importers and remove no edge.
+
+- **Changed: packages that only describe tools or talk to models no longer import the agent
+  loop.** Every file that used `kernel/agent` purely for contract types now imports
+  `kernel/contract/llm` / `kernel/contract/toolapi` (414 files, a mechanical selector
+  rewrite checked by the compiler). The tool-invocation context — `WithCorrelation`,
+  `CorrelationFromContext`, `WithAgent`, `AgentFromContext`, `WithWorkdir`,
+  `WorkdirFromContext` and `DefaultContextRescueMarker` — moved to `toolapi` with no
+  wrapper left behind: a tool and the loop must share one context key, so it is part of
+  the tool contract. The workdir escape refusal now has its own test there. archcheck's
+  allowlist falls from 196 to 145 edges: `governor`, `worldmodel`, `skill`, `market`,
+  `controlplane`, 13 provider packages and 32 tool packages lost their `→ kernel/agent`
+  edge. Three remain, all model-gateway helpers (`GenerateObject`, provider middleware)
+  that move with the planned `platform/modelgw`.
+
 - **Changed: fifteen of the seventeen CI jobs were pinned to a runner pool that does not
   exist.** `gh api repos/agezt/agezt/actions/runners` returns `{"total_count":0}` — no
   self-hosted runner is registered for this repo. Fifteen job definitions nonetheless carried
@@ -860,6 +1013,84 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Images work consistently across the console, REST/OpenAI API and channels.**
+  API image requests to a text-only model now use the configured vision sidecar
+  instead of rejecting immediately. If no usable vision caption is available,
+  all three paths return the same actionable error and journal a rejection tied
+  to the run. Empty captions are rejected; channel images remain archived.
+
+- **Fixed: config-center entries never survived a daemon restart.** The loader compared the
+  first seven characters of each file name with the six-character `entry_`, so it matched
+  nothing: every value, rating and ACL set through the config center was lost at each
+  restart, since the feature shipped. Entries written since then reappear on the first
+  boot with this fix. Unreadable or corrupt entry files are now logged instead of skipped
+  silently.
+- **Fixed: one pending config approval could freeze the config center.** A `Get` on a
+  restricted key held the center's lock while waiting up to five minutes for the operator.
+  Any `Set` then blocked, and behind it every other `Get`.
+
+- **Fixed: one corrupt record in the middle of the journal stopped the daemon from
+  booting.** Any record that failed to decode or verify aborted `journal.Open`, and with
+  it every start, until the operator repaired the file by hand. The damage is still
+  detected, but the daemon now quarantines and continues:
+  - everything from the bad record on is moved to `*.quarantined-<UTC>` files in the
+    journal directory (copied and fsynced before anything is truncated; nothing is
+    deleted);
+  - the hash chain resumes from the last verified event, and its first event is a
+    `journal.recovered` record naming the break, the cause and the quarantined files;
+  - the boot prints a WARNING.
+
+  `agt` backup, import and restore keep failing loudly instead, so only the daemon ever
+  moves journal bytes. The journal package doc no longer claims a sidecar index, which
+  never existed.
+
+- **Fixed: plugin children outlived the daemon.** Plugins started at boot were never
+  closed: they kept running after shutdown unless they exited on stdin EOF, and a tool
+  set that failed to build leaked the plugins started before the failure. The daemon
+  now closes them at shutdown, after in-flight runs finish.
+
+- **Fixed: a key set with `agt provider creds set` while the daemon ran was deleted by the
+  daemon's next vault save.** Both processes held their own copy of the vault and saved it
+  whole, so the later save silently dropped the other's keys. The same shape hit
+  `config.json`: every control-plane handler opens its own settings store
+  (load → set → save), so two concurrent console edits, or a console edit racing
+  `agt config`, reverted one another. Both stores now save by merging: under a
+  cross-process file lock (flock / LockFileEx, released by the OS if the holder dies)
+  `Save` re-reads the file and applies only that store's own changes. A vault store that
+  cannot decrypt the file now refuses to save instead of replacing the vault with its own,
+  possibly empty, map. Rotation and `agt vault decrypt` re-read with the passphrase that
+  opened the file. Regression tests cover two writers, parallel writers, removals, an
+  unloaded store, a wrong passphrase and rotation, and fail against the old save.
+
+- **Fixed: a failed auto-update left the daemon halted.** The checker drained and halted the
+  kernel before calling `Apply`, so a download error, checksum mismatch or refused signature
+  (the normal case while no release key is configured) left it running but unable to run
+  anything. The drain now happens inside `Apply`, after verification, and the kernel is
+  resumed on every failure after the halt.
+- **Fixed: provider dial failures (connection refused/reset, DNS) were never retried by the
+  wire layer** — `retry.IsTransient` ignored the `TransientError` wrapper every adapter puts
+  on a failed `client.Do`. The governor no longer retries a refused dial on top of that, which
+  would have multiplied attempts before a dead endpoint fell back.
+- **Fixed: `tool_search` was default-denied** (no declared capability, no name-switch case),
+  so tool discovery died exactly when `AGEZT_TOOL_DISCOVERY_MAX` enabled it; it now declares
+  `introspect`. The capability guards now build the tool registry with every opt-in tool
+  enabled, which surfaced `browser.action` and its ten verb tools declaring no capability.
+- **Fixed: the anomaly breaker latched after one trip,** leaving the daemon with no runaway
+  protection once the operator resumed it; it now re-arms on resume. The anomaly and alerter
+  watchers no longer die silently on a panic.
+- **Fixed: a channel that failed to start was still reported live,** and a panic in the IRC,
+  email or Mastodon loop crashed the daemon. Channels now run under a guard that marks a
+  failed instance dead and journals `channel.error`; those three also guard each message.
+- **Fixed: the email recipient allowlist was case-sensitive** (`Alice@Example.com` refused
+  `alice@example.com`).
+- **Fixed: `AGEZT_BROWSER_COOKIES=1` did nothing** — a refactor had replaced its wiring with a
+  comment pointing at a different tool.
+- **Fixed: `docclaimscheck` turned CI red on `main` and on every PR once the audit it guards
+  merged.** The `.project/` deliverables state numbers about the branch that wrote them
+  ("79 doc.go files"); after #594 merged, every other branch — and the push to `main`
+  itself, where the range is empty — was measured against them, so `deps-check` failed on
+  every run. A claim is now checked only on a branch that adds or edits the document making
+  it; a failing `git diff` falls through to the full check (fail closed).
 - **Fixed: three nav entries that opened a page the operator could already reach one click
   away.** `Observe › Runs` carried three tabs — Runs, Activity, Replay — and all three rendered
   the `Runs` component; `Admin › Identity` rendered the `Skills` component, which the `Skills`
@@ -2064,6 +2295,13 @@ This file holds the active `[Unreleased]` working set.
 
 ### Removed
 
+- **Removed: dead architecture (W0.5).** `kernel/runtime/compose` and `kernel/workflowexec`
+  (unimported half-extractions), the unwired duplicate delegate tools in `kernel/delegation`,
+  the second definitions of `ErrHalted`/`ErrNoVisionModel` (same text, different identity —
+  now one value re-exported), `update.Service.DrainTimeout`, and the never-implemented
+  channel/provider/memory/storage/tunnel plugin kinds in `.project/agezt-contract.jsonc` (the
+  out-of-process plugin surface is tools-only). `codegen-in-sync` compared a gitignored file
+  and could never fail; it now builds the generated package.
 - **Removed: `internal/apperrors`.** All four of its functions were `fmt.Errorf("%s: %w", …)` with a
   nil guard, `Wrap` and `Wrapf` took a `context.Context` they discarded, and the `Code` type it
   exported along with eight error-code constants had zero references anywhere in the tree. At 43
