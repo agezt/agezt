@@ -46,6 +46,7 @@ type toolJob struct {
 	invokeErr    error
 	toolTimedOut bool
 	panicked     bool
+	skipped      bool // admitted but not executed after an earlier sequential panic
 	memoEligible bool
 	memoHit      bool
 	memoSource   *toolJob

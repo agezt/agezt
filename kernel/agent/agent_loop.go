@@ -107,6 +107,7 @@ type LoopConfig struct {
 	// ToolResultHook is called after an invoked tool has a classified result,
 	// before that result is appended back to the model. It is best-effort
 	// runtime bookkeeping; implementations must not panic.
+	// Run-terminal batches settle audit without invoking this hook.
 	ToolResultHook func(context.Context, ToolCall, Result)
 	// Actor is the journaling actor for emitted events (e.g. "agent-01H").
 	Actor string
