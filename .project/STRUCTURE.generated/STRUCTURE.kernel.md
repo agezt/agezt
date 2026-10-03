@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-94 package(s):
+95 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -55,6 +55,7 @@
 - **`kernel/platform/filestore`** — Package filestore is the persistence platform for the daemon's single-file JSON stores (architecture/20-target-architecture.md §5, layer L2): a tolerant Load, an atomic Save, and a cross-process Lock for files that more than one process writes (the vault and settings are written by both the daemon and `agt`).
 - **`kernel/platform/netout`** — Package netout is the outbound-HTTP platform (architecture/20-target- architecture.md §5, layer L2): the one place a client that dials out is built.
 - **`kernel/platform/sandbox`** — Package sandbox is the process platform (architecture/20-target-architecture.md §5, layer L2): the one place a child process is built outside kernel/warden's run-to-completion engine.
+- **`kernel/platform/toolinvoke`** — Package toolinvoke provides panic-contained execution of an admitted tool.
 - **`kernel/plugin`** — Package plugin is the kernel's out-of-process plugin host (M1.y).
 - **`kernel/plugin/testdata/echoplugin`** — Command echoplugin is a minimal reference implementation of the agezt plugin protocol.
 - **`kernel/plugin/testdata/floodplugin`** — Command floodplugin is a hostile-plugin fixture for the M177 frame bound: on startup it writes a large UN-terminated blob to stdout (no '\n'), simulating a plugin that floods the host's stdout reader.
