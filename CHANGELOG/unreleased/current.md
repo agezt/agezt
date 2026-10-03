@@ -761,6 +761,14 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Large tool audit output is handled consistently across runtime paths.**
+  Direct calls, workflows, canvas tests and code/reasoning tool calls now use the
+  agent loop's artifact store and configured output threshold. Large terminal
+  outputs leave a journal preview, `raw_ref` and full byte count; callers still
+  receive complete output. Reported errors, invocation failures and panics use
+  the same representation without hiding their causes. Store unavailability keeps
+  the existing inline fallback; the default threshold remains 8 KiB.
+
 - **Changed: every event kind the system emits is now declared in the registry.**
   Thirteen kinds were minted from string literals, invisible to anything reading
   `kernel/event/kinds.go`: `policy.auto_approved` and `prompt_injection.warned` (both
