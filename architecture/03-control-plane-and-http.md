@@ -755,7 +755,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `webhook_log.go` | `webhook_log`, `webhook_stats` over `webhook.delivered/failed`. |
 | `memory_log.go` | `memory_log` over `memory.written/forgotten/superseded`. |
 | `world_log.go` | `world_log` over world-model upserts/forgets. |
-| `tool_log.go` | `tool_log`, `tool_stats` over `tool.invoked/result`. |
+| `tool_log.go` | `tool_log`, `tool_stats` over `tool.invoked/result`; input/latency joins use `(correlation_id, call_id)` so reused IDs in another run cannot contaminate a row or give a denied call phantom latency (W2.3a). |
 | `tool_decoders.go` | `decodeToolInvoked`, `decodeToolResult`. |
 | `tool_helpers.go` | `previewString`. |
 | `plan_history.go` | `plan_history`, `plan_stats` over `plan.*`. |

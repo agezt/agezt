@@ -2,7 +2,8 @@
 
 > **Owner update, 2026-10-03:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
-> W2.2a and W2.2b are complete; the next open item is §4.3 (governed tool side paths).
+> W2.2a, W2.2b and W2.3a are complete; continue the remaining §4.3 side paths
+> (Council grounding, then verifier/code-node convergence).
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -159,15 +160,21 @@ should block it, or record those too.
 **Careful:** the resume path is crash-loop-guarded (attempt counter fsynced before dispatch). Don't weaken
 that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re-asks.
 
-### 4.3 W2.3 — tool side paths that skip policy or audit (verify each one)
+### 4.3 W2.3 — tool side paths (W2.3a completed; more slices open)
+
+**W2.3a measured and fixed:** actual registered-tool, HTTP, pipeline and canvas-node calls lacked policy/invoked/result events; direct denials lacked a terminal result. The shared `RunTool`/`toolexec` invoker now serves those paths, keeps forge/MCP lookup, supplies trusted ToolDef metadata (including parameter-dependent capability axes), stamps approval/run identity, catches tool panics and reports audit failures. Pre-invocation audit failure prevents execution. Persistent regressions were red on old code; thirteen independent mutations guard the boundaries.
+
+**Next open slice:** Council grounding (verify the live path first); then the Conductor verifier and workflow code nodes, followed by agent-loop/app invoker convergence. Workflow code nodes already check policy, but still lack shared tool audit. W2.3 is not complete as a whole.
+
+Retry attempts get distinct audit IDs. Tool log/stats join by run plus call ID, so a denied call cannot borrow another run's input/latency. Both guarantees were red before their fixes. Evidence: `kernel/runtime/workflow_tool_audit_test.go`, `kernel/toolexec/toolrun_test.go`, and `kernel/controlplane/tool_audit_identity_test.go`. The original finding list follows; items 1 (registered-tool/HTTP/pipeline/canvas) and 4 are fixed.
 
 The findings register (9.1, "Side paths skip governance/audit") lists:
-1. workflow tool nodes journal no policy/tool events;
+1. ✅ workflow registered-tool/HTTP/pipeline/canvas calls now journal policy/tool events (code nodes still open);
 2. Council grounding calls `web_search` without a policy check;
 3. the Conductor verifier executes model-written code without a `code.exec` policy decision;
-4. `toolexec` emits no `tool.result` on deny.
+4. ✅ `toolexec` now emits `tool.result` on deny and resolves active forge/MCP tools.
 
-These are "read from code, not runtime-verified". **Verify each with a test** that drives the path and
+The remaining claims are "read from code, not runtime-verified". **Verify each with a test** that drives the path and
 inspects the journal. The fix target is one invoker (target §3.3, `app/tools.Invoke`): lookup → policy
 decision (Edict, trust ceiling, agent tool policy) → journal `tool.call`/`tool.result` → execute. Do it
 in slices, one side path per PR or one invoker PR plus re-pointing PRs.
