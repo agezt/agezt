@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-96 package(s):
+98 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -26,6 +26,7 @@
 - **`kernel/contextselect`** — Package contextselect provides context candidate scoring, selection, and failure analysis for agent runs.
 - **`kernel/contract/channelapi`** — Package channelapi is the messaging-channel contract: the platform-neutral inbound message every channel normalises to (UnifiedMessage, SPEC-04 §1.3), what the kernel hands a channel to deliver (Outbound, Attachment, Reply), the Channel interface a duplex surface implements, and the Manifest a channel registers to describe itself.
 - **`kernel/contract/llm`** — Package llm is the model-provider contract: the canonical conversation (Message, Role, ToolCall), one completion round trip (CompletionRequest, CompletionResponse, Usage, StopReason, Params) and the provider interfaces (Provider, StreamingProvider, Chunk).
+- **`kernel/contract/policyapi`** — Package policyapi defines the tool-policy verdict and callback contract.
 - **`kernel/contract/toolapi`** — Package toolapi is the tool contract: what a tool is (Tool, ToolDef, Result) and the governance metadata it declares (ToolCapability, ToolEffect, ObservationTrust).
 - **`kernel/controlplane`** — Package controlplane is the local control protocol between the agezt daemon and the agt CLI.
 - **`kernel/convo`** — Package convo collapses a multi-turn conversation into a single Agezt intent — the deliberate, lossy-by-design mapping that lets the single-intent governed loop carry conversational context.
@@ -55,6 +56,7 @@
 - **`kernel/platform/filestore`** — Package filestore is the persistence platform for the daemon's single-file JSON stores (architecture/20-target-architecture.md §5, layer L2): a tolerant Load, an atomic Save, and a cross-process Lock for files that more than one process writes (the vault and settings are written by both the daemon and `agt`).
 - **`kernel/platform/netout`** — Package netout is the outbound-HTTP platform (architecture/20-target- architecture.md §5, layer L2): the one place a client that dials out is built.
 - **`kernel/platform/sandbox`** — Package sandbox is the process platform (architecture/20-target-architecture.md §5, layer L2): the one place a child process is built outside kernel/warden's run-to-completion engine.
+- **`kernel/platform/toolaudit`** — Package toolaudit renders the shared tool-policy journal representation.
 - **`kernel/platform/toolinvoke`** — Package toolinvoke provides panic-contained execution of an admitted tool.
 - **`kernel/platform/tooloutput`** — Package tooloutput represents tool audit output with an inline preview and a content-addressed artifact reference, preserving full bytes for the caller.
 - **`kernel/plugin`** — Package plugin is the kernel's out-of-process plugin host (M1.y).

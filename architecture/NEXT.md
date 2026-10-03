@@ -2,7 +2,7 @@
 
 > **Owner update, 2026-10-03:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
-> W2.2a, W2.2b and W2.3a–g are complete; continue §4.3 with the remaining
+> W2.2a, W2.2b and W2.3a–h are complete; continue §4.3 with the remaining
 > app invoker and policy-payload alignment work.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
@@ -160,7 +160,7 @@ should block it, or record those too.
 **Careful:** the resume path is crash-loop-guarded (attempt counter fsynced before dispatch). Don't weaken
 that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re-asks.
 
-### 4.3 W2.3 — tool side paths (W2.3a–g completed; app/policy convergence open)
+### 4.3 W2.3 — tool side paths (W2.3a–h completed; app/policy convergence open)
 
 **W2.3a measured and fixed:** actual registered-tool, HTTP, pipeline and canvas-node calls lacked policy/invoked/result events; direct denials lacked a terminal result. The shared `RunTool`/`toolexec` invoker now serves those paths, keeps forge/MCP lookup, supplies trusted ToolDef metadata (including parameter-dependent capability axes), stamps approval/run identity, catches tool panics and reports audit failures. Pre-invocation audit failure prevents execution. Persistent regressions were red on old code; thirteen independent mutations guard the boundaries.
 
@@ -175,6 +175,8 @@ that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re
 **W2.3f foundation (move only):** agent output representation moved to `platform/tooloutput.Offload`. `agent.ArtifactPutter` and `DefaultArtifactThreshold` remain compatibility aliases; its forwarding helper retains the 8 KiB default, byte threshold boundary, preview, full artifact bytes and best-effort inline fallback. Three mutations reject a wrong boundary, lost fallback and storing only a preview. Original agent/source suites remain green.
 
 **W2.3g measured and fixed:** actual direct, workflow, canvas and code paths journaled 20 KB inline without `raw_ref`/`output_bytes`. Runtime now supplies its artifact store and effective threshold to `toolexec.RunWithOptions`, using the same audit-only representation as the loop. Legacy `Run` retains its signature and inline/no-store behavior. Success, reported error, invocation error, panic and denial use preview/ref/byte count; caller and noise hook receive full output and typed error causes remain intact. Nil/unavailable stores, empty refs and inline boundaries retain best-effort fallback. Four actual-path regressions were red; seven independent mutations guard runtime wiring/threshold, metadata, caller/hook bytes and error retention.
+
+**W2.3h foundation (move only):** `PolicyVerdict` and `Policy` moved to the pure `contract/policyapi` package with exact agent aliases. The loop's existing 23-field policy renderer moved to `platform/toolaudit.PolicyDecisionPayload`; a forwarding helper preserves its journal bytes, nil/zero values and event ownership. Full-value and actual-loop regressions plus four mutations cover field retention, call identity, provenance and forwarding. Same-verdict allow/deny tests measured that direct Run/RunWithOptions still omit 15 fields; the behavior repair follows separately.
 
 **Next open slice:** full `app/tools.Invoke` and policy-payload alignment. Direct policy records still carry eight fields while the loop includes resource/epistemic/observation details. The agent loop still owns availability/schema/loop guard, policy/memo gating and result formatting; its `tool.invoked` events describe batch admission before execution. W2.3 is not complete as a whole.
 
