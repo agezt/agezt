@@ -8,6 +8,7 @@ package webui
 //             during the Day-89 god-file split. Public API unchanged.
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/agezt/agezt/kernel/platform/fileworkspace"
 )
 
 func (s *Server) handleFileTree(w http.ResponseWriter, r *http.Request) {
@@ -172,16 +175,9 @@ func (s *Server) handleFileMkdir(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if parents {
-		if err := os.MkdirAll(targetAbs, defaultDirPerm); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	} else {
-		if err := os.Mkdir(targetAbs, defaultDirPerm); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	if err := fileworkspace.Mkdir(targetAbs, parents); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": filepath.ToSlash(rel)})
 }
@@ -214,7 +210,7 @@ func (s *Server) handleFileRename(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := os.Rename(fromAbs, toAbs); err != nil {
+	if err := fileworkspace.Rename(fromAbs, toAbs); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -241,34 +237,15 @@ func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	// Lstat, not Stat: Stat resolves the link, hiding the ModeSymlink bit and
-	// defeating the symlink guard below — an in-root link could then let
-	// os.Remove/os.RemoveAll chase a target outside the workspace.
-	info, err := os.Lstat(targetAbs)
-	if err != nil {
+	if err := fileworkspace.Delete(targetAbs, recursive); err != nil {
 		if os.IsNotExist(err) {
 			http.Error(w, "not found", http.StatusNotFound)
-			return
-		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	// Belt + braces: even when recursive=true, refuse symlinks. A symlink
-	// inside the root can point outside, and `os.Remove` happily chases it.
-	if info.Mode()&os.ModeSymlink != 0 {
-		http.Error(w, "symlinks are not served", http.StatusForbidden)
-		return
-	}
-	if info.IsDir() && recursive {
-		if err := os.RemoveAll(targetAbs); err != nil {
+		} else if errors.Is(err, fileworkspace.ErrSymlink) {
+			http.Error(w, err.Error(), http.StatusForbidden)
+		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
 		}
-	} else {
-		if err := os.Remove(targetAbs); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": filepath.ToSlash(rel)})
 }

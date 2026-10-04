@@ -25,7 +25,6 @@ import "github.com/agezt/agezt/kernel/platform/fileworkspace"
 const (
 	defaultMaxBytes        = 4 * 1024 * 1024
 	defaultMaxEntries      = 500
-	defaultDirPerm         = 0o700
 	defaultFileCap         = 256
 	defaultMkdirMaxParents = 8
 )
