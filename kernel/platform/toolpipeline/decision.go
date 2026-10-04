@@ -8,16 +8,14 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/policyapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"github.com/agezt/agezt/kernel/platform/policyctx"
 )
 
 // Decision is the policy phase outcome, before memo lookup or execution. Context
 // retains resolved metadata for direct execution/hook compatibility. A loop may
 // keep its existing execution context while consuming the same verdict.
-type Decision struct {
-	Context context.Context
-	Verdict policyapi.PolicyVerdict
-}
+type Decision = toolphaseapi.Decision
 
 // DecisionAuditor persists a policy decision in the caller's journal envelope.
 // It preserves each caller's actor/correlation stamping and error ownership.

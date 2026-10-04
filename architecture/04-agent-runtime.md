@@ -49,9 +49,9 @@ kernel/runtime/lifecycle -> event, ulid
 kernel/runtime/accessors -> (store packages) + runtime/types
 kernel/runtime/compose   -> agent, edict, imagetool, mcp, reranktool, voicetool, warden    (NO importers: dead)
 kernel/runtime/types     -> (none)
-kernel/app/tools   -> contract/toolapi, platform/toolpipeline
+kernel/app/tools   -> contract/{toolapi,toolphaseapi}, platform/toolpipeline
 kernel/toolexec     -> contract/toolapi, platform/toolpipeline (legacy forwarding only)
-kernel/platform/toolpipeline -> contract/{llm,policyapi,toolapi}, event, platform/{policyctx,schema,toolaudit,toolinvoke,tooloutput}
+kernel/platform/toolpipeline -> contract/{llm,policyapi,toolapi,toolphaseapi}, event, platform/{policyctx,schema,toolaudit,toolinvoke,tooloutput}
 kernel/toolreg      -> agent, artifact, board, bus, channel, datalake, journal, runtime, warden
 kernel/toolforge    -> filestore, ulid
 kernel/delegation   -> agent, edict
@@ -172,6 +172,8 @@ return ErrMaxIter
 `failureReason` tags: `panic`, `max_iters`, `cost_budget`, `canceled`, `timeout`, `error`.
 
 ### 3.5 Tool turn: gate / execute / finalize (run_tools.go, run_tools_gate.go)
+
+W2.3v adds the pure toolphaseapi.Phases port and moves the unchanged resolution/decision/execution types behind platform aliases. The separate contract avoids the existing llm→toolapi dependency cycle; publisher strings bridge registered kinds without importing event. The per-kernel platform/app service implements all phases, and its direct Invoke routes through that port. Explicit RunWithOptions phase selection works through legacy forwarding; nil retains the existing path. Eleven mutation guards and app/trace contracts cover phase routing, early stops, typed errors and lookup ownership. Loop calls still use shared functions directly until the separate runtime/loop binding.
 
 W2.3r shares lookup and schema admission through `toolpipeline.Resolve`. It performs one caller-owned lookup and one definition read, retaining the complete metadata even on schema rejection. No policy/audit/tool effects occur in this phase. Both callers retain their existing unavailable/schema error formatting and lookup scope. Old-source gate and actual mixed-batch contracts pass count=20; eight mutations cover name, ordering, metadata, schema and quota boundaries.
 

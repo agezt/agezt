@@ -33,5 +33,5 @@ func (s *invoker) Invoke(ctx context.Context, call toolapi.Invocation) (toolapi.
 		lookup = s.deps.Tools
 	}
 	return RunWithOptions(ctx, call.CorrelationID, call.CallID, call.Name, call.Input, lookup, s.deps.Policy, s.deps.Events, s.deps.Noise,
-		Options{Artifacts: call.Artifacts, ArtifactThreshold: call.ArtifactThreshold})
+		Options{Artifacts: call.Artifacts, ArtifactThreshold: call.ArtifactThreshold, Phases: s})
 }
