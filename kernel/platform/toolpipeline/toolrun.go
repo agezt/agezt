@@ -15,7 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/platform/toolaudit"
-	"github.com/agezt/agezt/kernel/platform/toolinvoke"
 	"github.com/agezt/agezt/kernel/platform/tooloutput"
 )
 
@@ -104,7 +103,8 @@ func Run(
 	}); err != nil {
 		return toolapi.Result{}, err
 	}
-	res, err := invokeSafely(ctx, tool, args)
+	execution := Execute(ctx, tool, args, 0, nil)
+	res, err := execution.Result, execution.Err
 	if err != nil {
 		errorResult := toolapi.Result{Output: err.Error(), IsError: true}
 		auditErr := events.PublishEvent(event.Spec{
@@ -131,13 +131,6 @@ func Run(
 	}
 	noise.NotifyNoise(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args}, res)
 	return res, nil
-}
-
-// A faulty tool must still produce its terminal audit record and cannot take
-// down a workflow or the direct-tool caller.
-func invokeSafely(ctx context.Context, tool toolapi.Tool, args json.RawMessage) (toolapi.Result, error) {
-	res, _, err := toolinvoke.Invoke(ctx, tool, args)
-	return res, err
 }
 
 // RunWithOptions is Run with an optional artifact-backed journal representation.

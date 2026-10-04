@@ -15,7 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/platform/toolaudit"
-	"github.com/agezt/agezt/kernel/platform/toolinvoke"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 )
 
@@ -205,20 +204,14 @@ func executeToolJobs(ctx context.Context, cfg LoopConfig, jobs []*toolJob) {
 // exceeded" string) is still classified cleanly.
 func invokeToolJob(ctx context.Context, cfg LoopConfig, job *toolJob) {
 	toolCtx := toolapi.WithCorrelation(ctx, cfg.CorrelationID)
-	var toolCancel context.CancelFunc
-	if cfg.ToolTimeout > 0 {
-		toolCtx, toolCancel = context.WithTimeout(toolCtx, cfg.ToolTimeout)
-	}
-	var panicValue any
-	job.result, panicValue, job.invokeErr = toolinvoke.Invoke(toolCtx, job.tool, job.tc.Input)
-	if panicValue != nil {
+	execution := toolpipeline.Execute(toolCtx, job.tool, job.tc.Input, cfg.ToolTimeout, func(panicValue any) error {
+		return fmt.Errorf("%w: %v", ErrPanic, panicValue)
+	})
+	job.result, job.invokeErr = execution.Result, execution.Err
+	if execution.PanicValue != nil {
 		job.panicked = true
-		job.invokeErr = fmt.Errorf("%w: %v", ErrPanic, panicValue)
 	}
-	job.toolTimedOut = cfg.ToolTimeout > 0 && toolCtx.Err() == context.DeadlineExceeded
-	if toolCancel != nil {
-		toolCancel()
-	}
+	job.toolTimedOut = execution.TimedOut
 }
 
 // finalizeToolJobs is phase 3: classify each outcome, journal tool.result, and
