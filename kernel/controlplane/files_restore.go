@@ -4,23 +4,17 @@ package controlplane
 
 import (
 	"errors"
+	"path/filepath"
 
 	"github.com/agezt/agezt/kernel/app/files"
+	"github.com/agezt/agezt/kernel/platform/rollbackstore"
 )
 
-func registerFileCommands() {
-	// The console workspace is daemon-global; tenant tokens cannot mutate it.
-	register(
-		commandSpec{Cmd: CmdFileMkdir, Handler: handleFileMutation},
-		commandSpec{Cmd: CmdFileRename, Handler: handleFileMutation},
-		commandSpec{Cmd: CmdFileDelete, Handler: handleFileMutation},
-		commandSpec{Cmd: CmdFileRestore, Handler: handleFileRestore},
-	)
-}
-
-func handleFileMutation(dc *DispatchCtx) {
+func handleFileRestore(dc *DispatchCtx) {
+	id, _ := dc.Req.Args["id"].(string)
 	ctx := dc.K.WithActorCorrelation(dc.Ctx, "operator", dc.CorrelationID)
-	output, err := files.Apply(ctx, dc.K, dc.CorrelationID, dc.Req.ID, dc.Req.Cmd, dc.Req.Args)
+	path := filepath.Join(dc.S.baseDir, filepath.FromSlash(rollbackstore.RelativePath))
+	output, err := files.ApplyRestore(ctx, dc.K, dc.CorrelationID, dc.Req.ID, path, id)
 	if err != nil {
 		code := files.Unavailable
 		var classified *files.Error

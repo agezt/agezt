@@ -33,8 +33,6 @@ func (s *Server) applyRollbackCheckpoint(ctx context.Context, cp rollbackCheckpo
 		return s.client.Call(callCtx, controlplane.CmdWorkflowRestore, map[string]any{
 			"workflow": cp.Before, "reason": reason,
 		})
-	case rollbackCheckpointKindFile:
-		return applyFileSnapshotCheckpoint(cp)
 	case rollbackCheckpointKindConfig:
 		if rollbackable, ok := cp.Before["rollbackable"].(bool); ok && !rollbackable {
 			if why := rollbackString(cp.Before["non_rollbackable_reason"]); why != "" {
@@ -61,9 +59,6 @@ func (s *Server) applyRollbackCheckpoint(ctx context.Context, cp rollbackCheckpo
 	}
 }
 
-func applyFileSnapshotCheckpoint(cp rollbackCheckpoint) (map[string]any, error) {
-	return rollbackstore.RestoreFile(cp)
-}
 func rollbackCatalogPath() (string, error)                       { return rollbackstore.DefaultPath() }
 func loadRollbackCatalog() (rollbackCatalog, error)              { return rollbackstore.Load() }
 func loadRollbackCatalogAt(path string) (rollbackCatalog, error) { return rollbackstore.LoadAt(path) }

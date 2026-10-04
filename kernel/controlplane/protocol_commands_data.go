@@ -9,6 +9,8 @@ const (
 	CmdFileRename = "file_rename"
 	// CmdFileDelete removes a workspace entry. Args: path, recursive (optional).
 	CmdFileDelete = "file_delete"
+	// CmdFileRestore restores a file snapshot from the daemon's catalog. Args: id.
+	CmdFileRestore = "file_restore"
 )
 
 // Provenance: Data + research + config + runs + memory + schedule + tenant +
