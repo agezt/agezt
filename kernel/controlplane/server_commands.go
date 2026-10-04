@@ -8,28 +8,9 @@ package controlplane
 
 import (
 	"net"
-
-	"github.com/agezt/agezt/internal/brand"
 )
 
 // ----- command handlers -----
-
-func (s *Server) handleVersion(conn net.Conn, req Request) {
-	rev, committed, modified := brand.BuildInfo()
-	s.writeResp(conn, Response{
-		ID:   req.ID,
-		Type: RespResult,
-		Result: map[string]any{
-			brand.Binary:       brand.Version,
-			"protocol_version": brand.ProtocolVersion,
-			// Build provenance (M971) — lets operators confirm which build a
-			// daemon is actually running, since the semver only moves per release.
-			"revision":       rev,
-			"built":          committed,
-			"build_modified": modified,
-		},
-	})
-}
 
 func (s *Server) handleHalt(conn net.Conn, req Request) {
 	reason, _, err := argString(req.Args, "reason")
