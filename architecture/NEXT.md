@@ -388,6 +388,21 @@ Go/build/vet/static and architecture gates pass with unchanged allowlists.
 Mock-host/no-I/O dispatch is 6.4–8.5 us/op (<50 us). Production mutating/streaming
 hosts and remaining domains stay open; full W2.1 is not complete.
 
+**W2.1h independent stream contracts:** source signatures confirmed the streaming
+builder required the emitted frame and terminal result to share one Go type,
+while actual market handlers emit progress events and return a distinct record.
+The builder now binds Input/Output/Emission types and independent owned schemas;
+frames validate against EmissionSchema and the return value against OutputSchema.
+Same-type streams retain their former explicit output-schema fallback. Unary
+operations expose no emission metadata and cannot emit even if a transport port
+is supplied. Actual dispatch contracts with distinct structs, derived/explicit
+schemas, custom time.Time emissions, malformed frames/terminal values, transport
+causes and schema-byte ownership pass count=20; six mutations guard independent
+binding, frame schema selection, emission metadata/ownership/copies and unary
+mode. Full Go/build/vet/static and architecture gates pass without allowlist
+growth. No domain or production host has migrated in this slice: mutating audit
+and socket streaming host adapters remain next; full W2.1 is incomplete.
+
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
   resolve → tenant authz → tenant routing → stream mode → **audit**.
