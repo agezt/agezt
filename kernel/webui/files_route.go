@@ -6,8 +6,6 @@ package webui
 //             extracted from files_route.go during the Day-89 god-file split. Public
 //             API unchanged.
 
-import "github.com/agezt/agezt/kernel/platform/fileworkspace"
-
 // File Manager routes (M1017). The frontend's Files workspace talks to a
 // live tree + raw bytes under a configurable root, defaulting to
 // `~/agezt/workspace`. Every endpoint rejects `..`, absolute paths, and
@@ -28,11 +26,6 @@ const (
 	defaultFileCap         = 256
 	defaultMkdirMaxParents = 8
 )
-
-// resolveFileRoot retains the HTTP adapters' unchanged path/error contract.
-func (s *Server) resolveFileRoot(rel string) (string, string, string, error) {
-	return fileworkspace.Resolve(rel)
-}
 
 // fileNode mirrors frontend/src/lib/files.ts FileNode. Field names + JSON
 // casing are part of the cross-package contract; renaming here means the

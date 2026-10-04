@@ -53,7 +53,7 @@ func httpJSON(t *testing.T, h http.Handler, method, target string, body string) 
 }
 
 func TestFiles_Routes_RequireAuth(t *testing.T) {
-	s, _ := newServer(t, &fakeCaller{}, "secret")
+	s, _ := newFilesServer(t)
 	for _, path := range []string{
 		"/api/files/tree?path=",
 		"/api/files/raw?path=",
@@ -71,7 +71,7 @@ func TestFiles_Routes_RequireAuth(t *testing.T) {
 func TestFiles_RootDir_CreatedOnFirstUse(t *testing.T) {
 	root := t.TempDir()
 	withFileRoot(t, root)
-	s, _ := newServer(t, &fakeCaller{}, "secret")
+	s, _ := newFilesServer(t)
 
 	rec := httpJSON(t, s.Handler(), http.MethodGet, "/api/files/tree?path=&token=secret", "")
 	if rec.Code != http.StatusOK {
@@ -89,7 +89,7 @@ func TestFiles_RootDir_CreatedOnFirstUse(t *testing.T) {
 func TestFiles_Tree_ReturnsNodesInCanonicalOrder(t *testing.T) {
 	root := t.TempDir()
 	withFileRoot(t, root)
-	s, _ := newServer(t, &fakeCaller{}, "secret")
+	s, _ := newFilesServer(t)
 	for _, name := range []string{"README.md", "notes/zebra", "notes/alpha", "scratch.txt"} {
 		if err := os.MkdirAll(filepath.Join(root, filepath.Dir(name)), 0o700); err != nil {
 			t.Fatalf("setup mkdir %s: %v", name, err)
@@ -126,7 +126,7 @@ func TestFiles_Tree_ReturnsNodesInCanonicalOrder(t *testing.T) {
 func TestFiles_Raw_StreamsBytesAndHonoursCap(t *testing.T) {
 	root := t.TempDir()
 	withFileRoot(t, root)
-	s, _ := newServer(t, &fakeCaller{}, "secret")
+	s, _ := newFilesServer(t)
 	if err := os.WriteFile(filepath.Join(root, "snippet.go"), []byte("package main\n"), 0o600); err != nil {
 		t.Fatalf("setup: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestFiles_Raw_DownloadFilenameIsSanitized(t *testing.T) {
 	}
 	root := t.TempDir()
 	withFileRoot(t, root)
-	s, _ := newServer(t, &fakeCaller{}, "secret")
+	s, _ := newFilesServer(t)
 
 	// A quote closes the quoted-string; the tail then reads as extra
 	// Content-Disposition parameters naming a different, executable file.
@@ -222,7 +222,7 @@ func TestFiles_Raw_DownloadFilenameIsSanitized(t *testing.T) {
 func TestFiles_PathTraversalRefused(t *testing.T) {
 	root := t.TempDir()
 	withFileRoot(t, root)
-	s, _ := newServer(t, &fakeCaller{}, "secret")
+	s, _ := newFilesServer(t)
 	// Plant a top-level "secret.txt" OUTSIDE the root that we must never read.
 	outsideDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(outsideDir, "secret.txt"), []byte("OWNED\n"), 0o600); err != nil {
@@ -265,7 +265,7 @@ func TestFiles_SymlinkRefused(t *testing.T) {
 		t.Fatalf("setup: %v", err)
 	}
 
-	s, _ := newServer(t, &fakeCaller{}, "secret")
+	s, _ := newFilesServer(t)
 
 	// The tree read must refuse to surface the symlink at all.
 	rec := httpJSON(t, s.Handler(), http.MethodGet, "/api/files/tree?path=&token=secret", "")
@@ -301,7 +301,7 @@ func TestFiles_SymlinkDeleteRefused(t *testing.T) {
 		t.Fatalf("setup: %v", err)
 	}
 
-	s, _ := newServer(t, &fakeCaller{}, "secret")
+	s, _ := newFilesServer(t)
 
 	// Deleting the in-root symlink must be refused, never chase the target.
 	rec := httpJSON(t, s.Handler(), http.MethodPost, "/api/files/delete?token=secret",
@@ -318,7 +318,7 @@ func TestFiles_SymlinkDeleteRefused(t *testing.T) {
 func TestFiles_MkdirRenameDeleteRoundTrip(t *testing.T) {
 	root := t.TempDir()
 	withFileRoot(t, root)
-	s, _ := newServer(t, &fakeCaller{}, "secret")
+	s, _ := newFilesServer(t)
 
 	// mkdir (with parents=true to create nested dir in one shot)
 	rec := httpJSON(t, s.Handler(), http.MethodPost, "/api/files/mkdir?token=secret",
@@ -364,7 +364,7 @@ func TestFiles_MkdirRenameDeleteRoundTrip(t *testing.T) {
 func TestFiles_DirTraversalOnReadRefusesEscapes(t *testing.T) {
 	root := t.TempDir()
 	withFileRoot(t, root)
-	s, _ := newServer(t, &fakeCaller{}, "secret")
+	s, _ := newFilesServer(t)
 
 	rec := httpJSON(t, s.Handler(), http.MethodGet, "/api/files/raw?path=..%2F..%2Fetc%2Fpasswd&token=secret", "")
 	// URL-decoded path: "../../etc/passwd". The handler must refuse this.
@@ -402,7 +402,7 @@ func TestFiles_SymlinkedDirectoryRefused(t *testing.T) {
 		t.Skipf("symlink: %v", err)
 	}
 
-	s, _ := newServer(t, &fakeCaller{}, "secret")
+	s, _ := newFilesServer(t)
 
 	for _, tc := range []struct {
 		name   string

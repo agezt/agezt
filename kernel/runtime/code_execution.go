@@ -66,6 +66,6 @@ func (k *Kernel) runCode(ctx context.Context, corr, callPrefix string, runner Co
 	if err != nil {
 		return toolapi.Result{}, false, err
 	}
-	res, err = k.runToolWithLookup(ctx, corr, callPrefix+"-"+ulid.New(), "code_exec", args, x)
+	res, err = k.RunToolWithLookup(ctx, corr, callPrefix+"-"+ulid.New(), "code_exec", args, x)
 	return res, x.ran, err
 }

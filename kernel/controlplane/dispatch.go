@@ -22,13 +22,14 @@ import (
 // tenant's kernel for tenant-routed commands) so handlers no longer each
 // re-derive it via kernelFor(tenantOf(req)).
 type DispatchCtx struct {
-	Ctx     context.Context
-	Conn    net.Conn
-	Req     Request
-	S       *Server
-	K       *runtime.Kernel
-	Tenant  string // authorized tenant id ("" for the primary token)
-	Primary bool   // true when the request carried the primary token
+	Ctx           context.Context
+	Conn          net.Conn
+	Req           Request
+	S             *Server
+	K             *runtime.Kernel
+	Tenant        string // authorized tenant id ("" for the primary token)
+	Primary       bool   // true when the request carried the primary token
+	CorrelationID string // operation audit identity, assigned before a mutating handler
 }
 
 // Handler executes one protocol command.

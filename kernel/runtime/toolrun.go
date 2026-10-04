@@ -45,12 +45,12 @@ func (k *Kernel) NotifyNoise(ctx context.Context, tc llm.ToolCall, res toolapi.R
 // policy gate used by agent/workflow tool calls, then journals tool.invoked and
 // tool.result under corr. The implementation is delegated through the injected invocation port.
 func (k *Kernel) RunTool(ctx context.Context, corr, callID, toolName string, args json.RawMessage) (toolapi.Result, error) {
-	return k.runToolWithLookup(ctx, corr, callID, toolName, args, k)
+	return k.RunToolWithLookup(ctx, corr, callID, toolName, args, k)
 }
 
-// runToolWithLookup also admits invocation-local adapters, without modifying
+// RunToolWithLookup also admits invocation-local adapters, without modifying
 // the registered tool map or bypassing the shared policy/audit machinery.
-func (k *Kernel) runToolWithLookup(ctx context.Context, corr, callID, toolName string, args json.RawMessage, lookup toolapi.ToolLookup) (toolapi.Result, error) {
+func (k *Kernel) RunToolWithLookup(ctx context.Context, corr, callID, toolName string, args json.RawMessage, lookup toolapi.ToolLookup) (toolapi.Result, error) {
 	actor := actorFromCtx(ctx)
 	if actor == "" {
 		actor = toolapi.AgentFromContext(ctx)

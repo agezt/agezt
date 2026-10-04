@@ -2,6 +2,15 @@
 
 package controlplane
 
+const (
+	// CmdFileMkdir creates a workspace directory. Args: path, parents (optional).
+	CmdFileMkdir = "file_mkdir"
+	// CmdFileRename moves a workspace entry. Args: from, to.
+	CmdFileRename = "file_rename"
+	// CmdFileDelete removes a workspace entry. Args: path, recursive (optional).
+	CmdFileDelete = "file_delete"
+)
+
 // Provenance: Data + research + config + runs + memory + schedule + tenant +
 //             disk/storage commands. Code extracted from protocol_commands.go during
 //             the Day-43 god-file split. Public API unchanged.
