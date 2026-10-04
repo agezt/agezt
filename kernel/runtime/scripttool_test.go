@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	apptools "github.com/agezt/agezt/kernel/app/tools"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
@@ -34,7 +35,7 @@ func (r *stubRunner) RunScript(_ context.Context, language, code, inputJSON stri
 
 func openForgeKernel(t *testing.T, prov llm.Provider, runner toolforge.Runner) *runtime.Kernel {
 	t.Helper()
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(runtime.Config{NewToolInvoker: apptools.NewInvoker,
 		BaseDir:      t.TempDir(),
 		Provider:     prov,
 		ScriptRunner: runner,
@@ -304,7 +305,7 @@ func TestRequestToolPromotion(t *testing.T) {
 
 func TestRequestToolPromotion_AutoPromote(t *testing.T) {
 	runner := &stubRunner{out: "ok"}
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(runtime.Config{NewToolInvoker: apptools.NewInvoker,
 		BaseDir:                t.TempDir(),
 		Provider:               mock.New(mock.FinalText("unused")),
 		ScriptRunner:           runner,
