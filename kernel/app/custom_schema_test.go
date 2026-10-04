@@ -5,6 +5,7 @@ package app_test
 import (
 	"context"
 	"encoding/json"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -72,5 +73,33 @@ func TestOperationValidatesCustomTerminalAndStreamOutput(t *testing.T) {
 		if err == nil || value != nil || emissions != 0 {
 			t.Fatalf("stream=%v malformed output escaped: %v %v emissions=%d", stream, value, err, emissions)
 		}
+	}
+}
+
+func TestOperationExplicitTextWireContract(t *testing.T) {
+	handler := func(_ context.Context, in netip.Addr) (netip.Addr, error) { return in, nil }
+	if _, err := app.NewOperation(opapi.Spec{Name: "text"}, handler); err == nil {
+		t.Fatal("text-coded input/output bound without explicit wire schemas")
+	}
+	declared := json.RawMessage(`{"type":"string","enum":["192.0.2.1"]}`)
+	op, err := app.NewOperation(opapi.Spec{Name: "text", ReadOnly: true, InputSchema: declared, OutputSchema: declared}, handler)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := app.NewDispatcher([]app.Operation{op}, app.Dependencies{
+		Auth: authFunc(func(context.Context, opapi.Caller) (opapi.Principal, error) {
+			return opapi.Principal{Kind: opapi.Operator}, nil
+		}),
+		Router: routeFunc(func(ctx context.Context, _ opapi.Principal, _ opapi.Spec) (context.Context, error) { return ctx, nil }),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, err := d.Dispatch(context.Background(), opapi.Caller{}, "text", json.RawMessage(`"192.0.2.1"`), nil)
+	if err != nil || value != netip.MustParseAddr("192.0.2.1") {
+		t.Fatalf("text codec/explicit schema changed: %v %v", value, err)
+	}
+	if _, err := d.Dispatch(context.Background(), opapi.Caller{}, "text", json.RawMessage(`"192.0.2.2"`), nil); err == nil {
+		t.Fatal("explicit text restriction ignored")
 	}
 }

@@ -3,6 +3,7 @@
 package schema
 
 import (
+	"encoding"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -29,6 +30,13 @@ func typeNode(t reflect.Type, allowUnknown bool, visiting map[reflect.Type]bool)
 	marshaler, unmarshaler := reflect.TypeFor[json.Marshaler](), reflect.TypeFor[json.Unmarshaler]()
 	if t.Implements(marshaler) || t.Implements(unmarshaler) || reflect.PointerTo(t).Implements(marshaler) || reflect.PointerTo(t).Implements(unmarshaler) {
 		return nil, fmt.Errorf("custom JSON representation needs an explicit schema: %s", t)
+	}
+	textMarshaler, textUnmarshaler := reflect.TypeFor[encoding.TextMarshaler](), reflect.TypeFor[encoding.TextUnmarshaler]()
+	if t.Implements(textMarshaler) || reflect.PointerTo(t).Implements(textMarshaler) {
+		return nil, fmt.Errorf("custom text encoding needs an explicit schema: %s", t)
+	}
+	if t.Implements(textUnmarshaler) || reflect.PointerTo(t).Implements(textUnmarshaler) {
+		return nil, fmt.Errorf("custom text decoding needs an explicit schema: %s", t)
 	}
 	if t.Kind() == reflect.Pointer {
 		node, err := typeNode(t.Elem(), allowUnknown, visiting)
