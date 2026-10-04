@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> continue §4.4 with file snapshot rollback, then §4.5.
+> continue §4.5 with the transport-independent operation framework.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -228,7 +228,7 @@ in slices, one side path per PR or one invoker PR plus re-pointing PRs.
 - Default-allow posture: every capability is LevelAllow by default and restriction is opt-out. Don't add new denials.
 - Tool capability must be mapped: an unmapped tool name means an unknown capability, which Edict default-denies.
 
-### 4.4 W2.x — file operations (File Manager complete; rollback open)
+### 4.4 ✅ W2.x — governed File Manager and file snapshot restore
 
 **W2.xa foundation:** an actual authenticated mkdir request returned HTTP 200 and
 created the directory, but its durable journal contained zero op events and the
@@ -277,6 +277,24 @@ count=20; body parity and four mutations guard restore absence, bytes, directory
 refusal and zero catalog version. This foundation does not add governance.
 Next: a primary-only file snapshot restore op, using the existing invocation
 port and trusted catalog data, with no snapshot content in audit payloads.
+
+**W2.xe file snapshot restore binding complete:** the primary-only file_restore
+op resolves the checkpoint from the daemon's injected catalog path and passes a
+private snapshot adapter through the existing per-kernel invoker. Content restore
+uses file.write; absent-state restore uses file.delete. Only checkpoint identity,
+path and existence enter audit input; snapshot bytes stay private. The server
+marks AppliedMS only after successful governed restore and owns the catalog
+write inside the audited operation. Already-applied checkpoints remain no-ops.
+Actual HTTP/socket tests assert allow/deny event arcs, correlation/call IDs,
+unchanged file/catalog on denial or unavailable audit, repeat behavior and no
+snapshot data in any journal payload. A separate fixture proves caller-supplied
+Before data and a different AGEZT_HOME cannot redirect the daemon's restoration.
+Eight mutations guard the port, privacy, capability, applied order, repeats,
+correlation, audit metadata and catalog authority. The file restore forwarding
+shim is removed; remaining catalog/type compatibility serves the existing
+skill/workflow/config UI until its domain migrates. File mutation findings are
+closed. **Next: §4.5 operation framework.** WebUI catalog discovery still uses its
+legacy home lookup; file restore mutation authority is daemon-owned.
 
 The following is the original finding context, retained as the measurement trail.
 Findings register 9.1: the web console's File Manager and rollback-restore wrote the filesystem directly

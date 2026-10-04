@@ -4,6 +4,14 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Security: file snapshot rollback now obeys file policy and leaves audit records.**
+  The console sends a checkpoint ID to a primary-only operation; the daemon reads
+  its own catalog and restores through the shared invoker. Content restoration
+  checks file.write; restoring absence checks file.delete. Denial or unavailable
+  audit leaves the file and applied marker unchanged. Snapshot bytes stay out of
+  journal payloads; successful restores mark the checkpoint inside the audited
+  operation, and already-applied checkpoints remain no-ops.
+
 - **Security: File Manager writes now obey configured file policy and leave audit records.**
   Folder creation and rename check file.write; deletion checks file.delete.
   The console calls primary-only control-plane operations through the kernel's
