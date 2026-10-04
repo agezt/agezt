@@ -1,33 +1,34 @@
 // SPDX-License-Identifier: MIT
 
 // Package catalog owns transport-independent catalog sync, listing and discovery.
-// Existing presentation/persistence/reload behavior remains while operation binding follows.
+// Typed operation specs retain the existing wire, persistence and reload behavior.
 package catalog
 
 import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
 	providercatalog "github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
 type SyncInput struct {
-	URL            string
-	TimeoutSeconds float64
+	URL            string  `json:"url,omitempty"`
+	TimeoutSeconds float64 `json:"timeout_s,omitempty"`
 }
 type ListInput struct{}
-type DiscoverInput struct{ Endpoint string }
-type SyncOutput = map[string]any
-type ListOutput = map[string]any
-type DiscoverOutput = map[string]any
+type DiscoverInput struct {
+	Endpoint string `json:"endpoint,omitempty"`
+}
 
 type Service struct {
 	k       *runtime.Kernel
@@ -57,16 +58,17 @@ func (s *Service) Sync(ctx context.Context, in SyncInput) (SyncOutput, error) {
 	raw, cat, res, err := syncer.Sync(ctx)
 	if err != nil {
 		s.k.Bus().Publish(event.Spec{
-			Subject: "catalog.sync",
-			Kind:    event.KindCatalogSyncFailed,
-			Actor:   "catalog",
-			Payload: map[string]any{"url": url, "error": err.Error()},
+			Subject:       "catalog.sync",
+			Kind:          event.KindCatalogSyncFailed,
+			Actor:         "catalog",
+			CorrelationID: opapi.CorrelationFromContext(ctx),
+			Payload:       map[string]any{"url": url, "error": err.Error()},
 		})
-		return nil, err
+		return SyncOutput{}, err
 	}
 
 	if err := s.k.CatalogStore().SaveAPI(raw, url); err != nil {
-		return nil, fmt.Errorf("save: %w", err)
+		return SyncOutput{}, fmt.Errorf("save: %w", err)
 	}
 	// FULL reload — catalog snapshot AND provider re-selection (M928). A daemon
 	// that booted catalog-less degrades to the offline mock primary; a bare
@@ -78,12 +80,13 @@ func (s *Service) Sync(ctx context.Context, in SyncInput) (SyncOutput, error) {
 	// failing the sync the operator asked for.
 	freshCat, providersReloaded, provErr := s.k.Reload()
 	if freshCat == nil {
-		return nil, fmt.Errorf("reload: %w", provErr)
+		return SyncOutput{}, fmt.Errorf("reload: %w", provErr)
 	}
 	_, _ = s.k.Bus().Publish(event.Spec{
-		Subject: "catalog.sync",
-		Kind:    event.KindCatalogSynced,
-		Actor:   "catalog",
+		Subject:       "catalog.sync",
+		Kind:          event.KindCatalogSynced,
+		Actor:         "catalog",
+		CorrelationID: opapi.CorrelationFromContext(ctx),
 		Payload: map[string]any{
 			"url":            url,
 			"bytes":          res.Bytes,
@@ -93,16 +96,9 @@ func (s *Service) Sync(ctx context.Context, in SyncInput) (SyncOutput, error) {
 		},
 	})
 	_ = cat // already installed via Reload
-	result := map[string]any{
-		"url":                url,
-		"bytes":              res.Bytes,
-		"provider_count":     res.ProviderCount,
-		"model_count":        res.ModelCount,
-		"duration_ms":        res.Duration.Milliseconds(),
-		"providers_reloaded": providersReloaded,
-	}
+	result := SyncOutput{URL: url, Bytes: res.Bytes, ProviderCount: res.ProviderCount, ModelCount: res.ModelCount, DurationMS: res.Duration.Milliseconds(), ProvidersReloaded: providersReloaded}
 	if provErr != nil {
-		result["provider_reload_error"] = provErr.Error()
+		result.ProviderReloadError = provErr.Error()
 	}
 	return result, nil
 }
@@ -128,9 +124,9 @@ func (s *Service) List(_ context.Context, _ ListInput) (ListOutput, error) {
 		}
 		return vault.Get(name)
 	}
-	providers := make([]map[string]any, 0, len(cat.Providers))
+	providers := make([]ProviderOutput, 0, len(cat.Providers))
 	for _, p := range cat.ProviderList() {
-		models := make([]map[string]any, 0, len(p.Models))
+		models := make([]ModelOutput, 0, len(p.Models))
 		// Deterministic order for stable CLI output.
 		ids := make([]string, 0, len(p.Models))
 		for id := range p.Models {
@@ -139,47 +135,32 @@ func (s *Service) List(_ context.Context, _ ListInput) (ListOutput, error) {
 		sort.Strings(ids)
 		for _, id := range ids {
 			m := p.Models[id]
-			entry := map[string]any{
-				"id":                           m.ID,
-				"name":                         m.Name,
-				"family":                       m.Family,
-				"tool_call":                    m.ToolCall,
-				"strict_tool_args":             m.SupportsStrictToolArgs(),
-				"schema_constrained_decoding":  m.SchemaConstrainedDecoding,
-				"grammar_constrained_decoding": m.GrammarConstrainedDecoding,
-				"reasoning":                    m.Reasoning,
-				"context":                      m.Limit.Context,
-				"output":                       m.Limit.Output,
+			entry := ModelOutput{
+				ID: m.ID, Name: m.Name, Family: m.Family,
+				ToolCall: m.ToolCall, StrictToolArgs: m.SupportsStrictToolArgs(),
+				SchemaConstrainedDecoding:  m.SchemaConstrainedDecoding,
+				GrammarConstrainedDecoding: m.GrammarConstrainedDecoding,
+				Reasoning:                  m.Reasoning, Context: m.Limit.Context, Output: m.Limit.Output,
 			}
 			if m.Cost != nil {
-				entry["cost_input_usd_per_mtok"] = m.Cost.Input
-				entry["cost_output_usd_per_mtok"] = m.Cost.Output
-				entry["cost_input_mc_per_mtok"] = m.Cost.InputMicrocentsPerMTok()
-				entry["cost_output_mc_per_mtok"] = m.Cost.OutputMicrocentsPerMTok()
+				inputUSD, outputUSD := m.Cost.Input, m.Cost.Output
+				inputMC, outputMC := m.Cost.InputMicrocentsPerMTok(), m.Cost.OutputMicrocentsPerMTok()
+				entry.CostInputUSDPerMTok, entry.CostOutputUSDPerMTok = &inputUSD, &outputUSD
+				entry.CostInputMCPerMTok, entry.CostOutputMCPerMTok = &inputMC, &outputMC
 			}
 			models = append(models, entry)
 		}
-		providers = append(providers, map[string]any{
-			"id":           p.ID,
-			"name":         p.Name,
-			"family":       string(p.Family()),
-			"api":          p.API,
-			"doc":          p.Doc,
-			"env":          p.Env,
-			"credentialed": p.HasCredentials(credLookup),
-			"model_count":  len(p.Models),
-			"models":       models,
+		providers = append(providers, ProviderOutput{
+			ID: p.ID, Name: p.Name, Family: string(p.Family()), API: p.API, Doc: p.Doc,
+			Env: slices.Clone(p.Env), Credentialed: p.HasCredentials(credLookup),
+			ModelCount: len(p.Models), Models: models,
 		})
 	}
 	meta, _ := s.k.CatalogStore().LoadMeta()
-	return map[string]any{
-		"providers":       providers,
-		"sources":         cat.Sources,
-		"api_synced_at":   meta.APISyncedAt,
-		"api_source_url":  meta.APISourceURL,
-		"local_synced_at": meta.LocalSyncedAt,
-		"local_source":    meta.LocalSource,
-		"provider_count":  len(providers),
+	return ListOutput{
+		Providers: providers, Sources: slices.Clone(cat.Sources), ProviderCount: len(providers),
+		APISyncedAt: meta.APISyncedAt.Format(time.RFC3339Nano), APISourceURL: meta.APISourceURL,
+		LocalSyncedAt: meta.LocalSyncedAt.Format(time.RFC3339Nano), LocalSource: meta.LocalSource,
 	}, nil
 }
 
@@ -191,43 +172,41 @@ func (s *Service) Discover(ctx context.Context, in DiscoverInput) (DiscoverOutpu
 	frag, err := providercatalog.DiscoverOllama(ctx, endpoint)
 	if err != nil {
 		_, _ = s.k.Bus().Publish(event.Spec{
-			Subject: "catalog.discovery",
-			Kind:    event.KindCatalogDiscoveryFailed,
-			Actor:   "catalog",
-			Payload: map[string]any{"endpoint": endpoint, "error": err.Error()},
+			Subject:       "catalog.discovery",
+			Kind:          event.KindCatalogDiscoveryFailed,
+			Actor:         "catalog",
+			CorrelationID: opapi.CorrelationFromContext(ctx),
+			Payload:       map[string]any{"endpoint": endpoint, "error": err.Error()},
 		})
-		return nil, err
+		return DiscoverOutput{}, err
 	}
 	if err := s.k.CatalogStore().SaveLocal(frag, "ollama@"+endpoint); err != nil {
-		return nil, fmt.Errorf("save: %w", err)
+		return DiscoverOutput{}, fmt.Errorf("save: %w", err)
 	}
 	// Full reload (M928) — same rationale as handleCatalogSync: a freshly
 	// discovered local provider must be able to displace the offline mock
 	// primary without a daemon restart.
 	freshCat, providersReloaded, provErr := s.k.Reload()
 	if freshCat == nil {
-		return nil, fmt.Errorf("reload: %w", provErr)
+		return DiscoverOutput{}, fmt.Errorf("reload: %w", provErr)
 	}
 	modelCount := 0
 	for _, p := range frag.Providers {
 		modelCount += len(p.Models)
 	}
 	_, _ = s.k.Bus().Publish(event.Spec{
-		Subject: "catalog.discovery",
-		Kind:    event.KindCatalogDiscoveryCompleted,
-		Actor:   "catalog",
+		Subject:       "catalog.discovery",
+		Kind:          event.KindCatalogDiscoveryCompleted,
+		Actor:         "catalog",
+		CorrelationID: opapi.CorrelationFromContext(ctx),
 		Payload: map[string]any{
 			"source":      "ollama@" + endpoint,
 			"model_count": modelCount,
 		},
 	})
-	result := map[string]any{
-		"endpoint":           endpoint,
-		"model_count":        modelCount,
-		"providers_reloaded": providersReloaded,
-	}
+	result := DiscoverOutput{Endpoint: endpoint, ModelCount: modelCount, ProvidersReloaded: providersReloaded}
 	if provErr != nil {
-		result["provider_reload_error"] = provErr.Error()
+		result.ProviderReloadError = provErr.Error()
 	}
 	return result, nil
 }

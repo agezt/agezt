@@ -51,11 +51,12 @@ func TestCatalogHandlersWorkWithoutSocketAndRetainWire(t *testing.T) {
 			t.Setenv(brand.EnvPrefix+"OLLAMA_ENDPOINT", ts.URL)
 			t.Setenv("CATALOG_FIXTURE_KEY", "")
 			t.Setenv(creds.PassphraseEnvVar, "isolated-catalog-fixture")
-			synced, err := svc.Sync(context.Background(), appcatalog.SyncInput{TimeoutSeconds: 1})
+			syncedValue, err := svc.Sync(context.Background(), appcatalog.SyncInput{TimeoutSeconds: 1})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if synced["url"] != ts.URL || synced["provider_count"] != 2 || synced["model_count"] != 2 || synced["providers_reloaded"] != !reloadFails {
+			synced := catalogWire(t, syncedValue)
+			if synced["url"] != ts.URL || synced["provider_count"] != float64(2) || synced["model_count"] != float64(2) || synced["providers_reloaded"] != !reloadFails {
 				t.Fatalf("sync result=%v", synced)
 			}
 			if _, exists := synced["provider_reload_error"]; exists != reloadFails {
@@ -75,20 +76,21 @@ func TestCatalogHandlersWorkWithoutSocketAndRetainWire(t *testing.T) {
 				t.Fatal(err)
 			}
 			before, _ := k.Journal().Head()
-			listed, err := svc.List(context.Background(), appcatalog.ListInput{})
+			listedValue, err := svc.List(context.Background(), appcatalog.ListInput{})
 			if err != nil {
 				t.Fatal(err)
 			}
+			listed := catalogWire(t, listedValue)
 			after, _ := k.Journal().Head()
 			if before != after {
 				t.Fatal("list changed journal")
 			}
-			providers := listed["providers"].([]map[string]any)
+			providers := catalogRows(t, listed["providers"])
 			if len(providers) != 2 || providers[0]["id"] != "fixture" || providers[0]["credentialed"] != true || providers[1]["credentialed"] != false {
 				t.Fatalf("provider/credential projection=%v", providers)
 			}
-			models := providers[0]["models"].([]map[string]any)
-			if len(models) != 2 || models[0]["id"] != "a" || models[1]["id"] != "z" || models[0]["context"] != 4096 || models[0]["cost_input_usd_per_mtok"] != float64(1) {
+			models := catalogRows(t, providers[0]["models"])
+			if len(models) != 2 || models[0]["id"] != "a" || models[1]["id"] != "z" || models[0]["context"] != float64(4096) || models[0]["cost_input_usd_per_mtok"] != float64(1) {
 				t.Fatalf("model projection=%v", models)
 			}
 			if _, exists := models[1]["cost_input_usd_per_mtok"]; exists {
@@ -101,11 +103,12 @@ func TestCatalogHandlersWorkWithoutSocketAndRetainWire(t *testing.T) {
 			if strings.Contains(string(encoded), "fixture-value") {
 				t.Fatal("credential value reached catalog result")
 			}
-			discovered, err := svc.Discover(context.Background(), appcatalog.DiscoverInput{})
+			discoveredValue, err := svc.Discover(context.Background(), appcatalog.DiscoverInput{})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if discovered["endpoint"] != ts.URL || discovered["model_count"] != 1 || discovered["providers_reloaded"] != !reloadFails || reloads.Load() != 2 {
+			discovered := catalogWire(t, discoveredValue)
+			if discovered["endpoint"] != ts.URL || discovered["model_count"] != float64(1) || discovered["providers_reloaded"] != !reloadFails || reloads.Load() != 2 {
 				t.Fatalf("discovery/reloads=%v %d", discovered, reloads.Load())
 			}
 			if message, exists := discovered["provider_reload_error"]; exists != reloadFails || (exists && !strings.Contains(message.(string), context.DeadlineExceeded.Error())) {
@@ -140,10 +143,10 @@ func TestCatalogFailedFetchRetainsEventsAndSkipsPersistenceReload(t *testing.T) 
 	}
 	t.Cleanup(func() { k.Close() })
 	svc := appcatalog.New(k, dir)
-	if output, err := svc.Sync(context.Background(), appcatalog.SyncInput{URL: ts.URL}); err == nil || output != nil {
+	if output, err := svc.Sync(context.Background(), appcatalog.SyncInput{URL: ts.URL}); err == nil || output != (appcatalog.SyncOutput{}) {
 		t.Fatalf("failed sync=%v %v", output, err)
 	}
-	if output, err := svc.Discover(context.Background(), appcatalog.DiscoverInput{Endpoint: ts.URL}); err == nil || output != nil {
+	if output, err := svc.Discover(context.Background(), appcatalog.DiscoverInput{Endpoint: ts.URL}); err == nil || output != (appcatalog.DiscoverOutput{}) {
 		t.Fatalf("failed discovery=%v %v", output, err)
 	}
 	meta, err := k.CatalogStore().LoadMeta()
@@ -165,4 +168,25 @@ func TestCatalogFailedFetchRetainsEventsAndSkipsPersistenceReload(t *testing.T) 
 	if len(kinds) != 2 || kinds[0] != event.KindCatalogSyncFailed || kinds[1] != event.KindCatalogDiscoveryFailed {
 		t.Fatalf("failed domain events=%v", kinds)
 	}
+}
+
+func catalogWire(t *testing.T, value any) map[string]any {
+	t.Helper()
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatal(err)
+	}
+	return result
+}
+func catalogRows(t *testing.T, value any) []map[string]any {
+	t.Helper()
+	var rows []map[string]any
+	for _, item := range value.([]any) {
+		rows = append(rows, item.(map[string]any))
+	}
+	return rows
 }

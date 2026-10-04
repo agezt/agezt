@@ -86,7 +86,13 @@ func TestAppHostSocketMutationAndStreaming(t *testing.T) {
 			// Exercise the same registration/factory/adapter as production operations.
 			original := systemOperations
 			systemOperations = []app.Operation{op}
-			registerAppSystemCommands()
+			for _, op := range systemOperations {
+				wire, err := appCommandSpec(op)
+				if err != nil {
+					t.Fatal(err)
+				}
+				register(wire)
+			}
 			t.Cleanup(func() { systemOperations = original; delete(commandRegistry, name) })
 			if mode == "audit-unavailable" {
 				_ = k.Journal().Close()
@@ -204,7 +210,13 @@ func TestAppHostTenantAuditUsesRoutedJournal(t *testing.T) {
 	}
 	original := systemOperations
 	systemOperations = []app.Operation{op}
-	registerAppSystemCommands()
+	for _, op := range systemOperations {
+		wire, err := appCommandSpec(op)
+		if err != nil {
+			t.Fatal(err)
+		}
+		register(wire)
+	}
 	t.Cleanup(func() { systemOperations = original; delete(commandRegistry, name) })
 	for _, credential := range []string{token, "primary"} {
 		responses := callAppHost(t, s, Request{ID: "tenant", Cmd: name, Token: credential, Args: map[string]any{"tenant": "acme"}})
@@ -283,7 +295,13 @@ func TestAppHostLiveDisconnectSettlesOwnedAudit(t *testing.T) {
 	}
 	original := systemOperations
 	systemOperations = []app.Operation{op}
-	registerAppSystemCommands()
+	for _, op := range systemOperations {
+		wire, err := appCommandSpec(op)
+		if err != nil {
+			t.Fatal(err)
+		}
+		register(wire)
+	}
 	t.Cleanup(func() { systemOperations = original; delete(commandRegistry, name) })
 	client, server := net.Pipe()
 	defer client.Close()
