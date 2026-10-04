@@ -68,8 +68,10 @@ type Spec struct {
 	HTTP              HTTP
 	Input             reflect.Type
 	Output            reflect.Type
+	Emission          reflect.Type // stream frames; independent of terminal Output
 	InputSchema       json.RawMessage
 	OutputSchema      json.RawMessage
+	EmissionSchema    json.RawMessage
 	AllowUnknownInput bool // explicit legacy compatibility; strict by default
 }
 
