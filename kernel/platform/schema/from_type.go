@@ -29,7 +29,11 @@ func typeNode(t reflect.Type, allowUnknown bool, visiting map[reflect.Type]bool)
 		return nil, fmt.Errorf("custom JSON representation needs an explicit schema: %s", t)
 	}
 	if t.Kind() == reflect.Pointer {
-		return nil, fmt.Errorf("nullable pointers are not supported yet: %s", t)
+		node, err := typeNode(t.Elem(), allowUnknown, visiting)
+		if err != nil {
+			return nil, err
+		}
+		return nullableNode(node), nil
 	}
 	if visiting[t] {
 		return nil, fmt.Errorf("recursive schema type %s", t)
@@ -52,21 +56,26 @@ func typeNode(t reflect.Type, allowUnknown bool, visiting map[reflect.Type]bool)
 		return map[string]any{"type": "number"}, nil
 	case reflect.Slice, reflect.Array:
 		if t.Kind() == reflect.Slice && t.Elem().Kind() == reflect.Uint8 {
-			return map[string]any{"type": "string"}, nil
+			return nullableNode(map[string]any{"type": "string"}), nil
 		}
 		item, err := typeNode(t.Elem(), allowUnknown, visiting)
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"type": "array", "items": item}, nil
+		node := map[string]any{"type": "array", "items": item}
+		if t.Kind() == reflect.Slice {
+			node = nullableNode(node)
+		}
+		return node, nil
 	case reflect.Map:
 		if t.Key().Kind() != reflect.String {
 			return nil, fmt.Errorf("map keys must be strings: %s", t)
 		}
-		if _, err := typeNode(t.Elem(), allowUnknown, visiting); err != nil {
+		child, err := typeNode(t.Elem(), allowUnknown, visiting)
+		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"type": "object", "additionalProperties": true}, nil
+		return nullableNode(map[string]any{"type": "object", "additionalProperties": child}), nil
 	case reflect.Struct:
 		properties := map[string]any{}
 		var required []string
@@ -115,4 +124,23 @@ func typeNode(t reflect.Type, allowUnknown bool, visiting map[reflect.Type]bool)
 	default:
 		return nil, fmt.Errorf("unsupported schema type %s", t)
 	}
+}
+
+// nullableNode preserves validation of non-null values and adds only null to the
+// declared type union. Empty interface schemas already admit every JSON value.
+func nullableNode(node map[string]any) map[string]any {
+	switch typ := node["type"].(type) {
+	case string:
+		if typ != "null" {
+			node["type"] = []string{typ, "null"}
+		}
+	case []string:
+		for _, value := range typ {
+			if value == "null" {
+				return node
+			}
+		}
+		node["type"] = append(typ, "null")
+	}
+	return node
 }
