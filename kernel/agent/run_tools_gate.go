@@ -29,22 +29,25 @@ func (s *runState) gateToolCalls(ctx context.Context, calls []ToolCall, iter int
 		job := &toolJob{tc: tc}
 		jobs = append(jobs, job)
 
-		tool, ok := s.cfg.Tools[tc.Name]
-		if !ok {
+		resolved := toolpipeline.Resolve(tc, func(name string) (toolapi.Tool, bool) {
+			tool, ok := s.cfg.Tools[name]
+			return tool, ok
+		})
+		if !resolved.Found {
 			job.result = Result{
 				Output:  fmt.Sprintf("tool %q is not available", tc.Name),
 				IsError: true,
 			}
 			continue
 		}
-		def := tool.Definition()
-		if err := ValidateToolInput(def, tc.Input); err != nil {
+		if err := resolved.InputError; err != nil {
 			job.result = Result{
 				Output:  "tool call rejected by schema: " + err.Error(),
 				IsError: true,
 			}
 			continue
 		}
+		tool, def := resolved.Tool, resolved.Definition
 
 		// Loop guard (M116): if the model has already invoked this EXACT
 		// (tool, input) the cap number of times in this run, refuse to run it

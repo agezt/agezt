@@ -14,7 +14,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/policyapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/platform/schema"
 	"github.com/agezt/agezt/kernel/platform/toolaudit"
 	"github.com/agezt/agezt/kernel/platform/toolinvoke"
 	"github.com/agezt/agezt/kernel/platform/tooloutput"
@@ -61,16 +60,17 @@ func Run(
 	noise NoiseNotifier,
 ) (toolapi.Result, error) {
 
-	tool, ok := tools.LookupTool(toolName)
-	if !ok {
+	call := llm.ToolCall{ID: callID, Name: toolName, Input: args}
+	resolved := Resolve(call, tools.LookupTool)
+	if !resolved.Found {
 		return toolapi.Result{}, fmt.Errorf("unknown tool %q", toolName)
 	}
-	def := tool.Definition()
-	if err := schema.ValidateToolInput(def, args); err != nil {
+	if err := resolved.InputError; err != nil {
 		return toolapi.Result{}, fmt.Errorf("tool %s input rejected by schema: %w", toolName, err)
 	}
+	tool, def := resolved.Tool, resolved.Definition
 	ctx = toolapi.WithCorrelation(ctx, corr)
-	decision, err := Decide(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args}, def, policy.CheckPolicy,
+	decision, err := Decide(ctx, call, def, policy.CheckPolicy,
 		func(call llm.ToolCall, verdict policyapi.PolicyVerdict) error {
 			return events.PublishEvent(event.Spec{
 				Subject: "policy", Kind: event.KindPolicyDecision, Actor: "policy", CorrelationID: corr,

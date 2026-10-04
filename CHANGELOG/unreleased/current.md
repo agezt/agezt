@@ -761,6 +761,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: tool lookup and schema admission share one phase.** Agent and
+  direct invocations retain their existing tool scopes and rejection messages.
+  Invalid calls still stop before policy, effects and loop-guard quota; batch,
+  memo and terminal behavior are preserved.
+
 - **Go API migration:** the unused `agent.WithPolicyToolDef` compatibility setter
   was removed; use `platform/policyctx.WithPolicyToolDef`. Existing metadata
   getters and observation-taint compatibility helpers remain available.
