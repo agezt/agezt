@@ -18,7 +18,7 @@ func TestSystemCommandMetadataComesFromAppSpecs(t *testing.T) {
 		if !ok || wire.ReadOnly != spec.ReadOnly || wire.TenantAllowed != (spec.Authz == opapi.OwnTenant) || wire.TenantRouted != (spec.Tenancy == opapi.CallerTenant) || wire.Streaming != StreamMode(spec.Stream) {
 			t.Fatalf("metadata diverged: %+v %+v", spec, wire)
 		}
-		if !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.Input == nil || spec.Output == nil {
+		if !wire.AppOwned || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.Input == nil || spec.Output == nil {
 			t.Fatalf("pilot contract=%+v", spec)
 		}
 		if spec.HTTP.Method != "GET" || spec.HTTP.Path != "/api/"+spec.Name {

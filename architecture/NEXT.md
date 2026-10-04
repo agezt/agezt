@@ -403,6 +403,24 @@ mode. Full Go/build/vet/static and architecture gates pass without allowlist
 growth. No domain or production host has migrated in this slice: mutating audit
 and socket streaming host adapters remain next; full W2.1 is incomplete.
 
+**W2.1i control-plane host ports:** real socket fixtures were red because app
+mutations had no auditor and streams had no emitter; rejected typed inputs also
+entered legacy socket audit. The common adapter now binds mandatory journal
+admission/settlement and native event publication. Migrated registrations carry
+AppOwned so app dispatch alone owns their audit; legacy handlers retain their
+existing path. Routing binds the primary/caller-tenant kernel plus shared actor
+and correlation context. Registration checks object terminal schemas and native
+kernel event frame types before effects. Actual socket mutation/progress, panic,
+invalid input, preflight/terminal persistence failure, tenant-vs-primary journal,
+secret argument redaction, transport causes and live-disconnect settlement pass
+count=20. Thirteen independent mutations guard the host/ownership/routing/wire
+boundaries. Full Go/build/vet/static and architecture gates pass with unchanged
+allowlists. Shipped status/version remain read-only; mutation/stream fixtures
+exercise the production registration/factory/adapter with test operations.
+**Next: verify the complete W2.1 exit against actual supported representations,
+then continue the ordered catalog/provider domain migration.** Generated surfaces
+and broader adapters remain later work; the architecture goal is not complete.
+
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
   resolve → tenant authz → tenant routing → stream mode → **audit**.
