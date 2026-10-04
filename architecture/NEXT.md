@@ -331,11 +331,23 @@ Source and pipeline/schema/stream/metadata contracts pass count=20; eight
 mutations guard admission/effects/schema ownership and adapter metadata.
 Mock-host, no-audit-I/O dispatch benchmark: 3.6–4.5 us/op on local Windows,
 GOMAXPROCS=4 (not end-to-end status/journal-fold latency).
-The framework is not fully complete: schema derivation currently rejects nullable
-pointers, embedding and custom JSON representations instead of advertising an
-incorrect contract; output maps remain legacy. Mutating/streaming transport host
+At W2.1c, schema derivation rejected nullable pointers, embedding and custom
+JSON representations instead of advertising an incorrect contract. W2.1d adds
+nullable support; the full framework is still incomplete: output maps remain legacy. Mutating/streaming transport host
 adapters and other domains still need migration. Extend these boundaries against
 actual types before closing W2.1; generated surfaces remain later work.
+
+**W2.1d nullable/schema refinement:** actual typed registration rejected nullable
+pointer fields. FromType now derives null unions for pointer roots/fields, nil
+slices/byte slices and maps, retaining required-vs-optional fields and validation
+of non-null nested values. Map additionalProperties carries its element schema;
+recursive unsupported shapes still fail registration. Actual app.Dispatch tests
+retain root/field nulls and reject missing required fields or typed map mismatches
+before handlers. Source/target suites, count=20 and four mutations guard pointer,
+slice/byte null and typed map contracts. The existing validator already supported
+type unions; no tool-validation semantics were rewritten. Embedding/custom
+representation, strongly typed outputs and mutation/streaming host adapters
+remain open next; full W2.1 is still not complete.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
