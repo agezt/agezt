@@ -2,8 +2,8 @@
 
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
-> W2.2a, W2.2b and W2.3a–w are complete; continue §4.3 with the remaining
-> app invoker convergence work.
+> W2.2a, W2.2b and W2.3 are complete; continue §4.4 with File Manager
+> and rollback file operations.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -160,7 +160,7 @@ should block it, or record those too.
 **Careful:** the resume path is crash-loop-guarded (attempt counter fsynced before dispatch). Don't weaken
 that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re-asks.
 
-### 4.3 W2.3 — tool side paths (W2.3a–w completed; exit audit open)
+### 4.3 ✅ W2.3 — tool side paths (exit verified)
 
 **W2.3a measured and fixed:** actual registered-tool, HTTP, pipeline and canvas-node calls lacked policy/invoked/result events; direct denials lacked a terminal result. The shared `RunTool`/`toolexec` invoker now serves those paths, keeps forge/MCP lookup, supplies trusted ToolDef metadata (including parameter-dependent capability axes), stamps approval/run identity, catches tool panics and reports audit failures. Pre-invocation audit failure prevents execution. Persistent regressions were red on old code; thirteen independent mutations guard the boundaries.
 
@@ -208,7 +208,7 @@ that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re
 
 **W2.3w runtime/loop binding:** an actual app-bound Kernel.RunWith executed its tool while the injected execution phase saw zero calls on old source. Kernel.Open now retains the constructed service’s phase port and BuildLoopConfig supplies it to both root and delegated loops. All five loop phases use that port, retaining enabled lookup, taint/default-policy, guard/memo, batch scheduling, timeout/terminal/error/hook and caller envelopes. Standalone agent.Run gets a per-run canonical default; legacy runtime invokers expose the phase port. Older custom one-shot-only factories retain their previous loop behavior through one host-bound canonical compatibility phase service per kernel. Actual primary/tenant deny, all-phase counters, delegated child correlation and one-shot compatibility pass count=20; ten mutations guard binding, every phase, service retention and compatibility.
 
-**Next open slice:** audit W2.3 exit requirements against actual app-bound runtime/adapters and dynamic tools, close W2.3 only on evidence, then continue §4.4. Default root/delegated loops now share the per-kernel invocation service with direct paths; caller-specific batch/memo/observation/model behavior remains outside the shared mechanism.
+**W2.3 exit verified:** side-path and dynamic forge/MCP fixtures now explicitly inject the app constructor and pass count=20, alongside actual root/delegated all-phase traces. Journal identity/stat fixtures pass separately. See [exit evidence](22-w23-exit-evidence.md) for the executable coverage, source boundary and legacy/custom-factory limits. Caller-specific batch/memo/observation/model behavior remains outside the shared mechanism. **Next open slice: §4.4.**
 
 The lower-layer invocation port and per-kernel constructor injection are in place. The app service binds the shared L2 mechanism; L3 runtime/loop must not import app or grow the allowlist. Preserve standalone `runtime.Open`/legacy Run compatibility and the loop's batch admission/memo behavior; the shared preflight helpers no longer require an agent implementation import.
 
@@ -220,8 +220,7 @@ The findings register (9.1, "Side paths skip governance/audit") lists:
 3. ✅ Conductor code verification now checks `code.exec` and journals policy/tool events through the shared invoker (W2.3c);
 4. ✅ `toolexec` now emits `tool.result` on deny and resolves active forge/MCP tools.
 
-The remaining claims are "read from code, not runtime-verified". **Verify each with a test** that drives the path and
-inspects the journal. The fix target is one invoker (target §3.3, `app/tools.Invoke`): lookup → policy
+The exit evidence now records actual app-bound tests for these paths and their journal assertions. The original implementation requirement follows: The fix target is one invoker (target §3.3, `app/tools.Invoke`): lookup → policy
 decision (Edict, trust ceiling, agent tool policy) → journal `tool.call`/`tool.result` → execute. Do it
 in slices, one side path per PR or one invoker PR plus re-pointing PRs.
 
