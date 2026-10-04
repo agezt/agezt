@@ -761,6 +761,10 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: tool policy admission has a separate audited phase.**
+  Direct calls preserve their resolved metadata through policy, execution and
+  completion hooks. Batch and memo ordering remain unchanged.
+
 - **Architecture: governed tool execution has one shared engine.**
   The existing schema, policy, audit and execution sequence now lives below the
   app service in a shared platform engine. Legacy tool APIs and standalone
