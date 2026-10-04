@@ -12,6 +12,7 @@ import (
 	"reflect"
 
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
@@ -66,11 +67,11 @@ func bindOperation[I, O any](spec opapi.Spec, handler func(context.Context, I, o
 	}
 	spec.Input, spec.Output = reflect.TypeFor[I](), reflect.TypeFor[O]()
 	var err error
-	spec.InputSchema, err = schema.FromType(spec.Input, spec.AllowUnknownInput)
+	spec.InputSchema, err = operationSchema(spec.Name, spec.Input, spec.InputSchema, spec.AllowUnknownInput)
 	if err != nil {
 		return Operation{}, fmt.Errorf("operation %q input: %w", spec.Name, err)
 	}
-	spec.OutputSchema, err = schema.FromType(spec.Output, true)
+	spec.OutputSchema, err = operationSchema(spec.Name, spec.Output, spec.OutputSchema, true)
 	if err != nil {
 		return Operation{}, fmt.Errorf("operation %q output: %w", spec.Name, err)
 	}
@@ -94,7 +95,55 @@ func bindOperation[I, O any](spec opapi.Spec, handler func(context.Context, I, o
 			return input, nil
 		},
 		run: func(ctx context.Context, input any, emitter opapi.Emitter) (any, error) {
-			return handler(ctx, input.(I), emitter)
+			// Keep the emitting wrapper's schema bound to this owned declaration.
+			checked := schemaEmitter{next: emitter, name: spec.Name, output: spec.OutputSchema}
+			var port opapi.Emitter
+			if emitter != nil {
+				port = checked
+			}
+			output, err := handler(ctx, input.(I), port)
+			if err != nil {
+				return nil, err
+			}
+			if err := validateOperationOutput(spec.Name, spec.OutputSchema, output); err != nil {
+				return nil, err
+			}
+			return output, nil
 		},
 	}, nil
+}
+
+func operationSchema(name string, typ reflect.Type, explicit json.RawMessage, allowUnknown bool) (json.RawMessage, error) {
+	if len(explicit) == 0 {
+		return schema.FromType(typ, allowUnknown)
+	}
+	owned := append(json.RawMessage(nil), explicit...)
+	if err := schema.LintToolSchema(toolapi.ToolDef{Name: name, InputSchema: owned}); err != nil {
+		return nil, err
+	}
+	return owned, nil
+}
+
+func validateOperationOutput(name string, declared json.RawMessage, value any) error {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("operation %s output encoding: %w", name, err)
+	}
+	if err := schema.ValidateJSON(declared, raw); err != nil {
+		return fmt.Errorf("operation %s output: %w", name, err)
+	}
+	return nil
+}
+
+type schemaEmitter struct {
+	next   opapi.Emitter
+	name   string
+	output json.RawMessage
+}
+
+func (e schemaEmitter) Emit(ctx context.Context, value any) error {
+	if err := validateOperationOutput(e.name, e.output, value); err != nil {
+		return err
+	}
+	return e.next.Emit(ctx, value)
 }
