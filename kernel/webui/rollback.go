@@ -9,36 +9,22 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/agezt/agezt/kernel/platform/rollbackstore"
 )
 
 const (
-	rollbackCatalogVersion       = 1
-	rollbackCheckpointKindSkill  = "skill.status"
-	rollbackCheckpointKindFlow   = "workflow.snapshot"
-	rollbackCheckpointKindFile   = "file.snapshot"
-	rollbackCheckpointKindConfig = "config.setting"
-	rollbackCatalogRelativePath  = "rollback/checkpoints.json"
+	rollbackCatalogVersion       = rollbackstore.CatalogVersion
+	rollbackCheckpointKindSkill  = rollbackstore.KindSkill
+	rollbackCheckpointKindFlow   = rollbackstore.KindFlow
+	rollbackCheckpointKindFile   = rollbackstore.KindFile
+	rollbackCheckpointKindConfig = rollbackstore.KindConfig
+	rollbackCatalogRelativePath  = rollbackstore.RelativePath
 	rollbackApplyTimeout         = 5 * time.Second
 )
 
-type rollbackCatalog struct {
-	Version     int                  `json:"version"`
-	Checkpoints []rollbackCheckpoint `json:"checkpoints"`
-}
-
-type rollbackCheckpoint struct {
-	ID           string         `json:"id"`
-	Kind         string         `json:"kind"`
-	Action       string         `json:"action"`
-	RunID        string         `json:"run_id,omitempty"`
-	SubjectID    string         `json:"subject_id"`
-	SubjectName  string         `json:"subject_name,omitempty"`
-	BeforeStatus string         `json:"before_status,omitempty"`
-	Reason       string         `json:"reason,omitempty"`
-	Before       map[string]any `json:"before,omitempty"`
-	CreatedMS    int64          `json:"created_ms"`
-	AppliedMS    int64          `json:"applied_ms,omitempty"`
-}
+type rollbackCatalog = rollbackstore.Catalog
+type rollbackCheckpoint = rollbackstore.Checkpoint
 
 func (s *Server) handleRollbackCheckpoints(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {

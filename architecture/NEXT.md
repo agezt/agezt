@@ -268,6 +268,16 @@ unused resolver shim is removed. Eight independent mutations guard the port,
 capability, correlation, error propagation, policy, audit/tenant metadata and
 local lookup. Default-allow remains. **Next: file.snapshot rollback restore.**
 
+**W2.xd rollback-store foundation:** checkpoint/catalog data and the existing
+catalog/restore/conversion bodies move mechanically to platform/rollbackstore.
+WebUI keeps type aliases and production forwarders until operation binding;
+legacy AGEZT_HOME lookup, JSON fields, version defaults, atomic writes, restore
+bytes/absence and validation errors are unchanged. Source and target suites pass
+count=20; body parity and four mutations guard restore absence, bytes, directory
+refusal and zero catalog version. This foundation does not add governance.
+Next: a primary-only file snapshot restore op, using the existing invocation
+port and trusted catalog data, with no snapshot content in audit payloads.
+
 The following is the original finding context, retained as the measurement trail.
 Findings register 9.1: the web console's File Manager and rollback-restore wrote the filesystem directly
 from the web UI layer: `kernel/webui/files_route.go` and `kernel/webui/rollback.go`

@@ -7,17 +7,10 @@ package webui
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
-
-	"github.com/agezt/agezt/internal/atomicfile"
-	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/platform/rollbackstore"
+	"strings"
 )
 
 func (s *Server) applyRollbackCheckpoint(ctx context.Context, cp rollbackCheckpoint, reason string) (map[string]any, error) {
@@ -69,137 +62,15 @@ func (s *Server) applyRollbackCheckpoint(ctx context.Context, cp rollbackCheckpo
 }
 
 func applyFileSnapshotCheckpoint(cp rollbackCheckpoint) (map[string]any, error) {
-	before := cp.Before
-	if len(before) == 0 {
-		return nil, fmt.Errorf("checkpoint %s is missing file snapshot data", cp.ID)
-	}
-	path := rollbackString(before["abs_path"])
-	if strings.TrimSpace(path) == "" {
-		return nil, fmt.Errorf("checkpoint %s is missing abs_path", cp.ID)
-	}
-	exists, _ := before["exists"].(bool)
-	if li, err := os.Lstat(path); err == nil {
-		if li.Mode()&os.ModeSymlink != 0 {
-			return nil, fmt.Errorf("refusing to restore through symlink at %s", path)
-		}
-		if li.IsDir() {
-			return nil, fmt.Errorf("refusing to restore over directory at %s", path)
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return nil, err
-	}
-	if !exists {
-		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return nil, err
-		}
-		return map[string]any{"path": path, "restored": "absent"}, nil
-	}
-	encoded := rollbackString(before["content_b64"])
-	data, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		return nil, fmt.Errorf("decode content_b64: %w", err)
-	}
-	perm := os.FileMode(0o644)
-	if n := rollbackIntNumber(before["mode_perm"]); n > 0 {
-		perm = os.FileMode(n)
-	}
-	if err := writeRollbackFile(path, data, perm); err != nil {
-		return nil, err
-	}
-	return map[string]any{"path": path, "restored": "content", "bytes": len(data)}, nil
+	return rollbackstore.RestoreFile(cp)
 }
-
-func rollbackCatalogPath() (string, error) {
-	base, err := paths.BaseDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(base, filepath.FromSlash(rollbackCatalogRelativePath)), nil
-}
-
-func loadRollbackCatalog() (rollbackCatalog, error) {
-	path, err := rollbackCatalogPath()
-	if err != nil {
-		return rollbackCatalog{}, err
-	}
-	return loadRollbackCatalogAt(path)
-}
-
-func loadRollbackCatalogAt(path string) (rollbackCatalog, error) {
-	cat := rollbackCatalog{Version: rollbackCatalogVersion}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return cat, nil
-		}
-		return cat, err
-	}
-	if len(strings.TrimSpace(string(raw))) == 0 {
-		return cat, nil
-	}
-	if err := json.Unmarshal(raw, &cat); err != nil {
-		return cat, err
-	}
-	if cat.Version == 0 {
-		cat.Version = rollbackCatalogVersion
-	}
-	return cat, nil
-}
-
+func rollbackCatalogPath() (string, error)                       { return rollbackstore.DefaultPath() }
+func loadRollbackCatalog() (rollbackCatalog, error)              { return rollbackstore.Load() }
+func loadRollbackCatalogAt(path string) (rollbackCatalog, error) { return rollbackstore.LoadAt(path) }
 func writeRollbackCatalogAt(path string, cat rollbackCatalog) error {
-	if cat.Version == 0 {
-		cat.Version = rollbackCatalogVersion
-	}
-	body, err := json.MarshalIndent(cat, "", "  ")
-	if err != nil {
-		return err
-	}
-	body = append(body, '\n')
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
-	return atomicfile.WriteFile(path, body, 0o600)
+	return rollbackstore.WriteAt(path, cat)
 }
-
 func findRollbackCheckpoint(cat rollbackCatalog, id string) (int, *rollbackCheckpoint) {
-	for i := range cat.Checkpoints {
-		if cat.Checkpoints[i].ID == id {
-			return i, &cat.Checkpoints[i]
-		}
-	}
-	return -1, nil
+	return rollbackstore.Find(cat, id)
 }
-
-func writeRollbackFile(path string, data []byte, perm os.FileMode) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	return atomicfile.WriteFile(path, data, perm)
-}
-
-func rollbackString(v any) string {
-	switch x := v.(type) {
-	case string:
-		return x
-	case fmt.Stringer:
-		return x.String()
-	default:
-		return ""
-	}
-}
-
-func rollbackIntNumber(v any) int {
-	switch x := v.(type) {
-	case int:
-		return x
-	case int64:
-		return int(x)
-	case float64:
-		return int(x)
-	case json.Number:
-		n, _ := x.Int64()
-		return int(n)
-	default:
-		return 0
-	}
-}
+func rollbackString(value any) string { return rollbackstore.StringValue(value) }
