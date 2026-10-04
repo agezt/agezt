@@ -9,11 +9,6 @@ import (
 	"github.com/agezt/agezt/kernel/platform/policyctx"
 )
 
-// WithPolicyToolDef forwards the resolved tool metadata context contract.
-func WithPolicyToolDef(ctx context.Context, def ToolDef) context.Context {
-	return policyctx.WithPolicyToolDef(ctx, def)
-}
-
 // PolicyToolDefFromContext forwards the resolved tool metadata context contract.
 func PolicyToolDefFromContext(ctx context.Context) (ToolDef, bool) {
 	return policyctx.PolicyToolDefFromContext(ctx)

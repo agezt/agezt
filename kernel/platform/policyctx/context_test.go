@@ -29,7 +29,7 @@ func TestPolicyContextCrossesCompatibilityBoundary(t *testing.T) {
 			taint := policyapi.UntrustedObservationTaint{Sources: []string{"web:one"}, DirectiveLike: true, Matches: []string{"directive:one"}}
 			var ctx context.Context
 			if useAgentSetter {
-				ctx = agent.WithPolicyToolDef(parent, def)
+				ctx = policyctx.WithPolicyToolDef(parent, def)
 				ctx = agent.WithUntrustedObservationTaint(ctx, taint)
 			} else {
 				ctx = policyctx.WithPolicyToolDef(parent, def)

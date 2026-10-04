@@ -69,7 +69,7 @@ func TestRun_SharedPreflightBoundary(t *testing.T) {
 				noise := &mockNoise{}
 				taint := agent.UntrustedObservationTaint{Sources: []string{"web:one"}, DirectiveLike: true, Matches: []string{"directive:one"}}
 				ctx := toolapi.WithAgent(context.Background(), "profile")
-				ctx = agent.WithPolicyToolDef(ctx, toolapi.ToolDef{Name: "caller-spoof", Capability: toolapi.ToolCapability{Name: "provider.call"}})
+				ctx = policyctx.WithPolicyToolDef(ctx, toolapi.ToolDef{Name: "caller-spoof", Capability: toolapi.ToolCapability{Name: "provider.call"}})
 				ctx = agent.WithUntrustedObservationTaint(ctx, taint)
 				var res toolapi.Result
 				var err error

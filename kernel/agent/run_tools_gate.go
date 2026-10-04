@@ -16,6 +16,7 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/platform/toolaudit"
 	"github.com/agezt/agezt/kernel/platform/toolinvoke"
+	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 )
 
 func (s *runState) gateToolCalls(ctx context.Context, calls []ToolCall, iter int) ([]*toolJob, error) {
@@ -68,18 +69,28 @@ func (s *runState) gateToolCalls(ctx context.Context, calls []ToolCall, iter int
 		// Policy is configured, so the journal makes the gating posture explicit.
 		// A Deny verdict short-circuits the invocation and synthesises a tool
 		// result the model sees.
-		verdict := PolicyVerdict{Allow: true, Capability: tc.Name, Reason: "no policy configured"}
+		policyCtx := ctx
 		if s.cfg.Policy != nil {
-			policyCtx := WithPolicyToolDef(ctx, def)
-			// Thread the taint with DirectiveLike scoped to the causal window.
+			// The loop owns the causal window; the shared phase owns resolved metadata.
 			scopedTaint := s.untrustedTaint
 			scopedTaint.DirectiveLike = s.directiveActive(iter)
 			policyCtx = WithUntrustedObservationTaint(policyCtx, scopedTaint)
-			verdict = s.cfg.Policy(policyCtx, tc)
 		}
-		if _, err := s.publish(event.KindPolicyDecision, "policy", policyDecisionPayload(tc, verdict)); err != nil {
+		decision, err := toolpipeline.Decide(policyCtx, tc, def,
+			func(policyCtx context.Context, call ToolCall) PolicyVerdict {
+				if s.cfg.Policy == nil {
+					return PolicyVerdict{Allow: true, Capability: call.Name, Reason: "no policy configured"}
+				}
+				return s.cfg.Policy(policyCtx, call)
+			},
+			func(call ToolCall, verdict PolicyVerdict) error {
+				_, err := s.publish(event.KindPolicyDecision, "policy", policyDecisionPayload(call, verdict))
+				return err
+			})
+		if err != nil {
 			return nil, fmt.Errorf("agent: publish policy.decision: %w", err)
 		}
+		verdict := decision.Verdict
 
 		if !verdict.Allow {
 			// Count the refusal so a tool that's hard-denied (never allowed) or
