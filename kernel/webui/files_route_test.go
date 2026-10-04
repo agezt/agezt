@@ -15,6 +15,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/platform/fileworkspace"
 )
 
 // withFileRoot points AGEZT_FILE_ROOT at a temp dir for the duration of one
@@ -430,10 +432,10 @@ func TestFiles_SymlinkedDirectoryRefused(t *testing.T) {
 // name of security.
 func TestFiles_ResolverAllowsCreationPaths(t *testing.T) {
 	root := t.TempDir()
-	if err := verifyResolvedWithinRoot(root, filepath.Join(root, "does", "not", "exist", "yet.txt")); err != nil {
+	if err := fileworkspace.VerifyResolvedWithinRoot(root, filepath.Join(root, "does", "not", "exist", "yet.txt")); err != nil {
 		t.Fatalf("a not-yet-created path under the root must be allowed: %v", err)
 	}
-	if err := verifyResolvedWithinRoot(root, root); err != nil {
+	if err := fileworkspace.VerifyResolvedWithinRoot(root, root); err != nil {
 		t.Fatalf("the root itself must be allowed: %v", err)
 	}
 	// And it still refuses a lexically-contained path whose real location is out.
@@ -441,7 +443,7 @@ func TestFiles_ResolverAllowsCreationPaths(t *testing.T) {
 	if err := linkDir(outside, filepath.Join(root, "link")); err != nil {
 		t.Skipf("cannot create a directory link on this host: %v", err)
 	}
-	if err := verifyResolvedWithinRoot(root, filepath.Join(root, "link", "x.txt")); err == nil {
+	if err := fileworkspace.VerifyResolvedWithinRoot(root, filepath.Join(root, "link", "x.txt")); err == nil {
 		t.Fatal("a path through a linked directory must be refused")
 	}
 }
