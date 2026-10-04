@@ -761,6 +761,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: invocation services expose a batch-aware phase port.**
+  Direct calls use the constructed service’s phases; Go callers can supply an
+  explicit phase service through invocation options. Existing nil/legacy options
+  retain their behavior. Loop service binding follows separately.
+
 - **Architecture: terminal tool audit shares one publication phase.** Existing
   denial/error/panic records, observation and artifact metadata, memo/skipped
   markers and caller identities are preserved. Model and hook output remain full;
