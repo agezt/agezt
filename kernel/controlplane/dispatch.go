@@ -93,6 +93,7 @@ type commandSpec struct {
 	TenantRouted  bool
 	Streaming     StreamMode
 	ReadOnly      bool
+	AppOwned      bool // app.Dispatch owns audit admission/settlement for migrated ops
 }
 
 // commandRegistry maps command name → spec. Populated once at init by

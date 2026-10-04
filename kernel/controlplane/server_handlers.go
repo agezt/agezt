@@ -118,7 +118,7 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		defer cancel()
 		dc.Ctx = cctx
 	}
-	if !spec.ReadOnly {
+	if !spec.ReadOnly && !spec.AppOwned {
 		audit := beginOpAudit(dc)
 		defer func() {
 			if r := recover(); r != nil {
