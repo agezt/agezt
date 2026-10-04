@@ -246,6 +246,15 @@ and unjournaled. Next: bind their mutations to primary-only control-plane ops
 and the canonical policy/audit invoker; remove the temporary resolver forwarding method
 when the adapters consume the shared root/resolver directly.
 
+**W2.xb mutation primitive move:** the console's mkdir/rename/delete filesystem
+branches now live in `platform/fileworkspace`. HTTP handlers still own decoding,
+path resolution, identical status/text mapping and response fields; final symlink
+refusal, missing-file OS identity and recursive opt-in are retained. Source and
+target tests pass count=20; four mutations guard parents, rename direction,
+recursive opt-in and OS error identity. This separate move leaves governance
+unchanged. Next bind these primitives through primary-only audited control-plane
+operations, then migrate file snapshot restore independently.
+
 Findings register 9.1: the web console's File Manager and rollback-restore write the filesystem directly
 from the web UI layer: `kernel/webui/files_route.go` and `kernel/webui/rollback.go`
 (+ `rollback_helpers.go`). Confirm with a test that inspects the journal. Now that W2.1a exists, the fix is

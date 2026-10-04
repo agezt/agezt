@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-// Package fileworkspace owns the existing console workspace root and path
-// containment checks. Mutations still require a governed operation at the caller.
+// Package fileworkspace owns console workspace path checks and filesystem
+// primitives. Callers own authorization and journal admission.
 package fileworkspace
 
 import (
