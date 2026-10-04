@@ -373,6 +373,21 @@ output schema specificity and the version brand key. Full Go/build/vet/static
 and architecture gates pass without allowlist growth. Embedded derivation and
 production mutation/streaming host adapters remain open; full W2.1 is incomplete.
 
+**W2.1g embedded wire fields:** registration tests were red for named/flattened
+anonymous fields and silently lost exported fields of private embedded values.
+Schema derivation now resolves the encoding/json wire field set before deriving
+child types: shallower fields win, tagged fields win at equal depth, unresolved
+conflicts disappear, tagged embeddings remain nested and skipped fields stay
+absent. Promoted fields beneath nil-capable anonymous pointers are optional.
+Private value embeddings retain exported fields; private pointer allocation,
+recursive embeddings and custom/quoted representations still require explicit
+schemas. Actual MarshalJSON parity, app dispatch admission/terminal output and
+source suites pass count=20; six independent mutations guard promotion, depth,
+tag priority, conflicts, nil-parent omission and private value promotion. Full
+Go/build/vet/static and architecture gates pass with unchanged allowlists.
+Mock-host/no-I/O dispatch is 6.4–8.5 us/op (<50 us). Production mutating/streaming
+hosts and remaining domains stay open; full W2.1 is not complete.
+
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
   resolve → tenant authz → tenant routing → stream mode → **audit**.
