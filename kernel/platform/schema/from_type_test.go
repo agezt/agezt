@@ -4,6 +4,7 @@ package schema_test
 
 import (
 	"encoding/json"
+	"net/netip"
 	"reflect"
 	"testing"
 	"time"
@@ -261,3 +262,35 @@ func conflictingEmbeddedType(left, right reflect.Type) reflect.Type {
 		{Name: right.Name(), Type: right, Anonymous: true},
 	})
 }
+
+func TestFromTypeRequiresExplicitTextWireSchemas(t *testing.T) {
+	address := netip.MustParseAddr("192.0.2.1")
+	wire, err := json.Marshal(address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(wire) != `"192.0.2.1"` {
+		t.Fatalf("stock text representation changed: %s", wire)
+	}
+	for _, typ := range []reflect.Type{
+		reflect.TypeFor[netip.Addr](), reflect.TypeFor[*netip.Addr](),
+		reflect.TypeFor[struct {
+			Address netip.Addr `json:"address"`
+		}](),
+		reflect.TypeFor[[]netip.Addr](), reflect.TypeFor[map[string]netip.Addr](),
+		reflect.TypeFor[textEncodeOnly](), reflect.TypeFor[*textEncodeOnly](),
+		reflect.TypeFor[textDecodeOnly](), reflect.TypeFor[*textDecodeOnly](),
+	} {
+		if derived, err := schema.FromType(typ, false); err == nil {
+			t.Errorf("custom text type %s registered with guessed schema %s", typ, derived)
+		}
+	}
+}
+
+type textEncodeOnly int
+
+func (*textEncodeOnly) MarshalText() ([]byte, error) { return []byte("ready"), nil }
+
+type textDecodeOnly int
+
+func (n *textDecodeOnly) UnmarshalText([]byte) error { *n = 1; return nil }
