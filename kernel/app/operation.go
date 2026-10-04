@@ -27,6 +27,7 @@ func (o Operation) Spec() opapi.Spec {
 	spec := o.spec
 	spec.InputSchema = append(json.RawMessage(nil), spec.InputSchema...)
 	spec.OutputSchema = append(json.RawMessage(nil), spec.OutputSchema...)
+	spec.EmissionSchema = append(json.RawMessage(nil), spec.EmissionSchema...)
 	return spec
 }
 
@@ -41,15 +42,31 @@ func NewOperation[I, O any](spec opapi.Spec, handler func(context.Context, I) (O
 	return NewStreamingOperation(spec, func(ctx context.Context, in I, _ func(O) error) (O, error) { return handler(ctx, in) })
 }
 
-// NewStreamingOperation retains the typed input/output contract while passing a
-// checked emitter to the handler; the final return value is its terminal output.
+// NewStreamingOperation binds independent input, terminal output and emission
+// types, passing a checked emitter to the handler.
 // StreamNone is a terminal-only mode, also used by NewOperation's unary wrapper.
-func NewStreamingOperation[I, O any](spec opapi.Spec, handler func(context.Context, I, func(O) error) (O, error)) (Operation, error) {
+func NewStreamingOperation[I, O, E any](spec opapi.Spec, handler func(context.Context, I, func(E) error) (O, error)) (Operation, error) {
 	if handler == nil {
 		return Operation{}, fmt.Errorf("operation %q needs a handler", spec.Name)
 	}
+	spec.Emission = nil
+	if spec.Stream != opapi.StreamNone {
+		spec.Emission = reflect.TypeFor[E]()
+		explicit := spec.EmissionSchema
+		// Preserve earlier same-type streams' explicit output declarations.
+		if len(explicit) == 0 && spec.Emission == reflect.TypeFor[O]() {
+			explicit = spec.OutputSchema
+		}
+		var err error
+		spec.EmissionSchema, err = operationSchema(spec.Name, spec.Emission, explicit, true)
+		if err != nil {
+			return Operation{}, fmt.Errorf("operation %q emission: %w", spec.Name, err)
+		}
+	} else {
+		spec.EmissionSchema = nil
+	}
 	return bindOperation[I, O](spec, func(ctx context.Context, in I, emitter opapi.Emitter) (O, error) {
-		return handler(ctx, in, func(value O) error {
+		return handler(ctx, in, func(value E) error {
 			if emitter == nil {
 				return fmt.Errorf("operation %q has no emitter", spec.Name)
 			}
@@ -96,9 +113,9 @@ func bindOperation[I, O any](spec opapi.Spec, handler func(context.Context, I, o
 		},
 		run: func(ctx context.Context, input any, emitter opapi.Emitter) (any, error) {
 			// Keep the emitting wrapper's schema bound to this owned declaration.
-			checked := schemaEmitter{next: emitter, name: spec.Name, output: spec.OutputSchema}
+			checked := schemaEmitter{next: emitter, name: spec.Name, output: spec.EmissionSchema}
 			var port opapi.Emitter
-			if emitter != nil {
+			if emitter != nil && spec.Stream != opapi.StreamNone {
 				port = checked
 			}
 			output, err := handler(ctx, input.(I), port)
