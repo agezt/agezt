@@ -88,6 +88,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 	// lives in one documented struct (see run_tools.go) rather than a dozen
 	// loop-locals captured by closures.
 	st := newRunState(cfg, publish)
+	cfg.ToolPhases = st.cfg.ToolPhases
 
 	// spentMicrocents accumulates this run's provider spend for the per-run cost
 	// cap (M166). A local stack variable — no shared state, no lifecycle, no

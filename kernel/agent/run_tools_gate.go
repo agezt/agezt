@@ -15,7 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/platform/toolaudit"
-	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 )
 
 func (s *runState) gateToolCalls(ctx context.Context, calls []ToolCall, iter int) ([]*toolJob, error) {
@@ -28,7 +27,7 @@ func (s *runState) gateToolCalls(ctx context.Context, calls []ToolCall, iter int
 		job := &toolJob{tc: tc}
 		jobs = append(jobs, job)
 
-		resolved := toolpipeline.Resolve(tc, func(name string) (toolapi.Tool, bool) {
+		resolved := s.cfg.ToolPhases.Resolve(tc, func(name string) (toolapi.Tool, bool) {
 			tool, ok := s.cfg.Tools[name]
 			return tool, ok
 		})
@@ -78,7 +77,7 @@ func (s *runState) gateToolCalls(ctx context.Context, calls []ToolCall, iter int
 			scopedTaint.DirectiveLike = s.directiveActive(iter)
 			policyCtx = WithUntrustedObservationTaint(policyCtx, scopedTaint)
 		}
-		decision, err := toolpipeline.Decide(policyCtx, tc, def,
+		decision, err := s.cfg.ToolPhases.Decide(policyCtx, tc, def,
 			func(policyCtx context.Context, call ToolCall) PolicyVerdict {
 				if s.cfg.Policy == nil {
 					return PolicyVerdict{Allow: true, Capability: call.Name, Reason: "no policy configured"}
@@ -123,8 +122,8 @@ func (s *runState) gateToolCalls(ctx context.Context, calls []ToolCall, iter int
 			}
 			memoPending[key] = job
 		}
-		if err := toolpipeline.Announce(tc, func(kind event.Kind, payload map[string]any) error {
-			_, err := s.publish(kind, "tool", payload)
+		if err := s.cfg.ToolPhases.Announce(tc, func(kind string, payload map[string]any) error {
+			_, err := s.publish(event.Kind(kind), "tool", payload)
 			return err
 		}); err != nil {
 			return nil, fmt.Errorf("agent: publish tool.invoked: %w", err)
@@ -204,7 +203,7 @@ func executeToolJobs(ctx context.Context, cfg LoopConfig, jobs []*toolJob) {
 // exceeded" string) is still classified cleanly.
 func invokeToolJob(ctx context.Context, cfg LoopConfig, job *toolJob) {
 	toolCtx := toolapi.WithCorrelation(ctx, cfg.CorrelationID)
-	execution := toolpipeline.Execute(toolCtx, job.tool, job.tc.Input, cfg.ToolTimeout, func(panicValue any) error {
+	execution := loopToolPhases(cfg).Execute(toolCtx, job.tool, job.tc.Input, cfg.ToolTimeout, func(panicValue any) error {
 		return fmt.Errorf("%w: %v", ErrPanic, panicValue)
 	})
 	job.result, job.invokeErr = execution.Result, execution.Err
@@ -320,8 +319,8 @@ func (s *runState) finalizeToolJobs(ctx context.Context, jobs []*toolJob, iter i
 		}
 		auditResult := job.result
 		auditResult.Output = eventOutput
-		if err := toolpipeline.Settle(job.tc, auditResult, resultFields, func(kind event.Kind, payload map[string]any) error {
-			_, err := s.publish(kind, "tool", payload)
+		if err := s.cfg.ToolPhases.Settle(job.tc, auditResult, resultFields, func(kind string, payload map[string]any) error {
+			_, err := s.publish(event.Kind(kind), "tool", payload)
 			return err
 		}); err != nil {
 			auditErr = errors.Join(auditErr, fmt.Errorf("agent: publish tool.result: %w", err))
