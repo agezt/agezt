@@ -1015,7 +1015,7 @@ catalog `<paths.BaseDir()>/rollback/checkpoints.json` (read; `apply` rewrites it
 | `session_store.go` | In-memory `sessionStore` (id→expiry, sliding TTL) + GLOBAL failed-login counter: 8 failures → 5 min lockout. |
 | `streamcap.go` | `streamClientKey` (RemoteAddr host) for the hook limiter; SSE cap moved to `httpserver`. |
 | `artifact_route.go` | `handleArtifactRaw`: `artifact_get` bytes with allowlisted Content-Type, sanitized filename. |
-| `files_route.go` | File Manager root resolution and traversal/symlink-escape guards (`resolveFileRoot`, `verifyResolvedWithinRoot`, `verifyNoEscapingLinks`, `sanitizeRelativePath`). |
+| `files_route.go` | File Manager types and temporary resolver forwarding to `platform/fileworkspace`, which owns normalization and resolved traversal/link containment. |
 | `files_route_handlers.go` | `handleFileTree`, `handleFileRaw`, `handleFileMkdir`, `handleFileRename`, `handleFileDelete` — direct OS calls. |
 | `files_route_helpers.go` | `typeOf`, `readJSONBody`. |
 | `rollback.go` | `handleRollbackCheckpoints`, `handleRollbackApply`; catalog/checkpoint types (kinds `skill.status`, `workflow.snapshot`, `file.snapshot`, `config.setting`). |
@@ -1301,6 +1301,7 @@ and warns when no console password is set.
   `overseertool.NewKernelSource(s.k, s.baseDir)`), contradicting "kernel never imports plugins".
 - **Two kernel entry paths**: Web UI/CLI → control plane; REST/OpenAI/agentgw → kernel directly. Op-level validation in `handleRun`
   (tool allowlists, execution profiles, agent resolution, dry-run) is not exposed by REST/OpenAI (`Engine.RunModel`). Image admission is shared through `runtime.Kernel.AdmitImages` (W2.2a): text-only models use the configured vision sidecar; rejections use the same message and correlated journal event.
+- **Workspace path boundary (W2.xa):** console root lookup, path normalization and resolved containment now live in `platform/fileworkspace` with mechanically unchanged bodies. WebUI's temporary resolver forwarder keep HTTP contracts during operation migration; source tests retain real link/junction refusal. Target tests and four mutations guard root creation, exact NUL errors, legitimate missing tails and containment. This foundation does not journal writes.
 - **Unjournaled Web UI mutations**: the File Manager (`os.Mkdir/Rename/RemoveAll`) and rollback `file.snapshot` restore write the
   filesystem directly from `kernel/webui` without a control-plane op, Edict check or journal event. `rollbackCatalogPath` uses
   `internal/paths.BaseDir()` rather than the daemon's injected base dir.

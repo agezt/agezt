@@ -230,6 +230,22 @@ in slices, one side path per PR or one invoker PR plus re-pointing PRs.
 
 ### 4.4 W2.x — File Manager and rollback restore write files with no op, policy or journal
 
+**W2.xa foundation:** an actual authenticated mkdir request returned HTTP 200 and
+created the directory, but its durable journal contained zero op events and the
+control-plane caller saw zero calls. A separate authenticated file.snapshot
+rollback request restored the previous bytes with zero caller requests and zero
+op/policy records in its temporary durable journal. Both defects are confirmed. The existing root,
+path normalization and resolved containment bodies now live unchanged in
+`platform/fileworkspace`; The WebUI resolver method forwards during migration; the unused root wrapper is removed.
+Existing HTTP/source tests and target contracts preserve creation paths, exact
+errors, home expansion and root containment. Four independent mutations guard
+root creation, NUL rejection, missing-tail handling and resolved containment.
+The real source junction/symlink fixture remains. This is a move before the
+operation rewrite; mkdir/rename/delete and file snapshot restore are still local
+and unjournaled. Next: bind their mutations to primary-only control-plane ops
+and the canonical policy/audit invoker; remove the temporary resolver forwarding method
+when the adapters consume the shared root/resolver directly.
+
 Findings register 9.1: the web console's File Manager and rollback-restore write the filesystem directly
 from the web UI layer: `kernel/webui/files_route.go` and `kernel/webui/rollback.go`
 (+ `rollback_helpers.go`). Confirm with a test that inspects the journal. Now that W2.1a exists, the fix is
