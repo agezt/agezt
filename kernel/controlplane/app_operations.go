@@ -53,11 +53,17 @@ func handleAppSystemOperation(dc *DispatchCtx) {
 		dc.S.fail(dc.Conn, dc.Req, err)
 		return
 	}
-	result, ok := output.(map[string]any)
-	if !ok {
-		dc.S.fail(dc.Conn, dc.Req, errors.New("system operation returned an invalid output"))
+	encoded, err := json.Marshal(output)
+	if err != nil {
+		dc.S.fail(dc.Conn, dc.Req, err)
 		return
 	}
+	var result map[string]any
+	if err := json.Unmarshal(encoded, &result); err != nil {
+		dc.S.fail(dc.Conn, dc.Req, err)
+		return
+	}
+
 	dc.S.writeResp(dc.Conn, Response{ID: dc.Req.ID, Type: RespResult, Result: result})
 }
 
