@@ -96,16 +96,11 @@ func Run(
 		}
 		return res, refusal
 	}
-	if err := events.PublishEvent(event.Spec{
-		Subject:       "tool",
-		Kind:          event.KindToolInvoked,
-		Actor:         "tool",
-		CorrelationID: corr,
-		Payload: map[string]any{
-			"tool":    toolName,
-			"call_id": callID,
-			"input":   args,
-		},
+	if err := Announce(call, func(kind event.Kind, payload map[string]any) error {
+		return events.PublishEvent(event.Spec{
+			Subject: "tool", Kind: kind, Actor: "tool", CorrelationID: corr,
+			Payload: payload,
+		})
 	}); err != nil {
 		return toolapi.Result{}, err
 	}

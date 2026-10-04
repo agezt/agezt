@@ -124,10 +124,9 @@ func (s *runState) gateToolCalls(ctx context.Context, calls []ToolCall, iter int
 			}
 			memoPending[key] = job
 		}
-		if _, err := s.publish(event.KindToolInvoked, "tool", map[string]any{
-			"tool":    tc.Name,
-			"call_id": tc.ID,
-			"input":   tc.Input,
+		if err := toolpipeline.Announce(tc, func(kind event.Kind, payload map[string]any) error {
+			_, err := s.publish(kind, "tool", payload)
+			return err
 		}); err != nil {
 			return nil, fmt.Errorf("agent: publish tool.invoked: %w", err)
 		}
