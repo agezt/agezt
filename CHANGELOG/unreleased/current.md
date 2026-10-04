@@ -4,6 +4,13 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Catalog refresh now requires operation audit before fetching or writing.**
+  Sync and local discovery run through the shared typed operation dispatcher;
+  unavailable preflight audit prevents fetch, persistence and provider reload.
+  Catalog success/failure events share the operation's correlation. The list
+  remains read-only, and invalid known argument types fail before effects.
+
+
 - **Security: file snapshot rollback now obeys file policy and leaves audit records.**
   The console sends a checkpoint ID to a primary-only operation; the daemon reads
   its own catalog and restores through the shared invoker. Content restoration

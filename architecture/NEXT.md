@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> W2.1 framework exit is verified; catalog service move is complete. Continue §4.5 with catalog operation binding, then providers.
+> W2.1 framework exit and catalog binding are verified. Continue §4.5 with the provider domain.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -448,6 +448,25 @@ Full Go/build/vet/static and architecture gates pass: 219 packages, unchanged
 145 import/13 call allowlists. This is the move before operation binding; no
 policy/audit rewrite or additional provider domain move. **Next: catalog specs,
 common app adapter binding and deletion of these compatibility handlers.**
+
+**W2.4b catalog operation binding:** app/catalog owns three typed specs and actual
+input/output models, including nested providers/models and optional price values.
+Registration derives CP metadata and the per-server dispatcher includes system
+plus catalog ops. Old sync/list/discover socket handlers are deleted. Unknown
+legacy args remain allowed; known fields validate before fetch or audit. Sync
+and discovery use mandatory app-owned audit, list stays read-only, and domain
+success/failure events share the host-owned operation correlation. Real socket
+fixtures reproduced ignored primary-only tenant args being copied into audit
+principal metadata; operator tenant is now set only for caller-tenant ops.
+Existing tenant-routed tests retain operator-selected tenant behavior. Native
+framing, JSON timestamp/list parity, full reload, optional rebuild errors,
+credential projection, known-zero vs unknown price behavior and HTTP proxy
+contracts pass count=20. Eight independent mutations retain registry inclusion,
+mutation/read-only metadata, ignored args, typed schemas, price wire name, primary
+audit scope and domain identity. Full Go/build/vet/static and architecture gates
+pass without allowlist growth (219 packages; 145 imports/13 calls). **Catalog
+migration is complete; next provider domain, move before binding.** Generated
+routes/broader adapters and the overall architecture migration remain open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
