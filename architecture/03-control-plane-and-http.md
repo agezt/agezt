@@ -1,6 +1,6 @@
 # 03 — Control plane and HTTP surfaces
 
-**Scope:** `kernel/controlplane` (207 non-test files, ~32.0k LOC, 325 protocol ops), `kernel/httpserver`, `kernel/auth`,
+**Scope:** `kernel/controlplane` (207 non-test files, ~31.9k LOC, 325 protocol ops), `kernel/httpserver`, `kernel/auth`,
 `kernel/streamlimit`, `kernel/webui` (Go side), `kernel/restapi`, `kernel/openaiapi`, `kernel/agentgw`, `kernel/webhook`,
 `kernel/tunnel`. Wiring of these servers happens in `cmd/agezt` (see [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md));
 the CLI client side is in [02-cli-cmd-agt.md](02-cli-cmd-agt.md); the browser side in [11-frontend-console.md](11-frontend-console.md).
@@ -1303,6 +1303,7 @@ and warns when no console password is set.
 
 - **Layering violation**: `kernel/controlplane` imports `plugins/tools/overseertool` (`roster_repair.go`, `roster_wake.go` call
   `overseertool.NewKernelSource(s.k, s.baseDir)`), contradicting "kernel never imports plugins".
+- **System handler boundary (W2.1b):** status/fallback/version presentation is transport-independent in app/system, retaining legacy wire maps. Control-plane wrappers encode the results and bind fresh daemon extras; HTTPBinding/ChannelInfo aliases preserve callers. Actual socket-free/source contracts count=20, body parity and four mutation guards retain the output and optional-data boundaries. The existing registry still owns auth/tenant/read-only/audit metadata until the dispatch rewrite.
 - **Two kernel entry paths**: Web UI/CLI → control plane; REST/OpenAI/agentgw → kernel directly. Op-level validation in `handleRun`
   (tool allowlists, execution profiles, agent resolution, dry-run) is not exposed by REST/OpenAI (`Engine.RunModel`). Image admission is shared through `runtime.Kernel.AdmitImages` (W2.2a): text-only models use the configured vision sidecar; rejections use the same message and correlated journal event.
 - **Workspace path boundary (W2.xa):** console root lookup, path normalization and resolved containment now live in `platform/fileworkspace` with mechanically unchanged bodies. The temporary resolver forwarder preserved HTTP contracts during migration and is removed in W2.xc; source tests retain real link/junction refusal. Target tests and four mutations guard root creation, exact NUL errors, legitimate missing tails and containment. W2.xb also moves mkdir/rename/delete primitives to that platform package while HTTP decoding, path/status/text/result mapping stays in the handlers. Source and target tests (count=20) plus four mutations retain parents, rename direction, recursive opt-in and OS error identity; final symlink refusal remains. These foundations do not journal writes.
