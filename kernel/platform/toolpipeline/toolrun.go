@@ -80,6 +80,14 @@ func Run(
 		return toolapi.Result{}, err
 	}
 	ctx, verdict := decision.Context, decision.Verdict
+	terminalAudit := func(result toolapi.Result) error {
+		return Settle(call, result, nil, func(kind event.Kind, payload map[string]any) error {
+			return events.PublishEvent(event.Spec{
+				Subject: "tool", Kind: kind, Actor: "tool", CorrelationID: corr,
+				Payload: payload,
+			})
+		})
+	}
 	if !verdict.Allow {
 		reason := verdict.Reason
 		if reason == "" {
@@ -87,10 +95,7 @@ func Run(
 		}
 		res := toolapi.Result{Output: "tool call denied by policy: " + reason, IsError: true}
 		refusal := fmt.Errorf("tool %s refused: %s", toolName, reason)
-		if err := events.PublishEvent(event.Spec{
-			Subject: "tool", Kind: event.KindToolResult, Actor: "tool", CorrelationID: corr,
-			Payload: map[string]any{"tool": toolName, "call_id": callID, "output": res.Output, "error": res.IsError},
-		}); err != nil {
+		if err := terminalAudit(res); err != nil {
 			return res, errors.Join(refusal, err)
 		}
 		return res, refusal
@@ -107,26 +112,14 @@ func Run(
 	res, err := execution.Result, execution.Err
 	if err != nil {
 		errorResult := toolapi.Result{Output: err.Error(), IsError: true}
-		auditErr := events.PublishEvent(event.Spec{
-			Subject:       "tool",
-			Kind:          event.KindToolResult,
-			Actor:         "tool",
-			CorrelationID: corr,
-			Payload:       map[string]any{"tool": toolName, "call_id": callID, "output": errorResult.Output, "error": true},
-		})
+		auditErr := terminalAudit(errorResult)
 		noise.NotifyNoise(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args}, errorResult)
 		if auditErr != nil {
 			err = errors.Join(err, auditErr)
 		}
 		return toolapi.Result{}, err
 	}
-	if err := events.PublishEvent(event.Spec{
-		Subject:       "tool",
-		Kind:          event.KindToolResult,
-		Actor:         "tool",
-		CorrelationID: corr,
-		Payload:       map[string]any{"tool": toolName, "call_id": callID, "output": res.Output, "error": res.IsError},
-	}); err != nil {
+	if err := terminalAudit(res); err != nil {
 		return toolapi.Result{}, err
 	}
 	noise.NotifyNoise(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args}, res)

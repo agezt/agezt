@@ -297,32 +297,33 @@ func (s *runState) finalizeToolJobs(ctx context.Context, jobs []*toolJob, iter i
 		// the raw output by default, or the observation delta when the optional
 		// CH-04 delta layer is enabled for a repeated observation.
 		eventOutput, rawRef, fullBytes, offloaded := offloadToolOutput(s.cfg.Artifacts, s.cfg.ArtifactThreshold, job.result.Output)
-		resultPayload := map[string]any{
-			"tool":               job.tc.Name,
-			"call_id":            job.tc.ID,
-			"output":             eventOutput,
-			"error":              job.result.IsError,
+		resultFields := map[string]any{
 			"observation_trust":  observationBoundary.Trust,
 			"observation_source": observationBoundary.Source,
 			"directive_like":     observationBoundary.DirectiveLike,
 			"directive_matches":  observationBoundary.Matches,
 		}
 		if offloaded {
-			resultPayload["raw_ref"] = rawRef
-			resultPayload["output_bytes"] = fullBytes
+			resultFields["raw_ref"] = rawRef
+			resultFields["output_bytes"] = fullBytes
 		}
 		if observationDelta {
-			resultPayload["observation_delta"] = true
-			resultPayload["model_output_bytes"] = len(modelOutput)
-			resultPayload["raw_output_bytes"] = len(job.result.Output)
+			resultFields["observation_delta"] = true
+			resultFields["model_output_bytes"] = len(modelOutput)
+			resultFields["raw_output_bytes"] = len(job.result.Output)
 		}
 		if job.memoHit {
-			resultPayload["memo_hit"] = true
+			resultFields["memo_hit"] = true
 		}
 		if job.skipped {
-			resultPayload["not_executed"] = true
+			resultFields["not_executed"] = true
 		}
-		if _, err := s.publish(event.KindToolResult, "tool", resultPayload); err != nil {
+		auditResult := job.result
+		auditResult.Output = eventOutput
+		if err := toolpipeline.Settle(job.tc, auditResult, resultFields, func(kind event.Kind, payload map[string]any) error {
+			_, err := s.publish(kind, "tool", payload)
+			return err
+		}); err != nil {
 			auditErr = errors.Join(auditErr, fmt.Errorf("agent: publish tool.result: %w", err))
 			continue // retain causes and attempt the remaining terminal records
 		}
