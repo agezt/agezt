@@ -761,6 +761,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: admitted tool execution shares timeout and cleanup handling.**
+  Agent per-call limits, caller context, backend results and panic/cancellation
+  classification are preserved. Direct calls retain their caller budget; batch
+  scheduling, terminal audit and completion hooks keep their existing behavior.
+
 - **Architecture: tool invocation admission shares one audited phase.** Agent
   and direct calls preserve their existing journal identities and error handling.
   Policy denials and memo hits still skip invocation records; an admission audit

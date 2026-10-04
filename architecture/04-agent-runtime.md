@@ -188,7 +188,7 @@ W2.3s shares invocation announcement with direct calls. The phase owns event kin
 
 The HITL approval wait happens inside step 4 (`policyHook` blocks in `approvals.Submit`). Approvals for a multi-call turn are therefore requested **sequentially**, before any call of that turn executes.
 
-**Execute** (`executeToolJobs` → `invokeToolJob`): `WithCorrelation(ctx, corr)` plus an optional `context.WithTimeout(ToolTimeout)`. `toolTimedOut` is captured before cancel. One job, or `MaxParallelTools <= 1`, runs inline under Run's firewall. Otherwise a semaphore-bounded goroutine fan-out runs, with a `recover` in each worker.
+**Execute** (`executeToolJobs` → `invokeToolJob` → `toolpipeline.Execute`): the loop assembles WithCorrelation(ctx, corr), then the shared phase owns optional positive ToolTimeout, safe toolinvoke.Invoke, panic mapping, deadline capture and context cleanup. Panic mapping runs before cleanup so context-sensitive formatter text and ErrPanic identity remain unchanged. Direct calls pass zero timeout/no mapper and retain their caller budget/error text. Raw backend result/error and panic/timeout facts return to callers for settlement. Old-source loop/direct and actual panic/cancel/timeout contracts pass count=20; twelve mutations guard the phase and wiring. One job, or MaxParallelTools <= 1, runs inline; otherwise the existing semaphore-bounded fan-out and worker recover remain.
 
 **Finalize** (`finalizeToolJobs`), in original order:
 - A panicked job returns `ErrPanic` and terminates the run.
