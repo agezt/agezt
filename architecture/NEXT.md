@@ -361,6 +361,18 @@ raises the mock-host/no-I/O benchmark to 7.0–8.6 us/op, still below 50 us; it 
 not measure live I/O. Embedding derivation, typed pilot output models and
 mutation/streaming transport hosts remain open; full W2.1 is not complete.
 
+**W2.1f typed pilot outputs:** status/version now return Go output models, including
+nested schedule/fallback/delegation metadata. Status derives an actual field
+schema; version uses an explicit schema for the brand.Binary custom wire key.
+The control-plane adapter serializes typed outputs into its legacy Result map.
+Optional metadata omission and an enabled empty tenant registry (`tenants: 0`)
+remain compatible; returned metadata slices are copied. Original status JSON
+parity, typed wire/schema and source tests pass count=20; five independent
+mutations guard zero-tenant presence, snapshot ownership, nested wire names,
+output schema specificity and the version brand key. Full Go/build/vet/static
+and architecture gates pass without allowlist growth. Embedded derivation and
+production mutation/streaming host adapters remain open; full W2.1 is incomplete.
+
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
   resolve → tenant authz → tenant routing → stream mode → **audit**.

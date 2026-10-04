@@ -21,7 +21,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	version, err := app.NewOperation(opapi.Spec{Name: "version", ReadOnly: true, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/version"}}, func(ctx context.Context, input VersionInput) (VersionOutput, error) {
+	version, err := app.NewOperation(opapi.Spec{Name: "version", ReadOnly: true, AllowUnknownInput: true, OutputSchema: versionOutputSchema(), HTTP: opapi.HTTP{Method: "GET", Path: "/api/version"}}, func(ctx context.Context, input VersionInput) (VersionOutput, error) {
 		return provider(ctx).Version(ctx, input)
 	})
 	if err != nil {

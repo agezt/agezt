@@ -1,36 +1,36 @@
 // SPDX-License-Identifier: MIT
 
 // Package system owns the transport-independent daemon status/version handlers.
-// It retains their existing output maps while the operation registry converges.
+// Its typed output models preserve the existing daemon wire contract.
 package system
 
 import (
 	"context"
 	"encoding/json"
+	"time"
+
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
-	"time"
 )
 
 type StatusInput struct{}
 type VersionInput struct{}
-type StatusOutput = map[string]any
-type VersionOutput = map[string]any
 
 // TenantCounter reports the optional daemon-wide tenant count.
 type TenantCounter interface{ Count() int }
 
 type HTTPBinding struct {
-	Name, Addr string
-	Loopback   bool
+	Name     string `json:"name"`
+	Addr     string `json:"addr"`
+	Loopback bool   `json:"loopback"`
 }
 type ChannelInfo struct {
-	Kind      string
-	Inbound   bool
-	Addr      string
-	Allowlist int
+	Kind      string `json:"kind"`
+	Inbound   bool   `json:"inbound"`
+	Addr      string `json:"addr"`
+	Allowlist int    `json:"allowlist"`
 }
 
 type Service struct {
@@ -154,84 +154,35 @@ func (s *Service) Status(_ context.Context, _ StatusInput) (StatusOutput, error)
 	// than conflating them into the provider count.
 	fb := s.fallbackCounts()
 
-	result := map[string]any{
-		"daemon":         brand.Version,
-		"protocol":       brand.ProtocolVersion,
-		"model":          s.k.Model(),
-		"uptime_seconds": uptimeSecs,
-		"halted":         s.k.IsHalted(),
-		"active_runs":    s.k.ActiveRuns(),
-		"tools":          len(s.k.Tools()),
-		"memory_records": s.k.Memory().Count(),
-		"world_entities": s.k.World().Count(),
-		"active_skills":  s.k.Forge().Count(),
-		"journal_head":   headSeq,
-		"schedules": map[string]any{
-			"total":    schedTotal,
-			"enabled":  schedEnabled,
-			"running":  schedRunning,
-			"resident": schedResident,
-		},
-		"pending_approvals":  pendingApprovals,
-		"provider_fallbacks": map[string]any{"count": fb.providerCount, "last_reason": fb.providerLast, "last_ms": fb.providerLastMS},
-		"model_fallbacks":    map[string]any{"count": fb.modelCount, "last_reason": fb.modelLast, "last_ms": fb.modelLastMS},
-		"delegation": map[string]any{
-			"enabled":              dl.Enabled,
-			"max_depth":            dl.MaxDepth,
-			"max_fanout":           dl.MaxFanout,
-			"max_spend_microcents": dl.MaxSpendMicrocents,
-			"max_total":            dl.MaxTotal,
+	result := StatusOutput{
+		Daemon: brand.Version, Protocol: brand.ProtocolVersion, Model: s.k.Model(),
+		UptimeSeconds: uptimeSecs, Halted: s.k.IsHalted(), ActiveRuns: s.k.ActiveRuns(),
+		Tools: len(s.k.Tools()), MemoryRecords: s.k.Memory().Count(),
+		WorldEntities: s.k.World().Count(), ActiveSkills: s.k.Forge().Count(), JournalHead: headSeq,
+		Schedules:         ScheduleStatus{Total: schedTotal, Enabled: schedEnabled, Running: schedRunning, Resident: schedResident},
+		PendingApprovals:  pendingApprovals,
+		ProviderFallbacks: FallbackStatus{Count: fb.providerCount, LastReason: fb.providerLast, LastMS: fb.providerLastMS},
+		ModelFallbacks:    FallbackStatus{Count: fb.modelCount, LastReason: fb.modelLast, LastMS: fb.modelLastMS},
+		Delegation: DelegationStatus{
+			Enabled: dl.Enabled, MaxDepth: dl.MaxDepth, MaxFanout: dl.MaxFanout,
+			MaxSpendMicrocents: dl.MaxSpendMicrocents, MaxTotal: dl.MaxTotal,
 		},
 	}
-	// Tenant count only when multi-tenancy is enabled (M130) — a single-tenant
-	// daemon shouldn't show a tenant line at all.
 	if s.tenants != nil {
-		result["tenants"] = s.tenants.Count()
+		count := s.tenants.Count()
+		result.Tenants = &count
 	}
-	// Network-exposed HTTP servers (M137) — so `agt status` / the doctor exposure
-	// check can flag a non-loopback bind (the agent reachable beyond localhost).
 	if len(s.httpBindings) > 0 {
-		servers := make([]map[string]any, 0, len(s.httpBindings))
-		for _, b := range s.httpBindings {
-			servers = append(servers, map[string]any{
-				"name": b.Name, "addr": b.Addr, "loopback": b.Loopback,
-			})
-		}
-		result["http_servers"] = servers
+		result.HTTPServers = append([]HTTPBinding(nil), s.httpBindings...)
 	}
-
-	// Configured messaging channels (M141) — Telegram / Slack / Discord. So an
-	// operator can confirm what's listening (and on what addr / allowlist) from the
-	// status dashboard rather than the boot banner. Omitted when none configured.
 	if len(s.channels) > 0 {
-		chans := make([]map[string]any, 0, len(s.channels))
-		for _, c := range s.channels {
-			chans = append(chans, map[string]any{
-				"kind": c.Kind, "inbound": c.Inbound, "addr": c.Addr, "allowlist": c.Allowlist,
-			})
-		}
-		result["channels"] = chans
+		result.Channels = append([]ChannelInfo(nil), s.channels...)
 	}
-
-	// AWS credential chain (M307): which keyless/ambient layer engaged (IRSA,
-	// SSO, assume-role, IMDS). So an operator on EKS can confirm IRSA is live
-	// from `agt status` instead of grepping the boot banner. Omitted when AWS
-	// credentials aren't configured.
-	if s.credChain != "" {
-		result["cred_chain"] = s.credChain
-	}
+	result.CredChain = s.credChain
 
 	return result, nil
 }
 func (s *Service) Version(_ context.Context, _ VersionInput) (VersionOutput, error) {
 	rev, committed, modified := brand.BuildInfo()
-	return map[string]any{
-		brand.Binary:       brand.Version,
-		"protocol_version": brand.ProtocolVersion,
-		// Build provenance (M971) — lets operators confirm which build a
-		// daemon is actually running, since the semver only moves per release.
-		"revision":       rev,
-		"built":          committed,
-		"build_modified": modified,
-	}, nil
+	return VersionOutput{Version: brand.Version, ProtocolVersion: brand.ProtocolVersion, Revision: rev, Built: committed, BuildModified: modified}, nil
 }
