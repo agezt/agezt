@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> continue §4.5 with the transport-independent operation framework.
+> W2.1 framework exit is verified; continue §4.5 with ordered catalog/provider domain migration.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -420,6 +420,19 @@ exercise the production registration/factory/adapter with test operations.
 **Next: verify the complete W2.1 exit against actual supported representations,
 then continue the ordered catalog/provider domain migration.** Generated surfaces
 and broader adapters remain later work; the architecture goal is not complete.
+
+**W2.1j text codec boundary and framework exit:** exit checks reproduced netip.Addr
+being derived as an empty object although encoding/json writes a string. Go text
+encoder/decoder method sets now require explicit schemas, including pointer and
+nested/collection representations. Actual explicit decode/dispatch/encode tests
+pass count=20; separate encoding-only and decoding-only mutations fail. Complete
+framework, pilot, native host and source invariants pass count=20; full Go/build/
+vet/static and architecture gates pass without allowlist growth. No-I/O dispatch
+is 6.9–9.0 us/op (<50 us). [W2.1 exit evidence](23-w21-exit-evidence.md) maps each
+framework requirement to source and executable proof and states the supported
+schema, principal, native wire and live-verification boundaries. **W2.1 framework
+plus status/version pilot is complete; next migrate catalog/provider in roadmap
+order.** Other domains, generated surfaces, broader adapters and W3–W5 remain open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
