@@ -78,7 +78,6 @@ func addRemoteExecutionProfilePeerMetadata(payload map[string]any, meta map[stri
 // registerCoreCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
 func registerCoreCommands() {
 	register(
-		commandSpec{Cmd: CmdVersion, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleVersion(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdRun, TenantAllowed: true, TenantRouted: true, Streaming: StreamEvents, Handler: func(dc *DispatchCtx) { dc.S.handleRun(dc.Ctx, dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdHalt, Handler: func(dc *DispatchCtx) { dc.S.handleHalt(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdResume, Handler: func(dc *DispatchCtx) { dc.S.handleResume(dc.Conn, dc.Req) }},

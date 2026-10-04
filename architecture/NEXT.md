@@ -317,7 +317,27 @@ tenant binding and build provenance. This is the move before registry/dispatch
 rewriting; metadata derivation, typed schema framework and adapter routing are
 still open. Do not call the full W2.1 framework complete yet.
 
-**Today's state, after W2.1a:**
+**W2.1c typed dispatch pilot:** contract/opapi owns pure operation metadata,
+principal/caller and auth/router/audit/emitter ports. app binds Go-typed unary and
+emitting handlers, derives supported input/output schemas and owns immutable
+registry dispatch: authenticate, authorize, route, decode/validate, mandatory
+mutation audit, handler, terminal audit. Audit failure/cancellation prevents
+handler entry; panic and typed terminal causes settle through owned spans.
+System status/version now register from app specs; control-plane metadata is
+derived and old socket handler wrappers are deleted. The adapter keeps native
+auth framing, binds fresh service data and encodes output. Explicit unknown-input
+compatibility retains the pilot's old args behavior; legacy output maps remain.
+Source and pipeline/schema/stream/metadata contracts pass count=20; eight
+mutations guard admission/effects/schema ownership and adapter metadata.
+Mock-host, no-audit-I/O dispatch benchmark: 3.6–4.5 us/op on local Windows,
+GOMAXPROCS=4 (not end-to-end status/journal-fold latency).
+The framework is not fully complete: schema derivation currently rejects nullable
+pointers, embedding and custom JSON representations instead of advertising an
+incorrect contract; output maps remain legacy. Mutating/streaming transport host
+adapters and other domains still need migration. Extend these boundaries against
+actual types before closing W2.1; generated surfaces remain later work.
+
+**Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
   resolve → tenant authz → tenant routing → stream mode → **audit**.
 - Every handler, though, writes straight to `net.Conn` (`s.writeResp(conn, …)`), so nothing outside the

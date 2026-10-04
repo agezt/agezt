@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/app/system"
 	"net"
 	"sync"
@@ -18,8 +19,11 @@ import (
 
 // Server hosts the control plane for a running Kernel.
 type Server struct {
-	k       *runtime.Kernel
-	baseDir string
+	operationOnce sync.Once
+	operations    *app.Dispatcher
+	operationErr  error
+	k             *runtime.Kernel
+	baseDir       string
 
 	mu       sync.Mutex
 	listener net.Listener

@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-107 package(s):
+109 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -10,6 +10,7 @@
 - **`kernel/agentgw`** — Package agentgw provides a secure gateway for AI agent subprocess code to communicate with the AGEZT kernel.
 - **`kernel/alerter`** — Package alerter pushes warning/critical alerts to the configured channels (M782).
 - **`kernel/anomaly`** — Package anomaly is the autonomous-operation circuit breaker (SPEC-06 §5): it watches for runaway signals and, on a spike, auto-engages a halt so a looping or runaway agent cannot burn budget or take repeated action unsupervised.
+- **`kernel/app`** — Package app implements the transport-independent typed operation pipeline.
 - **`kernel/app/files`** — Package files applies console file mutations through the host's governed tool invocation port.
 - **`kernel/app/system`** — Package system owns the transport-independent daemon status/version handlers.
 - **`kernel/app/tools`** — Package tools is the application entry for governed direct tool invocations.
@@ -29,6 +30,7 @@
 - **`kernel/contextselect`** — Package contextselect provides context candidate scoring, selection, and failure analysis for agent runs.
 - **`kernel/contract/channelapi`** — Package channelapi is the messaging-channel contract: the platform-neutral inbound message every channel normalises to (UnifiedMessage, SPEC-04 §1.3), what the kernel hands a channel to deliver (Outbound, Attachment, Reply), the Channel interface a duplex surface implements, and the Manifest a channel registers to describe itself.
 - **`kernel/contract/llm`** — Package llm is the model-provider contract: the canonical conversation (Message, Role, ToolCall), one completion round trip (CompletionRequest, CompletionResponse, Usage, StopReason, Params) and the provider interfaces (Provider, StreamingProvider, Chunk).
+- **`kernel/contract/opapi`** — Package opapi defines transport-independent operation metadata and host ports.
 - **`kernel/contract/policyapi`** — Package policyapi defines the tool-policy verdict and callback contract.
 - **`kernel/contract/toolapi`** — Package toolapi is the tool contract: what a tool is (Tool, ToolDef, Result) and the governance metadata it declares (ToolCapability, ToolEffect, ObservationTrust).
 - **`kernel/contract/toolphaseapi`** — Package toolphaseapi defines the batch-aware invocation service port.

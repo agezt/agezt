@@ -15,6 +15,7 @@ func init() { registerAllCommands() }
 // one register func per subsystem. Explicit (not per-file init) so the full
 // registration order is readable in one place.
 func registerAllCommands() {
+	registerAppSystemCommands()
 	registerBoardCommands()
 	registerCatalogCommands()
 	registerChannelCommands()
@@ -153,7 +154,6 @@ func registerDaemonOpsCommands() {
 		commandSpec{Cmd: CmdShutdown, Handler: func(dc *DispatchCtx) { dc.S.handleShutdown(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdStateList, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleStateList(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdStateGet, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleStateGet(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdStatus, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleStatus(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdStorageStats, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleStorageStats(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdUpdateCheck, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleUpdateCheck(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdUpdateApply, Handler: func(dc *DispatchCtx) { dc.S.handleUpdateApply(dc.Conn, dc.Req) }},

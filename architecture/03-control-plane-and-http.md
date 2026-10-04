@@ -1,6 +1,6 @@
 # 03 — Control plane and HTTP surfaces
 
-**Scope:** `kernel/controlplane` (207 non-test files, ~31.9k LOC, 325 protocol ops), `kernel/httpserver`, `kernel/auth`,
+**Scope:** `kernel/controlplane` (208 non-test files, ~31.9k LOC, 325 protocol ops), `kernel/httpserver`, `kernel/auth`,
 `kernel/streamlimit`, `kernel/webui` (Go side), `kernel/restapi`, `kernel/openaiapi`, `kernel/agentgw`, `kernel/webhook`,
 `kernel/tunnel`. Wiring of these servers happens in `cmd/agezt` (see [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md));
 the CLI client side is in [02-cli-cmd-agt.md](02-cli-cmd-agt.md); the browser side in [11-frontend-console.md](11-frontend-console.md).
@@ -1303,6 +1303,7 @@ and warns when no console password is set.
 
 - **Layering violation**: `kernel/controlplane` imports `plugins/tools/overseertool` (`roster_repair.go`, `roster_wake.go` call
   `overseertool.NewKernelSource(s.k, s.baseDir)`), contradicting "kernel never imports plugins".
+- **Typed operation pilot (W2.1c):** app/system owns status/version specs; control-plane registration derives auth/tenant/stream/read-only fields and a common adapter calls app.Dispatcher. Old socket handlers are deleted; native framing/auth remain, and the app re-authenticates through a host port. Pure opapi contracts and Go-derived supported schemas enforce admission before effects; current pilot output maps/unknown args remain compatible. Mutation audit and streaming emitter contracts are tested independently; production host migration for those modes remains open. Eight mutations and a no-I/O mock-host benchmark (3.6–4.5 us) guard the foundation.
 - **System handler boundary (W2.1b):** status/fallback/version presentation is transport-independent in app/system, retaining legacy wire maps. Control-plane wrappers encode the results and bind fresh daemon extras; HTTPBinding/ChannelInfo aliases preserve callers. Actual socket-free/source contracts count=20, body parity and four mutation guards retain the output and optional-data boundaries. The existing registry still owns auth/tenant/read-only/audit metadata until the dispatch rewrite.
 - **Two kernel entry paths**: Web UI/CLI → control plane; REST/OpenAI/agentgw → kernel directly. Op-level validation in `handleRun`
   (tool allowlists, execution profiles, agent resolution, dry-run) is not exposed by REST/OpenAI (`Engine.RunModel`). Image admission is shared through `runtime.Kernel.AdmitImages` (W2.2a): text-only models use the configured vision sidecar; rejections use the same message and correlated journal event.
