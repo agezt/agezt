@@ -72,7 +72,10 @@ func (d *Dispatcher) Dispatch(ctx context.Context, caller opapi.Caller, name str
 		return nil, errors.New("forbidden: tenant identity mismatch")
 	}
 	if principal.Kind == opapi.Operator {
-		principal.Tenant = caller.Tenant
+		principal.Tenant = ""
+		if operation.spec.Tenancy == opapi.CallerTenant {
+			principal.Tenant = caller.Tenant
+		}
 	}
 	ctx, err = d.deps.Router.Route(ctx, principal, operation.Spec())
 	if err != nil {

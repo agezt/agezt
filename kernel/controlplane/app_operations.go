@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/app"
+	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
 	"github.com/agezt/agezt/kernel/app/system"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
@@ -25,8 +26,26 @@ var systemOperations = func() []app.Operation {
 	return ops
 }()
 
+var catalogOperations = func() []app.Operation {
+	ops, err := appcatalog.Operations(func(ctx context.Context) *appcatalog.Service {
+		host := ctx.Value(appHostKey{}).(appHost)
+		server := ctx.Value(systemHostKey{}).(*Server)
+		return appcatalog.New(host.kernel, server.baseDir)
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
+
+func registeredAppOperations() []app.Operation {
+	operations := make([]app.Operation, 0, len(systemOperations)+len(catalogOperations))
+	operations = append(operations, systemOperations...)
+	return append(operations, catalogOperations...)
+}
+
 func registerAppSystemCommands() {
-	for _, operation := range systemOperations {
+	for _, operation := range registeredAppOperations() {
 		spec, err := appCommandSpec(operation)
 		if err != nil {
 			panic(err)
@@ -73,7 +92,7 @@ func appCommandSpec(operation app.Operation) (commandSpec, error) {
 
 func handleAppOperation(dc *DispatchCtx) {
 	dc.S.operationOnce.Do(func() {
-		dc.S.operations, dc.S.operationErr = app.NewDispatcher(systemOperations, app.Dependencies{Auth: appAuthenticator{dc.S}, Router: appTenantRouter{dc.S}, Audit: appAuditor{}})
+		dc.S.operations, dc.S.operationErr = app.NewDispatcher(registeredAppOperations(), app.Dependencies{Auth: appAuthenticator{dc.S}, Router: appTenantRouter{dc.S}, Audit: appAuditor{}})
 	})
 	if dc.S.operationErr != nil {
 		dc.S.fail(dc.Conn, dc.Req, dc.S.operationErr)
@@ -134,6 +153,7 @@ func (r appTenantRouter) Route(ctx context.Context, principal opapi.Principal, s
 	if !spec.ReadOnly {
 		host.correlation = k.NewCorrelation()
 		ctx = k.WithActorCorrelation(ctx, string(principal.Kind), host.correlation)
+		ctx = opapi.WithCorrelation(ctx, host.correlation)
 	}
 	ctx = context.WithValue(ctx, appHostKey{}, host)
 	return context.WithValue(ctx, systemHostKey{}, r.server), nil
