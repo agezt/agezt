@@ -84,7 +84,10 @@ func ProbeExisting(baseDir string) (addr string, alive bool) {
 }
 
 // ErrServerError wraps a server-side error response.
-type ErrServerError struct{ Msg string }
+type ErrServerError struct {
+	Msg  string
+	Code string // optional domain classification; empty for legacy responses
+}
 
 func (e *ErrServerError) Error() string { return "controlplane: " + e.Msg }
 
@@ -111,7 +114,7 @@ func (c *Client) Call(ctx context.Context, cmd string, args map[string]any) (map
 		return nil, mapNetTimeoutToCtxError(ctx, err)
 	}
 	if resp.Type == RespError {
-		return nil, &ErrServerError{Msg: resp.Error}
+		return nil, &ErrServerError{Msg: resp.Error, Code: resp.ErrorCode}
 	}
 	if resp.Type != RespResult {
 		return nil, fmt.Errorf("controlplane: unexpected response type %q", resp.Type)
@@ -145,15 +148,16 @@ func (c *Client) CallRaw(ctx context.Context, cmd string, args map[string]any) (
 		return nil, mapNetTimeoutToCtxError(ctx, err)
 	}
 	var resp struct {
-		Type   string          `json:"type"`
-		Result json.RawMessage `json:"result"`
-		Error  string          `json:"error"`
+		Type      string          `json:"type"`
+		Result    json.RawMessage `json:"result"`
+		Error     string          `json:"error"`
+		ErrorCode string          `json:"error_code"`
 	}
 	if err := json.Unmarshal(line, &resp); err != nil {
 		return nil, fmt.Errorf("controlplane: parse response: %w", err)
 	}
 	if resp.Type == RespError {
-		return nil, &ErrServerError{Msg: resp.Error}
+		return nil, &ErrServerError{Msg: resp.Error, Code: resp.ErrorCode}
 	}
 	if resp.Type != RespResult {
 		return nil, fmt.Errorf("controlplane: unexpected response type %q", resp.Type)
@@ -194,7 +198,7 @@ func (c *Client) Stream(ctx context.Context, cmd string, args map[string]any, on
 		case RespResult:
 			return resp.Result, nil
 		case RespError:
-			return nil, &ErrServerError{Msg: resp.Error}
+			return nil, &ErrServerError{Msg: resp.Error, Code: resp.ErrorCode}
 		default:
 			return nil, fmt.Errorf("controlplane: unexpected response type %q", resp.Type)
 		}
@@ -258,7 +262,7 @@ func (c *Client) StreamUntilCancel(ctx context.Context, cmd string, args map[str
 			// future commands sharing the helper might.
 			return nil
 		case RespError:
-			return &ErrServerError{Msg: resp.Error}
+			return &ErrServerError{Msg: resp.Error, Code: resp.ErrorCode}
 		default:
 			return fmt.Errorf("controlplane: unexpected response type %q", resp.Type)
 		}

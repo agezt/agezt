@@ -24,11 +24,12 @@ const (
 // Response is the wire shape sent by the server. Exactly one of Event,
 // Result, or Error is populated depending on Type.
 type Response struct {
-	ID     string         `json:"id"`
-	Type   string         `json:"type"`
-	Event  *event.Event   `json:"event,omitempty"`
-	Result map[string]any `json:"result,omitempty"`
-	Error  string         `json:"error,omitempty"`
+	ID        string         `json:"id"`
+	Type      string         `json:"type"`
+	Event     *event.Event   `json:"event,omitempty"`
+	Result    map[string]any `json:"result,omitempty"`
+	Error     string         `json:"error,omitempty"`
+	ErrorCode string         `json:"error_code,omitempty"` // optional domain classification on errors
 }
 
 // File names under <BaseDir>/runtime/.

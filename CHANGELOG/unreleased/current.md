@@ -4,6 +4,14 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Security: File Manager writes now obey configured file policy and leave audit records.**
+  Folder creation and rename check file.write; deletion checks file.delete.
+  The console calls primary-only control-plane operations through the kernel's
+  shared invoker, recording correlated operation, policy and tool events. A
+  denial or unavailable preflight audit prevents disk effects, including creation
+  of a missing workspace root. Existing default permissions, path safety and
+  HTTP result/error contracts remain; explicit policy denials return 403.
+
 - **Security: agent tool panics and cancellations now leave terminal audit.**
   These failures previously ended the task with unmatched tool invocation records;
   a panic also skipped cleanup of its per-call timeout context. The loop now uses

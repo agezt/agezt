@@ -24,6 +24,7 @@ func registerAllCommands() {
 	registerDaemonOpsCommands()
 	registerDatalakeCommands()
 	registerEdictCommands()
+	registerFileCommands()
 	registerJournalLogCommands()
 	registerMCPCommands()
 	registerMarketCommands()

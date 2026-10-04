@@ -151,6 +151,7 @@ func beginOpAudit(dc *DispatchCtx) *opAudit {
 		Payload:       payload,
 	})
 	dc.Conn = a.conn
+	dc.CorrelationID = a.corr
 	return a
 }
 

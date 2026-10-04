@@ -8,7 +8,6 @@ package webui
 //             during the Day-89 god-file split. Public API unchanged.
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,11 +16,12 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/platform/fileworkspace"
 )
 
 func (s *Server) handleFileTree(w http.ResponseWriter, r *http.Request) {
-	rootAbs, targetAbs, rel, err := s.resolveFileRoot(r.URL.Query().Get("path"))
+	rootAbs, targetAbs, rel, err := fileworkspace.Resolve(r.URL.Query().Get("path"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -102,7 +102,7 @@ func (s *Server) handleFileTree(w http.ResponseWriter, r *http.Request) {
 // — a chat mention that points at a multi-gigabyte file is almost certainly
 // an accident, and we want the daemon to refuse instead of OOM.
 func (s *Server) handleFileRaw(w http.ResponseWriter, r *http.Request) {
-	_, targetAbs, _, err := s.resolveFileRoot(r.URL.Query().Get("path"))
+	_, targetAbs, _, err := fileworkspace.Resolve(r.URL.Query().Get("path"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -159,95 +159,39 @@ func (s *Server) handleFileRaw(w http.ResponseWriter, r *http.Request) {
 // create intermediate directories the same way `mkdir -p` does — required
 // because the UI's "new folder" affordance doesn't always know the depth.
 func (s *Server) handleFileMkdir(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.Header().Set("Allow", "POST")
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	body, ok := readJSONBody(w, r)
+	body, ok := fileMutationBody(w, r)
 	if !ok {
 		return
 	}
 	rel, _ := body["path"].(string)
 	parents, _ := body["parents"].(bool)
-	_, targetAbs, _, err := s.resolveFileRoot(rel)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if err := fileworkspace.Mkdir(targetAbs, parents); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": filepath.ToSlash(rel)})
+	s.callFileMutation(w, r, controlplane.CmdFileMkdir, map[string]any{"path": rel, "parents": parents})
 }
 
-// handleFileRename moves/renames a path within the workspace root. POST body:
-// {from, to}. Refuses if either side escapes the root.
+// handleFileRename preserves the console's request and result contract.
 func (s *Server) handleFileRename(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.Header().Set("Allow", "POST")
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	body, ok := readJSONBody(w, r)
+	body, ok := fileMutationBody(w, r)
 	if !ok {
 		return
 	}
 	from, _ := body["from"].(string)
 	to, _ := body["to"].(string)
 	if from == "" || to == "" {
-		http.Error(w, "from and to required", http.StatusBadRequest)
+		http.Error(w, "from and to are required", http.StatusBadRequest)
 		return
 	}
-	_, fromAbs, _, err := s.resolveFileRoot(from)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	_, toAbs, _, err := s.resolveFileRoot(to)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if err := fileworkspace.Rename(fromAbs, toAbs); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "from": filepath.ToSlash(from), "to": filepath.ToSlash(to)})
+	s.callFileMutation(w, r, controlplane.CmdFileRename, map[string]any{"from": from, "to": to})
 }
 
-// handleFileDelete removes a file or empty directory. POST body: {path}.
-// Non-empty directories require recursive=true to avoid surprising the
-// operator with a half-deleted subtree.
+// handleFileDelete preserves the explicit recursive opt-in.
 func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.Header().Set("Allow", "POST")
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	body, ok := readJSONBody(w, r)
+	body, ok := fileMutationBody(w, r)
 	if !ok {
 		return
 	}
 	rel, _ := body["path"].(string)
 	recursive, _ := body["recursive"].(bool)
-	_, targetAbs, _, err := s.resolveFileRoot(rel)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if err := fileworkspace.Delete(targetAbs, recursive); err != nil {
-		if os.IsNotExist(err) {
-			http.Error(w, "not found", http.StatusNotFound)
-		} else if errors.Is(err, fileworkspace.ErrSymlink) {
-			http.Error(w, err.Error(), http.StatusForbidden)
-		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": filepath.ToSlash(rel)})
+	s.callFileMutation(w, r, controlplane.CmdFileDelete, map[string]any{"path": rel, "recursive": recursive})
 }
 
 // typeOf returns "dir" or "file" for an os.DirEntry — keeping the JSON
