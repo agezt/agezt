@@ -14,7 +14,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/policyapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/platform/policyctx"
 	"github.com/agezt/agezt/kernel/platform/schema"
 	"github.com/agezt/agezt/kernel/platform/toolaudit"
 	"github.com/agezt/agezt/kernel/platform/toolinvoke"
@@ -71,21 +70,17 @@ func Run(
 		return toolapi.Result{}, fmt.Errorf("tool %s input rejected by schema: %w", toolName, err)
 	}
 	ctx = toolapi.WithCorrelation(ctx, corr)
-	ctx = policyctx.WithPolicyToolDef(ctx, def)
-	verdict := policy.CheckPolicy(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args})
-	// Journal the gating decision for the direct (operator/CLI) tool path too, so it
-	// is audited exactly like a loop tool call (kernel/agent publishes the same
-	// policy.decision for in-loop calls). Without this, a refused direct tool run
-	// left no journal trace and never folded into the per-agent denial audit.
-	if err := events.PublishEvent(event.Spec{
-		Subject:       "policy",
-		Kind:          event.KindPolicyDecision,
-		Actor:         "policy",
-		CorrelationID: corr,
-		Payload:       toolaudit.PolicyDecisionPayload(llm.ToolCall{ID: callID, Name: toolName, Input: args}, verdict),
-	}); err != nil {
+	decision, err := Decide(ctx, llm.ToolCall{ID: callID, Name: toolName, Input: args}, def, policy.CheckPolicy,
+		func(call llm.ToolCall, verdict policyapi.PolicyVerdict) error {
+			return events.PublishEvent(event.Spec{
+				Subject: "policy", Kind: event.KindPolicyDecision, Actor: "policy", CorrelationID: corr,
+				Payload: toolaudit.PolicyDecisionPayload(call, verdict),
+			})
+		})
+	if err != nil {
 		return toolapi.Result{}, err
 	}
+	ctx, verdict := decision.Context, decision.Verdict
 	if !verdict.Allow {
 		reason := verdict.Reason
 		if reason == "" {
