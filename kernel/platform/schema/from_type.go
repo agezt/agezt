@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
+	"unicode"
 )
 
 // FromType derives the supported JSON Schema subset from a handler's Go type.
@@ -77,50 +79,27 @@ func typeNode(t reflect.Type, allowUnknown bool, visiting map[reflect.Type]bool)
 		}
 		return nullableNode(map[string]any{"type": "object", "additionalProperties": child}), nil
 	case reflect.Struct:
+		fields, err := structJSONFields(t)
+		if err != nil {
+			return nil, err
+		}
 		properties := map[string]any{}
 		var required []string
-		for i := 0; i < t.NumField(); i++ {
-			field := t.Field(i)
-			if !field.IsExported() {
-				continue
+		for _, field := range fields {
+			if field.quoted {
+				return nil, fmt.Errorf("json string option is unsupported: %s.%s", t, field.name)
 			}
-			if field.Anonymous {
-				return nil, fmt.Errorf("embedded fields need an explicit schema: %s.%s", t, field.Name)
-			}
-			parts := strings.Split(field.Tag.Get("json"), ",")
-			name := parts[0]
-			if name == "-" {
-				continue
-			}
-			if name == "" {
-				name = field.Name
-			}
-			if len(parts) > 1 {
-				for _, option := range parts[1:] {
-					if option == "string" {
-						return nil, fmt.Errorf("json string option is unsupported: %s.%s", t, field.Name)
-					}
-				}
-			}
-			if _, exists := properties[name]; exists {
-				return nil, fmt.Errorf("duplicate JSON field %q", name)
-			}
-			child, err := typeNode(field.Type, allowUnknown, visiting)
+			child, err := typeNode(field.typ, allowUnknown, visiting)
 			if err != nil {
 				return nil, err
 			}
-			properties[name] = child
-			optional := false
-			for _, option := range parts[1:] {
-				if option == "omitempty" || option == "omitzero" {
-					optional = true
-				}
-			}
-			if !optional {
-				required = append(required, name)
+			properties[field.name] = child
+			if !field.optional {
+				required = append(required, field.name)
 			}
 		}
 		return map[string]any{"type": "object", "properties": properties, "required": required, "additionalProperties": allowUnknown}, nil
+
 	default:
 		return nil, fmt.Errorf("unsupported schema type %s", t)
 	}
@@ -143,4 +122,122 @@ func nullableNode(node map[string]any) map[string]any {
 		node["type"] = append(typ, "null")
 	}
 	return node
+}
+
+// jsonField describes a surviving wire field after anonymous-field promotion.
+// A nil anonymous pointer can omit every promoted field, independently of its tags.
+type jsonField struct {
+	name                     string
+	typ                      reflect.Type
+	depth                    int
+	tagged, optional, quoted bool
+}
+
+func structJSONFields(root reflect.Type) ([]jsonField, error) {
+	candidates := map[string][]jsonField{}
+	path := map[reflect.Type]bool{}
+	var collect func(reflect.Type, int, bool) error
+	collect = func(t reflect.Type, depth int, optional bool) error {
+		if path[t] {
+			return fmt.Errorf("recursive embedded schema type %s", t)
+		}
+		path[t] = true
+		defer delete(path, t)
+		for i := 0; i < t.NumField(); i++ {
+			field := t.Field(i)
+			base := field.Type
+			pointer := base.Kind() == reflect.Pointer
+			if pointer {
+				base = base.Elem()
+			}
+			if !field.IsExported() && (!field.Anonymous || base.Kind() != reflect.Struct) {
+				continue
+			}
+			tag := field.Tag.Get("json")
+			if tag == "-" {
+				continue
+			}
+			parts := strings.Split(tag, ",")
+			name := parts[0]
+			if !validJSONFieldName(name) {
+				name = ""
+			}
+			if field.Anonymous && name == "" && base.Kind() == reflect.Struct {
+				// encoding/json cannot allocate an unexported embedded pointer
+				// during decode. Keep that representation explicit at binding.
+				if pointer && !field.IsExported() {
+					return fmt.Errorf("unexported embedded pointer needs an explicit schema: %s.%s", t, field.Name)
+				}
+				if err := collect(base, depth+1, optional || pointer); err != nil {
+					return err
+				}
+				continue
+			}
+			tagged := name != ""
+			if name == "" {
+				name = field.Name
+			}
+			candidate := jsonField{name: name, typ: field.Type, depth: depth, tagged: tagged, optional: optional}
+			for _, option := range parts[1:] {
+				if option == "omitempty" || option == "omitzero" {
+					candidate.optional = true
+				}
+				if option == "string" {
+					candidate.quoted = true
+				}
+			}
+			candidates[name] = append(candidates[name], candidate)
+		}
+		return nil
+	}
+	if err := collect(root, 0, false); err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(candidates))
+	for name := range candidates {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	fields := make([]jsonField, 0, len(names))
+	for _, name := range names {
+		group := candidates[name]
+		depth := group[0].depth
+		for _, candidate := range group {
+			if candidate.depth < depth {
+				depth = candidate.depth
+			}
+		}
+		tagged := false
+		for _, candidate := range group {
+			if candidate.depth == depth && candidate.tagged {
+				tagged = true
+			}
+		}
+		count := 0
+		var selected jsonField
+		for _, candidate := range group {
+			if candidate.depth == depth && candidate.tagged == tagged {
+				selected = candidate
+				count++
+			}
+		}
+		// Same-depth equal-priority conflicts disappear from encoding/json.
+		if count == 1 {
+			fields = append(fields, selected)
+		}
+	}
+	return fields, nil
+}
+
+func validJSONFieldName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, r := range name {
+		if strings.ContainsRune("!#$%&()*+-./:;<=>?@[]^_{|}~ ", r) || unicode.IsLetter(r) || unicode.IsDigit(r) {
+			continue
+		}
+		return false
+	}
+	return true
 }

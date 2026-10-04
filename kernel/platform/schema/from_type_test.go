@@ -109,3 +109,155 @@ func TestFromTypeDistinguishesByteSlicesAndArrays(t *testing.T) {
 		}
 	}
 }
+
+type EmbeddedFields struct {
+	Name  string `json:"name"`
+	Count int    `json:"count,omitempty"`
+}
+type embeddedPrivate struct {
+	Visible bool `json:"visible"`
+}
+type EmbeddedLeft struct{ Value string }
+type EmbeddedRight struct {
+	Value int `json:"Value"`
+}
+type EmbeddedTagged struct {
+	Value bool `json:"Value"`
+}
+type EmbeddedDiamondLeft struct{ EmbeddedFields }
+type EmbeddedDiamondRight struct{ EmbeddedFields }
+type EmbeddedUnsupported struct{ Value chan int }
+
+func TestFromTypeEmbeddedFieldsMatchEncodingJSON(t *testing.T) {
+	for _, value := range []any{
+		struct {
+			EmbeddedFields
+			Enabled bool `json:"enabled"`
+		}{EmbeddedFields: EmbeddedFields{Name: "x"}},
+		struct {
+			*EmbeddedFields
+			Enabled bool `json:"enabled"`
+		}{},
+		struct {
+			*EmbeddedFields
+			Enabled bool `json:"enabled"`
+		}{EmbeddedFields: &EmbeddedFields{Name: "x"}},
+		struct {
+			EmbeddedFields `json:"nested"`
+		}{EmbeddedFields: EmbeddedFields{Name: "x"}},
+		struct {
+			*EmbeddedFields `json:"nested,omitempty"`
+		}{},
+		struct{ embeddedPrivate }{embeddedPrivate: embeddedPrivate{Visible: true}},
+		struct {
+			EmbeddedLeft
+			EmbeddedRight
+		}{},
+		reflect.Zero(conflictingEmbeddedType(reflect.TypeFor[EmbeddedRight](), reflect.TypeFor[EmbeddedTagged]())).Interface(),
+		struct {
+			EmbeddedLeft
+			Value int
+		}{},
+		struct {
+			EmbeddedUnsupported
+			Value string
+		}{},
+		struct {
+			EmbeddedFields `json:"-"`
+			Enabled        bool `json:"enabled"`
+		}{},
+		reflect.Zero(conflictingEmbeddedType(reflect.TypeFor[EmbeddedDiamondLeft](), reflect.TypeFor[EmbeddedDiamondRight]())).Interface(),
+	} {
+		t.Run(reflect.TypeOf(value).String(), func(t *testing.T) {
+			raw, err := schema.FromType(reflect.TypeOf(value), false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			encoded, err := json.Marshal(value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := schema.ValidateJSON(raw, encoded); err != nil {
+				t.Fatalf("actual wire %s rejected: %v schema=%s", encoded, err, raw)
+			}
+			var wire map[string]any
+			if err := json.Unmarshal(encoded, &wire); err != nil {
+				t.Fatal(err)
+			}
+			var declaration struct {
+				Properties map[string]json.RawMessage `json:"properties"`
+			}
+			if err := json.Unmarshal(raw, &declaration); err != nil {
+				t.Fatal(err)
+			}
+			for key, child := range declaration.Properties {
+				if _, ok := wire[key]; !ok {
+					continue
+				} // optional nil embedding/omitempty
+				var field struct {
+					Type any `json:"type"`
+				}
+				if err := json.Unmarshal(child, &field); err != nil {
+					t.Fatal(err)
+				}
+				if field.Type == "integer" || field.Type == "boolean" {
+					wire[key] = "wrong"
+				} else {
+					wire[key] = 42
+				}
+				invalid, _ := json.Marshal(wire)
+				if schema.ValidateJSON(raw, invalid) == nil {
+					t.Fatalf("wrong promoted field type accepted: %s", invalid)
+				}
+				break
+			}
+		})
+	}
+}
+
+func TestFromTypeEmbeddedFieldDominance(t *testing.T) {
+	for _, tc := range []struct {
+		typ            reflect.Type
+		valid, invalid string
+	}{
+		{reflect.TypeFor[struct {
+			EmbeddedLeft
+			EmbeddedRight
+		}](), `{"Value":1}`, `{"Value":"wrong"}`},
+		{conflictingEmbeddedType(reflect.TypeFor[EmbeddedRight](), reflect.TypeFor[EmbeddedTagged]()), `{}`, `{"Value":1}`},
+		{reflect.TypeFor[struct {
+			EmbeddedLeft
+			Value int
+		}](), `{"Value":1}`, `{"Value":"wrong"}`},
+		{conflictingEmbeddedType(reflect.TypeFor[EmbeddedDiamondLeft](), reflect.TypeFor[EmbeddedDiamondRight]()), `{}`, `{"name":"x"}`},
+		{reflect.TypeFor[struct{ EmbeddedFields }](), `{"name":"x"}`, `{}`},
+		{reflect.TypeFor[struct{ *EmbeddedFields }](), `{}`, `{"name":42}`},
+	} {
+		raw, err := schema.FromType(tc.typ, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := schema.ValidateJSON(raw, json.RawMessage(tc.valid)); err != nil {
+			t.Errorf("%s valid rejected: %v", tc.typ, err)
+		}
+		if schema.ValidateJSON(raw, json.RawMessage(tc.invalid)) == nil {
+			t.Errorf("%s invalid accepted: %s", tc.typ, tc.invalid)
+		}
+	}
+}
+
+func TestFromTypeRejectsUndecodableEmbeddedPointer(t *testing.T) {
+	typ := reflect.TypeFor[struct{ *embeddedPrivate }]()
+	if _, err := schema.FromType(typ, false); err == nil {
+		t.Fatal("unexported embedded pointer accepted without explicit schema")
+	}
+}
+
+// Build intentionally ambiguous wire types dynamically: the standard vet tag
+// checker rejects their source declarations, while encoding/json omits them.
+func conflictingEmbeddedType(left, right reflect.Type) reflect.Type {
+	return reflect.StructOf([]reflect.StructField{
+		{Name: left.Name(), Type: left, Anonymous: true},
+		{Name: right.Name(), Type: right, Anonymous: true},
+	})
+}
