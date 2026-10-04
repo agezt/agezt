@@ -21,6 +21,7 @@ import (
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"github.com/agezt/agezt/kernel/datalake"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/journal"
@@ -84,6 +85,7 @@ type Kernel struct {
 	agentGW      *agentgw.Gateway        // agent subprocess gateway (agent SDK)
 	configCenter *configcenter.Center    // config center for agent SDK config access
 	toolInvoker  toolapi.Invoker         // immutable invocation port, constructed per Open
+	toolPhases   toolphaseapi.Phases     // same service's batch-aware port for root/delegated loops
 	tools        map[string]toolapi.Tool // cfg.Tools + the memory/world tools (when enabled)
 
 	// conductorExec is the optional code-execution backend the Conductor's

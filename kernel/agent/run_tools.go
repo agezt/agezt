@@ -8,7 +8,9 @@ package agent
 //             Day-127 god-file split. Public API unchanged.
 
 import (
+	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 )
 
 // The loop's tool turn, extracted from Run (refactor Phase 3.2).
@@ -95,6 +97,7 @@ type runState struct {
 }
 
 func newRunState(cfg LoopConfig, publish func(event.Kind, string, any) (*event.Event, error)) *runState {
+	cfg.ToolPhases = loopToolPhases(cfg)
 	return &runState{
 		cfg:              cfg,
 		publish:          publish,
@@ -104,6 +107,14 @@ func newRunState(cfg LoopConfig, publish func(event.Kind, string, any) (*event.E
 		directiveObsIter: -1,
 		directiveWindow:  resolveDirectiveWindow(cfg),
 	}
+}
+
+// Standalone loops and phase-level callers retain the canonical engine.
+func loopToolPhases(cfg LoopConfig) toolphaseapi.Phases {
+	if cfg.ToolPhases != nil {
+		return cfg.ToolPhases
+	}
+	return toolpipeline.NewInvoker(toolpipeline.Dependencies{}).(toolphaseapi.Phases)
 }
 
 // directiveActive reports whether a directive-like untrusted observation is

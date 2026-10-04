@@ -2,7 +2,7 @@
 
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
-> W2.2a, W2.2b and W2.3a–v are complete; continue §4.3 with the remaining
+> W2.2a, W2.2b and W2.3a–w are complete; continue §4.3 with the remaining
 > app invoker convergence work.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
@@ -160,7 +160,7 @@ should block it, or record those too.
 **Careful:** the resume path is crash-loop-guarded (attempt counter fsynced before dispatch). Don't weaken
 that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re-asks.
 
-### 4.3 W2.3 — tool side paths (W2.3a–v completed; app convergence open)
+### 4.3 W2.3 — tool side paths (W2.3a–w completed; exit audit open)
 
 **W2.3a measured and fixed:** actual registered-tool, HTTP, pipeline and canvas-node calls lacked policy/invoked/result events; direct denials lacked a terminal result. The shared `RunTool`/`toolexec` invoker now serves those paths, keeps forge/MCP lookup, supplies trusted ToolDef metadata (including parameter-dependent capability axes), stamps approval/run identity, catches tool panics and reports audit failures. Pre-invocation audit failure prevents execution. Persistent regressions were red on old code; thirteen independent mutations guard the boundaries.
 
@@ -206,7 +206,9 @@ that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re
 
 **W2.3v phase-port foundation:** the pure contract/toolphaseapi package owns the Phases port and unchanged resolution/decision/execution data, with exact platform aliases. It is separate from toolapi because llm already imports toolapi. The constructed platform/app invocation service implements all five shared phases; direct Invoke routes through its own phase port. RunWithOptions can receive an explicit phase service, including through legacy forwarding, while nil retains the original legacy path. Publisher kind strings bridge the pure contract to the registered event kinds without a journal dependency. Trace tests cover every phase, early schema/deny/audit stops, typed causes and per-service/local lookup; eleven mutations guard app exposure, injected selection, each phase, registry ownership, legacy forwarding and kind bridging. Agent/runtime loop routing is unchanged in this foundation.
 
-**Next open slice:** bind the per-kernel app invocation service’s phase port into root/delegated loop configuration and route all loop phases through it, preserving standalone/legacy compatibility, batch/memo/terminal behavior and caller envelopes. W2.3 remains open until that routing is proven on actual kernel runs.
+**W2.3w runtime/loop binding:** an actual app-bound Kernel.RunWith executed its tool while the injected execution phase saw zero calls on old source. Kernel.Open now retains the constructed service’s phase port and BuildLoopConfig supplies it to both root and delegated loops. All five loop phases use that port, retaining enabled lookup, taint/default-policy, guard/memo, batch scheduling, timeout/terminal/error/hook and caller envelopes. Standalone agent.Run gets a per-run canonical default; legacy runtime invokers expose the phase port. Older custom one-shot-only factories retain their previous loop behavior through one host-bound canonical compatibility phase service per kernel. Actual primary/tenant deny, all-phase counters, delegated child correlation and one-shot compatibility pass count=20; ten mutations guard binding, every phase, service retention and compatibility.
+
+**Next open slice:** audit W2.3 exit requirements against actual app-bound runtime/adapters and dynamic tools, close W2.3 only on evidence, then continue §4.4. Default root/delegated loops now share the per-kernel invocation service with direct paths; caller-specific batch/memo/observation/model behavior remains outside the shared mechanism.
 
 The lower-layer invocation port and per-kernel constructor injection are in place. The app service binds the shared L2 mechanism; L3 runtime/loop must not import app or grow the allowlist. Preserve standalone `runtime.Open`/legacy Run compatibility and the loop's batch admission/memo behavior; the shared preflight helpers no longer require an agent implementation import.
 

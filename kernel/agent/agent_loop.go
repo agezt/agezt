@@ -8,6 +8,7 @@ package agent
 import (
 	"context"
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"time"
 )
 
@@ -15,9 +16,12 @@ import (
 type LoopConfig struct {
 	Provider Provider
 	Tools    map[string]Tool
-	Bus      *bus.Bus
-	Model    string
-	System   string
+	// ToolPhases is the injected invocation service for batch-aware tool calls.
+	// Nil keeps standalone agent.Run compatible with the shared platform engine.
+	ToolPhases toolphaseapi.Phases
+	Bus        *bus.Bus
+	Model      string
+	System     string
 	// MaxIter caps tool-call rounds (DECISIONS E5: default 25).
 	MaxIter int
 	// MaxAutoContinue caps how many times the loop AUTOMATICALLY continues a run

@@ -24,6 +24,7 @@ import (
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"github.com/agezt/agezt/kernel/datalake"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/governor"
@@ -398,6 +399,13 @@ func Open(cfg Config) (*Kernel, error) {
 	if k.toolInvoker == nil {
 		kbus.Close()
 		return fail("runtime: tool invoker", errors.New("factory returned nil"))
+	}
+	if phases, ok := k.toolInvoker.(toolphaseapi.Phases); ok {
+		k.toolPhases = phases
+	} else {
+		// Older custom one-shot factories never handled loop admission. Preserve
+		// that contract with one host-bound canonical phase service per kernel.
+		k.toolPhases = toolpipeline.NewInvoker(toolpipeline.Dependencies{Tools: k, Policy: k, Events: k, Noise: k}).(toolphaseapi.Phases)
 	}
 
 	// Agent Gateway for subprocess communication (Agent SDK)

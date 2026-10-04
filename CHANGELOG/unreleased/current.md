@@ -761,6 +761,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: root and delegated agent tools use the per-kernel invocation
+  service.** All five phases now enter the same app-bound service as direct tools.
+  Batch scheduling, memo, profile policy, terminal audit and caller identity are
+  preserved. Standalone loops and older one-shot factory integrations remain compatible.
+
 - **Architecture: invocation services expose a batch-aware phase port.**
   Direct calls use the constructed service’s phases; Go callers can supply an
   explicit phase service through invocation options. Existing nil/legacy options

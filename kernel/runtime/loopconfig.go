@@ -84,6 +84,7 @@ func (k *Kernel) buildLoopConfig(runCtx context.Context, corr, model string) age
 	return agent.LoopConfig{
 		Provider:             cfg.Provider,
 		Tools:                runTools,
+		ToolPhases:           k.toolPhases,
 		Bus:                  k.bus,
 		Model:                model,
 		MaxIter:              cfg.MaxIter,
