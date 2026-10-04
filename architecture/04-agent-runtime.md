@@ -121,6 +121,8 @@ W2.3o repoints app/runtime dependency declarations to the platform ports. App de
 
 W2.3p introduces the shared `toolpipeline.Decide` policy/audit phase. It binds resolved ToolDef, calls the supplied policy and records the decision through the caller's audit envelope; it has no executor or memo access. Direct Run keeps its returned metadata context for execution/hooks. Primitive contracts and six mutations preserve the phase. New actual agent contracts passed on old source: batch policy/invoked admission completes before tool effects, and a later denial wins over memo (count=20). Agent policy routing is still unchanged until the separate repointing.
 
+W2.3q removes the unused `agent.WithPolicyToolDef` setter shim (use `platform/policyctx.WithPolicyToolDef`) and routes agent policy admission through `toolpipeline.Decide`. The loop supplies its scoped observation taint and explicit no-policy allow callback, retains its journal/error envelope, checks memo only after the audited decision and leaves execution context unchanged. Batch effects still wait for all admission. Actual batch/memo/audit-failure and causal-window/provenance contracts pass count=20; seven mutations protect the repointing. Availability/schema/loop guard, memo scheduling, execute/settle/timeout remain caller-owned pending remaining phase convergence.
+
 ### 3.3 LoopConfig fields (agent_loop.go)
 Required: `Provider`, `Bus`, `Actor` (`validateLoopConfig` fails before `task.received`). Everything else is optional.
 

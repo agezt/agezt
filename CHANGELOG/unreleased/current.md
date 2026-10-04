@@ -761,9 +761,14 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Go API migration:** the unused `agent.WithPolicyToolDef` compatibility setter
+  was removed; use `platform/policyctx.WithPolicyToolDef`. Existing metadata
+  getters and observation-taint compatibility helpers remain available.
+
 - **Architecture: tool policy admission has a separate audited phase.**
   Direct calls preserve their resolved metadata through policy, execution and
-  completion hooks. Batch and memo ordering remain unchanged.
+  completion hooks. Agent-loop admission now uses the same policy/audit phase;
+  batch and memo ordering, default allow and observation-taint windows are preserved.
 
 - **Architecture: governed tool execution has one shared engine.**
   The existing schema, policy, audit and execution sequence now lives below the
