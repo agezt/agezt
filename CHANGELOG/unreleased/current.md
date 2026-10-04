@@ -761,6 +761,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: tool invocation admission shares one audited phase.** Agent
+  and direct calls preserve their existing journal identities and error handling.
+  Policy denials and memo hits still skip invocation records; an admission audit
+  failure prevents tool effects, including the entire pending agent batch.
+
 - **Architecture: tool lookup and schema admission share one phase.** Agent and
   direct invocations retain their existing tool scopes and rejection messages.
   Invalid calls still stop before policy, effects and loop-guard quota; batch,

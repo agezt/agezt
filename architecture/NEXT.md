@@ -2,7 +2,7 @@
 
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
-> W2.2a, W2.2b and W2.3a–r are complete; continue §4.3 with the remaining
+> W2.2a, W2.2b and W2.3a–s are complete; continue §4.3 with the remaining
 > app invoker convergence work.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
@@ -160,7 +160,7 @@ should block it, or record those too.
 **Careful:** the resume path is crash-loop-guarded (attempt counter fsynced before dispatch). Don't weaken
 that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re-asks.
 
-### 4.3 W2.3 — tool side paths (W2.3a–r completed; app convergence open)
+### 4.3 W2.3 — tool side paths (W2.3a–s completed; app convergence open)
 
 **W2.3a measured and fixed:** actual registered-tool, HTTP, pipeline and canvas-node calls lacked policy/invoked/result events; direct denials lacked a terminal result. The shared `RunTool`/`toolexec` invoker now serves those paths, keeps forge/MCP lookup, supplies trusted ToolDef metadata (including parameter-dependent capability axes), stamps approval/run identity, catches tool panics and reports audit failures. Pre-invocation audit failure prevents execution. Persistent regressions were red on old code; thirteen independent mutations guard the boundaries.
 
@@ -196,9 +196,11 @@ that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re
 
 **W2.3q shared agent policy admission:** the now-unused agent.WithPolicyToolDef setter shim is removed (use platform/policyctx.WithPolicyToolDef), without a deadcode exception.  agent gating now uses toolpipeline.Decide for resolved metadata, policy callback and mandatory policy audit. The loop scopes directive taint before the phase and retains explicit no-policy default allow, caller event/error envelope, deny counters and policy-before-memo. It consumes only the verdict, preserving its existing execution context. Actual sequential/parallel allow/deny batch ordering, later-denied memo, whole-batch policy-audit failure and causal-window/provenance tests pass count=20. Seven mutations guard memo/effect ordering, audit error, window, metadata, default allow and call envelope. Execution/timeout/terminal settlement and availability/schema/loop guard/memo scheduling remain unchanged.
 
-**W2.3r shared resolution (move only):** direct and agent admission now use `toolpipeline.Resolve` for caller-owned lookup, one trusted definition read and unchanged schema validation. The phase has no policy/audit/executor access; callers retain their unavailable/schema error envelopes. Old-source gate and actual mixed-batch tests passed count=20, alongside direct preflight/schema and batch/memo contracts. Registry aliases retain full metadata; missing/invalid calls consume no loop-guard quota and never reach policy/effects. Eight mutations guard lookup identity, availability-first ordering, schema error, metadata, single definition, direct rejection and loop quota/metadata. The enabled loop set and dynamic direct registry remain caller-owned; no shim or allowlist expansion.
+**W2.3r shared resolution (move only):** direct and agent admission now use `toolpipeline.Resolve` for caller-owned lookup, one trusted definition read and unchanged schema validation. The phase performs no policy/audit/tool execution; callers retain their unavailable/schema error envelopes. Old-source gate and actual mixed-batch tests passed count=20, alongside direct preflight/schema and batch/memo contracts. Registry aliases retain full metadata; missing/invalid calls consume no loop-guard quota and never reach policy/effects. Eight mutations guard lookup identity, availability-first ordering, schema error, metadata, single definition, direct rejection and loop quota/metadata. The enabled loop set and dynamic direct registry remain caller-owned; no shim or allowlist expansion.
 
-**Next open slice:** converge the remaining announce/execute/settle phase boundaries without changing batch/memo/terminal semantics. Resolve and policy/audit admission are shared; callers retain refusal formatting and the loop owns loop guard, memo scheduling and result formatting. Its `tool.invoked` events describe batch admission before execution. W2.3 is not complete as a whole.
+**W2.3s shared invocation announcement (move only):** `toolpipeline.Announce` publishes the same tool.invoked kind and three-field call payload through a mandatory caller publisher, returning its error unchanged. Direct and loop callers retain their journal identity/error envelopes and call it only after policy/memo admission. It accepts no executor or context, so announcing a loop call does not begin its effects. Old-source gate/direct contracts plus actual batch/memo-coalescing/later-denial tests passed count=20. Nine mutations guard event kind, name/ID/input, audit cause, single publish, memo ordering, whole-batch audit stop and direct effects after audit. No execution/timeout/settlement behavior change or new shim.
+
+**Next open slice:** converge the remaining execute/settle phase boundaries without changing batch/memo/terminal semantics. Resolve, policy/audit and invocation announcement are shared; callers retain refusal formatting and the loop owns guard, memo scheduling and result formatting. Its `tool.invoked` events still describe batch admission before execution. W2.3 is not complete as a whole.
 
 The lower-layer invocation port and per-kernel constructor injection are in place. The app service binds the shared L2 mechanism; L3 runtime/loop must not import app or grow the allowlist. Preserve standalone `runtime.Open`/legacy Run compatibility and the loop's batch admission/memo behavior; the shared preflight helpers no longer require an agent implementation import.
 
