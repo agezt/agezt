@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/system"
 	"net"
 	"sync"
 	"time"
@@ -164,23 +165,14 @@ type ChatGPTSyncFunc func() (models []string, defaultModel string)
 type ChannelSender func(ctx context.Context, kind, channelID, text string) error
 
 // HTTPBinding describes one network-exposed HTTP server for the exposure check.
-type HTTPBinding struct {
-	Name     string // "web ui" | "rest api" | "openai api"
-	Addr     string // host:port the operator configured
-	Loopback bool   // true when bound to localhost only
-}
+type HTTPBinding = system.HTTPBinding
 
 // SetHTTPBindings records the daemon's enabled HTTP servers so `agt status` and
 // `agt doctor` can report whether any is reachable beyond localhost.
 func (s *Server) SetHTTPBindings(b []HTTPBinding) { s.httpBindings = b }
 
 // ChannelInfo describes one configured messaging channel for `agt status`.
-type ChannelInfo struct {
-	Kind      string // "telegram" | "slack" | "discord"
-	Inbound   bool   // true when the channel can receive and act on commands
-	Addr      string // listen addr for webhook channels (slack/discord); empty otherwise
-	Allowlist int    // number of allowlisted chat/channel ids
-}
+type ChannelInfo = system.ChannelInfo
 
 // SetChannels records the daemon's configured messaging channels so `agt status`
 // can report what's listening.

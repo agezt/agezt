@@ -305,6 +305,18 @@ a policy check. The web UI then calls the op instead of touching the disk.
 
 ### 4.5 W2.1b — the op framework proper (transport independence)
 
+**W2.1b foundation:** source signatures confirmed status/version results were
+coupled to net.Conn. Their status/fallback/version presentation now lives in
+app/system with context + explicit Input -> Output/error handlers. The existing
+map outputs and host reads are unchanged; the control-plane wrappers keep socket
+encoding, auth/tenant/read-only metadata and fresh daemon extras. HTTPBinding and
+ChannelInfo aliases retain callers. Actual socket-free handler tests and original
+status/version/auth/tenant/op-audit suites pass count=20. Status/fallback body
+parity and four mutations retain empty-head clamp, fallback dimensions, optional
+tenant binding and build provenance. This is the move before registry/dispatch
+rewriting; metadata derivation, typed schema framework and adapter routing are
+still open. Do not call the full W2.1 framework complete yet.
+
 **Today's state, after W2.1a:**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
   resolve → tenant authz → tenant routing → stream mode → **audit**.
