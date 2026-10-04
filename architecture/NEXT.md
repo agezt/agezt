@@ -2,8 +2,8 @@
 
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
-> W2.2a, W2.2b and W2.3 are complete; continue §4.4 with File Manager
-> and rollback file operations.
+> W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
+> continue §4.4 with file snapshot rollback, then §4.5.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -228,7 +228,7 @@ in slices, one side path per PR or one invoker PR plus re-pointing PRs.
 - Default-allow posture: every capability is LevelAllow by default and restriction is opt-out. Don't add new denials.
 - Tool capability must be mapped: an unmapped tool name means an unknown capability, which Edict default-denies.
 
-### 4.4 W2.x — File Manager and rollback restore write files with no op, policy or journal
+### 4.4 W2.x — file operations (File Manager complete; rollback open)
 
 **W2.xa foundation:** an actual authenticated mkdir request returned HTTP 200 and
 created the directory, but its durable journal contained zero op events and the
@@ -255,7 +255,21 @@ recursive opt-in and OS error identity. This separate move leaves governance
 unchanged. Next bind these primitives through primary-only audited control-plane
 operations, then migrate file snapshot restore independently.
 
-Findings register 9.1: the web console's File Manager and rollback-restore write the filesystem directly
+**W2.xc File Manager binding complete:** mkdir/rename/delete are now primary-only
+control-plane mutations. Dispatch assigns the operation correlation to the
+handler; app/files admits an invocation-local adapter through the existing
+per-kernel invoker. Mkdir/rename use file.write; delete uses file.delete. Root
+creation and path resolution occur only after policy and mandatory audit. Actual
+HTTP/control-plane tests inspect the five-event allow arc and four-event deny
+arc under one correlation/call identity, verify disk effects, and prove denial
+or unavailable audit does not bootstrap a missing root. Source HTTP path/status/
+JSON contracts are retained through optional domain error_code transport; the
+unused resolver shim is removed. Eight independent mutations guard the port,
+capability, correlation, error propagation, policy, audit/tenant metadata and
+local lookup. Default-allow remains. **Next: file.snapshot rollback restore.**
+
+The following is the original finding context, retained as the measurement trail.
+Findings register 9.1: the web console's File Manager and rollback-restore wrote the filesystem directly
 from the web UI layer: `kernel/webui/files_route.go` and `kernel/webui/rollback.go`
 (+ `rollback_helpers.go`). Confirm with a test that inspects the journal. Now that W2.1a exists, the fix is
 to make them control-plane ops: then dispatch journals them automatically (op audit), and they can take

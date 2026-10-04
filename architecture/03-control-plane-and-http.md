@@ -1,6 +1,6 @@
 # 03 — Control plane and HTTP surfaces
 
-**Scope:** `kernel/controlplane` (204 non-test files, ~31.8k LOC, 321 protocol ops), `kernel/httpserver`, `kernel/auth`,
+**Scope:** `kernel/controlplane` (206 non-test files, ~32.0k LOC, 324 protocol ops), `kernel/httpserver`, `kernel/auth`,
 `kernel/streamlimit`, `kernel/webui` (Go side), `kernel/restapi`, `kernel/openaiapi`, `kernel/agentgw`, `kernel/webhook`,
 `kernel/tunnel`. Wiring of these servers happens in `cmd/agezt` (see [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md));
 the CLI client side is in [02-cli-cmd-agt.md](02-cli-cmd-agt.md); the browser side in [11-frontend-console.md](11-frontend-console.md).
@@ -202,13 +202,16 @@ events, `catalog.synced`/`catalog.sync_failed`, run cost-cap advisories); state 
 
 Legend — **auth**: `tenant` = TenantAllowed (+TenantRouted; tenant tokens may call it), `primary, tenant-routed` = primary token only
 but acts on `args.tenant`'s kernel, `primary` = primary token only, primary kernel. **stream**: `events` = StreamEvents, `LIVE` =
-StreamLive. **Web UI route(s)**: the `kernel/webui` route that proxies it (blank = CLI/SDK only). 321 ops total, 208 reachable from the
+StreamLive. **Web UI route(s)**: the `kernel/webui` route that proxies it (blank = CLI/SDK only). 324 ops total, 211 reachable from the
 Web UI. Generated from source (registry funcs × `Cmd*` constants × handler definitions).
 
 #### Core lifecycle: run / halt / resume / why / approvals / plan — `registerCoreCommands` (server_handle_run_remote.go), 11 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
+| `file_mkdir` | primary | | `handleFileMutation` → files.go → app/files (file.write) | `/api/files/mkdir` |
+| `file_rename` | primary | | `handleFileMutation` → files.go → app/files (file.write) | `/api/files/rename` |
+| `file_delete` | primary | | `handleFileMutation` → files.go → app/files (file.delete) | `/api/files/delete` |
 | `approvals` | primary |  | `handleApprovals` → server_commands.go | `/api/approvals` |
 | `cancel_run` | tenant |  | `handleCancelRun` → server_commands.go | `/api/cancel_run` |
 | `decide` | primary |  | `handleDecide` → server_handlers_plan.go | `/api/decide` |
@@ -992,7 +995,7 @@ Constructor `New(bus, client, token)` mints the 32-byte SSE token. Setters: `Set
 (any non-loopback host auto-raises password-strict), `SetPasswordFn` (LIVE password source), `SetPasswordStrict`, `PasswordStrict`.
 `Handler()` = `secure(routeRegistry().ServeHTTP)`.
 
-Persistence: none of its own except the File Manager (`AGEZT_FILE_ROOT`, default `~/agezt/workspace`, dirs 0700) and the rollback
+Persistence: File Manager mutations are delegated to primary-only ops using the configured workspace (`AGEZT_FILE_ROOT`, default `~/agezt/workspace`, dirs 0700). The WebUI still reads/rewrites the rollback
 catalog `<paths.BaseDir()>/rollback/checkpoints.json` (read; `apply` rewrites it and may restore file snapshots). Env:
 `AGEZT_FILE_ROOT`, `AGEZT_FILE_ROOT_MAX_BYTES` (4 MiB), `AGEZT_FILE_ROOT_MAX_ENTRIES` (500); password/strict/addr env are read by
 `cmd/agezt` (`AGEZT_WEB_ADDR`, `AGEZT_WEB_PASSWORD`, `AGEZT_WEB_PASSWORD_STRICT`).
@@ -1015,7 +1018,7 @@ catalog `<paths.BaseDir()>/rollback/checkpoints.json` (read; `apply` rewrites it
 | `session_store.go` | In-memory `sessionStore` (id→expiry, sliding TTL) + GLOBAL failed-login counter: 8 failures → 5 min lockout. |
 | `streamcap.go` | `streamClientKey` (RemoteAddr host) for the hook limiter; SSE cap moved to `httpserver`. |
 | `artifact_route.go` | `handleArtifactRaw`: `artifact_get` bytes with allowlisted Content-Type, sanitized filename. |
-| `files_route.go` | File Manager types and temporary resolver forwarding to `platform/fileworkspace`, which owns normalization and resolved traversal/link containment. |
+| `files_route.go` | File Manager types and limits; path safety lives in `platform/fileworkspace`. Reads use it directly; mutations proxy primary-only ops through `files_mutation.go`. |
 | `files_route_handlers.go` | `handleFileTree`, `handleFileRaw`, `handleFileMkdir`, `handleFileRename`, `handleFileDelete` — direct OS calls. |
 | `files_route_helpers.go` | `typeOf`, `readJSONBody`. |
 | `rollback.go` | `handleRollbackCheckpoints`, `handleRollbackApply`; catalog/checkpoint types (kinds `skill.status`, `workflow.snapshot`, `file.snapshot`, `config.setting`). |
@@ -1056,7 +1059,7 @@ proxy's own `context.WithTimeout`.
 | POST | `/api/tts` | user | TTS audio |
 | GET | `/api/artifact/raw` | user | `artifact_get` raw bytes, 15 s |
 | GET | `/api/files/tree`, `/api/files/raw` | user | File Manager reads under `AGEZT_FILE_ROOT` |
-| POST | `/api/files/mkdir`, `/api/files/rename`, `/api/files/delete` | user | File Manager mutations (BodyMax 256 bytes) |
+| POST | `/api/files/mkdir`, `/api/files/rename`, `/api/files/delete` | user | Primary-only audited file ops through app/files and the kernel invoker (BodyMax 256 bytes) |
 | POST | `/hooks/{workflow}` | public (per-workflow secret `X-Agezt-Secret` or `?secret=`) | Rate-limited (60/min+30 burst per workflow|IP), 256 KiB body, → `workflow_webhook`; 202 async or 200 reply-mode; uniform 403 on auth failure |
 | GET | `/oauth/callback` | public (state token) | Channel OAuth redirect → `channel_oauth_callback` |
 
@@ -1257,7 +1260,7 @@ and warns when no console password is set.
 | SSE caps | `httpserver.sseLimiter` | 64 concurrent streams per client IP across ALL surfaces (webui, restapi, openaiapi, agentgw) → 429. |
 | `/hooks/` rate limit | `webui.allowHook` | Only throttled HTTP path (owner decision: token-free path only): 60/min + 30 burst per workflow+IP, keyed pre-auth; uniform 403 for unknown/disabled/bad secret; secret compared constant-time in `workflow_webhook`. |
 | Artifact serving | `webui/artifact_route.go`, `restapi/artifacts.go` | Content-Type allowlist (else `application/octet-stream`), sanitized filename; REST byte transfer off unless `AGEZT_REMOTE_ARTIFACT_BYTES=allow`. |
-| File Manager | `webui/files_route*.go` | Root confinement + symlink-escape checks before every OS call. |
+| File Manager | `webui/files_route*.go` | Root confinement + link checks in platform/fileworkspace; writes enter primary-only ops, policy and mandatory tool audit before filesystem effects. |
 | SSRF | `netguard` (see [05-governance-routing-security.md](05-governance-routing-security.md)) | Webhook sinks use a netguard HTTP client (blocks loopback/private/metadata unless opted out) + HTTPS required off-loopback; control-plane `netguard_log` audits tool egress blocks. `provider_probe` / `whatsappgw_*` / channel OAuth make operator-directed outbound calls from the daemon. |
 | Error redaction | `openaiapi.redactErr` | Upstream error strings scrubbed before returning to API clients. |
 | agentgw | `agentgw` | HS256 JWT with fixed iss/aud, expiry, per-token rate limit, capability checks per route, no capability escalation on child tokens, audit to journal, no CORS headers. |
@@ -1301,15 +1304,15 @@ and warns when no console password is set.
   `overseertool.NewKernelSource(s.k, s.baseDir)`), contradicting "kernel never imports plugins".
 - **Two kernel entry paths**: Web UI/CLI → control plane; REST/OpenAI/agentgw → kernel directly. Op-level validation in `handleRun`
   (tool allowlists, execution profiles, agent resolution, dry-run) is not exposed by REST/OpenAI (`Engine.RunModel`). Image admission is shared through `runtime.Kernel.AdmitImages` (W2.2a): text-only models use the configured vision sidecar; rejections use the same message and correlated journal event.
-- **Workspace path boundary (W2.xa):** console root lookup, path normalization and resolved containment now live in `platform/fileworkspace` with mechanically unchanged bodies. WebUI's temporary resolver forwarder keep HTTP contracts during operation migration; source tests retain real link/junction refusal. Target tests and four mutations guard root creation, exact NUL errors, legitimate missing tails and containment. W2.xb also moves mkdir/rename/delete primitives to that platform package while HTTP decoding, path/status/text/result mapping stays in the handlers. Source and target tests (count=20) plus four mutations retain parents, rename direction, recursive opt-in and OS error identity; final symlink refusal remains. These foundations do not journal writes.
-- **Unjournaled Web UI mutations**: the File Manager (`os.Mkdir/Rename/RemoveAll`) and rollback `file.snapshot` restore write the
-  filesystem directly from `kernel/webui` without a control-plane op, Edict check or journal event. `rollbackCatalogPath` uses
+- **Workspace path boundary (W2.xa):** console root lookup, path normalization and resolved containment now live in `platform/fileworkspace` with mechanically unchanged bodies. The temporary resolver forwarder preserved HTTP contracts during migration and is removed in W2.xc; source tests retain real link/junction refusal. Target tests and four mutations guard root creation, exact NUL errors, legitimate missing tails and containment. W2.xb also moves mkdir/rename/delete primitives to that platform package while HTTP decoding, path/status/text/result mapping stays in the handlers. Source and target tests (count=20) plus four mutations retain parents, rename direction, recursive opt-in and OS error identity; final symlink refusal remains. These foundations do not journal writes.
+- **File Manager governance (W2.xc):** mkdir/rename/delete proxy primary-only mutating ops. `app/files` uses the existing per-kernel invocation port with a local tool adapter; file.write/file.delete policy and tool audit share dispatch's operation correlation. Root creation/resolution occurs after admission. Optional response error_code and ErrServerError.Code preserve status/text mapping; legacy errors remain unchanged. Actual HTTP/socket journal/disk fixtures and eight mutations guard the binding.
+- **Remaining unjournaled Web UI mutation**: rollback `file.snapshot` still restores filesystem content directly without an op/policy journal. `rollbackCatalogPath` uses
   `internal/paths.BaseDir()` rather than the daemon's injected base dir.
 - **agentgw reachability**: the default socket is a random abstract unix name that nothing publishes (no accessor/env export), so
   subprocesses can only reach it when `AGEZT_AGENTGW_SOCKET` is set; abstract `@` sockets are Linux-specific. `channel.*` and `db.*`
   capabilities are declared but have no routes. Subscribe accepts any bus pattern and publish any subject (kind `info`) — capability
   scoping is per-namespace, not per-subject.
-- **Hardcoded env names**: `webui/files_route*.go` reads `"AGEZT_FILE_ROOT*"` literally instead of `brand.EnvPrefix`, and
+- **Hardcoded env names**: `platform/fileworkspace` and `webui/files_route*.go` read `"AGEZT_FILE_ROOT*"` literally instead of `brand.EnvPrefix`, and
   `runtime/compose.go` reads `"AGEZT_AGENTGW_SOCKET"` literally.
 - **Stale doc**: `kernel/restapi/doc.go` lost its package comment head (only the two update routes remain); `controlplane/roster_activity_text.go` is an empty header-only file.
 - Several ops are reachable only from the CLI by design (Web UI audit noted un-wired: `why`, `journal_export`, `pulse_asks`, `skill_read_file`, `toolbox_detect/outdated`).
