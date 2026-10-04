@@ -182,7 +182,9 @@ W2.3r shares lookup and schema admission through `toolpipeline.Resolve`. It perf
 4. Policy: `toolpipeline.Decide` binds trusted metadata and audits the callback; the loop supplies `WithUntrustedObservationTaint(ctx, scopedTaint)`. `scopedTaint.DirectiveLike` is true only while `iter - directiveObsIter <= directiveWindow`. If no Policy is configured, the verdict is `Allow` with reason `"no policy configured"`. **`policy.decision` is always published**, with the 23-field `policyDecisionPayload`.
 5. Deny: increment `toolDenials` (hard-deny sets it to the max at once). The result is `tool call denied by policy: <reason>`. No `tool.invoked`.
 6. Memo: if `ToolMemo != nil` and the call is read-only (verdict or def effect class), a cache hit or an in-turn duplicate becomes `memoHit`. **Policy runs before the memo lookup**, so memoization never grants permission.
-7. Publish `tool.invoked {tool, call_id, input}`; `job.tool = tool`.
+7. Shared `toolpipeline.Announce` publishes `tool.invoked {tool, call_id, input}` through the loop envelope; `job.tool = tool` only after successful audit. Any invocation-audit failure aborts the whole admission phase before effects.
+
+W2.3s shares invocation announcement with direct calls. The phase owns event kind and the unchanged three-field payload, accepts no executor/context, and returns the mandatory publisher error unchanged. Denial, memo hits and coalesced duplicates skip announcement. Caller subject/actor/correlation and error formatting remain separate; announcing loop calls does not execute them. Old-source gate/direct and actual batch/memo contracts pass count=20; nine mutations protect event identity, input, audit cause and admission/effect ordering. Execution/timeout/settlement remain caller-owned.
 
 The HITL approval wait happens inside step 4 (`policyHook` blocks in `approvals.Submit`). Approvals for a multi-call turn are therefore requested **sequentially**, before any call of that turn executes.
 
