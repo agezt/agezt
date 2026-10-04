@@ -406,7 +406,7 @@ func TestRollbackApplyRouteRestoresFileCheckpoint(t *testing.T) {
 	if err := writeRollbackCatalogAt(path, rollbackCatalog{Checkpoints: []rollbackCheckpoint{cp}}); err != nil {
 		t.Fatalf("write checkpoint: %v", err)
 	}
-	s, _ := newServer(t, &fakeCaller{}, "secret")
+	s, _ := newFilesServerAt(t, home)
 	req := httptest.NewRequest(http.MethodPost, "/api/rollback/apply?token=secret", strings.NewReader(`{"id":"rb-file"}`))
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, req)

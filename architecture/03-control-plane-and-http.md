@@ -1,6 +1,6 @@
 # 03 — Control plane and HTTP surfaces
 
-**Scope:** `kernel/controlplane` (206 non-test files, ~32.0k LOC, 324 protocol ops), `kernel/httpserver`, `kernel/auth`,
+**Scope:** `kernel/controlplane` (207 non-test files, ~32.0k LOC, 325 protocol ops), `kernel/httpserver`, `kernel/auth`,
 `kernel/streamlimit`, `kernel/webui` (Go side), `kernel/restapi`, `kernel/openaiapi`, `kernel/agentgw`, `kernel/webhook`,
 `kernel/tunnel`. Wiring of these servers happens in `cmd/agezt` (see [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md));
 the CLI client side is in [02-cli-cmd-agt.md](02-cli-cmd-agt.md); the browser side in [11-frontend-console.md](11-frontend-console.md).
@@ -202,7 +202,7 @@ events, `catalog.synced`/`catalog.sync_failed`, run cost-cap advisories); state 
 
 Legend — **auth**: `tenant` = TenantAllowed (+TenantRouted; tenant tokens may call it), `primary, tenant-routed` = primary token only
 but acts on `args.tenant`'s kernel, `primary` = primary token only, primary kernel. **stream**: `events` = StreamEvents, `LIVE` =
-StreamLive. **Web UI route(s)**: the `kernel/webui` route that proxies it (blank = CLI/SDK only). 324 ops total, 211 reachable from the
+StreamLive. **Web UI route(s)**: the `kernel/webui` route that proxies it (blank = CLI/SDK only). 325 ops total, 212 reachable from the
 Web UI. Generated from source (registry funcs × `Cmd*` constants × handler definitions).
 
 #### Core lifecycle: run / halt / resume / why / approvals / plan — `registerCoreCommands` (server_handle_run_remote.go), 11 ops
@@ -212,6 +212,7 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `file_mkdir` | primary | | `handleFileMutation` → files.go → app/files (file.write) | `/api/files/mkdir` |
 | `file_rename` | primary | | `handleFileMutation` → files.go → app/files (file.write) | `/api/files/rename` |
 | `file_delete` | primary | | `handleFileMutation` → files.go → app/files (file.delete) | `/api/files/delete` |
+| `file_restore` | primary | | `handleFileRestore` → files_restore.go → app/files (file.write/file.delete) | `/api/rollback/apply` (file snapshots) |
 | `approvals` | primary |  | `handleApprovals` → server_commands.go | `/api/approvals` |
 | `cancel_run` | tenant |  | `handleCancelRun` → server_commands.go | `/api/cancel_run` |
 | `decide` | primary |  | `handleDecide` → server_handlers_plan.go | `/api/decide` |
@@ -1307,7 +1308,7 @@ and warns when no console password is set.
 - **Workspace path boundary (W2.xa):** console root lookup, path normalization and resolved containment now live in `platform/fileworkspace` with mechanically unchanged bodies. The temporary resolver forwarder preserved HTTP contracts during migration and is removed in W2.xc; source tests retain real link/junction refusal. Target tests and four mutations guard root creation, exact NUL errors, legitimate missing tails and containment. W2.xb also moves mkdir/rename/delete primitives to that platform package while HTTP decoding, path/status/text/result mapping stays in the handlers. Source and target tests (count=20) plus four mutations retain parents, rename direction, recursive opt-in and OS error identity; final symlink refusal remains. These foundations do not journal writes.
 - **File Manager governance (W2.xc):** mkdir/rename/delete proxy primary-only mutating ops. `app/files` uses the existing per-kernel invocation port with a local tool adapter; file.write/file.delete policy and tool audit share dispatch's operation correlation. Root creation/resolution occurs after admission. Optional response error_code and ErrServerError.Code preserve status/text mapping; legacy errors remain unchanged. Actual HTTP/socket journal/disk fixtures and eight mutations guard the binding.
 - **Rollback store boundary (W2.xd):** checkpoint/catalog types and unchanged catalog/restore/conversion bodies live in platform/rollbackstore. WebUI aliases and forwarders preserve JSON, legacy home lookup, atomic writes, restore bytes/absence and error text until operation binding. Source/target tests count=20, body parity and four mutations guard the move.
-- **Remaining unjournaled Web UI mutation**: rollback `file.snapshot` still restores filesystem content directly without an op/policy journal. `rollbackCatalogPath` uses
+- **File snapshot governance (W2.xe):** `/api/rollback/apply` sends only the file checkpoint ID to primary-only file_restore. The daemon resolves its own catalog, invokes a private snapshot adapter through the kernel's service, checks file.write/file.delete and journals the correlated op/tool arc. Snapshot content never enters audit input; AppliedMS and catalog persistence follow successful restore inside the op. Already-applied IDs remain no-ops; denial/unavailable audit preserves file/catalog. Actual HTTP/socket, daemon authority/privacy tests and eight mutations guard the binding. Legacy skill/workflow/config catalog compatibility remains until domain migration. `rollbackCatalogPath` uses
   `internal/paths.BaseDir()` rather than the daemon's injected base dir.
 - **agentgw reachability**: the default socket is a random abstract unix name that nothing publishes (no accessor/env export), so
   subprocesses can only reach it when `AGEZT_AGENTGW_SOCKET` is set; abstract `@` sockets are Linux-specific. `channel.*` and `db.*`

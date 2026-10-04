@@ -4,12 +4,15 @@ package webui
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/app/files"
+	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/platform/rollbackstore"
 )
 
@@ -100,6 +103,26 @@ func (s *Server) handleRollbackApply(w http.ResponseWriter, r *http.Request) {
 	}
 	if cp.AppliedMS > 0 {
 		writeJSON(w, http.StatusOK, map[string]any{"checkpoint": *cp, "applied": false, "reason": "already applied"})
+		return
+	}
+	if cp.Kind == rollbackCheckpointKindFile {
+		result, err := s.client.Call(r.Context(), controlplane.CmdFileRestore, map[string]any{"id": cp.ID})
+		if err != nil {
+			status := http.StatusBadGateway
+			message := err.Error()
+			var remote *controlplane.ErrServerError
+			if errors.As(err, &remote) {
+				message = remote.Msg
+				if remote.Code == files.Denied {
+					status = http.StatusForbidden
+				} else if remote.Code == files.MarkFailed {
+					status = http.StatusInternalServerError
+				}
+			}
+			writeJSON(w, status, map[string]any{"error": message})
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
 		return
 	}
 	reason := fmt.Sprintf("rollback checkpoint %s", cp.ID)

@@ -22,7 +22,11 @@ import (
 
 func newFilesServer(t *testing.T) (*Server, *runtime.Kernel) {
 	t.Helper()
-	home := t.TempDir()
+	return newFilesServerAt(t, t.TempDir())
+}
+
+func newFilesServerAt(t *testing.T, home string) (*Server, *runtime.Kernel) {
+	t.Helper()
 	t.Setenv("AGEZT_HOME", home)
 	k, err := runtime.Open(runtime.Config{BaseDir: home, Provider: mock.New(), NewToolInvoker: apptools.NewInvoker})
 	if err != nil {
