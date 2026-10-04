@@ -349,6 +349,18 @@ type unions; no tool-validation semantics were rewritten. Embedding/custom
 representation, strongly typed outputs and mutation/streaming host adapters
 remain open next; full W2.1 is still not complete.
 
+**W2.1e explicit/custom wire schemas:** a time.Time registration with a supplied
+schema was red because binding discarded the declaration. Explicit input/output
+schemas are now linted and copied at registration; reflection still records the
+actual Go types, and absent declarations keep derived schemas. Terminal results
+and stream emissions are serialized/validated against the owned output schema
+before leaving app dispatch. Custom decoder input restrictions, immutable schema
+bytes, invalid-schema registration and bad terminal/stream values have actual
+contracts (count=20), with five independent mutation guards. Output validation
+raises the mock-host/no-I/O benchmark to 7.0–8.6 us/op, still below 50 us; it does
+not measure live I/O. Embedding derivation, typed pilot output models and
+mutation/streaming transport hosts remain open; full W2.1 is not complete.
+
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
   resolve → tenant authz → tenant routing → stream mode → **audit**.
