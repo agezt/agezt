@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-109 package(s):
+110 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -11,6 +11,7 @@
 - **`kernel/alerter`** — Package alerter pushes warning/critical alerts to the configured channels (M782).
 - **`kernel/anomaly`** — Package anomaly is the autonomous-operation circuit breaker (SPEC-06 §5): it watches for runaway signals and, on a spike, auto-engages a halt so a looping or runaway agent cannot burn budget or take repeated action unsupervised.
 - **`kernel/app`** — Package app implements the transport-independent typed operation pipeline.
+- **`kernel/app/catalog`** — Package catalog owns transport-independent catalog sync, listing and discovery.
 - **`kernel/app/files`** — Package files applies console file mutations through the host's governed tool invocation port.
 - **`kernel/app/system`** — Package system owns the transport-independent daemon status/version handlers.
 - **`kernel/app/tools`** — Package tools is the application entry for governed direct tool invocations.

@@ -3,24 +3,16 @@
 package controlplane
 
 // Provider catalog management: handleProviderConnect + handleProviderReload
-// + envOrDefault. Carved out of catalog.go during the Day 154 god-file
+// Carved out of catalog.go during the Day 154 god-file
 // split so the main file can focus on catalog sync / list / discover.
 // Public API unchanged.
 
 import (
 	"net"
-	"os"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/catalog"
 )
-
-func envOrDefault(name, fallback string) string {
-	if v := os.Getenv(name); v != "" {
-		return v
-	}
-	return fallback
-}
 
 // handleProviderConnect is the catalog-aware "register a provider + key" path
 // for the Web UI's Provider Keys tab and the CLI's `provider connect`.
