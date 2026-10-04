@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/platform/policyctx"
 	"github.com/agezt/agezt/kernel/toolexec"
 )
 
@@ -97,7 +98,7 @@ func TestRun_UsesResolvedPolicyDefinition(t *testing.T) {
 	tool := &fakeTool{def: def, invoke: func(context.Context, json.RawMessage) (toolapi.Result, error) {
 		return toolapi.Result{Output: "ok"}, nil
 	}}
-	ctx := agent.WithPolicyToolDef(context.Background(), toolapi.ToolDef{Name: "caller-spoof", Capability: toolapi.ToolCapability{Name: "provider.call"}})
+	ctx := policyctx.WithPolicyToolDef(context.Background(), toolapi.ToolDef{Name: "caller-spoof", Capability: toolapi.ToolCapability{Name: "provider.call"}})
 	policy := &mockPolicy{verdict: agent.PolicyVerdict{Allow: true}}
 	if _, err := toolexec.Run(ctx, "corr", "call", "greet", json.RawMessage(`{}`), mockLookup{"greet": tool}, policy, &mockEvents{}, &mockNoise{}); err != nil {
 		t.Fatal(err)

@@ -5,12 +5,15 @@ package agent_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -19,6 +22,40 @@ type admissionProbe struct{ calls atomic.Int32 }
 
 func (*admissionProbe) Definition() agent.ToolDef {
 	return agent.ToolDef{Name: "probe", InputSchema: json.RawMessage(`{"type":"object","properties":{"n":{"type":"integer"}},"required":["n"]}`), Effect: agent.ToolEffect{Class: agent.EffectReadOnly}}
+}
+
+func TestRun_PolicyAuditFailureStopsWholeBatch(t *testing.T) {
+	b, j := newTestBus(t)
+	tool := &admissionProbe{}
+	policyCalls := 0
+	prov := mock.New(agent.CompletionResponse{Message: agent.Message{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "c1", Name: "probe", Input: json.RawMessage(`{"n":1}`)}, {ID: "c2", Name: "probe", Input: json.RawMessage(`{"n":2}`)}}}, StopReason: agent.StopToolUse}, mock.FinalText("must not run"))
+	_, err := agent.Run(context.Background(), agent.LoopConfig{Provider: prov, Tools: map[string]agent.Tool{"probe": tool}, Bus: b, Actor: "actor", CorrelationID: "corr", Policy: func(context.Context, agent.ToolCall) agent.PolicyVerdict {
+		policyCalls++
+		if policyCalls == 2 {
+			b.Close()
+		}
+		return agent.PolicyVerdict{Allow: true}
+	}}, "run")
+	if !errors.Is(err, bus.ErrClosed) || !strings.Contains(err.Error(), "publish policy.decision") || policyCalls != 2 || tool.calls.Load() != 0 {
+		t.Fatalf("error=%v policy=%d backend=%d", err, policyCalls, tool.calls.Load())
+	}
+	policyRecords, invoked, result := 0, 0, 0
+	if err := j.Range(func(e *event.Event) error {
+		switch e.Kind {
+		case event.KindPolicyDecision:
+			policyRecords++
+		case event.KindToolInvoked:
+			invoked++
+		case event.KindToolResult:
+			result++
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if policyRecords != 1 || invoked != 1 || result != 0 {
+		t.Errorf("policy=%d invoked=%d result=%d", policyRecords, invoked, result)
+	}
 }
 func (p *admissionProbe) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
 	p.calls.Add(1)
@@ -60,6 +97,9 @@ func TestRun_BatchAdmissionPrecedesEffects(t *testing.T) {
 				var prefix []string
 				if err := j.Range(func(e *event.Event) error {
 					if e.Kind == event.KindPolicyDecision || e.Kind == event.KindToolInvoked {
+						if e.Actor != "actor" || e.CorrelationID != "corr" {
+							t.Errorf("caller envelope: actor=%s correlation=%s", e.Actor, e.CorrelationID)
+						}
 						var p struct {
 							CallID string `json:"call_id"`
 						}
