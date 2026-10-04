@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-105 package(s):
+106 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -60,6 +60,7 @@
 - **`kernel/platform/fileworkspace`** — Package fileworkspace owns console workspace path checks and filesystem primitives.
 - **`kernel/platform/netout`** — Package netout is the outbound-HTTP platform (architecture/20-target- architecture.md §5, layer L2): the one place a client that dials out is built.
 - **`kernel/platform/policyctx`** — Package policyctx carries resolved tool metadata and observation provenance between admission and the policy decision.
+- **`kernel/platform/rollbackstore`** — Package rollbackstore owns rollback checkpoint data, catalog persistence and the existing file snapshot restore primitive.
 - **`kernel/platform/sandbox`** — Package sandbox is the process platform (architecture/20-target-architecture.md §5, layer L2): the one place a child process is built outside kernel/warden's run-to-completion engine.
 - **`kernel/platform/schema`** — Package schema implements the existing dependency-free JSON Schema subset.
 - **`kernel/platform/toolaudit`** — Package toolaudit renders the shared tool-policy journal representation.
