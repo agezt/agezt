@@ -173,11 +173,13 @@ return ErrMaxIter
 
 ### 3.5 Tool turn: gate / execute / finalize (run_tools.go, run_tools_gate.go)
 
+W2.3r shares lookup and schema admission through `toolpipeline.Resolve`. It performs one caller-owned lookup and one definition read, retaining the complete metadata even on schema rejection. No policy/audit/tool effects occur in this phase. Both callers retain their existing unavailable/schema error formatting and lookup scope. Old-source gate and actual mixed-batch contracts pass count=20; eight mutations cover name, ordering, metadata, schema and quota boundaries.
+
 **Gate** (`(*runState).gateToolCalls`), for each call in order:
 1. Tool not in `cfg.Tools`: the synthetic error result is `tool "x" is not available`.
-2. `ValidateToolInput(def, input)` (dependency-free JSON-schema subset in `schema.go`): on failure the result is `tool call rejected by schema: …`.
+2. Shared `toolpipeline.Resolve` validates the resolved definition/input using `platform/schema`: on failure the result is `tool call rejected by schema: …`. Steps 1–2 precede guard quota, policy and memo.
 3. Loop guard (M116): key `name\x00input`. Above `MaxIdenticalToolCalls`, the model gets a "loop guard: …" error result.
-4. Policy: `verdict := cfg.Policy(WithUntrustedObservationTaint(WithPolicyToolDef(ctx, def), scopedTaint), tc)`. `scopedTaint.DirectiveLike` is true only while `iter - directiveObsIter <= directiveWindow`. If no Policy is configured, the verdict is `Allow` with reason `"no policy configured"`. **`policy.decision` is always published**, with the 23-field `policyDecisionPayload`.
+4. Policy: `toolpipeline.Decide` binds trusted metadata and audits the callback; the loop supplies `WithUntrustedObservationTaint(ctx, scopedTaint)`. `scopedTaint.DirectiveLike` is true only while `iter - directiveObsIter <= directiveWindow`. If no Policy is configured, the verdict is `Allow` with reason `"no policy configured"`. **`policy.decision` is always published**, with the 23-field `policyDecisionPayload`.
 5. Deny: increment `toolDenials` (hard-deny sets it to the max at once). The result is `tool call denied by policy: <reason>`. No `tool.invoked`.
 6. Memo: if `ToolMemo != nil` and the call is read-only (verdict or def effect class), a cache hit or an in-turn duplicate becomes `memoHit`. **Policy runs before the memo lookup**, so memoization never grants permission.
 7. Publish `tool.invoked {tool, call_id, input}`; `job.tool = tool`.
