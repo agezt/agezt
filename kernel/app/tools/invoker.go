@@ -18,8 +18,8 @@ type invoker struct {
 }
 
 // NewInvoker binds host-owned policy/audit/completion ports for one kernel.
-// It preserves the existing execution pipeline while callers converge on the
-// lower-layer invocation port. The agent loop has not converged on this entry.
+// Direct calls use Invoke; root and delegated loops use the same service's
+// phase port so batch admission, memoization and scheduling stay caller-owned.
 func NewInvoker(deps toolpipeline.Dependencies) toolapi.Invoker {
 	pipeline := toolpipeline.NewInvoker(deps)
 	return &invoker{Phases: pipeline.(toolphaseapi.Phases), pipeline: pipeline}

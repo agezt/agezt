@@ -5,6 +5,7 @@ package runtime_test
 import (
 	"context"
 	"encoding/json"
+	apptools "github.com/agezt/agezt/kernel/app/tools"
 	"strings"
 	"testing"
 
@@ -35,7 +36,7 @@ func (c *fakeMCPConn) Close() error { c.closed = true; return nil }
 func openMCPKernel(t *testing.T, prov llm.Provider, conn *fakeMCPConn) (*runtime.Kernel, *int) {
 	t.Helper()
 	dials := 0
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(runtime.Config{NewToolInvoker: apptools.NewInvoker,
 		BaseDir:  t.TempDir(),
 		Provider: prov,
 		MCPDialer: func(_ context.Context, command string, args []string, _ map[string]string) (mcp.Conn, error) {
@@ -116,7 +117,7 @@ func TestAttach_RemoteRoutesThroughHTTPDialer(t *testing.T) {
 	stdioDials, httpDials := 0, 0
 	var gotURL string
 	var gotHeaders map[string]string
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(runtime.Config{NewToolInvoker: apptools.NewInvoker,
 		BaseDir:  t.TempDir(),
 		Provider: prov,
 		MCPDialer: func(_ context.Context, _ string, _ []string, _ map[string]string) (mcp.Conn, error) {
