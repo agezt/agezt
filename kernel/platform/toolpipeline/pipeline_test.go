@@ -35,6 +35,9 @@ func (p *probe) Invoke(ctx context.Context, _ json.RawMessage) (toolapi.Result, 
 	if toolapi.CorrelationFromContext(ctx) != "corr" {
 		return toolapi.Result{}, errors.New("lost correlation")
 	}
+	if def, ok := policyctx.PolicyToolDefFromContext(ctx); !ok || def.Name != "probe" {
+		return toolapi.Result{}, errors.New("lost execution metadata")
+	}
 	return toolapi.Result{Output: strings.Repeat("x", 512)}, p.cause
 }
 

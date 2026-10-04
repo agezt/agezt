@@ -119,6 +119,8 @@ W2.3n moved the generic governed direct engine into `platform/toolpipeline`, whi
 
 W2.3o repoints app/runtime dependency declarations to the platform ports. App dependency closure excludes toolexec/runtime/agent; runtime keeps only the explicit standalone legacy constructor fallback. Its public forwarding APIs and app entry execute the same engine. Behavior is preserved; agent batch admission/memo remains outside this direct engine pending a phased boundary.
 
+W2.3p introduces the shared `toolpipeline.Decide` policy/audit phase. It binds resolved ToolDef, calls the supplied policy and records the decision through the caller's audit envelope; it has no executor or memo access. Direct Run keeps its returned metadata context for execution/hooks. Primitive contracts and six mutations preserve the phase. New actual agent contracts passed on old source: batch policy/invoked admission completes before tool effects, and a later denial wins over memo (count=20). Agent policy routing is still unchanged until the separate repointing.
+
 ### 3.3 LoopConfig fields (agent_loop.go)
 Required: `Provider`, `Bus`, `Actor` (`validateLoopConfig` fails before `task.received`). Everything else is optional.
 

@@ -2,7 +2,7 @@
 
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
-> W2.2a, W2.2b and W2.3a–o are complete; continue §4.3 with the remaining
+> W2.2a, W2.2b and W2.3a–p are complete; continue §4.3 with the remaining
 > app invoker convergence work.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
@@ -160,7 +160,7 @@ should block it, or record those too.
 **Careful:** the resume path is crash-loop-guarded (attempt counter fsynced before dispatch). Don't weaken
 that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re-asks.
 
-### 4.3 W2.3 — tool side paths (W2.3a–o completed; app convergence open)
+### 4.3 W2.3 — tool side paths (W2.3a–p completed; app convergence open)
 
 **W2.3a measured and fixed:** actual registered-tool, HTTP, pipeline and canvas-node calls lacked policy/invoked/result events; direct denials lacked a terminal result. The shared `RunTool`/`toolexec` invoker now serves those paths, keeps forge/MCP lookup, supplies trusted ToolDef metadata (including parameter-dependent capability axes), stamps approval/run identity, catches tool panics and reports audit failures. Pre-invocation audit failure prevents execution. Persistent regressions were red on old code; thirteen independent mutations guard the boundaries.
 
@@ -192,7 +192,9 @@ that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re
 
 **W2.3o dependency repointing:** app construction and runtime host/factory declarations now consume `platform/toolpipeline` ports directly. Production app dependency closure excludes legacy toolexec, runtime and agent. Runtime retains one explicit legacy NewInvoker fallback for standalone compatibility; all public legacy Run/RunWithOptions stay reachable through that adapter and execute the same engine. No policy/audit/result/batch behavior changes. Existing primitive, app/compatibility and actual runtime entry-point suites protect the repointing; the engine's eight mutation guards remain.
 
-**Next open slice:** converge agent-loop admission through a phased invocation boundary without changing batch/memo/terminal semantics. Policy records now share the same 23-field representation; this does not merge the loop and direct admission pipelines. The agent loop still owns availability/schema/loop guard, policy/memo gating and result formatting; its `tool.invoked` events describe batch admission before execution. W2.3 is not complete as a whole.
+**W2.3p policy-phase foundation:** `toolpipeline.Decide` separates trusted ToolDef context, policy callback and mandatory decision audit from execution/memo. Direct Run now uses it and retains the returned context for backend/hook metadata. Primitive contracts and six mutations guard resolved metadata, policy/audit ordering, error/call retention and execution context. Actual agent tests on old source fixed the existing contract: whole-batch admission precedes effects in sequential/parallel allow/deny cases, and a memo hit never bypasses a later denial (count=20). Agent production gating is unchanged in this extraction; shared-phase routing follows separately.
+
+**Next open slice:** route agent-loop policy/audit admission through the shared Decide phase without changing batch/memo/terminal semantics. Policy records now share the same 23-field representation; this does not merge the loop and direct admission pipelines. The agent loop still owns availability/schema/loop guard, policy/memo gating and result formatting; its `tool.invoked` events describe batch admission before execution. W2.3 is not complete as a whole.
 
 The lower-layer invocation port and per-kernel constructor injection are in place. The app service binds the shared L2 mechanism; L3 runtime/loop must not import app or grow the allowlist. Preserve standalone `runtime.Open`/legacy Run compatibility and the loop's batch admission/memo behavior; the shared preflight helpers no longer require an agent implementation import.
 
