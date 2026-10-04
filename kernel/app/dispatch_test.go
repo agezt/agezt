@@ -49,6 +49,59 @@ type output struct {
 	Value string `json:"value"`
 }
 
+type EmbeddedInput struct {
+	Name string `json:"name"`
+}
+
+func TestOperationEmbeddedInputOutputWireContract(t *testing.T) {
+	type request struct {
+		*EmbeddedInput
+		Count int `json:"count"`
+	}
+	calls := 0
+	op, err := app.NewOperation(opapi.Spec{Name: "embedded", ReadOnly: true}, func(_ context.Context, in request) (request, error) { calls++; return in, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := app.NewDispatcher([]app.Operation{op}, app.Dependencies{
+		Auth: authFunc(func(context.Context, opapi.Caller) (opapi.Principal, error) {
+			return opapi.Principal{Kind: opapi.Operator}, nil
+		}),
+		Router: routeFunc(func(ctx context.Context, _ opapi.Principal, _ opapi.Spec) (context.Context, error) { return ctx, nil }),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, raw := range []string{`{"count":1}`, `{"name":"x","count":2}`} {
+		value, err := d.Dispatch(context.Background(), opapi.Caller{}, "embedded", json.RawMessage(raw), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var want, got any
+		if err := json.Unmarshal([]byte(raw), &want); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(encoded, &got); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(want, got) {
+			t.Fatalf("output=%s input=%s", encoded, raw)
+		}
+	}
+	for _, raw := range []string{`{"name":1,"count":2}`, `{"name":"x"}`, `{"EmbeddedInput":{"name":"x"},"count":2}`} {
+		if _, err := d.Dispatch(context.Background(), opapi.Caller{}, "embedded", json.RawMessage(raw), nil); err == nil {
+			t.Fatalf("invalid promoted input accepted: %s", raw)
+		}
+	}
+	if calls != 2 {
+		t.Fatalf("invalid wire reached handler: calls=%d", calls)
+	}
+}
+
 func TestDispatchOrdersAdmissionBeforeEffects(t *testing.T) {
 	for _, mode := range []string{"allow", "auth-error", "forbidden", "route-error", "bad-input", "missing-required", "audit-error", "no-audit", "cancel-at-audit", "handler-error", "panic", "end-error"} {
 		t.Run(mode, func(t *testing.T) {
