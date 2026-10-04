@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> W2.1 framework exit is verified; continue §4.5 with ordered catalog/provider domain migration.
+> W2.1 framework exit is verified; catalog service move is complete. Continue §4.5 with catalog operation binding, then providers.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -433,6 +433,21 @@ framework requirement to source and executable proof and states the supported
 schema, principal, native wire and live-verification boundaries. **W2.1 framework
 plus status/version pilot is complete; next migrate catalog/provider in roadmap
 order.** Other domains, generated surfaces, broader adapters and W3–W5 remain open.
+
+**W2.4a catalog move foundation:** source signatures confirmed sync/list/discover
+were coupled to net.Conn. Their existing fetch/persistence/full-reload/event and
+wire projection now live in app/catalog behind context + Input -> Output/error
+methods. The CP wrappers retain original arg decoding/error text, primary-only
+metadata and legacy audit. Output maps, credential lookup, deterministic model
+order, optional prices/reload errors and env defaults remain. Actual socket-free
+sync/list/discover plus source/catalog/registry/tenant/audit suites pass count=20;
+original list socket JSON parity passes count=20. Nine independent mutations
+retain full sync/discovery reloads, both optional rebuild errors, scoped/duplicate
+credential rules, model order, failed discovery kind and the price wire field.
+Full Go/build/vet/static and architecture gates pass: 219 packages, unchanged
+145 import/13 call allowlists. This is the move before operation binding; no
+policy/audit rewrite or additional provider domain move. **Next: catalog specs,
+common app adapter binding and deletion of these compatibility handlers.**
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
