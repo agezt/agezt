@@ -2,7 +2,7 @@
 
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
-> W2.2a, W2.2b and W2.3a–t are complete; continue §4.3 with the remaining
+> W2.2a, W2.2b and W2.3a–u are complete; continue §4.3 with the remaining
 > app invoker convergence work.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
@@ -160,7 +160,7 @@ should block it, or record those too.
 **Careful:** the resume path is crash-loop-guarded (attempt counter fsynced before dispatch). Don't weaken
 that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re-asks.
 
-### 4.3 W2.3 — tool side paths (W2.3a–t completed; app convergence open)
+### 4.3 W2.3 — tool side paths (W2.3a–u completed; app convergence open)
 
 **W2.3a measured and fixed:** actual registered-tool, HTTP, pipeline and canvas-node calls lacked policy/invoked/result events; direct denials lacked a terminal result. The shared `RunTool`/`toolexec` invoker now serves those paths, keeps forge/MCP lookup, supplies trusted ToolDef metadata (including parameter-dependent capability axes), stamps approval/run identity, catches tool panics and reports audit failures. Pre-invocation audit failure prevents execution. Persistent regressions were red on old code; thirteen independent mutations guard the boundaries.
 
@@ -202,7 +202,9 @@ that. Owner decision 5.5′: approvals are *not* persisted, and a resumed run re
 
 **W2.3t shared execution (move only):** `toolpipeline.Execute` now owns the admitted safe invocation plus the loop’s unchanged optional positive per-call timeout, deadline capture and cleanup. It returns the original result/error, raw panic value and timeout fact. The loop supplies its ErrPanic mapper before context cleanup (including context-sensitive panic formatting); direct calls supply zero timeout and no mapper, retaining caller budget and panic text. Correlation/metadata remain assembled by callers, and batch scheduling/terminal settlement/hooks are unchanged. Old-source loop/direct and actual panic/cancel/timeout contracts pass count=20. Twelve mutations guard context, positive-only budget, result/error/panic facts, deadline-vs-error, cleanup/mapping order, mapper-on-panic and loop/direct wiring. The private direct forwarding helper is removed; shared toolinvoke.Invoke stays production-reachable.
 
-**Next open slice:** converge settlement and remaining orchestration boundaries without changing batch/memo/terminal semantics. Resolve, policy/audit, announcement and per-call execution are shared; callers retain refusal formatting and the loop owns guard, scheduling, memo and result formatting. Its tool.invoked events still describe batch admission before execution. W2.3 is not complete as a whole.
+**W2.3u shared terminal publication (move only):** `toolpipeline.Settle` owns the terminal kind and authoritative tool/call/output/error fields, copies caller metadata and returns the mandatory publisher error unchanged. Direct deny/error/panic/success and loop finalization use it. The loop passes an audit-only preview copy, retaining full model/hook bytes, observation provenance/deltas, typed nil-versus-empty matches, artifact/memo/skipped fields and result ordering. Classification, remaining batch write attempts, error joins and terminal hook suppression stay caller-owned. Old-source representation/cause/cancel-hook and actual terminal/delta/memo contracts pass count=20; twelve mutations cover kind/identity/output/error, metadata ownership, cause, one publication, remaining writes, full hooks and direct denial audit.
+
+**Next open slice:** measure and converge the remaining per-kernel app/agent-loop invocation routing using the shared phases without changing batch/memo/terminal semantics. Resolve, policy/audit, announcement, execution and terminal publication now share mechanisms; callers retain refusal formatting and loop-specific guard/scheduling/memo/observation/model behavior. W2.3 is not complete as a whole.
 
 The lower-layer invocation port and per-kernel constructor injection are in place. The app service binds the shared L2 mechanism; L3 runtime/loop must not import app or grow the allowlist. Preserve standalone `runtime.Open`/legacy Run compatibility and the loop's batch admission/memo behavior; the shared preflight helpers no longer require an agent implementation import.
 

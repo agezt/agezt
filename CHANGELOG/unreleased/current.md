@@ -761,6 +761,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: terminal tool audit shares one publication phase.** Existing
+  denial/error/panic records, observation and artifact metadata, memo/skipped
+  markers and caller identities are preserved. Model and hook output remain full;
+  terminal batches retain their existing write-attempt and error/hook behavior.
+
 - **Architecture: admitted tool execution shares timeout and cleanup handling.**
   Agent per-call limits, caller context, backend results and panic/cancellation
   classification are preserved. Direct calls retain their caller budget; batch

@@ -190,7 +190,9 @@ The HITL approval wait happens inside step 4 (`policyHook` blocks in `approvals.
 
 **Execute** (`executeToolJobs` → `invokeToolJob` → `toolpipeline.Execute`): the loop assembles WithCorrelation(ctx, corr), then the shared phase owns optional positive ToolTimeout, safe toolinvoke.Invoke, panic mapping, deadline capture and context cleanup. Panic mapping runs before cleanup so context-sensitive formatter text and ErrPanic identity remain unchanged. Direct calls pass zero timeout/no mapper and retain their caller budget/error text. Raw backend result/error and panic/timeout facts return to callers for settlement. Old-source loop/direct and actual panic/cancel/timeout contracts pass count=20; twelve mutations guard the phase and wiring. One job, or MaxParallelTools <= 1, runs inline; otherwise the existing semaphore-bounded fan-out and worker recover remain.
 
-**Finalize** (`finalizeToolJobs`), in original order:
+**Finalize** (`finalizeToolJobs` → `toolpipeline.Settle`), in original order:
+
+W2.3u shares terminal kind/core fields and mandatory publication. Caller observation/artifact/delta/memo/skipped fields are copied without normalizing nil/empty values; call/result identity wins over extra fields. The loop sends an audit preview copy and keeps full model/hook output. Direct deny/error/panic/success use the same phase through their existing output decorator and envelope. Classification, error joins, remaining batch writes, cancellation checks and hook/model ownership stay outside the phase. Old-source and actual terminal/delta/memo contracts pass count=20; twelve mutations protect the boundaries. Per-kernel app/loop invocation routing remains open.
 - A panicked job returns `ErrPanic` and terminates the run.
 - A run-ctx error returns `ctx.Err()` (run-level terminal).
 - A tool timeout gives the error result `tool "x" exceeded its <d> timeout` and the run continues.
