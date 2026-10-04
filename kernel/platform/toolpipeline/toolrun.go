@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/policyapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/platform/toolaudit"
 	"github.com/agezt/agezt/kernel/platform/tooloutput"
@@ -41,6 +42,8 @@ type NoiseNotifier interface {
 type Options struct {
 	Artifacts         tooloutput.ArtifactPutter
 	ArtifactThreshold int
+	// Phases selects an injected service; nil retains the legacy entry path.
+	Phases toolphaseapi.Phases
 }
 
 // Run executes one registered in-process tool under the same schema and
@@ -58,9 +61,14 @@ func Run(
 	events EventPublisher,
 	noise NoiseNotifier,
 ) (toolapi.Result, error) {
+	service := &invoker{deps: Dependencies{Tools: tools, Policy: policy, Events: events, Noise: noise}}
+	return run(ctx, corr, callID, toolName, args, tools, policy, events, noise, service)
+}
+
+func run(ctx context.Context, corr, callID, toolName string, args json.RawMessage, tools ToolLookup, policy PolicyChecker, events EventPublisher, noise NoiseNotifier, phases toolphaseapi.Phases) (toolapi.Result, error) {
 
 	call := llm.ToolCall{ID: callID, Name: toolName, Input: args}
-	resolved := Resolve(call, tools.LookupTool)
+	resolved := phases.Resolve(call, tools.LookupTool)
 	if !resolved.Found {
 		return toolapi.Result{}, fmt.Errorf("unknown tool %q", toolName)
 	}
@@ -69,7 +77,7 @@ func Run(
 	}
 	tool, def := resolved.Tool, resolved.Definition
 	ctx = toolapi.WithCorrelation(ctx, corr)
-	decision, err := Decide(ctx, call, def, policy.CheckPolicy,
+	decision, err := phases.Decide(ctx, call, def, policy.CheckPolicy,
 		func(call llm.ToolCall, verdict policyapi.PolicyVerdict) error {
 			return events.PublishEvent(event.Spec{
 				Subject: "policy", Kind: event.KindPolicyDecision, Actor: "policy", CorrelationID: corr,
@@ -81,9 +89,9 @@ func Run(
 	}
 	ctx, verdict := decision.Context, decision.Verdict
 	terminalAudit := func(result toolapi.Result) error {
-		return Settle(call, result, nil, func(kind event.Kind, payload map[string]any) error {
+		return phases.Settle(call, result, nil, func(kind string, payload map[string]any) error {
 			return events.PublishEvent(event.Spec{
-				Subject: "tool", Kind: kind, Actor: "tool", CorrelationID: corr,
+				Subject: "tool", Kind: event.Kind(kind), Actor: "tool", CorrelationID: corr,
 				Payload: payload,
 			})
 		})
@@ -100,15 +108,15 @@ func Run(
 		}
 		return res, refusal
 	}
-	if err := Announce(call, func(kind event.Kind, payload map[string]any) error {
+	if err := phases.Announce(call, func(kind string, payload map[string]any) error {
 		return events.PublishEvent(event.Spec{
-			Subject: "tool", Kind: kind, Actor: "tool", CorrelationID: corr,
+			Subject: "tool", Kind: event.Kind(kind), Actor: "tool", CorrelationID: corr,
 			Payload: payload,
 		})
 	}); err != nil {
 		return toolapi.Result{}, err
 	}
-	execution := Execute(ctx, tool, args, 0, nil)
+	execution := phases.Execute(ctx, tool, args, 0, nil)
 	res, err := execution.Result, execution.Err
 	if err != nil {
 		errorResult := toolapi.Result{Output: err.Error(), IsError: true}
@@ -130,6 +138,9 @@ func Run(
 // The publisher adapter keeps execution, caller/hook output and error ownership
 // in the existing Run pipeline, retaining its public compatibility contract.
 func RunWithOptions(ctx context.Context, corr, callID, toolName string, args json.RawMessage, tools ToolLookup, policy PolicyChecker, events EventPublisher, noise NoiseNotifier, options Options) (toolapi.Result, error) {
+	if options.Phases != nil {
+		return run(ctx, corr, callID, toolName, args, tools, policy, WithOutputOptions(events, options), noise, options.Phases)
+	}
 	return Run(ctx, corr, callID, toolName, args, tools, policy, WithOutputOptions(events, options), noise)
 }
 

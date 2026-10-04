@@ -8,17 +8,13 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"github.com/agezt/agezt/kernel/platform/toolinvoke"
 )
 
 // Execution preserves the backend outcome and the caller's timeout/panic facts.
 // Terminal classification, scheduling, audit and hooks remain caller-owned.
-type Execution struct {
-	Result     toolapi.Result
-	Err        error
-	PanicValue any
-	TimedOut   bool
-}
+type Execution = toolphaseapi.Execution
 
 // Execute runs one admitted tool under an optional positive per-call timeout.
 // panicError lets a loop retain its terminal error identity, before context

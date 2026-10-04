@@ -33,5 +33,8 @@ func Run(ctx context.Context, corr, callID, toolName string, args json.RawMessag
 
 // RunWithOptions keeps Run as the legacy entry and uses the shared audit adapter.
 func RunWithOptions(ctx context.Context, corr, callID, toolName string, args json.RawMessage, tools ToolLookup, policy PolicyChecker, events EventPublisher, noise NoiseNotifier, options Options) (toolapi.Result, error) {
+	if options.Phases != nil {
+		return toolpipeline.RunWithOptions(ctx, corr, callID, toolName, args, tools, policy, events, noise, options)
+	}
 	return Run(ctx, corr, callID, toolName, args, tools, policy, toolpipeline.WithOutputOptions(events, options), noise)
 }

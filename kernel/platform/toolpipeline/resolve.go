@@ -5,17 +5,13 @@ package toolpipeline
 import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
 // Resolution retains the implementation and its trusted metadata, including on
 // schema rejection. Callers keep their own unavailable/schema error formatting.
-type Resolution struct {
-	Tool       toolapi.Tool
-	Definition toolapi.ToolDef
-	Found      bool
-	InputError error
-}
+type Resolution = toolphaseapi.Resolution
 
 // Resolve looks up a call once and validates input before guard/policy/memo.
 // The lookup belongs to the caller (a loop's enabled set or the host registry).
