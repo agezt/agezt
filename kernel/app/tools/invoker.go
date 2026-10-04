@@ -8,16 +8,21 @@ import (
 	"context"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 )
 
-type invoker struct{ pipeline toolapi.Invoker }
+type invoker struct {
+	toolphaseapi.Phases
+	pipeline toolapi.Invoker
+}
 
 // NewInvoker binds host-owned policy/audit/completion ports for one kernel.
 // It preserves the existing execution pipeline while callers converge on the
 // lower-layer invocation port. The agent loop has not converged on this entry.
 func NewInvoker(deps toolpipeline.Dependencies) toolapi.Invoker {
-	return &invoker{pipeline: toolpipeline.NewInvoker(deps)}
+	pipeline := toolpipeline.NewInvoker(deps)
+	return &invoker{Phases: pipeline.(toolphaseapi.Phases), pipeline: pipeline}
 }
 
 func (s *invoker) Invoke(ctx context.Context, call toolapi.Invocation) (toolapi.Result, error) {
