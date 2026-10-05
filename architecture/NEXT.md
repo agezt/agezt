@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill typed native binding is complete; continue §4.5 with measured history/domain identity repairs and exit evidence. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill typed binding and history read-error repair are complete; continue §4.5 with domain identity/history coverage and exit evidence. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -1110,6 +1110,18 @@ Go/build/vet/scoped static and all gates pass: unchanged 226 packages, 141 impor
 13 calls, structure 117. CP->skill debt remains owned by roster teardown sources;
 no exception is removed early or expanded. **Next: measured history error/domain
 identity repairs, then skill native exit.** History legacy behavior stays open.
+
+**W2.8f skill history read-error repair:** owned corrupt JSONL journals proved
+native history returned successful empty/partial results despite real Range decode
+failure; a reader fixture also exposed the swallowed original cause. History now
+returns the original Range error and discards failed partial output. Valid history
+shape/order/kinds and malformed individual payload filtering remain. Permanent
+native corrupt-journal empty/partial cases and exact-cause/zero-output service
+cases pass count=20; three independent mutations fail. Source/native/tenant/audit
+and package race count=20 plus final full Go/build/vet/scoped static and all gates
+pass: unchanged 226 packages, 141 imports/13 calls and structure 117. **Next: skill
+domain operation identity and measured ownership-history coverage, then exit
+evidence.** Fixtures use owned TempDir journals; no owner journal is touched.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
