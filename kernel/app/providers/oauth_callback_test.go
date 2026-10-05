@@ -28,6 +28,7 @@ func TestOAuthCallbackBusinessAdmissionBlocksExchangeAndEffects(t *testing.T) {
 			effects := 0
 			auth := NewOAuth(nil, t.TempDir(), func() ([]string, string) { effects++; return nil, "" })
 			login := &providerLogin{state: "expected", verifier: "fixture-verifier", status: "pending"}
+			auth.provLogin = login
 			result := auth.completeProviderLogin(context.Background(), login, tc.in, func(context.Context, string, string) error { effects++; return nil })
 			if result != tc.want || effects != 0 || login.status != tc.state || login.errMsg != tc.message || auth.chatgpt != nil {
 				t.Fatalf("result/state/effects = %+v %q %q %d manager=%v", result, login.status, login.errMsg, effects, auth.chatgpt)
@@ -57,6 +58,7 @@ func TestOAuthCallbackBusinessSuccessPreservesIdentityBudgetAndEffectOrder(t *te
 		order = append(order, "models")
 		return []string{}, ""
 	})
+	auth.provLogin = login
 	var exchangeContext context.Context
 	result := auth.completeProviderLogin(parent, login, providerCallbackInput{Code: "fixture-code", State: "expected"}, func(ctx context.Context, code, verifier string) error {
 		exchangeContext = ctx
@@ -90,6 +92,7 @@ func TestOAuthCallbackBusinessExchangeFailureAndCancellationPreserveTerminalShap
 		models := 0
 		auth := NewOAuth(nil, t.TempDir(), func() ([]string, string) { models++; return nil, "" })
 		login := &providerLogin{state: "expected", verifier: "fixture-verifier", status: "pending"}
+		auth.provLogin = login
 		result := auth.completeProviderLogin(parent, login, providerCallbackInput{Code: "fixture-code", State: "expected"}, func(ctx context.Context, _, _ string) error {
 			if canceled && !errors.Is(ctx.Err(), context.Canceled) {
 				t.Fatal("parent cancellation lost")
