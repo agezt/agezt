@@ -11,6 +11,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/app"
 	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
+	appproviders "github.com/agezt/agezt/kernel/app/providers"
 	"github.com/agezt/agezt/kernel/app/system"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
@@ -38,10 +39,23 @@ var catalogOperations = func() []app.Operation {
 	return ops
 }()
 
+var providerOperations = func() []app.Operation {
+	ops, err := appproviders.Operations(func(ctx context.Context) *appproviders.Service {
+		host := ctx.Value(appHostKey{}).(appHost)
+		server := ctx.Value(systemHostKey{}).(*Server)
+		return appproviders.New(host.kernel, server.baseDir)
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
+
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(catalogOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(catalogOperations)+len(providerOperations))
 	operations = append(operations, systemOperations...)
-	return append(operations, catalogOperations...)
+	operations = append(operations, catalogOperations...)
+	return append(operations, providerOperations...)
 }
 
 func registerAppSystemCommands() {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 // Package providers owns transport-independent provider catalog and keyring operations.
-// Socket/auth/audit adaptation remains in the control plane until operation binding.
+// Typed specs route catalog and keyring mutations through the shared operation dispatcher.
 package providers
 
 import (
@@ -17,13 +17,19 @@ import (
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
-type ConnectInput struct{ ID, API, Model, Env, Name, NPM string }
+type ConnectInput struct {
+	ID    string `json:"id,omitempty"`
+	API   string `json:"api,omitempty"`
+	Model string `json:"model,omitempty"`
+	Env   string `json:"env,omitempty"`
+	Name  string `json:"name,omitempty"`
+	NPM   string `json:"npm,omitempty"`
+}
 type ReloadInput struct{}
 type KeyInput struct {
 	Provider, Env, Label, Value string
 	Active                      bool
 }
-type Output = map[string]any
 type Service struct {
 	k       *runtime.Kernel
 	baseDir string
@@ -68,7 +74,7 @@ func (s *Service) loadVault() (*creds.Store, error) {
 	return vault, nil
 }
 
-func (s *Service) Connect(_ context.Context, in ConnectInput) (Output, error) {
+func (s *Service) Connect(_ context.Context, in ConnectInput) (ConnectOutput, error) {
 	sa := map[string]string{"id": in.ID, "api": in.API, "model": in.Model, "env": in.Env, "name": in.Name, "npm": in.NPM}
 	id := strings.TrimSpace(sa["id"])
 	api := strings.TrimSpace(sa["api"])
@@ -82,12 +88,12 @@ func (s *Service) Connect(_ context.Context, in ConnectInput) (Output, error) {
 	if strings.TrimSpace(sa["env"]) != "" {
 		env, ok := validEnv(in.Env)
 		if !ok {
-			return nil, errors.New("args.env must be a provider key env var (UPPER_SNAKE, not AGEZT_*)")
+			return ConnectOutput{}, errors.New("args.env must be a provider key env var (UPPER_SNAKE, not AGEZT_*)")
 		}
 		envs = []string{env}
 	}
 	if id == "" || api == "" {
-		return nil, errors.New("args.id and args.api are required")
+		return ConnectOutput{}, errors.New("args.id and args.api are required")
 	}
 	name := sa["name"]
 	if strings.TrimSpace(name) == "" {
@@ -105,15 +111,9 @@ func (s *Service) Connect(_ context.Context, in ConnectInput) (Output, error) {
 	cat := s.k.Catalog()
 	if _, exists := cat.Providers[id]; exists {
 		_, providersReloaded, rerr := s.k.Reload()
-		result := map[string]any{
-			"provider_id":        id,
-			"added":              false,
-			"exists":             true,
-			"providers_reloaded": providersReloaded,
-			"note":               "id already in catalog; custom.json was NOT written — existing entry preserved. Attach the key via /api/provider/keys/add.",
-		}
+		result := ConnectOutput{ProviderID: id, Added: false, Exists: true, ProvidersReloaded: providersReloaded, Note: "id already in catalog; custom.json was NOT written — existing entry preserved. Attach the key via /api/provider/keys/add."}
 		if rerr != nil {
-			result["reload_error"] = rerr.Error()
+			result.ReloadError = rerr.Error()
 		}
 		return result, nil
 	}
@@ -130,56 +130,46 @@ func (s *Service) Connect(_ context.Context, in ConnectInput) (Output, error) {
 	}
 	added, err := s.k.CatalogStore().UpsertCustomProvider(p)
 	if err != nil {
-		return nil, fmt.Errorf("save custom provider: %w", err)
+		return ConnectOutput{}, fmt.Errorf("save custom provider: %w", err)
 	}
 	_, providersReloaded, rerr := s.k.Reload()
-	result := map[string]any{
-		"provider_id":        id,
-		"added":              added,
-		"exists":             false,
-		"providers_reloaded": providersReloaded,
-	}
+	result := ConnectOutput{ProviderID: id, Added: added, Exists: false, ProvidersReloaded: providersReloaded}
 	if rerr != nil {
-		result["reload_error"] = rerr.Error()
+		result.ReloadError = rerr.Error()
 	}
 	return result, nil
 }
 
-func (s *Service) Reload(_ context.Context, _ ReloadInput) (Output, error) {
+func (s *Service) Reload(_ context.Context, _ ReloadInput) (ReloadOutput, error) {
 	cat, providersReloaded, err := s.k.Reload()
 	if err != nil {
-		return nil, err
+		return ReloadOutput{}, err
 	}
-	result := map[string]any{
-		"providers_reloaded": providersReloaded,
-		"provider_count":     len(cat.Providers),
-	}
+	result := ReloadOutput{ProvidersReloaded: providersReloaded, ProviderCount: len(cat.Providers)}
 	if !providersReloaded {
 		// Surface the no-op clearly so operators don't wonder why a
 		// creds change didn't take effect: when the daemon was built
 		// without OnReload, only the catalog refresh ran.
-		result["note"] = "OnReload not configured; only the catalog snapshot was refreshed. Restart the daemon for the new credentials to take effect."
+		result.Note = "OnReload not configured; only the catalog snapshot was refreshed. Restart the daemon for the new credentials to take effect."
 	}
 	return result, nil
 }
-func (s *Service) KeyList(_ context.Context, in KeyInput) (Output, error) {
+func (s *Service) KeyList(_ context.Context, in KeyInput) (KeyListOutput, error) {
 	provider, env, target, ok := keyTarget(in)
 	if !ok {
-		return nil, keyTargetError()
+		return KeyListOutput{}, keyTargetError()
 	}
 	vault, err := s.loadVault()
 	if err != nil {
-		return nil, err
+		return KeyListOutput{}, err
 	}
-	return map[string]any{
-		"provider": provider, "env": env, "keys": vault.KeyringList(target),
-	}, nil
+	return KeyListOutput{Provider: provider, Env: env, Keys: vault.KeyringList(target)}, nil
 }
 
-func (s *Service) KeyAdd(_ context.Context, in KeyInput) (Output, error) {
+func (s *Service) KeyAdd(_ context.Context, in KeyInput) (KeyAddOutput, error) {
 	provider, env, target, ok := keyTarget(in)
 	if !ok {
-		return nil, keyTargetError()
+		return KeyAddOutput{}, keyTargetError()
 	}
 	label := in.Label
 	label = strings.TrimSpace(label)
@@ -187,69 +177,69 @@ func (s *Service) KeyAdd(_ context.Context, in KeyInput) (Output, error) {
 
 	vault, err := s.loadVault()
 	if err != nil {
-		return nil, err
+		return KeyAddOutput{}, err
 	}
 	activeChanged, err := vault.KeyringAdd(target, label, value, makeActive)
 	if err != nil {
-		return nil, err
+		return KeyAddOutput{}, err
 	}
 	if err := vault.Save(); err != nil {
-		return nil, fmt.Errorf("save vault: %w", err)
+		return KeyAddOutput{}, fmt.Errorf("save vault: %w", err)
 	}
-	result := map[string]any{"provider": provider, "env": env, "label": label, "added": true, "active_changed": activeChanged}
+	result := KeyAddOutput{Provider: provider, Env: env, Label: label, Added: true, ActiveChanged: activeChanged}
 	if activeChanged {
 		if _, _, err := s.k.Reload(); err != nil {
-			result["reload_error"] = err.Error()
+			result.ReloadError = err.Error()
 		}
 	}
 	return result, nil
 }
 
-func (s *Service) KeyActivate(_ context.Context, in KeyInput) (Output, error) {
+func (s *Service) KeyActivate(_ context.Context, in KeyInput) (KeyActivateOutput, error) {
 	provider, env, target, ok := keyTarget(in)
 	if !ok {
-		return nil, keyTargetError()
+		return KeyActivateOutput{}, keyTargetError()
 	}
 	label := in.Label
 	label = strings.TrimSpace(label)
 
 	vault, err := s.loadVault()
 	if err != nil {
-		return nil, err
+		return KeyActivateOutput{}, err
 	}
 	if err := vault.KeyringActivate(target, label); err != nil {
-		return nil, err
+		return KeyActivateOutput{}, err
 	}
 	if err := vault.Save(); err != nil {
-		return nil, fmt.Errorf("save vault: %w", err)
+		return KeyActivateOutput{}, fmt.Errorf("save vault: %w", err)
 	}
-	result := map[string]any{"provider": provider, "env": env, "label": label, "active": true}
+	result := KeyActivateOutput{Provider: provider, Env: env, Label: label, Active: true}
 	if _, _, err := s.k.Reload(); err != nil {
-		result["reload_error"] = err.Error()
+		result.ReloadError = err.Error()
 	}
 	return result, nil
 }
 
-func (s *Service) KeyRemove(_ context.Context, in KeyInput) (Output, error) {
+func (s *Service) KeyRemove(_ context.Context, in KeyInput) (KeyRemoveOutput, error) {
 	provider, env, target, ok := keyTarget(in)
 	if !ok {
-		return nil, keyTargetError()
+		return KeyRemoveOutput{}, keyTargetError()
 	}
 	label := in.Label
 	label = strings.TrimSpace(label)
 
 	vault, err := s.loadVault()
 	if err != nil {
-		return nil, err
+		return KeyRemoveOutput{}, err
 	}
 	removed, wasActive := vault.KeyringRemove(target, label)
 	if err := vault.Save(); err != nil {
-		return nil, fmt.Errorf("save vault: %w", err)
+		return KeyRemoveOutput{}, fmt.Errorf("save vault: %w", err)
 	}
-	result := map[string]any{"provider": provider, "env": env, "label": label, "removed": removed, "was_active": wasActive}
+	result := KeyRemoveOutput{Provider: provider, Env: env, Label: label, Removed: removed, WasActive: wasActive}
 	if wasActive {
 		if _, _, err := s.k.Reload(); err != nil {
-			result["reload_error"] = err.Error()
+			result.ReloadError = err.Error()
 		}
 	}
 	return result, nil
