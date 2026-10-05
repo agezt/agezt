@@ -22,3 +22,15 @@ func workboardWriteResp(s *Server, conn net.Conn, req Request, task workboard.Ta
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"task": workboardTaskView(task)}})
 }
+
+func writeWorkboardAppResult(s *Server, conn net.Conn, req Request, out any, err error) {
+	if err != nil {
+		msg := err.Error()
+		if errors.Is(err, workboard.ErrNotFound) {
+			msg = "unknown workboard task: " + stringArg(req.Args, "id")
+		}
+		s.failMsg(conn, req, msg)
+		return
+	}
+	writeWorkboardReadResult(s, conn, req, out)
+}
