@@ -799,6 +799,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: memory distillation moves into the app service.** Consolidate
+  and profile rebuild retain their existing correlation, bounded background
+  lifetime, report fields and halted errors while returning typed results through
+  native wrappers. Caller-context and operation binding follow separately.
+
+
 - **Architecture: memory maintenance moves into the app service.** Prune, tidy,
   audit and clean return typed reports while retaining age limits, dry-run
   behavior, curated records and native count fields. Native tenant and argument
