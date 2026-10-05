@@ -4,6 +4,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **World mutations require successful operation audit before effects.** Add,
+  edit, relate and forget now run through typed app operations; unavailable audit
+  prevents graph changes. World log retains tenant journal isolation and the
+  other graph commands remain primary-only, with five unaudited reads.
+
+
 - **Memory mutations require successful operation audit before effects.** Add,
   revise, forget, promote, bulk forget, prune, tidy, clean, consolidate and profile
   rebuild now use the shared typed dispatcher. Unavailable audit prevents service

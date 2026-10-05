@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider and memory native migrations plus exit evidence are complete. World graph/journal business moves are complete; continue §4.5 with world typed binding and identity/exit evidence, then taste/skill. Broader adapters and remaining domains remain open.
+> Catalog/provider and memory native migrations plus exit evidence are complete. World typed native binding is complete; continue §4.5 with world operation/domain identity and exit evidence, then taste/skill. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -948,6 +948,23 @@ gates pass: unchanged 224 packages, 142 imports/13 calls and structure 115.
 **Next: world typed operation binding, old wrapper deletion and measured domain
 identity refinement, then native exit evidence.** Native registry/auth/audit remain
 unchanged during this business move; complete world migration remains open.
+
+**W2.6c world typed native binding:** restored legacy binding confirmed four
+graph mutations changed state and returned success with a closed journal. All
+nine world specs now use the common app/native host; four mutations require audit
+before service effects and five reads remain unaudited. World log keeps routed
+tenant scope; all graph commands stay primary-only. Known required/type/null
+admission precedes effects; unused unknown fields, case-preserving trimmed aliases,
+native resolve defaults/cap/fractional zero and lenient log inputs remain compatible.
+Old socket wrappers/registrations and the now-unused argStringMap helper are removed
+without new exceptions. Actual closed-journal and tenant socket, metadata/schema/
+effect/source/registry/audit and focused race suites pass count=20; nine independent
+mutations fail. Nine old/current bindings × three compatible inputs match count=20
+with bounded score-clock drift and generic failure-code boundary. Final full
+Go/build/vet/scoped static and all gates pass: unchanged 224 packages, 142 imports/
+13 calls and structure 115. **Next: measured world operation/domain identity
+refinement, then native exit evidence.** Graph business retains its prior empty
+domain correlation; complete world migration and broader architecture remain open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

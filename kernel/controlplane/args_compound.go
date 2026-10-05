@@ -1,7 +1,7 @@
 package controlplane
 
 // Provenance: SPDX-License-Identifier: MIT kernel/controlplane request-arg
-//             string-collection helpers (argStrings, argStringMap, argStringList).
+//             string-collection helpers (argStrings, argStringList).
 //             Extracted from args.go during Day 211 god-file refactor (#99). Public
 //             API unchanged.
 
@@ -20,25 +20,6 @@ func argStrings(args map[string]any, keys ...string) (map[string]string, error) 
 		out[k] = v
 	}
 	return out, nil
-}
-func argStringMap(args map[string]any, key string) (map[string]string, bool, error) {
-	v, present := args[key]
-	if !present {
-		return nil, false, nil
-	}
-	m, ok := v.(map[string]any)
-	if !ok {
-		return nil, true, fmt.Errorf("args.%s must be an object", key)
-	}
-	out := make(map[string]string, len(m))
-	for k, e := range m {
-		s, ok := e.(string)
-		if !ok {
-			return nil, true, fmt.Errorf("args.%s.%s must be a string", key, k)
-		}
-		out[k] = s
-	}
-	return out, true, nil
 }
 func argStringList(args map[string]any, key string) ([]string, bool, error) {
 	v, present := args[key]
