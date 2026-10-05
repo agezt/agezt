@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/creds"
+	"github.com/agezt/agezt/kernel/platform/browsercallback"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -109,7 +110,7 @@ func TestOAuthCallbackDenialStateFilteringAndConcurrentStatus(t *testing.T) {
 
 func TestOAuthFailurePageEscapesUntrustedText(t *testing.T) {
 	response := httptest.NewRecorder()
-	providerLoginPage(response, false, `<script>"fixture"</script>`)
+	browsercallback.Render(response, false, `<script>"fixture"</script>`)
 	if strings.Contains(response.Body.String(), `<script>"fixture"</script>`) {
 		t.Fatal("callback text remained HTML")
 	}
