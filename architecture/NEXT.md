@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider native RPC and callback business/presentation/listener extraction are complete. Continue §4.5 with listener lifetime ownership proof/fix, then caller-context refinement; broader adapter/domain migration remains open.
+> Catalog/provider native RPC and callback adapter extraction are complete; prepared listener Close ownership is repaired. Continue §4.5 with session/expiry/logout ownership and caller-context refinement; broader adapter/domain migration remains open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -669,6 +669,19 @@ architecture gates pass: unchanged 222 packages and 143 import/13 call exception
 **Next: prove/fix listener lifetime ownership, including Close before Serve.**
 TTL/logout/stale-session refinement and caller context remain open; this move
 alone does not claim those lifecycle guarantees or live OAuth exchange.
+
+**W2.4p prepared listener ownership repair:** an owned loopback proof reproduced
+that Close before Serve left the bound port unavailable for immediate rebinding.
+Listener.Close now closes both HTTP server and prepared socket, normalizes an
+already-closed socket, and joins remaining cleanup causes. Permanent regressions
+cover Close-before-Serve, repeated close, concurrent Serve/Close, immediate port
+reuse and owned close-error identity. Focused/source tests and the full adapter
+race suite pass count=20; three independent mutations retain release, idempotent
+normalization and error propagation. Full Go/build/vet/static and architecture
+gates pass: unchanged 222 packages and 143 import/13 call exceptions. **Next:
+provider session/expiry/logout ownership, then caller-context refinement.**
+This scoped repair does not claim token/session fencing or TTL/logout semantics;
+its sockets are controlled fixtures, with no live provider exchange.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

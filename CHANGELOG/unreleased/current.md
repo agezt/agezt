@@ -1216,6 +1216,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **OAuth callback cleanup releases a prepared port before serving begins.**
+  Closing the HTTP server alone left the bound socket open during startup races.
+  Cleanup now closes both owned resources, supports repeated close and preserves
+  nonterminal cleanup errors; concurrent Serve/Close permits immediate port reuse.
+
+
 - **Named agents can resume after a daemon restart even when their profile sets
   a soul or model.** New runs distinguish profile defaults from per-run overrides,
   including direct console/CLI agent runs. Resume rebuilds the agent profile while
