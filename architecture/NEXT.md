@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Continue §4.5 with taste, then skill in roadmap order. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste business move is complete; continue §4.5 with taste typed binding/exit evidence, then skill. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -990,6 +990,21 @@ closed-journal repair, tenant scope and ordered domain/audit identity with expli
 clock/failure-code/live-provider boundaries. **Next: taste, then skill in roadmap
 order.** World native migration is complete; knowledge/runtime module dissolution,
 broader adapters, generated surfaces, runs.Start and W3–W5 remain open.
+
+**W2.7a taste-service foundation:** list/create/delete store business now lives
+in app/taste with context + typed input/output/error. Native wrappers retain
+lenient trimmed string/limit/tag admission, registration/auth/audit and response
+framing. Exemplar fields use the actual store type, preserving optional scope/tags,
+timestamps and present-empty arrays. Source store filtering/case-sensitive tag
+dedupe, creation validation, delete causes and persistence rollback retain behavior.
+Three original/current native handlers match count=20 with explicit fresh identity
+and bounded create-clock boundaries. Source/service/store/registry/tenant/audit and
+package race suites count=20 plus eight independent mutations pass. Full Go/build/
+vet/scoped static and all gates pass: 225 packages, 141 imports/13 calls. Official
+ratchet removes only paid CP->taste debt; generated kernel structure is 116.
+**Next: taste typed operation binding and old wrapper deletion, then exit evidence
+and skill.** This move changes no native policy/audit or runtime exemplar selection;
+complete taste migration remains open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
