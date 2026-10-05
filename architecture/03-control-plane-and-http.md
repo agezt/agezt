@@ -264,7 +264,6 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `journal_head` | primary |  | `handleJournalHead` → journal.go |  |
 | `journal_stats` | primary, tenant-routed |  | `handleJournalStats` → journal_stats.go |  |
 | `journal_tail` | primary |  | `handleJournalTail` → journal.go |  |
-| `memory_log` | tenant |  | `handleMemoryLog` → memory_log.go | `/api/memory_log` |
 | `netguard_log` | tenant |  | `handleNetguardLog` → netguard_log.go | `/api/netguard_log` |
 | `provider_log` | tenant |  | `handleProviderLog` → provider_log.go | `/api/provider_log` |
 | `provider_rejections` | tenant |  | `handleProviderRejections` → provider_log.go |  |
@@ -434,25 +433,26 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `agent_tombstone` | primary |  | `handleAgentTombstone` → roster_tombstone.go |  |
 | `agent_wake` | primary |  | `handleAgentWake` → roster_wake.go | `/api/agents/wake` |
 
-#### Memory — `registerMemoryCommands` (memory_helpers.go), 15 ops
+#### Memory — `app/memory.Operations` via the common native adapter, 16 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
-| `memory_add` | primary |  | `handleMemoryAdd` → memory_handlers.go | `/api/memory/add` |
-| `memory_audit` | tenant |  | `handleMemoryAudit` → memory_handlers_admin.go | `/api/memory/audit` |
-| `memory_bulk_forget` | primary |  | `handleMemoryBulkForget` → memory_handlers_admin.go | `/api/memory/bulk_forget` |
-| `memory_clean` | tenant |  | `handleMemoryClean` → memory_handlers_admin.go | `/api/memory/clean` |
-| `memory_consolidate` | primary |  | `handleMemoryConsolidate` → memory.go |  |
-| `memory_find_related` | primary |  | `handleMemoryFindRelated` → memory_handlers_admin.go |  |
-| `memory_forget` | primary |  | `handleMemoryForget` → memory_handlers_tidy.go | `/api/memory/forget` |
-| `memory_get` | primary |  | `handleMemoryGet` → memory_handlers.go |  |
-| `memory_list` | primary |  | `handleMemoryList` → memory_handlers.go | `/api/memory` |
-| `memory_promote` | primary |  | `handleMemoryPromote` → memory_handlers_tidy.go | `/api/memory/promote` |
-| `memory_prune` | primary |  | `handleMemoryPrune` → memory_handlers_tidy.go | `/api/memory/prune` |
-| `memory_search` | primary |  | `handleMemorySearch` → memory_handlers.go |  |
-| `memory_supersede` | primary |  | `handleMemorySupersede` → memory_handlers.go | `/api/memory/supersede` |
-| `memory_tidy` | primary |  | `handleMemoryTidy` → memory_handlers_tidy.go | `/api/memory/tidy` |
-| `profile_rebuild` | primary |  | `handleProfileRebuild` → memory.go | `/api/profile/rebuild` |
+| `memory_add` | primary |  | `handleAppOperation` → app/memory.Service.Remember | `/api/memory/add` |
+| `memory_audit` | tenant |  | `handleAppOperation` → app/memory.Service.Audit | `/api/memory/audit` |
+| `memory_bulk_forget` | primary |  | `handleAppOperation` → app/memory.Service.BulkForget | `/api/memory/bulk_forget` |
+| `memory_clean` | tenant |  | `handleAppOperation` → app/memory.Service.Clean | `/api/memory/clean` |
+| `memory_consolidate` | primary |  | `handleAppOperation` → app/memory.Distillation.Consolidate |  |
+| `memory_find_related` | primary |  | `handleAppOperation` → app/memory.Service.FindRelated |  |
+| `memory_forget` | primary |  | `handleAppOperation` → app/memory.Service.Forget | `/api/memory/forget` |
+| `memory_get` | primary |  | `handleAppOperation` → app/memory.Service.Get |  |
+| `memory_list` | primary |  | `handleAppOperation` → app/memory.Service.PrepareList / PreparedList.Page | `/api/memory` |
+| `memory_log` | tenant |  | `handleAppOperation` → app/memory.LogService.Log | `/api/memory_log` |
+| `memory_promote` | primary |  | `handleAppOperation` → app/memory.Service.Promote | `/api/memory/promote` |
+| `memory_prune` | primary |  | `handleAppOperation` → app/memory.Service.Prune | `/api/memory/prune` |
+| `memory_search` | primary |  | `handleAppOperation` → app/memory.Service.Search |  |
+| `memory_supersede` | primary |  | `handleAppOperation` → app/memory.Service.Supersede | `/api/memory/supersede` |
+| `memory_tidy` | primary |  | `handleAppOperation` → app/memory.Service.Tidy | `/api/memory/tidy` |
+| `profile_rebuild` | primary |  | `handleAppOperation` → app/memory.Distillation.RebuildProfile | `/api/profile/rebuild` |
 
 #### World model — `registerWorldCommands` (world.go), 8 ops
 
@@ -757,7 +757,6 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `netguard_log.go` | `netguard_log` over `netguard.blocked`. |
 | `warden_log.go` | `warden_log`, `warden_stats` over `warden.*`. |
 | `webhook_log.go` | `webhook_log`, `webhook_stats` over `webhook.delivered/failed`. |
-| `memory_log.go` | `memory_log` over `memory.written/forgotten/superseded`. |
 | `world_log.go` | `world_log` over world-model upserts/forgets. |
 | `tool_log.go` | `tool_log`, `tool_stats` over `tool.invoked/result`; input/latency joins use `(correlation_id, call_id)` so reused IDs in another run cannot contaminate a row or give a denied call phantom latency (W2.3a). |
 | `tool_decoders.go` | `decodeToolInvoked`, `decodeToolResult`. |
@@ -868,11 +867,10 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 
 | File | What it does |
 |---|---|
-| `memory.go` | `memory_consolidate`, `profile_rebuild`. |
-| `memory_handlers.go` | `memory_add`, `memory_supersede`, `memory_list`, `memory_get`, `memory_search`. |
-| `memory_handlers_admin.go` | `memory_bulk_forget`, `memory_find_related`, `memory_audit`, `memory_clean`. |
-| `memory_handlers_tidy.go` | `memory_forget`, `memory_promote`, `memory_prune`, `memory_tidy`. |
-| `memory_helpers.go` | `recordView`, `jsonMap`, `registerMemoryCommands`. |
+| `kernel/app/memory/read.go`, `list.go` | Typed get/search/related/active snapshot/paging and record projection. |
+| `kernel/app/memory/write.go`, `hygiene.go` | Typed curation, pruning, tidy, audit and clean business. |
+| `kernel/app/memory/distillation.go`, `log.go` | Runtime distillation port/orchestration and tenant-selected journal lifecycle fold. |
+| `kernel/app/memory/operations.go` | Sixteen typed specs, legacy-compatible admission and HTTP hints; common CP adapter owns transport/auth/tenant/audit. |
 | `world.go` | `entityView`, `registerWorldCommands`. |
 | `world_handlers.go` | `world_add/edit/relate/resolve/neighbors/list/get/forget`. |
 | `world_helpers.go` | `worldAliasesAttrs`. |
@@ -1303,6 +1301,7 @@ and warns when no console password is set.
 
 - **Layering violation**: `kernel/controlplane` imports `plugins/tools/overseertool` (`roster_repair.go`, `roster_wake.go` call
   `overseertool.NewKernelSource(s.k, s.baseDir)`), contradicting "kernel never imports plugins".
+- **Memory typed native binding (W2.5g):** controlled legacy binding reproduced record mutations/success with a closed journal. All 16 memory/profile specs use the common host; ten mutations require audit before services, six reads stay unaudited and audit/clean/log retain routed tenant scope. Old wrappers/registrations and unreachable jsonMap/Server.ok helpers are removed. Native/schema/effect/tenant/source/race contracts count=20, eleven mutations, 16-binding × three-input parity and full gates pass; clock/fresh-identity/generic-failure-code boundaries are recorded. Unchanged 223 packages, 143 imports/13 calls, structure 114. Caller-context/domain-correlation refinement and exit evidence remain open.
 - **Memory journal-service foundation (W2.5f):** app/memory.LogService owns event folds/aliases/typed rows through journalview; CP retains lenient projection admission and tenant-selected journal. Lifecycle IDs/subjects, cursor/cutoff, field presence, empty arrays and next_cursor retain behavior. Exact thirteen-argument native JSON parity and source/log/registry/tenant/audit/package-race tests count=20 plus eight mutations/full gates pass: unchanged 223 packages, 143 imports/13 calls, structure 114. Business foundation covers all 16 memory/profile commands; typed binding, mandatory audit, wrapper deletion and context/correlation refinement remain open.
 - **Memory list-service foundation (W2.5e):** app/memory prepares active records before native admission and owns typed projection/paging; duplicate CP projection is removed. Defaults/cap/fractional limits, timestamp/ID ties, strict cursor filtering, pre-filter total, terminal cursor omission, empty arrays and independent pages retain behavior. Exact twelve-argument native JSON parity and source/list/registry/tenant/audit/package-race tests count=20 plus eleven mutations/full gates pass: unchanged 223 packages, 143 imports/13 calls, structure 114. Log, typed binding and context/correlation refinement remain open.
 - **Memory distillation-service foundation (W2.5d):** app/memory.Distillation owns consolidate/profile-rebuild behind the runtime Distiller port; native wrappers encode typed reports. Fresh identity, five-minute background ceiling, owned cancellation, present null/zero fields and active_after naming retain source behavior. Original/current running/halted parity, actual socket/fake-port tests count=20, nine mutations and full gates pass: unchanged 223 packages, 143 imports/13 calls, structure 114. List/log and typed binding follow; caller cancellation/shared operation identity are separate measured refinement.
