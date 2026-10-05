@@ -11,18 +11,6 @@ import (
 	"github.com/agezt/agezt/kernel/workboard"
 )
 
-func workboardWriteResp(s *Server, conn net.Conn, req Request, task workboard.Task, err error) {
-	if err != nil {
-		msg := err.Error()
-		if errors.Is(err, workboard.ErrNotFound) {
-			msg = "unknown workboard task: " + stringArg(req.Args, "id")
-		}
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: msg})
-		return
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"task": workboardTaskView(task)}})
-}
-
 func writeWorkboardAppResult(s *Server, conn net.Conn, req Request, out any, err error) {
 	if err != nil {
 		msg := err.Error()

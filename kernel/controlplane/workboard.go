@@ -10,36 +10,11 @@ package controlplane
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	appworkboard "github.com/agezt/agezt/kernel/app/workboard"
 	"net"
-	"strings"
 
 	"github.com/agezt/agezt/kernel/workboard"
 )
-
-func workboardTaskView(task workboard.Task) map[string]any {
-	raw, _ := json.Marshal(appworkboard.Project(task))
-	var out map[string]any
-	_ = json.Unmarshal(raw, &out)
-	return out
-}
-
-func workboardDependencySummary(states []workboard.DependencyState) string {
-	parts := make([]string, 0, len(states))
-	for _, st := range states {
-		status := string(st.Status)
-		if st.Missing {
-			status = "missing"
-		}
-		if st.Title != "" {
-			parts = append(parts, fmt.Sprintf("%s(%s:%s)", st.ID, st.Title, status))
-		} else {
-			parts = append(parts, fmt.Sprintf("%s(%s)", st.ID, status))
-		}
-	}
-	return strings.Join(parts, ", ")
-}
 
 func (s *Server) handleWorkboardList(conn net.Conn, req Request) {
 	var filter workboard.Filter
