@@ -7,17 +7,14 @@ package controlplane
 //             split. Public API unchanged.
 
 import (
-	"context"
-	"io"
 	"net"
+	"net/http"
+	"net/url"
 	"strings"
-	"time"
 
 	"encoding/base64"
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/netguard"
-	"net/http"
-	"net/url"
+	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 func (s *Server) handleWhatsAppGatewayStatus(conn net.Conn, req Request) {
@@ -149,28 +146,8 @@ func (s *Server) handleWhatsAppGatewayQR(conn net.Conn, req Request) {
 // redirect hop: loopback/private are allowed (the gateway is legitimately
 // local/LAN), but link-local (incl. the 169.254.169.254 cloud-metadata
 // endpoint), multicast, and unspecified targets are refused.
-func wgGatewayGET(fullURL, keyHeader, key string, max int64) (body []byte, status int, contentType string, err error) {
-	u, perr := url.Parse(fullURL)
-	if perr != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return nil, 0, "", &url.Error{Op: "parse", URL: fullURL, Err: perr}
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	hreq, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
-	if err != nil {
-		return nil, 0, "", err
-	}
-	if key != "" {
-		hreq.Header.Set(keyHeader, key)
-	}
-	client := netguard.New(netguard.AllowLoopback(), netguard.AllowPrivate()).HTTPClient(10 * time.Second)
-	resp, err := client.Do(hreq)
-	if err != nil {
-		return nil, 0, "", err
-	}
-	defer resp.Body.Close()
-	b, _ := io.ReadAll(io.LimitReader(resp.Body, max))
-	return b, resp.StatusCode, resp.Header.Get("Content-Type"), nil
+func wgGatewayGET(fullURL, keyHeader, key string, max int64) ([]byte, int, string, error) {
+	return netout.GatewayGET(fullURL, keyHeader, key, max)
 }
 
 // handleProviderProbe checks whether an LLM provider endpoint is reachable by
