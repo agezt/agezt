@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board typed native binding/audit is complete; continue §4.5 with board exit evidence, then workboard/OKR/storage/artifacts. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board native migration and exit evidence are complete; continue §4.5 with workboard, then OKR/storage/artifacts in roadmap order. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -1186,6 +1186,18 @@ vet/scoped static and all gates pass: unchanged 227 packages, 141 imports/13 cal
 structure 118. Four existing HTTP hints remain; inbox/get/replies stay native-only.
 **Next: board native exit evidence, then workboard in roadmap order.** Explicit
 inbound correlation is a retained bridge contract; no notifier policy rewrite.
+
+**W2.9c board native exit:** exact seven-command common-registry coverage
+verifies actual schemas/types/native metadata. Independent family/ack removal
+mutations fail; related source/native/tenant/audit/fallback/notifier/exit suites
+pass count=20. Package race and final full Go/build/vet/scoped static plus all
+gates pass: unchanged 227 packages, 141 imports/13 calls and structure 118.
+Three dispatch benchmarks satisfy <50 us excluding real audit/journal I/O.
+[Exit evidence](29-w29-exit-evidence.md) records paging/projection/routing,
+shared-writer/fresh-reader ownership, mandatory audit and explicit inbound notifier
+correlation as a retained bridge contract. Roster-owned constants/debt remain.
+**Next: workboard, then OKR/storage/artifacts in roadmap order 3.** Broader
+adapters, generated surfaces, runs.Start and W3-W5 remain open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

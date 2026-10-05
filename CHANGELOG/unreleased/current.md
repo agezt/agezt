@@ -812,6 +812,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: board native migration is complete.** Seven messaging commands
+  share typed app use cases, selected shared-store ownership and mandatory
+  mutation audit. Aggregate registry coverage and exit evidence retain native
+  paging, routing and explicit inbound notifier correlation; workboard follows.
+
+
 - **Architecture: board messaging moves into the app service.** Reads, help,
   inbox, replies, lookup, sending and acknowledgements return typed results
   while preserving paging, routing, notification correlation and shared-store
