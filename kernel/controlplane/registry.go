@@ -90,10 +90,6 @@ func registerProviderConfigCommands() {
 		commandSpec{Cmd: CmdExecutionProfiles, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleExecutionProfiles(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdExecutionProfileShow, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleExecutionProfileShow(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdExecutionProfileCheck, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleExecutionProfileCheck(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdProviderOAuthStart, Handler: func(dc *DispatchCtx) { dc.S.handleProviderOAuthStart(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdProviderOAuthStatus, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleProviderOAuthStatus(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdProviderOAuthImport, Handler: func(dc *DispatchCtx) { dc.S.handleProviderOAuthImport(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdProviderOAuthLogout, Handler: func(dc *DispatchCtx) { dc.S.handleProviderOAuthLogout(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdRoutingGet, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleRoutingGet(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdRoutingSet, Handler: func(dc *DispatchCtx) { dc.S.handleRoutingSet(dc.Conn, dc.Req) }},
 	)
