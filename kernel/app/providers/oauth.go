@@ -110,7 +110,12 @@ func (s *OAuth) Start(_ context.Context, in OAuthStartInput) (OAuthStartOutput, 
 func (s *OAuth) providerCompletion(login *providerLogin) browsercallback.Complete {
 	return func(ctx context.Context, code, state, denial string) (bool, string, bool) {
 		result := s.completeProviderLogin(ctx, login, providerCallbackInput{Code: code, State: state, Error: denial}, func(ctx context.Context, code, verifier string) error {
-			return s.chatgptMgr().ExchangeCode(ctx, code, verifier)
+			manager := s.chatgptMgr()
+			tokens, err := manager.ExchangeTokens(ctx, code, verifier)
+			if err != nil {
+				return err
+			}
+			return manager.StoreTokens(tokens)
 		})
 		return result.Success, result.Message, result.Close
 	}
