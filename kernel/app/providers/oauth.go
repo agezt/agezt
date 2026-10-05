@@ -12,8 +12,6 @@ package providers
 import (
 	"context"
 	"fmt"
-	"net"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -32,7 +30,7 @@ type providerLogin struct {
 	verifier string
 	status   string // pending | done | error
 	errMsg   string
-	srv      *http.Server
+	srv      *browsercallback.Listener
 }
 
 type OAuth struct {
@@ -87,20 +85,18 @@ func (s *OAuth) Start(_ context.Context, in OAuthStartInput) (OAuthStartOutput, 
 
 	// Tear down any previous login, then bind the Codex client's fixed redirect.
 	s.stopProviderLogin()
-	ln, err := net.Listen("tcp", chatgptauth.CallbackAddr)
+	login := &providerLogin{provider: provider, state: state, verifier: verifier, status: "pending"}
+	listener, err := browsercallback.Prepare(chatgptauth.CallbackAddr, s.providerCompletion(login), func() { s.deferredClose(login) })
 	if err != nil {
 		return OAuthStartOutput{}, fmt.Errorf("cannot bind %s for the sign-in redirect (is it in use?): %w", chatgptauth.CallbackAddr, err)
 	}
-	login := &providerLogin{provider: provider, state: state, verifier: verifier, status: "pending"}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/auth/callback", func(w http.ResponseWriter, r *http.Request) { s.providerCallback(w, r, login) })
-	login.srv = &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	login.srv = listener
 
 	s.provLoginMu.Lock()
 	s.provLogin = login
 	s.provLoginMu.Unlock()
 
-	go func() { _ = login.srv.Serve(ln) }()
+	go func() { _ = login.srv.Serve() }()
 	// Auto-expire so a never-completed login doesn't hold the port forever.
 	go func() {
 		time.Sleep(providerLoginTTL)
@@ -116,14 +112,14 @@ func (s *OAuth) Start(_ context.Context, in OAuthStartInput) (OAuthStartOutput, 
 	return OAuthStartOutput{AuthorizeURL: chatgptauth.AuthorizeURL(challenge, state), State: state}, nil
 }
 
-// providerCallback handles the browser redirect on 127.0.0.1:1455.
-func (s *OAuth) providerCallback(w http.ResponseWriter, r *http.Request, login *providerLogin) {
-	browsercallback.Handle(w, r, func(ctx context.Context, code, state, denial string) (bool, string, bool) {
+// providerCompletion binds the captured login to the socket-free callback business.
+func (s *OAuth) providerCompletion(login *providerLogin) browsercallback.Complete {
+	return func(ctx context.Context, code, state, denial string) (bool, string, bool) {
 		result := s.completeProviderLogin(ctx, login, providerCallbackInput{Code: code, State: state, Error: denial}, func(ctx context.Context, code, verifier string) error {
 			return s.chatgptMgr().ExchangeCode(ctx, code, verifier)
 		})
 		return result.Success, result.Message, result.Close
-	}, func() { s.deferredClose(login) })
+	}
 }
 
 func (s *OAuth) deferredClose(login *providerLogin) {

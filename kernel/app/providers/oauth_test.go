@@ -79,7 +79,7 @@ func TestOAuthCallbackDenialStateFilteringAndConcurrentStatus(t *testing.T) {
 	login := &providerLogin{state: "fixture-state", status: "pending"}
 	auth.provLogin = login
 	response := httptest.NewRecorder()
-	auth.providerCallback(response, httptest.NewRequest("GET", "http://callback.invalid/?error=denied", nil), login)
+	browsercallback.Handle(response, httptest.NewRequest("GET", "http://callback.invalid/?error=denied", nil), auth.providerCompletion(login), func() { auth.deferredClose(login) })
 	status, err := auth.Status(context.Background(), OAuthStatusInput{State: "fixture-state"})
 	if err != nil {
 		t.Fatal(err)
