@@ -7,6 +7,8 @@ package controlplane
 //             split. Public API unchanged.
 
 import (
+	"context"
+	appworkboard "github.com/agezt/agezt/kernel/app/workboard"
 	"net"
 )
 
@@ -80,24 +82,17 @@ func (s *Server) handleWorkboardDispatch(conn net.Conn, req Request) {
 func (s *Server) handleWorkboardWatch(conn net.Conn, req Request) {
 	id := stringArg(req.Args, "id")
 	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "workboard_watch requires id"})
+		s.failMsg(conn, req, "workboard_watch requires id")
 		return
 	}
-	task, found := s.k.Workboard().Get(id)
-	if !found {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown workboard task: " + id})
-		return
-	}
-	runID := firstNonEmpty(stringArg(req.Args, "run_id"), latestWorkboardRunID(task))
 	limit := intArg(req.Args["limit"], 50)
 	if limit > 200 {
 		limit = 200
 	}
-	events := workboardWatchEvents(s.k, task.ID, runID, limit)
-	blocked, _ := s.k.Workboard().BlockingDependencies(task.ID)
-	res := map[string]any{"task": workboardTaskView(task), "events": events, "count": len(events), "blocked_dependencies": workboardDependencyStateViews(blocked)}
-	if runID != "" {
-		res["run_id"] = runID
+	out, err := appworkboard.NewWatch(s.k.Workboard(), s.k.Journal()).Watch(context.Background(), appworkboard.WatchInput{ID: id, RunID: stringArg(req.Args, "run_id"), Limit: limit})
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: res})
+	writeWorkboardReadResult(s, conn, req, out)
 }

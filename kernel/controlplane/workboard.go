@@ -25,27 +25,6 @@ func workboardTaskView(task workboard.Task) map[string]any {
 	return out
 }
 
-func workboardDependencyStateViews(states []workboard.DependencyState) []map[string]any {
-	out := make([]map[string]any, 0, len(states))
-	for _, st := range states {
-		row := map[string]any{
-			"id":     st.ID,
-			"status": string(st.Status),
-		}
-		if st.Title != "" {
-			row["title"] = st.Title
-		}
-		if st.Missing {
-			row["missing"] = true
-		}
-		if st.CreatedMS > 0 {
-			row["created_ms"] = st.CreatedMS
-		}
-		out = append(out, row)
-	}
-	return out
-}
-
 func workboardDependencySummary(states []workboard.DependencyState) string {
 	parts := make([]string, 0, len(states))
 	for _, st := range states {

@@ -7,9 +7,7 @@ package controlplane
 //             API unchanged.
 
 import (
-	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/event"
@@ -80,66 +78,4 @@ func publishWorkboardDispatch(k *kernelruntime.Kernel, corr string, task workboa
 		CorrelationID: corr,
 		Payload:       payload,
 	})
-}
-func latestWorkboardRunID(task workboard.Task) string {
-	if task.Claim != nil && strings.TrimSpace(task.Claim.RunID) != "" {
-		return strings.TrimSpace(task.Claim.RunID)
-	}
-	var best string
-	var bestMS int64
-	for _, a := range task.Attempts {
-		ts := a.StartedMS
-		if a.FinishedMS > ts {
-			ts = a.FinishedMS
-		}
-		if strings.TrimSpace(a.RunID) != "" && ts >= bestMS {
-			bestMS = ts
-			best = strings.TrimSpace(a.RunID)
-		}
-	}
-	for _, l := range task.Links {
-		if strings.EqualFold(l.Type, "run") && strings.TrimSpace(l.Target) != "" && l.CreatedMS >= bestMS {
-			bestMS = l.CreatedMS
-			best = strings.TrimSpace(l.Target)
-		}
-	}
-	return best
-}
-func workboardWatchEvents(k *kernelruntime.Kernel, taskID, runID string, limit int) []map[string]any {
-	if k == nil || k.Journal() == nil {
-		return nil
-	}
-	subject := "workboard." + taskID
-	var rows []map[string]any
-	_ = k.Journal().Range(func(e *event.Event) error {
-		if e.Subject != subject && (runID == "" || e.CorrelationID != runID) {
-			return nil
-		}
-		var payload any
-		if len(e.Payload) > 0 {
-			var m map[string]any
-			if json.Unmarshal(e.Payload, &m) == nil {
-				payload = m
-			}
-		}
-		row := map[string]any{
-			"seq":            e.Seq,
-			"ts_unix_ms":     e.TSUnixMS,
-			"kind":           string(e.Kind),
-			"subject":        e.Subject,
-			"correlation_id": e.CorrelationID,
-		}
-		if payload != nil {
-			row["payload"] = payload
-		}
-		rows = append(rows, row)
-		return nil
-	})
-	sort.SliceStable(rows, func(i, j int) bool {
-		return intNumber(rows[i]["seq"]) < intNumber(rows[j]["seq"])
-	})
-	if limit > 0 && len(rows) > limit {
-		rows = rows[len(rows)-limit:]
-	}
-	return rows
 }
