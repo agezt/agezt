@@ -185,16 +185,12 @@ func (s *Server) handleSkillShare(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	sk, found, err := s.k.Forge().Reassign("", id, "")
+	out, err := appskill.NewCuration(s.k.Forge(), nil).Share(context.Background(), appskill.GetInput{ID: id})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	result := map[string]any{"shared": found, "id": id}
-	if found {
-		result["name"] = sk.Name
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+	writeSkillReadResult(s, conn, req, out)
 }
 
 // handleSkillReassign changes a skill's owning agent (M942). An empty agent
@@ -210,22 +206,12 @@ func (s *Server) handleSkillReassign(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	if agent != "" {
-		if _, ok := s.k.Roster().Get(agent); !ok {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "no such agent: " + agent})
-			return
-		}
-	}
-	sk, found, err := s.k.Forge().Reassign("", id, agent)
+	out, err := appskill.NewCuration(s.k.Forge(), func(slug string) bool { _, ok := s.k.Roster().Get(slug); return ok }).Reassign(context.Background(), appskill.ReassignInput{ID: id, Agent: agent})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	result := map[string]any{"reassigned": found, "id": id, "to_agent": agent}
-	if found {
-		result["name"] = sk.Name
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+	writeSkillReadResult(s, conn, req, out)
 }
 
 // handleSkillImport installs a skill from a portable bundle (M269). It routes
@@ -256,26 +242,12 @@ func (s *Server) handleSkillImport(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: rerr.Error()})
 		return
 	}
-	sk, created, err := s.k.Forge().Create("", skill.CreateSpec{
-		Name:          name,
-		Description:   stringArg(req.Args, "description"),
-		Triggers:      triggers,
-		Body:          body,
-		ToolsRequired: tools,
-		Resources:     resources,
-		Agent:         stringArg(req.Args, "agent"),
-	})
+	out, err := appskill.NewCuration(s.k.Forge(), nil).Import(context.Background(), appskill.ImportInput{Name: name, Description: stringArg(req.Args, "description"), Triggers: triggers, Body: body, ToolsRequired: tools, Resources: resources, Agent: stringArg(req.Args, "agent")})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	s.writeResp(conn, Response{
-		ID: req.ID, Type: RespResult,
-		Result: map[string]any{
-			"id": sk.ID, "name": sk.Name, "status": string(sk.Status),
-			"created": created, "resources": sk.Resources,
-		},
-	})
+	writeSkillReadResult(s, conn, req, out)
 }
 
 // argResources decodes the optional resources bundle from a control-plane call:
