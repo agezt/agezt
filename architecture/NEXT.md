@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill read and lifecycle business moves are complete; continue §4.5 with ownership/import/history/files, then typed binding. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill read/lifecycle/ownership/import business moves are complete; continue §4.5 with history/files, then typed binding. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -1060,6 +1060,21 @@ and all gates pass: unchanged 226 packages, 141 imports/13 calls, structure 117.
 No new exception or early debt removal. **Next: skill ownership/import/history/
 file services, then typed binding/domain identity and exit evidence.** This move
 retains empty legacy domain correlation; common-host identity binding follows.
+
+**W2.8c skill curation-service foundation:** share/reassign/import now live in
+app/skill.Curation with context + typed input/output/error. A narrow actual Forge
+port and caller-selected roster lookup retain ownership admission before effects.
+Native wrappers keep required/optional/lenient string/array/resource admission,
+registration/auth/audit and framing. New imports stay draft/content-addressed;
+existing content retains its lifecycle and first owner. Portable bundle contents,
+resource manifests, empty target/present name and original causes retain behavior.
+Three original/current native handlers match exactly count=20 across admission,
+ownership, Unicode resources and dedupe shapes. Source/service/store/native and
+package race suites pass count=20; eight independent mutations fail. Final full
+Go/build/vet/scoped static plus all gates pass: unchanged 226 packages, 141 imports/
+13 calls, structure 117. No new exception or early debt removal. **Next: skill
+history/files/hygiene, then typed binding/domain identity and exit evidence.**
+Legacy domain correlation and native policy remain until common-host binding.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

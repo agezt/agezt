@@ -812,6 +812,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: skill curation moves into the app service.** Sharing, agent
+  reassignment and portable import return typed results while retaining roster
+  admission, new-draft creation, existing-content ownership/status, bundle
+  contents and original errors. Native access rules remain unchanged.
+
+
 - **Architecture: skill lifecycle moves into the app service.** Promotion,
   quarantine, archive, revert and status restoration return typed results while
   retaining transition rules, lineage restoration, reasons and original errors.
