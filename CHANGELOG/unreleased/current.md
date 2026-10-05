@@ -812,6 +812,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: skill reads move into the app service.** Listing and lookup
+  now return typed skill projections while retaining lifecycle counts, metric
+  fields, optional content/provenance and missing/empty wire results. Native
+  access rules remain unchanged; remaining skill services follow.
+
+
 - **Architecture: taste native migration is complete.** Three exemplar commands
   share typed app operations, primary-only host selection and mandatory mutation
   audit. Aggregate registry coverage and exit evidence retain native contracts;

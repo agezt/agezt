@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete; continue §4.5 with skill in roadmap order. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill list/get business move is complete; continue §4.5 with remaining skill services and typed binding. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -1032,6 +1032,20 @@ fields, closed-journal repair, one owned audit arc, primary store isolation and
 fresh-identity/clock/live-provider boundaries. **Next: skill in roadmap order.**
 Taste native migration is complete; broader adapters, generated surfaces,
 knowledge/runtime dissolution, runs.Start and W3-W5 remain open.
+
+**W2.8a skill read-service foundation:** skill list/get business now lives in
+app/skill with context + typed input/output/error and a narrow actual Forge reader
+port. Typed records retain the native projection, required empty agent/description
+and six zero-valued metric fields, optional body/provenance/arrays, list order,
+active count, present-empty arrays and missing found-only shape. Native wrappers
+retain ID admission, registrations/auth/audit and response framing. Original/current
+native list/get handlers match exactly count=20 across empty/missing/invalid inputs
+and draft/shadow/active states. Source/service/store/registry/tenant/audit and package
+race suites pass count=20; eight independent mutations fail. Full Go/build/vet/
+scoped static and all gates pass: 226 packages, unchanged 141 imports/13 calls,
+structure 117. No new exception or early debt removal. **Next: remaining skill
+history/lifecycle/file services, then typed binding and exit evidence.** Runtime
+skill execution/retrieval and broader migration remain separate work.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
