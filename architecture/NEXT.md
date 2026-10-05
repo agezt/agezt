@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider native pilot and exit evidence are complete. Memory read/curation/hygiene/distillation/list business moves are complete; continue §4.5 with log, typed binding and caller-context/correlation refinement, then world/taste/skill. Broader adapters and remaining domains remain open.
+> Catalog/provider native pilot and exit evidence are complete. Memory business moves are complete; continue §4.5 with typed binding and caller-context/correlation refinement, then world/taste/skill. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -838,6 +838,21 @@ mutations fail. Full Go/build/vet/scoped static and all gates pass: unchanged 22
 packages, 143 imports/13 calls and structure 114. **Next: memory journal log,
 typed binding and measured caller-context/operation-correlation refinement.**
 Native registration/auth/audit remain unchanged during this business move.
+
+**W2.5f memory journal-service foundation:** app/memory.LogService owns the
+memory event fold, aliases and typed row shaping through platform/journalview;
+the native adapter retains lenient limit/window/cursor admission and selects its
+tenant journal before the service call. Write/revive aliases, forget/supersede/
+promote identity/subject shaping, cutoff/cursor order, present empty/zero row
+fields, empty ops and always-present next_cursor retain behavior. Original/current
+native log matches exact JSON across thirteen argument sets count=20. Source/log/
+registry/tenant/audit and package race suites pass count=20; eight independent
+mutations fail. Full Go/build/vet/scoped static and all gates pass: unchanged 223
+packages, 143 imports/13 calls and structure 114. The business foundation now
+covers the 16 memory/profile native commands. **Next: typed operation binding,
+mandatory audit/host metadata, old wrapper deletion and measured caller-context/
+operation-correlation refinement.** Native registration/auth/audit remain unchanged
+during these moves; the complete memory migration remains open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
