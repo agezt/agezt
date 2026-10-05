@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider native RPC binding and OAuth callback business extraction are complete. Continue §4.5 with callback HTTP presentation/adapter extraction, then context/lifecycle refinement; broader adapter/domain migration remains open.
+> Catalog/provider native RPC and callback business/presentation extraction are complete. Continue §4.5 with callback listener/lifetime ownership and caller-context refinement; broader adapter/domain migration remains open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -640,6 +640,21 @@ static and architecture gates pass: unchanged 221 packages and 143 import/13 cal
 exceptions. **Next: extract callback HTTP query/presentation adaptation.** Existing
 fixed-port startup, five-minute expiry, delayed close and logout behavior remain
 for separate lifecycle work; no live token exchange or paid provider was used.
+
+**W2.4n callback HTTP presentation move:** platform/browsercallback owns query/
+request-context projection, the unchanged success/failure HTML renderer/escaping,
+and post-render close dispatch. App's callback bridge invokes its business helper
+and returns the result; the now-unreachable private page wrapper is removed and
+its original source test targets the actual renderer. Render/escape bodies match
+original source after renaming. Primitive query/context/close-order/HTML and
+source OAuth/native contracts pass count=20; original/current HTTP status/headers/
+HTML/login-state parity across five denial/invalid inputs passes count=20. Seven
+independent mutations retain query/context, framing, escaping and close decisions.
+Full Go/build/vet/static and architecture gates pass: 222 packages, unchanged 143
+import/13 call exceptions; the official structure writer records 113 kernel
+packages. **Next: callback listener/lifetime ownership, then caller context.**
+Fixed-port startup, TTL and delayed-close/logout behavior remain unchanged;
+no live exchange, paid provider or browser session was used for this move.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

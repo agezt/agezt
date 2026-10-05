@@ -799,6 +799,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: OAuth browser callbacks use a platform presentation adapter.**
+  Query fields, request context, existing HTML/escaping and cleanup dispatch after
+  rendering remain. Login business and listener lifetime stay in their owners.
+
+
 - **Architecture: OAuth callback business is independent of HTTP rendering.**
   Existing admission, exchange budget, login state and reload/model hook order
   remain. The browser wrapper renders the result and retains delayed close.

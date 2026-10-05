@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-112 package(s):
+113 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -61,6 +61,7 @@
 - **`kernel/okr`** — Package okr is AGEZT's durable objectives-and-key-results spine: the layer that makes fleet work legible as progress toward goals rather than a flat task queue.
 - **`kernel/openaiapi`** — Package openaiapi serves an OpenAI-compatible HTTP surface (ROADMAP P7-API-01, SPEC-15 §3): POST /v1/chat/completions, POST /v1/responses, GET /v1/models and GET /v1/models/{id}, so any OpenAI client, SDK, or IDE can drive Agezt as if it were OpenAI.
 - **`kernel/planner`** — Package planner generates `scheduler.Plan`-shaped JSON from a natural-language intent by asking the configured Provider to emit a DAG.
+- **`kernel/platform/browsercallback`** — Package browsercallback owns OAuth browser callback query/result presentation.
 - **`kernel/platform/filestore`** — Package filestore is the persistence platform for the daemon's single-file JSON stores (architecture/20-target-architecture.md §5, layer L2): a tolerant Load, an atomic Save, and a cross-process Lock for files that more than one process writes (the vault and settings are written by both the daemon and `agt`).
 - **`kernel/platform/fileworkspace`** — Package fileworkspace owns console workspace path checks and filesystem primitives.
 - **`kernel/platform/journalview`** — Package journalview owns the shared newest-first journal projection mechanics.
