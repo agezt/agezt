@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider native pilot and exit evidence are complete. Memory read and curation service moves are complete; continue §4.5 with list/log/hygiene/distillation and typed binding, then world/taste/skill. Broader adapters and remaining domains remain open.
+> Catalog/provider native pilot and exit evidence are complete. Memory read, curation and hygiene service moves are complete; continue §4.5 with list/log/distillation and typed binding, then world/taste/skill. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -795,6 +795,20 @@ mutations pass. Full Go/build/vet/scoped static and all gates pass: unchanged 22
 packages, 143 imports/13 calls and official kernel structure 114. **Next: memory
 list/log/hygiene/distillation, then typed binding and wrapper deletion.** No
 correlation, policy or audit rewrite is included in this business-only move.
+
+**W2.5c memory hygiene-service foundation:** prune/tidy/audit/clean business
+now lives in app/memory with context + typed input/output/error. Native wrappers
+retain nil/tenant selection, lenient day conversion, bool/string dry-run admission
+and the existing registry/audit behavior. Prune retains its 30-day default,
+pre-mutation stats, separate present-zero prunable/pruned fields and age predicate;
+tidy and clean forward the admitted dry-run flag and preserve curated records.
+Four original/current native handlers × eight argument sets match count=20 after
+normalizing bounded cutoff-clock drift and existing unordered contradiction
+groups/members. Source/hygiene/registry/tenant/audit and package race tests pass
+count=20; nine independent mutations fail. Full Go/build/vet/scoped static and all
+gates pass: unchanged 223 packages, 143 imports/13 calls and structure 114.
+**Next: memory list/log/distillation, then typed binding and wrapper deletion.**
+This move changes no policy, native registration, audit or correlation behavior.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
