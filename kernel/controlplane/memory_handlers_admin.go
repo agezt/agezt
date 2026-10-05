@@ -81,12 +81,16 @@ func (s *Server) handleMemoryAudit(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	report, err := k.Memory().Audit()
+	out, err := appmemory.New(k.Memory()).Audit(context.Background(), struct{}{})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	body, _ := jsonMap(report)
+	body, err := jsonMap(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 
@@ -101,12 +105,16 @@ func (s *Server) handleMemoryClean(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	report, err := k.Memory().CleanLowValue("", dryRun)
+	out, err := appmemory.New(k.Memory()).Clean(context.Background(), appmemory.HygieneInput{DryRun: dryRun})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	body, _ := jsonMap(report)
+	body, err := jsonMap(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 

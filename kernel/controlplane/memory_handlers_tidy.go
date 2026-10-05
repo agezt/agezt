@@ -11,7 +11,6 @@ import (
 	"context"
 	appmemory "github.com/agezt/agezt/kernel/app/memory"
 	"net"
-	"time"
 )
 
 func (s *Server) handleMemoryForget(conn net.Conn, req Request) {
@@ -81,29 +80,17 @@ func (s *Server) handleMemoryPrune(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour).UnixMilli()
-
-	hyg, err := mgr.Hygiene(cutoff)
+	out, err := appmemory.New(mgr).Prune(context.Background(), appmemory.PruneInput{OlderThanDays: days, DryRun: dryRun})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	if dryRun {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
-			"dry_run": true, "older_than_days": days, "cutoff_ms": cutoff,
-			"prunable": hyg.Prunable, "stats": hyg,
-		}})
-		return
-	}
-	pruned, err := mgr.Prune("", cutoff, false)
+	body, err := jsonMap(out)
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
-		"dry_run": false, "older_than_days": days, "cutoff_ms": cutoff,
-		"pruned": pruned, "stats": hyg,
-	}})
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 
 // handleMemoryTidy collapses the near-duplicate auto-distilled notes that built
@@ -122,14 +109,17 @@ func (s *Server) handleMemoryTidy(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	n, err := mgr.DedupeDistilled("", dryRun)
+	out, err := appmemory.New(mgr).Tidy(context.Background(), appmemory.HygieneInput{DryRun: dryRun})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
-		"dry_run": dryRun, "collapsed": n,
-	}})
+	body, err := jsonMap(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 
 // handleMemoryBulkForget soft-deletes multiple records in one operation.
