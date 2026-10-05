@@ -206,6 +206,7 @@ func (s *OAuth) Logout(_ context.Context, _ OAuthLogoutInput) (OAuthLogoutOutput
 	if err := s.chatgptMgr().Logout(); err != nil {
 		return OAuthLogoutOutput{}, err
 	}
+	s.stopProviderLogin()
 	if s.k != nil {
 		_, _, _ = s.k.Reload()
 	}
