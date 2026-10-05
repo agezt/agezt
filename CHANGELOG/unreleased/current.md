@@ -812,6 +812,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: workboard relations and maintenance move into the app service.**
+  Links, retry policy, dependencies and stale-claim reclaim/sweep return typed
+  results while retaining policy validation, cycle rules, duration/default/cap
+  behavior, kernel journaling and native correlation/error contracts.
+
+
 - **Architecture: workboard lifecycle moves into the app service.** Creation,
   claiming, heartbeat, comments, state transitions, proof, seat and archive
   return typed results while preserving kernel journaling, idempotence/retry
