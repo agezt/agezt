@@ -4,6 +4,13 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Memory mutations require successful operation audit before effects.** Add,
+  revise, forget, promote, bulk forget, prune, tidy, clean, consolidate and profile
+  rebuild now use the shared typed dispatcher. Unavailable audit prevents service
+  effects; audit/clean/log keep tenant isolation and six read operations remain
+  unaudited. Native schemas retain legacy dry-run, day/log and ID normalization.
+
+
 - **Provider OAuth RPC changes require operation audit before effects.** Login
   start, token import and logout now use the shared typed dispatcher; unavailable
   preflight audit prevents OAuth state/listener/vault/reload effects. Status

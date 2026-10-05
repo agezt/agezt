@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider native pilot and exit evidence are complete. Memory business moves are complete; continue §4.5 with typed binding and caller-context/correlation refinement, then world/taste/skill. Broader adapters and remaining domains remain open.
+> Catalog/provider native pilot and exit evidence are complete. Memory typed native binding is complete; continue §4.5 with caller-context/operation-correlation refinement and memory exit evidence, then world/taste/skill. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -853,6 +853,26 @@ covers the 16 memory/profile native commands. **Next: typed operation binding,
 mandatory audit/host metadata, old wrapper deletion and measured caller-context/
 operation-correlation refinement.** Native registration/auth/audit remain unchanged
 during these moves; the complete memory migration remains open.
+
+**W2.5g memory typed native binding:** a restored legacy-binding proof confirmed
+closed-journal requests still added/superseded/forgot/promoted/cleaned records and
+reported success. All 16 memory/profile specs now share the common app/native
+dispatcher; ten mutating operations require audit admission before service entry.
+Six reads stay unaudited; audit/clean/log retain OwnTenant/CallerTenant and every
+other operation stays primary-only. Known type/null/required admission precedes
+effects; unknown unused args, bool/string dry-run, lenient day/log inputs and
+bulk trim/blank filtering retain compatibility. Source wrappers/registrations
+and two newly unreachable result helpers are removed without new exceptions.
+Actual closed-journal and tenant socket fixtures, typed schema/metadata/effect
+contracts, source/registry/tenant/audit and focused race suites pass count=20;
+eleven independent mutations fail. Sixteen old/current bindings × three compatible
+argument sets pass count=20 with documented cutoff/score clocks, fresh identity
+and generic failure-code boundary. Full Go/build/vet/scoped static and all gates
+pass: unchanged 223 packages, 143 imports/13 calls and structure 114.
+**Next: measured caller-context/operation-correlation refinement, then memory
+native exit evidence.** Distillation still owns its legacy background context and
+fresh identity, and memory business writes retain their prior domain correlation;
+the complete memory/architecture migration remains open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
