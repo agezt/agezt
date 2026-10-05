@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider native pilot and exit evidence are complete. Memory read/curation/hygiene/distillation business moves are complete; continue §4.5 with list/log, typed binding and caller-context/correlation refinement, then world/taste/skill. Broader adapters and remaining domains remain open.
+> Catalog/provider native pilot and exit evidence are complete. Memory read/curation/hygiene/distillation/list business moves are complete; continue §4.5 with log, typed binding and caller-context/correlation refinement, then world/taste/skill. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -824,6 +824,20 @@ packages, 143 imports/13 calls and structure 114. **Next: memory list/log move,
 typed binding, then measured caller-context/operation-correlation refinement.**
 This move preserves background orchestration and legacy audit behavior; it does
 not yet promise caller cancellation or shared operation identity for distillation.
+
+**W2.5e memory list-service foundation:** app/memory.PreparedList owns
+newest-first record projection and cursor pagination. PrepareList reads active
+records before native argument admission, preserving the source order; CP then
+admits typed limit/cursor and encodes Page's typed result. Independent pages copy
+the prepared slice. Legacy default/cap/fractional limits, timestamp/ID ties, strict
+cursor filtering, pre-filter total, terminal cursor omission and empty arrays
+retain behavior; the duplicate CP record projection is removed. Original/current
+native list matches exact JSON across twelve argument sets count=20. Source/list/
+registry/tenant/audit and package race tests pass count=20; eleven independent
+mutations fail. Full Go/build/vet/scoped static and all gates pass: unchanged 223
+packages, 143 imports/13 calls and structure 114. **Next: memory journal log,
+typed binding and measured caller-context/operation-correlation refinement.**
+Native registration/auth/audit remain unchanged during this business move.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
