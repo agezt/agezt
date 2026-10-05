@@ -30,7 +30,7 @@ func observation(kind event.Kind, ms, seq int64, payload string) *event.Event {
 	return &event.Event{Kind: kind, TSUnixMS: ms, Seq: seq, Payload: json.RawMessage(payload)}
 }
 
-func assertObservationJSON(t *testing.T, result map[string]any, want string) {
+func assertObservationJSON(t *testing.T, result any, want string) {
 	t.Helper()
 	raw, err := json.Marshal(result)
 	if err != nil {
@@ -118,9 +118,13 @@ func TestObservationsRejectionsPreservesOrderWindowAndWireShape(t *testing.T) {
 func TestObservationsPreservesReaderFailureAndIsolation(t *testing.T) {
 	cause := errors.New("journal unavailable")
 	svc := providers.NewObservations(observationReader{events: []*event.Event{observation(event.KindRoutingDecision, 1, 1, `{"primary":"private"}`)}, err: cause})
-	for _, read := range []func(providers.ObservationInput) (map[string]any, error){svc.Log, svc.Stats, svc.Rejections} {
-		out, err := read(providers.ObservationInput{Limit: 20})
-		if !errors.Is(err, cause) || out != nil {
+	for _, read := range []func() (any, error){
+		func() (any, error) { return svc.Log(providers.ObservationInput{Limit: 20}) },
+		func() (any, error) { return svc.Stats(providers.ObservationInput{Limit: 20}) },
+		func() (any, error) { return svc.Rejections(providers.ObservationInput{Limit: 20}) },
+	} {
+		out, err := read()
+		if !errors.Is(err, cause) || !reflect.ValueOf(out).IsZero() {
 			t.Fatalf("partial output or lost error: %v, %v", out, err)
 		}
 	}
@@ -129,4 +133,23 @@ func TestObservationsPreservesReaderFailureAndIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertObservationJSON(t, out, `{"events":[],"count":0,"next_cursor":""}`)
+}
+
+func TestObservationsPreservesPresentEmptyOptionalFields(t *testing.T) {
+	svc := providers.NewObservations(observationReader{events: []*event.Event{
+		observation(event.KindRoutingDecision, 10, 1, `{}`),
+		observation(event.KindProviderFallback, 20, 2, `{}`),
+		observation(event.KindCapabilityRejected, 30, 3, `{}`),
+		observation(event.KindProviderFallback, 40, 4, `{"scope":"model-chain"}`),
+	}})
+	log, err := svc.Log(providers.ObservationInput{Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertObservationJSON(t, log, `{"events":[{"kind":"fallback","scope":"model-chain","reason":"","failed":"","next":"","task_type":"","ts_unix_ms":40,"seq":4},{"kind":"fallback","reason":"","failed":"","next":"","ts_unix_ms":20,"seq":2},{"kind":"route","primary":"","chain":"","task_type":"","ts_unix_ms":10,"seq":1}],"count":3,"next_cursor":""}`)
+	rejections, err := svc.Rejections(providers.ObservationInput{Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertObservationJSON(t, rejections, `{"rejections":[{"kind":"rejected","capability":"","model":"","ts_unix_ms":30}],"count":1}`)
 }

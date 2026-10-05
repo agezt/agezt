@@ -25,7 +25,7 @@ type ObservationInput struct {
 	FallbacksOnly      bool
 }
 
-func (s *Observations) Stats(in ObservationInput) (map[string]any, error) {
+func (s *Observations) Stats(in ObservationInput) (ObservationStatsOutput, error) {
 	var routed, fallbacks int
 	byPrimary := map[string]int{}        // routing.decision primary → count
 	fallbackByFailed := map[string]int{} // provider.fallback failed → count
@@ -62,25 +62,17 @@ func (s *Observations) Stats(in ObservationInput) (map[string]any, error) {
 		}
 		return nil
 	}); err != nil {
-		return nil, err
+		return ObservationStatsOutput{}, err
 	}
 
 	fallbackRate := 0.0
 	if routed > 0 {
 		fallbackRate = float64(fallbacks) / float64(routed)
 	}
-	byPrimaryOut := make(map[string]any, len(byPrimary))
-	for n, c := range byPrimary {
-		byPrimaryOut[n] = c
-	}
-	fbOut := make(map[string]any, len(fallbackByFailed))
-	for n, c := range fallbackByFailed {
-		fbOut[n] = c
-	}
-	return map[string]any{"routed": routed, "fallbacks": fallbacks, "fallback_rate": fallbackRate, "by_primary": byPrimaryOut, "fallbacks_by_primary": fbOut, "window_ms": in.WindowMS}, nil
+	return ObservationStatsOutput{Routed: routed, Fallbacks: fallbacks, FallbackRate: fallbackRate, ByPrimary: byPrimary, FallbacksByPrimary: fallbackByFailed, WindowMS: in.WindowMS}, nil
 }
 
-func (s *Observations) Rejections(in ObservationInput) (map[string]any, error) {
+func (s *Observations) Rejections(in ObservationInput) (ObservationRejectionsOutput, error) {
 	type capEvent struct {
 		ts, seq            int64
 		kind               string // rejected | rerouted
@@ -108,7 +100,7 @@ func (s *Observations) Rejections(in ObservationInput) (map[string]any, error) {
 		}
 		return nil
 	}); err != nil {
-		return nil, err
+		return ObservationRejectionsOutput{}, err
 	}
 
 	sort.Slice(rows, func(i, j int) bool {
@@ -121,21 +113,21 @@ func (s *Observations) Rejections(in ObservationInput) (map[string]any, error) {
 		rows = rows[:in.Limit]
 	}
 
-	out := make([]map[string]any, 0, len(rows))
+	out := make([]ObservationRejectionRow, 0, len(rows))
 	for _, r := range rows {
-		row := map[string]any{"ts_unix_ms": r.ts, "kind": r.kind, "capability": r.capability}
+		row := ObservationRejectionRow{TSUnixMS: r.ts, Kind: r.kind, Capability: r.capability}
 		if r.kind == "rerouted" {
-			row["from_model"] = r.fromModel
-			row["to_model"] = r.toModel
+			row.FromModel = &r.fromModel
+			row.ToModel = &r.toModel
 		} else {
-			row["model"] = r.model
+			row.Model = &r.model
 		}
 		out = append(out, row)
 	}
-	return map[string]any{"rejections": out, "count": len(out)}, nil
+	return ObservationRejectionsOutput{Rejections: out, Count: len(out)}, nil
 }
 
-func (s *Observations) Log(in ObservationInput) (map[string]any, error) {
+func (s *Observations) Log(in ObservationInput) (ObservationLogOutput, error) {
 	output, err := journalview.Project(s.journal, journalview.Input{Limit: in.Limit, CutoffMS: in.CutoffMS, Cursor: in.Cursor}, func(e *event.Event) (map[string]any, bool) {
 		switch e.Kind {
 		case event.KindRoutingDecision:
@@ -178,7 +170,11 @@ func (s *Observations) Log(in ObservationInput) (map[string]any, error) {
 		}
 	})
 	if err != nil {
-		return nil, err
+		return ObservationLogOutput{}, err
 	}
-	return map[string]any{"events": output.Rows, "count": output.Count, "next_cursor": output.NextCursor}, nil
+	rows := make([]ObservationLogRow, 0, len(output.Rows))
+	for _, r := range output.Rows {
+		rows = append(rows, ObservationLogRow{TSUnixMS: r["ts_unix_ms"].(int64), Seq: r["seq"].(int64), Kind: r["kind"].(string), Primary: observationString(r, "primary"), Chain: observationString(r, "chain"), TaskType: observationString(r, "task_type"), Failed: observationString(r, "failed"), Next: observationString(r, "next"), Reason: observationString(r, "reason"), Scope: observationString(r, "scope")})
+	}
+	return ObservationLogOutput{Events: rows, Count: output.Count, NextCursor: output.NextCursor}, nil
 }

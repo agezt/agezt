@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 // Package providers owns provider management and journal observation services.
-// Catalog, keyring and OAuth RPCs bind through the shared operation dispatcher.
+// Typed specs bind management and observation RPCs through the shared dispatcher.
 package providers
 
 import (
