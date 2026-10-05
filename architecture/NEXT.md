@@ -1123,6 +1123,13 @@ delete the probe.
 
 ## 6. Gotchas that cost time before
 
+- **Nostr tamper fixtures must change the signature:** assigning the first byte
+  to 00 can be a no-op (1/256 random signatures). Full validation reproduced the
+  false failure; a deterministic scalar-23 fixture has that prefix. Both test
+  corruptions now flip one decoded bit. The fixed fixture rejects a no-op mutation,
+  the Nostr suite passes count=200 plus race/staticcheck, and full validation passes.
+  Production verification is unchanged; retain the deterministic regression.
+
 - **Stale documents:** security reports, `docs/*AUDIT*` and even this roadmap go stale in weeks.
   Re-verify against the source before acting. **Run** CI gates; don't trust a report about them.
 - **The editor's LSP diagnostics are routinely stale** after branch switches and big edits. Trust

@@ -1302,6 +1302,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Tests: Nostr signature-tamper fixtures always change the signature.** A
+  zero-prefix signature previously made corruption a no-op and randomly failed
+  the round-trip/dispatch checks. Both fixtures now flip a bit and retain a
+  deterministic zero-prefix regression. Production verification is unchanged.
+
+
 - **World graph effects share their operation audit identity.** Add, edit,
   relate and forget domain events, including new relation endpoints, now retain
   the admitted correlation so invocation, graph effects and completion can be
