@@ -278,7 +278,6 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `warden_stats` | tenant |  | `handleWardenStats` → warden_log.go |  |
 | `webhook_log` | tenant |  | `handleWebhookLog` → webhook_log.go | `/api/webhook_log` |
 | `webhook_stats` | tenant |  | `handleWebhookStats` → webhook_log.go |  |
-| `world_log` | tenant |  | `handleWorldLog` → world_log.go | `/api/world_log` |
 
 #### Providers, keys, OAuth, routing, chains, budget, config — `registerProviderConfigCommands` (registry.go), 18 ops
 
@@ -454,18 +453,19 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `memory_tidy` | primary |  | `handleAppOperation` → app/memory.Service.Tidy | `/api/memory/tidy` |
 | `profile_rebuild` | primary |  | `handleAppOperation` → app/memory.Distillation.RebuildProfile | `/api/profile/rebuild` |
 
-#### World model — `registerWorldCommands` (world.go), 8 ops
+#### World model — `app/world.Operations` via the common native adapter, 9 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
-| `world_add` | primary |  | `handleWorldAdd` → world_handlers.go | `/api/world/add` |
-| `world_edit` | primary |  | `handleWorldEdit` → world_handlers.go | `/api/world/edit` |
-| `world_forget` | primary |  | `handleWorldForget` → world_handlers.go | `/api/world/forget` |
-| `world_get` | primary |  | `handleWorldGet` → world_handlers.go |  |
-| `world_list` | primary |  | `handleWorldList` → world_handlers.go | `/api/world` |
-| `world_neighbors` | primary |  | `handleWorldNeighbors` → world_handlers.go |  |
-| `world_relate` | primary |  | `handleWorldRelate` → world_handlers.go | `/api/world/relate` |
-| `world_resolve` | primary |  | `handleWorldResolve` → world_handlers.go |  |
+| `world_add` | primary |  | `handleAppOperation` → app/world.Service.Add | `/api/world/add` |
+| `world_edit` | primary |  | `handleAppOperation` → app/world.Service.Edit | `/api/world/edit` |
+| `world_forget` | primary |  | `handleAppOperation` → app/world.Service.Forget | `/api/world/forget` |
+| `world_get` | primary |  | `handleAppOperation` → app/world.Service.Get |  |
+| `world_list` | primary |  | `handleAppOperation` → app/world.Service.List | `/api/world` |
+| `world_log` | tenant |  | `handleAppOperation` → app/world.LogService.Log | `/api/world_log` |
+| `world_neighbors` | primary |  | `handleAppOperation` → app/world.Service.Neighbors |  |
+| `world_relate` | primary |  | `handleAppOperation` → app/world.Service.Relate | `/api/world/relate` |
+| `world_resolve` | primary |  | `handleAppOperation` → app/world.Service.Resolve |  |
 
 #### Skills — `registerSkillCommands` (skill_view.go), 14 ops
 
@@ -757,7 +757,6 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `netguard_log.go` | `netguard_log` over `netguard.blocked`. |
 | `warden_log.go` | `warden_log`, `warden_stats` over `warden.*`. |
 | `webhook_log.go` | `webhook_log`, `webhook_stats` over `webhook.delivered/failed`. |
-| `world_log.go` | `world_log` over world-model upserts/forgets. |
 | `tool_log.go` | `tool_log`, `tool_stats` over `tool.invoked/result`; input/latency joins use `(correlation_id, call_id)` so reused IDs in another run cannot contaminate a row or give a denied call phantom latency (W2.3a). |
 | `tool_decoders.go` | `decodeToolInvoked`, `decodeToolResult`. |
 | `tool_helpers.go` | `previewString`. |
@@ -871,9 +870,8 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `kernel/app/memory/write.go`, `hygiene.go` | Typed curation, pruning, tidy, audit and clean business. |
 | `kernel/app/memory/distillation.go`, `log.go` | Runtime distillation port/orchestration and tenant-selected journal lifecycle fold. |
 | `kernel/app/memory/operations.go` | Sixteen typed specs, legacy-compatible admission and HTTP hints; common CP adapter owns transport/auth/tenant/audit. |
-| `world.go` | `entityView`, `registerWorldCommands`. |
-| `world_handlers.go` | `world_add/edit/relate/resolve/neighbors/list/get/forget`. |
-| `world_helpers.go` | `worldAliasesAttrs`. |
+| `kernel/app/world/world.go` | Typed graph curation/query/projection; the former socket business lives here. |
+| `kernel/app/world/log.go`, `operations.go` | Tenant-selected history fold, nine typed specs/admission and existing HTTP hints; the common CP adapter owns transport/auth/routing/audit. |
 | `skill.go` | `skill_list/get/history/promote/quarantine/archive/revert/restore/share/reassign/import`. |
 | `skill_files.go` | `skill_files`, `skill_read_file` (path-confined), `skill_hygiene`. |
 | `skill_view.go` | `skillView`, `registerSkillCommands`. |
@@ -1301,6 +1299,7 @@ and warns when no console password is set.
 
 - **Layering violation**: `kernel/controlplane` imports `plugins/tools/overseertool` (`roster_repair.go`, `roster_wake.go` call
   `overseertool.NewKernelSource(s.k, s.baseDir)`), contradicting "kernel never imports plugins".
+- **World typed native binding (W2.6c):** controlled legacy binding mutated graph/returned success with a closed journal. Nine app specs/common native adapters require audit for four mutations, leave five reads unaudited and route only world_log to tenant journals. Old wrappers/registrations and unused argStringMap are removed. Actual audit/tenant/schema/effect/source/race contracts count=20, nine mutations, nine-binding × three-input parity and final full gates pass; score-clock/generic-failure-code boundaries recorded. Unchanged 224 packages/142 imports/13 calls, structure 115. Domain identity refinement and exit evidence remain open.
 - **World journal-service foundation (W2.6b):** app/world.LogService owns entity/relation/forget folds, labels and typed rows via journalview; CP retains kind/lenient projection admission and tenant-selected reader. Exact thirteen-argument native JSON parity and source/log/graph/registry/tenant/audit/package-race tests count=20 plus ten mutations/full gates pass: unchanged 224 packages, 142 imports/13 calls, structure 115. Typed binding, identity refinement and native exit evidence remain open.
 - **World graph-service foundation (W2.6a):** app/world owns eight typed graph business/projection methods; CP retains native admission/framing/registry/auth/audit. Content identity, replacement, direction, quiet resolve, admitted fractional-limit behavior and wire/lifecycle fields are guarded. Eight-handler × eight-argument native parity count=20 allows bounded score clock drift. Source/graph/registry/tenant/audit/package-race tests count=20, twelve mutations/full gates pass. Officially paid CP->worldmodel edge: 224 packages, 142 imports/13 calls, structure 115. Journal fold/typed binding remain open.
 - **Memory native exit (W2.5j):** complete 16-operation common-registry coverage guards actual schemas/types and derived native flags. Source/typed/native/tenant/audit/identity/context contracts count=20, two exit mutations and full gates pass; dispatch excluding audit I/O is 5.7–7.2 us (<50 us), unchanged 223 packages/143 imports/13 calls. [Exit evidence](25-w25-exit-evidence.md) records boundaries. World/taste/skill follow; broader adapters, generated surfaces and W3–W5 remain open.
