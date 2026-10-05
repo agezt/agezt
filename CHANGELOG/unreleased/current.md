@@ -799,6 +799,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: memory curation moves into the app service.** Add, revise,
+  forget, promote and bulk forget retain operator provenance, source tags,
+  same-content revisions, batch limits/counts and native field presence while
+  returning typed results. Native admission and audit remain during the move.
+
+
 - **Architecture: memory reads move into a transport-independent service.**
   Get, search and find-related return typed records while preserving native
   lifecycle/provenance fields, empty results, limit defaults and seed exclusion.
