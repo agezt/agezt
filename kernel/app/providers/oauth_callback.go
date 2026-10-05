@@ -18,6 +18,12 @@ type providerCodeExchange func(context.Context, string, string) error
 // completeProviderLogin owns callback admission and effects independently of HTTP.
 // The adapter renders its result and schedules the existing delayed listener close.
 func (s *OAuth) completeProviderLogin(parent context.Context, login *providerLogin, in providerCallbackInput, exchange providerCodeExchange) providerCallbackResult {
+	s.provLoginMu.Lock()
+	current := s.providerLoginCurrentLocked(login) && login.status == "pending"
+	s.provLoginMu.Unlock()
+	if !current {
+		return providerCallbackResult{Message: "Invalid or expired sign-in. Start again from the console.", Close: true}
+	}
 	if in.Error != "" {
 		s.setProviderLoginStatus(login, "error", "authorization denied: "+in.Error)
 		return providerCallbackResult{Message: "Authorization was denied.", Close: true}
@@ -31,7 +37,16 @@ func (s *OAuth) completeProviderLogin(parent context.Context, login *providerLog
 		s.setProviderLoginStatus(login, "error", err.Error())
 		return providerCallbackResult{Message: err.Error(), Close: true}
 	}
-	s.setProviderLoginStatus(login, "done", "")
+	s.provLoginMu.Lock()
+	current = s.providerLoginCurrentLocked(login) && login.status == "pending" && ctx.Err() == nil
+	if current {
+		login.status = "done"
+		login.errMsg = ""
+	}
+	s.provLoginMu.Unlock()
+	if !current {
+		return providerCallbackResult{Message: "Invalid or expired sign-in. Start again from the console.", Close: true}
+	}
 	if s.k != nil {
 		_, _, _ = s.k.Reload()
 	}

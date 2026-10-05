@@ -44,10 +44,15 @@ type OAuth struct {
 	provLoginMu sync.Mutex
 	provLogin   *providerLogin
 	chatgptSync func() ([]string, string)
+	fetchTokens func(context.Context, string, string) (chatgptauth.Tokens, error)
 }
 
 func NewOAuth(k *runtime.Kernel, baseDir string, syncModels func() ([]string, string)) *OAuth {
-	return &OAuth{k: k, baseDir: baseDir, chatgptSync: syncModels}
+	s := &OAuth{k: k, baseDir: baseDir, chatgptSync: syncModels}
+	s.fetchTokens = func(ctx context.Context, code, verifier string) (chatgptauth.Tokens, error) {
+		return s.chatgptMgr().ExchangeTokens(ctx, code, verifier)
+	}
+	return s
 }
 
 type OAuthStartInput struct {
@@ -110,12 +115,11 @@ func (s *OAuth) Start(_ context.Context, in OAuthStartInput) (OAuthStartOutput, 
 func (s *OAuth) providerCompletion(login *providerLogin) browsercallback.Complete {
 	return func(ctx context.Context, code, state, denial string) (bool, string, bool) {
 		result := s.completeProviderLogin(ctx, login, providerCallbackInput{Code: code, State: state, Error: denial}, func(ctx context.Context, code, verifier string) error {
-			manager := s.chatgptMgr()
-			tokens, err := manager.ExchangeTokens(ctx, code, verifier)
+			tokens, err := s.fetchTokens(ctx, code, verifier)
 			if err != nil {
 				return err
 			}
-			return manager.StoreTokens(tokens)
+			return s.persistProviderTokens(ctx, login, tokens)
 		})
 		return result.Success, result.Message, result.Close
 	}
@@ -198,10 +202,15 @@ func (s *OAuth) Import(_ context.Context, in OAuthImportInput) (OAuthImportOutpu
 
 // handleProviderOAuthLogout clears the stored ChatGPT tokens.
 func (s *OAuth) Logout(_ context.Context, _ OAuthLogoutInput) (OAuthLogoutOutput, error) {
+	s.provLoginMu.Lock()
 	if err := s.chatgptMgr().Logout(); err != nil {
+		s.provLoginMu.Unlock()
 		return OAuthLogoutOutput{}, err
 	}
-	s.stopProviderLogin()
+	login := s.provLogin
+	s.provLogin = nil
+	s.provLoginMu.Unlock()
+	s.closeProviderLogin(login)
 	if s.k != nil {
 		_, _, _ = s.k.Reload()
 	}
