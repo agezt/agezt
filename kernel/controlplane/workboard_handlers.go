@@ -13,9 +13,8 @@ package controlplane
 
 import (
 	"context"
+	appworkboard "github.com/agezt/agezt/kernel/app/workboard"
 	"net"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/workboard"
@@ -39,67 +38,20 @@ func (s *Server) handleWorkboardLanes(conn net.Conn, req Request) {
 		filter.IncludeArchived = v
 	}
 	filter.Limit = intArg(req.Args["limit"], 500)
-	tasks := s.k.Workboard().List(filter)
-	type lane struct {
-		Assignee string
-		Label    string
-		Counts   map[string]int
-		Tasks    []any
+	out, err := appworkboard.New(s.k.Workboard()).Lanes(context.Background(), appworkboard.ListInput{Status: filter.Status, Tenant: filter.Tenant, IncludeArchived: filter.IncludeArchived, Limit: filter.Limit})
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	byAssignee := map[string]*lane{}
-	for _, t := range tasks {
-		key := strings.TrimSpace(t.Assignee)
-		l := byAssignee[key]
-		if l == nil {
-			label := key
-			if label == "" {
-				label = "unassigned"
-			}
-			l = &lane{Assignee: key, Label: label, Counts: map[string]int{}}
-			byAssignee[key] = l
-		}
-		l.Counts[string(t.Status)]++
-		l.Tasks = append(l.Tasks, workboardTaskView(t))
-	}
-	keys := make([]string, 0, len(byAssignee))
-	for key := range byAssignee {
-		keys = append(keys, key)
-	}
-	sort.SliceStable(keys, func(i, j int) bool {
-		if keys[i] == "" {
-			return false
-		}
-		if keys[j] == "" {
-			return true
-		}
-		return strings.ToLower(keys[i]) < strings.ToLower(keys[j])
-	})
-	out := make([]any, 0, len(keys))
-	for _, key := range keys {
-		l := byAssignee[key]
-		out = append(out, map[string]any{
-			"assignee": l.Assignee,
-			"label":    l.Label,
-			"counts":   l.Counts,
-			"tasks":    l.Tasks,
-			"count":    len(l.Tasks),
-		})
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"lanes": out, "count": len(out), "task_count": len(tasks)}})
+	writeWorkboardReadResult(s, conn, req, out)
 }
-
 func (s *Server) handleWorkboardShow(conn net.Conn, req Request) {
-	id := stringArg(req.Args, "id")
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "workboard_show requires id"})
+	out, err := appworkboard.New(s.k.Workboard()).Show(context.Background(), appworkboard.ShowInput{ID: stringArg(req.Args, "id")})
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	task, found := s.k.Workboard().Get(id)
-	if !found {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown workboard task: " + id})
-		return
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"task": workboardTaskView(task)}})
+	writeWorkboardReadResult(s, conn, req, out)
 }
 
 func (s *Server) handleWorkboardCreate(conn net.Conn, req Request) {

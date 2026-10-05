@@ -8,41 +8,21 @@ package controlplane
 //             Day-48 god-file split. Public API unchanged.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	appworkboard "github.com/agezt/agezt/kernel/app/workboard"
 	"net"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/workboard"
 )
 
-func workboardTaskView(t workboard.Task) map[string]any {
-	b, _ := json.Marshal(t)
-	var m map[string]any
-	_ = json.Unmarshal(b, &m)
-	m["comment_count"] = len(t.Comments)
-	m["link_count"] = len(t.Links)
-	m["attempt_count"] = len(t.Attempts)
-	m["failed_attempt_count"] = workboard.FailedAttemptCount(t)
-	if len(t.Criteria) > 0 {
-		met := 0
-		for _, c := range t.Criteria {
-			if c.Met {
-				met++
-			}
-		}
-		m["criteria_count"] = len(t.Criteria)
-		m["criteria_met"] = met
-		m["gated"] = true
-		m["proven"] = t.Proof != nil && t.Proof.Satisfied()
-	}
-	if decision := workboard.RetryDecisionFor(t, ""); decision.MaxAttempts > 0 {
-		m["max_attempts"] = decision.MaxAttempts
-		if decision.NextAttempt > 0 {
-			m["next_attempt"] = decision.NextAttempt
-		}
-	}
-	return m
+func workboardTaskView(task workboard.Task) map[string]any {
+	raw, _ := json.Marshal(appworkboard.Project(task))
+	var out map[string]any
+	_ = json.Unmarshal(raw, &out)
+	return out
 }
 
 func workboardDependencyStateViews(states []workboard.DependencyState) []map[string]any {
@@ -101,10 +81,24 @@ func (s *Server) handleWorkboardList(conn net.Conn, req Request) {
 		filter.IncludeArchived = v
 	}
 	filter.Limit = intArg(req.Args["limit"], 100)
-	tasks := s.k.Workboard().List(filter)
-	out := make([]any, 0, len(tasks))
-	for _, t := range tasks {
-		out = append(out, workboardTaskView(t))
+	out, err := appworkboard.New(s.k.Workboard()).List(context.Background(), appworkboard.ListInput{Status: filter.Status, Tenant: filter.Tenant, Assignee: filter.Assignee, IncludeArchived: filter.IncludeArchived, Limit: filter.Limit})
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"tasks": out, "count": len(out)}})
+	writeWorkboardReadResult(s, conn, req, out)
+}
+
+func writeWorkboardReadResult(s *Server, conn net.Conn, req Request, out any) {
+	raw, err := json.Marshal(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	var result map[string]any
+	if err := json.Unmarshal(raw, &result); err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
 }
