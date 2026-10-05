@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 
+	"context"
+	appmemory "github.com/agezt/agezt/kernel/app/memory"
 	"github.com/agezt/agezt/kernel/memory"
 )
 
@@ -205,16 +207,17 @@ func (s *Server) handleMemoryGet(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	rec, found, err := s.k.Memory().Get(id)
+	out, err := appmemory.New(s.k.Memory()).Get(context.Background(), appmemory.GetInput{ID: id})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	result := map[string]any{"found": found}
-	if found {
-		result["record"] = recordView(rec)
+	body, err := jsonMap(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 
 func (s *Server) handleMemorySearch(conn net.Conn, req Request) {
@@ -223,28 +226,20 @@ func (s *Server) handleMemorySearch(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	limit := 10
-	if l, _, lerr := argFloat64(req.Args, "limit"); lerr != nil {
-		s.fail(conn, req, lerr)
-		return
-	} else if l > 0 {
-		limit = int(l)
-	}
-	if limit > 100 {
-		limit = 100
-	}
-	hits, err := s.k.Memory().Search(query, limit)
+	limit, _, err := argFloat64(req.Args, "limit")
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	out := make([]any, 0, len(hits))
-	for _, h := range hits {
-		out = append(out, map[string]any{"record": recordView(h.Record), "score": h.Score})
+	out, err := appmemory.New(s.k.Memory()).Search(context.Background(), appmemory.SearchInput{Query: query, Limit: limit})
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"results": out, "count": len(out)},
-	})
+	body, err := jsonMap(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
