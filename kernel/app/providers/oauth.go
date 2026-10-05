@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/chatgptauth"
+	"github.com/agezt/agezt/kernel/platform/browsercallback"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -117,14 +118,12 @@ func (s *OAuth) Start(_ context.Context, in OAuthStartInput) (OAuthStartOutput, 
 
 // providerCallback handles the browser redirect on 127.0.0.1:1455.
 func (s *OAuth) providerCallback(w http.ResponseWriter, r *http.Request, login *providerLogin) {
-	q := r.URL.Query()
-	result := s.completeProviderLogin(r.Context(), login, providerCallbackInput{Code: q.Get("code"), State: q.Get("state"), Error: q.Get("error")}, func(ctx context.Context, code, verifier string) error {
-		return s.chatgptMgr().ExchangeCode(ctx, code, verifier)
-	})
-	providerLoginPage(w, result.Success, result.Message)
-	if result.Close {
-		go s.deferredClose(login)
-	}
+	browsercallback.Handle(w, r, func(ctx context.Context, code, state, denial string) (bool, string, bool) {
+		result := s.completeProviderLogin(ctx, login, providerCallbackInput{Code: code, State: state, Error: denial}, func(ctx context.Context, code, verifier string) error {
+			return s.chatgptMgr().ExchangeCode(ctx, code, verifier)
+		})
+		return result.Success, result.Message, result.Close
+	}, func() { s.deferredClose(login) })
 }
 
 func (s *OAuth) deferredClose(login *providerLogin) {
@@ -215,24 +214,4 @@ func (s *OAuth) Logout(_ context.Context, _ OAuthLogoutInput) (OAuthLogoutOutput
 		_, _, _ = s.k.Reload()
 	}
 	return OAuthLogoutOutput{OK: true, Connected: false}, nil
-}
-
-// providerLoginPage renders the minimal browser-facing result page.
-func providerLoginPage(w http.ResponseWriter, ok bool, msg string) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	title, detail := "Signed in ✓", "You can close this window and return to the console."
-	if !ok {
-		title, detail = "Sign-in failed", htmlEscapeProv(msg)
-	}
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, `<!doctype html><meta charset="utf-8"><title>%s</title>`+
-		`<body style="font:16px system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#0b1020;color:#e6e8f0">`+
-		`<div style="text-align:center;max-width:32rem;padding:2rem"><h1 style="font-size:1.4rem">%s</h1>`+
-		`<p style="opacity:.8">%s</p></div><script>setTimeout(function(){window.close()},1500)</script>`,
-		title, title, detail)
-}
-
-func htmlEscapeProv(s string) string {
-	r := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;")
-	return r.Replace(s)
 }
