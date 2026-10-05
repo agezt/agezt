@@ -799,6 +799,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: journal log projections share a platform engine.** Existing
+  cutoff, cursor pagination, sequence ordering and cross-event decoder state
+  are preserved. Control-plane adapters retain page-size admission, tenant
+  selection and native response framing; provider observation migration follows.
+
+
 - **Architecture: root and delegated agent tools use the per-kernel invocation
   service.** All five phases now enter the same app-bound service as direct tools.
   Batch scheduling, memo, profile policy, terminal audit and caller identity are

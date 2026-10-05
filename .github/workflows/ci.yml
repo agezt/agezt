@@ -142,11 +142,13 @@ jobs:
       - uses: ./.github/actions/setup-go-safe
       - name: Race detector — concurrency-critical packages (depth, stressed)
         # -count forces real re-execution (not the test cache); these packages
-        # are small, so 20x is cheap.
+        # include real socket/startup/cleanup waits. Keep all 20 repetitions,
+        # with an explicit package budget for slower hosted runners; the default
+        # 10m can expire while the suite is still making progress.
         env:
           RACE_STRESS_COUNT: '20'
         run: |
-          bash scripts/ci-go-retry.sh go test -race -count="${RACE_STRESS_COUNT}" \
+          bash scripts/ci-go-retry.sh go test -race -count="${RACE_STRESS_COUNT}" -timeout=20m \
             ./kernel/channel/... \
             ./kernel/controlplane/... \
             ./kernel/chatgptauth/... \

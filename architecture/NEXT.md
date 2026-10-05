@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Provider OAuth RPC binding is complete. Continue §4.5 with tenant-routed log/stats/rejections and primary-only probe; callback HTTP/lifecycle adaptation remains later work.
+> Provider OAuth RPC binding and shared journal projection extraction are complete. Continue §4.5 with provider observation services, then tenant-routed operation binding and primary-only probe; callback HTTP/lifecycle adaptation remains later work.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -531,6 +531,20 @@ exceptions remain. **Next: tenant-routed provider log/stats/rejections and
 primary-only provider probe.** Existing callback HTTP/expiry/lifecycle behavior
 is unchanged; later callback adapter/lifecycle refinement and the overall
 provider/architecture goal remain open.
+
+**W2.4g shared journal projection move:** newest-first sorting, cursor filtering,
+row cutoff, pagination and output stamping now live in platform/journalview.
+CP retains limit admission, since_ms conversion, tenant selection and native
+result/error framing; every existing log caller still shares the same engine.
+Decoder callbacks see every event before cutoff so cross-event inputs outside
+the window remain available to results inside it. The moved body matches the
+original after reader/error-envelope boundary substitutions. New primitive and
+original log/provider suites pass count=20; seven independent mutations reject
+lost decoder state, time/sequence ordering, cursor filtering/order, boundary
+cursor and journal error causes. Full Go/build/vet/static and architecture gates
+pass: 221 packages, unchanged 143 import/13 call exceptions. **Next: move provider
+log/stats/rejections business into app/providers, then bind tenant-routed typed
+operations; primary-only probe and callback adapter refinement remain open.**
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
