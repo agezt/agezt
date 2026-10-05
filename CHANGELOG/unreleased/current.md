@@ -1222,6 +1222,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Retired OAuth callbacks cannot restore tokens after logout or replacement.**
+  Candidate persistence now checks current login, pending state, cancellation and
+  timer ownership under the same mutex as logout. Retired post-exchange results
+  skip completion/model effects; current-session success remains compatible.
+
+
 - **Stopped OAuth logins release their expiry workers.** Repeated login/stop cycles
   previously retained five-minute sleepers. Each login now owns cancellable timer
   cleanup; stop and callback close end the worker, while normal timeout behavior

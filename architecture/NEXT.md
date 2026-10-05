@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider native RPC and callback adapter/lifetime repairs are complete through expiry workers; token fetch/persist is separated. Continue §4.5 with in-flight token/session persistence fencing and caller-context refinement; broader adapter/domain migration remains open.
+> Catalog/provider native RPC and callback adapter/lifetime/session persistence repairs are complete. Continue §4.5 with caller-context refinement and provider exit evidence; broader adapter/domain migration remains open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -720,6 +720,23 @@ Full Go/build/vet/static and architecture gates pass: unchanged 222 packages and
 143 import/13 call exceptions. **Next: admit persistence against the current login
 identity after fetch, then caller-context refinement.** In-flight ownership,
 logout/replacement fencing and live provider validation remain open.
+
+**W2.4t callback session persistence admission:** a controlled delayed fetch proof
+reproduced logout completing before an old callback restored tokens and reported
+success. App now admits persistence under the login mutex against current identity,
+pending state, open expiry ownership and live context. Logout token cleanup and
+retirement use the same mutex, preserving pending ownership on failure. Callback
+business checks ownership before exchange and after its await before terminal
+state/model effects. Production fetch is an owned constructor-bound port; no live
+endpoint is needed for the race proof. Permanent delayed logout/replacement,
+context/stopped/terminal/retired admission, current success and post-exchange
+retirement tests plus source/native and callback race suites pass count=20.
+Five independent mutations retain identity/state/context/stop and post-exchange
+admission. Full Go/build/vet/static and architecture gates pass: unchanged 222
+packages and 143 import/13 call exceptions. **Next: caller-context refinement and
+provider exit evidence.** Effects admitted before retirement retain their normal
+ordering; broader generated surfaces/adapters/domains and the architecture goal
+remain open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
