@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog and provider catalog/keyring ops are migrated. Continue §4.5 with provider OAuth lifecycle, then tenant-routed log/stats/rejections/probe.
+> Provider OAuth state/business move is complete. Continue §4.5 with OAuth operation binding, then tenant-routed log/stats/rejections and primary-only probe.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -481,7 +481,7 @@ count=20. Nine independent mutations retain existing-entry preservation, unknown
 models, scoped/namespace validation, active reloads/persistence and rebuild error
 contracts. Full Go/build/vet/static and architecture gates pass (220 packages;
 unchanged 145 imports/13 calls). **Next: provider catalog/keyring operation binding,
-then OAuth lifecycle and tenant-routed log/stats/rejections/probe.** This partial
+then OAuth lifecycle and tenant-routed log/stats/rejections and primary-only probe.** This partial
 provider foundation does not close the complete provider domain or rewrite policy.
 
 **W2.4d provider catalog/keyring binding:** six typed specs/results join the common
@@ -496,8 +496,24 @@ parity count=20. Eight independent mutations guard inclusion, mutation/read-only
 metadata, ignored args, typed active/output fields, redaction and mandatory audit.
 Full Go/build/vet/static and architecture gates pass: 220 packages, import debt
 145 -> 144 (CP -> catalog removed and officially ratcheted), 13 call sites remain.
-**Next: provider OAuth lifecycle, then tenant-routed log/stats/rejections/probe.**
+**Next: provider OAuth lifecycle, then tenant-routed log/stats/rejections and primary-only probe.**
 The entire provider domain and overall architecture goal remain open.
+
+**W2.4e provider OAuth state/business move:** login state, its mutex/listener,
+token-manager initialization and start/status/import/logout business now belong
+to app/providers.OAuth. CP owns one lazy instance per Server and preserves fresh
+model-hook lookup, legacy input coercion, socket framing and auth/audit metadata.
+The existing fixed-port callback/expiry/deferred-close/page flow moves with its
+state; its HTTP adaptation is deliberately unchanged in this move-only slice.
+Socket-free isolated import/status/logout, authoritative hook model surface,
+state filtering, denial/concurrent status and HTML escape tests pass count=20,
+alongside source OAuth/registry/tenant/audit contracts. Six independent mutations
+retain import/token clearing, model hook, state filter, denial state and escaping.
+Full Go/build/vet/static and architecture gates pass: CP -> chatgptauth edge is
+removed and officially ratcheted (143 imports/13 calls; 220 packages). **Next:
+OAuth specs/common operation binding; callback HTTP/lifecycle refinement follows
+separately if required by adapter migration.** Tenant-routed observations and the
+primary-only provider probe remain open; the whole provider domain is incomplete.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
