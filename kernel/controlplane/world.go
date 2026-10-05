@@ -1,40 +1,10 @@
 package controlplane
 
 // Provenance: SPDX-License-Identifier: MIT kernel/controlplane world-model registrar
-//             (registerWorldCommands) + entity-view helper (entityView). Extracted
+//             (registerWorldCommands). Extracted
 //             from world.go during Day 211 god-file refactor (#79). Public API
 //             unchanged.
 
-import (
-	"github.com/agezt/agezt/kernel/worldmodel"
-)
-
-func entityView(e worldmodel.Entity) map[string]any {
-	v := map[string]any{
-		"id":           e.ID,
-		"kind":         string(e.Kind),
-		"name":         e.Name,
-		"weight":       e.Weight,
-		"created_ms":   e.CreatedMS,
-		"last_seen_ms": e.LastSeenMS,
-	}
-	if len(e.Aliases) > 0 {
-		v["aliases"] = e.Aliases
-	}
-	if len(e.Attrs) > 0 {
-		v["attrs"] = e.Attrs
-	}
-	if e.SourceEvent != "" {
-		v["source_event"] = e.SourceEvent
-	}
-	if e.SupersededBy != "" {
-		v["superseded_by"] = e.SupersededBy
-	}
-	if e.Tombstoned {
-		v["tombstoned"] = true
-	}
-	return v
-}
 func registerWorldCommands() {
 	register(
 		commandSpec{Cmd: CmdWorldAdd, Handler: func(dc *DispatchCtx) { dc.S.handleWorldAdd(dc.Conn, dc.Req) }},
