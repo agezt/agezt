@@ -14,7 +14,6 @@ import (
 
 	"encoding/base64"
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/app/providers"
 	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
@@ -149,20 +148,6 @@ func (s *Server) handleWhatsAppGatewayQR(conn net.Conn, req Request) {
 // endpoint), multicast, and unspecified targets are refused.
 func wgGatewayGET(fullURL, keyHeader, key string, max int64) ([]byte, int, string, error) {
 	return netout.GatewayGET(fullURL, keyHeader, key, max)
-}
-
-// handleProviderProbe checks whether an LLM provider endpoint is reachable by
-// GETting its OpenAI-compatible /models list — the "connectivity status" behind
-// a Connect button, so you can verify a keyless local runtime (Ollama, LM Studio)
-// or a keyed endpoint is up before relying on it. Same SSRF-guarded probe as the
-// gateway checks (loopback/private allowed; metadata/link-local blocked).
-func (s *Server) handleProviderProbe(conn net.Conn, req Request) {
-	result, err := providers.NewProbe(nil).Check(providers.ProbeInput{URL: wgArg(req, "url"), Key: wgArg(req, "key")})
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
 }
 
 // wgArg reads a string request arg, tolerating a missing/non-string value.

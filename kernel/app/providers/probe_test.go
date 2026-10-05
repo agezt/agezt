@@ -3,6 +3,7 @@
 package providers_test
 
 import (
+	"encoding/json"
 	"errors"
 	"reflect"
 	"testing"
@@ -36,7 +37,7 @@ func TestProbeServicePreservesReachabilityAuthorizationAndModelCount(t *testing.
 		})
 		out, err := svc.Check(providers.ProbeInput{URL: " https://fixture.invalid/v1/// ", Key: " fixture "})
 		want := map[string]any{"ok": true, "reachable": tc.reachable, "authorized": tc.authorized, "http_status": tc.code, "models": tc.models}
-		if err != nil || calls != 1 || !reflect.DeepEqual(out, want) {
+		if err != nil || calls != 1 || !reflect.DeepEqual(probeWire(t, out), want) {
 			t.Fatalf("status %d = %v, %v, calls=%d; want %v", tc.code, out, err, calls, want)
 		}
 	}
@@ -53,12 +54,31 @@ func TestProbeServicePreservesMissingURLKeyAndFailureShapes(t *testing.T) {
 		return nil, 0, "", cause
 	})
 	out, err := svc.Check(providers.ProbeInput{URL: "  "})
-	if err == nil || err.Error() != "args.url is required" || out != nil || calls != 0 {
+	if err == nil || err.Error() != "args.url is required" || !reflect.ValueOf(out).IsZero() || calls != 0 {
 		t.Fatalf("missing URL entered transport: %v, %v, calls=%d", out, err, calls)
 	}
 	out, err = svc.Check(providers.ProbeInput{URL: "https://fixture.invalid", Key: " "})
 	want := map[string]any{"ok": false, "error": "cannot reach endpoint: fixture transport unavailable"}
-	if err != nil || calls != 1 || !reflect.DeepEqual(out, want) {
+	if err != nil || calls != 1 || !reflect.DeepEqual(probeWire(t, out), want) {
 		t.Fatalf("transport failure shape changed: %v %v calls=%d", out, err, calls)
 	}
+}
+
+func probeWire(t *testing.T, value providers.ProbeOutput) map[string]any {
+	t.Helper()
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out map[string]any
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatal(err)
+	}
+	if status, ok := out["http_status"].(float64); ok {
+		out["http_status"] = int(status)
+	}
+	if models, ok := out["models"].(float64); ok {
+		out["models"] = int(models)
+	}
+	return out
 }

@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Provider OAuth RPC, tenant-routed observations and probe service extraction are complete. Continue §4.5 with primary-only probe operation binding; context/callback HTTP adaptation remains later work.
+> Catalog/provider native RPC binding is complete through primary-only probe. Continue §4.5 with the OAuth callback business/HTTP boundary; context/lifecycle refinement and broader adapter/domain migration remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -608,6 +608,23 @@ and failure shape. Full Go/build/vet/static and architecture gates pass: unchang
 221 packages and 143 import/13 call exceptions. **Next: typed primary-only probe
 spec/output and common operation binding.** Context/callback adaptation and the
 overall provider migration remain open; no live provider or paid model was used.
+
+**W2.4l provider probe operation binding:** a typed primary-only/read-only spec
+and variant-preserving output now use the common dispatcher. Its HTTP hint
+matches the existing POST /api/provider/probe route; the old native wrapper and
+registration are deleted. Known URL/key types validate before transport entry;
+unrelated legacy args remain accepted. Success preserves explicit false/zero
+fields; endpoint failure keeps only ok/error. Actual socket admission, tenant
+refusal before requests, read-only audit absence, optional output/schema and
+source tenant/registry/audit/HTTP contracts pass count=20. Original/current native
+JSON parity spans six statuses and four compatible argument sets count=20;
+eight independent mutations retain registry, primary admission/routing,
+read-only flags, ignored args, rich schema, field presence and route metadata.
+Full Go/build/vet/static and architecture gates pass: unchanged 221 packages and
+143 import/13 call exceptions. **Next: separate provider OAuth callback business
+from browser HTTP adaptation.** Existing callback lifetime and probe background
+transport context remain for subsequent refinement; the provider/architecture
+goal is not closed by native RPC binding alone.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

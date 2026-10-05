@@ -799,6 +799,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: provider probes use a typed primary-only operation.** Existing
+  success/failure JSON fields and POST route remain. URL/key types validate before
+  endpoint requests; tenant credentials remain denied and checks stay read-only.
+
+
 - **Architecture: provider endpoint checks move into an app service.** Existing
   reachability, authorization, model counts and failure responses remain behind
   the bounded guarded transport; native access remains primary-only and read-only.
