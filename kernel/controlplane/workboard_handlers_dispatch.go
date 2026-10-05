@@ -7,97 +7,49 @@ package controlplane
 //             split. Public API unchanged.
 
 import (
+	"context"
+	appworkboard "github.com/agezt/agezt/kernel/app/workboard"
+	"github.com/agezt/agezt/kernel/workboard"
 	"net"
 )
 
 func (s *Server) handleWorkboardDispatch(conn net.Conn, req Request) {
-	id := stringArg(req.Args, "id")
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "workboard_dispatch requires id"})
-		return
-	}
-	task, found := s.k.Workboard().Get(id)
-	if !found {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown workboard task: " + id})
-		return
-	}
-	blocked, err := s.k.Workboard().BlockingDependencies(task.ID)
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	if len(blocked) > 0 {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "workboard task blocked by dependencies: " + workboardDependencySummary(blocked)})
-		return
-	}
-	agentRef := firstNonEmpty(stringArg(req.Args, "agent"), task.Assignee)
-	if agentRef == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "workboard_dispatch requires --agent or a task assignee"})
-		return
-	}
-	p, ok := s.k.Roster().Get(agentRef)
-	if !ok {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown agent: " + agentRef})
-		return
-	}
-	if p.Retired {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "agent " + p.Slug + " is retired — revive it first"})
-		return
-	}
-	if !p.Enabled {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "agent " + p.Slug + " is paused"})
-		return
-	}
-	if !p.AllowsDirectCall() {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: managedSubagentDirectCallError(p, "dispatched")})
-		return
-	}
-
-	corr := s.k.NewCorrelation()
-	claimed, err := s.k.ClaimWorkboardTask(corr, task.ID, p.Slug, corr)
-	if err != nil {
-		workboardWriteResp(s, conn, req, claimed, err)
-		return
-	}
-	if linked, err := s.k.LinkWorkboardTask(corr, task.ID, "run", corr); err != nil {
-		workboardWriteResp(s, conn, req, linked, err)
-		return
-	} else {
-		claimed = linked
-	}
-	reason := firstNonEmpty(stringArg(req.Args, "reason"), "workboard dispatch")
-	intent := buildWorkboardDispatchIntent(stringArg(req.Args, "intent"), claimed)
-	publishWorkboardDispatch(s.k, corr, claimed, "requested", p.Slug, reason, "", "")
-	go s.runWorkboardDispatch(corr, p, claimed, intent, reason)
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
-		"accepted":       true,
-		"task":           workboardTaskView(claimed),
-		"agent":          p.Slug,
-		"correlation_id": corr,
-	}})
+	service := appworkboard.NewDispatch(s.k.Workboard(), s.k,
+		func(ref string) (appworkboard.DispatchAgent, bool) {
+			p, ok := s.k.Roster().Get(ref)
+			if !ok {
+				return appworkboard.DispatchAgent{}, false
+			}
+			direct := p.AllowsDirectCall()
+			directError := ""
+			if !direct {
+				directError = managedSubagentDirectCallError(p, "dispatched")
+			}
+			return appworkboard.DispatchAgent{Slug: p.Slug, Retired: p.Retired, Enabled: p.Enabled, DirectAllowed: direct, DirectError: directError, Run: func(corr string, task workboard.Task, intent, reason string) {
+				s.runWorkboardDispatch(corr, p, task, intent, reason)
+			}}, true
+		},
+		func(corr string, task workboard.Task, phase, agent, reason, answer, errText string) {
+			publishWorkboardDispatch(s.k, corr, task, phase, agent, reason, answer, errText)
+		})
+	out, err := service.Dispatch(context.Background(), appworkboard.DispatchInput{ID: stringArg(req.Args, "id"), Agent: stringArg(req.Args, "agent"), Reason: stringArg(req.Args, "reason"), Intent: stringArg(req.Args, "intent")})
+	writeWorkboardAppResult(s, conn, req, out, err)
 }
 
 func (s *Server) handleWorkboardWatch(conn net.Conn, req Request) {
 	id := stringArg(req.Args, "id")
 	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "workboard_watch requires id"})
+		s.failMsg(conn, req, "workboard_watch requires id")
 		return
 	}
-	task, found := s.k.Workboard().Get(id)
-	if !found {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown workboard task: " + id})
-		return
-	}
-	runID := firstNonEmpty(stringArg(req.Args, "run_id"), latestWorkboardRunID(task))
 	limit := intArg(req.Args["limit"], 50)
 	if limit > 200 {
 		limit = 200
 	}
-	events := workboardWatchEvents(s.k, task.ID, runID, limit)
-	blocked, _ := s.k.Workboard().BlockingDependencies(task.ID)
-	res := map[string]any{"task": workboardTaskView(task), "events": events, "count": len(events), "blocked_dependencies": workboardDependencyStateViews(blocked)}
-	if runID != "" {
-		res["run_id"] = runID
+	out, err := appworkboard.NewWatch(s.k.Workboard(), s.k.Journal()).Watch(context.Background(), appworkboard.WatchInput{ID: id, RunID: stringArg(req.Args, "run_id"), Limit: limit})
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: res})
+	writeWorkboardReadResult(s, conn, req, out)
 }

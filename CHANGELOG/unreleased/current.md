@@ -812,6 +812,35 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: workboard dispatch admission moves into the app service.**
+  Dependency and agent checks precede task claim, run linking, publication and
+  background launch; native response and existing execution behavior remain.
+
+
+- **Architecture: workboard watch snapshots move into the app service.** Run
+  selection, journal event fold and blocked-dependency views return typed rows
+  while retaining chronological tail, correlation filtering, payload presence
+  and the native single-snapshot/best-effort behavior.
+
+
+- **Architecture: workboard relations and maintenance move into the app service.**
+  Links, retry policy, dependencies and stale-claim reclaim/sweep return typed
+  results while retaining policy validation, cycle rules, duration/default/cap
+  behavior, kernel journaling and native correlation/error contracts.
+
+
+- **Architecture: workboard lifecycle moves into the app service.** Creation,
+  claiming, heartbeat, comments, state transitions, proof, seat and archive
+  return typed results while preserving kernel journaling, idempotence/retry
+  decisions, correlation, prove context and native error behavior.
+
+
+- **Architecture: workboard reads move into the app service.** Task lists,
+  assignee lanes and lookup return typed results with the existing computed
+  counts, proof/retry fields and lane order. Remaining native task outputs share
+  the same projection; admission and lifecycle behavior retain their contracts.
+
+
 - **Architecture: board native migration is complete.** Seven messaging commands
   share typed app use cases, selected shared-store ownership and mandatory
   mutation audit. Aggregate registry coverage and exit evidence retain native

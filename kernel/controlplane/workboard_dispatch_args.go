@@ -26,28 +26,6 @@ func retryPolicyFromArgs(args map[string]any) *workboard.RetryPolicy {
 	}
 }
 
-func retryDecisionView(d workboard.RetryDecision) map[string]any {
-	out := map[string]any{
-		"action":        d.Action,
-		"failure_count": d.FailureCount,
-		"retry":         d.Retry,
-		"exhausted":     d.Exhausted,
-	}
-	if d.MaxAttempts > 0 {
-		out["max_attempts"] = d.MaxAttempts
-	}
-	if d.NextAttempt > 0 {
-		out["next_attempt"] = d.NextAttempt
-	}
-	if d.EscalateTo != "" {
-		out["escalate_to"] = d.EscalateTo
-	}
-	if d.Reason != "" {
-		out["reason"] = d.Reason
-	}
-	return out
-}
-
 func workboardCorr(s *Server, req Request) string {
 	if corr := stringArg(req.Args, "correlation_id"); corr != "" {
 		return corr

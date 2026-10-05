@@ -13,9 +13,8 @@ package controlplane
 
 import (
 	"context"
+	appworkboard "github.com/agezt/agezt/kernel/app/workboard"
 	"net"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/workboard"
@@ -39,67 +38,20 @@ func (s *Server) handleWorkboardLanes(conn net.Conn, req Request) {
 		filter.IncludeArchived = v
 	}
 	filter.Limit = intArg(req.Args["limit"], 500)
-	tasks := s.k.Workboard().List(filter)
-	type lane struct {
-		Assignee string
-		Label    string
-		Counts   map[string]int
-		Tasks    []any
+	out, err := appworkboard.New(s.k.Workboard()).Lanes(context.Background(), appworkboard.ListInput{Status: filter.Status, Tenant: filter.Tenant, IncludeArchived: filter.IncludeArchived, Limit: filter.Limit})
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	byAssignee := map[string]*lane{}
-	for _, t := range tasks {
-		key := strings.TrimSpace(t.Assignee)
-		l := byAssignee[key]
-		if l == nil {
-			label := key
-			if label == "" {
-				label = "unassigned"
-			}
-			l = &lane{Assignee: key, Label: label, Counts: map[string]int{}}
-			byAssignee[key] = l
-		}
-		l.Counts[string(t.Status)]++
-		l.Tasks = append(l.Tasks, workboardTaskView(t))
-	}
-	keys := make([]string, 0, len(byAssignee))
-	for key := range byAssignee {
-		keys = append(keys, key)
-	}
-	sort.SliceStable(keys, func(i, j int) bool {
-		if keys[i] == "" {
-			return false
-		}
-		if keys[j] == "" {
-			return true
-		}
-		return strings.ToLower(keys[i]) < strings.ToLower(keys[j])
-	})
-	out := make([]any, 0, len(keys))
-	for _, key := range keys {
-		l := byAssignee[key]
-		out = append(out, map[string]any{
-			"assignee": l.Assignee,
-			"label":    l.Label,
-			"counts":   l.Counts,
-			"tasks":    l.Tasks,
-			"count":    len(l.Tasks),
-		})
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"lanes": out, "count": len(out), "task_count": len(tasks)}})
+	writeWorkboardReadResult(s, conn, req, out)
 }
-
 func (s *Server) handleWorkboardShow(conn net.Conn, req Request) {
-	id := stringArg(req.Args, "id")
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "workboard_show requires id"})
+	out, err := appworkboard.New(s.k.Workboard()).Show(context.Background(), appworkboard.ShowInput{ID: stringArg(req.Args, "id")})
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	task, found := s.k.Workboard().Get(id)
-	if !found {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown workboard task: " + id})
-		return
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"task": workboardTaskView(task)}})
+	writeWorkboardReadResult(s, conn, req, out)
 }
 
 func (s *Server) handleWorkboardCreate(conn net.Conn, req Request) {
@@ -122,7 +74,7 @@ func (s *Server) handleWorkboardCreate(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown execution seat: " + seatID})
 		return
 	}
-	task, created, err := s.k.CreateWorkboardTask(workboardCorr(s, req), workboard.CreateSpec{
+	out, err := appworkboard.NewLifecycle(s.k, s.k.Workboard()).Create(context.Background(), appworkboard.CreateInput{CorrelationID: workboardCorr(s, req), Spec: workboard.CreateSpec{
 		Title:              title,
 		Description:        stringArg(req.Args, "description"),
 		Status:             status,
@@ -136,51 +88,37 @@ func (s *Server) handleWorkboardCreate(conn net.Conn, req Request) {
 		AcceptanceCriteria: workboardStringSliceArg(req.Args["criteria"]),
 		Seat:               seatID,
 		RetryPolicy:        retryPolicyFromArgs(req.Args),
-	})
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"task": workboardTaskView(task), "created": created}})
+	}})
+	writeWorkboardAppResult(s, conn, req, out, err)
 }
 
 func (s *Server) handleWorkboardClaim(conn net.Conn, req Request) {
-	task, err := s.k.ClaimWorkboardTask(workboardCorr(s, req), stringArg(req.Args, "id"), stringArg(req.Args, "agent"), stringArg(req.Args, "run_id"))
-	workboardWriteResp(s, conn, req, task, err)
+	out, err := appworkboard.NewLifecycle(s.k, s.k.Workboard()).Claim(context.Background(), appworkboard.ClaimInput{CorrelationID: workboardCorr(s, req), ID: stringArg(req.Args, "id"), Agent: stringArg(req.Args, "agent"), RunID: stringArg(req.Args, "run_id")})
+	writeWorkboardAppResult(s, conn, req, out, err)
 }
-
 func (s *Server) handleWorkboardHeartbeat(conn net.Conn, req Request) {
-	task, err := s.k.HeartbeatWorkboardTask(workboardCorr(s, req), stringArg(req.Args, "id"), stringArg(req.Args, "agent"), stringArg(req.Args, "run_id"))
-	workboardWriteResp(s, conn, req, task, err)
+	out, err := appworkboard.NewLifecycle(s.k, s.k.Workboard()).Heartbeat(context.Background(), appworkboard.ClaimInput{CorrelationID: workboardCorr(s, req), ID: stringArg(req.Args, "id"), Agent: stringArg(req.Args, "agent"), RunID: stringArg(req.Args, "run_id")})
+	writeWorkboardAppResult(s, conn, req, out, err)
 }
-
 func (s *Server) handleWorkboardComment(conn net.Conn, req Request) {
-	task, err := s.k.CommentWorkboardTask(workboardCorr(s, req), stringArg(req.Args, "id"), stringArg(req.Args, "author"), stringArg(req.Args, "body"))
-	workboardWriteResp(s, conn, req, task, err)
+	out, err := appworkboard.NewLifecycle(s.k, s.k.Workboard()).Comment(context.Background(), appworkboard.CommentInput{CorrelationID: workboardCorr(s, req), ID: stringArg(req.Args, "id"), Author: stringArg(req.Args, "author"), Body: stringArg(req.Args, "body")})
+	writeWorkboardAppResult(s, conn, req, out, err)
 }
-
 func (s *Server) handleWorkboardBlock(conn net.Conn, req Request) {
-	task, err := s.k.BlockWorkboardTask(workboardCorr(s, req), stringArg(req.Args, "id"), stringArg(req.Args, "actor"), stringArg(req.Args, "reason"))
-	workboardWriteResp(s, conn, req, task, err)
+	out, err := appworkboard.NewLifecycle(s.k, s.k.Workboard()).Block(context.Background(), appworkboard.ReasonInput{CorrelationID: workboardCorr(s, req), ID: stringArg(req.Args, "id"), Actor: stringArg(req.Args, "actor"), Reason: stringArg(req.Args, "reason")})
+	writeWorkboardAppResult(s, conn, req, out, err)
 }
-
 func (s *Server) handleWorkboardFail(conn net.Conn, req Request) {
-	task, decision, err := s.k.FailWorkboardTask(workboardCorr(s, req), stringArg(req.Args, "id"), stringArg(req.Args, "actor"), stringArg(req.Args, "reason"))
-	if err != nil {
-		workboardWriteResp(s, conn, req, task, err)
-		return
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"task": workboardTaskView(task), "decision": retryDecisionView(decision)}})
+	out, err := appworkboard.NewLifecycle(s.k, s.k.Workboard()).Fail(context.Background(), appworkboard.ReasonInput{CorrelationID: workboardCorr(s, req), ID: stringArg(req.Args, "id"), Actor: stringArg(req.Args, "actor"), Reason: stringArg(req.Args, "reason")})
+	writeWorkboardAppResult(s, conn, req, out, err)
 }
-
 func (s *Server) handleWorkboardUnblock(conn net.Conn, req Request) {
-	task, err := s.k.UnblockWorkboardTask(workboardCorr(s, req), stringArg(req.Args, "id"), stringArg(req.Args, "actor"))
-	workboardWriteResp(s, conn, req, task, err)
+	out, err := appworkboard.NewLifecycle(s.k, s.k.Workboard()).Unblock(context.Background(), appworkboard.ReasonInput{CorrelationID: workboardCorr(s, req), ID: stringArg(req.Args, "id"), Actor: stringArg(req.Args, "actor")})
+	writeWorkboardAppResult(s, conn, req, out, err)
 }
-
 func (s *Server) handleWorkboardComplete(conn net.Conn, req Request) {
-	task, err := s.k.CompleteWorkboardTask(workboardCorr(s, req), stringArg(req.Args, "id"), stringArg(req.Args, "actor"))
-	workboardWriteResp(s, conn, req, task, err)
+	out, err := appworkboard.NewLifecycle(s.k, s.k.Workboard()).Complete(context.Background(), appworkboard.ReasonInput{CorrelationID: workboardCorr(s, req), ID: stringArg(req.Args, "id"), Actor: stringArg(req.Args, "actor")})
+	writeWorkboardAppResult(s, conn, req, out, err)
 }
 
 func (s *Server) handleWorkboardProve(conn net.Conn, req Request) {
@@ -191,8 +129,8 @@ func (s *Server) handleWorkboardProve(conn net.Conn, req Request) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	task, err := s.k.ProveTask(ctx, workboardCorr(s, req), id, stringArg(req.Args, "answer"))
-	workboardWriteResp(s, conn, req, task, err)
+	out, err := appworkboard.NewLifecycle(s.k, s.k.Workboard()).Prove(ctx, appworkboard.ProveInput{CorrelationID: workboardCorr(s, req), ID: id, Answer: stringArg(req.Args, "answer")})
+	writeWorkboardAppResult(s, conn, req, out, err)
 }
 
 func (s *Server) handleWorkboardSeat(conn net.Conn, req Request) {
@@ -206,11 +144,11 @@ func (s *Server) handleWorkboardSeat(conn net.Conn, req Request) {
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown execution seat: " + seatID})
 		return
 	}
-	task, err := s.k.Workboard().SetSeat(id, seatID, time.Now())
-	workboardWriteResp(s, conn, req, task, err)
+	out, err := appworkboard.NewLifecycle(s.k, s.k.Workboard()).Seat(context.Background(), appworkboard.SeatInput{ID: id, Seat: seatID})
+	writeWorkboardAppResult(s, conn, req, out, err)
 }
 
 func (s *Server) handleWorkboardArchive(conn net.Conn, req Request) {
-	task, err := s.k.ArchiveWorkboardTask(workboardCorr(s, req), stringArg(req.Args, "id"), stringArg(req.Args, "actor"))
-	workboardWriteResp(s, conn, req, task, err)
+	out, err := appworkboard.NewLifecycle(s.k, s.k.Workboard()).Archive(context.Background(), appworkboard.ReasonInput{CorrelationID: workboardCorr(s, req), ID: stringArg(req.Args, "id"), Actor: stringArg(req.Args, "actor")})
+	writeWorkboardAppResult(s, conn, req, out, err)
 }

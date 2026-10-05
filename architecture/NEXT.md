@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board native migration and exit evidence are complete; continue §4.5 with workboard, then OKR/storage/artifacts in roadmap order. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board native migration and exit evidence are complete. Workboard read/projection, lifecycle, relations, watch and dispatch admission services are moved; continue §4.5 with background execution, then binding. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -1198,6 +1198,92 @@ shared-writer/fresh-reader ownership, mandatory audit and explicit inbound notif
 correlation as a retained bridge contract. Roster-owned constants/debt remain.
 **Next: workboard, then OKR/storage/artifacts in roadmap order 3.** Broader
 adapters, generated surfaces, runs.Start and W3-W5 remain open.
+
+**W2.10a workboard read/projection foundation:** list/lanes/show business now
+lives in app/workboard with context + typed input/output/error and the actual
+read-only store port. Task Record embeds the actual store model plus computed
+comment/link/attempt/failed counts, conditional criterion/proof fields and retry
+limits; pointer fields preserve present zero/false values. Native task projection
+wrapper forwards this view for remaining lifecycle/dispatch outputs. List retains
+all selected filters/order; lanes group trimmed assignees with actual per-status
+counts, case-insensitive lane sorting and unassigned-last label. Show retains
+missing-ID/task errors; empty list/lane arrays remain present. Native wrappers keep
+status/lenient string/limit/bool admission, registration/auth/audit/framing.
+Three old/current native handlers match count=20 and shared task projection JSON
+matches exactly (Go map int/float representations are compared at the wire).
+Source/service/store/native parity/CLI and package race count=20, eight independent
+mutations plus full Go/build/vet/scoped static and all gates pass: 228 packages,
+unchanged 141 imports/13 calls, structure 119. **Next: remaining workboard lifecycle/
+relations/dispatch/watch services, then typed binding/audit/exit and OKR.** Existing
+native policy and lifecycle/dispatch behavior remain; no early debt removal.
+
+**W2.10b workboard lifecycle-service foundation:** create plus claim/heartbeat/
+comment/block/fail/unblock/complete/prove/seat/archive now live in app/workboard.
+Lifecycle uses the actual narrow kernel facade plus seat setter; typed inputs/
+outputs preserve task projection, creation idempotence and retry-decision fields.
+Unused legacy retry projection helper is removed. Native wrappers retain lenient
+argument/status/seat admission, explicit/generated
+correlation, unknown-task envelope and 90-second prove timeout. Prove receives the
+original caller context; seat retains its store clock. Actual kernel transition/
+retry/idempotence/correlation fixtures and all eleven facade input/error paths pass.
+Eleven old/current native handlers x three inputs match count=20 with generated
+root/nested IDs and bounded lifecycle clocks normalized. Source/service/store/CLI
+and package race count=20, eight independent mutations plus full Go/build/vet/
+scoped static and all gates pass: unchanged 228 packages, 141 imports/13 calls,
+structure 119. **Next: relation/maintenance and dispatch/watch services, then
+workboard typed binding/audit/exit and OKR.** Kernel transition/journaling mechanisms,
+native policy and helper error classification retain their existing behavior.
+
+**W2.10c workboard relation/maintenance foundation:** link/policy/depend/reclaim/
+sweep now live in app/workboard.Relations with context + typed input/output/error
+over the actual kernel facade. Native wrappers retain explicit/generated correlation,
+lenient arguments, clear/max-attempt validation, depends_on/on alias, stale duration
+default, sweep actor default/1000 cap and original unknown-task error envelope.
+Typed outputs retain task projection, actual reclamation counts, echoed stale
+milliseconds and present-empty sweep arrays. Five facade input/cause paths and
+real kernel link/policy/dependency-cycle/reclaim/sweep fixtures pass count=20.
+Five original/current native handlers x three inputs match count=20 with generated
+root/nested IDs and bounded lifecycle clocks normalized. Source/service/store/CLI
+and package race count=20, eight mutations plus full Go/build/vet/scoped static and
+all gates pass: unchanged 228 packages, 141 imports/13 calls, structure 119.
+**Next: workboard dispatch/watch services, then typed binding/audit/exit and OKR.**
+Underlying kernel transition/journaling and native policy retain existing behavior.
+
+**W2.10d workboard watch-service foundation:** snapshot/run selection/event fold
+and dependency projection now live in app/workboard.Watch with context + typed
+input/output/error and actual store/journal reader ports. Native wrappers retain
+lenient ID/run/limit admission, 50 default/200 cap, registration/auth/read-only and
+single snapshot framing. Typed rows preserve seq/time/kind/subject/empty correlation,
+payload absent/null/empty-object distinctions, stable chronological newest-tail
+limits, subject-or-run filtering and nil empty events. Run selection retains
+explicit -> claim -> latest attempt/link timestamp and tie precedence. Dependency
+projection retains required ID/status and positive optional timestamps. Existing
+Range and dependency errors remain best-effort for this move; a behavior repair
+requires its own proof. Original/current native watch matches exactly count=20;
+source/service/store/CLI/package-race count=20 and eight independent mutations plus
+full Go/build/vet/scoped static/all gates pass: unchanged 228 packages, 141 imports/
+13 calls, structure 119. Old run/fold/dependency view helpers are removed.
+**Next: dispatch admission/background execution services, then workboard typed
+binding/audit/error repairs/exit and OKR.** Despite historical comments, watch is
+currently a unary snapshot; this move introduces no new stream.
+
+**W2.10e workboard dispatch-admission foundation:** admission, dependency/agent
+checks, correlation/claim/run link, requested publication and background launch
+now live in typed app/workboard.Dispatch over actual store/host ports and a
+selected roster projection/callback. The app layer has no runtime/roster import.
+Native lenient string admission, error envelope and fresh dispatch correlation
+remain. Agent/assignee and reason trimming, retired/paused/managed hints, exact
+claim -> link -> publish -> launch order, generated/explicit intent and mutation
+causes retain the old contract. Original/current denied native admissions and
+intent match exactly count=20 with authentic paused/retired roster states;
+accepted launch uses an owned callback fixture. Eight independent mutations,
+workboard service/store/CLI/focused native tests and workboard package-race
+count=20, complete controlplane race count=1 and full gates pass: unchanged
+228 packages/141 imports/13 calls, structure 119. The actual background runner
+and execution-profile bridge remain in controlplane for the next extraction.
+Unused task-projection/response shims are removed once their last caller moves.
+**Next: background execution service, then typed workboard binding/audit,
+measured read-error repairs/exit and OKR.**
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
