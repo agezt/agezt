@@ -97,17 +97,13 @@ func (s *Server) handleSkillPromote(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	status, err := s.k.Forge().Promote("", id)
+	out, err := appskill.NewLifecycle(s.k.Forge()).Promote(context.Background(), appskill.GetInput{ID: id})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	s.writeResp(conn, Response{
-		ID: req.ID, Type: RespResult,
-		Result: map[string]any{"id": id, "status": string(status)},
-	})
+	writeSkillReadResult(s, conn, req, out)
 }
-
 func (s *Server) handleSkillQuarantine(conn net.Conn, req Request) {
 	id, err := requiredArgString(req.Args, "id")
 	if err != nil {
@@ -119,16 +115,13 @@ func (s *Server) handleSkillQuarantine(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	if err := s.k.Forge().Quarantine("", id, reason); err != nil {
+	out, err := appskill.NewLifecycle(s.k.Forge()).Quarantine(context.Background(), appskill.ReasonInput{ID: id, Reason: reason})
+	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	s.writeResp(conn, Response{
-		ID: req.ID, Type: RespResult,
-		Result: map[string]any{"id": id, "status": string(skill.StatusQuarantined)},
-	})
+	writeSkillReadResult(s, conn, req, out)
 }
-
 func (s *Server) handleSkillArchive(conn net.Conn, req Request) {
 	id, err := requiredArgString(req.Args, "id")
 	if err != nil {
@@ -140,43 +133,33 @@ func (s *Server) handleSkillArchive(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	if err := s.k.Forge().Archive("", id, reason); err != nil {
+	out, err := appskill.NewLifecycle(s.k.Forge()).Archive(context.Background(), appskill.ReasonInput{ID: id, Reason: reason})
+	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	s.writeResp(conn, Response{
-		ID:   req.ID,
-		Type: RespResult,
-		Result: map[string]any{
-			"id": id, "status": string(skill.StatusArchived), "reason": reason,
-		},
-	})
+	writeSkillReadResult(s, conn, req, out)
 }
-
 func (s *Server) handleSkillRevert(conn net.Conn, req Request) {
 	id, err := requiredArgString(req.Args, "id")
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	restored, err := s.k.Forge().Revert("", id)
+	out, err := appskill.NewLifecycle(s.k.Forge()).Revert(context.Background(), appskill.GetInput{ID: id})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	s.writeResp(conn, Response{
-		ID: req.ID, Type: RespResult,
-		Result: map[string]any{"id": id, "restored": restored},
-	})
+	writeSkillReadResult(s, conn, req, out)
 }
-
 func (s *Server) handleSkillRestore(conn net.Conn, req Request) {
 	id, err := requiredArgString(req.Args, "id")
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	statusText, err := requiredArgString(req.Args, "status")
+	status, err := requiredArgString(req.Args, "status")
 	if err != nil {
 		s.fail(conn, req, err)
 		return
@@ -186,15 +169,12 @@ func (s *Server) handleSkillRestore(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	from, to, err := s.k.Forge().RestoreStatus("", id, skill.Status(statusText), reason)
+	out, err := appskill.NewLifecycle(s.k.Forge()).Restore(context.Background(), appskill.RestoreInput{ID: id, Status: skill.Status(status), Reason: reason})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	s.writeResp(conn, Response{
-		ID: req.ID, Type: RespResult,
-		Result: map[string]any{"id": id, "from": string(from), "status": string(to), "reason": reason},
-	})
+	writeSkillReadResult(s, conn, req, out)
 }
 
 // handleSkillShare promotes a private per-agent skill (M932) into the shared
