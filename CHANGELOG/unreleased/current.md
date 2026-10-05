@@ -1216,6 +1216,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Successful provider logout closes a pending OAuth callback listener.** Token
+  cleanup previously left the login/port available until expiry. Logout now drops
+  ownership and releases the callback port after vault cleanup succeeds; vault
+  failure retains the pending login and returns the existing error.
+
+
 - **OAuth callback cleanup releases a prepared port before serving begins.**
   Closing the HTTP server alone left the bound socket open during startup races.
   Cleanup now closes both owned resources, supports repeated close and preserves
