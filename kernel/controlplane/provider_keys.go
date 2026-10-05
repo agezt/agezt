@@ -8,13 +8,14 @@ package controlplane
 // Center's secret privacy rule.
 
 import (
+	"context"
 	"net"
 	"regexp"
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
+	appproviders "github.com/agezt/agezt/kernel/app/providers"
 	"github.com/agezt/agezt/kernel/catalog"
-	"github.com/agezt/agezt/kernel/creds"
 )
 
 // providerEnvPattern constrains a keyring target to a provider-style env var
@@ -60,38 +61,23 @@ func keyTargetError() Response {
 	return Response{Type: RespError, Error: "args.env must be a provider env var (UPPER_SNAKE, not AGEZT_*); args.provider, when set, must be a catalog provider id"}
 }
 
-func (s *Server) loadVault(conn net.Conn, req Request) (*creds.Store, bool) {
-	vault := creds.NewStore(s.baseDir)
-	if err := vault.Load(); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "load vault: " + err.Error()})
-		return nil, false
-	}
-	return vault, true
-}
-
-// handleProviderKeyList returns the keys stored for a provider env var — labels,
-// which is active, and a last-4 fingerprint. Never the values.
 func (s *Server) handleProviderKeyList(conn net.Conn, req Request) {
-	provider, env, target, ok := keyTarget(req)
+	provider, env, _, ok := keyTarget(req)
 	if !ok {
 		resp := keyTargetError()
 		resp.ID = req.ID
 		s.writeResp(conn, resp)
 		return
 	}
-	vault, ok := s.loadVault(conn, req)
-	if !ok {
+	out, err := appproviders.New(s.k, s.baseDir).KeyList(context.Background(), appproviders.KeyInput{Provider: provider, Env: env})
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
-		"provider": provider, "env": env, "keys": vault.KeyringList(target),
-	}})
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: out})
 }
-
-// handleProviderKeyAdd stores a new key under a label. If it becomes active (the
-// first key, or active=true), the provider is reloaded in place.
 func (s *Server) handleProviderKeyAdd(conn net.Conn, req Request) {
-	provider, env, target, ok := keyTarget(req)
+	provider, env, _, ok := keyTarget(req)
 	if !ok {
 		resp := keyTargetError()
 		resp.ID = req.ID
@@ -103,43 +89,25 @@ func (s *Server) handleProviderKeyAdd(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	label = strings.TrimSpace(label)
 	value, _, err := argString(req.Args, "value")
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	makeActive, _, err := argBool(req.Args, "active")
+	active, _, err := argBool(req.Args, "active")
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-
-	vault, ok := s.loadVault(conn, req)
-	if !ok {
-		return
-	}
-	activeChanged, err := vault.KeyringAdd(target, label, value, makeActive)
+	out, err := appproviders.New(s.k, s.baseDir).KeyAdd(context.Background(), appproviders.KeyInput{Provider: provider, Env: env, Label: label, Value: value, Active: active})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	if err := vault.Save(); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "save vault: " + err.Error()})
-		return
-	}
-	result := map[string]any{"provider": provider, "env": env, "label": label, "added": true, "active_changed": activeChanged}
-	if activeChanged {
-		if _, _, err := s.k.Reload(); err != nil {
-			result["reload_error"] = err.Error()
-		}
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: out})
 }
-
-// handleProviderKeyActivate switches the active key and reloads the provider.
 func (s *Server) handleProviderKeyActivate(conn net.Conn, req Request) {
-	provider, env, target, ok := keyTarget(req)
+	provider, env, _, ok := keyTarget(req)
 	if !ok {
 		resp := keyTargetError()
 		resp.ID = req.ID
@@ -151,31 +119,15 @@ func (s *Server) handleProviderKeyActivate(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	label = strings.TrimSpace(label)
-
-	vault, ok := s.loadVault(conn, req)
-	if !ok {
-		return
-	}
-	if err := vault.KeyringActivate(target, label); err != nil {
+	out, err := appproviders.New(s.k, s.baseDir).KeyActivate(context.Background(), appproviders.KeyInput{Provider: provider, Env: env, Label: label})
+	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	if err := vault.Save(); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "save vault: " + err.Error()})
-		return
-	}
-	result := map[string]any{"provider": provider, "env": env, "label": label, "active": true}
-	if _, _, err := s.k.Reload(); err != nil {
-		result["reload_error"] = err.Error()
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: out})
 }
-
-// handleProviderKeyRemove deletes a key. Removing the active key clears the bare
-// name (provider uncredentialed until another is activated) and reloads.
 func (s *Server) handleProviderKeyRemove(conn net.Conn, req Request) {
-	provider, env, target, ok := keyTarget(req)
+	provider, env, _, ok := keyTarget(req)
 	if !ok {
 		resp := keyTargetError()
 		resp.ID = req.ID
@@ -187,22 +139,10 @@ func (s *Server) handleProviderKeyRemove(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	label = strings.TrimSpace(label)
-
-	vault, ok := s.loadVault(conn, req)
-	if !ok {
+	out, err := appproviders.New(s.k, s.baseDir).KeyRemove(context.Background(), appproviders.KeyInput{Provider: provider, Env: env, Label: label})
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	removed, wasActive := vault.KeyringRemove(target, label)
-	if err := vault.Save(); err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "save vault: " + err.Error()})
-		return
-	}
-	result := map[string]any{"provider": provider, "env": env, "label": label, "removed": removed, "was_active": wasActive}
-	if wasActive {
-		if _, _, err := s.k.Reload(); err != nil {
-			result["reload_error"] = err.Error()
-		}
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: out})
 }
