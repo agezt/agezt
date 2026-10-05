@@ -799,6 +799,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: memory maintenance moves into the app service.** Prune, tidy,
+  audit and clean return typed reports while retaining age limits, dry-run
+  behavior, curated records and native count fields. Native tenant and argument
+  admission remain during the business move.
+
+
 - **Architecture: memory curation moves into the app service.** Add, revise,
   forget, promote and bulk forget retain operator provenance, source tags,
   same-content revisions, batch limits/counts and native field presence while
