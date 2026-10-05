@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste business move is complete; continue §4.5 with taste typed binding/exit evidence, then skill. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste typed native binding is complete; continue §4.5 with taste exit evidence, then skill. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -1005,6 +1005,21 @@ ratchet removes only paid CP->taste debt; generated kernel structure is 116.
 **Next: taste typed operation binding and old wrapper deletion, then exit evidence
 and skill.** This move changes no native policy/audit or runtime exemplar selection;
 complete taste migration remains open.
+
+**W2.7b taste typed native binding:** a closed-journal fixture confirmed legacy
+create/delete returned success and changed exemplars despite unavailable audit.
+Three typed app/taste operations now derive native metadata through the common
+host. Both mutations require audit before effects; list remains unaudited.
+Old wrappers/registrations are removed. Primary-only policy/store selection,
+StreamNone, no invented HTTP hints, lenient strings/default-200 limits (including
+fractional zero), mixed/CSV tags and unused fields retain native compatibility.
+Output schemas derive actual exemplar fields. Three original/current handlers
+match count=20 with fresh identity/bounded create-clock boundaries. Source/service/
+store/registry/tenant/audit and package race pass count=20; eight independent
+mutations fail. Actual closed-journal/tenant sockets and single-owned-audit-arc
+regressions pass. Full Go/build/vet/scoped static and all gates pass: unchanged
+225 packages, 141 imports/13 calls, structure 116. **Next: taste native exit
+ evidence, then skill.** Runtime exemplar selection and broader migration remain.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
