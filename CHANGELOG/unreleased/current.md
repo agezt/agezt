@@ -812,6 +812,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: skill lifecycle moves into the app service.** Promotion,
+  quarantine, archive, revert and status restoration return typed results while
+  retaining transition rules, lineage restoration, reasons and original errors.
+  Native admission and access rules remain unchanged.
+
+
 - **Architecture: skill reads move into the app service.** Listing and lookup
   now return typed skill projections while retaining lifecycle counts, metric
   fields, optional content/provenance and missing/empty wire results. Native
