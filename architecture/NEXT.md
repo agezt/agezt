@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider native RPC, callback lifetime/session persistence and probe caller-context repairs are complete. Continue §4.5 with provider exit evidence; broader adapter/domain migration remains open.
+> Catalog/provider native pilot and exit evidence are complete. Continue §4.5 in roadmap order with memory, world, taste and skill; broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -752,6 +752,18 @@ unchanged 222 packages and 143 import/13 call exceptions; no dead-code exception
 was added for the live legacy entry points. **Next: provider exit evidence.**
 Live provider/browser validation and broader generated transports/domains remain
 outside these controlled-fixture and native-host checks.
+
+**W2.4v catalog/provider native exit:** all 17 operations have typed input/output
+schemas and common AppOwned native binding. Aggregate registry evidence guards
+the complete set, read-only flags and primary/own-tenant routing; old business
+handlers are absent. Related source/native/registry/tenant/audit/lifetime/context
+suites pass count=20; full Go/build/vet/scoped static and architecture gates pass
+with unchanged 222 packages, 143 imports/13 calls and dead-code/dependency ratchets.
+No-I/O dispatch is 6.4–6.9 us/op (<50 us). [Exit evidence](24-w24-exit-evidence.md)
+maps operation ownership, lifetime repairs and validation boundaries. **Next:
+memory, world, taste and skill in roadmap order.** Broader adapters, generated
+surfaces, full runs.Start convergence and W3–W5 remain open; controlled fixtures
+do not certify live provider/browser behavior.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

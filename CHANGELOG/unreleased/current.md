@@ -799,6 +799,13 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: catalog/provider native migration is complete.** All 17 RPCs
+  share typed app operations, native adapter metadata and tenant/audit admission.
+  Aggregate registry regression and exit evidence retain callback ownership,
+  session persistence and caller cancellation contracts. Broader adapters and
+  remaining domain migration follow separately.
+
+
 - **Architecture: OAuth token fetch and persistence have separate entry points.**
   Candidate fetching leaves current manager/vault tokens unchanged. Existing
   ExchangeCode and callback flows still fetch then store with their original
