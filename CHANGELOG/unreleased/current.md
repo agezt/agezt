@@ -806,6 +806,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: world graph business moves into the app service.** Eight
+  graph operations now return typed results while retaining native identity,
+  alias/attribute replacement, relation direction, quiet resolve and field
+  presence. Native admission and audit remain until operation binding.
+
+
 - **Architecture: memory native migration is complete.** All 16 memory/profile
   commands share typed app operations and the native host. Aggregate registry
   regression and exit evidence retain audit/tenant, shared identity and caller
