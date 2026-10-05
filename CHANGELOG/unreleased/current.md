@@ -1350,6 +1350,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Board: unavailable audit now blocks send and acknowledgement effects.**
+  Both mutations require successful journal admission before shared-store writes;
+  failed send admission also prevents notifier calls. Five reads retain their
+  existing availability, and explicit inbound notification correlation is kept.
+
+
 - **Skill: lifecycle and ownership history retain operation provenance.** All
   eight mutation use cases carry the admitted operation identity into domain
   journal events. Shared and reassigned events now appear in skill history with
