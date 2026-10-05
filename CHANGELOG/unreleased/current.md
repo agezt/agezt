@@ -812,6 +812,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: workboard background execution moves into the app service.**
+  Execution seat selection, retry settlement and proof/review use typed host
+  ports while retaining agent context, fallback behavior and task ownership.
+
+
 - **Architecture: workboard dispatch admission moves into the app service.**
   Dependency and agent checks precede task claim, run linking, publication and
   background launch; native response and existing execution behavior remain.

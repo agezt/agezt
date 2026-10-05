@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board native migration and exit evidence are complete. Workboard read/projection, lifecycle, relations, watch and dispatch admission services are moved; continue §4.5 with background execution, then binding. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board native migration and exit evidence are complete. Workboard business services, including dispatch background execution, are moved; continue §4.5 with typed binding/audit, then measured read-error repairs and exit. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -1284,6 +1284,27 @@ and execution-profile bridge remain in controlplane for the next extraction.
 Unused task-projection/response shims are removed once their last caller moves.
 **Next: background execution service, then typed workboard binding/audit,
 measured read-error repairs/exit and OKR.**
+
+**W2.10f workboard background-execution foundation:** seat selection/context
+axes, degradation comments, run settlement, task retry reclaim/recursion and
+proof/review ownership checks now live in typed app/workboard.Execution. Actual
+store/seat/kernel ports, selected context bridge and execution/publication
+callbacks keep runtime/roster out of the app package. Native bridge still binds
+the complete agent profile, wake source/subject/reason, cost ceiling, model/tool
+setters, agent retry policy and warden execution-profile policy/backend checks.
+Seat-over-agent isolation and model/tool precedence, missing/unavailable-seat
+fallbacks, same-correlation task retry, current-claim ownership, proof-error review
+fallback, best-effort settlement and Unicode 240/300-byte summaries are retained.
+Original/current actual store/mock-provider execution matches count=20 across
+review, reader/missing/unavailable seat, failure, task retry, proof and fallback;
+only generated record IDs/timestamps are normalized, model/tool requests and
+remaining final task fields match. Eight independent execution mutations fail;
+workboard/service/store/CLI/focused native/workboard race count=20, complete
+controlplane race count=1 and full gates pass: unchanged 228 packages/141 imports/
+13 calls, structure 119. Native projection/context bridge remains intentionally;
+all-surface runs.Start convergence is still open.
+**Next: twenty-one typed workboard native bindings/mandatory mutation audit,
+separately proved watch read-error repair and native exit, then OKR.**
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
