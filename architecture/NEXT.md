@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste typed native binding is complete; continue §4.5 with taste exit evidence, then skill. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete; continue §4.5 with skill in roadmap order. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -1020,6 +1020,18 @@ mutations fail. Actual closed-journal/tenant sockets and single-owned-audit-arc
 regressions pass. Full Go/build/vet/scoped static and all gates pass: unchanged
 225 packages, 141 imports/13 calls, structure 116. **Next: taste native exit
  evidence, then skill.** Runtime exemplar selection and broader migration remain.
+
+**W2.7c taste native exit:** exact common-registry coverage guards all three
+operations, actual schemas/types, AppOwned binding and primary/read-only metadata.
+Independent family/delete removal mutations fail; related source/native/tenant/
+audit/exit suites pass count=20. Package race and final full Go/build/vet/scoped
+static plus all gates pass: unchanged 225 packages, 141 imports/13 calls and
+structure 116. Three benchmark measurements satisfy the <50 us dispatch budget.
+[Exit evidence](27-w27-exit-evidence.md) records lenient admission, typed exemplar
+fields, closed-journal repair, one owned audit arc, primary store isolation and
+fresh-identity/clock/live-provider boundaries. **Next: skill in roadmap order.**
+Taste native migration is complete; broader adapters, generated surfaces,
+knowledge/runtime dissolution, runs.Start and W3-W5 remain open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
