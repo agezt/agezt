@@ -42,7 +42,6 @@ func registerAllCommands() {
 	registerToolforgeCommands()
 	registerWorkboardCommands()
 	registerWorkflowCommands()
-	registerWorldCommands()
 }
 
 // registerJournalLogCommands registers Read-only journal projections and log/stat folds from small single-purpose files.
@@ -70,7 +69,6 @@ func registerJournalLogCommands() {
 		commandSpec{Cmd: CmdWardenStats, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleWardenStats(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdWebhookLog, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleWebhookLog(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdWebhookStats, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleWebhookStats(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdWorldLog, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleWorldLog(dc.Conn, dc.Req) }},
 	)
 }
 
