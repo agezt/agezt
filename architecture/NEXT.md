@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider and memory native migrations plus exit evidence are complete. World typed binding and operation/domain identity are complete; continue §4.5 with world exit evidence, then taste/skill. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Continue §4.5 with taste, then skill in roadmap order. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -978,6 +978,18 @@ and all gates pass: unchanged 224 packages, 142 imports/13 calls and structure 1
 **Next: world native exit evidence, then taste/skill in roadmap order.** This
 repair changes event joins without altering graph normalization, policy or model
 behavior; broader domain/adapter/module migration remains open.
+
+**W2.6e world native exit:** complete common-registry coverage guards all nine
+world operations, actual schemas/types and native metadata. Independent family/
+log removal mutations fail; restored source and related source/graph/log/typed/
+native/tenant/audit/identity suites pass count=20. Focused race and final full
+Go/build/vet/scoped static plus all gates pass: unchanged 224 packages, 142
+imports/13 calls and structure 115. No-I/O dispatch is 10.5–11.7 us/op (<50 us).
+[Exit evidence](26-w26-exit-evidence.md) records graph contracts, admission,
+closed-journal repair, tenant scope and ordered domain/audit identity with explicit
+clock/failure-code/live-provider boundaries. **Next: taste, then skill in roadmap
+order.** World native migration is complete; knowledge/runtime module dissolution,
+broader adapters, generated surfaces, runs.Start and W3–W5 remain open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
