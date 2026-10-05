@@ -4,6 +4,7 @@ package skill
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	curated "github.com/agezt/agezt/kernel/skill"
 )
 
@@ -48,36 +49,36 @@ type RestoreOutput struct {
 	Reason string         `json:"reason"`
 }
 
-// The move retains the native empty domain correlation. Operation identity is
-// joined when the native family binds the common typed host.
-func (s *Lifecycle) Promote(_ context.Context, in GetInput) (StatusOutput, error) {
-	status, err := s.forge.Promote("", in.ID)
+// Forward the trusted operation identity; context-free callers retain the
+// legacy empty domain correlation.
+func (s *Lifecycle) Promote(ctx context.Context, in GetInput) (StatusOutput, error) {
+	status, err := s.forge.Promote(opapi.CorrelationFromContext(ctx), in.ID)
 	if err != nil {
 		return StatusOutput{}, err
 	}
 	return StatusOutput{ID: in.ID, Status: status}, nil
 }
-func (s *Lifecycle) Quarantine(_ context.Context, in ReasonInput) (StatusOutput, error) {
-	if err := s.forge.Quarantine("", in.ID, in.Reason); err != nil {
+func (s *Lifecycle) Quarantine(ctx context.Context, in ReasonInput) (StatusOutput, error) {
+	if err := s.forge.Quarantine(opapi.CorrelationFromContext(ctx), in.ID, in.Reason); err != nil {
 		return StatusOutput{}, err
 	}
 	return StatusOutput{ID: in.ID, Status: curated.StatusQuarantined}, nil
 }
-func (s *Lifecycle) Archive(_ context.Context, in ReasonInput) (ArchiveOutput, error) {
-	if err := s.forge.Archive("", in.ID, in.Reason); err != nil {
+func (s *Lifecycle) Archive(ctx context.Context, in ReasonInput) (ArchiveOutput, error) {
+	if err := s.forge.Archive(opapi.CorrelationFromContext(ctx), in.ID, in.Reason); err != nil {
 		return ArchiveOutput{}, err
 	}
 	return ArchiveOutput{ID: in.ID, Status: curated.StatusArchived, Reason: in.Reason}, nil
 }
-func (s *Lifecycle) Revert(_ context.Context, in GetInput) (RevertOutput, error) {
-	restored, err := s.forge.Revert("", in.ID)
+func (s *Lifecycle) Revert(ctx context.Context, in GetInput) (RevertOutput, error) {
+	restored, err := s.forge.Revert(opapi.CorrelationFromContext(ctx), in.ID)
 	if err != nil {
 		return RevertOutput{}, err
 	}
 	return RevertOutput{ID: in.ID, Restored: restored}, nil
 }
-func (s *Lifecycle) Restore(_ context.Context, in RestoreInput) (RestoreOutput, error) {
-	from, to, err := s.forge.RestoreStatus("", in.ID, in.Status, in.Reason)
+func (s *Lifecycle) Restore(ctx context.Context, in RestoreInput) (RestoreOutput, error) {
+	from, to, err := s.forge.RestoreStatus(opapi.CorrelationFromContext(ctx), in.ID, in.Status, in.Reason)
 	if err != nil {
 		return RestoreOutput{}, err
 	}
