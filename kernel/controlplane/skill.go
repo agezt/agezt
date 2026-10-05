@@ -8,6 +8,8 @@ package controlplane
 //             god-file split. Public API unchanged.
 
 import (
+	"context"
+	appskill "github.com/agezt/agezt/kernel/app/skill"
 	"net"
 
 	"encoding/json"
@@ -16,42 +18,38 @@ import (
 )
 
 func (s *Server) handleSkillList(conn net.Conn, req Request) {
-	sks, err := s.k.Forge().List()
+	out, err := appskill.New(s.k.Forge()).List(context.Background(), appskill.ListInput{})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	out := make([]any, 0, len(sks))
-	active := 0
-	for _, sk := range sks {
-		out = append(out, skillView(sk))
-		if sk.Active() {
-			active++
-		}
-	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"skills": out, "count": len(out), "active_count": active},
-	})
+	writeSkillReadResult(s, conn, req, out)
 }
-
 func (s *Server) handleSkillGet(conn net.Conn, req Request) {
 	id, err := requiredArgString(req.Args, "id")
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	sk, found, err := s.k.Forge().Get(id)
+	out, err := appskill.New(s.k.Forge()).Get(context.Background(), appskill.GetInput{ID: id})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	result := map[string]any{"found": found}
-	if found {
-		result["skill"] = skillView(sk)
+	writeSkillReadResult(s, conn, req, out)
+}
+func writeSkillReadResult(s *Server, conn net.Conn, req Request, out any) {
+	raw, err := json.Marshal(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 
 // handleSkillHistory folds the journal for every lifecycle event that names
