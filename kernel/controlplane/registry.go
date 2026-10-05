@@ -101,7 +101,6 @@ func registerChannelCommands() {
 		commandSpec{Cmd: CmdChannelOAuthStart, Handler: func(dc *DispatchCtx) { dc.S.handleChannelOAuthStart(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdChannelOAuthCallback, Handler: func(dc *DispatchCtx) { dc.S.handleChannelOAuthCallback(dc.Ctx, dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdChannelOAuthStatus, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleChannelOAuthStatus(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdProviderProbe, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleProviderProbe(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdWhatsAppGatewayStatus, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleWhatsAppGatewayStatus(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdWhatsAppGatewayQR, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleWhatsAppGatewayQR(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdChannelList, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleChannelList(dc.Conn, dc.Req) }},

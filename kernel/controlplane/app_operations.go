@@ -71,13 +71,22 @@ var observationOperations = func() []app.Operation {
 	return operations
 }()
 
+var probeOperations = func() []app.Operation {
+	operations, err := appproviders.ProbeOperations(func(context.Context) *appproviders.Probe { return appproviders.NewProbe(nil) })
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, catalogOperations...)
 	operations = append(operations, providerOperations...)
 	operations = append(operations, oauthOperations...)
-	return append(operations, observationOperations...)
+	operations = append(operations, observationOperations...)
+	return append(operations, probeOperations...)
 }
 
 func registerAppSystemCommands() {
