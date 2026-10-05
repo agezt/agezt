@@ -7,6 +7,7 @@ package world
 import (
 	"context"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	graph "github.com/agezt/agezt/kernel/worldmodel"
 )
 
@@ -119,15 +120,15 @@ func entityView(e graph.Entity) Entity {
 		Aliases: e.Aliases, Attrs: e.Attrs, SourceEvent: e.SourceEvent, SupersededBy: e.SupersededBy, Tombstoned: e.Tombstoned}
 }
 
-func (s *Service) Add(_ context.Context, in AddInput) (AddOutput, error) {
-	e, created, err := s.graph.Upsert("", graph.UpsertSpec{Kind: graph.Kind(in.Kind), Name: in.Name, Aliases: in.Aliases, Attrs: in.Attrs})
+func (s *Service) Add(ctx context.Context, in AddInput) (AddOutput, error) {
+	e, created, err := s.graph.Upsert(opapi.CorrelationFromContext(ctx), graph.UpsertSpec{Kind: graph.Kind(in.Kind), Name: in.Name, Aliases: in.Aliases, Attrs: in.Attrs})
 	if err != nil {
 		return AddOutput{}, err
 	}
 	return AddOutput{ID: e.ID, Created: created, Kind: string(e.Kind), Name: e.Name}, nil
 }
-func (s *Service) Edit(_ context.Context, in EditInput) (EditOutput, error) {
-	e, ok, err := s.graph.EditEntity("", in.ID, in.Aliases, in.Attrs)
+func (s *Service) Edit(ctx context.Context, in EditInput) (EditOutput, error) {
+	e, ok, err := s.graph.EditEntity(opapi.CorrelationFromContext(ctx), in.ID, in.Aliases, in.Attrs)
 	if err != nil {
 		return EditOutput{}, err
 	}
@@ -140,8 +141,8 @@ func (s *Service) Edit(_ context.Context, in EditInput) (EditOutput, error) {
 	}
 	return out, nil
 }
-func (s *Service) Relate(_ context.Context, in RelateInput) (RelateOutput, error) {
-	r, err := s.graph.Relate("", in.From, graph.Verb(in.Verb), in.To)
+func (s *Service) Relate(ctx context.Context, in RelateInput) (RelateOutput, error) {
+	r, err := s.graph.Relate(opapi.CorrelationFromContext(ctx), in.From, graph.Verb(in.Verb), in.To)
 	if err != nil {
 		return RelateOutput{}, err
 	}
@@ -209,8 +210,8 @@ func (s *Service) Get(_ context.Context, in GetInput) (GetOutput, error) {
 	}
 	return out, nil
 }
-func (s *Service) Forget(_ context.Context, in GetInput) (ForgetOutput, error) {
-	ok, err := s.graph.Forget("", in.ID)
+func (s *Service) Forget(ctx context.Context, in GetInput) (ForgetOutput, error) {
+	ok, err := s.graph.Forget(opapi.CorrelationFromContext(ctx), in.ID)
 	if err != nil {
 		return ForgetOutput{}, err
 	}
