@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board native migration and exit evidence are complete. Workboard read/projection, lifecycle and relation/maintenance services are moved; continue §4.5 with dispatch/watch, then binding. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board native migration and exit evidence are complete. Workboard read/projection, lifecycle, relations and watch services are moved; continue §4.5 with dispatch admission/background execution, then binding. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -1248,6 +1248,24 @@ and package race count=20, eight mutations plus full Go/build/vet/scoped static 
 all gates pass: unchanged 228 packages, 141 imports/13 calls, structure 119.
 **Next: workboard dispatch/watch services, then typed binding/audit/exit and OKR.**
 Underlying kernel transition/journaling and native policy retain existing behavior.
+
+**W2.10d workboard watch-service foundation:** snapshot/run selection/event fold
+and dependency projection now live in app/workboard.Watch with context + typed
+input/output/error and actual store/journal reader ports. Native wrappers retain
+lenient ID/run/limit admission, 50 default/200 cap, registration/auth/read-only and
+single snapshot framing. Typed rows preserve seq/time/kind/subject/empty correlation,
+payload absent/null/empty-object distinctions, stable chronological newest-tail
+limits, subject-or-run filtering and nil empty events. Run selection retains
+explicit -> claim -> latest attempt/link timestamp and tie precedence. Dependency
+projection retains required ID/status and positive optional timestamps. Existing
+Range and dependency errors remain best-effort for this move; a behavior repair
+requires its own proof. Original/current native watch matches exactly count=20;
+source/service/store/CLI/package-race count=20 and eight independent mutations plus
+full Go/build/vet/scoped static/all gates pass: unchanged 228 packages, 141 imports/
+13 calls, structure 119. Old run/fold/dependency view helpers are removed.
+**Next: dispatch admission/background execution services, then workboard typed
+binding/audit/error repairs/exit and OKR.** Despite historical comments, watch is
+currently a unary snapshot; this move introduces no new stream.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

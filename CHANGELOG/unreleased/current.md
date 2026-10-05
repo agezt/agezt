@@ -812,6 +812,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: workboard watch snapshots move into the app service.** Run
+  selection, journal event fold and blocked-dependency views return typed rows
+  while retaining chronological tail, correlation filtering, payload presence
+  and the native single-snapshot/best-effort behavior.
+
+
 - **Architecture: workboard relations and maintenance move into the app service.**
   Links, retry policy, dependencies and stale-claim reclaim/sweep return typed
   results while retaining policy validation, cycle rules, duration/default/cap
