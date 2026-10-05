@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Provider OAuth RPC and tenant-routed observation binding are complete. Continue §4.5 with primary-only probe; callback HTTP/lifecycle adaptation remains later work.
+> Provider OAuth RPC, tenant-routed observations and guarded GET extraction are complete. Continue §4.5 with the primary-only probe service and typed binding; callback HTTP/lifecycle adaptation remains later work.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -579,6 +579,21 @@ static and architecture gates pass: unchanged 221 packages, 143 import/13 call
 exceptions. Log retains its existing HTTP hint; stats/rejections remain native
 operations without inventing HTTP routes. **Next: primary-only provider probe.**
 Callback HTTP/lifecycle refinement and the overall provider migration remain open.
+
+**W2.4j guarded GET move:** the unchanged bounded HTTP helper shared by provider
+probe and WhatsApp gateway status/QR now lives in platform/netout.GatewayGET.
+CP retains its forwarding helper and all native handlers/admission metadata.
+The moved body matches original source after its function rename. Fresh client,
+background ten-second timeout, local/LAN posture, redirect limit, header/status/
+content-type forwarding, body bounds and best-effort partial reads retain their
+existing behavior. Local fixture primitive and actual provider/WhatsApp socket
+contracts pass count=20 alongside original netout posture/redirect/client tests;
+eight independent mutations retain method, headers, bounds, response fields,
+loopback posture, parse identity and native forwarding. Full Go/build/vet/static
+and architecture gates pass: unchanged 221 packages and 143 import/13 call
+exceptions. **Next: primary-only probe service, then typed operation binding.**
+Caller-context/partial-read refinement, callback adaptation and full provider
+migration remain open; this mechanical move changes no HTTP posture or effects.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
