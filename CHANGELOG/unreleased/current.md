@@ -1216,6 +1216,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Stopped OAuth logins release their expiry workers.** Repeated login/stop cycles
+  previously retained five-minute sleepers. Each login now owns cancellable timer
+  cleanup; stop and callback close end the worker, while normal timeout behavior
+  remains and retired timers cannot change a replacement login's state.
+
+
 - **Successful provider logout closes a pending OAuth callback listener.** Token
   cleanup previously left the login/port available until expiry. Logout now drops
   ownership and releases the callback port after vault cleanup succeeds; vault

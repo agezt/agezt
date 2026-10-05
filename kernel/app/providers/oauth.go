@@ -25,12 +25,15 @@ const providerLoginTTL = 5 * time.Minute
 
 // providerLogin is the single in-flight provider OAuth login.
 type providerLogin struct {
-	provider string
-	state    string
-	verifier string
-	status   string // pending | done | error
-	errMsg   string
-	srv      *browsercallback.Listener
+	provider   string
+	state      string
+	verifier   string
+	status     string // pending | done | error
+	errMsg     string
+	srv        *browsercallback.Listener
+	expiryStop chan struct{}
+	expiryDone chan struct{}
+	expiryOnce sync.Once
 }
 
 type OAuth struct {
@@ -85,7 +88,7 @@ func (s *OAuth) Start(_ context.Context, in OAuthStartInput) (OAuthStartOutput, 
 
 	// Tear down any previous login, then bind the Codex client's fixed redirect.
 	s.stopProviderLogin()
-	login := &providerLogin{provider: provider, state: state, verifier: verifier, status: "pending"}
+	login := &providerLogin{provider: provider, state: state, verifier: verifier, status: "pending", expiryStop: make(chan struct{}), expiryDone: make(chan struct{})}
 	listener, err := browsercallback.Prepare(chatgptauth.CallbackAddr, s.providerCompletion(login), func() { s.deferredClose(login) })
 	if err != nil {
 		return OAuthStartOutput{}, fmt.Errorf("cannot bind %s for the sign-in redirect (is it in use?): %w", chatgptauth.CallbackAddr, err)
@@ -97,17 +100,8 @@ func (s *OAuth) Start(_ context.Context, in OAuthStartInput) (OAuthStartOutput, 
 	s.provLoginMu.Unlock()
 
 	go func() { _ = login.srv.Serve() }()
-	// Auto-expire so a never-completed login doesn't hold the port forever.
-	go func() {
-		time.Sleep(providerLoginTTL)
-		s.provLoginMu.Lock()
-		if login.status == "pending" {
-			login.status = "error"
-			login.errMsg = "sign-in timed out"
-		}
-		s.provLoginMu.Unlock()
-		_ = login.srv.Close()
-	}()
+	// Auto-expire only while this login owns its listener.
+	go s.expireProviderLogin(login, providerLoginTTL)
 
 	return OAuthStartOutput{AuthorizeURL: chatgptauth.AuthorizeURL(challenge, state), State: state}, nil
 }
@@ -124,9 +118,7 @@ func (s *OAuth) providerCompletion(login *providerLogin) browsercallback.Complet
 
 func (s *OAuth) deferredClose(login *providerLogin) {
 	time.Sleep(800 * time.Millisecond)
-	if login.srv != nil {
-		_ = login.srv.Close()
-	}
+	s.closeProviderLogin(login)
 }
 
 func (s *OAuth) setProviderLoginStatus(login *providerLogin, status, msg string) {
@@ -141,9 +133,7 @@ func (s *OAuth) stopProviderLogin() {
 	l := s.provLogin
 	s.provLogin = nil
 	s.provLoginMu.Unlock()
-	if l != nil && l.srv != nil {
-		_ = l.srv.Close()
-	}
+	s.closeProviderLogin(l)
 }
 
 // syncChatGPTModels refreshes the catalog entry from the backend and returns the

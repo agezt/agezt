@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider native RPC and callback adapter extraction are complete; prepared Close and successful logout ownership are repaired. Continue §4.5 with expiry/session ownership and caller-context refinement; broader adapter/domain migration remains open.
+> Catalog/provider native RPC and callback adapter extraction are complete; prepared Close, logout and expiry-worker ownership are repaired. Continue §4.5 with in-flight token/session fencing and caller-context refinement; broader adapter/domain migration remains open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -694,6 +694,19 @@ and architecture gates pass: unchanged 222 packages and 143 import/13 call
 exceptions. **Next: expiry/session ownership and caller-context refinement.**
 This fix does not claim cancellation of the five-minute expiry worker or fencing
 of a token exchange already in progress; those remain explicit lifecycle work.
+
+**W2.4r expiry worker ownership repair:** an isolated actual Start/Stop goroutine
+proof reproduced a retired login retaining its five-minute sleep worker. Login
+now owns stop/done channels and idempotent cancellation; stop and delayed callback
+close release the timer worker. Normal TTL keeps the existing timeout state;
+expiry checks current login identity and cancellation before changing state.
+Permanent Start/Stop wiring, stop/callback-close, normal TTL and retired timer
+regressions plus source/native and callback race tests pass count=20. Four
+independent mutations retain cancellation, current identity, timeout state and
+Start wiring. Full Go/build/vet/static and architecture gates pass: unchanged
+222 packages and 143 import/13 call exceptions. **Next: in-flight token/session
+fencing, then caller-context refinement.** This repair does not claim ownership
+of a token exchange already running or cancellation of its persistence effects.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
