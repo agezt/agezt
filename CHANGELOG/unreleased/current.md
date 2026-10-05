@@ -4,6 +4,14 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Provider catalog/key changes now require audit before mutation.** Connect,
+  reload, key add, activation and removal run through the shared typed dispatcher.
+  Unavailable preflight audit prevents catalog/vault writes and reload; invalid
+  known input types fail before effects. Key listing remains read-only and exposes
+  only labels, active flags and last-four fingerprints; key values remain outside
+  responses and operation audit.
+
+
 - **Catalog refresh now requires operation audit before fetching or writing.**
   Sync and local discovery run through the shared typed operation dispatcher;
   unavailable preflight audit prevents fetch, persistence and provider reload.

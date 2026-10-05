@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog is migrated. Provider catalog/keyring service move is complete; continue §4.5 with provider operation binding and remaining OAuth/log/probe paths.
+> Catalog and provider catalog/keyring ops are migrated. Continue §4.5 with provider OAuth lifecycle, then tenant-routed log/stats/rejections/probe.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -483,6 +483,21 @@ contracts. Full Go/build/vet/static and architecture gates pass (220 packages;
 unchanged 145 imports/13 calls). **Next: provider catalog/keyring operation binding,
 then OAuth lifecycle and tenant-routed log/stats/rejections/probe.** This partial
 provider foundation does not close the complete provider domain or rewrite policy.
+
+**W2.4d provider catalog/keyring binding:** six typed specs/results join the common
+app registry and per-server dispatcher. Per-operation inputs validate only fields
+used by that operation, retaining ignored legacy args. Old CP catalog/provider/
+keyring socket wrappers and their validation-helper copies are deleted. Five
+mutations now require app-owned audit before catalog/vault/reload effects; key
+listing stays read-only and returns only label/active/last4. Real socket lifecycle,
+rejected-input/unavailable-audit effects, scoped privacy and source/auth/tenant/
+registry/HTTP contracts pass count=20; six original handler JSON results retain
+parity count=20. Eight independent mutations guard inclusion, mutation/read-only
+metadata, ignored args, typed active/output fields, redaction and mandatory audit.
+Full Go/build/vet/static and architecture gates pass: 220 packages, import debt
+145 -> 144 (CP -> catalog removed and officially ratcheted), 13 call sites remain.
+**Next: provider OAuth lifecycle, then tenant-routed log/stats/rejections/probe.**
+The entire provider domain and overall architecture goal remain open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
