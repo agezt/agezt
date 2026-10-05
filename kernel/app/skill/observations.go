@@ -50,9 +50,9 @@ func isSkillKind(kind event.Kind) bool {
 }
 func (s *Observations) History(_ context.Context, in GetInput) (HistoryOutput, error) {
 	var events []HistoryEvent
-	// Retain the native best-effort fold for this move: malformed rows and Range
-	// errors are ignored; a separate behavior repair must have its own proof.
-	_ = s.journal.Range(func(e *event.Event) error {
+	// Malformed individual payloads retain best-effort filtering. A failed journal
+	// read must not turn an empty or partial fold into successful history.
+	if err := s.journal.Range(func(e *event.Event) error {
 		if !isSkillKind(e.Kind) {
 			return nil
 		}
@@ -65,7 +65,9 @@ func (s *Observations) History(_ context.Context, in GetInput) (HistoryOutput, e
 		}
 		events = append(events, HistoryEvent{Seq: e.Seq, ID: e.ID, Kind: e.Kind, CorrelationID: e.CorrelationID, TSUnixMS: e.TSUnixMS, Payload: payload})
 		return nil
-	})
+	}); err != nil {
+		return HistoryOutput{}, err
+	}
 	return HistoryOutput{ID: in.ID, Events: events, Count: len(events)}, nil
 }
 

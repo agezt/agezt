@@ -1338,6 +1338,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Skill history: journal read failures no longer look like successful history.**
+  A failed Range read now returns its original error instead of completing an
+  empty or partial history result. Valid history rows and filtering retain
+  their existing wire shape.
+
+
 - **Skill: unavailable audit now blocks lifecycle and curation mutations.**
   Promotion, quarantine, archive, revert, restore, share, reassignment and import
   require successful journal admission before state changes. Six read commands

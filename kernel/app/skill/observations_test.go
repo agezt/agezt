@@ -47,9 +47,9 @@ func (s *observationStore) Hygiene(cutoff int64) (curated.HygieneReport, error) 
 	s.cutoff = cutoff
 	return s.report, s.cause
 }
-func TestSkillHistoryPreservesChronologyFilteringAndBestEffort(t *testing.T) {
+func TestSkillHistoryPreservesChronologyFilteringAndMalformedRows(t *testing.T) {
 	rows := []event.Event{{Seq: 1, ID: "one", Kind: event.KindSkillCreated, TSUnixMS: 100, Payload: json.RawMessage(`{"id":"owned","name":"fixture"}`)}, {Seq: 2, ID: "two", Kind: event.KindSkillReverted, CorrelationID: "corr", TSUnixMS: 101, Payload: json.RawMessage(`{"id":"child","restored":"owned"}`)}, {Seq: 3, Kind: event.KindSkillPromoted, Payload: json.RawMessage(`{"id":"other"}`)}, {Seq: 4, Kind: event.KindSkillActivated, Payload: json.RawMessage(`{broken`)}, {Seq: 5, Kind: event.KindOpCompleted, Payload: json.RawMessage(`{"id":"owned"}`)}, {Seq: 6, Kind: event.KindSkillShared, Payload: json.RawMessage(`{"id":"owned"}`)}}
-	s := appskill.NewObservations(nil, observationReader{events: rows, cause: errors.New("legacy partial fold")})
+	s := appskill.NewObservations(nil, observationReader{events: rows})
 	out, err := s.History(context.Background(), appskill.GetInput{ID: "owned"})
 	if err != nil || out.ID != "owned" || out.Count != 2 || len(out.Events) != 2 || out.Events[0].Seq != 1 || out.Events[0].ID != "one" || out.Events[1].Seq != 2 || out.Events[1].CorrelationID != "corr" || out.Events[1].Payload["restored"] != "owned" {
 		t.Fatalf("history=%+v err=%v", out, err)
