@@ -13,7 +13,7 @@
 - **`kernel/app`** — Package app implements the transport-independent typed operation pipeline.
 - **`kernel/app/catalog`** — Package catalog owns transport-independent catalog sync, listing and discovery.
 - **`kernel/app/files`** — Package files applies console file mutations through the host's governed tool invocation port.
-- **`kernel/app/providers`** — Package providers owns transport-independent provider catalog and keyring operations.
+- **`kernel/app/providers`** — Package providers owns provider management and journal observation services.
 - **`kernel/app/system`** — Package system owns the transport-independent daemon status/version handlers.
 - **`kernel/app/tools`** — Package tools is the application entry for governed direct tool invocations.
 - **`kernel/approval`** — Package approval is the human-in-the-loop pause point.
