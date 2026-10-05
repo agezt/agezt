@@ -8,6 +8,8 @@ package controlplane
 //             unchanged.
 
 import (
+	"context"
+	appmemory "github.com/agezt/agezt/kernel/app/memory"
 	"net"
 )
 
@@ -62,50 +64,22 @@ func (s *Server) handleMemoryFindRelated(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	limit := 10
-	if l, _, lerr := argFloat64(req.Args, "limit"); lerr != nil {
-		s.fail(conn, req, lerr)
-		return
-	} else if l > 0 {
-		limit = int(l)
-	}
-	if limit > 100 {
-		limit = 100
-	}
-
-	seed, found, err := s.k.Memory().Get(id)
+	limit, _, err := argFloat64(req.Args, "limit")
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	if !found {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "seed record id not found"})
-		return
-	}
-
-	// Search with the seed's content as the query — uses hybrid (keyword +
-	// embedding) search so it works even when no embedder is configured.
-	hits, err := s.k.Memory().Search(seed.Content, limit+1) // +1 because seed itself may appear
+	out, err := appmemory.New(s.k.Memory()).FindRelated(context.Background(), appmemory.RelatedInput{ID: id, Limit: limit})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-
-	// Exclude the seed record from results.
-	out := make([]any, 0, limit)
-	for _, h := range hits {
-		if h.Record.ID != id {
-			out = append(out, map[string]any{"record": recordView(h.Record), "score": h.Score})
-		}
-		if len(out) >= limit {
-			break
-		}
+	body, err := jsonMap(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"results": out, "count": len(out)},
-	})
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 
 func (s *Server) handleMemoryAudit(conn net.Conn, req Request) {
