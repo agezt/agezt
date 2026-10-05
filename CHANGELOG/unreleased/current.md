@@ -1308,6 +1308,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Taste: unavailable audit now blocks exemplar mutations.** Creation and
+  deletion require successful journal admission before store effects. Listing
+  remains unaudited; native arguments and primary-only access retain behavior.
+
+
 - **Tests: Nostr signature-tamper fixtures always change the signature.** A
   zero-prefix signature previously made corruption a no-op and randomly failed
   the round-trip/dispatch checks. Both fixtures now flip a bit and retain a

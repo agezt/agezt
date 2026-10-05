@@ -168,9 +168,6 @@ func registerCognitionCommands() {
 		commandSpec{Cmd: CmdSeatList, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleSeatList(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdSeatCreate, Handler: func(dc *DispatchCtx) { dc.S.handleSeatCreate(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdSeatDelete, Handler: func(dc *DispatchCtx) { dc.S.handleSeatDelete(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdTasteList, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleTasteList(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdTasteCreate, Handler: func(dc *DispatchCtx) { dc.S.handleTasteCreate(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdTasteDelete, Handler: func(dc *DispatchCtx) { dc.S.handleTasteDelete(dc.Conn, dc.Req) }},
 	)
 }
 

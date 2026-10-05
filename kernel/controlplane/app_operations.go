@@ -14,6 +14,7 @@ import (
 	appmemory "github.com/agezt/agezt/kernel/app/memory"
 	appproviders "github.com/agezt/agezt/kernel/app/providers"
 	"github.com/agezt/agezt/kernel/app/system"
+	apptaste "github.com/agezt/agezt/kernel/app/taste"
 	appworld "github.com/agezt/agezt/kernel/app/world"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
@@ -114,8 +115,18 @@ var worldOperations = func() []app.Operation {
 	return operations
 }()
 
+var tasteOperations = func() []app.Operation {
+	operations, err := apptaste.Operations(func(ctx context.Context) *apptaste.Service {
+		return apptaste.New(ctx.Value(appHostKey{}).(appHost).kernel.Taste())
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(memoryOperations)+len(worldOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, catalogOperations...)
 	operations = append(operations, providerOperations...)
@@ -123,7 +134,8 @@ func registeredAppOperations() []app.Operation {
 	operations = append(operations, observationOperations...)
 	operations = append(operations, probeOperations...)
 	operations = append(operations, memoryOperations...)
-	return append(operations, worldOperations...)
+	operations = append(operations, worldOperations...)
+	return append(operations, tasteOperations...)
 }
 
 func registerAppSystemCommands() {
