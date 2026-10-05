@@ -1272,6 +1272,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Memory consolidate/profile rebuild honor caller context.** Caller
+  cancellation, deadlines and model context now reach the runtime port under the
+  existing five-minute ceiling. Already-canceled calls stop before service
+  effects; owned cleanup and operation identity remain.
+
+
 - **Memory effects share their operation audit correlation.** Store mutations
   previously emitted unjoined domain events, and distillation created a second
   identity. They now retain the admitted operation ID, so invocation, memory
