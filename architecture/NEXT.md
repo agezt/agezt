@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider native pilot and exit evidence are complete. Memory typed binding, shared identity and distillation caller-context repair are complete; continue §4.5 with memory exit evidence, then world/taste/skill. Broader adapters and remaining domains remain open.
+> Catalog/provider and memory native migrations plus exit evidence are complete. Continue §4.5 with world, then taste/skill in roadmap order. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -905,6 +905,18 @@ gates pass: unchanged 223 packages, 143 imports/13 calls and structure 114.
 **Next: memory native exit evidence, then world/taste/skill in roadmap order.**
 Controlled ports and isolated mock-provider sockets do not certify live model or
 provider behavior; broader adapters, generated surfaces and W3–W5 remain open.
+
+**W2.5j memory native exit:** complete common-registry coverage now guards all
+16 memory/profile operations, actual schemas/types and native metadata. Both
+independent family/operation removal mutations fail; restored coverage and
+related source/typed/native/tenant/audit/identity/context suites pass count=20.
+Full Go/build/vet/scoped static and all gates pass with unchanged 223 packages,
+143 imports/13 calls and structure 114. No-I/O dispatch is 5.7–7.2 us/op (<50 us).
+[Exit evidence](25-w25-exit-evidence.md) maps ownership, admission, closed-journal
+repair, tenant isolation, domain identity and caller lifetime with explicit
+parity/live-provider boundaries. **Next: world, then taste/skill in roadmap order.**
+Memory native migration is complete; knowledge/runtime module dissolution,
+broader adapters, generated surfaces, runs.Start and W3–W5 remain open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
