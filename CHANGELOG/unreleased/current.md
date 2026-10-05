@@ -799,6 +799,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: provider and WhatsApp checks share a platform HTTP helper.**
+  Existing guarded GET, timeout, headers, redirects and bounded response reads
+  retain their behavior; native handlers and primary-only access remain in place.
+
+
 - **Architecture: provider observations use typed tenant-routed operations.**
   Log, stats and capability rejections bind through the shared dispatcher with
   read-only metadata. Existing limits, cursor behavior, relative windows and
