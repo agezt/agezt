@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete; continue §4.5 with skill in roadmap order. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill business moves are complete; continue §4.5 with typed binding, measured history/domain identity repairs and exit evidence. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -1032,6 +1032,65 @@ fields, closed-journal repair, one owned audit arc, primary store isolation and
 fresh-identity/clock/live-provider boundaries. **Next: skill in roadmap order.**
 Taste native migration is complete; broader adapters, generated surfaces,
 knowledge/runtime dissolution, runs.Start and W3-W5 remain open.
+
+**W2.8a skill read-service foundation:** skill list/get business now lives in
+app/skill with context + typed input/output/error and a narrow actual Forge reader
+port. Typed records retain the native projection, required empty agent/description
+and six zero-valued metric fields, optional body/provenance/arrays, list order,
+active count, present-empty arrays and missing found-only shape. Native wrappers
+retain ID admission, registrations/auth/audit and response framing. Original/current
+native list/get handlers match exactly count=20 across empty/missing/invalid inputs
+and draft/shadow/active states. Source/service/store/registry/tenant/audit and package
+race suites pass count=20; eight independent mutations fail. Full Go/build/vet/
+scoped static and all gates pass: 226 packages, unchanged 141 imports/13 calls,
+structure 117. No new exception or early debt removal. **Next: remaining skill
+history/lifecycle/file services, then typed binding and exit evidence.** Runtime
+skill execution/retrieval and broader migration remain separate work.
+
+**W2.8b skill lifecycle-service foundation:** promote/quarantine/archive/revert/
+restore now live in app/skill.Lifecycle with context + typed input/output/error.
+Native wrappers retain required/optional string admission, registration/auth/audit
+and response framing. Actual Forge transitions, archive idempotence, parent
+restoration, restore target validation and cause propagation retain behavior.
+Wire outputs preserve present-empty archive/restore reason and restored-parent ID.
+Five original/current native handlers x three initial states x six argument sets
+match exactly count=20. Source/service/store/native and package race suites pass
+count=20; eight independent mutations fail. Final full Go/build/vet/scoped static
+and all gates pass: unchanged 226 packages, 141 imports/13 calls, structure 117.
+No new exception or early debt removal. **Next: skill ownership/import/history/
+file services, then typed binding/domain identity and exit evidence.** This move
+retains empty legacy domain correlation; common-host identity binding follows.
+
+**W2.8c skill curation-service foundation:** share/reassign/import now live in
+app/skill.Curation with context + typed input/output/error. A narrow actual Forge
+port and caller-selected roster lookup retain ownership admission before effects.
+Native wrappers keep required/optional/lenient string/array/resource admission,
+registration/auth/audit and framing. New imports stay draft/content-addressed;
+existing content retains its lifecycle and first owner. Portable bundle contents,
+resource manifests, empty target/present name and original causes retain behavior.
+Three original/current native handlers match exactly count=20 across admission,
+ownership, Unicode resources and dedupe shapes. Source/service/store/native and
+package race suites pass count=20; eight independent mutations fail. Final full
+Go/build/vet/scoped static plus all gates pass: unchanged 226 packages, 141 imports/
+13 calls, structure 117. No new exception or early debt removal. **Next: skill
+history/files/hygiene, then typed binding/domain identity and exit evidence.**
+Legacy domain correlation and native policy remain until common-host binding.
+
+**W2.8d skill observation-service foundation:** history/files/read_file/hygiene
+now live in app/skill.Observations with context + typed input/output/error. Native
+wrappers retain ID/path/lenient idle-days admission, registration/auth/audit and
+response framing; unused old history/projection helpers are removed. Typed history
+rows retain chronology, admitted lifecycle kinds, ID/restored matching and required
+empty correlation; nil events remain null. Files prefer nonnil successful disk
+listing and retain manifest fallback, directory and Unicode byte count. Hygiene
+retains 30-day default, cutoff, projection plus top-level usage and present-empty
+idle arrays. Four original/current native handlers match exactly count=20. Source/
+service/store/native and package race count=20, eight independent mutations and
+final full Go/build/vet/scoped static plus all gates pass: unchanged 226 packages,
+141 imports/13 calls and structure 117. This move explicitly retains best-effort
+history Range error swallowing and its existing kind set; any behavior repair
+requires its own proof. **Next: skill typed binding, measured history/domain
+identity repairs and exit evidence.** No new exception or early debt removal.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

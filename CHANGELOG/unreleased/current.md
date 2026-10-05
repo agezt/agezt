@@ -812,6 +812,30 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: skill observations move into the app service.** History,
+  bundle listing/reading and hygiene return typed results while preserving
+  lifecycle filtering, disk/manifest behavior, byte counts, usage projection
+  and native access rules. History retains its existing best-effort fold.
+
+
+- **Architecture: skill curation moves into the app service.** Sharing, agent
+  reassignment and portable import return typed results while retaining roster
+  admission, new-draft creation, existing-content ownership/status, bundle
+  contents and original errors. Native access rules remain unchanged.
+
+
+- **Architecture: skill lifecycle moves into the app service.** Promotion,
+  quarantine, archive, revert and status restoration return typed results while
+  retaining transition rules, lineage restoration, reasons and original errors.
+  Native admission and access rules remain unchanged.
+
+
+- **Architecture: skill reads move into the app service.** Listing and lookup
+  now return typed skill projections while retaining lifecycle counts, metric
+  fields, optional content/provenance and missing/empty wire results. Native
+  access rules remain unchanged; remaining skill services follow.
+
+
 - **Architecture: taste native migration is complete.** Three exemplar commands
   share typed app operations, primary-only host selection and mandatory mutation
   audit. Aggregate registry coverage and exit evidence retain native contracts;
