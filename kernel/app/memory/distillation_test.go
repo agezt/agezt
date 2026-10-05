@@ -12,6 +12,7 @@ import (
 	"time"
 
 	appmemory "github.com/agezt/agezt/kernel/app/memory"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	store "github.com/agezt/agezt/kernel/memory"
 )
 
@@ -23,6 +24,23 @@ type fakeDistiller struct {
 	cause       error
 	brain       store.BrainDistillReport
 	profile     store.ProfileReport
+}
+
+func TestDistillationRetainsAdmittedOperationIdentity(t *testing.T) {
+	fake := &fakeDistiller{}
+	service := appmemory.NewDistillation(fake)
+	ctx := opapi.WithCorrelation(context.Background(), "owned-operation")
+	brain, err := service.Consolidate(ctx, appmemory.DistillInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, err := service.RebuildProfile(ctx, appmemory.DistillInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if brain.CorrelationID != "owned-operation" || profile.CorrelationID != "owned-operation" || fake.next != 0 || !reflect.DeepEqual(fake.trace, []string{"brain:owned-operation", "profile:owned-operation"}) {
+		t.Fatalf("admitted identity replaced: brain=%s profile=%s generated=%d trace=%v", brain.CorrelationID, profile.CorrelationID, fake.next, fake.trace)
+	}
 }
 
 func (f *fakeDistiller) NewCorrelation() string {

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	store "github.com/agezt/agezt/kernel/memory"
 )
 
@@ -66,32 +67,32 @@ func rememberSpec(in RememberInput) store.RememberSpec {
 		Actor: "operator", Force: true}
 }
 
-func (s *Service) Remember(_ context.Context, in RememberInput) (RememberOutput, error) {
-	rec, created, err := s.manager.Remember("", rememberSpec(in))
+func (s *Service) Remember(ctx context.Context, in RememberInput) (RememberOutput, error) {
+	rec, created, err := s.manager.Remember(opapi.CorrelationFromContext(ctx), rememberSpec(in))
 	if err != nil {
 		return RememberOutput{}, err
 	}
 	return RememberOutput{ID: rec.ID, Created: created, Type: string(rec.Type), Subject: rec.Subject, Evidence: string(rec.Evidence)}, nil
 }
 
-func (s *Service) Supersede(_ context.Context, in SupersedeInput) (SupersedeOutput, error) {
-	rec, err := s.manager.Supersede("", in.OldID, rememberSpec(in.RememberInput))
+func (s *Service) Supersede(ctx context.Context, in SupersedeInput) (SupersedeOutput, error) {
+	rec, err := s.manager.Supersede(opapi.CorrelationFromContext(ctx), in.OldID, rememberSpec(in.RememberInput))
 	if err != nil {
 		return SupersedeOutput{}, err
 	}
 	return SupersedeOutput{NewID: rec.ID, OldID: in.OldID, Superseded: rec.ID != in.OldID, Type: string(rec.Type), Subject: rec.Subject}, nil
 }
 
-func (s *Service) Forget(_ context.Context, in GetInput) (ForgetOutput, error) {
-	ok, err := s.manager.Forget("", in.ID)
+func (s *Service) Forget(ctx context.Context, in GetInput) (ForgetOutput, error) {
+	ok, err := s.manager.Forget(opapi.CorrelationFromContext(ctx), in.ID)
 	if err != nil {
 		return ForgetOutput{}, err
 	}
 	return ForgetOutput{Forgotten: ok}, nil
 }
 
-func (s *Service) Promote(_ context.Context, in GetInput) (PromoteOutput, error) {
-	rec, found, err := s.manager.Promote("", in.ID)
+func (s *Service) Promote(ctx context.Context, in GetInput) (PromoteOutput, error) {
+	rec, found, err := s.manager.Promote(opapi.CorrelationFromContext(ctx), in.ID)
 	if err != nil {
 		return PromoteOutput{}, err
 	}
@@ -102,13 +103,13 @@ func (s *Service) Promote(_ context.Context, in GetInput) (PromoteOutput, error)
 	return out, nil
 }
 
-func (s *Service) BulkForget(_ context.Context, in BulkForgetInput) (BulkForgetOutput, error) {
+func (s *Service) BulkForget(ctx context.Context, in BulkForgetInput) (BulkForgetOutput, error) {
 	if len(in.IDs) > 500 {
 		return BulkForgetOutput{}, errors.New("args.ids exceeds 500 — use smaller batches")
 	}
 	var out BulkForgetOutput
 	for _, id := range in.IDs {
-		ok, err := s.manager.Forget("", id)
+		ok, err := s.manager.Forget(opapi.CorrelationFromContext(ctx), id)
 		if err != nil {
 			return BulkForgetOutput{}, err
 		}

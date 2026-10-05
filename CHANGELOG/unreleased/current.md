@@ -1272,6 +1272,13 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Memory effects share their operation audit correlation.** Store mutations
+  previously emitted unjoined domain events, and distillation created a second
+  identity. They now retain the admitted operation ID, so invocation, memory
+  effects and completion can be followed together. Context-free calls retain
+  their existing identity behavior.
+
+
 - **Provider probes honor caller cancellation and deadlines.** Typed probe requests
   previously continued under a background HTTP timeout; canceled response bodies
   could appear successful. Context now reaches the guarded transport and canceled
