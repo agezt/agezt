@@ -812,6 +812,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: workboard reads move into the app service.** Task lists,
+  assignee lanes and lookup return typed results with the existing computed
+  counts, proof/retry fields and lane order. Remaining native task outputs share
+  the same projection; admission and lifecycle behavior retain their contracts.
+
+
 - **Architecture: board native migration is complete.** Seven messaging commands
   share typed app use cases, selected shared-store ownership and mandatory
   mutation audit. Aggregate registry coverage and exit evidence retain native

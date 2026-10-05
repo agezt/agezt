@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board native migration and exit evidence are complete; continue §4.5 with workboard, then OKR/storage/artifacts in roadmap order. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board native migration and exit evidence are complete. Workboard list/lanes/show and task projection are moved; continue §4.5 with remaining workboard lifecycle/dispatch services, then binding. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -1198,6 +1198,24 @@ shared-writer/fresh-reader ownership, mandatory audit and explicit inbound notif
 correlation as a retained bridge contract. Roster-owned constants/debt remain.
 **Next: workboard, then OKR/storage/artifacts in roadmap order 3.** Broader
 adapters, generated surfaces, runs.Start and W3-W5 remain open.
+
+**W2.10a workboard read/projection foundation:** list/lanes/show business now
+lives in app/workboard with context + typed input/output/error and the actual
+read-only store port. Task Record embeds the actual store model plus computed
+comment/link/attempt/failed counts, conditional criterion/proof fields and retry
+limits; pointer fields preserve present zero/false values. Native task projection
+wrapper forwards this view for remaining lifecycle/dispatch outputs. List retains
+all selected filters/order; lanes group trimmed assignees with actual per-status
+counts, case-insensitive lane sorting and unassigned-last label. Show retains
+missing-ID/task errors; empty list/lane arrays remain present. Native wrappers keep
+status/lenient string/limit/bool admission, registration/auth/audit/framing.
+Three old/current native handlers match count=20 and shared task projection JSON
+matches exactly (Go map int/float representations are compared at the wire).
+Source/service/store/native parity/CLI and package race count=20, eight independent
+mutations plus full Go/build/vet/scoped static and all gates pass: 228 packages,
+unchanged 141 imports/13 calls, structure 119. **Next: remaining workboard lifecycle/
+relations/dispatch/watch services, then typed binding/audit/exit and OKR.** Existing
+native policy and lifecycle/dispatch behavior remain; no early debt removal.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
