@@ -34,17 +34,3 @@ func (s *Server) boardReader() (*board.Store, error) {
 func (s *Server) boardWriter() (*board.Store, bool) {
 	return s.boardStore, s.boardStore != nil
 }
-
-// boardLimitArg reads the clamped limit argument shared by the board handlers.
-func boardLimitArg(args map[string]any) int {
-	limit := boardReadDefaultLimit
-	if raw, ok := args["limit"]; ok {
-		if v, ok := raw.(float64); ok && v > 0 {
-			limit = int(v)
-		}
-	}
-	if limit > boardReadMaxLimit {
-		limit = boardReadMaxLimit
-	}
-	return limit
-}

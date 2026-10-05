@@ -16,7 +16,6 @@ func init() { registerAllCommands() }
 // registration order is readable in one place.
 func registerAllCommands() {
 	registerAppSystemCommands()
-	registerBoardCommands()
 	registerChannelCommands()
 	registerCognitionCommands()
 	registerConfigCenterCommands()

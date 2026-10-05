@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board business move is complete; continue §4.5 with board typed binding/audit, then workboard/OKR/storage/artifacts. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board typed native binding/audit is complete; continue §4.5 with board exit evidence, then workboard/OKR/storage/artifacts. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -1168,6 +1168,24 @@ final full Go/build/vet/scoped static plus all gates pass: 227 packages, unchang
 141 imports/13 calls, structure 118. Old message projection helper is removed;
 roster uses still own board limit constants/debt. **Next: board typed binding and
 measured audit/notifier behavior, then exit/workboard.** No native policy change.
+
+**W2.9b board typed native binding:** closed-journal fixtures proved send/ack
+changed the shared store and returned success; send also notified despite unavailable
+operation audit. Seven typed app specs now derive native metadata through the common
+host: two mutations require audit before factory/store/notifier effects, five reads
+remain unaudited. Host factories retain selected shared/fresh-reader and shared-only
+writer behavior plus unavailable-store causes. Lenient strings/limits, fractional
+zero as unbounded, strict bool/read strings, cursor/projection/routing and explicit
+inbound notifier/result correlation remain. Old native wrappers/registration and
+unused limit admission helper are removed; roster-owned constants/debt remain.
+Seven old/current native bindings match count=20 with fresh IDs/bounded send clocks
+and generic typed failure-code boundary; fields/domain errors remain checked.
+Actual closed-journal/fallback/shared-writer/notifier/tenant/schema/metadata/effect
+and source/store/package-race count=20, eight mutations plus final full Go/build/
+vet/scoped static and all gates pass: unchanged 227 packages, 141 imports/13 calls,
+structure 118. Four existing HTTP hints remain; inbox/get/replies stay native-only.
+**Next: board native exit evidence, then workboard in roadmap order.** Explicit
+inbound correlation is a retained bridge contract; no notifier policy rewrite.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
