@@ -43,7 +43,7 @@ type HistoryOutput struct {
 
 func isSkillKind(kind event.Kind) bool {
 	switch kind {
-	case event.KindSkillCreated, event.KindSkillPromoted, event.KindSkillQuarantined, event.KindSkillReverted, event.KindSkillRestored, event.KindSkillActivated:
+	case event.KindSkillCreated, event.KindSkillPromoted, event.KindSkillQuarantined, event.KindSkillReverted, event.KindSkillRestored, event.KindSkillActivated, event.KindSkillShared, event.KindSkillReassigned:
 		return true
 	}
 	return false

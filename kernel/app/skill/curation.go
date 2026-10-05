@@ -5,6 +5,7 @@ package skill
 import (
 	"context"
 	"fmt"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	curated "github.com/agezt/agezt/kernel/skill"
 )
 
@@ -53,8 +54,8 @@ type ImportOutput struct {
 	Resources []string       `json:"resources"`
 }
 
-func (s *Curation) Share(_ context.Context, in GetInput) (ShareOutput, error) {
-	sk, found, err := s.forge.Reassign("", in.ID, "")
+func (s *Curation) Share(ctx context.Context, in GetInput) (ShareOutput, error) {
+	sk, found, err := s.forge.Reassign(opapi.CorrelationFromContext(ctx), in.ID, "")
 	if err != nil {
 		return ShareOutput{}, err
 	}
@@ -64,11 +65,11 @@ func (s *Curation) Share(_ context.Context, in GetInput) (ShareOutput, error) {
 	}
 	return out, nil
 }
-func (s *Curation) Reassign(_ context.Context, in ReassignInput) (ReassignOutput, error) {
+func (s *Curation) Reassign(ctx context.Context, in ReassignInput) (ReassignOutput, error) {
 	if in.Agent != "" && (s.agentExists == nil || !s.agentExists(in.Agent)) {
 		return ReassignOutput{}, fmt.Errorf("no such agent: %s", in.Agent)
 	}
-	sk, found, err := s.forge.Reassign("", in.ID, in.Agent)
+	sk, found, err := s.forge.Reassign(opapi.CorrelationFromContext(ctx), in.ID, in.Agent)
 	if err != nil {
 		return ReassignOutput{}, err
 	}
@@ -78,8 +79,8 @@ func (s *Curation) Reassign(_ context.Context, in ReassignInput) (ReassignOutput
 	}
 	return out, nil
 }
-func (s *Curation) Import(_ context.Context, in ImportInput) (ImportOutput, error) {
-	sk, created, err := s.forge.Create("", curated.CreateSpec{Name: in.Name, Description: in.Description, Triggers: in.Triggers, Body: in.Body, ToolsRequired: in.ToolsRequired, Resources: in.Resources, Agent: in.Agent})
+func (s *Curation) Import(ctx context.Context, in ImportInput) (ImportOutput, error) {
+	sk, created, err := s.forge.Create(opapi.CorrelationFromContext(ctx), curated.CreateSpec{Name: in.Name, Description: in.Description, Triggers: in.Triggers, Body: in.Body, ToolsRequired: in.ToolsRequired, Resources: in.Resources, Agent: in.Agent})
 	if err != nil {
 		return ImportOutput{}, err
 	}

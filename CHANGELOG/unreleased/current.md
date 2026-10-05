@@ -1338,6 +1338,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Skill: lifecycle and ownership history retain operation provenance.** All
+  eight mutation use cases carry the admitted operation identity into domain
+  journal events. Shared and reassigned events now appear in skill history with
+  their original event IDs, correlation and chronological order.
+
+
 - **Skill history: journal read failures no longer look like successful history.**
   A failed Range read now returns its original error instead of completing an
   empty or partial history result. Valid history rows and filtering retain

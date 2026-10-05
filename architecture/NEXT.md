@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill typed binding and history read-error repair are complete; continue §4.5 with domain identity/history coverage and exit evidence. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill typed binding, history error/ownership coverage and domain identity repairs are complete; continue §4.5 with skill native exit evidence. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -1122,6 +1122,21 @@ and package race count=20 plus final full Go/build/vet/scoped static and all gat
 pass: unchanged 226 packages, 141 imports/13 calls and structure 117. **Next: skill
 domain operation identity and measured ownership-history coverage, then exit
 evidence.** Fixtures use owned TempDir journals; no owner journal is touched.
+
+**W2.8g skill operation/domain identity and ownership-history repair:** actual
+native fixtures proved eight mutations' domain events carried empty correlation
+beside admitted audit IDs, and real shared/reassigned events were absent from
+history. Lifecycle/curation methods now forward opapi caller identity; context-free
+calls retain empty correlation. History admits both ownership kinds without
+changing chronology, row projection, original Range failure or malformed-row
+filtering. Eight direct caller paths and eight actual native fixtures verify
+exactly one trusted ordered invocation/domain/completion arc; client-supplied
+correlation input cannot choose the identity. Native ownership-history fixtures
+retain event IDs/correlation/sequence and show both changes. Source/native/tenant/
+audit/CLI rollback/compare and package race count=20, ten independent mutations
+and final full Go/build/vet/scoped static plus all gates pass: unchanged 226
+packages, 141 imports/13 calls and structure 117. CLI already renders ownership
+kinds; the repaired fold exposes those rows. **Next: skill native exit evidence.**
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

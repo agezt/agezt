@@ -48,10 +48,10 @@ func (s *observationStore) Hygiene(cutoff int64) (curated.HygieneReport, error) 
 	return s.report, s.cause
 }
 func TestSkillHistoryPreservesChronologyFilteringAndMalformedRows(t *testing.T) {
-	rows := []event.Event{{Seq: 1, ID: "one", Kind: event.KindSkillCreated, TSUnixMS: 100, Payload: json.RawMessage(`{"id":"owned","name":"fixture"}`)}, {Seq: 2, ID: "two", Kind: event.KindSkillReverted, CorrelationID: "corr", TSUnixMS: 101, Payload: json.RawMessage(`{"id":"child","restored":"owned"}`)}, {Seq: 3, Kind: event.KindSkillPromoted, Payload: json.RawMessage(`{"id":"other"}`)}, {Seq: 4, Kind: event.KindSkillActivated, Payload: json.RawMessage(`{broken`)}, {Seq: 5, Kind: event.KindOpCompleted, Payload: json.RawMessage(`{"id":"owned"}`)}, {Seq: 6, Kind: event.KindSkillShared, Payload: json.RawMessage(`{"id":"owned"}`)}}
+	rows := []event.Event{{Seq: 1, ID: "one", Kind: event.KindSkillCreated, TSUnixMS: 100, Payload: json.RawMessage(`{"id":"owned","name":"fixture"}`)}, {Seq: 2, ID: "two", Kind: event.KindSkillReverted, CorrelationID: "corr", TSUnixMS: 101, Payload: json.RawMessage(`{"id":"child","restored":"owned"}`)}, {Seq: 3, Kind: event.KindSkillPromoted, Payload: json.RawMessage(`{"id":"other"}`)}, {Seq: 4, Kind: event.KindSkillActivated, Payload: json.RawMessage(`{broken`)}, {Seq: 5, Kind: event.KindOpCompleted, Payload: json.RawMessage(`{"id":"owned"}`)}, {Seq: 6, Kind: event.KindSkillShared, Payload: json.RawMessage(`{"id":"owned"}`)}, {Seq: 7, Kind: event.KindSkillReassigned, Payload: json.RawMessage(`{"id":"owned"}`)}}
 	s := appskill.NewObservations(nil, observationReader{events: rows})
 	out, err := s.History(context.Background(), appskill.GetInput{ID: "owned"})
-	if err != nil || out.ID != "owned" || out.Count != 2 || len(out.Events) != 2 || out.Events[0].Seq != 1 || out.Events[0].ID != "one" || out.Events[1].Seq != 2 || out.Events[1].CorrelationID != "corr" || out.Events[1].Payload["restored"] != "owned" {
+	if err != nil || out.ID != "owned" || out.Count != 4 || len(out.Events) != 4 || out.Events[0].Seq != 1 || out.Events[0].ID != "one" || out.Events[1].Seq != 2 || out.Events[1].CorrelationID != "corr" || out.Events[1].Payload["restored"] != "owned" || out.Events[2].Seq != 6 || out.Events[2].Kind != event.KindSkillShared || out.Events[3].Seq != 7 || out.Events[3].Kind != event.KindSkillReassigned {
 		t.Fatalf("history=%+v err=%v", out, err)
 	}
 	raw, err := json.Marshal(out.Events[0])
