@@ -7,20 +7,25 @@ package controlplane
 //             god-file split. Public API unchanged.
 
 import (
+	"context"
+	"encoding/json"
+	appboard "github.com/agezt/agezt/kernel/app/board"
 	"net"
-	"sort"
-	"strconv"
-	"strings"
-	"time"
-
-	"github.com/agezt/agezt/kernel/board"
 )
 
-// handleBoardRead serves CmdBoardRead: a read-only view of the shared inter-agent
-// message board so the Web UI can show agents talking to each other. The board
-// is the `board` tool's store (kernel/board) under <baseDir>/board; we Open it
-// fresh per request — writes are atomic, so a fresh Open sees the latest
-// committed state without sharing the tool's in-process instance.
+func writeBoardResult(s *Server, conn net.Conn, req Request, out any) {
+	raw, err := json.Marshal(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	var result map[string]any
+	if err := json.Unmarshal(raw, &result); err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+}
 func (s *Server) handleBoardRead(conn net.Conn, req Request) {
 	st, err := s.boardReader()
 	if err != nil {
@@ -32,172 +37,55 @@ func (s *Server) handleBoardRead(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-
-	// Cursor pagination (M-pending follow-up): the SPA's Board / Inbox /
-	// ChannelSessions views poll this on every render; for a busy board the
-	// payload is large enough to make the panel slow. Cursor encodes the
-	// (TSMS, ID) of the LAST entry on the previous page; server skips
-	// entries strictly newer-or-equal. ID tie-breaks when TSMS collides.
-	var cursorTS int64
-	var cursorID string
-	cursorOK := false
-	if raw, _, cerr := argString(req.Args, "cursor"); cerr != nil {
-		s.fail(conn, req, cerr)
+	cursor, _, err := argString(req.Args, "cursor")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
-	} else if raw != "" {
-		tsStr, id, _ := strings.Cut(raw, ":")
-		if ts, perr := strconv.ParseInt(tsStr, 10, 64); perr == nil {
-			cursorTS, cursorID, cursorOK = ts, id, true
-		}
 	}
-	limit := boardLimitArg(req.Args)
-	// Always ask the store for the full set — Read() truncates internally,
-	// which would hide the rows the cursor filter is supposed to skip, and
-	// would prevent page 1 from emitting a next_cursor when the total is
-	// exactly one full page. The handler applies limit + cursor itself.
-	storeLimit := 0
-
-	// Addressed messaging (M788/M791): the views carry id/to/reply_to so the
-	// console threads DMs and replies.
-	msgs := st.Read(topic, storeLimit)
-	// st.Read() sorts by TSMS DESC with stable insertion order — two messages
-	// with identical TSMS keep their insertion order, so "newest" within a
-	// millisecond is not actually at position 0. Re-sort by (TSMS, ID) DESC
-	// here so the pagination cursor's tie-break (ID) is well-defined.
-	sort.SliceStable(msgs, func(i, j int) bool {
-		if msgs[i].TSMS != msgs[j].TSMS {
-			return msgs[i].TSMS > msgs[j].TSMS
-		}
-		return msgs[i].ID > msgs[j].ID
-	})
-	total := len(msgs)
-	if cursorOK {
-		filtered := msgs[:0]
-		for _, m := range msgs {
-			if m.TSMS > cursorTS {
-				continue
-			}
-			if m.TSMS == cursorTS && m.ID >= cursorID {
-				continue
-			}
-			filtered = append(filtered, m)
-		}
-		msgs = filtered
+	out, err := appboard.New(st, nil).Read(context.Background(), appboard.ReadInput{Topic: topic, Cursor: cursor, Limit: boardLimitArg(req.Args)})
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	var nextCursor string
-	if limit > 0 && len(msgs) > limit {
-		msgs = msgs[:limit]
-		last := msgs[limit-1]
-		nextCursor = strconv.FormatInt(last.TSMS, 10) + ":" + last.ID
-	}
-	views := make([]map[string]any, 0, len(msgs))
-	for _, m := range msgs {
-		views = append(views, boardMsgView(m))
-	}
-
-	result := map[string]any{"messages": views, "topics": st.Topics(), "count": len(views), "total": total}
-	if nextCursor != "" {
-		result["next_cursor"] = nextCursor
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+	writeBoardResult(s, conn, req, out)
 }
-
-// handleBoardHelp serves CmdBoardHelp: the still-open (unanswered) help requests
-// agents have raised (M849), newest first — the "who needs help" view for the
-// Web UI and an overseer agent. Read-only, fresh Open per request like the read.
 func (s *Server) handleBoardHelp(conn net.Conn, req Request) {
 	st, err := s.boardReader()
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	msgs := st.OpenHelp(boardLimitArg(req.Args))
-	views := make([]map[string]any, 0, len(msgs))
-	for _, m := range msgs {
-		views = append(views, boardMsgView(m))
+	out, err := appboard.New(st, nil).Help(context.Background(), appboard.LimitInput{Limit: boardLimitArg(req.Args)})
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"open_help": views, "count": len(views)},
-	})
+	writeBoardResult(s, conn, req, out)
 }
-
-// handleBoardSend serves CmdBoardSend (M937): a board write from outside a run
-// — an SDK app or script posting, DMing, broadcasting, replying, or raising
-// help. Mirrors the `board` tool's write semantics and fires the same
-// board.posted notifier, so external mail wakes standing orders identically.
-// correlation_id is optional; channel bridges and SDKs use it to keep mailbox
-// wake events tied to the inbound message/run that caused the post.
 func (s *Server) handleBoardSend(conn net.Conn, req Request) {
 	st, ok := s.boardWriter()
 	if !ok {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError,
-			Error: "the board is not available on this daemon"})
+		s.failMsg(conn, req, "the board is not available on this daemon")
 		return
 	}
 	text := stringArg(req.Args, "text")
 	if text == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "board_send requires text"})
+		s.failMsg(conn, req, "board_send requires text")
 		return
 	}
-	from := stringArg(req.Args, "from")
-	to := stringArg(req.Args, "to")
-	topic := stringArg(req.Args, "topic")
-	replyTo := stringArg(req.Args, "reply_to")
-	corr := stringArg(req.Args, "correlation_id")
+	from, to, topic, reply, corr := stringArg(req.Args, "from"), stringArg(req.Args, "to"), stringArg(req.Args, "topic"), stringArg(req.Args, "reply_to"), stringArg(req.Args, "correlation_id")
 	help, _, err := argBool(req.Args, "help")
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	now := time.Now().UnixMilli()
-
-	var m board.Message
-	switch {
-	case replyTo != "":
-		// A reply goes back to the asker on the original topic (the board tool's
-		// op=reply semantics), so op=replies on the original id finds it.
-		orig, found := st.Get(replyTo)
-		if !found {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "no message with id " + replyTo})
-			return
-		}
-		m, err = st.Send(board.Message{Topic: orig.Topic, From: from, To: orig.From, ReplyTo: orig.ID, Text: text}, now)
-	case help:
-		m, err = st.HelpRequest(from, to, text, now)
-	case to == board.Everyone:
-		m, err = st.Broadcast(from, text, now)
-	case to != "":
-		if topic == "" {
-			topic = "dm"
-		}
-		m, err = st.Send(board.Message{Topic: topic, From: from, To: to, Text: text}, now)
-	default:
-		if topic == "" {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError,
-				Error: "board_send requires a topic (for a post) or a to (for a DM / \"*\" broadcast)"})
-			return
-		}
-		m, err = st.Post(topic, from, text, now)
-	}
+	out, err := appboard.New(st, s.boardNotify).Send(context.Background(), appboard.SendInput{Text: text, From: from, To: to, Topic: topic, ReplyTo: reply, CorrelationID: corr, Help: help})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	if s.boardNotify != nil {
-		s.boardNotify(m, corr)
-	}
-	res := map[string]any{"sent": boardMsgView(m)}
-	if corr != "" {
-		res["correlation_id"] = corr
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: res})
+	writeBoardResult(s, conn, req, out)
 }
-
-// handleBoardInbox serves CmdBoardInbox (M937): what is waiting for a named
-// agent/app — addressed messages plus broadcasts it didn't send, unanswered
-// and unacked first. Read-only.
 func (s *Server) handleBoardInbox(conn net.Conn, req Request) {
 	st, err := s.boardReader()
 	if err != nil {
@@ -206,7 +94,7 @@ func (s *Server) handleBoardInbox(conn net.Conn, req Request) {
 	}
 	to := stringArg(req.Args, "to")
 	if to == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "board_inbox requires to (whose inbox)"})
+		s.failMsg(conn, req, "board_inbox requires to (whose inbox)")
 		return
 	}
 	all, _, err := argBool(req.Args, "all")
@@ -214,92 +102,51 @@ func (s *Server) handleBoardInbox(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	msgs := st.Inbox(to, boardLimitArg(req.Args), all)
-	views := make([]map[string]any, 0, len(msgs))
-	for _, m := range msgs {
-		views = append(views, boardMsgView(m))
-	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"to": to, "waiting": views, "count": len(views)},
-	})
-}
-
-// handleBoardAck serves CmdBoardAck (M937): mark a message read for one reader
-// so it leaves that reader's unanswered inbox without a reply. A write — it
-// requires the shared store like board_send.
-func (s *Server) handleBoardAck(conn net.Conn, req Request) {
-	st, ok := s.boardWriter()
-	if !ok {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError,
-			Error: "the board is not available on this daemon"})
-		return
-	}
-	id := stringArg(req.Args, "id")
-	by := stringArg(req.Args, "by")
-	if id == "" || by == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "board_ack requires id and by"})
-		return
-	}
-	_, found, err := st.Ack(id, by)
+	out, err := appboard.New(st, nil).Inbox(context.Background(), appboard.InboxInput{To: to, All: all, Limit: boardLimitArg(req.Args)})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	if !found {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "no message with id " + id})
+	writeBoardResult(s, conn, req, out)
+}
+func (s *Server) handleBoardAck(conn net.Conn, req Request) {
+	st, ok := s.boardWriter()
+	if !ok {
+		s.failMsg(conn, req, "the board is not available on this daemon")
 		return
 	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult,
-		Result: map[string]any{"acked": true, "id": id, "by": by}})
+	out, err := appboard.New(st, nil).Ack(context.Background(), appboard.AckInput{ID: stringArg(req.Args, "id"), By: stringArg(req.Args, "by")})
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	writeBoardResult(s, conn, req, out)
 }
-
-// handleBoardGet serves CmdBoardGet (M938): one message by id — how a watcher
-// that learned an id from a board.posted event (which carries no text) fetches
-// the body. Read-only.
 func (s *Server) handleBoardGet(conn net.Conn, req Request) {
 	st, err := s.boardReader()
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	id := stringArg(req.Args, "id")
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "board_get requires id"})
+	out, err := appboard.New(st, nil).Get(context.Background(), appboard.GetInput{ID: stringArg(req.Args, "id")})
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	m, found := st.Get(id)
-	if !found {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "no message with id " + id})
-		return
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"message": boardMsgView(m)}})
+	writeBoardResult(s, conn, req, out)
 }
-
-// handleBoardReplies serves CmdBoardReplies (M937): the answers to a message,
-// oldest first — what the asker reads back. Read-only.
 func (s *Server) handleBoardReplies(conn net.Conn, req Request) {
 	st, err := s.boardReader()
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	id := stringArg(req.Args, "id")
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "board_replies requires id"})
+	out, err := appboard.New(st, nil).Replies(context.Background(), appboard.RepliesInput{ID: stringArg(req.Args, "id"), Limit: boardLimitArg(req.Args)})
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	msgs := st.Replies(id, boardLimitArg(req.Args))
-	views := make([]map[string]any, 0, len(msgs))
-	for _, m := range msgs {
-		views = append(views, boardMsgView(m))
-	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"id": id, "replies": views, "count": len(views)},
-	})
+	writeBoardResult(s, conn, req, out)
 }
 
 // registerBoardCommands registers this file's protocol commands into the dispatch registry (phase 2.3).

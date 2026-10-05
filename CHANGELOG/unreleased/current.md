@@ -812,6 +812,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: board messaging moves into the app service.** Reads, help,
+  inbox, replies, lookup, sending and acknowledgements return typed results
+  while preserving paging, routing, notification correlation and shared-store
+  ownership. Native admission and access rules retain their existing behavior.
+
+
 - **Architecture: skill native migration is complete.** Fourteen skill commands
   share typed app use cases, primary-only host selection, mandatory mutation
   audit and trusted domain identity. Aggregate registry coverage and exit

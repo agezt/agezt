@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete; continue §4.5 with board, then workboard/OKR/storage/artifacts in roadmap order. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board business move is complete; continue §4.5 with board typed binding/audit, then workboard/OKR/storage/artifacts. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -1149,6 +1149,25 @@ ownership/import/bundles, mandatory audit, read errors, tenant isolation and
 trusted domain identity. CP->skill debt stays with roster teardown sources.
 **Next: board, then workboard/OKR/storage/artifacts in roadmap order 3.** Broader
 adapters, generated surfaces, runs.Start and W3-W5 remain open.
+
+**W2.9a board-service foundation:** all seven board business methods now live
+in app/board with context + typed input/output/error and the actual store port.
+Native wrappers retain store selection/admission/registration/auth/audit/framing:
+reads select the shared store or fresh fallback; writes require the shared instance.
+Typed message projection retains required topic/text/ts_unix_ms, optional IDs/
+addressing/help and owned acknowledgement slices. Read retains full-store cursor
+filtering, descending timestamp/ID ties, pre-filter total, topic counts, optional
+cursor and admitted zero as unbounded. Send retains reply/help/broadcast/DM/post
+precedence, original reply topic/recipient, source failures and one success-only
+notifier with the explicit inbound correlation; ack/inbox/replies/help retain
+existing case/idempotence/order behavior. Seven old/current native handlers match
+count=20 across argument/pagination/routing/unavailable-writer/fresh-reader inputs;
+fresh sent IDs/bounded send clocks are documented comparison boundaries. Source/
+service/store/native and package race count=20, ten independent mutations and
+final full Go/build/vet/scoped static plus all gates pass: 227 packages, unchanged
+141 imports/13 calls, structure 118. Old message projection helper is removed;
+roster uses still own board limit constants/debt. **Next: board typed binding and
+measured audit/notifier behavior, then exit/workboard.** No native policy change.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
