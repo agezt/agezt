@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider native RPC binding is complete through primary-only probe. Continue §4.5 with the OAuth callback business/HTTP boundary; context/lifecycle refinement and broader adapter/domain migration remain open.
+> Catalog/provider native RPC binding and OAuth callback business extraction are complete. Continue §4.5 with callback HTTP presentation/adapter extraction, then context/lifecycle refinement; broader adapter/domain migration remains open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -625,6 +625,21 @@ Full Go/build/vet/static and architecture gates pass: unchanged 221 packages and
 from browser HTTP adaptation.** Existing callback lifetime and probe background
 transport context remain for subsequent refinement; the provider/architecture
 goal is not closed by native RPC binding alone.
+
+**W2.4m OAuth callback business extraction:** callback admission and effects now
+live in the socket-free completeProviderLogin helper. The HTTP wrapper supplies
+query fields, request context and the actual exchange port, renders the returned
+result, and honors its delayed-close signal. Denial/invalid state, code/verifier,
+parent context, thirty-second budget/release, failed/canceled exchange, terminal
+state before reload, existing ignored reload errors and model hook order retain
+source behavior. Socket-free and original OAuth/native contracts pass count=20;
+old/new status/headers/HTML/login-state parity spans five denial/invalid requests
+count=20. Nine independent mutations retain admission, exchange identity/context/
+budget, terminal state, models, close signal and HTTP framing. Full Go/build/vet/
+static and architecture gates pass: unchanged 221 packages and 143 import/13 call
+exceptions. **Next: extract callback HTTP query/presentation adaptation.** Existing
+fixed-port startup, five-minute expiry, delayed close and logout behavior remain
+for separate lifecycle work; no live token exchange or paid provider was used.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

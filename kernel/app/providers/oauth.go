@@ -118,35 +118,13 @@ func (s *OAuth) Start(_ context.Context, in OAuthStartInput) (OAuthStartOutput, 
 // providerCallback handles the browser redirect on 127.0.0.1:1455.
 func (s *OAuth) providerCallback(w http.ResponseWriter, r *http.Request, login *providerLogin) {
 	q := r.URL.Query()
-	if e := q.Get("error"); e != "" {
-		s.setProviderLoginStatus(login, "error", "authorization denied: "+e)
-		providerLoginPage(w, false, "Authorization was denied.")
+	result := s.completeProviderLogin(r.Context(), login, providerCallbackInput{Code: q.Get("code"), State: q.Get("state"), Error: q.Get("error")}, func(ctx context.Context, code, verifier string) error {
+		return s.chatgptMgr().ExchangeCode(ctx, code, verifier)
+	})
+	providerLoginPage(w, result.Success, result.Message)
+	if result.Close {
 		go s.deferredClose(login)
-		return
 	}
-	code, state := q.Get("code"), q.Get("state")
-	if code == "" || state != login.state {
-		providerLoginPage(w, false, "Invalid or expired sign-in. Start again from the console.")
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-	if err := s.chatgptMgr().ExchangeCode(ctx, code, login.verifier); err != nil {
-		s.setProviderLoginStatus(login, "error", err.Error())
-		providerLoginPage(w, false, err.Error())
-		go s.deferredClose(login)
-		return
-	}
-	s.setProviderLoginStatus(login, "done", "")
-	// Bring the provider live without a restart, then refresh the catalog from
-	// the backend — the served Codex model ids change over time, and a stale
-	// entry leaves the console offering models the backend no longer knows.
-	if s.k != nil {
-		_, _, _ = s.k.Reload()
-	}
-	s.syncChatGPTModels()
-	providerLoginPage(w, true, "")
-	go s.deferredClose(login)
 }
 
 func (s *OAuth) deferredClose(login *providerLogin) {
