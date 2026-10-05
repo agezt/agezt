@@ -8,6 +8,8 @@ package controlplane
 //             god-file split. Public API unchanged.
 
 import (
+	"context"
+	appmemory "github.com/agezt/agezt/kernel/app/memory"
 	"net"
 	"time"
 )
@@ -18,16 +20,18 @@ func (s *Server) handleMemoryForget(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	ok, err := s.k.Memory().Forget("", id)
+
+	out, err := appmemory.New(s.k.Memory()).Forget(context.Background(), appmemory.GetInput{ID: id})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"forgotten": ok},
-	})
+	body, err := jsonMap(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 
 // handleMemoryPromote (M915) shares a private record: its scope tag is cleared
@@ -39,16 +43,18 @@ func (s *Server) handleMemoryPromote(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	rec, found, err := s.k.Memory().Promote("", id)
+
+	out, err := appmemory.New(s.k.Memory()).Promote(context.Background(), appmemory.GetInput{ID: id})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	result := map[string]any{"promoted": found, "id": id}
-	if found {
-		result["subject"] = rec.Subject
+	body, err := jsonMap(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 
 // defaultPruneDays is the age threshold below which soft-deleted records are NOT

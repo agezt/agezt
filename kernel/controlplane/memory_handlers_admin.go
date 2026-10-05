@@ -33,24 +33,17 @@ func (s *Server) handleMemoryBulkForget(conn net.Conn, req Request) {
 		return
 	}
 
-	var forgotten, notFound int
-	for _, id := range strIDs {
-		ok, err := s.k.Memory().Forget("", id)
-		if err != nil {
-			s.fail(conn, req, err)
-			return
-		}
-		if ok {
-			forgotten++
-		} else {
-			notFound++
-		}
+	out, err := appmemory.New(s.k.Memory()).BulkForget(context.Background(), appmemory.BulkForgetInput{IDs: strIDs})
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"forgotten": forgotten, "not_found": notFound},
-	})
+	body, err := jsonMap(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 
 // handleMemoryFindRelated uses embedding-based similarity to find active records

@@ -18,57 +18,48 @@ import (
 
 	"context"
 	appmemory "github.com/agezt/agezt/kernel/app/memory"
-	"github.com/agezt/agezt/kernel/memory"
 )
 
-func memoryRememberSpecFromArgs(args map[string]any) (memory.RememberSpec, error) {
+func memoryRememberSpecFromArgs(args map[string]any) (appmemory.RememberInput, error) {
 	content, _, err := argString(args, "content")
 	if err != nil {
-		return memory.RememberSpec{}, err
+		return appmemory.RememberInput{}, err
 	}
 	if content == "" {
-		return memory.RememberSpec{}, errors.New("args.content required")
+		return appmemory.RememberInput{}, errors.New("args.content required")
 	}
 	subject, _, err := argString(args, "subject")
 	if err != nil {
-		return memory.RememberSpec{}, err
+		return appmemory.RememberInput{}, err
 	}
 	typ, _, err := argString(args, "type")
 	if err != nil {
-		return memory.RememberSpec{}, err
+		return appmemory.RememberInput{}, err
 	}
 	conf, _, err := argFloat64(args, "confidence")
 	if err != nil {
-		return memory.RememberSpec{}, err
+		return appmemory.RememberInput{}, err
 	}
 	evidence, _, err := argString(args, "evidence")
 	if err != nil {
-		return memory.RememberSpec{}, err
+		return appmemory.RememberInput{}, err
 	}
-	halfLifeMS := int64(0)
-	if raw, _, err := argFloat64(args, "half_life_ms"); err != nil {
-		return memory.RememberSpec{}, err
-	} else if raw > 0 {
-		halfLifeMS = int64(raw)
-	}
-	tags := map[string]string{"source": "operator"}
-	rawTags, _, err := argStringMap(args, "tags")
+	halfLifeMS, _, err := argFloat64(args, "half_life_ms")
 	if err != nil {
-		return memory.RememberSpec{}, err
+		return appmemory.RememberInput{}, err
 	}
-	for k, v := range rawTags {
-		tags[k] = v
+	tags, _, err := argStringMap(args, "tags")
+	if err != nil {
+		return appmemory.RememberInput{}, err
 	}
-	return memory.RememberSpec{
-		Type:       memory.Type(typ),
+	return appmemory.RememberInput{
+		Type:       typ,
 		Subject:    subject,
 		Content:    content,
 		Tags:       tags,
 		Confidence: conf,
-		Evidence:   memory.Evidence(evidence),
+		Evidence:   evidence,
 		HalfLifeMS: halfLifeMS,
-		Actor:      "operator", // a console/CLI write (M851)
-		Force:      true,
 	}, nil
 }
 
@@ -78,22 +69,17 @@ func (s *Server) handleMemoryAdd(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	rec, created, err := s.k.Memory().Remember("", spec)
+	out, err := appmemory.New(s.k.Memory()).Remember(context.Background(), spec)
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	s.writeResp(conn, Response{
-		ID:   req.ID,
-		Type: RespResult,
-		Result: map[string]any{
-			"id":       rec.ID,
-			"created":  created,
-			"type":     string(rec.Type),
-			"subject":  rec.Subject,
-			"evidence": string(rec.Evidence),
-		},
-	})
+	body, err := jsonMap(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 
 // handleMemorySupersede revises a record (M731): stores a new one and links the
@@ -116,22 +102,17 @@ func (s *Server) handleMemorySupersede(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	rec, err := s.k.Memory().Supersede("", oldID, spec)
+	out, err := appmemory.New(s.k.Memory()).Supersede(context.Background(), appmemory.SupersedeInput{RememberInput: spec, OldID: oldID})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	s.writeResp(conn, Response{
-		ID:   req.ID,
-		Type: RespResult,
-		Result: map[string]any{
-			"new_id":     rec.ID,
-			"old_id":     oldID,
-			"superseded": rec.ID != oldID,
-			"type":       string(rec.Type),
-			"subject":    rec.Subject,
-		},
-	})
+	body, err := jsonMap(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 
 func (s *Server) handleMemoryList(conn net.Conn, req Request) {
