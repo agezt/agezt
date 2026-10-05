@@ -799,6 +799,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: provider observations use typed tenant-routed operations.**
+  Log, stats and capability rejections bind through the shared dispatcher with
+  read-only metadata. Existing limits, cursor behavior, relative windows and
+  present-empty fields remain; invalid known argument types fail before reads.
+
+
 - **Architecture: provider observation folds move into an app service.** Provider
   log, stats and capability rejections retain their filtering, pagination,
   ordering and JSON results. Socket adapters retain tenant selection and legacy

@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Provider OAuth RPC binding and provider observation service extraction are complete. Continue §4.5 with tenant-routed observation operation binding, then primary-only probe; callback HTTP/lifecycle adaptation remains later work.
+> Provider OAuth RPC and tenant-routed observation binding are complete. Continue §4.5 with primary-only probe; callback HTTP/lifecycle adaptation remains later work.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -561,6 +561,24 @@ architecture gates pass: unchanged 221 packages, 143 import/13 call exceptions.
 **Next: typed observation specs/results and common tenant-routed binding; then
 primary-only probe.** Callback adaptation and the overall provider migration
 remain open.
+
+**W2.4i provider observation operation binding:** log/stats/rejections now have
+three typed specs/results in the common registry. The operation factory reads
+the routed app host's journal; OwnTenant/CallerTenant and read-only metadata
+replace the old socket wrappers/registrations. Typed numeric/boolean admission
+runs before service entry; unrelated legacy args remain accepted. Numeric limits
+retain truncation, absent/null default 20 and clamp 1..1000; permissive opaque
+cursors retain malformed/non-string first-page fallback. Relative window
+conversion lives at the app boundary, and present-empty optional row fields
+remain present through typed pointers. Native JSON parity across eight argument
+sets, empty-field/schema/cursor/window contracts and actual socket tenant data
+isolation pass count=20 with source registry/audit/HTTP contracts. Ten independent
+mutations retain registry, tenant admission/routing, read-only flags, ignored
+args, limits/window, field presence and rich row/map schemas. Full Go/build/vet/
+static and architecture gates pass: unchanged 221 packages, 143 import/13 call
+exceptions. Log retains its existing HTTP hint; stats/rejections remain native
+operations without inventing HTTP routes. **Next: primary-only provider probe.**
+Callback HTTP/lifecycle refinement and the overall provider migration remain open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
