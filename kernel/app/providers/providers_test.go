@@ -39,7 +39,7 @@ func TestProviderConnectPreservesCatalogAndUnknownModels(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result["exists"] != true || result["added"] != false || len(k.Catalog().Providers["known"].Models) != 2 {
+	if result.Exists != true || result.Added != false || len(k.Catalog().Providers["known"].Models) != 2 {
 		t.Fatalf("existing provider clobbered: %v", result)
 	}
 	if _, err := os.Stat(filepath.Join(k.CatalogStore().Dir, catalog.FileCustom)); !errors.Is(err, os.ErrNotExist) {
@@ -50,14 +50,14 @@ func TestProviderConnectPreservesCatalogAndUnknownModels(t *testing.T) {
 		t.Fatal(err)
 	}
 	created := k.Catalog().Providers["new"]
-	if result["exists"] != false || result["added"] != true || created == nil || len(created.Models) != 0 || created.Name != "new" || created.NPM != "@ai-sdk/openai-compatible" {
+	if result.Exists != false || result.Added != true || created == nil || len(created.Models) != 0 || created.Name != "new" || created.NPM != "@ai-sdk/openai-compatible" {
 		t.Fatalf("new provider/model/defaults=%v %+v", result, created)
 	}
 	reloaded, err := svc.Reload(context.Background(), providers.ReloadInput{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reloaded["providers_reloaded"] != true || reloaded["provider_count"] != 2 || reloads.Load() != 3 {
+	if reloaded.ProvidersReloaded != true || reloaded.ProviderCount != 2 || reloads.Load() != 3 {
 		t.Fatalf("reload result=%v count=%d", reloaded, reloads.Load())
 	}
 	if _, err := svc.Connect(context.Background(), providers.ConnectInput{ID: "invalid", API: "https://fixture.invalid", Env: brand.EnvPrefix + "CONFIG"}); err == nil {
@@ -82,7 +82,7 @@ func TestProviderKeyringLifecyclePrivacyAndScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if added["active_changed"] != true || reloads.Load() != 1 {
+	if added.ActiveChanged != true || reloads.Load() != 1 {
 		t.Fatalf("first key activation=%v %d", added, reloads.Load())
 	}
 	input.Label = "second"
@@ -91,7 +91,7 @@ func TestProviderKeyringLifecyclePrivacyAndScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if added["active_changed"] != false || reloads.Load() != 1 {
+	if added.ActiveChanged != false || reloads.Load() != 1 {
 		t.Fatalf("inactive add reloaded provider: %v %d", added, reloads.Load())
 	}
 	listed, err := svc.KeyList(ctx, input)
@@ -105,14 +105,14 @@ func TestProviderKeyringLifecyclePrivacyAndScope(t *testing.T) {
 	if strings.Contains(string(raw), secret) {
 		t.Fatal("key value left provider service")
 	}
-	if len(listed["keys"].([]creds.KeyInfo)) != 2 {
+	if len(listed.Keys) != 2 {
 		t.Fatalf("key list=%v", listed)
 	}
 	other, err := svc.KeyList(ctx, providers.KeyInput{Provider: "beta", Env: input.Env})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(other["keys"].([]creds.KeyInfo)) != 0 {
+	if len(other.Keys) != 0 {
 		t.Fatal("scoped keyring leaked to another provider")
 	}
 	if _, err := svc.KeyActivate(ctx, input); err != nil {
@@ -126,7 +126,7 @@ func TestProviderKeyringLifecyclePrivacyAndScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if removed["was_active"] != false || reloads.Load() != 2 {
+	if removed.WasActive != false || reloads.Load() != 2 {
 		t.Fatalf("inactive removal reloaded=%v %d", removed, reloads.Load())
 	}
 	input.Label = "second"
@@ -134,7 +134,7 @@ func TestProviderKeyringLifecyclePrivacyAndScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if removed["was_active"] != true || reloads.Load() != 3 {
+	if removed.WasActive != true || reloads.Load() != 3 {
 		t.Fatalf("active removal=%v %d", removed, reloads.Load())
 	}
 	vault := creds.NewStore(dir)
@@ -159,15 +159,15 @@ func TestProviderReloadFailureKeepsSuccessfulChanges(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 	svc := providers.New(k, dir)
 	connected, err := svc.Connect(context.Background(), providers.ConnectInput{ID: "new", API: "https://fixture.invalid"})
-	if err != nil || connected["reload_error"] == nil {
+	if err != nil || connected.ReloadError == "" {
 		t.Fatalf("connect rebuild failure=%v %v", connected, err)
 	}
 	connected, err = svc.Connect(context.Background(), providers.ConnectInput{ID: "new", API: "https://changed-fixture.invalid"})
-	if err != nil || connected["exists"] != true || connected["reload_error"] == nil {
+	if err != nil || connected.Exists != true || connected.ReloadError == "" {
 		t.Fatalf("existing provider rebuild failure=%v %v", connected, err)
 	}
 	added, err := svc.KeyAdd(context.Background(), providers.KeyInput{Env: "PROVIDER_FIXTURE_KEY", Label: "fixture", Value: "synthetic-fixture-value"})
-	if err != nil || added["reload_error"] == nil {
+	if err != nil || added.ReloadError == "" {
 		t.Fatalf("key rebuild failure=%v %v", added, err)
 	}
 	if _, err := svc.Reload(context.Background(), providers.ReloadInput{}); err == nil {
@@ -186,7 +186,7 @@ func TestProviderReloadWithoutRebuildKeepsOperatorNote(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result["providers_reloaded"] != false || !strings.Contains(result["note"].(string), "OnReload not configured") {
+	if result.ProvidersReloaded != false || !strings.Contains(result.Note, "OnReload not configured") {
 		t.Fatalf("catalog-only reload lost note: %v", result)
 	}
 }

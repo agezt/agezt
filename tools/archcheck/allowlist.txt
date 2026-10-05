@@ -9,7 +9,6 @@ adapter-bypass kernel/controlplane -> kernel/acpcatalog
 adapter-bypass kernel/controlplane -> kernel/artifact
 adapter-bypass kernel/controlplane -> kernel/board
 adapter-bypass kernel/controlplane -> kernel/cadence
-adapter-bypass kernel/controlplane -> kernel/catalog
 adapter-bypass kernel/controlplane -> kernel/chatgptauth
 adapter-bypass kernel/controlplane -> kernel/convo
 adapter-bypass kernel/controlplane -> kernel/datalake

@@ -17,7 +17,6 @@ func init() { registerAllCommands() }
 func registerAllCommands() {
 	registerAppSystemCommands()
 	registerBoardCommands()
-	registerCatalogCommands()
 	registerChannelCommands()
 	registerCognitionCommands()
 	registerConfigCenterCommands()
@@ -91,10 +90,6 @@ func registerProviderConfigCommands() {
 		commandSpec{Cmd: CmdExecutionProfiles, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleExecutionProfiles(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdExecutionProfileShow, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleExecutionProfileShow(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdExecutionProfileCheck, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleExecutionProfileCheck(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdProviderKeyList, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleProviderKeyList(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdProviderKeyAdd, Handler: func(dc *DispatchCtx) { dc.S.handleProviderKeyAdd(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdProviderKeyActivate, Handler: func(dc *DispatchCtx) { dc.S.handleProviderKeyActivate(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdProviderKeyRemove, Handler: func(dc *DispatchCtx) { dc.S.handleProviderKeyRemove(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdProviderOAuthStart, Handler: func(dc *DispatchCtx) { dc.S.handleProviderOAuthStart(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdProviderOAuthStatus, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleProviderOAuthStatus(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdProviderOAuthImport, Handler: func(dc *DispatchCtx) { dc.S.handleProviderOAuthImport(dc.Conn, dc.Req) }},
