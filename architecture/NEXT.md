@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider native pilot and exit evidence are complete. Memory typed native binding is complete; continue §4.5 with caller-context/operation-correlation refinement and memory exit evidence, then world/taste/skill. Broader adapters and remaining domains remain open.
+> Catalog/provider native pilot and exit evidence are complete. Memory typed binding and shared operation/domain correlation are complete; continue §4.5 with distillation caller-context refinement and memory exit evidence, then world/taste/skill. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -873,6 +873,22 @@ pass: unchanged 223 packages, 143 imports/13 calls and structure 114.
 native exit evidence.** Distillation still owns its legacy background context and
 fresh identity, and memory business writes retain their prior domain correlation;
 the complete memory/architecture migration remains open.
+
+**W2.5h memory operation/domain identity repair:** an actual typed native add
+proof confirmed operation audit had a correlation while memory.written had none;
+a controlled distillation port proved the admitted identity was replaced. All
+eight store mutations now pass the context operation correlation to their manager.
+Both distillation paths retain the admitted identity and mint a fresh one only
+when the context has none. Context-free store calls retain their empty domain
+correlation, and background distillation retains its legacy fresh identity/budget.
+Permanent native invocation -> domain effect -> terminal ordering, eight real
+store/bus/journal paths and both controlled distillation paths pass count=20;
+ten independent mutations reject each lost identity path. Source/typed/native/
+tenant/audit and focused race contracts count=20 plus full Go/build/vet/scoped
+static and all gates pass: unchanged 223 packages, 143 imports/13 calls and
+structure 114. **Next: measured distillation caller-context refinement, then
+memory native exit evidence.** Background model context/lifetime remains for the
+next slice; this repair adds no unrelated policy or model invocation behavior.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
