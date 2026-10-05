@@ -16,8 +16,3 @@ func (s *Server) fail(conn net.Conn, req Request, err error) {
 func (s *Server) failMsg(conn net.Conn, req Request, msg string) {
 	s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: msg})
 }
-
-// ok writes the standard result envelope for req.
-func (s *Server) ok(conn net.Conn, req Request, result map[string]any) {
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
-}

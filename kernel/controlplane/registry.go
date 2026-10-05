@@ -28,7 +28,6 @@ func registerAllCommands() {
 	registerJournalLogCommands()
 	registerMCPCommands()
 	registerMarketCommands()
-	registerMemoryCommands()
 	registerMiscSmallCommands()
 	registerOKRCommands()
 	registerProviderConfigCommands()
@@ -58,7 +57,6 @@ func registerJournalLogCommands() {
 		commandSpec{Cmd: CmdJournalExport, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleJournalExport(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdJournalGrep, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleJournalGrep(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdJournalStats, ReadOnly: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleJournalStats(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdMemoryLog, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleMemoryLog(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdNetguardLog, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleNetguardLog(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdEdictLog, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleEdictLog(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdEdictStats, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleEdictStats(dc.Conn, dc.Req) }},

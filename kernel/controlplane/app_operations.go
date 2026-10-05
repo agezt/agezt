@@ -11,6 +11,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/app"
 	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
+	appmemory "github.com/agezt/agezt/kernel/app/memory"
 	appproviders "github.com/agezt/agezt/kernel/app/providers"
 	"github.com/agezt/agezt/kernel/app/system"
 	"github.com/agezt/agezt/kernel/contract/opapi"
@@ -79,14 +80,33 @@ var probeOperations = func() []app.Operation {
 	return operations
 }()
 
+var memoryOperations = func() []app.Operation {
+	operations, err := appmemory.Operations(
+		func(ctx context.Context) *appmemory.Service {
+			return appmemory.New(ctx.Value(appHostKey{}).(appHost).kernel.Memory())
+		},
+		func(ctx context.Context) *appmemory.Distillation {
+			return appmemory.NewDistillation(ctx.Value(appHostKey{}).(appHost).kernel)
+		},
+		func(ctx context.Context) *appmemory.LogService {
+			return appmemory.NewLog(ctx.Value(appHostKey{}).(appHost).kernel.Journal())
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(memoryOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, catalogOperations...)
 	operations = append(operations, providerOperations...)
 	operations = append(operations, oauthOperations...)
 	operations = append(operations, observationOperations...)
-	return append(operations, probeOperations...)
+	operations = append(operations, probeOperations...)
+	return append(operations, memoryOperations...)
 }
 
 func registerAppSystemCommands() {
