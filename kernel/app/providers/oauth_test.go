@@ -43,14 +43,14 @@ func TestOAuthImportStatusLogoutRemainSocketFreeAndUseLiveModels(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if imported["connected"] != true || imported["email"] != "fixture@example.invalid" || imported["default_model"] != "fixture-current-model" || reloads.Load() != 1 {
+	if imported.Connected != true || imported.Email != "fixture@example.invalid" || imported.DefaultModel != "fixture-current-model" || reloads.Load() != 1 {
 		t.Fatalf("import=%v reloads=%d", imported, reloads.Load())
 	}
 	status, err := auth.Status(context.Background(), OAuthStatusInput{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status["connected"] != true || status["default_model"] != "fixture-current-model" || syncs.Load() != 2 {
+	if status.Connected != true || status.DefaultModel != "fixture-current-model" || syncs.Load() != 2 {
 		t.Fatalf("status/sync=%v %d", status, syncs.Load())
 	}
 	encoded, err := json.Marshal(status)
@@ -67,7 +67,7 @@ func TestOAuthImportStatusLogoutRemainSocketFreeAndUseLiveModels(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status["connected"] != false || status["default_model"] != "" || syncs.Load() != 2 || reloads.Load() != 2 {
+	if status.Connected != false || status.DefaultModel != "" || syncs.Load() != 2 || reloads.Load() != 2 {
 		t.Fatalf("logout/status=%v sync/reload=%d/%d", status, syncs.Load(), reloads.Load())
 	}
 }
@@ -83,14 +83,14 @@ func TestOAuthCallbackDenialStateFilteringAndConcurrentStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status["status"] != "error" || status["error"] != "authorization denied: denied" || !strings.Contains(response.Body.String(), "Sign-in failed") {
+	if status.Status != "error" || status.Error != "authorization denied: denied" || !strings.Contains(response.Body.String(), "Sign-in failed") {
 		t.Fatalf("denial=%v page=%s", status, response.Body.String())
 	}
 	status, err = auth.Status(context.Background(), OAuthStatusInput{State: "different"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status["status"] != "unknown" || status["error"] != "" {
+	if status.Status != "unknown" || status.Error != "" {
 		t.Fatalf("unmatched state exposed login=%v", status)
 	}
 	var wg sync.WaitGroup

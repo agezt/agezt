@@ -51,11 +51,22 @@ var providerOperations = func() []app.Operation {
 	return ops
 }()
 
+var oauthOperations = func() []app.Operation {
+	ops, err := appproviders.OAuthOperations(func(ctx context.Context) *appproviders.OAuth {
+		return ctx.Value(systemHostKey{}).(*Server).providerOAuth()
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
+
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(catalogOperations)+len(providerOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, catalogOperations...)
-	return append(operations, providerOperations...)
+	operations = append(operations, providerOperations...)
+	return append(operations, oauthOperations...)
 }
 
 func registerAppSystemCommands() {

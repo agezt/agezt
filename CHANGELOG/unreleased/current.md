@@ -4,6 +4,13 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Provider OAuth RPC changes require operation audit before effects.** Login
+  start, token import and logout now use the shared typed dispatcher; unavailable
+  preflight audit prevents OAuth state/listener/vault/reload effects. Status
+  remains a read-only operation and preserves the account's reported model
+  surface, including an empty catalog; tokens remain outside responses/audit.
+
+
 - **Provider catalog/key changes now require audit before mutation.** Connect,
   reload, key add, activation and removal run through the shared typed dispatcher.
   Unavailable preflight audit prevents catalog/vault writes and reload; invalid

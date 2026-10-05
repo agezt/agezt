@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Provider OAuth state/business move is complete. Continue §4.5 with OAuth operation binding, then tenant-routed log/stats/rejections and primary-only probe.
+> Provider OAuth RPC binding is complete. Continue §4.5 with tenant-routed log/stats/rejections and primary-only probe; callback HTTP/lifecycle adaptation remains later work.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -514,6 +514,23 @@ removed and officially ratcheted (143 imports/13 calls; 220 packages). **Next:
 OAuth specs/common operation binding; callback HTTP/lifecycle refinement follows
 separately if required by adapter migration.** Tenant-routed observations and the
 primary-only provider probe remain open; the whole provider domain is incomplete.
+
+**W2.4f provider OAuth RPC binding:** four typed specs/results now register through
+the common app dispatcher; old socket start/status/import/logout wrappers are
+removed. The factory resolves the existing per-server OAuth state at handler
+entry. Start/import/logout require mandatory app audit before state/listener/
+vault/reload effects; status retains the existing read-only metadata and model
+hook behavior. Known typed fields validate before admission while unknown legacy
+args remain accepted. Actual socket import/status/logout, authoritative empty
+models, token privacy, correlation/order and preflight effect barriers pass
+count=20 alongside original OAuth/registry/tenant/audit/HTTP and typed schema
+contracts. Seven independent mutations retain registry, mutation/read-only flags,
+ignored args, rich output schema, null/empty models and mandatory audit. Full
+Go/build/vet/static and architecture gates pass: 220 packages, 143 import/13 call
+exceptions remain. **Next: tenant-routed provider log/stats/rejections and
+primary-only provider probe.** Existing callback HTTP/expiry/lifecycle behavior
+is unchanged; later callback adapter/lifecycle refinement and the overall
+provider/architecture goal remain open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

@@ -48,11 +48,16 @@ func NewOAuth(k *runtime.Kernel, baseDir string, syncModels func() ([]string, st
 	return &OAuth{k: k, baseDir: baseDir, chatgptSync: syncModels}
 }
 
-type OAuthStartInput struct{ Provider string }
-type OAuthStatusInput struct{ State string }
-type OAuthImportInput struct{ Path string }
+type OAuthStartInput struct {
+	Provider string `json:"provider,omitempty"`
+}
+type OAuthStatusInput struct {
+	State string `json:"state,omitempty"`
+}
+type OAuthImportInput struct {
+	Path string `json:"path,omitempty"`
+}
 type OAuthLogoutInput struct{}
-type OAuthOutput = map[string]any
 
 // chatgptMgr returns the lazily-built ChatGPT token manager.
 func (s *OAuth) chatgptMgr() *chatgptauth.Manager {
@@ -62,28 +67,28 @@ func (s *OAuth) chatgptMgr() *chatgptauth.Manager {
 
 // handleProviderOAuthStart begins "Sign in with ChatGPT": it starts the 1455
 // redirect listener and returns the authorize URL. args: provider ("chatgpt").
-func (s *OAuth) Start(_ context.Context, in OAuthStartInput) (OAuthOutput, error) {
+func (s *OAuth) Start(_ context.Context, in OAuthStartInput) (OAuthStartOutput, error) {
 	provider := strings.TrimSpace(strings.ToLower(in.Provider))
 	if provider == "" {
 		provider = "chatgpt"
 	}
 	if provider != "chatgpt" {
-		return nil, fmt.Errorf("%s does not support OAuth sign-in", provider)
+		return OAuthStartOutput{}, fmt.Errorf("%s does not support OAuth sign-in", provider)
 	}
 	verifier, challenge, err := chatgptauth.GeneratePKCE()
 	if err != nil {
-		return nil, fmt.Errorf("pkce: %w", err)
+		return OAuthStartOutput{}, fmt.Errorf("pkce: %w", err)
 	}
 	state, err := chatgptauth.RandomState()
 	if err != nil {
-		return nil, fmt.Errorf("state: %w", err)
+		return OAuthStartOutput{}, fmt.Errorf("state: %w", err)
 	}
 
 	// Tear down any previous login, then bind the Codex client's fixed redirect.
 	s.stopProviderLogin()
 	ln, err := net.Listen("tcp", chatgptauth.CallbackAddr)
 	if err != nil {
-		return nil, fmt.Errorf("cannot bind %s for the sign-in redirect (is it in use?): %w", chatgptauth.CallbackAddr, err)
+		return OAuthStartOutput{}, fmt.Errorf("cannot bind %s for the sign-in redirect (is it in use?): %w", chatgptauth.CallbackAddr, err)
 	}
 	login := &providerLogin{provider: provider, state: state, verifier: verifier, status: "pending"}
 	mux := http.NewServeMux()
@@ -107,10 +112,7 @@ func (s *OAuth) Start(_ context.Context, in OAuthStartInput) (OAuthOutput, error
 		_ = login.srv.Close()
 	}()
 
-	return map[string]any{
-		"authorize_url": chatgptauth.AuthorizeURL(challenge, state),
-		"state":         state,
-	}, nil
+	return OAuthStartOutput{AuthorizeURL: chatgptauth.AuthorizeURL(challenge, state), State: state}, nil
 }
 
 // providerCallback handles the browser redirect on 127.0.0.1:1455.
@@ -182,7 +184,7 @@ func (s *OAuth) syncChatGPTModels() (models []string, defaultModel string) {
 
 // handleProviderOAuthStatus reports the active login's terminal state plus the
 // connected account (best-effort). args: state.
-func (s *OAuth) Status(_ context.Context, in OAuthStatusInput) (OAuthOutput, error) {
+func (s *OAuth) Status(_ context.Context, in OAuthStatusInput) (OAuthStatusOutput, error) {
 	state := strings.TrimSpace(in.State)
 
 	// Read the fields INSIDE the critical section, not just the pointer (GO-001).
@@ -209,43 +211,32 @@ func (s *OAuth) Status(_ context.Context, in OAuthStatusInput) (OAuthOutput, err
 	if connected {
 		models, defaultModel = s.syncChatGPTModels()
 	}
-	return map[string]any{
-		"status":        status,
-		"error":         errMsg,
-		"connected":     connected,
-		"email":         email,
-		"account":       account,
-		"models":        models,
-		"default_model": defaultModel,
-	}, nil
+	return OAuthStatusOutput{Status: status, Error: errMsg, Connected: connected, Email: email, Account: account, Models: models, DefaultModel: defaultModel}, nil
 }
 
 // handleProviderOAuthImport pulls tokens from a local Codex CLI auth.json.
-func (s *OAuth) Import(_ context.Context, in OAuthImportInput) (OAuthOutput, error) {
+func (s *OAuth) Import(_ context.Context, in OAuthImportInput) (OAuthImportOutput, error) {
 	path := strings.TrimSpace(in.Path)
 	if err := s.chatgptMgr().ImportFromCodexCLI(path); err != nil {
-		return nil, err
+		return OAuthImportOutput{}, err
 	}
 	if s.k != nil {
 		_, _, _ = s.k.Reload()
 	}
 	models, defaultModel := s.syncChatGPTModels()
 	email, account := s.chatgptMgr().Account()
-	return map[string]any{
-		"ok": true, "connected": true, "email": email, "account": account,
-		"models": models, "default_model": defaultModel,
-	}, nil
+	return OAuthImportOutput{OK: true, Connected: true, Email: email, Account: account, Models: models, DefaultModel: defaultModel}, nil
 }
 
 // handleProviderOAuthLogout clears the stored ChatGPT tokens.
-func (s *OAuth) Logout(_ context.Context, _ OAuthLogoutInput) (OAuthOutput, error) {
+func (s *OAuth) Logout(_ context.Context, _ OAuthLogoutInput) (OAuthLogoutOutput, error) {
 	if err := s.chatgptMgr().Logout(); err != nil {
-		return nil, err
+		return OAuthLogoutOutput{}, err
 	}
 	if s.k != nil {
 		_, _, _ = s.k.Reload()
 	}
-	return map[string]any{"ok": true, "connected": false}, nil
+	return OAuthLogoutOutput{OK: true, Connected: false}, nil
 }
 
 // providerLoginPage renders the minimal browser-facing result page.
