@@ -799,6 +799,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: memory list paging moves into the app service.** Native
+  record fields, ordering, cursor boundaries, counts and empty results remain
+  compatible; the duplicate control-plane projection is removed. Active reads
+  retain their original position before native argument admission.
+
+
 - **Architecture: memory distillation moves into the app service.** Consolidate
   and profile rebuild retain their existing correlation, bounded background
   lifetime, report fields and halted errors while returning typed results through
