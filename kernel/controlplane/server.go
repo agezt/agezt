@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/agezt/agezt/kernel/app/providers"
 	"github.com/agezt/agezt/kernel/board"
-	"github.com/agezt/agezt/kernel/chatgptauth"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/kernel/update"
@@ -149,13 +149,10 @@ type Server struct {
 	oauthMu      sync.Mutex
 	oauthPending map[string]*oauthFlow
 
-	// chatgpt is the lazily-built "Sign in with ChatGPT" token manager; provLogin
-	// is the single in-flight provider OAuth login (the 1455 redirect listener).
-	chatgptOnce sync.Once
-	chatgpt     *chatgptauth.Manager
-	provLoginMu sync.Mutex
-	provLogin   *providerLogin
-	chatgptSync ChatGPTSyncFunc
+	// providerOAuthState owns the provider login/token-manager lifecycle.
+	providerOAuthOnce  sync.Once
+	providerOAuthState *providers.OAuth
+	chatgptSync        ChatGPTSyncFunc
 }
 
 // ChatGPTSyncFunc refreshes the chatgpt catalog entry from the backend after a
