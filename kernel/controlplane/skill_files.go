@@ -8,9 +8,10 @@ package controlplane
 //             unchanged.
 
 import (
+	"context"
 	"fmt"
+	appskill "github.com/agezt/agezt/kernel/app/skill"
 	"net"
-	"time"
 )
 
 func argResources(args map[string]any, key string) (map[string][]byte, error) {
@@ -36,40 +37,19 @@ func argResources(args map[string]any, key string) (map[string][]byte, error) {
 	return out, nil
 }
 
-// handleSkillFiles lists a skill's bundle resources (relative paths) plus the
-// absolute bundle directory the agent runs scripts from. Read-only.
 func (s *Server) handleSkillFiles(conn net.Conn, req Request) {
 	id, err := requiredArgString(req.Args, "id")
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	sk, found, err := s.k.Forge().Get(id)
+	out, err := appskill.NewObservations(s.k.Forge(), s.k.Journal()).Files(context.Background(), appskill.GetInput{ID: id})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	if !found {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "no skill with id " + id})
-		return
-	}
-	bundles := s.k.Forge().Bundles()
-	files := sk.Resources
-	dir := ""
-	if bundles != nil {
-		if live, lerr := bundles.List(sk.Name); lerr == nil && live != nil {
-			files = live // the on-disk truth, in case the manifest drifted
-		}
-		dir = bundles.Dir(sk.Name)
-	}
-	s.writeResp(conn, Response{
-		ID: req.ID, Type: RespResult,
-		Result: map[string]any{"id": sk.ID, "name": sk.Name, "files": files, "dir": dir, "count": len(files)},
-	})
+	writeSkillReadResult(s, conn, req, out)
 }
-
-// handleSkillReadFile returns the text content of one bundle resource. Read-only;
-// the bundle store rejects any path that escapes the skill's directory.
 func (s *Server) handleSkillReadFile(conn net.Conn, req Request) {
 	id, err := requiredArgString(req.Args, "id")
 	if err != nil {
@@ -81,54 +61,18 @@ func (s *Server) handleSkillReadFile(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	sk, found, err := s.k.Forge().Get(id)
+	out, err := appskill.NewObservations(s.k.Forge(), s.k.Journal()).ReadFile(context.Background(), appskill.ReadFileInput{ID: id, Path: path})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	if !found {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "no skill with id " + id})
-		return
-	}
-	bundles := s.k.Forge().Bundles()
-	if bundles == nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "skill bundles are not available on this daemon"})
-		return
-	}
-	data, err := bundles.Read(sk.Name, path)
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	s.writeResp(conn, Response{
-		ID: req.ID, Type: RespResult,
-		Result: map[string]any{"id": sk.ID, "name": sk.Name, "path": path, "content": string(data), "bytes": len(data)},
-	})
+	writeSkillReadResult(s, conn, req, out)
 }
-
-// handleSkillHygiene reports which active skills look idle (never used, or not
-// used in idle_days) so an operator can prune dead weight from the retrieval pool
-// (M858). Read-only; the cleanup action is the existing CmdSkillQuarantine.
 func (s *Server) handleSkillHygiene(conn net.Conn, req Request) {
-	days := dlInt(req.Args, "idle_days")
-	if days <= 0 {
-		days = 30
-	}
-	cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour).UnixMilli()
-	rep, err := s.k.Forge().Hygiene(cutoff)
+	out, err := appskill.NewObservations(s.k.Forge(), s.k.Journal()).Hygiene(context.Background(), appskill.HygieneInput{IdleDays: dlInt(req.Args, "idle_days")})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	idle := make([]any, 0, len(rep.Idle))
-	for _, sk := range rep.Idle {
-		v := skillView(sk)
-		v["uses"] = sk.Metrics.Uses
-		v["last_used_ms"] = sk.Metrics.LastUsedMS
-		idle = append(idle, v)
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
-		"idle_days": days, "total": rep.Total, "active": rep.Active,
-		"idle": idle, "idle_count": len(idle),
-	}})
+	writeSkillReadResult(s, conn, req, out)
 }

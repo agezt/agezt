@@ -13,7 +13,6 @@ import (
 	"net"
 
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/skill"
 )
 
@@ -52,43 +51,18 @@ func writeSkillReadResult(s *Server, conn net.Conn, req Request, out any) {
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 
-// handleSkillHistory folds the journal for every lifecycle event that names
-// this skill id, newest-last (chronological), so `agt skill history` reads as
-// the skill's life story.
 func (s *Server) handleSkillHistory(conn net.Conn, req Request) {
 	id, err := requiredArgString(req.Args, "id")
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	var events []any
-	_ = s.k.Journal().Range(func(e *event.Event) error {
-		if !isSkillKind(e.Kind) {
-			return nil
-		}
-		var p map[string]any
-		if json.Unmarshal(e.Payload, &p) != nil {
-			return nil
-		}
-		// Match the event's "id" (or a revert's "restored") to this skill.
-		if p["id"] != id && p["restored"] != id {
-			return nil
-		}
-		events = append(events, map[string]any{
-			"seq":            e.Seq,
-			"id":             e.ID,
-			"kind":           string(e.Kind),
-			"correlation_id": e.CorrelationID,
-			"ts_unix_ms":     e.TSUnixMS,
-			"payload":        p,
-		})
-		return nil
-	})
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"id": id, "events": events, "count": len(events)},
-	})
+	out, err := appskill.NewObservations(s.k.Forge(), s.k.Journal()).History(context.Background(), appskill.GetInput{ID: id})
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	writeSkillReadResult(s, conn, req, out)
 }
 
 func (s *Server) handleSkillPromote(conn net.Conn, req Request) {

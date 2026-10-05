@@ -6,58 +6,6 @@ package controlplane
 //             registerSkillCommands). Code extracted from skill.go during the Day-88
 //             god-file split. Public API unchanged.
 
-import (
-	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/skill"
-)
-
-func isSkillKind(k event.Kind) bool {
-	switch k {
-	case event.KindSkillCreated, event.KindSkillPromoted, event.KindSkillQuarantined,
-		event.KindSkillReverted, event.KindSkillRestored, event.KindSkillActivated:
-		return true
-	}
-	return false
-}
-
-// skillView renders a skill.Skill as a stable JSON object for the wire.
-func skillView(sk skill.Skill) map[string]any {
-	v := map[string]any{
-		"id":           sk.ID,
-		"name":         sk.Name,
-		"description":  sk.Description,
-		"status":       string(sk.Status),
-		"version":      sk.Version,
-		"agent":        sk.Agent,
-		"created_ms":   sk.CreatedMS,
-		"last_seen_ms": sk.LastSeenMS,
-		"metrics": map[string]any{
-			"uses": sk.Metrics.Uses, "successes": sk.Metrics.Successes,
-			"failures": sk.Metrics.Failures, "last_used_ms": sk.Metrics.LastUsedMS,
-			"shadow_evals": sk.Metrics.ShadowEvals, "shadow_wins": sk.Metrics.ShadowWins,
-		},
-	}
-	if len(sk.Triggers) > 0 {
-		v["triggers"] = sk.Triggers
-	}
-	if len(sk.ToolsRequired) > 0 {
-		v["tools_required"] = sk.ToolsRequired
-	}
-	if len(sk.Resources) > 0 {
-		v["resources"] = sk.Resources
-	}
-	if len(sk.Lineage) > 0 {
-		v["lineage"] = sk.Lineage
-	}
-	if sk.Body != "" {
-		v["body"] = sk.Body
-	}
-	if sk.SourceEvent != "" {
-		v["source_event"] = sk.SourceEvent
-	}
-	return v
-}
-
 // registerSkillCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
 func registerSkillCommands() {
 	register(
