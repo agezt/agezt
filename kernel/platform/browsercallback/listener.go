@@ -3,6 +3,7 @@
 package browsercallback
 
 import (
+	"errors"
 	"net"
 	"net/http"
 	"time"
@@ -29,6 +30,13 @@ func Prepare(addr string, complete Complete, closeListener func()) (*Listener, e
 
 func (l *Listener) Serve() error { return l.srv.Serve(l.ln) }
 
-// Close retains the existing server-close behavior; lifetime refinements follow
-// separately from this mechanical listener move.
-func (l *Listener) Close() error { return l.srv.Close() }
+// Close releases both the HTTP server and the prepared socket, including when
+// serving has not begun. An already-closed socket is a successful owned cleanup.
+func (l *Listener) Close() error {
+	serverErr := l.srv.Close()
+	listenerErr := l.ln.Close()
+	if errors.Is(listenerErr, net.ErrClosed) {
+		listenerErr = nil
+	}
+	return errors.Join(serverErr, listenerErr)
+}
