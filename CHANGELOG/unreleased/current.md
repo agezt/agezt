@@ -812,6 +812,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: skill native migration is complete.** Fourteen skill commands
+  share typed app use cases, primary-only host selection, mandatory mutation
+  audit and trusted domain identity. Aggregate registry coverage and exit
+  evidence document native contracts and repairs; board migration follows.
+
+
 - **Architecture: skill observations move into the app service.** History,
   bundle listing/reading and hygiene return typed results while preserving
   lifecycle filtering, disk/manifest behavior, byte counts, usage projection
