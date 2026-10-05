@@ -812,6 +812,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: taste curation moves into the app service.** Exemplar list,
+  creation and deletion return typed results while preserving store filtering,
+  field presence, validation and persistence errors. Native lenient admission
+  and audit remain until operation binding.
+
+
 - **Architecture: world native migration is complete.** Nine graph/history
   commands share typed app operations and the native host. Aggregate registry
   regression and exit evidence retain audit/tenant boundaries, graph contracts

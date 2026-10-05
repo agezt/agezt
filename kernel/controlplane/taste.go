@@ -3,63 +3,57 @@
 package controlplane
 
 import (
+	"context"
 	"encoding/json"
+	apptaste "github.com/agezt/agezt/kernel/app/taste"
 	"net"
-	"time"
-
-	"github.com/agezt/agezt/kernel/taste"
 )
 
-func tasteExemplarView(e taste.Exemplar) map[string]any {
-	b, _ := json.Marshal(e)
-	var m map[string]any
-	_ = json.Unmarshal(b, &m)
-	return m
-}
-
 func (s *Server) handleTasteList(conn net.Conn, req Request) {
-	f := taste.Filter{
-		Scope: stringArg(req.Args, "scope"),
-		Tag:   stringArg(req.Args, "tag"),
-		Limit: intArg(req.Args["limit"], 200),
-	}
-	exemplars := s.k.Taste().List(f)
-	out := make([]any, 0, len(exemplars))
-	for _, e := range exemplars {
-		out = append(out, tasteExemplarView(e))
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"exemplars": out, "count": len(out)}})
-}
-
-func (s *Server) handleTasteCreate(conn net.Conn, req Request) {
-	title := stringArg(req.Args, "title")
-	body := stringArg(req.Args, "body")
-	if title == "" || body == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "taste_create requires title and body"})
-		return
-	}
-	e, err := s.k.Taste().Create(taste.CreateSpec{
-		Title: title,
-		Body:  body,
-		Scope: stringArg(req.Args, "scope"),
-		Tags:  workboardStringSliceArg(req.Args["tags"]),
-	}, time.Now())
+	out, err := apptaste.New(s.k.Taste()).List(context.Background(), apptaste.ListInput{Scope: stringArg(req.Args, "scope"), Tag: stringArg(req.Args, "tag"), Limit: intArg(req.Args["limit"], 200)})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"exemplar": tasteExemplarView(e)}})
+	writeTasteResult(s, conn, req, out)
 }
-
-func (s *Server) handleTasteDelete(conn net.Conn, req Request) {
-	id := stringArg(req.Args, "id")
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "taste_delete requires id"})
+func (s *Server) handleTasteCreate(conn net.Conn, req Request) {
+	// Keep lenient native string/collection accessors during the business move.
+	title, body := stringArg(req.Args, "title"), stringArg(req.Args, "body")
+	if title == "" || body == "" {
+		s.failMsg(conn, req, "taste_create requires title and body")
 		return
 	}
-	if err := s.k.Taste().Delete(id); err != nil {
+	out, err := apptaste.New(s.k.Taste()).Create(context.Background(), apptaste.CreateInput{Title: title, Body: body, Scope: stringArg(req.Args, "scope"), Tags: workboardStringSliceArg(req.Args["tags"])})
+	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"deleted": id}})
+	writeTasteResult(s, conn, req, out)
+}
+func (s *Server) handleTasteDelete(conn net.Conn, req Request) {
+	id := stringArg(req.Args, "id")
+	if id == "" {
+		s.failMsg(conn, req, "taste_delete requires id")
+		return
+	}
+	out, err := apptaste.New(s.k.Taste()).Delete(context.Background(), apptaste.DeleteInput{ID: id})
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	writeTasteResult(s, conn, req, out)
+}
+func writeTasteResult(s *Server, conn net.Conn, req Request, out any) {
+	raw, err := json.Marshal(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
