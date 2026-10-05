@@ -2,63 +2,13 @@
 
 package controlplane
 
-// Provenance: Memory helpers: recordView + jsonMap + registerMemoryCommands. Code
+// Provenance: Memory helpers: jsonMap + registerMemoryCommands. Code
 //             extracted from memory.go during the Day-61 god-file split. Public API
 //             unchanged.
 
 import (
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/memory"
-	"time"
 )
-
-func recordView(r memory.Record) map[string]any {
-	v := map[string]any{
-		"id":           r.ID,
-		"type":         string(r.Type),
-		"subject":      r.Subject,
-		"content":      r.Content,
-		"confidence":   r.Confidence,
-		"created_ms":   r.CreatedMS,
-		"last_seen_ms": r.LastSeenMS,
-	}
-	if len(r.Tags) > 0 {
-		v["tags"] = r.Tags
-	}
-	if r.SourceEvent != "" {
-		v["source_event"] = r.SourceEvent
-	}
-	if r.Evidence != "" {
-		v["evidence"] = string(r.Evidence)
-	}
-	if r.HalfLifeMS > 0 {
-		v["half_life_ms"] = r.HalfLifeMS
-		v["expires_ms"] = r.LastSeenMS + r.HalfLifeMS
-		if r.Expired(time.Now().UnixMilli()) {
-			v["expired"] = true
-		}
-	}
-	if r.AddedBy != "" {
-		v["added_by"] = r.AddedBy
-	}
-	if r.UpdatedBy != "" {
-		v["updated_by"] = r.UpdatedBy
-	}
-	if r.SupersededBy != "" {
-		v["superseded_by"] = r.SupersededBy
-	}
-	if r.Tombstoned {
-		v["tombstoned"] = true
-	}
-	if r.Suspended() {
-		v["suspended_ms"] = r.SuspendedMS
-		v["suspended"] = true
-		if r.SuspendedReason != "" {
-			v["suspended_reason"] = r.SuspendedReason
-		}
-	}
-	return v
-}
 
 func jsonMap(v any) (map[string]any, error) {
 	b, err := json.Marshal(v)

@@ -12,9 +12,6 @@ package controlplane
 import (
 	"errors"
 	"net"
-	"sort"
-	"strconv"
-	"strings"
 
 	"context"
 	appmemory "github.com/agezt/agezt/kernel/app/memory"
@@ -116,70 +113,32 @@ func (s *Server) handleMemorySupersede(conn net.Conn, req Request) {
 }
 
 func (s *Server) handleMemoryList(conn net.Conn, req Request) {
-	recs, err := s.k.Memory().Active()
+	prepared, err := appmemory.New(s.k.Memory()).PrepareList(context.Background())
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	// Cursor pagination (M-pending follow-up): the SPA's Memory view polls
-	// this on every render; for a busy memory store the response is large
-	// enough to slow the panel. Newest first; cursor = (CreatedMS, ID).
-	limit := 100
-	if raw, _, lerr := argFloat64(req.Args, "limit"); lerr != nil {
-		s.fail(conn, req, lerr)
+	limit, _, err := argFloat64(req.Args, "limit")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
-	} else if raw > 0 {
-		limit = int(raw)
 	}
-	if limit > 1000 {
-		limit = 1000
-	}
-	sort.SliceStable(recs, func(i, j int) bool {
-		if recs[i].CreatedMS != recs[j].CreatedMS {
-			return recs[i].CreatedMS > recs[j].CreatedMS
-		}
-		return recs[i].ID > recs[j].ID
-	})
-	total := len(recs)
-	var cursorMS int64
-	var cursorID string
-	cursorOK := false
-	if raw, _, cerr := argString(req.Args, "cursor"); cerr != nil {
-		s.fail(conn, req, cerr)
+	cursor, _, err := argString(req.Args, "cursor")
+	if err != nil {
+		s.fail(conn, req, err)
 		return
-	} else if raw != "" {
-		msStr, id, _ := strings.Cut(raw, ":")
-		if ms, err := strconv.ParseInt(msStr, 10, 64); err == nil {
-			cursorMS, cursorID, cursorOK = ms, id, true
-		}
 	}
-	if cursorOK {
-		filtered := recs[:0]
-		for _, r := range recs {
-			if r.CreatedMS > cursorMS {
-				continue
-			}
-			if r.CreatedMS == cursorMS && r.ID >= cursorID {
-				continue
-			}
-			filtered = append(filtered, r)
-		}
-		recs = filtered
+	out, err := prepared.Page(context.Background(), appmemory.ListInput{Limit: limit, Cursor: cursor})
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	var nextCursor string
-	if limit > 0 && len(recs) > limit {
-		recs = recs[:limit]
-		nextCursor = strconv.FormatInt(recs[limit-1].CreatedMS, 10) + ":" + recs[limit-1].ID
+	body, err := jsonMap(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	out := make([]any, 0, len(recs))
-	for _, r := range recs {
-		out = append(out, recordView(r))
-	}
-	result := map[string]any{"records": out, "count": len(out), "total": total}
-	if nextCursor != "" {
-		result["next_cursor"] = nextCursor
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 
 func (s *Server) handleMemoryGet(conn net.Conn, req Request) {
