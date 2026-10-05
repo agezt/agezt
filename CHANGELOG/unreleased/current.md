@@ -806,6 +806,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: world history moves into the app service.** Typed entity,
+  relation and forget rows preserve labels, filters, cursor/window boundaries
+  and native field presence through the shared journal projection. Native tenant
+  selection and argument admission remain until operation binding.
+
+
 - **Architecture: world graph business moves into the app service.** Eight
   graph operations now return typed results while retaining native identity,
   alias/attribute replacement, relation direction, quiet resolve and field
