@@ -812,6 +812,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: workboard dispatch admission moves into the app service.**
+  Dependency and agent checks precede task claim, run linking, publication and
+  background launch; native response and existing execution behavior remain.
+
+
 - **Architecture: workboard watch snapshots move into the app service.** Run
   selection, journal event fold and blocked-dependency views return typed rows
   while retaining chronological tail, correlation filtering, payload presence

@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board native migration and exit evidence are complete. Workboard read/projection, lifecycle, relations and watch services are moved; continue §4.5 with dispatch admission/background execution, then binding. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board native migration and exit evidence are complete. Workboard read/projection, lifecycle, relations, watch and dispatch admission services are moved; continue §4.5 with background execution, then binding. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -1266,6 +1266,24 @@ full Go/build/vet/scoped static/all gates pass: unchanged 228 packages, 141 impo
 **Next: dispatch admission/background execution services, then workboard typed
 binding/audit/error repairs/exit and OKR.** Despite historical comments, watch is
 currently a unary snapshot; this move introduces no new stream.
+
+**W2.10e workboard dispatch-admission foundation:** admission, dependency/agent
+checks, correlation/claim/run link, requested publication and background launch
+now live in typed app/workboard.Dispatch over actual store/host ports and a
+selected roster projection/callback. The app layer has no runtime/roster import.
+Native lenient string admission, error envelope and fresh dispatch correlation
+remain. Agent/assignee and reason trimming, retired/paused/managed hints, exact
+claim -> link -> publish -> launch order, generated/explicit intent and mutation
+causes retain the old contract. Original/current denied native admissions and
+intent match exactly count=20 with authentic paused/retired roster states;
+accepted launch uses an owned callback fixture. Eight independent mutations,
+workboard service/store/CLI/focused native tests and workboard package-race
+count=20, complete controlplane race count=1 and full gates pass: unchanged
+228 packages/141 imports/13 calls, structure 119. The actual background runner
+and execution-profile bridge remain in controlplane for the next extraction.
+Unused task-projection/response shims are removed once their last caller moves.
+**Next: background execution service, then typed workboard binding/audit,
+measured read-error repairs/exit and OKR.**
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
