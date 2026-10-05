@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> W2.1 framework exit and catalog binding are verified. Continue §4.5 with the provider domain.
+> Catalog is migrated. Provider catalog/keyring service move is complete; continue §4.5 with provider operation binding and remaining OAuth/log/probe paths.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -467,6 +467,22 @@ audit scope and domain identity. Full Go/build/vet/static and architecture gates
 pass without allowlist growth (219 packages; 145 imports/13 calls). **Catalog
 migration is complete; next provider domain, move before binding.** Generated
 routes/broader adapters and the overall architecture migration remain open.
+
+**W2.4c provider catalog/keyring move:** connect/reload and four keyring business
+handlers now live in app/providers with context + Input -> Output/error methods.
+CP wrappers retain primitive arg validation/order, response error text, existing
+registration/auth/audit and request-independent service construction. Existing
+catalog IDs keep their model entries; new endpoints retain unknown model coverage
+instead of seeding a UI hint. Scoped/global key target rules, fingerprint-only
+listing, active mirror persistence and reload-on-active-change behavior remain.
+Socket-free lifecycle/default/error tests and source/provider/registry/tenant/
+audit suites pass count=20; six original socket handler results have JSON parity
+count=20. Nine independent mutations retain existing-entry preservation, unknown
+models, scoped/namespace validation, active reloads/persistence and rebuild error
+contracts. Full Go/build/vet/static and architecture gates pass (220 packages;
+unchanged 145 imports/13 calls). **Next: provider catalog/keyring operation binding,
+then OAuth lifecycle and tenant-routed log/stats/rejections/probe.** This partial
+provider foundation does not close the complete provider domain or rewrite policy.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
