@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider native pilot and exit evidence are complete. Continue §4.5 in roadmap order with memory, world, taste and skill; broader adapters and remaining domains remain open.
+> Catalog/provider native pilot and exit evidence are complete. Memory get/search/find-related service move is complete; continue §4.5 with the remaining memory business move and typed binding, then world/taste/skill. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -764,6 +764,23 @@ maps operation ownership, lifetime repairs and validation boundaries. **Next:
 memory, world, taste and skill in roadmap order.** Broader adapters, generated
 surfaces, full runs.Start convergence and W3–W5 remain open; controlled fixtures
 do not certify live provider/browser behavior.
+
+**W2.5a memory read-service foundation:** current native get/search/find-related
+bodies depend on socket response helpers. Their store lookup/search, legacy limit
+defaults/cap and seed exclusion now live in app/memory with context + typed input
+-> typed output/error; CP retains required/type admission and native framing.
+Typed record projection preserves optional expiry (including present zero),
+provenance, tombstone/suspension and absent-versus-empty response fields. Existing
+source tests caught omitted lifecycle fields during the move; these are retained
+and guarded by explicit wire contracts. Three original/current native handlers ×
+nine argument sets pass count=20; exact row/field/error parity allows only bounded
+wall-clock ranking-score drift. Source/read/registry/tenant/audit suites and the
+new package race tests pass count=20; eight independent mutations fail. Full
+Go/build/vet/scoped static and all gates pass: 223 packages, unchanged 143
+imports/13 calls, official kernel structure 114; no exception expansion.
+**Next: remaining memory business (list/log/write/hygiene/distillation), then
+typed operation binding and old wrapper deletion.** This foundation retains the
+existing native registry/auth/audit behavior; it does not close memory migration.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

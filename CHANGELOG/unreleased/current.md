@@ -799,6 +799,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: memory reads move into a transport-independent service.**
+  Get, search and find-related return typed records while preserving native
+  lifecycle/provenance fields, empty results, limit defaults and seed exclusion.
+  Native argument admission and registration remain until operation binding.
+
+
 - **Architecture: catalog/provider native migration is complete.** All 17 RPCs
   share typed app operations, native adapter metadata and tenant/audit admission.
   Aggregate registry regression and exit evidence retain callback ownership,
