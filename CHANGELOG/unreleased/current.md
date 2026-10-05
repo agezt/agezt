@@ -799,6 +799,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: OAuth callback business is independent of HTTP rendering.**
+  Existing admission, exchange budget, login state and reload/model hook order
+  remain. The browser wrapper renders the result and retains delayed close.
+
+
 - **Architecture: provider probes use a typed primary-only operation.** Existing
   success/failure JSON fields and POST route remain. URL/key types validate before
   endpoint requests; tenant credentials remain denied and checks stay read-only.
