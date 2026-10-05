@@ -806,6 +806,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: memory native migration is complete.** All 16 memory/profile
+  commands share typed app operations and the native host. Aggregate registry
+  regression and exit evidence retain audit/tenant, shared identity and caller
+  context guarantees. Remaining domain migration follows in roadmap order.
+
+
 - **Architecture: memory history moves into the app service.** Typed lifecycle
   rows preserve operation aliases, subjects, cursor/window behavior and native
   field presence through the shared journal projection. Native tenant selection
