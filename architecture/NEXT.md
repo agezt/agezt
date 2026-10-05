@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider native RPC and callback business/presentation extraction are complete. Continue §4.5 with callback listener/lifetime ownership and caller-context refinement; broader adapter/domain migration remains open.
+> Catalog/provider native RPC and callback business/presentation/listener extraction are complete. Continue §4.5 with listener lifetime ownership proof/fix, then caller-context refinement; broader adapter/domain migration remains open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -655,6 +655,20 @@ import/13 call exceptions; the official structure writer records 113 kernel
 packages. **Next: callback listener/lifetime ownership, then caller context.**
 Fixed-port startup, TTL and delayed-close/logout behavior remain unchanged;
 no live exchange, paid provider or browser session was used for this move.
+
+**W2.4o callback listener move:** platform/browsercallback.Prepare owns TCP bind,
+callback path, mux and HTTP server/header timeout. App stores the prepared listener,
+publishes the login under its mutex, then launches its Serve method; app's bound
+completion bridge is socket-free and production app no longer imports net/http
+or net. Existing fixed address, status publication, expiry/delayed-close and
+server-close semantics remain. Prepared listener path/bind/options/Serve/Close
+and source OAuth/native contracts pass count=20; old/new callback HTTP page/state
+parity remains count=20. Six independent mutations retain TCP/caller address,
+path, header budget, explicit Serve and server close. Full Go/build/vet/static and
+architecture gates pass: unchanged 222 packages and 143 import/13 call exceptions.
+**Next: prove/fix listener lifetime ownership, including Close before Serve.**
+TTL/logout/stale-session refinement and caller context remain open; this move
+alone does not claim those lifecycle guarantees or live OAuth exchange.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

@@ -799,6 +799,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: OAuth callback listeners use a prepared platform adapter.**
+  TCP/mux/server setup moves out of app. Login ownership is published before
+  serving; existing callback address, header budget and close/expiry flow remain.
+
+
 - **Architecture: OAuth browser callbacks use a platform presentation adapter.**
   Query fields, request context, existing HTML/escaping and cleanup dispatch after
   rendering remain. Login business and listener lifetime stay in their owners.
