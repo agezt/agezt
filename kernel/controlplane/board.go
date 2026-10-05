@@ -48,27 +48,3 @@ func boardLimitArg(args map[string]any) int {
 	}
 	return limit
 }
-
-// boardMsgView renders one message for a control-plane response.
-func boardMsgView(m board.Message) map[string]any {
-	v := map[string]any{"topic": m.Topic, "text": m.Text, "ts_unix_ms": m.TSMS}
-	if m.ID != "" {
-		v["id"] = m.ID
-	}
-	if m.From != "" {
-		v["from"] = m.From
-	}
-	if m.To != "" {
-		v["to"] = m.To
-	}
-	if m.ReplyTo != "" {
-		v["reply_to"] = m.ReplyTo
-	}
-	if m.Help {
-		v["help"] = true
-	}
-	if len(m.AckedBy) > 0 {
-		v["acked_by"] = append([]string(nil), m.AckedBy...)
-	}
-	return v
-}
