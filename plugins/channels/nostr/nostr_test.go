@@ -4,6 +4,7 @@ package nostr
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"testing"
@@ -28,6 +29,31 @@ func newSigned(t *testing.T, priv *btcec.PrivateKey, target, content string) nos
 		t.Fatalf("sign: %v", err)
 	}
 	return ev
+}
+
+func tamperFixtureSignature(t *testing.T, signature string) string {
+	t.Helper()
+	raw, err := hex.DecodeString(signature)
+	if err != nil || len(raw) != 64 {
+		t.Fatalf("fixture signature invalid: length=%d error=%v", len(raw), err)
+	}
+	raw[0] ^= 1
+	return hex.EncodeToString(raw)
+}
+
+func TestSignatureTamperFixtureAlwaysChangesZeroPrefix(t *testing.T) {
+	var seed [32]byte
+	binary.BigEndian.PutUint32(seed[28:], 23)
+	priv, _ := btcec.PrivKeyFromBytes(seed[:])
+	ev := newSigned(t, priv, "deadbeef", "hello nostr")
+	if ev.Sig[:2] != "00" {
+		t.Fatal("deterministic zero-prefix fixture drifted")
+	}
+	bad := ev
+	bad.Sig = tamperFixtureSignature(t, ev.Sig)
+	if bad.Sig == ev.Sig || bad.verify() {
+		t.Fatal("fixture signature was not changed and rejected")
+	}
 }
 
 func TestNewRejectsBadKey(t *testing.T) {
@@ -60,7 +86,7 @@ func TestSignVerifyRoundTrip(t *testing.T) {
 	}
 	// Tamper the signature → verify false.
 	bad2 := ev
-	bad2.Sig = "00" + ev.Sig[2:]
+	bad2.Sig = tamperFixtureSignature(t, ev.Sig)
 	if bad2.verify() {
 		t.Fatal("tampered signature must fail verification")
 	}
@@ -95,7 +121,7 @@ func TestHandleFrameVerifiesBeforeDispatch(t *testing.T) {
 	// A forged event (valid structure, broken signature) must be dropped before dispatch.
 	got = ""
 	forged := ev
-	forged.Sig = "00" + ev.Sig[2:]
+	forged.Sig = tamperFixtureSignature(t, ev.Sig)
 	frame2, _ := json.Marshal([]any{"EVENT", "sub", forged})
 	c.handleFrame(context.Background(), frame2)
 	if got != "" {
