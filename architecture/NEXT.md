@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Provider OAuth RPC binding and shared journal projection extraction are complete. Continue §4.5 with provider observation services, then tenant-routed operation binding and primary-only probe; callback HTTP/lifecycle adaptation remains later work.
+> Provider OAuth RPC binding and provider observation service extraction are complete. Continue §4.5 with tenant-routed observation operation binding, then primary-only probe; callback HTTP/lifecycle adaptation remains later work.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -545,6 +545,22 @@ cursor and journal error causes. Full Go/build/vet/static and architecture gates
 pass: 221 packages, unchanged 143 import/13 call exceptions. **Next: move provider
 log/stats/rejections business into app/providers, then bind tenant-routed typed
 operations; primary-only probe and callback adapter refinement remain open.**
+
+**W2.4h provider observation service move:** app/providers.Observations owns
+log/stats/rejections journal folds and wire projections. The host supplies its
+selected journal; CP retains tenant selection, legacy limit/window/boolean
+admission and socket result/error framing. Log uses the shared platform engine;
+rejections retains its existing non-cursor wire shape and stats excludes model-
+chain hops from provider fallback rates. Three original/current native handler
+outputs match across eight argument sets count=20. Socket-free observation and
+source provider/tenant/registry/audit suites, including actual socket primary/own-tenant
+data isolation and cross-tenant refusal, pass count=20; nine independent
+mutations retain window, provider/model distinction, filters, model identities,
+sequence order, chain wire and journal causes. Full Go/build/vet/static and
+architecture gates pass: unchanged 221 packages, 143 import/13 call exceptions.
+**Next: typed observation specs/results and common tenant-routed binding; then
+primary-only probe.** Callback adaptation and the overall provider migration
+remain open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

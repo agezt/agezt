@@ -799,6 +799,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: provider observation folds move into an app service.** Provider
+  log, stats and capability rejections retain their filtering, pagination,
+  ordering and JSON results. Socket adapters retain tenant selection and legacy
+  argument admission; typed observation operation binding follows separately.
+
+
 - **Architecture: journal log projections share a platform engine.** Existing
   cutoff, cursor pagination, sequence ordering and cross-event decoder state
   are preserved. Control-plane adapters retain page-size admission, tenant

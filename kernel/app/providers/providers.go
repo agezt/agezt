@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-// Package providers owns transport-independent provider catalog and keyring operations.
-// Typed specs route catalog and keyring mutations through the shared operation dispatcher.
+// Package providers owns provider management and journal observation services.
+// Catalog, keyring and OAuth RPCs bind through the shared operation dispatcher.
 package providers
 
 import (
