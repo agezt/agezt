@@ -4,10 +4,9 @@ package controlplane
 
 import (
 	"net"
-	"sort"
 
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/journal"
+	"github.com/agezt/agezt/kernel/platform/journalview"
 )
 
 // projectJournal is the ONE engine behind every journal-derived "*_log"
@@ -50,7 +49,6 @@ func (s *Server) projectJournal(conn net.Conn, req Request, resultKey string, de
 	if limit > maxRunsLimit {
 		limit = maxRunsLimit
 	}
-	cursorMS, cursorSeq, cursorOK := journal.DecodeCursor(req.Args["cursor"]) // A2 cursor pagination
 	cutoff := sinceCutoff(req.Args["since_ms"])
 
 	k, err := s.kernelFor(tenantOf(req))
@@ -59,57 +57,10 @@ func (s *Server) projectJournal(conn net.Conn, req Request, resultKey string, de
 		return
 	}
 
-	type row struct {
-		ts, seq int64
-		view    map[string]any
-	}
-	rows := make([]row, 0)
-	if err := k.Journal().Range(func(e *event.Event) error {
-		view, ok := decode(e)
-		if !ok {
-			return nil
-		}
-		if cutoff > 0 && e.TSUnixMS < cutoff {
-			return nil
-		}
-		view["ts_unix_ms"] = e.TSUnixMS
-		view["seq"] = e.Seq // A2: stable per-row id for the frontend cursor pager
-		rows = append(rows, row{ts: e.TSUnixMS, seq: e.Seq, view: view})
-		return nil
-	}); err != nil {
+	output, err := journalview.Project(k.Journal(), journalview.Input{Limit: limit, CutoffMS: cutoff, Cursor: req.Args["cursor"]}, decode)
+	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-
-	sort.Slice(rows, func(i, j int) bool {
-		if rows[i].ts != rows[j].ts {
-			return rows[i].ts > rows[j].ts
-		}
-		return rows[i].seq > rows[j].seq
-	})
-	if cursorOK { // A2: keep rows strictly older than the cursor, before the limit
-		kept := rows[:0]
-		for _, r := range rows {
-			if journal.KeepBeforeCursor(r.ts, r.seq, cursorMS, cursorSeq) {
-				kept = append(kept, r)
-			}
-		}
-		rows = kept
-	}
-	if len(rows) > limit {
-		rows = rows[:limit]
-	}
-	out := make([]map[string]any, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, r.view)
-	}
-	var nextCursor string // A2: page past the last (oldest) emitted row when the page is full
-	if n := len(rows); n > 0 {
-		nextCursor = journal.NextCursor(rows[n-1].ts, rows[n-1].seq, n, limit)
-	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{resultKey: out, "count": len(out), "next_cursor": nextCursor},
-	})
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{resultKey: output.Rows, "count": output.Count, "next_cursor": output.NextCursor}})
 }
