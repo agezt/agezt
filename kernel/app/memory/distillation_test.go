@@ -67,7 +67,7 @@ func TestDistillationRetainsReportsIdentityAndOwnedBudget(t *testing.T) {
 		profile: store.ProfileReport{InputRecords: 8, FacetsWritten: 2, Facets: []string{"style", "preferences"}}}
 	service := appmemory.NewDistillation(fake)
 	parent, cancel := context.WithCancel(context.Background())
-	cancel()
+	defer cancel()
 	start := time.Now()
 	brain, err := service.Consolidate(parent, appmemory.DistillInput{})
 	if err != nil {

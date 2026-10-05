@@ -40,11 +40,14 @@ type Distillation struct{ target Distiller }
 func NewDistillation(target Distiller) *Distillation { return &Distillation{target: target} }
 
 func (s *Distillation) Consolidate(ctx context.Context, _ DistillInput) (ConsolidateOutput, error) {
+	if err := ctx.Err(); err != nil {
+		return ConsolidateOutput{}, err
+	}
 	corr := opapi.CorrelationFromContext(ctx)
 	if corr == "" {
 		corr = s.target.NewCorrelation()
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), distillationTimeout)
+	ctx, cancel := context.WithTimeout(ctx, distillationTimeout)
 	defer cancel()
 	report, err := s.target.DistillBrain(ctx, corr)
 	if err != nil {
@@ -57,11 +60,14 @@ func (s *Distillation) Consolidate(ctx context.Context, _ DistillInput) (Consoli
 }
 
 func (s *Distillation) RebuildProfile(ctx context.Context, _ DistillInput) (ProfileOutput, error) {
+	if err := ctx.Err(); err != nil {
+		return ProfileOutput{}, err
+	}
 	corr := opapi.CorrelationFromContext(ctx)
 	if corr == "" {
 		corr = s.target.NewCorrelation()
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), distillationTimeout)
+	ctx, cancel := context.WithTimeout(ctx, distillationTimeout)
 	defer cancel()
 	report, err := s.target.DistillProfile(ctx, corr)
 	if err != nil {

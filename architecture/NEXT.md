@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider native pilot and exit evidence are complete. Memory typed binding and shared operation/domain correlation are complete; continue §4.5 with distillation caller-context refinement and memory exit evidence, then world/taste/skill. Broader adapters and remaining domains remain open.
+> Catalog/provider native pilot and exit evidence are complete. Memory typed binding, shared identity and distillation caller-context repair are complete; continue §4.5 with memory exit evidence, then world/taste/skill. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -889,6 +889,22 @@ static and all gates pass: unchanged 223 packages, 143 imports/13 calls and
 structure 114. **Next: measured distillation caller-context refinement, then
 memory native exit evidence.** Background model context/lifetime remains for the
 next slice; this repair adds no unrelated policy or model invocation behavior.
+
+**W2.5i distillation caller-context repair:** controlled blocked-port proofs
+confirmed consolidate/profile rebuild retained model waits after caller cancel,
+lost caller deadlines/values and admitted already-canceled direct calls. Both
+paths check cancellation before identity/port effects and derive their owned
+five-minute ceiling from the caller context. Cancellation, earlier deadline and
+model context values now reach the runtime port; deferred cleanup and admitted
+operation identity remain. Background callers retain fresh fallback identity and
+the five-minute ceiling. Direct/typed blocked cancellation, deadline/value/pre-
+canceled, report/cleanup/identity and source/native/tenant/audit contracts plus
+focused race suites pass count=20; six independent mutations reject service,
+admission and typed binding context loss. Full Go/build/vet/scoped static and all
+gates pass: unchanged 223 packages, 143 imports/13 calls and structure 114.
+**Next: memory native exit evidence, then world/taste/skill in roadmap order.**
+Controlled ports and isolated mock-provider sockets do not certify live model or
+provider behavior; broader adapters, generated surfaces and W3–W5 remain open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
