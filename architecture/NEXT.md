@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider native RPC and callback adapter extraction are complete; prepared Close, logout and expiry-worker ownership are repaired. Continue §4.5 with in-flight token/session fencing and caller-context refinement; broader adapter/domain migration remains open.
+> Catalog/provider native RPC and callback adapter/lifetime repairs are complete through expiry workers; token fetch/persist is separated. Continue §4.5 with in-flight token/session persistence fencing and caller-context refinement; broader adapter/domain migration remains open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -707,6 +707,19 @@ Start wiring. Full Go/build/vet/static and architecture gates pass: unchanged
 222 packages and 143 import/13 call exceptions. **Next: in-flight token/session
 fencing, then caller-context refinement.** This repair does not claim ownership
 of a token exchange already running or cancellation of its persistence effects.
+
+**W2.4s token exchange fetch/persist foundation:** Manager.ExchangeTokens owns
+unchanged authorization-code/PKCE HTTP fetching and returns the raw token candidate
+without manager/vault effects. Public ExchangeCode forwards fetch then StoreTokens,
+retaining legacy persistence/account derivation and error behavior. App's callback
+uses the two explicit steps in the same order; no session policy change is claimed
+in this foundation. Isolated endpoint form/candidate/no-write/error tests and
+original manager/OAuth/native contracts pass count=20. Four independent mutations
+retain legacy persistence, candidate fields, verifier form and fetch error cause.
+Full Go/build/vet/static and architecture gates pass: unchanged 222 packages and
+143 import/13 call exceptions. **Next: admit persistence against the current login
+identity after fetch, then caller-context refinement.** In-flight ownership,
+logout/replacement fencing and live provider validation remain open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

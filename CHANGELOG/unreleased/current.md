@@ -799,6 +799,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: OAuth token fetch and persistence have separate entry points.**
+  Candidate fetching leaves current manager/vault tokens unchanged. Existing
+  ExchangeCode and callback flows still fetch then store with their original
+  form, account derivation and error behavior; session admission follows.
+
+
 - **Architecture: OAuth callback listeners use a prepared platform adapter.**
   TCP/mux/server setup moves out of app. Login ownership is published before
   serving; existing callback address, header budget and close/expiry flow remain.
