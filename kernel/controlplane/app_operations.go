@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/app"
+	appboard "github.com/agezt/agezt/kernel/app/board"
 	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
 	appmemory "github.com/agezt/agezt/kernel/app/memory"
 	appproviders "github.com/agezt/agezt/kernel/app/providers"
@@ -149,8 +150,33 @@ var skillOperations = func() []app.Operation {
 	return operations
 }()
 
+var boardOperations = func() []app.Operation {
+	operations, err := appboard.Operations(
+		func(ctx context.Context) (*appboard.Service, error) {
+			server := ctx.Value(systemHostKey{}).(*Server)
+			store, err := server.boardReader()
+			if err != nil {
+				return nil, err
+			}
+			return appboard.New(store, nil), nil
+		},
+		func(ctx context.Context) (*appboard.Service, error) {
+			server := ctx.Value(systemHostKey{}).(*Server)
+			store, ok := server.boardWriter()
+			if !ok {
+				return nil, errors.New("the board is not available on this daemon")
+			}
+			return appboard.New(store, server.boardNotify), nil
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, catalogOperations...)
 	operations = append(operations, providerOperations...)
@@ -160,7 +186,8 @@ func registeredAppOperations() []app.Operation {
 	operations = append(operations, memoryOperations...)
 	operations = append(operations, worldOperations...)
 	operations = append(operations, tasteOperations...)
-	return append(operations, skillOperations...)
+	operations = append(operations, skillOperations...)
+	return append(operations, boardOperations...)
 }
 
 func registerAppSystemCommands() {
