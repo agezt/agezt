@@ -812,6 +812,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: skill observations move into the app service.** History,
+  bundle listing/reading and hygiene return typed results while preserving
+  lifecycle filtering, disk/manifest behavior, byte counts, usage projection
+  and native access rules. History retains its existing best-effort fold.
+
+
 - **Architecture: skill curation moves into the app service.** Sharing, agent
   reassignment and portable import return typed results while retaining roster
   admission, new-draft creation, existing-content ownership/status, bundle

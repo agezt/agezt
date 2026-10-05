@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill read/lifecycle/ownership/import business moves are complete; continue §4.5 with history/files, then typed binding. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill business moves are complete; continue §4.5 with typed binding, measured history/domain identity repairs and exit evidence. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -1075,6 +1075,22 @@ Go/build/vet/scoped static plus all gates pass: unchanged 226 packages, 141 impo
 13 calls, structure 117. No new exception or early debt removal. **Next: skill
 history/files/hygiene, then typed binding/domain identity and exit evidence.**
 Legacy domain correlation and native policy remain until common-host binding.
+
+**W2.8d skill observation-service foundation:** history/files/read_file/hygiene
+now live in app/skill.Observations with context + typed input/output/error. Native
+wrappers retain ID/path/lenient idle-days admission, registration/auth/audit and
+response framing; unused old history/projection helpers are removed. Typed history
+rows retain chronology, admitted lifecycle kinds, ID/restored matching and required
+empty correlation; nil events remain null. Files prefer nonnil successful disk
+listing and retain manifest fallback, directory and Unicode byte count. Hygiene
+retains 30-day default, cutoff, projection plus top-level usage and present-empty
+idle arrays. Four original/current native handlers match exactly count=20. Source/
+service/store/native and package race count=20, eight independent mutations and
+final full Go/build/vet/scoped static plus all gates pass: unchanged 226 packages,
+141 imports/13 calls and structure 117. This move explicitly retains best-effort
+history Range error swallowing and its existing kind set; any behavior repair
+requires its own proof. **Next: skill typed binding, measured history/domain
+identity repairs and exit evidence.** No new exception or early debt removal.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
