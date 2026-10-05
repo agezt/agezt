@@ -1296,6 +1296,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **World graph effects share their operation audit identity.** Add, edit,
+  relate and forget domain events, including new relation endpoints, now retain
+  the admitted correlation so invocation, graph effects and completion can be
+  followed together. Context-free calls retain their existing behavior.
+
+
 - **Memory consolidate/profile rebuild honor caller context.** Caller
   cancellation, deadlines and model context now reach the runtime port under the
   existing five-minute ceiling. Already-canceled calls stop before service

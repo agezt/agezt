@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/worldmodel"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -27,6 +28,43 @@ func TestWorldCommandMetadataComesFromCompleteAppRegistry(t *testing.T) {
 		if tenant && (spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant) {
 			t.Fatalf("world log scope=%+v", spec)
 		}
+	}
+}
+
+func TestWorldNativeMutationSharesOperationCorrelation(t *testing.T) {
+	dir := t.TempDir()
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { k.Close() })
+	server := NewServer(k, dir)
+	server.token = "primary"
+	response := callAppHost(t, server, Request{ID: "world-correlation", Cmd: CmdWorldAdd, Token: "primary", Args: map[string]any{"name": "owned correlation fixture"}})[0]
+	if response.Type != RespResult {
+		t.Fatalf("graph mutation=%+v", response)
+	}
+	var invoked, domain, completed *event.Event
+	if err := k.Journal().Range(func(e *event.Event) error {
+		copy := *e
+		if e.Subject == "op.world_add" && e.Kind == event.KindOpInvoked {
+			invoked = &copy
+		}
+		if e.Subject == "op.world_add" && e.Kind == event.KindOpCompleted {
+			completed = &copy
+		}
+		if e.Kind == event.KindWorldEntityUpserted {
+			domain = &copy
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if invoked == nil || domain == nil || completed == nil {
+		t.Fatalf("missing graph arc invoked=%v domain=%v completed=%v", invoked, domain, completed)
+	}
+	if invoked.CorrelationID == "" || domain.CorrelationID != invoked.CorrelationID || completed.CorrelationID != invoked.CorrelationID || !(invoked.Seq < domain.Seq && domain.Seq < completed.Seq) {
+		t.Fatalf("world correlation diverged: invoked=%s domain=%s completed=%s seq=%d/%d/%d", invoked.CorrelationID, domain.CorrelationID, completed.CorrelationID, invoked.Seq, domain.Seq, completed.Seq)
 	}
 }
 

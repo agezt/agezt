@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider and memory native migrations plus exit evidence are complete. World typed native binding is complete; continue §4.5 with world operation/domain identity and exit evidence, then taste/skill. Broader adapters and remaining domains remain open.
+> Catalog/provider and memory native migrations plus exit evidence are complete. World typed binding and operation/domain identity are complete; continue §4.5 with world exit evidence, then taste/skill. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -965,6 +965,19 @@ Go/build/vet/scoped static and all gates pass: unchanged 224 packages, 142 impor
 13 calls and structure 115. **Next: measured world operation/domain identity
 refinement, then native exit evidence.** Graph business retains its prior empty
 domain correlation; complete world migration and broader architecture remain open.
+
+**W2.6d world operation/domain identity repair:** actual typed native add
+proved operation audit had identity while the graph upsert event had none. Add,
+edit, relate and forget now pass the admitted context correlation into the graph;
+relation-created endpoint events share it too. Context-free calls retain legacy
+empty domain correlation. Permanent native ordered invocation -> graph effect ->
+terminal proof and all four real store/bus/journal paths pass count=20; four
+independent mutations reject each missing identity path. Source/typed/native/
+tenant/audit and focused race suites count=20 plus full Go/build/vet/scoped static
+and all gates pass: unchanged 224 packages, 142 imports/13 calls and structure 115.
+**Next: world native exit evidence, then taste/skill in roadmap order.** This
+repair changes event joins without altering graph normalization, policy or model
+behavior; broader domain/adapter/module migration remains open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
