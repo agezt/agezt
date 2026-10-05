@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill business moves are complete; continue §4.5 with typed binding, measured history/domain identity repairs and exit evidence. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill typed native binding is complete; continue §4.5 with measured history/domain identity repairs and exit evidence. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -1091,6 +1091,25 @@ final full Go/build/vet/scoped static plus all gates pass: unchanged 226 package
 history Range error swallowing and its existing kind set; any behavior repair
 requires its own proof. **Next: skill typed binding, measured history/domain
 identity repairs and exit evidence.** No new exception or early debt removal.
+
+**W2.8e skill typed native binding:** actual closed-journal fixtures confirmed
+all eight legacy mutation commands returned success and changed skill state with
+unavailable operation audit. Fourteen typed app specs now derive native metadata
+through the common host. Mandatory audit precedes all eight mutations; six reads
+remain unaudited. Old wrappers/registrations and resource admission helper are
+removed. CLI compare rollback evidence points to the moved lifecycle/spec sources. Primary-only scope/store selection, StreamNone and actual nine HTTP hints
+remain; native-only get/history/read_file/restore/reassign gain no invented hints.
+Inputs retain byte-preserving IDs/reasons/path, lenient import text, strict nonnull
+string arrays, nullable string resource objects, lenient numeric/decimal-string
+idle-days and unused fields. Actual output schemas retain native wire projection.
+Fourteen old/current bindings x three compatible inputs match count=20 with the
+generic typed failure-code envelope explicitly normalized; fields/domain errors
+remain exact. Closed-journal/effect/metadata/schema/tenant/source/registry/audit and
+package race suites pass count=20; eight independent mutations fail. Final full
+Go/build/vet/scoped static and all gates pass: unchanged 226 packages, 141 imports/
+13 calls, structure 117. CP->skill debt remains owned by roster teardown sources;
+no exception is removed early or expanded. **Next: measured history error/domain
+identity repairs, then skill native exit.** History legacy behavior stays open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

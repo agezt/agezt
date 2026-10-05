@@ -1338,6 +1338,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Skill: unavailable audit now blocks lifecycle and curation mutations.**
+  Promotion, quarantine, archive, revert, restore, share, reassignment and import
+  require successful journal admission before state changes. Six read commands
+  remain available without mutation audit; primary-only access is preserved.
+
+
 - **Taste: unavailable audit now blocks exemplar mutations.** Creation and
   deletion require successful journal admission before store effects. Listing
   remains unaudited; native arguments and primary-only access retain behavior.
