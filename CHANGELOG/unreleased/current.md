@@ -812,6 +812,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: workboard lifecycle moves into the app service.** Creation,
+  claiming, heartbeat, comments, state transitions, proof, seat and archive
+  return typed results while preserving kernel journaling, idempotence/retry
+  decisions, correlation, prove context and native error behavior.
+
+
 - **Architecture: workboard reads move into the app service.** Task lists,
   assignee lanes and lookup return typed results with the existing computed
   counts, proof/retry fields and lane order. Remaining native task outputs share

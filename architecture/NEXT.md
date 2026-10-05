@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board native migration and exit evidence are complete. Workboard list/lanes/show and task projection are moved; continue §4.5 with remaining workboard lifecycle/dispatch services, then binding. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board native migration and exit evidence are complete. Workboard read/projection and create/lifecycle services are moved; continue §4.5 with relation/maintenance and dispatch/watch services, then binding. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -1216,6 +1216,23 @@ mutations plus full Go/build/vet/scoped static and all gates pass: 228 packages,
 unchanged 141 imports/13 calls, structure 119. **Next: remaining workboard lifecycle/
 relations/dispatch/watch services, then typed binding/audit/exit and OKR.** Existing
 native policy and lifecycle/dispatch behavior remain; no early debt removal.
+
+**W2.10b workboard lifecycle-service foundation:** create plus claim/heartbeat/
+comment/block/fail/unblock/complete/prove/seat/archive now live in app/workboard.
+Lifecycle uses the actual narrow kernel facade plus seat setter; typed inputs/
+outputs preserve task projection, creation idempotence and retry-decision fields.
+Unused legacy retry projection helper is removed. Native wrappers retain lenient
+argument/status/seat admission, explicit/generated
+correlation, unknown-task envelope and 90-second prove timeout. Prove receives the
+original caller context; seat retains its store clock. Actual kernel transition/
+retry/idempotence/correlation fixtures and all eleven facade input/error paths pass.
+Eleven old/current native handlers x three inputs match count=20 with generated
+root/nested IDs and bounded lifecycle clocks normalized. Source/service/store/CLI
+and package race count=20, eight independent mutations plus full Go/build/vet/
+scoped static and all gates pass: unchanged 228 packages, 141 imports/13 calls,
+structure 119. **Next: relation/maintenance and dispatch/watch services, then
+workboard typed binding/audit/exit and OKR.** Kernel transition/journaling mechanisms,
+native policy and helper error classification retain their existing behavior.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
