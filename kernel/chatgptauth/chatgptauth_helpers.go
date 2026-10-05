@@ -24,6 +24,16 @@ import (
 // ExchangeCode swaps an authorization code (+ PKCE verifier) for tokens and
 // stores them.
 func (m *Manager) ExchangeCode(ctx context.Context, code, verifier string) error {
+	tokens, err := m.ExchangeTokens(ctx, code, verifier)
+	if err != nil {
+		return err
+	}
+	return m.StoreTokens(tokens)
+}
+
+// ExchangeTokens fetches the token candidate without changing the manager or vault.
+// Callers that own an asynchronous login can admit persistence separately.
+func (m *Manager) ExchangeTokens(ctx context.Context, code, verifier string) (Tokens, error) {
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("code", code)
@@ -32,13 +42,13 @@ func (m *Manager) ExchangeCode(ctx context.Context, code, verifier string) error
 	form.Set("code_verifier", verifier)
 	out, err := postToken(ctx, form)
 	if err != nil {
-		return err
+		return Tokens{}, err
 	}
-	return m.StoreTokens(Tokens{
+	return Tokens{
 		AccessToken:  out.AccessToken,
 		RefreshToken: out.RefreshToken,
 		IDToken:      out.IDToken,
-	})
+	}, nil
 }
 
 // ImportFromCodexCLI copies tokens from a Codex CLI auth.json into our store.
