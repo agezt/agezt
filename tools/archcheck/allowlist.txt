@@ -23,7 +23,6 @@ adapter-bypass kernel/controlplane -> kernel/scheduler
 adapter-bypass kernel/controlplane -> kernel/seat
 adapter-bypass kernel/controlplane -> kernel/skill
 adapter-bypass kernel/controlplane -> kernel/standing
-adapter-bypass kernel/controlplane -> kernel/taste
 adapter-bypass kernel/controlplane -> kernel/toolbox
 adapter-bypass kernel/controlplane -> kernel/toolforge
 adapter-bypass kernel/controlplane -> kernel/update
