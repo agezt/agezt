@@ -6,6 +6,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	store "github.com/agezt/agezt/kernel/memory"
 )
 
@@ -38,8 +39,11 @@ type Distillation struct{ target Distiller }
 
 func NewDistillation(target Distiller) *Distillation { return &Distillation{target: target} }
 
-func (s *Distillation) Consolidate(_ context.Context, _ DistillInput) (ConsolidateOutput, error) {
-	corr := s.target.NewCorrelation()
+func (s *Distillation) Consolidate(ctx context.Context, _ DistillInput) (ConsolidateOutput, error) {
+	corr := opapi.CorrelationFromContext(ctx)
+	if corr == "" {
+		corr = s.target.NewCorrelation()
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), distillationTimeout)
 	defer cancel()
 	report, err := s.target.DistillBrain(ctx, corr)
@@ -52,8 +56,11 @@ func (s *Distillation) Consolidate(_ context.Context, _ DistillInput) (Consolida
 		ActiveBefore: report.ActiveBefore, ActiveAfter: report.ActiveAfterApprox}, nil
 }
 
-func (s *Distillation) RebuildProfile(_ context.Context, _ DistillInput) (ProfileOutput, error) {
-	corr := s.target.NewCorrelation()
+func (s *Distillation) RebuildProfile(ctx context.Context, _ DistillInput) (ProfileOutput, error) {
+	corr := opapi.CorrelationFromContext(ctx)
+	if corr == "" {
+		corr = s.target.NewCorrelation()
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), distillationTimeout)
 	defer cancel()
 	report, err := s.target.DistillProfile(ctx, corr)

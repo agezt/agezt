@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	store "github.com/agezt/agezt/kernel/memory"
 )
 
@@ -30,7 +31,7 @@ type TidyOutput struct {
 	Collapsed int  `json:"collapsed"`
 }
 
-func (s *Service) Prune(_ context.Context, in PruneInput) (PruneOutput, error) {
+func (s *Service) Prune(ctx context.Context, in PruneInput) (PruneOutput, error) {
 	if s.manager == nil {
 		return PruneOutput{}, errors.New("memory unavailable")
 	}
@@ -48,7 +49,7 @@ func (s *Service) Prune(_ context.Context, in PruneInput) (PruneOutput, error) {
 		out.Prunable = &hyg.Prunable
 		return out, nil
 	}
-	pruned, err := s.manager.Prune("", cutoff, false)
+	pruned, err := s.manager.Prune(opapi.CorrelationFromContext(ctx), cutoff, false)
 	if err != nil {
 		return PruneOutput{}, err
 	}
@@ -56,11 +57,11 @@ func (s *Service) Prune(_ context.Context, in PruneInput) (PruneOutput, error) {
 	return out, nil
 }
 
-func (s *Service) Tidy(_ context.Context, in HygieneInput) (TidyOutput, error) {
+func (s *Service) Tidy(ctx context.Context, in HygieneInput) (TidyOutput, error) {
 	if s.manager == nil {
 		return TidyOutput{}, errors.New("memory unavailable")
 	}
-	n, err := s.manager.DedupeDistilled("", in.DryRun)
+	n, err := s.manager.DedupeDistilled(opapi.CorrelationFromContext(ctx), in.DryRun)
 	if err != nil {
 		return TidyOutput{}, err
 	}
@@ -71,6 +72,6 @@ func (s *Service) Audit(_ context.Context, _ struct{}) (store.AuditReport, error
 	return s.manager.Audit()
 }
 
-func (s *Service) Clean(_ context.Context, in HygieneInput) (store.CleanReport, error) {
-	return s.manager.CleanLowValue("", in.DryRun)
+func (s *Service) Clean(ctx context.Context, in HygieneInput) (store.CleanReport, error) {
+	return s.manager.CleanLowValue(opapi.CorrelationFromContext(ctx), in.DryRun)
 }

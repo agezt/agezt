@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -27,6 +28,43 @@ func TestMemoryCommandMetadataComesFromCompleteAppRegistry(t *testing.T) {
 		if tenant[spec.Name] && (spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant) {
 			t.Fatalf("tenant spec=%+v", spec)
 		}
+	}
+}
+
+func TestMemoryNativeMutationSharesOperationCorrelation(t *testing.T) {
+	dir := t.TempDir()
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { k.Close() })
+	server := NewServer(k, dir)
+	server.token = "primary"
+	response := callAppHost(t, server, Request{ID: "correlation", Cmd: CmdMemoryAdd, Token: "primary", Args: map[string]any{"content": "owned correlation fixture", "subject": "correlation"}})[0]
+	if response.Type != RespResult {
+		t.Fatalf("mutation=%+v", response)
+	}
+	var invoked, written, completed *event.Event
+	if err := k.Journal().Range(func(e *event.Event) error {
+		copy := *e
+		if e.Subject == "op.memory_add" && e.Kind == event.KindOpInvoked {
+			invoked = &copy
+		}
+		if e.Subject == "op.memory_add" && e.Kind == event.KindOpCompleted {
+			completed = &copy
+		}
+		if e.Kind == event.KindMemoryWritten {
+			written = &copy
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if invoked == nil || written == nil || completed == nil {
+		t.Fatalf("missing joined arc: invoked=%v written=%v completed=%v", invoked, written, completed)
+	}
+	if invoked.CorrelationID == "" || written.CorrelationID != invoked.CorrelationID || completed.CorrelationID != invoked.CorrelationID || !(invoked.Seq < written.Seq && written.Seq < completed.Seq) {
+		t.Fatalf("operation/domain correlation diverged: invoked=%s written=%s completed=%s seq=%d/%d/%d", invoked.CorrelationID, written.CorrelationID, completed.CorrelationID, invoked.Seq, written.Seq, completed.Seq)
 	}
 }
 
