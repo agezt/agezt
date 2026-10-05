@@ -29,7 +29,6 @@ adapter-bypass kernel/controlplane -> kernel/toolforge
 adapter-bypass kernel/controlplane -> kernel/update
 adapter-bypass kernel/controlplane -> kernel/workboard
 adapter-bypass kernel/controlplane -> kernel/workflow
-adapter-bypass kernel/controlplane -> kernel/worldmodel
 adapter-bypass kernel/openaiapi -> kernel/convo
 adapter-bypass kernel/restapi -> kernel/board
 adapter-bypass kernel/restapi -> kernel/update

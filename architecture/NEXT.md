@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider and memory native migrations plus exit evidence are complete. Continue §4.5 with world, then taste/skill in roadmap order. Broader adapters and remaining domains remain open.
+> Catalog/provider and memory native migrations plus exit evidence are complete. World graph business move is complete; continue §4.5 with world journal log and typed binding, then taste/skill. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -917,6 +917,23 @@ repair, tenant isolation, domain identity and caller lifetime with explicit
 parity/live-provider boundaries. **Next: world, then taste/skill in roadmap order.**
 Memory native migration is complete; knowledge/runtime module dissolution,
 broader adapters, generated surfaces, runs.Start and W3–W5 remain open.
+
+**W2.6a world graph-service foundation:** add/edit/relate/resolve/neighbors/
+list/get/forget business now lives in app/world with context + typed input/output/
+error. Native wrappers retain required/type/collection/limit admission, registry,
+auth/audit and legacy empty correlation. Entity projection moves with business;
+the private duplicate CP view is removed. Content identity, open kind/verb
+normalization, alias/attribute replacement, relation endpoint/direction behavior,
+quiet resolve, absent/empty/zero and lifecycle/provenance fields retain semantics.
+Resolve receives the already-admitted integer limit, preserving fractional input
+that truncates to zero. Eight original/current native handlers × eight argument
+sets match count=20 with bounded ranking clock drift. Source/graph/registry/tenant/
+audit and new-package race tests count=20 plus twelve independent mutations pass.
+Full Go/build/vet/scoped static and all gates pass: 224 packages, 142 imports/13
+calls. The official writer removes paid CP->worldmodel debt only; official kernel
+structure is 115 packages. **Next: world journal fold, then typed operation binding
+and old wrapper deletion.** This move changes no policy/audit/correlation behavior;
+the complete world migration remains open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

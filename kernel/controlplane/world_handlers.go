@@ -8,7 +8,9 @@ package controlplane
 import (
 	"net"
 
-	"github.com/agezt/agezt/kernel/worldmodel"
+	"context"
+	"encoding/json"
+	appworld "github.com/agezt/agezt/kernel/app/world"
 )
 
 func (s *Server) handleWorldAdd(conn net.Conn, req Request) {
@@ -28,20 +30,22 @@ func (s *Server) handleWorldAdd(conn net.Conn, req Request) {
 		return
 	}
 
-	e, created, err := s.k.World().Upsert("", worldmodel.UpsertSpec{
-		Kind: worldmodel.Kind(kind), Name: name, Aliases: aliases, Attrs: attrs,
-	})
+	out, err := appworld.New(s.k.World()).Add(context.Background(), appworld.AddInput{Name: name, Kind: kind, Aliases: aliases, Attrs: attrs})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	s.writeResp(conn, Response{
-		ID:   req.ID,
-		Type: RespResult,
-		Result: map[string]any{
-			"id": e.ID, "created": created, "kind": string(e.Kind), "name": e.Name,
-		},
-	})
+	raw, err := json.Marshal(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 func (s *Server) handleWorldEdit(conn net.Conn, req Request) {
 	id, err := requiredArgString(req.Args, "id")
@@ -54,22 +58,22 @@ func (s *Server) handleWorldEdit(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	e, ok, err := s.k.World().EditEntity("", id, aliases, attrs)
+	out, err := appworld.New(s.k.World()).Edit(context.Background(), appworld.EditInput{ID: id, Aliases: aliases, Attrs: attrs})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	if !ok {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"updated": false}})
+	raw, err := json.Marshal(out)
+	if err != nil {
+		s.fail(conn, req, err)
 		return
 	}
-	s.writeResp(conn, Response{
-		ID:   req.ID,
-		Type: RespResult,
-		Result: map[string]any{
-			"updated": true, "id": e.ID, "kind": string(e.Kind), "name": e.Name,
-		},
-	})
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 func (s *Server) handleWorldRelate(conn net.Conn, req Request) {
 	sa, err := argStrings(req.Args, "from", "to", "verb")
@@ -82,18 +86,22 @@ func (s *Server) handleWorldRelate(conn net.Conn, req Request) {
 		s.failMsg(conn, req, "args.from and args.to required")
 		return
 	}
-	r, err := s.k.World().Relate("", from, worldmodel.Verb(verb), to)
+	out, err := appworld.New(s.k.World()).Relate(context.Background(), appworld.RelateInput{From: from, To: to, Verb: verb})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	s.writeResp(conn, Response{
-		ID:   req.ID,
-		Type: RespResult,
-		Result: map[string]any{
-			"id": r.ID, "from": r.From, "verb": string(r.Verb), "to": r.To,
-		},
-	})
+	raw, err := json.Marshal(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 func (s *Server) handleWorldResolve(conn net.Conn, req Request) {
 	query, err := requiredArgString(req.Args, "query")
@@ -106,20 +114,22 @@ func (s *Server) handleWorldResolve(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	hits, err := s.k.World().ResolveQuiet(query, limit)
+	out, err := appworld.New(s.k.World()).Resolve(context.Background(), appworld.ResolveInput{Query: query, Limit: limit})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	out := make([]any, 0, len(hits))
-	for _, h := range hits {
-		out = append(out, map[string]any{"entity": entityView(h.Entity), "score": h.Score})
+	raw, err := json.Marshal(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"results": out, "count": len(out)},
-	})
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 func (s *Server) handleWorldNeighbors(conn net.Conn, req Request) {
 	query, err := requiredArgString(req.Args, "query")
@@ -127,69 +137,40 @@ func (s *Server) handleWorldNeighbors(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	hits, err := s.k.World().ResolveQuiet(query, 1)
+	out, err := appworld.New(s.k.World()).Neighbors(context.Background(), appworld.QueryInput{Query: query})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	if len(hits) == 0 {
-		s.writeResp(conn, Response{
-			ID: req.ID, Type: RespResult,
-			Result: map[string]any{"found": false, "neighbors": []any{}, "count": 0},
-		})
-		return
-	}
-	center := hits[0].Entity
-	ns, err := s.k.World().Neighbors(center.ID)
+	raw, err := json.Marshal(out)
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	out := make([]any, 0, len(ns))
-	for _, n := range ns {
-		out = append(out, map[string]any{
-			"verb":     string(n.Relation.Verb),
-			"outgoing": n.Outgoing,
-			"other":    entityView(n.Other),
-		})
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	s.writeResp(conn, Response{
-		ID:   req.ID,
-		Type: RespResult,
-		Result: map[string]any{
-			"found": true, "entity": entityView(center), "neighbors": out, "count": len(out),
-		},
-	})
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 func (s *Server) handleWorldList(conn net.Conn, req Request) {
-	ents, err := s.k.World().Entities()
+	out, err := appworld.New(s.k.World()).List(context.Background(), appworld.ListInput{})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	rels, err := s.k.World().Relations()
+	raw, err := json.Marshal(out)
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	out := make([]any, 0, len(ents))
-	for _, e := range ents {
-		out = append(out, entityView(e))
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	edges := make([]any, 0, len(rels))
-	for _, r := range rels {
-		edges = append(edges, map[string]any{
-			"id": r.ID, "from": r.From, "verb": string(r.Verb), "to": r.To, "weight": r.Weight,
-		})
-	}
-	s.writeResp(conn, Response{
-		ID:   req.ID,
-		Type: RespResult,
-		Result: map[string]any{
-			"entities": out, "count": len(out),
-			"edges": edges, "relation_count": len(rels),
-		},
-	})
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 func (s *Server) handleWorldGet(conn net.Conn, req Request) {
 	id, err := requiredArgString(req.Args, "id")
@@ -197,16 +178,22 @@ func (s *Server) handleWorldGet(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	e, found, err := s.k.World().Get(id)
+	out, err := appworld.New(s.k.World()).Get(context.Background(), appworld.GetInput{ID: id})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	result := map[string]any{"found": found}
-	if found {
-		result["entity"] = entityView(e)
+	raw, err := json.Marshal(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
 	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }
 func (s *Server) handleWorldForget(conn net.Conn, req Request) {
 	id, err := requiredArgString(req.Args, "id")
@@ -214,14 +201,20 @@ func (s *Server) handleWorldForget(conn net.Conn, req Request) {
 		s.fail(conn, req, err)
 		return
 	}
-	ok, err := s.k.World().Forget("", id)
+	out, err := appworld.New(s.k.World()).Forget(context.Background(), appworld.GetInput{ID: id})
 	if err != nil {
 		s.fail(conn, req, err)
 		return
 	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"forgotten": ok},
-	})
+	raw, err := json.Marshal(out)
+	if err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		s.fail(conn, req, err)
+		return
+	}
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: body})
 }

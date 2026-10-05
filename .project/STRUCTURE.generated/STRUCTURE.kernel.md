@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-114 package(s):
+115 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -17,6 +17,7 @@
 - **`kernel/app/providers`** — Package providers owns provider management and journal observation services.
 - **`kernel/app/system`** — Package system owns the transport-independent daemon status/version handlers.
 - **`kernel/app/tools`** — Package tools is the application entry for governed direct tool invocations.
+- **`kernel/app/world`** — Package world owns transport-independent world graph use cases.
 - **`kernel/approval`** — Package approval is the human-in-the-loop pause point.
 - **`kernel/artifact`** — Package artifact is a content-addressed (BLAKE3) blob store — the substrate for SPEC-04 §3.6 artifacts: tool/run outputs that are too large to inline in an event are written here and referenced by their content hash, so the journal stays small while the bytes survive in the lineage and dedupe automatically.
 - **`kernel/assure`** — Package assure is the "do-it-for-sure" loop: run a task, verify it was actually accomplished, and retry with the verifier's gap fed back — up to a bounded number of attempts, stopping the moment a verdict reports the task complete (M651).
