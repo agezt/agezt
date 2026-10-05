@@ -812,6 +812,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: taste native migration is complete.** Three exemplar commands
+  share typed app operations, primary-only host selection and mandatory mutation
+  audit. Aggregate registry coverage and exit evidence retain native contracts;
+  skill migration follows.
+
+
 - **Architecture: taste curation moves into the app service.** Exemplar list,
   creation and deletion return typed results while preserving store filtering,
   field presence, validation and persistence errors. Native lenient admission
