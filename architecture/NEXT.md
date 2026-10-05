@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider native RPC and callback adapter/lifetime/session persistence repairs are complete. Continue §4.5 with caller-context refinement and provider exit evidence; broader adapter/domain migration remains open.
+> Catalog/provider native RPC, callback lifetime/session persistence and probe caller-context repairs are complete. Continue §4.5 with provider exit evidence; broader adapter/domain migration remains open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -737,6 +737,21 @@ packages and 143 import/13 call exceptions. **Next: caller-context refinement an
 provider exit evidence.** Effects admitted before retirement retain their normal
 ordering; broader generated surfaces/adapters/domains and the architecture goal
 remain open.
+
+**W2.4u probe caller-context repair:** controlled typed-dispatch HTTP fixtures
+reproduced cancellation leaving the probe on its background timeout, and canceled
+response bodies reporting successful probes. Context-aware GatewayGETContext,
+Probe.CheckContext and injected port now carry caller cancellation/deadline while
+retaining the guarded posture/ten-second ceiling. Caller cancellation after body
+read returns its cause; legacy GatewayGET/Check and injected context-free getters
+retain their background/best-effort behavior. Typed probe uses the context-aware
+entry. Primitive/source/native/context/legacy contracts and focused race tests
+pass count=20; four independent mutations retain transport/operation/port context
+and canceled-body result. Full Go/build/vet/static and architecture gates pass:
+unchanged 222 packages and 143 import/13 call exceptions; no dead-code exception
+was added for the live legacy entry points. **Next: provider exit evidence.**
+Live provider/browser validation and broader generated transports/domains remain
+outside these controlled-fixture and native-host checks.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

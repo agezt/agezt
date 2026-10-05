@@ -15,7 +15,7 @@ func ProbeOperations(provider func(context.Context) *Probe) ([]app.Operation, er
 		return nil, errors.New("provider probe service provider required")
 	}
 	op, err := app.NewOperation(opapi.Spec{Name: "provider_probe", ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: "POST", Path: "/api/provider/probe"}}, func(ctx context.Context, in ProbeInput) (ProbeOutput, error) {
-		return provider(ctx).Check(in)
+		return provider(ctx).CheckContext(ctx, in)
 	})
 	if err != nil {
 		return nil, err

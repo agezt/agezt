@@ -1222,6 +1222,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Provider probes honor caller cancellation and deadlines.** Typed probe requests
+  previously continued under a background HTTP timeout; canceled response bodies
+  could appear successful. Context now reaches the guarded transport and canceled
+  bodies return an error. Legacy context-free GET/caller behavior remains.
+
+
 - **Retired OAuth callbacks cannot restore tokens after logout or replacement.**
   Candidate persistence now checks current login, pending state, cancellation and
   timer ownership under the same mutex as logout. Retired post-exchange results
