@@ -812,6 +812,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: world native migration is complete.** Nine graph/history
+  commands share typed app operations and the native host. Aggregate registry
+  regression and exit evidence retain audit/tenant boundaries, graph contracts
+  and shared event identity. Taste/skill migration follows separately.
+
+
 - **Architecture: world history moves into the app service.** Typed entity,
   relation and forget rows preserve labels, filters, cursor/window boundaries
   and native field presence through the shared journal projection. Native tenant
