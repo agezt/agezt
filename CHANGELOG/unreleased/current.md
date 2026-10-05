@@ -799,6 +799,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: memory history moves into the app service.** Typed lifecycle
+  rows preserve operation aliases, subjects, cursor/window behavior and native
+  field presence through the shared journal projection. Native tenant selection
+  and lenient argument admission remain until operation binding.
+
+
 - **Architecture: memory list paging moves into the app service.** Native
   record fields, ordering, cursor boundaries, counts and empty results remain
   compatible; the duplicate control-plane projection is removed. Active reads
