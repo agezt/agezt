@@ -13,6 +13,7 @@ import (
 	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
 	appmemory "github.com/agezt/agezt/kernel/app/memory"
 	appproviders "github.com/agezt/agezt/kernel/app/providers"
+	appskill "github.com/agezt/agezt/kernel/app/skill"
 	"github.com/agezt/agezt/kernel/app/system"
 	apptaste "github.com/agezt/agezt/kernel/app/taste"
 	appworld "github.com/agezt/agezt/kernel/app/world"
@@ -125,8 +126,31 @@ var tasteOperations = func() []app.Operation {
 	return operations
 }()
 
+var skillOperations = func() []app.Operation {
+	operations, err := appskill.Operations(
+		func(ctx context.Context) *appskill.Service {
+			return appskill.New(ctx.Value(appHostKey{}).(appHost).kernel.Forge())
+		},
+		func(ctx context.Context) *appskill.Lifecycle {
+			return appskill.NewLifecycle(ctx.Value(appHostKey{}).(appHost).kernel.Forge())
+		},
+		func(ctx context.Context) *appskill.Curation {
+			host := ctx.Value(appHostKey{}).(appHost)
+			return appskill.NewCuration(host.kernel.Forge(), func(slug string) bool { _, ok := host.kernel.Roster().Get(slug); return ok })
+		},
+		func(ctx context.Context) *appskill.Observations {
+			host := ctx.Value(appHostKey{}).(appHost)
+			return appskill.NewObservations(host.kernel.Forge(), host.kernel.Journal())
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, catalogOperations...)
 	operations = append(operations, providerOperations...)
@@ -135,7 +159,8 @@ func registeredAppOperations() []app.Operation {
 	operations = append(operations, probeOperations...)
 	operations = append(operations, memoryOperations...)
 	operations = append(operations, worldOperations...)
-	return append(operations, tasteOperations...)
+	operations = append(operations, tasteOperations...)
+	return append(operations, skillOperations...)
 }
 
 func registerAppSystemCommands() {
