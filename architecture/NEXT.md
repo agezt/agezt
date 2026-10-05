@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider and memory native migrations plus exit evidence are complete. World graph business move is complete; continue §4.5 with world journal log and typed binding, then taste/skill. Broader adapters and remaining domains remain open.
+> Catalog/provider and memory native migrations plus exit evidence are complete. World graph/journal business moves are complete; continue §4.5 with world typed binding and identity/exit evidence, then taste/skill. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -934,6 +934,20 @@ calls. The official writer removes paid CP->worldmodel debt only; official kerne
 structure is 115 packages. **Next: world journal fold, then typed operation binding
 and old wrapper deletion.** This move changes no policy/audit/correlation behavior;
 the complete world migration remains open.
+
+**W2.6b world journal-service foundation:** app/world.LogService owns world
+entity/relation/forget event folding, labels and typed rows through journalview.
+Native wrappers retain kind type admission, lenient limit/window/cursor behavior
+and tenant-selected journal before service entry. Kind annotations, relation
+direction labels, forgotten name/verb fallback, upsert default, filtering,
+cutoff/cursor boundaries, empty arrays and present zero/empty fields retain source
+behavior. Original/current native log across thirteen argument sets matches exact
+JSON count=20. Source/log/graph/registry/tenant/audit and package race suites pass
+count=20; ten independent mutations fail. Full Go/build/vet/scoped static and all
+gates pass: unchanged 224 packages, 142 imports/13 calls and structure 115.
+**Next: world typed operation binding, old wrapper deletion and measured domain
+identity refinement, then native exit evidence.** Native registry/auth/audit remain
+unchanged during this business move; complete world migration remains open.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
