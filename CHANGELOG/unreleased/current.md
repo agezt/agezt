@@ -799,6 +799,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Architecture: provider endpoint checks move into an app service.** Existing
+  reachability, authorization, model counts and failure responses remain behind
+  the bounded guarded transport; native access remains primary-only and read-only.
+
+
 - **Architecture: provider and WhatsApp checks share a platform HTTP helper.**
   Existing guarded GET, timeout, headers, redirects and bounded response reads
   retain their behavior; native handlers and primary-only access remain in place.

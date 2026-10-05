@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Provider OAuth RPC, tenant-routed observations and guarded GET extraction are complete. Continue §4.5 with the primary-only probe service and typed binding; callback HTTP/lifecycle adaptation remains later work.
+> Provider OAuth RPC, tenant-routed observations and probe service extraction are complete. Continue §4.5 with primary-only probe operation binding; context/callback HTTP adaptation remains later work.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -594,6 +594,20 @@ and architecture gates pass: unchanged 221 packages and 143 import/13 call
 exceptions. **Next: primary-only probe service, then typed operation binding.**
 Caller-context/partial-read refinement, callback adaptation and full provider
 migration remain open; this mechanical move changes no HTTP posture or effects.
+
+**W2.4k provider probe service move:** app/providers.Probe owns the endpoint
+models check behind an injected bounded GET port. Its default uses the unchanged
+platform/netout helper; CP retains lenient string admission, native framing and
+primary-only/read-only registration. URL/key trimming, models path, one-MiB bound,
+reachability versus authorization, 2xx-only model counting and failure-result
+shape retain their source behavior. Socket-free six-status fixtures and source
+contracts pass count=20; original/current native JSON outputs match across six
+statuses and six argument sets count=20. Eight independent mutations retain
+missing-URL admission, normalization, path/bound, 401 reachability, model counting
+and failure shape. Full Go/build/vet/static and architecture gates pass: unchanged
+221 packages and 143 import/13 call exceptions. **Next: typed primary-only probe
+spec/output and common operation binding.** Context/callback adaptation and the
+overall provider migration remain open; no live provider or paid model was used.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
