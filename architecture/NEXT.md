@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider native pilot and exit evidence are complete. Memory read, curation and hygiene service moves are complete; continue §4.5 with list/log/distillation and typed binding, then world/taste/skill. Broader adapters and remaining domains remain open.
+> Catalog/provider native pilot and exit evidence are complete. Memory read/curation/hygiene/distillation business moves are complete; continue §4.5 with list/log, typed binding and caller-context/correlation refinement, then world/taste/skill. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -809,6 +809,21 @@ count=20; nine independent mutations fail. Full Go/build/vet/scoped static and a
 gates pass: unchanged 223 packages, 143 imports/13 calls and structure 114.
 **Next: memory list/log/distillation, then typed binding and wrapper deletion.**
 This move changes no policy, native registration, audit or correlation behavior.
+
+**W2.5d memory distillation-service foundation:** consolidate/profile-rebuild
+orchestration now lives in app/memory.Distillation behind a runtime-supplied
+Distiller port. Methods accept context and typed input and return typed reports;
+the unchanged orchestration still creates a fresh correlation and owns a bounded
+five-minute background context, canceled on success/failure. Native report fields
+retain present null arrays/zero counts and active_after naming. Two original/
+current handlers × two argument sets × running/halted states match count=20 after
+normalizing fresh correlation IDs. Permanent actual-socket no-op/halt and fake-port
+report/order/budget/cleanup/cause contracts pass count=20; nine independent
+mutations fail. Full Go/build/vet/scoped static and all gates pass: unchanged 223
+packages, 143 imports/13 calls and structure 114. **Next: memory list/log move,
+typed binding, then measured caller-context/operation-correlation refinement.**
+This move preserves background orchestration and legacy audit behavior; it does
+not yet promise caller cancellation or shared operation identity for distillation.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →
