@@ -126,7 +126,7 @@ func compareCapabilities() []compareCapability {
 			Status:      compareStatusSupported,
 			Expectation: "Run/file checkpoints with operator-triggered rollback for mutations.",
 			Agezt:       "AGEZT has `agt rollback list/show/dry-run/apply`, `agt rollback list --run <id>`, a local checkpoint catalog, workshop pre-mutation skill.status checkpoints, workflow.snapshot checkpoints for CLI workflow edits, daemon file.snapshot checkpoints for file write/append/replace/delete, config.setting checkpoints for `agt config set`, Web UI run-detail rollback list/apply, rollback_mode labels for irreversible tools, and journaled `skill.restored` / `workflow.restored` rollback paths.",
-			Evidence:    []string{"cmd/agt/rollback.go", "cmd/agt/skill_workshop.go", "cmd/agt/workflow.go", "cmd/agt/config.go", "plugins/tools/file/checkpoint.go", "cmd/agezt/main.go", "kernel/webui/rollback.go", "frontend/src/components/RunDetail.tsx", "kernel/controlplane/tool.go", "kernel/controlplane/skill.go", "kernel/controlplane/workflow.go", "kernel/skill/forge.go", "kernel/workflow/workflow.go"},
+			Evidence:    []string{"cmd/agt/rollback.go", "cmd/agt/skill_workshop.go", "cmd/agt/workflow.go", "cmd/agt/config.go", "plugins/tools/file/checkpoint.go", "cmd/agezt/main.go", "kernel/webui/rollback.go", "frontend/src/components/RunDetail.tsx", "kernel/controlplane/tool.go", "kernel/app/skill/lifecycle.go", "kernel/app/skill/operations.go", "kernel/controlplane/workflow.go", "kernel/skill/forge.go", "kernel/workflow/workflow.go"},
 			Next:        "Broaden checkpoint hooks to patch/coding/package-update paths and add agent-detail rollback grouping.",
 		},
 		{

@@ -35,7 +35,6 @@ func registerAllCommands() {
 	registerRosterCommands()
 	registerScheduleCommands()
 	registerSettingsCommands()
-	registerSkillCommands()
 	registerStandingCommands()
 	registerSteerCommands()
 	registerTenantCommands()
