@@ -272,6 +272,11 @@ Transports declared: `long-poll` (telegram, matrix), `webhook` (most), `rest` (s
 mastodon, zulip, whatsappgw, imessage), `smtp` (email), `socket` (irc, twitch, nostr — not listed in the
 `Manifest.Transport` doc comment).
 
+Gateway status/QR are typed primary ReadOnly POST operations in
+`app/channels/gateway_operations.go`. Native `channels_gateway_ports.go` selects the
+existing bounded guarded HTTP port; already-canceled requests stop before probing.
+The port retains its background timeout policy for probes already in flight.
+
 ### 4.3 Multi-account (`ENV#label`)
 
 - Non-default accounts store values under `AGEZT_X#<label>` (non-secret in the config store, secret in the vault);

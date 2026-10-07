@@ -812,6 +812,10 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Gateway status and QR probes use typed application operations.** Existing
+  responses and gateway HTTP behavior are preserved. Already-canceled requests
+  stop before probing the gateway.
+
 - **Channel OAuth uses typed application operations.** Known/unknown status
   fields and existing connect/callback behavior are preserved. Canceled requests
   and failed audit admission stop before OAuth writer effects.
