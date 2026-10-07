@@ -42,18 +42,18 @@ func TestChannelGatewayPortURLHeaderBoundsAndLegacyContext(t *testing.T) {
 				ctx, cancel := context.WithCancel(context.Background())
 				cancel()
 				input := GatewayInput{URL: " http://owned.example/base/// ", Backend: backend, Session: session, Key: " owned secret "}
-				var result GatewayOutput
+				var result any
 				var err error
 				if qr {
 					result, err = service.QR(ctx, input)
 				} else {
 					result, err = service.Status(ctx, input)
 				}
-				want := GatewayOutput{"ok": true, "status": "WORKING", "connected": true}
+				want := map[string]any{"ok": true, "status": "WORKING", "connected": true}
 				if qr {
-					want = GatewayOutput{"ok": true, "qr": "data:image/png;base64,b3duZWQtcG5n"}
+					want = map[string]any{"ok": true, "qr": "data:image/png;base64,b3duZWQtcG5n"}
 				}
-				if err != nil || calls != 1 || !reflect.DeepEqual(result, want) {
+				if err != nil || calls != 1 || !reflect.DeepEqual(gatewayJSONView(t, result), want) {
 					t.Fatal(result, err, calls)
 				}
 			}
@@ -89,7 +89,7 @@ func TestChannelGatewayValidationPrecedenceAndUnavailableErrors(t *testing.T) {
 	// QR delegates URL validation to the selected platform port, preserving its
 	// legacy result/error boundary instead of adopting Status's early rejection.
 	for _, qr := range []bool{false, true} {
-		var result GatewayOutput
+		var result any
 		var err error
 		input := GatewayInput{URL: "http://owned.example"}
 		if qr {
@@ -98,7 +98,7 @@ func TestChannelGatewayValidationPrecedenceAndUnavailableErrors(t *testing.T) {
 		} else {
 			result, err = service.Status(context.Background(), input)
 		}
-		if err != nil || !reflect.DeepEqual(result, GatewayOutput{"ok": false, "error": "cannot reach gateway: owned failure"}) {
+		if err != nil || !reflect.DeepEqual(gatewayJSONView(t, result), map[string]any{"ok": false, "error": "cannot reach gateway: owned failure"}) {
 			t.Fatal(result, err)
 		}
 	}
@@ -124,7 +124,7 @@ func TestChannelGatewayStatusPresentationPrecedenceAndMalformedResponses(t *test
 			return []byte(tc.body), 200, "application/json", nil
 		})
 		result, err := service.Status(context.Background(), GatewayInput{URL: "https://owned.example"})
-		if err != nil || !reflect.DeepEqual(result, GatewayOutput{"ok": true, "status": tc.status, "connected": tc.connected}) {
+		if err != nil || !reflect.DeepEqual(gatewayJSONView(t, result), map[string]any{"ok": true, "status": tc.status, "connected": tc.connected}) {
 			t.Fatal(tc, result, err)
 		}
 	}
@@ -135,11 +135,11 @@ func TestChannelGatewayStatusPresentationPrecedenceAndMalformedResponses(t *test
 			t.Fatal(err)
 		}
 		if code/100 == 2 {
-			if result["ok"] != true || result["status"] != "" || result["connected"] != false {
+			if gatewayJSONView(t, result)["ok"] != true || gatewayJSONView(t, result)["status"] != "" || gatewayJSONView(t, result)["connected"] != false {
 				t.Fatal(result)
 			}
 		} else {
-			if !reflect.DeepEqual(result, GatewayOutput{"ok": false, "http_status": code, "error": "gateway status " + http.StatusText(code)}) {
+			if !reflect.DeepEqual(gatewayJSONView(t, result), map[string]any{"ok": false, "http_status": code, "error": "gateway status " + http.StatusText(code)}) {
 				t.Fatal(result)
 			}
 		}
@@ -150,21 +150,21 @@ func TestChannelGatewayQRRawImageJSONAndHTTPFailure(t *testing.T) {
 	for _, tc := range []struct {
 		body, ctype string
 		code        int
-		want        GatewayOutput
+		want        map[string]any
 	}{
-		{"png", "image/png", 200, GatewayOutput{"ok": true, "qr": "data:image/png;base64,cG5n"}},
-		{"", "image/jpeg; charset=binary", 200, GatewayOutput{"ok": true, "qr": "data:image/jpeg; charset=binary;base64,"}},
-		{`{"base64":"data:image/svg+xml;base64,owned"}`, "application/json", 200, GatewayOutput{"ok": true, "qr": "data:image/svg+xml;base64,owned"}},
-		{`{"base64":"raw"}`, "application/json", 200, GatewayOutput{"ok": true, "qr": "data:image/png;base64,raw"}},
-		{`{"base64":""}`, "application/json", 200, GatewayOutput{"ok": false, "error": "gateway did not return a QR image"}},
-		{"bad", "Image/png", 200, GatewayOutput{"ok": false, "error": "gateway did not return a QR image"}},
-		{"bad", "image/png", 403, GatewayOutput{"ok": false, "error": "no QR (gateway returned Forbidden — already logged in?)", "http_status": 403}},
+		{"png", "image/png", 200, map[string]any{"ok": true, "qr": "data:image/png;base64,cG5n"}},
+		{"", "image/jpeg; charset=binary", 200, map[string]any{"ok": true, "qr": "data:image/jpeg; charset=binary;base64,"}},
+		{`{"base64":"data:image/svg+xml;base64,owned"}`, "application/json", 200, map[string]any{"ok": true, "qr": "data:image/svg+xml;base64,owned"}},
+		{`{"base64":"raw"}`, "application/json", 200, map[string]any{"ok": true, "qr": "data:image/png;base64,raw"}},
+		{`{"base64":""}`, "application/json", 200, map[string]any{"ok": false, "error": "gateway did not return a QR image"}},
+		{"bad", "Image/png", 200, map[string]any{"ok": false, "error": "gateway did not return a QR image"}},
+		{"bad", "image/png", 403, map[string]any{"ok": false, "error": "no QR (gateway returned Forbidden — already logged in?)", "http_status": 403}},
 	} {
 		service := NewGateway(func(string, string, string, int64) ([]byte, int, string, error) {
 			return []byte(tc.body), tc.code, tc.ctype, nil
 		})
 		result, err := service.QR(context.Background(), GatewayInput{URL: "https://owned.example"})
-		if err != nil || !reflect.DeepEqual(result, tc.want) {
+		if err != nil || !reflect.DeepEqual(gatewayJSONView(t, result), tc.want) {
 			t.Fatal(tc, result, err)
 		}
 	}
