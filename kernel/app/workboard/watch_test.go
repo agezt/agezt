@@ -5,7 +5,6 @@ package workboard_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	appwork "github.com/agezt/agezt/kernel/app/workboard"
 	"github.com/agezt/agezt/kernel/event"
 	tasks "github.com/agezt/agezt/kernel/workboard"
@@ -92,9 +91,9 @@ func TestWorkboardWatchRetainsRunPrecedenceAndTaskIdentity(t *testing.T) {
 	}
 }
 func TestWorkboardWatchRetainsORFilterStableTailAndPayloadPresence(t *testing.T) {
-	store := &watchStore{found: true, task: tasks.Task{ID: "owned"}, blocked: []tasks.DependencyState{{ID: "parent", Status: tasks.StatusBlocked, Title: "title", Missing: true, CreatedMS: 100}, {ID: "zero", Status: tasks.StatusTriage, CreatedMS: -1}}, cause: errors.New("legacy dependency partial error")}
+	store := &watchStore{found: true, task: tasks.Task{ID: "owned"}, blocked: []tasks.DependencyState{{ID: "parent", Status: tasks.StatusBlocked, Title: "title", Missing: true, CreatedMS: 100}, {ID: "zero", Status: tasks.StatusTriage, CreatedMS: -1}}}
 	rows := []event.Event{{Seq: 4, Subject: "other", CorrelationID: "run", Kind: event.KindOpCompleted, Payload: json.RawMessage(`{}`)}, {Seq: 1, Subject: "workboard.owned", CorrelationID: "other", Kind: event.KindWorkboardTaskCreated, Payload: json.RawMessage(`{"id":"owned"}`)}, {Seq: 3, Subject: "workboard.owned", Kind: event.KindWorkboardTaskUpdated, Payload: json.RawMessage(`null`)}, {Seq: 2, Subject: "unrelated", CorrelationID: "other"}, {Seq: 5, Subject: "workboard.owned", Kind: event.KindWorkboardTaskUpdated, Payload: json.RawMessage(`broken`)}}
-	s := appwork.NewWatch(store, watchJournal{rows: rows, cause: errors.New("legacy partial Range")})
+	s := appwork.NewWatch(store, watchJournal{rows: rows})
 	out, err := s.Watch(context.Background(), appwork.WatchInput{ID: "owned", RunID: "run", Limit: 3})
 	if err != nil || out.Count != 3 || len(out.Events) != 3 || out.Events[0].Seq != 3 || out.Events[1].Seq != 4 || out.Events[2].Seq != 5 || len(out.BlockedDependencies) != 2 || out.BlockedDependencies[0].CreatedMS != 100 || out.BlockedDependencies[1].CreatedMS != 0 {
 		t.Fatalf("snapshot=%+v err=%v", out, err)

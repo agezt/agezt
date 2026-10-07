@@ -5,6 +5,7 @@ package controlplane
 import (
 	"context"
 	"github.com/agezt/agezt/kernel/app"
+	appchannels "github.com/agezt/agezt/kernel/app/channels"
 	"github.com/agezt/agezt/kernel/app/system"
 	"net"
 	"sync"
@@ -142,12 +143,10 @@ type Server struct {
 	// Nil when update is disabled; the update handlers report that.
 	updateSvc *update.Service
 
-	// oauthPending tracks in-flight channel OAuth flows (Phase 4) by their opaque
-	// state token: the kind/label being connected, the client credentials + PKCE
-	// verifier, and the terminal status the browser-redirect callback records.
-	// Guarded by oauthMu; entries are short-lived (pruned on completion + by age).
-	oauthMu      sync.Mutex
-	oauthPending map[string]*oauthFlow
+	// One stable application-owned channel OAuth state/service per Server.
+	channelOAuthOnce    sync.Once
+	channelOAuthState   *appchannels.OAuthMemory
+	channelOAuthService *appchannels.OAuth
 
 	// providerOAuthState owns the provider login/token-manager lifecycle.
 	providerOAuthOnce  sync.Once

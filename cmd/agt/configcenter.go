@@ -109,7 +109,7 @@ func cmdConfigCenterGet(args []string, stdout, stderr io.Writer) int {
 	if desc, _ := entry["description"].(string); desc != "" {
 		fmt.Fprintf(stdout, "desc:    %s\n", desc)
 	}
-	fmt.Fprintf(stdout, "updated: %s\n", time.UnixMilli(int64(entry["updated_at"].(float64))).Format(time.RFC3339))
+	fmt.Fprintf(stdout, "updated: %s\n", time.Unix(int64(entry["updated_at"].(float64)), 0).Format(time.RFC3339))
 
 	return 0
 }

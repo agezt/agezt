@@ -8,8 +8,8 @@ package controlplane
 //             unchanged.
 
 import (
+	"github.com/agezt/agezt/kernel/platform/journalview"
 	"net"
-	"sort"
 	"strings"
 	"time"
 )
@@ -140,10 +140,10 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 
 	// Duration aggregates over completed runs. avgIters is over
 	// completed runs too (only they carry an iters count).
-	dstats := durationStats(durations)
+	dstats := journalview.SummarizeDurations(durations)
 	// Spend distribution over priced runs (M60) — reuses the same nearest-rank
 	// percentile helper as duration, in microcents.
-	sstats := durationStats(spends)
+	sstats := journalview.SummarizeDurations(spends)
 	avgIters := 0.0
 	if completed > 0 {
 		avgIters = float64(itersSum) / float64(completed)
@@ -202,75 +202,22 @@ func (s *Server) handleRunsStats(conn net.Conn, req Request) {
 			// Per-run spend distribution over priced runs (M60), in microcents.
 			"spend_microcents": map[string]any{
 				"count": len(spends),
-				"avg":   sstats.avg,
-				"min":   sstats.min,
-				"max":   sstats.max,
-				"p50":   sstats.p50,
-				"p95":   sstats.p95,
+				"avg":   sstats.Avg,
+				"min":   sstats.Min,
+				"max":   sstats.Max,
+				"p50":   sstats.P50,
+				"p95":   sstats.P95,
 			},
 			"duration_ms": map[string]any{
 				"count": len(durations),
-				"avg":   dstats.avg,
-				"min":   dstats.min,
-				"max":   dstats.max,
-				"p50":   dstats.p50,
-				"p95":   dstats.p95,
+				"avg":   dstats.Avg,
+				"min":   dstats.Min,
+				"max":   dstats.Max,
+				"p50":   dstats.P50,
+				"p95":   dstats.P95,
 			},
 		},
 	})
-}
-
-type durStats struct {
-	avg, min, max, p50, p95 int64
-}
-
-// durationStats computes summary statistics over a slice of
-// completed-run durations (milliseconds). Returns a zero-value
-// durStats for an empty input so the caller doesn't special-case
-// the no-completed-runs path. Percentiles use the nearest-rank
-// method on a sorted copy (sort is in-place on a copy to avoid
-// mutating the caller's slice ordering, which it doesn't rely on
-// but a future caller might).
-func durationStats(ms []int64) durStats {
-	if len(ms) == 0 {
-		return durStats{}
-	}
-	sorted := make([]int64, len(ms))
-	copy(sorted, ms)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
-
-	var sum int64
-	for _, d := range sorted {
-		sum += d
-	}
-	return durStats{
-		avg: sum / int64(len(sorted)),
-		min: sorted[0],
-		max: sorted[len(sorted)-1],
-		p50: percentileNearestRank(sorted, 50),
-		p95: percentileNearestRank(sorted, 95),
-	}
-}
-
-// percentileNearestRank returns the p-th percentile of an
-// ascending-sorted slice using the nearest-rank method:
-// rank = ceil(p/100 * N), 1-based, clamped to [1, N]. Chosen over
-// linear interpolation because it always returns an actual
-// observed duration (operators trust "p95 = 1200ms" more when
-// 1200ms is a real run, not an interpolated phantom).
-func percentileNearestRank(sorted []int64, p int) int64 {
-	if len(sorted) == 0 {
-		return 0
-	}
-	// ceil(p/100 * N) without floats: (p*N + 99) / 100.
-	rank := (p*len(sorted) + 99) / 100
-	if rank < 1 {
-		rank = 1
-	}
-	if rank > len(sorted) {
-		rank = len(sorted)
-	}
-	return sorted[rank-1]
 }
 
 // extractIntent pulls "intent" out of a task.received payload.

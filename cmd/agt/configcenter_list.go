@@ -27,20 +27,26 @@ func cmdConfigCenterList(args []string, stdout, stderr io.Writer) int {
 	var rating string
 	asJSON := false
 
-	for _, a := range args {
-		switch a {
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
 		case "-h", "--help":
 			fmt.Fprintf(stdout, "usage: %s configcenter list [--rating <rating>] [--json]\n", brand.CLI)
 			return 0
-		case "--rating":
-			// Will be processed below
 		case "--json":
 			asJSON = true
+		case "--rating":
+			value, ok := configCenterFlagValue(args, i)
+			if !ok {
+				fmt.Fprintf(stderr, "%s configcenter list: --rating requires a value\n", brand.CLI)
+				return 2
+			}
+			rating = value
+			i++
 		default:
-			if rating == "" && !strings.HasPrefix(a, "--rating") {
-				rating = a
+			if rating == "" && !strings.HasPrefix(args[i], "--") {
+				rating = args[i]
 			} else {
-				fmt.Fprintf(stderr, "%s configcenter list: unexpected arg %q\n", brand.CLI, a)
+				fmt.Fprintf(stderr, "%s configcenter list: unexpected arg %q\n", brand.CLI, args[i])
 				return 2
 			}
 		}

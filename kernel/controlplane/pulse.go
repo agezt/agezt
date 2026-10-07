@@ -1,222 +1,38 @@
 // SPDX-License-Identifier: MIT
-
 package controlplane
-
-// Provenance: Control-plane pulse: handlePulseSubscribe (live streaming
-//             subscription). Code extracted from pulse.go during the Day-141
-//             god-file split. Public API unchanged.
 
 import (
 	"context"
 	"errors"
+	apppulse "github.com/agezt/agezt/kernel/app/pulse"
 	"net"
-	"strings"
 	"time"
-
-	"encoding/json"
-	"github.com/agezt/agezt/kernel/event"
 )
 
-// handlePulseSubscribe is the server side of `agt pulse`. It opens a
-// long-lived bus subscription matching `args.pattern` (default ">"),
-// optionally filters by `args.kinds` (a []string of event.Kind names),
-// and streams matching events to the client until either:
-//
-//   - the server context is cancelled (daemon shutting down),
-//   - the client closes the connection (write returns an error), or
-//   - the subscription is dropped (channel closed unexpectedly).
-//
-// **Wire convention.** Pulse never sends RespResult. The protocol
-// expects exactly one terminal response per request, so the client
-// reads `RespEvent` lines in a loop until its own context is
-// cancelled and it closes the conn — at which point the server's
-// next writeResp fails and the handler returns. This is the simplest
-// "server-push, client-terminates" shape on top of the existing
-// single-line-JSON transport, without changing the framing.
-//
-// **Why not just reuse CmdRun's pattern.** CmdRun subscribes to a
-// single run's correlation-scoped subject (subject_for_run), then
-// returns a result when the run completes. Pulse subscribes to an
-// operator-supplied pattern across the whole bus, and there's no
-// natural "done" — it runs until the operator hits Ctrl+C. Folding
-// these into one handler would either make CmdRun's result delivery
-// awkward, or hide pulse's open-ended behaviour behind a fake
-// timeout.
-//
-// **Backpressure.** Subscribe buffer is 4096 (4× the per-run buffer
-// CmdRun uses). The bus drops events to slow subscribers — counted in
-// Subscription.Dropped — rather than blocking publishers. If the
-// client can't keep up, drops are silent; future iterations could
-// emit a synthetic event noting "agezt: N events dropped" so the
-// operator knows their view is incomplete.
-func (s *Server) handlePulseSubscribe(ctx context.Context, conn net.Conn, req Request) {
-	pattern := ">"
-	if p, _, err := argString(req.Args, "pattern"); err != nil {
-		s.fail(conn, req, err)
-		return
-	} else if strings.TrimSpace(p) != "" {
-		pattern = strings.TrimSpace(p)
-	}
+type pulseNativeConnKey struct{}
 
-	// Optional kinds filter. Empty / missing = no filter.
-	var kindFilter map[event.Kind]struct{}
-	kinds, _, err := argStringList(req.Args, "kinds")
+// handlePulseAppStream projects only the native event envelopes: a bounded or
+// clean stream closes without RespResult. Its single timeout-tolerant watcher
+// begins after replay, so generic cancelOnConnClose must not also read the conn.
+func handlePulseAppStream(dc *DispatchCtx) {
+	ctx, cancel := context.WithCancel(dc.Ctx)
+	defer cancel()
+	ctx = context.WithValue(ctx, pulseNativeConnKey{}, dc.Conn)
+	_, err := dispatchAppOperation(dc, ctx, pulseNativeEmitter{appEmitter{dc.Conn, dc.Req.ID}})
 	if err != nil {
-		s.fail(conn, req, err)
-		return
+		dc.S.fail(dc.Conn, dc.Req, err)
 	}
-	if len(kinds) > 0 {
-		kindFilter = make(map[event.Kind]struct{}, len(kinds))
-		for _, k := range kinds {
-			kindFilter[event.Kind(k)] = struct{}{}
-		}
-	}
+}
 
-	// Optional `since` arg: replay every journaled event with
-	// seq >= since that matches pattern+kinds *before* attaching
-	// the live subscription. Lets operators reconstruct "what
-	// just happened" without missing the next thing. -1 / missing
-	// means "no replay; start live." (M1.aa — Pulse v2.)
-	// JSON numbers decode as float64; coerce.
-	since := int64(-1)
-	if v, present, err := argFloat64(req.Args, "since"); err != nil {
-		s.fail(conn, req, err)
-		return
-	} else if present {
-		since = int64(v)
-	}
+// Unlimited native replay historically delegates cancellation to the socket
+// writer. Preserve that convention; rate waits/live lifetime still use ctx.
+type pulseNativeEmitter struct{ appEmitter }
 
-	// Optional `since_ts_ms` arg (M1.gg — Pulse v3 partial): same
-	// historical-replay semantics but cut by Unix-ms timestamp
-	// rather than seq. Used by `agt pulse --last 5m` which is pure
-	// client-side sugar that resolves "5 minutes ago" to a wall-
-	// clock cutoff. `since` and `since_ts_ms` compose: if both are
-	// set, an event must pass BOTH cutoffs to be replayed. The
-	// common case is one or the other; AND semantics are the safer
-	// default (no surprising inclusion).
-	sinceTSMs := int64(-1)
-	if v, present, err := argFloat64(req.Args, "since_ts_ms"); err != nil {
-		s.fail(conn, req, err)
-		return
-	} else if present {
-		sinceTSMs = int64(v)
-	}
+func (e pulseNativeEmitter) Emit(ctx context.Context, value any) error {
+	return e.appEmitter.Emit(context.WithoutCancel(ctx), value)
+}
 
-	// Optional `until` arg (M1.ii — Pulse v3 bounded-replay).
-	// When set, terminates the call after the historical replay
-	// finishes — never transitions to live. Useful for "extract
-	// every event between A and B, pipe to support" without a
-	// hanging stream. Pair with `since`/`since_ts_ms` for a
-	// half-open window [since, until).
-	//
-	// `until` is a seq cutoff (exclusive); `until_ts_ms` is the
-	// timestamp variant. Both can be set; the live loop is skipped
-	// when EITHER is set, so a single bound triggers replay-only
-	// mode.
-	until := int64(-1)
-	if v, present, err := argFloat64(req.Args, "until"); err != nil {
-		s.fail(conn, req, err)
-		return
-	} else if present {
-		until = int64(v)
-	}
-	untilTSMs := int64(-1)
-	if v, present, err := argFloat64(req.Args, "until_ts_ms"); err != nil {
-		s.fail(conn, req, err)
-		return
-	} else if present {
-		untilTSMs = int64(v)
-	}
-	replayOnly := until >= 0 || untilTSMs >= 0
-
-	// Optional `correlation` filter: only deliver events whose
-	// CorrelationID matches exactly. Pairs the historical-walk
-	// counterpart (`agt why <id>`) with a live-tail mode for
-	// debugging an in-progress run. AND-composed with every
-	// other filter — `--correlation X --kind tool.invoked`
-	// means "tool invocations on X's chain, nothing else."
-	correlationFilter := ""
-	if v, _, err := argString(req.Args, "correlation"); err != nil {
-		s.fail(conn, req, err)
-		return
-	} else {
-		correlationFilter = strings.TrimSpace(v)
-	}
-
-	// Replay rate limit (M1.nn): cap events/second during the
-	// historical replay so a multi-million-event window doesn't
-	// saturate the operator's terminal or wedge a downstream
-	// consumer's buffer. 0 (default) = unlimited; positive value
-	// sleeps proportionally between writes. Live stream is
-	// uncapped — back-pressure there is the bus's dropped-events
-	// notice (M1.aa).
-	replayRate := float64(0)
-	if v, _, err := argFloat64(req.Args, "replay_rate"); err != nil {
-		s.fail(conn, req, err)
-		return
-	} else if v > 0 {
-		replayRate = v
-	}
-
-	// handleConn pins a 10-minute read deadline that's fine for every
-	// short-lived command but would terminate a quiet pulse stream
-	// prematurely. Clear it — the clientGone watcher below detects
-	// disconnects without relying on the read timing out.
-	_ = conn.SetReadDeadline(time.Time{})
-
-	// Subscribe BEFORE replay so any event published mid-walk is
-	// buffered (bounded 4096; bus drops to slow subscribers, which
-	// pulse v2 will eventually surface as a synthetic notice).
-	sub, err := s.k.Bus().Subscribe(pattern, 4096)
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	defer sub.Cancel()
-
-	// Historical replay. Walk the journal once, filter, write
-	// matching events to the client. Errors during replay are
-	// surfaced as an error response (the operator's audit walk
-	// would otherwise silently complete missing data).
-	//
-	// `lastReplayed` lets the live loop below skip any event whose
-	// seq was already delivered during replay — necessary because
-	// the subscription was opened BEFORE the replay started (to
-	// avoid losing events published mid-walk), so the sub channel
-	// may contain duplicates of the highest-seq journaled events.
-	var lastReplayed int64 = -1
-	if since >= 0 || sinceTSMs >= 0 || replayOnly {
-		var err error
-		lastReplayed, err = s.replayHistorical(ctx, conn, req.ID, pattern, kindFilter, correlationFilter, since, sinceTSMs, until, untilTSMs, replayRate)
-		if err != nil {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "pulse replay: " + err.Error()})
-			return
-		}
-	}
-	if replayOnly {
-		// Bounded-replay mode (M1.ii): the operator wants to extract
-		// a half-open window of journal events, not a live tail.
-		// Closing the conn (via writeResp returning a noop EOF on the
-		// next call, or natural client read-loop exit) is the wire
-		// signal; we just return here. The client's StreamUntilCancel
-		// observes the connection close as the natural end of stream.
-		return
-	}
-
-	// Watch the conn for client-initiated close. If we relied only on
-	// "writeResp fails on broken pipe" we'd never notice a quiet
-	// stream that has no events to write — the handler would hang
-	// blocked on <-sub.C until the server itself shuts down. Spawn a
-	// read goroutine that signals via clientGone when the conn drops.
-	// Pulse never reads anything after the initial request, so any
-	// Read returning a non-timeout err (typically EOF or "use of closed
-	// network connection") means the client went away.
-	//
-	// The 500ms deadline creates a periodic "tick" so the goroutine
-	// can also notice ctx.Done() without waiting on a read that never
-	// arrives — but a Read deadline firing is NOT a disconnect (an
-	// idle SSE/streaming client hits it every tick). Only treat
-	// non-timeout errors as disconnect (BUG: read-timeout-as-disconnect).
+func pulseClientGone(ctx context.Context, conn net.Conn) <-chan struct{} {
 	clientGone := make(chan struct{})
 	stopCh := ctx.Done()
 	go func() {
@@ -254,97 +70,15 @@ func (s *Server) handlePulseSubscribe(ctx context.Context, conn net.Conn, req Re
 		}
 	}()
 
-	// Drop monitor: every tick, check the subscription's Dropped
-	// counter and emit a synthetic ephemeral event whenever it
-	// grew. Operators see a clear "you missed N events" notice
-	// in the pulse stream rather than silently incomplete data.
-	// (M1.aa — Pulse v2 dropped-events synthetic.)
-	//
-	// 1 second is fast enough that operators see drops near-
-	// realtime, slow enough not to add measurable overhead to
-	// the bus. We don't use bus.PublishStreaming because that
-	// would fan the notice out to *every* subscriber; this
-	// notice is per-pulse-stream.
-	dropTicker := time.NewTicker(1 * time.Second)
-	defer dropTicker.Stop()
-	var lastDroppedCount uint64
-	dropNoticeSubject := "agezt.pulse.dropped"
-
-	for {
-		select {
-		case ev, ok := <-sub.C:
-			if !ok {
-				s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "pulse: subscription closed"})
-				return
-			}
-			// Skip durable events already delivered during replay.
-			// Ephemeral events (Seq=0, no Hash) never overlap because
-			// they aren't journaled, so always pass them through.
-			if lastReplayed >= 0 && !ev.IsEphemeral() && ev.Seq <= lastReplayed {
-				continue
-			}
-			if kindFilter != nil {
-				if _, want := kindFilter[ev.Kind]; !want {
-					continue
-				}
-			}
-			if correlationFilter != "" && ev.CorrelationID != correlationFilter {
-				continue
-			}
-			if err := writeResp(conn, Response{ID: req.ID, Type: RespEvent, Event: ev}); err != nil {
-				return
-			}
-		case <-dropTicker.C:
-			now := sub.Dropped.Load()
-			if now > lastDroppedCount {
-				delta := now - lastDroppedCount
-				lastDroppedCount = now
-				// Synthesize a notice event. Marked ephemeral via
-				// empty Hash + Seq=0; carries the drop count in
-				// Payload so JSON consumers can pick it up.
-				payload, _ := json.Marshal(map[string]any{
-					"dropped_since_last_notice": delta,
-					"dropped_total":             now,
-				})
-				notice := &event.Event{
-					Subject: dropNoticeSubject,
-					Kind:    event.KindPulseDropped,
-					Actor:   "agezt",
-					Payload: payload,
-					// Seq=0, Hash="" — IsEphemeral() returns true.
-				}
-				if err := writeResp(conn, Response{ID: req.ID, Type: RespEvent, Event: notice}); err != nil {
-					return
-				}
-			}
-		case <-clientGone:
-			return
-		case <-ctx.Done():
-			return
-		}
-	}
+	return clientGone
 }
 
-// replayHistorical walks the journal once, writing each event that
-// passes every active filter to the client. Returns the highest seq
-// written (or -1 if none matched) so the live-stream loop can
-// deduplicate.
-//
-// Filters (M1.aa shipped seq + pattern + kinds; M1.gg adds ts;
-// M1.ii adds the upper bounds):
-//   - pattern    : NATS-style wildcard match on subject
-//   - kindFilter : if non-nil, ev.Kind must be in the set
-//   - since      : if >= 0, ev.Seq must be >= since
-//   - sinceTSMs  : if >= 0, ev.TSUnixMS must be >= sinceTSMs
-//   - until      : if >= 0, ev.Seq must be <  until (exclusive)
-//   - untilTSMs  : if >= 0, ev.TSUnixMS must be <  untilTSMs
-//
-// All filters compose as AND — every active cutoff must pass.
-// This is the safer default for compositional CLI flags (an
-// operator who sets both `--since` and `--last` gets the
-// intersection, not the union).
-//
-// A write error (client disconnected mid-replay) terminates early
-// and returns the last successfully-written seq + a wrapped error
-// — the caller treats this as a fatal pulse exit, same as any
-// other write failure.
+func (s *Server) pulseStream() *apppulse.Stream {
+	return apppulse.NewStream(s.k.Journal(), func(pattern string, buffer int) (apppulse.Subscription, error) {
+		sub, err := s.k.Bus().Subscribe(pattern, buffer)
+		if err != nil {
+			return apppulse.Subscription{}, err
+		}
+		return apppulse.Subscription{Events: sub.C, Dropped: sub.Dropped.Load, Cancel: sub.Cancel}, nil
+	}, nil)
+}

@@ -232,10 +232,15 @@ func (i *Index) Count() int {
 // content-address dedup means one blob may back several arrivals).
 func (i *Index) Delete(id string) error {
 	i.mu.Lock()
+	defer i.mu.Unlock()
 	e, ok := i.entries[id]
 	if !ok {
-		i.mu.Unlock()
 		return ErrNotFound
+	}
+	// Do not forget an entry or collect its blob until metadata removal succeeds.
+	// Keep ownership under the index lock across the filesystem operation.
+	if err := os.Remove(filepath.Join(i.dir, id+".json")); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("artifact index: remove metadata %s: %w", id, err)
 	}
 	delete(i.entries, id)
 	stillUsed := false
@@ -245,11 +250,8 @@ func (i *Index) Delete(id string) error {
 			break
 		}
 	}
-	i.mu.Unlock()
-
-	_ = os.Remove(filepath.Join(i.dir, id+".json"))
 	if !stillUsed {
-		_ = os.Remove(i.store.pathFor(e.Ref)) // GC the now-orphaned blob
+		_ = os.Remove(i.store.pathFor(e.Ref))
 	}
 	return nil
 }

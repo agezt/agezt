@@ -32,7 +32,7 @@ var rawArgCastBaseline = map[string]int{
 	"workflow.go":          0, // residual: enabled/limit/async dual-type switches moved to workflow_handlers.go (Day 38 #1)
 	"workflow_handlers.go": 1, // residual: one remaining inline cast (the other two were migrated to argBool/argInt64)
 	"standing.go":          0, // migrated to typed accessors; entry kept for visibility / future regressions
-	"pulse_control.go":     2, // residual: approve/seconds/min_pct dual-type switches (down from 3 — the seconds one was migrated)
+	"pulse_control.go":     0, // native control codecs moved to typed app pulse operations
 	// server.go's 0 residual casts is the target; once it hits zero the
 	// entry can be deleted. The 2 residual casts (whoami echo + auth pin)
 	// moved to server_handlers.go with the Day 27 god file split #2.

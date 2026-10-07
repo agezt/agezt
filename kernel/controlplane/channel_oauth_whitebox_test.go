@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"context"
+	appchannels "github.com/agezt/agezt/kernel/app/channels"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -23,6 +24,7 @@ func withLoopbackOAuthClient(t *testing.T) {
 func TestExchangeOAuthCode(t *testing.T) {
 	withLoopbackOAuthClient(t)
 	s := &Server{}
+	_ = s.channelOAuth()
 
 	t.Run("slack ok top-level token", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -37,8 +39,8 @@ func TestExchangeOAuthCode(t *testing.T) {
 			_, _ = w.Write([]byte(`{"ok":true,"access_token":"xoxb-real"}`))
 		}))
 		defer srv.Close()
-		tok, err := s.exchangeOAuthCode(context.Background(), &oauthFlow{
-			clientID: "cid", clientSecret: "csec", redirectURI: "https://x/cb", tokenURL: srv.URL,
+		tok, err := s.channelOAuthState.Exchange(context.Background(), appchannels.OAuthFlow{
+			ClientID: "cid", ClientSecret: "csec", RedirectURI: "https://x/cb", TokenURL: srv.URL,
 		}, "abc")
 		if err != nil || tok != "xoxb-real" {
 			t.Fatalf("token=%q err=%v", tok, err)
@@ -50,7 +52,7 @@ func TestExchangeOAuthCode(t *testing.T) {
 			_, _ = w.Write([]byte(`{"ok":false,"error":"invalid_code"}`))
 		}))
 		defer srv.Close()
-		if _, err := s.exchangeOAuthCode(context.Background(), &oauthFlow{tokenURL: srv.URL}, "x"); err == nil || !strings.Contains(err.Error(), "invalid_code") {
+		if _, err := s.channelOAuthState.Exchange(context.Background(), appchannels.OAuthFlow{TokenURL: srv.URL}, "x"); err == nil || !strings.Contains(err.Error(), "invalid_code") {
 			t.Fatalf("want invalid_code error, got %v", err)
 		}
 	})
@@ -61,7 +63,7 @@ func TestExchangeOAuthCode(t *testing.T) {
 			_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"code expired"}`))
 		}))
 		defer srv.Close()
-		if _, err := s.exchangeOAuthCode(context.Background(), &oauthFlow{tokenURL: srv.URL}, "x"); err == nil || !strings.Contains(err.Error(), "code expired") {
+		if _, err := s.channelOAuthState.Exchange(context.Background(), appchannels.OAuthFlow{TokenURL: srv.URL}, "x"); err == nil || !strings.Contains(err.Error(), "code expired") {
 			t.Fatalf("want description error, got %v", err)
 		}
 	})
@@ -71,7 +73,7 @@ func TestExchangeOAuthCode(t *testing.T) {
 			_, _ = w.Write([]byte(`{"token_type":"bearer"}`))
 		}))
 		defer srv.Close()
-		if _, err := s.exchangeOAuthCode(context.Background(), &oauthFlow{tokenURL: srv.URL}, "x"); err == nil {
+		if _, err := s.channelOAuthState.Exchange(context.Background(), appchannels.OAuthFlow{TokenURL: srv.URL}, "x"); err == nil {
 			t.Fatal("want error on missing access_token")
 		}
 	})
@@ -90,7 +92,7 @@ func TestNormalizeInstanceURL(t *testing.T) {
 		{"://bad", "", false},
 	}
 	for _, c := range cases {
-		got, err := normalizeInstanceURL(c.in)
+		got, err := appchannels.NormalizeInstanceURL(c.in)
 		if c.ok && (err != nil || got != c.want) {
 			t.Errorf("normalize(%q) = %q,%v want %q", c.in, got, err, c.want)
 		}
@@ -101,20 +103,19 @@ func TestNormalizeInstanceURL(t *testing.T) {
 }
 
 func TestOAuthStatePruneAndUnique(t *testing.T) {
-	a, _ := newOAuthState()
-	b, _ := newOAuthState()
+	a, _ := appchannels.NewOAuthState()
+	b, _ := appchannels.NewOAuthState()
 	if a == "" || a == b {
 		t.Fatalf("states not unique: %q %q", a, b)
 	}
-	s := &Server{oauthPending: map[string]*oauthFlow{}}
+	p := appchannels.NewOAuthMemory(nil, nil)
 	now := time.Now()
-	s.oauthPending["old"] = &oauthFlow{created: now.Add(-oauthFlowTTL - time.Minute)}
-	s.oauthPending["fresh"] = &oauthFlow{created: now}
-	s.pruneOAuthLocked(now)
-	if _, ok := s.oauthPending["old"]; ok {
+	p.Put("old", appchannels.OAuthFlow{Created: now.Add(-appchannels.OAuthFlowTTL - time.Minute)}, now.Add(-appchannels.OAuthFlowTTL-time.Minute))
+	p.Put("fresh", appchannels.OAuthFlow{Created: now}, now)
+	if _, ok := p.Flow("old"); ok {
 		t.Fatal("stale flow should be pruned")
 	}
-	if _, ok := s.oauthPending["fresh"]; !ok {
+	if _, ok := p.Flow("fresh"); !ok {
 		t.Fatal("fresh flow should survive")
 	}
 }

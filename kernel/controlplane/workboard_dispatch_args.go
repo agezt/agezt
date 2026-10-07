@@ -2,49 +2,12 @@
 
 package controlplane
 
-// Workboard arg-parsing + retry helpers: retryPolicyFromArgs +
-// retryDecisionView + workboardCorr + intArgAllowZero +
-// workboardStringSliceArg. Carved out of workboard_dispatch.go
-// during the Day 195 god-file split so the main file can stay
-// focused on the dispatch + watch internals and the register file
-// can stay focused on registerWorkboardCommands.
-// Public API unchanged.
+// Shared legacy seat string-list admission.
+// Workboard and OKR native admission now live in their app services.
 
 import (
 	"strings"
-
-	"github.com/agezt/agezt/kernel/workboard"
 )
-
-func retryPolicyFromArgs(args map[string]any) *workboard.RetryPolicy {
-	if _, ok := args["max_attempts"]; !ok && stringArg(args, "escalate_to") == "" {
-		return nil
-	}
-	return &workboard.RetryPolicy{
-		MaxAttempts: intArgAllowZero(args["max_attempts"]),
-		EscalateTo:  stringArg(args, "escalate_to"),
-	}
-}
-
-func workboardCorr(s *Server, req Request) string {
-	if corr := stringArg(req.Args, "correlation_id"); corr != "" {
-		return corr
-	}
-	return s.k.NewCorrelation()
-}
-
-func intArgAllowZero(raw any) int {
-	switch v := raw.(type) {
-	case float64:
-		return int(v)
-	case int:
-		return v
-	case int64:
-		return int(v)
-	default:
-		return 0
-	}
-}
 
 func workboardStringSliceArg(raw any) []string {
 	switch xs := raw.(type) {
@@ -65,5 +28,3 @@ func workboardStringSliceArg(raw any) []string {
 		return nil
 	}
 }
-
-// registerWorkboardCommands registers this file's protocol commands into the dispatch registry (phase 2.3).

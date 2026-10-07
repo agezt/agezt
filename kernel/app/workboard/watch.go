@@ -92,15 +92,14 @@ func latestRunID(task tasks.Task) string {
 	}
 	return best
 }
-func (s *Watch) events(taskID, runID string, limit int) []EventRow {
+func (s *Watch) events(taskID, runID string, limit int) ([]EventRow, error) {
 	if s.journal == nil {
-		return nil
+		return nil, nil
 	}
 	subject := "workboard." + taskID
 	var rows []EventRow
-	// Preserve the native best-effort Range behavior in this move. Read-error
-	// semantics are a separate measured repair, not part of extraction.
-	_ = s.journal.Range(func(e *event.Event) error {
+	// A failed read cannot certify even a partial event snapshot.
+	err := s.journal.Range(func(e *event.Event) error {
 		if e.Subject != subject && (runID == "" || e.CorrelationID != runID) {
 			return nil
 		}
@@ -114,11 +113,14 @@ func (s *Watch) events(taskID, runID string, limit int) []EventRow {
 		rows = append(rows, row)
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
 	sort.SliceStable(rows, func(i, j int) bool { return rows[i].Seq < rows[j].Seq })
 	if limit > 0 && len(rows) > limit {
 		rows = rows[len(rows)-limit:]
 	}
-	return rows
+	return rows, nil
 }
 func (s *Watch) Watch(_ context.Context, in WatchInput) (WatchOutput, error) {
 	if in.ID == "" {
@@ -132,7 +134,13 @@ func (s *Watch) Watch(_ context.Context, in WatchInput) (WatchOutput, error) {
 	if runID == "" {
 		runID = latestRunID(task)
 	}
-	rows := s.events(task.ID, runID, in.Limit)
-	blocked, _ := s.store.BlockingDependencies(task.ID)
+	rows, err := s.events(task.ID, runID, in.Limit)
+	if err != nil {
+		return WatchOutput{}, err
+	}
+	blocked, err := s.store.BlockingDependencies(task.ID)
+	if err != nil {
+		return WatchOutput{}, err
+	}
 	return WatchOutput{Task: Project(task), Events: rows, Count: len(rows), BlockedDependencies: projectDependencies(blocked), RunID: runID}, nil
 }

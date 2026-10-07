@@ -50,9 +50,9 @@ func cmdMarketInstall(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdMarketInstall, map[string]any{
+	res, err := c.Stream(ctx, controlplane.CmdMarketInstall, map[string]any{
 		"name": name, "marketplace": marketplace, "version": version,
-	})
+	}, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s market install: %v\n", brand.CLI, err)
 		return 1
@@ -106,7 +106,7 @@ func cmdMarketUninstall(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdMarketUninstall, map[string]any{"name": name})
+	res, err := c.Stream(ctx, controlplane.CmdMarketUninstall, map[string]any{"name": name}, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s market uninstall: %v\n", brand.CLI, err)
 		return 1
