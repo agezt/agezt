@@ -111,6 +111,16 @@ var acpInventoryOperations = func() []app.Operation {
 	return operations
 }()
 
+var channelGatewayOperations = func() []app.Operation {
+	operations, err := appchannels.GatewayOperations(func(ctx context.Context) *appchannels.Gateway {
+		return ctx.Value(systemHostKey{}).(*Server).channelGateway()
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
 var channelOAuthOperations = func() []app.Operation {
 	operations, err := appchannels.OAuthOperations(func(ctx context.Context) *appchannels.OAuth {
 		return ctx.Value(systemHostKey{}).(*Server).channelOAuth()
@@ -526,7 +536,7 @@ var configCenterOperations = func() []app.Operation {
 }()
 
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, catalogOperations...)
 	operations = append(operations, providerOperations...)
@@ -537,6 +547,7 @@ func registeredAppOperations() []app.Operation {
 	operations = append(operations, channelInventoryOperations...)
 	operations = append(operations, channelAccountOperations...)
 	operations = append(operations, channelOAuthOperations...)
+	operations = append(operations, channelGatewayOperations...)
 	operations = append(operations, memoryOperations...)
 	operations = append(operations, worldOperations...)
 	operations = append(operations, tasteOperations...)

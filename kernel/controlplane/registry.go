@@ -73,8 +73,6 @@ func registerProviderConfigCommands() {
 // registerChannelCommands registers Communication channels: accounts, OAuth, sessions, inbox, outbound send, ACP.
 func registerChannelCommands() {
 	register(
-		commandSpec{Cmd: CmdWhatsAppGatewayStatus, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleWhatsAppGatewayStatus(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdWhatsAppGatewayQR, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleWhatsAppGatewayQR(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdInbox, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleInbox(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdSend, Handler: func(dc *DispatchCtx) { dc.S.handleSend(dc.Conn, dc.Req) }},
 	)
