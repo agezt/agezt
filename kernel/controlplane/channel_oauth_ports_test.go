@@ -39,7 +39,7 @@ func TestChannelOAuthNativeStatePortsSnapshotPruneAndFreshStatus(t *testing.T) {
 		t.Fatal("borrowed/stale flow snapshot")
 	}
 	status, err := s.channelOAuth().Status(context.Background(), appchannels.OAuthStatusInput{State: " owned "})
-	if err != nil || status["status"] != "done" {
+	if err != nil || status.Status != "done" {
 		t.Fatal(status, err)
 	}
 	if _, ok := p.Flow("missing"); ok {

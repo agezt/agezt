@@ -812,6 +812,10 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Channel OAuth uses typed application operations.** Known/unknown status
+  fields and existing connect/callback behavior are preserved. Canceled requests
+  and failed audit admission stop before OAuth writer effects.
+
 - **Channel account edits use typed application operations.** Field validation,
   config/vault routing and restart behavior are preserved. Canceled requests and
   failed audit admission stop before account persistence.

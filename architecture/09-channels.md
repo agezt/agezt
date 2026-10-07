@@ -259,7 +259,7 @@ Config Center schema** (so not settable from the UI, and invisible to label disc
 
 Each `channel.Manifest` row drives the console Channels page via the application's typed `Inventory.List`
 (`kernel/app/channels/inventory.go`): display, description, `Transport`, `Duplex`, `Media` caps, `SetupSteps`,
-`ConnectMethod` (`token` default / `oauth` for slack, mastodon — flows in `controlplane/channel_oauth.go` that write
+`ConnectMethod` (`token` default / `oauth` for slack, mastodon — flows in `app/channels/oauth.go` that write
 `AGEZT_SLACK_TOKEN` / `AGEZT_MASTODON_TOKEN` / `qr` for whatsappgw / `gateway` for signal, qq, wechat, imessage),
 `ConfigSection` (fields come from `kernel/settings/schema_builtin.go`), `RequiredEnv` (the "configured" predicate,
 evaluated per `#label` account), and `AddrEnv`/`AllowlistEnv`/`InboundEnv` (feed `collectChannels()` →
@@ -568,7 +568,7 @@ correlation, filters by `channel_kind`), journal readers (`agt why`, `agt journa
 5. **Factory** in the matching `factories_*.go`: read only through `d.Get(brand.EnvPrefix+...)`, return
    `channelwire.NotConfigured` when unset, build a brief sink, return a descriptive `Desc`; register it in
    `RegisterAll()`. `TestEveryManifestHasFactoryOrTODO` fails if you forget either half.
-6. If it should be an OAuth connect, add a provider to `oauthProviders` in `kernel/controlplane/channel_oauth.go`.
+6. If it should be an OAuth connect, add a provider to `oauthProviders` in `kernel/app/channels/oauth_memory.go`.
 7. If the agent's `notify`/`send_media` tools should target it, extend the kind list at `cmd/agezt/main.go:310`.
 8. Help/console: the Channels page is data-driven from the manifest + schema; no frontend change is needed for a
    standard token channel.
