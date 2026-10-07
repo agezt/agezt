@@ -127,7 +127,7 @@ func TestChannelOAuthMemoryProviderTTLValueSnapshotsAndLegacyRetention(t *testin
 	}
 	wg.Wait()
 	// Credential-bearing internal Flow has no public operation terminal binding.
-	raw, _ := json.Marshal(OAuthStatusOutput{"status": fresh.Status, "error": fresh.Error, "kind": fresh.Kind, "label": fresh.Label})
+	raw, _ := json.Marshal(OAuthStatusOutput{Status: fresh.Status, Error: &fresh.Error, Kind: &fresh.Kind, Label: &fresh.Label})
 	if strings.Contains(string(raw), "owned secret") {
 		t.Fatal("status exposed internal credentials")
 	}

@@ -3,8 +3,11 @@ package controlplane
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app"
 	appchannels "github.com/agezt/agezt/kernel/app/channels"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"net"
 	"runtime"
 	"sync"
@@ -21,7 +24,7 @@ func oauthSnapshotResponse(t *testing.T, s *Server) Response {
 	go func() {
 		defer close(done)
 		defer b.Close()
-		s.handleChannelOAuthStatus(b, Request{ID: "owned", Args: map[string]any{"state": "owned"}})
+		handleOAuthSnapshotOperation(s, b, Request{ID: "owned", Args: map[string]any{"state": "owned"}})
 	}()
 	line, err := bufio.NewReader(a).ReadBytes(10)
 	if err != nil {
@@ -86,7 +89,7 @@ func TestChannelOAuthStatusSnapshotDoesNotHoldMutexDuringWrite(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		s.handleChannelOAuthStatus(pausedOAuthStatusConn{Conn: b, entered: entered, release: release}, Request{ID: "owned", Args: map[string]any{"state": "owned"}})
+		handleOAuthSnapshotOperation(s, pausedOAuthStatusConn{Conn: b, entered: entered, release: release}, Request{ID: "owned", Args: map[string]any{"state": "owned"}})
 	}()
 	select {
 	case <-entered:
@@ -134,4 +137,24 @@ func oauthSnapshotServer(flow appchannels.OAuthFlow) *Server {
 	_ = s.channelOAuth()
 	s.channelOAuthState.Put("owned", flow, time.Now())
 	return s
+}
+
+// Snapshot-only host avoids runtime stores; native admission has separate tests.
+type oauthSnapshotAuth struct{}
+
+func (oauthSnapshotAuth) Authenticate(context.Context, opapi.Caller) (opapi.Principal, error) {
+	return opapi.Principal{Kind: opapi.Operator}, nil
+}
+
+type oauthSnapshotRoute struct{ server *Server }
+
+func (r oauthSnapshotRoute) Route(ctx context.Context, _ opapi.Principal, _ opapi.Spec) (context.Context, error) {
+	return context.WithValue(ctx, systemHostKey{}, r.server), nil
+}
+func handleOAuthSnapshotOperation(s *Server, conn net.Conn, req Request) {
+	s.operationOnce.Do(func() {
+		s.operations, s.operationErr = app.NewDispatcher(channelOAuthOperations, app.Dependencies{Auth: oauthSnapshotAuth{}, Router: oauthSnapshotRoute{s}})
+	})
+	req.Cmd = CmdChannelOAuthStatus
+	handleAppOperation(&DispatchCtx{S: s, Conn: conn, Req: req, Ctx: context.Background()})
 }

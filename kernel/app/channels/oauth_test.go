@@ -87,10 +87,10 @@ func TestChannelOAuthStartOrderTrimURLsStateAndLegacyCancel(t *testing.T) {
 		p := newOAuthProbe()
 		p.provider.InstanceBased = instance
 		out, err := NewOAuth(p).Start(ctx, OAuthStartInput{Kind: " SLACK ", Label: " work ", ClientID: " owned id ", ClientSecret: " owned secret ", RedirectURI: " https://owned.example/cb?raw=yes ", InstanceURL: " owned.example/path?query=ignored "})
-		if err != nil || len(out) != 2 || out["state"] != p.state || p.kind != "slack" || p.seenState != p.state {
+		if err != nil || out.State != p.state || p.kind != "slack" || p.seenState != p.state {
 			t.Fatal(out, err, p)
 		}
-		parsed, err := url.Parse(out["authorize_url"].(string))
+		parsed, err := url.Parse(out.AuthorizeURL)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -122,7 +122,7 @@ func TestChannelOAuthStartOrderTrimURLsStateAndLegacyCancel(t *testing.T) {
 		p := newOAuthProbe()
 		p.providerFound = !tc.unsupported
 		out, err := NewOAuth(p).Start(ctx, tc.in)
-		if out != nil || err == nil || err.Error() != tc.want {
+		if out != (OAuthStartOutput{}) || err == nil || err.Error() != tc.want {
 			t.Fatal(out, err)
 		}
 		oauthCalls(t, p, "provider")
@@ -130,7 +130,7 @@ func TestChannelOAuthStartOrderTrimURLsStateAndLegacyCancel(t *testing.T) {
 	p := newOAuthProbe()
 	p.stateErr = errors.New("owned entropy")
 	out, err := NewOAuth(p).Start(ctx, OAuthStartInput{Kind: "slack", ClientID: "id", ClientSecret: "secret", RedirectURI: "https://owned.example/cb"})
-	if out != nil || err == nil || err.Error() != "generate state: owned entropy" || errors.Is(err, p.stateErr) {
+	if out != (OAuthStartOutput{}) || err == nil || err.Error() != "generate state: owned entropy" || errors.Is(err, p.stateErr) {
 		t.Fatal(out, err)
 	}
 	oauthCalls(t, p, "provider", "state")
@@ -156,13 +156,13 @@ func TestChannelOAuthCallbackContextVaultOrderErrorsAndRawToken(t *testing.T) {
 			t.Fatal("context/code/state/timeout changed", p)
 		}
 		if phase == "success" {
-			if err != nil || !reflect.DeepEqual(out, map[string]any{"ok": true, "kind": "slack", "label": "work", "env": "AGEZT_OWNED_TOKEN#work", "applied": "restart"}) || p.status != "done" || p.message != "" || p.key != "AGEZT_OWNED_TOKEN#work" || p.token != "owned token" {
+			if err != nil || !reflect.DeepEqual(out, OAuthCallbackOutput{OK: true, Kind: "slack", Label: "work", Env: "AGEZT_OWNED_TOKEN#work", Applied: "restart"}) || p.status != "done" || p.message != "" || p.key != "AGEZT_OWNED_TOKEN#work" || p.token != "owned token" {
 				t.Fatal(out, err, p)
 			}
 			oauthCalls(t, p, "flow", "exchange", "vault", "load", "set", "save", "status")
 		} else {
 			prefix := map[string]string{"exchange": "token exchange failed", "load": "load vault", "save": "save vault"}[phase]
-			if out != nil || err == nil || err.Error() != prefix+": owned cause" || errors.Is(err, cause) || p.status != "error" || p.message != "owned cause" {
+			if out != (OAuthCallbackOutput{}) || err == nil || err.Error() != prefix+": owned cause" || errors.Is(err, cause) || p.status != "error" || p.message != "owned cause" {
 				t.Fatal(out, err, p)
 			}
 			want := []string{"flow", "exchange"}
@@ -209,12 +209,12 @@ func TestChannelOAuthStatusRawUnknownHelpersAndStateRandomness(t *testing.T) {
 	p.flow.Kind = " raw kind "
 	p.flow.Label = " raw label "
 	out, err := NewOAuth(p).Status(context.Background(), OAuthStatusInput{State: " raw state "})
-	if err != nil || len(out) != 4 || out["status"] != " raw status " || out["error"] != " raw error " || out["kind"] != " raw kind " || out["label"] != " raw label " || p.seenState != "raw state" {
+	if err != nil || out.Status != " raw status " || *out.Error != " raw error " || *out.Kind != " raw kind " || *out.Label != " raw label " || p.seenState != "raw state" {
 		t.Fatal(out, err)
 	}
 	p.flowFound = false
 	out, err = NewOAuth(p).Status(context.Background(), OAuthStatusInput{})
-	if err != nil || !reflect.DeepEqual(out, map[string]any{"status": "unknown"}) {
+	if err != nil || !reflect.DeepEqual(out, OAuthStatusOutput{Status: "unknown"}) {
 		t.Fatal(out, err)
 	}
 	for _, tc := range []struct{ raw, want string }{{"owned.example/path?x=1", "https://owned.example"}, {"http://127.0.0.1:1234/path", "http://127.0.0.1:1234"}, {"https://owned.example:444/path#fragment", "https://owned.example:444"}} {
