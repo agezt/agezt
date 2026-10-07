@@ -812,6 +812,10 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Inbox uses typed application operations.** Thread grouping, paging, empty
+  lists, timestamps and cursor error precedence are preserved. Already-canceled
+  requests stop before scanning the journal.
+
 - **Gateway status and QR probes use typed application operations.** Existing
   responses and gateway HTTP behavior are preserved. Already-canceled requests
   stop before probing the gateway.

@@ -23,7 +23,13 @@ type InboxInput struct {
 	Channel, Cursor string
 	CursorError     error
 }
-type InboxOutput = map[string]any
+type InboxOutput struct {
+	Threads    []*InboxThread `json:"threads"`
+	Count      int            `json:"count"`
+	Total      int            `json:"total"`
+	NextCursor string         `json:"next_cursor,omitempty"`
+	Channel    string         `json:"channel,omitempty"`
+}
 
 const (
 	DefaultInboxLimit = 20
@@ -110,7 +116,7 @@ func (s *Inbox) List(_ context.Context, in InboxInput) (InboxOutput, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return InboxOutput{}, err
 	}
 
 	all := make([]*InboxThread, 0, len(order))
@@ -139,7 +145,7 @@ func (s *Inbox) List(_ context.Context, in InboxInput) (InboxOutput, error) {
 	var cursorCorr string
 	cursorOK := false
 	if raw, cerr := in.Cursor, in.CursorError; cerr != nil {
-		return nil, cerr
+		return InboxOutput{}, cerr
 	} else if raw != "" {
 		tsStr, corr, _ := strings.Cut(raw, ":")
 		if ts, perr := strconv.ParseInt(tsStr, 10, 64); perr == nil {
@@ -166,16 +172,7 @@ func (s *Inbox) List(_ context.Context, in InboxInput) (InboxOutput, error) {
 		nextCursor = strconv.FormatInt(last.LastTSUnixMS, 10) + ":" + last.CorrelationID
 	}
 
-	out := make([]any, 0, len(all))
-	for _, th := range all {
-		out = append(out, th)
-	}
-	result := map[string]any{"threads": out, "count": len(out), "total": total}
-	if nextCursor != "" {
-		result["next_cursor"] = nextCursor
-	}
-	if channelFilter != "" {
-		result["channel"] = channelFilter
-	}
-	return result, nil
+	out := make([]*InboxThread, 0, len(all))
+	out = append(out, all...)
+	return InboxOutput{Threads: out, Count: len(out), Total: total, NextCursor: nextCursor, Channel: channelFilter}, nil
 }

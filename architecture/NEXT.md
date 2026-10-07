@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board native migration and exit evidence are complete. Workboard, OKR and storage/artifact native migrations plus exit evidence are implemented. Schedule native migration and exit evidence are complete. Standing seven-command native migration and exit evidence are complete. Workflow13-command native migration and exit evidence are complete. Pulse fourteen-command native migration and exit evidence are complete locally; Autonomy feed native migration and exit evidence are complete locally; Three tool read operations and native exit evidence are complete locally; all eight toolforge native operations and exit evidence are complete locally. All three toolbox native operations and exit evidence are complete locally. All six MCP native operations and exit evidence are complete locally. All eight market native operations and exit evidence are complete locally. Plugin inventory typed native migration and exit evidence are complete locally. Config read typed native migration and exit evidence are complete locally. All five settings native operations and exit evidence are complete locally. Configcenter native exit is complete locally. Channel inventory/account and OAuth service/state/provider/exchange ownership foundations are implemented, with registered-field removal/status race repairs. Gateway status/QR service foundations are implemented. Inbox service foundation is implemented. Send service foundation is implemented. ACP, channel inventory, account, OAuth and gateway typed DTO/operation/native bindings are complete. Continue §4.5 with inbox/send typed binding and native exit before webhook, tunnel and update. Cadence resident run execution remains W2.2/W4 work. Journal raw-ref GC protection remains later module work. W2.10g-i through W2.27m are delivered to main via PR #701 (8416d9c8, all24 exact-head CI jobs passed); W2.27n is delivered via PR #702 (a00b580c, all24 exact-head CI jobs passed); W2.27o awaits its own delivery. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board native migration and exit evidence are complete. Workboard, OKR and storage/artifact native migrations plus exit evidence are implemented. Schedule native migration and exit evidence are complete. Standing seven-command native migration and exit evidence are complete. Workflow13-command native migration and exit evidence are complete. Pulse fourteen-command native migration and exit evidence are complete locally; Autonomy feed native migration and exit evidence are complete locally; Three tool read operations and native exit evidence are complete locally; all eight toolforge native operations and exit evidence are complete locally. All three toolbox native operations and exit evidence are complete locally. All six MCP native operations and exit evidence are complete locally. All eight market native operations and exit evidence are complete locally. Plugin inventory typed native migration and exit evidence are complete locally. Config read typed native migration and exit evidence are complete locally. All five settings native operations and exit evidence are complete locally. Configcenter native exit is complete locally. Channel inventory/account and OAuth service/state/provider/exchange ownership foundations are implemented, with registered-field removal/status race repairs. Gateway status/QR service foundations are implemented. Inbox service foundation is implemented. Send service foundation is implemented. ACP, channel inventory, account, OAuth, gateway and inbox typed DTO/operation/native bindings are complete. Continue §4.5 with send typed binding and native exit before webhook, tunnel and update. Cadence resident run execution remains W2.2/W4 work. Journal raw-ref GC protection remains later module work. W2.10g-i through W2.27m are delivered to main via PR #701 (8416d9c8, all24 exact-head CI jobs passed); W2.27n is delivered via PR #702 (a00b580c, all24 exact-head CI jobs passed); W2.27o is delivered via PR #703 (5703f2d5, all24 exact-head CI jobs passed); W2.27p awaits its own delivery. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -3945,6 +3945,35 @@ Protected delivery update: OAuth W2.27n merged in PR #702 at a00b580c on2026-10-
 after all24 exact19ca5ce1-head CI jobs succeeded (including CI/ci.yml); shared local
 main fast-forwarded to the identical validated merge tree, preserving gateway edits
 and unrelated deletions. W2.27o is the next local slice awaiting its own delivery.
+
+**W2.27p channel inbox typed DTO/operation/native binding:** InboxOutput has typed
+thread pointers/count/total and optional next_cursor/channel. Existing thread/message
+models, empty arrays, sender omission, sorting/filtering/grouping/fallback IDs,
+count-before-page and int64 timestamps remain. One primary-only/primary ReadOnly GET
+spec binds shared dispatcher; raw codecs retain numeric truncation/ignored wrong
+limit types, lenient channel input and delayed strict cursor errors. Journal Range
+errors still win over cursor type errors. The native object codec retains nested
+thread/message declaration order and exact int64s, like existing inventory/config
+struct handling. Wrapper/manual row removed; selected kernel journal factory remains
+in small native port file, independent of Server root. Already-canceled requests
+reject before provider/Range. Direct service retains legacy context behavior.
+200 legacy/current native cases20=5 owned journal states x20 args x2 contexts:
+100 normal raw byte-exact responses/no normalization and100 changed canceled
+admissions; complete owned files/head/provider unchanged. Permanent schema/nested
+presence/freshness/JSON numeric limits/auth/native member-order/int64/range-error/
+selected-journal/tenant/source tests20 and32 valid service/DTO/schema/binding mutations
+pass with exact restoration. The old private direct-Go-map decoder test is replaced
+with real JSON boundary tests: Go int/json.Number arguments are JSON numbers on the
+wire, as in the original native Request decoder; this is measured, not a codec
+compatibility exception. Full Go/race/build/vet/static/arch/dead/deps/format/generated
+gates pass. **Next: send typed binding and channel native exit**, then remaining
+order6/7 and W3-W5; own final-head CI/protected main merge remains.
+
+Protected delivery update: gateway W2.27o merged via PR #703 at 5703f2d5 on2026-10-07
+after all24 exact3cdf135a-head CI jobs succeeded (including CI/ci.yml). Shared local
+main fast-forwarded to the identical validated merge tree, preserving local inbox
+edits and unrelated deletions. W2.27p is the next local delivery. Owned fixtures
+certify source/wire contracts, not live channel messages or deployed binaries.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

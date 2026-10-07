@@ -549,7 +549,7 @@ request signed with the empty secret; configured secret ⇒ unsigned request rej
 | `channel.<name>.error` | `channel.error` | `channel.Guard` on panic | `channel, panic` |
 | `channel.error.whatsapp` | `channel.outbound` (sic) | whatsapp reply failure | `error, channel_id` |
 
-Consumers: `kernel/channel.ConversationHistory` (run intent), `kernel/controlplane/inbox.go` (Unified Inbox: groups by
+Consumers: `kernel/channel.ConversationHistory` (run intent), `kernel/app/channels/inbox.go` (typed Unified Inbox: groups by
 correlation, filters by `channel_kind`), journal readers (`agt why`, `agt journal`).
 
 ---
