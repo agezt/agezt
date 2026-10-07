@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-119 package(s):
+133 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -11,16 +11,30 @@
 - **`kernel/alerter`** — Package alerter pushes warning/critical alerts to the configured channels (M782).
 - **`kernel/anomaly`** — Package anomaly is the autonomous-operation circuit breaker (SPEC-06 §5): it watches for runaway signals and, on a spike, auto-engages a halt so a looping or runaway agent cannot burn budget or take repeated action unsupervised.
 - **`kernel/app`** — Package app implements the transport-independent typed operation pipeline.
+- **`kernel/app/artifacts`** — Package artifacts owns transport-independent blob, metadata and collection use cases.
+- **`kernel/app/autonomy`** — SPDX-License-Identifier: MIT
 - **`kernel/app/board`** — Package board owns transport-independent message-board use cases.
 - **`kernel/app/catalog`** — Package catalog owns transport-independent catalog sync, listing and discovery.
+- **`kernel/app/channels`** — SPDX-License-Identifier: MIT
+- **`kernel/app/config`** — SPDX-License-Identifier: MIT
+- **`kernel/app/configcenter`** — SPDX-License-Identifier: MIT
 - **`kernel/app/files`** — Package files applies console file mutations through the host's governed tool invocation port.
+- **`kernel/app/market`** — SPDX-License-Identifier: MIT
 - **`kernel/app/memory`** — Package memory owns transport-independent memory use cases.
+- **`kernel/app/okr`** — Package okr owns transport-independent objective reads, live rollup projections and lifecycle operations over selected store and kernel ports.
+- **`kernel/app/plugins`** — SPDX-License-Identifier: MIT
 - **`kernel/app/providers`** — Package providers owns provider management and journal observation services.
+- **`kernel/app/pulse`** — Package pulse owns proactive-engine control and event observation services over selected resident controller, observer, settings, journal and bus ports.
+- **`kernel/app/schedule`** — Package schedule owns transport-independent schedule views, forecasts, lifecycle operations and admission rules.
+- **`kernel/app/settings`** — SPDX-License-Identifier: MIT
 - **`kernel/app/skill`** — Package skill owns transport-independent skill use cases.
+- **`kernel/app/standing`** — Package standing owns typed standing management, history and manual firing admission over selected store, runtime writer, journal and callback ports.
+- **`kernel/app/storage`** — Package storage owns transport-independent storage inventory diagnostics.
 - **`kernel/app/system`** — Package system owns the transport-independent daemon status/version handlers.
 - **`kernel/app/taste`** — Package taste owns transport-independent exemplar curation use cases.
-- **`kernel/app/tools`** — Package tools is the application entry for governed direct tool invocations.
+- **`kernel/app/tools`** — SPDX-License-Identifier: MIT
 - **`kernel/app/workboard`** — Package workboard owns transport-independent task-board use cases.
+- **`kernel/app/workflow`** — Package workflow owns workflow management and observation services over selected graph, journal and execution ports.
 - **`kernel/app/world`** — Package world owns transport-independent world graph use cases.
 - **`kernel/approval`** — Package approval is the human-in-the-loop pause point.
 - **`kernel/artifact`** — Package artifact is a content-addressed (BLAKE3) blob store — the substrate for SPEC-04 §3.6 artifacts: tool/run outputs that are too large to inline in an event are written here and referenced by their content hash, so the journal stays small while the bytes survive in the lineage and dedupe automatically.
@@ -70,7 +84,7 @@
 - **`kernel/platform/browsercallback`** — Package browsercallback owns OAuth browser callback query/result presentation.
 - **`kernel/platform/filestore`** — Package filestore is the persistence platform for the daemon's single-file JSON stores (architecture/20-target-architecture.md §5, layer L2): a tolerant Load, an atomic Save, and a cross-process Lock for files that more than one process writes (the vault and settings are written by both the daemon and `agt`).
 - **`kernel/platform/fileworkspace`** — Package fileworkspace owns console workspace path checks and filesystem primitives.
-- **`kernel/platform/journalview`** — Package journalview owns the shared newest-first journal projection mechanics.
+- **`kernel/platform/journalview`** — SPDX-License-Identifier: MIT
 - **`kernel/platform/netout`** — Package netout is the outbound-HTTP platform (architecture/20-target- architecture.md §5, layer L2): the one place a client that dials out is built.
 - **`kernel/platform/policyctx`** — Package policyctx carries resolved tool metadata and observation provenance between admission and the policy decision.
 - **`kernel/platform/rollbackstore`** — Package rollbackstore owns rollback checkpoint data, catalog persistence and the existing file snapshot restore primitive.
