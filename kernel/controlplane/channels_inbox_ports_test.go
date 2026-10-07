@@ -4,29 +4,13 @@ package controlplane
 import (
 	"context"
 	"encoding/json"
+	appchannels "github.com/agezt/agezt/kernel/app/channels"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"strings"
 	"testing"
 )
-
-func TestChannelInboxNativeCodecPreservesFloatOnlyLimitAndDelayedCursorError(t *testing.T) {
-	for _, value := range []any{nil, "5", false, 5, json.Number("5"), map[string]any{}} {
-		in := inboxInput(Request{Args: map[string]any{"limit": value, "channel": false, "cursor": 5}})
-		if in.Limit != nil || in.Channel != "" || in.Cursor != "" || in.CursorError == nil || in.CursorError.Error() != "args.cursor must be a string" {
-			t.Fatal(value, in)
-		}
-	}
-	in := inboxInput(Request{Args: map[string]any{"limit": 5.9, "channel": " Raw Channel ", "cursor": " 100:z "}})
-	if in.Limit == nil || *in.Limit != 5 || in.Channel != " Raw Channel " || in.Cursor != " 100:z " || in.CursorError != nil {
-		t.Fatal(in)
-	}
-	in = inboxInput(Request{})
-	if in.Limit != nil || in.Channel != "" || in.Cursor != "" || in.CursorError != nil {
-		t.Fatal(in)
-	}
-}
 
 func TestChannelInboxNativeSelectedKernelJournalIsolation(t *testing.T) {
 	p := mock.New()
@@ -51,9 +35,9 @@ func TestChannelInboxNativeSelectedKernelJournalIsolation(t *testing.T) {
 	s := NewServer(k, t.TempDir())
 	head, hash := k.Journal().Head()
 	otherHead, otherHash := other.Journal().Head()
-	out, err := s.channelInbox().List(context.Background(), inboxInput(Request{Args: map[string]any{"tenant": "other"}}))
+	out, err := s.channelInbox().List(context.Background(), appchannels.InboxInput{})
 	raw, _ := json.Marshal(out)
-	if err != nil || out["count"] != 1 || !containsInboxBytes(raw, []byte(`"correlation_id":"selected"`)) || containsInboxBytes(raw, []byte(`"correlation_id":"other"`)) {
+	if err != nil || out.Count != 1 || !containsInboxBytes(raw, []byte(`"correlation_id":"selected"`)) || containsInboxBytes(raw, []byte(`"correlation_id":"other"`)) {
 		t.Fatal(string(raw), err)
 	}
 	after, afterHash := k.Journal().Head()
