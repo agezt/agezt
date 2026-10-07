@@ -24,25 +24,27 @@ import (
 
 func cmdConfigCenterRating(args []string, stdout, stderr io.Writer) int {
 	var key, rating string
-	setMode := false
 
-	for _, a := range args {
-		switch a {
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
 		case "-h", "--help":
 			fmt.Fprintf(stdout, "usage: %s configcenter rating <key> [--rating <rating>]\n", brand.CLI)
 			return 0
 		case "--rating":
-			setMode = true
+			value, ok := configCenterFlagValue(args, i)
+			if !ok || value == "" {
+				fmt.Fprintf(stderr, "%s configcenter rating: --rating requires a value\n", brand.CLI)
+				return 2
+			}
+			rating = value
+			i++
 		default:
 			if key == "" {
-				key = a
-			} else if rating == "" && setMode {
-				rating = a
+				key = args[i]
 			} else if rating == "" {
-				rating = a
-				setMode = true
+				rating = args[i]
 			} else {
-				fmt.Fprintf(stderr, "%s configcenter rating: unexpected arg %q\n", brand.CLI, a)
+				fmt.Fprintf(stderr, "%s configcenter rating: unexpected arg %q\n", brand.CLI, args[i])
 				return 2
 			}
 		}
@@ -126,48 +128,33 @@ func cmdConfigCenterAccessLog(args []string, stdout, stderr io.Writer) int {
 	var key, agentID, since string
 	asJSON := false
 
-	for _, a := range args {
-		switch a {
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
 		case "-h", "--help":
 			fmt.Fprintf(stdout, "usage: %s configcenter access-log [--key <key>] [--agent <agent>] [--since <duration>] [--json]\n", brand.CLI)
 			return 0
-		case "--key":
-			// Will be processed
-		case "--agent":
-			// Will be processed
-		case "--since":
-			// Will be processed
 		case "--json":
 			asJSON = true
+		case "--key", "--agent", "--since":
+			flag := args[i]
+			value, ok := configCenterFlagValue(args, i)
+			if !ok {
+				fmt.Fprintf(stderr, "%s configcenter access-log: %s requires a value\n", brand.CLI, flag)
+				return 2
+			}
+			switch flag {
+			case "--key":
+				key = value
+			case "--agent":
+				agentID = value
+			case "--since":
+				since = value
+			}
+			i++
 		default:
-			fmt.Fprintf(stderr, "%s configcenter access-log: unexpected arg %q\n", brand.CLI, a)
-			return 2
-		}
-	}
-
-	// Parse flags
-	i := 0
-	for i < len(args) {
-		if args[i] == "--key" {
-			i++
-			if i < len(args) {
-				key = args[i]
-			}
-		} else if args[i] == "--agent" {
-			i++
-			if i < len(args) {
-				agentID = args[i]
-			}
-		} else if args[i] == "--since" {
-			i++
-			if i < len(args) {
-				since = args[i]
-			}
-		} else if args[i] != "--json" {
 			fmt.Fprintf(stderr, "%s configcenter access-log: unexpected arg %q\n", brand.CLI, args[i])
 			return 2
 		}
-		i++
 	}
 
 	c := dialpkg.New(stderr)
@@ -212,7 +199,7 @@ func cmdConfigCenterAccessLog(args []string, stdout, stderr io.Writer) int {
 
 	for _, l := range logs {
 		lm := l.(map[string]any)
-		ts := time.UnixMilli(int64(lm["timestamp"].(float64)))
+		ts := time.Unix(int64(lm["timestamp"].(float64)), 0)
 
 		agent := lm["agent_id"].(string)
 		logKey := lm["key"].(string)
@@ -237,35 +224,29 @@ func cmdConfigCenterAudit(args []string, stdout, stderr io.Writer) int {
 	var since string
 	asJSON := false
 
-	for _, a := range args {
-		switch a {
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
 		case "-h", "--help":
 			fmt.Fprintf(stdout, "usage: %s configcenter audit [--since <duration>] [--json]\n", brand.CLI)
 			return 0
-		case "--since":
-			// Will be processed
 		case "--json":
 			asJSON = true
+		case "--since":
+			value, ok := configCenterFlagValue(args, i)
+			if !ok {
+				fmt.Fprintf(stderr, "%s configcenter audit: --since requires a value\n", brand.CLI)
+				return 2
+			}
+			since = value
+			i++
 		default:
-			if strings.HasPrefix(a, "--") {
-				fmt.Fprintf(stderr, "%s configcenter audit: unexpected flag %q\n", brand.CLI, a)
+			if strings.HasPrefix(args[i], "--") {
+				fmt.Fprintf(stderr, "%s configcenter audit: unexpected flag %q\n", brand.CLI, args[i])
 			} else {
-				fmt.Fprintf(stderr, "%s configcenter audit: unexpected arg %q\n", brand.CLI, a)
+				fmt.Fprintf(stderr, "%s configcenter audit: unexpected arg %q\n", brand.CLI, args[i])
 			}
 			return 2
 		}
-	}
-
-	// Parse flags
-	i := 0
-	for i < len(args) {
-		if args[i] == "--since" {
-			i++
-			if i < len(args) {
-				since = args[i]
-			}
-		}
-		i++
 	}
 
 	c := dialpkg.New(stderr)
@@ -304,14 +285,16 @@ func cmdConfigCenterAudit(args []string, stdout, stderr io.Writer) int {
 
 	for _, e := range entries {
 		em := e.(map[string]any)
-		ts := time.UnixMilli(int64(em["timestamp"].(float64)))
+		ts := time.Unix(int64(em["timestamp"].(float64)), 0)
 		event := em["event"].(string)
 		key := em["key"].(string)
-		actor := em["actor"].(string)
-		action := em["action"].(string)
+		actor := em["agent_id"].(string)
+		decision := em["decision"].(string)
+		policy := em["policy"].(string)
+		reason := em["reason"].(string)
 
 		fmt.Fprintf(stdout, "%s  %s  %s  %s\n", ts.Format("06-01-02 15:04:05"), event, key, actor)
-		fmt.Fprintf(stdout, "    action=%s\n", action)
+		fmt.Fprintf(stdout, "    decision=%s policy=%s reason=%s\n", decision, policy, reason)
 	}
 
 	return 0

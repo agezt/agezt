@@ -6,6 +6,8 @@ package market
 //             manager.go during the Day-208 god-file split. Public API unchanged.
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
 	"github.com/agezt/agezt/kernel/skill"
@@ -75,11 +77,30 @@ func (m *Manager) Show(marketplace, name string) (Pack, InstalledPack, bool, err
 // host-installed silently). emit (nil-safe) streams progress. Returns the
 // recorded install. Idempotent: re-installing updates the record.
 func (m *Manager) Install(corr, marketplace, name, version string, emit func(Event)) (InstalledPack, error) {
-	send := func(e Event) {
+	return m.InstallContext(context.Background(), corr, marketplace, name, version, func(e Event) error {
 		if emit != nil {
 			emit(e)
 		}
+		return nil
+	})
+}
+
+// InstallContext stops before subsequent effects when its caller or progress sink fails.
+// Already materialized resources are not rolled back.
+func (m *Manager) InstallContext(ctx context.Context, corr, marketplace, name, version string, emit func(Event) error) (InstalledPack, error) {
+	send := func(e Event) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if emit != nil {
+			return emit(e)
+		}
+		return nil
 	}
+	if err := ctx.Err(); err != nil {
+		return InstalledPack{}, err
+	}
+	var rec InstalledPack
 	if m.skills == nil || m.mcp == nil {
 		return InstalledPack{}, fmt.Errorf("market: install requires live skill+mcp subsystems")
 	}
@@ -117,9 +138,11 @@ func (m *Manager) Install(corr, marketplace, name, version string, emit func(Eve
 	// Security review — informational, never a wall (default-allow): the report
 	// streams to the operator and its verdict is recorded in provenance.
 	vet := VetPack(p)
-	send(Event{Stage: "vet", Name: p.Name, OK: vet.Verdict != VerdictDanger, Detail: vet.Summary()})
+	if err := send(Event{Stage: "vet", Name: p.Name, OK: vet.Verdict != VerdictDanger, Detail: vet.Summary()}); err != nil {
+		return rec, err
+	}
 
-	rec := InstalledPack{
+	rec = InstalledPack{
 		Name:        p.Name,
 		Version:     p.Version,
 		Marketplace: marketplace,
@@ -132,8 +155,13 @@ func (m *Manager) Install(corr, marketplace, name, version string, emit func(Eve
 	for _, ps := range p.Skills {
 		md, perr := skill.ParseSkillMD([]byte(ps.SkillMD))
 		if perr != nil {
-			send(Event{Stage: "skill", OK: false, Detail: perr.Error()})
+			if err := send(Event{Stage: "skill", OK: false, Detail: perr.Error()}); err != nil {
+				return rec, errors.Join(fmt.Errorf("market: parse skill in %q: %w", p.Name, perr), err)
+			}
 			return rec, fmt.Errorf("market: parse skill in %q: %w", p.Name, perr)
+		}
+		if err := ctx.Err(); err != nil {
+			return rec, err
 		}
 		sk, _, cerr := m.skills.Create(corr, skill.CreateSpec{
 			Name:          md.Name,
@@ -144,31 +172,49 @@ func (m *Manager) Install(corr, marketplace, name, version string, emit func(Eve
 			Resources:     ps.Resources,
 		})
 		if cerr != nil {
-			send(Event{Stage: "skill", Name: md.Name, OK: false, Detail: cerr.Error()})
+			if err := send(Event{Stage: "skill", Name: md.Name, OK: false, Detail: cerr.Error()}); err != nil {
+				return rec, errors.Join(fmt.Errorf("market: install skill %q: %w", md.Name, cerr), err)
+			}
 			return rec, fmt.Errorf("market: install skill %q: %w", md.Name, cerr)
 		}
-		m.promoteToActive(corr, sk)
+		if err := m.promoteToActiveContext(ctx, corr, sk); err != nil {
+			return rec, err
+		}
 		rec.SkillIDs = append(rec.SkillIDs, sk.ID)
-		send(Event{Stage: "skill", Name: md.Name, OK: true, Detail: "active"})
+		if err := send(Event{Stage: "skill", Name: md.Name, OK: true, Detail: "active"}); err != nil {
+			return rec, err
+		}
 	}
 
 	// MCP servers → registry (validated by AddMCPServer too).
 	for _, srv := range p.MCPServers {
+		if err := ctx.Err(); err != nil {
+			return rec, err
+		}
 		added, aerr := m.mcp.AddMCPServer(corr, srv)
 		if aerr != nil {
-			send(Event{Stage: "mcp", Name: srv.Name, OK: false, Detail: aerr.Error()})
+			if err := send(Event{Stage: "mcp", Name: srv.Name, OK: false, Detail: aerr.Error()}); err != nil {
+				return rec, errors.Join(fmt.Errorf("market: add mcp %q: %w", srv.Name, aerr), err)
+			}
 			return rec, fmt.Errorf("market: add mcp %q: %w", srv.Name, aerr)
 		}
 		rec.MCPServers = append(rec.MCPServers, added.Name)
-		send(Event{Stage: "mcp", Name: added.Name, OK: true, Detail: "registered"})
+		if err := send(Event{Stage: "mcp", Name: added.Name, OK: true, Detail: "registered"}); err != nil {
+			return rec, err
+		}
 	}
 
 	// Tool requirements are reported, not host-installed (host exec needs consent).
 	for _, t := range p.ToolRequirements {
 		rec.ToolReqs = append(rec.ToolReqs, t)
-		send(Event{Stage: "tool", Name: t, OK: true, Detail: "required — install in Toolbox"})
+		if err := send(Event{Stage: "tool", Name: t, OK: true, Detail: "required — install in Toolbox"}); err != nil {
+			return rec, err
+		}
 	}
 
+	if err := ctx.Err(); err != nil {
+		return rec, err
+	}
 	if err := m.store.RecordInstall(rec); err != nil {
 		return rec, err
 	}
@@ -176,19 +222,25 @@ func (m *Manager) Install(corr, marketplace, name, version string, emit func(Eve
 	if unsigned {
 		detail += " · unsigned"
 	}
-	send(Event{Stage: "done", Name: p.Name, OK: true, Detail: detail})
+	if err := send(Event{Stage: "done", Name: p.Name, OK: true, Detail: detail}); err != nil {
+		return rec, err
+	}
 	return rec, nil
 }
 
-func (m *Manager) promoteToActive(corr string, sk skill.Skill) {
+func (m *Manager) promoteToActiveContext(ctx context.Context, corr string, sk skill.Skill) error {
 	status := sk.Status
 	for i := 0; i < 3 && status != skill.StatusActive; i++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		next, err := m.skills.Promote(corr, sk.ID)
 		if err != nil || next == status {
 			break
 		}
 		status = next
 	}
+	return nil
 }
 
 // Uninstall reverses a pack's footprint via its recorded provenance: it
@@ -196,10 +248,27 @@ func (m *Manager) promoteToActive(corr string, sk skill.Skill) {
 // only touches what THIS pack created (best-effort; missing optional reverse
 // APIs are skipped). Tool requirements are left alone (host tools are shared).
 func (m *Manager) Uninstall(corr, name string, emit func(Event)) error {
-	send := func(e Event) {
+	return m.UninstallContext(context.Background(), corr, name, func(e Event) error {
 		if emit != nil {
 			emit(e)
 		}
+		return nil
+	})
+}
+
+// UninstallContext preserves best-effort reverse APIs while stopping after sink/caller errors.
+func (m *Manager) UninstallContext(ctx context.Context, corr, name string, emit func(Event) error) error {
+	send := func(e Event) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if emit != nil {
+			return emit(e)
+		}
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	rec, ok, err := m.store.InstalledByName(name)
 	if err != nil {
@@ -210,25 +279,44 @@ func (m *Manager) Uninstall(corr, name string, emit func(Event)) error {
 	}
 	if q, ok := m.skills.(skillQuarantiner); ok {
 		for _, id := range rec.SkillIDs {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			if qerr := q.Quarantine(corr, id, "market uninstall "+name); qerr != nil {
-				send(Event{Stage: "skill", Name: id, OK: false, Detail: qerr.Error()})
+				if err := send(Event{Stage: "skill", Name: id, OK: false, Detail: qerr.Error()}); err != nil {
+					return errors.Join(qerr, err)
+				}
 			} else {
-				send(Event{Stage: "skill", Name: id, OK: true, Detail: "quarantined"})
+				if err := send(Event{Stage: "skill", Name: id, OK: true, Detail: "quarantined"}); err != nil {
+					return err
+				}
 			}
 		}
 	}
 	if r, ok := m.mcp.(mcpRemover); ok {
 		for _, srv := range rec.MCPServers {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			if _, rerr := r.RemoveMCPServer(corr, srv); rerr != nil {
-				send(Event{Stage: "mcp", Name: srv, OK: false, Detail: rerr.Error()})
+				if err := send(Event{Stage: "mcp", Name: srv, OK: false, Detail: rerr.Error()}); err != nil {
+					return errors.Join(rerr, err)
+				}
 			} else {
-				send(Event{Stage: "mcp", Name: srv, OK: true, Detail: "removed"})
+				if err := send(Event{Stage: "mcp", Name: srv, OK: true, Detail: "removed"}); err != nil {
+					return err
+				}
 			}
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	if _, err := m.store.RemoveInstall(name); err != nil {
 		return err
 	}
-	send(Event{Stage: "done", Name: name, OK: true, Detail: "uninstalled"})
+	if err := send(Event{Stage: "done", Name: name, OK: true, Detail: "uninstalled"}); err != nil {
+		return err
+	}
 	return nil
 }

@@ -257,13 +257,16 @@ Config Center schema** (so not settable from the UI, and invisible to label disc
 
 ### 4.2 Manifest metadata (Connect wizard)
 
-Each `channel.Manifest` row drives the console Channels page via the control plane's `handleChannelList`
-(`kernel/controlplane/channels.go`): display, description, `Transport`, `Duplex`, `Media` caps, `SetupSteps`,
+Each `channel.Manifest` row drives the console Channels page via the application's typed `Inventory.List`
+(`kernel/app/channels/inventory.go`): display, description, `Transport`, `Duplex`, `Media` caps, `SetupSteps`,
 `ConnectMethod` (`token` default / `oauth` for slack, mastodon — flows in `controlplane/channel_oauth.go` that write
 `AGEZT_SLACK_TOKEN` / `AGEZT_MASTODON_TOKEN` / `qr` for whatsappgw / `gateway` for signal, qq, wechat, imessage),
 `ConfigSection` (fields come from `kernel/settings/schema_builtin.go`), `RequiredEnv` (the "configured" predicate,
 evaluated per `#label` account), and `AddrEnv`/`AllowlistEnv`/`InboundEnv` (feed `collectChannels()` →
-`agt status`), `BannerLabel`/`DisabledHint` (boot banner). Account add/remove: `controlplane/channel_accounts.go`.
+`agt status`), `BannerLabel`/`DisabledHint` (boot banner). Account add/remove: `app/channels/accounts.go`, with typed writer operations in
+`app/channels/account_operations.go` and selected-root ports in `controlplane/channels_account_ports.go`.
+Both writers use primary-only POST admission through the shared dispatcher; canceled
+requests and failed audit admission stop before persistence. Successful edits apply on restart.
 
 Transports declared: `long-poll` (telegram, matrix), `webhook` (most), `rest` (signal, homeassistant, push family,
 mastodon, zulip, whatsappgw, imessage), `smtp` (email), `socket` (irc, twitch, nostr — not listed in the

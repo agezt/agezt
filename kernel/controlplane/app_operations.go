@@ -3,20 +3,39 @@
 package controlplane
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/agezt/agezt/kernel/app"
+	appartifacts "github.com/agezt/agezt/kernel/app/artifacts"
+	appautonomy "github.com/agezt/agezt/kernel/app/autonomy"
 	appboard "github.com/agezt/agezt/kernel/app/board"
 	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
+	appchannels "github.com/agezt/agezt/kernel/app/channels"
+	appconfig "github.com/agezt/agezt/kernel/app/config"
+	appconfigcenter "github.com/agezt/agezt/kernel/app/configcenter"
+	appmarket "github.com/agezt/agezt/kernel/app/market"
 	appmemory "github.com/agezt/agezt/kernel/app/memory"
+	appokr "github.com/agezt/agezt/kernel/app/okr"
+	appplugins "github.com/agezt/agezt/kernel/app/plugins"
 	appproviders "github.com/agezt/agezt/kernel/app/providers"
+	apppulse "github.com/agezt/agezt/kernel/app/pulse"
+	appschedule "github.com/agezt/agezt/kernel/app/schedule"
+	appsettings "github.com/agezt/agezt/kernel/app/settings"
 	appskill "github.com/agezt/agezt/kernel/app/skill"
+	appstanding "github.com/agezt/agezt/kernel/app/standing"
+	appstorage "github.com/agezt/agezt/kernel/app/storage"
 	"github.com/agezt/agezt/kernel/app/system"
 	apptaste "github.com/agezt/agezt/kernel/app/taste"
+	apptools "github.com/agezt/agezt/kernel/app/tools"
+	appworkboard "github.com/agezt/agezt/kernel/app/workboard"
+	appworkflow "github.com/agezt/agezt/kernel/app/workflow"
 	appworld "github.com/agezt/agezt/kernel/app/world"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
@@ -78,6 +97,34 @@ var observationOperations = func() []app.Operation {
 
 var probeOperations = func() []app.Operation {
 	operations, err := appproviders.ProbeOperations(func(context.Context) *appproviders.Probe { return appproviders.NewProbe(nil) })
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var acpInventoryOperations = func() []app.Operation {
+	operations, err := appchannels.ACPInventoryOperations(func(context.Context) *appchannels.ACPInventory { return appchannels.NewACPInventory(nil, nil) })
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var channelAccountOperations = func() []app.Operation {
+	operations, err := appchannels.AccountOperations(func(ctx context.Context) *appchannels.Accounts {
+		return ctx.Value(systemHostKey{}).(*Server).channelAccounts()
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var channelInventoryOperations = func() []app.Operation {
+	operations, err := appchannels.InventoryOperations(func(ctx context.Context) *appchannels.Inventory {
+		return ctx.Value(systemHostKey{}).(*Server).channelInventory()
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -175,19 +222,339 @@ var boardOperations = func() []app.Operation {
 	return operations
 }()
 
+var workboardOperations = func() []app.Operation {
+	ops, err := appworkboard.Operations(func(ctx context.Context) appworkboard.NativeServices {
+		server := ctx.Value(systemHostKey{}).(*Server)
+		host := ctx.Value(appHostKey{}).(appHost)
+		k := host.kernel
+		return appworkboard.NativeServices{Reads: appworkboard.New(k.Workboard()), Lifecycle: appworkboard.NewLifecycle(k, k.Workboard()), Relations: appworkboard.NewRelations(k), Watch: appworkboard.NewWatch(k.Workboard(), k.Journal()), Dispatch: server.workboardDispatcher(), ValidSeat: k.Seats().Valid}
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
+
+var okrOperations = func() []app.Operation {
+	ops, err := appokr.Operations(func(ctx context.Context) *appokr.Service {
+		k := ctx.Value(appHostKey{}).(appHost).kernel
+		return appokr.New(k.OKR(), k)
+	}, func(ctx context.Context) *appokr.Lifecycle {
+		k := ctx.Value(appHostKey{}).(appHost).kernel
+		return appokr.NewLifecycle(k, appokr.New(k.OKR(), k))
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
+
+var storageOperations = func() []app.Operation {
+	ops, err := appstorage.Operations(func(ctx context.Context) *appstorage.Service {
+		server := ctx.Value(systemHostKey{}).(*Server)
+		k := ctx.Value(appHostKey{}).(appHost).kernel
+		return appstorage.New(k.BaseDir(), storageFilesystem{}, server.diskFree)
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
+var artifactOperations = func() []app.Operation {
+	ops, err := appartifacts.Operations(func(ctx context.Context) *appartifacts.Service {
+		return ctx.Value(systemHostKey{}).(*Server).artifactService()
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
+
+var scheduleOperations = func() []app.Operation {
+	server := func(ctx context.Context) *Server { return ctx.Value(systemHostKey{}).(*Server) }
+	operations, err := appschedule.Operations(appschedule.Providers{
+		Reads:     func(ctx context.Context) *appschedule.Service { return server(ctx).scheduleReads() },
+		Lifecycle: func(ctx context.Context) *appschedule.Lifecycle { return server(ctx).scheduleLifecycle(ctx) },
+		Admission: func(ctx context.Context) *appschedule.Admission { return server(ctx).scheduleAdmission() },
+		Creation: func(ctx context.Context) *appschedule.Creation {
+			return appschedule.NewCreation(ctx.Value(appHostKey{}).(appHost).kernel.Schedules(), nil)
+		},
+		Editing: func(ctx context.Context) *appschedule.Editing { return server(ctx).scheduleEditing() },
+		Firings: func(ctx context.Context) *appschedule.FiringService {
+			return server(ctx).scheduleFiringReads(ctx.Value(appHostKey{}).(appHost).kernel)
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var standingOperations = func() []app.Operation {
+	server := func(ctx context.Context) *Server { return ctx.Value(systemHostKey{}).(*Server) }
+	operations, err := appstanding.Operations(appstanding.Providers{
+		Service: func(ctx context.Context) *appstanding.Service { return server(ctx).standingService() },
+		Observations: func(ctx context.Context) *appstanding.Observations {
+			return appstanding.NewObservations(ctx.Value(appHostKey{}).(appHost).kernel.Journal())
+		},
+		Firing: func(ctx context.Context) *appstanding.Firing {
+			s := server(ctx)
+			return appstanding.NewFiring(s.standingService(), s.standingFire)
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var workflowOperations = func() []app.Operation {
+	server := func(ctx context.Context) *Server { return ctx.Value(systemHostKey{}).(*Server) }
+	operations, err := appworkflow.Operations(appworkflow.Providers{Reads: func(ctx context.Context) *appworkflow.Reads { return server(ctx).workflowReads() }, Lifecycle: func(ctx context.Context) *appworkflow.Lifecycle { return server(ctx).workflowLifecycle() }, Copilot: func(ctx context.Context) *appworkflow.Copilot { return server(ctx).workflowCopilot() }, Execution: func(ctx context.Context) *appworkflow.Execution { return server(ctx).workflowExecution() }})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var pulseControlOperations = func() []app.Operation {
+	operations, err := apppulse.ControlOperations(func(ctx context.Context) *apppulse.Controls {
+		return ctx.Value(systemHostKey{}).(*Server).pulseControls()
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var pulseSubscribeOperations = func() []app.Operation {
+	operations, err := apppulse.SubscribeOperations(func(ctx context.Context) apppulse.SubscribeHost {
+		server := ctx.Value(systemHostKey{}).(*Server)
+		conn, _ := ctx.Value(pulseNativeConnKey{}).(net.Conn)
+		host := apppulse.SubscribeHost{Stream: server.pulseStream()}
+		if conn != nil {
+			host.Prepare = func() { _ = conn.SetReadDeadline(time.Time{}) }
+			host.ClientGone = func() <-chan struct{} { return pulseClientGone(ctx, conn) }
+		}
+		return host
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var autonomyOperations = func() []app.Operation {
+	operations, err := appautonomy.Operations(func(ctx context.Context) *appautonomy.Feed {
+		return appautonomy.NewFeed(ctx.Value(appHostKey{}).(appHost).kernel.Journal())
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var toolInventoryOperations = func() []app.Operation {
+	operations, err := apptools.InventoryOperations(func(ctx context.Context) *apptools.Inventory {
+		return apptools.NewInventory(ctx.Value(appHostKey{}).(appHost).kernel)
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var toolObservationOperations = func() []app.Operation {
+	operations, err := apptools.ObservationOperations(func(ctx context.Context) *apptools.Observations {
+		return apptools.NewObservations(ctx.Value(appHostKey{}).(appHost).kernel.Journal())
+	}, nil)
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var forgeReadOperations = func() []app.Operation {
+	operations, err := apptools.ForgeReadOperations(func(ctx context.Context) *apptools.ForgeCatalog {
+		return apptools.NewForgeCatalog(ctx.Value(appHostKey{}).(appHost).kernel.ToolForge())
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var forgeLifecycleOperations = func() []app.Operation {
+	operations, err := apptools.ForgeLifecycleOperations(func(ctx context.Context) *apptools.ForgeLifecycle {
+		return apptools.NewForgeLifecycle(ctx.Value(appHostKey{}).(appHost).kernel)
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var toolboxReadOperations = func() []app.Operation {
+	operations, err := apptools.ToolboxReadOperations(func(context.Context) *apptools.ToolboxReads { return apptools.NewToolboxReads(nativeToolboxReader{}) })
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var toolboxInstallOperations = func() []app.Operation {
+	operations, err := apptools.ToolboxInstallOperations(func(ctx context.Context) *apptools.ToolboxInstall {
+		host := ctx.Value(appHostKey{}).(appHost)
+		return apptools.NewToolboxInstall(nativeToolboxInstaller{}, func(kind event.Kind, payload map[string]any) error {
+			_, err := host.kernel.Bus().Publish(event.Spec{Subject: "toolbox", Kind: kind, Actor: "toolbox", CorrelationID: opapi.CorrelationFromContext(ctx), Payload: payload})
+			return err
+		})
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var mcpCatalogOperations = func() []app.Operation {
+	operations, err := apptools.MCPCatalogOperations(func(ctx context.Context) *apptools.MCPCatalog {
+		host := ctx.Value(appHostKey{}).(appHost)
+		return apptools.NewMCPCatalog(host.kernel.MCPStore(), host.kernel)
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var mcpLifecycleOperations = func() []app.Operation {
+	operations, err := apptools.MCPLifecycleOperations(func(ctx context.Context) *apptools.MCPLifecycle {
+		host := ctx.Value(appHostKey{}).(appHost)
+		return apptools.NewMCPLifecycle(host.kernel, host.kernel)
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var marketReadOperations = func() []app.Operation {
+	operations, err := appmarket.ReadOperations(func(ctx context.Context) *appmarket.Reads {
+		manager := ctx.Value(appHostKey{}).(appHost).kernel.Market()
+		if manager == nil {
+			return appmarket.NewReads(nil)
+		}
+		return appmarket.NewReads(manager)
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var marketWriteOperations = func() []app.Operation {
+	operations, err := appmarket.WriteOperations(func(ctx context.Context) *appmarket.Writes {
+		host := ctx.Value(appHostKey{}).(appHost)
+		publish := func(kind event.Kind, payload map[string]any) error {
+			_, err := host.kernel.Bus().Publish(event.Spec{Subject: "market", Kind: kind, Actor: "market", CorrelationID: opapi.CorrelationFromContext(ctx), Payload: payload})
+			return err
+		}
+		manager := host.kernel.Market()
+		if manager == nil {
+			return appmarket.NewWrites(nil, publish)
+		}
+		return appmarket.NewWrites(manager, publish)
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var pluginInventoryOperations = func() []app.Operation {
+	operations, err := appplugins.Operations(func(ctx context.Context) *appplugins.Service {
+		return appplugins.New(nativePluginReader{ctx.Value(appHostKey{}).(appHost).kernel})
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var configReadOperations = func() []app.Operation {
+	operations, err := appconfig.Operations(func(ctx context.Context) *appconfig.Service {
+		return appconfig.New(nativeConfigReader{ctx.Value(appHostKey{}).(appHost).kernel}, configEnvVars, nativeConfigEnvPresent)
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var settingsOperations = func() []app.Operation {
+	operations, err := appsettings.Operations(func(ctx context.Context) *appsettings.Reads {
+		return ctx.Value(systemHostKey{}).(*Server).settingsReads()
+	}, func(ctx context.Context) *appsettings.Writes {
+		return ctx.Value(systemHostKey{}).(*Server).settingsWrites()
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
+var configCenterOperations = func() []app.Operation {
+	operations, err := appconfigcenter.Operations(func(ctx context.Context) *appconfigcenter.Reads {
+		return ctx.Value(systemHostKey{}).(*Server).configCenterReads()
+	}, func(ctx context.Context) *appconfigcenter.Writes {
+		return ctx.Value(systemHostKey{}).(*Server).configCenterWrites()
+	})
+	if err != nil {
+		panic(err)
+	}
+	return operations
+}()
+
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, catalogOperations...)
 	operations = append(operations, providerOperations...)
 	operations = append(operations, oauthOperations...)
 	operations = append(operations, observationOperations...)
 	operations = append(operations, probeOperations...)
+	operations = append(operations, acpInventoryOperations...)
+	operations = append(operations, channelInventoryOperations...)
+	operations = append(operations, channelAccountOperations...)
 	operations = append(operations, memoryOperations...)
 	operations = append(operations, worldOperations...)
 	operations = append(operations, tasteOperations...)
 	operations = append(operations, skillOperations...)
-	return append(operations, boardOperations...)
+	operations = append(operations, boardOperations...)
+	operations = append(operations, workboardOperations...)
+	operations = append(operations, okrOperations...)
+	operations = append(operations, storageOperations...)
+	operations = append(operations, artifactOperations...)
+	operations = append(operations, scheduleOperations...)
+	operations = append(operations, standingOperations...)
+	operations = append(operations, workflowOperations...)
+	operations = append(operations, pulseControlOperations...)
+	operations = append(operations, pulseSubscribeOperations...)
+	operations = append(operations, autonomyOperations...)
+	operations = append(operations, toolInventoryOperations...)
+	operations = append(operations, toolObservationOperations...)
+	operations = append(operations, forgeReadOperations...)
+	operations = append(operations, forgeLifecycleOperations...)
+	operations = append(operations, toolboxReadOperations...)
+	operations = append(operations, toolboxInstallOperations...)
+	operations = append(operations, mcpCatalogOperations...)
+	operations = append(operations, mcpLifecycleOperations...)
+	operations = append(operations, marketReadOperations...)
+	operations = append(operations, marketWriteOperations...)
+	operations = append(operations, pluginInventoryOperations...)
+	operations = append(operations, configReadOperations...)
+	operations = append(operations, settingsOperations...)
+	return append(operations, configCenterOperations...)
 }
 
 func registerAppSystemCommands() {
@@ -231,28 +598,40 @@ func appCommandSpec(operation app.Operation) (commandSpec, error) {
 	if spec.Stream != opapi.StreamNone && spec.Emission != reflect.TypeFor[event.Event]() && spec.Emission != reflect.TypeFor[*event.Event]() {
 		return commandSpec{}, errors.New("control-plane streams require kernel event frames")
 	}
-	return commandSpec{Cmd: spec.Name, ReadOnly: spec.ReadOnly, AppOwned: true,
+	wire := commandSpec{Cmd: spec.Name, ReadOnly: spec.ReadOnly, AppOwned: true,
 		TenantAllowed: spec.Authz == opapi.OwnTenant, TenantRouted: spec.Tenancy == opapi.CallerTenant,
-		Streaming: StreamMode(spec.Stream), Handler: handleAppOperation}, nil
+		Streaming: StreamMode(spec.Stream), Handler: handleAppOperation}
+	// The historical pulse wire is event-only and owns its lazy disconnect reader.
+	// Keep canonical StreamLive metadata; suppress the generic native reader/result.
+	if spec.Name == CmdPulseSubscribe {
+		if spec.Stream != opapi.StreamLive || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary {
+			return commandSpec{}, errors.New("pulse native stream requires primary read-only StreamLive metadata")
+		}
+		wire.Streaming = StreamNone
+		wire.Handler = handlePulseAppStream
+	}
+	return wire, nil
 }
 
-func handleAppOperation(dc *DispatchCtx) {
+func dispatchAppOperation(dc *DispatchCtx, ctx context.Context, emitter opapi.Emitter) (any, error) {
 	dc.S.operationOnce.Do(func() {
 		dc.S.operations, dc.S.operationErr = app.NewDispatcher(registeredAppOperations(), app.Dependencies{Auth: appAuthenticator{dc.S}, Router: appTenantRouter{dc.S}, Audit: appAuditor{}})
 	})
 	if dc.S.operationErr != nil {
-		dc.S.fail(dc.Conn, dc.Req, dc.S.operationErr)
-		return
+		return nil, dc.S.operationErr
 	}
 	raw, err := json.Marshal(dc.Req.Args)
 	if err != nil {
-		dc.S.fail(dc.Conn, dc.Req, err)
-		return
+		return nil, err
 	}
 	if dc.Req.Args == nil {
 		raw = json.RawMessage(`{}`)
 	}
-	output, err := dc.S.operations.Dispatch(dc.Ctx, opapi.Caller{Credential: dc.Req.Token, Tenant: tenantOf(dc.Req), Source: "controlplane"}, dc.Req.Cmd, raw, appEmitter{dc.Conn, dc.Req.ID})
+	return dc.S.operations.Dispatch(ctx, opapi.Caller{Credential: dc.Req.Token, Tenant: tenantOf(dc.Req), Source: "controlplane"}, dc.Req.Cmd, raw, emitter)
+}
+
+func handleAppOperation(dc *DispatchCtx) {
+	output, err := dispatchAppOperation(dc, dc.Ctx, appEmitter{dc.Conn, dc.Req.ID})
 	if err != nil {
 		dc.S.fail(dc.Conn, dc.Req, err)
 		return
@@ -263,9 +642,28 @@ func handleAppOperation(dc *DispatchCtx) {
 		return
 	}
 	var result map[string]any
-	if err := json.Unmarshal(encoded, &result); err != nil {
+	// Preserve integer/decimal lexemes through the native object envelope. Decoding
+	// typed output through float64 silently rounds identities above2^53.
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	decoder.UseNumber()
+	if err := decoder.Decode(&result); err != nil {
 		dc.S.fail(dc.Conn, dc.Req, err)
 		return
+	}
+
+	// Legacy config_schema writes core Section/Field structs directly. Preserve
+	// their declared JSON member order inside the otherwise generic object codec.
+	if snapshot, ok := output.(appsettings.SchemaOutput); ok {
+		result["sections"] = snapshot.Sections
+	}
+	// Legacy channel_list embeds MediaCaps structs in map rows. Keep their
+	// declared member order while inventory DTOs use the shared object envelope.
+	if inventory, ok := output.(appchannels.ListOutput); ok {
+		rows, _ := result["channels"].([]any)
+		for i, value := range rows {
+			row, _ := value.(map[string]any)
+			row["media"] = inventory.Channels[i].Media
+		}
 	}
 
 	dc.S.writeResp(dc.Conn, Response{ID: dc.Req.ID, Type: RespResult, Result: result})

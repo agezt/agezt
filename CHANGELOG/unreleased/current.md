@@ -812,6 +812,444 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Channel account edits use typed application operations.** Field validation,
+  config/vault routing and restart behavior are preserved. Canceled requests and
+  failed audit admission stop before account persistence.
+
+- **Channel inventory uses typed application operations.** Existing account rows,
+  secret presence, empty public values and probe summaries are preserved.
+  Already-canceled requests stop before inventory storage preparation.
+
+
+- **ACP inventory uses the shared typed operation dispatcher.** Already-canceled
+  requests stop before catalog discovery, and native integer fields retain their
+  exact values. Primary-only access and the read-only HTTP route are preserved.
+
+
+- **Architecture: ACP agent inventory uses an application service.**
+  Active command selection, cached catalog discovery and inventory results
+  retain their existing behavior.
+
+
+- **Architecture: operator channel sends use an application service.**
+  Channel selection, sender errors, timeout and response-time cleanup retain
+  their existing behavior.
+
+
+- **Architecture: the unified inbox uses an application service.**
+  Journal-backed conversation grouping, channel filters, ordering, page limits
+  and cursor results retain their existing behavior.
+
+
+- **Architecture: WhatsApp gateway status and QR use application services.**
+  WAHA/Evolution endpoint selection, API-key headers, status results and QR
+  rendering retain their existing behavior behind the guarded HTTP adapter.
+
+
+- **Architecture: channel OAuth state and token exchange move into the application.**
+  Each server selects one isolated OAuth service; connection URLs, status snapshots,
+  expiry boundaries and token persistence retain their existing behavior.
+
+
+- **Architecture: channel OAuth use cases use selected application ports.**
+  Connect URLs, callback timeouts, account vault persistence and status polling
+  retain their existing behavior.
+
+
+- **Architecture: channel account writes use selected application ports.**
+  Validation, labelled config/vault persistence, removal counts and restart-only
+  behavior retain their existing semantics.
+
+
+- **Architecture: channel inventory presentation uses selected application ports.**
+  Account discovery, setting presence, secret handling and probe/media totals keep
+  their existing behavior.
+
+
+- **Architecture: configcenter operations use typed application dispatch.**
+  Existing response fields, masking, validation and access lists remain compatible.
+  Closed-journal writes and calls canceled before admission now stop before effects;
+  audit failures after persistence are reported without rolling back the change.
+
+
+- **Architecture: configcenter writes use the selected application service.**
+  Set/delete, rating overrides and access lists preserve validation, persistence,
+  audit records and secret masking in responses.
+
+
+- **Architecture: configcenter read presentation uses selected application ports.**
+  Secret masking, field shapes, access/audit log filters, health checks and core
+  agent access policy retain their existing behavior.
+
+
+- **Architecture: settings native migration is complete locally.**
+  Direct CLI tests preserve schema/value rendering, secret presence, set apply modes,
+  schema registration/removal and pre-mutation rollback checkpoints.
+
+
+- **Architecture: five settings operations use typed application dispatch.**
+  Field/result compatibility and native schema ordering remain; canceled calls
+  and unavailable mandatory audit reject before settings effects.
+
+
+- **Architecture: settings mutations use selected application write ports.**
+  Validation, saved values, environment-pinned edits, live/restart decisions and
+  schema registry behavior retain their existing order and response shapes.
+
+
+- **Architecture: settings schema and values presentation use app/settings read ports.**
+  Secret presence, non-secret environment/store priority, field shapes and reload
+  boundaries retain their existing behavior.
+
+
+- **Architecture: config inventory native migration is complete locally.**
+  Direct CLI protocol tests preserve paths, routing, JSON output, presence-only
+  environment/prompt display, default fields and error handling.
+
+
+- **Architecture: config inventory uses a typed operation and shared dispatcher.**
+  Required fields, optional routing and boolean environment presence stay compatible;
+  canceled native requests stop before inventory access.
+
+
+- **Architecture: config inventory presentation uses app/config read ports.**
+  Resolved paths, live fields, effective routing and environment presence keep
+  their existing wire shapes; secret values and prompt content stay out of output.
+
+
+- **Architecture: plugin inventory native migration is complete locally.**
+  Direct CLI protocol tests preserve table/JSON rendering, empty inventories,
+  allowlist semantics and error handling.
+
+
+- **Architecture: plugin inventory uses a typed operation and shared dispatcher.**
+  Required output fields and primary read policy remain consistent; canceled native
+  requests stop before inventory access.
+
+
+- **Architecture: plugin inventory presentation uses a selected manifest read port.**
+  Prefix order, args arrays, optional allowlist null/empty semantics and manifest
+  ownership are preserved; process loading and enforcement stay with the daemon.
+
+
+- **Marketplace writes require successful audit admission and honor stream failures.**
+  Canceled calls stop before effects; operation identities join materialization/domain
+  events. Failed progress stops subsequent work; already applied effects remain applied.
+  Native write timestamps retain integer precision and publication failures propagate.
+
+
+- **Architecture: marketplace write/stream presentation shares an app service.**
+  Core materialization, provenance and sync ownership stay intact; existing progress,
+  partial-sync results and publication order are preserved.
+
+
+- **Marketplace reads use typed operation contracts and owned snapshots.**
+  Large catalogue/source/manifest integer fields retain native wire precision;
+  canceled reads stop before lookup, and detail tool lists no longer alias the reader.
+
+
+- **Architecture: marketplace catalogue/detail/source presentation shares an app service.**
+  Existing read shapes, informational reviews and core manager ownership are preserved.
+
+
+- **Architecture: MCP native operation migration has exit coverage.**
+  All six operations share typed primary policies; actual tenant socket denials
+  preserve registration, attachment and audit state.
+
+
+- **MCP lifecycle commands require successful audit admission before effects.**
+  Canceled calls stop before store or peer changes; attach retains caller deadlines,
+  and lifecycle events share the operation identity. Native wrappers are removed.
+
+
+- **Architecture: MCP lifecycle actions share an application service.**
+  Registration and peer ownership stay in runtime; public replies retain redacted fields.
+
+
+- **Architecture: MCP inventory uses a typed public registration model and operation.**
+  Large timestamps retain integer precision; canceled reads stop before catalog lookup,
+  and environment/header values stay outside the response model.
+
+
+- **Architecture: MCP registration inventory moves to the application layer.**
+  Environment and header values remain hidden while key names and attachment views preserve existing behavior.
+
+
+- **Architecture: toolbox native migration verified across discovery and streaming install.**
+  Final policy/schema, compatibility, audit, cancellation and delivery-error checks close the three operations.
+
+
+- **Architecture: toolbox installation uses a typed streaming operation.**
+  Audit failure and canceled admission stop before install attempts; broken progress
+  delivery and lifecycle publication errors stop later items. Lifecycle events share the operation identity.
+
+
+- **Architecture: toolbox install orchestration moves to the application layer.**
+  Per-tool progress and installed, failed and skipped summaries preserve existing order and fields.
+
+
+- **Architecture: toolbox detection reads use typed application operations.**
+  Existing snapshots and fields are preserved; already-canceled calls stop before host discovery.
+
+
+- **Architecture: host toolbox inventory reads move to the application layer.**
+  Detection snapshots and outdated-tool membership preserve existing fields and behavior.
+
+
+- **Architecture: native script-tool migration verified across all eight operations.**
+  Final registry/schema, compatibility, audit, cancellation and tenant checks complete the native exit.
+
+
+- **Architecture: script-tool lifecycle commands use typed application operations.**
+  Failed audit admission and canceled calls stop before mutations. Lifecycle events
+  share the operation identity, and script tests inherit the caller context.
+
+
+- **Architecture: script-tool lifecycle services move to the application layer.**
+  Existing edit rules, test-first promotion and kernel-owned durable events are preserved.
+
+
+- **Architecture: script tool reads use typed application operations.**
+  Large timestamps now retain their integer precision on the native wire;
+  already-canceled reads stop before the script-tool store is accessed.
+
+
+- **Architecture: script tool inventory reads move to the application layer.**
+  Listing and detail views preserve ordering, fields and primary operator access.
+
+
+- **Architecture: native tool inventory, logs and statistics migration verified.**
+  Final compatibility and tenant-isolation checks close the three read operations.
+
+
+- **Architecture: tool logs and statistics use typed tenant-scoped operations.**
+  Existing filters, pagination, provenance and latency fields are preserved;
+  calls already canceled at admission now stop before journal lookup.
+
+
+- **Architecture: tool journal logs and statistics move to application services.**
+  Existing correlation-scoped joins, skipped-call latency rules, pagination and
+  provenance remain; run, plan and tool statistics share one percentile helper.
+
+
+- **Architecture: tool inventory uses typed operations and row schemas.**
+  Existing metadata is preserved; calls already canceled at operation admission
+  now stop before reading definitions.
+
+
+- **Architecture: tool inventory rendering moves into an application service.**
+  Inventory rows and agent permission views retain their existing representative
+  capability and rollback metadata.
+
+
+- **Architecture: autonomy feed uses typed operations and row contracts.**
+  Native limits and response fields are preserved; calls already canceled at
+  operation admission now stop before reading the feed.
+
+
+- **Architecture: autonomy timeline rendering moves to an application service.**
+  The existing journal window, curated events, doctor details and native response
+  shape are preserved.
+
+
+- **Architecture: pulse subscriptions use the typed operation pipeline.**
+  Native subscriptions retain event-only framing and disconnect handling; calls
+  already canceled at admission now stop before replaying historical events.
+
+
+- **Architecture: resident pulse controls use typed operations and mandatory audit.**
+  Changes to pulse state, watches and settings stop before taking effect when the
+  operation journal is unavailable. Read commands retain their current behavior.
+
+
+- **Architecture: pulse live stream orchestration moves into typed app services.**
+  Replay transition, durable deduplication, drop notices and subscription cleanup
+  preserve the existing event-only native stream.
+
+
+- **Architecture: pulse historical replay moves into a typed app service.**
+  Journal filters, replay boundaries, successful checkpoints and cancellation-aware
+  rate waits retain their existing event framing.
+
+
+- **Architecture: resident pulse controls move into typed app services.** Engine
+  status, live retuning, asks and observer management retain their existing
+  behavior through controller, observer and settings ports.
+
+
+- **Architecture: workflow native migration evidence is complete.** The13-command
+  typed contract, audit admission, tenant boundary, caller cancellation and joined
+  domain identity are verified.
+
+
+- **Workflow operations preserve caller cancellation and audit identity.** Blocking
+  work honors caller deadlines and cancellation; lifecycle, copilot and execution
+  events join the operation audit. Accepted detached work keeps caller values
+  while retaining its independent execution deadline.
+
+
+- **Architecture: workflow commands use typed app dispatch.** All13 commands
+  are primary-only; the nine modifying/executing operations require durable audit
+  before graph changes, provider calls or detached execution.
+
+
+- **Architecture: workflow execution orchestration moves into typed app services.**
+  Manual runs, node probes and authenticated webhooks preserve governed runtime
+  execution, deadlines, result shapes and detached panic reporting.
+
+
+- **Architecture: workflow copilot orchestration moves into typed app services.**
+  Draft and refinement keep graph selection, bounded requests, correlation and
+  unsaved results through the existing runtime designer.
+
+
+- **Architecture: workflow run history moves into the typed app service.**
+  Journal grouping, node-event fields, ordering and limits keep their existing
+  native behavior through graph and journal ports.
+
+
+- **Architecture: workflow lifecycle moves into typed app services.** Save,
+  restore, enable and remove preserve runtime identity, checkpoint restoration
+  and journal publication through the existing facade.
+
+
+- **Architecture: workflow read projections move into the app service.** List,
+  show and template gallery retain graph and latest-run wire behavior through
+  typed store, journal and gallery ports.
+
+
+- **Architecture: standing native migration evidence is complete.** The seven-command
+  contract, primary-only admission and mandatory mutation audit are verified.
+
+
+- **Architecture: standing commands use typed app dispatch.** Five modifying
+  commands require durable audit before state changes or manual fire callbacks;
+  list and history remain primary-only reads with their existing wire behavior.
+
+
+- **Architecture: standing history and manual fire move into the app service.**
+  History filters/projections and fire availability, lookup and agent checks
+  retain their existing behavior through typed journal and callback ports.
+
+
+- **Architecture: standing order CRUD moves into the app service.** Lists,
+  creation, edits, enablement and removal retain their native projections,
+  validation, lifecycle events and store behavior through typed ports.
+
+
+- **Architecture: schedule native migration has exit evidence.** Ten typed
+  commands retain their scope and wire contracts, with source, journal, audit,
+  tenant and registry regression coverage recorded for review.
+
+
+- **Architecture: schedule commands use typed app dispatch.** All ten schedule
+  commands retain their native inputs and results through app-owned specs.
+  Mutations require a writable audit journal before changing cadence; enable
+  operator events share the operation audit correlation.
+
+
+- **Architecture: schedule firing views move into the app service.** Firing
+  history, statistics and last-firing annotations retain their filters, paging,
+  outcomes and tenant journal joins through typed read ports.
+
+
+- **Architecture: schedule editing moves into the app service.** Field and
+  target changes, cadence rescheduling and final record projection retain their
+  existing results and error order through typed store, host and clock ports.
+
+
+- **Architecture: schedule edit cadence checks move into the app service.**
+  Timezone, future time, interval and window validation retain their existing
+  order, numeric conversions and errors before schedule mutations.
+
+
+- **Architecture: schedule edit target admission moves into the app service.**
+  Field presence, inherited bindings, target conflicts and payload/tool policy
+  keep their existing validation order before schedule mutations.
+
+
+- **Architecture: schedule creation moves into the app service.** Cadence
+  creation, target binding and rollback preserve existing results, errors and
+  persisted fields through typed store and clock ports.
+
+
+- **Architecture: schedule creation target admission moves into the app service.**
+  Target conflicts, workflow and agent resolution, payload handling and tool
+  policy keep their existing behavior before cadence parsing and creation.
+
+
+- **Architecture: schedule admission rules move into the app service.** Live
+  target and agent checks, tool allow/deny policy and frequency warnings retain
+  their existing order, messages and thresholds through selected host ports.
+
+
+- **Architecture: schedule lifecycle moves into the app service.** Remove, run
+  now, pause and resume preserve their validation, results and operator events
+  through typed cadence and host ports.
+
+
+- **Architecture: schedule reads move into the app service.** Schedule lists,
+  system-task metadata and forecast previews retain native fields and annotations
+  while using typed cadence, host and clock ports.
+
+
+- **Architecture: storage/artifact native migration is complete locally.** Five
+  commands share typed services, audited artifact mutations and explicit metadata
+  failure handling, with aggregate exit evidence; protected delivery is pending.
+
+
+- **Artifact deletion and collection require a durable audit before effects.**
+  Storage/blob/metadata reads use typed app operations and remain read-only;
+  existing string, day and dry-run admission behavior is retained.
+
+
+- **Architecture: artifact use cases move into the app service.** Blob reads,
+  metadata listing, deletion and collection use typed store/index ports while
+  retaining native wire shapes, integrity errors and dry-run behavior.
+
+
+- **Architecture: storage inventory moves into the app service.** Directory
+  totals, root files, labels, ordering and disk-space diagnostics use typed host
+  ports while retaining native best-effort inventory behavior.
+
+
+- **Architecture: OKR native migration is complete locally.** Seven commands
+  share typed app services, live rollup, audited mutations and aggregate exit
+  evidence; protected delivery remains pending.
+
+
+- **Architecture: OKR native commands use typed app operations.** Five mutations
+  require durable audit before effects; two reads remain unary snapshots. Default
+  domain/audit identity joins while explicit inbound correlation remains.
+
+
+- **Architecture: OKR lifecycle moves into the app service.** Objective and
+  key-result mutations use typed kernel ports while retaining journaling, live
+  progress and native response behavior.
+
+
+- **Architecture: OKR reads move into the app service.** Objective lists and
+  detail views retain live linked-task progress, durable objective fields and
+  native filtering while using typed store and rollup ports.
+
+
+- **Architecture: workboard native migration is complete locally.** Twenty-one
+  commands share typed app use cases, audited mutations and explicit read errors,
+  with aggregate registry tests and exit evidence; protected delivery is pending.
+
+
+- **Architecture: workboard native commands use typed app operations.** All
+  seventeen mutations require a durable operation audit before task, seat or
+  dispatch effects; four reads remain single snapshots. Default task mutations
+  share the operation correlation, and existing explicit correlation and fresh
+  dispatch run identity remain.
+
+
+- **Architecture: workboard background execution moves into the app service.**
+  Execution seat selection, retry settlement and proof/review use typed host
+  ports while retaining agent context, fallback behavior and task ownership.
+
+
 - **Architecture: workboard dispatch admission moves into the app service.**
   Dependency and agent checks precede task claim, run linking, publication and
   background launch; native response and existing execution behavior remain.
@@ -1384,6 +1822,44 @@ This file holds the active `[Unreleased]` working set.
   built-in skills promoted at boot) into one row with a ×N badge.
 
 ### Fixed
+
+- **Channel OAuth: consistent status polling during callbacks.**
+  Status and error now come from one synchronized snapshot, avoiding data races
+  and mixed results while a callback updates the flow. Socket writes occur after
+  releasing the state lock.
+
+
+- **Channel accounts: remove registered configuration fields.**
+  Removing a labelled account now uses the same merged schema as account setup,
+  deletes registered public and secret fields, and no longer leaves the account
+  listed with its persisted keys. Other and default accounts remain intact.
+
+
+- **Configcenter CLI: dates, audit rows and filter flags.**
+  Entry and log dates now interpret native Unix seconds correctly. Nonempty audit
+  output uses the native agent/decision/policy/reason fields without panicking.
+  Access-log and audit filters accept their flag values; missing values for those
+  filters and rating flags fail before contacting the daemon.
+
+
+- **CLI marketplace install/uninstall drain progress before reading the result.**
+  The commands no longer fail on the first streamed event; terminal errors still
+  return failure, and normal human/JSON summaries are preserved.
+
+
+- **Control-plane: typed native replies preserve large integer values.**
+  The terminal writer no longer rounds sequence, timestamp or other numeric
+  output while converting typed results into the native response object.
+
+
+- **Artifact metadata deletion failures preserve data.** A failed metadata
+  removal returns its cause before the index entry or blob is removed; collection
+  counts only successful deletions and retains failed candidates.
+
+
+- **Workboard watch rejects failed reads.** Journal and dependency read failures
+  return their original errors instead of a successful empty or partial snapshot.
+
 
 - **Board: unavailable audit now blocks send and acknowledgement effects.**
   Both mutations require successful journal admission before shared-store writes;

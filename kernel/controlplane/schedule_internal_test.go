@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"encoding/json"
+	appschedule "github.com/agezt/agezt/kernel/app/schedule"
 	"testing"
 	"time"
 )
@@ -17,7 +18,9 @@ func TestScheduleArgNumberAcceptsCommonNumericTypes(t *testing.T) {
 	}
 	for name, value := range tests {
 		t.Run(name, func(t *testing.T) {
-			got, ok, err := scheduleArgNumber(map[string]any{"interval_sec": value}, "interval_sec")
+			raw, _ := json.Marshal(value)
+			n := appschedule.NumberRequest(raw, "interval_sec")
+			got, ok, err := n.Value, n.Present, n.Err
 			if err != nil {
 				t.Fatalf("scheduleArgNumber returned error: %v", err)
 			}
@@ -32,10 +35,10 @@ func TestScheduleArgNumberAcceptsCommonNumericTypes(t *testing.T) {
 }
 
 func TestScheduleArgNumberRejectsNonNumericValues(t *testing.T) {
-	if _, _, err := scheduleArgNumber(map[string]any{"interval_sec": "3600"}, "interval_sec"); err == nil {
+	if n := appschedule.NumberRequest(json.RawMessage(`"3600"`), "interval_sec"); n.Err == nil {
 		t.Fatal("scheduleArgNumber accepted a string")
 	}
-	if _, _, err := scheduleArgNumber(map[string]any{"interval_sec": json.Number("nope")}, "interval_sec"); err == nil {
+	if n := appschedule.NumberRequest(json.RawMessage(`"nope"`), "interval_sec"); n.Err == nil {
 		t.Fatal("scheduleArgNumber accepted a bad json.Number")
 	}
 }
@@ -50,8 +53,13 @@ func TestValidateScheduleEditCadenceArgsAcceptsIntegerTypes(t *testing.T) {
 		{"once_at_unix": int64(now.Add(time.Hour).Unix())},
 	}
 	for _, args := range tests {
-		if err := validateScheduleEditCadenceArgs(args, now); err != nil {
-			t.Fatalf("validateScheduleEditCadenceArgs(%v): %v", args, err)
+		raw, _ := json.Marshal(args)
+		var in appschedule.RequestInput
+		if err := json.Unmarshal(raw, &in); err != nil {
+			t.Fatal(err)
+		}
+		if err := appschedule.ValidateEditCadence(in.EditCadence(), now); err != nil {
+			t.Fatalf("ValidateEditCadence(%v): %v", args, err)
 		}
 	}
 }

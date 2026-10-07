@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	apptools "github.com/agezt/agezt/kernel/app/tools"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/roster"
 )
@@ -210,7 +211,7 @@ func (s *Server) agentPermissionRows(p roster.Profile) []map[string]any {
 	rows := make([]map[string]any, 0, len(names))
 	for _, name := range names {
 		def := tools[name].Definition()
-		cap := edict.CapabilityForToolCall(name, catalogProbe[name])
+		cap := apptools.PrimaryCapability(name)
 		row := map[string]any{
 			"name":        def.Name,
 			"description": def.Description,

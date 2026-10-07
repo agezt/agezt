@@ -13,6 +13,7 @@ package controlplane
 
 import (
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/platform/journalview"
 	"net"
 	"sort"
 
@@ -216,7 +217,7 @@ func (s *Server) handlePlanStats(conn net.Conn, req Request) {
 	if terminal > 0 {
 		successRate = float64(completed) / float64(terminal)
 	}
-	dstats := durationStats(durations)
+	dstats := journalview.SummarizeDurations(durations)
 
 	s.writeResp(conn, Response{
 		ID:   req.ID,
@@ -230,11 +231,11 @@ func (s *Server) handlePlanStats(conn net.Conn, req Request) {
 			"success_rate": successRate,
 			"duration_ms": map[string]any{
 				"count": len(durations),
-				"avg":   dstats.avg,
-				"min":   dstats.min,
-				"max":   dstats.max,
-				"p50":   dstats.p50,
-				"p95":   dstats.p95,
+				"avg":   dstats.Avg,
+				"min":   dstats.Min,
+				"max":   dstats.Max,
+				"p50":   dstats.P50,
+				"p95":   dstats.P95,
 			},
 		},
 	})

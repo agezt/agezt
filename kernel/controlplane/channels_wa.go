@@ -1,161 +1,36 @@
 // SPDX-License-Identifier: MIT
-
 package controlplane
 
-// Provenance: Control-plane channels: WhatsApp gateway status/QR proxy handlers +
-//             helpers. Code extracted from channels.go during the Day-113 god-file
-//             split. Public API unchanged.
-
 import (
-	"net"
-	"net/http"
-	"net/url"
-	"strings"
-
-	"encoding/base64"
-	"encoding/json"
+	"context"
+	appchannels "github.com/agezt/agezt/kernel/app/channels"
 	"github.com/agezt/agezt/kernel/platform/netout"
+	"net"
 )
 
+// Native codecs retain lenient string arguments and manual primary read-only binding.
+func (s *Server) channelGateway() *appchannels.Gateway {
+	return appchannels.NewGateway(netout.GatewayGET)
+}
+func gatewayInput(req Request) appchannels.GatewayInput {
+	return appchannels.GatewayInput{URL: wgArg(req, "url"), Backend: wgArg(req, "backend"), Session: wgArg(req, "session"), Key: wgArg(req, "key")}
+}
 func (s *Server) handleWhatsAppGatewayStatus(conn net.Conn, req Request) {
-	base := strings.TrimRight(strings.TrimSpace(wgArg(req, "url")), "/")
-	if base == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.url (gateway URL) is required"})
-		return
-	}
-	// SSRF guard: require an http(s) URL, and (below) route the probe through
-	// netguard so a request-supplied URL can't reach the cloud-metadata endpoint
-	// or other link-local/multicast targets, even via a redirect. Loopback +
-	// private ranges ARE allowed — the gateway is legitimately local/LAN.
-	if u, err := url.Parse(base); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.url must be an http(s) gateway URL"})
-		return
-	}
-	backend := strings.ToLower(strings.TrimSpace(wgArg(req, "backend")))
-	session := strings.TrimSpace(wgArg(req, "session"))
-	if session == "" {
-		session = "default"
-	}
-	key := strings.TrimSpace(wgArg(req, "key"))
-
-	var statusURL, keyHeader string
-	if backend == "evolution" {
-		statusURL = base + "/instance/connectionState/" + session
-		keyHeader = "apikey"
-	} else {
-		statusURL = base + "/api/sessions/" + session
-		keyHeader = "X-Api-Key"
-	}
-
-	body, code, _, err := wgGatewayGET(statusURL, keyHeader, key, 1<<20)
+	out, err := s.channelGateway().Status(context.Background(), gatewayInput(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": false, "error": "cannot reach gateway: " + err.Error()}})
+		s.fail(conn, req, err)
 		return
 	}
-	if code/100 != 2 {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": false, "error": "gateway status " + http.StatusText(code), "http_status": code}})
-		return
-	}
-	// Accept both shapes: WAHA {status:"WORKING"} and Evolution {instance:{state:"open"}}.
-	var parsed struct {
-		Status   string `json:"status"`
-		State    string `json:"state"`
-		Instance struct {
-			State string `json:"state"`
-		} `json:"instance"`
-	}
-	_ = json.Unmarshal(body, &parsed)
-	status := parsed.Status
-	if status == "" {
-		status = parsed.State
-	}
-	if status == "" {
-		status = parsed.Instance.State
-	}
-	connected := status == "WORKING" || strings.EqualFold(status, "open")
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
-		"ok":        true,
-		"connected": connected,
-		"status":    status,
-	}})
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: out})
 }
-
-// handleWhatsAppGatewayQR fetches the login QR from a self-hosted gateway and
-// returns it as a data: URL, so the Channels wizard can render it inline — scan
-// to log the gateway's WhatsApp session in without opening the gateway's own UI.
-// Same stateless, SSRF-guarded probe as the status check.
 func (s *Server) handleWhatsAppGatewayQR(conn net.Conn, req Request) {
-	base := strings.TrimRight(strings.TrimSpace(wgArg(req, "url")), "/")
-	if base == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.url (gateway URL) is required"})
-		return
-	}
-	backend := strings.ToLower(strings.TrimSpace(wgArg(req, "backend")))
-	session := strings.TrimSpace(wgArg(req, "session"))
-	if session == "" {
-		session = "default"
-	}
-	key := strings.TrimSpace(wgArg(req, "key"))
-
-	var qrURL, keyHeader string
-	if backend == "evolution" {
-		qrURL = base + "/instance/connect/" + session
-		keyHeader = "apikey"
-	} else {
-		qrURL = base + "/api/" + session + "/auth/qr?format=image"
-		keyHeader = "X-Api-Key"
-	}
-
-	body, code, ctype, err := wgGatewayGET(qrURL, keyHeader, key, 4<<20)
+	out, err := s.channelGateway().QR(context.Background(), gatewayInput(req))
 	if err != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": false, "error": "cannot reach gateway: " + err.Error()}})
+		s.fail(conn, req, err)
 		return
 	}
-	if code/100 != 2 {
-		// Often means already logged in (no QR) or wrong session.
-		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": false, "error": "no QR (gateway returned " + http.StatusText(code) + " — already logged in?)", "http_status": code}})
-		return
-	}
-
-	dataURL := ""
-	if strings.HasPrefix(ctype, "image/") {
-		// WAHA returns the QR as a raw image.
-		dataURL = "data:" + ctype + ";base64," + base64.StdEncoding.EncodeToString(body)
-	} else {
-		// Evolution returns JSON { base64: "<data url or raw base64>", code: "..." }.
-		var j struct {
-			Base64 string `json:"base64"`
-		}
-		_ = json.Unmarshal(body, &j)
-		switch {
-		case strings.HasPrefix(j.Base64, "data:"):
-			dataURL = j.Base64
-		case j.Base64 != "":
-			dataURL = "data:image/png;base64," + j.Base64
-		}
-	}
-	if dataURL == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": false, "error": "gateway did not return a QR image"}})
-		return
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": true, "qr": dataURL}})
+	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: out})
 }
 
-// wgGatewayGET issues an SSRF-guarded GET to a self-hosted gateway and returns
-// the body, HTTP status, and content type. netguard screens every dial +
-// redirect hop: loopback/private are allowed (the gateway is legitimately
-// local/LAN), but link-local (incl. the 169.254.169.254 cloud-metadata
-// endpoint), multicast, and unspecified targets are refused.
-func wgGatewayGET(fullURL, keyHeader, key string, max int64) ([]byte, int, string, error) {
-	return netout.GatewayGET(fullURL, keyHeader, key, max)
-}
-
-// wgArg reads a string request arg, tolerating a missing/non-string value.
-// Uses the typed argString accessor for raw-cast-free compliance with the
-// TestRawArgCasts_Ratchet; the underlying error is discarded so the
-// documented lenient read semantics (missing OR non-string OR empty all
-// return "") are preserved.
-func wgArg(req Request, key string) string {
-	v, _, _ := argString(req.Args, key)
-	return v
-}
+// wgArg preserves missing/non-string/empty leniency through the typed accessor.
+func wgArg(req Request, key string) string { v, _, _ := argString(req.Args, key); return v }

@@ -14,6 +14,7 @@ package controlplane
 
 import (
 	"context"
+	appchannels "github.com/agezt/agezt/kernel/app/channels"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -65,7 +66,8 @@ func TestExchangeOAuthCode_AbortsOnContextCancel(t *testing.T) {
 	t.Cleanup(func() { oauthClientFor = prev })
 
 	s := &Server{}
-	flow := &oauthFlow{tokenURL: srv.URL}
+	_ = s.channelOAuth()
+	flow := appchannels.OAuthFlow{TokenURL: srv.URL}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	type result struct {
@@ -74,7 +76,7 @@ func TestExchangeOAuthCode_AbortsOnContextCancel(t *testing.T) {
 	}
 	resCh := make(chan result, 1)
 	go func() {
-		token, err := s.exchangeOAuthCode(ctx, flow, "code")
+		token, err := s.channelOAuthState.Exchange(ctx, flow, "code")
 		resCh <- result{token, err}
 	}()
 
@@ -140,7 +142,7 @@ func TestIsHTTPSURL_HTTPSOnlyExceptLoopback(t *testing.T) {
 		{"https://", false, "https without host"},
 	}
 	for _, c := range cases {
-		if got := isHTTPSURL(c.in); got != c.want {
+		if got := appchannels.IsHTTPSURL(c.in); got != c.want {
 			t.Errorf("isHTTPSURL(%q) = %v, want %v (%s)", c.in, got, c.want, c.note)
 		}
 	}

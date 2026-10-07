@@ -1,44 +1,24 @@
 // SPDX-License-Identifier: MIT
-
 package controlplane
-
-// Operator-initiated outbound (M142). The manual egress complement to Pulse
-// briefs and agent replies: a script/CI/operator pushes a one-off message out a
-// configured channel ("deploy finished → notify Slack"). Authenticated by the
-// control plane (primary token), so no per-channel allowlist gate — the caller
-// already holds daemon authority. The channel's own Send journals the
-// channel.outbound event, so `agt inbox` / `agt why` still see it.
 
 import (
 	"context"
+	appchannels "github.com/agezt/agezt/kernel/app/channels"
 	"net"
 	"strings"
-	"time"
 )
 
+// Resolve the currently selected server sender for each request.
+func (s *Server) channelOutbound() *appchannels.Outbound {
+	return appchannels.NewOutbound(appchannels.Sender(s.channelSend))
+}
 func (s *Server) handleSend(conn net.Conn, req Request) {
-	kind := strings.ToLower(stringArg(req.Args, "channel"))
-	to := stringArg(req.Args, "to")
-	text := stringArg(req.Args, "text")
-	if kind == "" || to == "" || text == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "send requires channel, to, and text"})
-		return
-	}
-	if s.channelSend == nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "no channels configured (set a channel token to enable send)"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	if err := s.channelSend(ctx, kind, to, text); err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"sent": true, "channel": kind, "to": to},
+	s.channelOutbound().Send(context.Background(), appchannels.SendInput{Channel: stringArg(req.Args, "channel"), To: stringArg(req.Args, "to"), Text: stringArg(req.Args, "text")}, func(out appchannels.SendOutput, err error) {
+		if err != nil {
+			s.fail(conn, req, err)
+			return
+		}
+		s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: out})
 	})
 }
 
