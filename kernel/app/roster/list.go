@@ -37,7 +37,7 @@ type ListService struct {
 	mu             sync.RWMutex
 	valid          bool
 	key            uint64
-	rows           []any
+	rows           []ProfileOutput
 	total, enabled int
 	at             time.Time
 }
@@ -77,7 +77,7 @@ func contentHash(profiles []core.Profile) uint64 {
 	}
 	return h.Sum64()
 }
-func (s *ListService) cached(key uint64, profiles []core.Profile) ([]any, int, int, bool) {
+func (s *ListService) cached(key uint64, profiles []core.Profile) ([]ProfileOutput, int, int, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if !s.valid || s.key != key || s.now().Sub(s.at) > ListCacheTTL || contentHash(profiles) != s.key {
@@ -85,7 +85,7 @@ func (s *ListService) cached(key uint64, profiles []core.Profile) ([]any, int, i
 	}
 	return s.rows, s.total, s.enabled, true
 }
-func (s *ListService) store(key uint64, rows []any, total, enabled int) {
+func (s *ListService) store(key uint64, rows []ProfileOutput, total, enabled int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.valid = true
@@ -96,18 +96,23 @@ func (s *ListService) store(key uint64, rows []any, total, enabled int) {
 	s.at = s.now()
 }
 func (s *ListService) Invalidate() { s.mu.Lock(); s.valid = false; s.rows = nil; s.mu.Unlock() }
-func (s *ListService) List(_ context.Context, in ListInput) (map[string]any, error) {
+func (s *ListService) List(_ context.Context, in ListInput) (ListOutput, error) {
 	profiles := s.profiles()
 	key := contentHash(profiles)
 	rows, total, enabled, hit := s.cached(key, profiles)
 	if !hit {
 		statuses := s.statuses(profiles)
-		rows = make([]any, 0, len(profiles))
+		rows = make([]ProfileOutput, 0, len(profiles))
 		enabled = 0
 		for _, p := range profiles {
-			view := ProfileView(p)
+			view := ProfileOutput{Profile: p, Kind: p.Kind(), Managed: !p.AllowsDirectCall()}
 			if status, ok := statuses[p.Slug]; ok {
-				view["status"] = status
+				view.StatusPresent = true
+				var err error
+				view.Status, err = statusOutput(status)
+				if err != nil {
+					return ListOutput{}, err
+				}
 			}
 			rows = append(rows, view)
 			if p.Enabled {
@@ -118,9 +123,9 @@ func (s *ListService) List(_ context.Context, in ListInput) (map[string]any, err
 		s.store(key, rows, total, enabled)
 	}
 	// Preserve outer-cache ownership and legacy nil empty-page representation.
-	rows = append([]any(nil), rows...)
+	rows = append([]ProfileOutput(nil), rows...)
 	if in.DecodeError != nil {
-		return nil, in.DecodeError
+		return ListOutput{}, in.DecodeError
 	}
 	limit := in.Limit
 	if limit > 1000 {
@@ -140,35 +145,21 @@ func (s *ListService) List(_ context.Context, in ListInput) (map[string]any, err
 	}
 	if cursorOK {
 		filtered := rows[:0]
-		for _, raw := range rows {
-			view, _ := raw.(map[string]any)
-			ms := createdMS(view)
-			slug, _ := view["slug"].(string)
+		for _, view := range rows {
+			ms := int64(float64(view.CreatedMS))
+			slug := view.Slug
 			if ms > cursorMS || ms == cursorMS && slug >= cursorSlug {
 				continue
 			}
-			filtered = append(filtered, raw)
+			filtered = append(filtered, view)
 		}
 		rows = filtered
 	}
 	var next string
 	if limit > 0 && len(rows) > limit {
 		rows = rows[:limit]
-		last := rows[limit-1].(map[string]any)
-		next = strconv.FormatInt(createdMS(last), 10) + ":" + last["slug"].(string)
+		last := rows[limit-1]
+		next = strconv.FormatInt(int64(float64(last.CreatedMS)), 10) + ":" + last.Slug
 	}
-	out := map[string]any{"profiles": rows, "count": len(rows), "total": total, "enabled_count": enabled}
-	if next != "" {
-		out["next_cursor"] = next
-	}
-	return out, nil
-}
-func createdMS(view map[string]any) int64 {
-	switch n := view["created_ms"].(type) {
-	case float64:
-		return int64(n)
-	case int64:
-		return n
-	}
-	return 0
+	return ListOutput{Profiles: rows, Count: len(rows), Total: total, EnabledCount: enabled, NextCursor: next}, nil
 }

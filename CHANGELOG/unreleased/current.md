@@ -812,6 +812,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Agent list uses a typed application operation.** Profiles, every status field,
+  paging, counts, cursor rounding and argument error precedence are preserved,
+  including explicit null status values. Already-canceled requests now stop before
+  reading the roster.
+
 - **Roster status presentation has a shared application owner.** Health, repair,
   routing, wake and active-run details retain their current precedence and fields.
 

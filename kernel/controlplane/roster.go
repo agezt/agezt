@@ -88,7 +88,6 @@ func (s *Server) handleAgentImpact(conn net.Conn, req Request) {
 // archival/audit artifact — it removes and mutates nothing (NEXT.md #7).
 func registerRosterCommands() {
 	register(
-		commandSpec{Cmd: CmdAgentList, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleAgentList(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdAgentAdd, Handler: func(dc *DispatchCtx) { dc.S.handleAgentAdd(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdAgentEdit, Handler: func(dc *DispatchCtx) { dc.S.handleAgentEdit(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdAgentSetEnabled, Handler: func(dc *DispatchCtx) { dc.S.handleAgentSetEnabled(dc.Conn, dc.Req) }},
