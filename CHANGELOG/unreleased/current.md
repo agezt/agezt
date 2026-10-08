@@ -816,6 +816,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Creating and editing agents uses typed application operations.** Profile
+  decoding, partial edits, kind handling, hierarchy checks and errors are
+  preserved, and both writes are operation-audited before they are applied.
+  Already-canceled requests now stop before audit or any change.
+
 - **Pausing and resuming agents uses a typed application operation.** Accepted
   enabled values, errors, the profile result and paused-trigger counts are
   preserved, and every change is operation-audited before it is applied.
@@ -1886,6 +1891,9 @@ This file holds the active `[Unreleased]` working set.
   built-in skills promoted at boot) into one row with a ×N badge.
 
 ### Fixed
+
+- **Agent profiles with two invalid hierarchy references report a stable error.**
+  The owner reference is now always checked before the parent reference.
 
 - **Paging repair history no longer changes an agent's current repair state.**
   With a cursor, the latest repair, its next eligible time and the recommended
