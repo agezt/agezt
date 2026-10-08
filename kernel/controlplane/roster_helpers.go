@@ -53,10 +53,6 @@ func truncate(s string, n int) string {
 
 func firstNonEmpty(items ...string) string { return strutil.FirstNonEmpty(items...) }
 
-func firstNonEmptyStrings(primary, fallback []string) []string {
-	return strutil.FirstNonEmptySlice(primary, fallback)
-}
-
 func intNumber(v any) int {
 	switch n := v.(type) {
 	case int:

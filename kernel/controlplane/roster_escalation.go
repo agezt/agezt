@@ -13,21 +13,12 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
-	"strings"
 )
 
 type operatorWakeLineage struct {
 	incidentID       string
 	rootIncidentID   string
 	parentIncidentID string
-}
-
-func operatorIncidentLineage(args map[string]any) operatorWakeLineage {
-	return operatorWakeLineage{
-		incidentID:       strings.TrimSpace(stringArg(args, "incident_id")),
-		rootIncidentID:   strings.TrimSpace(stringArg(args, "root_incident_id")),
-		parentIncidentID: strings.TrimSpace(stringArg(args, "parent_incident_id")),
-	}
 }
 
 // agentAutonomyRunbookPayload delegates to the canonical roster builder so manual
