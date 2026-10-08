@@ -9,6 +9,7 @@ package controlplane
 
 import (
 	"encoding/json"
+	approster "github.com/agezt/agezt/kernel/app/roster"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/event"
@@ -100,7 +101,7 @@ func (s *Server) fillAgentStatusAccumsFromJournal(profiles []roster.Profile, rou
 			var pl map[string]any
 			_ = json.Unmarshal(e.Payload, &pl)
 			for slug := range known {
-				summary, ok := agentActivitySummary(e, pl, slug, nil)
+				summary, ok := approster.ActivitySummary(e, pl, slug, nil)
 				if !ok {
 					continue
 				}
@@ -156,7 +157,7 @@ func (s *Server) fillAgentStatusAccumsFromJournal(profiles []roster.Profile, rou
 							if subj != "" {
 								cp["trigger_subject"] = subj
 							}
-							if isMailboxWakeSubject(subj) {
+							if approster.IsMailboxWakeSubject(subj) {
 								cp["wake_via"] = "mailbox"
 								if tp, _ := pl["trigger_payload"].(map[string]any); tp != nil {
 									if id := plString(tp, "id"); id != "" {
@@ -218,7 +219,7 @@ func (s *Server) fillAgentStatusAccumsFromJournal(profiles []roster.Profile, rou
 			var pl map[string]any
 			if json.Unmarshal(e.Payload, &pl) == nil {
 				slug := plString(pl, "agent")
-				if known[slug] && isMailboxWakeSubject(plString(pl, "trigger_subject")) {
+				if known[slug] && approster.IsMailboxWakeSubject(plString(pl, "trigger_subject")) {
 					if tp, _ := pl["trigger_payload"].(map[string]any); tp != nil {
 						msgID := plString(tp, "id")
 						if msgID != "" {

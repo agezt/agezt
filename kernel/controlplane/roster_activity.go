@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"encoding/json"
+	approster "github.com/agezt/agezt/kernel/app/roster"
 	"net"
 	"sort"
 	"strconv"
@@ -47,7 +48,7 @@ func (s *Server) handleAgentActivity(conn net.Conn, req Request) {
 		// Check if this event is attributable to the agent
 		var pl map[string]any
 		_ = json.Unmarshal(e.Payload, &pl)
-		summary, ok := agentActivitySummary(e, pl, slug, runCorr)
+		summary, ok := approster.ActivitySummary(e, pl, slug, runCorr)
 		if !ok {
 			return nil
 		}
