@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Removing an agent uses a typed application operation.** The cascade options,
+  their order, the retained mailbox and workflow references, refusals and the
+  removal report are unchanged, and every removal is operation-audited before
+  any cleanup. Already-canceled requests now stop before audit or any change.
+  Every agent roster command now runs as a typed operation.
+
 - **Retiring and reviving agents use typed application operations.** The
   impact preview, paused triggers, hierarchy re-check, errors and journaled
   events are unchanged, and both writes are operation-audited before they are
