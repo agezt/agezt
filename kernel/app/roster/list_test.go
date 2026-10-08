@@ -7,6 +7,7 @@ import (
 	"errors"
 	core "github.com/agezt/agezt/kernel/roster"
 	"reflect"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -21,21 +22,21 @@ func TestRosterListCacheOwnershipTTLAndInvalidation(t *testing.T) {
 		statusCalls++
 		out := map[string]map[string]any{}
 		for _, row := range p {
-			out[row.Slug] = map[string]any{"owned_status": statusCalls}
+			out[row.Slug] = map[string]any{"active_run_count": statusCalls}
 		}
 		return out
 	}, func() time.Time { return now })
 	first, err := s.List(context.Background(), ListInput{Limit: 1})
-	if err != nil || first["count"] != 1 || first["total"] != 3 || first["enabled_count"] != 2 || first["next_cursor"] != "20:c" {
+	if err != nil || first.Count != 1 || first.Total != 3 || first.EnabledCount != 2 || first.NextCursor != "20:c" {
 		t.Fatal(first, err)
 	}
 	all, err := s.List(context.Background(), ListInput{})
-	rows := all["profiles"].([]any)
-	if err != nil || len(rows) != 3 || rows[0].(map[string]any)["slug"] != "c" || rows[2].(map[string]any)["slug"] != "a" || statusCalls != 1 || reads != 2 {
+	rows := all.Profiles
+	if err != nil || len(rows) != 3 || rows[0].Slug != "c" || rows[2].Slug != "a" || statusCalls != 1 || reads != 2 {
 		t.Fatal(all, reads, statusCalls)
 	}
 	page, err := s.List(context.Background(), ListInput{Limit: 1, Cursor: "20:c"})
-	if err != nil || page["profiles"].([]any)[0].(map[string]any)["slug"] != "b" || page["next_cursor"] != "20:b" || page["total"] != 3 {
+	if err != nil || page.Profiles[0].Slug != "b" || page.NextCursor != "20:b" || page.Total != 3 {
 		t.Fatal(page, err)
 	}
 	now = now.Add(ListCacheTTL)
@@ -61,11 +62,11 @@ func TestRosterListCacheOwnershipTTLAndInvalidation(t *testing.T) {
 	profiles = nil
 	s.Invalidate()
 	empty, err := s.List(context.Background(), ListInput{})
-	if err != nil || empty["total"] != 0 || empty["enabled_count"] != 0 || len(empty["profiles"].([]any)) != 0 || statusCalls != 5 {
+	if err != nil || empty.Total != 0 || empty.EnabledCount != 0 || len(empty.Profiles) != 0 || statusCalls != 5 {
 		t.Fatal("last-profile cache retained", empty, err)
 	}
 	raw, _ := json.Marshal(empty)
-	if string(raw) != `{"count":0,"enabled_count":0,"profiles":null,"total":0}` {
+	if string(raw) != `{"profiles":null,"count":0,"total":0,"enabled_count":0}` {
 		t.Fatal("legacy empty shape", string(raw))
 	}
 }
@@ -75,12 +76,12 @@ func TestRosterListPreparationBeforeDecodeAndCursorCompatibility(t *testing.T) {
 	s := NewList(func() []core.Profile { return profiles }, func([]core.Profile) map[string]map[string]any { statusCalls++; return nil }, nil)
 	cause := errors.New("owned codec failure")
 	out, err := s.List(context.Background(), ListInput{DecodeError: cause})
-	if out != nil || !errors.Is(err, cause) || statusCalls != 1 {
+	if !reflect.DeepEqual(out, ListOutput{}) || !errors.Is(err, cause) || statusCalls != 1 {
 		t.Fatal("admission order drift", out, err, statusCalls)
 	}
 	for _, cursor := range []string{"", "bad", "9223372036854775808:a"} {
 		out, err := s.List(context.Background(), ListInput{Cursor: cursor})
-		if err != nil || out["count"] != 2 || statusCalls != 1 {
+		if err != nil || out.Count != 2 || statusCalls != 1 {
 			t.Fatal(cursor, out, err)
 		}
 	}
@@ -89,7 +90,7 @@ func TestRosterListPreparationBeforeDecodeAndCursorCompatibility(t *testing.T) {
 		want   int
 	}{{"20", 1}, {"20:b", 1}, {"20:z", 2}, {"-1:a", 0}, {"20:", 1}} {
 		out, err := s.List(context.Background(), ListInput{Cursor: tc.cursor})
-		if err != nil || out["count"] != tc.want {
+		if err != nil || out.Count != tc.want {
 			t.Fatal(tc, out, err)
 		}
 	}
@@ -99,7 +100,7 @@ func TestRosterListPreparationBeforeDecodeAndCursorCompatibility(t *testing.T) {
 		if limit == 1 {
 			want = 1
 		}
-		if err != nil || out["count"] != want {
+		if err != nil || out.Count != want {
 			t.Fatal(limit, out, err)
 		}
 	}
@@ -128,7 +129,7 @@ func TestRosterListConcurrentReadsAndInvalidation(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < 64; j++ {
 				out, err := s.List(context.Background(), ListInput{Limit: 1})
-				if err != nil || out["total"] != 1 || out["count"] != 1 {
+				if err != nil || out.Total != 1 || out.Count != 1 {
 					t.Error(out, err)
 				}
 			}
@@ -146,5 +147,47 @@ func TestRosterListConcurrentReadsAndInvalidation(t *testing.T) {
 	wg.Wait()
 	if calls.Load() == 0 {
 		t.Fatal("no projection")
+	}
+}
+func TestRosterListCursorKeepsLegacyFloatProjection(t *testing.T) {
+	profiles := []core.Profile{{Slug: "a", CreatedMS: 9007199254740993}, {Slug: "b", CreatedMS: 9007199254740993}, {Slug: "c", CreatedMS: 9007199254740992}}
+	s := NewList(func() []core.Profile { return profiles }, func([]core.Profile) map[string]map[string]any { return nil }, nil)
+	first, err := s.List(context.Background(), ListInput{Limit: 1})
+	if err != nil || first.NextCursor != "9007199254740992:c" {
+		t.Fatal("legacy rounded cursor", first.NextCursor, err)
+	}
+	page, err := s.List(context.Background(), ListInput{Limit: 1, Cursor: first.NextCursor})
+	if err != nil || page.Count != 1 || page.Profiles[0].Slug != "b" || page.NextCursor != "9007199254740992:b" {
+		t.Fatal("legacy rounded cursor filter", page, err)
+	}
+}
+func TestRosterListStatusPresenceMatchesLegacyRows(t *testing.T) {
+	profiles := []core.Profile{{Slug: "a", CreatedMS: 1}, {Slug: "b", CreatedMS: 2}}
+	s := NewList(func() []core.Profile { return profiles }, func([]core.Profile) map[string]map[string]any { return map[string]map[string]any{"a": nil} }, nil)
+	out, err := s.List(context.Background(), ListInput{})
+	if err != nil || out.Count != 2 {
+		t.Fatal(out, err)
+	}
+	for _, row := range out.Profiles {
+		raw, _ := json.Marshal(row)
+		var wire map[string]json.RawMessage
+		json.Unmarshal(raw, &wire)
+		status, present := wire["status"]
+		if row.Slug == "a" && (!present || string(status) != "null") || row.Slug == "b" && present {
+			t.Fatal("status presence", row.Slug, string(raw))
+		}
+	}
+}
+func TestRosterListCapsLimitAtOneThousand(t *testing.T) {
+	profiles := make([]core.Profile, 1002)
+	for i := range profiles {
+		profiles[i] = core.Profile{Slug: "a" + strconv.Itoa(i), CreatedMS: int64(i + 1)}
+	}
+	s := NewList(func() []core.Profile { return profiles }, func([]core.Profile) map[string]map[string]any { return nil }, nil)
+	for _, limit := range []int{1000, 1001, 5000} {
+		out, err := s.List(context.Background(), ListInput{Limit: limit})
+		if err != nil || out.Count != 1000 || out.Total != 1002 || out.NextCursor != "3:a2" {
+			t.Fatal(limit, out.Count, out.NextCursor, err)
+		}
 	}
 }
