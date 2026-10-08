@@ -6,11 +6,11 @@ import (
 	"context"
 	"github.com/agezt/agezt/kernel/app"
 	appchannels "github.com/agezt/agezt/kernel/app/channels"
+	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/app/system"
 	appupdate "github.com/agezt/agezt/kernel/app/update"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/agezt/agezt/kernel/app/providers"
 	"github.com/agezt/agezt/kernel/board"
@@ -52,19 +52,9 @@ type Server struct {
 	// the pulse handlers report "disabled" rather than dereferencing it.
 	pulse PulseController
 
-	// agentListCache memoises the expensive (11× journal.Range) result of
-	// /api/agents. The Roster, Agents, AgentPage and Roster.tsx all poll the
-	// endpoint on a 6–8s cadence; without this, every poll re-walks the
-	// entire journal. TTL is short (1.5s) so profile edits still surface
-	// quickly while collapsing 5+ in-flight polls of a single tab to one
-	// underlying walk. Read-heavy (RWMutex); invalidated on agent mutations
-	// so writes bypass the cache. See invalidateAgentListCache().
-	agentListCacheMu      sync.RWMutex
-	agentListCacheKey     uint64 // content hash of the roster at the time of caching
-	agentListCacheResult  []any
-	agentListCacheTotal   int
-	agentListCacheEnabled int
-	agentListCacheAt      time.Time
+	// One application-owned list/cache service per primary Server.
+	rosterListOnce sync.Once
+	rosterList     *approster.ListService
 
 	// standingFire fires a standing order on demand (M765), injected by the
 	// daemon via SetStandingFire (it closes over the daemon's fire path + ctx,
