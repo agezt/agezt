@@ -7,6 +7,7 @@ package controlplane
 //             during the Day-39 god-file split. Public API unchanged.
 
 import (
+	approster "github.com/agezt/agezt/kernel/app/roster"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/board"
@@ -53,7 +54,7 @@ func (s *Server) agentEscalationLoadViews(profiles []roster.Profile) map[string]
 					continue
 				}
 				row := out[slug]
-				if boardMessageAckedBy(msg, slug) {
+				if approster.BoardMessageAckedBy(msg, slug) {
 					row.Acked++
 				} else {
 					row.Open++
@@ -66,7 +67,7 @@ func (s *Server) agentEscalationLoadViews(profiles []roster.Profile) map[string]
 			continue
 		}
 		row := out[to]
-		if boardMessageAckedBy(msg, to) {
+		if approster.BoardMessageAckedBy(msg, to) {
 			row.Acked++
 		} else {
 			row.Open++

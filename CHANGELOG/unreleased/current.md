@@ -812,6 +812,10 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Agent escalations use a typed application operation.** Help-request status,
+  wake metadata, origins, paging and argument errors are preserved. Already-canceled
+  requests now stop before reading the board or journal.
+
 - **Agent repair status uses a typed application operation.** History, inflight
   repairs, the repair contract, next-step decisions, paging and argument errors
   are preserved. Already-canceled requests now stop before reading the journal.

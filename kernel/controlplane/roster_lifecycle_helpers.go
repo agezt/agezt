@@ -7,6 +7,7 @@ package controlplane
 //             Day-93 god-file split. Public API unchanged.
 
 import (
+	approster "github.com/agezt/agezt/kernel/app/roster"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,7 +32,7 @@ func boolish(v any) bool {
 func agentMailboxImpactLabel(msg board.Message, slug string) (string, bool) {
 	from := strings.ToLower(strings.TrimSpace(msg.From))
 	to := strings.ToLower(strings.TrimSpace(msg.To))
-	acked := boardMessageAckedBy(msg, slug)
+	acked := approster.BoardMessageAckedBy(msg, slug)
 	var direction string
 	switch {
 	case from == slug:
