@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.30h typed `agent_escalations`, 2026-10-08
+## Current checkpoint — W2.30i `agent_resolve` audit fix, 2026-10-08
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -25,7 +25,9 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   `bb8cc8fa64c06e8d70a24b61fceec0ba4e9a47c4` after all 24 exact-head CI jobs.
 - W2.30g (typed `agent_repair_status` + cursor current-state fix) is delivered
   through PR #715 at `6067c311fd94b44f2c23481cd45f214e36080cc9` after all 24 jobs.
-- W2.30h (typed `agent_escalations`) is committed on `main` as a code commit plus a
+- W2.30h (typed `agent_escalations`) is delivered through PR #716 at
+  `2d10795e49624861cf3c4f88e0f299372f720a34` after all 24 exact-head CI jobs.
+- W2.30i (`agent_resolve` audit fix) is committed on `main` as a code commit plus a
   docs commit and published from `arch/w2-dispatch` (`gh pr list --head
   arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
@@ -62,9 +64,14 @@ harness under `.temp_files/architecture-delivery/w57/`. W2.30h bound
 `agent_escalations` (756 native cases x20 on a shared board, 28/28 mutations):
 [58-w230-typed-agent-escalations-evidence.md](58-w230-typed-agent-escalations-evidence.md),
 harness under `.temp_files/architecture-delivery/w58/`. All roster reads except
-`agent_impact`/`agent_tombstone` (cascade) and `agent_resolve` are now typed. Next:
-`agent_resolve` (read with wake/routing logic), then the lifecycle writes
-(set_enabled, retire/revive, add/edit, task_update, wake, repair, remove + cascade).
+`agent_impact`/`agent_tombstone` (cascade) and `agent_resolve` are now typed. W2.30i fixed an
+audit gap: the mutating `agent_resolve` was registered `ReadOnly`, so dispatch never
+journaled it (regression red 3/3 → green 20/20):
+[59-w230-agent-resolve-audit-evidence.md](59-w230-agent-resolve-audit-evidence.md).
+Next: the lifecycle writes, with typed `agent_resolve` among them (set_enabled,
+retire/revive, add/edit, task_update, wake, repair, resolve, remove + cascade with
+impact/tombstone). Writes need the mandatory-audit admission pattern of the W2.27
+writer slices.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a
