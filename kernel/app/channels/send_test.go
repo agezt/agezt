@@ -19,7 +19,7 @@ func TestChannelSendValidationPrecedesUnavailableSenderAndEffect(t *testing.T) {
 			}
 			NewOutbound(sender).Send(context.Background(), in, func(out SendOutput, err error) {
 				replies++
-				if out != nil || err == nil || err.Error() != "send requires channel, to, and text" {
+				if out != (SendOutput{}) || err == nil || err.Error() != "send requires channel, to, and text" {
 					t.Fatal(out, err)
 				}
 			})
@@ -31,7 +31,7 @@ func TestChannelSendValidationPrecedesUnavailableSenderAndEffect(t *testing.T) {
 	replies := 0
 	NewOutbound(nil).Send(context.Background(), SendInput{Channel: "slack", To: "owned", Text: "fixture"}, func(out SendOutput, err error) {
 		replies++
-		if out != nil || err == nil || err.Error() != "no channels configured (set a channel token to enable send)" {
+		if out != (SendOutput{}) || err == nil || err.Error() != "no channels configured (set a channel token to enable send)" {
 			t.Fatal(out, err)
 		}
 	})
@@ -62,10 +62,10 @@ func TestChannelSendSelectedArgumentsDeadlineCauseAndTerminalLifetime(t *testing
 				t.Fatal("context released before terminal callback")
 			}
 			if senderError != nil {
-				if out != nil || !errors.Is(err, senderError) {
+				if out != (SendOutput{}) || !errors.Is(err, senderError) {
 					t.Fatal(out, err)
 				}
-			} else if err != nil || !reflect.DeepEqual(out, SendOutput{"sent": true, "channel": "slack", "to": "owned target"}) {
+			} else if err != nil || !reflect.DeepEqual(out, SendOutput{Sent: true, Channel: "slack", To: "owned target"}) {
 				t.Fatal(out, err)
 			}
 		})

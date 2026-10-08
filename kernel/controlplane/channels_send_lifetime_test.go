@@ -5,6 +5,8 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"net"
 	"testing"
 	"time"
@@ -21,7 +23,7 @@ func TestChannelSendNativeContextLivesThroughTerminalWrite(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			s.handleSend(pausedOAuthStatusConn{Conn: conn, entered: entered, release: release}, Request{ID: "owned", Args: map[string]any{"channel": "Slack", "to": "owned", "text": "fixture"}})
+			handleSendLifetimeOperation(s, pausedOAuthStatusConn{Conn: conn, entered: entered, release: release}, Request{ID: "owned", Args: map[string]any{"channel": "Slack", "to": "owned", "text": "fixture"}})
 		}()
 		select {
 		case <-entered:
@@ -46,4 +48,20 @@ func TestChannelSendNativeContextLivesThroughTerminalWrite(t *testing.T) {
 			t.Fatal("sender context not released after write", senderContext.Err())
 		}
 	}
+}
+
+// Snapshot host retains the original paused-write assertion without real stores.
+type sendLifetimeAudit struct{}
+type sendLifetimeSpan struct{}
+
+func (sendLifetimeAudit) Begin(context.Context, opapi.AuditRecord) (opapi.AuditSpan, error) {
+	return sendLifetimeSpan{}, nil
+}
+func (sendLifetimeSpan) End(context.Context, error) error { return nil }
+func handleSendLifetimeOperation(s *Server, conn net.Conn, req Request) {
+	s.operationOnce.Do(func() {
+		s.operations, s.operationErr = app.NewDispatcher(channelSendOperations, app.Dependencies{Auth: oauthSnapshotAuth{}, Router: oauthSnapshotRoute{s}, Audit: sendLifetimeAudit{}})
+	})
+	req.Cmd = CmdSend
+	handleAppOperation(&DispatchCtx{S: s, Conn: conn, Req: req, Ctx: context.Background()})
 }
