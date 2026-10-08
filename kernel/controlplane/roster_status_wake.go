@@ -9,6 +9,7 @@ package controlplane
 //             Public API unchanged.
 
 import (
+	approster "github.com/agezt/agezt/kernel/app/roster"
 	"sort"
 	"strings"
 
@@ -22,14 +23,7 @@ func isMailboxWakeSubject(subject string) bool {
 	return subject == "board" || strings.HasPrefix(subject, "board.")
 }
 
-type agentPolicyDenials struct {
-	Count          int
-	LastTool       string
-	LastReason     string
-	LastCapability string
-	LastHard       bool
-	LastTSMS       int64
-}
+type agentPolicyDenials = approster.PolicyDenials
 
 func applyActiveWakeContext(row agentLiveStatus, kind event.Kind, pl map[string]any) agentLiveStatus {
 	switch kind {
