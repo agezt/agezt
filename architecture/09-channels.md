@@ -277,6 +277,12 @@ Gateway status/QR are typed primary ReadOnly POST operations in
 existing bounded guarded HTTP port; already-canceled requests stop before probing.
 The port retains its background timeout policy for probes already in flight.
 
+All eleven channel native operations now use typed shared application bindings.
+Send uses an optional terminal cleanup ownership port to retain its sender context
+until result/error socket delivery completes; direct callback behavior and sender
+panic cleanup remain. [Native exit evidence](47-w227-exit-evidence.md) records
+contracts and boundaries; live transports/conversation-store extraction remain.
+
 ### 4.3 Multi-account (`ENV#label`)
 
 - Non-default accounts store values under `AGEZT_X#<label>` (non-secret in the config store, secret in the vault);
