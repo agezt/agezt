@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.30j typed `agent_set_enabled`, 2026-10-08
+## Current checkpoint — W2.30k typed `agent_add`/`agent_edit`, 2026-10-08
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -29,10 +29,12 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   `2d10795e49624861cf3c4f88e0f299372f720a34` after all 24 exact-head CI jobs.
 - W2.30i (`agent_resolve` audit fix) is delivered through PR #717 at
   `a844d1e710c6a34e6351e5b07d23647c371e9094` after all 24 exact-head CI jobs.
-- W2.30j (typed `agent_set_enabled`, first audited roster write) is committed on
-  `main` as a code commit plus a docs commit and published from `arch/w2-dispatch`
-  (`gh pr list --head arch/w2-dispatch`). Require all 24 exact-head jobs including
-  `CI` and `ci.yml`, then merge normally with a matching head and fast-forward `main`.
+- W2.30j (typed `agent_set_enabled`) is delivered through PR #718 at
+  `2515e47d57b91b3120d2153c1d077203de60d2f8` after all 24 exact-head CI jobs.
+- W2.30k (typed `agent_add`/`agent_edit`) is committed on `main` as a code commit
+  plus a docs commit and published from `arch/w2-dispatch` (`gh pr list --head
+  arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
+  then merge normally with a matching head and fast-forward `main`.
 
 ### W2.30c summary
 
@@ -77,7 +79,13 @@ writer slices. W2.30j moved
 `agent_set_enabled` that way; its harness (cloned kernels, response + full journal
 delta parity) is the template for the remaining writes:
 [60-w230-typed-agent-set-enabled-evidence.md](60-w230-typed-agent-set-enabled-evidence.md),
-`.temp_files/architecture-delivery/w60/`.
+`.temp_files/architecture-delivery/w60/`. W2.30k moved `agent_add`/`agent_edit`
+the same way (114 cloned-kernel steps x20, 27/27 mutations; owner-before-parent
+validation replaces random map order):
+[61-w230-typed-agent-add-edit-evidence.md](61-w230-typed-agent-add-edit-evidence.md).
+Remaining roster writes: `agent_task_update`, `agent_wake`, `agent_repair`,
+`agent_resolve`, and the cascade group `agent_retire`/`agent_revive`/`agent_remove`
+with `agent_impact`/`agent_tombstone`.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a
@@ -90,7 +98,7 @@ Preserve unrelated dirty changes: deletions of
 
 ### Next
 
-Continue roadmap §4.5/order 7: the remaining 11 roster commands (tombstone and
+Continue roadmap §4.5/order 7: the remaining 9 roster commands (tombstone and
 impact share the removal-cascade subsystems with `agent_remove`, so move them with
 that cascade rather than alone), status source
 collection and lifecycle ownership, then steer/runs/journal/edict/tenant/shutdown/
