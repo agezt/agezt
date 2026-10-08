@@ -812,6 +812,10 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Agent activity timeline uses a typed application operation.** Run scoping,
+  ordering, paging, totals, empty shapes and argument errors are preserved.
+  Already-canceled requests now stop before reading the roster or journal.
+
 - **Agent activity text has a shared application owner.** The activity timeline
   and roster status describe journal events with the same unchanged wording.
 
