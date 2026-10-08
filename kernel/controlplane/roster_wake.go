@@ -2,7 +2,7 @@
 
 package controlplane
 
-// Agent wake + resolve handlers + the operator-wake lineage bookkeeping
+// Agent resolve handler + the operator incident-resolution bookkeeping
 // (M833/M846). Carved out of roster.go during the Day 24 god file split
 // #7 so the main file can focus on escalation/lifecycle.
 
@@ -15,61 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/plugins/tools/overseertool"
 )
-
-func (s *Server) handleAgentWake(conn net.Conn, req Request) {
-	ref, err := requiredArgString(req.Args, "ref")
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	p, ok := s.k.Roster().Get(ref)
-	if !ok {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown agent: " + ref})
-		return
-	}
-	if p.Retired {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "agent " + p.Slug + " is retired — revive it first"})
-		return
-	}
-	if !p.Enabled {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "agent " + p.Slug + " is paused"})
-		return
-	}
-	if !p.AllowsDirectCall() {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: managedSubagentDirectCallError(p, "called")})
-		return
-	}
-	intent, _, ierr := argString(req.Args, "intent")
-	if ierr != nil {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: ierr.Error()})
-		return
-	}
-	reason := strings.TrimSpace(stringArg(req.Args, "reason"))
-	intent = buildOperatorWakeIntent(strings.TrimSpace(intent), p.Slug, reason, req.Args)
-	if strings.TrimSpace(intent) == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "agent wake requires args.intent or args.reason"})
-		return
-	}
-	corr := s.k.NewCorrelation()
-	lineage := operatorIncidentLineage(req.Args)
-	runbook := agentAutonomyRunbookPayload(p)
-	publishOperatorAction(s.k, "agent.wake", corr, map[string]any{
-		"phase":              "requested",
-		"agent":              p.Slug,
-		"reason":             reason,
-		"intent":             truncate(intent, 240),
-		"autonomy_runbook":   runbook,
-		"incident_id":        lineage.incidentID,
-		"root_incident_id":   lineage.rootIncidentID,
-		"parent_incident_id": lineage.parentIncidentID,
-	})
-	go s.runAgentWake(corr, p, intent, reason, lineage)
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
-		"accepted":       true,
-		"agent":          p.Slug,
-		"correlation_id": corr,
-	}})
-}
 
 func (s *Server) handleAgentResolve(conn net.Conn, req Request) {
 	ref, err := requiredArgString(req.Args, "ref")

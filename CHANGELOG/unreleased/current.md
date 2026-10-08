@@ -816,6 +816,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Manually waking an agent uses a typed application operation.** Checks,
+  errors, the default wake prompt, the journaled request and the background run
+  are unchanged, and every wake is operation-audited before it starts.
+  Already-canceled requests now stop before audit and no longer wake the agent.
+
 - **Editing an agent's tasklist uses a typed application operation.** Add,
   update and remove keep their arguments, validation, errors and result, and every
   change is operation-audited before it is applied. Already-canceled requests now

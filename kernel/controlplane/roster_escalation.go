@@ -49,34 +49,6 @@ func publishOperatorAction(k *runtime.Kernel, subject, corr string, payload map[
 	})
 }
 
-func buildOperatorWakeIntent(explicit, slug, reason string, args map[string]any) string {
-	if text := strings.TrimSpace(explicit); text != "" {
-		return text
-	}
-	var b strings.Builder
-	b.WriteString("Manual wake-up.\n")
-	b.WriteString("You are agent ")
-	b.WriteString(slug)
-	b.WriteString(". You were explicitly woken by the operator/control plane.\n")
-	if reason = strings.TrimSpace(reason); reason != "" {
-		b.WriteString("Reason: ")
-		b.WriteString(reason)
-		b.WriteString("\n")
-	}
-	if root := strings.TrimSpace(stringArg(args, "root_incident_id")); root != "" {
-		b.WriteString("Incident root: ")
-		b.WriteString(root)
-		b.WriteString("\n")
-	}
-	if incident := strings.TrimSpace(stringArg(args, "incident_id")); incident != "" {
-		b.WriteString("Incident hop: ")
-		b.WriteString(incident)
-		b.WriteString("\n")
-	}
-	b.WriteString("Inspect your durable instructions, memory, mailbox, tasklist, and current health context. Do the next concrete recovery step and then stop.")
-	return b.String()
-}
-
 func (s *Server) runAgentWake(corr string, p roster.Profile, intent, reason string, lineage operatorWakeLineage) {
 	runbook := agentAutonomyRunbookPayload(p)
 	ctx := runtime.WithAgentProfile(context.Background(), p)
