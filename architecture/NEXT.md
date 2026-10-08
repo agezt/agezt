@@ -1,5 +1,57 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W2.30c typed `agent_list`, 2026-10-08
+
+The owner resumed work after the report break. The W0–W5 objective remains open.
+
+### Delivery and checkout
+
+- Shared checkout: `D:\Codebox\PROJECTS\AGEZT`, branch `main`. Do not create or
+  switch branches/worktrees. PRs are published by pushing `main`'s head to the
+  existing remote transport branch `arch/w2-dispatch` (`git push origin
+  HEAD:arch/w2-dispatch`), never by switching this checkout.
+- W2.30b (roster status presentation/typed snapshot) is delivered through PR #710
+  at `74727b6bd72c2d05da8db0e7f0c60d47e7cd561c` after all 24 exact-head CI jobs
+  succeeded (run 37750892298); the merge tree equalled the tested head and local
+  `main` fast-forwarded with the W2.30c work preserved byte-for-byte.
+- W2.30c (typed `agent_list`) is committed on `main` as a code commit plus a docs
+  commit and published from `arch/w2-dispatch` (`gh pr list --head
+  arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
+  then merge normally with a matching head and fast-forward `main`.
+
+### W2.30c summary
+
+`agent_list` is a primary-only ReadOnly shared operation over the app ListService;
+the native wrapper/manual row are removed. Concrete ListOutput/ProfileOutput/
+StatusOutput (81 typed status fields, 18 required) keep the full lower Profile,
+legacy float64 profile/cursor projection and exact status integers. An explicit-null
+drift in the partial slice (schedule-only wake rows emit `"wake_event_subjects":null`)
+was found and fixed. 528 native cases x20 (440 raw-byte equal, 88 intentional
+already-canceled admissions), 29/29 mutations and the full gates pass. Details:
+[53-w230-typed-agent-list-evidence.md](53-w230-typed-agent-list-evidence.md);
+harness scripts/logs under `.temp_files/architecture-delivery/w53/`.
+
+Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
+output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a
+compile-once validator in `platform/schema` would benefit every migrated operation.
+
+Preserve unrelated dirty changes: deletions of
+`security-report/sc-auth-session-client-results.md` and
+`security-report/sc-injection-results.md`, plus the stat-only
+`kernel/controlplane/skill_app_test.go` entry. Exclude them from migration commits.
+
+### Next
+
+Continue roadmap §4.5/order 7: the remaining 16 roster commands, status source
+collection and lifecycle ownership, then steer/runs/journal/edict/tenant/shutdown/
+remote. Wider run/tool adapter convergence, W3 modules and journal raw-ref GC, W4
+triggers/channel supervision/config/signing, and W5 generated SDK/frontend
+convergence and zero allowances remain open. The overall target is the
+architecture in `20-target-architecture.md`, delivered incrementally to protected
+`main`, with runnable proof and source-aligned documentation.
+
+---
+
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
@@ -83,12 +135,14 @@ Every branch from `fix/w0-correctness` on also carries the same commit
 
 ## 3. First thing to do in a new session
 
-1. `git status --short`, `git fetch origin`, and `gh pr view 612` — confirm delivery
-   and preserve any concurrent work. If delivery is pending, finish its checks and merge.
-2. On the shared checkout, use `main` and fast-forward from `origin/main` when clean.
+1. Read the current checkpoint at the top. Inspect `git status --short`, HEAD, index
+   and the open `arch/w2-dispatch` PR with its exact-head CI; the older PR #612 is
+   historical. Preserve every uncommitted file.
+2. On the shared checkout, use `main`; fast-forward only to a verified merge whose
+   tree equals the tested head.
    **Do not create or switch to another task branch.** The owner's explicit instruction
    supersedes the original branch-per-PR recipe.
-3. Read the authoritative target and roadmap, then start the first open item in §4.
+3. Read the authoritative target and roadmap, then start the next open item in §4.
 4. Use isolated temporary `AGEZT_HOME` directories for runtime verification; never the
    owner's real state or password-protected `.dev-home` console.
 5. Read `MEMORY.md` in the Claude memory directory if available
