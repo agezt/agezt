@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The operator Repair action uses a typed application operation.** Checks,
+  errors, the journaled request and the background repair (including its panic
+  containment) are unchanged, and every repair is operation-audited before it
+  starts. Already-canceled requests now stop before audit and no longer start a
+  repair.
+
 - **Manually waking an agent uses a typed application operation.** Checks,
   errors, the default wake prompt, the journaled request and the background run
   are unchanged, and every wake is operation-audited before it starts.

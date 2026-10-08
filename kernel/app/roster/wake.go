@@ -26,8 +26,8 @@ type WakeRequest struct {
 	ParentIncidentID json.RawMessage `json:"parent_incident_id,omitempty"`
 }
 
-// WakeLineage is the operator incident chain a wake belongs to.
-type WakeLineage struct {
+// IncidentLineage is the operator incident chain a wake or repair belongs to.
+type IncidentLineage struct {
 	IncidentID       string
 	RootIncidentID   string
 	ParentIncidentID string
@@ -45,6 +45,11 @@ func lenientString(raw json.RawMessage) string {
 	return strings.TrimSpace(s)
 }
 
+// incidentLineage reads the incident ids leniently, like the reason.
+func incidentLineage(incident, root, parent json.RawMessage) IncidentLineage {
+	return IncidentLineage{IncidentID: lenientString(incident), RootIncidentID: lenientString(root), ParentIncidentID: lenientString(parent)}
+}
+
 // ManagedDirectCallError is the operator-facing refusal for an action sent to a
 // managed sub-agent instead of its manager.
 func ManagedDirectCallError(p core.Profile, action string) string {
@@ -59,9 +64,32 @@ func ManagedDirectCallError(p core.Profile, action string) string {
 	return "agent " + p.Slug + " is a managed sub-agent and cannot be " + action + " directly; " + hint
 }
 
+// directTarget resolves the agent an operator action is sent to, rejecting
+// unknown, retired, paused and managed agents in that order.
+func directTarget(get func(string) (core.Profile, bool), rawRef json.RawMessage, action string) (core.Profile, error) {
+	ref, err := RefPageRequest{Ref: rawRef}.ref()
+	if err != nil {
+		return core.Profile{}, err
+	}
+	p, ok := get(ref)
+	if !ok {
+		return core.Profile{}, errors.New("unknown agent: " + ref)
+	}
+	if p.Retired {
+		return core.Profile{}, errors.New("agent " + p.Slug + " is retired — revive it first")
+	}
+	if !p.Enabled {
+		return core.Profile{}, errors.New("agent " + p.Slug + " is paused")
+	}
+	if !p.AllowsDirectCall() {
+		return core.Profile{}, errors.New(ManagedDirectCallError(p, action))
+	}
+	return p, nil
+}
+
 // BuildOperatorWakeIntent returns the explicit intent, or the default manual
 // wake-up prompt carrying the reason and incident lineage.
-func BuildOperatorWakeIntent(explicit, slug, reason string, lineage WakeLineage) string {
+func BuildOperatorWakeIntent(explicit, slug, reason string, lineage IncidentLineage) string {
 	if text := strings.TrimSpace(explicit); text != "" {
 		return text
 	}
@@ -95,37 +123,24 @@ type WakeService struct {
 	get            func(string) (core.Profile, bool)
 	newCorrelation func() string
 	publish        func(subject, corr string, payload map[string]any)
-	launch         func(corr string, p core.Profile, intent, reason string, lineage WakeLineage)
+	launch         func(corr string, p core.Profile, intent, reason string, lineage IncidentLineage)
 }
 
-func NewWake(get func(string) (core.Profile, bool), newCorrelation func() string, publish func(subject, corr string, payload map[string]any), launch func(corr string, p core.Profile, intent, reason string, lineage WakeLineage)) *WakeService {
+func NewWake(get func(string) (core.Profile, bool), newCorrelation func() string, publish func(subject, corr string, payload map[string]any), launch func(corr string, p core.Profile, intent, reason string, lineage IncidentLineage)) *WakeService {
 	return &WakeService{get: get, newCorrelation: newCorrelation, publish: publish, launch: launch}
 }
 
 func (s *WakeService) Wake(_ context.Context, in WakeRequest) (WakeOutput, error) {
-	ref, err := RefPageRequest{Ref: in.Ref}.ref()
+	p, err := directTarget(s.get, in.Ref, "called")
 	if err != nil {
 		return WakeOutput{}, err
-	}
-	p, ok := s.get(ref)
-	if !ok {
-		return WakeOutput{}, errors.New("unknown agent: " + ref)
-	}
-	if p.Retired {
-		return WakeOutput{}, errors.New("agent " + p.Slug + " is retired — revive it first")
-	}
-	if !p.Enabled {
-		return WakeOutput{}, errors.New("agent " + p.Slug + " is paused")
-	}
-	if !p.AllowsDirectCall() {
-		return WakeOutput{}, errors.New(ManagedDirectCallError(p, "called"))
 	}
 	intent, _, err := optionalString(in.Intent, "intent")
 	if err != nil {
 		return WakeOutput{}, err
 	}
 	reason := lenientString(in.Reason)
-	lineage := WakeLineage{IncidentID: lenientString(in.IncidentID), RootIncidentID: lenientString(in.RootIncidentID), ParentIncidentID: lenientString(in.ParentIncidentID)}
+	lineage := incidentLineage(in.IncidentID, in.RootIncidentID, in.ParentIncidentID)
 	intent = BuildOperatorWakeIntent(strings.TrimSpace(intent), p.Slug, reason, lineage)
 	if strings.TrimSpace(intent) == "" {
 		return WakeOutput{}, errors.New("agent wake requires args.intent or args.reason")
