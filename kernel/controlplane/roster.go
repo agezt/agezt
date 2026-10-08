@@ -9,43 +9,11 @@ package controlplane
 // `agt agent show researcher` without copying ULIDs.
 
 import (
+	approster "github.com/agezt/agezt/kernel/app/roster"
 	"net"
 )
 
-type agentRepairRow struct {
-	Seq                            int64
-	TSUnixMS                       int64
-	Agent                          string
-	CorrelationID                  string
-	Mode                           string
-	Phase                          string
-	Reason                         string
-	Fingerprint                    string
-	SelfRepairAttempt              int
-	SelfRepairMaxAttempts          int
-	Issues                         []string
-	Applied                        []string
-	Answer                         string
-	Error                          string
-	TargetAgent                    string
-	TargetCorr                     string
-	MailboxMessage                 string
-	Resolution                     string
-	ResolutionSummary              string
-	DelegateTo                     string
-	DelegatedBy                    string
-	RootAgent                      string
-	ChainDepth                     int
-	IncidentID                     string
-	RootIncidentID                 string
-	ParentIncidentID               string
-	NextEligibleMS                 int64
-	RoutingTaskType                string
-	RoutingTaskModelChain          []string
-	PreviousRoutingTaskModelChain  []string
-	RoutingForceGeneration         int
-	PreviousRoutingForceGeneration int
-}
+type agentRepairRow = approster.RepairRow
 
 type agentEscalationRow struct {
 	MessageID         string
@@ -75,69 +43,19 @@ type agentEscalationRow struct {
 	ParentIncidentID  string
 }
 
-type agentRepairSummary struct {
-	Latest        agentRepairRow
-	HasLatest     bool
-	InflightCount int
-}
+type agentRepairSummary = approster.RepairSummary
 
-type agentRoutingPressure struct {
-	Count      int
-	LastReason string
-	LastFailed string
-	LastNext   string
-	LastTSMS   int64
-}
+type agentRoutingPressure = approster.RoutingPressure
 
-type agentRetryPressure struct {
-	Count       int
-	LastReason  string
-	LastTSMS    int64
-	NextAttempt int
-	MaxAttempts int
-}
+type agentRetryPressure = approster.RetryPressure
 
-type agentEscalationLoad struct {
-	Open  int
-	Acked int
-}
+type agentEscalationLoad = approster.EscalationLoad
 
-type agentWakeStatus struct {
-	ScheduleCount       int
-	StandingCount       int
-	EventSubjects       []string
-	NextScheduledWakeMS int64
-	NextScheduledLabel  string
-}
+type agentWakeStatus = approster.WakeStatus
 
-type agentLiveStatus struct {
-	ActiveRuns              int
-	ActiveCorrelationID     string
-	ActiveIntent            string
-	ActiveStartedMS         int64
-	ActiveModel             string
-	ActiveSpentMc           int64
-	ActivePhase             string
-	ActiveLastEventMS       int64
-	ActiveLastEventKind     string
-	ActiveDetail            string
-	ActiveTool              string
-	ActiveIter              int
-	ActiveWakeSource        string
-	ActiveWakeReason        string
-	ActiveScheduleID        string
-	ActiveStandingID        string
-	ActiveStandingName      string
-	ActiveTriggerSubject    string
-	ActiveParentCorrelation string
-}
+type agentLiveStatus = approster.LiveStatus
 
-type agentLastActivity struct {
-	TSUnixMS      int64
-	Kind          string
-	CorrelationID string
-	Summary       string
-}
+type agentLastActivity = approster.LastActivity
 
 // agentStatusAccums holds the per-agent state that the journal-derivable
 // helpers accumulate. Roster-agentList page is the single consumer; collecting
