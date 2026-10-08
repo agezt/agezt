@@ -16,6 +16,18 @@ import (
 	"github.com/agezt/agezt/kernel/roster"
 )
 
+// agentStatusAccums holds the per-agent state that the journal-derivable
+// helpers accumulate. Roster-agentList page is the single consumer; collecting
+// every accumulator in a SINGLE journal.Range pass turns what used to be
+// O(journalSize) per helper (and 11× that across all helpers) into one
+// O(journalSize) walk. Large, busy journals were reliably tripping the
+// control-plane connection's 10-minute read deadline under the previous
+// 11-Range design (each Range does a callback-driven O(n) walk over every
+// durable event, with JSON-unmarshal + map lookups per event). The
+// single-pass dispatch below is behavior-preserving: each accumulator's
+// key-set and "latest wins" semantics match the original per-helper
+// implementations (the retired per-helper methods have been deleted; this
+// dispatch is now the only journal-derived roster-status path).
 type agentStatusAccums struct {
 	liveStatuses     map[string]agentLiveStatus
 	lastActivities   map[string]agentLastActivity

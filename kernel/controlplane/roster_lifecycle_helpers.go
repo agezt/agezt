@@ -57,35 +57,6 @@ func agentMailboxImpactLabel(msg board.Message, slug string) (string, bool) {
 	return topic + " " + direction + " (" + id + ")", true
 }
 
-func agentSubagentImpact(slug string, children []roster.Profile) []string {
-	out := make([]string, 0, len(children))
-	for _, child := range children {
-		roles := make([]string, 0, 2)
-		if strings.EqualFold(strings.TrimSpace(child.OwnerAgent), slug) {
-			roles = append(roles, "owner")
-		}
-		if strings.EqualFold(strings.TrimSpace(child.ParentAgent), slug) {
-			roles = append(roles, "parent")
-		}
-		if len(roles) == 0 {
-			roles = append(roles, "descendant")
-		}
-		label := child.Slug
-		if strings.TrimSpace(child.Name) != "" && strings.TrimSpace(child.Name) != child.Slug {
-			label = strings.TrimSpace(child.Name) + " (" + child.Slug + ")"
-		}
-		if len(roles) > 0 {
-			label += " [" + strings.Join(roles, ", ") + "]"
-		}
-		if child.Retired {
-			label += " [retired]"
-		}
-		out = append(out, label)
-	}
-	sort.Strings(out)
-	return out
-}
-
 func workflowNodeConfigReferencesAgent(raw json.RawMessage, slug string) bool {
 	if len(raw) == 0 {
 		return false

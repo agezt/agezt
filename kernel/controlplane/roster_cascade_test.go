@@ -15,9 +15,8 @@ import (
 // agentImpactKeys pins the WIRE payload of agent_impact — the teardown preview
 // the console shows before retiring or removing an agent (Phase 3.5).
 //
-// The payload is now derived from the cascadeSubsystems table instead of a
-// forty-entry map literal, which is a strict improvement but also means a table
-// edit silently reshapes the wire. The console reads these names verbatim
+// The payload is the typed approster.ImpactOutput, whose JSON tags are the wire
+// names; a renamed field or a new subsystem silently reshapes the wire. The console reads these names verbatim
 // (frontend/src/components/agentdetail/lifecycle.tsx) and defaults a missing key
 // to an empty list, so a renamed key does not error — it just makes a whole
 // subsystem's impact vanish from the confirmation dialog the operator is relying
