@@ -816,6 +816,10 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The agent teardown preview and tombstone use typed application operations.**
+  Every subsystem list and count, the sub-agent labels and the tombstone
+  footprint are unchanged. Already-canceled requests are now rejected.
+
 - **Resolving an agent incident uses a typed application operation.** Pausing,
   retiring, delegating to another agent and forcing a routing chain keep their
   checks, errors, journaled request and outcome, and every resolution is
