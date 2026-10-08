@@ -4,7 +4,6 @@ package controlplane
 
 import (
 	"encoding/json"
-	approster "github.com/agezt/agezt/kernel/app/roster"
 	"net"
 	"sort"
 	"strconv"
@@ -12,91 +11,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/event"
 )
-
-func (s *Server) handleAgentActivity(conn net.Conn, req Request) {
-	ref, err := requiredArgString(req.Args, "ref")
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	p, ok := s.k.Roster().Get(ref)
-	if !ok {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown agent: " + ref})
-		return
-	}
-	slug := p.Slug
-	limit, err := argLimit(req.Args, 50, 500)
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-
-	// Pass 1: the correlation ids of runs this agent executed (task.received
-	// carries the agent slug since M854). These also scope the council consults
-	// and delegations that happened *during* the agent's runs.
-	// Also collect activity events in the same pass to avoid O(2n) journal walks.
-	runCorr := map[string]bool{}
-	var items []map[string]any
-	_ = s.k.Journal().Range(func(e *event.Event) error {
-		// Build runCorr map
-		if e.Kind == event.KindTaskReceived {
-			var pl map[string]any
-			if json.Unmarshal(e.Payload, &pl) == nil && plString(pl, "agent") == slug && e.CorrelationID != "" {
-				runCorr[e.CorrelationID] = true
-			}
-		}
-		// Check if this event is attributable to the agent
-		var pl map[string]any
-		_ = json.Unmarshal(e.Payload, &pl)
-		summary, ok := approster.ActivitySummary(e, pl, slug, runCorr)
-		if !ok {
-			return nil
-		}
-		items = append(items, map[string]any{
-			"seq":            e.Seq,
-			"kind":           string(e.Kind),
-			"ts_unix_ms":     e.TSUnixMS,
-			"correlation_id": e.CorrelationID,
-			"summary":        summary,
-		})
-		return nil
-	})
-
-	// Newest first, capped.
-	sort.SliceStable(items, func(i, j int) bool {
-		return items[i]["seq"].(int64) > items[j]["seq"].(int64)
-	})
-	total := len(items)
-
-	// Cursor pagination (M-pending follow-up): the SPA's IncidentPage /
-	// AgentPage views load this on every poll, and the journal can hold tens
-	// of thousands of events. `cursor` is the opaque "<seq>" boundary of the
-	// previous page; the server skips entries with seq >= cursorSeq (the list
-	// is already sorted DESC, so strictly-older means strictly-smaller seq).
-	cursorSeq, cursorOK := parseSeqCursor(stringArg(req.Args, "cursor"))
-	if cursorOK {
-		filtered := items[:0]
-		for _, it := range items {
-			if it["seq"].(int64) >= cursorSeq {
-				continue
-			}
-			filtered = append(filtered, it)
-		}
-		items = filtered
-	}
-	var nextCursor string
-	if limit > 0 && len(items) > limit {
-		items = items[:limit]
-		nextCursor = strconv.FormatInt(items[limit-1]["seq"].(int64), 10)
-	}
-	result := map[string]any{
-		"slug": slug, "activity": items, "count": len(items), "total": total,
-	}
-	if nextCursor != "" {
-		result["next_cursor"] = nextCursor
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: result})
-}
 
 // handleAgentRepairStatus folds the journal into one agent's autonomous
 // self-repair history: queued/completed/failed doctor.auto_repair events,

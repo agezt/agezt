@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.30e activity summary move, 2026-10-08
+## Current checkpoint — W2.30f typed `agent_activity`, 2026-10-08
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -19,7 +19,9 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   succeeded; merge tree equalled the tested head.
 - W2.30d (typed `agent_graveyard`) is delivered through PR #712 at
   `53c7dd19e45e46498465b54cf211ae97c2f83251` after all 24 exact-head CI jobs.
-- W2.30e (activity summary move) is committed on `main` as a code commit plus a
+- W2.30e (activity summary move) is delivered through PR #713 at
+  `fb6a445051df0cf19b04c1ea3cb3bbd9600eec2d` after all 24 exact-head CI jobs.
+- W2.30f (typed `agent_activity`) is committed on `main` as a code commit plus a
   docs commit and published from `arch/w2-dispatch` (`gh pr list --head
   arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
@@ -44,9 +46,12 @@ harness under `.temp_files/architecture-delivery/w54/`.
 W2.30e moved the per-event activity text unchanged into `approster.ActivitySummary`
 (2M-event parity, 21/21 mutations):
 [55-w230-activity-summary-move-evidence.md](55-w230-activity-summary-move-evidence.md),
-harness under `.temp_files/architecture-delivery/w55/`. Next slice: bind
-`agent_activity` as a typed operation over roster-get + journal-range ports (keep
-`ref` → unknown agent → `limit` error order, `"activity":null` when empty, seq cursor).
+harness under `.temp_files/architecture-delivery/w55/`. W2.30f then bound
+`agent_activity` as a typed operation (792 native cases x20, 23/23 mutations):
+[56-w230-typed-agent-activity-evidence.md](56-w230-typed-agent-activity-evidence.md),
+harness under `.temp_files/architecture-delivery/w56/`. Next read candidates:
+`agent_repair_status` and `agent_escalations` (journal/board folds), then the
+lifecycle writes.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a
@@ -59,7 +64,7 @@ Preserve unrelated dirty changes: deletions of
 
 ### Next
 
-Continue roadmap §4.5/order 7: the remaining 15 roster commands (tombstone and
+Continue roadmap §4.5/order 7: the remaining 14 roster commands (tombstone and
 impact share the removal-cascade subsystems with `agent_remove`, so move them with
 that cascade rather than alone), status source
 collection and lifecycle ownership, then steer/runs/journal/edict/tenant/shutdown/
