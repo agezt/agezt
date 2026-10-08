@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.30d typed `agent_graveyard`, 2026-10-08
+## Current checkpoint — W2.30e activity summary move, 2026-10-08
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -17,7 +17,9 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
 - W2.30c (typed `agent_list`) is delivered through PR #711 at
   `b29dd422b1a77f4e01af2a474485b16096714065` after all 24 exact-head CI jobs
   succeeded; merge tree equalled the tested head.
-- W2.30d (typed `agent_graveyard`) is committed on `main` as a code commit plus a
+- W2.30d (typed `agent_graveyard`) is delivered through PR #712 at
+  `53c7dd19e45e46498465b54cf211ae97c2f83251` after all 24 exact-head CI jobs.
+- W2.30e (activity summary move) is committed on `main` as a code commit plus a
   docs commit and published from `arch/w2-dispatch` (`gh pr list --head
   arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
@@ -38,6 +40,13 @@ W2.30d moved `agent_graveyard` the same way (GraveyardService over roster list +
 clock, no HTTP route; 468 native cases x20, 22/22 mutations):
 [54-w230-typed-agent-graveyard-evidence.md](54-w230-typed-agent-graveyard-evidence.md),
 harness under `.temp_files/architecture-delivery/w54/`.
+
+W2.30e moved the per-event activity text unchanged into `approster.ActivitySummary`
+(2M-event parity, 21/21 mutations):
+[55-w230-activity-summary-move-evidence.md](55-w230-activity-summary-move-evidence.md),
+harness under `.temp_files/architecture-delivery/w55/`. Next slice: bind
+`agent_activity` as a typed operation over roster-get + journal-range ports (keep
+`ref` → unknown agent → `limit` error order, `"activity":null` when empty, seq cursor).
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a

@@ -812,6 +812,9 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Agent activity text has a shared application owner.** The activity timeline
+  and roster status describe journal events with the same unchanged wording.
+
 - **Agent graveyard uses a typed application operation.** Age filtering, its
   lenient day values, ordering and row fields are preserved. Already-canceled
   requests now stop before reading the roster.
