@@ -7,7 +7,6 @@
 package controlplane
 
 import (
-	"encoding/json"
 	"sort"
 	"strings"
 
@@ -52,15 +51,6 @@ func (s *Server) subagentImpact(children []roster.Profile, impact func(*Server, 
 		lists[i] = impact(s, child)
 	}
 	return approster.AggregateSubagentLabels(children, lists)
-}
-
-// agentImpactResult is the teardown preview as the generic object the native
-// retire path extends with its paused-trigger counts.
-func (s *Server) agentImpactResult(p roster.Profile) map[string]any {
-	raw, _ := json.Marshal(s.impactService().Summary(p))
-	var out map[string]any
-	_ = json.Unmarshal(raw, &out)
-	return out
 }
 
 func (s *Server) agentScheduleImpact(p roster.Profile) []string {

@@ -3,98 +3,14 @@
 package controlplane
 
 // Provenance: Control-plane roster lifecycle handlers
-//             (Retire/Revive/SetRetired/Remove) + agentRemoveCascade. Code extracted
+//             (Remove) + agentRemoveCascade. Code extracted
 //             from roster_lifecycle.go during the Day-93 god-file split. Public API
 //             unchanged.
 
 import (
-	"errors"
 	"fmt"
 	"net"
-
-	"github.com/agezt/agezt/kernel/roster"
 )
-
-func (s *Server) handleAgentRetire(conn net.Conn, req Request) {
-	s.handleAgentSetRetired(conn, req, true)
-}
-
-func (s *Server) handleAgentRevive(conn net.Conn, req Request) {
-	s.handleAgentSetRetired(conn, req, false)
-}
-
-func (s *Server) handleAgentSetRetired(conn net.Conn, req Request, retired bool) {
-	ref, err := requiredArgString(req.Args, "ref")
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	reason := stringArg(req.Args, "reason")
-	// Compute impact BEFORE the state change so a retire reports what it affected.
-	var impact []string
-	var impactSummary map[string]any
-	if retired {
-		if p, ok := s.k.Roster().Get(ref); ok {
-			impact = s.k.AgentImpact(p.Slug)
-			impactSummary = s.agentImpactResult(p)
-		}
-	} else if p, ok := s.k.Roster().Get(ref); ok {
-		if err := s.validateAgentHierarchyRefs(p); err != nil {
-			s.fail(conn, req, err)
-			return
-		}
-	}
-	p, err := s.k.SetProfileRetired(ref, retired, reason)
-	if err != nil {
-		if errors.Is(err, roster.ErrNotFound) {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown agent: " + ref})
-			return
-		}
-		s.fail(conn, req, err)
-		return
-	}
-	res := map[string]any{"profile": profileView(p)}
-	if retired {
-		pausedStanding, err := s.pauseAgentStanding(p.Slug)
-		if err != nil {
-			s.fail(conn, req, err)
-			return
-		}
-		pausedSchedules, err := s.pauseAgentSchedules(p.Slug)
-		if err != nil {
-			s.fail(conn, req, err)
-			return
-		}
-		res["impact"] = impact
-		res["impact_summary"] = impactSummary
-		res["standing_paused"] = pausedStanding
-		res["schedules_paused"] = pausedSchedules
-		if impactSummary != nil {
-			impactSummary["standing_paused"] = pausedStanding
-			impactSummary["schedules_paused"] = pausedSchedules
-		}
-		publishOperatorAction(s.k, "agent.retire", s.k.NewCorrelation(), map[string]any{
-			"agent":            p.Slug,
-			"reason":           p.RetiredReason,
-			"retired_ms":       p.RetiredMS,
-			"standing_paused":  pausedStanding,
-			"schedules_paused": pausedSchedules,
-			"impact_summary":   impactSummary,
-		})
-	} else {
-		pausedStanding := s.countAgentPausedStanding(p.Slug)
-		pausedSchedules := s.countAgentPausedSchedules(p.Slug)
-		res["standing_paused"] = pausedStanding
-		res["schedules_paused"] = pausedSchedules
-		publishOperatorAction(s.k, "agent.revive", s.k.NewCorrelation(), map[string]any{
-			"agent":            p.Slug,
-			"standing_paused":  pausedStanding,
-			"schedules_paused": pausedSchedules,
-		})
-	}
-	s.invalidateAgentListCache()
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: res})
-}
 
 func (s *Server) handleAgentRemove(conn net.Conn, req Request) {
 	ref, err := requiredArgString(req.Args, "ref")
