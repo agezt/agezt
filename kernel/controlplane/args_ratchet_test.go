@@ -26,7 +26,7 @@ var rawArgCastBaseline = map[string]int{
 	// to roster_wake.go with the Day 24 god file split #7.
 	"roster.go":            0,
 	"roster_crud.go":       1, // residual: enabled bool-or-string switch (moved from roster.go)
-	"roster_tombstone.go":  1, // residual: limit number-or-string (moved from roster.go)
+	"roster_tombstone.go":  0, // graveyard older_than_days codec moved to the typed app operation (W2.30d)
 	"roster_wake.go":       1, // residual: older_than_days number-or-string (moved from roster.go)
 	"schedule.go":          1, // residual: enabled bool-or-string switch
 	"workflow.go":          0, // residual: enabled/limit/async dual-type switches moved to workflow_handlers.go (Day 38 #1)

@@ -42,6 +42,7 @@ import (
 	appworld "github.com/agezt/agezt/kernel/app/world"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/roster"
 )
 
 type systemHostKey struct{}
@@ -49,6 +50,17 @@ type systemHostKey struct{}
 var rosterListOperations = func() []app.Operation {
 	ops, err := approster.ListOperations(func(ctx context.Context) *approster.ListService {
 		return ctx.Value(systemHostKey{}).(*Server).rosterListService()
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
+
+var rosterGraveyardOperations = func() []app.Operation {
+	ops, err := approster.GraveyardOperations(func(ctx context.Context) *approster.GraveyardService {
+		s := ctx.Value(systemHostKey{}).(*Server)
+		return approster.NewGraveyard(func() []roster.Profile { return s.k.Roster().List() }, nil)
 	})
 	if err != nil {
 		panic(err)
@@ -589,7 +601,7 @@ var configCenterOperations = func() []app.Operation {
 }()
 
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(rosterListOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, catalogOperations...)
 	operations = append(operations, providerOperations...)
@@ -634,6 +646,7 @@ func registeredAppOperations() []app.Operation {
 	operations = append(operations, webhookOperations...)
 	operations = append(operations, updateOperations...)
 	operations = append(operations, rosterListOperations...)
+	operations = append(operations, rosterGraveyardOperations...)
 	return append(operations, configCenterOperations...)
 }
 

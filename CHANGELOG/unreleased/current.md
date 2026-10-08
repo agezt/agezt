@@ -812,6 +812,10 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Agent graveyard uses a typed application operation.** Age filtering, its
+  lenient day values, ordering and row fields are preserved. Already-canceled
+  requests now stop before reading the roster.
+
 - **Agent list uses a typed application operation.** Profiles, every status field,
   paging, counts, cursor rounding and argument error precedence are preserved,
   including explicit null status values. Already-canceled requests now stop before
