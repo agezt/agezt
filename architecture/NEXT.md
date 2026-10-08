@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board native migration and exit evidence are complete. Workboard, OKR and storage/artifact native migrations plus exit evidence are implemented. Schedule native migration and exit evidence are complete. Standing seven-command native migration and exit evidence are complete. Workflow13-command native migration and exit evidence are complete. Pulse fourteen-command native migration and exit evidence are complete locally; Autonomy feed native migration and exit evidence are complete locally; Three tool read operations and native exit evidence are complete locally; all eight toolforge native operations and exit evidence are complete locally. All three toolbox native operations and exit evidence are complete locally. All six MCP native operations and exit evidence are complete locally. All eight market native operations and exit evidence are complete locally. Plugin inventory typed native migration and exit evidence are complete locally. Config read typed native migration and exit evidence are complete locally. All five settings native operations and exit evidence are complete locally. Configcenter native exit is complete locally. Channel inventory/account and OAuth service/state/provider/exchange ownership foundations are implemented, with registered-field removal/status race repairs. Gateway status/QR service foundations are implemented. Inbox service foundation is implemented. Send service foundation is implemented. All eleven channel operations have typed shared native bindings and exit evidence. Webhook observability typed native migration and exit evidence are complete locally. Continue §4.5 with tunnel premise measurement and update, then order7 and the wider roadmap. Cadence resident run execution remains W2.2/W4 work. Journal raw-ref GC protection remains later module work. W2.10g-i through W2.27m are delivered to main via PR #701 (8416d9c8, all24 exact-head CI jobs passed); W2.27n is delivered via PR #702 (a00b580c, all24 exact-head CI jobs passed); W2.27o is delivered via PR #703 (5703f2d5, all24 exact-head CI jobs passed); W2.27p is delivered via PR #704 (ca25f5c7, all24 exact-head CI jobs passed); W2.27q is delivered via PR #705 (c32e8852, all24 exact-head CI jobs passed); W2.28 awaits its own delivery. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board native migration and exit evidence are complete. Workboard, OKR and storage/artifact native migrations plus exit evidence are implemented. Schedule native migration and exit evidence are complete. Standing seven-command native migration and exit evidence are complete. Workflow13-command native migration and exit evidence are complete. Pulse fourteen-command native migration and exit evidence are complete locally; Autonomy feed native migration and exit evidence are complete locally; Three tool read operations and native exit evidence are complete locally; all eight toolforge native operations and exit evidence are complete locally. All three toolbox native operations and exit evidence are complete locally. All six MCP native operations and exit evidence are complete locally. All eight market native operations and exit evidence are complete locally. Plugin inventory typed native migration and exit evidence are complete locally. Config read typed native migration and exit evidence are complete locally. All five settings native operations and exit evidence are complete locally. Configcenter native exit is complete locally. Channel inventory/account and OAuth service/state/provider/exchange ownership foundations are implemented, with registered-field removal/status race repairs. Gateway status/QR service foundations are implemented. Inbox service foundation is implemented. Send service foundation is implemented. All eleven channel operations have typed shared native bindings and exit evidence. Webhook observability typed native migration and exit evidence are complete locally. Tunnel premise is measured: boot supervision exists, with no native operation to migrate. Update service foundation is implemented. Continue §4.5 with typed update binding and native exit, then order7 and the wider roadmap. Cadence resident run execution remains W2.2/W4 work. Journal raw-ref GC protection remains later module work. W2.10g-i through W2.27m are delivered to main via PR #701 (8416d9c8, all24 exact-head CI jobs passed); W2.27n is delivered via PR #702 (a00b580c, all24 exact-head CI jobs passed); W2.27o is delivered via PR #703 (5703f2d5, all24 exact-head CI jobs passed); W2.27p is delivered via PR #704 (ca25f5c7, all24 exact-head CI jobs passed); W2.27q is delivered via PR #705 (c32e8852, all24 exact-head CI jobs passed); W2.28 is delivered via PR #706 (1f5d5c36, all24 exact-head CI jobs passed); W2.29a awaits its own delivery. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -4020,6 +4020,34 @@ Web UI route bytes unchanged; stats has no invented HTTP route; no external webh
 Own docs/payload/head CI/protected merge still must close. **Next: measure tunnel's
 actual entry (no controlplane command exists), then update/order7/W3-W5.** Inbound
 webhook async convergence, dispatcher supervision and trigger unification remain.
+
+**W2.29a update service foundation/tunnel premise:** no native tunnel command exists;
+boot target/URL adapter and layer5 supervisor already use platform/sandbox. Boot
+helper20/full tunnel race20 prove current boundary; module lifecycle/exposure remains
+later work. app/update now owns disabled/check/apply validation/presentation, raw
+unverified manifest, background60s/no-deadline contexts and sentinel→callback→100ms
+restart ordering. Native selects current Backend/current version/primary drain/
+sentinel/delayed shutdown; callback codec and manual primary registrations remain.
+Public concrete setter API/nil behavior preserved through canonical interface nil.
+Naive return bridge red3 on early context cleanup and restart while socket blocked;
+correct callback binding passes20, including failed write versus writer panic,
+backend/reply panic and no added release provenance/signature.480 native cases20
+preserve raw response/backend effects/manifest/sentinel presence in normal/canceled
+contexts; sentinel clock and audit independently bounded/paired.19 valid service
+mutations/exact restoration plus caller-context-removal mutation red3; typed-nil
+fixture guard repaired and excluded from product findings. Lower HTTP cancellation
+fixture10s sleep exhausted the local3m repeat budget; explicit owned-handler release
+and context.Canceled assertion now pass20/race20 without reducing count/CI timeout.
+Full source/Go/race/build/vet/static/arch/dead/deps/format/generated gates pass.
+[Foundation evidence](49-w229-update-foundation-evidence.md). Check/apply results
+remain transitional maps; typed operations/shared canceled admission/after-writer-
+return ownership/native exit are next. Cleanup release alone cannot encode restart:
+returned write error schedules, writer panic does not. No release download/swap/live
+restart. W4.5 signing and order7/wider W3-W5 remain. Own protected delivery still open.
+
+Webhook W2.28 delivered via PR #706 at 1f5d5c36 on2026-10-08 after all24 exactb83aef38
+head CI jobs succeeded including CI/ci.yml. Shared main identical-tree fast-forward
+preserved update edits and unrelated report deletions. W2.29a is next delivery.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

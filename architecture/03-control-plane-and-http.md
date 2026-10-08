@@ -129,7 +129,7 @@ Flags semantics (from `dispatch.go` comments, enforced by `dispatch_registry_tes
 (`agentListCache*`, RWMutex, 1.5 s TTL keyed by roster content hash — `roster_list.go`), `standingFire func(id) bool`,
 `observers PulseObservers`, `tenants *tenant.Registry`, `configEnvPinned`, `cancelOnDisconnect`, `diskFree DiskFreeFunc`,
 `httpBindings []HTTPBinding`, `channels []ChannelInfo`, `channelSend ChannelSender`, `credChain string`, `boardStore *board.Store`
-+ `boardNotify` (the ONE shared board instance — M937), `updateSvc *update.Service`, channel-OAuth `channelOAuthState *app/channels.OAuthMemory` and service (sync.Once),
++ `boardNotify` (the ONE shared board instance — M937), `updateSvc app/update.Backend` (public concrete setter retained; nil canonicalized), channel-OAuth `channelOAuthState *app/channels.OAuthMemory` and service (sync.Once),
 ChatGPT login `chatgpt *chatgptauth.Manager` (chatgptOnce) + `provLogin` (provLoginMu) + `chatgptSync`.
 
 Two-phase DI (`deps.go`): `NewServerWithDeps(k, baseDir, Deps{ConfigEnvPinned, Board, BoardNotify, DiskFree, UpdateSvc, Tenants,
@@ -246,8 +246,8 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `state_list` | primary |  | `handleStateList` → state.go |  |
 | `status` | primary |  | `handleStatus` → status.go | `/api/status` |
 | `storage_stats` | primary |  | `handleStorageStats` → storage.go |  |
-| `update_apply` | primary |  | `handleUpdateApply` → update_control.go |  |
-| `update_check` | primary |  | `handleUpdateCheck` → update_control.go |  |
+| `update_apply` | primary |  | `Service.Apply` → app/update/service.go (native codec/manual binding retained) |  |
+| `update_check` | primary |  | `Service.Check` → app/update/service.go (native codec/manual binding retained) |  |
 
 #### Journal reads and journal-folded audit logs — `registerJournalLogCommands` (registry.go), 27 ops
 
@@ -739,7 +739,9 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `journal_stats.go` | `handleJournalStats`: per-kind counts, segments. |
 | `state.go` | `state_list`, `state_get` over the kernel state store. |
 | `handle_spend_attention.go` | `spend_today` + `attention` (pending approvals + pulse asks feed) for Mission Control. |
-| `update_control.go` | `update_check`, `update_apply` (drain → swap → restart; writes `update.sentinel`). |
+| `update_control.go` | Selected backend/current version/drain/sentinel/delayed shutdown and callback codec; app/update owns check/apply business. |
+| `app/update/backend.go` | Existing verified Check/Apply/DrainResult backend port. |
+| `app/update/service.go` | Disabled/validation/presentation/unverified manifest/background contexts and sentinel→response→100ms restart ordering. |
 | `sandbox.go` | `sandbox_list/file/delete` for code_exec projects under `sandbox/projects`, path-confined. |
 | `reaper.go` | `handleReaperScan`: dead-agent/stale-artifact detection (read-only). |
 | `redact_test_cmd.go` | `handleRedactTest`: runs the live redactor against a candidate string. |
@@ -1326,6 +1328,7 @@ and warns when no console password is set.
 - **Channel ACP typed binding (W2.27k, local delivery pending):** one GET/primary-only/read-only spec/shared dispatcher, native wrapper/manual row/final structToMap removed. Service/Web UI read route bytes retained. Explicit canceled preflight rejects before discovery; native integer terminal exact for declared counts.432 native cases20=216 byte-exact normal+216 changed cancellation,12 valid mutations/schema/auth/source/tenant/old-current integer20/full Go/race gates pass;242 packages135 imports13 calls,133 kernel packages/2868 Go files. Remaining channel typed binding/native exit/protected publication remain.
 - **Channel ACP inventory foundation (W2.27j, local delivery pending):** app owns active environment/trim/default cached discovery/caller context/full typed inventory; native args ignored/manual primary read-only/legacy structToMap codec retained.432 byte-exact native cases20/source-cache-context/full files/head/provider checks,10 valid mutations/full model/default source20/tenant no-discovery denial/full Go/race gates;242 packages135 imports13 calls,133 kernel packages/2866 Go files. Official ratchet removes CP catalog import; typed communication binding/native exit/protected publication remain.
 - **Channel outbound send foundation (W2.27i, local delivery pending):** app Outbound owns validation/normalization/selected sender/background30s/error/result; terminal callback retains measured context through socket write. Native current sender factory/lenient codecs/manual primary audit retained.160 byte-exact native cases20/effects/files/audit privacy/deadline/provider checks,15 valid mutations/before-after lifetime/current sender/isolation/tenant/source20/full Go/race gates pass;242 packages136 imports13 calls,133 kernel packages/2863 Go files. ACP inventory/typed binding/native exit/protected publication remain.
+- **Update foundation/tunnel premise (W2.29a, local):** app owns check/apply business over selected verified backend; native codec/manual bindings retained.480 native cases20/lifecycle20/naive bridge red3/19 mutations+cancel mutation3/full gates; returned write failure still restarts, write panic does not. Nil concrete setter preserved. Tunnel only has boot adapter/layer5 supervision; existing helper20/source race20 pass. [Evidence](49-w229-update-foundation-evidence.md). Webhook delivered via PR706 at1f5d5c36; typed update/native exit/own delivery/order7/W3-W5 remain.
 - **Webhook observability/native exit (W2.28, local):** two typed tenant reads use selected appHost journal; delivery/stats use app services/shared projection; native handlers/manual rows removed.240 raw native cases20, canceled red3/after20, real tenant isolation/race/source20,27 mutations/full gates; no-I/O24.6–27.8us. [Evidence](48-w228-exit-evidence.md). Send delivered via PR705 atc32e8852; own delivery/tunnel/update/order7/W3-W5 remain.
 - **Channel send/native exit (W2.27q, local):** all eleven channel operations use typed shared native binding. Send terminal scope preserves background30s context through socket delivery and immediate sender-panic cleanup, with mandatory audit/canceled admission; empty registrar removed. Naive bridge proof red3/after20,160 cases20/34 mutations/lifetime/race/full gates and eleven-operation exit tests. [Evidence](47-w227-exit-evidence.md). Inbox delivered via PR704 atca25f5c7; remaining order6/7/W3-W5 and own main publication remain.
 - **Channel inbox typed binding (W2.27p, local):** typed root/thread/message schema, one primary ReadOnly GET and legacy input/error precedence. Wrapper/manual row removed; selected journal/Web UI unchanged. Native codec preserves nested member order/int64; canceled preflight stops Range.200 cases20=100 raw wire exact+100 canceled,32 valid mutations/schema/native/source/JSON limit/selected journal/range precedence20/full gates. Gateway delivered via PR703 at5703f2d5; send/exit and own main delivery remain.
