@@ -19,10 +19,6 @@ import (
 	"github.com/agezt/agezt/kernel/standing"
 )
 
-func isMailboxWakeSubject(subject string) bool {
-	return subject == "board" || strings.HasPrefix(subject, "board.")
-}
-
 type agentPolicyDenials = approster.PolicyDenials
 
 func applyActiveWakeContext(row agentLiveStatus, kind event.Kind, pl map[string]any) agentLiveStatus {

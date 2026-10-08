@@ -177,36 +177,3 @@ func escalationSourceFromText(text string) string {
 	}
 	return ""
 }
-
-func joinActivityParts(parts ...string) string {
-	out := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if part = strings.TrimSpace(part); part != "" {
-			out = append(out, part)
-		}
-	}
-	return strings.Join(out, " · ")
-}
-
-func wakeRunbookActivitySuffix(pl map[string]any) string {
-	raw, _ := pl["autonomy_runbook"].(map[string]any)
-	if len(raw) == 0 {
-		return ""
-	}
-	parts := []string{
-		plString(raw, "trigger_contract"),
-		plString(raw, "route_contract"),
-		plString(raw, "recovery_contract"),
-		plString(raw, "sleep_contract"),
-	}
-	clean := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if part = strings.TrimSpace(part); part != "" {
-			clean = append(clean, part)
-		}
-	}
-	if len(clean) == 0 {
-		return ""
-	}
-	return "contract " + strings.Join(clean, "/")
-}

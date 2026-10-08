@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: MIT
 
-package controlplane
+package roster
 
-// Provenance: Agent activity summary: agentActivitySummary (the giant 425-line text
-//             renderer). Code extracted from roster_activity_text.go during the
-//             Day-77 god-file split. Public API unchanged.
+// Agent activity summary text: one human line per journal event attributable
+// to an agent. Moved unchanged from the native control plane (W2.30e) so the
+// activity timeline and the status collector share one application owner.
 
 import (
-	"github.com/agezt/agezt/kernel/event"
 	"strconv"
 	"strings"
+
+	"github.com/agezt/agezt/kernel/event"
 )
 
-func agentActivitySummary(e *event.Event, pl map[string]any, slug string, runCorr map[string]bool) (string, bool) {
+func ActivitySummary(e *event.Event, pl map[string]any, slug string, runCorr map[string]bool) (string, bool) {
 	if e.Subject == "doctor.auto_repair" && e.Kind == event.KindInfo && plString(pl, "agent") == slug {
 		mode := strings.TrimSpace(plString(pl, "mode"))
 		phase := strings.TrimSpace(plString(pl, "phase"))
@@ -216,7 +217,7 @@ func agentActivitySummary(e *event.Event, pl map[string]any, slug string, runCor
 		contract := wakeRunbookActivitySuffix(pl)
 		// A board.* trigger subject is the mailbox-wake route: name the message
 		// (and sender) that woke the agent rather than the standing order id.
-		if isMailboxWakeSubject(plString(pl, "trigger_subject")) {
+		if IsMailboxWakeSubject(plString(pl, "trigger_subject")) {
 			tp, _ := pl["trigger_payload"].(map[string]any)
 			label := "mailbox wake fired"
 			if from := strings.TrimSpace(plString(tp, "from")); from != "" {
@@ -435,4 +436,96 @@ func agentActivitySummary(e *event.Event, pl map[string]any, slug string, runCor
 		}
 	}
 	return "", false
+}
+
+func agentRetryPolicySummary(pl map[string]any) string {
+	var bits []string
+	if delay := plInt(pl, "delay_ms"); delay > 0 {
+		bits = append(bits, "delay "+strconv.Itoa(delay)+"ms")
+	}
+	if backoff := strings.TrimSpace(plString(pl, "backoff")); backoff != "" {
+		bits = append(bits, "backoff "+backoff)
+	}
+	if retryOn := plStrings(pl, "retry_on"); len(retryOn) > 0 {
+		bits = append(bits, "retry_on "+strings.Join(retryOn, ","))
+	}
+	if len(bits) == 0 {
+		return ""
+	}
+	return " (" + strings.Join(bits, "; ") + ")"
+}
+
+func pausedTriggerSummary(pl map[string]any) string {
+	var bits []string
+	if n := plInt(pl, "standing_paused"); n > 0 {
+		bits = append(bits, strconv.Itoa(n)+" standing paused")
+	}
+	if n := plInt(pl, "schedules_paused"); n > 0 {
+		bits = append(bits, strconv.Itoa(n)+" schedules paused")
+	}
+	return strings.Join(bits, ", ")
+}
+
+func removalCleanupSummary(pl map[string]any) string {
+	var bits []string
+	fields := []struct {
+		key   string
+		label string
+	}{
+		{"standing_removed", "standing removed"},
+		{"schedules_removed", "schedules removed"},
+		{"memories_forgotten", "private memories forgotten"},
+		{"authored_memories_forgotten", "authored memories forgotten"},
+		{"skills_archived", "skills archived"},
+		{"configs_deleted", "configs deleted"},
+		{"configs_access_pruned", "shared config access pruned"},
+		{"workspaces_deleted", "workspaces deleted"},
+		{"subagents_retired", "sub-agents retired"},
+		{"mailbox_messages_retained", "mailbox/audit messages retained"},
+		{"workflow_refs_retained", "workflow refs retained"},
+		{"subagent_workflow_refs_retained", "sub-agent workflow refs retained"},
+	}
+	for _, f := range fields {
+		if n := plInt(pl, f.key); n > 0 {
+			bits = append(bits, strconv.Itoa(n)+" "+f.label)
+		}
+	}
+	return strings.Join(bits, ", ")
+}
+
+func joinActivityParts(parts ...string) string {
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return strings.Join(out, " · ")
+}
+
+func wakeRunbookActivitySuffix(pl map[string]any) string {
+	raw, _ := pl["autonomy_runbook"].(map[string]any)
+	if len(raw) == 0 {
+		return ""
+	}
+	parts := []string{
+		plString(raw, "trigger_contract"),
+		plString(raw, "route_contract"),
+		plString(raw, "recovery_contract"),
+		plString(raw, "sleep_contract"),
+	}
+	clean := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part = strings.TrimSpace(part); part != "" {
+			clean = append(clean, part)
+		}
+	}
+	if len(clean) == 0 {
+		return ""
+	}
+	return "contract " + strings.Join(clean, "/")
+}
+
+func IsMailboxWakeSubject(subject string) bool {
+	return subject == "board" || strings.HasPrefix(subject, "board.")
 }
