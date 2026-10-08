@@ -812,6 +812,10 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Webhook delivery observability uses shared application operations.** Log and
+  statistics preserve tenant selection, paging and result fields; canceled requests
+  now stop before reading the journal.
+
 - **Channel send uses typed application operations.** The sender context stays
   alive through terminal response delivery and is released after failed writes
   or panics. Canceled requests and failed audit admission stop before sending.
