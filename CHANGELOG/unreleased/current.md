@@ -812,6 +812,10 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Update checks and apply orchestration use an application service.** Existing
+  disabled/error responses and restart timing remain; updater contexts stay alive
+  through response writes, and no release trust or signing policy is changed.
+
 - **Webhook delivery observability uses shared application operations.** Log and
   statistics preserve tenant selection, paging and result fields; canceled requests
   now stop before reading the journal.
