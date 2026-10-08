@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.30c typed `agent_list`, 2026-10-08
+## Current checkpoint — W2.30d typed `agent_graveyard`, 2026-10-08
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -14,8 +14,11 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   at `74727b6bd72c2d05da8db0e7f0c60d47e7cd561c` after all 24 exact-head CI jobs
   succeeded (run 37750892298); the merge tree equalled the tested head and local
   `main` fast-forwarded with the W2.30c work preserved byte-for-byte.
-- W2.30c (typed `agent_list`) is committed on `main` as a code commit plus a docs
-  commit and published from `arch/w2-dispatch` (`gh pr list --head
+- W2.30c (typed `agent_list`) is delivered through PR #711 at
+  `b29dd422b1a77f4e01af2a474485b16096714065` after all 24 exact-head CI jobs
+  succeeded; merge tree equalled the tested head.
+- W2.30d (typed `agent_graveyard`) is committed on `main` as a code commit plus a
+  docs commit and published from `arch/w2-dispatch` (`gh pr list --head
   arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
 
@@ -31,6 +34,11 @@ already-canceled admissions), 29/29 mutations and the full gates pass. Details:
 [53-w230-typed-agent-list-evidence.md](53-w230-typed-agent-list-evidence.md);
 harness scripts/logs under `.temp_files/architecture-delivery/w53/`.
 
+W2.30d moved `agent_graveyard` the same way (GraveyardService over roster list +
+clock, no HTTP route; 468 native cases x20, 22/22 mutations):
+[54-w230-typed-agent-graveyard-evidence.md](54-w230-typed-agent-graveyard-evidence.md),
+harness under `.temp_files/architecture-delivery/w54/`.
+
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a
 compile-once validator in `platform/schema` would benefit every migrated operation.
@@ -42,7 +50,9 @@ Preserve unrelated dirty changes: deletions of
 
 ### Next
 
-Continue roadmap §4.5/order 7: the remaining 16 roster commands, status source
+Continue roadmap §4.5/order 7: the remaining 15 roster commands (tombstone and
+impact share the removal-cascade subsystems with `agent_remove`, so move them with
+that cascade rather than alone), status source
 collection and lifecycle ownership, then steer/runs/journal/edict/tenant/shutdown/
 remote. Wider run/tool adapter convergence, W3 modules and journal raw-ref GC, W4
 triggers/channel supervision/config/signing, and W5 generated SDK/frontend
