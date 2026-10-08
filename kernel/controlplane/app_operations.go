@@ -69,6 +69,21 @@ var rosterProfileWriteOperations = func() []app.Operation {
 	return ops
 }()
 
+var rosterWakeOperations = func() []app.Operation {
+	ops, err := approster.WakeOperations(func(ctx context.Context) *approster.WakeService {
+		s := ctx.Value(systemHostKey{}).(*Server)
+		return approster.NewWake(s.k.Roster().Get, s.k.NewCorrelation, func(subject, corr string, payload map[string]any) {
+			publishOperatorAction(s.k, subject, corr, payload)
+		}, func(corr string, p roster.Profile, intent, reason string, l approster.WakeLineage) {
+			go s.runAgentWake(corr, p, intent, reason, operatorWakeLineage{incidentID: l.IncidentID, rootIncidentID: l.RootIncidentID, parentIncidentID: l.ParentIncidentID})
+		})
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
+
 var rosterTaskUpdateOperations = func() []app.Operation {
 	ops, err := approster.TaskUpdateOperations(func(ctx context.Context) *approster.TaskUpdateService {
 		s := ctx.Value(systemHostKey{}).(*Server)
@@ -683,7 +698,7 @@ var configCenterOperations = func() []app.Operation {
 }()
 
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(rosterTaskUpdateOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(rosterTaskUpdateOperations)+len(rosterWakeOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, catalogOperations...)
 	operations = append(operations, providerOperations...)
@@ -735,6 +750,7 @@ func registeredAppOperations() []app.Operation {
 	operations = append(operations, rosterSetEnabledOperations...)
 	operations = append(operations, rosterProfileWriteOperations...)
 	operations = append(operations, rosterTaskUpdateOperations...)
+	operations = append(operations, rosterWakeOperations...)
 	return append(operations, configCenterOperations...)
 }
 

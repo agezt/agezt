@@ -9,8 +9,6 @@ package controlplane
 // manager).
 
 import (
-	"strings"
-
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/roster"
 )
@@ -22,13 +20,5 @@ func (s *Server) validateAgentHierarchyRefs(p roster.Profile) error {
 }
 
 func managedSubagentDirectCallError(p roster.Profile, action string) string {
-	manager := strings.TrimSpace(p.ParentAgent)
-	if manager == "" {
-		manager = strings.TrimSpace(p.OwnerAgent)
-	}
-	hint := "route the work through its parent/owner agent"
-	if manager != "" {
-		hint = "wake " + manager + " or delegate through it"
-	}
-	return "agent " + p.Slug + " is a managed sub-agent and cannot be " + action + " directly; " + hint
+	return approster.ManagedDirectCallError(p, action)
 }
