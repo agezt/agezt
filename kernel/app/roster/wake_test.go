@@ -18,7 +18,7 @@ import (
 
 type wakeLaunch struct {
 	corr, slug, intent, reason string
-	lineage                    WakeLineage
+	lineage                    IncidentLineage
 }
 
 type wakeCalls struct {
@@ -50,7 +50,7 @@ func wakeFixture() (*WakeService, *wakeCalls) {
 	}, func(subject, corr string, payload map[string]any) {
 		calls.steps = append(calls.steps, "publish:"+subject+":"+corr)
 		calls.published = append(calls.published, payload)
-	}, func(corr string, p core.Profile, intent, reason string, lineage WakeLineage) {
+	}, func(corr string, p core.Profile, intent, reason string, lineage IncidentLineage) {
 		calls.steps = append(calls.steps, "launch:"+corr)
 		calls.launches = append(calls.launches, wakeLaunch{corr, p.Slug, intent, reason, lineage})
 	}), calls
@@ -112,7 +112,7 @@ func TestRosterWakeJournalsThenLaunches(t *testing.T) {
 	if !reflect.DeepEqual(calls.published, []map[string]any{want}) || !strings.HasSuffix(calls.published[0]["intent"].(string), "…") || len([]rune(calls.published[0]["intent"].(string))) > 241 {
 		t.Fatal("requested payload", calls.published)
 	}
-	if !reflect.DeepEqual(calls.launches, []wakeLaunch{{"corr-1", "ops", long, "why", WakeLineage{"i", "r", "p"}}}) {
+	if !reflect.DeepEqual(calls.launches, []wakeLaunch{{"corr-1", "ops", long, "why", IncidentLineage{"i", "r", "p"}}}) {
 		t.Fatal("launch gets the full intent", calls.launches)
 	}
 	// The result names the resolved slug, not the caller's ref.
@@ -125,7 +125,7 @@ func TestRosterWakeJournalsThenLaunches(t *testing.T) {
 	if _, err := wakeRun(t, s, `{"ref":"ops","reason":7,"incident_id":true,"root_incident_id":{},"parent_incident_id":null}`); err != nil {
 		t.Fatal(err)
 	}
-	if calls.published[0]["reason"] != "" || calls.published[0]["incident_id"] != "" || calls.published[0]["root_incident_id"] != "" || calls.published[0]["parent_incident_id"] != "" || calls.launches[0].intent != BuildOperatorWakeIntent("", "ops", "", WakeLineage{}) {
+	if calls.published[0]["reason"] != "" || calls.published[0]["incident_id"] != "" || calls.published[0]["root_incident_id"] != "" || calls.published[0]["parent_incident_id"] != "" || calls.launches[0].intent != BuildOperatorWakeIntent("", "ops", "", IncidentLineage{}) {
 		t.Fatal("lenient args", calls.published, calls.launches)
 	}
 }
@@ -134,20 +134,20 @@ func TestRosterWakeDefaultIntent(t *testing.T) {
 	const tail = "Inspect your durable instructions, memory, mailbox, tasklist, and current health context. Do the next concrete recovery step and then stop."
 	for _, tc := range []struct {
 		explicit, reason string
-		lineage          WakeLineage
+		lineage          IncidentLineage
 		want             string
 	}{
-		{" do it ", "r", WakeLineage{IncidentID: "i"}, "do it"},
-		{"  ", "", WakeLineage{}, "Manual wake-up.\nYou are agent ops. You were explicitly woken by the operator/control plane.\n" + tail},
-		{"", " r ", WakeLineage{IncidentID: " i ", RootIncidentID: " root ", ParentIncidentID: "p"}, "Manual wake-up.\nYou are agent ops. You were explicitly woken by the operator/control plane.\nReason: r\nIncident root: root\nIncident hop: i\n" + tail},
-		{"", "", WakeLineage{RootIncidentID: "root"}, "Manual wake-up.\nYou are agent ops. You were explicitly woken by the operator/control plane.\nIncident root: root\n" + tail},
+		{" do it ", "r", IncidentLineage{IncidentID: "i"}, "do it"},
+		{"  ", "", IncidentLineage{}, "Manual wake-up.\nYou are agent ops. You were explicitly woken by the operator/control plane.\n" + tail},
+		{"", " r ", IncidentLineage{IncidentID: " i ", RootIncidentID: " root ", ParentIncidentID: "p"}, "Manual wake-up.\nYou are agent ops. You were explicitly woken by the operator/control plane.\nReason: r\nIncident root: root\nIncident hop: i\n" + tail},
+		{"", "", IncidentLineage{RootIncidentID: "root"}, "Manual wake-up.\nYou are agent ops. You were explicitly woken by the operator/control plane.\nIncident root: root\n" + tail},
 	} {
 		if got := BuildOperatorWakeIntent(tc.explicit, "ops", tc.reason, tc.lineage); got != tc.want {
 			t.Fatalf("%q\nwant %q", got, tc.want)
 		}
 	}
 	s, calls := wakeFixture()
-	if _, err := wakeRun(t, s, `{"ref":"ops","intent":"   ","reason":"why","root_incident_id":"r"}`); err != nil || calls.launches[0].intent != BuildOperatorWakeIntent("", "ops", "why", WakeLineage{RootIncidentID: "r"}) {
+	if _, err := wakeRun(t, s, `{"ref":"ops","intent":"   ","reason":"why","root_incident_id":"r"}`); err != nil || calls.launches[0].intent != BuildOperatorWakeIntent("", "ops", "why", IncidentLineage{RootIncidentID: "r"}) {
 		t.Fatal("blank intent falls back", calls.launches, err)
 	}
 }
