@@ -812,6 +812,9 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Roster status presentation has a shared application owner.** Health, repair,
+  routing, wake and active-run details retain their current precedence and fields.
+
 - **Update commands use typed application operations.** Canceled requests and
   failed audit admission stop before apply. Successful apply retains its sentinel
   and schedules restart after the terminal response writer returns.
