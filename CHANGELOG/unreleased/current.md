@@ -816,6 +816,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Retiring and reviving agents use typed application operations.** The
+  impact preview, paused triggers, hierarchy re-check, errors and journaled
+  events are unchanged, and both writes are operation-audited before they are
+  applied. Already-canceled requests now stop before audit or any change.
+
 - **The agent teardown preview and tombstone use typed application operations.**
   Every subsystem list and count, the sub-agent labels and the tombstone
   footprint are unchanged. Already-canceled requests are now rejected.
