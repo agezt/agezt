@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.30f typed `agent_activity`, 2026-10-08
+## Current checkpoint — W2.30g typed `agent_repair_status`, 2026-10-08
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -21,10 +21,12 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   `53c7dd19e45e46498465b54cf211ae97c2f83251` after all 24 exact-head CI jobs.
 - W2.30e (activity summary move) is delivered through PR #713 at
   `fb6a445051df0cf19b04c1ea3cb3bbd9600eec2d` after all 24 exact-head CI jobs.
-- W2.30f (typed `agent_activity`) is committed on `main` as a code commit plus a
-  docs commit and published from `arch/w2-dispatch` (`gh pr list --head
-  arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
-  then merge normally with a matching head and fast-forward `main`.
+- W2.30f (typed `agent_activity`) is delivered through PR #714 at
+  `bb8cc8fa64c06e8d70a24b61fceec0ba4e9a47c4` after all 24 exact-head CI jobs.
+- W2.30g (typed `agent_repair_status` + cursor current-state fix) is committed on
+  `main` as a code commit plus a docs commit and published from `arch/w2-dispatch`
+  (`gh pr list --head arch/w2-dispatch`). Require all 24 exact-head jobs including
+  `CI` and `ci.yml`, then merge normally with a matching head and fast-forward `main`.
 
 ### W2.30c summary
 
@@ -49,9 +51,13 @@ W2.30e moved the per-event activity text unchanged into `approster.ActivitySumma
 harness under `.temp_files/architecture-delivery/w55/`. W2.30f then bound
 `agent_activity` as a typed operation (792 native cases x20, 23/23 mutations):
 [56-w230-typed-agent-activity-evidence.md](56-w230-typed-agent-activity-evidence.md),
-harness under `.temp_files/architecture-delivery/w56/`. Next read candidates:
-`agent_repair_status` and `agent_escalations` (journal/board folds), then the
-lifecycle writes.
+harness under `.temp_files/architecture-delivery/w56/`. W2.30g bound
+`agent_repair_status` and fixed a real bug: the legacy in-place cursor filter
+(`rows[:0]`) overwrote the full row list, so `latest`/`next_eligible_ms`/`next_action`
+moved with the page (native regression red 3/3, now green):
+[57-w230-typed-agent-repair-status-evidence.md](57-w230-typed-agent-repair-status-evidence.md),
+harness under `.temp_files/architecture-delivery/w57/`. Next read candidate:
+`agent_escalations` (board + journal fold), then the lifecycle writes.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a
@@ -64,7 +70,7 @@ Preserve unrelated dirty changes: deletions of
 
 ### Next
 
-Continue roadmap §4.5/order 7: the remaining 14 roster commands (tombstone and
+Continue roadmap §4.5/order 7: the remaining 13 roster commands (tombstone and
 impact share the removal-cascade subsystems with `agent_remove`, so move them with
 that cascade rather than alone), status source
 collection and lifecycle ownership, then steer/runs/journal/edict/tenant/shutdown/

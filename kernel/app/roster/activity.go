@@ -17,13 +17,19 @@ import (
 	core "github.com/agezt/agezt/kernel/roster"
 )
 
-// ActivityRequest keeps every argument raw so the legacy order holds: ref is
+// RefPageRequest keeps every argument raw so the legacy order holds: ref is
 // validated and resolved before limit, and cursor is read leniently.
-type ActivityRequest struct {
+type RefPageRequest struct {
 	Ref    json.RawMessage `json:"ref,omitempty"`
 	Limit  json.RawMessage `json:"limit,omitempty"`
 	Cursor json.RawMessage `json:"cursor,omitempty"`
 }
+
+// ActivityRequest and RepairStatusRequest share the per-agent page arguments.
+type (
+	ActivityRequest     = RefPageRequest
+	RepairStatusRequest = RefPageRequest
+)
 
 func rawValue(raw json.RawMessage) (any, bool) {
 	if len(raw) == 0 {
@@ -34,7 +40,7 @@ func rawValue(raw json.RawMessage) (any, bool) {
 	return v, true
 }
 
-func (r ActivityRequest) ref() (string, error) {
+func (r RefPageRequest) ref() (string, error) {
 	v, present := rawValue(r.Ref)
 	ref, ok := v.(string)
 	if present && !ok {
@@ -46,8 +52,8 @@ func (r ActivityRequest) ref() (string, error) {
 	return ref, nil
 }
 
-func (r ActivityRequest) limit() (int, error) {
-	limit := 50
+func (r RefPageRequest) limit(def, max int) (int, error) {
+	limit := def
 	if v, present := rawValue(r.Limit); present {
 		f, ok := v.(float64)
 		if !ok {
@@ -57,13 +63,13 @@ func (r ActivityRequest) limit() (int, error) {
 			limit = int(f)
 		}
 	}
-	if limit > 500 {
-		limit = 500
+	if limit > max {
+		limit = max
 	}
 	return limit, nil
 }
 
-func (r ActivityRequest) cursor() (int64, bool) {
+func (r RefPageRequest) cursor() (int64, bool) {
 	v, _ := rawValue(r.Cursor)
 	raw, _ := v.(string)
 	raw = strings.TrimSpace(raw)
@@ -114,7 +120,7 @@ func (s *ActivityService) Activity(_ context.Context, in ActivityRequest) (Activ
 		return ActivityOutput{}, errors.New("unknown agent: " + ref)
 	}
 	slug := p.Slug
-	limit, err := in.limit()
+	limit, err := in.limit(50, 500)
 	if err != nil {
 		return ActivityOutput{}, err
 	}
