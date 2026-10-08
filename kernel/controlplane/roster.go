@@ -15,34 +15,6 @@ import (
 
 type agentRepairRow = approster.RepairRow
 
-type agentEscalationRow struct {
-	MessageID         string
-	From              string
-	To                string
-	Text              string
-	TSUnixMS          int64
-	Status            string
-	ReplyCount        int
-	Acked             bool
-	SourceAgent       string
-	Mode              string
-	WakePhase         string
-	WakeReason        string
-	WakeError         string
-	WakeCorrelationID string
-	Fingerprint       string
-	Resolution        string
-	ResolutionSummary string
-	DelegateTo        string
-	OriginKind        string
-	OriginAgent       string
-	RootAgent         string
-	ChainDepth        int
-	IncidentID        string
-	RootIncidentID    string
-	ParentIncidentID  string
-}
-
 type agentRepairSummary = approster.RepairSummary
 
 type agentRoutingPressure = approster.RoutingPressure
@@ -96,7 +68,6 @@ func registerRosterCommands() {
 		commandSpec{Cmd: CmdAgentImpact, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleAgentImpact(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdAgentTombstone, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleAgentTombstone(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdAgentRepair, Handler: func(dc *DispatchCtx) { dc.S.handleAgentRepair(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdAgentEscalations, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleAgentEscalations(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdAgentWake, Handler: func(dc *DispatchCtx) { dc.S.handleAgentWake(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdAgentResolve, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleAgentResolve(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdAgentRetire, Handler: func(dc *DispatchCtx) { dc.S.handleAgentRetire(dc.Conn, dc.Req) }},
