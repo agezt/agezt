@@ -812,6 +812,10 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Update commands use typed application operations.** Canceled requests and
+  failed audit admission stop before apply. Successful apply retains its sentinel
+  and schedules restart after the terminal response writer returns.
+
 - **Update checks and apply orchestration use an application service.** Existing
   disabled/error responses and restart timing remain; updater contexts stay alive
   through response writes, and no release trust or signing policy is changed.
