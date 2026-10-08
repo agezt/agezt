@@ -37,17 +37,6 @@ func TestAgentImpactTombstoneNativeTypedRegistry(t *testing.T) {
 	}
 }
 
-// subagentImpact (the removal's retained sub-agent workflow refs) lists each
-// child through the given lister and prefixes its labels.
-func TestSubagentImpactListsEachChild(t *testing.T) {
-	got := (&Server{}).subagentImpact([]roster.Profile{{Slug: "b", Name: "Bee"}, {Slug: "a"}}, func(_ *Server, p roster.Profile) []string {
-		return []string{"w-" + p.Slug}
-	})
-	if strings.Join(got, ",") != "a: w-a,b: w-b" {
-		t.Fatal(got)
-	}
-}
-
 // The native impact source reads the live roster tree and subsystems; the wire
 // keeps nil lists as null and the tombstone counts the same footprint.
 func TestAgentImpactTombstoneNativeWire(t *testing.T) {

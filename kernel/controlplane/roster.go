@@ -27,9 +27,3 @@ type agentWakeStatus = approster.WakeStatus
 type agentLiveStatus = approster.LiveStatus
 
 type agentLastActivity = approster.LastActivity
-
-func registerRosterCommands() {
-	register(
-		commandSpec{Cmd: CmdAgentRemove, Handler: func(dc *DispatchCtx) { dc.S.handleAgentRemove(dc.Conn, dc.Req) }},
-	)
-}

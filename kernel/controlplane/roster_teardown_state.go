@@ -249,5 +249,3 @@ func configEntryBelongsToAgent(e *configcenter.ConfigEntry, slug string) bool {
 	}
 	return false
 }
-
-// registerRosterCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
