@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	core "github.com/agezt/agezt/kernel/update"
 )
 
@@ -16,8 +17,26 @@ type ApplyInput struct {
 	DecodeError                 error
 }
 
-// Service retains callback delivery until native response lifetime is represented
-// by the shared operation boundary. Ports never expose a real binary to tests.
+type ReleaseOutput struct {
+	Version string `json:"version"`
+	SHA256  string `json:"sha256"`
+	URL     string `json:"url"`
+	Notes   string `json:"notes"`
+}
+type CheckOutput struct {
+	Current  string         `json:"current"`
+	Update   *ReleaseOutput `json:"update"`
+	UpToDate bool           `json:"up_to_date"`
+	Status   *string        `json:"status,omitempty"`
+}
+type ApplyOutput struct {
+	Applied bool    `json:"applied"`
+	Error   *string `json:"error,omitempty"`
+	Version *string `json:"version,omitempty"`
+}
+
+// Service owns presentation and effect ordering. Direct callback lifetime is
+// retained; terminal ports extend ownership through transport response writing.
 type Service struct {
 	backend  Backend
 	current  string
@@ -30,33 +49,43 @@ func New(backend Backend, current string, drain func(context.Context, time.Durat
 	return &Service{backend: backend, current: current, drain: drain, sentinel: sentinel, restart: restart}
 }
 
-func (s *Service) Check(_ context.Context, reply func(map[string]any, error)) {
+func (s *Service) Check(parent context.Context, reply func(CheckOutput, error)) {
 	if s.backend == nil {
-		reply(map[string]any{"current": s.current, "update": nil, "up_to_date": true, "status": "update is disabled"}, nil)
+		status := "update is disabled"
+		reply(CheckOutput{Current: s.current, UpToDate: true, Status: &status}, nil)
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
+	retained := false
+	defer func() {
+		if !retained {
+			cancel()
+		}
+	}()
+	deliver := func(out CheckOutput, err error) {
+		retained = opapi.DeferTerminalCleanup(parent, cancel)
+		reply(out, err)
+	}
 	result, err := s.backend.Check(ctx)
 	if err != nil {
-		reply(nil, fmt.Errorf("update check failed: %w", err))
+		deliver(CheckOutput{}, fmt.Errorf("update check failed: %w", err))
 		return
 	}
 	if result.Update == nil {
-		reply(map[string]any{"current": result.Current, "update": nil, "up_to_date": true}, nil)
+		deliver(CheckOutput{Current: result.Current, UpToDate: true}, nil)
 		return
 	}
 	info := result.Update
-	reply(map[string]any{"current": result.Current, "up_to_date": false, "update": map[string]any{"version": info.Version, "sha256": info.SHA256, "url": info.URL, "notes": info.Notes}}, nil)
+	deliver(CheckOutput{Current: result.Current, Update: &ReleaseOutput{Version: info.Version, SHA256: info.SHA256, URL: info.URL, Notes: info.Notes}}, nil)
 }
 
-func (s *Service) Apply(_ context.Context, in ApplyInput, reply func(map[string]any, error)) {
+func (s *Service) Apply(parent context.Context, in ApplyInput, reply func(ApplyOutput, error)) {
 	if s.backend == nil {
-		reply(nil, errors.New("update is disabled"))
+		reply(ApplyOutput{}, errors.New("update is disabled"))
 		return
 	}
 	if in.DecodeError != nil {
-		reply(nil, in.DecodeError)
+		reply(ApplyOutput{}, in.DecodeError)
 		return
 	}
 	var missing []string
@@ -70,23 +99,33 @@ func (s *Service) Apply(_ context.Context, in ApplyInput, reply func(map[string]
 		missing = append(missing, "url is required")
 	}
 	if len(missing) > 0 {
-		reply(nil, errors.New(strings.Join(missing, "; ")))
+		reply(ApplyOutput{}, errors.New(strings.Join(missing, "; ")))
 		return
 	}
 	// Caller-provided fields never earn release-source provenance or a signature.
 	info := &core.UpdateInfo{Version: in.Version, SHA256: in.SHA256, URL: in.URL, Notes: in.Notes}
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	retained := false
+	defer func() {
+		if !retained {
+			cancel()
+		}
+	}()
 	err := s.backend.Apply(ctx, info, s.drain)
 	if err != nil {
 		message := fmt.Sprintf("update failed: %v", err)
 		if errors.Is(err, core.ErrDrainTimeout) {
 			message = "drain timed out: in-flight runs did not complete within the configured timeout"
 		}
-		reply(map[string]any{"applied": false, "error": message}, nil)
+		retained = opapi.DeferTerminalCleanup(parent, cancel)
+		reply(ApplyOutput{Error: &message}, nil)
 		return
 	}
 	s.sentinel()
-	reply(map[string]any{"applied": true, "version": in.Version}, nil)
-	s.restart(100 * time.Millisecond)
+	retained = opapi.DeferTerminalCleanup(parent, cancel)
+	deferred := opapi.AfterTerminalWrite(parent, func() { s.restart(100 * time.Millisecond) })
+	reply(ApplyOutput{Applied: true, Version: &in.Version}, nil)
+	if !deferred {
+		s.restart(100 * time.Millisecond)
+	}
 }

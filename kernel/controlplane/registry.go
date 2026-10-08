@@ -90,8 +90,6 @@ func registerDaemonOpsCommands() {
 		commandSpec{Cmd: CmdShutdown, Handler: func(dc *DispatchCtx) { dc.S.handleShutdown(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdStateList, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleStateList(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdStateGet, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleStateGet(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdUpdateCheck, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleUpdateCheck(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdUpdateApply, Handler: func(dc *DispatchCtx) { dc.S.handleUpdateApply(dc.Conn, dc.Req) }},
 	)
 }
 

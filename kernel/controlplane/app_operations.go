@@ -34,6 +34,7 @@ import (
 	"github.com/agezt/agezt/kernel/app/system"
 	apptaste "github.com/agezt/agezt/kernel/app/taste"
 	apptools "github.com/agezt/agezt/kernel/app/tools"
+	appupdate "github.com/agezt/agezt/kernel/app/update"
 	appwebhook "github.com/agezt/agezt/kernel/app/webhook"
 	appworkboard "github.com/agezt/agezt/kernel/app/workboard"
 	appworkflow "github.com/agezt/agezt/kernel/app/workflow"
@@ -43,6 +44,16 @@ import (
 )
 
 type systemHostKey struct{}
+
+var updateOperations = func() []app.Operation {
+	ops, err := appupdate.Operations(func(ctx context.Context) *appupdate.Service {
+		return ctx.Value(systemHostKey{}).(*Server).operatorUpdate()
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
 
 var webhookOperations = func() []app.Operation {
 	ops, err := appwebhook.Operations(func(ctx context.Context) *appwebhook.Observability {
@@ -567,7 +578,7 @@ var configCenterOperations = func() []app.Operation {
 }()
 
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, catalogOperations...)
 	operations = append(operations, providerOperations...)
@@ -610,6 +621,7 @@ func registeredAppOperations() []app.Operation {
 	operations = append(operations, configReadOperations...)
 	operations = append(operations, settingsOperations...)
 	operations = append(operations, webhookOperations...)
+	operations = append(operations, updateOperations...)
 	return append(operations, configCenterOperations...)
 }
 
@@ -689,15 +701,19 @@ func dispatchAppOperation(dc *DispatchCtx, ctx context.Context, emitter opapi.Em
 func handleAppOperation(dc *DispatchCtx) {
 	terminal := &nativeTerminalCleanup{}
 	defer terminal.release()
-	ctx := opapi.WithTerminalCleanup(dc.Ctx, terminal)
+	write := &nativeTerminalWrite{}
+	defer write.discard()
+	ctx := opapi.WithTerminalWrite(opapi.WithTerminalCleanup(dc.Ctx, terminal), write)
 	output, err := dispatchAppOperation(dc, ctx, appEmitter{dc.Conn, dc.Req.ID})
 	if err != nil {
 		dc.S.fail(dc.Conn, dc.Req, err)
+		write.finishWrite()
 		return
 	}
 	encoded, err := json.Marshal(output)
 	if err != nil {
 		dc.S.fail(dc.Conn, dc.Req, err)
+		write.finishWrite()
 		return
 	}
 	var result map[string]any
@@ -707,6 +723,7 @@ func handleAppOperation(dc *DispatchCtx) {
 	decoder.UseNumber()
 	if err := decoder.Decode(&result); err != nil {
 		dc.S.fail(dc.Conn, dc.Req, err)
+		write.finishWrite()
 		return
 	}
 
@@ -730,6 +747,7 @@ func handleAppOperation(dc *DispatchCtx) {
 		result["threads"] = inbox.Threads
 	}
 	dc.S.writeResp(dc.Conn, Response{ID: dc.Req.ID, Type: RespResult, Result: result})
+	write.finishWrite()
 }
 
 type appAuthenticator struct{ server *Server }

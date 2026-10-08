@@ -73,13 +73,13 @@ func TestUpdateCheckDisabledResultsCauseAndCallbackLifetime(t *testing.T) {
 						t.Fatal(value)
 					}
 				}()
-				s.Check(parent, func(out map[string]any, err error) {
+				s.Check(parent, func(out CheckOutput, err error) {
 					callbacks++
 					if call != nil && call.Err() != nil {
 						t.Fatal("check canceled before callback")
 					}
 					if mode == "error" {
-						if !errors.Is(err, cause) || err.Error() != "update check failed: owned check failure" || out != nil {
+						if !errors.Is(err, cause) || err.Error() != "update check failed: owned check failure" || out != (CheckOutput{}) {
 							t.Fatal(out, err)
 						}
 						return
@@ -88,11 +88,11 @@ func TestUpdateCheckDisabledResultsCauseAndCallbackLifetime(t *testing.T) {
 						t.Fatal(err)
 					}
 					raw, _ := json.Marshal(out)
-					expected := `{"current":"backend-current","up_to_date":true,"update":null}`
+					expected := `{"current":"backend-current","update":null,"up_to_date":true}`
 					if mode == "disabled" {
-						expected = `{"current":"disabled-current","status":"update is disabled","up_to_date":true,"update":null}`
+						expected = `{"current":"disabled-current","update":null,"up_to_date":true,"status":"update is disabled"}`
 					} else if mode == "available" {
-						expected = `{"current":"backend-current","up_to_date":false,"update":{"notes":"","sha256":"raw-sha","url":"raw-url","version":"raw-version"}}`
+						expected = `{"current":"backend-current","update":{"version":"raw-version","sha256":"raw-sha","url":"raw-url","notes":""},"up_to_date":false}`
 					}
 					if string(raw) != expected {
 						t.Fatal(string(raw), expected)
@@ -194,7 +194,7 @@ func TestUpdateApplyValidationAndEffectOrdering(t *testing.T) {
 						t.Fatal(value)
 					}
 				}()
-				s.Apply(parent, in, func(out map[string]any, err error) {
+				s.Apply(parent, in, func(out ApplyOutput, err error) {
 					replyCalls++
 					events = append(events, "reply")
 					if call != nil && call.Err() != nil {
@@ -202,29 +202,29 @@ func TestUpdateApplyValidationAndEffectOrdering(t *testing.T) {
 					}
 					switch mode {
 					case "disabled":
-						if err == nil || err.Error() != "update is disabled" || out != nil {
+						if err == nil || err.Error() != "update is disabled" || out != (ApplyOutput{}) {
 							t.Fatal(out, err)
 						}
 					case "decode":
-						if !errors.Is(err, decode) || out != nil {
+						if !errors.Is(err, decode) || out != (ApplyOutput{}) {
 							t.Fatal(out, err)
 						}
 					case "missing":
-						if err == nil || err.Error() != "version is required; sha256 is required; url is required" || out != nil {
+						if err == nil || err.Error() != "version is required; sha256 is required; url is required" || out != (ApplyOutput{}) {
 							t.Fatal(out, err)
 						}
 					case "drain":
-						if err != nil || out["applied"] != false || out["error"] != "drain timed out: in-flight runs did not complete within the configured timeout" || len(out) != 2 {
+						if err != nil || out.Applied || (out.Error == nil || *out.Error != "drain timed out: in-flight runs did not complete within the configured timeout") || out.Version != nil {
 							t.Fatal(out, err)
 						}
 					case "failure":
-						if err != nil || out["applied"] != false || out["error"] != "update failed: owned apply failure" || len(out) != 2 {
+						if err != nil || out.Applied || (out.Error == nil || *out.Error != "update failed: owned apply failure") || out.Version != nil {
 							t.Fatal(out, err)
 						}
 					case "reply-panic":
 						panic("owned reply panic")
 					default:
-						if err != nil || out["applied"] != true || out["version"] != in.Version || len(out) != 2 {
+						if err != nil || !out.Applied || out.Version == nil || *out.Version != in.Version || out.Error != nil {
 							t.Fatal(out, err)
 						}
 					}

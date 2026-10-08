@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/app"
 	core "github.com/agezt/agezt/kernel/update"
 )
 
@@ -39,11 +40,13 @@ func (u *ownedUpdateBackend) Apply(ctx context.Context, info *core.UpdateInfo, _
 }
 func handleUpdateLifetime(s *Server, conn net.Conn, cmd string) {
 	req := Request{ID: "owned", Cmd: cmd, Args: map[string]any{"version": " raw-version ", "sha256": "raw-sha", "url": "raw-url", "notes": " raw-notes "}}
-	if cmd == CmdUpdateCheck {
-		s.handleUpdateCheck(conn, req)
-	} else {
-		s.handleUpdateApply(conn, req)
-	}
+	handleUpdateSnapshot(s, conn, req)
+}
+func handleUpdateSnapshot(s *Server, conn net.Conn, req Request) {
+	s.operationOnce.Do(func() {
+		s.operations, s.operationErr = app.NewDispatcher(updateOperations, app.Dependencies{Auth: oauthSnapshotAuth{}, Router: oauthSnapshotRoute{s}, Audit: sendLifetimeAudit{}})
+	})
+	handleAppOperation(&DispatchCtx{S: s, Conn: conn, Req: req, Ctx: context.Background()})
 }
 
 func TestUpdateNativeContextAndRestartFollowTerminalWrite(t *testing.T) {
@@ -170,16 +173,34 @@ func TestUpdateNativeSenderPanicCancelsImmediately(t *testing.T) {
 		backend := &ownedUpdateBackend{panicCall: true}
 		s := &Server{updateSvc: backend, shutdownCh: make(chan struct{})}
 		a, b := net.Pipe()
-		func() {
-			defer func() {
-				if value := recover(); value != "owned updater panic" {
-					t.Error(value)
-				}
-			}()
-			handleUpdateLifetime(s, b, cmd)
+		a.SetDeadline(time.Now().Add(time.Second))
+		entered, release := make(chan struct{}), make(chan struct{})
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			handleUpdateLifetime(s, pausedOAuthStatusConn{Conn: b, entered: entered, release: release}, cmd)
 		}()
+		select {
+		case <-entered:
+		case <-time.After(time.Second):
+			t.Fatal("panic did not reach terminal")
+		}
+		if backend.call == nil || !errors.Is(backend.call.Err(), context.Canceled) {
+			t.Fatal("backend panic cleanup was delayed until response")
+		}
+		close(release)
+		line, err := bufio.NewReader(a).ReadBytes(10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var reply Response
+		json.Unmarshal(line, &reply)
+		if reply.Type != RespError || reply.Error != "internal error" {
+			t.Fatal(reply)
+		}
 		a.Close()
 		b.Close()
+		<-done
 		if backend.call == nil || !errors.Is(backend.call.Err(), context.Canceled) {
 			t.Fatal("backend panic leaked context")
 		}
@@ -236,13 +257,9 @@ func TestUpdateNativeNilSetterReportsDisabledBeforeCodec(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			req := Request{ID: "owned", Args: map[string]any{"version": false}}
+			req := Request{ID: "owned", Cmd: cmd, Args: map[string]any{"version": false}}
 			defer s.recoverConn(b, &req)
-			if cmd == CmdUpdateCheck {
-				s.handleUpdateCheck(b, req)
-			} else {
-				s.handleUpdateApply(b, req)
-			}
+			handleUpdateSnapshot(s, b, req)
 		}()
 		line, err := bufio.NewReader(a).ReadBytes(10)
 		a.Close()
