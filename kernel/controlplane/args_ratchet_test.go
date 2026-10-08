@@ -25,7 +25,7 @@ var rawArgCastBaseline = map[string]int{
 	// entry can be deleted. The older_than_days number-or-string moved
 	// to roster_wake.go with the Day 24 god file split #7.
 	"roster.go":            0,
-	"roster_crud.go":       1, // residual: enabled bool-or-string switch (moved from roster.go)
+	"roster_crud.go":       0, // enabled bool-or-string codec moved to the typed app operation (W2.30j)
 	"roster_tombstone.go":  0, // graveyard older_than_days codec moved to the typed app operation (W2.30d)
 	"roster_wake.go":       1, // residual: older_than_days number-or-string (moved from roster.go)
 	"schedule.go":          1, // residual: enabled bool-or-string switch

@@ -11,9 +11,7 @@ package controlplane
 
 import (
 	"encoding/json"
-	"errors"
 	"net"
-	"strings"
 
 	"github.com/agezt/agezt/kernel/roster"
 )
@@ -121,40 +119,3 @@ func (s *Server) handleAgentEdit(conn net.Conn, req Request) {
 // is present in `provided` to `dst`. This implements a PATCH merge where
 // omitted fields keep their current value — fixing the classic "partial edit
 // clears omitted fields" bug.
-
-func (s *Server) handleAgentSetEnabled(conn net.Conn, req Request) {
-	ref, err := requiredArgString(req.Args, "ref")
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	// Accept enabled as a bool (CLI/JSON) or a "true"/"false"/"1"/"0" string
-	// (the webui query-arg transport carries every value as a string).
-	enabled := false
-	switch v := req.Args["enabled"].(type) {
-	case bool:
-		enabled = v
-	case string:
-		enabled = strings.EqualFold(v, "true") || v == "1"
-	}
-	p, err := s.k.SetProfileEnabled(ref, enabled)
-	if err != nil {
-		if errors.Is(err, roster.ErrNotFound) {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "unknown agent: " + ref})
-			return
-		}
-		if errors.Is(err, roster.ErrRetired) {
-			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "agent " + ref + " is retired — revive it first"})
-			return
-		}
-		s.fail(conn, req, err)
-		return
-	}
-	res := map[string]any{"profile": profileView(p)}
-	if enabled {
-		res["standing_paused"] = s.countAgentPausedStanding(p.Slug)
-		res["schedules_paused"] = s.countAgentPausedSchedules(p.Slug)
-	}
-	s.invalidateAgentListCache()
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: res})
-}
