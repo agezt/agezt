@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.30l typed `agent_task_update`, 2026-10-08
+## Current checkpoint — W2.30m typed `agent_wake`, 2026-10-08
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -33,7 +33,9 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   `2515e47d57b91b3120d2153c1d077203de60d2f8` after all 24 exact-head CI jobs.
 - W2.30k (typed `agent_add`/`agent_edit`) is delivered through PR #719 at
   `6e98d253001c5b3c0b22c1c2f81a7770e4877fda` after all 24 exact-head CI jobs.
-- W2.30l (typed `agent_task_update`) is committed on `main` as a code commit
+- W2.30l (typed `agent_task_update`) is delivered through PR #720 at
+  `db04620a1ecd5667a3a26515ad4d462780246513` after all 24 exact-head CI jobs.
+- W2.30m (typed `agent_wake`) is committed on `main` as a code commit
   plus a docs commit and published from `arch/w2-dispatch` (`gh pr list --head
   arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
@@ -91,7 +93,13 @@ and missed tasks still journal the profile edit as before):
 [62-w230-typed-agent-task-update-evidence.md](62-w230-typed-agent-task-update-evidence.md),
 `.temp_files/architecture-delivery/w62/`. The w62 harness also compares normalized
 raw response bytes; the earlier decoded-only comparison would not catch member order.
-Remaining roster writes: `agent_wake`, `agent_repair`,
+W2.30m moved `agent_wake` (138 cloned-kernel steps x20 with scripted mock providers,
+36/36 mutations). The run stays native behind a non-blocking launch port. The w63
+harness compares the journal grouped by correlation id, because the async run
+interleaves with the audit tail; reuse it for `agent_repair`/`agent_resolve`:
+[63-w230-typed-agent-wake-evidence.md](63-w230-typed-agent-wake-evidence.md),
+`.temp_files/architecture-delivery/w63/`.
+Remaining roster writes: `agent_repair`,
 `agent_resolve`, and the cascade group `agent_retire`/`agent_revive`/`agent_remove`
 with `agent_impact`/`agent_tombstone`.
 
@@ -106,7 +114,7 @@ Preserve unrelated dirty changes: deletions of
 
 ### Next
 
-Continue roadmap §4.5/order 7: the remaining 8 roster commands (tombstone and
+Continue roadmap §4.5/order 7: the remaining 7 roster commands (tombstone and
 impact share the removal-cascade subsystems with `agent_remove`, so move them with
 that cascade rather than alone), status source
 collection and lifecycle ownership, then steer/runs/journal/edict/tenant/shutdown/
