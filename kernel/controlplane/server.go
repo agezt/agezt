@@ -7,6 +7,7 @@ import (
 	"github.com/agezt/agezt/kernel/app"
 	appchannels "github.com/agezt/agezt/kernel/app/channels"
 	"github.com/agezt/agezt/kernel/app/system"
+	appupdate "github.com/agezt/agezt/kernel/app/update"
 	"net"
 	"sync"
 	"time"
@@ -141,7 +142,7 @@ type Server struct {
 
 	// updateSvc is the self-update engine (M860), injected via SetUpdateService.
 	// Nil when update is disabled; the update handlers report that.
-	updateSvc *update.Service
+	updateSvc appupdate.Backend
 
 	// One stable application-owned channel OAuth state/service per Server.
 	channelOAuthOnce    sync.Once
@@ -202,7 +203,13 @@ func (s *Server) SetBoard(st *board.Store, notify func(m board.Message, corr str
 
 // SetUpdateService wires the self-update engine (M860). Nil when update is
 // disabled; update commands report that rather than dereferencing nil.
-func (s *Server) SetUpdateService(svc *update.Service) { s.updateSvc = svc }
+func (s *Server) SetUpdateService(svc *update.Service) {
+	if svc == nil {
+		s.updateSvc = nil
+		return
+	}
+	s.updateSvc = svc
+}
 
 // DiskFreeFunc returns the free (available) and total bytes for the filesystem
 // containing path (M131). The daemon injects a real implementation

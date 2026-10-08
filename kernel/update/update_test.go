@@ -200,23 +200,37 @@ func TestService_acquireLock(t *testing.T) {
 }
 
 func TestService_Check_context_cancel(t *testing.T) {
+	entered, release := make(chan struct{}), make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(10 * time.Second) // deliberately slow
+		close(entered)
+		<-release
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
+	defer close(release)
 
 	svc := New(Config{
 		Source:     SourceEndpoint,
 		Endpoint:   srv.URL,
-		HTTPClient: &http.Client{Timeout: 100 * time.Millisecond},
+		HTTPClient: &http.Client{Timeout: 5 * time.Second},
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	_, err := svc.Check(ctx)
-	if err == nil {
-		t.Error("Check() error = nil; want context deadline exceeded")
+	result := make(chan error, 1)
+	go func() { _, err := svc.Check(ctx); result <- err }()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("check did not reach the owned server")
+	}
+	cancel()
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Check() error = %v; want caller cancellation", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("check ignored caller cancellation; client timeout is five seconds")
 	}
 }
