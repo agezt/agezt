@@ -69,6 +69,36 @@ var rosterProfileWriteOperations = func() []app.Operation {
 	return ops
 }()
 
+var rosterRemoveOperations = func() []app.Operation {
+	ops, err := approster.RemoveOperations(func(ctx context.Context) *approster.RemoveService {
+		s := ctx.Value(systemHostKey{}).(*Server)
+		return approster.NewRemove(approster.RemovePorts{
+			Get:       s.k.Roster().Get,
+			Subagents: s.agentSubagents,
+			Retained:  s.agentRemovalMailboxImpact,
+			Workflows: s.agentWorkflowImpact,
+			Retire:    s.retireAgentSubagents,
+			Standing:  s.removeAgentStanding,
+			Schedules: s.removeAgentSchedules,
+			Memory:    s.forgetAgentMemory,
+			Authored:  s.forgetAgentAuthoredSharedMemory,
+			Skills:    s.archiveAgentSkills,
+			Config:    s.deleteAgentConfigEntries,
+			Workspace: s.deleteAgentWorkspace,
+			Remove:    s.k.RemoveProfile,
+			NewCorr:   s.k.NewCorrelation,
+			Publish: func(subject, corr string, payload map[string]any) {
+				publishOperatorAction(s.k, subject, corr, payload)
+			},
+			Invalidate: s.invalidateAgentListCache,
+		})
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
+
 var rosterSetRetiredOperations = func() []app.Operation {
 	ops, err := approster.SetRetiredOperations(func(ctx context.Context) *approster.SetRetiredService {
 		s := ctx.Value(systemHostKey{}).(*Server)
@@ -780,7 +810,7 @@ var configCenterOperations = func() []app.Operation {
 }()
 
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(rosterTaskUpdateOperations)+len(rosterWakeOperations)+len(rosterRepairOperations)+len(rosterResolveOperations)+len(rosterImpactOperations)+len(rosterSetRetiredOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(rosterTaskUpdateOperations)+len(rosterWakeOperations)+len(rosterRepairOperations)+len(rosterResolveOperations)+len(rosterImpactOperations)+len(rosterSetRetiredOperations)+len(rosterRemoveOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, catalogOperations...)
 	operations = append(operations, providerOperations...)
@@ -837,6 +867,7 @@ func registeredAppOperations() []app.Operation {
 	operations = append(operations, rosterResolveOperations...)
 	operations = append(operations, rosterImpactOperations...)
 	operations = append(operations, rosterSetRetiredOperations...)
+	operations = append(operations, rosterRemoveOperations...)
 	return append(operations, configCenterOperations...)
 }
 

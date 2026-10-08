@@ -25,7 +25,6 @@ func registerAllCommands() {
 	registerJournalLogCommands()
 	registerMiscSmallCommands()
 	registerProviderConfigCommands()
-	registerRosterCommands()
 	registerSteerCommands()
 	registerTenantCommands()
 }

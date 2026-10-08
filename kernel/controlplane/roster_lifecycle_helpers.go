@@ -17,18 +17,6 @@ import (
 	"github.com/agezt/agezt/kernel/roster"
 )
 
-func boolish(v any) bool {
-	switch x := v.(type) {
-	case bool:
-		return x
-	case string:
-		x = strings.TrimSpace(strings.ToLower(x))
-		return x == "1" || x == "true" || x == "yes" || x == "on"
-	default:
-		return false
-	}
-}
-
 func agentMailboxImpactLabel(msg board.Message, slug string) (string, bool) {
 	from := strings.ToLower(strings.TrimSpace(msg.From))
 	to := strings.ToLower(strings.TrimSpace(msg.To))

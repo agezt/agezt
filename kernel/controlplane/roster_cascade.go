@@ -43,16 +43,6 @@ func (s *Server) impactService() *approster.ImpactService {
 	return approster.NewImpact(nativeImpactSource{s})
 }
 
-// subagentImpact aggregates one subsystem's impact across an agent's
-// sub-agents, prefixing each label with the child it belongs to.
-func (s *Server) subagentImpact(children []roster.Profile, impact func(*Server, roster.Profile) []string) []string {
-	lists := make([][]string, len(children))
-	for i, child := range children {
-		lists[i] = impact(s, child)
-	}
-	return approster.AggregateSubagentLabels(children, lists)
-}
-
 func (s *Server) agentScheduleImpact(p roster.Profile) []string {
 	var out []string
 	for _, e := range s.k.Schedules().List() {

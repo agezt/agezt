@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.30q typed `agent_retire`/`agent_revive`, 2026-10-08
+## Current checkpoint — W2.30r typed `agent_remove` (roster domain complete), 2026-10-08
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -43,8 +43,10 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   `b6f6293c123873983f423634a8af5d9d982228fe` after all 24 exact-head CI jobs.
 - W2.30p (typed `agent_impact`/`agent_tombstone`) is delivered through PR #724 at
   `e6ee56a9d16cd5c362c8df578a6b7ae947f170f5` after all 24 exact-head CI jobs.
-- W2.30q (typed `agent_retire`/`agent_revive`) is committed on `main` as a code
-  commit plus a docs commit and published from `arch/w2-dispatch` (`gh pr list --head
+- W2.30q (typed `agent_retire`/`agent_revive`) is delivered through PR #725 at
+  `8904eee67ee22c4c086754307a8ac390f8a7cd2d` after all 24 exact-head CI jobs.
+- W2.30r (typed `agent_remove`) is committed on `main` as a code commit plus a docs
+  commit and published from `arch/w2-dispatch` (`gh pr list --head
   arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
 
@@ -126,8 +128,14 @@ app (`agentImpactResult` wrapper), and remove builds its retained sub-agent
 workflow labels the same way (`subagentImpact`). W2.30q moved `agent_retire`/`agent_revive` (102 steps x20 on the w66 rich fixture,
 29/29 mutations plus one recorded equivalent):
 [67-w230-typed-agent-retire-revive-evidence.md](67-w230-typed-agent-retire-revive-evidence.md),
-`.temp_files/architecture-delivery/w67/`. The only remaining roster command is
-`agent_remove` (the cascade); the w66/w67 fixture is its template.
+`.temp_files/architecture-delivery/w67/`. W2.30r moved `agent_remove` (84 steps
+x20 with response, journal and full post-run state parity, 36/36 mutations):
+[68-w230-typed-agent-remove-evidence.md](68-w230-typed-agent-remove-evidence.md),
+`.temp_files/architecture-delivery/w68/`. **The roster domain is complete:** every
+command of the former native roster group is a typed shared operation and
+`registerRosterCommands` is gone. Two agent-adjacent native commands remain in the
+misc registry group (`agent_permissions`, `agent_capabilities`); classify them with
+their own domain.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a
@@ -140,7 +148,7 @@ Preserve unrelated dirty changes: deletions of
 
 ### Next
 
-Continue roadmap §4.5/order 7: the last roster command (`agent_remove`), status source
+Continue roadmap §4.5/order 7 after the completed roster domain, status source
 collection and lifecycle ownership, then steer/runs/journal/edict/tenant/shutdown/
 remote. Wider run/tool adapter convergence, W3 modules and journal raw-ref GC, W4
 triggers/channel supervision/config/signing, and W5 generated SDK/frontend
