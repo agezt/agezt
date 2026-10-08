@@ -4,6 +4,10 @@ This file holds the active `[Unreleased]` working set.
 
 ### Security
 
+- **Agent resolutions are recorded in the operation audit.** Pausing, retiring,
+  delegating or forcing a routing chain through agent resolve now journals the
+  operation and its outcome, including refused resolutions.
+
 - **World mutations require successful operation audit before effects.** Add,
   edit, relate and forget now run through typed app operations; unavailable audit
   prevents graph changes. World log retains tenant journal isolation and the
