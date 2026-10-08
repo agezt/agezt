@@ -816,6 +816,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Pausing and resuming agents uses a typed application operation.** Accepted
+  enabled values, errors, the profile result and paused-trigger counts are
+  preserved, and every change is operation-audited before it is applied.
+  Already-canceled requests now stop before audit or any change.
+
 - **Agent escalations use a typed application operation.** Help-request status,
   wake metadata, origins, paging and argument errors are preserved. Already-canceled
   requests now stop before reading the board or journal.
