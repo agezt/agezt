@@ -812,6 +812,10 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Agent repair status uses a typed application operation.** History, inflight
+  repairs, the repair contract, next-step decisions, paging and argument errors
+  are preserved. Already-canceled requests now stop before reading the journal.
+
 - **Agent activity timeline uses a typed application operation.** Run scoping,
   ordering, paging, totals, empty shapes and argument errors are preserved.
   Already-canceled requests now stop before reading the roster or journal.
@@ -1869,6 +1873,10 @@ This file holds the active `[Unreleased]` working set.
   built-in skills promoted at boot) into one row with a ×N badge.
 
 ### Fixed
+
+- **Paging repair history no longer changes an agent's current repair state.**
+  With a cursor, the latest repair, its next eligible time and the recommended
+  next step now still describe the newest repair instead of an older page row.
 
 - **Agent list counts refresh after the last profile is removed.** Invalidating
   the list cache now rejects empty-roster entries instead of reusing stale total
