@@ -3,7 +3,7 @@
 > **Owner update, 2026-10-04:** continue directly on the shared `main`, without
 > new task branches. PR #612 consolidates the original W0–W2.1a stack plus W2.2a.
 > W2.2a, W2.2b, W2.3 and File Manager operation binding are complete;
-> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board native migration and exit evidence are complete. Workboard, OKR and storage/artifact native migrations plus exit evidence are implemented. Schedule native migration and exit evidence are complete. Standing seven-command native migration and exit evidence are complete. Workflow13-command native migration and exit evidence are complete. Pulse fourteen-command native migration and exit evidence are complete locally; Autonomy feed native migration and exit evidence are complete locally; Three tool read operations and native exit evidence are complete locally; all eight toolforge native operations and exit evidence are complete locally. All three toolbox native operations and exit evidence are complete locally. All six MCP native operations and exit evidence are complete locally. All eight market native operations and exit evidence are complete locally. Plugin inventory typed native migration and exit evidence are complete locally. Config read typed native migration and exit evidence are complete locally. All five settings native operations and exit evidence are complete locally. Configcenter native exit is complete locally. Channel inventory/account and OAuth service/state/provider/exchange ownership foundations are implemented, with registered-field removal/status race repairs. Gateway status/QR service foundations are implemented. Inbox service foundation is implemented. Send service foundation is implemented. ACP, channel inventory, account, OAuth, gateway and inbox typed DTO/operation/native bindings are complete. Continue §4.5 with send typed binding and native exit before webhook, tunnel and update. Cadence resident run execution remains W2.2/W4 work. Journal raw-ref GC protection remains later module work. W2.10g-i through W2.27m are delivered to main via PR #701 (8416d9c8, all24 exact-head CI jobs passed); W2.27n is delivered via PR #702 (a00b580c, all24 exact-head CI jobs passed); W2.27o is delivered via PR #703 (5703f2d5, all24 exact-head CI jobs passed); W2.27p awaits its own delivery. Broader adapters and remaining domains remain open.
+> Catalog/provider, memory and world native migrations plus exit evidence are complete. Taste native migration and exit evidence are complete. Skill native migration and exit evidence are complete. Board native migration and exit evidence are complete. Workboard, OKR and storage/artifact native migrations plus exit evidence are implemented. Schedule native migration and exit evidence are complete. Standing seven-command native migration and exit evidence are complete. Workflow13-command native migration and exit evidence are complete. Pulse fourteen-command native migration and exit evidence are complete locally; Autonomy feed native migration and exit evidence are complete locally; Three tool read operations and native exit evidence are complete locally; all eight toolforge native operations and exit evidence are complete locally. All three toolbox native operations and exit evidence are complete locally. All six MCP native operations and exit evidence are complete locally. All eight market native operations and exit evidence are complete locally. Plugin inventory typed native migration and exit evidence are complete locally. Config read typed native migration and exit evidence are complete locally. All five settings native operations and exit evidence are complete locally. Configcenter native exit is complete locally. Channel inventory/account and OAuth service/state/provider/exchange ownership foundations are implemented, with registered-field removal/status race repairs. Gateway status/QR service foundations are implemented. Inbox service foundation is implemented. Send service foundation is implemented. All eleven channel operations have typed shared native bindings and exit evidence. Continue §4.5 with webhook, tunnel and update, then order7 and the wider roadmap. Cadence resident run execution remains W2.2/W4 work. Journal raw-ref GC protection remains later module work. W2.10g-i through W2.27m are delivered to main via PR #701 (8416d9c8, all24 exact-head CI jobs passed); W2.27n is delivered via PR #702 (a00b580c, all24 exact-head CI jobs passed); W2.27o is delivered via PR #703 (5703f2d5, all24 exact-head CI jobs passed); W2.27p is delivered via PR #704 (ca25f5c7, all24 exact-head CI jobs passed); W2.27q awaits its own delivery. Broader adapters and remaining domains remain open.
 > Read this handoff, verify the current state, then measure the next item's premise
 > before changing code. The original handoff contained a stale claim about channels:
 > they already used the vision sidecar; the API and channel rejection audit differed.
@@ -3974,6 +3974,33 @@ after all24 exact3cdf135a-head CI jobs succeeded (including CI/ci.yml). Shared l
 main fast-forwarded to the identical validated merge tree, preserving local inbox
 edits and unrelated deletions. W2.27p is the next local delivery. Owned fixtures
 certify source/wire contracts, not live channel messages or deployed binaries.
+
+**W2.27q send typed binding and channel native exit:** concrete three-field send
+result and lenient raw requests use one primary POST writer operation/shared native
+dispatcher. Native wrapper/manual row removed; current Server sender factory and
+shared stringArg helper remain. stdlib-only opapi TerminalCleanup accepts optional
+cleanup ownership, supplied by native terminal scope. Outbound transfers cancellation
+only after sender returns; native scope releases after result/error socket write,
+including failure/panic, LIFO outside its lock and exactly once. Direct callback
+service keeps legacy lifetime and background30s/value isolation; sender panic cancels
+immediately before opaque internal-error delivery. Naive return bridge failed the
+original paused-write proof3; corrected shared binding passes20. Module/native
+lifetime/write-failure/panic/ownership/reentry/concurrent tests20/race20,160 native
+cases20=80 normal raw wire/effects/files exact including panic opacity+80 changed
+canceled/no sender-audit effects,34 valid mutations/exact restoration pass. Mandatory
+audit admission/canceled preflight precede sender factory/effects. Initial panic
+assertion gap was strengthened and whole mutation list rerun. Full source/Go/race/
+build/vet/static/arch/dead/deps/format/generated gates pass. Eleven channel operations
+have unique AppOwned/primary/unary/typed signatures; empty registrar removed and
+exit evidence recorded in47-w227-exit-evidence.md. No live channel messages sent.
+**Next: webhook, tunnel and update in order6, then order7 and wider W3-W5.** In-flight
+sender/gateway context refinement, lifecycle redesign and other transport convergence
+remain open; own final-head CI/protected merge remains separate.
+
+Protected delivery update: Inbox W2.27p merged via PR #704 at ca25f5c7 on2026-10-07
+after all24 exact32a5975c-head CI jobs succeeded including CI/ci.yml. Shared main
+fast-forwarded to identical validated tree preserving send edits/unrelated deletions.
+W2.27q is the next local slice awaiting protected delivery.
 
 **Historical state after W2.1a (before the pilot):**
 - The control plane's `commandSpec` (`kernel/controlplane/dispatch.go`) already does authenticate →

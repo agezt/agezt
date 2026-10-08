@@ -16,7 +16,6 @@ func init() { registerAllCommands() }
 // registration order is readable in one place.
 func registerAllCommands() {
 	registerAppSystemCommands()
-	registerChannelCommands()
 	registerCognitionCommands()
 	registerCoreCommands()
 	registerDaemonOpsCommands()
@@ -67,13 +66,6 @@ func registerProviderConfigCommands() {
 		commandSpec{Cmd: CmdExecutionProfileCheck, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleExecutionProfileCheck(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdRoutingGet, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleRoutingGet(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdRoutingSet, Handler: func(dc *DispatchCtx) { dc.S.handleRoutingSet(dc.Conn, dc.Req) }},
-	)
-}
-
-// registerChannelCommands registers Communication channels: accounts, OAuth, sessions, inbox, outbound send, ACP.
-func registerChannelCommands() {
-	register(
-		commandSpec{Cmd: CmdSend, Handler: func(dc *DispatchCtx) { dc.S.handleSend(dc.Conn, dc.Req) }},
 	)
 }
 

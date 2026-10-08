@@ -812,6 +812,10 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Channel send uses typed application operations.** The sender context stays
+  alive through terminal response delivery and is released after failed writes
+  or panics. Canceled requests and failed audit admission stop before sending.
+
 - **Inbox uses typed application operations.** Thread grouping, paging, empty
   lists, timestamps and cursor error precedence are preserved. Already-canceled
   requests stop before scanning the journal.

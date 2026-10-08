@@ -4,6 +4,7 @@ package channels
 import (
 	"context"
 	"fmt"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"strings"
 	"time"
 )
@@ -14,27 +15,40 @@ type Outbound struct{ send Sender }
 func NewOutbound(send Sender) *Outbound { return &Outbound{send: send} }
 
 type SendInput struct{ Channel, To, Text string }
-type SendOutput = map[string]any
+type SendOutput struct {
+	Sent    bool   `json:"sent"`
+	Channel string `json:"channel"`
+	To      string `json:"to"`
+}
 
 // Send's terminal callback keeps the call context alive through native response
 // delivery, preserving the measured legacy lifecycle during this move.
-func (s *Outbound) Send(_ context.Context, in SendInput, reply func(SendOutput, error)) {
+// Send transfers optional cleanup ownership only after the sender returns.
+// With no terminal owner the original direct callback lifetime is unchanged.
+func (s *Outbound) Send(parent context.Context, in SendInput, reply func(SendOutput, error)) {
 	kind := strings.ToLower(strings.TrimSpace(in.Channel))
 	to := strings.TrimSpace(in.To)
 	text := strings.TrimSpace(in.Text)
 	if kind == "" || to == "" || text == "" {
-		reply(nil, fmt.Errorf("send requires channel, to, and text"))
+		reply(SendOutput{}, fmt.Errorf("send requires channel, to, and text"))
 		return
 	}
 	if s.send == nil {
-		reply(nil, fmt.Errorf("no channels configured (set a channel token to enable send)"))
+		reply(SendOutput{}, fmt.Errorf("no channels configured (set a channel token to enable send)"))
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	if err := s.send(ctx, kind, to, text); err != nil {
-		reply(nil, err)
+	retained := false
+	defer func() {
+		if !retained {
+			cancel()
+		}
+	}()
+	err := s.send(ctx, kind, to, text)
+	retained = opapi.DeferTerminalCleanup(parent, cancel)
+	if err != nil {
+		reply(SendOutput{}, err)
 		return
 	}
-	reply(SendOutput{"sent": true, "channel": kind, "to": to}, nil)
+	reply(SendOutput{Sent: true, Channel: kind, To: to}, nil)
 }
