@@ -1851,6 +1851,10 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **Agent list counts refresh after the last profile is removed.** Invalidating
+  the list cache now rejects empty-roster entries instead of reusing stale total
+  and enabled counts during the cache TTL.
+
 - **Channel OAuth: consistent status polling during callbacks.**
   Status and error now come from one synchronized snapshot, avoiding data races
   and mixed results while a callback updates the flow. Socket writes occur after

@@ -126,7 +126,7 @@ Flags semantics (from `dispatch.go` comments, enforced by `dispatch_registry_tes
 
 `Server` (`server.go`) fields: `k *runtime.Kernel`, `baseDir`, listener/token/`done`/`serveCancel`/`wg`/`stopOnce`, `shutdownCh`
 (closed by `shutdown` op; daemon main loop selects on `Shutdown()`), `pulse PulseController`, agent-list TTL cache
-(`agentListCache*`, RWMutex, 1.5 s TTL keyed by roster content hash — `roster_list.go`), `standingFire func(id) bool`,
+(`rosterListOnce`/`rosterList` → app/roster ListService, which owns RWMutex/validity/key/1.5s cache), `standingFire func(id) bool`,
 `observers PulseObservers`, `tenants *tenant.Registry`, `configEnvPinned`, `cancelOnDisconnect`, `diskFree DiskFreeFunc`,
 `httpBindings []HTTPBinding`, `channels []ChannelInfo`, `channelSend ChannelSender`, `credChain string`, `boardStore *board.Store`
 + `boardNotify` (the ONE shared board instance — M937), `updateSvc app/update.Backend` (public concrete setter retained; nil canonicalized), channel-OAuth `channelOAuthState *app/channels.OAuthMemory` and service (sync.Once),
@@ -144,7 +144,7 @@ individual `Set*` setters remain the unit-test surface. Interfaces exist so the 
   `serveCtx` so streaming handlers blocked on ctx return, close listener, delete runtime files) + `wg.Wait()`.
 - Extra goroutines: `cancelOnConnClose` reader, `run`'s cancel-on-disconnect reader, `pulse_subscribe` disconnect watcher, provider
   OAuth one-shot listener on `127.0.0.1:1455` (`provider_oauth.go`), workflow detached runs (`runWorkflowDetached`).
-- Mutexes: `mu` (listener/token), `agentListCacheMu`, `oauthMu`, `provLoginMu`. Handlers otherwise rely on the kernel subsystems'
+- Mutexes: `mu` (listener/token), app-owned roster list cache mutex, `oauthMu`, `provLoginMu`. Handlers otherwise rely on the kernel subsystems'
   own locking. `commandRegistry` is init-only and read lock-free.
 
 ### 1.6 Persistence (files it writes directly)
@@ -420,7 +420,7 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `agent_escalations` | primary |  | `handleAgentEscalations` → roster_escalation.go | `/api/agents/escalations` |
 | `agent_graveyard` | primary |  | `handleAgentGraveyard` → roster_tombstone.go |  |
 | `agent_impact` | primary |  | `handleAgentImpact` → roster.go | `/api/agents/impact` |
-| `agent_list` | primary |  | `handleAgentList` → roster_list.go | `/api/agents` |
+| `agent_list` | primary |  | `ListService.List` → app/roster/list.go (native codec/manual binding retained) | `/api/agents` |
 | `agent_remove` | primary |  | `handleAgentRemove` → roster_lifecycle.go | `/api/agents/remove` |
 | `agent_repair` | primary |  | `handleAgentRepair` → roster_repair.go | `/api/agents/repair` |
 | `agent_repair_status` | primary |  | `handleAgentRepairStatus` → roster_activity.go | `/api/agents/repair_status` |
@@ -856,7 +856,8 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | File | What it does |
 |---|---|
 | `roster.go` | Roster view types, `handleAgentImpact`, `registerRosterCommands`. |
-| `roster_list.go` | `agent_list` + 1.5 s TTL cache (`tryServeAgentListCache`, `invalidateAgentListCache`), cursor encode/parse, model chain view. |
+| `roster_list.go` | Selected profiles/status service, strict native codec and cache invalidation/profile presentation shims; model-chain/sequence helpers retained. |
+| `app/roster/list.go` | Profile presentation, explicit-validity1.5s cache, outer-copy pagination/counts; empty-roster invalidation repair. |
 | `roster_crud.go` | `agent_add`, `agent_edit`, `agent_set_enabled`. |
 | `roster_crud_internal.go` | Profile patch merge, kind normalization, hierarchy validation, managed-subagent guard. |
 | `roster_task_update.go` | `agent_task_update` + arg presence helpers. |
@@ -1331,6 +1332,7 @@ and warns when no console password is set.
 - **Channel ACP typed binding (W2.27k, local delivery pending):** one GET/primary-only/read-only spec/shared dispatcher, native wrapper/manual row/final structToMap removed. Service/Web UI read route bytes retained. Explicit canceled preflight rejects before discovery; native integer terminal exact for declared counts.432 native cases20=216 byte-exact normal+216 changed cancellation,12 valid mutations/schema/auth/source/tenant/old-current integer20/full Go/race gates pass;242 packages135 imports13 calls,133 kernel packages/2868 Go files. Remaining channel typed binding/native exit/protected publication remain.
 - **Channel ACP inventory foundation (W2.27j, local delivery pending):** app owns active environment/trim/default cached discovery/caller context/full typed inventory; native args ignored/manual primary read-only/legacy structToMap codec retained.432 byte-exact native cases20/source-cache-context/full files/head/provider checks,10 valid mutations/full model/default source20/tenant no-discovery denial/full Go/race gates;242 packages135 imports13 calls,133 kernel packages/2866 Go files. Official ratchet removes CP catalog import; typed communication binding/native exit/protected publication remain.
 - **Channel outbound send foundation (W2.27i, local delivery pending):** app Outbound owns validation/normalization/selected sender/background30s/error/result; terminal callback retains measured context through socket write. Native current sender factory/lenient codecs/manual primary audit retained.160 byte-exact native cases20/effects/files/audit privacy/deadline/provider checks,15 valid mutations/before-after lifetime/current sender/isolation/tenant/source20/full Go/race gates pass;242 packages136 imports13 calls,133 kernel packages/2863 Go files. ACP inventory/typed binding/native exit/protected publication remain.
+- **Roster list foundation (W2.30a, local):** app owns presentation/cache/pagination over current native profiles/status ports. Empty0-key invalidation collision fixed (red3/stale1/1, native after20);240 raw native cases20,15 mutations/source/race/full gates. [Evidence](51-w230-roster-list-foundation-evidence.md). Native codec/manual binding/status derivation retained; Update delivered via PR708 at0d5777c5; own delivery/remaining roster/order7/W3-W5 remain.
 - **Typed update/native exit (W2.29b, local):** two primary typed operations share native dispatch; wrappers/manual rows removed. New TerminalWrite preserves sentinel→response→100ms restart and distinguishes returned errors from writer panics.480 native cases20/source/lifetime/tenant/admission/race20,27 mutations/full gates/no-I/O9.0–13.1us. [Evidence](50-w229-update-exit-evidence.md). Foundation delivered via PR707 at0f97e7a3; own delivery/order7/W3-W5 remain.
 - **Update foundation/tunnel premise (W2.29a, local):** app owns check/apply business over selected verified backend; native codec/manual bindings retained.480 native cases20/lifecycle20/naive bridge red3/19 mutations+cancel mutation3/full gates; returned write failure still restarts, write panic does not. Nil concrete setter preserved. Tunnel only has boot adapter/layer5 supervision; existing helper20/source race20 pass. [Evidence](49-w229-update-foundation-evidence.md). Webhook delivered via PR706 at1f5d5c36; typed update/native exit/own delivery/order7/W3-W5 remain.
 - **Webhook observability/native exit (W2.28, local):** two typed tenant reads use selected appHost journal; delivery/stats use app services/shared projection; native handlers/manual rows removed.240 raw native cases20, canceled red3/after20, real tenant isolation/race/source20,27 mutations/full gates; no-I/O24.6–27.8us. [Evidence](48-w228-exit-evidence.md). Send delivered via PR705 atc32e8852; own delivery/tunnel/update/order7/W3-W5 remain.
