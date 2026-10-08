@@ -816,6 +816,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Editing an agent's tasklist uses a typed application operation.** Add,
+  update and remove keep their arguments, validation, errors and result, and every
+  change is operation-audited before it is applied. Already-canceled requests now
+  stop before audit or any change.
+
 - **Creating and editing agents uses typed application operations.** Profile
   decoding, partial edits, kind handling, hierarchy checks and errors are
   preserved, and both writes are operation-audited before they are applied.

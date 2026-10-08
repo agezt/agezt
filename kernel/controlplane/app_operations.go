@@ -69,6 +69,17 @@ var rosterProfileWriteOperations = func() []app.Operation {
 	return ops
 }()
 
+var rosterTaskUpdateOperations = func() []app.Operation {
+	ops, err := approster.TaskUpdateOperations(func(ctx context.Context) *approster.TaskUpdateService {
+		s := ctx.Value(systemHostKey{}).(*Server)
+		return approster.NewTaskUpdate(s.k.UpdateProfile)
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
+
 var rosterSetEnabledOperations = func() []app.Operation {
 	ops, err := approster.SetEnabledOperations(func(ctx context.Context) *approster.SetEnabledService {
 		s := ctx.Value(systemHostKey{}).(*Server)
@@ -672,7 +683,7 @@ var configCenterOperations = func() []app.Operation {
 }()
 
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(rosterTaskUpdateOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, catalogOperations...)
 	operations = append(operations, providerOperations...)
@@ -723,6 +734,7 @@ func registeredAppOperations() []app.Operation {
 	operations = append(operations, rosterEscalationOperations...)
 	operations = append(operations, rosterSetEnabledOperations...)
 	operations = append(operations, rosterProfileWriteOperations...)
+	operations = append(operations, rosterTaskUpdateOperations...)
 	return append(operations, configCenterOperations...)
 }
 
@@ -835,6 +847,10 @@ func handleAppOperation(dc *DispatchCtx) {
 	}
 	// Legacy channel_list embeds MediaCaps structs in map rows. Keep their
 	// declared member order while inventory DTOs use the shared object envelope.
+	// Legacy agent_task_update embeds the roster AgentTask struct directly.
+	if out, ok := output.(approster.TaskUpdateOutput); ok {
+		result["task"] = out.Task
+	}
 	if inventory, ok := output.(appchannels.ListOutput); ok {
 		rows, _ := result["channels"].([]any)
 		for i, value := range rows {
