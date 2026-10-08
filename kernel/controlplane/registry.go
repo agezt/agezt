@@ -49,8 +49,6 @@ func registerJournalLogCommands() {
 		commandSpec{Cmd: CmdRateLimitStats, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleRateLimitStats(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdWardenLog, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleWardenLog(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdWardenStats, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleWardenStats(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdWebhookLog, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleWebhookLog(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdWebhookStats, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleWebhookStats(dc.Conn, dc.Req) }},
 	)
 }
 

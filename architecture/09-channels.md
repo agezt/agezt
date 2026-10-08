@@ -283,6 +283,11 @@ until result/error socket delivery completes; direct callback behavior and sende
 panic cleanup remain. [Native exit evidence](47-w227-exit-evidence.md) records
 contracts and boundaries; live transports/conversation-store extraction remain.
 
+Outbound webhook delivery log/stats now use two typed tenant application operations
+and the selected journal reader. [Observability exit evidence](48-w228-exit-evidence.md)
+records field/paging/statistics/admission and actual tenant socket proofs. The outbound
+dispatcher and inbound webhook transport remain distinct later migration work.
+
 ### 4.3 Multi-account (`ENV#label`)
 
 - Non-default accounts store values under `AGEZT_X#<label>` (non-secret in the config store, secret in the vault);
