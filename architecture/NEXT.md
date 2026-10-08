@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.30n typed `agent_repair`, 2026-10-08
+## Current checkpoint — W2.30o typed `agent_resolve`, 2026-10-08
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -37,7 +37,9 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   `db04620a1ecd5667a3a26515ad4d462780246513` after all 24 exact-head CI jobs.
 - W2.30m (typed `agent_wake`) is delivered through PR #721 at
   `ebdcda45258986ffe8f8c311d4c8b0477eb8da19` after all 24 exact-head CI jobs.
-- W2.30n (typed `agent_repair`) is committed on `main` as a code commit
+- W2.30n (typed `agent_repair`) is delivered through PR #722 at
+  `71a72a834e4445e711431b1fe4cc322058b41183` after all 24 exact-head CI jobs.
+- W2.30o (typed `agent_resolve`) is committed on `main` as a code commit
   plus a docs commit and published from `arch/w2-dispatch` (`gh pr list --head
   arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
@@ -105,7 +107,14 @@ interleaves with the audit tail; reuse it for `agent_repair`/`agent_resolve`:
 `runAgentRepair`, and a new test proves its WF-001 panic firewall; wake and repair
 share `directTarget` and `IncidentLineage`):
 [64-w230-typed-agent-repair-evidence.md](64-w230-typed-agent-repair-evidence.md).
-Remaining roster writes: `agent_resolve`, and the cascade group `agent_retire`/`agent_revive`/`agent_remove`
+W2.30o moved `agent_resolve` (222 steps x20 with journal, board and routing-chain
+parity, 52/52 mutations). The app service owns the decision; native effects come in
+through `ResolvePorts`:
+[65-w230-typed-agent-resolve-evidence.md](65-w230-typed-agent-resolve-evidence.md),
+`.temp_files/architecture-delivery/w65/`. Lesson from its harness: assert that each
+success path really ran (here that a routing change happened and a delegation was
+posted), or an identical failure on both sides passes as parity.
+Remaining roster writes: only the cascade group `agent_retire`/`agent_revive`/`agent_remove`
 with `agent_impact`/`agent_tombstone`.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
@@ -119,7 +128,7 @@ Preserve unrelated dirty changes: deletions of
 
 ### Next
 
-Continue roadmap §4.5/order 7: the remaining 6 roster commands (tombstone and
+Continue roadmap §4.5/order 7: the remaining 5 roster commands (tombstone and
 impact share the removal-cascade subsystems with `agent_remove`, so move them with
 that cascade rather than alone), status source
 collection and lifecycle ownership, then steer/runs/journal/edict/tenant/shutdown/

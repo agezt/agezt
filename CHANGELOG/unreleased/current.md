@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Resolving an agent incident uses a typed application operation.** Pausing,
+  retiring, delegating to another agent and forcing a routing chain keep their
+  checks, errors, journaled request and outcome, and every resolution is
+  operation-audited before it is applied. Already-canceled requests now stop
+  before audit or any change.
+
 - **The operator Repair action uses a typed application operation.** Checks,
   errors, the journaled request and the background repair (including its panic
   containment) are unchanged, and every repair is operation-audited before it
