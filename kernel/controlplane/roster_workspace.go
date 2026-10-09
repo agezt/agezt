@@ -9,6 +9,7 @@ package controlplane
 import (
 	"fmt"
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/platform/fileworkspace"
 	"github.com/agezt/agezt/kernel/roster"
 	"os"
 	"path/filepath"
@@ -21,7 +22,7 @@ func (s *Server) agentWorkspaceInfo(p roster.Profile) (string, bool) {
 		return "", false
 	}
 	root := s.agentWorkspaceRoot()
-	dir, ok := confineUnder(root, workdir)
+	dir, ok := fileworkspace.ConfineUnder(root, workdir)
 	if !ok || filepath.Clean(dir) == filepath.Clean(root) {
 		return "", false
 	}

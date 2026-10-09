@@ -159,7 +159,7 @@ individual `Set*` setters remain the unit-test surface. Interfaces exist so the 
 | catalog `api.json` + meta, `custom.json` | `catalog_sync`, `provider_connect` | via `kernel/catalog` |
 
 Everything else is delegated to the owning subsystem (roster, memory, cadence store, workflow store, board, datalake, ...) and
-journaled by that subsystem. Reads of `sandbox/projects/<name>` are confined by `confineUnder` (`sandbox.go`).
+journaled by that subsystem. Reads of `sandbox/projects/<name>` are confined by `fileworkspace.ConfineUnder` plus link resolution (`app/sandbox`).
 
 ### 1.7 Env vars read directly
 
@@ -225,7 +225,7 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `whoami` | tenant |  | `handleWhoami` → server_commands.go |  |
 | `why` | tenant |  | `handleAppOperation` → app/journal.Trace.Why |  |
 
-#### Daemon operations, runs, state, storage, update — `registerDaemonOpsCommands` (registry.go), 19 ops
+#### Daemon operations, runs, state, storage, update — typed app operations via the common native adapter, 19 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
@@ -237,9 +237,9 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `redact_test` | primary |  | `handleAppOperation` → app/redaction.Service.Test | `/api/redact/test` |
 | `runs_list` | tenant |  | `handleAppOperation` → app/runs.Service.List | `/api/runs` |
 | `runs_stats` | tenant |  | `handleAppOperation` → app/runs.Service.Stats |  |
-| `sandbox_delete` | primary |  | `handleSandboxDelete` → sandbox.go | `/api/sandbox/delete` |
-| `sandbox_file` | primary |  | `handleSandboxFile` → sandbox.go | `/api/sandbox_file` |
-| `sandbox_list` | primary |  | `handleSandboxList` → sandbox.go | `/api/sandbox` |
+| `sandbox_delete` | primary |  | `handleAppOperation` → app/sandbox.Service.Delete | `/api/sandbox/delete` |
+| `sandbox_file` | primary |  | `handleAppOperation` → app/sandbox.Service.File | `/api/sandbox_file` |
+| `sandbox_list` | primary |  | `handleAppOperation` → app/sandbox.Service.List | `/api/sandbox` |
 | `shutdown` | primary |  | `handleAppOperation` → app/system.Lifecycle.Shutdown |  |
 | `spend_today` | primary |  | `handleAppOperation` → app/missioncontrol.Service.SpendToday | `/api/spend/today` |
 | `state_get` | primary |  | `handleAppOperation` → app/state.Service.Get |  |
@@ -745,7 +745,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `app_terminal_write.go` | Closed/idempotent/LIFO post-write callbacks outside lock; panic discards while cleanup remains unconditional. |
 | `app/update/backend.go` | Existing verified Check/Apply/DrainResult backend port. |
 | `app/update/service.go` | Disabled/validation/presentation/unverified manifest/background contexts and sentinel→response→100ms restart ordering. |
-| `sandbox.go` | `sandbox_list/file/delete` for code_exec projects under `sandbox/projects`, path-confined. |
+| `app/sandbox/sandbox.go` | Typed `sandbox_list` (project directories newest first, files in slash-name order, capped), `sandbox_file` (strict names, project and file confinement, link resolution with a re-check against the projects root, 256 KiB cap) and audited `sandbox_delete` (direct child of the projects root only) for code_exec projects (M686). |
 | `app/reaper/reaper.go` | Typed `reaper_scan` (M903): lenient idle/stale day windows (default 30, floor 1) measured back from the daemon clock over the kernel's `ReaperScan`, every finding as a full-field row list with its count. |
 | `app/redaction/redaction.go` | Typed `redact_test` (M104): runs the bus's live redactor against a strict-string candidate, returning only the redacted form, the matched built-in categories and whether an unexplained change hit a configured literal; read-only, so the candidate is never journaled. |
 | `app/journal/changes.go` | Typed `changelog` (material-change kinds with stable labels, payload detail probe, newest first, lenient limit/window) and `cache_stats` (prompt-cache reads/writes and the saving versus the injected full-rate `Cost`). |

@@ -17,6 +17,7 @@ import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/memory"
+	"github.com/agezt/agezt/kernel/platform/fileworkspace"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/skill"
 )
@@ -157,7 +158,7 @@ func (s *Server) deleteAgentWorkspace(p roster.Profile, on bool) (int, error) {
 		return 0, nil
 	}
 	root := s.agentWorkspaceRoot()
-	dir, ok := confineUnder(root, workdir)
+	dir, ok := fileworkspace.ConfineUnder(root, workdir)
 	if !ok || filepath.Clean(dir) == filepath.Clean(root) {
 		return 0, fmt.Errorf("agent %s workspace path is unsafe: %s", p.Slug, workdir)
 	}

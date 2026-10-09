@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.39e typed Mission Control reads, 2026-10-09
+## Current checkpoint — W2.39f typed sandbox inspection, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -108,9 +108,12 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
 - W2.39d (typed `reaper_scan`) is delivered through PR #750 at
   `a3c5d939b04548ee71803e21db3566d8c3cebe4d` after all 24 exact-head CI jobs;
   local `main` fast-forwarded to it.
-- W2.39e (typed `spend_today`/`attention`) is committed on `main` as a code
-  commit plus a docs commit and published from `arch/w2-dispatch`
-  (`gh pr list --head arch/w2-dispatch`). Require all 24
+- W2.39e (typed `spend_today`/`attention`) is delivered through PR #751 at
+  `251f88f25bbfa024e2f7b063521b8ee0654676e0` after all 24 exact-head CI jobs;
+  local `main` fast-forwarded to it.
+- W2.39f (typed sandbox inspection) is committed on `main` as a code commit
+  plus a docs commit and published from `arch/w2-dispatch` (`gh pr list --head
+  arch/w2-dispatch`). Require all 24
   exact-head jobs including `CI` and `ci.yml`, then merge normally with a
   matching head and fast-forward `main`.
 
@@ -357,14 +360,18 @@ fixture can raise, 24/24 mutations):
 into the new `kernel/app/missioncontrol` (450 steps x20 over five fixtures
 including a governor with real spend, 27/27 mutations):
 [91-w239-typed-mission-control-evidence.md](91-w239-typed-mission-control-evidence.md),
-`.temp_files/architecture-delivery/w91/`. About forty-five native commands remain,
-in the daemon-ops (attention, spend, disk, reaper, redact, sandbox), provider
-config (budget, chains, routing, execution profiles), cognition (council,
+`.temp_files/architecture-delivery/w91/`. W2.39f moved the three sandbox commands
+into the new `kernel/app/sandbox` and `confineUnder` into
+`platform/fileworkspace` (186 steps x20 with trees and journals equal, 31/31
+mutations, three gaps closed):
+[92-w239-typed-sandbox-evidence.md](92-w239-typed-sandbox-evidence.md),
+`.temp_files/architecture-delivery/w92/`. The daemon-ops group is complete.
+Forty-three native commands remain,
+in the provider config (budget, chains, routing, execution profiles), cognition (council,
 conductor, research, reflect, persona, prompts, seats, plan generate/refine,
-chat), datalake and file groups, plus `run`, `plan` and `whoami`. Next: the
-remaining daemon-ops reads one family at a time, then provider config,
-datalake, cognition, the roster status source collection and the streaming
-`run`/`plan` family.
+chat), datalake and file groups, plus `run`, `plan` and `whoami`. Next: provider
+config (budget, chains, routing, execution profiles), then datalake, cognition,
+the roster status source collection and the streaming `run`/`plan` family.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a
