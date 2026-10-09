@@ -114,3 +114,17 @@ The existing native runs suites still pass through the new path.
 Forty-seven independent mutations fail tests. They include the native
 registration, the routed-kernel binding and three port fields. Sources are
 restored byte-for-byte. Fixtures use isolated temporary kernels only.
+
+## Harness correction (recorded in W2.32c)
+
+The original harness passed each crafted payload to the bus as a Go `[]byte`,
+which the journal encodes as a base64 JSON string, not an object. Every
+payload-derived field was therefore empty on both sides: intents, agents, models,
+spend, failure reasons, tools and delegation links. Byte-exact parity held, but
+it exercised less than this document described.
+
+W2.32c fixed the harness to journal raw JSON payloads. It then reran this
+comparison, 288 steps x20, against the merged code. It now also asserts that
+non-empty intents, priced `claude-` models, delegation links, a live `shell`
+tool, delegations and spend all reach the responses. The parity is byte-exact
+with the real payloads.
