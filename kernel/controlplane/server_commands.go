@@ -138,36 +138,3 @@ func (s *Server) handleVerify(conn net.Conn, req Request) {
 	}
 	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": true}})
 }
-
-func (s *Server) handleApprovals(conn net.Conn, req Request) {
-	pending := s.k.Approvals().Pending()
-	out := make([]map[string]any, 0, len(pending))
-	for _, p := range pending {
-		out = append(out, map[string]any{
-			"id":                     p.ID,
-			"capability":             p.Capability,
-			"tool_name":              p.ToolName,
-			"input":                  p.Input,
-			"reason":                 p.Reason,
-			"actor":                  p.Actor,
-			"correlation_id":         p.CorrelationID,
-			"created_unix":           p.CreatedAt.Unix(),
-			"timeout_unix":           p.Timeout.Unix(),
-			"effect_class":           p.EffectClass,
-			"predicted_effects":      p.PredictedEffects,
-			"affected_resources":     p.AffectedResources,
-			"rollback_notes":         p.RollbackNotes,
-			"confidence":             p.Confidence,
-			"canonical_intent":       p.CanonicalIntent,
-			"harmful_interpretation": p.HarmfulInterpretation,
-			"ambiguity_score":        p.AmbiguityScore,
-			"regret_axes":            p.RegretAxes,
-			"confirmation_prompt":    p.ConfirmationPrompt,
-		})
-	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"pending": out, "count": len(out)},
-	})
-}
