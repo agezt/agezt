@@ -816,6 +816,13 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Halting, resuming, journal verification and shutdown use typed application
+  operations.** `halt` and `resume` keep their reason checks and responses,
+  `journal verify` keeps its result and errors, and `shutdown` still
+  acknowledges before the daemon exits; all stay operator-only, and the three
+  changes are still audited. Already-canceled requests now stop before any
+  audit or effect.
+
 - **Tenant management uses typed application operations.** Creating, listing,
   releasing and removing tenants, reading a tenant's token and the per-tenant
   activity summary keep their responses, argument checks, operator-only access
