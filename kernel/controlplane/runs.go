@@ -2,11 +2,14 @@
 
 package controlplane
 
-// Provenance: Past-runs enumeration: runEntry type, runEntryStatus, and collectRuns
-//             (journal walker). Code extracted from runs.go during the Day-37
+// Provenance: Past-runs enumeration: runEntry type, runEntryStatus, collectRuns
+//             (journal walker) and the app run-read binding. Code extracted from runs.go during the Day-37
 //             god-file split. Public API unchanged.
 
 import (
+	"time"
+
+	appruns "github.com/agezt/agezt/kernel/app/runs"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 )
@@ -77,6 +80,27 @@ type runEntry struct {
 	// run reports its status instead. Tool names the tool in flight, if any.
 	Phase string
 	Tool  string
+}
+
+// runReads binds the app run reads to the given kernel's folded runs.
+func (s *Server) runReads(k *runtime.Kernel) *appruns.Service {
+	return appruns.New(func() (map[string]appruns.Run, error) {
+		rows, err := s.collectRuns(k)
+		if err != nil {
+			return nil, err
+		}
+		out := make(map[string]appruns.Run, len(rows))
+		for id, r := range rows {
+			out[id] = appruns.Run{
+				CorrelationID: r.CorrelationID, Intent: r.Intent, FailReason: r.FailReason, ParentCorrelation: r.ParentCorrelation,
+				AnswerPreview: r.AnswerPreview, Model: r.Model, Agent: r.Agent, Phase: r.Phase, Tool: r.Tool,
+				StartedUnixMS: r.StartedUnixMS, StartedSeq: r.StartedSeq, CompletedUnixMS: r.CompletedUnixMS,
+				FailedUnixMS: r.FailedUnixMS, SpentMicrocents: r.SpentMicrocents, Iters: r.Iters,
+				Completed: r.Completed, Failed: r.Failed, Abandoned: r.Abandoned,
+			}
+		}
+		return out, nil
+	}, time.Now)
 }
 
 // runEntryStatus reports a run's terminal status (M61), the single source of
