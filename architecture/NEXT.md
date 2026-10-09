@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.31a typed live run steering, 2026-10-09
+## Current checkpoint — W2.31b typed `cancel_run`, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -47,8 +47,14 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   `8904eee67ee22c4c086754307a8ac390f8a7cd2d` after all 24 exact-head CI jobs.
 - W2.30r (typed `agent_remove`) is delivered through PR #726 at
   `a8db319906f306098a080326fec8a395f483f9de` after all 24 exact-head CI jobs.
-- W2.31a (typed live run steering) is committed on `main` as a code commit plus a
-  docs commit and published from `arch/w2-dispatch` (`gh pr list --head
+- W2.31a (typed live run steering) is delivered through PR #727 at
+  `5fa174d5334ee0cc7ba3f9dcec8b3931b2d28887` after all 24 exact-head CI jobs,
+  together with an owner-approved `ci(lint)` commit: GitHub `stable` Go became 1.27.2, whose
+  export data staticcheck 2026.2.1 cannot read (dominikh/go-tools#1832), so only
+  the staticcheck step runs with `GOTOOLCHAIN=go1.27.1`. Drop that pin and bump
+  `SC_TAG` once staticcheck supports Go 1.27.2.
+- W2.31b (typed `cancel_run`) is committed on `main` as a code commit plus a docs
+  commit and published from `arch/w2-dispatch` (`gh pr list --head
   arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
 
@@ -149,6 +155,11 @@ controls: compare both kernels' journals grouped by correlation, and expect the
 W2.1 tenant label on operator-selected tenant audit records (the legacy native
 audit omitted it for the primary token). If a long `-count=20` run is killed by
 the timeout while blocked in `FlushFileBuffers`, the host suspended; rerun it.
+W2.31b moved `cancel_run` into the same package (156 steps x20, 9/9 mutations) and
+fixed the caller-tenant audit label: the adapter now passes the trimmed tenant:
+[70-w231-typed-cancel-run-evidence.md](70-w231-typed-cancel-run-evidence.md),
+`.temp_files/architecture-delivery/w70/`. Invalid tenant ids fail native routing
+before any argument check, on both paths.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a
