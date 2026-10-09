@@ -16,7 +16,7 @@ func (s *Observations) Log(_ context.Context, in LogInput) (LogOutput, error) {
 	//
 	// tool.invoked events are stashed even when outside the since_ms window
 	// (an invoked can precede the cutoff its result falls inside) — safe
-	// because projectJournal runs decode on every event and applies the
+	// because ProjectValues runs decode on every event and applies the
 	// cutoff to decoded ROWS only, and rows only come from tool.result.
 	inputs := map[toolInvocationKey]string{}   // (run, call) → input preview
 	invokedTS := map[toolInvocationKey]int64{} // (run, call) → invocation timestamp

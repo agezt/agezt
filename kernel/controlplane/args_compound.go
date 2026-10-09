@@ -1,7 +1,7 @@
 package controlplane
 
 // Provenance: SPDX-License-Identifier: MIT kernel/controlplane request-arg
-//             string-collection helpers (argStrings, argStringList).
+//             string-collection helper (argStringList).
 //             Extracted from args.go during Day 211 god-file refactor (#99). Public
 //             API unchanged.
 
@@ -10,17 +10,6 @@ import (
 	"strings"
 )
 
-func argStrings(args map[string]any, keys ...string) (map[string]string, error) {
-	out := make(map[string]string, len(keys))
-	for _, k := range keys {
-		v, _, err := argString(args, k)
-		if err != nil {
-			return nil, err
-		}
-		out[k] = v
-	}
-	return out, nil
-}
 func argStringList(args map[string]any, key string) ([]string, bool, error) {
 	v, present := args[key]
 	if !present {

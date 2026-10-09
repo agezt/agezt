@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"net"
 	"sort"
+	"time"
 
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
@@ -287,4 +288,24 @@ func (s *Server) handleApprovalsLog(conn net.Conn, req Request) {
 		Type:   RespResult,
 		Result: map[string]any{"approvals": out, "count": len(out), "next_cursor": nextCursor},
 	})
+}
+
+// sinceCutoff converts an optional since_ms request arg into an absolute
+// cutoff timestamp (M65): now − since_ms. Returns 0 when absent/zero, meaning
+// "no window / all-time". The native approvals folds use it; it applies the
+// server's clock, which also stamps event TSUnixMS.
+func sinceCutoff(arg any) int64 {
+	var sinceMS int64
+	switch v := arg.(type) {
+	case float64:
+		sinceMS = int64(v)
+	case int64:
+		sinceMS = v
+	case int:
+		sinceMS = int64(v)
+	}
+	if sinceMS <= 0 {
+		return 0
+	}
+	return time.Now().UnixMilli() - sinceMS
 }
