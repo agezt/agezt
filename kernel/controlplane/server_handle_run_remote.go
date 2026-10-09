@@ -79,7 +79,6 @@ func addRemoteExecutionProfilePeerMetadata(payload map[string]any, meta map[stri
 func registerCoreCommands() {
 	register(
 		commandSpec{Cmd: CmdRun, TenantAllowed: true, TenantRouted: true, Streaming: StreamEvents, Handler: func(dc *DispatchCtx) { dc.S.handleRun(dc.Ctx, dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdWhy, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleWhy(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdWhoami, ReadOnly: true, TenantAllowed: true, Handler: func(dc *DispatchCtx) { dc.S.handleWhoami(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdPlan, Streaming: StreamEvents, Handler: func(dc *DispatchCtx) { dc.S.handlePlan(dc.Ctx, dc.Conn, dc.Req) }},
 	)

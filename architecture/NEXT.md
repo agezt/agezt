@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.37a typed lifecycle operations, 2026-10-09
+## Current checkpoint — W2.37b typed why, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -88,13 +88,14 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
 - W2.36a (typed tenant management) is delivered through PR #743 at
   `7212e4da9f4e4140f8e0c701cce5f7c8b895f184` after all 24 exact-head CI jobs
   (#741/#742 are unrelated Dependabot PRs; leave them).
-- W2.37a (typed halt/resume/journal_verify/shutdown) is committed on `main` as a
-  code commit plus a docs commit and published from `arch/w2-dispatch`, together with a
-  test-only fix: the toolforge runner-deadline test used a 30 ms deadline that a
-  loaded full-suite run could exhaust before the runner was reached (it now uses
-  500 ms; the runner blocks until the deadline either way)
-  (`gh pr list --head arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
-  then merge normally with a matching head and fast-forward `main`.
+- W2.37a (typed halt/resume/journal_verify/shutdown, plus a test-only fix that
+  gives the toolforge runner-deadline test a load-safe 500 ms deadline) is
+  delivered through PR #744 at `3a6c2fa3348af5c7cacebb1c517f8632fe412dca` after
+  all 24 exact-head CI jobs.
+- W2.37b (typed `why`) is committed on `main` as a code commit plus a docs commit
+  and published from `arch/w2-dispatch` (`gh pr list --head arch/w2-dispatch`).
+  Require all 24 exact-head jobs including `CI` and `ci.yml`, then merge normally
+  with a matching head and fast-forward `main`.
 
 ### W2.30c summary
 
@@ -307,6 +308,15 @@ shutdown acknowledges and the native `scheduleShutdown` keeps the grace delay):
 it is the remote-mirror helper code under the streaming `run` path. Next: `why`
 and `whoami` (server_commands.go), then agent_permissions/agent_capabilities
 classification, then the streaming `run`/`plan` family.
+W2.37b moved `why` into `app/journal` (`Trace` over a `Tracer` port; OwnTenant +
+CallerTenant, both event lists in member order): 120 steps x20 byte-exact on
+journals with a cross-correlation causation chain, 16/16 mutations (one
+member-order gap closed, +1 recorded equivalent):
+[85-w237-typed-why-evidence.md](85-w237-typed-why-evidence.md),
+`.temp_files/architecture-delivery/w85/`. `whoami` stays native by design (typing
+it would route the tenant it only names). Next: agent_permissions/
+agent_capabilities classification, the roster status source, then the streaming
+`run`/`plan` family.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a
