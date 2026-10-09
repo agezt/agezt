@@ -816,6 +816,13 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Data lake browsing and editing use typed application operations.**
+  Listing collections, querying records, inserting, updating and deleting
+  records, and creating and dropping collections keep their shapes, paging,
+  argument checks, operator provenance and errors; all stay operator-only and
+  every edit is still audited. Already-canceled requests now stop before any
+  read, audit or change.
+
 - **Execution profile reads use typed application operations.** The
   inventory, one profile and the health check keep every field, their
   ordering, the id check and errors, and still read the caller's kernel: a
