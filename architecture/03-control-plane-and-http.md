@@ -109,7 +109,7 @@ acceptLoop → go handleConn(ctx, conn)                     (server_handlers.go)
 
 Flags semantics (from `dispatch.go` comments, enforced by `dispatch_registry_test.go` + `tenant_auth_test.go`):
 - **TenantAllowed** — deny-by-default allowlist for tenant tokens (M38). 47 ops carry it; 4 more (`changelog`, `journal_stats`, `edict_compact`, `tenant_stats`) are TenantRouted but primary-only.
-- **TenantRouted** — handler resolves its kernel per request via `kernelFor`/`projectJournal` (typed operations get the routed kernel from the app host). Invariant
+- **TenantRouted** — handler resolves its kernel per request via `kernelFor` (typed operations get the routed kernel from the app host). Invariant
   `TestRegistry_TenantAllowedImpliesTenantRouted`: every TenantAllowed op must be TenantRouted, sole exception `whoami`.
 - **Streaming** — `run`, `plan`, `toolbox_install`, `market_install`, `market_uninstall` are `StreamEvents`; `chat_summarize`,
   `conductor_ask`, `council_ask`, `plan_generate`, `plan_refine`, `research_ask` are `StreamLive`. `run` handles its own
@@ -177,8 +177,8 @@ additionally trigger a kernel reload (`configFieldNeedsKernelReload`).
 The control plane is mostly a consumer: it subscribes to the bus for `run` (subject `k.SubjectForRun(corr)`, buffer 1024) and
 `pulse_subscribe` (pattern, buffer 4096, optional journal replay first), and folds the journal (`k.Journal().Range`) for every
 `*_log` / `*_stats` / `runs_*` / `agent_activity` / `inbox` / `changelog` view through the shared newest-first engine
-`platform/journalview` (limit clamp, `<ms>:<seq>` cursor, `since_ms`, newest-first); typed app reads call `ProjectValues`, and the
-native `projectJournal` wrapper (`projections.go`) remains only for `edict_log`. It publishes only a few events
+`platform/journalview` (limit clamp, `<ms>:<seq>` cursor, `since_ms`, newest-first); typed app reads call `ProjectValues` (the
+native `projectJournal` map wrapper is gone). It publishes only a few events
 itself (e.g. `publishMarket`, `publishToolbox`, `publishOperatorAction` for operator wakes/resolutions, remote execution-profile mirror
 events, `catalog.synced`/`catalog.sync_failed`, run cost-cap advisories); state changes are journaled by the subsystem the handler calls
 (`roster.*`, `mcp.*`, `scripttool.*`, `policy.changed`, `standing.*`, `memory.*` ...).
@@ -257,8 +257,8 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `approvals_stats` | tenant |  | `handleApprovalsStats` → approvals_log.go |  |
 | `cache_stats` | tenant |  | `handleAppOperation` → app/journal.Service.CacheStats |  |
 | `changelog` | primary, tenant-routed |  | `handleAppOperation` → app/journal.Service.Changelog |  |
-| `edict_log` | tenant |  | `handleEdictLog` → policy_log.go | `/api/policy_log` |
-| `edict_stats` | tenant |  | `handleEdictStats` → policy_log.go | `/api/policy` |
+| `edict_log` | tenant |  | `handleAppOperation` → app/edict.Decisions.Log | `/api/policy_log` |
+| `edict_stats` | tenant |  | `handleAppOperation` → app/edict.Decisions.Stats | `/api/policy` |
 | `journal_export` | primary |  | `handleAppOperation` → app/journal.Service.Export |  |
 | `journal_grep` | primary |  | `handleAppOperation` → app/journal.Service.Grep | `/api/journal` |
 | `journal_head` | primary |  | `handleAppOperation` → app/journal.Service.Head |  |
@@ -696,12 +696,11 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `server_handlers.go` | `handleConn` (auth → registry → tenant routing → stream wrapping → handler), `writeResp`, `recoverConn` panic firewall. |
 | `respond.go` | `fail`, `failMsg`, `ok` envelope helpers. |
 | `args.go` | Typed arg accessors `argString`, `argTruthy`, `argBool`, `requiredArgString`, `argFloat64`, `argInt64`. |
-| `args_compound.go` | `argStrings`, `argStringMap`, `argStringList`. |
+| `args_compound.go` | `argStringList`. |
 | `args_specialized.go` | `argLimit`, `argDryRun`, `argFlag`. |
 | `client.go` | `Client`, `NewClient`, `ProbeExisting`, `ErrServerError`, `Call`, `CallRaw`, `Stream`, `StreamUntilCancel`. |
 | `client_helpers.go` | `dial` (5 s), `setReadDeadlineFromCtx`, timeout→ctx error mapping, `writeRequest`, `readOneResponse`, `toString`, `toBool`. |
 | `client_update.go` | Typed client wrappers `UpdateCheck`/`UpdateApply` and their result types; `Close`. |
-| `projections.go` | `projectJournal`: the native map-row journal fold (limit, cursor, since, tenant, sort, next_cursor), now used only by `edict_log`; typed reads use `journalview.ProjectValues` directly. |
 | `tenant.go` | `registerTenantCommands`. |
 | `tenant_handlers.go` | `tenant_create/token/list/release/remove/stats` handlers over `tenant.Registry`. |
 | `tenant_helpers.go` | `tenantOf`, `kernelFor` (Acquire tenant kernel), `SetTenants`. |
@@ -753,8 +752,8 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 
 | File | What it does |
 |---|---|
-| `approvals_log.go` | `approvals_log`, `approvals_stats` (HITL history). |
-| `policy_log.go` | `edict_log`, `edict_stats` over `policy.decision`. |
+| `approvals_log.go` | `approvals_log`, `approvals_stats` (HITL history) and their `sinceCutoff` window helper. |
+| `app/edict/decisions.go` | Typed `edict_log` (strict denied/tool/capability, lenient page) and `edict_stats` (windowed fold, denial rate, denials by capability) over the routed kernel's `policy.decision` records; a malformed payload zeroes the whole decision. |
 | `provider_log.go` | `provider_log`, `provider_stats`, `provider_rejections` over `routing.decision`/`provider.fallback`. |
 | `app/audit/audit.go` | Typed guard audit reads: `netguard_log`, `ratelimit_log`/`ratelimit_stats`, `warden_log` (per-kind keys, `issues` filter)/`warden_stats` over `journalview.ProjectValues` and windowed folds. |
 | `app/webhook/observability.go` | Delivery projection/stats over selected journal; native business handler file removed. |
@@ -1282,7 +1281,7 @@ and warns when no console password is set.
   using typed accessors (`argString`, `argLimit`, … — `args_ratchet_test.go` forbids new raw casts) and `ok/fail`; register a
   `commandSpec` in the domain's `register*Commands` (or a themed group in `registry.go`). Set `TenantAllowed` (+`TenantRouted`) only if
   it must be callable by tenant tokens and acts on `dc.K`/`kernelFor`. Choose `Streaming`. `dispatch_registry_test.go` pins the constant↔registry 1:1.
-- **Journal audit view**: in the owning `kernel/app/<domain>` package, decode typed rows with `journalview.ProjectValues` (see `app/audit`) and bind a read-only spec; the native `projectJournal` map wrapper is legacy.
+- **Journal audit view**: in the owning `kernel/app/<domain>` package, decode typed rows with `journalview.ProjectValues` (see `app/audit`) and bind a read-only spec.
 - **Expose an op in the Web UI**: add one entry to `apiRoutes` / `readArgsRoutes` (GET) or `writeRoutes` / `jsonRoutes` (POST) with an
   explicit arg allowlist; numeric query keys must be in `numericQueryArgs`; add a `*_route_test.go` (forwarding + GET rejection for writes).
   Streaming results need a bespoke handler using `httpserver.StartSSE` + `Client.Stream`.
