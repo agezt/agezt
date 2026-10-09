@@ -227,7 +227,10 @@ func TestForgeLifecycleNativeRunnerDeadlineLeavesTestRecordUnchanged(t *testing.
 	before := k.ToolForge().List()
 	disk, _ := os.ReadFile(file)
 	head, _ := k.Journal().Head()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	// The runner blocks until the deadline, so a generous deadline only lengthens
+	// the test; a 30 ms one could expire under a loaded full-suite run before
+	// admission and audit even reached the runner.
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 	reply := forgeMutationReply(t, ctx, s, CmdToolforgeTest, args)
 	after, _ := os.ReadFile(file)

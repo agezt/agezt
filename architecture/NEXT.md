@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.36a typed tenant management, 2026-10-09
+## Current checkpoint — W2.37a typed lifecycle operations, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -85,8 +85,14 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   `b6fa81ae6ffe029b9291aaa5bf450f7a728d8dea` after all 24 exact-head CI jobs.
 - W2.35a (typed `plan_history`/`plan_stats`) is delivered through PR #740 at
   `5b53e9600b41a6b95825c72c55c69c69cc517810` after all 24 exact-head CI jobs.
-- W2.36a (typed tenant management) is committed on `main` as a code commit plus a
-  docs commit and published from `arch/w2-dispatch`
+- W2.36a (typed tenant management) is delivered through PR #743 at
+  `7212e4da9f4e4140f8e0c701cce5f7c8b895f184` after all 24 exact-head CI jobs
+  (#741/#742 are unrelated Dependabot PRs; leave them).
+- W2.37a (typed halt/resume/journal_verify/shutdown) is committed on `main` as a
+  code commit plus a docs commit and published from `arch/w2-dispatch`, together with a
+  test-only fix: the toolforge runner-deadline test used a 30 ms deadline that a
+  loaded full-suite run could exhaust before the runner was reached (it now uses
+  500 ms; the runner blocks until the deadline either way)
   (`gh pr list --head arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
 
@@ -292,6 +298,15 @@ steps x20 byte-exact with registry state and grouped journals equal, 31/31
 mutations: [83-w236-typed-tenants-evidence.md](83-w236-typed-tenants-evidence.md),
 `.temp_files/architecture-delivery/w83/`. Next: `shutdown`, the remote
 operations, then agent_permissions/agent_capabilities classification.
+W2.37a moved halt/resume/journal_verify/shutdown into `app/system` (`Lifecycle`;
+shutdown acknowledges and the native `scheduleShutdown` keeps the grace delay):
+108 steps x20 with halt/exit state and grouped journals equal, 16/16 mutations
+(+1 recorded timing equivalent):
+[84-w237-typed-lifecycle-evidence.md](84-w237-typed-lifecycle-evidence.md),
+`.temp_files/architecture-delivery/w84/`. "remote" in order 7 is not a command:
+it is the remote-mirror helper code under the streaming `run` path. Next: `why`
+and `whoami` (server_commands.go), then agent_permissions/agent_capabilities
+classification, then the streaming `run`/`plan` family.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a

@@ -216,10 +216,10 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `file_restore` | primary | | `handleFileRestore` → files_restore.go → app/files (file.write/file.delete) | `/api/rollback/apply` (file snapshots) |
 | `approvals` | primary |  | `handleAppOperation` → app/approvals.Live.Pending | `/api/approvals` |
 | `decide` | primary |  | `handleAppOperation` → app/approvals.Live.Decide | `/api/decide` |
-| `halt` | primary |  | `handleHalt` → server_commands.go | `/api/halt` |
-| `journal_verify` | primary |  | `handleVerify` → server_commands.go |  |
+| `halt` | primary |  | `handleAppOperation` → app/system.Lifecycle.Halt | `/api/halt` |
+| `journal_verify` | primary |  | `handleAppOperation` → app/system.Lifecycle.Verify |  |
 | `plan` | primary | events | `handlePlan` → server_handlers_plan.go | `/api/plan/run` |
-| `resume` | primary |  | `handleResume` → server_commands.go | `/api/resume` |
+| `resume` | primary |  | `handleAppOperation` → app/system.Lifecycle.Resume | `/api/resume` |
 | `run` | tenant | events | `handleRun` → server_handle_run.go | `/api/run` (SSE) |
 | `version` | primary |  | `handleVersion` → server_commands.go | `/api/version` |
 | `whoami` | tenant |  | `handleWhoami` → server_commands.go |  |
@@ -240,7 +240,7 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `sandbox_delete` | primary |  | `handleSandboxDelete` → sandbox.go | `/api/sandbox/delete` |
 | `sandbox_file` | primary |  | `handleSandboxFile` → sandbox.go | `/api/sandbox_file` |
 | `sandbox_list` | primary |  | `handleSandboxList` → sandbox.go | `/api/sandbox` |
-| `shutdown` | primary |  | `handleShutdown` → shutdown.go |  |
+| `shutdown` | primary |  | `handleAppOperation` → app/system.Lifecycle.Shutdown |  |
 | `spend_today` | primary |  | `handleSpendToday` → handle_spend_attention.go | `/api/spend/today` |
 | `state_get` | primary |  | `handleStateGet` → state.go |  |
 | `state_list` | primary |  | `handleStateList` → state.go |  |
@@ -704,7 +704,8 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `tenant.go` | `tenantService`: binds `app/tenants` to the daemon's registry (none when multi-tenancy is disabled) and each tenant's run activity (`kernelFor` + `collectRuns`). |
 | `app/tenants/tenants.go` | Typed operator-only `tenant_create`/`token`/`release`/`remove` (audited; strict id, blank required, untrimmed) and read-only `tenant_list`/`tenant_stats` (per-tenant runs, outcomes, spend, last activity; error rows; closed tenants released again). |
 | `tenant_helpers.go` | `tenantOf`, `kernelFor` (Acquire tenant kernel), `SetTenants`. |
-| `shutdown.go` | `handleShutdown`: closes `shutdownCh` so the daemon exits via the same path as SIGTERM. |
+| `shutdown.go` | `scheduleShutdown`: after the acknowledgement grace delay, closes `shutdownCh` so the daemon exits via the same path as SIGTERM. |
+| `app/system/lifecycle.go` | Typed operator-only `halt`/`resume` (strict reason, audited), `journal_verify` (read-only) and `shutdown` (audited; acknowledges, then schedules the exit). |
 
 **Core run lifecycle**
 
@@ -712,7 +713,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 |---|---|
 | `server_handle_run.go` | `handleRun` (666 lines): resolves tenant/agent/model/vision/system/timeout/tools/cost/execution-profile/assure overrides, dry-run plan, subscribes to run subject, launches the governed run, streams events, enriches result. |
 | `server_handle_run_remote.go` | Remote-agezt execution-profile helpers (run events, answer preview, peer metadata) + `registerCoreCommands`. |
-| `server_commands.go` | `version`, `halt`, `resume`, `why` (correlation walk), `whoami`, `journal_verify` handlers. |
+| `server_commands.go` | `why` (correlation walk) and `whoami` handlers. |
 | `server_handlers_plan.go` | `handlePlan` (execute a pre-built DAG `planSpec` via kernel scheduler, streaming). |
 | `dryrun.go` | `buildRunPlan` + `runPlanInput` consumer: renders the dry-run plan (model, context size warnings, tool set, timeout). |
 | `dryrun_format.go` | `formatMicrocentsUSD`. |
