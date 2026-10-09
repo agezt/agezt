@@ -26,13 +26,9 @@ func registerAllCommands() {
 // registerProviderConfigCommands registers Provider credentials/OAuth, model routing/chains, budgets, execution profiles, config.
 func registerProviderConfigCommands() {
 	register(
-		commandSpec{Cmd: CmdChainsGet, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleChainsGet(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdChainsSet, Handler: func(dc *DispatchCtx) { dc.S.handleChainsSet(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdExecutionProfiles, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleExecutionProfiles(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdExecutionProfileShow, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleExecutionProfileShow(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdExecutionProfileCheck, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleExecutionProfileCheck(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdRoutingGet, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleRoutingGet(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdRoutingSet, Handler: func(dc *DispatchCtx) { dc.S.handleRoutingSet(dc.Conn, dc.Req) }},
 	)
 }
 
