@@ -20,7 +20,7 @@ import (
 )
 
 func TestJournalNativeTypedRegistry(t *testing.T) {
-	for cmd, routed := range map[string]bool{CmdJournalHead: false, CmdJournalTail: false, CmdJournalStats: true} {
+	for cmd, routed := range map[string]bool{CmdJournalHead: false, CmdJournalTail: false, CmdJournalGrep: false, CmdJournalExport: false, CmdJournalStats: true} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -39,8 +39,8 @@ func TestJournalNativeTypedRegistry(t *testing.T) {
 	}
 }
 
-// Head and tail always read the primary journal; stats follows an
-// operator-named tenant; a tenant token reaches none of them.
+// Head, tail, grep and export always read the primary journal; stats follows
+// an operator-named tenant; a tenant token reaches none of them.
 func TestJournalNativeRouting(t *testing.T) {
 	dir := t.TempDir()
 	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("p"))})
@@ -102,7 +102,21 @@ func TestJournalNativeRouting(t *testing.T) {
 	if stats, line := call("primary", CmdJournalStats, map[string]any{"tenant": " acme "}); stats["events"] != float64(tHead+1) {
 		t.Fatal("stats follows the operator-named tenant", line, tHead)
 	}
-	for _, cmd := range []string{CmdJournalHead, CmdJournalTail, CmdJournalStats} {
+	grep, line := call("primary", CmdJournalGrep, map[string]any{"tenant": "acme", "kind": "task.received"})
+	if events, _ := grep["events"].([]any); len(events) != 1 || grep["head"] != float64(pHead) || !strings.Contains(line, `"events":[{"id":"`) {
+		t.Fatal("grep reads the primary journal and keeps the event member order", line)
+	}
+	export, line := call("primary", CmdJournalExport, map[string]any{"tenant": "acme"})
+	if export["count"] != float64(pHead+1) || export["head_seq"] != float64(pHead) || export["head_hash"] != pHash || !strings.Contains(line, `"events":[{"id":"`) {
+		t.Fatal("export bundles the primary journal and keeps the event member order", line)
+	}
+	if recent, line := call("primary", CmdJournalExport, map[string]any{"since_ms": 1}); recent["count"] != float64(0) || recent["first_seq"] != float64(-1) {
+		t.Fatal("the export window is measured on the daemon clock", line)
+	}
+	if MaxJournalExportN() != 200_000 {
+		t.Fatal("the CLI names the app export cap", MaxJournalExportN())
+	}
+	for _, cmd := range []string{CmdJournalHead, CmdJournalTail, CmdJournalGrep, CmdJournalExport, CmdJournalStats} {
 		if _, line := call(tenantToken, cmd, acme); !strings.Contains(line, "forbidden") {
 			t.Fatal(cmd, line)
 		}

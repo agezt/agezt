@@ -1022,8 +1022,11 @@ func handleAppOperation(dc *DispatchCtx) {
 	if out, ok := output.(approster.TaskUpdateOutput); ok {
 		result["task"] = out.Task
 	}
-	// Legacy journal_tail embeds the journal's Event structs directly.
-	if out, ok := output.(appjournal.TailOutput); ok {
+	// Legacy journal_tail/grep/export embed the journal's Event structs directly.
+	if out, ok := output.(appjournal.EventsOutput); ok {
+		result["events"] = out.Events
+	}
+	if out, ok := output.(appjournal.ExportOutput); ok {
 		result["events"] = out.Events
 	}
 	if inventory, ok := output.(appchannels.ListOutput); ok {
