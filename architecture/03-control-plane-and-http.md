@@ -279,12 +279,12 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `webhook_log` | tenant |  | `Observability.Log` → app/webhook/observability.go (typed shared binding) | `/api/webhook_log` |
 | `webhook_stats` | tenant |  | `Observability.Stats` → app/webhook/observability.go (typed shared binding) |  |
 
-#### Providers, keys, OAuth, routing, chains, budget, config — `registerProviderConfigCommands` (registry.go), 18 ops
+#### Providers, keys, OAuth, routing, chains, budget, config — `registerProviderConfigCommands` (registry.go) plus typed budget operations, 18 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
-| `budget` | primary |  | `handleBudget` → budget.go | `/api/budget` |
-| `budget_set` | primary |  | `handleBudgetSet` → budget.go |  |
+| `budget` | primary |  | `handleAppOperation` → app/budget.Service.Get | `/api/budget` |
+| `budget_set` | primary |  | `handleAppOperation` → app/budget.Service.Set |  |
 | `chains_get` | primary |  | `handleChainsGet` → chains.go | `/api/chains` |
 | `chains_set` | primary |  | `handleChainsSet` → chains.go | `/api/chains/set` |
 | `config` | primary | read | `Service.Show` → app/config/show.go (typed app spec; selected runtime/env adapters) | `/api/config` |
@@ -784,7 +784,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `provider_oauth.go` | "Sign in with ChatGPT": one-shot listener on 127.0.0.1:1455, token exchange via `chatgptauth`, vault storage, model sync; `provider_oauth_start/status/import/logout`. |
 | `routing.go` | `routing_get`/`routing_set`: governor per-task model chains, persisted as `AGEZT_TASK_MODEL_CHAINS`. |
 | `chains.go` | `chains_get`/`chains_set`: named fallback chains (`@name`) + usage map. |
-| `budget.go` | `budget` (governor snapshot) and `budget_set`. |
+| `app/budget/budget.go` | Typed `budget` (the governor's UTC-day snapshot with per-task rows sorted by task type, an empty array without caps) and audited `budget_set` (whole-number or base-10 string `ceiling_mc`, negative clamped by the governor, post-set snapshot) over a Governor port; both refuse when the provider is not a governor. |
 | `execution_profiles.go` | `execution_profiles`, `execution_profile_show`, `execution_profile_check` (tenant-allowed). |
 | `config.go` | `configEnvVars` canonical list of daemon env vars (presence-only surfacing). |
 | `config_handler.go` | Selected runtime config/RoutingReader and bool-only env-presence adapters → app/config.Service.Show; generic app dispatcher owns native framing. |
