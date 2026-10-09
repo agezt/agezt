@@ -359,12 +359,10 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `taste_delete` | primary |  | `handleTasteDelete` → taste.go |  |
 | `taste_list` | primary |  | `handleTasteList` → taste.go |  |
 
-#### Artifacts, plugins, tools, toolbox, edict overlay — `registerMiscSmallCommands` (registry.go), 13 ops
+#### Artifacts, plugins, tools, toolbox, edict overlay, 11 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
-| `agent_capabilities` | primary |  | `handleAgentCapabilities` → tool_agents.go | `/api/agents/capabilities` |
-| `agent_permissions` | primary |  | `handleAgentPermissions` → tool_agents.go | `/api/agents/permissions` |
 | `artifact_collect` | primary |  | `handleArtifactCollect` → artifact.go | `/api/artifact/collect` |
 | `artifact_delete` | primary |  | `handleArtifactDelete` → artifact.go | `/api/artifact/delete` |
 | `artifact_get` | primary |  | `handleArtifactGet` → artifact.go | `/api/artifact/raw` |
@@ -411,17 +409,19 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `tenant_stats` | primary, tenant-routed |  | `handleAppOperation` → app/tenants.Service.Stats |  |
 | `tenant_token` | primary |  | `handleAppOperation` → app/tenants.Service.Token |  |
 
-#### Agent roster (agents) — `app/roster` operations via the common native adapter, 17 ops
+#### Agent roster (agents) — `app/roster` operations via the common native adapter, 19 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
 | `agent_activity` | primary |  | `handleAppOperation` → app/roster.ActivityService.Activity | `/api/agents/activity` |
 | `agent_add` | primary |  | `handleAppOperation` → app/roster.ProfileWriteService.Add | `/api/agents/add` |
+| `agent_capabilities` | primary |  | `handleAppOperation` → app/roster.PermissionService.Capabilities | `/api/agents/capabilities` |
 | `agent_edit` | primary |  | `handleAppOperation` → app/roster.ProfileWriteService.Edit | `/api/agents/edit` |
 | `agent_escalations` | primary |  | `handleAppOperation` → app/roster.EscalationService.Escalations | `/api/agents/escalations` |
 | `agent_graveyard` | primary |  | `handleAppOperation` → app/roster.GraveyardService.Graveyard |  |
 | `agent_impact` | primary |  | `handleAppOperation` → app/roster.ImpactService.Impact | `/api/agents/impact` |
 | `agent_list` | primary |  | `handleAppOperation` → app/roster.ListService.List | `/api/agents` |
+| `agent_permissions` | primary |  | `handleAppOperation` → app/roster.PermissionService.Permissions | `/api/agents/permissions` |
 | `agent_remove` | primary |  | `handleAppOperation` → app/roster.RemoveService.Remove | `/api/agents/remove` |
 | `agent_repair` | primary |  | `handleAppOperation` → app/roster.RepairService.Repair | `/api/agents/repair` |
 | `agent_repair_status` | primary |  | `handleAppOperation` → app/roster.RepairStatusService.RepairStatus | `/api/agents/repair_status` |
@@ -853,10 +853,10 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 
 | File | What it does |
 |---|---|
-| `app/roster/*.go` | Request codecs, typed outputs, specs and services for every roster operation (list, graveyard, activity + activity summary, repair status, escalations, set enabled, add/edit, task update, wake, repair, resolve, impact/tombstone, retire/revive, remove), plus status presentation and typed snapshot rows. |
+| `app/roster/*.go` | Request codecs, typed outputs, specs and services for every roster operation (list, graveyard, activity + activity summary, repair status, escalations, set enabled, add/edit, task update, wake, repair, resolve, impact/tombstone, retire/revive, remove, permissions/capabilities), plus status presentation and typed snapshot rows. `permissions.go` owns the permission picture (tool rows, config visibility, wake access, governance) and the capability patch; `ConfigEntryBelongsToAgent` is shared with agent teardown. |
 | `roster.go` | Native type aliases over the app status rows. |
-| `roster_list.go` | List service binding, `profileView`, `agentModelChain`, list cache invalidation. |
-| `roster_crud_internal.go` | Hierarchy reference validation and the managed sub-agent direct-call guard. |
+| `roster_list.go` | List service binding, `agentModelChain`, list cache invalidation. |
+| `roster_crud_internal.go` | The managed sub-agent direct-call guard. |
 | `roster_lifecycle_helpers.go` | Sub-agent tree, workflow references and mailbox impact labels. |
 | `roster_cascade.go` | `nativeImpactSource` (per-agent holdings for impact/tombstone/retire/remove) and per-subsystem impact helpers. |
 | `roster_teardown.go` | Retire sub-agents; remove, pause and count standing orders and schedules for an agent. |
@@ -874,9 +874,6 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `roster_helpers.go` | Payload accessors `plString/plInt/...`, `truncate`, `firstNonEmpty`. |
 | `roster_activity_text.go` | Header-only file left by a split (no code). |
 | `tool.go` | `tool_list` (+ catalog probe, rollback mode). |
-| `tool_agents.go` | `agent_permissions`, `agent_capabilities` (patch trust ceiling/tool allow-deny/noise/config overrides/memory scope/workdir/cost). |
-| `tool_views.go` | `decodeControlplaneArg`, `applyAgentCapabilityPatch`, wake-access view. |
-| `tool_views_governance.go` | `agentGovernanceView`, permission rows, noise policy. |
 
 **Memory / world / skills / standing / schedules**
 

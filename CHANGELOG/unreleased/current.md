@@ -816,6 +816,13 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Agent permissions and capability changes use typed application
+  operations.** `agent permissions` keeps every tool row, config-entry
+  visibility, wake-access and governance field, and capability patches keep
+  their field checks, error order, hierarchy validation and response; both stay
+  operator-only and patches are still audited. Already-canceled requests now
+  stop before any audit or change.
+
 - **Event tracing uses a typed application operation.** `why` keeps its
   correlation chain, sub-agent parent and cross-correlation causation chain,
   its event-id check and errors, and tenant scoping: a tenant traces only its own
