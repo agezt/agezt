@@ -21,18 +21,9 @@ func registerAllCommands() {
 	registerDaemonOpsCommands()
 	registerDatalakeCommands()
 	registerFileCommands()
-	registerJournalLogCommands()
 	registerMiscSmallCommands()
 	registerProviderConfigCommands()
 	registerTenantCommands()
-}
-
-// registerJournalLogCommands registers Read-only journal projections and log/stat folds from small single-purpose files.
-func registerJournalLogCommands() {
-	register(
-		commandSpec{Cmd: CmdApprovalsLog, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleApprovalsLog(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdApprovalsStats, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleApprovalsStats(dc.Conn, dc.Req) }},
-	)
 }
 
 // registerProviderConfigCommands registers Provider credentials/OAuth, model routing/chains, budgets, execution profiles, config.
