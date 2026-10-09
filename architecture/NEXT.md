@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.39b typed disk statistics, 2026-10-09
+## Current checkpoint — W2.39c typed redaction check, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -99,10 +99,12 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   CI jobs.
 - W2.39a (typed `state_list`/`state_get`) is delivered through PR #747 at
   `15e89a40b72d199c6d680940219d72f4dba18d30` after all 24 exact-head CI jobs.
-- W2.39b (typed `disk_stats`) is committed on `main` as a code commit plus a
+- W2.39b (typed `disk_stats`) is delivered through PR #748 at
+  `5aedafe5ea82064edc8186baebc0c4e6adff870b` after all 24 exact-head CI jobs;
+  local `main` fast-forwarded to it.
+- W2.39c (typed `redact_test`) is committed on `main` as a code commit plus a
   docs commit and published from `arch/w2-dispatch` (`gh pr list --head
-  arch/w2-dispatch`). Local `main` lacks the #746/#747 merge commits themselves
-  (same trees as their tested heads); it fast-forwards at the W2.39b merge. Require all 24
+  arch/w2-dispatch`). Require all 24
   exact-head jobs including `CI` and `ci.yml`, then merge normally with a
   matching head and fast-forward `main`.
 
@@ -337,7 +339,11 @@ x20 byte-exact, 15/15 mutations):
 `.temp_files/architecture-delivery/w87/`. W2.39b moved `disk_stats` into
 `app/storage` (144 steps x20 byte-exact under six probes, 14/14 mutations):
 [88-w239-typed-disk-stats-evidence.md](88-w239-typed-disk-stats-evidence.md),
-`.temp_files/architecture-delivery/w88/`. About fifty native commands remain,
+`.temp_files/architecture-delivery/w88/`. W2.39c moved `redact_test` into the
+new `kernel/app/redaction` (216 steps x20 byte-exact under three redactor
+states, 14/14 mutations):
+[89-w239-typed-redaction-evidence.md](89-w239-typed-redaction-evidence.md),
+`.temp_files/architecture-delivery/w89/`. About fifty native commands remain,
 in the daemon-ops (attention, spend, disk, reaper, redact, sandbox), provider
 config (budget, chains, routing, execution profiles), cognition (council,
 conductor, research, reflect, persona, prompts, seats, plan generate/refine,

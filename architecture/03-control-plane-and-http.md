@@ -234,7 +234,7 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `disk_stats` | primary |  | `handleAppOperation` → app/storage.Service.Disk |  |
 | `pulse_subscribe` | primary |  | `handlePulseSubscribe` → pulse.go |  |
 | `reaper_scan` | primary |  | `handleReaperScan` → reaper.go | `/api/reaper/scan` |
-| `redact_test` | primary |  | `handleRedactTest` → redact_test_cmd.go | `/api/redact/test` |
+| `redact_test` | primary |  | `handleAppOperation` → app/redaction.Service.Test | `/api/redact/test` |
 | `runs_list` | tenant |  | `handleAppOperation` → app/runs.Service.List | `/api/runs` |
 | `runs_stats` | tenant |  | `handleAppOperation` → app/runs.Service.Stats |  |
 | `sandbox_delete` | primary |  | `handleSandboxDelete` → sandbox.go | `/api/sandbox/delete` |
@@ -747,7 +747,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `app/update/service.go` | Disabled/validation/presentation/unverified manifest/background contexts and sentinel→response→100ms restart ordering. |
 | `sandbox.go` | `sandbox_list/file/delete` for code_exec projects under `sandbox/projects`, path-confined. |
 | `reaper.go` | `handleReaperScan`: dead-agent/stale-artifact detection (read-only). |
-| `redact_test_cmd.go` | `handleRedactTest`: runs the live redactor against a candidate string. |
+| `app/redaction/redaction.go` | Typed `redact_test` (M104): runs the bus's live redactor against a strict-string candidate, returning only the redacted form, the matched built-in categories and whether an unexplained change hit a configured literal; read-only, so the candidate is never journaled. |
 | `app/journal/changes.go` | Typed `changelog` (material-change kinds with stable labels, payload detail probe, newest first, lenient limit/window) and `cache_stats` (prompt-cache reads/writes and the saving versus the injected full-rate `Cost`). |
 
 **Audit log folds (journal → paginated lists)**
