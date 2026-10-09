@@ -329,14 +329,14 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `whatsappgw_qr` | primary |  | `Gateway.QR` → app/channels/gateway.go (typed shared operation binding) | `/api/whatsappgw/qr` |
 | `whatsappgw_status` | primary |  | `Gateway.Status` → app/channels/gateway.go (typed shared operation binding) | `/api/whatsappgw/status` |
 
-#### Cognition: planner, council, conductor, research, persona, prompts, seats, taste — `registerCognitionCommands` (registry.go) plus typed persona, prompt, seat, council membership and reflection operations, 25 ops
+#### Cognition: planner, council, conductor, research, persona, prompts, seats, taste — `registerCognitionCommands` (registry.go) plus typed persona, prompt, seat, council membership, conductor role and reflection operations, 25 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
 | `chat_suggestions` | primary |  | `handleChatSuggestions` → chatsuggestions.go | `/api/suggestions` |
 | `chat_summarize` | primary | LIVE | `handleChatSummarize` → chatsummary.go | `/api/chat/summarize` |
 | `conductor_ask` | primary | LIVE | `handleConductorAsk` → conductor.go |  |
-| `conductor_roles` | primary |  | `handleConductorRoles` → conductor.go |  |
+| `conductor_roles` | primary |  | `handleAppOperation` → app/council.Service.Roles |  |
 | `council_ask` | primary | LIVE | `handleCouncilAsk` → council.go | `/api/council/ask` |
 | `council_members` | primary |  | `handleAppOperation` → app/council.Service.Members | `/api/council/members` |
 | `council_set` | primary |  | `handleAppOperation` → app/council.Service.Set | `/api/council/set` |
@@ -837,9 +837,9 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | File | What it does |
 |---|---|
 | `planner.go` | `plan_generate`, `plan_refine` (LLM plan JSON; LIVE). |
-| `conductor.go` | `conductor_roles`, `conductor_ask` (Thinker→Worker→Verifier). |
+| `conductor.go` | Streaming `conductor_ask` (Thinker→Worker→Verifier). |
 | `council.go` | Streaming `council_ask` (multi-model panel) and `sanitizeCorr`. |
-| `app/council/council.go` | Typed `council_members` and audited `council_set`: the default panel, replaced from `{seat, model}` entries, persisted in seat order as `AGEZT_COUNCIL_MEMBERS`, applied live with blank seats named by position, unknown catalog models reported. |
+| `app/council/council.go` | Typed `council_members`, `conductor_roles` (the panel's models round-robin for thinker, worker and verifier) and audited `council_set`: the default panel, replaced from `{seat, model}` entries, persisted in seat order as `AGEZT_COUNCIL_MEMBERS`, applied live with blank seats named by position, unknown catalog models reported. |
 | `research.go` | `research_ask` (deep-research harness; LIVE). |
 | `chatsuggestions.go` | `chat_suggestions`: memory/tool-context derived next-prompt chips (no LLM). |
 | `chatsummary.go` | `chat_summarize`: LLM briefing of chat history (LIVE). |

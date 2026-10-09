@@ -2,7 +2,8 @@
 
 // Package council owns the Council of Elders' default membership (M839): which
 // models speak when the multi-model panel is convened without an explicit
-// panel. Convening the panel itself stays a streaming command.
+// panel, and the Conductor roles auto-filled from it. Convening the panel and
+// running the Conductor stay streaming commands.
 package council
 
 import (
@@ -140,8 +141,38 @@ func (s *Service) Set(_ context.Context, in SetRequest) (SetOutput, error) {
 	return SetOutput{Saved: true, Applied: "live", MemberCount: len(parsed), UnknownModels: unknown}, nil
 }
 
+type RolesRequest struct{}
+
+// RolesOutput is the Conductor's auto-filled role assignment: the panel's
+// models taken round-robin for the thinker, worker and verifier, each empty
+// when there is no panel.
+type RolesOutput struct {
+	Thinker         string   `json:"thinker"`
+	Worker          string   `json:"worker"`
+	Verifier        string   `json:"verifier"`
+	AvailableModels []string `json:"available_models"`
+	AutoFilled      bool     `json:"auto_filled"`
+}
+
+// Roles derives the Conductor's default roles from the default panel.
+func (s *Service) Roles(_ context.Context, _ RolesRequest) (RolesOutput, error) {
+	members := s.ports.Members()
+	models := make([]string, 0, len(members))
+	for _, m := range members {
+		models = append(models, m.Model)
+	}
+	pick := func(i int) string {
+		if len(models) == 0 {
+			return ""
+		}
+		return models[i%len(models)]
+	}
+	return RolesOutput{Thinker: pick(0), Worker: pick(1), Verifier: pick(2), AvailableModels: models, AutoFilled: true}, nil
+}
+
 // Operations declares the read-only membership view and the audited
-// replacement, both operator-only, on their Web UI routes.
+// replacement, both operator-only, on their Web UI routes, and the read-only
+// Conductor role assignment, which has no route.
 func Operations(provider func(context.Context) *Service) ([]app.Operation, error) {
 	if provider == nil {
 		return nil, errors.New("council provider required")
@@ -166,5 +197,15 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	return []app.Operation{members, set}, nil
+	rolesOut, err := schema.FromType(reflect.TypeFor[RolesOutput](), false)
+	if err != nil {
+		return nil, err
+	}
+	roles, err := app.NewOperation(opapi.Spec{Name: "conductor_roles", ReadOnly: true, OutputSchema: rolesOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in RolesRequest) (RolesOutput, error) {
+		return provider(ctx).Roles(ctx, in)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []app.Operation{members, set, roles}, nil
 }

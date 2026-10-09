@@ -816,6 +816,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The Conductor's role preview uses a typed application operation.** It
+  still assigns the default panel's models round-robin to the thinker, worker
+  and verifier and stays operator-only. Already-canceled requests now stop
+  before any read.
+
 - **Reflection passes use typed application operations.** Triggering a pass
   and reading the latest report keep their correlation, report shape and
   errors; both stay operator-only and triggering is still audited.

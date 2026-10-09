@@ -51,7 +51,10 @@ func TestCouncilMembershipBindsTheKernel(t *testing.T) {
 	if got := call(CmdCouncilMembers, nil); got != `{"count":2,"members":[{"model":"zz","seat":"Elder 1"},{"model":"known","seat":"Chair"}]}` {
 		t.Fatal(got)
 	}
-	for cmd, read := range map[string]bool{CmdCouncilMembers: true, CmdCouncilSet: false} {
+	if got := call(CmdConductorRoles, nil); got != `{"auto_filled":true,"available_models":["zz","known"],"thinker":"zz","verifier":"zz","worker":"known"}` {
+		t.Fatal("conductor roles follow the primary kernel's panel", got)
+	}
+	for cmd, read := range map[string]bool{CmdCouncilMembers: true, CmdCouncilSet: false, CmdConductorRoles: true} {
 		if wire, exists := commandRegistry[cmd]; !exists || !wire.AppOwned || wire.ReadOnly != read || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 			t.Fatalf("%s native wire %+v", cmd, wire)
 		}

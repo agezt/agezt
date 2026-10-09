@@ -3,10 +3,10 @@
 package controlplane
 
 // Conductor control plane (M997): the operator/Web UI surface for the asymmetric,
-// verify-driven panel (kernel/runtime, M997). `conductor_roles` previews which
-// model fills each role; `conductor_ask` runs the full Thinker→Worker→Verifier
-// loop and returns the answer + transcript. The agent reaches the same engine
-// through the `conductor` tool.
+// verify-driven panel (kernel/runtime, M997). `conductor_ask` runs the full
+// Thinker→Worker→Verifier loop and returns the answer + transcript; the role
+// preview is the typed `conductor_roles` in app/council. The agent reaches the
+// same engine through the `conductor` tool.
 
 import (
 	"context"
@@ -14,31 +14,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/runtime"
 )
-
-// handleConductorRoles returns the default role→model assignment the Conductor
-// uses when roles aren't supplied (one distinct keyed-provider model per role,
-// cycling if fewer than three). Mirrors handleCouncilMembers — a read-only
-// preview so the UI/CLI can show who will fill each role before a run.
-func (s *Server) handleConductorRoles(conn net.Conn, req Request) {
-	members := s.k.CouncilDefaultMembers()
-	models := make([]string, 0, len(members))
-	for _, m := range members {
-		models = append(models, m.Model)
-	}
-	pick := func(i int) string {
-		if len(models) == 0 {
-			return ""
-		}
-		return models[i%len(models)]
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
-		"thinker":          pick(0),
-		"worker":           pick(1),
-		"verifier":         pick(2),
-		"available_models": models,
-		"auto_filled":      true,
-	}})
-}
 
 // handleConductorAsk runs the full Conductor loop and returns the result.
 // Mirrors handleCouncilAsk: an optional client-supplied correlation id lets the

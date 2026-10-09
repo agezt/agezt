@@ -21,7 +21,7 @@
 - **`kernel/app/channels`** — SPDX-License-Identifier: MIT
 - **`kernel/app/config`** — SPDX-License-Identifier: MIT
 - **`kernel/app/configcenter`** — SPDX-License-Identifier: MIT
-- **`kernel/app/council`** — Package council owns the Council of Elders' default membership (M839): which models speak when the multi-model panel is convened without an explicit panel.
+- **`kernel/app/council`** — Package council owns the Council of Elders' default membership (M839): which models speak when the multi-model panel is convened without an explicit panel, and the Conductor roles auto-filled from it.
 - **`kernel/app/data`** — Package data is the operator's window onto the personal data lake (M836): browsing and lightly editing the structured collections agents build with the db tool (M834/M835), from the Web UI Data view and `agt data`.
 - **`kernel/app/edict`** — Package edict owns the operator's view of one kernel's policy engine: the trust levels, ask policy and hard-deny rules, and a dry-run decision probe.
 - **`kernel/app/execprofile`** — Package execprofile reports the execution profiles a kernel can route work to: the inventory, one profile, and the health check of each profile and policy, built from the kernel's tools and warden and the host's remote backend configuration.
