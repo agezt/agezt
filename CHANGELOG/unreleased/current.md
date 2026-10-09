@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The Council of Elders' default membership uses typed application
+  operations.** Viewing and replacing the panel keep their entry checks, seat
+  ordering and naming, persistence, live apply, unknown-model warnings and
+  errors; both stay operator-only and edits are still audited. Already-canceled
+  requests now stop before any read, audit or change.
+
 - **Workboard execution seats use typed application operations.** Listing,
   creating and deleting seats keep their argument handling, the store's
   validation and every error; all stay operator-only and edits are still
