@@ -21,7 +21,6 @@ func registerAllCommands() {
 	registerDaemonOpsCommands()
 	registerDatalakeCommands()
 	registerFileCommands()
-	registerMiscSmallCommands()
 	registerProviderConfigCommands()
 }
 
@@ -86,13 +85,5 @@ func registerCognitionCommands() {
 		commandSpec{Cmd: CmdSeatList, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleSeatList(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdSeatCreate, Handler: func(dc *DispatchCtx) { dc.S.handleSeatCreate(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdSeatDelete, Handler: func(dc *DispatchCtx) { dc.S.handleSeatDelete(dc.Conn, dc.Req) }},
-	)
-}
-
-// registerMiscSmallCommands registers Remaining small subsystems: artifacts, plugins, tools, toolbox.
-func registerMiscSmallCommands() {
-	register(
-		commandSpec{Cmd: CmdAgentPermissions, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleAgentPermissions(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdAgentCapabilities, Handler: func(dc *DispatchCtx) { dc.S.handleAgentCapabilities(dc.Conn, dc.Req) }},
 	)
 }
