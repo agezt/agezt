@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The default identity and the chat prompt library use typed application
+  operations.** Viewing and editing the daemon's default system instructions
+  and the saved prompt library keep their text handling, caps, persistence,
+  live apply and errors; both stay operator-only and edits are still audited.
+  Already-canceled requests now stop before any read, audit or write.
+
 - **Data lake browsing and editing use typed application operations.**
   Listing collections, querying records, inserting, updating and deleting
   records, and creating and dropping collections keep their shapes, paging,

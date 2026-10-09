@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.41a typed data lake, 2026-10-09
+## Current checkpoint — W2.42a typed persona and prompts, 2026-10-10
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -125,8 +125,11 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
 - W2.40c (typed execution profiles) is delivered through PR #755 at
   `49714a8e20545566bae16a8e89a492d97a855317` after all 24 exact-head CI jobs;
   local `main` fast-forwarded to it.
-- W2.41a (typed data lake) is committed on `main` as a code commit plus a docs
-  commit and published from `arch/w2-dispatch` (`gh pr list --head
+- W2.41a (typed data lake) is delivered through PR #756 at
+  `b49c09271270de2f62a520df11f4420ac5a5bcd6` after all 24 exact-head CI jobs;
+  local `main` fast-forwarded to it.
+- W2.42a (typed persona and prompts) is committed on `main` as a code commit
+  plus a docs commit and published from `arch/w2-dispatch` (`gh pr list --head
   arch/w2-dispatch`). Require all 24
   exact-head jobs including `CI` and `ci.yml`, then merge normally with a
   matching head and fast-forward `main`.
@@ -396,8 +399,11 @@ W2.41a moved the seven data lake commands into the new `kernel/app/data` (276
 steps x20, 44/44 mutations, five gaps closed):
 [96-w241-typed-data-lake-evidence.md](96-w241-typed-data-lake-evidence.md),
 `.temp_files/architecture-delivery/w96/`. The datalake group is complete.
-Twenty-seven native commands remain, in the cognition (council,
-conductor, research, reflect, persona, prompts, seats, plan generate/refine,
+W2.42a moved `persona_get`/`persona_set` and `prompts_get`/`prompts_set` into the
+new `kernel/app/persona` (378 steps x20, 31/31 mutations):
+[97-w242-typed-persona-evidence.md](97-w242-typed-persona-evidence.md),
+`.temp_files/architecture-delivery/w97/`. Twenty-three native commands remain,
+in the cognition (council, conductor, research, reflect, seats, plan generate/refine,
 chat) and file groups, plus `run`, `plan` and `whoami`. Next: the non-streaming
 cognition commands; then the file group, once the shared adapter can carry its
 domain `error_code` (it is already governed through `app/files`); then the
