@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"time"
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
@@ -59,13 +60,14 @@ type wireEvent struct {
 	Tags          map[string]string `json:"tags,omitempty"`
 }
 
-type wireTail struct {
+type wireEvents struct {
 	Events []wireEvent `json:"events"`
 	Count  int         `json:"count"`
 	Head   int64       `json:"head"`
 }
 
-type TailOutput struct {
+// EventsOutput is a journal window: the tail, or the grep matches.
+type EventsOutput struct {
 	Events []*event.Event `json:"events"`
 	Count  int            `json:"count"`
 	Head   int64          `json:"head"`
@@ -82,11 +84,15 @@ type StatsOutput struct {
 
 // Service reads one kernel's journal.
 type Service struct {
-	journal Journal
-	disk    Disk
+	journal   Journal
+	disk      Disk
+	now       func() time.Time
+	exportCap int
 }
 
-func New(journal Journal, disk Disk) *Service { return &Service{journal: journal, disk: disk} }
+func New(journal Journal, disk Disk, now func() time.Time) *Service {
+	return &Service{journal: journal, disk: disk, now: now, exportCap: MaxExportN}
+}
 
 // head clamps the empty journal's -1 to 0.
 func (s *Service) head() (int64, string) {
@@ -102,7 +108,7 @@ func (s *Service) Head(context.Context, ReadInput) (HeadOutput, error) {
 // Tail returns the last n events (a JSON number truncated toward zero, else
 // 20, clamped to 1..10,000) read from the newest segments backwards, with the
 // head checkpoint taken first.
-func (s *Service) Tail(_ context.Context, in TailRequest) (TailOutput, error) {
+func (s *Service) Tail(_ context.Context, in TailRequest) (EventsOutput, error) {
 	n := defaultTailN
 	if len(in.N) != 0 {
 		var v any
@@ -115,12 +121,12 @@ func (s *Service) Tail(_ context.Context, in TailRequest) (TailOutput, error) {
 	head, _ := s.head()
 	events, err := s.journal.Tail(n)
 	if err != nil {
-		return TailOutput{}, err
+		return EventsOutput{}, err
 	}
 	if events == nil {
 		events = []*event.Event{}
 	}
-	return TailOutput{Events: events, Count: len(events), Head: head}, nil
+	return EventsOutput{Events: events, Count: len(events), Head: head}, nil
 }
 
 // Stats folds the journal once into an event count, a per-kind breakdown and
@@ -146,8 +152,11 @@ func (s *Service) Stats(context.Context, ReadInput) (StatsOutput, error) {
 
 func bind[I, O any](ops *[]app.Operation, spec opapi.Spec, handler func(context.Context, I) (O, error)) error {
 	shape := reflect.TypeFor[O]()
-	if shape == reflect.TypeFor[TailOutput]() {
-		shape = reflect.TypeFor[wireTail]()
+	switch shape {
+	case reflect.TypeFor[EventsOutput]():
+		shape = reflect.TypeFor[wireEvents]()
+	case reflect.TypeFor[ExportOutput]():
+		shape = reflect.TypeFor[wireExport]()
 	}
 	output, err := schema.FromType(shape, false)
 	if err != nil {
@@ -162,8 +171,8 @@ func bind[I, O any](ops *[]app.Operation, spec opapi.Spec, handler func(context.
 	return nil
 }
 
-// Operations declares the three unaudited primary journal reads. Head and tail
-// read the primary journal; stats follows an operator-named tenant.
+// Operations declares the five unaudited primary journal reads. Head, tail, grep
+// and export read the primary journal; stats follows an operator-named tenant.
 func Operations(provider func(context.Context) *Service) ([]app.Operation, error) {
 	if provider == nil {
 		return nil, errors.New("journal provider required")
@@ -176,8 +185,18 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "journal_tail", Tenancy: opapi.Primary, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"n":{}}}`)}, func(ctx context.Context, in TailRequest) (TailOutput, error) {
+			return bind(&ops, opapi.Spec{Name: "journal_tail", Tenancy: opapi.Primary, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"n":{}}}`)}, func(ctx context.Context, in TailRequest) (EventsOutput, error) {
 				return provider(ctx).Tail(ctx, in)
+			})
+		},
+		func() error {
+			return bind(&ops, opapi.Spec{Name: "journal_grep", Tenancy: opapi.Primary, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"pattern":{},"kind":{},"subject":{},"actor":{},"correlation_id":{},"limit":{}}}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/journal"}}, func(ctx context.Context, in GrepRequest) (EventsOutput, error) {
+				return provider(ctx).Grep(ctx, in)
+			})
+		},
+		func() error {
+			return bind(&ops, opapi.Spec{Name: "journal_export", Tenancy: opapi.Primary, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{},"correlation":{}}}`)}, func(ctx context.Context, in ExportRequest) (ExportOutput, error) {
+				return provider(ctx).Export(ctx, in)
 			})
 		},
 		func() error {

@@ -816,6 +816,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Journal search and export use typed application operations.** Filters,
+  the case-insensitive pattern search, limits, the export window and
+  correlation scope, verification hashes and the truncation cap are unchanged.
+  Already-canceled requests now stop before any work.
+
 - **Journal head, tail and statistics use typed application operations.** The
   head checkpoint, the last-N tail with its event fields and order, and the
   per-kind, time-span and on-disk statistics are unchanged; statistics still

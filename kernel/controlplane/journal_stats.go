@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	appjournal "github.com/agezt/agezt/kernel/app/journal"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -26,8 +27,12 @@ func journalReads(k *runtime.Kernel) *appjournal.Service {
 	return appjournal.New(k.Journal(), func() (int, int64) {
 		dir := filepath.Join(k.BaseDir(), "journal")
 		return countSegments(dir), dirSize(dir)
-	})
+	}, time.Now)
 }
+
+// MaxJournalExportN exposes the export size cap so the CLI can name it in the
+// truncation notice without hardcoding the number twice.
+func MaxJournalExportN() int { return appjournal.MaxExportN }
 
 // countSegments counts the journal's rotated segment files (*.jsonl) under dir.
 // Best-effort: a missing/unreadable directory counts 0.
