@@ -242,8 +242,8 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `sandbox_list` | primary |  | `handleSandboxList` → sandbox.go | `/api/sandbox` |
 | `shutdown` | primary |  | `handleAppOperation` → app/system.Lifecycle.Shutdown |  |
 | `spend_today` | primary |  | `handleSpendToday` → handle_spend_attention.go | `/api/spend/today` |
-| `state_get` | primary |  | `handleStateGet` → state.go |  |
-| `state_list` | primary |  | `handleStateList` → state.go |  |
+| `state_get` | primary |  | `handleAppOperation` → app/state.Service.Get |  |
+| `state_list` | primary |  | `handleAppOperation` → app/state.Service.List |  |
 | `status` | primary |  | `handleStatus` → status.go | `/api/status` |
 | `storage_stats` | primary |  | `handleStorageStats` → storage.go |  |
 | `update_apply` | primary |  | `Service.Apply` → app/update/service.go (typed shared binding/after-write ownership) |  |
@@ -737,7 +737,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `app/journal/trace.go` | Typed `why` (lenient `event_id`, untrimmed; correlation chain, sub-agent parent correlation, best-effort causation chain across correlations; both lists in Event member order) over the routed kernel, so a tenant traces only its own journal. |
 | `app/journal/search.go` | Typed `journal_grep` (strict filters, exact kind/subject/actor/correlation + case-insensitive pattern incl. payload, lenient limit 1..10,000 stopping the walk) and `journal_export` (daemon-clock `since_ms`, strict correlation scope, hashes + head at export time, `MaxExportN` truncation). |
 | `journal_stats.go` | `journalReads` (the app/journal binding with the on-disk size port, daemon clock and `governor.CostMicrocents`), `countSegments`, and the CLI's `MaxJournalExportN`. |
-| `state.go` | `state_list`, `state_get` over the kernel state store. |
+| `app/state/state.go` | Typed `state_list` (every namespace, or one namespace's keys; lenient untrimmed namespace; lists always arrays) and `state_get` (both names required, value decoded to its JSON type, a stored null still found, corrupt values reported) over the primary kernel's state store. |
 | `handle_spend_attention.go` | `spend_today` + `attention` (pending approvals + pulse asks feed) for Mission Control. |
 | `update_control.go` | Selected backend/current version/drain/sentinel/delayed shutdown only; old wrappers/map callback codec removed. |
 | `app/update/operations.go` | Two typed primary unary specs, strict ordered RawMessage codec, disabled priority and opaque panic result. |

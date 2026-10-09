@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-143 package(s):
+144 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -35,6 +35,7 @@
 - **`kernel/app/settings`** — SPDX-License-Identifier: MIT
 - **`kernel/app/skill`** — Package skill owns transport-independent skill use cases.
 - **`kernel/app/standing`** — Package standing owns typed standing management, history and manual firing admission over selected store, runtime writer, journal and callback ports.
+- **`kernel/app/state`** — Package state exposes the kernel's key/value state store to operators for inspection: which namespaces and keys exist and what one key holds.
 - **`kernel/app/steer`** — Package steer owns live run control: targeted cancel, pause, resume, single-step, directive injection and the intervention grammar for one in-flight run.
 - **`kernel/app/storage`** — Package storage owns transport-independent storage inventory diagnostics.
 - **`kernel/app/system`** — Package system owns the transport-independent daemon status/version handlers.
