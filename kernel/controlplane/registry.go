@@ -20,7 +20,6 @@ func registerAllCommands() {
 	registerCoreCommands()
 	registerDaemonOpsCommands()
 	registerDatalakeCommands()
-	registerEdictCommands()
 	registerFileCommands()
 	registerJournalLogCommands()
 	registerMiscSmallCommands()

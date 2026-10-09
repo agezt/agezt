@@ -109,7 +109,7 @@ acceptLoop → go handleConn(ctx, conn)                     (server_handlers.go)
 
 Flags semantics (from `dispatch.go` comments, enforced by `dispatch_registry_test.go` + `tenant_auth_test.go`):
 - **TenantAllowed** — deny-by-default allowlist for tenant tokens (M38). 47 ops carry it; 4 more (`changelog`, `journal_stats`, `edict_compact`, `tenant_stats`) are TenantRouted but primary-only.
-- **TenantRouted** — handler resolves its kernel per request via `kernelFor`/`edictFor`/`projectJournal`. Invariant
+- **TenantRouted** — handler resolves its kernel per request via `kernelFor`/`projectJournal` (typed operations get the routed kernel from the app host). Invariant
   `TestRegistry_TenantAllowedImpliesTenantRouted`: every TenantAllowed op must be TenantRouted, sole exception `whoami`.
 - **Streaming** — `run`, `plan`, `toolbox_install`, `market_install`, `market_uninstall` are `StreamEvents`; `chat_summarize`,
   `conductor_ask`, `council_ask`, `plan_generate`, `plan_refine`, `research_ask` are `StreamLive`. `run` handles its own
@@ -377,15 +377,15 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `toolbox_install` | primary | events | `ToolboxInstall.Install` → app/tools/toolbox_install.go (typed StreamEvents registration) | `/api/toolbox/install` (SSE adapter remains) |
 | `toolbox_outdated` | primary | read | `ToolboxReads.Outdated` → app/tools/toolbox_reads.go (typed app registration) |  |
 
-#### Edict policy (tenant-routed) — reads via `app/edict.Operations`, writes via `registerEdictCommands` (edict.go), 7 ops
+#### Edict policy (tenant-routed) — reads via `app/edict.Operations`, audited writes via `app/edict.WriteOperations`, 7 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
-| `edict_deny_add` | tenant |  | `handleEdictDenyAdd` → edict_deny.go | `/api/edict/deny_add` |
+| `edict_deny_add` | tenant |  | `handleAppOperation` → app/edict.Writes.DenyAdd | `/api/edict/deny_add` |
 | `edict_deny_list` | tenant |  | `handleAppOperation` → app/edict.Service.DenyList |  |
-| `edict_deny_rm` | tenant |  | `handleEdictDenyRemove` → edict_deny.go | `/api/edict/deny_rm` |
-| `edict_set_level` | tenant |  | `handleEdictSetLevel` → edict_set.go | `/api/edict/set_level` |
-| `edict_set_mode` | tenant |  | `handleEdictSetMode` → edict_set.go | `/api/edict/set_mode` |
+| `edict_deny_rm` | tenant |  | `handleAppOperation` → app/edict.Writes.DenyRemove | `/api/edict/deny_rm` |
+| `edict_set_level` | tenant |  | `handleAppOperation` → app/edict.Writes.SetLevel | `/api/edict/set_level` |
+| `edict_set_mode` | tenant |  | `handleAppOperation` → app/edict.Writes.SetMode | `/api/edict/set_mode` |
 | `edict_show` | tenant |  | `handleAppOperation` → app/edict.Service.Show | `/api/edict_show` |
 | `edict_test` | tenant |  | `handleAppOperation` → app/edict.Service.Test | `/api/edict/test` |
 
@@ -944,9 +944,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `plugin.go` | Selected runtime-manifest Reader adapter → app/plugins.Service; codec/socket framing uses generic app dispatcher. |
 | `datalake.go` | `data_collections/records/insert/update/delete/create_collection/drop_collection`. |
 | `app/edict/reads.go` | Typed `edict_show`, `edict_deny_list` (removable runtime rules) and `edict_test` (dry-run decision) over the routed kernel's policy engine; strict tenant, capability checked first for the probe. |
-| `edict.go` | `edictFor`, `askPolicyLabel`, `registerEdictCommands` (the four writes). |
-| `edict_deny.go` | `edict_deny_add/rm`. |
-| `edict_set.go` | `edict_set_level`, `edict_set_mode`. |
+| `app/edict/writes.go` | Typed audited `edict_deny_add` (exactly one rule), `edict_deny_rm` (runtime rules only, journals actual removals), `edict_set_level` (known capability) and `edict_set_mode` over the routed kernel's engine; each change journals `policy.changed` on the routed bus. |
 | `edict_overlay.go` | `edict_overlay` (net runtime policy), `edict_compact`. |
 
 Tests (119 files): `dispatch_registry_test.go` (registry ↔ constants 1:1, TenantAllowed⇒TenantRouted), `tenant_auth_test.go`

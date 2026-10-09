@@ -115,6 +115,15 @@ func TestJournalNativeRouting(t *testing.T) {
 	if export["count"] != float64(pHead+1) || export["head_seq"] != float64(pHead) || export["head_hash"] != pHash || !strings.Contains(line, `"events":[{"id":"`) {
 		t.Fatal("export bundles the primary journal and keeps the event member order", line)
 	}
+	// A 1 ms window excludes every event only once the clock has moved past the
+	// newest one; a fast host can otherwise still be inside its millisecond.
+	newest, err := k.Journal().Tail(1)
+	if err != nil || len(newest) != 1 {
+		t.Fatal(newest, err)
+	}
+	for time.Now().UnixMilli() <= newest[0].TSUnixMS+1 {
+		time.Sleep(time.Millisecond)
+	}
 	if recent, line := call("primary", CmdJournalExport, map[string]any{"since_ms": 1}); recent["count"] != float64(0) || recent["first_seq"] != float64(-1) {
 		t.Fatal("the export window is measured on the daemon clock", line)
 	}

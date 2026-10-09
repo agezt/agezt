@@ -61,7 +61,7 @@ const (
 //
 //   - TenantAllowed: a TENANT token may invoke it — the deny-by-default
 //     allowlist (M38). It marks exactly the commands that route to the
-//     caller's kernel via kernelFor/edictFor: running and cancelling the
+//     caller's kernel via kernelFor (or the app host): running and cancelling the
 //     tenant's own work, managing the tenant's own Edict policy, and
 //     observing the tenant's own isolated subsystems (M128: the read-only
 //     journal folds — runs, tools, edict, rate-limit, netguard, webhooks,
@@ -74,7 +74,8 @@ const (
 //     is denied, not over-granted). TestTenantToken_* sweeps both directions
 //     end-to-end.
 //   - TenantRouted: the handler resolves its kernel per-request via
-//     kernelFor / edictFor / projectJournal rather than using s.k directly
+//     kernelFor / projectJournal (typed operations: the app host's routed
+//     kernel) rather than using s.k directly
 //     (dispatch also pre-resolves dc.K via kernelFor at the boundary).
 //     Invariant (TestRegistry_TenantAllowedImpliesTenantRouted): every
 //     TenantAllowed command must be TenantRouted, or a tenant token would
