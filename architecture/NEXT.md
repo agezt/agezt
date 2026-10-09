@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.31b typed `cancel_run`, 2026-10-09
+## Current checkpoint — W2.31c typed run reads, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -53,8 +53,10 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   export data staticcheck 2026.2.1 cannot read (dominikh/go-tools#1832), so only
   the staticcheck step runs with `GOTOOLCHAIN=go1.27.1`. Drop that pin and bump
   `SC_TAG` once staticcheck supports Go 1.27.2.
-- W2.31b (typed `cancel_run`) is committed on `main` as a code commit plus a docs
-  commit and published from `arch/w2-dispatch` (`gh pr list --head
+- W2.31b (typed `cancel_run`) is delivered through PR #728 at
+  `42511ea28bfdb8fd8efa29f377cf22451e7eae25` after all 24 exact-head CI jobs.
+- W2.31c (typed `runs_list`/`runs_stats`) is committed on `main` as a code commit
+  plus a docs commit and published from `arch/w2-dispatch` (`gh pr list --head
   arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
 
@@ -160,6 +162,12 @@ fixed the caller-tenant audit label: the adapter now passes the trimmed tenant:
 [70-w231-typed-cancel-run-evidence.md](70-w231-typed-cancel-run-evidence.md),
 `.temp_files/architecture-delivery/w70/`. Invalid tenant ids fail native routing
 before any argument check, on both paths.
+W2.31c moved `runs_list`/`runs_stats` into the new `kernel/app/runs` (288 steps
+x20 byte-exact, 47/47 mutations); native `collectRuns` stays as the shared
+snapshot port: [71-w231-typed-run-reads-evidence.md](71-w231-typed-run-reads-evidence.md),
+`.temp_files/architecture-delivery/w71/`. For a deterministic same-millisecond
+journal in tests, open `journal.Open(dir, journal.Options{Now: fixed})` first and
+then the kernel on the same base dir.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a

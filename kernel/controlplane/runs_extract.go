@@ -12,6 +12,9 @@ import (
 	"strings"
 )
 
+// extractIntent pulls "intent" out of a task.received payload.
+// Returns "" if missing or malformed — operator-facing rendering
+// gracefully shows "(no intent)" rather than crashing.
 func extractIntent(payload json.RawMessage) string {
 	if len(payload) == 0 {
 		return ""

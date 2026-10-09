@@ -816,6 +816,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Run history and run statistics use typed application operations.** The run
+  list keeps its filters, ordering, cursor pages and row fields, and the
+  statistics keep their window, intent scope and every total; both stay
+  tenant-scoped. Already-canceled requests now stop before any work.
+
 - **Cancelling one run uses a typed application operation.** `cancel_run` keeps
   its arguments, errors, result and tenant routing, and is operation-audited
   before the run is cancelled. Already-canceled requests now stop before audit

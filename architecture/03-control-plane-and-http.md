@@ -234,8 +234,8 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `pulse_subscribe` | primary |  | `handlePulseSubscribe` → pulse.go |  |
 | `reaper_scan` | primary |  | `handleReaperScan` → reaper.go | `/api/reaper/scan` |
 | `redact_test` | primary |  | `handleRedactTest` → redact_test_cmd.go | `/api/redact/test` |
-| `runs_list` | tenant |  | `handleRunsList` → runs_handlers.go | `/api/runs` |
-| `runs_stats` | tenant |  | `handleRunsStats` → runs_handlers_stats.go |  |
+| `runs_list` | tenant |  | `handleAppOperation` → app/runs.Service.List | `/api/runs` |
+| `runs_stats` | tenant |  | `handleAppOperation` → app/runs.Service.Stats |  |
 | `sandbox_delete` | primary |  | `handleSandboxDelete` → sandbox.go | `/api/sandbox/delete` |
 | `sandbox_file` | primary |  | `handleSandboxFile` → sandbox.go | `/api/sandbox_file` |
 | `sandbox_list` | primary |  | `handleSandboxList` → sandbox.go | `/api/sandbox` |
@@ -726,10 +726,9 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 
 | File | What it does |
 |---|---|
-| `runs.go` | `runEntry`, `runEntryStatus`, `collectRuns` journal walker. |
+| `runs.go` | `runEntry`, `runEntryStatus`, `collectRuns` journal walker, and `runReads`, the app/runs snapshot port over the routed kernel. |
 | `runs_extract.go` | Payload extractors (intent, agent, tool, iters, cost, model, answer preview, spawn link, reason). |
-| `runs_handlers.go` | `handleRunsList` (cursor `<ms>:<seq>`, filters status/intent/model/cost). |
-| `runs_handlers_stats.go` | `handleRunsStats` + duration percentile stats. |
+| `app/runs/runs.go` | Typed `runs_list` (strict status/intent/model, lenient limit/cost, newest-first with seq tie-break, `<ms>:<seq>` cursor, live phase/tool) and `runs_stats` (window, intent scope, success rate, failure reasons, delegation, spend and duration distributions). |
 | `status.go` | `handleStatus`: one-round-trip health overview (version, halted, budget, tools, HTTP bindings, channels, AWS cred chain, fallback counts). |
 | `disk.go` | `handleDiskStats`: journal size + free space via injected `DiskFreeFunc` (M131). |
 | `storage.go` | `handleStorageStats`: per-top-level-dir usage of the home dir (M927). |
@@ -1323,6 +1322,7 @@ and warns when no console password is set.
 - **Channel ACP typed binding (W2.27k, local delivery pending):** one GET/primary-only/read-only spec/shared dispatcher, native wrapper/manual row/final structToMap removed. Service/Web UI read route bytes retained. Explicit canceled preflight rejects before discovery; native integer terminal exact for declared counts.432 native cases20=216 byte-exact normal+216 changed cancellation,12 valid mutations/schema/auth/source/tenant/old-current integer20/full Go/race gates pass;242 packages135 imports13 calls,133 kernel packages/2868 Go files. Remaining channel typed binding/native exit/protected publication remain.
 - **Channel ACP inventory foundation (W2.27j, local delivery pending):** app owns active environment/trim/default cached discovery/caller context/full typed inventory; native args ignored/manual primary read-only/legacy structToMap codec retained.432 byte-exact native cases20/source-cache-context/full files/head/provider checks,10 valid mutations/full model/default source20/tenant no-discovery denial/full Go/race gates;242 packages135 imports13 calls,133 kernel packages/2866 Go files. Official ratchet removes CP catalog import; typed communication binding/native exit/protected publication remain.
 - **Channel outbound send foundation (W2.27i, local delivery pending):** app Outbound owns validation/normalization/selected sender/background30s/error/result; terminal callback retains measured context through socket write. Native current sender factory/lenient codecs/manual primary audit retained.160 byte-exact native cases20/effects/files/audit privacy/deadline/provider checks,15 valid mutations/before-after lifetime/current sender/isolation/tenant/source20/full Go/race gates pass;242 packages136 imports13 calls,133 kernel packages/2863 Go files. ACP inventory/typed binding/native exit/protected publication remain.
+- **Typed run reads (W2.31c, local):** `runs_list` (`GET /api/runs`) and `runs_stats` are tenant-owned, caller-tenant-routed, read-only unaudited app operations over `appruns.Service`; `collectRuns` stays native as the snapshot port (`runReads`), shared with schedule firing views and roster status. `runs_handlers.go`/`runs_handlers_stats.go` and their registrations are removed. [Evidence](71-w231-typed-run-reads-evidence.md).
 - **Typed targeted run cancel (W2.31b, local):** `cancel_run` (`POST /api/cancel_run`) joins `app/steer` as a tenant-owned, caller-tenant-routed write; the routing `tenant` stays a strict optional string checked after the correlation, and the native handler/registration are removed. The common adapter now passes the trimmed tenant as the caller tenant, so an operator-selected padded tenant (`" acme "`) is audited as the `acme` kernel it reached. [Evidence](70-w231-typed-cancel-run-evidence.md).
 - **Typed live run steering (W2.31a, local):** `run_pause`/`run_resume`/`run_step`/`run_steer` (`POST /api/run/*`) and the unrouted `run_intervene` are tenant-owned, caller-tenant-routed, non-read-only app operations over `appsteer.Service`, bound to the kernel the dispatcher routed to. Strict codecs, the note/steer mode and the intervention mapping live in `kernel/app/steer`; `steer.go`, `registerSteerCommands` and `argFloat64` are removed. Operator-selected tenant steers are audited with their tenant label. [Evidence](69-w231-typed-steer-evidence.md).
 - **Typed agent remove (W2.30r, local) — roster domain complete:** `agent_remove` is a primary-only, non-read-only app operation (`POST /api/agents/remove`) over `approster.RemoveService`, which owns the cascade order and report; the native teardown helpers (`roster_teardown*.go`, `agentRemovalMailboxImpact`, `agentWorkflowImpact`) are its `RemovePorts`. No native roster command group remains (`registerRosterCommands` removed). 84 cloned-kernel steps x20 with response, journal and full-state parity, 36 mutations/full gates. [Evidence](68-w230-typed-agent-remove-evidence.md).
