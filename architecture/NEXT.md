@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.39d typed reaper scan, 2026-10-09
+## Current checkpoint — W2.39e typed Mission Control reads, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -105,9 +105,12 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
 - W2.39c (typed `redact_test`) is delivered through PR #749 at
   `747129982f75d2584bb0926e925757f88b2da255` after all 24 exact-head CI jobs;
   local `main` fast-forwarded to it.
-- W2.39d (typed `reaper_scan`) is committed on `main` as a code commit plus a
-  docs commit and published from `arch/w2-dispatch` (`gh pr list --head
-  arch/w2-dispatch`). Require all 24
+- W2.39d (typed `reaper_scan`) is delivered through PR #750 at
+  `a3c5d939b04548ee71803e21db3566d8c3cebe4d` after all 24 exact-head CI jobs;
+  local `main` fast-forwarded to it.
+- W2.39e (typed `spend_today`/`attention`) is committed on `main` as a code
+  commit plus a docs commit and published from `arch/w2-dispatch`
+  (`gh pr list --head arch/w2-dispatch`). Require all 24
   exact-head jobs including `CI` and `ci.yml`, then merge normally with a
   matching head and fast-forward `main`.
 
@@ -350,7 +353,11 @@ states, 14/14 mutations):
 new `kernel/app/reaper` (60 steps x20 byte-exact over every finding family the
 fixture can raise, 24/24 mutations):
 [90-w239-typed-reaper-evidence.md](90-w239-typed-reaper-evidence.md),
-`.temp_files/architecture-delivery/w90/`. About fifty native commands remain,
+`.temp_files/architecture-delivery/w90/`. W2.39e moved `spend_today`/`attention`
+into the new `kernel/app/missioncontrol` (450 steps x20 over five fixtures
+including a governor with real spend, 27/27 mutations):
+[91-w239-typed-mission-control-evidence.md](91-w239-typed-mission-control-evidence.md),
+`.temp_files/architecture-delivery/w91/`. About forty-five native commands remain,
 in the daemon-ops (attention, spend, disk, reaper, redact, sandbox), provider
 config (budget, chains, routing, execution profiles), cognition (council,
 conductor, research, reflect, persona, prompts, seats, plan generate/refine,
