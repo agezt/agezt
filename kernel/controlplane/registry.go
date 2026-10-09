@@ -42,15 +42,6 @@ func registerProviderConfigCommands() {
 // registerDaemonOpsCommands registers Daemon operations: runs listing, state/status, disk, storage, sandbox, updates, shutdown.
 func registerDaemonOpsCommands() {
 	register(
-		// Mission Control "Spend today" tile (Day 28+1). Slim counterpart of
-		// CmdBudget: just { total: int microcents } â€” no per-task breakdown. Lives
-		// here next to CmdBudget/CmdStatus rather than a new register func since
-		// it's a one-off and the route count stays readable.
-		commandSpec{Cmd: CmdSpendToday, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleSpendToday(dc.Conn, dc.Req) }},
-		// Mission Control "Needs your attention" panel (Day 28+1). Cross-cuts
-		// pending approvals + recent pulse asks into one time-sorted, capped
-		// feed. Same rationale for placement as CmdSpendToday.
-		commandSpec{Cmd: CmdAttention, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleAttention(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdSandboxList, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleSandboxList(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdSandboxFile, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleSandboxFile(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdSandboxDelete, Handler: func(dc *DispatchCtx) { dc.S.handleSandboxDelete(dc.Conn, dc.Req) }},
