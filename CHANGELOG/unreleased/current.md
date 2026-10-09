@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The redaction check uses a typed application operation.** `agt redact`
+  and the console's redaction test keep the live redactor, the redacted form,
+  the matched categories and the literal-hit report, and still never return or
+  journal the raw candidate; the check stays operator-only. Already-canceled
+  requests now stop before the candidate is examined.
+
 - **Disk statistics use a typed application operation.** `agt disk` and the
   doctor's disk check keep the journal size, the free-space figures and the
   unavailable report when the filesystem is unknown; the read stays
