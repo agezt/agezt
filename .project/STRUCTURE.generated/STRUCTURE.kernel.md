@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-148 package(s):
+149 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -16,6 +16,7 @@
 - **`kernel/app/audit`** — Package audit owns the guard audit reads folded from the journal: egress blocks, run-rate throttles and sandboxed executions, as paged logs and windowed statistics.
 - **`kernel/app/autonomy`** — SPDX-License-Identifier: MIT
 - **`kernel/app/board`** — Package board owns transport-independent message-board use cases.
+- **`kernel/app/budget`** — Package budget owns the operator's view of the governor's daily spend: the snapshot behind `agt budget` and the console's budget panel, and the runtime knob that adjusts the global daily ceiling (M607).
 - **`kernel/app/catalog`** — Package catalog owns transport-independent catalog sync, listing and discovery.
 - **`kernel/app/channels`** — SPDX-License-Identifier: MIT
 - **`kernel/app/config`** — SPDX-License-Identifier: MIT

@@ -26,8 +26,6 @@ func registerAllCommands() {
 // registerProviderConfigCommands registers Provider credentials/OAuth, model routing/chains, budgets, execution profiles, config.
 func registerProviderConfigCommands() {
 	register(
-		commandSpec{Cmd: CmdBudget, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleBudget(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdBudgetSet, Handler: func(dc *DispatchCtx) { dc.S.handleBudgetSet(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdChainsGet, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleChainsGet(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdChainsSet, Handler: func(dc *DispatchCtx) { dc.S.handleChainsSet(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdExecutionProfiles, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleExecutionProfiles(dc.Conn, dc.Req) }},

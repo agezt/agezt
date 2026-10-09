@@ -20,6 +20,7 @@ import (
 	appaudit "github.com/agezt/agezt/kernel/app/audit"
 	appautonomy "github.com/agezt/agezt/kernel/app/autonomy"
 	appboard "github.com/agezt/agezt/kernel/app/board"
+	appbudget "github.com/agezt/agezt/kernel/app/budget"
 	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
 	appchannels "github.com/agezt/agezt/kernel/app/channels"
 	appconfig "github.com/agezt/agezt/kernel/app/config"
@@ -90,6 +91,33 @@ var rosterProfileWriteOperations = func() []app.Operation {
 var sandboxOperations = func() []app.Operation {
 	ops, err := appsandbox.Operations(func(ctx context.Context) *appsandbox.Service {
 		return appsandbox.New(filepath.Join(ctx.Value(systemHostKey{}).(*Server).k.BaseDir(), "sandbox", "projects"))
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
+
+// budgetGovernor adapts the primary kernel's governor to the budget port.
+type budgetGovernor struct{ g *governor.Governor }
+
+func (b budgetGovernor) Snapshot() appbudget.Snapshot {
+	snap := b.g.Snapshot()
+	rows := make([]appbudget.TaskSnapshot, 0, len(snap.PerTask))
+	for _, row := range snap.PerTask {
+		rows = append(rows, appbudget.TaskSnapshot{TaskType: row.TaskType, SpentMicrocents: row.SpentMicrocents, CapMicrocents: row.CapMicrocents})
+	}
+	return appbudget.Snapshot{UTCDate: snap.UTCDate, SpentMicrocents: snap.SpentMicrocents, CeilingMicrocents: snap.CeilingMicrocents, PerTask: rows, StrictPricing: snap.StrictPricing}
+}
+
+func (b budgetGovernor) SetDailyCeiling(microcents int64) { b.g.SetDailyCeiling(microcents) }
+
+var budgetOperations = func() []app.Operation {
+	ops, err := appbudget.Operations(func(ctx context.Context) *appbudget.Service {
+		if gov, ok := ctx.Value(systemHostKey{}).(*Server).k.Provider().(*governor.Governor); ok {
+			return appbudget.New(budgetGovernor{g: gov})
+		}
+		return appbudget.New(nil)
 	})
 	if err != nil {
 		panic(err)
@@ -1072,7 +1100,7 @@ var configCenterOperations = func() []app.Operation {
 }()
 
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(lifecycleOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(rosterPermissionOperations)+len(stateOperations)+len(redactionOperations)+len(reaperOperations)+len(missionControlOperations)+len(sandboxOperations)+len(rosterTaskUpdateOperations)+len(rosterWakeOperations)+len(rosterRepairOperations)+len(rosterResolveOperations)+len(rosterImpactOperations)+len(rosterSetRetiredOperations)+len(rosterRemoveOperations)+len(steerOperations)+len(runsOperations)+len(planOperations)+len(tenantOperations)+len(journalOperations)+len(traceOperations)+len(auditOperations)+len(approvalHistoryOperations)+len(approvalLiveOperations)+len(edictReadOperations)+len(edictWriteOperations)+len(edictDecisionOperations)+len(edictOverlayOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(lifecycleOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(rosterPermissionOperations)+len(stateOperations)+len(redactionOperations)+len(reaperOperations)+len(missionControlOperations)+len(budgetOperations)+len(sandboxOperations)+len(rosterTaskUpdateOperations)+len(rosterWakeOperations)+len(rosterRepairOperations)+len(rosterResolveOperations)+len(rosterImpactOperations)+len(rosterSetRetiredOperations)+len(rosterRemoveOperations)+len(steerOperations)+len(runsOperations)+len(planOperations)+len(tenantOperations)+len(journalOperations)+len(traceOperations)+len(auditOperations)+len(approvalHistoryOperations)+len(approvalLiveOperations)+len(edictReadOperations)+len(edictWriteOperations)+len(edictDecisionOperations)+len(edictOverlayOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, lifecycleOperations...)
 	operations = append(operations, catalogOperations...)
@@ -1129,6 +1157,7 @@ func registeredAppOperations() []app.Operation {
 	operations = append(operations, redactionOperations...)
 	operations = append(operations, reaperOperations...)
 	operations = append(operations, missionControlOperations...)
+	operations = append(operations, budgetOperations...)
 	operations = append(operations, sandboxOperations...)
 	operations = append(operations, rosterTaskUpdateOperations...)
 	operations = append(operations, rosterWakeOperations...)
