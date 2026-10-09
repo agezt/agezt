@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-151 package(s):
+152 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -21,6 +21,7 @@
 - **`kernel/app/channels`** — SPDX-License-Identifier: MIT
 - **`kernel/app/config`** — SPDX-License-Identifier: MIT
 - **`kernel/app/configcenter`** — SPDX-License-Identifier: MIT
+- **`kernel/app/data`** — Package data is the operator's window onto the personal data lake (M836): browsing and lightly editing the structured collections agents build with the db tool (M834/M835), from the Web UI Data view and `agt data`.
 - **`kernel/app/edict`** — Package edict owns the operator's view of one kernel's policy engine: the trust levels, ask policy and hard-deny rules, and a dry-run decision probe.
 - **`kernel/app/execprofile`** — Package execprofile reports the execution profiles a kernel can route work to: the inventory, one profile, and the health check of each profile and policy, built from the kernel's tools and warden and the host's remote backend configuration.
 - **`kernel/app/files`** — Package files applies console file mutations through the host's governed tool invocation port.
