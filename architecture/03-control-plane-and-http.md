@@ -229,7 +229,7 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
-| `attention` | primary |  | `handleAttention` → handle_spend_attention.go | `/api/attention` |
+| `attention` | primary |  | `handleAppOperation` → app/missioncontrol.Service.Attention | `/api/attention` |
 | `autonomy_feed` | primary |  | `handleAutonomyFeed` → autonomy_feed.go | `/api/autonomy` |
 | `disk_stats` | primary |  | `handleAppOperation` → app/storage.Service.Disk |  |
 | `pulse_subscribe` | primary |  | `handlePulseSubscribe` → pulse.go |  |
@@ -241,7 +241,7 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `sandbox_file` | primary |  | `handleSandboxFile` → sandbox.go | `/api/sandbox_file` |
 | `sandbox_list` | primary |  | `handleSandboxList` → sandbox.go | `/api/sandbox` |
 | `shutdown` | primary |  | `handleAppOperation` → app/system.Lifecycle.Shutdown |  |
-| `spend_today` | primary |  | `handleSpendToday` → handle_spend_attention.go | `/api/spend/today` |
+| `spend_today` | primary |  | `handleAppOperation` → app/missioncontrol.Service.SpendToday | `/api/spend/today` |
 | `state_get` | primary |  | `handleAppOperation` → app/state.Service.Get |  |
 | `state_list` | primary |  | `handleAppOperation` → app/state.Service.List |  |
 | `status` | primary |  | `handleStatus` → status.go | `/api/status` |
@@ -738,7 +738,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `app/journal/search.go` | Typed `journal_grep` (strict filters, exact kind/subject/actor/correlation + case-insensitive pattern incl. payload, lenient limit 1..10,000 stopping the walk) and `journal_export` (daemon-clock `since_ms`, strict correlation scope, hashes + head at export time, `MaxExportN` truncation). |
 | `journal_stats.go` | `journalReads` (the app/journal binding with the on-disk size port over `dirUsage`, daemon clock and `governor.CostMicrocents`), `countSegments`, and the CLI's `MaxJournalExportN`. |
 | `app/state/state.go` | Typed `state_list` (every namespace, or one namespace's keys; lenient untrimmed namespace; lists always arrays) and `state_get` (both names required, value decoded to its JSON type, a stored null still found, corrupt values reported) over the primary kernel's state store. |
-| `handle_spend_attention.go` | `spend_today` + `attention` (pending approvals + pulse asks feed) for Mission Control. |
+| `app/missioncontrol/missioncontrol.go` | Typed Mission Control reads: `spend_today` (the governor's spend today, zero without one) and `attention` (every pending approval plus pulse asks inside a lenient window, newest first with id ties, lenient limit capped at 50). |
 | `update_control.go` | Selected backend/current version/drain/sentinel/delayed shutdown only; old wrappers/map callback codec removed. |
 | `app/update/operations.go` | Two typed primary unary specs, strict ordered RawMessage codec, disabled priority and opaque panic result. |
 | `contract/opapi/terminal_write.go` | stdlib-only post-response-writer ownership; returned error finishes, panic does not. |

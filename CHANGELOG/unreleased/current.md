@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Mission Control's spend tile and attention feed use typed application
+  operations.** The spend total, the merged approval and pulse-ask feed, its
+  ordering, window and limit fallbacks and the 50-item cap are unchanged, and
+  both stay operator-only reads. Already-canceled requests now stop before
+  any read.
+
 - **The reaper scan uses a typed application operation.** `agt doctor` and the
   console keep every finding (dead, degraded, misconfigured, retry- and
   routing-pressured and forced-chain agents, stale artifacts), each with its
