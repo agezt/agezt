@@ -816,6 +816,13 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Model routing and named fallback chains use typed application operations.**
+  Viewing and editing per-task model chains and named `@name` chains keep their
+  fallback activity, usage and dangling-reference report, name and default
+  checks, config-store persistence, live apply, unknown-model warnings and
+  errors; all stay operator-only and edits are still audited. Already-canceled
+  requests now stop before any read, audit or config write.
+
 - **The budget snapshot and the daily-ceiling knob use typed application
   operations.** `budget` and `budget_set` keep their snapshot shape, per-task
   ordering, argument checks, the governor's clamp and every error; both stay
