@@ -3,7 +3,7 @@
 package controlplane
 
 // Round-4 elite-bug-hunter reproduction, promoted to a durable containment
-// pin. handleSandboxFile confined paths lexically (confineUnder: Clean +
+// pin. sandbox_file (now app/sandbox.Service.File) confined paths lexically (confineUnder: Clean +
 // prefix check) but read them with follow-opens (os.Stat + os.ReadFile). The
 // projects tree is agent-built content, so a planted link — a POSIX symlink,
 // or a Windows junction (os.Lstat reports ModeIrregular, invisible to
@@ -13,14 +13,12 @@ package controlplane
 
 import (
 	"encoding/json"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
 	ageruntime "github.com/agezt/agezt/kernel/runtime"
@@ -40,23 +38,14 @@ func newSandboxTestServer(t *testing.T) *Server {
 		t.Fatalf("runtime.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = k.Close() })
-	return &Server{k: k, baseDir: base}
+	s := NewServer(k, base)
+	s.token = "primary"
+	return s
 }
 
 func callSandboxFile(t *testing.T, s *Server, project, file string) Response {
 	t.Helper()
-	client, server := net.Pipe()
-	go func() {
-		defer server.Close()
-		s.handleSandboxFile(server, Request{ID: "r4", Args: map[string]any{"project": project, "file": file}})
-	}()
-	defer client.Close()
-	_ = client.SetReadDeadline(time.Now().Add(10 * time.Second))
-	var resp Response
-	if err := json.NewDecoder(client).Decode(&resp); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	return resp
+	return callAppHost(t, s, Request{ID: "r4", Cmd: CmdSandboxFile, Token: "primary", Args: map[string]any{"project": project, "file": file}})[0]
 }
 
 func sandboxContent(t *testing.T, resp Response) string {
