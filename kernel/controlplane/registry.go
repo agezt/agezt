@@ -20,19 +20,8 @@ func registerAllCommands() {
 	registerCoreCommands()
 	registerDatalakeCommands()
 	registerFileCommands()
-	registerProviderConfigCommands()
 }
 
-// registerProviderConfigCommands registers Provider credentials/OAuth, model routing/chains, budgets, execution profiles, config.
-func registerProviderConfigCommands() {
-	register(
-		commandSpec{Cmd: CmdExecutionProfiles, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleExecutionProfiles(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdExecutionProfileShow, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleExecutionProfileShow(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdExecutionProfileCheck, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleExecutionProfileCheck(dc.Conn, dc.Req) }},
-	)
-}
-
-// registerCognitionCommands registers Cognition surfaces: planner, conductor/council, research, reflection, persona, prompts, taste, seats.
 func registerCognitionCommands() {
 	register(
 		commandSpec{Cmd: CmdChatSuggestions, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleChatSuggestions(dc.Conn, dc.Req) }},

@@ -295,14 +295,7 @@ func (s *Server) handleRun(ctx context.Context, conn net.Conn, req Request) {
 		if !ok {
 			s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: fmt.Sprintf(
 				"execution profile %q is not routable for run tools yet (supported: %s)",
-				execProfile, strings.Join(executionprofile.RoutableRunProfileIDsFor(executionprofile.Build(executionprofile.Options{
-					Tools:   toolNames(k.Tools()),
-					Warden:  k.Warden(),
-					SSH:     executionprofile.SSHConfigFromEnv(),
-					K8s:     executionprofile.K8sConfigFromEnv(),
-					Modal:   executionprofile.ModalConfigFromEnv(),
-					Daytona: executionprofile.DaytonaConfigFromEnv(),
-				})), ", ")),
+				execProfile, strings.Join(executionprofile.RoutableRunProfileIDsFor(executionInventory(k)), ", ")),
 			})
 			return
 		}
