@@ -223,7 +223,7 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `run` | tenant | events | `handleRun` → server_handle_run.go | `/api/run` (SSE) |
 | `version` | primary |  | `handleVersion` → server_commands.go | `/api/version` |
 | `whoami` | tenant |  | `handleWhoami` → server_commands.go |  |
-| `why` | tenant |  | `handleWhy` → server_commands.go |  |
+| `why` | tenant |  | `handleAppOperation` → app/journal.Trace.Why |  |
 
 #### Daemon operations, runs, state, storage, update — `registerDaemonOpsCommands` (registry.go), 19 ops
 
@@ -713,7 +713,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 |---|---|
 | `server_handle_run.go` | `handleRun` (666 lines): resolves tenant/agent/model/vision/system/timeout/tools/cost/execution-profile/assure overrides, dry-run plan, subscribes to run subject, launches the governed run, streams events, enriches result. |
 | `server_handle_run_remote.go` | Remote-agezt execution-profile helpers (run events, answer preview, peer metadata) + `registerCoreCommands`. |
-| `server_commands.go` | `why` (correlation walk) and `whoami` handlers. |
+| `server_commands.go` | `whoami`, the one native handler left (echoes the transport principal; typing it would route the tenant it names). |
 | `server_handlers_plan.go` | `handlePlan` (execute a pre-built DAG `planSpec` via kernel scheduler, streaming). |
 | `dryrun.go` | `buildRunPlan` + `runPlanInput` consumer: renders the dry-run plan (model, context size warnings, tool set, timeout). |
 | `dryrun_format.go` | `formatMicrocentsUSD`. |
@@ -734,6 +734,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `disk.go` | `handleDiskStats`: journal size + free space via injected `DiskFreeFunc` (M131). |
 | `storage.go` | `handleStorageStats`: per-top-level-dir usage of the home dir (M927). |
 | `app/journal/journal.go` | Typed `journal_head` (empty-journal clamp), `journal_tail` (lenient `n` clamped 1..10,000, head before read, Event member order kept by the adapter) and `journal_stats` (count, per-kind, time span, segments/bytes) over the routed kernel's journal. |
+| `app/journal/trace.go` | Typed `why` (lenient `event_id`, untrimmed; correlation chain, sub-agent parent correlation, best-effort causation chain across correlations; both lists in Event member order) over the routed kernel, so a tenant traces only its own journal. |
 | `app/journal/search.go` | Typed `journal_grep` (strict filters, exact kind/subject/actor/correlation + case-insensitive pattern incl. payload, lenient limit 1..10,000 stopping the walk) and `journal_export` (daemon-clock `since_ms`, strict correlation scope, hashes + head at export time, `MaxExportN` truncation). |
 | `journal_stats.go` | `journalReads` (the app/journal binding with the on-disk size port, daemon clock and `governor.CostMicrocents`), `countSegments`, and the CLI's `MaxJournalExportN`. |
 | `state.go` | `state_list`, `state_get` over the kernel state store. |

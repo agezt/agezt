@@ -816,6 +816,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Event tracing uses a typed application operation.** `why` keeps its
+  correlation chain, sub-agent parent and cross-correlation causation chain,
+  its event-id check and errors, and tenant scoping: a tenant traces only its own
+  journal. Already-canceled requests now stop before any journal read.
+
 - **Halting, resuming, journal verification and shutdown use typed application
   operations.** `halt` and `resume` keep their reason checks and responses,
   `journal verify` keeps its result and errors, and `shutdown` still
