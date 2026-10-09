@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.33d typed edict overlay, 2026-10-09
+## Current checkpoint — W2.34a typed approval history, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -77,7 +77,9 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   newest event.
 - W2.33c (typed `edict_log`/`edict_stats`) is delivered through PR #736 at
   `fca5700bbf8df87fc2efb0d7921e4869756bee3b` after all 24 exact-head CI jobs.
-- W2.33d (typed `edict_overlay`/`edict_compact`) is committed on `main` as a code
+- W2.33d (typed `edict_overlay`/`edict_compact`) is delivered through PR #737 at
+  `4e6cb5414de6fceacc905128f85f8d7ada7c6f2b` after all 24 exact-head CI jobs.
+- W2.34a (typed `approvals_log`/`approvals_stats`) is committed on `main` as a code
   commit plus a docs commit and published from `arch/w2-dispatch`
   (`gh pr list --head arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
@@ -253,6 +255,16 @@ primary-only. The edict family is complete: no native edict handler remains
 `.temp_files/architecture-delivery/w79/`. Next: `approvals_log`/`approvals_stats`
 (approvals_log.go, the last `sinceCutoff` user; a new `kernel/app/approvals`
 read package or `app/audit`), then tenant, shutdown and remote.
+W2.34a moved `approvals_log`/`approvals_stats` into the new `kernel/app/approvals`
+(`History`, over the routed journal + clock) and removed `approvals_log.go`,
+`registerJournalLogCommands`, `sinceCutoff` and `int64Arg` (216 steps x20
+byte-exact, 40/40 mutations):
+[80-w234-typed-approval-history-evidence.md](80-w234-typed-approval-history-evidence.md),
+`.temp_files/architecture-delivery/w80/`. The only native journal-folded audit
+log left is `plan_history`/`plan_stats` (plan_history.go). Next: the live
+approval operations (`approvals` pending list and decide, in
+`server_handle_run_remote.go`) into `app/approvals`, then `plan_history`,
+tenant, shutdown and remote.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a
