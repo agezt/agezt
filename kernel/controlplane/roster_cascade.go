@@ -127,7 +127,7 @@ func (s *Server) agentConfigImpact(p roster.Profile) []string {
 	}
 	var out []string
 	for _, e := range s.k.ConfigCenter().ListEntries() {
-		if configEntryBelongsToAgent(e, p.Slug) {
+		if approster.ConfigEntryBelongsToAgent(e, p.Slug) {
 			label := strings.TrimSpace(e.Key)
 			if e.Rating != "" {
 				label += " [" + string(e.Rating) + "]"
@@ -217,5 +217,6 @@ func (s *Server) agentRemovalMailboxImpact(slug string, subagents []roster.Profi
 
 // The predicates these listers apply — agentMailboxImpactLabel,
 // workflowNodeConfigReferencesAgent, memoryRecordBelongsToAgent,
-// memoryRecordAuthoredSharedByAgent, configEntryBelongsToAgent — stay in
-// roster.go alongside the mutators that share them.
+// memoryRecordAuthoredSharedByAgent — stay in roster.go alongside the mutators
+// that share them; configEntryBelongsToAgent is approster.ConfigEntryBelongsToAgent,
+// shared with the agent permission picture.

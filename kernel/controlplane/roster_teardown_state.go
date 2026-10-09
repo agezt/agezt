@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 
+	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/roster"
@@ -121,7 +122,7 @@ func (s *Server) deleteAgentConfigEntries(slug string, on bool) (int, int, error
 	var keys []string
 	deleting := map[string]bool{}
 	for _, e := range s.k.ConfigCenter().ListEntries() {
-		if configEntryBelongsToAgent(e, slug) {
+		if approster.ConfigEntryBelongsToAgent(e, slug) {
 			keys = append(keys, e.Key)
 			deleting[e.Key] = true
 		}
@@ -212,40 +213,4 @@ func removeAgentAccessRef(values []string, slug string) ([]string, bool) {
 		return nil, true
 	}
 	return out, true
-}
-
-func configEntryBelongsToAgent(e *configcenter.ConfigEntry, slug string) bool {
-	if e == nil {
-		return false
-	}
-	slug = strings.TrimSpace(strings.ToLower(slug))
-	if slug == "" {
-		return false
-	}
-	key := strings.TrimSpace(strings.ToLower(e.Key))
-	for _, prefix := range []string{
-		"agent/" + slug + "/",
-		"agents/" + slug + "/",
-		"agent." + slug + ".",
-		"agents." + slug + ".",
-	} {
-		if strings.HasPrefix(key, prefix) {
-			return true
-		}
-	}
-	if strings.EqualFold(strings.TrimSpace(e.CreatedBy), slug) {
-		return true
-	}
-	for _, tag := range e.Tags {
-		t := strings.TrimSpace(strings.ToLower(tag))
-		if t == "agent:"+slug || t == "agent/"+slug || t == "owner:"+slug || t == "owner/"+slug {
-			return true
-		}
-	}
-	for _, k := range []string{"agent", "agent_slug", "owner_agent", "parent_agent"} {
-		if strings.EqualFold(strings.TrimSpace(e.Metadata[k]), slug) {
-			return true
-		}
-	}
-	return false
 }

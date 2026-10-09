@@ -17,7 +17,6 @@ func agentModelChain(primary string, fallbacks []string) []string {
 	return chain
 }
 
-func profileView(p roster.Profile) map[string]any { return approster.ProfileView(p) }
 func (s *Server) rosterListService() *approster.ListService {
 	s.rosterListOnce.Do(func() {
 		s.rosterList = approster.NewList(func() []roster.Profile { return s.k.Roster().List() }, s.agentStatusViews, nil)

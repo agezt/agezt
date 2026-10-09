@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.37b typed why, 2026-10-09
+## Current checkpoint — W2.38a typed agent permissions, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -92,10 +92,13 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   gives the toolforge runner-deadline test a load-safe 500 ms deadline) is
   delivered through PR #744 at `3a6c2fa3348af5c7cacebb1c517f8632fe412dca` after
   all 24 exact-head CI jobs.
-- W2.37b (typed `why`) is committed on `main` as a code commit plus a docs commit
-  and published from `arch/w2-dispatch` (`gh pr list --head arch/w2-dispatch`).
-  Require all 24 exact-head jobs including `CI` and `ci.yml`, then merge normally
-  with a matching head and fast-forward `main`.
+- W2.37b (typed `why`) is delivered through PR #745 at
+  `767e7f961572043cc11b27cd3537458a59af002f` after all 24 exact-head CI jobs.
+- W2.38a (typed `agent_permissions`/`agent_capabilities`) is committed on `main`
+  as a code commit plus a docs commit and published from `arch/w2-dispatch`
+  (`gh pr list --head arch/w2-dispatch`). Require all 24
+  exact-head jobs including `CI` and `ci.yml`, then merge normally with a
+  matching head and fast-forward `main`.
 
 ### W2.30c summary
 
@@ -314,8 +317,14 @@ journals with a cross-correlation causation chain, 16/16 mutations (one
 member-order gap closed, +1 recorded equivalent):
 [85-w237-typed-why-evidence.md](85-w237-typed-why-evidence.md),
 `.temp_files/architecture-delivery/w85/`. `whoami` stays native by design (typing
-it would route the tenant it only names). Next: agent_permissions/
-agent_capabilities classification, the roster status source, then the streaming
+it would route the tenant it only names).
+W2.38a moved `agent_permissions`/`agent_capabilities` into `app/roster`
+(`PermissionService` over primary-kernel ports; the config-ownership predicate
+is now shared with teardown): 294 steps x20 with roster state and grouped
+journals equal, 62/62 mutations:
+[86-w238-typed-agent-permissions-evidence.md](86-w238-typed-agent-permissions-evidence.md),
+`.temp_files/architecture-delivery/w86/`. No native command of the former misc
+group remains. Next: the roster status source collection, then the streaming
 `run`/`plan` family.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
