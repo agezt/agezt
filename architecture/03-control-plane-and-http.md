@@ -214,8 +214,8 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `file_rename` | primary | | `handleFileMutation` → files.go → app/files (file.write) | `/api/files/rename` |
 | `file_delete` | primary | | `handleFileMutation` → files.go → app/files (file.delete) | `/api/files/delete` |
 | `file_restore` | primary | | `handleFileRestore` → files_restore.go → app/files (file.write/file.delete) | `/api/rollback/apply` (file snapshots) |
-| `approvals` | primary |  | `handleApprovals` → server_commands.go | `/api/approvals` |
-| `decide` | primary |  | `handleDecide` → server_handlers_plan.go | `/api/decide` |
+| `approvals` | primary |  | `handleAppOperation` → app/approvals.Live.Pending | `/api/approvals` |
+| `decide` | primary |  | `handleAppOperation` → app/approvals.Live.Decide | `/api/decide` |
 | `halt` | primary |  | `handleHalt` → server_commands.go | `/api/halt` |
 | `journal_verify` | primary |  | `handleVerify` → server_commands.go |  |
 | `plan` | primary | events | `handlePlan` → server_handlers_plan.go | `/api/plan/run` |
@@ -712,8 +712,8 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 |---|---|
 | `server_handle_run.go` | `handleRun` (666 lines): resolves tenant/agent/model/vision/system/timeout/tools/cost/execution-profile/assure overrides, dry-run plan, subscribes to run subject, launches the governed run, streams events, enriches result. |
 | `server_handle_run_remote.go` | Remote-agezt execution-profile helpers (run events, answer preview, peer metadata) + `registerCoreCommands`. |
-| `server_commands.go` | `version`, `halt`, `resume`, `why` (correlation walk), `whoami`, `journal_verify`, `approvals` handlers. |
-| `server_handlers_plan.go` | `handlePlan` (execute a pre-built DAG `planSpec` via kernel scheduler, streaming) + `handleDecide` (resolve a HITL approval). |
+| `server_commands.go` | `version`, `halt`, `resume`, `why` (correlation walk), `whoami`, `journal_verify` handlers. |
+| `server_handlers_plan.go` | `handlePlan` (execute a pre-built DAG `planSpec` via kernel scheduler, streaming). |
 | `dryrun.go` | `buildRunPlan` + `runPlanInput` consumer: renders the dry-run plan (model, context size warnings, tool set, timeout). |
 | `dryrun_format.go` | `formatMicrocentsUSD`. |
 | `dryrun_pricing.go` | `modelPriced`, `strictPricingPlan`, `runPlanInput` type. |
@@ -752,6 +752,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 
 | File | What it does |
 |---|---|
+| `app/approvals/live.go` | Typed primary-only `approvals` (waiting requests oldest first with intent/effect metadata, unaudited) and audited `decide` (lenient id/decision/reason, empty id checked first, exact grant/deny, resolved as the operator) over the primary kernel's approval registry. |
 | `app/approvals/history.go` | Typed `approvals_log` (one row per approval joined across request and resolution, newest request first, `denied` keeps denials and timeouts, cursor paging) and `approvals_stats` (final-status counts by request time, grant rate over resolved, denials by capability) over the routed kernel's journal + clock. |
 | `app/edict/decisions.go` | Typed `edict_log` (strict denied/tool/capability, lenient page) and `edict_stats` (windowed fold, denial rate, denials by capability) over the routed kernel's `policy.decision` records; a malformed payload zeroes the whole decision. |
 | `app/providers/observation_operations.go` | Typed `provider_log`, `provider_stats`, `provider_rejections` over `routing.decision`/`provider.fallback` (the native `provider_log.go` was removed in an earlier provider slice). |
