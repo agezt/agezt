@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Journal head, tail and statistics use typed application operations.** The
+  head checkpoint, the last-N tail with its event fields and order, and the
+  per-kind, time-span and on-disk statistics are unchanged; statistics still
+  follow an operator-named tenant. Already-canceled requests now stop before
+  any work.
+
 - **Run history and run statistics use typed application operations.** The run
   list keeps its filters, ordering, cursor pages and row fields, and the
   statistics keep their window, intent scope and every total; both stay

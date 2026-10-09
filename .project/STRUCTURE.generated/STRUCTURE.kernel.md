@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-138 package(s):
+139 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -19,6 +19,7 @@
 - **`kernel/app/config`** — SPDX-License-Identifier: MIT
 - **`kernel/app/configcenter`** — SPDX-License-Identifier: MIT
 - **`kernel/app/files`** — Package files applies console file mutations through the host's governed tool invocation port.
+- **`kernel/app/journal`** — Package journal owns the operator's journal reads: the head checkpoint, the last-N tail and the journal's size and shape statistics.
 - **`kernel/app/market`** — SPDX-License-Identifier: MIT
 - **`kernel/app/memory`** — Package memory owns transport-independent memory use cases.
 - **`kernel/app/okr`** — Package okr owns transport-independent objective reads, live rollup projections and lifecycle operations over selected store and kernel ports.

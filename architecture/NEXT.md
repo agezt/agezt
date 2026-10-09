@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.31c typed run reads, 2026-10-09
+## Current checkpoint — W2.32a typed journal head/tail/stats, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -55,9 +55,11 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   `SC_TAG` once staticcheck supports Go 1.27.2.
 - W2.31b (typed `cancel_run`) is delivered through PR #728 at
   `42511ea28bfdb8fd8efa29f377cf22451e7eae25` after all 24 exact-head CI jobs.
-- W2.31c (typed `runs_list`/`runs_stats`) is committed on `main` as a code commit
-  plus a docs commit and published from `arch/w2-dispatch` (`gh pr list --head
-  arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
+- W2.31c (typed `runs_list`/`runs_stats`) is delivered through PR #729 at
+  `5d893f5d644add906c73e31d0d56ba0c60c38623` after all 24 exact-head CI jobs.
+- W2.32a (typed `journal_head`/`journal_tail`/`journal_stats`) is committed on
+  `main` as one commit (code and evidence docs together) and published from
+  `arch/w2-dispatch` (`gh pr list --head arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
 
 ### W2.30c summary
@@ -168,6 +170,15 @@ snapshot port: [71-w231-typed-run-reads-evidence.md](71-w231-typed-run-reads-evi
 `.temp_files/architecture-delivery/w71/`. For a deterministic same-millisecond
 journal in tests, open `journal.Open(dir, journal.Options{Now: fixed})` first and
 then the kernel on the same base dir.
+W2.32a moved `journal_head`/`journal_tail`/`journal_stats` into the new
+`kernel/app/journal` (132 steps x20 byte-exact, 26/26 mutations plus one recorded
+equivalent): [72-w232-typed-journal-reads-evidence.md](72-w232-typed-journal-reads-evidence.md),
+`.temp_files/architecture-delivery/w72/`. Two reusable lessons: a typed output
+holding `event.Event` needs an explicit schema (derive it from a wire mirror with
+`Payload any`), and a legacy handler that embedded structs needs an adapter
+special case to keep their member order. The rest of the journal group
+(`journal_grep`, `journal_export`, `changelog`, `cache_stats` and the folded
+audit logs) follows.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a

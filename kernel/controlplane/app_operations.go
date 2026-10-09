@@ -21,6 +21,7 @@ import (
 	appchannels "github.com/agezt/agezt/kernel/app/channels"
 	appconfig "github.com/agezt/agezt/kernel/app/config"
 	appconfigcenter "github.com/agezt/agezt/kernel/app/configcenter"
+	appjournal "github.com/agezt/agezt/kernel/app/journal"
 	appmarket "github.com/agezt/agezt/kernel/app/market"
 	appmemory "github.com/agezt/agezt/kernel/app/memory"
 	appokr "github.com/agezt/agezt/kernel/app/okr"
@@ -64,6 +65,16 @@ var rosterProfileWriteOperations = func() []app.Operation {
 	ops, err := approster.ProfileWriteOperations(func(ctx context.Context) *approster.ProfileWriteService {
 		s := ctx.Value(systemHostKey{}).(*Server)
 		return approster.NewProfileWrite(s.k.Roster().Get, s.k.AddProfile, s.k.UpdateProfile, s.invalidateAgentListCache)
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
+
+var journalOperations = func() []app.Operation {
+	ops, err := appjournal.Operations(func(ctx context.Context) *appjournal.Service {
+		return journalReads(ctx.Value(appHostKey{}).(appHost).kernel)
 	})
 	if err != nil {
 		panic(err)
@@ -832,7 +843,7 @@ var configCenterOperations = func() []app.Operation {
 }()
 
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(rosterTaskUpdateOperations)+len(rosterWakeOperations)+len(rosterRepairOperations)+len(rosterResolveOperations)+len(rosterImpactOperations)+len(rosterSetRetiredOperations)+len(rosterRemoveOperations)+len(steerOperations)+len(runsOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(rosterTaskUpdateOperations)+len(rosterWakeOperations)+len(rosterRepairOperations)+len(rosterResolveOperations)+len(rosterImpactOperations)+len(rosterSetRetiredOperations)+len(rosterRemoveOperations)+len(steerOperations)+len(runsOperations)+len(journalOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, catalogOperations...)
 	operations = append(operations, providerOperations...)
@@ -892,6 +903,7 @@ func registeredAppOperations() []app.Operation {
 	operations = append(operations, rosterRemoveOperations...)
 	operations = append(operations, steerOperations...)
 	operations = append(operations, runsOperations...)
+	operations = append(operations, journalOperations...)
 	return append(operations, configCenterOperations...)
 }
 
@@ -1009,6 +1021,10 @@ func handleAppOperation(dc *DispatchCtx) {
 	// Legacy agent_task_update embeds the roster AgentTask struct directly.
 	if out, ok := output.(approster.TaskUpdateOutput); ok {
 		result["task"] = out.Task
+	}
+	// Legacy journal_tail embeds the journal's Event structs directly.
+	if out, ok := output.(appjournal.TailOutput); ok {
+		result["events"] = out.Events
 	}
 	if inventory, ok := output.(appchannels.ListOutput); ok {
 		rows, _ := result["channels"].([]any)

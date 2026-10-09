@@ -2,7 +2,7 @@
 
 package controlplane
 
-// Journal size/shape observability (M132). The journal is append-only and
+// Journal size/shape observability (M132), now served by app/journal. The journal is append-only and
 // full-retention — projections are rebuilt from it on boot, so it is NOT pruned
 // in place. That makes "how big is the journal, and WHAT is filling it" a real
 // operator question (the input to an archival / bigger-disk decision), which
@@ -12,57 +12,20 @@ package controlplane
 // future `--tenant` can scope it to a tenant's own journal.
 
 import (
-	"net"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/event"
+	appjournal "github.com/agezt/agezt/kernel/app/journal"
+	"github.com/agezt/agezt/kernel/runtime"
 )
 
-func (s *Server) handleJournalStats(conn net.Conn, req Request) {
-	k, err := s.kernelFor(tenantOf(req))
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-
-	var count, oldest, newest int64
-	byKind := map[string]int64{}
-	if err := k.Journal().Range(func(e *event.Event) error {
-		count++
-		byKind[string(e.Kind)]++
-		if e.TSUnixMS > 0 {
-			if oldest == 0 || e.TSUnixMS < oldest {
-				oldest = e.TSUnixMS
-			}
-			if e.TSUnixMS > newest {
-				newest = e.TSUnixMS
-			}
-		}
-		return nil
-	}); err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-
-	journalDir := filepath.Join(k.BaseDir(), "journal")
-	byKindAny := make(map[string]any, len(byKind))
-	for kind, n := range byKind {
-		byKindAny[kind] = n
-	}
-
-	s.writeResp(conn, Response{
-		ID:   req.ID,
-		Type: RespResult,
-		Result: map[string]any{
-			"events":         count,
-			"segments":       countSegments(journalDir),
-			"bytes":          dirSize(journalDir),
-			"by_kind":        byKindAny,
-			"oldest_unix_ms": oldest,
-			"newest_unix_ms": newest,
-		},
+// journalReads binds the app journal reads to the given kernel's journal and
+// its on-disk directory.
+func journalReads(k *runtime.Kernel) *appjournal.Service {
+	return appjournal.New(k.Journal(), func() (int, int64) {
+		dir := filepath.Join(k.BaseDir(), "journal")
+		return countSegments(dir), dirSize(dir)
 	})
 }
 
