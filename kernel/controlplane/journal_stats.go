@@ -27,7 +27,8 @@ import (
 func journalReads(k *runtime.Kernel) *appjournal.Service {
 	return appjournal.New(k.Journal(), func() (int, int64) {
 		dir := filepath.Join(k.BaseDir(), "journal")
-		return countSegments(dir), dirSize(dir)
+		bytes, _ := dirUsage(dir)
+		return countSegments(dir), bytes
 	}, time.Now).WithCost(governor.CostMicrocents)
 }
 

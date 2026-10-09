@@ -11,6 +11,8 @@ import (
 	"reflect"
 	"testing"
 	"testing/fstest"
+
+	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
 type files struct {
@@ -120,5 +122,68 @@ func TestStorageStatsRetainsEmptyAndPartialBestEffortDiagnostic(t *testing.T) {
 	}
 	if _, err := json.Marshal(out); err != nil {
 		t.Fatal(err)
+	}
+}
+func TestDiskStatsReportsJournalUsageAndProbe(t *testing.T) {
+	cause := errors.New("owned probe cause")
+	for _, mode := range []string{"none", "error", "zero-total", "success", "zero-free"} {
+		t.Run(mode, func(t *testing.T) {
+			var probe func(string) (uint64, uint64, error)
+			probePath := ""
+			switch mode {
+			case "error":
+				probe = func(string) (uint64, uint64, error) { return 25, 100, cause }
+			case "zero-total":
+				probe = func(string) (uint64, uint64, error) { return 25, 0, nil }
+			case "success":
+				probe = func(path string) (uint64, uint64, error) { probePath = path; return 1, 3, nil }
+			case "zero-free":
+				probe = func(string) (uint64, uint64, error) { return 0, 9007199254740993, nil }
+			}
+			f := fixture()
+			out, err := appstorage.New("owned-base", f, probe).Disk(context.Background(), appstorage.DiskInput{})
+			if err != nil || out.BaseDir != "owned-base" || out.JournalBytes != 10 || !reflect.DeepEqual(f.paths, []string{filepath.Join("owned-base", "journal")}) {
+				t.Fatal("the journal's usage is the journal directory's", out, err, f.paths)
+			}
+			raw, _ := json.Marshal(out)
+			switch mode {
+			case "success":
+				if string(raw) != `{"base_dir":"owned-base","journal_bytes":10,"disk_available":true,"disk_free_bytes":1,"disk_total_bytes":3,"disk_free_pct":33.33333333333333}` || probePath != "owned-base" {
+					t.Fatal(string(raw), probePath)
+				}
+			case "zero-free":
+				if string(raw) != `{"base_dir":"owned-base","journal_bytes":10,"disk_available":true,"disk_free_bytes":0,"disk_total_bytes":9007199254740993,"disk_free_pct":0}` {
+					t.Fatal("present zero fields stay, and byte counts keep full precision", string(raw))
+				}
+			default:
+				if string(raw) != `{"base_dir":"owned-base","journal_bytes":10,"disk_available":false}` {
+					t.Fatal("an unknown or zero-sized filesystem leaves the disk fields out", mode, string(raw))
+				}
+			}
+		})
+	}
+	empty := &files{root: fstest.MapFS{}}
+	if out, err := appstorage.New("owned", empty, nil).Disk(context.Background(), appstorage.DiskInput{}); err != nil || out.JournalBytes != 0 {
+		t.Fatal("a missing journal counts as empty", out, err)
+	}
+}
+func TestStorageOperationsDeclareTwoUnauditedReads(t *testing.T) {
+	if _, err := appstorage.Operations(nil); err == nil {
+		t.Fatal("nil provider")
+	}
+	ops, err := appstorage.Operations(func(context.Context) *appstorage.Service { return appstorage.New("owned", fixture(), nil) })
+	if err != nil || len(ops) != 2 {
+		t.Fatal(ops, err)
+	}
+	for i, name := range []string{"storage_stats", "disk_stats"} {
+		spec := ops[i].Spec()
+		if spec.Name != name || !spec.ReadOnly || !spec.AllowUnknownInput || len(spec.OutputSchema) == 0 {
+			t.Fatal(spec)
+		}
+	}
+	out, _ := appstorage.New("owned", fixture(), func(string) (uint64, uint64, error) { return 1, 2, nil }).Disk(context.Background(), appstorage.DiskInput{})
+	raw, _ := json.Marshal(out)
+	if err := schema.ValidateJSON(ops[1].Spec().OutputSchema, raw); err != nil {
+		t.Fatal(err, string(raw))
 	}
 }
