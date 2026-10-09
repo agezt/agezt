@@ -369,8 +369,8 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `artifact_delete` | primary |  | `handleArtifactDelete` → artifact.go | `/api/artifact/delete` |
 | `artifact_get` | primary |  | `handleArtifactGet` → artifact.go | `/api/artifact/raw` |
 | `artifact_list` | primary |  | `handleArtifactList` → artifact.go | `/api/artifacts` |
-| `edict_compact` | primary, tenant-routed |  | `handleEdictCompact` → edict_overlay.go |  |
-| `edict_overlay` | tenant |  | `handleEdictOverlay` → edict_overlay.go |  |
+| `edict_compact` | primary, tenant-routed |  | `handleAppOperation` → app/edict.Overlay.Compact |  |
+| `edict_overlay` | tenant |  | `handleAppOperation` → app/edict.Overlay.Show |  |
 | `plugin_list` | primary | read | `Service.List` → app/plugins/inventory.go (typed app spec; selected manifest adapter) |  |
 | `tool_list` | primary |  | `handleToolList` → tool.go | `/api/tools_catalog` |
 | `toolbox_detect` | primary | read | `ToolboxReads.Detect` → app/tools/toolbox_reads.go (typed app registration) |  |
@@ -944,7 +944,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `datalake.go` | `data_collections/records/insert/update/delete/create_collection/drop_collection`. |
 | `app/edict/reads.go` | Typed `edict_show`, `edict_deny_list` (removable runtime rules) and `edict_test` (dry-run decision) over the routed kernel's policy engine; strict tenant, capability checked first for the probe. |
 | `app/edict/writes.go` | Typed audited `edict_deny_add` (exactly one rule), `edict_deny_rm` (runtime rules only, journals actual removals), `edict_set_level` (known capability) and `edict_set_mode` over the routed kernel's engine; each change journals `policy.changed` on the routed bus. |
-| `edict_overlay.go` | `edict_overlay` (net runtime policy), `edict_compact`. |
+| `app/edict/overlay.go` | Typed audited `edict_overlay` (net runtime policy folded as at boot) and primary-only `edict_compact` (boot snapshot through the head + `policy.compacted` content hash) over the routed kernel's journal, snapshot file and bus. |
 
 Tests (119 files): `dispatch_registry_test.go` (registry ↔ constants 1:1, TenantAllowed⇒TenantRouted), `tenant_auth_test.go`
 (tenant sweep), `args_ratchet_test.go` (per-file baseline of raw `req.Args[...].(T)` casts; may only go down),

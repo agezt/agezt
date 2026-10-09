@@ -9,6 +9,7 @@ import (
 	"errors"
 	"github.com/agezt/agezt/kernel/board"
 	"net"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
@@ -47,6 +48,7 @@ import (
 	appworkflow "github.com/agezt/agezt/kernel/app/workflow"
 	appworld "github.com/agezt/agezt/kernel/app/world"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/roster"
 )
@@ -87,6 +89,20 @@ var edictReadOperations = func() []app.Operation {
 var edictDecisionOperations = func() []app.Operation {
 	ops, err := appedict.DecisionOperations(func(ctx context.Context) *appedict.Decisions {
 		return appedict.NewDecisions(ctx.Value(appHostKey{}).(appHost).kernel.Journal(), time.Now)
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
+
+var edictOverlayOperations = func() []app.Operation {
+	ops, err := appedict.OverlayOperations(func(ctx context.Context) *appedict.Overlay {
+		k := ctx.Value(appHostKey{}).(appHost).kernel
+		save := func(snap *edict.OverlaySnapshot) error {
+			return edict.SaveOverlaySnapshot(filepath.Join(k.BaseDir(), "runtime", edict.OverlaySnapshotFile), snap)
+		}
+		return appedict.NewOverlay(k.Journal(), save, func(spec event.Spec) { _, _ = k.Bus().Publish(spec) })
 	})
 	if err != nil {
 		panic(err)
@@ -886,7 +902,7 @@ var configCenterOperations = func() []app.Operation {
 }()
 
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(rosterTaskUpdateOperations)+len(rosterWakeOperations)+len(rosterRepairOperations)+len(rosterResolveOperations)+len(rosterImpactOperations)+len(rosterSetRetiredOperations)+len(rosterRemoveOperations)+len(steerOperations)+len(runsOperations)+len(journalOperations)+len(auditOperations)+len(edictReadOperations)+len(edictWriteOperations)+len(edictDecisionOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(rosterTaskUpdateOperations)+len(rosterWakeOperations)+len(rosterRepairOperations)+len(rosterResolveOperations)+len(rosterImpactOperations)+len(rosterSetRetiredOperations)+len(rosterRemoveOperations)+len(steerOperations)+len(runsOperations)+len(journalOperations)+len(auditOperations)+len(edictReadOperations)+len(edictWriteOperations)+len(edictDecisionOperations)+len(edictOverlayOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, catalogOperations...)
 	operations = append(operations, providerOperations...)
@@ -951,6 +967,7 @@ func registeredAppOperations() []app.Operation {
 	operations = append(operations, edictReadOperations...)
 	operations = append(operations, edictWriteOperations...)
 	operations = append(operations, edictDecisionOperations...)
+	operations = append(operations, edictOverlayOperations...)
 	return append(operations, configCenterOperations...)
 }
 
