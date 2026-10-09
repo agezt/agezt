@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Policy changes use typed application operations.** Adding and removing
+  runtime hard-deny rules, setting a capability's trust level and setting the
+  approval mode keep their responses, argument checks, tenant routing and
+  `policy.changed` journal records. Each change is audited before it is
+  applied, and already-canceled requests now stop before any audit or change.
+
 - **Policy inspection uses typed application operations.** `edict show`, the
   hard-deny rule list and the dry-run decision probe keep their output, sorting,
   removable markers, argument checks and tenant routing. Already-canceled
