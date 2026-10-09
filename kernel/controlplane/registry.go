@@ -57,8 +57,6 @@ func registerDaemonOpsCommands() {
 		commandSpec{Cmd: CmdSandboxList, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleSandboxList(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdSandboxFile, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleSandboxFile(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdSandboxDelete, Handler: func(dc *DispatchCtx) { dc.S.handleSandboxDelete(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdStateList, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleStateList(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdStateGet, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleStateGet(dc.Conn, dc.Req) }},
 	)
 }
 
