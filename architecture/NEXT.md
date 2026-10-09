@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.35a typed plan history, 2026-10-09
+## Current checkpoint — W2.36a typed tenant management, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -83,8 +83,10 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   `70c63bd9c625a28ef2f7a57996b8bdda7a50e9de` after all 24 exact-head CI jobs.
 - W2.34b (typed `approvals`/`decide`) is delivered through PR #739 at
   `b6fa81ae6ffe029b9291aaa5bf450f7a728d8dea` after all 24 exact-head CI jobs.
-- W2.35a (typed `plan_history`/`plan_stats`) is committed on `main` as a code
-  commit plus a docs commit and published from `arch/w2-dispatch`
+- W2.35a (typed `plan_history`/`plan_stats`) is delivered through PR #740 at
+  `5b53e9600b41a6b95825c72c55c69c69cc517810` after all 24 exact-head CI jobs.
+- W2.36a (typed tenant management) is committed on `main` as a code commit plus a
+  docs commit and published from `arch/w2-dispatch`
   (`gh pr list --head arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
 
@@ -283,6 +285,13 @@ arbitrary `sort.Slice` order):
 [82-w235-typed-plan-history-evidence.md](82-w235-typed-plan-history-evidence.md),
 `.temp_files/architecture-delivery/w82/`. Next: tenant (`tenant_*`), shutdown and
 remote, then agent_permissions/agent_capabilities classification.
+W2.36a moved the six `tenant_*` operations into the new `kernel/app/tenants`
+(Registry + Activity ports; `tenant_stats` stays CallerTenant so routing still
+resolves a named tenant first; a disabled registry binds as a real nil): 222
+steps x20 byte-exact with registry state and grouped journals equal, 31/31
+mutations: [83-w236-typed-tenants-evidence.md](83-w236-typed-tenants-evidence.md),
+`.temp_files/architecture-delivery/w83/`. Next: `shutdown`, the remote
+operations, then agent_permissions/agent_capabilities classification.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a

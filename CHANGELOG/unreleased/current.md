@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Tenant management uses typed application operations.** Creating, listing,
+  releasing and removing tenants, reading a tenant's token and the per-tenant
+  activity summary keep their responses, argument checks, operator-only access
+  and the residency the summary restores; the four registry changes are still
+  audited. Already-canceled requests now stop before any audit or change.
+
 - **Plan-execution history and statistics use typed application operations.**
   `plan history` and `plan stats` keep their rows, outcomes, durations, pages,
   the status filter and every count; each stays tenant-scoped. Plans whose start
