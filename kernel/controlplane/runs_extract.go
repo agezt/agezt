@@ -96,22 +96,6 @@ func extractCostMicrocents(payload json.RawMessage) int64 {
 	return int64(p.Cost)
 }
 
-// int64Arg decodes a control-plane numeric arg to int64. JSON numbers arrive as
-// float64; an absent or non-numeric arg yields 0. Shared by the cost-band filter
-// (M125) and any other handler that takes an integer arg.
-func int64Arg(v any) int64 {
-	switch n := v.(type) {
-	case float64:
-		return int64(n)
-	case int64:
-		return n
-	case int:
-		return int64(n)
-	default:
-		return 0
-	}
-}
-
 // extractModel pulls the model name out of a budget.consumed payload (M123).
 // Returns "" on parse failure or absence, so an unparseable or model-less spend
 // event leaves the run's model unset rather than crashing the fold.

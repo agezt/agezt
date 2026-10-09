@@ -249,12 +249,12 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `update_apply` | primary |  | `Service.Apply` → app/update/service.go (typed shared binding/after-write ownership) |  |
 | `update_check` | primary |  | `Service.Check` → app/update/service.go (typed shared binding/terminal cleanup) |  |
 
-#### Journal reads and journal-folded audit logs — `registerJournalLogCommands` (registry.go), 27 ops
+#### Journal reads and journal-folded audit logs — typed app reads plus native folds, 27 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
-| `approvals_log` | tenant |  | `handleApprovalsLog` → approvals_log.go | `/api/approvals_log` |
-| `approvals_stats` | tenant |  | `handleApprovalsStats` → approvals_log.go |  |
+| `approvals_log` | tenant |  | `handleAppOperation` → app/approvals.History.Log | `/api/approvals_log` |
+| `approvals_stats` | tenant |  | `handleAppOperation` → app/approvals.History.Stats |  |
 | `cache_stats` | tenant |  | `handleAppOperation` → app/journal.Service.CacheStats |  |
 | `changelog` | primary, tenant-routed |  | `handleAppOperation` → app/journal.Service.Changelog |  |
 | `edict_log` | tenant |  | `handleAppOperation` → app/edict.Decisions.Log | `/api/policy_log` |
@@ -265,9 +265,9 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `journal_stats` | primary, tenant-routed |  | `handleAppOperation` → app/journal.Service.Stats |  |
 | `journal_tail` | primary |  | `handleAppOperation` → app/journal.Service.Tail |  |
 | `netguard_log` | tenant |  | `handleAppOperation` → app/audit.Service.NetguardLog | `/api/netguard_log` |
-| `provider_log` | tenant |  | `handleProviderLog` → provider_log.go | `/api/provider_log` |
-| `provider_rejections` | tenant |  | `handleProviderRejections` → provider_log.go |  |
-| `provider_stats` | tenant |  | `handleProviderStats` → provider_log.go |  |
+| `provider_log` | tenant |  | `handleAppOperation` → app/providers observation operations | `/api/provider_log` |
+| `provider_rejections` | tenant |  | `handleAppOperation` → app/providers observation operations |  |
+| `provider_stats` | tenant |  | `handleAppOperation` → app/providers observation operations |  |
 | `ratelimit_log` | tenant |  | `handleAppOperation` → app/audit.Service.RateLimitLog | `/api/ratelimit_log` |
 | `ratelimit_stats` | tenant |  | `handleAppOperation` → app/audit.Service.RateLimitStats |  |
 | `schedule_fires` | tenant |  | `handleScheduleFires` → schedule_fires.go | `/api/schedule/fires` |
@@ -752,9 +752,9 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 
 | File | What it does |
 |---|---|
-| `approvals_log.go` | `approvals_log`, `approvals_stats` (HITL history) and their `sinceCutoff` window helper. |
+| `app/approvals/history.go` | Typed `approvals_log` (one row per approval joined across request and resolution, newest request first, `denied` keeps denials and timeouts, cursor paging) and `approvals_stats` (final-status counts by request time, grant rate over resolved, denials by capability) over the routed kernel's journal + clock. |
 | `app/edict/decisions.go` | Typed `edict_log` (strict denied/tool/capability, lenient page) and `edict_stats` (windowed fold, denial rate, denials by capability) over the routed kernel's `policy.decision` records; a malformed payload zeroes the whole decision. |
-| `provider_log.go` | `provider_log`, `provider_stats`, `provider_rejections` over `routing.decision`/`provider.fallback`. |
+| `app/providers/observation_operations.go` | Typed `provider_log`, `provider_stats`, `provider_rejections` over `routing.decision`/`provider.fallback` (the native `provider_log.go` was removed in an earlier provider slice). |
 | `app/audit/audit.go` | Typed guard audit reads: `netguard_log`, `ratelimit_log`/`ratelimit_stats`, `warden_log` (per-kind keys, `issues` filter)/`warden_stats` over `journalview.ProjectValues` and windowed folds. |
 | `app/webhook/observability.go` | Delivery projection/stats over selected journal; native business handler file removed. |
 | `app/webhook/operations.go` | Two typed tenant read operations with compatible raw codecs and shared admission; existing log GET only. |

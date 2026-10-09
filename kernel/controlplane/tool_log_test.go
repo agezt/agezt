@@ -161,7 +161,7 @@ func TestToolStats_Aggregates(t *testing.T) {
 }
 
 // TestToolLog_SinceWindow — args.since_ms restricts the log to calls within the
-// window (M66, via the shared sinceCutoff helper): a 1h window includes a
+// window (M66, via the shared journalview window): a 1h window includes a
 // just-published result; a 1ms window after a brief sleep excludes it.
 func TestToolLog_SinceWindow(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))

@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The approval history and its statistics use typed application operations.**
+  `approvals log` and `approvals stats` keep their joined rows, status, pages,
+  windows, the denied filter, every count, the grant rate and the denial
+  breakdown; each stays tenant-scoped. Already-canceled requests now stop before
+  any work.
+
 - **The runtime policy overlay and its compaction use typed application
   operations.** `edict overlay` keeps the net levels, rules and mode it reports,
   and `edict compact` keeps its snapshot file, its journaled content hash and its
