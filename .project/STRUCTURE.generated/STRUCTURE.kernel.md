@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-153 package(s):
+154 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -41,6 +41,7 @@
 - **`kernel/app/runs`** — Package runs owns the past-run reads: the filtered, cursor-paginated run list and the run health statistics over one kernel's folded run snapshot.
 - **`kernel/app/sandbox`** — Package sandbox lets the operator inspect, and remove, the persistent projects agents build with the code_exec tool (M686) under <home>/sandbox/projects/<name>, so the work is not invisible on disk.
 - **`kernel/app/schedule`** — Package schedule owns transport-independent schedule views, forecasts, lifecycle operations and admission rules.
+- **`kernel/app/seats`** — Package seats manages the execution seats a workboard task can be dispatched under: the seeded built-ins plus operator-defined custom seats, each pinning an isolation profile, a model chain and an optional tool allowlist.
 - **`kernel/app/settings`** — SPDX-License-Identifier: MIT
 - **`kernel/app/skill`** — Package skill owns transport-independent skill use cases.
 - **`kernel/app/standing`** — Package standing owns typed standing management, history and manual firing admission over selected store, runtime writer, journal and callback ports.
