@@ -176,8 +176,9 @@ additionally trigger a kernel reload (`configFieldNeedsKernelReload`).
 
 The control plane is mostly a consumer: it subscribes to the bus for `run` (subject `k.SubjectForRun(corr)`, buffer 1024) and
 `pulse_subscribe` (pattern, buffer 4096, optional journal replay first), and folds the journal (`k.Journal().Range`) for every
-`*_log` / `*_stats` / `runs_*` / `agent_activity` / `inbox` / `changelog` view through the single engine `projectJournal`
-(`projections.go`: limit clamp, `<ms>:<seq>` cursor, `since_ms`, tenant resolution, newest-first). It publishes only a few events
+`*_log` / `*_stats` / `runs_*` / `agent_activity` / `inbox` / `changelog` view through the shared newest-first engine
+`platform/journalview` (limit clamp, `<ms>:<seq>` cursor, `since_ms`, newest-first); typed app reads call `ProjectValues`, and the
+native `projectJournal` wrapper (`projections.go`) remains only for `edict_log`. It publishes only a few events
 itself (e.g. `publishMarket`, `publishToolbox`, `publishOperatorAction` for operator wakes/resolutions, remote execution-profile mirror
 events, `catalog.synced`/`catalog.sync_failed`, run cost-cap advisories); state changes are journaled by the subsystem the handler calls
 (`roster.*`, `mcp.*`, `scripttool.*`, `policy.changed`, `standing.*`, `memory.*` ...).
@@ -263,18 +264,18 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `journal_head` | primary |  | `handleAppOperation` → app/journal.Service.Head |  |
 | `journal_stats` | primary, tenant-routed |  | `handleAppOperation` → app/journal.Service.Stats |  |
 | `journal_tail` | primary |  | `handleAppOperation` → app/journal.Service.Tail |  |
-| `netguard_log` | tenant |  | `handleNetguardLog` → netguard_log.go | `/api/netguard_log` |
+| `netguard_log` | tenant |  | `handleAppOperation` → app/audit.Service.NetguardLog | `/api/netguard_log` |
 | `provider_log` | tenant |  | `handleProviderLog` → provider_log.go | `/api/provider_log` |
 | `provider_rejections` | tenant |  | `handleProviderRejections` → provider_log.go |  |
 | `provider_stats` | tenant |  | `handleProviderStats` → provider_log.go |  |
-| `ratelimit_log` | tenant |  | `handleRateLimitLog` → ratelimit_log.go | `/api/ratelimit_log` |
-| `ratelimit_stats` | tenant |  | `handleRateLimitStats` → ratelimit_log.go |  |
+| `ratelimit_log` | tenant |  | `handleAppOperation` → app/audit.Service.RateLimitLog | `/api/ratelimit_log` |
+| `ratelimit_stats` | tenant |  | `handleAppOperation` → app/audit.Service.RateLimitStats |  |
 | `schedule_fires` | tenant |  | `handleScheduleFires` → schedule_fires.go | `/api/schedule/fires` |
 | `schedule_stats` | tenant |  | `handleScheduleStats` → schedule_fires_stats.go |  |
 | `tool_log` | tenant |  | `handleToolLog` → tool_log.go | `/api/tool_log` |
 | `tool_stats` | tenant |  | `handleToolStats` → tool_log.go |  |
-| `warden_log` | tenant |  | `handleWardenLog` → warden_log.go | `/api/warden_log` |
-| `warden_stats` | tenant |  | `handleWardenStats` → warden_log.go |  |
+| `warden_log` | tenant |  | `handleAppOperation` → app/audit.Service.WardenLog | `/api/warden_log` |
+| `warden_stats` | tenant |  | `handleAppOperation` → app/audit.Service.WardenStats |  |
 | `webhook_log` | tenant |  | `Observability.Log` → app/webhook/observability.go (typed shared binding) | `/api/webhook_log` |
 | `webhook_stats` | tenant |  | `Observability.Stats` → app/webhook/observability.go (typed shared binding) |  |
 
@@ -700,7 +701,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `client.go` | `Client`, `NewClient`, `ProbeExisting`, `ErrServerError`, `Call`, `CallRaw`, `Stream`, `StreamUntilCancel`. |
 | `client_helpers.go` | `dial` (5 s), `setReadDeadlineFromCtx`, timeout→ctx error mapping, `writeRequest`, `readOneResponse`, `toString`, `toBool`. |
 | `client_update.go` | Typed client wrappers `UpdateCheck`/`UpdateApply` and their result types; `Close`. |
-| `projections.go` | `projectJournal`: the single journal-fold engine behind every `*_log` handler (limit, cursor, since, tenant, sort, next_cursor). |
+| `projections.go` | `projectJournal`: the native map-row journal fold (limit, cursor, since, tenant, sort, next_cursor), now used only by `edict_log`; typed reads use `journalview.ProjectValues` directly. |
 | `tenant.go` | `registerTenantCommands`. |
 | `tenant_handlers.go` | `tenant_create/token/list/release/remove/stats` handlers over `tenant.Registry`. |
 | `tenant_helpers.go` | `tenantOf`, `kernelFor` (Acquire tenant kernel), `SetTenants`. |
@@ -755,9 +756,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `approvals_log.go` | `approvals_log`, `approvals_stats` (HITL history). |
 | `policy_log.go` | `edict_log`, `edict_stats` over `policy.decision`. |
 | `provider_log.go` | `provider_log`, `provider_stats`, `provider_rejections` over `routing.decision`/`provider.fallback`. |
-| `ratelimit_log.go` | `ratelimit_log`, `ratelimit_stats` over `rate.limited`. |
-| `netguard_log.go` | `netguard_log` over `netguard.blocked`. |
-| `warden_log.go` | `warden_log`, `warden_stats` over `warden.*`. |
+| `app/audit/audit.go` | Typed guard audit reads: `netguard_log`, `ratelimit_log`/`ratelimit_stats`, `warden_log` (per-kind keys, `issues` filter)/`warden_stats` over `journalview.ProjectValues` and windowed folds. |
 | `app/webhook/observability.go` | Delivery projection/stats over selected journal; native business handler file removed. |
 | `app/webhook/operations.go` | Two typed tenant read operations with compatible raw codecs and shared admission; existing log GET only. |
 | `tool_log.go` | `tool_log`, `tool_stats` over `tool.invoked/result`; input/latency joins use `(correlation_id, call_id)` so reused IDs in another run cannot contaminate a row or give a denied call phantom latency (W2.3a). |
@@ -1284,7 +1283,7 @@ and warns when no console password is set.
   using typed accessors (`argString`, `argLimit`, … — `args_ratchet_test.go` forbids new raw casts) and `ok/fail`; register a
   `commandSpec` in the domain's `register*Commands` (or a themed group in `registry.go`). Set `TenantAllowed` (+`TenantRouted`) only if
   it must be callable by tenant tokens and acts on `dc.K`/`kernelFor`. Choose `Streaming`. `dispatch_registry_test.go` pins the constant↔registry 1:1.
-- **Journal audit view**: implement a `decode func(*event.Event) (map[string]any, bool)` and call `s.projectJournal(conn, req, "rows", decode)`.
+- **Journal audit view**: in the owning `kernel/app/<domain>` package, decode typed rows with `journalview.ProjectValues` (see `app/audit`) and bind a read-only spec; the native `projectJournal` map wrapper is legacy.
 - **Expose an op in the Web UI**: add one entry to `apiRoutes` / `readArgsRoutes` (GET) or `writeRoutes` / `jsonRoutes` (POST) with an
   explicit arg allowlist; numeric query keys must be in `numericQueryArgs`; add a `*_route_test.go` (forwarding + GET rejection for writes).
   Streaming results need a bespoke handler using `httpserver.StartSSE` + `Client.Stream`.
@@ -1320,6 +1319,7 @@ and warns when no console password is set.
 - **Channel ACP typed binding (W2.27k, local delivery pending):** one GET/primary-only/read-only spec/shared dispatcher, native wrapper/manual row/final structToMap removed. Service/Web UI read route bytes retained. Explicit canceled preflight rejects before discovery; native integer terminal exact for declared counts.432 native cases20=216 byte-exact normal+216 changed cancellation,12 valid mutations/schema/auth/source/tenant/old-current integer20/full Go/race gates pass;242 packages135 imports13 calls,133 kernel packages/2868 Go files. Remaining channel typed binding/native exit/protected publication remain.
 - **Channel ACP inventory foundation (W2.27j, local delivery pending):** app owns active environment/trim/default cached discovery/caller context/full typed inventory; native args ignored/manual primary read-only/legacy structToMap codec retained.432 byte-exact native cases20/source-cache-context/full files/head/provider checks,10 valid mutations/full model/default source20/tenant no-discovery denial/full Go/race gates;242 packages135 imports13 calls,133 kernel packages/2866 Go files. Official ratchet removes CP catalog import; typed communication binding/native exit/protected publication remain.
 - **Channel outbound send foundation (W2.27i, local delivery pending):** app Outbound owns validation/normalization/selected sender/background30s/error/result; terminal callback retains measured context through socket write. Native current sender factory/lenient codecs/manual primary audit retained.160 byte-exact native cases20/effects/files/audit privacy/deadline/provider checks,15 valid mutations/before-after lifetime/current sender/isolation/tenant/source20/full Go/race gates pass;242 packages136 imports13 calls,133 kernel packages/2863 Go files. ACP inventory/typed binding/native exit/protected publication remain.
+- **Typed guard audit reads (W2.32d, local):** the new `kernel/app/audit` owns `netguard_log`, `ratelimit_log`/`ratelimit_stats` and `warden_log`/`warden_stats` as tenant-owned, caller-tenant-routed, read-only unaudited operations (three GET routes); warden rows carry only their kind's keys via omitempty pointers. `netguard_log.go`, `ratelimit_log.go`, `warden_log.go` and five registrations are removed. [Evidence](75-w232-typed-guard-audit-evidence.md).
 - **Typed changelog/cache stats (W2.32c, local):** `changelog` (primary, tenant-routed) and `cache_stats` (tenant-owned and routed) join `app/journal` as read-only unaudited operations; the full-rate pricing is injected as a `Cost` port (`WithCost(governor.CostMicrocents)`), so app/journal does not import the governor. `changelog.go`/`cache_stats.go` and two registrations are removed; the trimFloat unit test moves with its helper. [Evidence](74-w232-typed-changelog-cache-evidence.md).
 - **Typed journal grep/export (W2.32b, local):** `journal_grep` (`GET /api/journal`) and `journal_export` join `app/journal` as primary-only, read-only unaudited operations over the primary journal; the adapter keeps the Event member order for both, and the export schema comes from the same wire mirror. `journal_grep.go`/`journal_export.go` and two registrations are removed; `MaxJournalExportN` now names `appjournal.MaxExportN`. [Evidence](73-w232-typed-journal-search-evidence.md).
 - **Typed journal head/tail/stats (W2.32a, local):** three primary-only, read-only unaudited app operations over `appjournal.Service`: head and tail read the primary journal, stats follows an operator-named tenant (`TenantRouted` without `TenantAllowed`, derived from PrimaryOnly + CallerTenant). The tail output schema comes from a wire mirror of `event.Event` (raw payload = any JSON), and the adapter writes the journal's Event structs so their member order is unchanged. `journal.go` and three registrations are removed. [Evidence](72-w232-typed-journal-reads-evidence.md).

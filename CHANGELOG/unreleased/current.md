@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Egress-block, rate-limit and sandbox audits use typed application
+  operations.** The netguard, rate-limit and warden logs keep their rows, pages,
+  windows and the `issues` filter, and the rate-limit and warden statistics
+  keep every total; each stays tenant-scoped. Already-canceled requests now stop
+  before any work.
+
 - **The system changelog and prompt-cache statistics use typed application
   operations.** Material-change entries, their labels and details, ordering,
   limits, windows and the cache savings are unchanged, and both keep their

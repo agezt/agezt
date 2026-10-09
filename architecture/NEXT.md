@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.32c typed changelog/cache stats, 2026-10-09
+## Current checkpoint — W2.32d typed guard audit reads, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -62,8 +62,10 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   all 24 exact-head CI jobs.
 - W2.32b (typed `journal_grep`/`journal_export`) is delivered through PR #731 at
   `48ba2de9b53dec381a6160205144d0134dddc445` after all 24 exact-head CI jobs.
-- W2.32c (typed `changelog`/`cache_stats`) is committed on `main` as a code commit
-  plus a docs commit and published from `arch/w2-dispatch`
+- W2.32c (typed `changelog`/`cache_stats`) is delivered through PR #732 at
+  `a6ecb06774fdf3921db1e9d7c98895a1ae8d01b9` after all 24 exact-head CI jobs.
+- W2.32d (typed guard audit reads) is committed on `main` as a code commit plus a
+  docs commit and published from `arch/w2-dispatch`
   (`gh pr list --head arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
 
@@ -196,8 +198,14 @@ W2.32c moved `changelog`/`cache_stats` (174 steps x20 byte-exact):
 payloads as `json.RawMessage` — a Go `[]byte` in `event.Spec.Payload` is stored
 as a base64 string, so every payload-derived field silently goes empty on both
 sides. Assert that payload-derived values reach the response. W2.31c and W2.32b
-were re-proven with the fix. Remaining journal group: the folded audit logs
-(approvals, netguard, edict, ratelimit, warden logs and stats).
+were re-proven with the fix.
+W2.32d moved the guard audit reads (`netguard_log`, `ratelimit_log`/`_stats`,
+`warden_log`/`_stats`) into the new `kernel/app/audit` (240 steps x20
+byte-exact, 36/36 mutations): [75-w232-typed-guard-audit-evidence.md](75-w232-typed-guard-audit-evidence.md),
+`.temp_files/architecture-delivery/w75/`. The journal group's remaining logs move
+with their domains: `edict_log`/`edict_stats` (the last `projectJournal` user)
+with edict, `approvals_log`/`approvals_stats` with approvals. Order 7 then
+continues with edict, tenant, shutdown and remote.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a
