@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Plan-execution history and statistics use typed application operations.**
+  `plan history` and `plan stats` keep their rows, outcomes, durations, pages,
+  the status filter and every count; each stays tenant-scoped. Plans whose start
+  was never journaled now list in a stable order (by correlation) instead of an
+  arbitrary one, and already-canceled requests stop before any work.
+
 - **Listing and deciding waiting approvals use typed application operations.**
   `approvals` keeps every waiting request's fields and order, and `decide` keeps
   its argument checks, errors and response; both stay operator-only, and each
