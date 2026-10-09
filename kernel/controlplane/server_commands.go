@@ -1,44 +1,15 @@
 package controlplane
 
 // Provenance: SPDX-License-Identifier: MIT Control-plane command handlers:
-//             handleVersion + handleHalt + handleResume +
-//             handleWhy + handleWhoami + handleVerify + handleApprovals. Extracted
-//             from server_handlers.go during the Day-206 god-file split. Public API
-//             unchanged.
+//             handleWhy + handleWhoami. Extracted from server_handlers.go during
+//             the Day-206 god-file split; the lifecycle and approval handlers have
+//             since moved to typed app operations.
 
 import (
 	"net"
 )
 
 // ----- command handlers -----
-
-func (s *Server) handleHalt(conn net.Conn, req Request) {
-	reason, _, err := argString(req.Args, "reason")
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	s.k.HaltWith(reason)
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
-		"ok":     true,
-		"halted": true,
-		"reason": reason,
-	}})
-}
-
-func (s *Server) handleResume(conn net.Conn, req Request) {
-	reason, _, err := argString(req.Args, "reason")
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	s.k.ResumeWith(reason)
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
-		"ok":     true,
-		"halted": false,
-		"reason": reason,
-	}})
-}
 
 func (s *Server) handleWhy(conn net.Conn, req Request) {
 	idAny := req.Args["event_id"]
@@ -129,12 +100,4 @@ func (s *Server) handleWhoami(conn net.Conn, req Request) {
 			"tenant":   tenant,
 		},
 	})
-}
-
-func (s *Server) handleVerify(conn net.Conn, req Request) {
-	if err := s.k.Verify(); err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{"ok": true}})
 }

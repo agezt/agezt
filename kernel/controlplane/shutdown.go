@@ -10,11 +10,10 @@ package controlplane
 // radius to manage.
 
 import (
-	"net"
 	"time"
 )
 
-// shutdownAckGraceDelay is how long handleShutdown waits between
+// shutdownAckGraceDelay is how long a shutdown waits between
 // writing the OK response and signaling the daemon to exit. The
 // delay exists so the client's blocking read on the response can
 // complete before the kernel tears the TCP connection down on
@@ -22,18 +21,10 @@ import (
 // RTT) but trivial vs the cost of a stuck client.
 const shutdownAckGraceDelay = 50 * time.Millisecond
 
-func (s *Server) handleShutdown(conn net.Conn, req Request) {
-	// Write the success response FIRST so the client gets a clean
-	// confirmation before the daemon starts exiting.
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"ok": true},
-	})
-	// Schedule the actual shutdown async so this handler can return,
-	// the conn close defers run, and the OS gets the response bytes
-	// flushed before main() exits. signalShutdown is idempotent —
-	// concurrent CmdShutdown requests resolve to one shutdown.
+// scheduleShutdown signals the daemon to exit after the grace delay, so the
+// acknowledgement reaches the client first. signalShutdown is idempotent, so
+// concurrent shutdown requests resolve to one exit.
+func (s *Server) scheduleShutdown() {
 	go func() {
 		time.Sleep(shutdownAckGraceDelay)
 		s.signalShutdown()
