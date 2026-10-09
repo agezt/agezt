@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.38a typed agent permissions, 2026-10-09
+## Current checkpoint — W2.39a typed state inspection, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -94,9 +94,14 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   all 24 exact-head CI jobs.
 - W2.37b (typed `why`) is delivered through PR #745 at
   `767e7f961572043cc11b27cd3537458a59af002f` after all 24 exact-head CI jobs.
-- W2.38a (typed `agent_permissions`/`agent_capabilities`) is committed on `main`
-  as a code commit plus a docs commit and published from `arch/w2-dispatch`
-  (`gh pr list --head arch/w2-dispatch`). Require all 24
+- W2.38a (typed `agent_permissions`/`agent_capabilities`) is delivered through
+  PR #746 at `19b4623c94aeface60d1d6b87eecf4290dbba6ba` after all 24 exact-head
+  CI jobs.
+- W2.39a (typed `state_list`/`state_get`) is committed on `main` as a code
+  commit plus a docs commit and published from `arch/w2-dispatch`
+  (`gh pr list --head arch/w2-dispatch`). Local `main` still lacks the #746
+  merge commit itself (same tree as its tested head); it fast-forwards at the
+  next merge. Require all 24
   exact-head jobs including `CI` and `ci.yml`, then merge normally with a
   matching head and fast-forward `main`.
 
@@ -324,7 +329,17 @@ is now shared with teardown): 294 steps x20 with roster state and grouped
 journals equal, 62/62 mutations:
 [86-w238-typed-agent-permissions-evidence.md](86-w238-typed-agent-permissions-evidence.md),
 `.temp_files/architecture-delivery/w86/`. No native command of the former misc
-group remains. Next: the roster status source collection, then the streaming
+group remains.
+W2.39a moved `state_list`/`state_get` into the new `kernel/app/state` (204 steps
+x20 byte-exact, 15/15 mutations):
+[87-w239-typed-state-evidence.md](87-w239-typed-state-evidence.md),
+`.temp_files/architecture-delivery/w87/`. About fifty native commands remain,
+in the daemon-ops (attention, spend, disk, reaper, redact, sandbox), provider
+config (budget, chains, routing, execution profiles), cognition (council,
+conductor, research, reflect, persona, prompts, seats, plan generate/refine,
+chat), datalake and file groups, plus `run`, `plan` and `whoami`. Next: the
+remaining daemon-ops reads one family at a time, then provider config,
+datalake, cognition, the roster status source collection and the streaming
 `run`/`plan` family.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared

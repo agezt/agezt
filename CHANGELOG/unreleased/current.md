@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **State store inspection uses typed application operations.** `state list`
+  and `state get` keep their namespace and key listings, decoded values,
+  not-found and corrupt-value results and argument checks, and stay
+  operator-only reads of the primary store. Already-canceled requests now stop
+  before any read.
+
 - **Agent permissions and capability changes use typed application
   operations.** `agent permissions` keeps every tool row, config-entry
   visibility, wake-access and governance field, and capability patches keep
