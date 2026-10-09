@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.33c typed edict decision reads, 2026-10-09
+## Current checkpoint — W2.33d typed edict overlay, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -75,8 +75,10 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   (`TestJournalNativeRouting` asserted an empty `since_ms: 1` export moments
   after journaling); a test-only commit now waits until the clock passes the
   newest event.
-- W2.33c (typed `edict_log`/`edict_stats`) is committed on `main` as a code commit
-  plus a docs commit and published from `arch/w2-dispatch`
+- W2.33c (typed `edict_log`/`edict_stats`) is delivered through PR #736 at
+  `fca5700bbf8df87fc2efb0d7921e4869756bee3b` after all 24 exact-head CI jobs.
+- W2.33d (typed `edict_overlay`/`edict_compact`) is committed on `main` as a code
+  commit plus a docs commit and published from `arch/w2-dispatch`
   (`gh pr list --head arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
 
@@ -242,6 +244,15 @@ mutations):
 `.temp_files/architecture-delivery/w78/`. Next: `edict_overlay`/`edict_compact`
 (edict_overlay.go), then `approvals_log`/`approvals_stats` (approvals_log.go,
 the last `sinceCutoff` user), then tenant, shutdown and remote.
+W2.33d moved `edict_overlay`/`edict_compact` into `app/edict` (`Overlay`, over the
+routed journal, snapshot file and bus); both stay audited, and compaction stays
+primary-only. The edict family is complete: no native edict handler remains
+(102 steps x20 byte-exact with equal grouped journals and snapshot files,
+29/29 mutations):
+[79-w233-typed-edict-overlay-evidence.md](79-w233-typed-edict-overlay-evidence.md),
+`.temp_files/architecture-delivery/w79/`. Next: `approvals_log`/`approvals_stats`
+(approvals_log.go, the last `sinceCutoff` user; a new `kernel/app/approvals`
+read package or `app/audit`), then tenant, shutdown and remote.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a

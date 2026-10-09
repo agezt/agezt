@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The runtime policy overlay and its compaction use typed application
+  operations.** `edict overlay` keeps the net levels, rules and mode it reports,
+  and `edict compact` keeps its snapshot file, its journaled content hash and its
+  primary-only access; both stay audited and tenant-routed. Already-canceled
+  requests now stop before any audit or snapshot.
+
 - **The policy-decision log and statistics use typed application operations.**
   `edict log` and `edict stats` keep their rows, pages, windows, the denied,
   tool and capability filters, every total and the denial breakdown; each stays
