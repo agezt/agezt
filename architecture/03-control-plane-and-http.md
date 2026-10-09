@@ -329,7 +329,7 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `whatsappgw_qr` | primary |  | `Gateway.QR` → app/channels/gateway.go (typed shared operation binding) | `/api/whatsappgw/qr` |
 | `whatsappgw_status` | primary |  | `Gateway.Status` → app/channels/gateway.go (typed shared operation binding) | `/api/whatsappgw/status` |
 
-#### Cognition: planner, council, conductor, research, persona, prompts, seats, taste — `registerCognitionCommands` (registry.go) plus typed persona and prompt operations, 25 ops
+#### Cognition: planner, council, conductor, research, persona, prompts, seats, taste — `registerCognitionCommands` (registry.go) plus typed persona, prompt and seat operations, 25 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
@@ -352,9 +352,9 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `reflect_run` | primary |  | `handleReflectRun` → reflect.go |  |
 | `reflect_show` | primary |  | `handleReflectShow` → reflect.go |  |
 | `research_ask` | primary | LIVE | `handleResearchAsk` → research.go | `/api/research/ask` |
-| `seat_create` | primary |  | `handleSeatCreate` → seat.go |  |
-| `seat_delete` | primary |  | `handleSeatDelete` → seat.go |  |
-| `seat_list` | primary |  | `handleSeatList` → seat.go |  |
+| `seat_create` | primary |  | `handleAppOperation` → app/seats.Service.Create |  |
+| `seat_delete` | primary |  | `handleAppOperation` → app/seats.Service.Delete |  |
+| `seat_list` | primary |  | `handleAppOperation` → app/seats.Service.List |  |
 | `taste_create` | primary |  | `handleTasteCreate` → taste.go |  |
 | `taste_delete` | primary |  | `handleTasteDelete` → taste.go |  |
 | `taste_list` | primary |  | `handleTasteList` → taste.go |  |
@@ -844,7 +844,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `chatsummary.go` | `chat_summarize`: LLM briefing of chat history (LIVE). |
 | `reflect.go` | `reflect_run`, `reflect_show`. |
 | `nodes.go` | `node_registry`: probes `AGEZT_PEERS` mesh nodes. |
-| `seat.go` | `seat_list/create/delete` (workboard execution seats). |
+| `app/seats/seats.go` | Typed `seat_list` (built-in and custom workboard execution seats) and audited `seat_create`/`seat_delete` over the primary kernel's seat store, with trimmed text, lenient list and strict `restrict_tools` arguments. |
 | `taste.go` | `taste_list/create/delete` (taste exemplars). |
 
 **Agent roster** (`agent_*` ops) — all 17 commands are typed `app/roster` operations; the native files below are their ports and status collection.
@@ -921,7 +921,6 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `workboard_handlers_link.go` | `workboard_link/policy/depend/reclaim/sweep`. |
 | `workboard_handlers_dispatch.go` | `workboard_dispatch`, `workboard_watch`. |
 | `workboard_dispatch.go` | `runWorkboardDispatch`, `applyWardenExecutionProfile`. |
-| `workboard_dispatch_args.go` | Retry policy args, correlation id, slice/int args. |
 | `workboard_dispatch_helpers.go` | Dispatch intent builder, publish, latest run id, watch events. |
 | `workboard_dispatch_register.go` | `registerWorkboardCommands`. |
 | `workboard_dispatch_resp.go` | `workboardWriteResp`. |
