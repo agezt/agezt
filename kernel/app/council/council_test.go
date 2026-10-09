@@ -123,7 +123,7 @@ func TestOperations(t *testing.T) {
 		t.Fatal("provider is required")
 	}
 	ops, err := Operations(func(context.Context) *Service { return nil })
-	if err != nil || len(ops) != 2 {
+	if err != nil || len(ops) != 3 {
 		t.Fatal(len(ops), err)
 	}
 	for i, want := range []struct {
@@ -133,6 +133,7 @@ func TestOperations(t *testing.T) {
 	}{
 		{"council_members", "GET", "/api/council/members", true, reflect.TypeFor[MembersRequest](), reflect.TypeFor[MembersOutput]()},
 		{"council_set", "POST", "/api/council/set", false, reflect.TypeFor[SetRequest](), reflect.TypeFor[SetOutput]()},
+		{"conductor_roles", "", "", true, reflect.TypeFor[RolesRequest](), reflect.TypeFor[RolesOutput]()},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)
@@ -150,5 +151,23 @@ func TestOperations(t *testing.T) {
 	}
 	if !strings.Contains(string(ops[1].Spec().InputSchema), `"properties":{"members":{}}`) {
 		t.Fatal(string(ops[1].Spec().InputSchema))
+	}
+}
+
+func TestRoles(t *testing.T) {
+	f := &fake{}
+	for _, c := range []struct {
+		members []Member
+		want    string
+	}{
+		{nil, `{"thinker":"","worker":"","verifier":"","available_models":[],"auto_filled":true}`},
+		{[]Member{{"Chair", "a"}}, `{"thinker":"a","worker":"a","verifier":"a","available_models":["a"],"auto_filled":true}`},
+		{[]Member{{"Chair", "a"}, {"Scribe", "b"}}, `{"thinker":"a","worker":"b","verifier":"a","available_models":["a","b"],"auto_filled":true}`},
+		{[]Member{{"x", "a"}, {"y", "b"}, {"z", "c"}, {"w", "d"}}, `{"thinker":"a","worker":"b","verifier":"c","available_models":["a","b","c","d"],"auto_filled":true}`},
+	} {
+		f.members = c.members
+		if out, _ := f.service().Roles(context.Background(), RolesRequest{}); encode(t, out) != c.want {
+			t.Fatal("roles cycle through the panel's models", encode(t, out), c.want)
+		}
 	}
 }
