@@ -37,6 +37,7 @@ import (
 	appreaper "github.com/agezt/agezt/kernel/app/reaper"
 	appredaction "github.com/agezt/agezt/kernel/app/redaction"
 	approster "github.com/agezt/agezt/kernel/app/roster"
+	approuting "github.com/agezt/agezt/kernel/app/routing"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 	appsandbox "github.com/agezt/agezt/kernel/app/sandbox"
 	appschedule "github.com/agezt/agezt/kernel/app/schedule"
@@ -63,6 +64,7 @@ import (
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/redact"
 	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/settings"
 )
 
 type systemHostKey struct{}
@@ -118,6 +120,80 @@ var budgetOperations = func() []app.Operation {
 			return appbudget.New(budgetGovernor{g: gov})
 		}
 		return appbudget.New(nil)
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
+
+// The governor's routing registries, asserted by method so any provider that
+// carries one is read and edited.
+type (
+	taskChainsReader interface {
+		TaskModelChainsView() map[string][]string
+	}
+	taskChainsWriter interface {
+		SetTaskModelChains(map[string][]string)
+	}
+	namedChainsReader interface {
+		FallbackChainsView() (map[string][]string, string)
+	}
+	namedChainsWriter interface {
+		SetFallbackChains(map[string][]string, string)
+	}
+)
+
+var routingOperations = func() []app.Operation {
+	ops, err := approuting.Operations(func(ctx context.Context) *approuting.Service {
+		s := ctx.Value(systemHostKey{}).(*Server)
+		return approuting.New(approuting.Ports{
+			TaskChains: func() (map[string][]string, bool) {
+				if gov, ok := s.k.Provider().(taskChainsReader); ok {
+					return gov.TaskModelChainsView(), true
+				}
+				return nil, false
+			},
+			SetTaskChains: func(chains map[string][]string) {
+				if gov, ok := s.k.Provider().(taskChainsWriter); ok {
+					gov.SetTaskModelChains(chains)
+				}
+			},
+			Named: func() (map[string][]string, string, bool) {
+				if gov, ok := s.k.Provider().(namedChainsReader); ok {
+					chains, def := gov.FallbackChainsView()
+					return chains, def, true
+				}
+				return nil, "", false
+			},
+			SetNamed: func(chains map[string][]string, def string) {
+				if gov, ok := s.k.Provider().(namedChainsWriter); ok {
+					gov.SetFallbackChains(chains, def)
+				}
+			},
+			Agents: func() []approuting.Agent {
+				profiles := s.k.Roster().List()
+				agents := make([]approuting.Agent, 0, len(profiles))
+				for _, p := range profiles {
+					agents = append(agents, approuting.Agent{Slug: p.Slug, Model: p.Model, Fallbacks: p.Fallbacks})
+				}
+				return agents
+			},
+			Journal: func(visit func(*event.Event)) {
+				_ = s.k.Journal().Range(func(e *event.Event) error {
+					visit(e)
+					return nil
+				})
+			},
+			Store: func() approuting.Store { return settings.NewStore(s.baseDir) },
+			Models: func() func(string) bool {
+				cat := s.k.Catalog()
+				return func(model string) bool {
+					_, m := cat.FindModel(model)
+					return m != nil
+				}
+			},
+		})
 	})
 	if err != nil {
 		panic(err)
@@ -1100,7 +1176,7 @@ var configCenterOperations = func() []app.Operation {
 }()
 
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(lifecycleOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(rosterPermissionOperations)+len(stateOperations)+len(redactionOperations)+len(reaperOperations)+len(missionControlOperations)+len(budgetOperations)+len(sandboxOperations)+len(rosterTaskUpdateOperations)+len(rosterWakeOperations)+len(rosterRepairOperations)+len(rosterResolveOperations)+len(rosterImpactOperations)+len(rosterSetRetiredOperations)+len(rosterRemoveOperations)+len(steerOperations)+len(runsOperations)+len(planOperations)+len(tenantOperations)+len(journalOperations)+len(traceOperations)+len(auditOperations)+len(approvalHistoryOperations)+len(approvalLiveOperations)+len(edictReadOperations)+len(edictWriteOperations)+len(edictDecisionOperations)+len(edictOverlayOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(lifecycleOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(rosterPermissionOperations)+len(stateOperations)+len(redactionOperations)+len(reaperOperations)+len(missionControlOperations)+len(budgetOperations)+len(routingOperations)+len(sandboxOperations)+len(rosterTaskUpdateOperations)+len(rosterWakeOperations)+len(rosterRepairOperations)+len(rosterResolveOperations)+len(rosterImpactOperations)+len(rosterSetRetiredOperations)+len(rosterRemoveOperations)+len(steerOperations)+len(runsOperations)+len(planOperations)+len(tenantOperations)+len(journalOperations)+len(traceOperations)+len(auditOperations)+len(approvalHistoryOperations)+len(approvalLiveOperations)+len(edictReadOperations)+len(edictWriteOperations)+len(edictDecisionOperations)+len(edictOverlayOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, lifecycleOperations...)
 	operations = append(operations, catalogOperations...)
@@ -1158,6 +1234,7 @@ func registeredAppOperations() []app.Operation {
 	operations = append(operations, reaperOperations...)
 	operations = append(operations, missionControlOperations...)
 	operations = append(operations, budgetOperations...)
+	operations = append(operations, routingOperations...)
 	operations = append(operations, sandboxOperations...)
 	operations = append(operations, rosterTaskUpdateOperations...)
 	operations = append(operations, rosterWakeOperations...)

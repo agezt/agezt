@@ -279,14 +279,14 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `webhook_log` | tenant |  | `Observability.Log` → app/webhook/observability.go (typed shared binding) | `/api/webhook_log` |
 | `webhook_stats` | tenant |  | `Observability.Stats` → app/webhook/observability.go (typed shared binding) |  |
 
-#### Providers, keys, OAuth, routing, chains, budget, config — `registerProviderConfigCommands` (registry.go) plus typed budget operations, 18 ops
+#### Providers, keys, OAuth, routing, chains, budget, config — `registerProviderConfigCommands` (registry.go) plus typed budget, routing and chain operations, 18 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
 | `budget` | primary |  | `handleAppOperation` → app/budget.Service.Get | `/api/budget` |
 | `budget_set` | primary |  | `handleAppOperation` → app/budget.Service.Set |  |
-| `chains_get` | primary |  | `handleChainsGet` → chains.go | `/api/chains` |
-| `chains_set` | primary |  | `handleChainsSet` → chains.go | `/api/chains/set` |
+| `chains_get` | primary |  | `handleAppOperation` → app/routing.Service.Chains | `/api/chains` |
+| `chains_set` | primary |  | `handleAppOperation` → app/routing.Service.SetChains | `/api/chains/set` |
 | `config` | primary | read | `Service.Show` → app/config/show.go (typed app spec; selected runtime/env adapters) | `/api/config` |
 | `execution_profile_check` | tenant |  | `handleExecutionProfileCheck` → execution_profiles.go | `/api/execution_profile_check` |
 | `execution_profile_show` | tenant |  | `handleExecutionProfileShow` → execution_profiles.go |  |
@@ -299,8 +299,8 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `provider_oauth_logout` | primary |  | `handleProviderOAuthLogout` → provider_oauth.go | `/api/provider/oauth/logout` |
 | `provider_oauth_start` | primary |  | `handleProviderOAuthStart` → provider_oauth.go | `/api/provider/oauth/start` |
 | `provider_oauth_status` | primary |  | `handleProviderOAuthStatus` → provider_oauth.go | `/api/provider/oauth/status` |
-| `routing_get` | primary |  | `handleRoutingGet` → routing.go | `/api/routing` |
-| `routing_set` | primary |  | `handleRoutingSet` → routing.go | `/api/routing/set` |
+| `routing_get` | primary |  | `handleAppOperation` → app/routing.Service.Routing | `/api/routing` |
+| `routing_set` | primary |  | `handleAppOperation` → app/routing.Service.SetRouting | `/api/routing/set` |
 
 #### Model catalog + provider connect/reload — `registerCatalogCommands` (catalog.go), 5 ops
 
@@ -782,13 +782,11 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `catalog_provider.go` | `provider_connect` (writes custom.json entry when new), `provider_reload` (rebuild provider in place), `envOrDefault`. |
 | `provider_keys.go` | Keyring (M700): `provider_key_list/add/activate/remove`; values never leave the daemon (label + last-4). |
 | `provider_oauth.go` | "Sign in with ChatGPT": one-shot listener on 127.0.0.1:1455, token exchange via `chatgptauth`, vault storage, model sync; `provider_oauth_start/status/import/logout`. |
-| `routing.go` | `routing_get`/`routing_set`: governor per-task model chains, persisted as `AGEZT_TASK_MODEL_CHAINS`. |
-| `chains.go` | `chains_get`/`chains_set`: named fallback chains (`@name`) + usage map. |
+| `app/routing/routing.go` | Typed `routing_get` (per-task model chains, known task types, model-chain fallback activity folded from the journal) and audited `routing_set` (persisted as `AGEZT_TASK_MODEL_CHAINS`); typed `chains_get` (named `@name` chains, the default and a usage map with `__dangling__` references) and audited `chains_set` (slug names, no nested chains, a defined default, persisted as `AGEZT_FALLBACK_CHAINS`/`AGEZT_DEFAULT_CHAIN`); edits apply live and report unknown catalog models. |
 | `app/budget/budget.go` | Typed `budget` (the governor's UTC-day snapshot with per-task rows sorted by task type, an empty array without caps) and audited `budget_set` (whole-number or base-10 string `ceiling_mc`, negative clamped by the governor, post-set snapshot) over a Governor port; both refuse when the provider is not a governor. |
 | `execution_profiles.go` | `execution_profiles`, `execution_profile_show`, `execution_profile_check` (tenant-allowed). |
 | `config.go` | `configEnvVars` canonical list of daemon env vars (presence-only surfacing). |
 | `config_handler.go` | Selected runtime config/RoutingReader and bool-only env-presence adapters → app/config.Service.Show; generic app dispatcher owns native framing. |
-| `config_helpers.go` | `stringSliceMapToAny`. |
 | `app/settings/operations.go` | Five canonical primary specs and strict compatibility input codecs; native registrar removed. |
 | `app/settings/{reads,writes,models}.go` | Five typed services/DTOs; native wrappers removed, generic app dispatcher and selected read/write ports remain. |
 | `settings_write_ports.go` | Selected server-root field/store/vault/registry/pinned/process-env/kernel-reload adapters. |
