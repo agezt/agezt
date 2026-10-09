@@ -14,11 +14,6 @@ import (
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
-const (
-	defaultRunsLimit = 20
-	maxRunsLimit     = 1_000
-)
-
 type runEntry struct {
 	CorrelationID string
 	Intent        string

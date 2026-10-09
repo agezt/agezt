@@ -344,9 +344,9 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `persona_get` | primary |  | `handlePersonaGet` → persona.go | `/api/persona` |
 | `persona_set` | primary |  | `handlePersonaSet` → persona.go | `/api/persona/set` |
 | `plan_generate` | primary | LIVE | `handlePlanGenerate` → planner.go | `/api/plan/generate` |
-| `plan_history` | tenant |  | `handlePlanHistory` → plan_history.go | `/api/plan_history` |
+| `plan_history` | tenant |  | `handleAppOperation` → app/runs.Plans.List | `/api/plan_history` |
 | `plan_refine` | primary | LIVE | `handlePlanRefine` → planner.go | `/api/plan/refine` |
-| `plan_stats` | tenant |  | `handlePlanStats` → plan_history.go |  |
+| `plan_stats` | tenant |  | `handleAppOperation` → app/runs.Plans.Stats |  |
 | `prompts_get` | primary |  | `handlePromptsGet` → prompts.go | `/api/prompts` |
 | `prompts_set` | primary |  | `handlePromptsSet` → prompts.go | `/api/prompts/set` |
 | `reflect_run` | primary |  | `handleReflectRun` → reflect.go |  |
@@ -762,7 +762,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `tool_log.go` | `tool_log`, `tool_stats` over `tool.invoked/result`; input/latency joins use `(correlation_id, call_id)` so reused IDs in another run cannot contaminate a row or give a denied call phantom latency (W2.3a). |
 | `tool_decoders.go` | `decodeToolInvoked`, `decodeToolResult`. |
 | `tool_helpers.go` | `previewString`. |
-| `plan_history.go` | `plan_history`, `plan_stats` over `plan.*`. |
+| `app/runs/plans.go` | Typed `plan_history` (lenient limit and cursor, strict status, newest start first with a correlation tie-break for start-less plans) and `plan_stats` (status counts, success rate over terminal plans, duration distribution) over the routed kernel's `plan.*` lifecycle. |
 | `schedule_fires.go` | `schedule_fires` + `latestFiringBySchedule`. |
 | `schedule_fires_classify.go` | Classifiers for a firing (executor, category, effect class, uses-LLM, action). |
 | `schedule_fires_payload.go` | `scheduleFiredPayload` + `extractScheduleFired`. |

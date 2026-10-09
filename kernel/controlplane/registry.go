@@ -78,8 +78,6 @@ func registerCognitionCommands() {
 		commandSpec{Cmd: CmdNodeRegistry, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleNodeRegistry(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdPersonaGet, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handlePersonaGet(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdPersonaSet, Handler: func(dc *DispatchCtx) { dc.S.handlePersonaSet(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdPlanHistory, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handlePlanHistory(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdPlanStats, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handlePlanStats(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdPlanGenerate, Streaming: StreamLive, Handler: func(dc *DispatchCtx) { dc.S.handlePlanGenerate(dc.Ctx, dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdPlanRefine, Streaming: StreamLive, Handler: func(dc *DispatchCtx) { dc.S.handlePlanRefine(dc.Ctx, dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdPromptsGet, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handlePromptsGet(dc.Conn, dc.Req) }},
