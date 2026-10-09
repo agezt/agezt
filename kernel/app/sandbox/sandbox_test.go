@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -129,7 +130,12 @@ func TestFile(t *testing.T) {
 	if _, err := svc.File(ctx, fileRequest(t, `{"project":"calc","file":"ghost.py"}`)); err == nil || !strings.HasPrefix(err.Error(), "resolve sandbox path: ") {
 		t.Fatal("a missing file fails link resolution", err)
 	}
-	out, err := svc.File(ctx, fileRequest(t, `{"project":" calc","file":"src\\add.py"}`))
+	// A backslash separates only on Windows; elsewhere it is part of a name.
+	nested := `src/add.py`
+	if runtime.GOOS == "windows" {
+		nested = `src\\add.py`
+	}
+	out, err := svc.File(ctx, fileRequest(t, `{"project":" calc","file":"`+nested+`"}`))
 	if err != nil || out != (FileOutput{Project: " calc", File: "src/add.py", Bytes: 27, Content: "def add(a, b): return a + b"}) {
 		t.Fatalf("the project echoes untrimmed and the file in slash form: %+v %v", out, err)
 	}
