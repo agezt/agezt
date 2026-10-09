@@ -52,7 +52,6 @@ func registerDaemonOpsCommands() {
 		// feed. Same rationale for placement as CmdSpendToday.
 		commandSpec{Cmd: CmdAttention, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleAttention(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdReaperScan, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleReaperScan(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdRedactTest, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleRedactTest(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdSandboxList, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleSandboxList(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdSandboxFile, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleSandboxFile(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdSandboxDelete, Handler: func(dc *DispatchCtx) { dc.S.handleSandboxDelete(dc.Conn, dc.Req) }},
