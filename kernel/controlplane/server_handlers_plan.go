@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/approval"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/scheduler"
 )
@@ -154,39 +153,6 @@ func (s *Server) handlePlan(ctx context.Context, conn net.Conn, req Request) {
 			return
 		}
 	}
-}
-
-func (s *Server) handleDecide(conn net.Conn, req Request) {
-	idAny := req.Args["id"]
-	id, _ := idAny.(string)
-	decAny := req.Args["decision"]
-	dec, _ := decAny.(string)
-	reasonAny := req.Args["reason"]
-	reason, _ := reasonAny.(string)
-
-	if id == "" {
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.id required"})
-		return
-	}
-	var decision approval.Decision
-	switch dec {
-	case "grant":
-		decision = approval.DecisionGrant
-	case "deny":
-		decision = approval.DecisionDeny
-	default:
-		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: `args.decision must be "grant" or "deny"`})
-		return
-	}
-	if err := s.k.Approvals().Resolve(id, decision, reason, "operator"); err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	s.writeResp(conn, Response{
-		ID:     req.ID,
-		Type:   RespResult,
-		Result: map[string]any{"ok": true, "id": id, "decision": dec},
-	})
 }
 
 // SetCancelOnDisconnect enables/disables cancelling a streaming run when its

@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Listing and deciding waiting approvals use typed application operations.**
+  `approvals` keeps every waiting request's fields and order, and `decide` keeps
+  its argument checks, errors and response; both stay operator-only, and each
+  decision is still audited. Already-canceled requests now stop before any audit
+  or decision.
+
 - **The approval history and its statistics use typed application operations.**
   `approvals log` and `approvals stats` keep their joined rows, status, pages,
   windows, the denied filter, every count, the grant rate and the denial

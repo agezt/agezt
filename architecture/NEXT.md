@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.34a typed approval history, 2026-10-09
+## Current checkpoint — W2.34b typed live approvals, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -79,8 +79,10 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   `fca5700bbf8df87fc2efb0d7921e4869756bee3b` after all 24 exact-head CI jobs.
 - W2.33d (typed `edict_overlay`/`edict_compact`) is delivered through PR #737 at
   `4e6cb5414de6fceacc905128f85f8d7ada7c6f2b` after all 24 exact-head CI jobs.
-- W2.34a (typed `approvals_log`/`approvals_stats`) is committed on `main` as a code
-  commit plus a docs commit and published from `arch/w2-dispatch`
+- W2.34a (typed `approvals_log`/`approvals_stats`) is delivered through PR #738 at
+  `70c63bd9c625a28ef2f7a57996b8bdda7a50e9de` after all 24 exact-head CI jobs.
+- W2.34b (typed `approvals`/`decide`) is committed on `main` as a code commit plus
+  a docs commit and published from `arch/w2-dispatch`
   (`gh pr list --head arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
 
@@ -265,6 +267,13 @@ log left is `plan_history`/`plan_stats` (plan_history.go). Next: the live
 approval operations (`approvals` pending list and decide, in
 `server_handle_run_remote.go`) into `app/approvals`, then `plan_history`,
 tenant, shutdown and remote.
+W2.34b moved `approvals`/`decide` into `app/approvals` (`Live`, over the primary
+approval registry); the approvals domain is complete (114 steps x20 with live
+waiting requests, ids/times normalized, grouped journals equal; 23/23
+mutations): [81-w234-typed-live-approvals-evidence.md](81-w234-typed-live-approvals-evidence.md),
+`.temp_files/architecture-delivery/w81/`. Next: `plan_history`/`plan_stats`
+(plan_history.go, the last native journal-folded audit log), then tenant,
+shutdown and remote.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a
