@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The reaper scan uses a typed application operation.** `agt doctor` and the
+  console keep every finding (dead, degraded, misconfigured, retry- and
+  routing-pressured and forced-chain agents, stale artifacts), each with its
+  count, and the idle and stale day windows; the scan stays an operator-only
+  read. Already-canceled requests now stop before the scan.
+
 - **The redaction check uses a typed application operation.** `agt redact`
   and the console's redaction test keep the live redactor, the redacted form,
   the matched categories and the literal-hit report, and still never return or
