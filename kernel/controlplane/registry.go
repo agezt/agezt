@@ -23,7 +23,6 @@ func registerAllCommands() {
 	registerFileCommands()
 	registerMiscSmallCommands()
 	registerProviderConfigCommands()
-	registerTenantCommands()
 }
 
 // registerProviderConfigCommands registers Provider credentials/OAuth, model routing/chains, budgets, execution profiles, config.

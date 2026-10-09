@@ -400,16 +400,16 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `run_steer` | tenant |  | `handleAppOperation` → app/steer.Service.Steer | `/api/run/steer` |
 | `run_step` | tenant |  | `handleAppOperation` → app/steer.Service.Step | `/api/run/step` |
 
-#### Multi-tenancy registry — `registerTenantCommands` (tenant.go), 6 ops
+#### Multi-tenancy registry — `app/tenants.Operations` via the common native adapter, 6 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
-| `tenant_create` | primary |  | `handleTenantCreate` → tenant_handlers.go |  |
-| `tenant_list` | primary |  | `handleTenantList` → tenant_handlers.go |  |
-| `tenant_release` | primary |  | `handleTenantRelease` → tenant_handlers.go |  |
-| `tenant_remove` | primary |  | `handleTenantRemove` → tenant_handlers.go |  |
-| `tenant_stats` | primary, tenant-routed |  | `handleTenantStats` → tenant_handlers.go |  |
-| `tenant_token` | primary |  | `handleTenantToken` → tenant_handlers.go |  |
+| `tenant_create` | primary |  | `handleAppOperation` → app/tenants.Service.Create |  |
+| `tenant_list` | primary |  | `handleAppOperation` → app/tenants.Service.List |  |
+| `tenant_release` | primary |  | `handleAppOperation` → app/tenants.Service.Release |  |
+| `tenant_remove` | primary |  | `handleAppOperation` → app/tenants.Service.Remove |  |
+| `tenant_stats` | primary, tenant-routed |  | `handleAppOperation` → app/tenants.Service.Stats |  |
+| `tenant_token` | primary |  | `handleAppOperation` → app/tenants.Service.Token |  |
 
 #### Agent roster (agents) — `app/roster` operations via the common native adapter, 17 ops
 
@@ -701,8 +701,8 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `client.go` | `Client`, `NewClient`, `ProbeExisting`, `ErrServerError`, `Call`, `CallRaw`, `Stream`, `StreamUntilCancel`. |
 | `client_helpers.go` | `dial` (5 s), `setReadDeadlineFromCtx`, timeout→ctx error mapping, `writeRequest`, `readOneResponse`, `toString`, `toBool`. |
 | `client_update.go` | Typed client wrappers `UpdateCheck`/`UpdateApply` and their result types; `Close`. |
-| `tenant.go` | `registerTenantCommands`. |
-| `tenant_handlers.go` | `tenant_create/token/list/release/remove/stats` handlers over `tenant.Registry`. |
+| `tenant.go` | `tenantService`: binds `app/tenants` to the daemon's registry (none when multi-tenancy is disabled) and each tenant's run activity (`kernelFor` + `collectRuns`). |
+| `app/tenants/tenants.go` | Typed operator-only `tenant_create`/`token`/`release`/`remove` (audited; strict id, blank required, untrimmed) and read-only `tenant_list`/`tenant_stats` (per-tenant runs, outcomes, spend, last activity; error rows; closed tenants released again). |
 | `tenant_helpers.go` | `tenantOf`, `kernelFor` (Acquire tenant kernel), `SetTenants`. |
 | `shutdown.go` | `handleShutdown`: closes `shutdownCh` so the daemon exits via the same path as SIGTERM. |
 
