@@ -816,6 +816,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Disk statistics use a typed application operation.** `agt disk` and the
+  doctor's disk check keep the journal size, the free-space figures and the
+  unavailable report when the filesystem is unknown; the read stays
+  operator-only. Already-canceled requests now stop before any read.
+
 - **State store inspection uses typed application operations.** `state list`
   and `state get` keep their namespace and key listings, decoded values,
   not-found and corrupt-value results and argument checks, and stay
