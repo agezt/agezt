@@ -623,17 +623,17 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `toolforge_show` | primary | read | `ForgeCatalog.Show` → app/tools/forge_catalog.go (typed app registration) |  |
 | `toolforge_test` | primary | write | `ForgeLifecycle.Test` → app/tools/forge_lifecycle.go (typed app registration) | mandatory audit |
 
-#### Personal data lake — `registerDatalakeCommands` (datalake.go), 7 ops
+#### Personal data lake — `app/data.Operations` via the common native adapter, 7 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
-| `data_collections` | primary |  | `handleDataCollections` → datalake.go | `/api/data/collections` |
-| `data_create_collection` | primary |  | `handleDataCreateCollection` → datalake.go |  |
-| `data_delete` | primary |  | `handleDataDelete` → datalake.go | `/api/data/delete` |
-| `data_drop_collection` | primary |  | `handleDataDropCollection` → datalake.go |  |
-| `data_insert` | primary |  | `handleDataInsert` → datalake.go | `/api/data/insert` |
-| `data_records` | primary |  | `handleDataRecords` → datalake.go | `/api/data/records` |
-| `data_update` | primary |  | `handleDataUpdate` → datalake.go | `/api/data/update` |
+| `data_collections` | primary |  | `handleAppOperation` → app/data.Service.Collections | `/api/data/collections` |
+| `data_create_collection` | primary |  | `handleAppOperation` → app/data.Service.Create |  |
+| `data_delete` | primary |  | `handleAppOperation` → app/data.Service.Delete | `/api/data/delete` |
+| `data_drop_collection` | primary |  | `handleAppOperation` → app/data.Service.Drop |  |
+| `data_insert` | primary |  | `handleAppOperation` → app/data.Service.Insert | `/api/data/insert` |
+| `data_records` | primary |  | `handleAppOperation` → app/data.Service.Records | `/api/data/records` |
+| `data_update` | primary |  | `handleAppOperation` → app/data.Service.Update | `/api/data/update` |
 
 #### OKRs — `registerOKRCommands` (okr.go), 7 ops
 
@@ -940,7 +940,8 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `toolbox.go` | Host discovery/installer adapters and shared market/ACP JSON helpers; all three native toolbox operations are app-owned. |
 | `artifact.go` | `artifact_get` (re-verified bytes), `artifact_list`, `artifact_delete`, `artifact_collect`. |
 | `plugin.go` | Selected runtime-manifest Reader adapter → app/plugins.Service; codec/socket framing uses generic app dispatcher. |
-| `datalake.go` | `data_collections/records/insert/update/delete/create_collection/drop_collection`. |
+| `app/data/data.go` | Typed operator window onto the data lake (M836): read-only `data_collections` and `data_records` (search, sort, direction, page) and audited `data_insert`, `data_update`, `data_delete`, `data_create_collection` and `data_drop_collection`, with operator provenance, strict collection/id/name arguments, lenient paging and the lake's not-found, exists and system-collection errors. |
+| `args_lenient.go` | `dlBool`/`dlInt`, the lenient flag and count readers the cognition commands use. |
 | `app/edict/reads.go` | Typed `edict_show`, `edict_deny_list` (removable runtime rules) and `edict_test` (dry-run decision) over the routed kernel's policy engine; strict tenant, capability checked first for the probe. |
 | `app/edict/writes.go` | Typed audited `edict_deny_add` (exactly one rule), `edict_deny_rm` (runtime rules only, journals actual removals), `edict_set_level` (known capability) and `edict_set_mode` over the routed kernel's engine; each change journals `policy.changed` on the routed bus. |
 | `app/edict/overlay.go` | Typed audited `edict_overlay` (net runtime policy folded as at boot) and primary-only `edict_compact` (boot snapshot through the head + `policy.compacted` content hash) over the routed kernel's journal, snapshot file and bus. |

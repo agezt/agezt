@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.40c typed execution profiles, 2026-10-09
+## Current checkpoint — W2.41a typed data lake, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -122,8 +122,11 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
 - W2.40b (typed routing and chains) is delivered through PR #754 at
   `88182afabe71a9bd2ad490ed2a8386da725ecc52` after all 24 exact-head CI jobs;
   local `main` fast-forwarded to it.
-- W2.40c (typed execution profiles) is committed on `main` as a code commit
-  plus a docs commit and published from `arch/w2-dispatch` (`gh pr list --head
+- W2.40c (typed execution profiles) is delivered through PR #755 at
+  `49714a8e20545566bae16a8e89a492d97a855317` after all 24 exact-head CI jobs;
+  local `main` fast-forwarded to it.
+- W2.41a (typed data lake) is committed on `main` as a code commit plus a docs
+  commit and published from `arch/w2-dispatch` (`gh pr list --head
   arch/w2-dispatch`). Require all 24
   exact-head jobs including `CI` and `ci.yml`, then merge normally with a
   matching head and fast-forward `main`.
@@ -389,10 +392,16 @@ reads into the new `kernel/app/execprofile` (264 steps x20 with tenant routing,
 35/35 mutations, one gap closed):
 [95-w240-typed-execution-profile-evidence.md](95-w240-typed-execution-profile-evidence.md),
 `.temp_files/architecture-delivery/w95/`. The provider-config group is complete.
-Thirty-four native commands remain, in the cognition (council,
+W2.41a moved the seven data lake commands into the new `kernel/app/data` (276
+steps x20, 44/44 mutations, five gaps closed):
+[96-w241-typed-data-lake-evidence.md](96-w241-typed-data-lake-evidence.md),
+`.temp_files/architecture-delivery/w96/`. The datalake group is complete.
+Twenty-seven native commands remain, in the cognition (council,
 conductor, research, reflect, persona, prompts, seats, plan generate/refine,
-chat), datalake and file groups, plus `run`, `plan` and `whoami`. Next: datalake,
-then cognition,
+chat) and file groups, plus `run`, `plan` and `whoami`. Next: the non-streaming
+cognition commands; then the file group, once the shared adapter can carry its
+domain `error_code` (it is already governed through `app/files`); then the
+streaming cognition commands,
 the roster status source collection and the streaming `run`/`plan` family.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared

@@ -11,8 +11,3 @@ import "net"
 func (s *Server) fail(conn net.Conn, req Request, err error) {
 	s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: err.Error()})
 }
-
-// failMsg is fail for a plain message (validation errors and the like).
-func (s *Server) failMsg(conn net.Conn, req Request, msg string) {
-	s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: msg})
-}
