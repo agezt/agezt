@@ -816,6 +816,13 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Live run steering uses typed application operations.** Pausing, resuming,
+  single-stepping, steering and intervening in a run keep their arguments,
+  errors, results and tenant routing, and every steer is operation-audited before
+  the run is touched. Already-canceled requests now stop before audit or any
+  change. When the primary token steers a tenant's run, the audit record now names
+  the tenant.
+
 - **Removing an agent uses a typed application operation.** The cascade options,
   their order, the retained mailbox and workflow references, refusals and the
   removal report are unchanged, and every removal is operation-audited before
