@@ -54,17 +54,6 @@ func requiredArgString(args map[string]any, key string) (string, error) {
 	}
 	return v, nil
 }
-func argFloat64(args map[string]any, key string) (float64, bool, error) {
-	v, present := args[key]
-	if !present {
-		return 0, false, nil
-	}
-	f, ok := v.(float64)
-	if !ok {
-		return 0, true, fmt.Errorf("args.%s must be a number", key)
-	}
-	return f, true, nil
-}
 func argInt64(args map[string]any, key string) (int64, bool, error) {
 	v, present := args[key]
 	if !present {
