@@ -54,11 +54,11 @@ func TestArtifactAppSocketRequiresAuditBeforeDeleteAndCollect(t *testing.T) {
 		})
 	}
 }
-func TestStorageArtifactMetadataComesFromFiveAppSpecs(t *testing.T) {
-	if len(storageOperations) != 1 || len(artifactOperations) != 4 {
+func TestStorageArtifactMetadataComesFromSixAppSpecs(t *testing.T) {
+	if len(storageOperations) != 2 || len(artifactOperations) != 4 {
 		t.Fatal(len(storageOperations), len(artifactOperations))
 	}
-	reads := map[string]bool{CmdStorageStats: true, CmdArtifactGet: true, CmdArtifactList: true, CmdArtifactDelete: false, CmdArtifactCollect: false}
+	reads := map[string]bool{CmdStorageStats: true, CmdDiskStats: true, CmdArtifactGet: true, CmdArtifactList: true, CmdArtifactDelete: false, CmdArtifactCollect: false}
 	seen := map[string]bool{}
 	for _, operation := range append(storageOperations, artifactOperations...) {
 		spec := operation.Spec()
@@ -72,7 +72,7 @@ func TestStorageArtifactMetadataComesFromFiveAppSpecs(t *testing.T) {
 }
 func TestStorageArtifactAppReadsRetainUnauditedUnaryAvailability(t *testing.T) {
 	k, s, entry, _ := artifactAppFixture(t)
-	for _, cmd := range []string{CmdStorageStats, CmdArtifactGet, CmdArtifactList} {
+	for _, cmd := range []string{CmdStorageStats, CmdDiskStats, CmdArtifactGet, CmdArtifactList} {
 		responses := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"ref": entry.Ref, "kind": "file", "unused": true}})
 		if len(responses) != 1 || responses[0].Type != RespResult {
 			t.Fatal(cmd, responses)
@@ -80,7 +80,7 @@ func TestStorageArtifactAppReadsRetainUnauditedUnaryAvailability(t *testing.T) {
 	}
 	count := 0
 	if err := k.Journal().Range(func(e *event.Event) error {
-		if e.Kind == event.KindOpInvoked && (strings.HasPrefix(e.Subject, "op.artifact_") || e.Subject == "op.storage_stats") {
+		if e.Kind == event.KindOpInvoked && (strings.HasPrefix(e.Subject, "op.artifact_") || e.Subject == "op.storage_stats" || e.Subject == "op.disk_stats") {
 			count++
 		}
 		return nil
@@ -93,7 +93,7 @@ func TestStorageArtifactAppReadsRetainUnauditedUnaryAvailability(t *testing.T) {
 	if err := k.Journal().Close(); err != nil {
 		t.Fatal(err)
 	}
-	for _, cmd := range []string{CmdStorageStats, CmdArtifactGet, CmdArtifactList} {
+	for _, cmd := range []string{CmdStorageStats, CmdDiskStats, CmdArtifactGet, CmdArtifactList} {
 		response := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"ref": entry.Ref}})[0]
 		if response.Type != RespResult {
 			t.Fatal(cmd, response)

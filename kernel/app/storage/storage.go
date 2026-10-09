@@ -99,14 +99,20 @@ func (s *Service) Stats(_ context.Context, _ StatsInput) (StatsOutput, error) {
 	})
 
 	out := StatsOutput{BaseDir: base, TotalBytes: totalBytes, TotalFiles: totalFiles, Directories: dirs}
-	if s.diskFree != nil {
-		if free, total, err := s.diskFree(base); err == nil && total > 0 {
-			pct := float64(free) / float64(total) * 100
-			out.DiskFreeBytes = &free
-			out.DiskTotalBytes = &total
-			out.DiskFreePercent = &pct
-			out.DiskAvailable = true
-		}
-	}
+	out.DiskFreeBytes, out.DiskTotalBytes, out.DiskFreePercent, out.DiskAvailable = s.freeSpace()
 	return out, nil
+}
+
+// freeSpace probes the home filesystem; an unknown or zero-sized filesystem
+// reports nothing, so a diagnostic never fails on it.
+func (s *Service) freeSpace() (*uint64, *uint64, *float64, bool) {
+	if s.diskFree == nil {
+		return nil, nil, nil, false
+	}
+	free, total, err := s.diskFree(s.base)
+	if err != nil || total == 0 {
+		return nil, nil, nil, false
+	}
+	pct := float64(free) / float64(total) * 100
+	return &free, &total, &pct, true
 }

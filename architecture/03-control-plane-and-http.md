@@ -231,7 +231,7 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 |---|---|---|---|---|
 | `attention` | primary |  | `handleAttention` → handle_spend_attention.go | `/api/attention` |
 | `autonomy_feed` | primary |  | `handleAutonomyFeed` → autonomy_feed.go | `/api/autonomy` |
-| `disk_stats` | primary |  | `handleDiskStats` → disk.go |  |
+| `disk_stats` | primary |  | `handleAppOperation` → app/storage.Service.Disk |  |
 | `pulse_subscribe` | primary |  | `handlePulseSubscribe` → pulse.go |  |
 | `reaper_scan` | primary |  | `handleReaperScan` → reaper.go | `/api/reaper/scan` |
 | `redact_test` | primary |  | `handleRedactTest` → redact_test_cmd.go | `/api/redact/test` |
@@ -731,12 +731,12 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `runs_extract.go` | Payload extractors (intent, agent, tool, iters, cost, model, answer preview, spawn link, reason). |
 | `app/runs/runs.go` | Typed `runs_list` (strict status/intent/model, lenient limit/cost, newest-first with seq tie-break, `<ms>:<seq>` cursor, live phase/tool) and `runs_stats` (window, intent scope, success rate, failure reasons, delegation, spend and duration distributions). |
 | `status.go` | `handleStatus`: one-round-trip health overview (version, halted, budget, tools, HTTP bindings, channels, AWS cred chain, fallback counts). |
-| `disk.go` | `handleDiskStats`: journal size + free space via injected `DiskFreeFunc` (M131). |
-| `storage.go` | `handleStorageStats`: per-top-level-dir usage of the home dir (M927). |
+| `app/storage/disk.go` | Typed `disk_stats` (M131): the journal directory's size beside the home filesystem's free space from the injected `DiskFreeFunc`; the disk fields appear only for a known, non-zero filesystem. |
+| `storage.go` | `storageFilesystem` and `dirUsage`, the host ports behind `storage_stats` (M927), `disk_stats` and the journal size. |
 | `app/journal/journal.go` | Typed `journal_head` (empty-journal clamp), `journal_tail` (lenient `n` clamped 1..10,000, head before read, Event member order kept by the adapter) and `journal_stats` (count, per-kind, time span, segments/bytes) over the routed kernel's journal. |
 | `app/journal/trace.go` | Typed `why` (lenient `event_id`, untrimmed; correlation chain, sub-agent parent correlation, best-effort causation chain across correlations; both lists in Event member order) over the routed kernel, so a tenant traces only its own journal. |
 | `app/journal/search.go` | Typed `journal_grep` (strict filters, exact kind/subject/actor/correlation + case-insensitive pattern incl. payload, lenient limit 1..10,000 stopping the walk) and `journal_export` (daemon-clock `since_ms`, strict correlation scope, hashes + head at export time, `MaxExportN` truncation). |
-| `journal_stats.go` | `journalReads` (the app/journal binding with the on-disk size port, daemon clock and `governor.CostMicrocents`), `countSegments`, and the CLI's `MaxJournalExportN`. |
+| `journal_stats.go` | `journalReads` (the app/journal binding with the on-disk size port over `dirUsage`, daemon clock and `governor.CostMicrocents`), `countSegments`, and the CLI's `MaxJournalExportN`. |
 | `app/state/state.go` | Typed `state_list` (every namespace, or one namespace's keys; lenient untrimmed namespace; lists always arrays) and `state_get` (both names required, value decoded to its JSON type, a stored null still found, corrupt values reported) over the primary kernel's state store. |
 | `handle_spend_attention.go` | `spend_today` + `attention` (pending approvals + pulse asks feed) for Mission Control. |
 | `update_control.go` | Selected backend/current version/drain/sentinel/delayed shutdown only; old wrappers/map callback codec removed. |
