@@ -1,16 +1,37 @@
+// SPDX-License-Identifier: MIT
+
 package controlplane
 
-// Provenance: SPDX-License-Identifier: MIT kernel/controlplane tenant command
-//             registrar (registerTenantCommands). Extracted from tenant.go during
-//             Day 211 god-file refactor (#98). Public API unchanged.
+import (
+	"time"
 
-func registerTenantCommands() {
-	register(
-		commandSpec{Cmd: CmdTenantCreate, Handler: func(dc *DispatchCtx) { dc.S.handleTenantCreate(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdTenantList, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleTenantList(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdTenantRelease, Handler: func(dc *DispatchCtx) { dc.S.handleTenantRelease(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdTenantRemove, Handler: func(dc *DispatchCtx) { dc.S.handleTenantRemove(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdTenantToken, Handler: func(dc *DispatchCtx) { dc.S.handleTenantToken(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdTenantStats, ReadOnly: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleTenantStats(dc.Conn, dc.Req) }},
-	)
+	apptenants "github.com/agezt/agezt/kernel/app/tenants"
+)
+
+// tenantService binds the tenant operations to the daemon's registry, or to
+// none when multi-tenancy is disabled, and summarises each tenant's runs from
+// its own kernel.
+func (s *Server) tenantService() *apptenants.Service {
+	var registry apptenants.Registry
+	if s.tenants != nil {
+		registry = s.tenants
+	}
+	activity := func(id string) (func() ([]apptenants.Run, error), error) {
+		k, err := s.kernelFor(id)
+		if err != nil {
+			return nil, err
+		}
+		return func() ([]apptenants.Run, error) {
+			entries, err := s.collectRuns(k)
+			if err != nil {
+				return nil, err
+			}
+			runs := make([]apptenants.Run, 0, len(entries))
+			for _, r := range entries {
+				runs = append(runs, apptenants.Run{SpentMicrocents: r.SpentMicrocents, StartedUnixMS: r.StartedUnixMS, CompletedUnixMS: r.CompletedUnixMS, FailedUnixMS: r.FailedUnixMS, Completed: r.Completed, Failed: r.Failed})
+			}
+			return runs, nil
+		}, nil
+	}
+	return apptenants.New(registry, activity, time.Now)
 }
