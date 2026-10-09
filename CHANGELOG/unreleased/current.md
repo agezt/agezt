@@ -816,6 +816,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Workboard execution seats use typed application operations.** Listing,
+  creating and deleting seats keep their argument handling, the store's
+  validation and every error; all stay operator-only and edits are still
+  audited. Already-canceled requests now stop before any read, audit or change.
+
 - **The default identity and the chat prompt library use typed application
   operations.** Viewing and editing the daemon's default system instructions
   and the saved prompt library keep their text handling, caps, persistence,

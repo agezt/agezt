@@ -36,8 +36,5 @@ func registerCognitionCommands() {
 		commandSpec{Cmd: CmdReflectRun, Handler: func(dc *DispatchCtx) { dc.S.handleReflectRun(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdReflectShow, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleReflectShow(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdResearchAsk, Streaming: StreamLive, Handler: func(dc *DispatchCtx) { dc.S.handleResearchAsk(dc.Ctx, dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdSeatList, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleSeatList(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdSeatCreate, Handler: func(dc *DispatchCtx) { dc.S.handleSeatCreate(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdSeatDelete, Handler: func(dc *DispatchCtx) { dc.S.handleSeatDelete(dc.Conn, dc.Req) }},
 	)
 }

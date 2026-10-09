@@ -14,7 +14,6 @@ adapter-bypass kernel/controlplane -> kernel/reflect
 adapter-bypass kernel/controlplane -> kernel/roster
 adapter-bypass kernel/controlplane -> kernel/runtime
 adapter-bypass kernel/controlplane -> kernel/scheduler
-adapter-bypass kernel/controlplane -> kernel/seat
 adapter-bypass kernel/controlplane -> kernel/skill
 adapter-bypass kernel/controlplane -> kernel/standing
 adapter-bypass kernel/controlplane -> kernel/toolbox

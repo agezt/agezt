@@ -45,6 +45,7 @@ import (
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 	appsandbox "github.com/agezt/agezt/kernel/app/sandbox"
 	appschedule "github.com/agezt/agezt/kernel/app/schedule"
+	appseats "github.com/agezt/agezt/kernel/app/seats"
 	appsettings "github.com/agezt/agezt/kernel/app/settings"
 	appskill "github.com/agezt/agezt/kernel/app/skill"
 	appstanding "github.com/agezt/agezt/kernel/app/standing"
@@ -244,6 +245,16 @@ var personaOperations = func() []app.Operation {
 			ReadPrompts: func() ([]byte, error) { return os.ReadFile(prompts) },
 			SavePrompts: func(data []byte) error { return os.WriteFile(prompts, data, 0o600) },
 		})
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
+
+var seatOperations = func() []app.Operation {
+	ops, err := appseats.Operations(func(ctx context.Context) *appseats.Service {
+		return appseats.New(ctx.Value(systemHostKey{}).(*Server).k.Seats())
 	})
 	if err != nil {
 		panic(err)
@@ -1226,7 +1237,7 @@ var configCenterOperations = func() []app.Operation {
 }()
 
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(lifecycleOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(rosterPermissionOperations)+len(stateOperations)+len(redactionOperations)+len(reaperOperations)+len(missionControlOperations)+len(budgetOperations)+len(routingOperations)+len(executionProfileOperations)+len(dataOperations)+len(personaOperations)+len(sandboxOperations)+len(rosterTaskUpdateOperations)+len(rosterWakeOperations)+len(rosterRepairOperations)+len(rosterResolveOperations)+len(rosterImpactOperations)+len(rosterSetRetiredOperations)+len(rosterRemoveOperations)+len(steerOperations)+len(runsOperations)+len(planOperations)+len(tenantOperations)+len(journalOperations)+len(traceOperations)+len(auditOperations)+len(approvalHistoryOperations)+len(approvalLiveOperations)+len(edictReadOperations)+len(edictWriteOperations)+len(edictDecisionOperations)+len(edictOverlayOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(lifecycleOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(rosterPermissionOperations)+len(stateOperations)+len(redactionOperations)+len(reaperOperations)+len(missionControlOperations)+len(budgetOperations)+len(routingOperations)+len(executionProfileOperations)+len(dataOperations)+len(personaOperations)+len(seatOperations)+len(sandboxOperations)+len(rosterTaskUpdateOperations)+len(rosterWakeOperations)+len(rosterRepairOperations)+len(rosterResolveOperations)+len(rosterImpactOperations)+len(rosterSetRetiredOperations)+len(rosterRemoveOperations)+len(steerOperations)+len(runsOperations)+len(planOperations)+len(tenantOperations)+len(journalOperations)+len(traceOperations)+len(auditOperations)+len(approvalHistoryOperations)+len(approvalLiveOperations)+len(edictReadOperations)+len(edictWriteOperations)+len(edictDecisionOperations)+len(edictOverlayOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, lifecycleOperations...)
 	operations = append(operations, catalogOperations...)
@@ -1288,6 +1299,7 @@ func registeredAppOperations() []app.Operation {
 	operations = append(operations, executionProfileOperations...)
 	operations = append(operations, dataOperations...)
 	operations = append(operations, personaOperations...)
+	operations = append(operations, seatOperations...)
 	operations = append(operations, sandboxOperations...)
 	operations = append(operations, rosterTaskUpdateOperations...)
 	operations = append(operations, rosterWakeOperations...)
