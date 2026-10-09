@@ -260,9 +260,9 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `edict_stats` | tenant |  | `handleEdictStats` → policy_log.go | `/api/policy` |
 | `journal_export` | primary |  | `handleJournalExport` → journal_export.go |  |
 | `journal_grep` | primary |  | `handleJournalGrep` → journal_grep.go | `/api/journal` |
-| `journal_head` | primary |  | `handleJournalHead` → journal.go |  |
-| `journal_stats` | primary, tenant-routed |  | `handleJournalStats` → journal_stats.go |  |
-| `journal_tail` | primary |  | `handleJournalTail` → journal.go |  |
+| `journal_head` | primary |  | `handleAppOperation` → app/journal.Service.Head |  |
+| `journal_stats` | primary, tenant-routed |  | `handleAppOperation` → app/journal.Service.Stats |  |
+| `journal_tail` | primary |  | `handleAppOperation` → app/journal.Service.Tail |  |
 | `netguard_log` | tenant |  | `handleNetguardLog` → netguard_log.go | `/api/netguard_log` |
 | `provider_log` | tenant |  | `handleProviderLog` → provider_log.go | `/api/provider_log` |
 | `provider_rejections` | tenant |  | `handleProviderRejections` → provider_log.go |  |
@@ -732,10 +732,10 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `status.go` | `handleStatus`: one-round-trip health overview (version, halted, budget, tools, HTTP bindings, channels, AWS cred chain, fallback counts). |
 | `disk.go` | `handleDiskStats`: journal size + free space via injected `DiskFreeFunc` (M131). |
 | `storage.go` | `handleStorageStats`: per-top-level-dir usage of the home dir (M927). |
-| `journal.go` | `handleJournalTail`, `handleJournalHead`. |
+| `app/journal/journal.go` | Typed `journal_head` (empty-journal clamp), `journal_tail` (lenient `n` clamped 1..10,000, head before read, Event member order kept by the adapter) and `journal_stats` (count, per-kind, time span, segments/bytes) over the routed kernel's journal. |
 | `journal_export.go` | `handleJournalExport` (streams events + verification material, `MaxJournalExportN`). |
 | `journal_grep.go` | `handleJournalGrep`: server-side AND-filtered journal walk (subject/kind/correlation/pattern). |
-| `journal_stats.go` | `handleJournalStats`: per-kind counts, segments. |
+| `journal_stats.go` | `journalReads` (the app/journal binding with the on-disk size port) and `countSegments`. |
 | `state.go` | `state_list`, `state_get` over the kernel state store. |
 | `handle_spend_attention.go` | `spend_today` + `attention` (pending approvals + pulse asks feed) for Mission Control. |
 | `update_control.go` | Selected backend/current version/drain/sentinel/delayed shutdown only; old wrappers/map callback codec removed. |
@@ -1322,6 +1322,7 @@ and warns when no console password is set.
 - **Channel ACP typed binding (W2.27k, local delivery pending):** one GET/primary-only/read-only spec/shared dispatcher, native wrapper/manual row/final structToMap removed. Service/Web UI read route bytes retained. Explicit canceled preflight rejects before discovery; native integer terminal exact for declared counts.432 native cases20=216 byte-exact normal+216 changed cancellation,12 valid mutations/schema/auth/source/tenant/old-current integer20/full Go/race gates pass;242 packages135 imports13 calls,133 kernel packages/2868 Go files. Remaining channel typed binding/native exit/protected publication remain.
 - **Channel ACP inventory foundation (W2.27j, local delivery pending):** app owns active environment/trim/default cached discovery/caller context/full typed inventory; native args ignored/manual primary read-only/legacy structToMap codec retained.432 byte-exact native cases20/source-cache-context/full files/head/provider checks,10 valid mutations/full model/default source20/tenant no-discovery denial/full Go/race gates;242 packages135 imports13 calls,133 kernel packages/2866 Go files. Official ratchet removes CP catalog import; typed communication binding/native exit/protected publication remain.
 - **Channel outbound send foundation (W2.27i, local delivery pending):** app Outbound owns validation/normalization/selected sender/background30s/error/result; terminal callback retains measured context through socket write. Native current sender factory/lenient codecs/manual primary audit retained.160 byte-exact native cases20/effects/files/audit privacy/deadline/provider checks,15 valid mutations/before-after lifetime/current sender/isolation/tenant/source20/full Go/race gates pass;242 packages136 imports13 calls,133 kernel packages/2863 Go files. ACP inventory/typed binding/native exit/protected publication remain.
+- **Typed journal head/tail/stats (W2.32a, local):** three primary-only, read-only unaudited app operations over `appjournal.Service`: head and tail read the primary journal, stats follows an operator-named tenant (`TenantRouted` without `TenantAllowed`, derived from PrimaryOnly + CallerTenant). The tail output schema comes from a wire mirror of `event.Event` (raw payload = any JSON), and the adapter writes the journal's Event structs so their member order is unchanged. `journal.go` and three registrations are removed. [Evidence](72-w232-typed-journal-reads-evidence.md).
 - **Typed run reads (W2.31c, local):** `runs_list` (`GET /api/runs`) and `runs_stats` are tenant-owned, caller-tenant-routed, read-only unaudited app operations over `appruns.Service`; `collectRuns` stays native as the snapshot port (`runReads`), shared with schedule firing views and roster status. `runs_handlers.go`/`runs_handlers_stats.go` and their registrations are removed. [Evidence](71-w231-typed-run-reads-evidence.md).
 - **Typed targeted run cancel (W2.31b, local):** `cancel_run` (`POST /api/cancel_run`) joins `app/steer` as a tenant-owned, caller-tenant-routed write; the routing `tenant` stays a strict optional string checked after the correlation, and the native handler/registration are removed. The common adapter now passes the trimmed tenant as the caller tenant, so an operator-selected padded tenant (`" acme "`) is audited as the `acme` kernel it reached. [Evidence](70-w231-typed-cancel-run-evidence.md).
 - **Typed live run steering (W2.31a, local):** `run_pause`/`run_resume`/`run_step`/`run_steer` (`POST /api/run/*`) and the unrouted `run_intervene` are tenant-owned, caller-tenant-routed, non-read-only app operations over `appsteer.Service`, bound to the kernel the dispatcher routed to. Strict codecs, the note/steer mode and the intervention mapping live in `kernel/app/steer`; `steer.go`, `registerSteerCommands` and `argFloat64` are removed. Operator-selected tenant steers are audited with their tenant label. [Evidence](69-w231-typed-steer-evidence.md).
