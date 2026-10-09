@@ -389,15 +389,15 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `edict_show` | tenant |  | `handleEdictShow` → edict.go | `/api/edict_show` |
 | `edict_test` | tenant |  | `handleEdictTest` → edict.go | `/api/edict/test` |
 
-#### Live run steering — `registerSteerCommands` (steer.go), 5 ops
+#### Live run steering — `app/steer.Operations` via the common native adapter, 5 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
-| `run_intervene` | tenant |  | `handleRunIntervene` → steer.go |  |
-| `run_pause` | tenant |  | `handleRunPause` → steer.go | `/api/run/pause` |
-| `run_resume` | tenant |  | `handleRunResume` → steer.go | `/api/run/resume` |
-| `run_steer` | tenant |  | `handleRunSteer` → steer.go | `/api/run/steer` |
-| `run_step` | tenant |  | `handleRunStep` → steer.go | `/api/run/step` |
+| `run_intervene` | tenant |  | `handleAppOperation` → app/steer.Service.Intervene |  |
+| `run_pause` | tenant |  | `handleAppOperation` → app/steer.Service.Pause | `/api/run/pause` |
+| `run_resume` | tenant |  | `handleAppOperation` → app/steer.Service.Resume | `/api/run/resume` |
+| `run_steer` | tenant |  | `handleAppOperation` → app/steer.Service.Steer | `/api/run/steer` |
+| `run_step` | tenant |  | `handleAppOperation` → app/steer.Service.Step | `/api/run/step` |
 
 #### Multi-tenancy registry — `registerTenantCommands` (tenant.go), 6 ops
 
@@ -410,27 +410,27 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `tenant_stats` | primary, tenant-routed |  | `handleTenantStats` → tenant_handlers.go |  |
 | `tenant_token` | primary |  | `handleTenantToken` → tenant_handlers.go |  |
 
-#### Agent roster (agents) — `registerRosterCommands` (roster.go), 17 ops
+#### Agent roster (agents) — `app/roster` operations via the common native adapter, 17 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
-| `agent_activity` | primary |  | `handleAgentActivity` → roster_activity.go | `/api/agents/activity` |
-| `agent_add` | primary |  | `handleAgentAdd` → roster_crud.go | `/api/agents/add` |
-| `agent_edit` | primary |  | `handleAgentEdit` → roster_crud.go | `/api/agents/edit` |
-| `agent_escalations` | primary |  | `handleAgentEscalations` → roster_escalation.go | `/api/agents/escalations` |
-| `agent_graveyard` | primary |  | `handleAgentGraveyard` → roster_tombstone.go |  |
-| `agent_impact` | primary |  | `handleAgentImpact` → roster.go | `/api/agents/impact` |
-| `agent_list` | primary |  | `ListService.List` → app/roster/list.go (native codec/manual binding retained) | `/api/agents` |
-| `agent_remove` | primary |  | `handleAgentRemove` → roster_lifecycle.go | `/api/agents/remove` |
-| `agent_repair` | primary |  | `handleAgentRepair` → roster_repair.go | `/api/agents/repair` |
-| `agent_repair_status` | primary |  | `handleAgentRepairStatus` → roster_activity.go | `/api/agents/repair_status` |
-| `agent_resolve` | primary |  | `handleAgentResolve` → roster_wake.go | `/api/agents/resolve` |
-| `agent_retire` | primary |  | `handleAgentRetire` → roster_lifecycle.go | `/api/agents/retire` |
-| `agent_revive` | primary |  | `handleAgentRevive` → roster_lifecycle.go | `/api/agents/revive` |
-| `agent_set_enabled` | primary |  | `handleAgentSetEnabled` → roster_crud.go | `/api/agents/enable` |
-| `agent_task_update` | primary |  | `handleAgentTaskUpdate` → roster_task_update.go | `/api/agents/task` |
-| `agent_tombstone` | primary |  | `handleAgentTombstone` → roster_tombstone.go |  |
-| `agent_wake` | primary |  | `handleAgentWake` → roster_wake.go | `/api/agents/wake` |
+| `agent_activity` | primary |  | `handleAppOperation` → app/roster.ActivityService.Activity | `/api/agents/activity` |
+| `agent_add` | primary |  | `handleAppOperation` → app/roster.ProfileWriteService.Add | `/api/agents/add` |
+| `agent_edit` | primary |  | `handleAppOperation` → app/roster.ProfileWriteService.Edit | `/api/agents/edit` |
+| `agent_escalations` | primary |  | `handleAppOperation` → app/roster.EscalationService.Escalations | `/api/agents/escalations` |
+| `agent_graveyard` | primary |  | `handleAppOperation` → app/roster.GraveyardService.Graveyard |  |
+| `agent_impact` | primary |  | `handleAppOperation` → app/roster.ImpactService.Impact | `/api/agents/impact` |
+| `agent_list` | primary |  | `handleAppOperation` → app/roster.ListService.List | `/api/agents` |
+| `agent_remove` | primary |  | `handleAppOperation` → app/roster.RemoveService.Remove | `/api/agents/remove` |
+| `agent_repair` | primary |  | `handleAppOperation` → app/roster.RepairService.Repair | `/api/agents/repair` |
+| `agent_repair_status` | primary |  | `handleAppOperation` → app/roster.RepairStatusService.RepairStatus | `/api/agents/repair_status` |
+| `agent_resolve` | primary |  | `handleAppOperation` → app/roster.ResolveService.Resolve | `/api/agents/resolve` |
+| `agent_retire` | primary |  | `handleAppOperation` → app/roster.SetRetiredService.Retire | `/api/agents/retire` |
+| `agent_revive` | primary |  | `handleAppOperation` → app/roster.SetRetiredService.Revive | `/api/agents/revive` |
+| `agent_set_enabled` | primary |  | `handleAppOperation` → app/roster.SetEnabledService.SetEnabled | `/api/agents/enable` |
+| `agent_task_update` | primary |  | `handleAppOperation` → app/roster.TaskUpdateService.TaskUpdate | `/api/agents/task` |
+| `agent_tombstone` | primary |  | `handleAppOperation` → app/roster.ImpactService.Tombstone |  |
+| `agent_wake` | primary |  | `handleAppOperation` → app/roster.WakeService.Wake | `/api/agents/wake` |
 
 #### Memory — `app/memory.Operations` via the common native adapter, 16 ops
 
@@ -717,7 +717,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `dryrun.go` | `buildRunPlan` + `runPlanInput` consumer: renders the dry-run plan (model, context size warnings, tool set, timeout). |
 | `dryrun_format.go` | `formatMicrocentsUSD`. |
 | `dryrun_pricing.go` | `modelPriced`, `strictPricingPlan`, `runPlanInput` type. |
-| `steer.go` | Live run steering (M608): `run_pause/resume/step/steer/intervene` (tenant-routed) + `registerSteerCommands`. |
+| `app/steer/steer.go` | Live run steering (M608): typed `run_pause/resume/step/steer/intervene` specs, strict codecs and the intervention mapping over the routed kernel's `Runs` port (tenant-routed). |
 | `remote_mirror.go` | `mirrorRemoteExecutionProfileEvents`: mirrors a remote peer's run events into the local journal. |
 | `remote_mirror_fetch.go` | `fetchRemoteEvents`, `fetchRemoteArtifacts` (HTTP calls to peer REST API). |
 | `remote_mirror_helpers.go` | Mirror mode (`AGEZT_REMOTE_EVENT_MIRROR`), peer lookup, payload redaction for mirrored events. |
@@ -851,41 +851,30 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `seat.go` | `seat_list/create/delete` (workboard execution seats). |
 | `taste.go` | `taste_list/create/delete` (taste exemplars). |
 
-**Agent roster** (`agent_*` ops)
+**Agent roster** (`agent_*` ops) — all 17 commands are typed `app/roster` operations; the native files below are their ports and status collection.
 
 | File | What it does |
 |---|---|
-| `roster.go` | Roster view types, `handleAgentImpact`, `registerRosterCommands`. |
-| `roster_list.go` | Selected profiles/status service, strict native codec and cache invalidation/profile presentation shims; model-chain/sequence helpers retained. |
-| `app/roster/list.go` | Profile presentation, explicit-validity1.5s cache, outer-copy pagination/counts; empty-roster invalidation repair. |
-| `roster_crud.go` | `agent_add`, `agent_edit`, `agent_set_enabled`. |
-| `roster_crud_internal.go` | Profile patch merge, kind normalization, hierarchy validation, managed-subagent guard. |
-| `roster_task_update.go` | `agent_task_update` + arg presence helpers. |
-| `roster_lifecycle.go` | `agent_retire`, `agent_revive`, `agent_remove` (+ cascade parsing/view). |
-| `roster_lifecycle_helpers.go` | Impact/reference helpers (subagents, workflow references, mailbox labels). |
-| `roster_cascade.go` | Teardown impact analysis across schedules, memory, skills, config, workspace, workflows, mailbox. |
-| `roster_teardown.go` | Retire subagents, remove/pause standing orders and schedules for an agent. |
+| `app/roster/*.go` | Request codecs, typed outputs, specs and services for every roster operation (list, graveyard, activity + activity summary, repair status, escalations, set enabled, add/edit, task update, wake, repair, resolve, impact/tombstone, retire/revive, remove), plus status presentation and typed snapshot rows. |
+| `roster.go` | Native type aliases over the app status rows. |
+| `roster_list.go` | List service binding, `profileView`, `agentModelChain`, list cache invalidation. |
+| `roster_crud_internal.go` | Hierarchy reference validation and the managed sub-agent direct-call guard. |
+| `roster_lifecycle_helpers.go` | Sub-agent tree, workflow references and mailbox impact labels. |
+| `roster_cascade.go` | `nativeImpactSource` (per-agent holdings for impact/tombstone/retire/remove) and per-subsystem impact helpers. |
+| `roster_teardown.go` | Retire sub-agents; remove, pause and count standing orders and schedules for an agent. |
 | `roster_teardown_state.go` | Forget agent memory, archive skills, prune config-center entries/access refs, delete workspace. |
-| `roster_tombstone.go` | `agent_tombstone`, `agent_graveyard`. |
-| `roster_activity.go` | `agent_activity` (journal timeline), `agent_repair_status`. |
-| `roster_activity_views.go` | Repair contract / next-action / escalation owner views. |
-| `roster_activity_text.go` | Header-only file left by a split (no code). |
-| `roster_activity_text_misc.go` | Retry-policy, paused-trigger, removal-cleanup summaries. |
-| `agent_activity_summary.go` | `agentActivitySummary`: 425-line text renderer. |
 | `roster_status.go` | `agentStatusAccums` + single-pass journal fold for live status. |
 | `roster_status_views.go` | Selected reaper/repair/escalation/wake/journal snapshot collection; app StatusService window/render adapter. |
-| `app/roster/status.go` | Full health/operational/supplemental presentation,30d/24h clocks and repair phase labels. |
-| `app/roster/status_types.go` | App-owned typed observation rows/snapshot; native helper type aliases preserve fields. |
 | `roster_status_wake.go` | Wake-state views, schedule/agent matching helpers. |
 | `roster_status_escalation.go` | Escalation load + routing-match helpers. |
-| `roster_escalation.go` | `agent_escalations`, operator incident lineage, `runAgentWake`, `publishOperatorAction`. |
-| `roster_escalation_rows.go` | Journal-derived escalation rows. |
-| `roster_wake.go` | `agent_wake`, `agent_resolve` (uses `overseertool.NewKernelSource` → `ApplyRoutingChain`). |
-| `roster_wake_helpers.go` | Operator force-generation, delegate validation, exhausted-chain lookup, list utils. |
-| `roster_repair.go` | `agent_repair` (journaled auto-repair via `overseertool`). |
-| `roster_repair_summary.go` | Repair summaries/cooldown/history; unused phase-label shim removed after app presentation move. |
+| `roster_escalation.go` | Autonomy runbook payload, `publishOperatorAction`, the native `runAgentWake` launch. |
+| `roster_wake_helpers.go` | Operator force-generation, exhausted-chain lookup and incident lineage matching. |
+| `roster_resolve.go` | Resolve ports: operator help delegation and routing-chain application (`overseertool.NewKernelSource` → `ApplyRoutingChain`). |
+| `roster_repair.go` | The governed `runAgentRepair` launch with its panic firewall. |
+| `roster_repair_summary.go` | Repair summaries/cooldown/history. |
 | `roster_workspace.go` | Workspace root (`AGEZT_WORKSPACE`) and file counts. |
 | `roster_helpers.go` | Payload accessors `plString/plInt/...`, `truncate`, `firstNonEmpty`. |
+| `roster_activity_text.go` | Header-only file left by a split (no code). |
 | `tool.go` | `tool_list` (+ catalog probe, rollback mode). |
 | `tool_agents.go` | `agent_permissions`, `agent_capabilities` (patch trust ceiling/tool allow-deny/noise/config overrides/memory scope/workdir/cost). |
 | `tool_views.go` | `decodeControlplaneArg`, `applyAgentCapabilityPatch`, wake-access view. |
@@ -1334,6 +1323,7 @@ and warns when no console password is set.
 - **Channel ACP typed binding (W2.27k, local delivery pending):** one GET/primary-only/read-only spec/shared dispatcher, native wrapper/manual row/final structToMap removed. Service/Web UI read route bytes retained. Explicit canceled preflight rejects before discovery; native integer terminal exact for declared counts.432 native cases20=216 byte-exact normal+216 changed cancellation,12 valid mutations/schema/auth/source/tenant/old-current integer20/full Go/race gates pass;242 packages135 imports13 calls,133 kernel packages/2868 Go files. Remaining channel typed binding/native exit/protected publication remain.
 - **Channel ACP inventory foundation (W2.27j, local delivery pending):** app owns active environment/trim/default cached discovery/caller context/full typed inventory; native args ignored/manual primary read-only/legacy structToMap codec retained.432 byte-exact native cases20/source-cache-context/full files/head/provider checks,10 valid mutations/full model/default source20/tenant no-discovery denial/full Go/race gates;242 packages135 imports13 calls,133 kernel packages/2866 Go files. Official ratchet removes CP catalog import; typed communication binding/native exit/protected publication remain.
 - **Channel outbound send foundation (W2.27i, local delivery pending):** app Outbound owns validation/normalization/selected sender/background30s/error/result; terminal callback retains measured context through socket write. Native current sender factory/lenient codecs/manual primary audit retained.160 byte-exact native cases20/effects/files/audit privacy/deadline/provider checks,15 valid mutations/before-after lifetime/current sender/isolation/tenant/source20/full Go/race gates pass;242 packages136 imports13 calls,133 kernel packages/2863 Go files. ACP inventory/typed binding/native exit/protected publication remain.
+- **Typed live run steering (W2.31a, local):** `run_pause`/`run_resume`/`run_step`/`run_steer` (`POST /api/run/*`) and the unrouted `run_intervene` are tenant-owned, caller-tenant-routed, non-read-only app operations over `appsteer.Service`, bound to the kernel the dispatcher routed to. Strict codecs, the note/steer mode and the intervention mapping live in `kernel/app/steer`; `steer.go`, `registerSteerCommands` and `argFloat64` are removed. Operator-selected tenant steers are audited with their tenant label. [Evidence](69-w231-typed-steer-evidence.md).
 - **Typed agent remove (W2.30r, local) — roster domain complete:** `agent_remove` is a primary-only, non-read-only app operation (`POST /api/agents/remove`) over `approster.RemoveService`, which owns the cascade order and report; the native teardown helpers (`roster_teardown*.go`, `agentRemovalMailboxImpact`, `agentWorkflowImpact`) are its `RemovePorts`. No native roster command group remains (`registerRosterCommands` removed). 84 cloned-kernel steps x20 with response, journal and full-state parity, 36 mutations/full gates. [Evidence](68-w230-typed-agent-remove-evidence.md).
 - **Typed agent retire/revive (W2.30q, local):** `agent_retire`/`agent_revive` are primary-only, non-read-only app operations (`POST /api/agents/retire`, `/api/agents/revive`) over `approster.SetRetiredService`; shared dispatch audits them before the write. The retirement previews impact through `ImpactService`, pauses triggers via the native `pauseAgentStanding`/`pauseAgentSchedules`; the revival re-checks hierarchy refs. 102 cloned-kernel steps x20, 29 mutations/full gates. [Evidence](67-w230-typed-agent-retire-revive-evidence.md).
 - **Typed agent impact/tombstone (W2.30p, local):** `agent_impact` (`GET /api/agents/impact`) and `agent_tombstone` are primary-only read-only app operations over `approster.ImpactService` and the native `nativeImpactSource` (`roster_cascade.go`: roster get, `agentSubagents`, per-subsystem `Holdings`). `ImpactOutput`/`TombstoneOutput` are typed; `SubagentImpactLabels`/`AggregateSubagentLabels` live in app/roster. Native `agentImpactResult` (retire) and `subagentImpact` (remove) wrap the app. 120 cloned-kernel steps x20 incl. retire, 36 mutations/full gates. [Evidence](66-w230-typed-agent-impact-tombstone-evidence.md).

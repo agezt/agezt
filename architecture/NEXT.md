@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.30r typed `agent_remove` (roster domain complete), 2026-10-08
+## Current checkpoint — W2.31a typed live run steering, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -45,8 +45,10 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   `e6ee56a9d16cd5c362c8df578a6b7ae947f170f5` after all 24 exact-head CI jobs.
 - W2.30q (typed `agent_retire`/`agent_revive`) is delivered through PR #725 at
   `8904eee67ee22c4c086754307a8ac390f8a7cd2d` after all 24 exact-head CI jobs.
-- W2.30r (typed `agent_remove`) is committed on `main` as a code commit plus a docs
-  commit and published from `arch/w2-dispatch` (`gh pr list --head
+- W2.30r (typed `agent_remove`) is delivered through PR #726 at
+  `a8db319906f306098a080326fec8a395f483f9de` after all 24 exact-head CI jobs.
+- W2.31a (typed live run steering) is committed on `main` as a code commit plus a
+  docs commit and published from `arch/w2-dispatch` (`gh pr list --head
   arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
 
@@ -137,6 +139,17 @@ command of the former native roster group is a typed shared operation and
 misc registry group (`agent_permissions`, `agent_capabilities`); classify them with
 their own domain.
 
+W2.31a moved the five live run steering commands into the new `kernel/app/steer`
+(222 steps x20 on cloned kernels with live blocked runs in the primary and a tenant
+kernel, 33/33 mutations plus one recorded equivalent):
+[69-w231-typed-steer-evidence.md](69-w231-typed-steer-evidence.md),
+`.temp_files/architecture-delivery/w69/`. They are the first tenant-routed writes
+of order 7. Their harness is the template for the remaining tenant-routed run
+controls: compare both kernels' journals grouped by correlation, and expect the
+W2.1 tenant label on operator-selected tenant audit records (the legacy native
+audit omitted it for the primary token). If a long `-count=20` run is killed by
+the timeout while blocked in `FlushFileBuffers`, the host suspended; rerun it.
+
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a
 compile-once validator in `platform/schema` would benefit every migrated operation.
@@ -148,9 +161,9 @@ Preserve unrelated dirty changes: deletions of
 
 ### Next
 
-Continue roadmap §4.5/order 7 after the completed roster domain, status source
-collection and lifecycle ownership, then steer/runs/journal/edict/tenant/shutdown/
-remote. Wider run/tool adapter convergence, W3 modules and journal raw-ref GC, W4
+Continue roadmap §4.5/order 7 after the completed roster and steer domains:
+runs/journal/edict/tenant/shutdown/remote, plus the roster status source
+collection and lifecycle ownership. Wider run/tool adapter convergence, W3 modules and journal raw-ref GC, W4
 triggers/channel supervision/config/signing, and W5 generated SDK/frontend
 convergence and zero allowances remain open. The overall target is the
 architecture in `20-target-architecture.md`, delivered incrementally to protected
