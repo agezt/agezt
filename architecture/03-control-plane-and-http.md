@@ -205,7 +205,7 @@ but acts on `args.tenant`'s kernel, `primary` = primary token only, primary kern
 StreamLive. **Web UI route(s)**: the `kernel/webui` route that proxies it (blank = CLI/SDK only). 325 ops total, 212 reachable from the
 Web UI. Generated from source (registry funcs × `Cmd*` constants × handler definitions).
 
-#### Core lifecycle: run / halt / resume / why / approvals / plan — `registerCoreCommands` (server_handle_run_remote.go), 11 ops
+#### Core lifecycle: run / halt / resume / why / approvals / plan — `registerCoreCommands` (server_handle_run_remote.go), 9 ops plus the file operations
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
@@ -214,7 +214,6 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `file_delete` | primary | | `handleFileMutation` → files.go → app/files (file.delete) | `/api/files/delete` |
 | `file_restore` | primary | | `handleFileRestore` → files_restore.go → app/files (file.write/file.delete) | `/api/rollback/apply` (file snapshots) |
 | `approvals` | primary |  | `handleApprovals` → server_commands.go | `/api/approvals` |
-| `cancel_run` | tenant |  | `handleCancelRun` → server_commands.go | `/api/cancel_run` |
 | `decide` | primary |  | `handleDecide` → server_handlers_plan.go | `/api/decide` |
 | `halt` | primary |  | `handleHalt` → server_commands.go | `/api/halt` |
 | `journal_verify` | primary |  | `handleVerify` → server_commands.go |  |
@@ -389,10 +388,11 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `edict_show` | tenant |  | `handleEdictShow` → edict.go | `/api/edict_show` |
 | `edict_test` | tenant |  | `handleEdictTest` → edict.go | `/api/edict/test` |
 
-#### Live run steering — `app/steer.Operations` via the common native adapter, 5 ops
+#### Live run control — `app/steer.Operations` via the common native adapter, 6 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
+| `cancel_run` | tenant |  | `handleAppOperation` → app/steer.Service.Cancel | `/api/cancel_run` |
 | `run_intervene` | tenant |  | `handleAppOperation` → app/steer.Service.Intervene |  |
 | `run_pause` | tenant |  | `handleAppOperation` → app/steer.Service.Pause | `/api/run/pause` |
 | `run_resume` | tenant |  | `handleAppOperation` → app/steer.Service.Resume | `/api/run/resume` |
@@ -712,12 +712,12 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 |---|---|
 | `server_handle_run.go` | `handleRun` (666 lines): resolves tenant/agent/model/vision/system/timeout/tools/cost/execution-profile/assure overrides, dry-run plan, subscribes to run subject, launches the governed run, streams events, enriches result. |
 | `server_handle_run_remote.go` | Remote-agezt execution-profile helpers (run events, answer preview, peer metadata) + `registerCoreCommands`. |
-| `server_commands.go` | `version`, `halt`, `cancel_run`, `resume`, `why` (correlation walk), `whoami`, `journal_verify`, `approvals` handlers. |
+| `server_commands.go` | `version`, `halt`, `resume`, `why` (correlation walk), `whoami`, `journal_verify`, `approvals` handlers. |
 | `server_handlers_plan.go` | `handlePlan` (execute a pre-built DAG `planSpec` via kernel scheduler, streaming) + `handleDecide` (resolve a HITL approval). |
 | `dryrun.go` | `buildRunPlan` + `runPlanInput` consumer: renders the dry-run plan (model, context size warnings, tool set, timeout). |
 | `dryrun_format.go` | `formatMicrocentsUSD`. |
 | `dryrun_pricing.go` | `modelPriced`, `strictPricingPlan`, `runPlanInput` type. |
-| `app/steer/steer.go` | Live run steering (M608): typed `run_pause/resume/step/steer/intervene` specs, strict codecs and the intervention mapping over the routed kernel's `Runs` port (tenant-routed). |
+| `app/steer/steer.go` | Live run control (M32/M608): typed `cancel_run` and `run_pause/resume/step/steer/intervene` specs, strict codecs and the intervention mapping over the routed kernel's `Runs` port (tenant-routed). |
 | `remote_mirror.go` | `mirrorRemoteExecutionProfileEvents`: mirrors a remote peer's run events into the local journal. |
 | `remote_mirror_fetch.go` | `fetchRemoteEvents`, `fetchRemoteArtifacts` (HTTP calls to peer REST API). |
 | `remote_mirror_helpers.go` | Mirror mode (`AGEZT_REMOTE_EVENT_MIRROR`), peer lookup, payload redaction for mirrored events. |
@@ -1323,6 +1323,7 @@ and warns when no console password is set.
 - **Channel ACP typed binding (W2.27k, local delivery pending):** one GET/primary-only/read-only spec/shared dispatcher, native wrapper/manual row/final structToMap removed. Service/Web UI read route bytes retained. Explicit canceled preflight rejects before discovery; native integer terminal exact for declared counts.432 native cases20=216 byte-exact normal+216 changed cancellation,12 valid mutations/schema/auth/source/tenant/old-current integer20/full Go/race gates pass;242 packages135 imports13 calls,133 kernel packages/2868 Go files. Remaining channel typed binding/native exit/protected publication remain.
 - **Channel ACP inventory foundation (W2.27j, local delivery pending):** app owns active environment/trim/default cached discovery/caller context/full typed inventory; native args ignored/manual primary read-only/legacy structToMap codec retained.432 byte-exact native cases20/source-cache-context/full files/head/provider checks,10 valid mutations/full model/default source20/tenant no-discovery denial/full Go/race gates;242 packages135 imports13 calls,133 kernel packages/2866 Go files. Official ratchet removes CP catalog import; typed communication binding/native exit/protected publication remain.
 - **Channel outbound send foundation (W2.27i, local delivery pending):** app Outbound owns validation/normalization/selected sender/background30s/error/result; terminal callback retains measured context through socket write. Native current sender factory/lenient codecs/manual primary audit retained.160 byte-exact native cases20/effects/files/audit privacy/deadline/provider checks,15 valid mutations/before-after lifetime/current sender/isolation/tenant/source20/full Go/race gates pass;242 packages136 imports13 calls,133 kernel packages/2863 Go files. ACP inventory/typed binding/native exit/protected publication remain.
+- **Typed targeted run cancel (W2.31b, local):** `cancel_run` (`POST /api/cancel_run`) joins `app/steer` as a tenant-owned, caller-tenant-routed write; the routing `tenant` stays a strict optional string checked after the correlation, and the native handler/registration are removed. The common adapter now passes the trimmed tenant as the caller tenant, so an operator-selected padded tenant (`" acme "`) is audited as the `acme` kernel it reached. [Evidence](70-w231-typed-cancel-run-evidence.md).
 - **Typed live run steering (W2.31a, local):** `run_pause`/`run_resume`/`run_step`/`run_steer` (`POST /api/run/*`) and the unrouted `run_intervene` are tenant-owned, caller-tenant-routed, non-read-only app operations over `appsteer.Service`, bound to the kernel the dispatcher routed to. Strict codecs, the note/steer mode and the intervention mapping live in `kernel/app/steer`; `steer.go`, `registerSteerCommands` and `argFloat64` are removed. Operator-selected tenant steers are audited with their tenant label. [Evidence](69-w231-typed-steer-evidence.md).
 - **Typed agent remove (W2.30r, local) — roster domain complete:** `agent_remove` is a primary-only, non-read-only app operation (`POST /api/agents/remove`) over `approster.RemoveService`, which owns the cascade order and report; the native teardown helpers (`roster_teardown*.go`, `agentRemovalMailboxImpact`, `agentWorkflowImpact`) are its `RemovePorts`. No native roster command group remains (`registerRosterCommands` removed). 84 cloned-kernel steps x20 with response, journal and full-state parity, 36 mutations/full gates. [Evidence](68-w230-typed-agent-remove-evidence.md).
 - **Typed agent retire/revive (W2.30q, local):** `agent_retire`/`agent_revive` are primary-only, non-read-only app operations (`POST /api/agents/retire`, `/api/agents/revive`) over `approster.SetRetiredService`; shared dispatch audits them before the write. The retirement previews impact through `ImpactService`, pauses triggers via the native `pauseAgentStanding`/`pauseAgentSchedules`; the revival re-checks hierarchy refs. 102 cloned-kernel steps x20, 29 mutations/full gates. [Evidence](67-w230-typed-agent-retire-revive-evidence.md).

@@ -199,7 +199,7 @@ func TestAppHostTenantAuditUsesRoutedJournal(t *testing.T) {
 	calls := 0
 	op, err := app.NewOperation(opapi.Spec{Name: name, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant}, func(ctx context.Context, in input) (output, error) {
 		host := ctx.Value(appHostKey{}).(appHost)
-		if host.kernel != entry.Kernel || host.kernel == primary || in.Tenant != "acme" {
+		if host.kernel != entry.Kernel || host.kernel == primary || strings.TrimSpace(in.Tenant) != "acme" {
 			t.Error("tenant operation bound to another host")
 		}
 		calls++
@@ -218,20 +218,20 @@ func TestAppHostTenantAuditUsesRoutedJournal(t *testing.T) {
 		register(wire)
 	}
 	t.Cleanup(func() { systemOperations = original; delete(commandRegistry, name) })
-	for _, credential := range []string{token, "primary"} {
-		responses := callAppHost(t, s, Request{ID: "tenant", Cmd: name, Token: credential, Args: map[string]any{"tenant": "acme"}})
+	for _, c := range []struct{ credential, tenant string }{{token, "acme"}, {"primary", "acme"}, {"primary", " acme "}} {
+		responses := callAppHost(t, s, Request{ID: "tenant", Cmd: name, Token: c.credential, Args: map[string]any{"tenant": c.tenant}})
 		if last := responses[len(responses)-1]; last.Type != RespResult || last.Result["ok"] != true {
 			t.Fatalf("tenant operation failed: %+v", last)
 		}
 	}
 	responses := callAppHost(t, s, Request{ID: "foreign", Cmd: name, Token: token, Args: map[string]any{"tenant": "other"}})
-	if responses[0].Type != RespError || calls != 2 {
+	if responses[0].Type != RespError || calls != 3 {
 		t.Fatalf("foreign tenant admitted: %+v calls=%d", responses, calls)
 	}
 	for _, check := range []struct {
 		k    *runtime.Kernel
 		want int
-	}{{primary, 0}, {entry.Kernel.(*runtime.Kernel), 4}} {
+	}{{primary, 0}, {entry.Kernel.(*runtime.Kernel), 6}} {
 		count := 0
 		if err := check.k.Journal().Range(func(e *event.Event) error {
 			if e.Subject == "op."+name {

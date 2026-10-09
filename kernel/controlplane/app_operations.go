@@ -953,7 +953,9 @@ func dispatchAppOperation(dc *DispatchCtx, ctx context.Context, emitter opapi.Em
 	if dc.Req.Args == nil {
 		raw = json.RawMessage(`{}`)
 	}
-	return dc.S.operations.Dispatch(ctx, opapi.Caller{Credential: dc.Req.Token, Tenant: tenantOf(dc.Req), Source: "controlplane"}, dc.Req.Cmd, raw, emitter)
+	// Routing trims the tenant, so the caller names the trimmed tenant too: an
+	// operator-selected tenant write is audited under the kernel it reached.
+	return dc.S.operations.Dispatch(ctx, opapi.Caller{Credential: dc.Req.Token, Tenant: strings.TrimSpace(tenantOf(dc.Req)), Source: "controlplane"}, dc.Req.Cmd, raw, emitter)
 }
 
 func handleAppOperation(dc *DispatchCtx) {

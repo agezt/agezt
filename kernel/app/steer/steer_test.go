@@ -30,6 +30,7 @@ func (f *fakeRuns) act(name, corr string) bool {
 	f.calls = append(f.calls, name+":"+corr)
 	return f.known[corr]
 }
+func (f *fakeRuns) CancelRun(corr string) bool { return f.act("cancel", corr) }
 func (f *fakeRuns) PauseRun(corr string) bool  { return f.act("pause", corr) }
 func (f *fakeRuns) ResumeRun(corr string) bool { return f.act("resume", corr) }
 func (f *fakeRuns) StepRun(corr string) bool   { return f.act("step", corr) }
@@ -84,6 +85,39 @@ func TestSteerControlCodecs(t *testing.T) {
 	}
 	if strings.Join(runs.calls, ",") != "pause: r1 ,resume:r2,step: r1 " {
 		t.Fatal(runs.calls)
+	}
+}
+
+func TestSteerCancel(t *testing.T) {
+	ctx := context.Background()
+	for raw, want := range map[string]string{
+		`{}`:                                 "args.correlation required",
+		`{"correlation":" ","tenant":3}`:     "args.correlation required",
+		`{"correlation":3}`:                  "args.correlation must be a string",
+		`{"correlation":"r","tenant":3}`:     "args.tenant must be a string",
+		`{"correlation":"r","tenant":null}`:  "args.tenant must be a string",
+		`{"correlation":"r","tenant":["a"]}`: "args.tenant must be a string",
+	} {
+		runs := &fakeRuns{}
+		if _, err := New(runs).Cancel(ctx, decode[CancelRequest](t, raw)); err == nil || err.Error() != want || runs.calls != nil {
+			t.Fatal(raw, err, runs.calls)
+		}
+	}
+	runs := &fakeRuns{known: map[string]bool{" r1 ": true}}
+	s := New(runs)
+	// The routing tenant is only validated; the correlation passes untrimmed.
+	if out, err := s.Cancel(ctx, decode[CancelRequest](t, `{"correlation":" r1 ","tenant":"acme"}`)); err != nil || out != (CancelOutput{Correlation: " r1 ", Cancelled: true}) {
+		t.Fatal(out, err)
+	}
+	if out, err := s.Cancel(ctx, decode[CancelRequest](t, `{"correlation":"ghost"}`)); err != nil || out != (CancelOutput{Correlation: "ghost"}) {
+		t.Fatal(out, err)
+	}
+	if strings.Join(runs.calls, ",") != "cancel: r1 ,cancel:ghost" {
+		t.Fatal(runs.calls)
+	}
+	raw, _ := json.Marshal(CancelOutput{Correlation: "c"})
+	if string(raw) != `{"correlation":"c","cancelled":false}` {
+		t.Fatal(string(raw))
 	}
 }
 
@@ -202,7 +236,7 @@ func TestSteerOperations(t *testing.T) {
 	}
 	runs := &fakeRuns{known: map[string]bool{"r": true}}
 	ops, err := Operations(func(context.Context) *Service { return New(runs) })
-	if err != nil || len(ops) != 5 {
+	if err != nil || len(ops) != 6 {
 		t.Fatal(ops, err)
 	}
 	want := map[string]struct {
@@ -210,6 +244,7 @@ func TestSteerOperations(t *testing.T) {
 		in   reflect.Type
 		out  reflect.Type
 	}{
+		"cancel_run":    {"/api/cancel_run", reflect.TypeFor[CancelRequest](), reflect.TypeFor[CancelOutput]()},
 		"run_pause":     {"/api/run/pause", reflect.TypeFor[RunRequest](), reflect.TypeFor[ControlOutput]()},
 		"run_resume":    {"/api/run/resume", reflect.TypeFor[RunRequest](), reflect.TypeFor[ControlOutput]()},
 		"run_step":      {"/api/run/step", reflect.TypeFor[RunRequest](), reflect.TypeFor[ControlOutput]()},
@@ -228,7 +263,10 @@ func TestSteerOperations(t *testing.T) {
 		}
 		delete(want, spec.Name)
 	}
-	if schema.ValidateJSON(ops[4].Spec().OutputSchema, json.RawMessage(`{"primitive":"p","correlation":"c","accepted":true,"applied":false,"state":"s","paused":false,"pending":0,"idempotency_key":"","reason":""}`)) != nil {
+	if len(want) != 0 {
+		t.Fatal("missing specs", want)
+	}
+	if schema.ValidateJSON(ops[5].Spec().OutputSchema, json.RawMessage(`{"primitive":"p","correlation":"c","accepted":true,"applied":false,"state":"s","paused":false,"pending":0,"idempotency_key":"","reason":""}`)) != nil {
 		t.Fatal("intervene schema without lease")
 	}
 	var routed []string
@@ -249,6 +287,11 @@ func TestSteerOperations(t *testing.T) {
 	if _, err := d.Dispatch(ctx, opapi.Caller{Tenant: "acme"}, "run_step", json.RawMessage(`{"correlation":"r"}`), nil); !errors.Is(err, context.Canceled) || runs.calls != nil || len(audit.begins) != 1 {
 		t.Fatal("canceled steer", err, runs.calls)
 	}
+	out2, err := d.Dispatch(context.Background(), opapi.Caller{Tenant: "acme"}, "cancel_run", json.RawMessage(`{"correlation":"r","tenant":"acme"}`), nil)
+	if err != nil || out2 != (CancelOutput{Correlation: "r", Cancelled: true}) || len(audit.begins) != 2 || audit.begins[1].Operation != "cancel_run" || routed[len(routed)-1] != "cancel_run@acme" || strings.Join(runs.calls, ",") != "cancel:r" {
+		t.Fatal("a tenant cancels its own run after audit", out2, err, routed, runs.calls)
+	}
+	runs.calls = nil
 	denied, _ := app.NewDispatcher(ops, app.Dependencies{Auth: steerAuth{opapi.Principal{Kind: opapi.Agent}}, Router: steerRoute{&routed}, Audit: &steerAudit{}})
 	if _, err := denied.Dispatch(context.Background(), opapi.Caller{Tenant: "acme"}, "run_pause", json.RawMessage(`{"correlation":"r"}`), nil); err == nil || runs.calls != nil {
 		t.Fatal("agent principal", err)

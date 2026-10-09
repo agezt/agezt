@@ -816,6 +816,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Cancelling one run uses a typed application operation.** `cancel_run` keeps
+  its arguments, errors, result and tenant routing, and is operation-audited
+  before the run is cancelled. Already-canceled requests now stop before audit
+  or any change.
+
 - **Live run steering uses typed application operations.** Pausing, resuming,
   single-stepping, steering and intervening in a run keep their arguments,
   errors, results and tenant routing, and every steer is operation-audited before
@@ -1935,6 +1940,10 @@ This file holds the active `[Unreleased]` working set.
   built-in skills promoted at boot) into one row with a ×N badge.
 
 ### Fixed
+
+- **Operation audit records name the tenant actually reached.** A primary-token
+  write that named a tenant with surrounding spaces was routed to that tenant
+  but audited under the padded name; the record now carries the trimmed tenant.
 
 - **Agent profiles with two invalid hierarchy references report a stable error.**
   The owner reference is now always checked before the parent reference.
