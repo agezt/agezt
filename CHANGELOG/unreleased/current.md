@@ -816,6 +816,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The policy-decision log and statistics use typed application operations.**
+  `edict log` and `edict stats` keep their rows, pages, windows, the denied,
+  tool and capability filters, every total and the denial breakdown; each stays
+  tenant-scoped. Already-canceled requests now stop before any work.
+
 - **Policy changes use typed application operations.** Adding and removing
   runtime hard-deny rules, setting a capability's trust level and setting the
   approval mode keep their responses, argument checks, tenant routing and

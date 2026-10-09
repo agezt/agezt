@@ -74,8 +74,8 @@ const (
 //     is denied, not over-granted). TestTenantToken_* sweeps both directions
 //     end-to-end.
 //   - TenantRouted: the handler resolves its kernel per-request via
-//     kernelFor / projectJournal (typed operations: the app host's routed
-//     kernel) rather than using s.k directly
+//     kernelFor (typed operations: the app host's routed kernel) rather
+//     than using s.k directly
 //     (dispatch also pre-resolves dc.K via kernelFor at the boundary).
 //     Invariant (TestRegistry_TenantAllowedImpliesTenantRouted): every
 //     TenantAllowed command must be TenantRouted, or a tenant token would

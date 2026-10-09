@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.33b typed edict writes, 2026-10-09
+## Current checkpoint — W2.33c typed edict decision reads, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -69,8 +69,14 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
 - W2.33a (typed edict reads) is delivered through PR #734 at
   `6563755588054d649496328d4225dfb4b213519a` after all 24
   exact-head CI jobs.
-- W2.33b (typed edict writes) is committed on `main` as a code commit plus a docs
-  commit and published from `arch/w2-dispatch`
+- W2.33b (typed edict writes) is delivered through PR #735 at
+  `8b5e2f97c788bc4d0d43e6cc0c07c9f33614f16f` after all 24 exact-head CI jobs. The
+  first head failed `test (linux)` five times on a W2.32b clock race
+  (`TestJournalNativeRouting` asserted an empty `since_ms: 1` export moments
+  after journaling); a test-only commit now waits until the clock passes the
+  newest event.
+- W2.33c (typed `edict_log`/`edict_stats`) is committed on `main` as a code commit
+  plus a docs commit and published from `arch/w2-dispatch`
   (`gh pr list --head arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
 
@@ -228,6 +234,14 @@ engine state too, and for canceled authorized steps assert the typed side kept
 the starting policy (legacy writes ignored the context). Next:
 `edict_log`/`edict_stats` (policy_log.go, the last `projectJournal` user), then
 `edict_overlay`/`edict_compact`, approvals, tenant, shutdown and remote.
+W2.33c moved `edict_log`/`edict_stats` into `app/edict` (`Decisions`, over the
+routed journal + clock) and retired `policy_log.go` and `projections.go`: no
+native `projectJournal` caller remains (306 steps x20 byte-exact, 37/37
+mutations):
+[78-w233-typed-edict-decisions-evidence.md](78-w233-typed-edict-decisions-evidence.md),
+`.temp_files/architecture-delivery/w78/`. Next: `edict_overlay`/`edict_compact`
+(edict_overlay.go), then `approvals_log`/`approvals_stats` (approvals_log.go,
+the last `sinceCutoff` user), then tenant, shutdown and remote.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a

@@ -15,6 +15,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -205,5 +206,107 @@ func TestEdictWritesNativeRouting(t *testing.T) {
 	}
 	if strings.Join(kinds, " ") != "op.invoked policy.changed op.completed op.invoked policy.changed op.completed" {
 		t.Fatal("the tenant journal carries each audit record around its policy change", kinds)
+	}
+}
+
+func TestEdictDecisionsNativeTypedRegistry(t *testing.T) {
+	for _, cmd := range []string{CmdEdictLog, CmdEdictStats} {
+		found := 0
+		for _, operation := range registeredAppOperations() {
+			spec := operation.Spec()
+			if spec.Name != cmd {
+				continue
+			}
+			found++
+			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || !spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || spec.HTTP.Method != "GET" {
+				t.Fatalf("%s metadata=%+v", cmd, spec)
+			}
+		}
+		wire, exists := commandRegistry[cmd]
+		if found != 1 || !exists || !wire.AppOwned || !wire.ReadOnly || !wire.TenantAllowed || !wire.TenantRouted || wire.Streaming != StreamNone {
+			t.Fatalf("%s native wire found=%d metadata=%+v", cmd, found, wire)
+		}
+	}
+}
+
+// Each token reads the policy decisions journaled by the kernel it is routed
+// to, on the daemon clock.
+func TestEdictDecisionsNativeRouting(t *testing.T) {
+	dir := t.TempDir()
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer k.Close()
+	reg, err := tenant.New(filepath.Join(dir, "tenants"), func(_ string, baseDir string) (io.Closer, error) {
+		return runtime.Open(runtime.Config{BaseDir: baseDir, Provider: mock.New()})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reg.CloseAll()
+	entry, err := reg.Acquire("acme", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tk := entry.Kernel.(*runtime.Kernel)
+	tenantToken, _ := reg.Token("acme")
+	decide := func(kk *runtime.Kernel, tool string, allow bool) {
+		if _, err := kk.Bus().Publish(event.Spec{Subject: "agent.policy", Kind: event.KindPolicyDecision, Actor: "agent", CorrelationID: "c-" + tool, Payload: map[string]any{"tool": tool, "capability": "shell", "allow": allow}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	decide(k, "primary-tool", true)
+	decide(tk, "tenant-tool", false)
+	s := NewServer(k, dir)
+	s.token = "primary"
+	s.SetTenants(reg)
+	call := func(token, cmd string, args map[string]any) string {
+		a, b := net.Pipe()
+		a.SetDeadline(time.Now().Add(3 * time.Second))
+		done := make(chan struct{})
+		go func() { defer close(done); s.handleConn(context.Background(), b) }()
+		raw, _ := json.Marshal(Request{ID: "e", Cmd: cmd, Token: token, Args: args})
+		if _, err := a.Write(append(raw, 10)); err != nil {
+			t.Fatal(err)
+		}
+		line, err := bufio.NewReader(a).ReadBytes(10)
+		a.Close()
+		<-done
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(line)
+	}
+	for _, c := range []struct {
+		token, cmd string
+		args       map[string]any
+		want       string
+	}{
+		{"primary", CmdEdictLog, nil, `"tool":"primary-tool"`},
+		{"primary", CmdEdictLog, map[string]any{"tenant": " acme "}, `"tool":"tenant-tool"`},
+		{tenantToken, CmdEdictLog, map[string]any{"tenant": "acme", "denied": true}, `"tool":"tenant-tool"`},
+		{"primary", CmdEdictStats, nil, `"allowed":1`},
+		{tenantToken, CmdEdictStats, map[string]any{"tenant": "acme", "since_ms": 600000}, `"denied":1`},
+		{"primary", CmdEdictLog, map[string]any{"denied": "yes"}, `"error":"args.denied must be a boolean"`},
+	} {
+		if line := call(c.token, c.cmd, c.args); !strings.Contains(line, c.want) {
+			t.Fatalf("%s %v: %s", c.cmd, c.args, line)
+		}
+	}
+	if line := call(tenantToken, CmdEdictLog, map[string]any{"tenant": "acme"}); strings.Contains(line, "primary-tool") {
+		t.Fatal("a tenant reads only its own decisions", line)
+	}
+	// A 1 ms window excludes every decision only once the clock has moved past
+	// the newest one.
+	newest, err := k.Journal().Tail(1)
+	if err != nil || len(newest) != 1 {
+		t.Fatal(newest, err)
+	}
+	for time.Now().UnixMilli() <= newest[0].TSUnixMS+1 {
+		time.Sleep(time.Millisecond)
+	}
+	if line := call("primary", CmdEdictStats, map[string]any{"since_ms": 1}); !strings.Contains(line, `"total":0`) || !strings.Contains(line, `"window_ms":1`) {
+		t.Fatal("the window follows the daemon clock", line)
 	}
 }
