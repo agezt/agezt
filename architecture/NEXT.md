@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.39c typed redaction check, 2026-10-09
+## Current checkpoint — W2.39d typed reaper scan, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -102,7 +102,10 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
 - W2.39b (typed `disk_stats`) is delivered through PR #748 at
   `5aedafe5ea82064edc8186baebc0c4e6adff870b` after all 24 exact-head CI jobs;
   local `main` fast-forwarded to it.
-- W2.39c (typed `redact_test`) is committed on `main` as a code commit plus a
+- W2.39c (typed `redact_test`) is delivered through PR #749 at
+  `747129982f75d2584bb0926e925757f88b2da255` after all 24 exact-head CI jobs;
+  local `main` fast-forwarded to it.
+- W2.39d (typed `reaper_scan`) is committed on `main` as a code commit plus a
   docs commit and published from `arch/w2-dispatch` (`gh pr list --head
   arch/w2-dispatch`). Require all 24
   exact-head jobs including `CI` and `ci.yml`, then merge normally with a
@@ -343,7 +346,11 @@ x20 byte-exact, 15/15 mutations):
 new `kernel/app/redaction` (216 steps x20 byte-exact under three redactor
 states, 14/14 mutations):
 [89-w239-typed-redaction-evidence.md](89-w239-typed-redaction-evidence.md),
-`.temp_files/architecture-delivery/w89/`. About fifty native commands remain,
+`.temp_files/architecture-delivery/w89/`. W2.39d moved `reaper_scan` into the
+new `kernel/app/reaper` (60 steps x20 byte-exact over every finding family the
+fixture can raise, 24/24 mutations):
+[90-w239-typed-reaper-evidence.md](90-w239-typed-reaper-evidence.md),
+`.temp_files/architecture-delivery/w90/`. About fifty native commands remain,
 in the daemon-ops (attention, spend, disk, reaper, redact, sandbox), provider
 config (budget, chains, routing, execution profiles), cognition (council,
 conductor, research, reflect, persona, prompts, seats, plan generate/refine,

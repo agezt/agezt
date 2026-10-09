@@ -233,7 +233,7 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `autonomy_feed` | primary |  | `handleAutonomyFeed` → autonomy_feed.go | `/api/autonomy` |
 | `disk_stats` | primary |  | `handleAppOperation` → app/storage.Service.Disk |  |
 | `pulse_subscribe` | primary |  | `handlePulseSubscribe` → pulse.go |  |
-| `reaper_scan` | primary |  | `handleReaperScan` → reaper.go | `/api/reaper/scan` |
+| `reaper_scan` | primary |  | `handleAppOperation` → app/reaper.Service.Scan | `/api/reaper/scan` |
 | `redact_test` | primary |  | `handleAppOperation` → app/redaction.Service.Test | `/api/redact/test` |
 | `runs_list` | tenant |  | `handleAppOperation` → app/runs.Service.List | `/api/runs` |
 | `runs_stats` | tenant |  | `handleAppOperation` → app/runs.Service.Stats |  |
@@ -746,7 +746,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `app/update/backend.go` | Existing verified Check/Apply/DrainResult backend port. |
 | `app/update/service.go` | Disabled/validation/presentation/unverified manifest/background contexts and sentinel→response→100ms restart ordering. |
 | `sandbox.go` | `sandbox_list/file/delete` for code_exec projects under `sandbox/projects`, path-confined. |
-| `reaper.go` | `handleReaperScan`: dead-agent/stale-artifact detection (read-only). |
+| `app/reaper/reaper.go` | Typed `reaper_scan` (M903): lenient idle/stale day windows (default 30, floor 1) measured back from the daemon clock over the kernel's `ReaperScan`, every finding as a full-field row list with its count. |
 | `app/redaction/redaction.go` | Typed `redact_test` (M104): runs the bus's live redactor against a strict-string candidate, returning only the redacted form, the matched built-in categories and whether an unexplained change hit a configured literal; read-only, so the candidate is never journaled. |
 | `app/journal/changes.go` | Typed `changelog` (material-change kinds with stable labels, payload detail probe, newest first, lenient limit/window) and `cache_stats` (prompt-cache reads/writes and the saving versus the injected full-rate `Cost`). |
 
