@@ -816,6 +816,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Reflection passes use typed application operations.** Triggering a pass
+  and reading the latest report keep their correlation, report shape and
+  errors; both stay operator-only and triggering is still audited.
+  Already-canceled requests now stop before any pass or read.
+
 - **The Council of Elders' default membership uses typed application
   operations.** Viewing and replacing the panel keep their entry checks, seat
   ordering and naming, persistence, live apply, unknown-model warnings and

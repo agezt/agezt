@@ -329,7 +329,7 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `whatsappgw_qr` | primary |  | `Gateway.QR` → app/channels/gateway.go (typed shared operation binding) | `/api/whatsappgw/qr` |
 | `whatsappgw_status` | primary |  | `Gateway.Status` → app/channels/gateway.go (typed shared operation binding) | `/api/whatsappgw/status` |
 
-#### Cognition: planner, council, conductor, research, persona, prompts, seats, taste — `registerCognitionCommands` (registry.go) plus typed persona, prompt, seat and council membership operations, 25 ops
+#### Cognition: planner, council, conductor, research, persona, prompts, seats, taste — `registerCognitionCommands` (registry.go) plus typed persona, prompt, seat, council membership and reflection operations, 25 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
@@ -349,8 +349,8 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `plan_stats` | tenant |  | `handleAppOperation` → app/runs.Plans.Stats |  |
 | `prompts_get` | primary |  | `handleAppOperation` → app/persona.Service.Prompts | `/api/prompts` |
 | `prompts_set` | primary |  | `handleAppOperation` → app/persona.Service.SetPrompts | `/api/prompts/set` |
-| `reflect_run` | primary |  | `handleReflectRun` → reflect.go |  |
-| `reflect_show` | primary |  | `handleReflectShow` → reflect.go |  |
+| `reflect_run` | primary |  | `handleAppOperation` → app/reflection.Service.Run |  |
+| `reflect_show` | primary |  | `handleAppOperation` → app/reflection.Service.Show |  |
 | `research_ask` | primary | LIVE | `handleResearchAsk` → research.go | `/api/research/ask` |
 | `seat_create` | primary |  | `handleAppOperation` → app/seats.Service.Create |  |
 | `seat_delete` | primary |  | `handleAppOperation` → app/seats.Service.Delete |  |
@@ -843,7 +843,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `research.go` | `research_ask` (deep-research harness; LIVE). |
 | `chatsuggestions.go` | `chat_suggestions`: memory/tool-context derived next-prompt chips (no LLM). |
 | `chatsummary.go` | `chat_summarize`: LLM briefing of chat history (LIVE). |
-| `reflect.go` | `reflect_run`, `reflect_show`. |
+| `app/reflection/reflection.go` | Typed audited `reflect_run` (one offline pass under a fresh `reflect-<ulid>` correlation, the report's fields beside it) and `reflect_show` (whether a pass has run and the latest report). |
 | `nodes.go` | `node_registry`: probes `AGEZT_PEERS` mesh nodes. |
 | `app/seats/seats.go` | Typed `seat_list` (built-in and custom workboard execution seats) and audited `seat_create`/`seat_delete` over the primary kernel's seat store, with trimmed text, lenient list and strict `restrict_tools` arguments. |
 | `taste.go` | `taste_list/create/delete` (taste exemplars). |

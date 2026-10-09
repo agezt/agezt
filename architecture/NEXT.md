@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.42c typed council membership, 2026-10-10
+## Current checkpoint — W2.42d typed reflection, 2026-10-10
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -134,8 +134,11 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
 - W2.42b (typed seats) is delivered through PR #758 at
   `84a446cf60537426016b305af072f555ee385bff` after all 24 exact-head CI jobs;
   local `main` fast-forwarded to it.
-- W2.42c (typed council membership) is committed on `main` as a code commit
-  plus a docs commit and published from `arch/w2-dispatch` (`gh pr list --head
+- W2.42c (typed council membership) is delivered through PR #759 at
+  `a3b85022cd3053374a4b29050f292b897017925d` after all 24 exact-head CI jobs;
+  local `main` fast-forwarded to it.
+- W2.42d (typed reflection) is committed on `main` as a code commit plus a docs
+  commit and published from `arch/w2-dispatch` (`gh pr list --head
   arch/w2-dispatch`). Require all 24
   exact-head jobs including `CI` and `ci.yml`, then merge normally with a
   matching head and fast-forward `main`.
@@ -414,8 +417,11 @@ into the new `kernel/app/seats` (132 steps x20, 21/21 mutations):
 `.temp_files/architecture-delivery/w98/`. W2.42c moved `council_members` and
 `council_set` into the new `kernel/app/council` (288 steps x20, 28/28 mutations):
 [99-w242-typed-council-membership-evidence.md](99-w242-typed-council-membership-evidence.md),
-`.temp_files/architecture-delivery/w99/`. Eighteen native commands remain,
-in the cognition (council ask, conductor, research, reflect, plan generate/refine,
+`.temp_files/architecture-delivery/w99/`. W2.42d moved `reflect_run` and
+`reflect_show` into the new `kernel/app/reflection` (72 steps x20, 12/12
+mutations): [100-w242-typed-reflection-evidence.md](100-w242-typed-reflection-evidence.md),
+`.temp_files/architecture-delivery/w100/`. Sixteen native commands remain,
+in the cognition (council ask, conductor, research, plan generate/refine,
 chat) and file groups, plus `run`, `plan` and `whoami`. Next: the non-streaming
 cognition commands; then the file group, once the shared adapter can carry its
 domain `error_code` (it is already governed through `app/files`); then the
