@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.32d typed guard audit reads, 2026-10-09
+## Current checkpoint — W2.33a typed edict reads, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -64,8 +64,10 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   `48ba2de9b53dec381a6160205144d0134dddc445` after all 24 exact-head CI jobs.
 - W2.32c (typed `changelog`/`cache_stats`) is delivered through PR #732 at
   `a6ecb06774fdf3921db1e9d7c98895a1ae8d01b9` after all 24 exact-head CI jobs.
-- W2.32d (typed guard audit reads) is committed on `main` as a code commit plus a
-  docs commit and published from `arch/w2-dispatch`
+- W2.32d (typed guard audit reads) is delivered through PR #733 at
+  `583edb20c1a9706c4318b4cf0e3e34143891c94e` after all 24 exact-head CI jobs.
+- W2.33a (typed edict reads) is committed on `main` as a code commit plus a docs
+  commit and published from `arch/w2-dispatch`
   (`gh pr list --head arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
 
@@ -206,6 +208,13 @@ byte-exact, 36/36 mutations): [75-w232-typed-guard-audit-evidence.md](75-w232-ty
 with their domains: `edict_log`/`edict_stats` (the last `projectJournal` user)
 with edict, `approvals_log`/`approvals_stats` with approvals. Order 7 then
 continues with edict, tenant, shutdown and remote.
+W2.33a moved the edict reads (`edict_show`, `edict_deny_list`, `edict_test`) into
+the new `kernel/app/edict` (162 steps x20 byte-exact, 25/25 mutations):
+[76-w233-typed-edict-reads-evidence.md](76-w233-typed-edict-reads-evidence.md),
+`.temp_files/architecture-delivery/w76/`. Policy state is per-kernel runtime
+state, so the harness applies identical engine changes to every clone after it
+opens. Next: the four audited edict writes (`deny_add`/`deny_rm`/`set_level`/
+`set_mode`, which journal `policy.changed`), then `edict_log`/`edict_stats`.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a

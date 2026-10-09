@@ -816,6 +816,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Policy inspection uses typed application operations.** `edict show`, the
+  hard-deny rule list and the dry-run decision probe keep their output, sorting,
+  removable markers, argument checks and tenant routing. Already-canceled
+  requests now stop before any work.
+
 - **Egress-block, rate-limit and sandbox audits use typed application
   operations.** The netguard, rate-limit and warden logs keep their rows, pages,
   windows and the `issues` filter, and the rate-limit and warden statistics
