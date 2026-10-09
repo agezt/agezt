@@ -102,11 +102,9 @@ func registerCognitionCommands() {
 	)
 }
 
-// registerMiscSmallCommands registers Remaining small subsystems: artifacts, plugins, tools, toolbox, edict overlay.
+// registerMiscSmallCommands registers Remaining small subsystems: artifacts, plugins, tools, toolbox.
 func registerMiscSmallCommands() {
 	register(
-		commandSpec{Cmd: CmdEdictOverlay, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleEdictOverlay(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdEdictCompact, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleEdictCompact(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdAgentPermissions, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleAgentPermissions(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdAgentCapabilities, Handler: func(dc *DispatchCtx) { dc.S.handleAgentCapabilities(dc.Conn, dc.Req) }},
 	)

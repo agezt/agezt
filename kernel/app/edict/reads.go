@@ -152,12 +152,18 @@ func (s *Service) Test(_ context.Context, in TestRequest) (TestOutput, error) {
 	return TestOutput{Decision: string(o.Decision), Capability: string(o.Capability), Level: o.Level.String(), Reason: o.Reason, HardDenied: o.HardDenied, HardDenyRule: o.HardDenyRule, WouldAsk: o.WouldAsk, RequiresApproval: o.RequiresApproval}, nil
 }
 
+// bind declares a tenant-owned operation routed to the caller's tenant kernel.
 func bind[I, O any](ops *[]app.Operation, spec opapi.Spec, handler func(context.Context, I) (O, error)) error {
+	return bindAs(ops, spec, opapi.OwnTenant, handler)
+}
+
+// bindAs declares an operation routed to the caller's tenant kernel under authz.
+func bindAs[I, O any](ops *[]app.Operation, spec opapi.Spec, authz opapi.Authz, handler func(context.Context, I) (O, error)) error {
 	output, err := schema.FromType(reflect.TypeFor[O](), false)
 	if err != nil {
 		return err
 	}
-	spec.OutputSchema, spec.Authz, spec.Tenancy, spec.AllowUnknownInput = output, opapi.OwnTenant, opapi.CallerTenant, true
+	spec.OutputSchema, spec.Authz, spec.Tenancy, spec.AllowUnknownInput = output, authz, opapi.CallerTenant, true
 	op, err := app.NewOperation(spec, handler)
 	if err != nil {
 		return err
