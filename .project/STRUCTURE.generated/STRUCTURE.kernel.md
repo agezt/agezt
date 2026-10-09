@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-152 package(s):
+153 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -30,6 +30,7 @@
 - **`kernel/app/memory`** — Package memory owns transport-independent memory use cases.
 - **`kernel/app/missioncontrol`** — Package missioncontrol owns the console's Mission Control status reads: the spend-today tile and the needs-your-attention feed.
 - **`kernel/app/okr`** — Package okr owns transport-independent objective reads, live rollup projections and lifecycle operations over selected store and kernel ports.
+- **`kernel/app/persona`** — Package persona owns the owner's chat defaults: the daemon's default identity (M710), the fallback system instructions for runs not bound to a roster agent, and the saved prompt library (M713) the Chat view launches from.
 - **`kernel/app/plugins`** — SPDX-License-Identifier: MIT
 - **`kernel/app/providers`** — Package providers owns provider management and journal observation services.
 - **`kernel/app/pulse`** — Package pulse owns proactive-engine control and event observation services over selected resident controller, observer, settings, journal and bus ports.

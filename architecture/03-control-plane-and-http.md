@@ -152,7 +152,7 @@ individual `Set*` setters remain the unit-test surface. Interfaces exist so the 
 | Path under `<baseDir>` | Writer | Format |
 |---|---|---|
 | `runtime/control.addr`, `runtime/control.token` | `writeRuntimeFiles` | text, 0600 |
-| `chat_prompts.json` | `handlePromptsSet` (`prompts.go`) | JSON list of `promptItem`, 0600 |
+| `chat_prompts.json` | `app/persona.Service.SetPrompts` (written by the control-plane binding) | JSON list of `Prompt`, 0600 |
 | `update.sentinel` | `writeUpdateSentinel` (`update_control.go`) | RFC3339 timestamp, tells the watchdog the exit was intentional |
 | settings store (`settings.NewStore(baseDir)`) | `persistPulseSetting` (`AGEZT_PULSE_DIAL`, `AGEZT_PULSE_QUIET_HOURS`), `config_set`, routing/chains (`AGEZT_TASK_MODEL_CHAINS`), persona | via `kernel/settings` |
 | vault / keyring | `provider_keys.go`, `channels_account_ports.go`, `channel_oauth_ports.go`, `provider_oauth.go` | via `kernel/creds` |
@@ -329,7 +329,7 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `whatsappgw_qr` | primary |  | `Gateway.QR` → app/channels/gateway.go (typed shared operation binding) | `/api/whatsappgw/qr` |
 | `whatsappgw_status` | primary |  | `Gateway.Status` → app/channels/gateway.go (typed shared operation binding) | `/api/whatsappgw/status` |
 
-#### Cognition: planner, council, conductor, research, persona, prompts, seats, taste — `registerCognitionCommands` (registry.go), 25 ops
+#### Cognition: planner, council, conductor, research, persona, prompts, seats, taste — `registerCognitionCommands` (registry.go) plus typed persona and prompt operations, 25 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
@@ -341,14 +341,14 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `council_members` | primary |  | `handleCouncilMembers` → council.go | `/api/council/members` |
 | `council_set` | primary |  | `handleCouncilSet` → council.go | `/api/council/set` |
 | `node_registry` | primary |  | `handleNodeRegistry` → nodes.go | `/api/nodes` |
-| `persona_get` | primary |  | `handlePersonaGet` → persona.go | `/api/persona` |
-| `persona_set` | primary |  | `handlePersonaSet` → persona.go | `/api/persona/set` |
+| `persona_get` | primary |  | `handleAppOperation` → app/persona.Service.Get | `/api/persona` |
+| `persona_set` | primary |  | `handleAppOperation` → app/persona.Service.Set | `/api/persona/set` |
 | `plan_generate` | primary | LIVE | `handlePlanGenerate` → planner.go | `/api/plan/generate` |
 | `plan_history` | tenant |  | `handleAppOperation` → app/runs.Plans.List | `/api/plan_history` |
 | `plan_refine` | primary | LIVE | `handlePlanRefine` → planner.go | `/api/plan/refine` |
 | `plan_stats` | tenant |  | `handleAppOperation` → app/runs.Plans.Stats |  |
-| `prompts_get` | primary |  | `handlePromptsGet` → prompts.go | `/api/prompts` |
-| `prompts_set` | primary |  | `handlePromptsSet` → prompts.go | `/api/prompts/set` |
+| `prompts_get` | primary |  | `handleAppOperation` → app/persona.Service.Prompts | `/api/prompts` |
+| `prompts_set` | primary |  | `handleAppOperation` → app/persona.Service.SetPrompts | `/api/prompts/set` |
 | `reflect_run` | primary |  | `handleReflectRun` → reflect.go |  |
 | `reflect_show` | primary |  | `handleReflectShow` → reflect.go |  |
 | `research_ask` | primary | LIVE | `handleResearchAsk` → research.go | `/api/research/ask` |
@@ -797,8 +797,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `app/configcenter/{reads,writes,models,entry}.go` | Selected services/DTO/schema presentation including secret-masked echoes and large integer fields; native handlers/helpers/registrar removed. |
 | `configcenter_write_ports.go` | Selected runtime Center Writer binding, with explicit nil availability; classification uses existing GetAutoRating. |
 | `configcenter_read_ports.go` | Selected runtime manager binding to app read port, with explicit nil availability. |
-| `persona.go` | `persona_get/set`: daemon default system prompt (full text). |
-| `prompts.go` | `prompts_get/set`: saved chat prompt library in `chat_prompts.json`. |
+| `app/persona/persona.go` | Typed `persona_get`/audited `persona_set` (the daemon default identity, full text, persisted as `AGEZT_SYSTEM_PROMPT` and applied live) and `prompts_get`/audited `prompts_set` (the saved chat prompt library in `chat_prompts.json`: trimmed, filtered, byte-capped, at most 100). |
 
 **Channels, inbox, ACP**
 
