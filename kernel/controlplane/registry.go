@@ -33,13 +33,8 @@ func registerJournalLogCommands() {
 	register(
 		commandSpec{Cmd: CmdApprovalsLog, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleApprovalsLog(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdApprovalsStats, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleApprovalsStats(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdNetguardLog, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleNetguardLog(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdEdictLog, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleEdictLog(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdEdictStats, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleEdictStats(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdRateLimitLog, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleRateLimitLog(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdRateLimitStats, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleRateLimitStats(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdWardenLog, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleWardenLog(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdWardenStats, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleWardenStats(dc.Conn, dc.Req) }},
 	)
 }
 

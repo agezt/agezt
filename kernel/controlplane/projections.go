@@ -9,28 +9,13 @@ import (
 	"github.com/agezt/agezt/kernel/platform/journalview"
 )
 
-// projectJournal is the ONE engine behind every journal-derived "*_log"
-// handler (Phase 1.3): tool/warden/policy/provider/webhook/ratelimit/world/
-// memory/approvals/netguard logs, plan history, and schedule fires all fold
-// the journal into a paginated, newest-first list with the exact same
-// mechanics. Before this existed each handler carried a character-identical
-// copy of the limit clamp, cursor decode, since_ms cutoff, tenant resolution,
-// (ts,seq) sort, cursor filter, truncation, and next_cursor emission — ~15
-// copies that had to be edited in lockstep.
-//
-// decode inspects one event and returns the row's view map (WITHOUT
-// ts_unix_ms/seq — stamped here so the frontend cursor pager always has its
-// stable per-row id) or false to skip the event. Per-handler concerns live
-// inside decode: kind filtering, extra req.Args filters (tool name, errors
-// only, latency floor, …), and any cross-event pairing state the closure
-// keeps (e.g. tool_log matching tool.invoked inputs to tool.result rows —
-// Range is in journal order, so a stash map works).
-//
-// decode runs for EVERY event and the since_ms cutoff drops decoded ROWS —
-// not events — so cross-event stash state (tool_log's invoked inputs) still
-// accrues from events outside the window whose row-producing partner falls
-// inside it. Rows come back as {resultKey: [...], count, next_cursor} — the
-// envelope every log endpoint and the frontend's cursorPager already speak.
+// projectJournal is the native map-row wrapper over journalview.Project: the
+// shared limit clamp, since_ms cutoff, tenant resolution and cursor paging,
+// with decode shaping each row (WITHOUT ts_unix_ms/seq, which are stamped here)
+// or returning false to skip the event. decode runs for every event and the
+// cutoff drops decoded rows, so cross-event stash state still accrues from
+// events outside the window. Typed app reads call journalview.ProjectValues
+// directly; this wrapper remains only for edict_log.
 func (s *Server) projectJournal(conn net.Conn, req Request, resultKey string, decode func(*event.Event) (map[string]any, bool)) {
 	limit := defaultRunsLimit
 	if raw, ok := req.Args["limit"]; ok {
