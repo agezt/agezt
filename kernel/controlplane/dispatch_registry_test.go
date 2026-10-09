@@ -94,7 +94,7 @@ func TestRegistry_MatchesProtocolConstants(t *testing.T) {
 
 // TestRegistry_TenantAllowedImpliesTenantRouted is PERMANENT: it enforces the
 // real tenant-isolation invariant. Every command a tenant token may invoke
-// must route to the caller's kernel (kernelFor / edictFor / projectJournal);
+// must route to the caller's kernel (kernelFor / projectJournal / the app host's routed kernel);
 // a TenantAllowed handler that reads s.k directly would leak the PRIMARY
 // kernel's data to a tenant.
 //
@@ -110,6 +110,6 @@ func TestRegistry_TenantAllowedImpliesTenantRouted(t *testing.T) {
 		if cmd == CmdWhoami {
 			continue // identity echo — touches no kernel (see doc comment)
 		}
-		t.Errorf("%q is TenantAllowed but not TenantRouted — a tenant token would read the primary kernel's data; route the handler via kernelFor(tenantOf(req)) (or edictFor/projectJournal) and set TenantRouted", cmd)
+		t.Errorf("%q is TenantAllowed but not TenantRouted — a tenant token would read the primary kernel's data; route the handler via kernelFor(tenantOf(req)) (or projectJournal) and set TenantRouted", cmd)
 	}
 }

@@ -15,7 +15,7 @@ func (r nativeConfigReader) Model() string         { return r.kernel.Model() }
 func (r nativeConfigReader) SystemPromptSet() bool { return r.kernel.System() != "" }
 func (r nativeConfigReader) ToolCount() int        { return len(r.kernel.Tools()) }
 func (r nativeConfigReader) PluginCount() int      { return len(r.kernel.Plugins()) }
-func (r nativeConfigReader) AskPolicy() string     { return askPolicyLabel(r.kernel.Edict().AskPolicy()) }
+func (r nativeConfigReader) AskPolicy() string     { return r.kernel.Edict().AskPolicy().String() }
 func (r nativeConfigReader) Routing() (appconfig.RoutingReader, bool) {
 	view, ok := r.kernel.Provider().(appconfig.RoutingReader)
 	return view, ok
