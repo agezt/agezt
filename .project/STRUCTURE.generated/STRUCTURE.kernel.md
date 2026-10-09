@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-156 package(s):
+157 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -19,6 +19,7 @@
 - **`kernel/app/budget`** — Package budget owns the operator's view of the governor's daily spend: the snapshot behind `agt budget` and the console's budget panel, and the runtime knob that adjusts the global daily ceiling (M607).
 - **`kernel/app/catalog`** — Package catalog owns transport-independent catalog sync, listing and discovery.
 - **`kernel/app/channels`** — SPDX-License-Identifier: MIT
+- **`kernel/app/chat`** — Package chat owns the chat surface's context-aware next-prompt suggestions (M998): chips derived from the agent's active memory and the recently used tools, with no LLM call.
 - **`kernel/app/config`** — SPDX-License-Identifier: MIT
 - **`kernel/app/configcenter`** — SPDX-License-Identifier: MIT
 - **`kernel/app/council`** — Package council owns the Council of Elders' default membership (M839): which models speak when the multi-model panel is convened without an explicit panel, and the Conductor roles auto-filled from it.

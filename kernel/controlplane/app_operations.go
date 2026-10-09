@@ -24,6 +24,7 @@ import (
 	appbudget "github.com/agezt/agezt/kernel/app/budget"
 	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
 	appchannels "github.com/agezt/agezt/kernel/app/channels"
+	appchat "github.com/agezt/agezt/kernel/app/chat"
 	appconfig "github.com/agezt/agezt/kernel/app/config"
 	appconfigcenter "github.com/agezt/agezt/kernel/app/configcenter"
 	appcouncil "github.com/agezt/agezt/kernel/app/council"
@@ -306,6 +307,20 @@ var councilOperations = func() []app.Operation {
 var reflectionOperations = func() []app.Operation {
 	ops, err := appreflection.Operations(func(ctx context.Context) *appreflection.Service {
 		return appreflection.New(ctx.Value(systemHostKey{}).(*Server).k.Reflect(), ulid.New)
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
+
+var chatOperations = func() []app.Operation {
+	ops, err := appchat.Operations(func(ctx context.Context) *appchat.Service {
+		var ports appchat.Ports
+		if mgr := ctx.Value(systemHostKey{}).(*Server).k.Memory(); mgr != nil {
+			ports.ActiveMemory = mgr.Active
+		}
+		return appchat.New(ports)
 	})
 	if err != nil {
 		panic(err)
@@ -1288,7 +1303,7 @@ var configCenterOperations = func() []app.Operation {
 }()
 
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(lifecycleOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(rosterPermissionOperations)+len(stateOperations)+len(redactionOperations)+len(reaperOperations)+len(missionControlOperations)+len(budgetOperations)+len(routingOperations)+len(executionProfileOperations)+len(dataOperations)+len(personaOperations)+len(seatOperations)+len(councilOperations)+len(reflectionOperations)+len(sandboxOperations)+len(rosterTaskUpdateOperations)+len(rosterWakeOperations)+len(rosterRepairOperations)+len(rosterResolveOperations)+len(rosterImpactOperations)+len(rosterSetRetiredOperations)+len(rosterRemoveOperations)+len(steerOperations)+len(runsOperations)+len(planOperations)+len(tenantOperations)+len(journalOperations)+len(traceOperations)+len(auditOperations)+len(approvalHistoryOperations)+len(approvalLiveOperations)+len(edictReadOperations)+len(edictWriteOperations)+len(edictDecisionOperations)+len(edictOverlayOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(lifecycleOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(rosterPermissionOperations)+len(stateOperations)+len(redactionOperations)+len(reaperOperations)+len(missionControlOperations)+len(budgetOperations)+len(routingOperations)+len(executionProfileOperations)+len(dataOperations)+len(personaOperations)+len(seatOperations)+len(councilOperations)+len(reflectionOperations)+len(chatOperations)+len(sandboxOperations)+len(rosterTaskUpdateOperations)+len(rosterWakeOperations)+len(rosterRepairOperations)+len(rosterResolveOperations)+len(rosterImpactOperations)+len(rosterSetRetiredOperations)+len(rosterRemoveOperations)+len(steerOperations)+len(runsOperations)+len(planOperations)+len(tenantOperations)+len(journalOperations)+len(traceOperations)+len(auditOperations)+len(approvalHistoryOperations)+len(approvalLiveOperations)+len(edictReadOperations)+len(edictWriteOperations)+len(edictDecisionOperations)+len(edictOverlayOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, lifecycleOperations...)
 	operations = append(operations, catalogOperations...)
@@ -1353,6 +1368,7 @@ func registeredAppOperations() []app.Operation {
 	operations = append(operations, seatOperations...)
 	operations = append(operations, councilOperations...)
 	operations = append(operations, reflectionOperations...)
+	operations = append(operations, chatOperations...)
 	operations = append(operations, sandboxOperations...)
 	operations = append(operations, rosterTaskUpdateOperations...)
 	operations = append(operations, rosterWakeOperations...)
@@ -1514,6 +1530,10 @@ func handleAppOperation(dc *DispatchCtx) {
 	// Preserve the legacy nested thread/message struct member order and int64s.
 	if inbox, ok := output.(appchannels.InboxOutput); ok {
 		result["threads"] = inbox.Threads
+	}
+	// Legacy chat_suggestions embeds the Suggestion structs directly.
+	if out, ok := output.(appchat.SuggestionsOutput); ok {
+		result["suggestions"] = out.Suggestions
 	}
 	dc.S.writeResp(dc.Conn, Response{ID: dc.Req.ID, Type: RespResult, Result: result})
 	write.finishWrite()
