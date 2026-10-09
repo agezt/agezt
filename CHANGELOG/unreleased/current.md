@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The budget snapshot and the daily-ceiling knob use typed application
+  operations.** `budget` and `budget_set` keep their snapshot shape, per-task
+  ordering, argument checks, the governor's clamp and every error; both stay
+  operator-only and setting the ceiling is still audited. Already-canceled
+  requests now stop before any read, audit or ceiling change.
+
 - **Sandbox project inspection and removal use typed application operations.**
   Listing agent-built projects, reading one file and deleting a project keep
   their ordering, caps, argument checks, path confinement, planted-link

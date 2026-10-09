@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.39f typed sandbox inspection, 2026-10-09
+## Current checkpoint — W2.40a typed budget, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -111,7 +111,12 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
 - W2.39e (typed `spend_today`/`attention`) is delivered through PR #751 at
   `251f88f25bbfa024e2f7b063521b8ee0654676e0` after all 24 exact-head CI jobs;
   local `main` fast-forwarded to it.
-- W2.39f (typed sandbox inspection) is committed on `main` as a code commit
+- W2.39f (typed sandbox inspection) is delivered through PR #752 at
+  `2ae3e5229c6ca69fdec6ae3c5f8f0f903e8695c5` after all 24 exact-head CI jobs;
+  local `main` fast-forwarded to it. Its first head failed the Linux test legs:
+  a new test read a backslash-separated path, which only Windows splits, so
+  keep new path tests platform-aware.
+- W2.40a (typed `budget`/`budget_set`) is committed on `main` as a code commit
   plus a docs commit and published from `arch/w2-dispatch` (`gh pr list --head
   arch/w2-dispatch`). Require all 24
   exact-head jobs including `CI` and `ci.yml`, then merge normally with a
@@ -366,11 +371,14 @@ into the new `kernel/app/sandbox` and `confineUnder` into
 mutations, three gaps closed):
 [92-w239-typed-sandbox-evidence.md](92-w239-typed-sandbox-evidence.md),
 `.temp_files/architecture-delivery/w92/`. The daemon-ops group is complete.
-Forty-three native commands remain,
-in the provider config (budget, chains, routing, execution profiles), cognition (council,
+W2.40a moved `budget`/`budget_set` into the new `kernel/app/budget` (504 steps
+x20 with journals equal, including the governor's ceiling-set events, 32/32
+mutations): [93-w240-typed-budget-evidence.md](93-w240-typed-budget-evidence.md),
+`.temp_files/architecture-delivery/w93/`. Forty-one native commands remain,
+in the provider config (chains, routing, execution profiles), cognition (council,
 conductor, research, reflect, persona, prompts, seats, plan generate/refine,
 chat), datalake and file groups, plus `run`, `plan` and `whoami`. Next: provider
-config (budget, chains, routing, execution profiles), then datalake, cognition,
+config (chains, routing, execution profiles), then datalake, cognition,
 the roster status source collection and the streaming `run`/`plan` family.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
