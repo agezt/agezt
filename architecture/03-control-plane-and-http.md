@@ -377,17 +377,17 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `toolbox_install` | primary | events | `ToolboxInstall.Install` → app/tools/toolbox_install.go (typed StreamEvents registration) | `/api/toolbox/install` (SSE adapter remains) |
 | `toolbox_outdated` | primary | read | `ToolboxReads.Outdated` → app/tools/toolbox_reads.go (typed app registration) |  |
 
-#### Edict policy (tenant-routed) — `registerEdictCommands` (edict.go), 7 ops
+#### Edict policy (tenant-routed) — reads via `app/edict.Operations`, writes via `registerEdictCommands` (edict.go), 7 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
 | `edict_deny_add` | tenant |  | `handleEdictDenyAdd` → edict_deny.go | `/api/edict/deny_add` |
-| `edict_deny_list` | tenant |  | `handleEdictDenyList` → edict_deny.go |  |
+| `edict_deny_list` | tenant |  | `handleAppOperation` → app/edict.Service.DenyList |  |
 | `edict_deny_rm` | tenant |  | `handleEdictDenyRemove` → edict_deny.go | `/api/edict/deny_rm` |
 | `edict_set_level` | tenant |  | `handleEdictSetLevel` → edict_set.go | `/api/edict/set_level` |
 | `edict_set_mode` | tenant |  | `handleEdictSetMode` → edict_set.go | `/api/edict/set_mode` |
-| `edict_show` | tenant |  | `handleEdictShow` → edict.go | `/api/edict_show` |
-| `edict_test` | tenant |  | `handleEdictTest` → edict.go | `/api/edict/test` |
+| `edict_show` | tenant |  | `handleAppOperation` → app/edict.Service.Show | `/api/edict_show` |
+| `edict_test` | tenant |  | `handleAppOperation` → app/edict.Service.Test | `/api/edict/test` |
 
 #### Live run control — `app/steer.Operations` via the common native adapter, 6 ops
 
@@ -943,8 +943,9 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `artifact.go` | `artifact_get` (re-verified bytes), `artifact_list`, `artifact_delete`, `artifact_collect`. |
 | `plugin.go` | Selected runtime-manifest Reader adapter → app/plugins.Service; codec/socket framing uses generic app dispatcher. |
 | `datalake.go` | `data_collections/records/insert/update/delete/create_collection/drop_collection`. |
-| `edict.go` | `edictFor`, `edict_show`, `edict_test`, `registerEdictCommands`. |
-| `edict_deny.go` | `edict_deny_list/add/rm`. |
+| `app/edict/reads.go` | Typed `edict_show`, `edict_deny_list` (removable runtime rules) and `edict_test` (dry-run decision) over the routed kernel's policy engine; strict tenant, capability checked first for the probe. |
+| `edict.go` | `edictFor`, `askPolicyLabel`, `registerEdictCommands` (the four writes). |
+| `edict_deny.go` | `edict_deny_add/rm`. |
 | `edict_set.go` | `edict_set_level`, `edict_set_mode`. |
 | `edict_overlay.go` | `edict_overlay` (net runtime policy), `edict_compact`. |
 
@@ -1319,6 +1320,7 @@ and warns when no console password is set.
 - **Channel ACP typed binding (W2.27k, local delivery pending):** one GET/primary-only/read-only spec/shared dispatcher, native wrapper/manual row/final structToMap removed. Service/Web UI read route bytes retained. Explicit canceled preflight rejects before discovery; native integer terminal exact for declared counts.432 native cases20=216 byte-exact normal+216 changed cancellation,12 valid mutations/schema/auth/source/tenant/old-current integer20/full Go/race gates pass;242 packages135 imports13 calls,133 kernel packages/2868 Go files. Remaining channel typed binding/native exit/protected publication remain.
 - **Channel ACP inventory foundation (W2.27j, local delivery pending):** app owns active environment/trim/default cached discovery/caller context/full typed inventory; native args ignored/manual primary read-only/legacy structToMap codec retained.432 byte-exact native cases20/source-cache-context/full files/head/provider checks,10 valid mutations/full model/default source20/tenant no-discovery denial/full Go/race gates;242 packages135 imports13 calls,133 kernel packages/2866 Go files. Official ratchet removes CP catalog import; typed communication binding/native exit/protected publication remain.
 - **Channel outbound send foundation (W2.27i, local delivery pending):** app Outbound owns validation/normalization/selected sender/background30s/error/result; terminal callback retains measured context through socket write. Native current sender factory/lenient codecs/manual primary audit retained.160 byte-exact native cases20/effects/files/audit privacy/deadline/provider checks,15 valid mutations/before-after lifetime/current sender/isolation/tenant/source20/full Go/race gates pass;242 packages136 imports13 calls,133 kernel packages/2863 Go files. ACP inventory/typed binding/native exit/protected publication remain.
+- **Typed edict reads (W2.33a, local):** the new `kernel/app/edict` owns `edict_show` (`GET /api/edict_show`), `edict_deny_list` and `edict_test` (`GET /api/edict/test`) as tenant-owned, caller-tenant-routed, read-only unaudited operations over the routed kernel's `Engine`; the strict routing tenant is checked first except for the probe, which checks its capability first, as before. The three native handlers and `denyRuleRows` are removed; the four writes stay native for W2.33b. [Evidence](76-w233-typed-edict-reads-evidence.md).
 - **Typed guard audit reads (W2.32d, local):** the new `kernel/app/audit` owns `netguard_log`, `ratelimit_log`/`ratelimit_stats` and `warden_log`/`warden_stats` as tenant-owned, caller-tenant-routed, read-only unaudited operations (three GET routes); warden rows carry only their kind's keys via omitempty pointers. `netguard_log.go`, `ratelimit_log.go`, `warden_log.go` and five registrations are removed. [Evidence](75-w232-typed-guard-audit-evidence.md).
 - **Typed changelog/cache stats (W2.32c, local):** `changelog` (primary, tenant-routed) and `cache_stats` (tenant-owned and routed) join `app/journal` as read-only unaudited operations; the full-rate pricing is injected as a `Cost` port (`WithCost(governor.CostMicrocents)`), so app/journal does not import the governor. `changelog.go`/`cache_stats.go` and two registrations are removed; the trimFloat unit test moves with its helper. [Evidence](74-w232-typed-changelog-cache-evidence.md).
 - **Typed journal grep/export (W2.32b, local):** `journal_grep` (`GET /api/journal`) and `journal_export` join `app/journal` as primary-only, read-only unaudited operations over the primary journal; the adapter keeps the Event member order for both, and the export schema comes from the same wire mirror. `journal_grep.go`/`journal_export.go` and two registrations are removed; `MaxJournalExportN` now names `appjournal.MaxExportN`. [Evidence](73-w232-typed-journal-search-evidence.md).
