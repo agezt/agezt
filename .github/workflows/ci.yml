@@ -562,6 +562,15 @@ jobs:
         # staticcheck fail with "fork/exec compile: invalid argument". That
         # corruption does not occur on ubuntu-latest, but the loop also absorbs
         # transient network and OOM failures, so it stays cheap insurance.
+        #
+        # Temporary: Go 1.27.2 bumped the export data format past what
+        # staticcheck 2026.2.1 can read (dominikh/go-tools#1832, fix pending in
+        # #1834). Only this step analyzes with the previous patch of the same
+        # minor (fetched and checksum-verified by the go command); every other
+        # step and job stays on latest stable. Drop GOTOOLCHAIN once a
+        # staticcheck release supports Go 1.27.2, and bump SC_TAG with it.
+        env:
+          GOTOOLCHAIN: go1.27.1
         run: |
           set -e
           # Pin the staticcheck release (supply-chain, CWE-494) rather than
