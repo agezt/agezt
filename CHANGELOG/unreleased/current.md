@@ -816,6 +816,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Chat suggestions use a typed application operation.** The chips still
+  lead with the agent's memory, fill from the recently used tools, keep each
+  chip's field order and stay operator-only. Already-canceled requests now stop
+  before any read.
+
 - **The Conductor's role preview uses a typed application operation.** It
   still assigns the default panel's models round-robin to the thinker, worker
   and verifier and stays operator-only. Already-canceled requests now stop
