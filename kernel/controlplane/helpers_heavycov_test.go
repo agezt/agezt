@@ -36,38 +36,3 @@ func TestArgTruthy_AllForms(t *testing.T) {
 		}
 	}
 }
-
-// TestTrimFloat covers both branches: whole-valued floats render without a
-// trailing ".0", fractional floats keep their JSON form.
-func TestTrimFloat(t *testing.T) {
-	cases := map[float64]string{
-		0:     "0",
-		1:     "1",
-		-5:    "-5",
-		1000:  "1000",
-		1.5:   "1.5",
-		-2.25: "-2.25",
-		0.5:   "0.5",
-	}
-	for in, want := range cases {
-		if got := trimFloat(in); got != want {
-			t.Errorf("trimFloat(%v) = %q, want %q", in, got, want)
-		}
-	}
-}
-
-// TestItoa checks the int64 → decimal-string helper.
-func TestItoa(t *testing.T) {
-	cases := map[int64]string{
-		0:           "0",
-		1:           "1",
-		-1:          "-1",
-		1234567890:  "1234567890",
-		-9876543210: "-9876543210",
-	}
-	for in, want := range cases {
-		if got := itoa(in); got != want {
-			t.Errorf("itoa(%d) = %q, want %q", in, got, want)
-		}
-	}
-}

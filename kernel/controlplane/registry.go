@@ -33,8 +33,6 @@ func registerJournalLogCommands() {
 	register(
 		commandSpec{Cmd: CmdApprovalsLog, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleApprovalsLog(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdApprovalsStats, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleApprovalsStats(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdCacheStats, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleCacheStats(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdChangelog, ReadOnly: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleChangelog(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdNetguardLog, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleNetguardLog(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdEdictLog, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleEdictLog(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdEdictStats, ReadOnly: true, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleEdictStats(dc.Conn, dc.Req) }},

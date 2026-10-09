@@ -98,3 +98,11 @@ clamping the grep limit to 0, because the walk appends before its stop check, so
 0 still keeps one match. Mutation testing found a real gap, now closed: no test
 told an exact subject, actor or correlation match from a prefix match. Sources
 are restored byte-for-byte. Fixtures use isolated temporary kernels only.
+
+## Harness correction (recorded in W2.32c)
+
+The shared populated journal originally carried base64-encoded payloads (see the
+W2.31c correction), so pattern searches never matched payload text. W2.32c reran
+this comparison, 216 steps x20, with raw JSON payloads, and now asserts that the
+payload patterns (`DEPLOY`, `second LINE`, the model) match events. The parity is
+byte-exact.

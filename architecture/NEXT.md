@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.32b typed journal grep/export, 2026-10-09
+## Current checkpoint — W2.32c typed changelog/cache stats, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -60,8 +60,10 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
 - W2.32a (typed `journal_head`/`journal_tail`/`journal_stats`, one commit) is
   delivered through PR #730 at `aff7857bca02daa82c53c9ab7b2e24e25ed3a49d` after
   all 24 exact-head CI jobs.
-- W2.32b (typed `journal_grep`/`journal_export`) is committed on `main` as a code
-  commit plus a docs commit and published from `arch/w2-dispatch`
+- W2.32b (typed `journal_grep`/`journal_export`) is delivered through PR #731 at
+  `48ba2de9b53dec381a6160205144d0134dddc445` after all 24 exact-head CI jobs.
+- W2.32c (typed `changelog`/`cache_stats`) is committed on `main` as a code commit
+  plus a docs commit and published from `arch/w2-dispatch`
   (`gh pr list --head arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and `ci.yml`,
   then merge normally with a matching head and fast-forward `main`.
 
@@ -188,6 +190,14 @@ mutations plus one recorded equivalent):
 `.temp_files/architecture-delivery/w73/`. Next in the journal group: `changelog`,
 `cache_stats` and the journal-folded audit logs (approvals, netguard, edict,
 ratelimit, warden logs and stats).
+W2.32c moved `changelog`/`cache_stats` (174 steps x20 byte-exact):
+[74-w232-typed-changelog-cache-evidence.md](74-w232-typed-changelog-cache-evidence.md),
+`.temp_files/architecture-delivery/w74/`. **Harness lesson:** journal crafted
+payloads as `json.RawMessage` — a Go `[]byte` in `event.Spec.Payload` is stored
+as a base64 string, so every payload-derived field silently goes empty on both
+sides. Assert that payload-derived values reach the response. W2.31c and W2.32b
+were re-proven with the fix. Remaining journal group: the folded audit logs
+(approvals, netguard, edict, ratelimit, warden logs and stats).
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a

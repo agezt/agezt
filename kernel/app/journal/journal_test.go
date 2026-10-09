@@ -132,26 +132,29 @@ func TestOperations(t *testing.T) {
 		t.Fatal("nil provider")
 	}
 	ops, err := Operations(func(context.Context) *Service { return New(&fakeJournal{}, nil, nil) })
-	if err != nil || len(ops) != 5 {
+	if err != nil || len(ops) != 7 {
 		t.Fatal(ops, err)
 	}
 	for i, w := range []struct {
 		name    string
 		tenancy opapi.Tenancy
 		out     reflect.Type
+		authz   opapi.Authz
 	}{
-		{"journal_head", opapi.Primary, reflect.TypeFor[HeadOutput]()},
-		{"journal_tail", opapi.Primary, reflect.TypeFor[EventsOutput]()},
-		{"journal_grep", opapi.Primary, reflect.TypeFor[EventsOutput]()},
-		{"journal_export", opapi.Primary, reflect.TypeFor[ExportOutput]()},
-		{"journal_stats", opapi.CallerTenant, reflect.TypeFor[StatsOutput]()},
+		{"journal_head", opapi.Primary, reflect.TypeFor[HeadOutput](), opapi.PrimaryOnly},
+		{"journal_tail", opapi.Primary, reflect.TypeFor[EventsOutput](), opapi.PrimaryOnly},
+		{"journal_grep", opapi.Primary, reflect.TypeFor[EventsOutput](), opapi.PrimaryOnly},
+		{"journal_export", opapi.Primary, reflect.TypeFor[ExportOutput](), opapi.PrimaryOnly},
+		{"changelog", opapi.CallerTenant, reflect.TypeFor[ChangelogOutput](), opapi.PrimaryOnly},
+		{"cache_stats", opapi.CallerTenant, reflect.TypeFor[CacheStatsOutput](), opapi.OwnTenant},
+		{"journal_stats", opapi.CallerTenant, reflect.TypeFor[StatsOutput](), opapi.PrimaryOnly},
 	} {
 		spec := ops[i].Spec()
 		http := opapi.HTTP{}
 		if w.name == "journal_grep" {
 			http = opapi.HTTP{Method: "GET", Path: "/api/journal"}
 		}
-		if spec.Name != w.name || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != w.tenancy || !spec.AllowUnknownInput || spec.Output != w.out || spec.HTTP != http {
+		if spec.Name != w.name || !spec.ReadOnly || spec.Authz != w.authz || spec.Tenancy != w.tenancy || !spec.AllowUnknownInput || spec.Output != w.out || spec.HTTP != http {
 			t.Fatal(spec)
 		}
 	}
@@ -165,7 +168,7 @@ func TestOperations(t *testing.T) {
 	if err := schema.ValidateJSON(ops[1].Spec().OutputSchema, raw); err != nil {
 		t.Fatal("the tail schema accepts every journaled payload shape", err, string(raw))
 	}
-	for i, v := range map[int]any{0: HeadOutput{Head: 1}, 2: EventsOutput{Events: tail.Events}, 3: ExportOutput{Events: tail.Events, FirstSeq: 1, LastSeq: 4, Truncated: true}, 4: StatsOutput{ByKind: map[string]int64{"k": 1}}} {
+	for i, v := range map[int]any{0: HeadOutput{Head: 1}, 2: EventsOutput{Events: tail.Events}, 3: ExportOutput{Events: tail.Events, FirstSeq: 1, LastSeq: 4, Truncated: true}, 4: ChangelogOutput{Entries: []ChangelogEntry{{Kind: "k"}}, Count: 1}, 5: CacheStatsOutput{Calls: 1}, 6: StatsOutput{ByKind: map[string]int64{"k": 1}}} {
 		raw, _ := json.Marshal(v)
 		if err := schema.ValidateJSON(ops[i].Spec().OutputSchema, raw); err != nil {
 			t.Fatal(i, err)

@@ -816,6 +816,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The system changelog and prompt-cache statistics use typed application
+  operations.** Material-change entries, their labels and details, ordering,
+  limits, windows and the cache savings are unchanged, and both keep their
+  tenant routing. Already-canceled requests now stop before any work.
+
 - **Journal search and export use typed application operations.** Filters,
   the case-insensitive pattern search, limits, the export window and
   correlation scope, verification hashes and the truncation cap are unchanged.

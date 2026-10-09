@@ -254,8 +254,8 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 |---|---|---|---|---|
 | `approvals_log` | tenant |  | `handleApprovalsLog` → approvals_log.go | `/api/approvals_log` |
 | `approvals_stats` | tenant |  | `handleApprovalsStats` → approvals_log.go |  |
-| `cache_stats` | tenant |  | `handleCacheStats` → cache_stats.go |  |
-| `changelog` | primary, tenant-routed |  | `handleChangelog` → changelog.go |  |
+| `cache_stats` | tenant |  | `handleAppOperation` → app/journal.Service.CacheStats |  |
+| `changelog` | primary, tenant-routed |  | `handleAppOperation` → app/journal.Service.Changelog |  |
 | `edict_log` | tenant |  | `handleEdictLog` → policy_log.go | `/api/policy_log` |
 | `edict_stats` | tenant |  | `handleEdictStats` → policy_log.go | `/api/policy` |
 | `journal_export` | primary |  | `handleAppOperation` → app/journal.Service.Export |  |
@@ -734,7 +734,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `storage.go` | `handleStorageStats`: per-top-level-dir usage of the home dir (M927). |
 | `app/journal/journal.go` | Typed `journal_head` (empty-journal clamp), `journal_tail` (lenient `n` clamped 1..10,000, head before read, Event member order kept by the adapter) and `journal_stats` (count, per-kind, time span, segments/bytes) over the routed kernel's journal. |
 | `app/journal/search.go` | Typed `journal_grep` (strict filters, exact kind/subject/actor/correlation + case-insensitive pattern incl. payload, lenient limit 1..10,000 stopping the walk) and `journal_export` (daemon-clock `since_ms`, strict correlation scope, hashes + head at export time, `MaxExportN` truncation). |
-| `journal_stats.go` | `journalReads` (the app/journal binding with the on-disk size port and daemon clock), `countSegments`, and the CLI's `MaxJournalExportN`. |
+| `journal_stats.go` | `journalReads` (the app/journal binding with the on-disk size port, daemon clock and `governor.CostMicrocents`), `countSegments`, and the CLI's `MaxJournalExportN`. |
 | `state.go` | `state_list`, `state_get` over the kernel state store. |
 | `handle_spend_attention.go` | `spend_today` + `attention` (pending approvals + pulse asks feed) for Mission Control. |
 | `update_control.go` | Selected backend/current version/drain/sentinel/delayed shutdown only; old wrappers/map callback codec removed. |
@@ -746,8 +746,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `sandbox.go` | `sandbox_list/file/delete` for code_exec projects under `sandbox/projects`, path-confined. |
 | `reaper.go` | `handleReaperScan`: dead-agent/stale-artifact detection (read-only). |
 | `redact_test_cmd.go` | `handleRedactTest`: runs the live redactor against a candidate string. |
-| `cache_stats.go` | `handleCacheStats`: prompt-cache savings fold over `budget.consumed`. |
-| `changelog.go` | `handleChangelog`: human-readable lifecycle timeline from the journal. |
+| `app/journal/changes.go` | Typed `changelog` (material-change kinds with stable labels, payload detail probe, newest first, lenient limit/window) and `cache_stats` (prompt-cache reads/writes and the saving versus the injected full-rate `Cost`). |
 
 **Audit log folds (journal → paginated lists)**
 
@@ -1321,6 +1320,7 @@ and warns when no console password is set.
 - **Channel ACP typed binding (W2.27k, local delivery pending):** one GET/primary-only/read-only spec/shared dispatcher, native wrapper/manual row/final structToMap removed. Service/Web UI read route bytes retained. Explicit canceled preflight rejects before discovery; native integer terminal exact for declared counts.432 native cases20=216 byte-exact normal+216 changed cancellation,12 valid mutations/schema/auth/source/tenant/old-current integer20/full Go/race gates pass;242 packages135 imports13 calls,133 kernel packages/2868 Go files. Remaining channel typed binding/native exit/protected publication remain.
 - **Channel ACP inventory foundation (W2.27j, local delivery pending):** app owns active environment/trim/default cached discovery/caller context/full typed inventory; native args ignored/manual primary read-only/legacy structToMap codec retained.432 byte-exact native cases20/source-cache-context/full files/head/provider checks,10 valid mutations/full model/default source20/tenant no-discovery denial/full Go/race gates;242 packages135 imports13 calls,133 kernel packages/2866 Go files. Official ratchet removes CP catalog import; typed communication binding/native exit/protected publication remain.
 - **Channel outbound send foundation (W2.27i, local delivery pending):** app Outbound owns validation/normalization/selected sender/background30s/error/result; terminal callback retains measured context through socket write. Native current sender factory/lenient codecs/manual primary audit retained.160 byte-exact native cases20/effects/files/audit privacy/deadline/provider checks,15 valid mutations/before-after lifetime/current sender/isolation/tenant/source20/full Go/race gates pass;242 packages136 imports13 calls,133 kernel packages/2863 Go files. ACP inventory/typed binding/native exit/protected publication remain.
+- **Typed changelog/cache stats (W2.32c, local):** `changelog` (primary, tenant-routed) and `cache_stats` (tenant-owned and routed) join `app/journal` as read-only unaudited operations; the full-rate pricing is injected as a `Cost` port (`WithCost(governor.CostMicrocents)`), so app/journal does not import the governor. `changelog.go`/`cache_stats.go` and two registrations are removed; the trimFloat unit test moves with its helper. [Evidence](74-w232-typed-changelog-cache-evidence.md).
 - **Typed journal grep/export (W2.32b, local):** `journal_grep` (`GET /api/journal`) and `journal_export` join `app/journal` as primary-only, read-only unaudited operations over the primary journal; the adapter keeps the Event member order for both, and the export schema comes from the same wire mirror. `journal_grep.go`/`journal_export.go` and two registrations are removed; `MaxJournalExportN` now names `appjournal.MaxExportN`. [Evidence](73-w232-typed-journal-search-evidence.md).
 - **Typed journal head/tail/stats (W2.32a, local):** three primary-only, read-only unaudited app operations over `appjournal.Service`: head and tail read the primary journal, stats follows an operator-named tenant (`TenantRouted` without `TenantAllowed`, derived from PrimaryOnly + CallerTenant). The tail output schema comes from a wire mirror of `event.Event` (raw payload = any JSON), and the adapter writes the journal's Event structs so their member order is unchanged. `journal.go` and three registrations are removed. [Evidence](72-w232-typed-journal-reads-evidence.md).
 - **Typed run reads (W2.31c, local):** `runs_list` (`GET /api/runs`) and `runs_stats` are tenant-owned, caller-tenant-routed, read-only unaudited app operations over `appruns.Service`; `collectRuns` stays native as the snapshot port (`runReads`), shared with schedule firing views and roster status. `runs_handlers.go`/`runs_handlers_stats.go` and their registrations are removed. [Evidence](71-w231-typed-run-reads-evidence.md).
