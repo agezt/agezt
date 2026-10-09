@@ -21,7 +21,7 @@ import (
 )
 
 func TestSteerNativeTypedRegistry(t *testing.T) {
-	for _, cmd := range []string{CmdRunPause, CmdRunResume, CmdRunStep, CmdRunSteer, CmdRunIntervene} {
+	for _, cmd := range []string{CmdCancelRun, CmdRunPause, CmdRunResume, CmdRunStep, CmdRunSteer, CmdRunIntervene} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -121,6 +121,8 @@ func TestSteerNativeRoutesToTheCallersKernel(t *testing.T) {
 		{tenantToken, CmdRunStep, map[string]any{"correlation": pCorr, "tenant": "acme"}, `"ok":false`},
 		{tenantToken, CmdRunSteer, map[string]any{"correlation": tCorr, "tenant": "acme", "directive": "focus", "mode": "note"}, `"accepted":true,"correlation":"` + tCorr + `","mode":"note"`},
 		{"primary", CmdRunIntervene, map[string]any{"correlation": pCorr, "primitive": "halt", "idempotency_key": "k1"}, `"accepted":true`},
+		{tenantToken, CmdCancelRun, map[string]any{"correlation": pCorr, "tenant": "acme"}, `"cancelled":false`},
+		{"primary", CmdCancelRun, map[string]any{"correlation": tCorr, "tenant": 3}, `"error":"args.tenant must be a string"`},
 	} {
 		if line := call(c.token, c.cmd, c.args); !strings.Contains(line, c.want) {
 			t.Fatalf("%s %v: %s", c.cmd, c.args, line)

@@ -19,6 +19,7 @@ import (
 
 // Runs is the routed kernel's live-run control surface.
 type Runs interface {
+	CancelRun(corr string) bool
 	PauseRun(corr string) bool
 	ResumeRun(corr string) bool
 	StepRun(corr string) bool
@@ -30,6 +31,13 @@ type Runs interface {
 // string codecs and their error order hold.
 type RunRequest struct {
 	Correlation json.RawMessage `json:"correlation,omitempty"`
+}
+
+// CancelRequest also carries the routing tenant, which cancel_run alone
+// validates as a strict optional string after the correlation.
+type CancelRequest struct {
+	Correlation json.RawMessage `json:"correlation,omitempty"`
+	Tenant      json.RawMessage `json:"tenant,omitempty"`
 }
 
 type SteerRequest struct {
@@ -50,6 +58,11 @@ type InterveneRequest struct {
 type ControlOutput struct {
 	Correlation string `json:"correlation"`
 	OK          bool   `json:"ok"`
+}
+
+type CancelOutput struct {
+	Correlation string `json:"correlation"`
+	Cancelled   bool   `json:"cancelled"`
 }
 
 type SteerOutput struct {
@@ -128,6 +141,19 @@ func (s *Service) Resume(_ context.Context, in RunRequest) (ControlOutput, error
 
 func (s *Service) Step(_ context.Context, in RunRequest) (ControlOutput, error) {
 	return s.control(in, s.runs.StepRun)
+}
+
+// Cancel stops one in-flight run and leaves the kernel un-halted and every
+// other run untouched: the targeted alternative to the global halt.
+func (s *Service) Cancel(_ context.Context, in CancelRequest) (CancelOutput, error) {
+	corr, err := requiredString(in.Correlation, "correlation")
+	if err != nil {
+		return CancelOutput{}, err
+	}
+	if _, err := optionalString(in.Tenant, "tenant"); err != nil {
+		return CancelOutput{}, err
+	}
+	return CancelOutput{Correlation: corr, Cancelled: s.runs.CancelRun(corr)}, nil
 }
 
 // Steer injects a directive: mode "note" is a soft BTW (read it, stay on task);
@@ -221,8 +247,9 @@ func bind[I, O any](ops *[]app.Operation, spec opapi.Spec, handler func(context.
 	return nil
 }
 
-// Operations declares the five steering writes. Each routes to the caller's
-// tenant kernel, so a tenant can steer its own runs without the primary token.
+// Operations declares the targeted cancel and the five steering writes. Each
+// routes to the caller's tenant kernel, so a tenant can control its own runs
+// without the primary token.
 func Operations(provider func(context.Context) *Service) ([]app.Operation, error) {
 	if provider == nil {
 		return nil, errors.New("steer provider required")
@@ -230,6 +257,11 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	runInput := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"correlation":{}}}`)
 	var ops []app.Operation
 	for _, b := range []func() error{
+		func() error {
+			return bind(&ops, opapi.Spec{Name: "cancel_run", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"correlation":{},"tenant":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/cancel_run"}}, func(ctx context.Context, in CancelRequest) (CancelOutput, error) {
+				return provider(ctx).Cancel(ctx, in)
+			})
+		},
 		func() error {
 			return bind(&ops, opapi.Spec{Name: "run_pause", InputSchema: runInput, HTTP: opapi.HTTP{Method: "POST", Path: "/api/run/pause"}}, func(ctx context.Context, in RunRequest) (ControlOutput, error) {
 				return provider(ctx).Pause(ctx, in)

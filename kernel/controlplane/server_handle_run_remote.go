@@ -87,6 +87,5 @@ func registerCoreCommands() {
 		commandSpec{Cmd: CmdApprovals, ReadOnly: true, Handler: func(dc *DispatchCtx) { dc.S.handleApprovals(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdDecide, Handler: func(dc *DispatchCtx) { dc.S.handleDecide(dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdPlan, Streaming: StreamEvents, Handler: func(dc *DispatchCtx) { dc.S.handlePlan(dc.Ctx, dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdCancelRun, TenantAllowed: true, TenantRouted: true, Handler: func(dc *DispatchCtx) { dc.S.handleCancelRun(dc.Conn, dc.Req) }},
 	)
 }

@@ -1,7 +1,7 @@
 package controlplane
 
 // Provenance: SPDX-License-Identifier: MIT Control-plane command handlers:
-//             handleVersion + handleHalt + handleCancelRun + handleResume +
+//             handleVersion + handleHalt + handleResume +
 //             handleWhy + handleWhoami + handleVerify + handleApprovals. Extracted
 //             from server_handlers.go during the Day-206 god-file split. Public API
 //             unchanged.
@@ -23,33 +23,6 @@ func (s *Server) handleHalt(conn net.Conn, req Request) {
 		"ok":     true,
 		"halted": true,
 		"reason": reason,
-	}})
-}
-
-// handleCancelRun cancels a single in-flight run by correlation id (M32),
-// leaving the kernel un-halted and other runs untouched — the targeted
-// alternative to the global halt. Routes to the tenant kernel when a
-// tenant is named (empty → primary), mirroring handleRun.
-func (s *Server) handleCancelRun(conn net.Conn, req Request) {
-	corr, err := requiredArgString(req.Args, "correlation")
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	tenantID, _, err := argString(req.Args, "tenant")
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	k, err := s.kernelFor(tenantID)
-	if err != nil {
-		s.fail(conn, req, err)
-		return
-	}
-	cancelled := k.CancelRun(corr)
-	s.writeResp(conn, Response{ID: req.ID, Type: RespResult, Result: map[string]any{
-		"correlation": corr,
-		"cancelled":   cancelled,
 	}})
 }
 
