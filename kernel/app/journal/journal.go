@@ -158,6 +158,8 @@ func bind[I, O any](ops *[]app.Operation, spec opapi.Spec, handler func(context.
 		shape = reflect.TypeFor[wireEvents]()
 	case reflect.TypeFor[ExportOutput]():
 		shape = reflect.TypeFor[wireExport]()
+	case reflect.TypeFor[WhyOutput]():
+		shape = reflect.TypeFor[wireWhy]()
 	}
 	output, err := schema.FromType(shape, false)
 	if err != nil {

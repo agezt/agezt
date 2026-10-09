@@ -21,8 +21,8 @@ import (
 )
 
 func TestJournalNativeTypedRegistry(t *testing.T) {
-	for cmd, routed := range map[string]bool{CmdJournalHead: false, CmdJournalTail: false, CmdJournalGrep: false, CmdJournalExport: false, CmdJournalStats: true, CmdChangelog: true, CmdCacheStats: true} {
-		tenantAllowed := cmd == CmdCacheStats
+	for cmd, routed := range map[string]bool{CmdJournalHead: false, CmdJournalTail: false, CmdJournalGrep: false, CmdJournalExport: false, CmdJournalStats: true, CmdChangelog: true, CmdCacheStats: true, CmdWhy: true} {
+		tenantAllowed := cmd == CmdCacheStats || cmd == CmdWhy
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -138,6 +138,27 @@ func TestJournalNativeRouting(t *testing.T) {
 	}
 	if cache, line := call(tenantToken, CmdCacheStats, acme); cache["calls"] != float64(0) || !strings.Contains(line, `"window_ms":0`) {
 		t.Fatal("a tenant reads its own cache statistics", line)
+	}
+	cause, err := k.Bus().Publish(event.Spec{Subject: "pulse.tick", Kind: event.KindPulseTick, Actor: "pulse", CorrelationID: "tick", Payload: map[string]any{"beat": 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	effect, err := k.Bus().Publish(event.Spec{Subject: "pulse.initiative", Kind: event.KindInitiativeTaken, Actor: "pulse", CorrelationID: "act", CausationID: cause.ID, Payload: map[string]any{"action": "demo"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if why, line := call("primary", CmdWhy, map[string]any{"event_id": effect.ID}); why["correlation"] != "act" || !strings.Contains(line, `"events":[{"id":"`+effect.ID+`"`) || !strings.Contains(line, `"causation_chain":[{"id":"`+cause.ID+`"`) {
+		t.Fatal("why walks the causation chain and keeps the event member order", line)
+	}
+	tenantEvent, err := tk.Bus().Publish(event.Spec{Subject: "chain", Kind: event.KindPulseTick, Actor: "pulse", CorrelationID: "acme-tick", Payload: map[string]any{"beat": 2}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if why, line := call(tenantToken, CmdWhy, map[string]any{"tenant": "acme", "event_id": tenantEvent.ID}); why["correlation"] != "acme-tick" {
+		t.Fatal("a tenant traces its own events", line)
+	}
+	if _, line := call(tenantToken, CmdWhy, map[string]any{"tenant": "acme", "event_id": effect.ID}); !strings.Contains(line, `"type":"error"`) {
+		t.Fatal("a tenant never traces the primary journal", line)
 	}
 	for _, cmd := range []string{CmdJournalHead, CmdJournalTail, CmdJournalGrep, CmdJournalExport, CmdJournalStats, CmdChangelog} {
 		if _, line := call(tenantToken, cmd, acme); !strings.Contains(line, "forbidden") {
