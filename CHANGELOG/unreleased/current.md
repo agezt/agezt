@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Execution profile reads use typed application operations.** The
+  inventory, one profile and the health check keep every field, their
+  ordering, the id check and errors, and still read the caller's kernel: a
+  tenant token its own, the operator the primary or a named tenant.
+  Already-canceled requests now stop before any read.
+
 - **Model routing and named fallback chains use typed application operations.**
   Viewing and editing per-task model chains and named `@name` chains keep their
   fallback activity, usage and dangling-reference report, name and default

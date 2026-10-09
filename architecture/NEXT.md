@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.40b typed routing and chains, 2026-10-09
+## Current checkpoint — W2.40c typed execution profiles, 2026-10-09
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -119,7 +119,10 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
 - W2.40a (typed `budget`/`budget_set`) is delivered through PR #753 at
   `ef382717f6337fa44071feda55bebeeb89ad5ab5` after all 24 exact-head CI jobs;
   local `main` fast-forwarded to it.
-- W2.40b (typed routing and chains) is committed on `main` as a code commit
+- W2.40b (typed routing and chains) is delivered through PR #754 at
+  `88182afabe71a9bd2ad490ed2a8386da725ecc52` after all 24 exact-head CI jobs;
+  local `main` fast-forwarded to it.
+- W2.40c (typed execution profiles) is committed on `main` as a code commit
   plus a docs commit and published from `arch/w2-dispatch` (`gh pr list --head
   arch/w2-dispatch`). Require all 24
   exact-head jobs including `CI` and `ci.yml`, then merge normally with a
@@ -381,11 +384,15 @@ mutations): [93-w240-typed-budget-evidence.md](93-w240-typed-budget-evidence.md)
 and `chains_get`/`chains_set` into the new `kernel/app/routing` (558 steps x20
 with config stores and journals equal, 57/57 mutations):
 [94-w240-typed-routing-evidence.md](94-w240-typed-routing-evidence.md),
-`.temp_files/architecture-delivery/w94/`. Thirty-seven native commands remain,
-in the provider config (execution profiles), cognition (council,
+`.temp_files/architecture-delivery/w94/`. W2.40c moved the three execution-profile
+reads into the new `kernel/app/execprofile` (264 steps x20 with tenant routing,
+35/35 mutations, one gap closed):
+[95-w240-typed-execution-profile-evidence.md](95-w240-typed-execution-profile-evidence.md),
+`.temp_files/architecture-delivery/w95/`. The provider-config group is complete.
+Thirty-four native commands remain, in the cognition (council,
 conductor, research, reflect, persona, prompts, seats, plan generate/refine,
-chat), datalake and file groups, plus `run`, `plan` and `whoami`. Next: provider
-config (execution profiles), then datalake, cognition,
+chat), datalake and file groups, plus `run`, `plan` and `whoami`. Next: datalake,
+then cognition,
 the roster status source collection and the streaming `run`/`plan` family.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
