@@ -18,6 +18,7 @@ import (
 	"time"
 
 	appjournal "github.com/agezt/agezt/kernel/app/journal"
+	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -27,7 +28,7 @@ func journalReads(k *runtime.Kernel) *appjournal.Service {
 	return appjournal.New(k.Journal(), func() (int, int64) {
 		dir := filepath.Join(k.BaseDir(), "journal")
 		return countSegments(dir), dirSize(dir)
-	}, time.Now)
+	}, time.Now).WithCost(governor.CostMicrocents)
 }
 
 // MaxJournalExportN exposes the export size cap so the CLI can name it in the

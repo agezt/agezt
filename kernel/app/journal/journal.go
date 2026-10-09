@@ -87,6 +87,7 @@ type Service struct {
 	journal   Journal
 	disk      Disk
 	now       func() time.Time
+	cost      Cost
 	exportCap int
 }
 
@@ -162,7 +163,8 @@ func bind[I, O any](ops *[]app.Operation, spec opapi.Spec, handler func(context.
 	if err != nil {
 		return err
 	}
-	spec.OutputSchema, spec.ReadOnly, spec.Authz, spec.AllowUnknownInput = output, true, opapi.PrimaryOnly, true
+	// Authz defaults to its zero value, PrimaryOnly.
+	spec.OutputSchema, spec.ReadOnly, spec.AllowUnknownInput = output, true, true
 	op, err := app.NewOperation(spec, handler)
 	if err != nil {
 		return err
@@ -171,8 +173,9 @@ func bind[I, O any](ops *[]app.Operation, spec opapi.Spec, handler func(context.
 	return nil
 }
 
-// Operations declares the five unaudited primary journal reads. Head, tail, grep
-// and export read the primary journal; stats follows an operator-named tenant.
+// Operations declares the seven unaudited journal reads. Head, tail, grep and
+// export read the primary journal; stats and the changelog follow an
+// operator-named tenant; the cache statistics also serve a tenant its own.
 func Operations(provider func(context.Context) *Service) ([]app.Operation, error) {
 	if provider == nil {
 		return nil, errors.New("journal provider required")
@@ -197,6 +200,16 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 		func() error {
 			return bind(&ops, opapi.Spec{Name: "journal_export", Tenancy: opapi.Primary, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{},"correlation":{}}}`)}, func(ctx context.Context, in ExportRequest) (ExportOutput, error) {
 				return provider(ctx).Export(ctx, in)
+			})
+		},
+		func() error {
+			return bind(&ops, opapi.Spec{Name: "changelog", Tenancy: opapi.CallerTenant, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"since_ms":{}}}`)}, func(ctx context.Context, in WindowRequest) (ChangelogOutput, error) {
+				return provider(ctx).Changelog(ctx, in)
+			})
+		},
+		func() error {
+			return bind(&ops, opapi.Spec{Name: "cache_stats", Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{}}}`)}, func(ctx context.Context, in WindowRequest) (CacheStatsOutput, error) {
+				return provider(ctx).CacheStats(ctx, in)
 			})
 		},
 		func() error {

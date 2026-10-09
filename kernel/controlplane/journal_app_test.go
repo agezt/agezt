@@ -14,13 +14,15 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 func TestJournalNativeTypedRegistry(t *testing.T) {
-	for cmd, routed := range map[string]bool{CmdJournalHead: false, CmdJournalTail: false, CmdJournalGrep: false, CmdJournalExport: false, CmdJournalStats: true} {
+	for cmd, routed := range map[string]bool{CmdJournalHead: false, CmdJournalTail: false, CmdJournalGrep: false, CmdJournalExport: false, CmdJournalStats: true, CmdChangelog: true, CmdCacheStats: true} {
+		tenantAllowed := cmd == CmdCacheStats
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -28,12 +30,12 @@ func TestJournalNativeTypedRegistry(t *testing.T) {
 				continue
 			}
 			found++
-			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || !spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.PrimaryOnly || (spec.Tenancy == opapi.CallerTenant) != routed {
+			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || !spec.ReadOnly || !spec.AllowUnknownInput || (spec.Authz == opapi.OwnTenant) != tenantAllowed || (spec.Tenancy == opapi.CallerTenant) != routed {
 				t.Fatalf("%s metadata=%+v", cmd, spec)
 			}
 		}
 		wire, exists := commandRegistry[cmd]
-		if found != 1 || !exists || !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted != routed || wire.Streaming != StreamNone {
+		if found != 1 || !exists || !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed != tenantAllowed || wire.TenantRouted != routed || wire.Streaming != StreamNone {
 			t.Fatalf("%s native wire found=%d metadata=%+v", cmd, found, wire)
 		}
 	}
@@ -62,6 +64,9 @@ func TestJournalNativeRouting(t *testing.T) {
 	tk := entry.Kernel.(*runtime.Kernel)
 	tenantToken, _ := reg.Token("acme")
 	if _, _, err := k.Run(context.Background(), "primary work"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := k.Bus().Publish(event.Spec{Subject: "policy", Kind: event.KindPolicyChanged, Actor: "test", Payload: map[string]any{"rule": "deny shell"}}); err != nil {
 		t.Fatal(err)
 	}
 	pHead, pHash := k.Journal().Head()
@@ -116,7 +121,16 @@ func TestJournalNativeRouting(t *testing.T) {
 	if MaxJournalExportN() != 200_000 {
 		t.Fatal("the CLI names the app export cap", MaxJournalExportN())
 	}
-	for _, cmd := range []string{CmdJournalHead, CmdJournalTail, CmdJournalGrep, CmdJournalExport, CmdJournalStats} {
+	if log, line := call("primary", CmdChangelog, map[string]any{"tenant": "acme"}); log["count"] != float64(0) || !strings.Contains(line, `"entries":[]`) {
+		t.Fatal("the changelog follows the operator-named tenant", line)
+	}
+	if log, line := call("primary", CmdChangelog, nil); log["count"] != float64(1) || !strings.Contains(line, `"detail":"deny shell"`) {
+		t.Fatal("the primary changelog holds the policy change", line)
+	}
+	if cache, line := call(tenantToken, CmdCacheStats, acme); cache["calls"] != float64(0) || !strings.Contains(line, `"window_ms":0`) {
+		t.Fatal("a tenant reads its own cache statistics", line)
+	}
+	for _, cmd := range []string{CmdJournalHead, CmdJournalTail, CmdJournalGrep, CmdJournalExport, CmdJournalStats, CmdChangelog} {
 		if _, line := call(tenantToken, cmd, acme); !strings.Contains(line, "forbidden") {
 			t.Fatal(cmd, line)
 		}
