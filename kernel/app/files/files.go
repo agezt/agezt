@@ -44,13 +44,25 @@ type Error struct {
 func (e *Error) Error() string { return e.Cause.Error() }
 func (e *Error) Unwrap() error { return e.Cause }
 
+// ErrorCode lets the transport carry the classification beside the message.
+func (e *Error) ErrorCode() string { return e.Code }
+
+// MutationOutput is a mutation's result: ok and the path, or for a rename the
+// source and target, as the caller named them with forward slashes.
+type MutationOutput struct {
+	OK   bool    `json:"ok"`
+	Path *string `json:"path,omitempty"`
+	From *string `json:"from,omitempty"`
+	To   *string `json:"to,omitempty"`
+}
+
 // Apply admits an invocation-local adapter through the kernel's existing service.
 // Root creation and path resolution occur only after policy/audit admission.
-func Apply(ctx context.Context, runner Runner, corr, callID, operation string, args map[string]any) (map[string]any, error) {
+func Apply(ctx context.Context, runner Runner, corr, callID, operation string, args map[string]any) (MutationOutput, error) {
 	switch operation {
 	case Mkdir, Rename, Delete:
 	default:
-		return nil, &Error{Code: InvalidPath, Cause: fmt.Errorf("unknown file operation %q", operation)}
+		return MutationOutput{}, &Error{Code: InvalidPath, Cause: fmt.Errorf("unknown file operation %q", operation)}
 	}
 	input := map[string]any{}
 	if operation == Rename {
@@ -66,27 +78,27 @@ func Apply(ctx context.Context, runner Runner, corr, callID, operation string, a
 	}
 	raw, err := json.Marshal(input)
 	if err != nil {
-		return nil, err
+		return MutationOutput{}, err
 	}
 	adapter := &mutation{operation: operation}
 	result, err := runner.RunToolWithLookup(ctx, corr, callID, operation, raw, adapter)
 	if err != nil {
 		var classified *Error
 		if errors.As(err, &classified) {
-			return nil, err
+			return MutationOutput{}, err
 		}
 		code := Unavailable
 		if strings.HasPrefix(result.Output, "tool call denied by policy:") {
 			code = Denied
 		}
-		return nil, &Error{Code: code, Cause: err}
+		return MutationOutput{}, &Error{Code: code, Cause: err}
 	}
 	if result.IsError {
-		return nil, &Error{Code: IOFailure, Cause: errors.New(result.Output)}
+		return MutationOutput{}, &Error{Code: IOFailure, Cause: errors.New(result.Output)}
 	}
-	var output map[string]any
+	var output MutationOutput
 	if err := json.Unmarshal([]byte(result.Output), &output); err != nil {
-		return nil, &Error{Code: Unavailable, Cause: err}
+		return MutationOutput{}, &Error{Code: Unavailable, Cause: err}
 	}
 	return output, nil
 }

@@ -22,24 +22,33 @@ const (
 // ApplyRestore resolves trusted checkpoint data from the daemon-owned catalog.
 // Only identity/path/existence metadata reaches the invocation audit; snapshot
 // bytes remain private to the adapter. AppliedMS changes after successful restore.
-func ApplyRestore(ctx context.Context, runner Runner, corr, callID, catalogPath, id string) (map[string]any, error) {
+// RestoreOutput is the checkpoint after the attempt: applied with the restore's
+// result, or not applied with the reason.
+type RestoreOutput struct {
+	Checkpoint rollbackstore.Checkpoint `json:"checkpoint"`
+	Applied    bool                     `json:"applied"`
+	Reason     string                   `json:"reason,omitempty"`
+	Result     map[string]any           `json:"result,omitempty"`
+}
+
+func ApplyRestore(ctx context.Context, runner Runner, corr, callID, catalogPath, id string) (RestoreOutput, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
-		return nil, &Error{Code: InvalidPath, Cause: errors.New("checkpoint id required")}
+		return RestoreOutput{}, &Error{Code: InvalidPath, Cause: errors.New("checkpoint id required")}
 	}
 	cat, err := rollbackstore.LoadAt(catalogPath)
 	if err != nil {
-		return nil, &Error{Code: IOFailure, Cause: err}
+		return RestoreOutput{}, &Error{Code: IOFailure, Cause: err}
 	}
 	index, checkpoint := rollbackstore.Find(cat, id)
 	if checkpoint == nil {
-		return nil, &Error{Code: NotFound, Cause: errors.New("checkpoint not found")}
+		return RestoreOutput{}, &Error{Code: NotFound, Cause: errors.New("checkpoint not found")}
 	}
 	if checkpoint.Kind != rollbackstore.KindFile {
-		return nil, &Error{Code: InvalidPath, Cause: fmt.Errorf("checkpoint kind %q is not a file snapshot", checkpoint.Kind)}
+		return RestoreOutput{}, &Error{Code: InvalidPath, Cause: fmt.Errorf("checkpoint kind %q is not a file snapshot", checkpoint.Kind)}
 	}
 	if checkpoint.AppliedMS > 0 {
-		return map[string]any{"checkpoint": *checkpoint, "applied": false, "reason": "already applied"}, nil
+		return RestoreOutput{Checkpoint: *checkpoint, Reason: "already applied"}, nil
 	}
 	adapter := &snapshotRestore{checkpoint: *checkpoint}
 	exists, _ := checkpoint.Before["exists"].(bool)
@@ -47,7 +56,7 @@ func ApplyRestore(ctx context.Context, runner Runner, corr, callID, catalogPath,
 		"checkpoint_id": checkpoint.ID, "path": rollbackstore.StringValue(checkpoint.Before["abs_path"]), "exists": exists,
 	})
 	if err != nil {
-		return nil, err
+		return RestoreOutput{}, err
 	}
 	result, err := runner.RunToolWithLookup(ctx, corr, callID, RestoreOperation, raw, adapter)
 	if err != nil {
@@ -55,20 +64,20 @@ func ApplyRestore(ctx context.Context, runner Runner, corr, callID, catalogPath,
 		if strings.HasPrefix(result.Output, "tool call denied by policy:") {
 			code = Denied
 		}
-		return nil, &Error{Code: code, Cause: err}
+		return RestoreOutput{}, &Error{Code: code, Cause: err}
 	}
 	if result.IsError {
-		return nil, &Error{Code: IOFailure, Cause: errors.New(result.Output)}
+		return RestoreOutput{}, &Error{Code: IOFailure, Cause: errors.New(result.Output)}
 	}
 	var restored map[string]any
 	if err := json.Unmarshal([]byte(result.Output), &restored); err != nil {
-		return nil, &Error{Code: Unavailable, Cause: err}
+		return RestoreOutput{}, &Error{Code: Unavailable, Cause: err}
 	}
 	cat.Checkpoints[index].AppliedMS = time.Now().UnixMilli()
 	if err := rollbackstore.WriteAt(catalogPath, cat); err != nil {
-		return nil, &Error{Code: MarkFailed, Cause: fmt.Errorf("mark applied: %w", err)}
+		return RestoreOutput{}, &Error{Code: MarkFailed, Cause: fmt.Errorf("mark applied: %w", err)}
 	}
-	return map[string]any{"checkpoint": cat.Checkpoints[index], "applied": true, "result": restored}, nil
+	return RestoreOutput{Checkpoint: cat.Checkpoints[index], Applied: true, Result: restored}, nil
 }
 
 type snapshotRestore struct{ checkpoint rollbackstore.Checkpoint }
