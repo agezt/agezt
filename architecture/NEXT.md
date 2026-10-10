@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.42g typed node registry, 2026-10-10
+## Current checkpoint — W2.43 typed file group, 2026-10-10
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -146,8 +146,11 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
 - W2.42f (typed chat suggestions) is delivered through PR #762 at
   `1733503f2012295b68505ebc0b9503314e4c797d` after all 24 exact-head CI jobs;
   local `main` fast-forwarded to it.
-- W2.42g (typed node registry) is committed on `main` as a code commit plus a
-  docs commit and published from `arch/w2-dispatch` (`gh pr list --head
+- W2.42g (typed node registry) is delivered through PR #763 at
+  `11c4b812e4576b2832472cc715dcd4559eb645e1` after all 24 exact-head CI jobs;
+  local `main` fast-forwarded to it.
+- W2.43 (typed file group) is committed on `main` as a code commit plus a docs
+  commit and published from `arch/w2-dispatch` (`gh pr list --head
   arch/w2-dispatch`). Require all 24
   exact-head jobs including `CI` and `ci.yml`, then merge normally with a
   matching head and fast-forward `main`.
@@ -438,12 +441,15 @@ into the new `kernel/app/chat` (432 steps x20, 14/14 mutations):
 `.temp_files/architecture-delivery/w102/`. W2.42g moved `node_registry` into
 the new `kernel/app/nodes` (216 steps x20, 25/25 mutations):
 [103-w242-typed-node-registry-evidence.md](103-w242-typed-node-registry-evidence.md),
-`.temp_files/architecture-delivery/w103/`. Thirteen native commands remain,
-in the cognition (council ask, conductor ask, research, plan generate/refine,
-chat summarize) and file groups, plus `run`, `plan` and `whoami`; `whoami` stays native by design (it echoes
-the transport principal). Next: the file group, once the shared adapter can carry its
-domain `error_code` (it is already governed through `app/files`); then the
-streaming cognition commands,
+`.temp_files/architecture-delivery/w103/`. W2.43 moved the four file commands
+into `kernel/app/files`; the shared adapter now carries a domain `error_code`
+and the request id (672 steps x20, 20/20 mutations):
+[104-w243-typed-file-group-evidence.md](104-w243-typed-file-group-evidence.md),
+`.temp_files/architecture-delivery/w104/`. Nine native commands remain: the
+streaming cognition commands (council ask, conductor ask, research, plan
+generate/refine, chat summarize), `run`, `plan` and `whoami`; `whoami` stays
+native by design (it echoes the transport principal). Next: the streaming
+cognition commands,
 the roster status source collection and the streaming `run`/`plan` family.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared

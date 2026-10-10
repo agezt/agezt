@@ -18,7 +18,6 @@ func registerAllCommands() {
 	registerAppSystemCommands()
 	registerCognitionCommands()
 	registerCoreCommands()
-	registerFileCommands()
 }
 
 func registerCognitionCommands() {

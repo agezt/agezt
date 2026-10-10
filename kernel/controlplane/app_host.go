@@ -18,6 +18,11 @@ import (
 // appHost binds the routed kernel and one correlation before audit admission.
 // Migrated handlers can use the kernel's actor/correlation context for domain events.
 type appHostKey struct{}
+
+// appRequestKey carries the transport request's id: an operation that runs a
+// governed tool uses it as the tool call's id, as the native handlers did.
+type appRequestKey struct{}
+
 type appHost struct {
 	kernel      *runtime.Kernel
 	correlation string
