@@ -329,7 +329,7 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `whatsappgw_qr` | primary |  | `Gateway.QR` → app/channels/gateway.go (typed shared operation binding) | `/api/whatsappgw/qr` |
 | `whatsappgw_status` | primary |  | `Gateway.Status` → app/channels/gateway.go (typed shared operation binding) | `/api/whatsappgw/status` |
 
-#### Cognition: planner, council, conductor, research, persona, prompts, seats, taste — `registerCognitionCommands` (registry.go) plus typed persona, prompt, seat, council membership, conductor role, reflection and chat suggestion operations, 25 ops
+#### Cognition: planner, council, conductor, research, persona, prompts, seats, taste — `registerCognitionCommands` (registry.go) plus typed persona, prompt, seat, council membership, conductor role, reflection, chat suggestion and node registry operations, 25 ops
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
@@ -340,7 +340,7 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `council_ask` | primary | LIVE | `handleCouncilAsk` → council.go | `/api/council/ask` |
 | `council_members` | primary |  | `handleAppOperation` → app/council.Service.Members | `/api/council/members` |
 | `council_set` | primary |  | `handleAppOperation` → app/council.Service.Set | `/api/council/set` |
-| `node_registry` | primary |  | `handleNodeRegistry` → nodes.go | `/api/nodes` |
+| `node_registry` | primary |  | `handleAppOperation` → app/nodes.Service.Registry | `/api/nodes` |
 | `persona_get` | primary |  | `handleAppOperation` → app/persona.Service.Get | `/api/persona` |
 | `persona_set` | primary |  | `handleAppOperation` → app/persona.Service.Set | `/api/persona/set` |
 | `plan_generate` | primary | LIVE | `handlePlanGenerate` → planner.go | `/api/plan/generate` |
@@ -721,7 +721,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `app/steer/steer.go` | Live run control (M32/M608): typed `cancel_run` and `run_pause/resume/step/steer/intervene` specs, strict codecs and the intervention mapping over the routed kernel's `Runs` port (tenant-routed). |
 | `remote_mirror.go` | `mirrorRemoteExecutionProfileEvents`: mirrors a remote peer's run events into the local journal. |
 | `remote_mirror_fetch.go` | `fetchRemoteEvents`, `fetchRemoteArtifacts` (HTTP calls to peer REST API). |
-| `remote_mirror_helpers.go` | Mirror mode (`AGEZT_REMOTE_EVENT_MIRROR`), peer lookup, payload redaction for mirrored events. |
+| `remote_mirror_helpers.go` | Mirror mode (`AGEZT_REMOTE_EVENT_MIRROR`), peer lookup through `app/nodes.ParsePeers`, payload redaction for mirrored events. |
 
 **Runs listing / status / daemon ops**
 
@@ -844,7 +844,8 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `app/chat/suggestions.go` | Typed `chat_suggestions`: up to five next-prompt chips, at most three from the primary kernel's active memory and the rest from the recently used tools' catalog, deduped by ID (no LLM). |
 | `chatsummary.go` | `chat_summarize`: LLM briefing of chat history (LIVE). |
 | `app/reflection/reflection.go` | Typed audited `reflect_run` (one offline pass under a fresh `reflect-<ulid>` correlation, the report's fields beside it) and `reflect_show` (whether a pass has run and the latest report). |
-| `nodes.go` | `node_registry`: probes `AGEZT_PEERS` mesh nodes. |
+| `nodes.go` | `nodePeerSpec`: `AGEZT_PEERS` from the environment, then the vault, then the settings store, for the node registry and the remote run mirror. |
+| `app/nodes/nodes.go` | Typed `node_registry`: the local daemon (version, model, capabilities) plus each configured peer in name order, its `/api/v1/health` probed within three seconds with the token never reported; `ParsePeers`, shared with the remote run mirror. |
 | `app/seats/seats.go` | Typed `seat_list` (built-in and custom workboard execution seats) and audited `seat_create`/`seat_delete` over the primary kernel's seat store, with trimmed text, lenient list and strict `restrict_tools` arguments. |
 | `taste.go` | `taste_list/create/delete` (taste exemplars). |
 

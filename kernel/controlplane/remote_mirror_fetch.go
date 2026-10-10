@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	appnodes "github.com/agezt/agezt/kernel/app/nodes"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/platform/netout"
 )
@@ -24,7 +25,7 @@ const remoteEventMirrorMaxEvents = 200
 const remoteArtifactMirrorResponseLimit = 1 << 20
 const remoteArtifactMirrorMaxEntries = 200
 
-func fetchRemoteEvents(ctx context.Context, p nodePeer, corr, mode string) ([]map[string]any, bool, error) {
+func fetchRemoteEvents(ctx context.Context, p appnodes.Peer, corr, mode string) ([]map[string]any, bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	endpoint := strings.TrimRight(p.URL, "/") + "/api/v1/runs/" + url.PathEscape(corr)
@@ -88,7 +89,7 @@ func fetchRemoteEvents(ctx context.Context, p nodePeer, corr, mode string) ([]ma
 	}
 	return out, truncated, nil
 }
-func fetchRemoteArtifacts(ctx context.Context, p nodePeer, corr string) ([]map[string]any, bool, error) {
+func fetchRemoteArtifacts(ctx context.Context, p appnodes.Peer, corr string) ([]map[string]any, bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	endpoint := strings.TrimRight(p.URL, "/") + "/api/v1/artifacts"

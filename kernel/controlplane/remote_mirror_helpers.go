@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
+	appnodes "github.com/agezt/agezt/kernel/app/nodes"
 	"github.com/agezt/agezt/kernel/redact"
 )
 
@@ -24,17 +25,17 @@ func remoteEventMirrorMode() string {
 		return ""
 	}
 }
-func (s *Server) lookupNodePeer(name string) (nodePeer, bool, error) {
-	peers, err := parseNodePeers(s.nodePeerSpec())
+func (s *Server) lookupNodePeer(name string) (appnodes.Peer, bool, error) {
+	peers, err := appnodes.ParsePeers(s.nodePeerSpec())
 	if err != nil {
-		return nodePeer{}, false, err
+		return appnodes.Peer{}, false, err
 	}
 	for _, p := range peers {
 		if p.Name == name {
 			return p, true, nil
 		}
 	}
-	return nodePeer{}, false, nil
+	return appnodes.Peer{}, false, nil
 }
 func redactedRemotePayload(raw json.RawMessage) (any, bool) {
 	if len(raw) == 0 || string(raw) == "null" {
