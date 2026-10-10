@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 
 // Package chat owns the chat surface's context-aware next-prompt suggestions
-// (M998): chips derived from the agent's active memory and the recently used
-// tools, with no LLM call. Summarizing a chat stays a streaming command.
+// (M998), chips derived from the agent's active memory and the recently used
+// tools with no LLM call, and the history summarizer (M925), one bounded
+// provider call that folds older turns into a briefing.
 package chat
 
 import (
