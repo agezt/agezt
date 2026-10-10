@@ -816,6 +816,12 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **File Manager mutations and snapshot restores use typed application
+  operations.** They keep their policy checks, audit arc, call identity and
+  domain `error_code` values, and stay operator-only. Typed operations can now
+  report a domain error code. Already-canceled requests now stop before any
+  audit or filesystem effect.
+
 - **The node registry uses a typed application operation.** It still lists
   the local daemon and each configured peer with its probed reachability,
   never reports peer tokens and stays operator-only. Already-canceled requests

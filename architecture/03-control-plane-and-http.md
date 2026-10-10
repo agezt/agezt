@@ -206,14 +206,14 @@ but acts on `args.tenant`'s kernel, `primary` = primary token only, primary kern
 StreamLive. **Web UI route(s)**: the `kernel/webui` route that proxies it (blank = CLI/SDK only). 325 ops total, 212 reachable from the
 Web UI. Generated from source (registry funcs × `Cmd*` constants × handler definitions).
 
-#### Core lifecycle: run / halt / resume / why / approvals / plan — `registerCoreCommands` (server_handle_run_remote.go), 9 ops plus the file operations
+#### Core lifecycle: run / halt / resume / why / approvals / plan — `registerCoreCommands` (server_handle_run_remote.go), 9 ops plus the typed file operations
 
 | op | auth | stream | handler → file | Web UI route(s) |
 |---|---|---|---|---|
-| `file_mkdir` | primary | | `handleFileMutation` → files.go → app/files (file.write) | `/api/files/mkdir` |
-| `file_rename` | primary | | `handleFileMutation` → files.go → app/files (file.write) | `/api/files/rename` |
-| `file_delete` | primary | | `handleFileMutation` → files.go → app/files (file.delete) | `/api/files/delete` |
-| `file_restore` | primary | | `handleFileRestore` → files_restore.go → app/files (file.write/file.delete) | `/api/rollback/apply` (file snapshots) |
+| `file_mkdir` | primary | | `handleAppOperation` → app/files.Service.Mutate (file.write) | `/api/files/mkdir` |
+| `file_rename` | primary | | `handleAppOperation` → app/files.Service.Mutate (file.write) | `/api/files/rename` |
+| `file_delete` | primary | | `handleAppOperation` → app/files.Service.Mutate (file.delete) | `/api/files/delete` |
+| `file_restore` | primary | | `handleAppOperation` → app/files.Service.Restore (file.write/file.delete) | `/api/rollback/apply` (file snapshots) |
 | `approvals` | primary |  | `handleAppOperation` → app/approvals.Live.Pending | `/api/approvals` |
 | `decide` | primary |  | `handleAppOperation` → app/approvals.Live.Decide | `/api/decide` |
 | `halt` | primary |  | `handleAppOperation` → app/system.Lifecycle.Halt | `/api/halt` |
