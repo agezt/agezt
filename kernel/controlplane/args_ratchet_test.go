@@ -41,7 +41,6 @@ var rawArgCastBaseline = map[string]int{
 	"provider_keys.go":   2,
 	"tenant.go":          0, // migrated to typed accessors; entry kept for visibility / future regressions
 	"mcp.go":             1, // residual: enabled bool-or-string switch
-	"chatsuggestions.go": 1, // residual: tools string-or-list dual-type switch
 	"channels.go":        0, // migrated to typed accessors; entry kept for visibility / future regressions
 }
 

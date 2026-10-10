@@ -374,7 +374,7 @@ const (
 	// chat surface, blending memory-derived starters (from the agent's active
 	// memory) with tool-context suggestions. Rule-based, no LLM call. Args:
 	// session_id (optional), tools (optional, comma-joined recent tool names).
-	// Returns: { suggestions: [ChatSuggestion] }.
+	// Returns: { suggestions: [chat.Suggestion] } (kernel/app/chat).
 	CmdChatSuggestions = "chat_suggestions"
 
 	// Typed schedules (autonomy). The cadence resident fires due agent,
