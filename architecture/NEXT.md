@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.42f typed chat suggestions, 2026-10-10
+## Current checkpoint — W2.42g typed node registry, 2026-10-10
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -143,7 +143,10 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
 - W2.42e (typed conductor roles) is delivered through PR #761 at
   `28ce807406c59024855967e45a3bdf25b0847d83` after all 24 exact-head CI jobs;
   local `main` fast-forwarded to it.
-- W2.42f (typed chat suggestions) is committed on `main` as a code commit plus a
+- W2.42f (typed chat suggestions) is delivered through PR #762 at
+  `1733503f2012295b68505ebc0b9503314e4c797d` after all 24 exact-head CI jobs;
+  local `main` fast-forwarded to it.
+- W2.42g (typed node registry) is committed on `main` as a code commit plus a
   docs commit and published from `arch/w2-dispatch` (`gh pr list --head
   arch/w2-dispatch`). Require all 24
   exact-head jobs including `CI` and `ci.yml`, then merge normally with a
@@ -432,10 +435,13 @@ mutations): [100-w242-typed-reflection-evidence.md](100-w242-typed-reflection-ev
 `.temp_files/architecture-delivery/w101/`. W2.42f moved `chat_suggestions`
 into the new `kernel/app/chat` (432 steps x20, 14/14 mutations):
 [102-w242-typed-chat-suggestions-evidence.md](102-w242-typed-chat-suggestions-evidence.md),
-`.temp_files/architecture-delivery/w102/`. Fourteen native commands remain,
+`.temp_files/architecture-delivery/w102/`. W2.42g moved `node_registry` into
+the new `kernel/app/nodes` (216 steps x20, 25/25 mutations):
+[103-w242-typed-node-registry-evidence.md](103-w242-typed-node-registry-evidence.md),
+`.temp_files/architecture-delivery/w103/`. Thirteen native commands remain,
 in the cognition (council ask, conductor ask, research, plan generate/refine,
-chat summarize, node registry) and file groups, plus `run`, `plan` and `whoami`. Next: the non-streaming
-cognition commands; then the file group, once the shared adapter can carry its
+chat summarize) and file groups, plus `run`, `plan` and `whoami`; `whoami` stays native by design (it echoes
+the transport principal). Next: the file group, once the shared adapter can carry its
 domain `error_code` (it is already governed through `app/files`); then the
 streaming cognition commands,
 the roster status source collection and the streaming `run`/`plan` family.
