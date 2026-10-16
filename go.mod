@@ -6,8 +6,8 @@ require (
 	github.com/btcsuite/btcd/btcec/v2 v2.5.0
 	github.com/coder/websocket v1.8.15
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
-	golang.org/x/net v0.58.0
-	golang.org/x/sys v0.47.0
+	golang.org/x/net v0.61.0
+	golang.org/x/sys v0.49.0
 	lukechampine.com/blake3 v1.4.1
 )
 
