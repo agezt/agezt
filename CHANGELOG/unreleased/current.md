@@ -837,6 +837,13 @@ This file holds the active `[Unreleased]` working set.
   citing its sources without their bodies, as before. Already-canceled
   requests now stop before any audit or model call.
 
+- **Plan generation and refinement use typed application operations.**
+  Generating a plan from an intent and revising an existing one keep their
+  required arguments and their two messages, the model override, the plan JSON
+  and the node count; both stay live, operator-only and audited, so a
+  disconnected client still cancels the model call. Already-canceled requests
+  now stop before any audit or model call.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now

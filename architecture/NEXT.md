@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.44c typed research ask, 2026-10-19
+## Current checkpoint — W2.44d typed plan authoring, 2026-10-19
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -164,6 +164,11 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   readers and the correlation sanitizer move to `kernel/app/lenient.go`, so
   `kernel/controlplane/args_lenient.go` and the `stringArg` helper in
   `kernel/controlplane/send.go` are gone.
+- W2.44d (typed plan generate and plan refine) is committed on `main` as a
+  code commit plus a docs commit and published from `arch/w2-dispatch` the
+  same way. `kernel/controlplane/planner.go` is gone, the archcheck allowlist
+  tightens to 130 import violations, and the unused `requiredArgString` leaves
+  the control plane.
 
 ### W2.30c summary
 
@@ -469,8 +474,12 @@ typed LIVE operation that never streams, and moved the lenient flag, count and
 text readers and the correlation sanitizer into `kernel/app/lenient.go`, so the
 control plane's own arg readers are gone:
 [107-w244-typed-research-ask-evidence.md](107-w244-typed-research-ask-evidence.md).
-Five native commands remain: the plan generate/refine commands, `run`, `plan`
-and `whoami`; `whoami` stays
+W2.44d moved the plan authoring surface into `kernel/app/runs` — `plan_generate`
+and `plan_refine`, the fourth and fifth typed LIVE operations — and with the
+native handlers gone the control plane's last direct import of `kernel/planner`
+is gone too, so the archcheck allowlist tightens to 130 import violations:
+[108-w244-typed-plan-authoring-evidence.md](108-w244-typed-plan-authoring-evidence.md).
+Three native commands remain: `run`, `plan` and `whoami`; `whoami` stays
 native by design (it echoes the transport principal). Next: the streaming
 cognition commands,
 the roster status source collection and the streaming `run`/`plan` family.
@@ -481,6 +490,17 @@ takes 790–930s on a healthy runner, and PR #764's first attempt hit the 20-min
 budget five times on a loaded runner (the rerun passed in 927s, with no
 goroutine growth across iterations). As typed slices add binding tests, raise
 the budget or shard the package before the margin closes.
+
+The margin has closed: on 2026-10-19, PR #770's `race-depth` passed in 16m09s
+and PR #771's run was still inside the same job after 25 minutes, retrying
+under `scripts/ci-go-retry.sh` (up to five attempts, each with its own 20-minute
+budget, so a single slow runner can hold the workflow for hours). The package
+itself is healthy — a local `-count=20 -timeout=25m` run of
+`./kernel/controlplane/...` passes, and the default 10-minute `go test` budget
+is what fails it locally, not a test. The fix is on the CI side: raise the
+`-timeout` to 30m, shard the eight packages into two jobs, or drop the count to
+10 on the slow package. Until then, expect PR waits to be decided by the
+runner, not by the change.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a
