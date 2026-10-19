@@ -80,6 +80,5 @@ func registerCoreCommands() {
 	register(
 		commandSpec{Cmd: CmdRun, TenantAllowed: true, TenantRouted: true, Streaming: StreamEvents, Handler: func(dc *DispatchCtx) { dc.S.handleRun(dc.Ctx, dc.Conn, dc.Req) }},
 		commandSpec{Cmd: CmdWhoami, ReadOnly: true, TenantAllowed: true, Handler: func(dc *DispatchCtx) { dc.S.handleWhoami(dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdPlan, Streaming: StreamEvents, Handler: func(dc *DispatchCtx) { dc.S.handlePlan(dc.Ctx, dc.Conn, dc.Req) }},
 	)
 }

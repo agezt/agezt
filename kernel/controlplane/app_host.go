@@ -19,9 +19,10 @@ import (
 // Migrated handlers can use the kernel's actor/correlation context for domain events.
 type appHostKey struct{}
 
-// appRequestKey carries the transport request's id: an operation that runs a
-// governed tool uses it as the tool call's id, as the native handlers did.
-type appRequestKey struct{}
+// The transport request's id lives in the context under the app layer's key:
+// an operation that runs a governed tool uses it as the tool call's id, as
+// the native handlers did, and an operation that names a run after the call
+// reads it the same way.
 
 type appHost struct {
 	kernel      *runtime.Kernel
