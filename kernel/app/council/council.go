@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Package council owns the Council of Elders' default membership (M839): which
-// models speak when the multi-model panel is convened without an explicit
-// panel, and the Conductor roles auto-filled from it. Convening the panel and
-// running the Conductor stay streaming commands.
+// Package council owns the Council of Elders (M839) and the Conductor (M997):
+// the default membership, which models speak when the multi-model panel is
+// convened without an explicit panel, the Conductor roles auto-filled from it,
+// and the live operations that convene the panel and run the Conductor.
 package council
 
 import (

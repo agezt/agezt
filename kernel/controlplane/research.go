@@ -12,6 +12,7 @@ import (
 	"context"
 	"net"
 
+	appcouncil "github.com/agezt/agezt/kernel/app/council"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -23,7 +24,7 @@ func (s *Server) handleResearchAsk(ctx context.Context, conn net.Conn, req Reque
 		s.writeResp(conn, Response{ID: req.ID, Type: RespError, Error: "args.question required"})
 		return
 	}
-	corr := sanitizeCorr(stringArg(req.Args, "corr"))
+	corr := appcouncil.SanitizeCorrelation(stringArg(req.Args, "corr"))
 	if corr == "" {
 		corr = s.k.NewCorrelation()
 	}

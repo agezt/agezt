@@ -2,21 +2,13 @@
 
 package controlplane
 
-// Lenient argument readers for the cognition commands: a flag that accepts a
-// JSON boolean or the strings "true" and "1", and a count that accepts a
+// Lenient argument readers for the cognition commands: a count that accepts a
 // number (truncated) or a string of decimal digits. Anything else reads as the
 // zero value rather than an error.
-
-func dlBool(args map[string]any, key string) bool {
-	switch v := args[key].(type) {
-	case bool:
-		return v
-	case string:
-		return v == "true" || v == "1"
-	default:
-		return false
-	}
-}
+//
+// The boolean reader that used to live here moved with the Conductor to
+// kernel/app/council (ask.go); the count reader stays until research_ask
+// migrates to its own typed operation.
 
 func dlInt(args map[string]any, key string) int {
 	switch v := args[key].(type) {
