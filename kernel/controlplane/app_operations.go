@@ -397,7 +397,7 @@ var fileOperations = func() []app.Operation {
 	ops, err := appfiles.Operations(func(ctx context.Context) *appfiles.Service {
 		s := ctx.Value(systemHostKey{}).(*Server)
 		host := ctx.Value(appHostKey{}).(appHost)
-		callID, _ := ctx.Value(appRequestKey{}).(string)
+		callID := app.RequestID(ctx)
 		return appfiles.New(appfiles.Ports{Runner: host.kernel, Correlation: host.correlation, CallID: callID, CatalogPath: filepath.Join(s.baseDir, filepath.FromSlash(rollbackstore.RelativePath))})
 	})
 	if err != nil {
@@ -602,6 +602,23 @@ var tenantOperations = func() []app.Operation {
 var planAuthoringOperations = func() []app.Operation {
 	ops, err := appruns.PlanAuthoringOperations(func(ctx context.Context) *appruns.PlanAuthoring {
 		return appruns.NewPlanAuthoring(ctx.Value(systemHostKey{}).(*Server).k.Provider)
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
+
+var planRunOperations = func() []app.Operation {
+	ops, err := appruns.PlanRunOperations(func(ctx context.Context) *appruns.PlanRunner {
+		k := ctx.Value(systemHostKey{}).(*Server).k
+		return appruns.NewPlanRunner(k.LoopRunner, k.Approvals, k.RunPlan, func(pattern string, buffer int) (appruns.PlanSubscription, error) {
+			sub, err := k.Bus().Subscribe(pattern, buffer)
+			if err != nil {
+				return nil, err
+			}
+			return appruns.BusSubscription{Subscription: sub}, nil
+		})
 	})
 	if err != nil {
 		panic(err)
@@ -1391,7 +1408,7 @@ var configCenterOperations = func() []app.Operation {
 }()
 
 func registeredAppOperations() []app.Operation {
-	operations := make([]app.Operation, 0, len(systemOperations)+len(lifecycleOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(rosterPermissionOperations)+len(stateOperations)+len(redactionOperations)+len(reaperOperations)+len(missionControlOperations)+len(budgetOperations)+len(routingOperations)+len(executionProfileOperations)+len(dataOperations)+len(personaOperations)+len(seatOperations)+len(councilOperations)+len(councilAskOperations)+len(researchOperations)+len(reflectionOperations)+len(chatOperations)+len(chatSummaryOperations)+len(nodeOperations)+len(fileOperations)+len(sandboxOperations)+len(rosterTaskUpdateOperations)+len(rosterWakeOperations)+len(rosterRepairOperations)+len(rosterResolveOperations)+len(rosterImpactOperations)+len(rosterSetRetiredOperations)+len(rosterRemoveOperations)+len(steerOperations)+len(runsOperations)+len(planOperations)+len(planAuthoringOperations)+len(tenantOperations)+len(journalOperations)+len(traceOperations)+len(auditOperations)+len(approvalHistoryOperations)+len(approvalLiveOperations)+len(edictReadOperations)+len(edictWriteOperations)+len(edictDecisionOperations)+len(edictOverlayOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
+	operations := make([]app.Operation, 0, len(systemOperations)+len(lifecycleOperations)+len(rosterListOperations)+len(rosterGraveyardOperations)+len(rosterActivityOperations)+len(rosterRepairStatusOperations)+len(rosterEscalationOperations)+len(rosterSetEnabledOperations)+len(rosterProfileWriteOperations)+len(rosterPermissionOperations)+len(stateOperations)+len(redactionOperations)+len(reaperOperations)+len(missionControlOperations)+len(budgetOperations)+len(routingOperations)+len(executionProfileOperations)+len(dataOperations)+len(personaOperations)+len(seatOperations)+len(councilOperations)+len(councilAskOperations)+len(researchOperations)+len(reflectionOperations)+len(chatOperations)+len(chatSummaryOperations)+len(nodeOperations)+len(fileOperations)+len(sandboxOperations)+len(rosterTaskUpdateOperations)+len(rosterWakeOperations)+len(rosterRepairOperations)+len(rosterResolveOperations)+len(rosterImpactOperations)+len(rosterSetRetiredOperations)+len(rosterRemoveOperations)+len(steerOperations)+len(runsOperations)+len(planOperations)+len(planRunOperations)+len(planAuthoringOperations)+len(tenantOperations)+len(journalOperations)+len(traceOperations)+len(auditOperations)+len(approvalHistoryOperations)+len(approvalLiveOperations)+len(edictReadOperations)+len(edictWriteOperations)+len(edictDecisionOperations)+len(edictOverlayOperations)+len(updateOperations)+len(webhookOperations)+len(catalogOperations)+len(providerOperations)+len(oauthOperations)+len(observationOperations)+len(probeOperations)+len(acpInventoryOperations)+len(channelInventoryOperations)+len(channelAccountOperations)+len(channelOAuthOperations)+len(channelGatewayOperations)+len(channelInboxOperations)+len(channelSendOperations)+len(memoryOperations)+len(worldOperations)+len(tasteOperations)+len(skillOperations)+len(boardOperations)+len(workboardOperations)+len(okrOperations)+len(storageOperations)+len(artifactOperations)+len(scheduleOperations)+len(standingOperations)+len(workflowOperations)+len(pulseControlOperations)+len(pulseSubscribeOperations)+len(autonomyOperations)+len(toolInventoryOperations)+len(toolObservationOperations)+len(forgeReadOperations)+len(forgeLifecycleOperations)+len(toolboxReadOperations)+len(toolboxInstallOperations)+len(mcpCatalogOperations)+len(mcpLifecycleOperations)+len(marketReadOperations)+len(marketWriteOperations)+len(pluginInventoryOperations)+len(configReadOperations)+len(settingsOperations)+len(configCenterOperations))
 	operations = append(operations, systemOperations...)
 	operations = append(operations, lifecycleOperations...)
 	operations = append(operations, catalogOperations...)
@@ -1473,6 +1490,7 @@ func registeredAppOperations() []app.Operation {
 	operations = append(operations, steerOperations...)
 	operations = append(operations, runsOperations...)
 	operations = append(operations, planOperations...)
+	operations = append(operations, planRunOperations...)
 	operations = append(operations, planAuthoringOperations...)
 	operations = append(operations, tenantOperations...)
 	operations = append(operations, journalOperations...)
@@ -1568,7 +1586,7 @@ func handleAppOperation(dc *DispatchCtx) {
 	write := &nativeTerminalWrite{}
 	defer write.discard()
 	ctx := opapi.WithTerminalWrite(opapi.WithTerminalCleanup(dc.Ctx, terminal), write)
-	ctx = context.WithValue(ctx, appRequestKey{}, dc.Req.ID)
+	ctx = app.WithRequestID(ctx, dc.Req.ID)
 	output, err := dispatchAppOperation(dc, ctx, appEmitter{dc.Conn, dc.Req.ID})
 	if err != nil {
 		// A domain error that classifies itself (app/files) keeps its code in
