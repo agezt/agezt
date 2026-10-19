@@ -829,6 +829,14 @@ This file holds the active `[Unreleased]` working set.
   calls. The panel keeps its Web UI route, and the Conductor keeps none, as
   before. Already-canceled requests now stop before any audit or model call.
 
+- **The deep-research harness uses a typed application operation.** The cited
+  report keeps its trimmed question, its lenient caps, the verification pass
+  that only an explicit false turns off, the client's own plain correlation id
+  and its legacy answer shapes; it stays live, operator-only and audited, so a
+  disconnected client still cancels the model-heavy run. The report keeps
+  citing its sources without their bodies, as before. Already-canceled
+  requests now stop before any audit or model call.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now
