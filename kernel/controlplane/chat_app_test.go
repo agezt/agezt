@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/memory"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -51,6 +52,28 @@ func TestChatSuggestionsReadThePrimaryMemory(t *testing.T) {
 		t.Fatal(resp)
 	}
 	if wire, exists := commandRegistry[CmdChatSuggestions]; !exists || !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
+		t.Fatalf("native wire %+v", wire)
+	}
+}
+
+// TestChatSummarizeBindsTheKernel: the summarizer calls the primary kernel's
+// provider with its default model, live and audited.
+func TestChatSummarizeBindsTheKernel(t *testing.T) {
+	prov := mock.New(mock.FinalText(" the briefing "))
+	var model string
+	prov.OnRequest = func(r llm.CompletionRequest) { model = r.Model }
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: prov, Model: "kernel-model"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer k.Close()
+	s := NewServer(k, t.TempDir())
+	s.token = "primary"
+	resp := callAppHost(t, s, Request{ID: "c", Cmd: CmdChatSummarize, Token: "primary", Args: map[string]any{"turns": []any{map[string]any{"role": "user", "text": "hi"}}}})[0]
+	if raw, _ := json.Marshal(resp.Result); resp.Type != RespResult || string(raw) != `{"summary":"the briefing","turns":1}` || model != "kernel-model" {
+		t.Fatal(resp, model)
+	}
+	if wire, exists := commandRegistry[CmdChatSummarize]; !exists || !wire.AppOwned || wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamLive {
 		t.Fatalf("native wire %+v", wire)
 	}
 }

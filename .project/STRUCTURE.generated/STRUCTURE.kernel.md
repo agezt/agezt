@@ -19,7 +19,7 @@
 - **`kernel/app/budget`** — Package budget owns the operator's view of the governor's daily spend: the snapshot behind `agt budget` and the console's budget panel, and the runtime knob that adjusts the global daily ceiling (M607).
 - **`kernel/app/catalog`** — Package catalog owns transport-independent catalog sync, listing and discovery.
 - **`kernel/app/channels`** — SPDX-License-Identifier: MIT
-- **`kernel/app/chat`** — Package chat owns the chat surface's context-aware next-prompt suggestions (M998): chips derived from the agent's active memory and the recently used tools, with no LLM call.
+- **`kernel/app/chat`** — Package chat owns the chat surface's context-aware next-prompt suggestions (M998), chips derived from the agent's active memory and the recently used tools with no LLM call, and the history summarizer (M925), one bounded provider call that folds older turns into a briefing.
 - **`kernel/app/config`** — SPDX-License-Identifier: MIT
 - **`kernel/app/configcenter`** — SPDX-License-Identifier: MIT
 - **`kernel/app/council`** — Package council owns the Council of Elders' default membership (M839): which models speak when the multi-model panel is convened without an explicit panel, and the Conductor roles auto-filled from it.

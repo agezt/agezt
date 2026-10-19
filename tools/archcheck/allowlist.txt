@@ -7,7 +7,6 @@ adapter-bypass kernel/agentgw -> kernel/memory
 adapter-bypass kernel/agentgw -> kernel/roster
 adapter-bypass kernel/controlplane -> kernel/board
 adapter-bypass kernel/controlplane -> kernel/cadence
-adapter-bypass kernel/controlplane -> kernel/convo
 adapter-bypass kernel/controlplane -> kernel/memory
 adapter-bypass kernel/controlplane -> kernel/planner
 adapter-bypass kernel/controlplane -> kernel/roster

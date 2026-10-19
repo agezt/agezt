@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.43 typed file group, 2026-10-10
+## Current checkpoint — W2.44a typed chat summarize, 2026-10-10
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -149,8 +149,11 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
 - W2.42g (typed node registry) is delivered through PR #763 at
   `11c4b812e4576b2832472cc715dcd4559eb645e1` after all 24 exact-head CI jobs;
   local `main` fast-forwarded to it.
-- W2.43 (typed file group) is committed on `main` as a code commit plus a docs
-  commit and published from `arch/w2-dispatch` (`gh pr list --head
+- W2.43 (typed file group) is delivered through PR #764 at
+  `f593e7c215c8f34e137aa0393899aa8764f47090` after all 24 exact-head CI jobs;
+  local `main` fast-forwarded to it.
+- W2.44a (typed chat summarize) is committed on `main` as a code commit plus a
+  docs commit and published from `arch/w2-dispatch` (`gh pr list --head
   arch/w2-dispatch`). Require all 24
   exact-head jobs including `CI` and `ci.yml`, then merge normally with a
   matching head and fast-forward `main`.
@@ -445,12 +448,23 @@ the new `kernel/app/nodes` (216 steps x20, 25/25 mutations):
 into `kernel/app/files`; the shared adapter now carries a domain `error_code`
 and the request id (672 steps x20, 20/20 mutations):
 [104-w243-typed-file-group-evidence.md](104-w243-typed-file-group-evidence.md),
-`.temp_files/architecture-delivery/w104/`. Nine native commands remain: the
-streaming cognition commands (council ask, conductor ask, research, plan
-generate/refine, chat summarize), `run`, `plan` and `whoami`; `whoami` stays
+`.temp_files/architecture-delivery/w104/`. W2.44a moved `chat_summarize` into
+`kernel/app/chat`, the first typed LIVE operation that never streams (90 steps
+x20, 15/15 mutations):
+[105-w244-typed-chat-summarize-evidence.md](105-w244-typed-chat-summarize-evidence.md),
+`.temp_files/architecture-delivery/w105/`. Eight native commands remain: the
+live cognition commands (council ask, conductor ask, research, plan
+generate/refine), `run`, `plan` and `whoami`; `whoami` stays
 native by design (it echoes the transport principal). Next: the streaming
 cognition commands,
 the roster status source collection and the streaming `run`/`plan` family.
+
+Follow-up recorded, not done: CI's `race-depth` stress runs
+`./kernel/controlplane/...` with `-race -count=20 -timeout=20m`; that package
+takes 790–930s on a healthy runner, and PR #764's first attempt hit the 20-minute
+budget five times on a loaded runner (the rerun passed in 927s, with no
+goroutine growth across iterations). As typed slices add binding tests, raise
+the budget or shard the package before the margin closes.
 
 Follow-up recorded, not done: `validateOperationOutput` re-parses each declared
 output schema per call (about 0.68 ms of a 1.5 ms fifty-agent `agent_list`); a

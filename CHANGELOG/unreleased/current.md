@@ -816,6 +816,11 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **Chat history summaries use a typed application operation.** The briefing
+  call, its routing, input cap and errors are unchanged; it stays live, audited
+  and operator-only. Already-canceled requests now stop before any audit or
+  provider call.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now
