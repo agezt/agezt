@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
-	"strings"
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
@@ -24,73 +23,10 @@ type Engines struct {
 	NewCorrelation func() string
 }
 
-// SanitizeCorrelation accepts a client-supplied correlation id only if it's a
-// short, plain token ([A-Za-z0-9_-], <=80 chars) — the id becomes a bus subject
-// suffix and event field, so we don't let arbitrary text through. Anything else
-// returns "" and the caller mints a server-side id instead.
-func SanitizeCorrelation(s string) string {
-	s = strings.TrimSpace(s)
-	if s == "" || len(s) > 80 {
-		return ""
-	}
-	for _, r := range s {
-		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-') {
-			return ""
-		}
-	}
-	return s
-}
-
-func decoded(raw json.RawMessage) any {
-	var v any
-	if len(raw) != 0 {
-		_ = json.Unmarshal(raw, &v)
-	}
-	return v
-}
-
-// text reads trimmed text; anything else reads as empty.
-func text(raw json.RawMessage) string {
-	s, _ := decoded(raw).(string)
-	return strings.TrimSpace(s)
-}
-
-// count reads a number (truncated) or a string of decimal digits; anything
-// else reads as zero.
-func count(raw json.RawMessage) int {
-	switch v := decoded(raw).(type) {
-	case float64:
-		return int(v)
-	case string:
-		n := 0
-		for _, r := range v {
-			if r < '0' || r > '9' {
-				return 0
-			}
-			n = n*10 + int(r-'0')
-		}
-		return n
-	default:
-		return 0
-	}
-}
-
-// flag reads a boolean or the strings "true" and "1"; anything else is false.
-func flag(raw json.RawMessage) bool {
-	switch v := decoded(raw).(type) {
-	case bool:
-		return v
-	case string:
-		return v == "true" || v == "1"
-	default:
-		return false
-	}
-}
-
 // correlation keeps a plain client-supplied id, so the Web UI can subscribe to
 // the run's live events before the blocking call returns, or mints one.
 func (e Engines) correlation(raw json.RawMessage) string {
-	if corr := SanitizeCorrelation(text(raw)); corr != "" {
+	if corr := app.SanitizeCorrelation(app.LenientText(raw)); corr != "" {
 		return corr
 	}
 	return e.NewCorrelation()
@@ -125,11 +61,11 @@ type AskOutput struct {
 // Ask convenes the default panel on a question and returns the deliberation
 // and consensus.
 func (e Engines) Ask(ctx context.Context, in AskRequest) (AskOutput, error) {
-	question := text(in.Question)
+	question := app.LenientText(in.Question)
 	if question == "" {
 		return AskOutput{}, errors.New("args.question required")
 	}
-	rounds := count(in.Rounds)
+	rounds := app.LenientCount(in.Rounds)
 	corr := e.correlation(in.Corr)
 	res, err := e.Convene(ctx, corr, question, rounds)
 	if err != nil {
@@ -188,18 +124,18 @@ type ConductOutput struct {
 // Conduct runs the full Thinker→Worker→Verifier loop and returns the answer
 // and transcript. Roles left empty are filled from the default panel.
 func (e Engines) Conduct(ctx context.Context, in ConductRequest) (ConductOutput, error) {
-	task := text(in.Task)
+	task := app.LenientText(in.Task)
 	if task == "" {
 		return ConductOutput{}, errors.New("args.task required")
 	}
 	corr := e.correlation(in.Corr)
 	res, err := e.RunConductor(ctx, corr, runtime.ConductorConfig{
 		Task:      task,
-		Thinker:   text(in.Thinker),
-		Worker:    text(in.Worker),
-		Verifier:  text(in.Verifier),
-		MaxRounds: count(in.MaxRounds),
-		Plan:      flag(in.Plan),
+		Thinker:   app.LenientText(in.Thinker),
+		Worker:    app.LenientText(in.Worker),
+		Verifier:  app.LenientText(in.Verifier),
+		MaxRounds: app.LenientCount(in.MaxRounds),
+		Plan:      app.LenientBool(in.Plan),
 	})
 	if err != nil {
 		return ConductOutput{}, err

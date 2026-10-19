@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-158 package(s):
+159 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -40,6 +40,7 @@
 - **`kernel/app/reaper`** — Package reaper owns the on-demand reaper scan: the read-only detail behind the pulse reaper observer.
 - **`kernel/app/redaction`** — Package redaction lets an operator confirm the live secret redactor catches a candidate secret before it could reach the permanent journal.
 - **`kernel/app/reflection`** — Package reflection triggers and reads the kernel's reflection passes, the path behind `agt reflect`: a pass folds the journal into observations, applies world-model decay, derives advisory proposals and journals its report under the pass's correlation, so the decay is explainable via `agt why`.
+- **`kernel/app/research`** — Package research owns the deep-research harness surface (M1001): the operator, Web UI and CLI surface for the research harness in kernel/runtime.
 - **`kernel/app/roster`** — Package roster owns operator agent-management presentation and use cases.
 - **`kernel/app/routing`** — Package routing owns the operator's model routing controls: the governor's per-task model fallback chains (M703) with the journal's record of them firing (M706), and the registry of named reusable chains referenced as "@name" (M963) with what references each one (M964).
 - **`kernel/app/runs`** — Package runs owns the past-run reads: the filtered, cursor-paginated run list and the run health statistics over one kernel's folded run snapshot.

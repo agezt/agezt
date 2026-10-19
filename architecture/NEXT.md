@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.44b typed council ask, 2026-10-19
+## Current checkpoint — W2.44c typed research ask, 2026-10-19
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -159,6 +159,11 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   commit plus a docs commit and published from `arch/w2-dispatch` (`gh pr list
   --head arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and
   `ci.yml`, then merge normally with a matching head and fast-forward `main`.
+- W2.44c (typed research ask) is committed on `main` as a code commit plus a
+  docs commit and published from `arch/w2-dispatch` the same way. The lenient
+  readers and the correlation sanitizer move to `kernel/app/lenient.go`, so
+  `kernel/controlplane/args_lenient.go` and the `stringArg` helper in
+  `kernel/controlplane/send.go` are gone.
 
 ### W2.30c summary
 
@@ -459,8 +464,13 @@ into `kernel/app/council` — `council_ask` and `conductor_ask`, the second type
 LIVE operations that never stream (15 mutations, one gap closed: the opinion
 row's seat and model):
 [106-w244-typed-council-ask-evidence.md](106-w244-typed-council-ask-evidence.md).
-Six native commands remain: the research and plan generate/refine commands,
-`run`, `plan` and `whoami`; `whoami` stays
+W2.44c moved the deep-research harness into `kernel/app/research`, the third
+typed LIVE operation that never streams, and moved the lenient flag, count and
+text readers and the correlation sanitizer into `kernel/app/lenient.go`, so the
+control plane's own arg readers are gone:
+[107-w244-typed-research-ask-evidence.md](107-w244-typed-research-ask-evidence.md).
+Five native commands remain: the plan generate/refine commands, `run`, `plan`
+and `whoami`; `whoami` stays
 native by design (it echoes the transport principal). Next: the streaming
 cognition commands,
 the roster status source collection and the streaming `run`/`plan` family.
