@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.44a typed chat summarize, 2026-10-10
+## Current checkpoint — W2.44b typed council ask, 2026-10-19
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -152,11 +152,13 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
 - W2.43 (typed file group) is delivered through PR #764 at
   `f593e7c215c8f34e137aa0393899aa8764f47090` after all 24 exact-head CI jobs;
   local `main` fast-forwarded to it.
-- W2.44a (typed chat summarize) is committed on `main` as a code commit plus a
-  docs commit and published from `arch/w2-dispatch` (`gh pr list --head
-  arch/w2-dispatch`). Require all 24
-  exact-head jobs including `CI` and `ci.yml`, then merge normally with a
-  matching head and fast-forward `main`.
+- W2.44a (typed chat summarize) is delivered through PR #765 at
+  `850310388eb65ac3c2787b06ac1334d23b10c7de` after all 24 exact-head CI jobs;
+  local `main` fast-forwarded to it.
+- W2.44b (typed council ask and conductor ask) is committed on `main` as a code
+  commit plus a docs commit and published from `arch/w2-dispatch` (`gh pr list
+  --head arch/w2-dispatch`). Require all 24 exact-head jobs including `CI` and
+  `ci.yml`, then merge normally with a matching head and fast-forward `main`.
 
 ### W2.30c summary
 
@@ -452,9 +454,13 @@ and the request id (672 steps x20, 20/20 mutations):
 `kernel/app/chat`, the first typed LIVE operation that never streams (90 steps
 x20, 15/15 mutations):
 [105-w244-typed-chat-summarize-evidence.md](105-w244-typed-chat-summarize-evidence.md),
-`.temp_files/architecture-delivery/w105/`. Eight native commands remain: the
-live cognition commands (council ask, conductor ask, research, plan
-generate/refine), `run`, `plan` and `whoami`; `whoami` stays
+`.temp_files/architecture-delivery/w105/`. W2.44b moved the live cognition pair
+into `kernel/app/council` — `council_ask` and `conductor_ask`, the second typed
+LIVE operations that never stream (15 mutations, one gap closed: the opinion
+row's seat and model):
+[106-w244-typed-council-ask-evidence.md](106-w244-typed-council-ask-evidence.md).
+Six native commands remain: the research and plan generate/refine commands,
+`run`, `plan` and `whoami`; `whoami` stays
 native by design (it echoes the transport principal). Next: the streaming
 cognition commands,
 the roster status source collection and the streaming `run`/`plan` family.
