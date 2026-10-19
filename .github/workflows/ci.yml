@@ -145,10 +145,19 @@ jobs:
         # include real socket/startup/cleanup waits. Keep all 20 repetitions,
         # with an explicit package budget for slower hosted runners; the default
         # 10m can expire while the suite is still making progress.
+        #
+        # The budget is 40m, not 20m: ./kernel/controlplane/... alone needs
+        # ~10m at -count=20 without the race detector and 3-5x that with it, so
+        # a 20m budget expired on a loaded runner and the retry wrapper burned
+        # an hour per attempt (2026-10-19: PR #771 sat in this job for 30+
+        # minutes while the code under test was green). The retry count is 2
+        # here, not the wrapper's default 5, so a genuinely broken change still
+        # fails in bounded time: one slow attempt, one retry, at most 80m.
         env:
           RACE_STRESS_COUNT: '20'
+          CI_RETRY_MAX: '2'
         run: |
-          bash scripts/ci-go-retry.sh go test -race -count="${RACE_STRESS_COUNT}" -timeout=20m \
+          bash scripts/ci-go-retry.sh go test -race -count="${RACE_STRESS_COUNT}" -timeout=40m \
             ./kernel/channel/... \
             ./kernel/controlplane/... \
             ./kernel/chatgptauth/... \
