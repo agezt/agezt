@@ -1,9 +1,11 @@
 package controlplane
 
 // Provenance: SPDX-License-Identifier: MIT kernel/controlplane request-arg typed
-//             primitives (argString, argTruthy, argBool, requiredArgString,
-//             argFloat64, argInt64). Extracted from args.go during Day 211 god-file
-//             refactor (#99). Public API unchanged.
+//             primitives (argString, argTruthy, argBool, argFloat64, argInt64).
+//             Extracted from args.go during Day 211 god-file refactor (#99).
+//             Public API unchanged. requiredArgString left with the plan
+//             authoring handlers, which now read their arguments in
+//             kernel/app/runs.
 
 import (
 	"fmt"
@@ -43,16 +45,6 @@ func argBool(args map[string]any, key string) (bool, bool, error) {
 		return false, true, fmt.Errorf("args.%s must be a boolean", key)
 	}
 	return b, true, nil
-}
-func requiredArgString(args map[string]any, key string) (string, error) {
-	v, _, err := argString(args, key)
-	if err != nil {
-		return "", err
-	}
-	if strings.TrimSpace(v) == "" {
-		return "", fmt.Errorf("args.%s required", key)
-	}
-	return v, nil
 }
 func argInt64(args map[string]any, key string) (int64, bool, error) {
 	v, present := args[key]

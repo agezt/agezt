@@ -16,13 +16,5 @@ func init() { registerAllCommands() }
 // registration order is readable in one place.
 func registerAllCommands() {
 	registerAppSystemCommands()
-	registerCognitionCommands()
 	registerCoreCommands()
-}
-
-func registerCognitionCommands() {
-	register(
-		commandSpec{Cmd: CmdPlanGenerate, Streaming: StreamLive, Handler: func(dc *DispatchCtx) { dc.S.handlePlanGenerate(dc.Ctx, dc.Conn, dc.Req) }},
-		commandSpec{Cmd: CmdPlanRefine, Streaming: StreamLive, Handler: func(dc *DispatchCtx) { dc.S.handlePlanRefine(dc.Ctx, dc.Conn, dc.Req) }},
-	)
 }
