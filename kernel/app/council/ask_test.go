@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/platform/schema"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -57,7 +58,7 @@ func TestSanitizeCorrelation(t *testing.T) {
 		strings.Repeat("a", 81): "",
 		strings.Repeat("a", 80): strings.Repeat("a", 80),
 	} {
-		if got := SanitizeCorrelation(raw); got != want {
+		if got := app.SanitizeCorrelation(raw); got != want {
 			t.Fatalf("SanitizeCorrelation(%q) = %q, want %q", raw, got, want)
 		}
 	}
