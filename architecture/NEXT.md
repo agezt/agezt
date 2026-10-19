@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.44d typed plan authoring, 2026-10-19
+## Current checkpoint — W2.44e typed plan execution, 2026-10-19
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -169,6 +169,11 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   same way. `kernel/controlplane/planner.go` is gone, the archcheck allowlist
   tightens to 130 import violations, and the unused `requiredArgString` leaves
   the control plane.
+- W2.44e (typed plan execution) is committed on `main` as a code commit plus a
+  docs commit and published from `arch/w2-dispatch` the same way.
+  `kernel/controlplane/server_handlers_plan.go` is gone, the request id that
+  names a plan moves to `kernel/app` (`app.WithRequestID`), and the archcheck
+  allowlist tightens to 129 import violations.
 
 ### W2.30c summary
 
@@ -479,10 +484,15 @@ and `plan_refine`, the fourth and fifth typed LIVE operations — and with the
 native handlers gone the control plane's last direct import of `kernel/planner`
 is gone too, so the archcheck allowlist tightens to 130 import violations:
 [108-w244-typed-plan-authoring-evidence.md](108-w244-typed-plan-authoring-evidence.md).
-Three native commands remain: `run`, `plan` and `whoami`; `whoami` stays
-native by design (it echoes the transport principal). Next: the streaming
+W2.44e moved the plan execution into the same package — the first typed
+operation that really streams the plan's own event frames — and with the
+native handlers gone the control plane's last direct import of
+`kernel/scheduler` is gone too, so the allowlist tightens to 129:
+[109-w244-typed-plan-execution-evidence.md](109-w244-typed-plan-execution-evidence.md).
+Two native commands remain: `run` and `whoami`; `whoami` stays native by
+design (it echoes the transport principal). Next: the streaming
 cognition commands,
-the roster status source collection and the streaming `run`/`plan` family.
+the roster status source collection and the streaming `run` family.
 
 Follow-up recorded, not done: CI's `race-depth` stress runs
 `./kernel/controlplane/...` with `-race -count=20 -timeout=20m`; that package

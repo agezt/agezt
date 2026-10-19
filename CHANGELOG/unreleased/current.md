@@ -844,6 +844,12 @@ This file holds the active `[Unreleased]` working set.
   disconnected client still cancels the model call. Already-canceled requests
   now stop before any audit or model call.
 
+- **Plan execution uses a typed application operation.** The submitted plan
+  keeps its required JSON string, its parse error, its empty-plan and
+  unknown-node refusals, the plan id it is named after, the events it streams
+  and the node outputs it answers with; it stays operator-only and audited,
+  and a plan keeps running when the client goes away, as before.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now
