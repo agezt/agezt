@@ -3,55 +3,29 @@ package controlplane
 
 import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
+	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/standing"
 )
 
 func (s *Server) agentStatusViews(profiles []roster.Profile) map[string]map[string]any {
 	return approster.NewStatus(s.collectRosterStatusSnapshot, nil).Views(profiles)
 }
+
+// collectRosterStatusSnapshot binds the host's sources to the application's
+// status collection: the journal, the folded run rows, the schedules, the
+// standing orders, the board's open help requests and the reaper scan.
 func (s *Server) collectRosterStatusSnapshot(profiles []roster.Profile, reaperCut, routingCut int64) approster.StatusSnapshot {
-	rep := s.k.ReaperScan(reaperCut, reaperCut)
-	repairs := s.agentRepairSummaries()
-	escalations := s.agentEscalationLoadViews(profiles)
-	wakes := s.agentWakeStatusViews(profiles)
-	out := approster.StatusSnapshot{
-		Degraded: map[string]approster.DegradedStatus{}, Misconfigured: map[string]approster.MisconfigurationStatus{}, Routing: map[string]approster.RoutingStatus{},
-		Forced: map[string]approster.ForcedStatus{}, ForcedFailed: map[string]approster.ForcedStatus{}, ForcedExhausted: map[string]approster.ForcedStatus{}, Unstable: map[string]approster.UnstableStatus{}, Dead: map[string]approster.DeadStatus{},
-		Repairs: repairs, Escalations: escalations, Wakes: wakes,
-	}
-	// The journal-derived fields — the live run statuses, the last activity,
-	// the last autonomy runbook, the mailbox wakes, the policy denials and
-	// the routing/retry pressure — are collected by the application over one
-	// journal walk.
-	approster.CollectJournalStatus(approster.StatusSources{
-		Journal: s.k.Journal().Range,
-		Runs:    s.statusRunRows,
-	}, profiles, routingCut, &out)
-	for _, r := range rep.DegradedAgents {
-		out.Degraded[r.Slug] = approster.DegradedStatus{Failures: r.Failures, Threshold: r.Threshold, Window: r.Window, LastFailureMS: r.LastFailureMS}
-	}
-	for _, r := range rep.MisconfiguredAgents {
-		out.Misconfigured[r.Slug] = approster.MisconfigurationStatus{Issues: r.Issues}
-	}
-	for _, r := range rep.RoutingPressure {
-		out.Routing[r.Slug] = approster.RoutingStatus{Count: r.Count}
-	}
-	for _, r := range rep.RoutingForced {
-		out.Forced[r.Slug] = approster.ForcedStatus{Count: r.Count, TaskType: r.TaskType, ForcedChain: r.ForcedChain, ForceGeneration: r.ForceGeneration}
-	}
-	for _, r := range rep.RoutingForcedFailed {
-		out.ForcedFailed[r.Slug] = approster.ForcedStatus{Count: r.Count, TaskType: r.TaskType, ForcedChain: r.ForcedChain, ForceGeneration: r.ForceGeneration}
-	}
-	for _, r := range rep.RoutingForcedExhausted {
-		out.ForcedExhausted[r.Slug] = approster.ForcedStatus{Count: r.Count, TaskType: r.TaskType, ForcedChain: r.ForcedChain, ForceGeneration: r.ForceGeneration}
-	}
-	for _, r := range rep.RoutingUnstable {
-		out.Unstable[r.Slug] = approster.UnstableStatus{Count: r.Count, TaskType: r.TaskType, CurrentChain: r.CurrentChain, PreviousChain: r.PreviousChain}
-	}
-	for _, r := range rep.DeadAgents {
-		out.Dead[r.Slug] = approster.DeadStatus{LastActiveMS: r.LastActiveMS}
-	}
-	return out
+	return approster.CollectStatus(approster.StatusSources{
+		Journal:   s.k.Journal().Range,
+		Runs:      s.statusRunRows,
+		Schedules: func() []cadence.Entry { return s.k.Schedules().List() },
+		Standing:  func() []standing.Order { return s.k.Standing().List() },
+		Board:     s.statusBoardMessages,
+		Reaper:    func(cut int64) runtime.ReaperReport { return s.k.ReaperScan(cut, cut) },
+	}, profiles, reaperCut, routingCut)
 }
 
 // statusRunRows folds the kernel's journal into the run rows the status
@@ -75,4 +49,14 @@ func (s *Server) statusRunRows() ([]approster.RunRow, error) {
 		})
 	}
 	return out, nil
+}
+
+// statusBoardMessages lists the board's open help requests — the escalations
+// the roster status counts.
+func (s *Server) statusBoardMessages() []board.Message {
+	st, err := s.boardReader()
+	if err != nil || st == nil {
+		return nil
+	}
+	return st.OpenHelp(boardReadMaxLimit)
 }

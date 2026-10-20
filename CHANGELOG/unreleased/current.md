@@ -869,6 +869,15 @@ This file holds the active `[Unreleased]` working set.
   roster status and the run views cannot disagree about what a finished run
   is.
 
+- **The agent list's wake, escalation, repair and health views are collected by
+  the application layer.** The schedules and standing orders that wake an
+  agent, the board's open help requests, the doctor's repair summaries and the
+  reaper's health picture keep their fields and their values; the repair
+  summaries now share the single journal walk with the rest of the status
+  collection, and the repair cooldown has one reader, so the agent list and
+  the repair status command cannot disagree about when a repair becomes
+  eligible again.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now

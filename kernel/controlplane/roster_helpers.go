@@ -17,19 +17,6 @@ func plString(pl map[string]any, key string) string {
 	return s
 }
 
-func plInt(pl map[string]any, key string) int {
-	switch n := pl[key].(type) {
-	case int:
-		return n
-	case int64:
-		return int(n)
-	case float64:
-		return int(n)
-	default:
-		return 0
-	}
-}
-
 func plStrings(pl map[string]any, key string) []string {
 	raw, ok := pl[key].([]any)
 	if !ok || len(raw) == 0 {

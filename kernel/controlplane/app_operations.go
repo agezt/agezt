@@ -866,7 +866,7 @@ var rosterEscalationOperations = func() []app.Operation {
 var rosterRepairStatusOperations = func() []app.Operation {
 	ops, err := approster.RepairStatusOperations(func(ctx context.Context) *approster.RepairStatusService {
 		s := ctx.Value(systemHostKey{}).(*Server)
-		return approster.NewRepairStatus(s.k.Roster().Get, s.k.Journal().Range, agentAutoRepairCooldown, nil)
+		return approster.NewRepairStatus(s.k.Roster().Get, s.k.Journal().Range, approster.AutoRepairCooldown, nil)
 	})
 	if err != nil {
 		panic(err)

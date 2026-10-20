@@ -5,9 +5,14 @@ package roster
 import (
 	"encoding/json"
 	"strings"
+	"time"
 
+	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/event"
 	core "github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/standing"
 )
 
 // RunRow is one folded run row, as the status collection needs it. The host
@@ -43,13 +48,24 @@ func (r RunRow) Status() string {
 	}
 }
 
-// StatusSources are the host's data sources for the journal-derived status.
+// StatusSources are the host's data sources for the roster status.
 type StatusSources struct {
 	// Journal walks the durable journal once. The collection dispatches every
 	// event into every accumulator in that single walk.
 	Journal func(func(*event.Event) error) error
 	// Runs returns the folded run rows.
 	Runs func() ([]RunRow, error)
+	// Schedules lists the cadence entries that can wake an agent.
+	Schedules func() []cadence.Entry
+	// Standing lists the standing orders that can wake an agent.
+	Standing func() []standing.Order
+	// Board lists the board's open help requests — the escalations.
+	Board func() []board.Message
+	// Reaper runs the reaper scan over the window.
+	Reaper func(reaperCut int64) runtime.ReaperReport
+	// RepairCooldown is how long a repair stays ineligible. Nil reads the
+	// environment.
+	RepairCooldown func() time.Duration
 }
 
 // statusAccums holds the per-agent state that the journal-derivable helpers
@@ -75,17 +91,23 @@ type statusAccums struct {
 	policyDenials    map[string]PolicyDenials
 	routingCounts    map[string]RoutingPressure
 	retryCounts      map[string]RetryPressure
-	routingCut       int64
+	// The doctor's own repair events: the latest per agent, and the latest
+	// per fingerprint (an in-flight repair is one fingerprint's row).
+	repairRows          map[string]RepairRow
+	repairByFingerprint map[string]map[string]RepairRow
+	routingCut          int64
 }
 
 // CollectJournalStatus fills the snapshot's journal-derived fields: the live
 // run statuses, the last activity per agent, the last autonomy runbook, the
-// mailbox wakes, the policy denials and the routing/retry pressure.
+// mailbox wakes, the policy denials, the routing/retry pressure and the
+// repair summaries.
 //
 // The journal is walked ONCE, dispatching every event into every relevant
 // per-agent accumulator. Callers reading the snapshot later see the same
 // final maps the previous 11-Range implementation produced; only the number of
-// journal walks is reduced (11 -> 1).
+// journal walks is reduced (11 -> 1), and the doctor's repair events now
+// share that walk instead of taking one of their own.
 func CollectJournalStatus(src StatusSources, profiles []core.Profile, routingCut int64, snap *StatusSnapshot) {
 	acc := fillStatusAccums(src, profiles, routingCut)
 	snap.Live = acc.liveStatuses
@@ -95,6 +117,7 @@ func CollectJournalStatus(src StatusSources, profiles []core.Profile, routingCut
 	snap.PolicyDenials = acc.policyDenials
 	snap.RoutingCounts = acc.routingCounts
 	snap.RetryCounts = acc.retryCounts
+	snap.Repairs = repairSummaries(acc)
 }
 
 // fillStatusAccums walks the journal ONCE, dispatching every event into every
@@ -109,10 +132,9 @@ func fillStatusAccums(src StatusSources, profiles []core.Profile, routingCut int
 	acc.policyDenials = make(map[string]PolicyDenials, len(profiles))
 	acc.routingCounts = make(map[string]RoutingPressure, len(profiles))
 	acc.retryCounts = make(map[string]RetryPressure, len(profiles))
-
-	if len(profiles) == 0 {
-		return acc
-	}
+	acc.repairRows = map[string]RepairRow{}
+	acc.repairByFingerprint = map[string]map[string]RepairRow{}
+	cooldown := repairCooldown(src)
 
 	known := make(map[string]bool, len(profiles))
 	for _, p := range profiles {
@@ -161,6 +183,28 @@ func fillStatusAccums(src StatusSources, profiles []core.Profile, routingCut int
 		return acc
 	}
 	_ = src.Journal(func(e *event.Event) error {
+		// repairRows — the doctor's own repair events, the latest per agent
+		// and the latest per fingerprint.
+		if e.Subject == "doctor.auto_repair" && e.Kind == event.KindInfo {
+			var pl map[string]any
+			if json.Unmarshal(e.Payload, &pl) == nil {
+				if slug := plString(pl, "agent"); strings.TrimSpace(slug) != "" {
+					row := repairRow(e, pl, cooldown)
+					if cur, ok := acc.repairRows[slug]; !ok || row.Seq > cur.Seq {
+						acc.repairRows[slug] = row
+					}
+					if row.Fingerprint != "" {
+						if acc.repairByFingerprint[slug] == nil {
+							acc.repairByFingerprint[slug] = map[string]RepairRow{}
+						}
+						if cur, ok := acc.repairByFingerprint[slug][row.Fingerprint]; !ok || row.Seq > cur.Seq {
+							acc.repairByFingerprint[slug][row.Fingerprint] = row
+						}
+					}
+				}
+			}
+		}
+
 		// lastActivities: full pass, mirror the activity summary contract.
 		{
 			var pl map[string]any
