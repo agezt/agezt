@@ -1,15 +1,13 @@
 package controlplane
 
 // Provenance: SPDX-License-Identifier: MIT kernel/controlplane request-arg typed
-//             primitives (argString, argTruthy, argBool, argFloat64, argInt64).
-//             Extracted from args.go during Day 211 god-file refactor (#99).
-//             Public API unchanged. requiredArgString left with the plan
-//             authoring handlers, which now read their arguments in
-//             kernel/app/runs.
+//             primitives (argString). Extracted from args.go during Day 211 god-file
+//             split (#99). Public API unchanged. The other readers (argBool,
+//             argInt64, argStringList, parseCapList) moved to kernel/app/runs
+//             with the run command they served.
 
 import (
 	"fmt"
-	"strings"
 )
 
 func argString(args map[string]any, key string) (string, bool, error) {
@@ -22,66 +20,4 @@ func argString(args map[string]any, key string) (string, bool, error) {
 		return "", true, fmt.Errorf("args.%s must be a string", key)
 	}
 	return s, true, nil
-}
-func argTruthy(v any) bool {
-	switch t := v.(type) {
-	case bool:
-		return t
-	case string:
-		switch strings.ToLower(strings.TrimSpace(t)) {
-		case "on", "true", "yes", "1":
-			return true
-		}
-	}
-	return false
-}
-func argBool(args map[string]any, key string) (bool, bool, error) {
-	v, present := args[key]
-	if !present {
-		return false, false, nil
-	}
-	b, ok := v.(bool)
-	if !ok {
-		return false, true, fmt.Errorf("args.%s must be a boolean", key)
-	}
-	return b, true, nil
-}
-func argInt64(args map[string]any, key string) (int64, bool, error) {
-	v, present := args[key]
-	if !present {
-		return 0, false, nil
-	}
-	f, ok := v.(float64)
-	if !ok {
-		return 0, true, fmt.Errorf("args.%s must be a number", key)
-	}
-	return int64(f), true, nil
-}
-
-// parseCapList parses a decoded "auto_approve_caps" arg — a comma/space-separated
-// string OR a JSON array of strings — into a capability set. Used by handleRun to
-// thread the chat's session-scoped auto-approve grant into the run context.
-func parseCapList(v any) map[string]bool {
-	add := func(out map[string]bool, raw string) {
-		for _, f := range strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == ' ' || r == '\t' || r == '\n' }) {
-			if f = strings.TrimSpace(f); f != "" {
-				out[f] = true
-			}
-		}
-	}
-	out := map[string]bool{}
-	switch t := v.(type) {
-	case string:
-		add(out, t)
-	case []any:
-		for _, e := range t {
-			if s, ok := e.(string); ok {
-				add(out, s)
-			}
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
 }

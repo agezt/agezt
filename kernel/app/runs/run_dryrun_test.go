@@ -1,13 +1,29 @@
 // SPDX-License-Identifier: MIT
 
-package controlplane
+package runs
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 )
+
+// planMap renders a typed output as the wire object, so the assertions read
+// the way the client sees them.
+func planMap(t *testing.T, out RunOutput) map[string]any {
+	t.Helper()
+	raw, err := json.Marshal(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
 
 func TestBuildRunPlan_ToolsModes(t *testing.T) {
 	all := []string{"shell", "file", "http", "notify"}
@@ -28,30 +44,42 @@ func TestBuildRunPlan_ToolsModes(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			plan := buildRunPlan(runPlanInput{
+			plan := planMap(t, buildRunPlan(dryRunInput{
 				Intent:       "hi",
 				Model:        "mock",
 				AllToolNames: all,
 				AllowSet:     tc.allowSet,
 				Allow:        tc.allow,
-			})
+			}))
 			if got := plan["tools_mode"].(string); got != tc.wantMode {
 				t.Errorf("tools_mode = %q, want %q", got, tc.wantMode)
 			}
-			if got := plan["tools"].([]string); !reflect.DeepEqual(got, tc.wantTools) {
+			if got := plan["tools"].([]any); !reflect.DeepEqual(got, toAny(tc.wantTools)) {
 				t.Errorf("tools = %v, want %v", got, tc.wantTools)
 			}
-			drop, _ := plan["tools_dropped"].([]string)
-			if !reflect.DeepEqual(drop, tc.wantDrop) {
+			drop, _ := plan["tools_dropped"].([]any)
+			if !reflect.DeepEqual(drop, toAny(tc.wantDrop)) {
 				t.Errorf("tools_dropped = %v, want %v", drop, tc.wantDrop)
 			}
 		})
 	}
 }
 
+// toAny converts a string slice to the JSON-decoded shape the wire carries.
+func toAny(in []string) []any {
+	if in == nil {
+		return nil
+	}
+	out := make([]any, 0, len(in))
+	for _, s := range in {
+		out = append(out, s)
+	}
+	return out
+}
+
 func TestBuildRunPlan_Sources(t *testing.T) {
 	// Defaults: no overrides, no daemon system, no timeout.
-	p := buildRunPlan(runPlanInput{Intent: "x", Model: "def"})
+	p := planMap(t, buildRunPlan(dryRunInput{Intent: "x", Model: "def"}))
 	if p["model_source"] != "daemon default" {
 		t.Errorf("model_source = %v, want daemon default", p["model_source"])
 	}
@@ -67,13 +95,13 @@ func TestBuildRunPlan_Sources(t *testing.T) {
 	if p["tenant"] != "(primary)" {
 		t.Errorf("tenant = %v, want (primary)", p["tenant"])
 	}
-	// model_known false → capability keys omitted (not just false).
+	// model_known false → the capability keys are omitted (not just false).
 	if _, ok := p["supports_vision"]; ok {
 		t.Error("supports_vision present for unknown model; want omitted")
 	}
 
 	// All overrides set.
-	p = buildRunPlan(runPlanInput{
+	p = planMap(t, buildRunPlan(dryRunInput{
 		Intent:           "x",
 		Tenant:           "acme",
 		Model:            "claude",
@@ -88,7 +116,7 @@ func TestBuildRunPlan_Sources(t *testing.T) {
 		ExecutionProfile: "remote-agezt",
 		WardenProfile:    "remote-agezt",
 		RemotePeer:       "nodeB",
-	})
+	}))
 	if p["model_source"] != "per-run (--model)" {
 		t.Errorf("model_source = %v", p["model_source"])
 	}
@@ -112,7 +140,7 @@ func TestBuildRunPlan_Sources(t *testing.T) {
 	}
 
 	// Daemon default timeout (no per-run), daemon system set but no per-run override.
-	p = buildRunPlan(runPlanInput{Intent: "x", Model: "def", SystemSet: true, DaemonTimeout: 2 * time.Minute})
+	p = planMap(t, buildRunPlan(dryRunInput{Intent: "x", Model: "def", SystemSet: true, DaemonTimeout: 2 * time.Minute}))
 	if p["timeout"] != "2m0s (daemon default)" {
 		t.Errorf("timeout = %v, want 2m0s (daemon default)", p["timeout"])
 	}
@@ -121,9 +149,45 @@ func TestBuildRunPlan_Sources(t *testing.T) {
 	}
 }
 
+// TestBuildRunPlan_WireShape: the plan's key set is exactly the legacy one —
+// the run's own answer keys never leak into a dry run, and the plan's keys are
+// never absent.
+func TestBuildRunPlan_WireShape(t *testing.T) {
+	plan := planMap(t, buildRunPlan(dryRunInput{Intent: "x", Model: "mock", ModelKnown: true, SupportsTools: true, ContextLimit: 200000}))
+	want := []string{
+		"dry_run", "intent", "tenant", "model", "model_source", "model_known",
+		"system_source", "timeout", "cost_cap", "execution_profile",
+		"execution_profile_source", "warden_profile", "tools_mode", "tools",
+	}
+	for _, key := range want {
+		if _, ok := plan[key]; !ok {
+			t.Errorf("the plan is missing %q", key)
+		}
+	}
+	for _, key := range []string{"answer", "correlation_id", "agent", "iters", "spent_mc"} {
+		if _, ok := plan[key]; ok {
+			t.Errorf("the plan carries the run's %q", key)
+		}
+	}
+	if plan["dry_run"] != true {
+		t.Errorf("dry_run = %v, want true", plan["dry_run"])
+	}
+	if _, ok := plan["tools_dropped"]; ok {
+		t.Error("tools_dropped must be absent when nothing was dropped")
+	}
+	if _, ok := plan["warnings"]; ok {
+		t.Error("warnings must be absent when there is none")
+	}
+}
+
 func warningsOf(p map[string]any) []string {
-	w, _ := p["warnings"].([]string)
-	return w
+	raw, _ := p["warnings"].([]any)
+	out := make([]string, 0, len(raw))
+	for _, w := range raw {
+		s, _ := w.(string)
+		out = append(out, s)
+	}
+	return out
 }
 
 func hasWarningContaining(p map[string]any, substr string) bool {
@@ -137,15 +201,15 @@ func hasWarningContaining(p map[string]any, substr string) bool {
 
 func TestBuildRunPlan_CostCap(t *testing.T) {
 	// No cap → "none".
-	p := buildRunPlan(runPlanInput{Model: "m", ModelKnown: true, ModelPriced: true})
+	p := planMap(t, buildRunPlan(dryRunInput{Model: "m", ModelKnown: true, ModelPriced: true}))
 	if p["cost_cap"] != "none" {
 		t.Errorf("no cap: cost_cap = %v want none", p["cost_cap"])
 	}
 
 	// Cap on a priced model → formatted, no warning.
-	p = buildRunPlan(runPlanInput{
+	p = planMap(t, buildRunPlan(dryRunInput{
 		Model: "claude", ModelKnown: true, ModelPriced: true, MaxCostMC: 500_000_000,
-	})
+	}))
 	if p["cost_cap"] != "$0.50 (per-run)" {
 		t.Errorf("cost_cap = %v want $0.50 (per-run)", p["cost_cap"])
 	}
@@ -154,9 +218,9 @@ func TestBuildRunPlan_CostCap(t *testing.T) {
 	}
 
 	// Cap on an unpriced (catalog-known but no Cost) model → warns it won't bind.
-	p = buildRunPlan(runPlanInput{
+	p = planMap(t, buildRunPlan(dryRunInput{
 		Model: "freebie", ModelKnown: true, ModelPriced: false, SupportsTools: true, MaxCostMC: 100_000_000,
-	})
+	}))
 	if p["cost_cap"] != "$0.10 (per-run)" {
 		t.Errorf("cost_cap = %v want $0.10 (per-run)", p["cost_cap"])
 	}
@@ -169,17 +233,17 @@ func TestBuildRunPlan_Warnings(t *testing.T) {
 	all := []string{"shell", "file"}
 
 	t.Run("unknown model warns", func(t *testing.T) {
-		p := buildRunPlan(runPlanInput{Model: "mystery", AllToolNames: all})
+		p := planMap(t, buildRunPlan(dryRunInput{Model: "mystery", AllToolNames: all}))
 		if !hasWarningContaining(p, "not in the catalog") {
 			t.Errorf("want unknown-model warning, got %v", warningsOf(p))
 		}
 	})
 
 	t.Run("tool_call=false with tools enabled warns", func(t *testing.T) {
-		p := buildRunPlan(runPlanInput{
+		p := planMap(t, buildRunPlan(dryRunInput{
 			Model: "notools", ModelKnown: true, SupportsTools: false, ContextLimit: 200000,
 			AllToolNames: all, // unrestricted → tools effective
-		})
+		}))
 		if !hasWarningContaining(p, "does not advertise tool-use") {
 			t.Errorf("want tool-use warning, got %v", warningsOf(p))
 		}
@@ -188,33 +252,62 @@ func TestBuildRunPlan_Warnings(t *testing.T) {
 		}
 	})
 
-	t.Run("tool_call=false with --no-tools does NOT warn", func(t *testing.T) {
-		p := buildRunPlan(runPlanInput{
+	t.Run("tool_call=false with no tools does NOT warn", func(t *testing.T) {
+		p := planMap(t, buildRunPlan(dryRunInput{
 			Model: "notools", ModelKnown: true, SupportsTools: false, ContextLimit: 200000,
-			AllToolNames: all, AllowSet: true, Allow: []string{}, // --no-tools
-		})
+			AllToolNames: all, AllowSet: true, Allow: []string{}, // no tools
+		}))
 		if hasWarningContaining(p, "does not advertise tool-use") {
 			t.Errorf("no tools enabled — should not warn about tool-use, got %v", warningsOf(p))
 		}
 	})
 
 	t.Run("small context warns", func(t *testing.T) {
-		p := buildRunPlan(runPlanInput{
+		p := planMap(t, buildRunPlan(dryRunInput{
 			Model: "tiny", ModelKnown: true, SupportsTools: true, ContextLimit: 4096,
 			AllToolNames: all,
-		})
+		}))
 		if !hasWarningContaining(p, "small context window") {
 			t.Errorf("want small-context warning, got %v", warningsOf(p))
 		}
 	})
 
 	t.Run("healthy known model: no warnings, key omitted", func(t *testing.T) {
-		p := buildRunPlan(runPlanInput{
+		p := planMap(t, buildRunPlan(dryRunInput{
 			Model: "good", ModelKnown: true, SupportsTools: true, ContextLimit: 200000,
 			AllToolNames: all,
-		})
+		}))
 		if _, ok := p["warnings"]; ok {
 			t.Errorf("healthy model should omit warnings key, got %v", p["warnings"])
 		}
 	})
+}
+
+// TestBuildRunPlan_StrictPricingWarning: the dry run warns when strict
+// pricing would refuse the run (the model has no known price), so the operator
+// learns it before submitting.
+func TestBuildRunPlan_StrictPricingWarning(t *testing.T) {
+	// Strict on + unpriced (no known price) model → warn "would be REFUSED".
+	p := planMap(t, buildRunPlan(dryRunInput{Model: "mystery-model", StrictPricing: true, ModelHasPrice: false}))
+	if !hasWarningContaining(p, "would be REFUSED") {
+		t.Errorf("strict + unpriced should warn of refusal; got %v", warningsOf(p))
+	}
+
+	// Strict on + known-priced (or known-free) model → no refusal warning.
+	p = planMap(t, buildRunPlan(dryRunInput{Model: "claude-sonnet-4-6", StrictPricing: true, ModelHasPrice: true}))
+	if hasWarningContaining(p, "would be REFUSED") {
+		t.Errorf("strict + priced model must not warn of refusal; got %v", warningsOf(p))
+	}
+
+	// Strict OFF + unpriced model → no refusal warning (it's allowed, charged $0).
+	p = planMap(t, buildRunPlan(dryRunInput{Model: "mystery-model", StrictPricing: false, ModelHasPrice: false}))
+	if hasWarningContaining(p, "would be REFUSED") {
+		t.Errorf("strict off must not warn of refusal; got %v", warningsOf(p))
+	}
+
+	// Empty model (provider default) → not gated, no warning.
+	p = planMap(t, buildRunPlan(dryRunInput{Model: "", StrictPricing: true, ModelHasPrice: false}))
+	if hasWarningContaining(p, "would be REFUSED") {
+		t.Errorf("empty model must not warn of refusal; got %v", warningsOf(p))
+	}
 }

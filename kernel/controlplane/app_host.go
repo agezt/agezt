@@ -19,6 +19,11 @@ import (
 // Migrated handlers can use the kernel's actor/correlation context for domain events.
 type appHostKey struct{}
 
+// appConnKey carries the transport connection into an operation that has to
+// observe the client's disconnect — the run cancels itself when the operator
+// goes away, instead of spending into a closed connection.
+type appConnKey struct{}
+
 // The transport request's id lives in the context under the app layer's key:
 // an operation that runs a governed tool uses it as the tool call's id, as
 // the native handlers did, and an operation that names a run after the call
