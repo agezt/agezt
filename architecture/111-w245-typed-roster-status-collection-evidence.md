@@ -123,6 +123,16 @@ The gates pass: the build, `gofmt`, `go vet`, `tools/deadcodecheck`,
 `tools/archcheck` (268 packages, 129 allowlisted import violations and 13
 allowlisted call sites) and `tools/structure-md`.
 
+## The dead-code gate does not see unused type aliases
+
+The move left five native type aliases over the app status rows without
+readers: `agentRoutingPressure`, `agentRetryPressure`, `agentLiveStatus`,
+`agentLastActivity` and `agentPolicyDenials`. `tools/deadcodecheck` reports
+unreachable functions, not unused types, so the local gates stayed green —
+and CI's lint job failed on staticcheck's U1000 after the first push. The
+aliases are deleted, and the lesson is recorded in NEXT.md §6: run staticcheck
+locally before pushing.
+
 ## Not done here
 
 The wake views, the escalation views, the repair summaries, the reaper

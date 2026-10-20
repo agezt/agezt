@@ -4840,6 +4840,13 @@ delete the probe.
   Re-verify against the source before acting. **Run** CI gates; don't trust a report about them.
 - **The editor's LSP diagnostics are routinely stale** after branch switches and big edits. Trust
   `go build` / `go test`.
+- **The dead-code gate does not see unused type aliases.** `tools/deadcodecheck` reports unreachable
+  FUNCTIONS; staticcheck's U1000 also reports unused TYPES. Moving native code out of a package
+  leaves its type aliases behind, the local gates stay green, and CI's lint job fails. W2.45a hit
+  this with five aliases over the app status rows. Run staticcheck locally before pushing — the
+  Windows prebuilt from the same release (`staticcheck_windows_amd64.tar.gz` in the release assets)
+  works, and it needs the same Go pin the CI step uses when `stable` is newer than the tool
+  supports.
 - **Bash heredocs swallow `\n` inside Python string literals**, which turns Go `"\n"` into a real newline
   and breaks the build. Use the Edit tool for Go strings that contain escapes.
 - **CRLF:** strip `\r` from Windows-produced file lists before `xargs`. Git warns "LF will be replaced by
