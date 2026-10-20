@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.45b typed roster status stores, 2026-10-20
+## Current checkpoint — W2.46 typed operator wake and repair launches, 2026-10-20
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -182,6 +182,21 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   execution-profile inventory builder moves to
   `kernel/app/execprofile/inventory.go`. The archcheck allowlist stays at 129
   import violations and 13 call sites.
+- W2.46 (typed operator wake and repair launches) is committed on `main` as a
+  code commit plus a docs commit and published from `arch/w2-dispatch` the
+  same way. `kernel/app/roster/launch.go` (140 lines) gains
+  `LaunchOperatorWake` and `LaunchOperatorRepair`: the application now
+  resolves whether the run retries (a profile retries only with a retry
+  policy of more than one attempt), what cost ceiling it carries, what the
+  terminal event says (the phase, the answer or the error, the autonomy
+  runbook, the whole incident lineage) and how a panicking governed repair is
+  contained (the WF-001 firewall). The host keeps the data access: the
+  kernel's `RunWith`/`RunWithRetry`, the governed `overseertool` repair source
+  and the bus publisher; the retry policy and the ceiling reach it as
+  decisions. `kernel/controlplane/roster_repair.go` (64 lines) is gone, the
+  native `runAgentWake`/`runAgentRepair` bodies leave the control plane, and
+  the control plane's `truncate` helper leaves with them. The archcheck
+  allowlist stays at 129 import violations and 13 call sites.
   `whoami` is now the only native command left, and it stays native by design:
   it echoes the transport principal and must not route the tenant it names.
 - W2.45a (typed roster status collection) is committed on `main` as a code
@@ -556,7 +571,16 @@ application layer. The doctor's repair events share the single journal walk
 `approster.AutoRepairCooldown`, and the four native type aliases over the app
 status rows and the `plInt` helper they kept alive are gone:
 [112-w245-typed-roster-status-stores-evidence.md](112-w245-typed-roster-status-stores-evidence.md).
-Next: the remaining order-7 domains.
+W2.46 moved the operator wake and repair LAUNCHES into the same package — the
+typed operations were already app-owned, but the launch they handed their
+work to was native, and the launch is where the decisions live: the retry
+decision, the cost ceiling, the terminal event's shape and the panic firewall
+around a governed repair. The host keeps the run, the repair source and the
+publisher:
+[113-w246-typed-operator-launch-evidence.md](113-w246-typed-operator-launch-evidence.md).
+Next: the operator resolve path (`roster_wake_helpers.go`), the roster
+teardown and the impact cascade — the rest of the roster domain — and then the
+remaining order-7 domains.
 
 Follow-up recorded, not done: CI's `race-depth` stress runs
 `./kernel/controlplane/...` with `-race -count=20 -timeout=20m`; that package

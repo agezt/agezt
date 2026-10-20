@@ -854,7 +854,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 
 | File | What it does |
 |---|---|
-| `app/roster/*.go` | Request codecs, typed outputs, specs and services for every roster operation (list, graveyard, activity + activity summary, repair status, escalations, set enabled, add/edit, task update, wake, repair, resolve, impact/tombstone, retire/revive, remove, permissions/capabilities), plus status presentation and typed snapshot rows. `permissions.go` owns the permission picture (tool rows, config visibility, wake access, governance) and the capability patch; `ConfigEntryBelongsToAgent` is shared with agent teardown. `status_sources.go` owns the journal-derived status collection: the single journal walk that fills the live run statuses, the last activity, the last autonomy runbook, the mailbox wakes, the policy denials and the routing/retry pressure, plus the live wake context, the live event summary, the routing-profile match and the model chain. `status_stores.go` owns the store-backed half of the same collection — the wake views, the escalation views, the repair summaries, the reaper mapping and the assembly (`CollectStatus`) — plus the repair cooldown's environment reader (`AutoRepairCooldown`). |
+| `app/roster/*.go` | Request codecs, typed outputs, specs and services for every roster operation (list, graveyard, activity + activity summary, repair status, escalations, set enabled, add/edit, task update, wake, repair, resolve, impact/tombstone, retire/revive, remove, permissions/capabilities), plus status presentation and typed snapshot rows. `permissions.go` owns the permission picture (tool rows, config visibility, wake access, governance) and the capability patch; `ConfigEntryBelongsToAgent` is shared with agent teardown. `status_sources.go` owns the journal-derived status collection: the single journal walk that fills the live run statuses, the last activity, the last autonomy runbook, the mailbox wakes, the policy denials and the routing/retry pressure, plus the live wake context, the live event summary, the routing-profile match and the model chain. `status_stores.go` owns the store-backed half of the same collection — the wake views, the escalation views, the repair summaries, the reaper mapping and the assembly (`CollectStatus`) — plus the repair cooldown's environment reader (`AutoRepairCooldown`). `launch.go` owns the operator launches: `LaunchOperatorWake` and `LaunchOperatorRepair` decide whether the run retries, what cost ceiling it carries, what the terminal event says and how a panicking governed repair is contained. |
 | `roster_list.go` | List service binding and list cache invalidation. |
 | `roster_crud_internal.go` | The managed sub-agent direct-call guard. |
 | `roster_lifecycle_helpers.go` | Sub-agent tree, workflow references and mailbox impact labels. |
@@ -862,12 +862,11 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `roster_teardown.go` | Retire sub-agents; remove, pause and count standing orders and schedules for an agent. |
 | `roster_teardown_state.go` | Forget agent memory, archive skills, prune config-center entries/access refs, delete workspace. |
 | `roster_status_views.go` | The host's source binding for the app's status collection (the journal, the folded run rows, the schedules, the standing orders, the board's open help requests, the reaper scan) and the app StatusService window/render adapter. |
-| `roster_escalation.go` | Autonomy runbook payload, `publishOperatorAction`, the native `runAgentWake` launch. |
+| `roster_escalation.go` | The operator action bus: the incident lineage, `publishOperatorAction` and the two thin adapters that bind the host's run and governed-repair capabilities to the app layer's launchers. |
 | `roster_wake_helpers.go` | Operator force-generation, exhausted-chain lookup and incident lineage matching. |
 | `roster_resolve.go` | Resolve ports: operator help delegation and routing-chain application (`overseertool.NewKernelSource` → `ApplyRoutingChain`). |
-| `roster_repair.go` | The governed `runAgentRepair` launch with its panic firewall. |
 | `roster_workspace.go` | Workspace root (`AGEZT_WORKSPACE`) and file counts. |
-| `roster_helpers.go` | Payload accessors `plString/plInt/...`, `truncate`, `firstNonEmpty`. |
+| `roster_helpers.go` | Payload accessors `plString/plStrings`, `intNumber`. |
 | `roster_activity_text.go` | Header-only file left by a split (no code). |
 | `tool.go` | `tool_list` (+ catalog probe, rollback mode). |
 
@@ -1305,7 +1304,7 @@ and warns when no console password is set.
 
 ## 14. Cross-area surprises
 
-- **Layering violation**: `kernel/controlplane` imports `plugins/tools/overseertool` (`roster_repair.go`, `roster_wake.go` call
+- **Layering violation**: `kernel/controlplane` imports `plugins/tools/overseertool` (`roster_escalation.go`'s repair adapter and `roster_resolve.go` call
   `overseertool.NewKernelSource(s.k, s.baseDir)`), contradicting "kernel never imports plugins".
 - **Protected delivery checkpoint after W2.19e:** authenticated GitHub reads verify open PR #701 at local ae063ff, main base e5379d8 and successful old-head CI37357717652.188 scoped files+35 removals are prepared; GitHub create_tree is denied by the required-approval/never-policy gate. No remote object/ref written. CLI HTTP401 and local read-only Git are separate constraints; unpublished snapshot final-head CI and protected merge remain open.
 - **Channel account typed binding (W2.27m, local delivery pending):** concrete set/remove results and two primary POST writer specs; ordered codec admission preserves errors/unknown args; native wrappers/manual rows removed. Selected root ports and persistence semantics unchanged. Mandatory audit success/canceled preflight now precede effects.576 native cases20:288 normal raw response/file exact+288 canceled/no effects;29 valid mutations/schema/source/native/tenant/closed-journal20/full gates. OAuth/gateway/inbox/send and protected delivery remain.

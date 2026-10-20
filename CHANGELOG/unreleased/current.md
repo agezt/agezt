@@ -878,6 +878,13 @@ This file holds the active `[Unreleased]` working set.
   the repair status command cannot disagree about when a repair becomes
   eligible again.
 
+- **The operator wake and repair launches are owned by the application
+  layer.** A woken agent still retries exactly when its profile asks for it,
+  still runs under its own cost ceiling and still reports its answer, its
+  error and its incident lineage in the same `agent.wake` and `agent.repair`
+  events; a governed repair that panics is still caught and journaled as a
+  failed repair instead of taking the daemon down.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now
