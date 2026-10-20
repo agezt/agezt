@@ -185,18 +185,18 @@ events, `catalog.synced`/`catalog.sync_failed`, run cost-cap advisories); state 
 
 ### 1.9 The `run` op lifecycle (most important op)
 
-`handleRun` (`server_handle_run.go`, StreamEvents, TenantAllowed):
-1. Validate `args.intent`; resolve kernel via `kernelFor(args.tenant)`.
+The typed `run` operation (`kernel/app/runs`, StreamEvents, TenantAllowed, TenantRouted):
+1. Validate `args.intent`; the routed kernel comes from the app host (`kernelFor(args.tenant)`).
 2. Optional overrides: `model` (M148), `agent` (the whole roster profile via `runtime.WithAgentProfile`, as for every other entry point: system prompt,
    model + fallback chain, tool allow/deny, trust ceiling, memory scope, workspace, ledger identity; plus its per-run cost ceiling and
    execution profile as defaults. Explicit per-run flags win; only explicit model/system args call the override setters, preserving profile provenance for resume (W2.2b). Unknown, retired, paused or managed-subagent agents are rejected), `images` (shared `runtime.Kernel.AdmitImages`: confirmed vision or sidecar caption, otherwise correlated rejection), `system` (M149),
    `timeout` (Go duration, M154), `tools` allowlist (M158; empty list = no tools), `max_cost_mc` (M166), `execution_profile`
    (ssh/k8s/modal/daytona/remote-agezt — each checks backend availability), `remote_peer`, `auto_approve_caps`,
    `prompt_injection_trust`, `assure` (M651).
-3. `dry_run=true` → returns `buildRunPlan` (model, priced?, system-prompt source, timeout, effective tool set) without spending.
+3. `dry_run=true` → returns the resolved plan (model, priced?, system-prompt source, timeout, effective tool set) without spending.
 4. `sub := k.Bus().Subscribe(k.SubjectForRun(corr), 1024)` BEFORE starting (no missed events).
 5. Launch in goroutine: `k.RunTool(... "remote_run" ...)` for remote-agezt, `k.RunAssured`, `k.RunWithRetry` (agent retry policy) or `k.RunWith`.
-6. Optional cancel-on-disconnect watcher (`cancelOnDisconnect`).
+6. Optional cancel-on-disconnect watcher (`cancelOnDisconnect`; the host supplies the connection's disconnect signal through a port).
 7. Forward each bus event as `RespEvent`; on completion drain, enrich result with cost/iters/model (journal fold) and `agent`, send `RespResult`.
 
 ### 1.10 Complete op table (deliverable b)
@@ -220,7 +220,7 @@ Web UI. Generated from source (registry funcs × `Cmd*` constants × handler def
 | `journal_verify` | primary |  | `handleAppOperation` → app/system.Lifecycle.Verify |  |
 | `plan` | primary | events | `handlePlan` → server_handlers_plan.go | `/api/plan/run` |
 | `resume` | primary |  | `handleAppOperation` → app/system.Lifecycle.Resume | `/api/resume` |
-| `run` | tenant | events | `handleRun` → server_handle_run.go | `/api/run` (SSE) |
+| `run` | tenant | events | `handleAppOperation` → app/runs.RunService | `/api/run` (SSE) |
 | `version` | primary |  | `handleVersion` → server_commands.go | `/api/version` |
 | `whoami` | tenant |  | `handleWhoami` → server_commands.go |  |
 | `why` | tenant |  | `handleAppOperation` → app/journal.Trace.Why |  |
@@ -711,13 +711,14 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 
 | File | What it does |
 |---|---|
-| `server_handle_run.go` | `handleRun` (666 lines): resolves tenant/agent/model/vision/system/timeout/tools/cost/execution-profile/assure overrides, dry-run plan, subscribes to run subject, launches the governed run, streams events, enriches result. |
-| `server_handle_run_remote.go` | Remote-agezt execution-profile helpers (run events, answer preview, peer metadata) + `registerCoreCommands`. |
-| `server_commands.go` | `whoami`, the one native handler left (echoes the transport principal; typing it would route the tenant it names). |
-| `server_handlers_plan.go` | `handlePlan` (execute a pre-built DAG `planSpec` via kernel scheduler, streaming). |
-| `dryrun.go` | `buildRunPlan` + `runPlanInput` consumer: renders the dry-run plan (model, context size warnings, tool set, timeout). |
-| `dryrun_format.go` | `formatMicrocentsUSD`. |
-| `dryrun_pricing.go` | `modelPriced`, `strictPricingPlan`, `runPlanInput` type. |
+| `server_commands.go` | `whoami`, the one native handler left (echoes the transport principal; typing it would route the tenant it names), plus `registerCoreCommands`. |
+| `run_disconnect.go` | `disconnectSignal`: the client connection's close signal the typed run uses to cancel itself (the read deadline is cleared first, so a long run is never mistaken for a disconnect). |
+| `app/runs/run.go` | The typed `run` operation: the request, the output (one typed shape for the plain run and the dry-run plan) and the ports the host binds (the routed kernel, the journal fold, the disconnect signal, the remote peer mirror). |
+| `app/runs/run_resolve.go` | The resolution: intent, tenant, model, agent (the whole profile), vision admission, system, timeout, tools, cost cap, execution profile, remote peer, auto-approve grants, trust, assure and the dry-run branch. |
+| `app/runs/run_execute.go` | The execution: the run subject subscription, the budget advisory, the remote-agezt delegation, the assured/retry/plain run, the drain and the enriched terminal answer. |
+| `app/runs/run_dryrun.go` | The dry-run plan: the effective model and its catalog capabilities, the system/timeout/cost-cap sources, the effective tool set and the preventive warnings. |
+| `app/runs/run_pricing.go` | `modelPriced` (the authoritative "can a cost cap bind?" check) and `strictPricingPlan`. |
+| `app/runs/run_args.go` | The strict argument readers: a mistyped flag is a usage error, never a silent default. |
 | `app/steer/steer.go` | Live run control (M32/M608): typed `cancel_run` and `run_pause/resume/step/steer/intervene` specs, strict codecs and the intervention mapping over the routed kernel's `Runs` port (tenant-routed). |
 | `remote_mirror.go` | `mirrorRemoteExecutionProfileEvents`: mirrors a remote peer's run events into the local journal. |
 | `remote_mirror_fetch.go` | `fetchRemoteEvents`, `fetchRemoteArtifacts` (HTTP calls to peer REST API). |
@@ -785,7 +786,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `app/routing/routing.go` | Typed `routing_get` (per-task model chains, known task types, model-chain fallback activity folded from the journal) and audited `routing_set` (persisted as `AGEZT_TASK_MODEL_CHAINS`); typed `chains_get` (named `@name` chains, the default and a usage map with `__dangling__` references) and audited `chains_set` (slug names, no nested chains, a defined default, persisted as `AGEZT_FALLBACK_CHAINS`/`AGEZT_DEFAULT_CHAIN`); edits apply live and report unknown catalog models. |
 | `app/budget/budget.go` | Typed `budget` (the governor's UTC-day snapshot with per-task rows sorted by task type, an empty array without caps) and audited `budget_set` (whole-number or base-10 string `ceiling_mc`, negative clamped by the governor, post-set snapshot) over a Governor port; both refuse when the provider is not a governor. |
 | `app/execprofile/execprofile.go` | Typed tenant-routed `execution_profiles` (inventory with every profile field, null empty lists, optional secret policy), `execution_profile_show` (strict trimmed id) and `execution_profile_check` (diagnosis under the env profile policy, every check field). |
-| `execution_inventory.go` | `executionInventory` (a kernel's tools and warden plus the env SSH/K8s/Modal/Daytona configuration) and `toolNames`, shared by the profile reads and `run`'s unroutable-profile error. |
+| `app/execprofile/inventory.go` | `Inventory` (a kernel's tools and warden plus the env SSH/K8s/Modal/Daytona configuration) and `ToolNames`, shared by the profile reads and `run`'s unroutable-profile error. |
 | `config.go` | `configEnvVars` canonical list of daemon env vars (presence-only surfacing). |
 | `config_handler.go` | Selected runtime config/RoutingReader and bool-only env-presence adapters → app/config.Service.Show; generic app dispatcher owns native framing. |
 | `app/settings/operations.go` | Five canonical primary specs and strict compatibility input codecs; native registrar removed. |

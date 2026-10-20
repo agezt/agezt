@@ -850,6 +850,17 @@ This file holds the active `[Unreleased]` working set.
   and the node outputs it answers with; it stays operator-only and audited,
   and a plan keeps running when the client goes away, as before.
 
+- **Running an agent uses a typed application operation.** A run keeps its
+  required intent, its strict argument contract — a mistyped flag is still a
+  usage error, so a `dry_run` sent as the string `"true"` still refuses
+  instead of running the command the operator meant to preview — the whole
+  agent profile it binds, the vision admission, the system, timeout, tool and
+  cost overrides, the execution profiles, the remote delegation and the
+  terminal answer with the run's own iters, spend and model. A dry run still
+  answers with the resolved plan and spends nothing, and a run still cancels
+  itself when the operator's client goes away. It stays tenant-routed and
+  audited, and it keeps streaming the run's own events.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now

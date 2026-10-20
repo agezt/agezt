@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.44e typed plan execution, 2026-10-19
+## Current checkpoint — W2.44f typed run, 2026-10-20
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -174,6 +174,16 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   `kernel/controlplane/server_handlers_plan.go` is gone, the request id that
   names a plan moves to `kernel/app` (`app.WithRequestID`), and the archcheck
   allowlist tightens to 129 import violations.
+- W2.44f (typed run) is committed on `main` as a code commit plus a docs commit
+  and published from `arch/w2-dispatch` the same way.
+  `kernel/controlplane/server_handle_run.go` and `server_handle_run_remote.go`
+  are gone, the strict argument readers (`argBool`, `argInt64`, `argStringList`,
+  `parseCapList`) and `argTruthy` move to `kernel/app/runs/run_args.go`, and the
+  execution-profile inventory builder moves to
+  `kernel/app/execprofile/inventory.go`. The archcheck allowlist stays at 129
+  import violations and 13 call sites.
+  `whoami` is now the only native command left, and it stays native by design:
+  it echoes the transport principal and must not route the tenant it names.
 
 ### W2.30c summary
 
@@ -493,6 +503,15 @@ Two native commands remain: `run` and `whoami`; `whoami` stays native by
 design (it echoes the transport principal). Next: the streaming
 cognition commands,
 the roster status source collection and the streaming `run` family.
+W2.44f moved the streaming `run` family — the run itself, its resolution, its
+execution and its dry-run plan — into `kernel/app/runs`, the last native
+handler of the streaming family, and with it the strict argument readers
+(`argBool`, `argInt64`, `argStringList`, `parseCapList`) and `argTruthy` left
+the control plane, and the execution-profile inventory builder moved to
+`kernel/app/execprofile/inventory.go`:
+[110-w244-typed-run-execution-evidence.md](110-w244-typed-run-execution-evidence.md).
+One native command remains: `whoami`, which stays native by design.
+Next: the roster status source collection and the remaining order-7 domains.
 
 Follow-up recorded, not done: CI's `race-depth` stress runs
 `./kernel/controlplane/...` with `-race -count=20 -timeout=20m`; that package
