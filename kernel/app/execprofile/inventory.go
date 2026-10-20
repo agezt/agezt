@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package controlplane
+package execprofile
 
 import (
 	"sort"
@@ -10,11 +10,11 @@ import (
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
-// executionInventory builds a kernel's execution-profile inventory from its
-// tools and warden and the host's remote backend configuration, read now.
-func executionInventory(k *runtime.Kernel) executionprofile.Inventory {
+// Inventory builds a kernel's execution-profile inventory from its tools and
+// warden and the host's remote backend configuration, read now.
+func Inventory(k *runtime.Kernel) executionprofile.Inventory {
 	return executionprofile.Build(executionprofile.Options{
-		Tools:   toolNames(k.Tools()),
+		Tools:   ToolNames(k.Tools()),
 		Warden:  k.Warden(),
 		SSH:     executionprofile.SSHConfigFromEnv(),
 		K8s:     executionprofile.K8sConfigFromEnv(),
@@ -23,7 +23,8 @@ func executionInventory(k *runtime.Kernel) executionprofile.Inventory {
 	})
 }
 
-func toolNames(tools map[string]toolapi.Tool) []string {
+// ToolNames lists a kernel's registered tool names in a stable order.
+func ToolNames(tools map[string]toolapi.Tool) []string {
 	names := make([]string, 0, len(tools))
 	for name := range tools {
 		names = append(names, name)

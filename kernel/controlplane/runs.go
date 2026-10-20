@@ -77,25 +77,32 @@ type runEntry struct {
 	Tool  string
 }
 
-// runReads binds the app run reads to the given kernel's folded runs.
+// runFold binds the app run reads to the given kernel's folded runs.
 func (s *Server) runReads(k *runtime.Kernel) *appruns.Service {
 	return appruns.New(func() (map[string]appruns.Run, error) {
-		rows, err := s.collectRuns(k)
-		if err != nil {
-			return nil, err
-		}
-		out := make(map[string]appruns.Run, len(rows))
-		for id, r := range rows {
-			out[id] = appruns.Run{
-				CorrelationID: r.CorrelationID, Intent: r.Intent, FailReason: r.FailReason, ParentCorrelation: r.ParentCorrelation,
-				AnswerPreview: r.AnswerPreview, Model: r.Model, Agent: r.Agent, Phase: r.Phase, Tool: r.Tool,
-				StartedUnixMS: r.StartedUnixMS, StartedSeq: r.StartedSeq, CompletedUnixMS: r.CompletedUnixMS,
-				FailedUnixMS: r.FailedUnixMS, SpentMicrocents: r.SpentMicrocents, Iters: r.Iters,
-				Completed: r.Completed, Failed: r.Failed, Abandoned: r.Abandoned,
-			}
-		}
-		return out, nil
+		return s.runFold(k)
 	}, time.Now)
+}
+
+// runFold walks the given kernel's journal and folds it into the app layer's
+// run rows. The run operation enriches its terminal answer with the run's own
+// iters, spend and model from this fold.
+func (s *Server) runFold(k *runtime.Kernel) (map[string]appruns.Run, error) {
+	rows, err := s.collectRuns(k)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]appruns.Run, len(rows))
+	for id, r := range rows {
+		out[id] = appruns.Run{
+			CorrelationID: r.CorrelationID, Intent: r.Intent, FailReason: r.FailReason, ParentCorrelation: r.ParentCorrelation,
+			AnswerPreview: r.AnswerPreview, Model: r.Model, Agent: r.Agent, Phase: r.Phase, Tool: r.Tool,
+			StartedUnixMS: r.StartedUnixMS, StartedSeq: r.StartedSeq, CompletedUnixMS: r.CompletedUnixMS,
+			FailedUnixMS: r.FailedUnixMS, SpentMicrocents: r.SpentMicrocents, Iters: r.Iters,
+			Completed: r.Completed, Failed: r.Failed, Abandoned: r.Abandoned,
+		}
+	}
+	return out, nil
 }
 
 // runEntryStatus reports a run's terminal status (M61), the single source of

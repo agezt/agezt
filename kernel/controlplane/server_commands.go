@@ -10,7 +10,17 @@ import (
 	"net"
 )
 
-// ----- command handlers -----
+// registerCoreCommands registers this file's protocol commands into the dispatch registry (phase 2.3).
+//
+// The run command is no longer here: it is a typed app operation
+// (kernel/app/runs), registered with the other app-owned commands. whoami
+// stays native — it echoes the transport principal and must not route the
+// tenant it names.
+func registerCoreCommands() {
+	register(
+		commandSpec{Cmd: CmdWhoami, ReadOnly: true, TenantAllowed: true, Handler: func(dc *DispatchCtx) { dc.S.handleWhoami(dc.Conn, dc.Req) }},
+	)
+}
 
 // handleWhoami reports the authenticated principal (M62). By the time a request
 // reaches a handler, handleConn has already verified the token: the primary

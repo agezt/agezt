@@ -220,8 +220,40 @@ var executionProfileOperations = func() []app.Operation {
 	ops, err := appexecprofile.Operations(func(ctx context.Context) *appexecprofile.Service {
 		k := ctx.Value(appHostKey{}).(appHost).kernel
 		return appexecprofile.New(appexecprofile.Ports{
-			Inventory: func() executionprofile.Inventory { return executionInventory(k) },
+			Inventory: func() executionprofile.Inventory { return appexecprofile.Inventory(k) },
 			Policy:    executionprofile.PolicyFromEnv,
+		})
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ops
+}()
+
+// runOperations binds the run operation to the routed kernel. The run is
+// tenant-routed (a tenant's run stays inside its own kernel) and cancels
+// itself when the operator's client goes away, so the host supplies the
+// connection's disconnect signal.
+var runOperations = func() []app.Operation {
+	ops, err := appruns.RunOperations(func(ctx context.Context) *appruns.RunService {
+		k := ctx.Value(appHostKey{}).(appHost).kernel
+		s := ctx.Value(systemHostKey{}).(*Server)
+		conn, _ := ctx.Value(appConnKey{}).(net.Conn)
+		return appruns.NewRunService(appruns.RunPorts{
+			Kernel: k,
+			Run: func(corr string) (appruns.Run, bool, error) {
+				rows, err := s.runFold(k)
+				if err != nil {
+					return appruns.Run{}, false, err
+				}
+				row, ok := rows[corr]
+				return row, ok, nil
+			},
+			CancelOnDisconnect: s.cancelOnDisconnect,
+			Disconnect:         func() <-chan struct{} { return disconnectSignal(conn) },
+			MirrorRemote: func(ctx context.Context, corr string, meta map[string]string) {
+				s.mirrorRemoteExecutionProfileEvents(ctx, k, corr, meta)
+			},
 		})
 	})
 	if err != nil {
@@ -1489,6 +1521,7 @@ func registeredAppOperations() []app.Operation {
 	operations = append(operations, rosterRemoveOperations...)
 	operations = append(operations, steerOperations...)
 	operations = append(operations, runsOperations...)
+	operations = append(operations, runOperations...)
 	operations = append(operations, planOperations...)
 	operations = append(operations, planRunOperations...)
 	operations = append(operations, planAuthoringOperations...)
@@ -1587,6 +1620,7 @@ func handleAppOperation(dc *DispatchCtx) {
 	defer write.discard()
 	ctx := opapi.WithTerminalWrite(opapi.WithTerminalCleanup(dc.Ctx, terminal), write)
 	ctx = app.WithRequestID(ctx, dc.Req.ID)
+	ctx = context.WithValue(ctx, appConnKey{}, dc.Conn)
 	output, err := dispatchAppOperation(dc, ctx, appEmitter{dc.Conn, dc.Req.ID})
 	if err != nil {
 		// A domain error that classifies itself (app/files) keeps its code in

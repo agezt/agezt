@@ -9,6 +9,7 @@ import (
 	"context"
 	"strings"
 
+	appruns "github.com/agezt/agezt/kernel/app/runs"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 )
@@ -21,7 +22,7 @@ func (s *Server) mirrorRemoteExecutionProfileEvents(ctx context.Context, k *runt
 	peerName := strings.TrimSpace(meta["remote_peer"])
 	remoteCorr := strings.TrimSpace(meta["remote_correlation"])
 	if peerName == "" || remoteCorr == "" {
-		_ = publishRemoteExecutionProfileRunEvent(k, corr, event.KindInfo, "remote", map[string]any{
+		_ = appruns.PublishRemoteRunEvent(k, corr, event.KindInfo, "remote", map[string]any{
 			"profile": "remote-agezt",
 			"phase":   "peer_events_unavailable",
 			"mode":    mode,
@@ -35,7 +36,7 @@ func (s *Server) mirrorRemoteExecutionProfileEvents(ctx context.Context, k *runt
 		if err != nil {
 			msg = err.Error()
 		}
-		_ = publishRemoteExecutionProfileRunEvent(k, corr, event.KindInfo, "remote", map[string]any{
+		_ = appruns.PublishRemoteRunEvent(k, corr, event.KindInfo, "remote", map[string]any{
 			"profile":            "remote-agezt",
 			"phase":              "peer_events_unavailable",
 			"mode":               mode,
@@ -47,7 +48,7 @@ func (s *Server) mirrorRemoteExecutionProfileEvents(ctx context.Context, k *runt
 	}
 	events, truncated, err := fetchRemoteEvents(ctx, peer, remoteCorr, mode)
 	if err != nil {
-		_ = publishRemoteExecutionProfileRunEvent(k, corr, event.KindInfo, "remote", map[string]any{
+		_ = appruns.PublishRemoteRunEvent(k, corr, event.KindInfo, "remote", map[string]any{
 			"profile":            "remote-agezt",
 			"phase":              "peer_events_unavailable",
 			"mode":               mode,
@@ -75,5 +76,5 @@ func (s *Server) mirrorRemoteExecutionProfileEvents(ctx context.Context, k *runt
 	} else {
 		payload["artifacts_unavailable"] = artifactErr.Error()
 	}
-	_ = publishRemoteExecutionProfileRunEvent(k, corr, event.KindInfo, "remote", payload)
+	_ = appruns.PublishRemoteRunEvent(k, corr, event.KindInfo, "remote", payload)
 }
