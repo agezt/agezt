@@ -8,8 +8,6 @@ package controlplane
 
 import (
 	"strings"
-
-	"github.com/agezt/agezt/internal/strutil"
 )
 
 func plString(pl map[string]any, key string) string {
@@ -32,10 +30,6 @@ func plStrings(pl map[string]any, key string) []string {
 		return nil
 	}
 	return out
-}
-
-func truncate(s string, n int) string {
-	return strutil.Ellipsis(strings.TrimSpace(s), n, "…")
 }
 
 func intNumber(v any) int {

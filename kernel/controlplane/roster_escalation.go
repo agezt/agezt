@@ -2,29 +2,32 @@
 
 package controlplane
 
-// Agent escalation handler (M846): the open-doctor-responsibilities view
-// plus the operator-incident lineage bookkeeping that decides which
-// escalation events to surface. Carved out of roster.go during the Day 24
-// god file split #9 so the main file can shrink to ~200 lines of register
-// + dispatch only.
+// The operator action bus and the launch adapters: the incident lineage the
+// launches carry, the one publisher the control plane journals operator
+// actions through, and the two thin adapters that bind the host's run and
+// repair capabilities to the application layer's launchers
+// (`kernel/app/roster/launch.go`). The launch DECISIONS — does the run retry,
+// what does the terminal event say, how is a panic contained — live in the
+// application layer; what stays here is the host's data access: running on
+// the kernel's bus and driving the governed repair.
 
 import (
 	"context"
+	"fmt"
+	"os"
+
+	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/plugins/tools/overseertool"
 )
 
+// Operator incident lineage for the native launch adapters.
 type operatorWakeLineage struct {
 	incidentID       string
 	rootIncidentID   string
 	parentIncidentID string
-}
-
-// agentAutonomyRunbookPayload delegates to the canonical roster builder so manual
-// operator wakes share the exact runbook shape as schedule/standing/delegated wakes.
-func agentAutonomyRunbookPayload(p roster.Profile) map[string]any {
-	return roster.AutonomyRunbook(p)
 }
 
 func publishOperatorAction(k *runtime.Kernel, subject, corr string, payload map[string]any) {
@@ -40,50 +43,62 @@ func publishOperatorAction(k *runtime.Kernel, subject, corr string, payload map[
 	})
 }
 
-func (s *Server) runAgentWake(corr string, p roster.Profile, intent, reason string, lineage operatorWakeLineage) {
-	runbook := agentAutonomyRunbookPayload(p)
-	ctx := runtime.WithAgentProfile(context.Background(), p)
-	ctx = runtime.WithWakeContext(ctx, runtime.WakeContext{
-		Source: "operator",
-		Reason: reason,
-	})
-	if p.MaxCostMc > 0 {
-		ctx = runtime.WithMaxCost(ctx, p.MaxCostMc)
-	}
-	var (
-		answer string
-		err    error
-	)
-	if p.RetryPolicy != nil && p.RetryPolicy.MaxAttempts > 1 {
-		answer, err = s.k.RunWithRetry(ctx, corr, intent, *p.RetryPolicy)
-	} else {
-		answer, err = s.k.RunWith(ctx, corr, intent)
-	}
-	if err != nil {
-		publishOperatorAction(s.k, "agent.wake", corr, map[string]any{
-			"phase":              "failed",
-			"agent":              p.Slug,
-			"reason":             reason,
-			"error":              err.Error(),
-			"autonomy_runbook":   runbook,
-			"incident_id":        lineage.incidentID,
-			"root_incident_id":   lineage.rootIncidentID,
-			"parent_incident_id": lineage.parentIncidentID,
-		})
-		return
-	}
-	publishOperatorAction(s.k, "agent.wake", corr, map[string]any{
-		"phase":              "completed",
-		"agent":              p.Slug,
-		"reason":             reason,
-		"answer":             truncate(answer, 300),
-		"autonomy_runbook":   runbook,
-		"incident_id":        lineage.incidentID,
-		"root_incident_id":   lineage.rootIncidentID,
-		"parent_incident_id": lineage.parentIncidentID,
+// launchOperatorWake hands an operator wake to the application layer's
+// launcher over the host's run and publish ports. The application decides
+// whether the run retries and what cost ceiling it runs under; the host
+// decorates the run context and executes it.
+func (s *Server) launchOperatorWake(corr string, p roster.Profile, intent, reason string, lineage operatorWakeLineage) {
+	approster.LaunchOperatorWake(approster.WakeLaunchPorts{
+		Run: func(corr, intent string, retry *roster.RetryPolicy, maxCostMc int64) (string, error) {
+			ctx := runtime.WithAgentProfile(context.Background(), p)
+			ctx = runtime.WithWakeContext(ctx, runtime.WakeContext{Source: "operator", Reason: reason})
+			if maxCostMc > 0 {
+				ctx = runtime.WithMaxCost(ctx, maxCostMc)
+			}
+			if retry != nil {
+				return s.k.RunWithRetry(ctx, corr, intent, *retry)
+			}
+			return s.k.RunWith(ctx, corr, intent)
+		},
+		Publish: func(subject, corr string, payload map[string]any) {
+			publishOperatorAction(s.k, subject, corr, payload)
+		},
+	}, p, corr, intent, reason, approster.IncidentLineage{
+		IncidentID:       lineage.incidentID,
+		RootIncidentID:   lineage.rootIncidentID,
+		ParentIncidentID: lineage.parentIncidentID,
 	})
 }
 
-// agentActivitySummary decides whether one event belongs in an agent's timeline
-// and renders a one-line summary. Attribution is by the slug fields the events
-// already carry, plus the agent's own run correlations for run-scoped events.
+// launchOperatorRepair hands an operator repair to the application layer's
+// launcher over the host's governed-repair and publish ports. The launcher's
+// panic firewall is the application's; the host only reports the panic it
+// caught.
+func (s *Server) launchOperatorRepair(corr string, p roster.Profile, reason string, lineage operatorWakeLineage) {
+	approster.LaunchOperatorRepair(approster.RepairLaunchPorts{
+		Repair: func(slug, reason string) (approster.RepairOutcome, error) {
+			src := overseertool.NewKernelSource(s.k, s.baseDir)
+			res, err := src.RepairAgent(slug, reason)
+			if err != nil {
+				return approster.RepairOutcome{}, err
+			}
+			return approster.RepairOutcome{
+				Applied:                       res.Applied,
+				RoutingTaskType:               res.RoutingTaskType,
+				RoutingTaskModelChain:         res.RoutingTaskModelChain,
+				PreviousRoutingTaskModelChain: res.PreviousRoutingTaskModelChain,
+				Answer:                        res.Answer,
+			}, nil
+		},
+		Publish: func(subject, corr string, payload map[string]any) {
+			publishOperatorAction(s.k, subject, corr, payload)
+		},
+		OnPanic: func(slug string, r any) {
+			fmt.Fprintf(os.Stderr, "operator repair of %q panicked: %v\n", slug, r)
+		},
+	}, p, corr, reason, approster.IncidentLineage{
+		IncidentID:       lineage.incidentID,
+		RootIncidentID:   lineage.rootIncidentID,
+		ParentIncidentID: lineage.parentIncidentID,
+	})
+}

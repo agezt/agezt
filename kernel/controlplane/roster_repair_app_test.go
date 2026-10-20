@@ -100,8 +100,9 @@ func TestAgentRepairNativeLaunchCarriesLineage(t *testing.T) {
 }
 
 // The repair run keeps its panic firewall (WF-001): a panic inside the governed
-// repair is recovered instead of killing the daemon.
+// repair is recovered instead of killing the daemon. The firewall itself lives
+// in the application layer's launcher; this proves the native adapter keeps it.
 func TestAgentRepairRunContainsPanics(t *testing.T) {
 	s := &Server{} // nil kernel: the repair source dereferences it and panics
-	s.runAgentRepair("corr", roster.Profile{Slug: "ops"}, "why", operatorWakeLineage{})
+	s.launchOperatorRepair("corr", roster.Profile{Slug: "ops"}, "why", operatorWakeLineage{})
 }
