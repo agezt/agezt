@@ -2,94 +2,20 @@
 
 package controlplane
 
-// Provenance: Wake state helpers + agentWakeStatusViews: isMailboxWakeSubject,
-//             agentPolicyDenials, applyActiveWakeContext, liveEventSummary,
-//             scheduleEntryMatchesAgent, legacyScheduleAgentSlug, scheduleWakeLabel.
-//             Code extracted from roster_status.go during the Day-39 god-file split.
-//             Public API unchanged.
+// Provenance: Wake state helpers: agentWakeStatusViews, scheduleEntryMatchesAgent,
+//             legacyScheduleAgentSlug, scheduleWakeLabel. Code extracted from
+//             roster_status.go during the Day-39 god-file split. Public API
+//             unchanged. The live wake-context and event-summary helpers moved
+//             to the application layer with the journal status collection.
 
 import (
-	approster "github.com/agezt/agezt/kernel/app/roster"
 	"sort"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/cadence"
-	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/standing"
 )
-
-type agentPolicyDenials = approster.PolicyDenials
-
-func applyActiveWakeContext(row agentLiveStatus, kind event.Kind, pl map[string]any) agentLiveStatus {
-	switch kind {
-	case event.KindTaskReceived:
-		row.ActiveWakeSource = firstNonEmpty(row.ActiveWakeSource, plString(pl, "wake_source"), plString(pl, "source"))
-		row.ActiveWakeReason = firstNonEmpty(row.ActiveWakeReason, plString(pl, "wake_reason"), plString(pl, "reason"))
-		row.ActiveScheduleID = firstNonEmpty(row.ActiveScheduleID, plString(pl, "schedule_id"))
-		row.ActiveStandingID = firstNonEmpty(row.ActiveStandingID, plString(pl, "standing_id"))
-		row.ActiveStandingName = firstNonEmpty(row.ActiveStandingName, plString(pl, "standing_name"))
-		row.ActiveTriggerSubject = firstNonEmpty(row.ActiveTriggerSubject, plString(pl, "trigger_subject"), plString(pl, "event_subject"))
-		row.ActiveParentCorrelation = firstNonEmpty(row.ActiveParentCorrelation, plString(pl, "parent_correlation"))
-	case event.KindScheduleFired:
-		row.ActiveWakeSource = firstNonEmpty(row.ActiveWakeSource, "schedule")
-		row.ActiveWakeReason = firstNonEmpty(row.ActiveWakeReason, plString(pl, "target"))
-		row.ActiveScheduleID = firstNonEmpty(row.ActiveScheduleID, plString(pl, "schedule_id"))
-	case event.KindStandingFired:
-		row.ActiveWakeSource = firstNonEmpty(row.ActiveWakeSource, "standing")
-		row.ActiveWakeReason = firstNonEmpty(row.ActiveWakeReason, "event")
-		row.ActiveStandingID = firstNonEmpty(row.ActiveStandingID, plString(pl, "standing_id"), plString(pl, "id"))
-		row.ActiveStandingName = firstNonEmpty(row.ActiveStandingName, plString(pl, "standing_name"), plString(pl, "name"))
-		row.ActiveTriggerSubject = firstNonEmpty(row.ActiveTriggerSubject, plString(pl, "trigger_subject"))
-	}
-	if row.ActiveParentCorrelation != "" && row.ActiveWakeSource == "" {
-		row.ActiveWakeSource = "subagent"
-	}
-	return row
-}
-
-func liveEventSummary(kind event.Kind, pl map[string]any) (phase, detail, tool string, iter int) {
-	iter = plInt(pl, "iter")
-	switch kind {
-	case event.KindTaskReceived:
-		return "starting", truncate(plString(pl, "intent"), 100), "", iter
-	case event.KindLLMRequest:
-		model := plString(pl, "model")
-		if model != "" {
-			return "thinking", "model: " + model, "", iter
-		}
-		return "thinking", "", "", iter
-	case event.KindLLMResponse:
-		if plInt(pl, "tool_calls") > 0 {
-			return "planning tools", "", "", iter
-		}
-		return "answering", "", "", iter
-	case event.KindToolInvoked:
-		tool = firstNonEmpty(plString(pl, "tool"), plString(pl, "name"))
-		if tool != "" {
-			return "using tool", tool, tool, iter
-		}
-		return "using tool", "", "", iter
-	case event.KindToolResult:
-		tool = firstNonEmpty(plString(pl, "tool"), plString(pl, "name"))
-		if tool != "" {
-			return "observing tool", tool, tool, iter
-		}
-		return "observing tool", "", "", iter
-	case event.KindAgentRetry, event.KindProviderRetry:
-		reason := firstNonEmpty(plString(pl, "reason"), plString(pl, "error"))
-		return "retrying", truncate(reason, 100), "", iter
-	case event.KindTaskContinued:
-		return "continuing", "", "", iter
-	case event.KindRunPaused:
-		return "paused", "", "", iter
-	case event.KindRunResumed:
-		return "resumed", "", "", iter
-	case event.KindRunSteered:
-		return "steered", truncate(plString(pl, "directive"), 100), "", iter
-	}
-	return "", "", "", iter
-}
 
 func (s *Server) agentWakeStatusViews(profiles []roster.Profile) map[string]agentWakeStatus {
 	if len(profiles) == 0 {

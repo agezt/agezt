@@ -16,14 +16,6 @@ type agentRepairRow = approster.RepairRow
 
 type agentRepairSummary = approster.RepairSummary
 
-type agentRoutingPressure = approster.RoutingPressure
-
-type agentRetryPressure = approster.RetryPressure
-
 type agentEscalationLoad = approster.EscalationLoad
 
 type agentWakeStatus = approster.WakeStatus
-
-type agentLiveStatus = approster.LiveStatus
-
-type agentLastActivity = approster.LastActivity

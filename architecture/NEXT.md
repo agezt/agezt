@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.44f typed run, 2026-10-20
+## Current checkpoint — W2.45a typed roster status collection, 2026-10-20
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -184,6 +184,17 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   import violations and 13 call sites.
   `whoami` is now the only native command left, and it stays native by design:
   it echoes the transport principal and must not route the tenant it names.
+- W2.45a (typed roster status collection) is committed on `main` as a code
+  commit plus a docs commit and published from `arch/w2-dispatch` the same way.
+  `kernel/controlplane/roster_status.go` (371 lines) is gone: the journal-derived
+  half of the roster status collection moves to
+  `kernel/app/roster/status_sources.go`, the run-row status precedence moves to
+  `roster.RunRow.Status()`, and the control plane's `runEntryStatus`,
+  `firstNonEmpty` and `agentModelChain` leave the control plane (the model
+  chain is now `approster.AgentModelChain`, shared with the run resolution).
+  The wake views, the escalation views, the repair summaries and the reaper
+  mapping stay native for now — they read host stores and are the next slice
+  of the same domain.
 
 ### W2.30c summary
 
@@ -511,7 +522,19 @@ the control plane, and the execution-profile inventory builder moved to
 `kernel/app/execprofile/inventory.go`:
 [110-w244-typed-run-execution-evidence.md](110-w244-typed-run-execution-evidence.md).
 One native command remains: `whoami`, which stays native by design.
-Next: the roster status source collection and the remaining order-7 domains.
+W2.45a moved the roster's journal-derived status collection into
+`kernel/app/roster` — the single journal walk that fills the live run
+statuses, the last activity, the last autonomy runbook, the mailbox wakes,
+the policy denials and the routing/retry pressure, plus the live wake
+context, the live event summary and the routing-profile match. The
+application now owns what a run row MEANS: `roster.RunRow.Status()` carries
+the terminal precedence that the control plane's `runEntryStatus` used to
+carry, so the roster status, the run reads and the run operation cannot
+disagree:
+[111-w245-typed-roster-status-collection-evidence.md](111-w245-typed-roster-status-collection-evidence.md).
+Next: the wake views, the escalation views, the repair summaries and the
+reaper mapping — the rest of the same collection — and then the remaining
+order-7 domains.
 
 Follow-up recorded, not done: CI's `race-depth` stress runs
 `./kernel/controlplane/...` with `-race -count=20 -timeout=20m`; that package
@@ -4817,6 +4840,13 @@ delete the probe.
   Re-verify against the source before acting. **Run** CI gates; don't trust a report about them.
 - **The editor's LSP diagnostics are routinely stale** after branch switches and big edits. Trust
   `go build` / `go test`.
+- **The dead-code gate does not see unused type aliases.** `tools/deadcodecheck` reports unreachable
+  FUNCTIONS; staticcheck's U1000 also reports unused TYPES. Moving native code out of a package
+  leaves its type aliases behind, the local gates stay green, and CI's lint job fails. W2.45a hit
+  this with five aliases over the app status rows. Run staticcheck locally before pushing — the
+  Windows prebuilt from the same release (`staticcheck_windows_amd64.tar.gz` in the release assets)
+  works, and it needs the same Go pin the CI step uses when `stable` is newer than the tool
+  supports.
 - **Bash heredocs swallow `\n` inside Python string literals**, which turns Go `"\n"` into a real newline
   and breaks the build. Use the Edit tool for Go strings that contain escapes.
 - **CRLF:** strip `\r` from Windows-produced file lists before `xargs`. Git warns "LF will be replaced by

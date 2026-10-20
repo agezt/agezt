@@ -100,7 +100,7 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 			if primary == "" {
 				primary = k.Model()
 			}
-			ctx = runtime.WithModelChain(ctx, agentModelChain(primary, p.Fallbacks))
+			ctx = runtime.WithModelChain(ctx, approster.AgentModelChain(primary, p.Fallbacks))
 		}
 	}
 	resolved.ctx = ctx
@@ -328,16 +328,4 @@ func requireShellTool(k *runtime.Kernel, profile string) error {
 		}
 	}
 	return nil
-}
-
-// agentModelChain puts the primary model in front and appends the profile's
-// fallbacks, dropping blanks and duplicates.
-func agentModelChain(primary string, fallbacks []string) []string {
-	chain := []string{primary}
-	for _, m := range fallbacks {
-		if m = strings.TrimSpace(m); m != "" && m != primary {
-			chain = append(chain, m)
-		}
-	}
-	return chain
 }

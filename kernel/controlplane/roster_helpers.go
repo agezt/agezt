@@ -51,8 +51,6 @@ func truncate(s string, n int) string {
 	return strutil.Ellipsis(strings.TrimSpace(s), n, "…")
 }
 
-func firstNonEmpty(items ...string) string { return strutil.FirstNonEmpty(items...) }
-
 func intNumber(v any) int {
 	switch n := v.(type) {
 	case int:

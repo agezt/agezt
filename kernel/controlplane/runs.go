@@ -108,18 +108,8 @@ func (s *Server) runFold(k *runtime.Kernel) (map[string]appruns.Run, error) {
 // runEntryStatus reports a run's terminal status (M61), the single source of
 // truth shared by handleRunsList, handleScheduleFires, and the status filter so
 // they never disagree. Precedence: completed > failed > abandoned > running.
-func runEntryStatus(r *runEntry) string {
-	switch {
-	case r.Completed:
-		return "completed"
-	case r.Failed:
-		return "failed"
-	case r.Abandoned:
-		return "abandoned"
-	default:
-		return "running"
-	}
-}
+// The roster status collection derives the same precedence in the application
+// layer (roster.RunRow.Status), over the same terminal markers.
 
 // collectRuns walks the given kernel's journal once and folds
 // task.received / task.completed / task.failed / task.abandoned
