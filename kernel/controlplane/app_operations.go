@@ -791,7 +791,7 @@ var rosterRepairOperations = func() []app.Operation {
 		return approster.NewRepair(s.k.Roster().Get, s.k.NewCorrelation, func(subject, corr string, payload map[string]any) {
 			publishOperatorAction(s.k, subject, corr, payload)
 		}, func(corr string, p roster.Profile, reason string, l approster.IncidentLineage) {
-			go s.runAgentRepair(corr, p, reason, operatorWakeLineage{incidentID: l.IncidentID, rootIncidentID: l.RootIncidentID, parentIncidentID: l.ParentIncidentID})
+			go s.launchOperatorRepair(corr, p, reason, operatorWakeLineage{incidentID: l.IncidentID, rootIncidentID: l.RootIncidentID, parentIncidentID: l.ParentIncidentID})
 		})
 	})
 	if err != nil {
@@ -806,7 +806,7 @@ var rosterWakeOperations = func() []app.Operation {
 		return approster.NewWake(s.k.Roster().Get, s.k.NewCorrelation, func(subject, corr string, payload map[string]any) {
 			publishOperatorAction(s.k, subject, corr, payload)
 		}, func(corr string, p roster.Profile, intent, reason string, l approster.IncidentLineage) {
-			go s.runAgentWake(corr, p, intent, reason, operatorWakeLineage{incidentID: l.IncidentID, rootIncidentID: l.RootIncidentID, parentIncidentID: l.ParentIncidentID})
+			go s.launchOperatorWake(corr, p, intent, reason, operatorWakeLineage{incidentID: l.IncidentID, rootIncidentID: l.RootIncidentID, parentIncidentID: l.ParentIncidentID})
 		})
 	})
 	if err != nil {
