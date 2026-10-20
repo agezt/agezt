@@ -9,7 +9,6 @@ package controlplane
 //             to the application layer with the journal status collection.
 
 import (
-	approster "github.com/agezt/agezt/kernel/app/roster"
 	"sort"
 	"strings"
 
@@ -17,8 +16,6 @@ import (
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/standing"
 )
-
-type agentPolicyDenials = approster.PolicyDenials
 
 func (s *Server) agentWakeStatusViews(profiles []roster.Profile) map[string]agentWakeStatus {
 	if len(profiles) == 0 {
