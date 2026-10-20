@@ -854,18 +854,17 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 
 | File | What it does |
 |---|---|
-| `app/roster/*.go` | Request codecs, typed outputs, specs and services for every roster operation (list, graveyard, activity + activity summary, repair status, escalations, set enabled, add/edit, task update, wake, repair, resolve, impact/tombstone, retire/revive, remove, permissions/capabilities), plus status presentation and typed snapshot rows. `permissions.go` owns the permission picture (tool rows, config visibility, wake access, governance) and the capability patch; `ConfigEntryBelongsToAgent` is shared with agent teardown. |
+| `app/roster/*.go` | Request codecs, typed outputs, specs and services for every roster operation (list, graveyard, activity + activity summary, repair status, escalations, set enabled, add/edit, task update, wake, repair, resolve, impact/tombstone, retire/revive, remove, permissions/capabilities), plus status presentation and typed snapshot rows. `permissions.go` owns the permission picture (tool rows, config visibility, wake access, governance) and the capability patch; `ConfigEntryBelongsToAgent` is shared with agent teardown. `status_sources.go` owns the journal-derived status collection: the single journal walk that fills the live run statuses, the last activity, the last autonomy runbook, the mailbox wakes, the policy denials and the routing/retry pressure, plus the live wake context, the live event summary, the routing-profile match and the model chain. |
 | `roster.go` | Native type aliases over the app status rows. |
-| `roster_list.go` | List service binding, `agentModelChain`, list cache invalidation. |
+| `roster_list.go` | List service binding and list cache invalidation. |
 | `roster_crud_internal.go` | The managed sub-agent direct-call guard. |
 | `roster_lifecycle_helpers.go` | Sub-agent tree, workflow references and mailbox impact labels. |
 | `roster_cascade.go` | `nativeImpactSource` (per-agent holdings for impact/tombstone/retire/remove) and per-subsystem impact helpers. |
 | `roster_teardown.go` | Retire sub-agents; remove, pause and count standing orders and schedules for an agent. |
 | `roster_teardown_state.go` | Forget agent memory, archive skills, prune config-center entries/access refs, delete workspace. |
-| `roster_status.go` | `agentStatusAccums` + single-pass journal fold for live status. |
-| `roster_status_views.go` | Selected reaper/repair/escalation/wake/journal snapshot collection; app StatusService window/render adapter. |
+| `roster_status_views.go` | Selected reaper/repair/escalation/wake snapshot collection; the journal-derived fields come from the app's status collection; app StatusService window/render adapter. |
 | `roster_status_wake.go` | Wake-state views, schedule/agent matching helpers. |
-| `roster_status_escalation.go` | Escalation load + routing-match helpers. |
+| `roster_status_escalation.go` | Escalation load helpers. |
 | `roster_escalation.go` | Autonomy runbook payload, `publishOperatorAction`, the native `runAgentWake` launch. |
 | `roster_wake_helpers.go` | Operator force-generation, exhausted-chain lookup and incident lineage matching. |
 | `roster_resolve.go` | Resolve ports: operator help delegation and routing-chain application (`overseertool.NewKernelSource` → `ApplyRoutingChain`). |

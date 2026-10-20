@@ -861,6 +861,14 @@ This file holds the active `[Unreleased]` working set.
   itself when the operator's client goes away. It stays tenant-routed and
   audited, and it keeps streaming the run's own events.
 
+- **The agent list's live status is collected by the application layer.** The
+  live run count, the last activity, the last autonomy runbook, the mailbox
+  wakes, the policy denials and the routing and retry pressure keep their
+  fields, their values and the single journal walk that fills them; the
+  terminal precedence of a run now lives with the run row it describes, so the
+  roster status and the run views cannot disagree about what a finished run
+  is.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now
