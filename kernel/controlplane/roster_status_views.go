@@ -14,12 +14,19 @@ func (s *Server) collectRosterStatusSnapshot(profiles []roster.Profile, reaperCu
 	repairs := s.agentRepairSummaries()
 	escalations := s.agentEscalationLoadViews(profiles)
 	wakes := s.agentWakeStatusViews(profiles)
-	acc := s.fillAgentStatusAccumsFromJournal(profiles, routingCut)
 	out := approster.StatusSnapshot{
 		Degraded: map[string]approster.DegradedStatus{}, Misconfigured: map[string]approster.MisconfigurationStatus{}, Routing: map[string]approster.RoutingStatus{},
 		Forced: map[string]approster.ForcedStatus{}, ForcedFailed: map[string]approster.ForcedStatus{}, ForcedExhausted: map[string]approster.ForcedStatus{}, Unstable: map[string]approster.UnstableStatus{}, Dead: map[string]approster.DeadStatus{},
-		Repairs: repairs, Escalations: escalations, Wakes: wakes, Live: acc.liveStatuses, LastActivities: acc.lastActivities, Runbooks: acc.autonomyRunbooks, MailboxWakes: acc.mailboxWakes, PolicyDenials: acc.policyDenials, RoutingCounts: acc.routingCounts, RetryCounts: acc.retryCounts,
+		Repairs: repairs, Escalations: escalations, Wakes: wakes,
 	}
+	// The journal-derived fields — the live run statuses, the last activity,
+	// the last autonomy runbook, the mailbox wakes, the policy denials and
+	// the routing/retry pressure — are collected by the application over one
+	// journal walk.
+	approster.CollectJournalStatus(approster.StatusSources{
+		Journal: s.k.Journal().Range,
+		Runs:    s.statusRunRows,
+	}, profiles, routingCut, &out)
 	for _, r := range rep.DegradedAgents {
 		out.Degraded[r.Slug] = approster.DegradedStatus{Failures: r.Failures, Threshold: r.Threshold, Window: r.Window, LastFailureMS: r.LastFailureMS}
 	}
@@ -45,4 +52,27 @@ func (s *Server) collectRosterStatusSnapshot(profiles []roster.Profile, reaperCu
 		out.Dead[r.Slug] = approster.DeadStatus{LastActiveMS: r.LastActiveMS}
 	}
 	return out
+}
+
+// statusRunRows folds the kernel's journal into the run rows the status
+// collection needs. The application owns what a row means; the host only
+// supplies the rows.
+func (s *Server) statusRunRows() ([]approster.RunRow, error) {
+	rows, err := s.collectRuns(s.k)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]approster.RunRow, 0, len(rows))
+	for _, r := range rows {
+		if r == nil {
+			continue
+		}
+		out = append(out, approster.RunRow{
+			CorrelationID: r.CorrelationID, Intent: r.Intent, Model: r.Model, Agent: r.Agent,
+			SpentMicrocents: r.SpentMicrocents, StartedUnixMS: r.StartedUnixMS,
+			ParentCorrelation: r.ParentCorrelation,
+			Completed:         r.Completed, Failed: r.Failed, Abandoned: r.Abandoned,
+		})
+	}
+	return out, nil
 }

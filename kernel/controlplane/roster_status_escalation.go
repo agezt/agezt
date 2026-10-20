@@ -2,9 +2,10 @@
 
 package controlplane
 
-// Provenance: Escalation/routing helpers: uniqueStrings + agentEscalationLoadViews +
-//             agentRoutingMatchesProfile. Code extracted from roster_status.go
-//             during the Day-39 god-file split. Public API unchanged.
+// Provenance: Escalation helpers: uniqueStrings + agentEscalationLoadViews.
+//             Code extracted from roster_status.go during the Day-39 god-file
+//             split. Public API unchanged. The routing-profile match moved to
+//             the application layer with the journal status collection.
 
 import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
@@ -75,19 +76,4 @@ func (s *Server) agentEscalationLoadViews(profiles []roster.Profile) map[string]
 		out[to] = row
 	}
 	return out
-}
-
-func agentRoutingMatchesProfile(p roster.Profile, taskType, failedModel, nextModel string) bool {
-	taskType = strings.TrimSpace(taskType)
-	failedModel = strings.TrimSpace(failedModel)
-	nextModel = strings.TrimSpace(nextModel)
-	if pt := strings.TrimSpace(p.TaskType); pt != "" && strings.EqualFold(pt, taskType) {
-		return true
-	}
-	for _, model := range agentModelChain(strings.TrimSpace(p.Model), p.Fallbacks) {
-		if strings.EqualFold(model, failedModel) || strings.EqualFold(model, nextModel) {
-			return true
-		}
-	}
-	return false
 }
