@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.45a typed roster status collection, 2026-10-20
+## Current checkpoint — W2.45b typed roster status stores, 2026-10-20
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -195,6 +195,22 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   The wake views, the escalation views, the repair summaries and the reaper
   mapping stay native for now — they read host stores and are the next slice
   of the same domain.
+- W2.45b (typed roster status stores) is committed on `main` as a code commit
+  plus a docs commit and published from `arch/w2-dispatch` the same way.
+  `kernel/controlplane/roster_status_wake.go` (107 lines),
+  `roster_status_escalation.go` (73 lines) and `roster_repair_summary.go`
+  (98 lines) are gone: the store-backed half of the roster status collection
+  moves to `kernel/app/roster/status_stores.go` (329 lines) — the wake views,
+  the escalation views, the repair summaries, the reaper mapping and the
+  assembly (`approster.CollectStatus`). `StatusSources` grows the schedules,
+  the standing orders, the board, the reaper scan and the repair cooldown as
+  ports; the host keeps the stores and the board's `OpenHelp` read. The
+  doctor's repair events now share the single journal walk (two walks became
+  one), the cooldown's environment reading moves to
+  `approster.AutoRepairCooldown` (the typed `roster repair status` operation
+  binds it), and the four native type aliases over the app status rows plus
+  the `plInt` payload helper they kept alive leave the control plane. The
+  archcheck allowlist stays at 129 import violations and 13 call sites.
 
 ### W2.30c summary
 
@@ -532,9 +548,15 @@ the terminal precedence that the control plane's `runEntryStatus` used to
 carry, so the roster status, the run reads and the run operation cannot
 disagree:
 [111-w245-typed-roster-status-collection-evidence.md](111-w245-typed-roster-status-collection-evidence.md).
-Next: the wake views, the escalation views, the repair summaries and the
-reaper mapping — the rest of the same collection — and then the remaining
-order-7 domains.
+W2.45b moved the rest of the same collection into `kernel/app/roster` — the
+wake views, the escalation views, the repair summaries, the reaper mapping and
+the assembly — so the roster status collection is now wholly in the
+application layer. The doctor's repair events share the single journal walk
+(two walks became one), the repair cooldown's environment reading moved to
+`approster.AutoRepairCooldown`, and the four native type aliases over the app
+status rows and the `plInt` helper they kept alive are gone:
+[112-w245-typed-roster-status-stores-evidence.md](112-w245-typed-roster-status-stores-evidence.md).
+Next: the remaining order-7 domains.
 
 Follow-up recorded, not done: CI's `race-depth` stress runs
 `./kernel/controlplane/...` with `-race -count=20 -timeout=20m`; that package
@@ -4843,7 +4865,9 @@ delete the probe.
 - **The dead-code gate does not see unused type aliases.** `tools/deadcodecheck` reports unreachable
   FUNCTIONS; staticcheck's U1000 also reports unused TYPES. Moving native code out of a package
   leaves its type aliases behind, the local gates stay green, and CI's lint job fails. W2.45a hit
-  this with five aliases over the app status rows. Run staticcheck locally before pushing — the
+  this with five aliases over the app status rows, and W2.45b hit it again with four more (plus a
+  payload helper that only the deleted file read — the dead-code gate DOES catch that one).
+  Run staticcheck locally before pushing — the
   Windows prebuilt from the same release (`staticcheck_windows_amd64.tar.gz` in the release assets)
   works, and it needs the same Go pin the CI step uses when `stable` is newer than the tool
   supports.
