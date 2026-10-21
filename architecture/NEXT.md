@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.51 typed workspace helpers, 2026-10-21
+## Current checkpoint — W2.52 typed run fold, 2026-10-21
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -261,6 +261,28 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   allowlist stays at 129 import violations and 13 call sites.
   `whoami` is now the only native command left, and it stays native by design:
   it echoes the transport principal and must not route the tenant it names.
+- W2.52 (typed run fold) is committed on `main` as a code commit plus a docs
+  commit and published from `arch/w2-dispatch` the same way.
+  `kernel/app/runs/collect.go` gains `Collect` (the single journal walk that
+  turns a run's events into a row) and `RunRows` (the conversion into the
+  roster status' row type), plus the payload extractors the fold feeds on
+  (the intent, the agent, the tool, the iters, the cost, the model, the
+  answer excerpt, the spawn link and the failure reason), moved verbatim with
+  the forward walk and its post-sort limit, the `task.received` start, the
+  `task.completed`/`task.failed`/`task.abandoned` terminals, the spawn's
+  parent link, the spend's "existing row only" rule and its first-wins model,
+  the last-wins activity phase (`thinking`, `using tool`, `observing tool`,
+  `continuing`) and the 80-rune answer excerpt. The native `runEntry` row type
+  is gone — the fold produces the application's own `Run` row — and
+  `kernel/controlplane/runs_extract.go` (the payload extractors) is gone too;
+  `kernel/controlplane/runs.go` keeps only the host's journal read. All three
+  readers — the run service, the roster status and the schedule/tenant
+  activity — now ask the application. The archcheck allowlist stays at 129
+  import violations and 13 call sites.
+  The mutation run was honest about its order: the first pass caught 21 of 26
+  and left five open (four test gaps and one anchor that did not match the
+  source), the tests were strengthened and the run repeated — 28 mutations, 28
+  caught.
 - W2.45a (typed roster status collection) is committed on `main` as a code
   commit plus a docs commit and published from `arch/w2-dispatch` the same way.
   `kernel/controlplane/roster_status.go` (371 lines) is gone: the journal-derived
@@ -693,8 +715,8 @@ Preserve unrelated dirty changes: deletions of
 
 ### Next
 
-Continue roadmap §4.5/order 7 after the completed roster and steer domains:
-runs/journal/edict/tenant/shutdown/remote, plus the roster status source
+Continue roadmap §4.5/order 7 after the completed roster, steer and run-fold
+domains: journal/edict/tenant/shutdown/remote, plus the roster status source
 collection and lifecycle ownership. Wider run/tool adapter convergence, W3 modules and journal raw-ref GC, W4
 triggers/channel supervision/config/signing, and W5 generated SDK/frontend
 convergence and zero allowances remain open. The overall target is the

@@ -913,6 +913,13 @@ This file holds the active `[Unreleased]` working set.
   preview still shows the workspace path with its file and byte counts, and a
   path outside the workspace root still has no description.
 
+- **The run rows are folded by the application layer.** The list, the stats
+  and the show still describe the same runs: the intent, the agent, the start
+  time, the phase, the iters, the cost, the model, the answer excerpt, the
+  parent link, the failure reason and the terminal status are unchanged, a
+  budget event for an unknown run still conjures nothing, and the answer
+  excerpt is still a single collapsed line of at most 80 runes.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now
