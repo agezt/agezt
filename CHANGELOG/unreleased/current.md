@@ -885,6 +885,12 @@ This file holds the active `[Unreleased]` working set.
   events; a governed repair that panics is still caught and journaled as a
   failed repair instead of taking the daemon down.
 
+- **The operator resolution reads its incident state from the application
+  layer.** The exhausted routing chain and the applied force generation are
+  found with the same rules as before — the same subjects, phases, task types
+  and incident lineage — so a force-chain resolution still may not repeat an
+  exhausted chain, and still supersedes the generation before it.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now
