@@ -1,217 +1,89 @@
+// SPDX-License-Identifier: MIT
+
 package controlplane
 
-// Provenance: SPDX-License-Identifier: MIT Agent teardown state-store cleanup: the
-//             per-agent + shared memory forgetters, the skill archiver, the
-//             config-center entry + access-ref pruners, and the workspace deleter.
-//             Extracted from roster_teardown.go during the Day-204 god-file split.
-//             Public API unchanged.
+// The agent teardown's state cleanup: the host's bindings for the memory,
+// skill, config-center and filesystem stores the application's cleanup
+// decisions act on. The DECISIONS — which records belong to the agent, which
+// skills are the agent's, which config entries belong to it, which access
+// references name it, whether a workspace path is safe to delete — live in
+// the application layer (`kernel/app/roster/teardown_state.go`); what stays
+// here is the host's data access.
 
 import (
-	"errors"
-	"fmt"
 	"os"
-	"path/filepath"
-	"sort"
-	"strings"
 
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/memory"
-	"github.com/agezt/agezt/kernel/platform/fileworkspace"
-	"github.com/agezt/agezt/kernel/roster"
+	core "github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/skill"
 )
 
-func (s *Server) forgetAgentMemory(p roster.Profile, on bool) (int, error) {
-	if !on {
-		return 0, nil
-	}
-	scope := strings.TrimSpace(p.MemoryScope)
-	if scope == "" {
-		scope = p.Slug
-	}
-	records, err := s.k.Memory().Active()
-	if err != nil {
-		return 0, err
-	}
-	forgot := 0
-	for _, r := range records {
-		if !memoryRecordBelongsToAgent(r, scope) {
-			continue
-		}
-		ok, err := s.k.Memory().Forget("", r.ID)
-		if err != nil {
-			return forgot, err
-		}
-		if ok {
-			forgot++
-		}
-	}
-	return forgot, nil
-}
-
-func memoryRecordBelongsToAgent(r memory.Record, scope string) bool {
-	if r.Tags != nil && strings.EqualFold(strings.TrimSpace(r.Tags["scope"]), scope) {
-		return true
-	}
-	return false
-}
-
-func (s *Server) forgetAgentAuthoredSharedMemory(slug string, on bool) (int, error) {
-	if !on {
-		return 0, nil
-	}
-	records, err := s.k.Memory().Active()
-	if err != nil {
-		return 0, err
-	}
-	forgot := 0
-	for _, r := range records {
-		if !memoryRecordAuthoredSharedByAgent(r, slug) {
-			continue
-		}
-		ok, err := s.k.Memory().Forget("", r.ID)
-		if err != nil {
-			return forgot, err
-		}
-		if ok {
-			forgot++
-		}
-	}
-	return forgot, nil
-}
-
-func memoryRecordAuthoredSharedByAgent(r memory.Record, slug string) bool {
-	slug = strings.TrimSpace(slug)
-	if slug == "" {
-		return false
-	}
-	if r.Tags != nil && strings.TrimSpace(r.Tags["scope"]) != "" {
-		return false
-	}
-	return strings.EqualFold(strings.TrimSpace(r.AddedBy), slug) || strings.EqualFold(strings.TrimSpace(r.UpdatedBy), slug)
-}
-
-func (s *Server) archiveAgentSkills(slug string, on bool) (int, error) {
-	if !on {
-		return 0, nil
-	}
-	all, err := s.k.Forge().List()
-	if err != nil {
-		return 0, err
-	}
-	archived := 0
-	for _, sk := range all {
-		if !strings.EqualFold(strings.TrimSpace(sk.Agent), slug) || sk.Status == skill.StatusArchived {
-			continue
-		}
-		if err := s.k.Forge().Archive("", sk.ID, "agent removed: "+slug); err != nil {
-			if errors.Is(err, skill.ErrIllegalTransition) {
-				continue
+// teardownStatePorts binds the host's stores to the application's state
+// cleanup.
+func (s *Server) teardownStatePorts() approster.TeardownStatePorts {
+	return approster.TeardownStatePorts{
+		MemoryRecords: func() ([]memory.Record, error) { return s.k.Memory().Active() },
+		ForgetMemory:  func(id string) (bool, error) { return s.k.Memory().Forget("", id) },
+		Skills:        func() ([]skill.Skill, error) { return s.k.Forge().List() },
+		ArchiveSkill:  func(id, reason string) error { return s.k.Forge().Archive("", id, reason) },
+		ConfigEntries: func() []*configcenter.ConfigEntry {
+			if s.k.ConfigCenter() == nil {
+				return nil
 			}
-			return archived, err
-		}
-		archived++
+			return s.k.ConfigCenter().ListEntries()
+		},
+		DeleteConfig: func(key string) error {
+			if s.k.ConfigCenter() == nil {
+				return nil
+			}
+			return s.k.ConfigCenter().Delete(key)
+		},
+		SetConfig: func(e *configcenter.ConfigEntry) error {
+			if s.k.ConfigCenter() == nil {
+				return nil
+			}
+			return s.k.ConfigCenter().Set(e)
+		},
+		WorkspaceRoot: s.agentWorkspaceRoot,
+		WorkspaceDir: func(dir string) (bool, bool, error) {
+			info, err := os.Stat(dir)
+			if err != nil {
+				if os.IsNotExist(err) {
+					return false, false, nil
+				}
+				return false, false, err
+			}
+			return true, info.IsDir(), nil
+		},
+		DeleteDir: func(dir string) error { return os.RemoveAll(dir) },
 	}
-	return archived, nil
 }
 
+// forgetAgentMemory forgets the agent's own memory records.
+func (s *Server) forgetAgentMemory(p core.Profile, on bool) (int, error) {
+	return approster.ForgetAgentMemory(s.teardownStatePorts(), p, on)
+}
+
+// forgetAgentAuthoredSharedMemory forgets the shared memory records the agent
+// authored or last updated.
+func (s *Server) forgetAgentAuthoredSharedMemory(slug string, on bool) (int, error) {
+	return approster.ForgetAgentAuthoredSharedMemory(s.teardownStatePorts(), slug, on)
+}
+
+// archiveAgentSkills archives the agent's skills.
+func (s *Server) archiveAgentSkills(slug string, on bool) (int, error) {
+	return approster.ArchiveAgentSkills(s.teardownStatePorts(), slug, on)
+}
+
+// deleteAgentConfigEntries deletes the agent's config-center entries and
+// prunes its access references from the entries that stay.
 func (s *Server) deleteAgentConfigEntries(slug string, on bool) (int, int, error) {
-	if !on || s.k.ConfigCenter() == nil {
-		return 0, 0, nil
-	}
-	var keys []string
-	deleting := map[string]bool{}
-	for _, e := range s.k.ConfigCenter().ListEntries() {
-		if approster.ConfigEntryBelongsToAgent(e, slug) {
-			keys = append(keys, e.Key)
-			deleting[e.Key] = true
-		}
-	}
-	sort.Strings(keys)
-	deleted := 0
-	for _, key := range keys {
-		if err := s.k.ConfigCenter().Delete(key); err != nil {
-			return deleted, 0, err
-		}
-		deleted++
-	}
-	pruned := 0
-	for _, e := range s.k.ConfigCenter().ListEntries() {
-		if e == nil || deleting[e.Key] || !pruneConfigEntryAgentAccess(e, slug) {
-			continue
-		}
-		if err := s.k.ConfigCenter().Set(e); err != nil {
-			return deleted, pruned, err
-		}
-		pruned++
-	}
-	return deleted, pruned, nil
+	return approster.DeleteAgentConfigEntries(s.teardownStatePorts(), slug, on)
 }
 
-func (s *Server) deleteAgentWorkspace(p roster.Profile, on bool) (int, error) {
-	if !on {
-		return 0, nil
-	}
-	workdir := strings.TrimSpace(p.Workdir)
-	if workdir == "" {
-		return 0, nil
-	}
-	root := s.agentWorkspaceRoot()
-	dir, ok := fileworkspace.ConfineUnder(root, workdir)
-	if !ok || filepath.Clean(dir) == filepath.Clean(root) {
-		return 0, fmt.Errorf("agent %s workspace path is unsafe: %s", p.Slug, workdir)
-	}
-	info, err := os.Stat(dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return 0, nil
-		}
-		return 0, err
-	}
-	if !info.IsDir() {
-		return 0, fmt.Errorf("agent %s workspace is not a directory: %s", p.Slug, workdir)
-	}
-	if err := os.RemoveAll(dir); err != nil {
-		return 0, err
-	}
-	return 1, nil
-}
-
-func pruneConfigEntryAgentAccess(e *configcenter.ConfigEntry, slug string) bool {
-	if e == nil {
-		return false
-	}
-	nextAllowed, allowedChanged := removeAgentAccessRef(e.AllowedAgents, slug)
-	nextExcluded, excludedChanged := removeAgentAccessRef(e.ExcludedAgents, slug)
-	if allowedChanged {
-		e.AllowedAgents = nextAllowed
-	}
-	if excludedChanged {
-		e.ExcludedAgents = nextExcluded
-	}
-	return allowedChanged || excludedChanged
-}
-
-func removeAgentAccessRef(values []string, slug string) ([]string, bool) {
-	slug = strings.TrimSpace(slug)
-	if slug == "" || len(values) == 0 {
-		return values, false
-	}
-	out := values[:0]
-	changed := false
-	for _, value := range values {
-		if strings.EqualFold(strings.TrimSpace(value), slug) {
-			changed = true
-			continue
-		}
-		out = append(out, value)
-	}
-	if !changed {
-		return values, false
-	}
-	if len(out) == 0 {
-		return nil, true
-	}
-	return out, true
+// deleteAgentWorkspace deletes the agent's workspace directory.
+func (s *Server) deleteAgentWorkspace(p core.Profile, on bool) (int, error) {
+	return approster.DeleteAgentWorkspace(s.teardownStatePorts(), p, on)
 }
