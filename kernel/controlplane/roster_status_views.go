@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
+	appruns "github.com/agezt/agezt/kernel/app/runs"
 	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/roster"
@@ -32,23 +33,11 @@ func (s *Server) collectRosterStatusSnapshot(profiles []roster.Profile, reaperCu
 // collection needs. The application owns what a row means; the host only
 // supplies the rows.
 func (s *Server) statusRunRows() ([]approster.RunRow, error) {
-	rows, err := s.collectRuns(s.k)
+	rows, err := appruns.Collect(s.k.Journal().Range)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]approster.RunRow, 0, len(rows))
-	for _, r := range rows {
-		if r == nil {
-			continue
-		}
-		out = append(out, approster.RunRow{
-			CorrelationID: r.CorrelationID, Intent: r.Intent, Model: r.Model, Agent: r.Agent,
-			SpentMicrocents: r.SpentMicrocents, StartedUnixMS: r.StartedUnixMS,
-			ParentCorrelation: r.ParentCorrelation,
-			Completed:         r.Completed, Failed: r.Failed, Abandoned: r.Abandoned,
-		})
-	}
-	return out, nil
+	return appruns.RunRows(rows), nil
 }
 
 // statusBoardMessages lists the board's open help requests — the escalations

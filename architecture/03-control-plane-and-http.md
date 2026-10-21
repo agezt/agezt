@@ -728,8 +728,8 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 
 | File | What it does |
 |---|---|
-| `runs.go` | `runEntry`, `runEntryStatus`, `collectRuns` journal walker, and `runReads`, the app/runs snapshot port over the routed kernel. |
-| `runs_extract.go` | Payload extractors (intent, agent, tool, iters, cost, model, answer preview, spawn link, reason). |
+| `runs.go` | `runReads`, the app/runs snapshot port over the routed kernel: the journal read the application folds. |
+| `app/runs/collect.go` | The run fold: `Collect` walks the journal once and turns a run's events into the application's `Run` row (the intent, the agent, the start time and sequence, the phase, the iters, the cost, the model, the answer excerpt, the parent link, the failure reason and the terminal status), with the payload extractors it feeds on and `RunRows`, the conversion into the roster status' row type. |
 | `app/runs/runs.go` | Typed `runs_list` (strict status/intent/model, lenient limit/cost, newest-first with seq tie-break, `<ms>:<seq>` cursor, live phase/tool) and `runs_stats` (window, intent scope, success rate, failure reasons, delegation, spend and duration distributions). |
 | `status.go` | `handleStatus`: one-round-trip health overview (version, halted, budget, tools, HTTP bindings, channels, AWS cred chain, fallback counts). |
 | `app/storage/disk.go` | Typed `disk_stats` (M131): the journal directory's size beside the home filesystem's free space from the injected `DiskFreeFunc`; the disk fields appear only for a known, non-zero filesystem. |

@@ -197,7 +197,7 @@ All constants live in `kernel/event/kinds.go` (append-only; "never renumber or r
 | `journal_io.go` | `Tail(n)`, `readSegment`, errors `ErrChainBreak`/`ErrNotEmpty`/`ErrNotFullExport`, `Restore(dir, events)`, `Verify()`, indirected `fsync`/`syncDir` (test hooks), `writeAndSync`, `rotate`. |
 | `provenance.go` | `Why(eventID)` (correlation grouping), `Causes(eventID)` (causation ancestry, cycle-guarded), `ParentOf(childCorr)` (delegation backlink). Moved here from `kernel/runtime` in Phase 3.1. |
 | `cursor.go` | Shared `<ms>:<seq>` cursor pagination: `EncodeCursor`, `DecodeCursor(any)`, `KeepBeforeCursor`, `NextCursor`. Used by every journal-backed list endpoint (runs, agents, inbox/board/memory, *_log). |
-| `runs.go` | `RunEntry` (folded per-run state shared by runs listing/stats) and `RunEntryStatus` (precedence completed > failed > abandoned > running). |
+| `runs.go` | `RunEntry` (folded per-run state shared by runs listing/stats) and `RunEntryStatus` (precedence completed > failed > abandoned > running) — moved to the application layer (`app/runs/collect.go`), which owns the fold and its row type. |
 
 Tests: `journal_test.go`, `provenance_test.go`, `cursor_test.go`, `mutation_internal_test.go` (fsync-failure truncation, rotation failure), `fuzz_test.go` (1 fuzz target).
 

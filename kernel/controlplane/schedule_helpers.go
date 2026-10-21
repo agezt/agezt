@@ -6,6 +6,7 @@ package controlplane
 
 import (
 	"context"
+	appruns "github.com/agezt/agezt/kernel/app/runs"
 	appschedule "github.com/agezt/agezt/kernel/app/schedule"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/opapi"
@@ -29,7 +30,7 @@ func (s *Server) scheduleLifecycle(ctx context.Context) *appschedule.Lifecycle {
 
 func (s *Server) scheduleFiringReads(k *runtime.Kernel) *appschedule.FiringService {
 	return appschedule.NewFiringService(k.Journal(), func() (map[string]appschedule.FiringRun, error) {
-		rows, err := s.collectRuns(k)
+		rows, err := appruns.Collect(k.Journal().Range)
 		if err != nil {
 			return nil, err
 		}
