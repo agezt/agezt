@@ -897,6 +897,13 @@ This file holds the active `[Unreleased]` working set.
   retires the sub-agents that are not already retired and still counts only
   what the store actually had.
 
+- **The agent teardown's state cleanup is owned by the application layer.**
+  Removing an agent still forgets exactly its own memory records and the
+  shared records it authored, still archives exactly its skills, still deletes
+  exactly its config entries and still prunes its access references from the
+  entries that stay — and a workspace outside the workspace root is still
+  refused.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now
