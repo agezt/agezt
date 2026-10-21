@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.48 typed agent teardown orchestration, 2026-10-21
+## Current checkpoint — W2.49 typed agent teardown state cleanup, 2026-10-21
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -223,6 +223,20 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   and `kernel/controlplane/roster_activity_text.go` (a header-only file left
   by an earlier split, with no code) are gone. The archcheck allowlist stays
   at 129 import violations and 13 call sites.
+- W2.49 (typed agent teardown state cleanup) is committed on `main` as a code
+  commit plus a docs commit and published from `arch/w2-dispatch` the same
+  way. `kernel/app/roster/teardown_state.go` (260 lines) gains the teardown's
+  state cleanup over a store port set: `ForgetAgentMemory`,
+  `ForgetAgentAuthoredSharedMemory`, `ArchiveAgentSkills`,
+  `DeleteAgentConfigEntries` and `DeleteAgentWorkspace`, moved verbatim with
+  the switch semantics, the scope rules, the unscoped shared records, the
+  skipped illegal transition, the sorted config deletions, the separate
+  deletion and prune counts and the confined-workspace safety rules. The
+  filesystem is a port, not a dependency: the application decides whether a
+  path is safe to delete, the host does the deleting. Two of the moved
+  predicates are shared with the impact cascade and are now exported
+  (`MemoryRecordBelongsToAgent`, `MemoryRecordAuthoredSharedByAgent`). The
+  archcheck allowlist stays at 129 import violations and 13 call sites.
   `whoami` is now the only native command left, and it stays native by design:
   it echoes the transport principal and must not route the tenant it names.
 - W2.45a (typed roster status collection) is committed on `main` as a code
@@ -613,9 +627,14 @@ W2.48 moved the agent teardown's orchestration into the same package — which
 standing orders and schedules belong to the agent, and what a teardown
 retires, pauses or removes — and with it the last native wrappers:
 [115-w248-typed-agent-teardown-orchestration-evidence.md](115-w248-typed-agent-teardown-orchestration-evidence.md).
-Next: the teardown's state cleanup (`roster_teardown_state.go`), the impact
-cascade (`roster_cascade.go`) and the lifecycle helpers — the rest of the
-roster domain — and then the remaining order-7 domains.
+W2.49 moved the teardown's state cleanup into the same package — the memory,
+skill, config-center and workspace cleanup — with the filesystem behind a port
+so the safety decision stays in the application layer:
+[116-w249-typed-agent-teardown-state-evidence.md](116-w249-typed-agent-teardown-state-evidence.md).
+Next: the impact cascade (`roster_cascade.go`), the lifecycle helpers
+(`roster_lifecycle_helpers.go`) and the workspace root helper
+(`roster_workspace.go`) — the rest of the roster domain — and then the
+remaining order-7 domains.
 
 Follow-up recorded, not done: CI's `race-depth` stress runs
 `./kernel/controlplane/...` with `-race -count=20 -timeout=20m`; that package

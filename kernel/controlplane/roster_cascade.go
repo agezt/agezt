@@ -69,7 +69,7 @@ func (s *Server) agentMemoryImpact(p roster.Profile) []string {
 	}
 	var out []string
 	for _, r := range records {
-		if memoryRecordBelongsToAgent(r, scope) {
+		if approster.MemoryRecordBelongsToAgent(r, scope) {
 			out = append(out, memoryRecordLabel(r))
 		}
 	}
@@ -84,7 +84,7 @@ func (s *Server) agentAuthoredSharedMemoryImpact(p roster.Profile) []string {
 	}
 	var out []string
 	for _, r := range records {
-		if memoryRecordAuthoredSharedByAgent(r, p.Slug) {
+		if approster.MemoryRecordAuthoredSharedByAgent(r, p.Slug) {
 			out = append(out, memoryRecordLabel(r))
 		}
 	}
