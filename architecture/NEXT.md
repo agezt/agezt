@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.46 typed operator wake and repair launches, 2026-10-20
+## Current checkpoint — W2.47 typed operator resolve journal reads, 2026-10-21
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -197,6 +197,18 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   native `runAgentWake`/`runAgentRepair` bodies leave the control plane, and
   the control plane's `truncate` helper leaves with them. The archcheck
   allowlist stays at 129 import violations and 13 call sites.
+- W2.47 (typed operator resolve journal reads) is committed on `main` as a code
+  commit plus a docs commit and published from `arch/w2-dispatch` the same
+  way. `kernel/app/roster/resolve_journal.go` (123 lines) gains
+  `LatestOperatorForceGeneration` and `LatestExhaustedRoutingChain` over a
+  journal port, moved verbatim with their filters and their "latest wins"
+  rules; the incident-lineage matching moves with them, and the native
+  `operatorWakeLineage` transport type is gone (the adapters and the resolve
+  ports speak the app's `IncidentLineage` end to end).
+  `kernel/controlplane/roster_wake_helpers.go` (107 lines) is gone, and with
+  it `kernel/controlplane/roster_helpers.go` — the payload accessors whose
+  last readers the moved helpers were. The archcheck allowlist stays at 129
+  import violations and 13 call sites.
   `whoami` is now the only native command left, and it stays native by design:
   it echoes the transport principal and must not route the tenant it names.
 - W2.45a (typed roster status collection) is committed on `main` as a code
@@ -578,9 +590,13 @@ decision, the cost ceiling, the terminal event's shape and the panic firewall
 around a governed repair. The host keeps the run, the repair source and the
 publisher:
 [113-w246-typed-operator-launch-evidence.md](113-w246-typed-operator-launch-evidence.md).
-Next: the operator resolve path (`roster_wake_helpers.go`), the roster
-teardown and the impact cascade — the rest of the roster domain — and then the
-remaining order-7 domains.
+W2.47 moved the operator resolution's journal reads into the same package —
+the exhausted-chain lookup and the force-generation lookup, with the
+incident-lineage matching — and with them the native `operatorWakeLineage`
+transport type:
+[114-w247-typed-operator-resolve-journal-evidence.md](114-w247-typed-operator-resolve-journal-evidence.md).
+Next: the roster teardown, the impact cascade and the lifecycle helpers —
+the rest of the roster domain — and then the remaining order-7 domains.
 
 Follow-up recorded, not done: CI's `race-depth` stress runs
 `./kernel/controlplane/...` with `-race -count=20 -timeout=20m`; that package

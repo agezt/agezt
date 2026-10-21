@@ -1,25 +1,27 @@
 // SPDX-License-Identifier: MIT
 
-package controlplane
-
-// Operator incident-resolution journal lookups behind the resolve operation's
-// ports: force generation, routing-chain exhaustion and lineage matching
-// (M833/M846). Carved out during the Day 145 god file split.
+package roster
 
 import (
 	"encoding/json"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
-func latestOperatorForceGeneration(k *runtime.Kernel, slug, taskType string) int {
-	if k == nil || strings.TrimSpace(slug) == "" || strings.TrimSpace(taskType) == "" {
+// ResolveJournal is the journal the operator resolution reads its incident
+// state from.
+type ResolveJournal func(func(*event.Event) error) error
+
+// LatestOperatorForceGeneration reads the journal for the latest applied
+// force-chain generation of an agent's task type. It is the generation the
+// operator's next force-chain resolution will supersede.
+func LatestOperatorForceGeneration(journal ResolveJournal, slug, taskType string) int {
+	if journal == nil || strings.TrimSpace(slug) == "" || strings.TrimSpace(taskType) == "" {
 		return 0
 	}
 	best := 0
-	_ = k.Journal().Range(func(e *event.Event) error {
+	_ = journal(func(e *event.Event) error {
 		if e.Kind != event.KindInfo || (e.Subject != "doctor.auto_repair" && e.Subject != "agent.resolve") {
 			return nil
 		}
@@ -45,13 +47,16 @@ func latestOperatorForceGeneration(k *runtime.Kernel, slug, taskType string) int
 	return best
 }
 
-func latestExhaustedRoutingChain(k *runtime.Kernel, slug string, lineage operatorWakeLineage, taskType string) []string {
-	if k == nil || strings.TrimSpace(slug) == "" || strings.TrimSpace(taskType) == "" || !lineage.hasAny() {
+// LatestExhaustedRoutingChain reads the journal for the latest chain the
+// doctor found exhausted for an agent, a task type and an incident lineage.
+// The operator's force-chain resolution must not repeat it.
+func LatestExhaustedRoutingChain(journal ResolveJournal, slug string, lineage IncidentLineage, taskType string) []string {
+	if journal == nil || strings.TrimSpace(slug) == "" || strings.TrimSpace(taskType) == "" || !lineage.hasAny() {
 		return nil
 	}
 	var bestChain []string
 	var bestSeq int64
-	_ = k.Journal().Range(func(e *event.Event) error {
+	_ = journal(func(e *event.Event) error {
 		if e.Kind != event.KindInfo || e.Subject != "doctor.auto_repair" {
 			return nil
 		}
@@ -78,7 +83,10 @@ func latestExhaustedRoutingChain(k *runtime.Kernel, slug string, lineage operato
 	return append([]string(nil), bestChain...)
 }
 
-func incidentLineageMatchesPayload(lineage operatorWakeLineage, pl map[string]any) bool {
+// incidentLineageMatchesPayload reports whether the payload belongs to the
+// incident the operator is resolving: any of the lineage's ids is among the
+// payload's incident ids.
+func incidentLineageMatchesPayload(lineage IncidentLineage, pl map[string]any) bool {
 	if !lineage.hasAny() {
 		return false
 	}
@@ -87,11 +95,13 @@ func incidentLineageMatchesPayload(lineage operatorWakeLineage, pl map[string]an
 		strings.TrimSpace(plString(pl, "root_incident_id")),
 		strings.TrimSpace(plString(pl, "parent_incident_id")),
 	}
-	return incidentIDInSlice(lineage.incidentID, payloadIDs) ||
-		incidentIDInSlice(lineage.rootIncidentID, payloadIDs) ||
-		incidentIDInSlice(lineage.parentIncidentID, payloadIDs)
+	return incidentIDInSlice(lineage.IncidentID, payloadIDs) ||
+		incidentIDInSlice(lineage.RootIncidentID, payloadIDs) ||
+		incidentIDInSlice(lineage.ParentIncidentID, payloadIDs)
 }
 
+// incidentIDInSlice reports whether the id is among the items, ignoring case
+// and surrounding blanks.
 func incidentIDInSlice(id string, items []string) bool {
 	id = strings.TrimSpace(id)
 	if id == "" {
@@ -105,8 +115,9 @@ func incidentIDInSlice(id string, items []string) bool {
 	return false
 }
 
-func (l operatorWakeLineage) hasAny() bool {
-	return strings.TrimSpace(l.incidentID) != "" ||
-		strings.TrimSpace(l.rootIncidentID) != "" ||
-		strings.TrimSpace(l.parentIncidentID) != ""
+// hasAny reports whether the lineage names an incident at all.
+func (l IncidentLineage) hasAny() bool {
+	return strings.TrimSpace(l.IncidentID) != "" ||
+		strings.TrimSpace(l.RootIncidentID) != "" ||
+		strings.TrimSpace(l.ParentIncidentID) != ""
 }
