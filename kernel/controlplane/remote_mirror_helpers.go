@@ -1,30 +1,21 @@
 package controlplane
 
 // Provenance: SPDX-License-Identifier: MIT kernel/controlplane remote-mirror typed
-//             helpers (remoteEventMirrorMode, lookupNodePeer, redactedRemotePayload,
-//             remoteMirrorPayloadMode). Extracted from remote_mirror.go during Day
-//             211 god-file refactor (#86). Public API unchanged.
+//             helpers (lookupNodePeer, redactedRemotePayload). Extracted from
+//             remote_mirror.go during Day 211 god-file refactor (#86). Public API
+//             unchanged.
+//
+// The mirror's mode policy and its payload mode moved to the application layer
+// (`kernel/app/remote/mirror.go`). What stays here is the host's data access:
+// the peer configuration and the redactor.
 
 import (
 	"encoding/json"
-	"os"
-	"strings"
 
-	"github.com/agezt/agezt/internal/brand"
 	appnodes "github.com/agezt/agezt/kernel/app/nodes"
 	"github.com/agezt/agezt/kernel/redact"
 )
 
-func remoteEventMirrorMode() string {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(brand.EnvPrefix + "REMOTE_EVENT_MIRROR"))) {
-	case "1", "true", "yes", "on", "metadata":
-		return "metadata"
-	case "redacted", "payload", "payload-redacted":
-		return "redacted"
-	default:
-		return ""
-	}
-}
 func (s *Server) lookupNodePeer(name string) (appnodes.Peer, bool, error) {
 	peers, err := appnodes.ParsePeers(s.nodePeerSpec())
 	if err != nil {
@@ -37,6 +28,7 @@ func (s *Server) lookupNodePeer(name string) (appnodes.Peer, bool, error) {
 	}
 	return appnodes.Peer{}, false, nil
 }
+
 func redactedRemotePayload(raw json.RawMessage) (any, bool) {
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil, false
@@ -47,10 +39,4 @@ func redactedRemotePayload(raw json.RawMessage) (any, bool) {
 		return nil, false
 	}
 	return payload, true
-}
-func remoteMirrorPayloadMode(mode string) string {
-	if mode == "redacted" {
-		return "redacted"
-	}
-	return "none"
 }

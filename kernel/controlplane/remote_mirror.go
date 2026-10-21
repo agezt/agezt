@@ -4,77 +4,31 @@ package controlplane
 //             execution-profile event handler (mirrorRemoteExecutionProfileEvents).
 //             Extracted from remote_mirror.go during Day 211 god-file refactor
 //             (#86). Public API unchanged.
+//
+// The mirror's DECISIONS live in the application layer
+// (`kernel/app/remote/mirror.go`): whether the mirror runs, what a missing
+// peer or a failing peer looks like, which fields of a peer event travel and
+// whether a payload is redacted before it travels. What stays here is the
+// host's data access: the peer lookup, the two peer HTTP fetches, the
+// redactor and the journal publish.
 
 import (
 	"context"
-	"strings"
 
+	appremote "github.com/agezt/agezt/kernel/app/remote"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
 func (s *Server) mirrorRemoteExecutionProfileEvents(ctx context.Context, k *runtime.Kernel, corr string, meta map[string]string) {
-	mode := remoteEventMirrorMode()
-	if mode == "" {
-		return
-	}
-	peerName := strings.TrimSpace(meta["remote_peer"])
-	remoteCorr := strings.TrimSpace(meta["remote_correlation"])
-	if peerName == "" || remoteCorr == "" {
-		_ = appruns.PublishRemoteRunEvent(k, corr, event.KindInfo, "remote", map[string]any{
-			"profile": "remote-agezt",
-			"phase":   "peer_events_unavailable",
-			"mode":    mode,
-			"error":   "remote peer/correlation metadata missing",
-		})
-		return
-	}
-	peer, ok, err := s.lookupNodePeer(peerName)
-	if err != nil || !ok {
-		msg := "peer not found"
-		if err != nil {
-			msg = err.Error()
-		}
-		_ = appruns.PublishRemoteRunEvent(k, corr, event.KindInfo, "remote", map[string]any{
-			"profile":            "remote-agezt",
-			"phase":              "peer_events_unavailable",
-			"mode":               mode,
-			"remote_peer":        peerName,
-			"remote_correlation": remoteCorr,
-			"error":              msg,
-		})
-		return
-	}
-	events, truncated, err := fetchRemoteEvents(ctx, peer, remoteCorr, mode)
-	if err != nil {
-		_ = appruns.PublishRemoteRunEvent(k, corr, event.KindInfo, "remote", map[string]any{
-			"profile":            "remote-agezt",
-			"phase":              "peer_events_unavailable",
-			"mode":               mode,
-			"remote_peer":        peerName,
-			"remote_correlation": remoteCorr,
-			"error":              err.Error(),
-		})
-		return
-	}
-	payload := map[string]any{
-		"profile":            "remote-agezt",
-		"phase":              "peer_events_mirrored",
-		"mode":               mode,
-		"payload_mode":       remoteMirrorPayloadMode(mode),
-		"remote_peer":        peerName,
-		"remote_correlation": remoteCorr,
-		"count":              len(events),
-		"truncated":          truncated,
-		"events":             events,
-	}
-	if artifacts, artifactTruncated, artifactErr := fetchRemoteArtifacts(ctx, peer, remoteCorr); artifactErr == nil {
-		payload["artifact_count"] = len(artifacts)
-		payload["artifacts_truncated"] = artifactTruncated
-		payload["artifacts"] = artifacts
-	} else {
-		payload["artifacts_unavailable"] = artifactErr.Error()
-	}
-	_ = appruns.PublishRemoteRunEvent(k, corr, event.KindInfo, "remote", payload)
+	appremote.Mirror(ctx, appremote.MirrorPorts{
+		LookupPeer:     s.lookupNodePeer,
+		FetchEvents:    fetchRemoteEvents,
+		FetchArtifacts: fetchRemoteArtifacts,
+		Redact:         redactedRemotePayload,
+		Publish: func(ctx context.Context, corr string, kind event.Kind, suffix string, payload map[string]any) error {
+			return appruns.PublishRemoteRunEvent(k, corr, kind, suffix, payload)
+		},
+	}, appremote.EnvMode(), corr, meta)
 }
