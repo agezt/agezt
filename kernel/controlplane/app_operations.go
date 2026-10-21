@@ -773,10 +773,12 @@ var rosterResolveOperations = func() []app.Operation {
 			},
 			HelpRequest: s.postOperatorHelp,
 			ExhaustedChain: func(slug string, l approster.IncidentLineage, taskType string) []string {
-				return latestExhaustedRoutingChain(s.k, slug, operatorWakeLineage{incidentID: l.IncidentID, rootIncidentID: l.RootIncidentID, parentIncidentID: l.ParentIncidentID}, taskType)
+				return approster.LatestExhaustedRoutingChain(s.k.Journal().Range, slug, l, taskType)
 			},
-			ForceGeneration: func(slug, taskType string) int { return latestOperatorForceGeneration(s.k, slug, taskType) },
-			ApplyChain:      s.applyRoutingChain,
+			ForceGeneration: func(slug, taskType string) int {
+				return approster.LatestOperatorForceGeneration(s.k.Journal().Range, slug, taskType)
+			},
+			ApplyChain: s.applyRoutingChain,
 		})
 	})
 	if err != nil {
@@ -791,7 +793,7 @@ var rosterRepairOperations = func() []app.Operation {
 		return approster.NewRepair(s.k.Roster().Get, s.k.NewCorrelation, func(subject, corr string, payload map[string]any) {
 			publishOperatorAction(s.k, subject, corr, payload)
 		}, func(corr string, p roster.Profile, reason string, l approster.IncidentLineage) {
-			go s.launchOperatorRepair(corr, p, reason, operatorWakeLineage{incidentID: l.IncidentID, rootIncidentID: l.RootIncidentID, parentIncidentID: l.ParentIncidentID})
+			go s.launchOperatorRepair(corr, p, reason, l)
 		})
 	})
 	if err != nil {
@@ -806,7 +808,7 @@ var rosterWakeOperations = func() []app.Operation {
 		return approster.NewWake(s.k.Roster().Get, s.k.NewCorrelation, func(subject, corr string, payload map[string]any) {
 			publishOperatorAction(s.k, subject, corr, payload)
 		}, func(corr string, p roster.Profile, intent, reason string, l approster.IncidentLineage) {
-			go s.launchOperatorWake(corr, p, intent, reason, operatorWakeLineage{incidentID: l.IncidentID, rootIncidentID: l.RootIncidentID, parentIncidentID: l.ParentIncidentID})
+			go s.launchOperatorWake(corr, p, intent, reason, l)
 		})
 	})
 	if err != nil {

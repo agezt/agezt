@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
@@ -104,5 +105,5 @@ func TestAgentRepairNativeLaunchCarriesLineage(t *testing.T) {
 // in the application layer's launcher; this proves the native adapter keeps it.
 func TestAgentRepairRunContainsPanics(t *testing.T) {
 	s := &Server{} // nil kernel: the repair source dereferences it and panics
-	s.launchOperatorRepair("corr", roster.Profile{Slug: "ops"}, "why", operatorWakeLineage{})
+	s.launchOperatorRepair("corr", roster.Profile{Slug: "ops"}, "why", approster.IncidentLineage{})
 }
