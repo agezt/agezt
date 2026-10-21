@@ -3,6 +3,7 @@
 package controlplane
 
 import (
+	approster "github.com/agezt/agezt/kernel/app/roster"
 	appschedule "github.com/agezt/agezt/kernel/app/schedule"
 	"github.com/agezt/agezt/kernel/cadence"
 )
@@ -13,7 +14,7 @@ func (s *Server) scheduleAdmission() *appschedule.Admission {
 		WorkflowName:       func(ref string) (string, bool) { w, ok := s.k.Workflows().Get(ref); return w.Name, ok },
 		Workflow:           func(ref string) bool { _, ok := s.k.Workflows().Get(ref); return ok },
 		Tool:               func(name string) bool { _, ok := s.k.Tools()[name]; return ok },
-		ManagedDirectError: managedSubagentDirectCallError,
+		ManagedDirectError: approster.ManagedDirectCallError,
 	})
 }
 func (s *Server) validateScheduleRunnable(e cadence.Entry) error {

@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.47 typed operator resolve journal reads, 2026-10-21
+## Current checkpoint — W2.48 typed agent teardown orchestration, 2026-10-21
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -209,6 +209,20 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   it `kernel/controlplane/roster_helpers.go` — the payload accessors whose
   last readers the moved helpers were. The archcheck allowlist stays at 129
   import violations and 13 call sites.
+- W2.48 (typed agent teardown orchestration) is committed on `main` as a code
+  commit plus a docs commit and published from `arch/w2-dispatch` the same
+  way. `kernel/app/roster/teardown.go` (163 lines) gains the teardown's
+  orchestration over a store port set: `RetireSubagents`,
+  `RemoveStandingOrders`, `PauseStandingOrders`, `CountPausedStandingOrders`,
+  `RemoveSchedules`, `PauseSchedules` and `CountPausedSchedules`, moved
+  verbatim with the switch semantics, the case-insensitive agent match, the
+  "only what the store actually had" counting, the enabled-only pauses and
+  the sorted retired slugs. `kernel/controlplane/roster_crud_internal.go`
+  (12 lines — a one-line wrapper around the app's own
+  `ManagedDirectCallError`, whose three call sites now call the app directly)
+  and `kernel/controlplane/roster_activity_text.go` (a header-only file left
+  by an earlier split, with no code) are gone. The archcheck allowlist stays
+  at 129 import violations and 13 call sites.
   `whoami` is now the only native command left, and it stays native by design:
   it echoes the transport principal and must not route the tenant it names.
 - W2.45a (typed roster status collection) is committed on `main` as a code
@@ -595,8 +609,13 @@ the exhausted-chain lookup and the force-generation lookup, with the
 incident-lineage matching — and with them the native `operatorWakeLineage`
 transport type:
 [114-w247-typed-operator-resolve-journal-evidence.md](114-w247-typed-operator-resolve-journal-evidence.md).
-Next: the roster teardown, the impact cascade and the lifecycle helpers —
-the rest of the roster domain — and then the remaining order-7 domains.
+W2.48 moved the agent teardown's orchestration into the same package — which
+standing orders and schedules belong to the agent, and what a teardown
+retires, pauses or removes — and with it the last native wrappers:
+[115-w248-typed-agent-teardown-orchestration-evidence.md](115-w248-typed-agent-teardown-orchestration-evidence.md).
+Next: the teardown's state cleanup (`roster_teardown_state.go`), the impact
+cascade (`roster_cascade.go`) and the lifecycle helpers — the rest of the
+roster domain — and then the remaining order-7 domains.
 
 Follow-up recorded, not done: CI's `race-depth` stress runs
 `./kernel/controlplane/...` with `-race -count=20 -timeout=20m`; that package

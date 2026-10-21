@@ -2,133 +2,70 @@
 
 package controlplane
 
-// Provenance: Agent teardown orchestration hooks: retireAgentSubagents + the
-//             standing hooks + the schedule hooks. These are the high-level "what
-//             should this agent stop doing" mutators. The state-store cleanup
-//             (memory + skills + config + workspace) lives in
-//             roster_teardown_state.go. Extracted from roster_teardown.go during the
-//             Day-204 god-file split. Public API unchanged.
+// The agent teardown's host bindings: the standing-order and schedule stores
+// the application's teardown decisions act on. The DECISIONS — which orders
+// and schedules belong to the agent, what a teardown retires, pauses or
+// removes — live in the application layer
+// (`kernel/app/roster/teardown.go`); what stays here is the host's data
+// access: the stores and their writes.
 
 import (
-	"sort"
-	"strings"
-
-	"github.com/agezt/agezt/kernel/roster"
+	approster "github.com/agezt/agezt/kernel/app/roster"
+	"github.com/agezt/agezt/kernel/cadence"
+	core "github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/standing"
 )
 
-func (s *Server) retireAgentSubagents(parent string, children []roster.Profile, on bool) (int, []string, error) {
-	if !on {
-		return 0, nil, nil
+// teardownPorts binds the host's stores to the application's teardown.
+func (s *Server) teardownPorts() approster.TeardownPorts {
+	return approster.TeardownPorts{
+		RetireChild: func(slug, reason string) error {
+			_, err := s.k.SetProfileRetired(slug, true, reason)
+			return err
+		},
+		Standing:           func() []standing.Order { return s.k.Standing().List() },
+		RemoveStanding:     func(id string) (bool, error) { return s.k.RemoveStanding(id) },
+		SetStandingEnabled: func(id string, enabled bool) error { _, err := s.k.SetStandingEnabled(id, enabled); return err },
+		Schedules:          func() []cadence.Entry { return s.k.Schedules().List() },
+		RemoveSchedule:     func(id string) (bool, error) { return s.k.Schedules().Remove(id) },
+		SetScheduleEnabled: func(id string, enabled bool) (bool, error) { return s.k.Schedules().SetEnabled(id, enabled) },
 	}
-	retired := 0
-	slugs := []string{}
-	reason := "parent/owner " + parent + " removed"
-	for _, child := range children {
-		if child.Retired {
-			continue
-		}
-		if _, err := s.k.SetProfileRetired(child.Slug, true, reason); err != nil {
-			return retired, slugs, err
-		}
-		if _, err := s.pauseAgentStanding(child.Slug); err != nil {
-			return retired, slugs, err
-		}
-		if _, err := s.pauseAgentSchedules(child.Slug); err != nil {
-			return retired, slugs, err
-		}
-		slugs = append(slugs, child.Slug)
-		retired++
-	}
-	sort.Strings(slugs)
-	return retired, slugs, nil
 }
 
+// retireAgentSubagents retires the agent's sub-agents and pauses what they
+// still wake.
+func (s *Server) retireAgentSubagents(parent string, children []core.Profile, on bool) (int, []string, error) {
+	return approster.RetireSubagents(s.teardownPorts(), parent, children, on)
+}
+
+// removeAgentStanding removes the standing orders that wake the agent.
 func (s *Server) removeAgentStanding(slug string, on bool) (int, error) {
-	if !on {
-		return 0, nil
-	}
-	removed := 0
-	for _, o := range s.k.Standing().List() {
-		if strings.EqualFold(strings.TrimSpace(o.Agent), slug) {
-			ok, err := s.k.RemoveStanding(o.ID)
-			if err != nil {
-				return removed, err
-			}
-			if ok {
-				removed++
-			}
-		}
-	}
-	return removed, nil
+	return approster.RemoveStandingOrders(s.teardownPorts(), slug, on)
 }
 
+// pauseAgentStanding pauses the enabled standing orders that wake the agent.
 func (s *Server) pauseAgentStanding(slug string) (int, error) {
-	paused := 0
-	for _, o := range s.k.Standing().List() {
-		if !o.Enabled || !strings.EqualFold(strings.TrimSpace(o.Agent), slug) {
-			continue
-		}
-		if _, err := s.k.SetStandingEnabled(o.ID, false); err != nil {
-			return paused, err
-		}
-		paused++
-	}
-	return paused, nil
+	return approster.PauseStandingOrders(s.teardownPorts(), slug)
 }
 
+// countAgentPausedStanding reports how many of the agent's standing orders
+// are paused.
 func (s *Server) countAgentPausedStanding(slug string) int {
-	n := 0
-	for _, o := range s.k.Standing().List() {
-		if !o.Enabled && strings.EqualFold(strings.TrimSpace(o.Agent), slug) {
-			n++
-		}
-	}
-	return n
+	return approster.CountPausedStandingOrders(s.teardownPorts(), slug)
 }
 
+// removeAgentSchedules removes the schedules that wake the agent.
 func (s *Server) removeAgentSchedules(slug string, on bool) (int, error) {
-	if !on {
-		return 0, nil
-	}
-	removed := 0
-	for _, e := range s.k.Schedules().List() {
-		if strings.EqualFold(strings.TrimSpace(e.Agent), slug) {
-			ok, err := s.k.Schedules().Remove(e.ID)
-			if err != nil {
-				return removed, err
-			}
-			if ok {
-				removed++
-			}
-		}
-	}
-	return removed, nil
+	return approster.RemoveSchedules(s.teardownPorts(), slug, on)
 }
 
+// pauseAgentSchedules pauses the enabled schedules that wake the agent.
 func (s *Server) pauseAgentSchedules(slug string) (int, error) {
-	paused := 0
-	for _, e := range s.k.Schedules().List() {
-		if !e.Enabled || !strings.EqualFold(strings.TrimSpace(e.Agent), slug) {
-			continue
-		}
-		ok, err := s.k.Schedules().SetEnabled(e.ID, false)
-		if err != nil {
-			return paused, err
-		}
-		if ok {
-			paused++
-		}
-	}
-	return paused, nil
+	return approster.PauseSchedules(s.teardownPorts(), slug)
 }
 
+// countAgentPausedSchedules reports how many of the agent's schedules are
+// paused.
 func (s *Server) countAgentPausedSchedules(slug string) int {
-	n := 0
-	for _, e := range s.k.Schedules().List() {
-		if e.Enabled || !strings.EqualFold(strings.TrimSpace(e.Agent), slug) {
-			continue
-		}
-		n++
-	}
-	return n
+	return approster.CountPausedSchedules(s.teardownPorts(), slug)
 }

@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	approster "github.com/agezt/agezt/kernel/app/roster"
 	appworkboard "github.com/agezt/agezt/kernel/app/workboard"
 	"github.com/agezt/agezt/kernel/workboard"
 )
@@ -16,7 +17,7 @@ func (s *Server) workboardDispatcher() *appworkboard.Dispatch {
 			direct := p.AllowsDirectCall()
 			directError := ""
 			if !direct {
-				directError = managedSubagentDirectCallError(p, "dispatched")
+				directError = approster.ManagedDirectCallError(p, "dispatched")
 			}
 			return appworkboard.DispatchAgent{Slug: p.Slug, Retired: p.Retired, Enabled: p.Enabled, DirectAllowed: direct, DirectError: directError, Run: func(corr string, task workboard.Task, intent, reason string) {
 				s.runWorkboardDispatch(corr, p, task, intent, reason)
