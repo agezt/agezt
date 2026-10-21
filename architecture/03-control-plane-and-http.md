@@ -854,12 +854,12 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 
 | File | What it does |
 |---|---|
-| `app/roster/*.go` | Request codecs, typed outputs, specs and services for every roster operation (list, graveyard, activity + activity summary, repair status, escalations, set enabled, add/edit, task update, wake, repair, resolve, impact/tombstone, retire/revive, remove, permissions/capabilities), plus status presentation and typed snapshot rows. `permissions.go` owns the permission picture (tool rows, config visibility, wake access, governance) and the capability patch; `ConfigEntryBelongsToAgent` is shared with agent teardown. `status_sources.go` owns the journal-derived status collection: the single journal walk that fills the live run statuses, the last activity, the last autonomy runbook, the mailbox wakes, the policy denials and the routing/retry pressure, plus the live wake context, the live event summary, the routing-profile match and the model chain. `status_stores.go` owns the store-backed half of the same collection — the wake views, the escalation views, the repair summaries, the reaper mapping and the assembly (`CollectStatus`) — plus the repair cooldown's environment reader (`AutoRepairCooldown`). `launch.go` owns the operator launches: `LaunchOperatorWake` and `LaunchOperatorRepair` decide whether the run retries, what cost ceiling it carries, what the terminal event says and how a panicking governed repair is contained. `resolve_journal.go` owns the operator resolution's journal reads: the exhausted routing chain and the applied force generation. |
+| `app/roster/*.go` | Request codecs, typed outputs, specs and services for every roster operation (list, graveyard, activity + activity summary, repair status, escalations, set enabled, add/edit, task update, wake, repair, resolve, impact/tombstone, retire/revive, remove, permissions/capabilities), plus status presentation and typed snapshot rows. `permissions.go` owns the permission picture (tool rows, config visibility, wake access, governance) and the capability patch; `ConfigEntryBelongsToAgent` is shared with agent teardown. `status_sources.go` owns the journal-derived status collection: the single journal walk that fills the live run statuses, the last activity, the last autonomy runbook, the mailbox wakes, the policy denials and the routing/retry pressure, plus the live wake context, the live event summary, the routing-profile match and the model chain. `status_stores.go` owns the store-backed half of the same collection — the wake views, the escalation views, the repair summaries, the reaper mapping and the assembly (`CollectStatus`) — plus the repair cooldown's environment reader (`AutoRepairCooldown`). `launch.go` owns the operator launches: `LaunchOperatorWake` and `LaunchOperatorRepair` decide whether the run retries, what cost ceiling it carries, what the terminal event says and how a panicking governed repair is contained. `resolve_journal.go` owns the operator resolution's journal reads: the exhausted routing chain and the applied force generation. `teardown.go` owns the agent teardown's orchestration: which standing orders and schedules belong to the agent, and what a teardown retires, pauses or removes. |
 | `roster_list.go` | List service binding and list cache invalidation. |
-| `roster_crud_internal.go` | The managed sub-agent direct-call guard. |
+| `roster_crud_internal.go` | The managed sub-agent direct-call guard — moved to the app layer (`approster.ManagedDirectCallError`). |
 | `roster_lifecycle_helpers.go` | Sub-agent tree, workflow references and mailbox impact labels. |
 | `roster_cascade.go` | `nativeImpactSource` (per-agent holdings for impact/tombstone/retire/remove) and per-subsystem impact helpers. |
-| `roster_teardown.go` | Retire sub-agents; remove, pause and count standing orders and schedules for an agent. |
+| `roster_teardown.go` | The agent teardown's host bindings: the standing-order and schedule stores the app layer's teardown decisions act on. |
 | `roster_teardown_state.go` | Forget agent memory, archive skills, prune config-center entries/access refs, delete workspace. |
 | `roster_status_views.go` | The host's source binding for the app's status collection (the journal, the folded run rows, the schedules, the standing orders, the board's open help requests, the reaper scan) and the app StatusService window/render adapter. |
 | `roster_escalation.go` | The operator action bus: `publishOperatorAction` and the two thin adapters that bind the host's run and governed-repair capabilities to the app layer's launchers. |
@@ -867,7 +867,6 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `roster_resolve.go` | Resolve ports: operator help delegation and routing-chain application (`overseertool.NewKernelSource` → `ApplyRoutingChain`). |
 | `roster_workspace.go` | Workspace root (`AGEZT_WORKSPACE`) and file counts. |
 | `roster_helpers.go` | Payload accessors `plString/plStrings`, `intNumber` — moved to the app layer with their last readers. |
-| `roster_activity_text.go` | Header-only file left by a split (no code). |
 | `tool.go` | `tool_list` (+ catalog probe, rollback mode). |
 
 **Memory / world / skills / standing / schedules**
@@ -1516,5 +1515,5 @@ and warns when no console password is set.
   scoping is per-namespace, not per-subject.
 - **Hardcoded env names**: `platform/fileworkspace` and `webui/files_route*.go` read `"AGEZT_FILE_ROOT*"` literally instead of `brand.EnvPrefix`, and
   `runtime/compose.go` reads `"AGEZT_AGENTGW_SOCKET"` literally.
-- **Stale doc**: `kernel/restapi/doc.go` lost its package comment head (only the two update routes remain); `controlplane/roster_activity_text.go` is an empty header-only file.
+- **Stale doc**: `kernel/restapi/doc.go` lost its package comment head (only the two update routes remain).
 - Several ops are reachable only from the CLI by design (Web UI audit noted un-wired: `why`, `journal_export`, `pulse_asks`, `skill_read_file`, `toolbox_detect/outdated`).

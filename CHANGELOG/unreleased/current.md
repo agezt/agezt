@@ -891,6 +891,12 @@ This file holds the active `[Unreleased]` working set.
   and incident lineage — so a force-chain resolution still may not repeat an
   exhausted chain, and still supersedes the generation before it.
 
+- **The agent teardown is orchestrated by the application layer.** Removing
+  or retiring an agent still removes or pauses exactly the standing orders
+  and schedules that belong to it, still leaves another agent's alone, still
+  retires the sub-agents that are not already retired and still counts only
+  what the store actually had.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now
