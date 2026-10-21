@@ -904,6 +904,11 @@ This file holds the active `[Unreleased]` working set.
   entries that stay — and a workspace outside the workspace root is still
   refused.
 
+- **The impact preview's labels are derived by the application layer.** The
+  schedules, memory records, skills, config entries, workflow nodes and board
+  messages that belong to an agent are still listed with the same labels, in
+  the same order, and the sub-agent tree is still the same tree.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now
