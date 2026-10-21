@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.50 typed impact cascade, 2026-10-21
+## Current checkpoint — W2.51 typed workspace helpers, 2026-10-21
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -250,6 +250,15 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   the sorted sub-agent tree. The board's read limit stays in the host.
   `kernel/controlplane/roster_lifecycle_helpers.go` (121 lines) is gone. The
   archcheck allowlist stays at 129 import violations and 13 call sites.
+- W2.51 (typed workspace helpers) is committed on `main` as a code commit plus
+  a docs commit and published from `arch/w2-dispatch` the same way.
+  `kernel/app/roster/workspace.go` gains `WorkspaceInfo` (which path is safe
+  to look at and what the label says) and `WorkspaceRoot` (the
+  `AGEZT_WORKSPACE` override, else the base directory's `workspace` folder);
+  the control plane keeps the bindings and the directory walk. With this
+  slice the roster domain's derived logic is wholly in the application layer
+  — what the control plane keeps is the host's data access. The archcheck
+  allowlist stays at 129 import violations and 13 call sites.
   `whoami` is now the only native command left, and it stays native by design:
   it echoes the transport principal and must not route the tenant it names.
 - W2.45a (typed roster status collection) is committed on `main` as a code
@@ -648,9 +657,12 @@ W2.50 moved the impact derivation into the same package — which labels belong
 to the agent, how a mailbox message reads, whether a workflow node references
 the agent and which agents are its sub-agents:
 [117-w250-typed-impact-cascade-evidence.md](117-w250-typed-impact-cascade-evidence.md).
-Next: the workspace root helper (`roster_workspace.go`) and then the remaining
-order-7 domains — the roster domain's derived logic is now wholly in the
-application layer.
+W2.51 moved the workspace helpers into the same package — which path is safe
+to look at, what the label says and where the workspace root is — and with it
+the roster domain is done:
+[118-w251-typed-workspace-helpers-evidence.md](118-w251-typed-workspace-helpers-evidence.md).
+Next: the remaining order-7 domains — steer, journal, edict, tenant, shutdown
+and remote.
 
 Follow-up recorded, not done: CI's `race-depth` stress runs
 `./kernel/controlplane/...` with `-race -count=20 -timeout=20m`; that package

@@ -2,45 +2,48 @@
 
 package controlplane
 
-// Agent workspace helpers: file counts + root path lookup used by the
-// impact aggregation in roster_cascade.go. Carved out of roster.go during
-// the Day 24 god file split #9.
+// The agent workspace helpers' host bindings: the filesystem and the base
+// directory behind the application's workspace decisions. The DECISIONS —
+// which path is safe to look at, what the label says — live in the
+// application layer (`kernel/app/roster/workspace.go`); what stays here is
+// the host's data access.
 
 import (
-	"fmt"
-	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/platform/fileworkspace"
-	"github.com/agezt/agezt/kernel/roster"
 	"os"
 	"path/filepath"
-	"strings"
+
+	approster "github.com/agezt/agezt/kernel/app/roster"
+	core "github.com/agezt/agezt/kernel/roster"
 )
 
-func (s *Server) agentWorkspaceInfo(p roster.Profile) (string, bool) {
-	workdir := strings.TrimSpace(p.Workdir)
-	if workdir == "" {
-		return "", false
+// workspacePorts binds the host's filesystem to the application's workspace
+// helpers.
+func (s *Server) workspacePorts() approster.WorkspacePorts {
+	return approster.WorkspacePorts{
+		Root: s.agentWorkspaceRoot,
+		Stat: func(dir string) (bool, bool, error) {
+			info, err := os.Stat(dir)
+			if err != nil {
+				return false, false, err
+			}
+			return true, info.IsDir(), nil
+		},
+		CountTree: countTreeFiles,
 	}
-	root := s.agentWorkspaceRoot()
-	dir, ok := fileworkspace.ConfineUnder(root, workdir)
-	if !ok || filepath.Clean(dir) == filepath.Clean(root) {
-		return "", false
-	}
-	info, err := os.Stat(dir)
-	if err != nil || !info.IsDir() {
-		return "", false
-	}
-	files, bytes := countTreeFiles(dir)
-	return filepath.ToSlash(workdir) + fmt.Sprintf(" (%d file(s), %d bytes)", files, bytes), true
 }
 
+// agentWorkspaceInfo describes the agent's workspace — the path and what is
+// in it — when it has one.
+func (s *Server) agentWorkspaceInfo(p core.Profile) (string, bool) {
+	return approster.WorkspaceInfo(s.workspacePorts(), p)
+}
+
+// agentWorkspaceRoot is the root every agent workspace lives under.
 func (s *Server) agentWorkspaceRoot() string {
-	if ws := os.Getenv(brand.EnvPrefix + "WORKSPACE"); strings.TrimSpace(ws) != "" {
-		return ws
-	}
-	return filepath.Join(s.k.BaseDir(), "workspace")
+	return approster.WorkspaceRoot(s.k.BaseDir())
 }
 
+// countTreeFiles counts the files and the bytes under a directory.
 func countTreeFiles(root string) (int, int64) {
 	var files int
 	var bytes int64
