@@ -5,6 +5,7 @@ package controlplane
 import (
 	"time"
 
+	appruns "github.com/agezt/agezt/kernel/app/runs"
 	apptenants "github.com/agezt/agezt/kernel/app/tenants"
 )
 
@@ -22,7 +23,7 @@ func (s *Server) tenantService() *apptenants.Service {
 			return nil, err
 		}
 		return func() ([]apptenants.Run, error) {
-			entries, err := s.collectRuns(k)
+			entries, err := appruns.Collect(k.Journal().Range)
 			if err != nil {
 				return nil, err
 			}
