@@ -927,6 +927,12 @@ This file holds the active `[Unreleased]` working set.
   peer could not be reached — naming the peer and the correlation whenever
   they are known.
 
+- **The operation audit keeps one argument policy.** A journaled command
+  still redacts an argument whose name says it is a secret, still bounds a
+  long value, still reduces a nested value to its shape and still journals
+  nothing for an empty argument set — and the native and the typed command
+  paths now apply the same policy instead of two copies of it.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now

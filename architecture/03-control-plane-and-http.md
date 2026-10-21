@@ -117,8 +117,8 @@ Flags semantics (from `dispatch.go` comments, enforced by `dispatch_registry_tes
   deliberately NOT `StreamLive` to avoid two goroutines reading one conn.
 - **ReadOnly** — the op changes no state, so dispatch does not journal it (148 ops). Every other op (173) is journaled by
   dispatch (`dispatch_audit.go`, W2.1): `op.invoked` before the handler, then `op.completed` or `op.failed`, sharing one
-  correlation and written to the request's kernel (a tenant's own journal for tenant-routed ops). Arguments are summarized:
-  scalars verbatim (strings ≤ 160 runes), names containing key/token/secret/password/cred/auth/cookie/value/code/state/…
+  correlation and written to the request's kernel (a tenant's own journal for tenant-routed ops). Arguments are summarized by
+  the application (`app/opaudit`): scalars verbatim (strings ≤ 160 runes), names containing key/token/secret/password/cred/auth/cookie/value/code/state/…
   redacted, lists and objects reduced to their shape. The outcome is read from the terminal response `writeResp` writes
   through `auditedConn`. Omitting `ReadOnly` over-audits; it cannot under-audit.
 
@@ -687,6 +687,8 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `protocol_commands_edict.go` | `Cmd*` constants: edict/policy, state, artifact (32). |
 | `protocol_commands_misc.go` | `Cmd*` constants: workboard, OKR, taste, seat, update (36). |
 | `dispatch.go` | `DispatchCtx`, `Handler`, `StreamMode` (`StreamNone/StreamEvents/StreamLive`), `commandSpec`, `commandRegistry`, `register` (panics on dup/empty/nil). |
+| `dispatch_audit.go` | The audit step of the operation pipeline: `auditedConn` (the terminal response the outcome is read from), `opAudit` and the `op.invoked`/`op.completed`/`op.failed` journal events. What goes into their payloads is the application's (`app/opaudit`). |
+| `app_host.go` | The typed operation path's audit host: `appAuditor.Begin` and `appAuditSpan.End` journal the same operation events from the decoded operation input, and `appEmitter` preserves the native event envelope for the streaming operations. |
 | `registry.go` | `init()` → `registerAllCommands` (28 domain register funcs); hosts the themed groups for small files (journal logs, provider config, channels, daemon ops, cognition, misc). |
 | `server.go` | `Server` struct and early setters (`SetHTTPBindings`, `SetChannels`, `SetChannelSender`, `SetChatGPTSync`, `SetCredChain`, `SetBoard`, `SetUpdateService`, `SetDiskFree`, `SetCancelOnDisconnect`, `SetConfigEnvPinned`) + injected func types. |
 | `deps.go` | Two-phase DI: `Deps` + `NewServerWithDeps`, `LateDeps` + `Bind`. |
@@ -701,7 +703,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `client.go` | `Client`, `NewClient`, `ProbeExisting`, `ErrServerError`, `Call`, `CallRaw`, `Stream`, `StreamUntilCancel`. |
 | `client_helpers.go` | `dial` (5 s), `setReadDeadlineFromCtx`, timeout→ctx error mapping, `writeRequest`, `readOneResponse`, `toString`, `toBool`. |
 | `client_update.go` | Typed client wrappers `UpdateCheck`/`UpdateApply` and their result types; `Close`. |
-| `tenant.go` | `tenantService`: binds `app/tenants` to the daemon's registry (none when multi-tenancy is disabled) and each tenant's run activity (`kernelFor` + `collectRuns`). |
+| `tenant.go` | `tenantService`: binds `app/tenants` to the daemon's registry (none when multi-tenancy is disabled) and each tenant's run activity (`kernelFor` + the `app/runs` fold). |
 | `app/tenants/tenants.go` | Typed operator-only `tenant_create`/`token`/`release`/`remove` (audited; strict id, blank required, untrimmed) and read-only `tenant_list`/`tenant_stats` (per-tenant runs, outcomes, spend, last activity; error rows; closed tenants released again). |
 | `tenant_helpers.go` | `tenantOf`, `kernelFor` (Acquire tenant kernel), `SetTenants`. |
 | `shutdown.go` | `scheduleShutdown`: after the acknowledgement grace delay, closes `shutdownCh` so the daemon exits via the same path as SIGTERM. |
@@ -761,6 +763,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `app/edict/decisions.go` | Typed `edict_log` (strict denied/tool/capability, lenient page) and `edict_stats` (windowed fold, denial rate, denials by capability) over the routed kernel's `policy.decision` records; a malformed payload zeroes the whole decision. |
 | `app/providers/observation_operations.go` | Typed `provider_log`, `provider_stats`, `provider_rejections` over `routing.decision`/`provider.fallback` (the native `provider_log.go` was removed in an earlier provider slice). |
 | `app/audit/audit.go` | Typed guard audit reads: `netguard_log`, `ratelimit_log`/`ratelimit_stats`, `warden_log` (per-kind keys, `issues` filter)/`warden_stats` over `journalview.ProjectValues` and windowed folds. |
+| `app/opaudit/opargs.go` | The operation audit's argument policy: `IsSecretArg` (the thirteen secret-name fragments), `TruncateValue` (the 160-rune bound) and `SummarizeArgs` (the scalars, the list and object shapes and the redaction). The native and the typed command paths share it. |
 | `app/webhook/observability.go` | Delivery projection/stats over selected journal; native business handler file removed. |
 | `app/webhook/operations.go` | Two typed tenant read operations with compatible raw codecs and shared admission; existing log GET only. |
 | `tool_log.go` | `tool_log`, `tool_stats` over `tool.invoked/result`; input/latency joins use `(correlation_id, call_id)` so reused IDs in another run cannot contaminate a row or give a denied call phantom latency (W2.3a). |
