@@ -1,222 +1,98 @@
 // SPDX-License-Identifier: MIT
 
-// Agent teardown impact analysis: what removing or retiring an agent would
-// touch, across every subsystem that holds something on its behalf. Split from
-// roster.go (refactor Phase 3.5).
-
 package controlplane
 
-import (
-	"sort"
-	"strings"
+// The impact analysis' host bindings: the stores the application's impact
+// derivation reads. The DERIVATION — which labels belong to the agent, how a
+// mailbox message reads, whether a workflow node references the agent, which
+// agents are sub-agents — lives in the application layer
+// (`kernel/app/roster/impact_cascade.go`); what stays here is the host's
+// data access.
 
+import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
+	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/memory"
-	"github.com/agezt/agezt/kernel/roster"
+	core "github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/skill"
+	"github.com/agezt/agezt/kernel/workflow"
 )
+
+// impactPorts binds the host's stores to the application's impact
+// derivation.
+func (s *Server) impactPorts() approster.ImpactPorts {
+	return approster.ImpactPorts{
+		Schedules:     func() []cadence.Entry { return s.k.Schedules().List() },
+		MemoryRecords: func() ([]memory.Record, error) { return s.k.Memory().Active() },
+		Skills:        func() ([]skill.Skill, error) { return s.k.Forge().List() },
+		ConfigEntries: func() []*configcenter.ConfigEntry {
+			if s.k.ConfigCenter() == nil {
+				return nil
+			}
+			return s.k.ConfigCenter().ListEntries()
+		},
+		WorkspaceInfo: s.agentWorkspaceInfo,
+		Workflows: func() []workflow.Workflow {
+			if s.k.Workflows() == nil {
+				return nil
+			}
+			return s.k.Workflows().List()
+		},
+		Mailbox: func() []board.Message {
+			st, err := s.boardReader()
+			if err != nil || st == nil {
+				return nil
+			}
+			return st.Read("", boardReadMaxLimit)
+		},
+	}
+}
 
 // nativeImpactSource reads the teardown impact from the live subsystems. The
 // preview's shape and the sub-agent aggregation live in approster.ImpactService.
 type nativeImpactSource struct{ s *Server }
 
-func (n nativeImpactSource) Get(ref string) (roster.Profile, bool) { return n.s.k.Roster().Get(ref) }
+func (n nativeImpactSource) Get(ref string) (core.Profile, bool) { return n.s.k.Roster().Get(ref) }
 
-func (n nativeImpactSource) Subagents(slug string) []roster.Profile { return n.s.agentSubagents(slug) }
+func (n nativeImpactSource) Subagents(slug string) []core.Profile {
+	return approster.Subagents(n.s.k.Roster().List(), slug)
+}
 
-func (n nativeImpactSource) Holdings(p roster.Profile) approster.ImpactHoldings {
-	s := n.s
+func (n nativeImpactSource) Holdings(p core.Profile) approster.ImpactHoldings {
+	ports := n.s.impactPorts()
 	return approster.ImpactHoldings{
-		StandingOrders:         s.k.AgentImpact(p.Slug),
-		Schedules:              s.agentScheduleImpact(p),
-		Memories:               s.agentMemoryImpact(p),
-		AuthoredSharedMemories: s.agentAuthoredSharedMemoryImpact(p),
-		Skills:                 s.agentSkillImpact(p),
-		Configs:                s.agentConfigImpact(p),
-		Workspaces:             s.agentWorkspaceImpact(p),
-		WorkflowRefs:           s.agentWorkflowImpact(p),
-		MailboxMessages:        s.agentMailboxImpact(p),
+		StandingOrders:         n.s.k.AgentImpact(p.Slug),
+		Schedules:              approster.ScheduleImpact(ports, p),
+		Memories:               approster.MemoryImpact(ports, p),
+		AuthoredSharedMemories: approster.AuthoredSharedMemoryImpact(ports, p),
+		Skills:                 approster.SkillImpact(ports, p),
+		Configs:                approster.ConfigImpact(ports, p),
+		Workspaces:             approster.WorkspaceImpact(ports, p),
+		WorkflowRefs:           approster.WorkflowImpact(ports, p),
+		MailboxMessages:        approster.MailboxImpact(ports, p),
 	}
 }
 
+// impactService binds the live subsystems to the application's impact
+// service.
 func (s *Server) impactService() *approster.ImpactService {
 	return approster.NewImpact(nativeImpactSource{s})
 }
 
-func (s *Server) agentScheduleImpact(p roster.Profile) []string {
-	var out []string
-	for _, e := range s.k.Schedules().List() {
-		if strings.EqualFold(strings.TrimSpace(e.Agent), p.Slug) {
-			label := e.Intent
-			if strings.TrimSpace(label) == "" {
-				label = e.ID
-			}
-			out = append(out, label+" ("+e.ID+")")
-		}
-	}
-	sort.Strings(out)
-	return out
+// agentSubagents returns the agent's sub-agent tree.
+func (s *Server) agentSubagents(slug string) []core.Profile {
+	return approster.Subagents(s.k.Roster().List(), slug)
 }
 
-func (s *Server) agentMemoryImpact(p roster.Profile) []string {
-	scope := strings.TrimSpace(p.MemoryScope)
-	if scope == "" {
-		scope = p.Slug
-	}
-	records, err := s.k.Memory().Active()
-	if err != nil {
-		return nil
-	}
-	var out []string
-	for _, r := range records {
-		if approster.MemoryRecordBelongsToAgent(r, scope) {
-			out = append(out, memoryRecordLabel(r))
-		}
-	}
-	sort.Strings(out)
-	return out
+// agentRemovalMailboxImpact is the removal payload's retained-message list:
+// the agent's own threads plus, when sub-agents are cascaded, theirs.
+func (s *Server) agentRemovalMailboxImpact(slug string, subagents []core.Profile, includeSubagents bool) []string {
+	return approster.RemovalMailboxImpact(s.impactPorts(), slug, subagents, includeSubagents)
 }
 
-func (s *Server) agentAuthoredSharedMemoryImpact(p roster.Profile) []string {
-	records, err := s.k.Memory().Active()
-	if err != nil {
-		return nil
-	}
-	var out []string
-	for _, r := range records {
-		if approster.MemoryRecordAuthoredSharedByAgent(r, p.Slug) {
-			out = append(out, memoryRecordLabel(r))
-		}
-	}
-	sort.Strings(out)
-	return out
+// agentWorkflowImpact lists the workflow nodes that reference the agent.
+func (s *Server) agentWorkflowImpact(p core.Profile) []string {
+	return approster.WorkflowImpact(s.impactPorts(), p)
 }
-
-// memoryRecordLabel names a record by its subject, falling back to its id when
-// a record was stored without one.
-func memoryRecordLabel(r memory.Record) string {
-	subj := strings.TrimSpace(r.Subject)
-	if subj == "" {
-		subj = r.ID
-	}
-	return subj + " (" + r.ID + ")"
-}
-
-func (s *Server) agentSkillImpact(p roster.Profile) []string {
-	all, err := s.k.Forge().List()
-	if err != nil {
-		return nil
-	}
-	var out []string
-	for _, sk := range all {
-		if strings.EqualFold(strings.TrimSpace(sk.Agent), p.Slug) && sk.Status != skill.StatusArchived {
-			name := strings.TrimSpace(sk.Name)
-			if name == "" {
-				name = sk.ID
-			}
-			out = append(out, name+" ("+sk.ID+")")
-		}
-	}
-	sort.Strings(out)
-	return out
-}
-
-func (s *Server) agentConfigImpact(p roster.Profile) []string {
-	if s.k.ConfigCenter() == nil {
-		return nil
-	}
-	var out []string
-	for _, e := range s.k.ConfigCenter().ListEntries() {
-		if approster.ConfigEntryBelongsToAgent(e, p.Slug) {
-			label := strings.TrimSpace(e.Key)
-			if e.Rating != "" {
-				label += " [" + string(e.Rating) + "]"
-			}
-			out = append(out, label)
-		}
-	}
-	sort.Strings(out)
-	return out
-}
-
-func (s *Server) agentWorkspaceImpact(p roster.Profile) []string {
-	info, ok := s.agentWorkspaceInfo(p)
-	if !ok {
-		return nil
-	}
-	return []string{info}
-}
-
-func (s *Server) agentWorkflowImpact(p roster.Profile) []string {
-	slug := strings.TrimSpace(p.Slug)
-	if slug == "" || s.k.Workflows() == nil {
-		return nil
-	}
-	var out []string
-	for _, w := range s.k.Workflows().List() {
-		for _, n := range w.Nodes {
-			if !workflowNodeConfigReferencesAgent(n.Config, slug) {
-				continue
-			}
-			label := w.Name + "/" + n.ID
-			if strings.TrimSpace(n.Label) != "" {
-				label += " " + strings.TrimSpace(n.Label)
-			}
-			label += " [" + n.Type + "]"
-			out = append(out, label)
-		}
-	}
-	sort.Strings(out)
-	return out
-}
-
-func (s *Server) agentMailboxImpact(p roster.Profile) []string {
-	st, err := s.boardReader()
-	if err != nil {
-		return nil
-	}
-	slug := strings.ToLower(strings.TrimSpace(p.Slug))
-	if slug == "" {
-		return nil
-	}
-	var out []string
-	for _, msg := range st.Read("", boardReadMaxLimit) {
-		if label, ok := agentMailboxImpactLabel(msg, slug); ok {
-			out = append(out, label)
-		}
-	}
-	sort.Strings(out)
-	return out
-}
-
-// agentRemovalMailboxImpact is the removal payload's retained-message list: the
-// agent's own threads plus, when sub-agents are cascaded, theirs — DEDUPED,
-// because a message between a parent and its child appears in both.
-func (s *Server) agentRemovalMailboxImpact(slug string, subagents []roster.Profile, includeSubagents bool) []string {
-	seen := map[string]bool{}
-	add := func(labels []string) {
-		for _, label := range labels {
-			if strings.TrimSpace(label) != "" {
-				seen[label] = true
-			}
-		}
-	}
-	add(s.agentMailboxImpact(roster.Profile{Slug: slug}))
-	if includeSubagents {
-		for _, child := range subagents {
-			add(s.agentMailboxImpact(child))
-		}
-	}
-	out := make([]string, 0, len(seen))
-	for label := range seen {
-		out = append(out, label)
-	}
-	sort.Strings(out)
-	return out
-}
-
-// The predicates these listers apply — agentMailboxImpactLabel,
-// workflowNodeConfigReferencesAgent, memoryRecordBelongsToAgent,
-// memoryRecordAuthoredSharedByAgent — stay in roster.go alongside the mutators
-// that share them; configEntryBelongsToAgent is approster.ConfigEntryBelongsToAgent,
-// shared with the agent permission picture.
