@@ -920,6 +920,13 @@ This file holds the active `[Unreleased]` working set.
   budget event for an unknown run still conjures nothing, and the answer
   excerpt is still a single collapsed line of at most 80 runes.
 
+- **The remote run mirror is decided by the application layer.** A delegated
+  run still mirrors its peer's event metadata the same way, still mirrors the
+  redacted payloads only in the redacted mode, still mirrors the peer's
+  artifact descriptions and never their bytes, and still says why when the
+  peer could not be reached — naming the peer and the correlation whenever
+  they are known.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now
