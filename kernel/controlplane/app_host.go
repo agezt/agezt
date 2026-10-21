@@ -8,8 +8,8 @@ import (
 	"errors"
 	"net"
 	"time"
-	"unicode/utf8"
 
+	"github.com/agezt/agezt/kernel/app/opaudit"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -50,7 +50,7 @@ func (appAuditor) Begin(ctx context.Context, record opapi.AuditRecord) (opapi.Au
 	if record.Principal.Tenant != "" {
 		payload["tenant"] = record.Principal.Tenant
 	}
-	if redacted := auditArgs(args); redacted != nil {
+	if redacted := opaudit.SummarizeArgs(args); redacted != nil {
 		payload["args"] = redacted
 	}
 	if _, err := host.kernel.Bus().Publish(event.Spec{
@@ -73,11 +73,7 @@ func (s *appAuditSpan) End(_ context.Context, cause error) error {
 	payload := map[string]any{"op": s.operation, "duration_ms": time.Since(s.start).Milliseconds()}
 	if cause != nil {
 		kind = event.KindOpFailed
-		message := cause.Error()
-		if utf8.RuneCountInString(message) > auditValueMax {
-			message = string([]rune(message)[:auditValueMax]) + "…"
-		}
-		payload["error"] = message
+		payload["error"] = opaudit.TruncateValue(cause.Error())
 	}
 	_, err := s.host.kernel.Bus().Publish(event.Spec{
 		Subject: "op." + s.operation, Kind: kind, Actor: "controlplane",

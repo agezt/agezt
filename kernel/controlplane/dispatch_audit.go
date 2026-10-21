@@ -11,12 +11,10 @@ package controlplane
 
 import (
 	"net"
-	"sort"
-	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
+	"github.com/agezt/agezt/kernel/app/opaudit"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 )
@@ -52,65 +50,6 @@ func (c *auditedConn) outcome() (settled bool, errMsg string) {
 	return c.settled, c.errMsg
 }
 
-// auditValueMax bounds a journaled string argument.
-const auditValueMax = 160
-
-// secretArgFragments mark an argument whose value must never be journaled.
-// The bus redactor scrubs secrets it already knows, but a key arriving in
-// this very request (provider_key_add, an OAuth code) is not known yet.
-var secretArgFragments = []string{
-	"key", "token", "secret", "password", "passwd", "passphrase", "cred",
-	"auth", "cookie", "value", "private", "signature", "code", "state",
-}
-
-func secretArg(name string) bool {
-	n := strings.ToLower(name)
-	for _, frag := range secretArgFragments {
-		if strings.Contains(n, frag) {
-			return true
-		}
-	}
-	return false
-}
-
-// auditArgs summarizes request arguments for the journal: scalars verbatim
-// (strings truncated), secret-named arguments redacted, and nested values
-// reduced to their shape so a secret inside them cannot reach the journal.
-func auditArgs(args map[string]any) map[string]any {
-	if len(args) == 0 {
-		return nil
-	}
-	out := make(map[string]any, len(args))
-	for k, v := range args {
-		if secretArg(k) {
-			out[k] = "[redacted]"
-			continue
-		}
-		switch x := v.(type) {
-		case nil:
-		case string:
-			if utf8.RuneCountInString(x) > auditValueMax {
-				x = string([]rune(x)[:auditValueMax]) + "…"
-			}
-			out[k] = x
-		case bool, float64, int, int64:
-			out[k] = x
-		case []any:
-			out[k] = "[list]"
-		case map[string]any:
-			keys := make([]string, 0, len(x))
-			for kk := range x {
-				keys = append(keys, kk)
-			}
-			sort.Strings(keys)
-			out[k] = "[object: " + strings.Join(keys, ",") + "]"
-		default:
-			out[k] = "[value]"
-		}
-	}
-	return out
-}
-
 // opAudit journals one state-changing command's invocation and outcome.
 type opAudit struct {
 	k     *runtime.Kernel
@@ -140,7 +79,7 @@ func beginOpAudit(dc *DispatchCtx) *opAudit {
 	if dc.Tenant != "" {
 		payload["tenant"] = dc.Tenant
 	}
-	if args := auditArgs(dc.Req.Args); args != nil {
+	if args := opaudit.SummarizeArgs(dc.Req.Args); args != nil {
 		payload["args"] = args
 	}
 	_, _ = k.Bus().Publish(event.Spec{
@@ -171,10 +110,7 @@ func (a *opAudit) end(panicked bool) {
 	case !settled:
 		kind, payload["error"] = event.KindOpFailed, "ended without a response (client gone?)"
 	case errMsg != "":
-		if utf8.RuneCountInString(errMsg) > auditValueMax {
-			errMsg = string([]rune(errMsg)[:auditValueMax]) + "…"
-		}
-		kind, payload["error"] = event.KindOpFailed, errMsg
+		kind, payload["error"] = event.KindOpFailed, opaudit.TruncateValue(errMsg)
 	}
 	_, _ = a.k.Bus().Publish(event.Spec{
 		Subject:       "op." + a.cmd,

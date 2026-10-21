@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.53 typed remote mirror, 2026-10-21
+## Current checkpoint — W2.54 typed operation-audit argument policy, 2026-10-21
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -308,6 +308,27 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   `whoami` is the only native command left, and it stays native by design).
   The remote mirror was the last real decision logic of that list, and this
   slice takes it.
+- W2.54 (typed operation-audit argument policy) is committed on `main` as a
+  code commit plus a docs commit and published from `arch/w2-dispatch` the
+  same way. `kernel/app/opaudit/opargs.go` (a new package) gains
+  `IsSecretArg`, `TruncateValue` and `SummarizeArgs`, moved verbatim with the
+  thirteen secret-name fragments, the case-insensitive match, the 160-rune
+  bound with its ellipsis, the scalar/list/object/unknown shapes, the sorted
+  object keys and the dropped nil argument. The native `auditValueMax`,
+  `secretArgFragments`, `secretArg` and `auditArgs` are gone; the native
+  dispatch path and the typed operation path now share one implementation, so
+  the two audit trails cannot drift apart. The package is new because
+  `kernel/app/audit` owns the GUARD audit reads, which are a different audit.
+  19 mutations, 19 caught, no equivalent recorded. The archcheck allowlist
+  stays at 129 import violations and 13 call sites; the package count is 270
+  because `kernel/app/opaudit` is new.
+  The control plane's remaining derived logic is now thin: the re-projections
+  between the application's row types (`app_operations.go` for the council,
+  budget, routing and plugin rows, `schedule_helpers.go` for the schedule
+  firing rows, `tenant.go` for the tenant run rows), the one confirmed
+  duplicate (`workboard_dispatch.go:66-86` mirrors the warden branch of
+  `app/runs/run_resolve.go:311-319`) and one dead constant
+  (`boardReadDefaultLimit` in `board.go:16`).
 - W2.45a (typed roster status collection) is committed on `main` as a code
   commit plus a docs commit and published from `arch/w2-dispatch` the same way.
   `kernel/controlplane/roster_status.go` (371 lines) is gone: the journal-derived
@@ -742,18 +763,19 @@ Preserve unrelated dirty changes: deletions of
 
 ### Next
 
-Continue roadmap §4.5/order 7 after the completed roster, steer, run-fold and
-remote-mirror domains: the tenant run projection (the control plane still
-re-projects the folded runs into `apptenants.Run`, a duplicate of the
-application's own row type), the journal read limit and its cursor handling,
-and the remote mirror's two remaining duplicates (the environment value that
-the settings store also declares, and the peer list's parser that the
-application layer already owns). Wider run/tool adapter convergence, W3
-modules and journal raw-ref GC, W4 triggers/channel supervision/config/
-signing, and W5 generated SDK/frontend convergence and zero allowances remain
-open. The overall target is the architecture in `20-target-architecture.md`,
-delivered incrementally to protected `main`, with runnable proof and
-source-aligned documentation.
+Continue roadmap §4.5/order 7 after the completed roster, steer, run-fold,
+remote-mirror and operation-audit domains: the control plane's remaining
+re-projections between the application's row types (the council, budget,
+routing, plugin, schedule firing and tenant run rows), the one confirmed
+duplicate (the warden branch in `workboard_dispatch.go`, which mirrors
+`app/runs/run_resolve.go`), and the remote mirror's two remaining duplicates
+(the environment value that the settings store also declares, and the peer
+list's parser that the application layer already owns). Wider run/tool
+adapter convergence, W3 modules and journal raw-ref GC, W4
+triggers/channel supervision/config/signing, and W5 generated SDK/frontend
+convergence and zero allowances remain open. The overall target is the
+architecture in `20-target-architecture.md`, delivered incrementally to
+protected `main`, with runnable proof and source-aligned documentation.
 
 ---
 
