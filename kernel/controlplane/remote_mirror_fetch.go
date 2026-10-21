@@ -4,6 +4,11 @@ package controlplane
 //             fetch helpers (fetchRemoteEvents, fetchRemoteArtifacts). Extracted
 //             from remote_mirror.go during Day 211 god-file refactor (#86). Public
 //             API unchanged.
+//
+// The fetches are the host's data access: they read the peer's HTTP endpoints
+// and decode what they send. The rows that travel, the limits they travel
+// under and the payload mode belong to the application layer
+// (`kernel/app/remote/mirror.go`).
 
 import (
 	"context"
@@ -16,36 +21,35 @@ import (
 	"time"
 
 	appnodes "github.com/agezt/agezt/kernel/app/nodes"
+	appremote "github.com/agezt/agezt/kernel/app/remote"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 const remoteEventMirrorResponseLimit = 4 << 20
-const remoteEventMirrorMaxEvents = 200
 const remoteArtifactMirrorResponseLimit = 1 << 20
-const remoteArtifactMirrorMaxEntries = 200
 
-func fetchRemoteEvents(ctx context.Context, p appnodes.Peer, corr, mode string) ([]map[string]any, bool, error) {
+func fetchRemoteEvents(ctx context.Context, p appnodes.Peer, corr string) ([]appremote.Event, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	endpoint := strings.TrimRight(p.URL, "/") + "/api/v1/runs/" + url.PathEscape(corr)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	if p.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+p.Token)
 	}
 	resp, err := netout.OperatorClient(0).Do(req)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusUnauthorized {
-		return nil, false, fmt.Errorf("401 (token rejected)")
+		return nil, fmt.Errorf("401 (token rejected)")
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, false, fmt.Errorf("status %d", resp.StatusCode)
+		return nil, fmt.Errorf("status %d", resp.StatusCode)
 	}
 	var body struct {
 		Events []struct {
@@ -61,41 +65,32 @@ func fetchRemoteEvents(ctx context.Context, p appnodes.Peer, corr, mode string) 
 		} `json:"events"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, remoteEventMirrorResponseLimit)).Decode(&body); err != nil {
-		return nil, false, err
+		return nil, err
 	}
-	truncated := len(body.Events) > remoteEventMirrorMaxEvents
-	limit := len(body.Events)
-	if limit > remoteEventMirrorMaxEvents {
-		limit = remoteEventMirrorMaxEvents
+	out := make([]appremote.Event, 0, len(body.Events))
+	for _, ev := range body.Events {
+		out = append(out, appremote.Event{
+			ID:            ev.ID,
+			Seq:           ev.Seq,
+			TSUnixMS:      ev.TSUnixMS,
+			Subject:       ev.Subject,
+			Actor:         ev.Actor,
+			Kind:          ev.Kind,
+			CorrelationID: ev.CorrelationID,
+			Hash:          ev.Hash,
+			Payload:       ev.Payload,
+		})
 	}
-	out := make([]map[string]any, 0, limit)
-	for _, ev := range body.Events[:limit] {
-		row := map[string]any{
-			"id":             ev.ID,
-			"seq":            ev.Seq,
-			"ts_unix_ms":     ev.TSUnixMS,
-			"subject":        ev.Subject,
-			"actor":          ev.Actor,
-			"kind":           ev.Kind,
-			"correlation_id": ev.CorrelationID,
-			"hash":           ev.Hash,
-		}
-		if mode == "redacted" {
-			if payload, ok := redactedRemotePayload(ev.Payload); ok {
-				row["payload_redacted"] = payload
-			}
-		}
-		out = append(out, row)
-	}
-	return out, truncated, nil
+	return out, nil
 }
-func fetchRemoteArtifacts(ctx context.Context, p appnodes.Peer, corr string) ([]map[string]any, bool, error) {
+
+func fetchRemoteArtifacts(ctx context.Context, p appnodes.Peer, corr string) ([]appremote.Artifact, bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	endpoint := strings.TrimRight(p.URL, "/") + "/api/v1/artifacts"
 	q := url.Values{}
 	q.Set("corr", corr)
-	q.Set("limit", fmt.Sprintf("%d", remoteArtifactMirrorMaxEntries))
+	q.Set("limit", fmt.Sprintf("%d", appremote.MaxMirrorArtifacts))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"?"+q.Encode(), nil)
 	if err != nil {
 		return nil, false, err
@@ -133,29 +128,21 @@ func fetchRemoteArtifacts(ctx context.Context, p appnodes.Peer, corr string) ([]
 	if err := json.NewDecoder(io.LimitReader(resp.Body, remoteArtifactMirrorResponseLimit)).Decode(&body); err != nil {
 		return nil, false, err
 	}
-	truncated := body.Truncated || len(body.Entries) > remoteArtifactMirrorMaxEntries
-	limit := len(body.Entries)
-	if limit > remoteArtifactMirrorMaxEntries {
-		limit = remoteArtifactMirrorMaxEntries
+	out := make([]appremote.Artifact, 0, len(body.Entries))
+	for _, a := range body.Entries {
+		out = append(out, appremote.Artifact{
+			ID:        a.ID,
+			Ref:       a.Ref,
+			Name:      a.Name,
+			Mime:      a.Mime,
+			Kind:      a.Kind,
+			Source:    a.Source,
+			Sender:    a.Sender,
+			Corr:      a.Corr,
+			Size:      a.Size,
+			CreatedMS: a.CreatedMs,
+			Caption:   a.Caption,
+		})
 	}
-	out := make([]map[string]any, 0, limit)
-	for _, a := range body.Entries[:limit] {
-		row := map[string]any{
-			"id":         a.ID,
-			"ref":        a.Ref,
-			"name":       a.Name,
-			"mime":       a.Mime,
-			"kind":       a.Kind,
-			"source":     a.Source,
-			"sender":     a.Sender,
-			"corr":       a.Corr,
-			"size":       a.Size,
-			"created_ms": a.CreatedMs,
-		}
-		if a.Caption != "" {
-			row["caption"] = a.Caption
-		}
-		out = append(out, row)
-	}
-	return out, truncated, nil
+	return out, body.Truncated, nil
 }

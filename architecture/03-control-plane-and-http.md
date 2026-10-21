@@ -164,7 +164,7 @@ journaled by that subsystem. Reads of `sandbox/projects/<name>` are confined by 
 ### 1.7 Env vars read directly
 
 `AGEZT_TOKEN` (client), `AGEZT_ACP_AGENT_CMD` (`app/channels/acp.go`), `AGEZT_PEERS` (`nodes.go`), `AGEZT_REMOTE_EVENT_MIRROR`
-(`remote_mirror_helpers.go`), `AGEZT_AUTO_REPAIR_COOLDOWN` (`app/roster/status_stores.go`), `AGEZT_WORKSPACE` (`roster_workspace.go`),
+(`app/remote/mirror.go`), `AGEZT_AUTO_REPAIR_COOLDOWN` (`app/roster/status_stores.go`), `AGEZT_WORKSPACE` (`roster_workspace.go`),
 `AGEZT_CATALOG_URL` (catalog sync default), provider env names presence (`catalog.go`, `app/channels/inventory.go`, `config_handler.go`,
 `settings_handlers.go`); run-time execution-profile errors reference `AGEZT_EXEC_SSH*`, `AGEZT_EXEC_K8S*`, `AGEZT_EXEC_MODAL*`,
 `AGEZT_EXEC_DAYTONA*`. `config.go` holds `configEnvVars`, the canonical inventory (~419 entries) of every `AGEZT_*` var the daemon reads,
@@ -720,9 +720,10 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `app/runs/run_pricing.go` | `modelPriced` (the authoritative "can a cost cap bind?" check) and `strictPricingPlan`. |
 | `app/runs/run_args.go` | The strict argument readers: a mistyped flag is a usage error, never a silent default. |
 | `app/steer/steer.go` | Live run control (M32/M608): typed `cancel_run` and `run_pause/resume/step/steer/intervene` specs, strict codecs and the intervention mapping over the routed kernel's `Runs` port (tenant-routed). |
-| `remote_mirror.go` | `mirrorRemoteExecutionProfileEvents`: mirrors a remote peer's run events into the local journal. |
-| `remote_mirror_fetch.go` | `fetchRemoteEvents`, `fetchRemoteArtifacts` (HTTP calls to peer REST API). |
-| `remote_mirror_helpers.go` | Mirror mode (`AGEZT_REMOTE_EVENT_MIRROR`), peer lookup through `app/nodes.ParsePeers`, payload redaction for mirrored events. |
+| `remote_mirror.go` | The mirror's host bindings: the peer lookup, the two peer fetches, the redactor and the journal publish, behind the app layer's mirror decision. |
+| `remote_mirror_fetch.go` | `fetchRemoteEvents`, `fetchRemoteArtifacts` (HTTP calls to peer REST API); they decode the peer's answer into the app layer's typed rows. |
+| `remote_mirror_helpers.go` | Peer lookup through `app/nodes.ParsePeers` and the payload redaction for mirrored events. The mirror mode and payload mode moved to the app layer (`app/remote/mirror.go`). |
+| `app/remote/mirror.go` | The remote run mirror's decisions: whether the mirror runs (the mode), what a mirror that cannot reach the peer looks like, which fields of a peer event and artifact travel, whether a payload is redacted before it travels, and how much travels (200 events, 200 artifacts). |
 
 **Runs listing / status / daemon ops**
 

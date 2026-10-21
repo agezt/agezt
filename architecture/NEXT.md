@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.52 typed run fold, 2026-10-21
+## Current checkpoint — W2.53 typed remote mirror, 2026-10-21
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -283,6 +283,31 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   and left five open (four test gaps and one anchor that did not match the
   source), the tests were strengthened and the run repeated — 28 mutations, 28
   caught.
+- W2.53 (typed remote mirror) is committed on `main` as a code commit plus a
+  docs commit and published from `arch/w2-dispatch` the same way.
+  `kernel/app/remote/mirror.go` gains `Mirror` (the whole decision: whether
+  the mirror runs, what a mirror that cannot reach the peer looks like, and
+  what the mirrored payload carries), `EventRows` and `ArtifactRows` (the wire
+  rows), plus the mode policy (`Mode`, `EnvMode`, `PayloadMode`), moved
+  verbatim with the mode parsing and its off state, the metadata check, the
+  peer-lookup and fetch failure shapes, the payload mode, the event and
+  artifact row fields, the caption that is said only when the peer said one
+  and the 200-event/200-artifact bounds. The host keeps the data access: the
+  peer configuration, the two peer HTTP fetches (which now return typed rows
+  instead of wire maps), the redactor and the journal publish. The native
+  `remoteEventMirrorMode` and `remoteMirrorPayloadMode` are gone.
+  31 mutations, 31 caught: the first pass caught 27 of 28 and left one anchor
+  skipped, the second and third passes caught the rest — the last one only
+  after the test was strengthened (the failing fetch's payload had not
+  asserted that it names the peer and the correlation). The archcheck
+  allowlist stays at 129 import violations and 13 call sites; the package
+  count is 269 because `kernel/app/remote` is new, and the generated
+  structure document gains it.
+  The order-7 list in this handoff was stale: journal, edict, tenant and
+  shutdown are already typed (the whole protocol command registry is typed —
+  `whoami` is the only native command left, and it stays native by design).
+  The remote mirror was the last real decision logic of that list, and this
+  slice takes it.
 - W2.45a (typed roster status collection) is committed on `main` as a code
   commit plus a docs commit and published from `arch/w2-dispatch` the same way.
   `kernel/controlplane/roster_status.go` (371 lines) is gone: the journal-derived
@@ -684,7 +709,9 @@ to look at, what the label says and where the workspace root is — and with it
 the roster domain is done:
 [118-w251-typed-workspace-helpers-evidence.md](118-w251-typed-workspace-helpers-evidence.md).
 Next: the remaining order-7 domains — steer, journal, edict, tenant, shutdown
-and remote.
+and remote. (Since then the whole protocol command registry has become typed
+and the remote mirror's decisions have moved to the application layer; see
+the W2.52 and W2.53 entries above.)
 
 Follow-up recorded, not done: CI's `race-depth` stress runs
 `./kernel/controlplane/...` with `-race -count=20 -timeout=20m`; that package
@@ -715,13 +742,18 @@ Preserve unrelated dirty changes: deletions of
 
 ### Next
 
-Continue roadmap §4.5/order 7 after the completed roster, steer and run-fold
-domains: journal/edict/tenant/shutdown/remote, plus the roster status source
-collection and lifecycle ownership. Wider run/tool adapter convergence, W3 modules and journal raw-ref GC, W4
-triggers/channel supervision/config/signing, and W5 generated SDK/frontend
-convergence and zero allowances remain open. The overall target is the
-architecture in `20-target-architecture.md`, delivered incrementally to protected
-`main`, with runnable proof and source-aligned documentation.
+Continue roadmap §4.5/order 7 after the completed roster, steer, run-fold and
+remote-mirror domains: the tenant run projection (the control plane still
+re-projects the folded runs into `apptenants.Run`, a duplicate of the
+application's own row type), the journal read limit and its cursor handling,
+and the remote mirror's two remaining duplicates (the environment value that
+the settings store also declares, and the peer list's parser that the
+application layer already owns). Wider run/tool adapter convergence, W3
+modules and journal raw-ref GC, W4 triggers/channel supervision/config/
+signing, and W5 generated SDK/frontend convergence and zero allowances remain
+open. The overall target is the architecture in `20-target-architecture.md`,
+delivered incrementally to protected `main`, with runnable proof and
+source-aligned documentation.
 
 ---
 
