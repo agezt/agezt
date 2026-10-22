@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-162 package(s):
+164 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -42,7 +42,7 @@
 - **`kernel/app/redaction`** — Package redaction lets an operator confirm the live secret redactor catches a candidate secret before it could reach the permanent journal.
 - **`kernel/app/reflection`** — Package reflection triggers and reads the kernel's reflection passes, the path behind `agt reflect`: a pass folds the journal into observations, applies world-model decay, derives advisory proposals and journals its report under the pass's correlation, so the decay is explainable via `agt why`.
 - **`kernel/app/remote`** — Package remote owns the remote run mirror: what a delegated run's peer events and artifacts look like when they are mirrored back into the local journal.
-- **`kernel/app/research`** — Package research owns the deep-research harness surface (M1001): the operator, Web UI and CLI surface for the research harness in kernel/runtime.
+- **`kernel/app/research`** — Package research owns the deep-research harness surface (M1001): the operator, Web UI and CLI surface for the research harness in kernel/modules/reasoning.
 - **`kernel/app/roster`** — Package roster owns operator agent-management presentation and use cases.
 - **`kernel/app/routing`** — Package routing owns the operator's model routing controls: the governor's per-task model fallback chains (M703) with the journal's record of them firing (M706), and the registry of named reusable chains referenced as "@name" (M963) with what references each one (M964).
 - **`kernel/app/runs`** — Package runs owns the past-run reads: the filtered, cursor-paginated run list and the run health statistics over one kernel's folded run snapshot.
@@ -107,6 +107,8 @@
 - **`kernel/mcp`** — Package mcp is governed runtime self-install for MCP servers (M796): a durable registry of Model Context Protocol servers plus a minimal MCP client, so an agent (or operator) can ADD a server and ATTACH it while the daemon runs — no restart, no separate bridge binary, no env-var surgery.
 - **`kernel/memory`** — Package memory implements the memory store (ROADMAP §2.3): a journaled, content-addressed knowledge store that the agent loop reads as injected context and that the operator, the agent, and an auto-distiller can write to.
 - **`kernel/meshctx`** — Package meshctx carries the cross-node delegation hop count for the M8 mesh.
+- **`kernel/modules/reasoning`** — Package reasoning is the reasoning module: the Council of Elders (a multi-model panel that deliberates and reconciles), the Conductor (a verify-driven Thinker→Worker→Verifier loop) and the deep-research harness.
+- **`kernel/modules/reasoning/api`** — Package api is the reasoning module's public vocabulary: the rows and results the council, the conductor and the research harness produce, and the pure helpers both sides share.
 - **`kernel/netguard`** — Package netguard is the network-egress guard (SPEC-06 security defaults): it stops outbound tool traffic from reaching the host's own internal network.
 - **`kernel/okr`** — Package okr is AGEZT's durable objectives-and-key-results spine: the layer that makes fleet work legible as progress toward goals rather than a flat task queue.
 - **`kernel/openaiapi`** — Package openaiapi serves an OpenAI-compatible HTTP surface (ROADMAP P7-API-01, SPEC-15 §3): POST /v1/chat/completions, POST /v1/responses, GET /v1/models and GET /v1/models/{id}, so any OpenAI client, SDK, or IDE can drive Agezt as if it were OpenAI.

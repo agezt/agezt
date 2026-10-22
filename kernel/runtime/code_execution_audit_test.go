@@ -63,6 +63,7 @@ func newCodeAuditKernel(t *testing.T, r *codeAuditRunner, engine *edict.Engine) 
 		t.Fatal(err)
 	}
 	k.SetConductorExec(r)
+	wireReasoning(t, k)
 	t.Cleanup(func() { k.Close() })
 	return k
 }

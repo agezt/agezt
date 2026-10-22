@@ -46,6 +46,7 @@ func openCouncilKernel(t *testing.T, members []CouncilMember) *Kernel {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
+	wireReasoning(t, k)
 	t.Cleanup(func() { k.Close() })
 	return k
 }
@@ -186,6 +187,7 @@ func openGroundedCouncil(t *testing.T, prov llm.Provider, members []CouncilMembe
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
+	wireReasoning(t, k)
 	t.Cleanup(func() { k.Close() })
 	return k
 }
@@ -253,23 +255,5 @@ func TestCouncil_DateOnlyWhenSearchDisabled(t *testing.T) {
 	}
 	if !prov.allPromptsContain(today) {
 		t.Error("date should still reach every prompt when search off")
-	}
-}
-
-func TestSplitConsensusDissent(t *testing.T) {
-	cases := []struct{ in, wantC, wantD string }{
-		{"CONSENSUS: do X.\nDISSENT: Beta prefers Y.", "do X.", "Beta prefers Y."},
-		{"CONSENSUS: do X.\nDISSENT: none", "do X.", ""},
-		{"just a plain answer", "just a plain answer", ""},
-		// Markdown-header style (what real chair models actually emit).
-		{"## CONSENSUS\n\nUse tabs.\n\n## DISSENT\n\nGamma prefers spaces.", "Use tabs.", "Gamma prefers spaces."},
-		{"## Consensus\nShip it.\n## Dissent\nnone", "Ship it.", ""},
-		{"**CONSENSUS:** do the thing", "do the thing", ""},
-	}
-	for _, c := range cases {
-		gotC, gotD := splitConsensusDissent(c.in)
-		if gotC != c.wantC || gotD != c.wantD {
-			t.Errorf("split(%q) = (%q,%q), want (%q,%q)", c.in, gotC, gotD, c.wantC, c.wantD)
-		}
 	}
 }

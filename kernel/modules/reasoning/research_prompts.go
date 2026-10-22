@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
+package reasoning
 
 // research_prompts.go owns the LLM-input prompt builders:
-// buildResearchPlanPrompt, buildResearchSynthPrompt,
-// buildRefutedWarning, and buildResearchVerifyPrompt. The parsers /
-// extractors / regex patterns that consume the LLM output live in
-// research_helpers.go.
+// buildResearchPlanPrompt, buildResearchSynthPrompt, buildRefutedWarning and
+// buildResearchVerifyPrompt. The parsers / extractors / regex patterns that
+// consume the LLM output live in research_helpers.go.
 
 import (
 	"fmt"
 	"strings"
+
+	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 )
 
 // buildResearchPlanPrompt renders the planning prompt.
@@ -54,9 +55,6 @@ func buildRefutedWarning(refuted []ResearchClaim) string {
 	return b.String()
 }
 
-// parseSubQuestions extracts up to max sub-questions from a planner reply. It
-// tolerates a JSON array (optionally inside a code fence) or a numbered/bulleted
-
 // buildResearchVerifyPrompt renders the adversarial check for one claim against
 // the text of the source(s) it cites.
 func buildResearchVerifyPrompt(c ResearchClaim, byID map[string]ResearchSource) string {
@@ -73,7 +71,7 @@ func buildResearchVerifyPrompt(c ResearchClaim, byID map[string]ResearchSource) 
 		if title == "" {
 			title = s.URL
 		}
-		fmt.Fprintf(&b, "\n[%s] %s (%s)\n%s\n", s.ID, title, s.URL, clip(s.Text, researchVerifyTextMax))
+		fmt.Fprintf(&b, "\n[%s] %s (%s)\n%s\n", s.ID, title, s.URL, api.Clip(s.Text, researchVerifyTextMax))
 	}
 	if !found {
 		b.WriteString("\n(no cited source text available)\n")
@@ -81,6 +79,3 @@ func buildResearchVerifyPrompt(c ResearchClaim, byID map[string]ResearchSource) 
 	b.WriteString("\nVerdict (SUPPORTED / REFUTED / UNCERTAIN) then one reason line:")
 	return b.String()
 }
-
-// reSupportedWord matches "SUPPORTED" as a whole word so it never fires inside
-// "UNSUPPORTED".

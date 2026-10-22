@@ -1010,6 +1010,26 @@ This file holds the active `[Unreleased]` working set.
   the same keys, in the same order, with the same values, the unset lists still
   empty and the secret policy still last.
 
+- **The council, the conductor and the research harness are a module.** They
+  were three features of the composition root — `*runtime.Kernel` methods
+  (`k.Council`, `k.Conduct`, `k.Research`) spread over ten files in
+  `kernel/runtime`, reaching into the kernel's own fields for the provider, the
+  default panel, the web-grounding flag, the completion funnel, the tool
+  registry, the event bus and the sandbox. They now live in
+  `kernel/modules/reasoning` and the module is **stateless**: everything it
+  needs arrives through explicit ports, so every call keeps the host's policy
+  checks, its audit arc and its spend attribution. The daemon's public names
+  stay, as aliases of the module's rows, and the three calls delegate to the
+  service the daemon injects at boot — the primary kernel and every tenant
+  kernel.
+
+  Nothing observable changes: the same error texts, the same event subjects
+  and kinds, the same token budgets, the same audit arcs (the council's web
+  grounding still runs through the shared invoker with its approval and its
+  unique call id; the conductor's verifier still runs its code through the
+  host's governed path, so a refusal still reports `Ran=false` and no
+  invocation) and the same answers on the wire.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now

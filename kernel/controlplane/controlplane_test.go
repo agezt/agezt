@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/reasoning"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -43,6 +44,9 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
+	// The kernel cannot import the reasoning module itself (archcheck's
+	// principle P5), so the composition root builds it and injects it.
+	k.SetReasoning(reasoning.New(k.ReasoningDependencies()))
 	t.Cleanup(func() { k.Close() })
 
 	srv := controlplane.NewServer(k, dir)

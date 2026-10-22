@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/types"
+	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -36,9 +37,9 @@ func TestMemberIsTheContractType(t *testing.T) {
 // by field — and it stays an empty array (never null) when the panel has no
 // members.
 func TestAskMembersAreTheContractTypeWithoutAProjection(t *testing.T) {
-	engines := &askEngines{council: runtime.CouncilResult{
+	engines := &askEngines{council: api.CouncilResult{
 		Question: "why?",
-		Members:  []runtime.CouncilMember{{Seat: "Chair", Model: "m1"}, {Seat: "Scribe", Model: "m2"}},
+		Members:  []api.CouncilMember{{Seat: "Chair", Model: "m1"}, {Seat: "Scribe", Model: "m2"}},
 	}}
 	out, err := engines.engines().Ask(context.Background(), AskRequest{Question: json.RawMessage(`"why?"`)})
 	if err != nil {
@@ -55,7 +56,7 @@ func TestAskMembersAreTheContractTypeWithoutAProjection(t *testing.T) {
 	if string(raw) != `[{"seat":"Chair","model":"m1"},{"seat":"Scribe","model":"m2"}]` {
 		t.Fatal(string(raw))
 	}
-	empty := &askEngines{council: runtime.CouncilResult{Question: "why?"}}
+	empty := &askEngines{council: api.CouncilResult{Question: "why?"}}
 	emptyOut, err := empty.engines().Ask(context.Background(), AskRequest{Question: json.RawMessage(`"why?"`)})
 	if err != nil {
 		t.Fatal(err)
@@ -76,11 +77,14 @@ func TestOpinionRowIsTheContractType(t *testing.T) {
 	if reflect.TypeOf(OpinionRow{}) != reflect.TypeOf(types.Opinion{}) {
 		t.Fatalf("the opinion row drifted from the contract type: %v vs %v", reflect.TypeOf(OpinionRow{}), reflect.TypeOf(types.Opinion{}))
 	}
+	if reflect.TypeOf(api.Opinion{}) != reflect.TypeOf(types.Opinion{}) {
+		t.Fatalf("the module's opinion drifted from the contract type: %v vs %v", reflect.TypeOf(api.Opinion{}), reflect.TypeOf(types.Opinion{}))
+	}
 	if reflect.TypeOf(runtime.Opinion{}) != reflect.TypeOf(types.Opinion{}) {
 		t.Fatalf("the runtime's opinion drifted from the contract type: %v vs %v", reflect.TypeOf(runtime.Opinion{}), reflect.TypeOf(types.Opinion{}))
 	}
-	// The runtime's opinion and the application's row are the same type, so a
-	// slice of one is a slice of the other.
+	// The module's opinion, the runtime's alias and the application's row are one
+	// type, so a slice of one is a slice of the other.
 	var opinions []OpinionRow = []types.Opinion{{Seat: "Chair", Model: "m1", Round: 1, Text: "yes"}}
 	if len(opinions) != 1 || opinions[0].Seat != "Chair" {
 		t.Fatal(opinions)
@@ -92,9 +96,9 @@ func TestOpinionRowIsTheContractType(t *testing.T) {
 // by field — and it stays an empty array (never null) when the panel said
 // nothing.
 func TestAskOpinionsAreTheContractTypeWithoutAProjection(t *testing.T) {
-	engines := &askEngines{council: runtime.CouncilResult{
+	engines := &askEngines{council: api.CouncilResult{
 		Question: "why?",
-		Opinions: []runtime.Opinion{
+		Opinions: []api.Opinion{
 			{Seat: "Chair", Model: "m1", Round: 1, Text: "yes"},
 			{Seat: "Scribe", Model: "m2", Round: 1, Error: "provider failed"},
 		},
@@ -103,7 +107,7 @@ func TestAskOpinionsAreTheContractTypeWithoutAProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []runtime.Opinion{
+	want := []api.Opinion{
 		{Seat: "Chair", Model: "m1", Round: 1, Text: "yes"},
 		{Seat: "Scribe", Model: "m2", Round: 1, Error: "provider failed"},
 	}
@@ -117,7 +121,7 @@ func TestAskOpinionsAreTheContractTypeWithoutAProjection(t *testing.T) {
 	if string(raw) != `[{"seat":"Chair","model":"m1","round":1,"text":"yes"},{"seat":"Scribe","model":"m2","round":1,"text":"","error":"provider failed"}]` {
 		t.Fatal(string(raw))
 	}
-	empty := &askEngines{council: runtime.CouncilResult{Question: "why?"}}
+	empty := &askEngines{council: api.CouncilResult{Question: "why?"}}
 	emptyOut, err := empty.engines().Ask(context.Background(), AskRequest{Question: json.RawMessage(`"why?"`)})
 	if err != nil {
 		t.Fatal(err)

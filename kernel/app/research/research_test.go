@@ -12,21 +12,21 @@ import (
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 	"github.com/agezt/agezt/kernel/platform/schema"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
 // researchEngines is a scripted harness.
 type researchEngines struct {
-	calls  []runtime.ResearchOptions
+	calls  []api.ResearchOptions
 	asked  []string
-	report runtime.ResearchReport
+	report api.ResearchReport
 	err    error
 }
 
 func (e *researchEngines) engines() Engines {
 	return Engines{
-		Research: func(_ context.Context, corr, question string, opts runtime.ResearchOptions) (runtime.ResearchReport, error) {
+		Research: func(_ context.Context, corr, question string, opts api.ResearchOptions) (api.ResearchReport, error) {
 			e.asked = append(e.asked, corr+"|"+question)
 			e.calls = append(e.calls, opts)
 			return e.report, e.err
@@ -56,14 +56,14 @@ func TestAskRejectsAMissingQuestion(t *testing.T) {
 // TestAskMapsTheReport: the report becomes the typed answer, the sources carry
 // no text, and the empty lists stay empty lists.
 func TestAskMapsTheReport(t *testing.T) {
-	e := &researchEngines{report: runtime.ResearchReport{
+	e := &researchEngines{report: api.ResearchReport{
 		Question:     "why?",
 		SubQuestions: []string{"why?", "how?"},
-		Sources: []runtime.ResearchSource{
+		Sources: []api.ResearchSource{
 			{ID: "S1", URL: "https://example.com", Title: "Example", Text: "the body", Rank: 1, Hash: "h1"},
 		},
 		Markdown:     "# Report",
-		Claims:       []runtime.ResearchClaim{{Text: "a claim", SourceIDs: []string{"S1"}, Verdict: "supported", Note: ""}},
+		Claims:       []api.ResearchClaim{{Text: "a claim", SourceIDs: []string{"S1"}, Verdict: "supported", Note: ""}},
 		Confidence:   0.75,
 		CitedSources: 1,
 		Verified:     true,
@@ -102,7 +102,7 @@ func TestAskMapsTheReport(t *testing.T) {
 // TestAskKeepsEmptyListsEmpty: an empty report answers with empty lists, not
 // nulls, so the Web UI can iterate them.
 func TestAskKeepsEmptyListsEmpty(t *testing.T) {
-	e := &researchEngines{report: runtime.ResearchReport{Question: "why?"}}
+	e := &researchEngines{report: api.ResearchReport{Question: "why?"}}
 	out, err := e.engines().Ask(context.Background(), AskRequest{Question: json.RawMessage(`"why?"`)})
 	if err != nil {
 		t.Fatal(err)
@@ -122,7 +122,7 @@ func TestAskKeepsEmptyListsEmpty(t *testing.T) {
 // TestAskReadsTheLenientArguments: the caps accept a number or a digit
 // string, and the verification flag defaults to on.
 func TestAskReadsTheLenientArguments(t *testing.T) {
-	e := &researchEngines{report: runtime.ResearchReport{Question: "q"}}
+	e := &researchEngines{report: api.ResearchReport{Question: "q"}}
 	if _, err := e.engines().Ask(context.Background(), AskRequest{
 		Question:        json.RawMessage(`"q"`),
 		MaxSubQuestions: json.RawMessage(`"4"`),
@@ -140,7 +140,7 @@ func TestAskReadsTheLenientArguments(t *testing.T) {
 	}
 	// An argument that is not a number and not a digit string reads as zero,
 	// and the harness applies its own default.
-	e = &researchEngines{report: runtime.ResearchReport{Question: "q"}}
+	e = &researchEngines{report: api.ResearchReport{Question: "q"}}
 	if _, err := e.engines().Ask(context.Background(), AskRequest{
 		Question:        json.RawMessage(`"q"`),
 		MaxSubQuestions: json.RawMessage(`"nope"`),
@@ -163,7 +163,7 @@ func TestAskReadsTheVerifyFlag(t *testing.T) {
 		`7`:       true,
 		`null`:    true,
 	} {
-		e := &researchEngines{report: runtime.ResearchReport{Question: "q"}}
+		e := &researchEngines{report: api.ResearchReport{Question: "q"}}
 		if _, err := e.engines().Ask(context.Background(), AskRequest{Question: json.RawMessage(`"q"`), Verify: json.RawMessage(raw)}); err != nil {
 			t.Fatal(err)
 		}
@@ -175,7 +175,7 @@ func TestAskReadsTheVerifyFlag(t *testing.T) {
 
 // TestAskKeepsTheClientCorrelation: a plain id is kept, an odd one is minted.
 func TestAskKeepsTheClientCorrelation(t *testing.T) {
-	e := &researchEngines{report: runtime.ResearchReport{Question: "q"}}
+	e := &researchEngines{report: api.ResearchReport{Question: "q"}}
 	out, err := e.engines().Ask(context.Background(), AskRequest{Question: json.RawMessage(`"q"`), Corr: json.RawMessage(`"client-corr"`)})
 	if err != nil {
 		t.Fatal(err)
@@ -183,7 +183,7 @@ func TestAskKeepsTheClientCorrelation(t *testing.T) {
 	if out.CorrelationID != "client-corr" || e.asked[0] != "client-corr|q" {
 		t.Fatalf("the client correlation is kept: %+v", out)
 	}
-	e = &researchEngines{report: runtime.ResearchReport{Question: "q"}}
+	e = &researchEngines{report: api.ResearchReport{Question: "q"}}
 	out, err = e.engines().Ask(context.Background(), AskRequest{Question: json.RawMessage(`"q"`), Corr: json.RawMessage(`"not a plain id"`)})
 	if err != nil {
 		t.Fatal(err)

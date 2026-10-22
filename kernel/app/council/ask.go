@@ -12,15 +12,15 @@ import (
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 	"github.com/agezt/agezt/kernel/platform/schema"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
 // Engines convenes the panel and runs the Conductor under a correlation, and
 // mints one when the caller supplies none.
 type Engines struct {
-	Convene        func(ctx context.Context, corr, question string, rounds int) (runtime.CouncilResult, error)
-	RunConductor   func(ctx context.Context, corr string, cfg runtime.ConductorConfig) (runtime.ConductorResult, error)
+	Convene        func(ctx context.Context, corr, question string, rounds int) (api.CouncilResult, error)
+	RunConductor   func(ctx context.Context, corr string, cfg api.ConductorConfig) (api.ConductorResult, error)
 	NewCorrelation func() string
 }
 
@@ -128,7 +128,7 @@ func (e Engines) Conduct(ctx context.Context, in ConductRequest) (ConductOutput,
 		return ConductOutput{}, errors.New("args.task required")
 	}
 	corr := e.correlation(in.Corr)
-	res, err := e.RunConductor(ctx, corr, runtime.ConductorConfig{
+	res, err := e.RunConductor(ctx, corr, api.ConductorConfig{
 		Task:      task,
 		Thinker:   app.LenientText(in.Thinker),
 		Worker:    app.LenientText(in.Worker),

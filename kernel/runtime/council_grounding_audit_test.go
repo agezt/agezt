@@ -49,6 +49,7 @@ func TestCouncilGroundingApproval(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			wireReasoning(t, k)
 			t.Cleanup(func() { k.Close() })
 			reg := k.Approvals()
 			ctx, cancel := context.WithCancel(context.Background())
@@ -117,6 +118,7 @@ func TestCouncilGroundingDistinctSearchIDs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	wireReasoning(t, k)
 	t.Cleanup(func() { k.Close() })
 	for range 2 {
 		if _, err := k.Council(context.Background(), "shared-corr", "test question", []runtime.CouncilMember{{Seat: "one", Model: "mock-model"}}, 1); err != nil {
@@ -197,6 +199,7 @@ func TestCouncilGroundingAudit(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			wireReasoning(t, k)
 			t.Cleanup(func() { k.Close() })
 			ctx := context.Background()
 			denied := mode == "deny" || mode == "profile-deny" || mode == "ceiling"

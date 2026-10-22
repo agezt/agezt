@@ -307,6 +307,8 @@ Because inner calls go through `RunTool`, each search/fetch is itself Edict-gate
 
 Both tools hold only a `runner` pointer (no mutex; set once in Configure) and return `"<tool>: … unavailable"` when unbound.
 
+Since W3.1 the panel, the Conductor and the research harness are implemented in their own module (`kernel/modules/reasoning`); the tools still hold the kernel as their runner, and the kernel delegates to the module over its ports. The tools' behaviour, events and caps are unchanged.
+
 ### 5.7 Overseer (`plugins/tools/overseertool`)
 
 - `Tool{mu, src Source}`; `Bind(NewKernelSource(k, baseDir))`. `Source` is a 25-method interface (read: IsHalted/ActiveRunIDs/Agents/OpenHelp/AgentImpact; intervene: CancelRun/Halt/ResumeAll/SetAgentEnabled/SetAgentRetired/EditAgent/CreateAgent/DeleteAgent/GetAgent/CloneAgent/SearchAgents/Bulk*/WakeAgent/RepairAgent).

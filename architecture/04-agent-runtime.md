@@ -27,7 +27,7 @@ Sibling docs: governor, Edict, approvals, warden: [05-governance-routing-securit
 | Script tools | `kernel/toolforge` + `scripttool.go` | Agent-authored scripts. Lifecycle draft, test, promote, quarantine. Exposed as `forge_<name>`. |
 | Context selection audit | `kernel/contextselect` + `context_selection.go` | Candidate scoring and `context.selection` manifests for memory/world/skill injection; failure analysis. |
 | Intent framing | `kernel/intent` | Deterministic utterance → `Frame` (ambiguity, harmful reading), action regret axes, confirmation gating. |
-| Aux "multi-model" features | `council*.go`, `conductor*.go`, `research*.go`, `workflow*.go` | Council of Elders, Conductor (thinker/worker/verifier), deep research, workflow graph execution and drafting. All use `completeAux`. |
+| Aux "multi-model" features | `kernel/modules/reasoning` (council, conductor, research) + `workflow*.go` | Council of Elders, Conductor (thinker/worker/verifier), deep research, workflow graph execution and drafting. The three reasoning features moved to their own module in W3.1; the workflows stay here. All use `completeAux`. |
 
 ---
 
@@ -72,6 +72,7 @@ Reverse deps (who uses this area):
 Layering notes:
 - `kernel/toolreg` imports `kernel/runtime`. This is an upward edge: a "registry" sits above the composition root because `Spec.PreOpen` mutates `*runtime.Config` and `KernelDeps` carries `*runtime.Kernel`. It is not a cycle (runtime does not import toolreg).
 - The kernel never imports `plugins/*`. Plugins are injected through interfaces: `toolforge.Runner`, `CodeExecutor`, `Voice`, `ImageGen`, `Reranker`, `memory.Embedder`, and the closures `VisionModel`, `ModelAvailable`, `CouncilMembers`.
+- `kernel/runtime` imports `kernel/modules/reasoning/api` — the reasoning module's vocabulary and ports — but not the module's implementation. A module may import another module's api package and nothing else (P5), so the reasoning module is injected into the kernel by the composition root (`cmd/agezt`) instead of being imported from it. `kernel/modules/reasoning` itself imports only the contract layer (`llm`, `toolapi`, `types`), `kernel/event` and `kernel/ulid` (W3.1).
 
 ---
 
@@ -252,7 +253,7 @@ Tests (20 files): `agent_test.go` (loop end to end with mock provider), `panic_t
 ## 4. kernel/runtime — the Kernel
 
 ### 4.1 Kernel struct and concurrency (runtime_kernel.go)
-`Kernel` holds `cfg Config`, the stores (journal, state, bus, edict, warden, approvals, scheduler, memory/world/forge/skill stores, standing, resume, roster, toolForge, mcpStore, workflows, workboard, okr, taste, seat, artifacts + artIndex, lake, reflect, schedules, schedEngine, agentGW, configCenter), `tools` (the effective in-process map), `conductorExec`, catalog and catalogStore, and three sub-managers (`lifecycle`, `accessors`, `runexec`).
+`Kernel` holds `cfg Config`, the stores (journal, state, bus, edict, warden, approvals, scheduler, memory/world/forge/skill stores, standing, resume, roster, toolForge, mcpStore, workflows, workboard, okr, taste, seat, artifacts + artIndex, lake, reflect, schedules, schedEngine, agentGW, configCenter), `tools` (the effective in-process map), `conductorExec`, `reasoning` (the reasoning module's service, injected by the composition root), catalog and catalogStore, and three sub-managers (`lifecycle`, `accessors`, `runexec`).
 
 Mutexes, with a mandatory acquisition order (documented on the struct and in runexec/doc.go):
 ```
@@ -465,13 +466,30 @@ All of these use `completeAux(ctx, corr, taskType, req)`, the single funnel that
 |---|---|---|---|
 | Completion verify | `Runner.VerifyCompletion` | `verify` | `assure.verdict` |
 | Criteria proof | `ProveTask`/`verifyCriteria` | `verify` | `assure.verdict`, `workboard.task.proved/unproven` |
-| Council of Elders | `Council` (`councilRound`, `councilSynthesize`, `councilGrounding` → shared `RunTool(web_search)` with unique search IDs). Refusal/failure yields date-only grounding | per seat model | `council.started/brief/convened/opinion/consensus`; correlated policy/tool search audit and approvals |
-| Conductor | `Conduct` (thinker/worker/verifier; verifier may run code via `CodeExecutor.RunScript`) | `conductor` | `conductor.started/step/done` |
-| Deep research | `Research` (plan → `RunTool(web_search)` → `RunTool(browser.read)` → synth → `verifyResearchClaims`) | `research` | tool events via toolexec, plus its own |
+| Council of Elders | `Council` → the reasoning module (`kernel/modules/reasoning`: `councilRound`, `councilSynthesize`, `councilGrounding` → shared `RunTool(web_search)` with unique search IDs). Refusal/failure yields date-only grounding | per seat model | `council.started/brief/convened/opinion/consensus`; correlated policy/tool search audit and approvals |
+| Conductor | `Conduct` → the reasoning module (`conductor`: thinker/worker/verifier; verifier may run code via `CodeExecutor.RunScript`) | `conductor` | `conductor.started/step/done` |
+| Deep research | `Research` → the reasoning module (`research`: plan → `RunTool(web_search)` → `RunTool(browser.read)` → synth → `verifyResearchClaims`) | `research` | tool events via toolexec, plus its own |
 | Workflows | `RunWorkflow`/`runWorkflowGraph`/`execWorkflowNode`/`TestWorkflowNode`; `DraftWorkflow`/`RefineWorkflow` | `workflow` | `workflow.started/node/completed/failed/drafted/saved/...` |
 | Image admission / vision sidecar | `Kernel.AdmitImages` shared by control-plane, REST/OpenAI and channels → `Runner.DescribeImages` (`VisionModel()`; `ErrNoVisionModel`). Confirm primary vision or caption; empty/failed caption rejects; cancelled context stays cancelled | vision | `capability.rerouted`; correlated `capability.rejected` |
 | Elision summary | `makeElidedSummarizer` | — | — |
 | Memory distill / forge / shadow eval | `MaybeDistill`, `MaybeForge`, `MaybeShadowEval`, `DistillBrain`, `DistillProfile` | (memory/skill pkgs) | `memory.*`, `skill.*` |
+
+### 4.13 kernel/modules/reasoning — the reasoning module (W3.1)
+
+The Council of Elders, the Conductor and the deep-research harness moved out of `kernel/runtime` into their own module. The module is **stateless**: it holds no provider, no tool registry and no bus. Everything it needs arrives through its ports, so every call it makes keeps the host's policy checks, its audit arc and its spend attribution.
+
+| Layer | Package | What it holds |
+|---|---|---|
+| vocabulary (L3, `…/api`) | `kernel/modules/reasoning/api` | The rows and results (`CouncilMember`, `Opinion`, `CouncilResult`, `ConductorConfig/Step/Exec/Result`, `ResearchOptions/Source/Claim/Report`), the pure helpers both sides share (`NormalizeMembers`, `OrPlaceholder`, `Clip`), the module's ports (`Dependencies`) and its surface (`Service`). A module may import another module's **api** package and nothing else (P5), so this is the only door between the module and the host. |
+| implementation (L3) | `kernel/modules/reasoning` | `council.go` (deliberation + grounding + chair synthesis), `conductor.go` + `conductor_steps.go` (thinker/worker/verifier, the exec-verification path and the critique fallback), `research.go` + `research_helpers.go` + `research_prompts.go` + `research_verify.go` (plan → gather → fetch → cited synthesis → adversarial verification), `reasoning.go` (the ports and the service). |
+
+Wiring, in one line each:
+
+- The **host** (`kernel/runtime/reasoning.go`) keeps its public names as aliases of the module's vocabulary and holds the module as `api.Service`. It cannot import the module's implementation (L3 → L3 across modules), so it talks to it through the api package only.
+- The **ports** (`api.Dependencies`): `Complete` (the host's aux-completion funnel — every aux call still carries its correlation id and task type), `HasProvider`, `RunTool` (the governed tool invoker — the council's grounding and the research searches/fetches keep their policy checks, approvals and audit arcs), `ToolAvailable`, `Publish` (the host's bus), `Members` (the default panel), `WebSearch`, `CodeExecAvailable` and `RunCode` (the sandboxed code runner, through the host's governed path).
+- The **composition root** (`cmd/agezt/main_toolinvoker.go: openAppKernel`) builds the service over the host's ports and injects it with `SetReasoning`. The primary kernel and every tenant kernel go through the same function, so both are wired.
+
+Behaviour is unchanged: the same error texts ("council: question required", "research: no provider configured", …), the same event subjects and kinds (`council.<corr>`, `conductor.<corr>`), the same token budgets, the same audit arcs and the same wire JSON. The only new string is the host's guard for a kernel whose composition root forgot the wiring ("runtime: reasoning module not wired").
 
 ---
 
@@ -596,7 +614,7 @@ Root package, grouped by concern; every non-test file is listed.
 | File | What it does |
 |---|---|
 | `toolrun.go` | `LookupTool`, `CheckPolicy`, `PublishEvent`, `NotifyNoise` (toolexec interfaces), `RunTool`, private `runToolWithLookup` for runner adapters. |
-| `code_execution.go` | Invocation-local `code_exec` adapter around the existing `CodeExecutor`/`ScriptRunner`; trusted code.exec capability/effects, shared invoker and unique IDs, actual executor-entry marker for Conductor `Ran`. Does not register/replace a tool or change sandbox/network settings. |
+| `code_execution.go` | The host's code-execution port: the `CodeExecutor` interface and `SetConductorExec` (the injection point the daemon uses, unchanged), plus the invocation-local `code_exec` adapter around the existing `CodeExecutor`/`ScriptRunner`; trusted code.exec capability/effects, shared invoker and unique IDs, actual executor-entry marker for Conductor `Ran`. Does not register/replace a tool or change sandbox/network settings. The reasoning module reaches it through its `RunCode` port, so the run keeps the host's policy checks and audit arc (W3.1). |
 | `toolsearch.go` | `tool_search` deferred-catalog tool (`withToolSearch`, lexical scoring; default 8, max 20 results). |
 | `scripttool.go` | Toolforge lifecycle with `scripttool.*` events (`DraftScriptTool`, `UpdateScriptTool`, `TestScriptTool`, `PromoteScriptTool`, `RequestToolPromotion` via approval capability `toolforge.promote`, `QuarantineScriptTool`, `RemoveScriptTool`), `mergeScriptTools`, `forgedTool`. |
 | `mcptool.go` | MCP lifecycle: `AddMCPServer`, `SetMCPServerEnabled`, `AttachMCPServer` (stdio `mcp.Dial` or HTTP `mcp.DialHTTP`), `DetachMCPServer`, `RemoveMCPServer`, `AttachEnabledMCPServers`, `MCPAttached`, `closeMCPConns`. |
@@ -615,9 +633,7 @@ Root package, grouped by concern; every non-test file is listed.
 | `workboard.go` | Workboard state transitions with `workboard.task.*` events (create/claim/heartbeat/comment/block/fail/unblock/retry policy/complete/review/archive/link/dependency/reclaim/sweep), `assureCriteriaMaxTokens=800`. |
 | `workboard_proof.go` | `ProveTask`, `verifyCriteria`, `parseCriteriaVerdict`, `gatherProofEvidence` (artifacts plus journal seq range under corr). |
 | `okr.go` | OKR CRUD and rollup from workboard done-status, `okr.*` events. |
-| `council.go`, `council_helpers.go` | Council of Elders: multi-seat, multi-round deliberation with chair synthesis and web grounding. The opinion row is the contract type itself (`contract/types.Opinion`), so the application's council operation publishes the panel's positions without a projection (W2.62). |
-| `conductor.go`, `conductor_helpers.go`, `conductor_steps.go` | Conductor: thinker plan, worker, verifier (code execution via `CodeExecutor` or LLM critique), with rounds. |
-| `research.go`, `research_helpers.go`, `research_prompts.go`, `research_run.go`, `research_verify.go` | Deep research: sub-question plan, search/fetch through `RunTool`, cited synthesis, adversarial claim verification, confidence. |
+| `reasoning.go` | The runtime's face of the reasoning module: the `Council`/`Opinion`/`Conductor*`/`Research*` aliases of the module's vocabulary, `SetReasoning` (the composition root injects the module's service), `ReasoningDependencies` (the host's ports: the aux-completion funnel, the governed tool invoker, the event bus, the default panel, the sandboxed code runner) and the three delegating calls. The module itself cannot be imported from here — a module may import another module's api package and nothing else (P5) — so the kernel holds it as `api.Service` (W3.1). |
 | `workflowrun.go`, `workflowrun_graph.go`, `workflowrun_node.go`, `workflowrun_helpers.go`, `workflowtestnode.go` | Workflow execution: `RunWorkflow` (step cap 256), graph walk, per-node retry/timeout (`execNodeWithReliability`), node kinds (llm, tool, code_exec, pipeline, subflow depth ≤3, conditions/items), `TestWorkflowNode`. |
 | `workflowdraft.go` | Workflow copilot `DraftWorkflow`/`RefineWorkflow` (one repair round; returned unsaved), `autoLayoutWorkflow`. |
 | `braindistill.go` | `DistillBrain`, `DistillProfile` wrappers over kernel/memory. |
@@ -630,7 +646,8 @@ Tests (59 files), grouped:
 - Lifecycle and resume: `drain_test.go`, `closeall_internal_test.go`, `resume_lifecycle_test.go`, `runtime_steer_test.go`, `steer_internal_test.go`.
 - Context: `context_budget_test.go`, `context_selection_test.go`, `environment*_test.go`.
 - Workflows: `workflow*_test.go`.
-- Features: `council`, `conductor`, `research`, `reaper`, `epistemic`, `intent`, `tenant`, `world`, `memory`, `skill`, `scripttool`, `mcptool`, `toolsearch`.
+- Features: `reaper`, `epistemic`, `intent`, `tenant`, `world`, `memory`, `skill`, `scripttool`, `mcptool`, `toolsearch`.
+- Reasoning (the council, the conductor and the research harness): the module's own tests live in `kernel/modules/reasoning` (the parsers, the verdict/role-brief/code-block parsers and the research helpers). The host-side tests stay here, because they exercise the host's wiring — the governed tool path, the audit arcs and the bus: `council_internal_test.go`, `council_grounding_audit_test.go`, `conductor_internal_test.go`, `code_execution_audit_test.go` and the two `reasoning_wiring*_test.go` helpers that inject the module into a kernel the test opened (W3.1).
 
 ---
 

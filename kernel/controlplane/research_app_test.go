@@ -9,6 +9,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/reasoning"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -32,6 +33,9 @@ func researchKernel(t *testing.T) *runtime.Kernel {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The kernel cannot import the reasoning module itself (archcheck's
+	// principle P5), so the composition root builds it and injects it.
+	k.SetReasoning(reasoning.New(k.ReasoningDependencies()))
 	t.Cleanup(func() { k.Close() })
 	return k
 }

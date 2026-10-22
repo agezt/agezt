@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.64 the execution profile's rows have one declaration, 2026-10-22
+## Current checkpoint — W3.1 the reasoning module, 2026-10-22
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -585,6 +585,32 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   notes only — and it is fixed and named. The archcheck allowlist stays at 129
   import violations and 13 call sites; the package count stays at 271 (no new
   package).
+- W3.1 (the reasoning module) is committed on `main` as a code commit plus a
+  docs commit and published from `arch/w2-dispatch` the same way. The Council
+  of Elders, the Conductor and the deep-research harness were three features
+  of the composition root — `*runtime.Kernel` methods (`k.Council`,
+  `k.Conduct`, `k.Research`) over ten files in `kernel/runtime`. They are now a
+  module (`kernel/modules/reasoning`, L3) and the ten files moved out of the
+  runtime. The module is **stateless**: everything it needs arrives through
+  explicit ports (`api.Dependencies` — the aux-completion funnel, the
+  provider's presence, the governed tool invoker, the tool lookup, the event
+  bus, the default panel, the web-grounding flag and the sandboxed code
+  runner), so every call keeps the host's policy checks, its audit arc and its
+  spend attribution. A module may import another module's **api** package and
+  nothing else (P5), and the runtime is a module too, so the two sides meet in
+  exactly one place: `kernel/modules/reasoning/api` (new) holds the rows, the
+  shared helpers, the ports and the module's surface, and
+  `kernel/runtime/reasoning.go` (new) keeps the runtime's public names as
+  **aliases** of the module's rows and delegates the three calls to the
+  injected service. The composition root (`cmd/agezt`'s `openAppKernel`) builds
+  the service over the kernel's ports and injects it, so the primary kernel
+  and every tenant kernel are wired.
+  **No behaviour changed**: the same error texts, the same event subjects and
+  kinds, the same token budgets, the same audit arcs and the same wire JSON.
+  23 mutations, 23 caught. The mutation run found a **test gap** — the
+  council's default deliberation round was not asserted — and it is fixed and
+  named. The archcheck allowlist stays at 129 import violations and 13 call
+  sites; the package count grows by two (271 → 273).
 - W2.45a (typed roster status collection) is committed on `main` as a code
   commit plus a docs commit and published from `arch/w2-dispatch` the same way.
   `kernel/controlplane/roster_status.go` (371 lines) is gone: the journal-derived
@@ -1032,8 +1058,58 @@ backends' two **policies** (the
 application supports them for a direct run, the host refuses them for a
 dispatched seat), the wider run/tool adapter convergence, W3 modules and
 journal raw-ref GC, W4 triggers/channel supervision/config/signing, and W5
-generated SDK/frontend convergence and zero allowances remain open. The
-overall target is the architecture in `20-target-architecture.md`, delivered
+generated SDK/frontend convergence and zero allowances remain open.
+
+**W3.1 — the reasoning module (delivered).** The council, the conductor and the
+research harness were three features of the composition root — `*runtime.Kernel`
+methods over ten files in `kernel/runtime`. They are now a module
+(`kernel/modules/reasoning`, L3) and the ten files moved out of the runtime:
+
+1. The module is **stateless**. Everything it needs arrives through explicit
+   ports (`api.Dependencies`): the aux-completion funnel, the provider's
+   presence, the governed tool invoker, the tool lookup, the event bus, the
+   default panel, the web-grounding flag and the sandboxed code runner. Every
+   call therefore keeps the host's policy checks, its audit arc and its spend
+   attribution.
+2. A module may import another module's **api** package and nothing else (P5),
+   and `kernel/runtime` is a module (`runs`) just like the reasoning module is.
+   So the two sides meet in exactly one place: `kernel/modules/reasoning/api`
+   (new) holds the rows, the shared helpers, the ports and the module's
+   surface; `kernel/runtime/reasoning.go` (new) keeps the runtime's public
+   names as **aliases** of the module's rows and delegates the three calls to
+   the injected service.
+3. The composition root builds the service: `cmd/agezt`'s `openAppKernel`
+   calls `k.SetReasoning(reasoning.New(k.ReasoningDependencies()))`, so the
+   primary kernel **and** every tenant kernel are wired.
+4. The app layer names the module's vocabulary (`kernel/app/council`,
+   `kernel/app/research` now import `kernel/modules/reasoning/api`). The
+   **control plane keeps the kernel's public names**: an adapter may not import
+   a module at all (archcheck's adapter-bypass rule), so it reaches the module
+   through the kernel's API.
+5. The plugins keep the kernel as their runner, unchanged — a plugin may not
+   import a module either (plugin-reach is an allowlisted line with a fixed
+   count).
+
+**No behaviour changed**: the same error texts, the same event subjects and
+kinds, the same token budgets, the same audit arcs and the same wire JSON. The
+only new string is the host's guard for a kernel whose composition root forgot
+the wiring ("runtime: reasoning module not wired"). 23 mutations, 23 caught;
+the mutation run found a test gap (the council's **default** deliberation round
+was not asserted) and it is fixed and named. The archcheck allowlist stays at
+129 import violations and 13 call sites; the package count grows by two
+(271 → 273).
+
+**W3.2 — the knowledge module (the next slice, to scope).** The roadmap's
+order is `modules/knowledge` (memory, world, taste, profile distill — with the
+profile-facet supersede bug to fix in its rewrite PR), then `modules/skills`,
+`modules/artifacts` (artifact + datalake, with the journal `raw_ref` GC),
+`modules/board`, `modules/work`, `modules/workflows`, `modules/agents`,
+`modules/extensions`, `modules/providers` and `modules/runs` last. The
+reasoning module is the template to follow: the module owns the feature, the
+**api** package owns the vocabulary and the ports, the host keeps its public
+names as aliases and delegates, and the composition root injects the service.
+
+The overall target is the architecture in `20-target-architecture.md`, delivered
 incrementally to protected `main`, with runnable proof and source-aligned
 documentation.
 

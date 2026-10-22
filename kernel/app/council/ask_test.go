@@ -13,27 +13,27 @@ import (
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 	"github.com/agezt/agezt/kernel/platform/schema"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
 // askEngines is a scripted pair of engines: the panel and the Conductor.
 type askEngines struct {
 	convened      []string
-	conducted     []runtime.ConductorConfig
+	conducted     []api.ConductorConfig
 	conductedCorr []string
-	council       runtime.CouncilResult
-	conductor     runtime.ConductorResult
+	council       api.CouncilResult
+	conductor     api.ConductorResult
 	err           error
 }
 
 func (e *askEngines) engines() Engines {
 	return Engines{
-		Convene: func(_ context.Context, corr, question string, rounds int) (runtime.CouncilResult, error) {
+		Convene: func(_ context.Context, corr, question string, rounds int) (api.CouncilResult, error) {
 			e.convened = append(e.convened, corr+"|"+question+"|"+strconv.Itoa(rounds))
 			return e.council, e.err
 		},
-		RunConductor: func(_ context.Context, corr string, cfg runtime.ConductorConfig) (runtime.ConductorResult, error) {
+		RunConductor: func(_ context.Context, corr string, cfg api.ConductorConfig) (api.ConductorResult, error) {
 			e.conducted = append(e.conducted, cfg)
 			e.conductedCorr = append(e.conductedCorr, corr)
 			return e.conductor, e.err
@@ -85,13 +85,13 @@ func TestAskRejectsAMissingQuestion(t *testing.T) {
 // TestAskMapsTheDeliberation: the panel's result becomes the typed answer, and
 // the correlation is either the client's plain id or a minted one.
 func TestAskMapsTheDeliberation(t *testing.T) {
-	e := &askEngines{council: runtime.CouncilResult{
+	e := &askEngines{council: api.CouncilResult{
 		Question:  "why?",
 		Consensus: "because",
 		Dissent:   "no",
 		Rounds:    2,
-		Members:   []runtime.CouncilMember{{Seat: "Chair", Model: "m1"}},
-		Opinions: []runtime.Opinion{
+		Members:   []api.CouncilMember{{Seat: "Chair", Model: "m1"}},
+		Opinions: []api.Opinion{
 			{Seat: "Chair", Model: "m1", Round: 1, Text: "yes"},
 			{Seat: "Scribe", Model: "m2", Round: 1, Text: "", Error: "provider failed"},
 		},
@@ -126,7 +126,7 @@ func TestAskReadsTheLenientArguments(t *testing.T) {
 		`"x"`:  "0",
 		`true`: "0",
 	} {
-		e := &askEngines{council: runtime.CouncilResult{Question: "q"}}
+		e := &askEngines{council: api.CouncilResult{Question: "q"}}
 		if _, err := e.engines().Ask(context.Background(), AskRequest{Question: json.RawMessage(`"q"`), Rounds: json.RawMessage(raw)}); err != nil {
 			t.Fatal(err)
 		}
@@ -134,7 +134,7 @@ func TestAskReadsTheLenientArguments(t *testing.T) {
 			t.Fatalf("rounds %s: %s, want %s", raw, got, want)
 		}
 	}
-	e := &askEngines{council: runtime.CouncilResult{Question: "q"}}
+	e := &askEngines{council: api.CouncilResult{Question: "q"}}
 	out, err := e.engines().Ask(context.Background(), AskRequest{Question: json.RawMessage(`"q"`), Corr: json.RawMessage(`"not a plain id"`)})
 	if err != nil {
 		t.Fatal(err)
@@ -168,18 +168,18 @@ func TestConductRejectsAMissingTask(t *testing.T) {
 // TestConductMapsTheTranscript: the loop's config and transcript become the
 // typed answer, and the empty step fields stay empty.
 func TestConductMapsTheTranscript(t *testing.T) {
-	e := &askEngines{conductor: runtime.ConductorResult{
+	e := &askEngines{conductor: api.ConductorResult{
 		Task:   "what is 2+2?",
 		Answer: "4",
 		Passed: true,
 		Roles:  map[string]string{"thinker": "m1", "worker": "m2", "verifier": "m3"},
 		Rounds: 1,
 		Plan:   "a plan",
-		Steps: []runtime.ConductorStep{
+		Steps: []api.ConductorStep{
 			{Round: 1, Role: "thinker", Model: "m1", Text: "think"},
 			{Round: 1, Role: "worker", Model: "m2", Text: "work", Verdict: "pass", Reason: "fine"},
 			{Round: 1, Role: "verifier", Model: "m3", Error: "model unavailable"},
-			{Round: 1, Role: "verifier", Model: "m3", Exec: &runtime.ConductorExec{Ran: true, OK: false, Language: "go", Output: "boom"}},
+			{Round: 1, Role: "verifier", Model: "m3", Exec: &api.ConductorExec{Ran: true, OK: false, Language: "go", Output: "boom"}},
 		},
 	}}
 	out, err := e.engines().Conduct(context.Background(), ConductRequest{

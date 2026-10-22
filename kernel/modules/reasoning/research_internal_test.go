@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
+package reasoning
 
 import (
 	"reflect"
@@ -125,11 +125,11 @@ func TestBuildResearchSynthPrompt_IncludesSourcesAndRules(t *testing.T) {
 }
 
 func TestResearchOptions_Defaults(t *testing.T) {
-	o := ResearchOptions{}.withDefaults()
+	o := withResearchDefaults(ResearchOptions{})
 	if o.MaxSubQuestions != 3 || o.ResultsPerQuery != 4 || o.MaxSources != 8 || o.MaxVerifyClaims != 6 {
 		t.Fatalf("bad defaults: %#v", o)
 	}
-	capped := ResearchOptions{MaxSubQuestions: 99, MaxSources: 99, MaxVerifyClaims: 99}.withDefaults()
+	capped := withResearchDefaults(ResearchOptions{MaxSubQuestions: 99, MaxSources: 99, MaxVerifyClaims: 99})
 	if capped.MaxSubQuestions != 8 || capped.MaxSources != 20 || capped.MaxVerifyClaims != 12 {
 		t.Fatalf("caps not applied: %#v", capped)
 	}
