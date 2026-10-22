@@ -9,12 +9,10 @@ import (
 	"strings"
 	"time"
 
-	appexecprofile "github.com/agezt/agezt/kernel/app/execprofile"
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/warden"
 )
 
 // resolvedRun is a run after the request has been resolved against the kernel:
@@ -308,15 +306,11 @@ func applyExecutionProfile(ctx context.Context, k *runtime.Kernel, execProfile s
 		}
 		return ctx, "remote-agezt", true, nil
 	}
-	p, ok := executionprofile.WardenProfileForRun(execProfile)
-	if !ok {
-		return ctx, "", false, fmt.Errorf("execution profile %q is not routable for run tools yet (supported: %s)",
-			execProfile, strings.Join(executionprofile.RoutableRunProfileIDsFor(appexecprofile.Inventory(k)), ", "))
+	ctx, label, err := WardenProfile(ctx, k, execProfile)
+	if err != nil {
+		return ctx, "", false, err
 	}
-	if p == warden.ProfileContainer && k.Warden().EffectiveProfile(p) != warden.ProfileContainer {
-		return ctx, "", false, fmt.Errorf("execution profile %q requires an active container backend (set AGEZT_WARDEN_DOCKER=1 and configure AGEZT_WARDEN_DOCKER_IMAGE/runtime)", execProfile)
-	}
-	return warden.WithProfileOverride(ctx, p), string(p), false, nil
+	return ctx, label, false, nil
 }
 
 // requireShellTool refuses an execution profile whose backend needs the shell
