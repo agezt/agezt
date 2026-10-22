@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/controlplane"
-	"github.com/agezt/agezt/kernel/skill"
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 

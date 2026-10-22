@@ -15,7 +15,7 @@ import (
 	"fmt"
 
 	"github.com/agezt/agezt/kernel/mcp"
-	"github.com/agezt/agezt/kernel/skill"
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // Library is a source of packs — the built-in Official marketplace and, later,

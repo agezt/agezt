@@ -45,11 +45,11 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/market"
 	kernelmemory "github.com/agezt/agezt/kernel/modules/knowledge/memory"
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/pulse"
 	"github.com/agezt/agezt/kernel/redact"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/selfrepair"
-	"github.com/agezt/agezt/kernel/skill"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/kernel/update"
@@ -58,7 +58,6 @@ import (
 	"github.com/agezt/agezt/plugins/builtinchannels"
 	"github.com/agezt/agezt/plugins/builtinguardians"
 	"github.com/agezt/agezt/plugins/builtinmarket"
-	"github.com/agezt/agezt/plugins/builtinskills"
 	"github.com/agezt/agezt/plugins/providerboot"
 	"github.com/agezt/agezt/plugins/providers/embed"
 	"github.com/agezt/agezt/plugins/providers/image"
@@ -1503,7 +1502,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 				// capabilities like full browser automation work out of the box — the
 				// agent gets a ready, active skill with its scripts on disk. Idempotent
 				// (content-addressed); best-effort — a seed failure never blocks startup.
-				if seeded, serr := builtinskills.SeedAll(fg, ""); serr != nil {
+				if seeded, serr := skill.SeedBuiltins(fg, ""); serr != nil {
 					fmt.Fprintf(stderr, "  built-in skills  : partial (%v)\n", serr)
 				} else if len(seeded) > 0 {
 					names := make([]string, 0, len(seeded))

@@ -10,7 +10,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/agezt/agezt/kernel/skill"
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // Listing is a catalogue row joined with install state, for the UI/CLI.

@@ -2,12 +2,11 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-83 package(s):
+82 package(s):
 
 - **`plugins/builtinchannels`** — Package builtinchannels registers the manifests for AGEZT's built-in communication channels (Telegram, WhatsApp, Slack, …) into the channel registry.
 - **`plugins/builtinguardians`** — Package builtinguardians ships the daemon's internal self-healing fleet: a small set of "guardian" agents baked into the binary and seeded into the roster at startup (M961), so the system watches and repairs itself out of the box — no operator setup.
-- **`plugins/builtinmarket`** — Package builtinmarket is the marketplace's built-in "Official" catalogue: it wraps the binary's embedded skill bundles (plugins/builtinskills) — and a few curated combo packs that add an MCP server + CLI-tool requirements — into installable market.Packs.
-- **`plugins/builtinskills`** — Package builtinskills ships skill bundles baked into the binary and seeds them into the daemon's Forge at startup, so capabilities like full browser automation work out of the box — no operator install, no agent having to author the skill first (M852).
+- **`plugins/builtinmarket`** — Package builtinmarket is the marketplace's built-in "Official" catalogue: it wraps the binary's embedded skill bundles (the skills module's built-in bundles) — and a few curated combo packs that add an MCP server + CLI-tool requirements — into installable market.Packs.
 - **`plugins/builtintools`** — Env-gated / workspace-scoped specs (Phase 2.2 PR 6): the last inline blocks of cmd/agezt's buildTools — the always-on workspace pair (shell, file) and the operator-opt-in externals (coding, acp_agent, homeassistant, remote_run).
 - **`plugins/channels/chatwebhook`** — Package chatwebhook is a two-way channel for chat platforms whose integration model is "incoming webhook out + a webhook POST in": Google Chat and Mattermost.
 - **`plugins/channels/dingtalk`** — Package dingtalk is a two-way DingTalk channel over the enterprise robot "outgoing" model.

@@ -8,9 +8,9 @@ adapter-bypass kernel/agentgw -> kernel/roster
 adapter-bypass kernel/controlplane -> kernel/board
 adapter-bypass kernel/controlplane -> kernel/cadence
 adapter-bypass kernel/controlplane -> kernel/modules/knowledge/memory
+adapter-bypass kernel/controlplane -> kernel/modules/skills/skill
 adapter-bypass kernel/controlplane -> kernel/roster
 adapter-bypass kernel/controlplane -> kernel/runtime
-adapter-bypass kernel/controlplane -> kernel/skill
 adapter-bypass kernel/controlplane -> kernel/standing
 adapter-bypass kernel/controlplane -> kernel/toolbox
 adapter-bypass kernel/controlplane -> kernel/update
@@ -25,9 +25,9 @@ cross-module kernel/cadence/systemtasks -> kernel/runtime
 cross-module kernel/channelwire -> kernel/pulse
 cross-module kernel/contextselect -> kernel/modules/knowledge/memory
 cross-module kernel/contextselect -> kernel/modules/knowledge/worldmodel
-cross-module kernel/contextselect -> kernel/skill
+cross-module kernel/contextselect -> kernel/modules/skills/skill
 cross-module kernel/market -> kernel/mcp
-cross-module kernel/market -> kernel/skill
+cross-module kernel/market -> kernel/modules/skills/skill
 cross-module kernel/modules/knowledge/memory -> kernel/agent
 cross-module kernel/pulse -> kernel/agent
 cross-module kernel/reflect -> kernel/modules/knowledge/worldmodel
@@ -42,12 +42,12 @@ cross-module kernel/runtime -> kernel/mcp
 cross-module kernel/runtime -> kernel/modules/knowledge/memory
 cross-module kernel/runtime -> kernel/modules/knowledge/taste
 cross-module kernel/runtime -> kernel/modules/knowledge/worldmodel
+cross-module kernel/runtime -> kernel/modules/skills/skill
 cross-module kernel/runtime -> kernel/okr
 cross-module kernel/runtime -> kernel/proof
 cross-module kernel/runtime -> kernel/reranktool
 cross-module kernel/runtime -> kernel/roster
 cross-module kernel/runtime -> kernel/seat
-cross-module kernel/runtime -> kernel/skill
 cross-module kernel/runtime -> kernel/standing
 cross-module kernel/runtime -> kernel/toolforge
 cross-module kernel/runtime -> kernel/voicetool
@@ -60,8 +60,8 @@ cross-module kernel/runtime/accessors -> kernel/datalake
 cross-module kernel/runtime/accessors -> kernel/market
 cross-module kernel/runtime/accessors -> kernel/modules/knowledge/memory
 cross-module kernel/runtime/accessors -> kernel/modules/knowledge/worldmodel
+cross-module kernel/runtime/accessors -> kernel/modules/skills/skill
 cross-module kernel/runtime/accessors -> kernel/roster
-cross-module kernel/runtime/accessors -> kernel/skill
 cross-module kernel/runtime/accessors -> kernel/standing
 cross-module kernel/runtime/runexec -> kernel/artifact
 cross-module kernel/runtime/runexec -> kernel/assure
@@ -70,8 +70,8 @@ cross-module kernel/runtime/runexec -> kernel/catalog
 cross-module kernel/runtime/runexec -> kernel/datalake
 cross-module kernel/runtime/runexec -> kernel/modules/knowledge/memory
 cross-module kernel/runtime/runexec -> kernel/modules/knowledge/worldmodel
+cross-module kernel/runtime/runexec -> kernel/modules/skills/skill
 cross-module kernel/runtime/runexec -> kernel/roster
-cross-module kernel/runtime/runexec -> kernel/skill
 cross-module kernel/runtime/runexec -> kernel/standing
 cross-module kernel/runtime/runexec -> kernel/voicetool
 cross-module kernel/selfrepair -> kernel/board
@@ -87,8 +87,7 @@ plugin-reach plugins/builtinguardians -> kernel/runtime
 plugin-reach plugins/builtinguardians -> kernel/standing
 plugin-reach plugins/builtinmarket -> kernel/market
 plugin-reach plugins/builtinmarket -> kernel/mcp
-plugin-reach plugins/builtinmarket -> kernel/skill
-plugin-reach plugins/builtinskills -> kernel/skill
+plugin-reach plugins/builtinmarket -> kernel/modules/skills/skill
 plugin-reach plugins/builtintools -> kernel/plugin
 plugin-reach plugins/builtintools -> kernel/runtime
 plugin-reach plugins/builtintools -> kernel/toolreg
@@ -119,7 +118,7 @@ plugin-reach plugins/tools/overseertool -> kernel/runtime
 plugin-reach plugins/tools/research -> kernel/runtime
 plugin-reach plugins/tools/schedule -> kernel/cadence
 plugin-reach plugins/tools/schedule -> kernel/roster
-plugin-reach plugins/tools/skilltool -> kernel/skill
+plugin-reach plugins/tools/skilltool -> kernel/modules/skills/skill
 plugin-reach plugins/tools/standingtool -> kernel/roster
 plugin-reach plugins/tools/standingtool -> kernel/standing
 plugin-reach plugins/tools/workboardtool -> kernel/workboard

@@ -51,6 +51,8 @@ func TestMatch(t *testing.T) {
 		{"kernel/runtime/...", "kernel/runtimex", false, ""},
 		{"kernel/modules/*/...", "kernel/modules/knowledge", true, "knowledge"},
 		{"kernel/modules/*/...", "kernel/modules/knowledge/internal/store", true, "knowledge"},
+		{"kernel/modules/*/...", "kernel/modules/skills/skill", true, "skills"},
+		{"kernel/modules/*/...", "kernel/modules/skills/builtins", true, "skills"},
 		{"kernel/modules/*/...", "kernel/modules", false, ""},
 		{"kernel/modules/*", "kernel/modules/runs/api", false, ""},
 	}
@@ -330,6 +332,8 @@ func TestRepoLayerMapIsValid(t *testing.T) {
 		"kernel/agent":                    {Layer: LayerModule, Module: "runs"},
 		"kernel/runtime/runexec":          {Layer: LayerModule, Module: "runs"},
 		"kernel/modules/knowledge/memory": {Layer: LayerModule, Module: "knowledge"},
+		"kernel/modules/skills/skill":     {Layer: LayerModule, Module: "skills"},
+		"kernel/modules/skills/builtins":  {Layer: LayerModule, Module: "skills"},
 		"kernel/controlplane":             {Layer: LayerAdapter},
 		"kernel/governor":                 {Layer: LayerPlatform},
 		"kernel/event":                    {Layer: LayerContract},

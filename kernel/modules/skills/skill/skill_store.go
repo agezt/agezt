@@ -52,7 +52,7 @@ type Skill struct {
 	// Resources lists the relative paths of the skill's on-disk bundle —
 	// reference files and scripts that travel with it (agentskills.io shape,
 	// SPEC-13). Empty for a plain body-only skill. The files live under the
-	// BundleStore (kernel/skill/bundle.go); this is the manifest the retrieval
+	// BundleStore (kernel/modules/skills/skill/bundle.go); this is the manifest the retrieval
 	// layer, the CLI, and the agent's skill tool use to discover them.
 	Resources []string `json:"resources,omitempty"`
 	// Agent is the owning roster slug (M932): a skill an agent learned in its

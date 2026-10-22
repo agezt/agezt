@@ -224,13 +224,16 @@ func errResult(msg string) toolapi.Result {
 // running from a source checkout. Packaged installs should pass an explicit
 // AGEZT_BROWSER_ACTION_DRIVER path after materializing the browser-use bundle.
 func ResolveActionDriverPath() string {
+	// The browser-use bundle lives in the skills module (W3.3), so the driver
+	// script is looked up under the module's built-in bundles.
+	rel := filepath.Join("kernel", "modules", "skills", "builtins", "browseruse", "scripts", "browse.mjs")
 	candidates := []string{
-		filepath.Join("plugins", "builtinskills", "browseruse", "scripts", "browse.mjs"),
-		filepath.Join("..", "..", "plugins", "builtinskills", "browseruse", "scripts", "browse.mjs"),
+		rel,
+		filepath.Join("..", "..", rel),
 	}
 	if cwd, err := os.Getwd(); err == nil {
 		for dir := cwd; ; dir = filepath.Dir(dir) {
-			candidates = append(candidates, filepath.Join(dir, "plugins", "builtinskills", "browseruse", "scripts", "browse.mjs"))
+			candidates = append(candidates, filepath.Join(dir, rel))
 			parent := filepath.Dir(dir)
 			if parent == dir {
 				break
@@ -240,8 +243,8 @@ func ResolveActionDriverPath() string {
 	if exe, err := os.Executable(); err == nil {
 		base := filepath.Dir(exe)
 		candidates = append(candidates,
-			filepath.Join(base, "plugins", "builtinskills", "browseruse", "scripts", "browse.mjs"),
-			filepath.Join(base, "..", "plugins", "builtinskills", "browseruse", "scripts", "browse.mjs"),
+			filepath.Join(base, rel),
+			filepath.Join(base, "..", rel),
 		)
 	}
 	for _, c := range candidates {

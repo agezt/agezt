@@ -15,8 +15,8 @@ import (
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/resume"
-	"github.com/agezt/agezt/kernel/skill"
 	"github.com/agezt/agezt/kernel/warden"
 )
 

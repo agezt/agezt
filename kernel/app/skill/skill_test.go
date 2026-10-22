@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	appskill "github.com/agezt/agezt/kernel/app/skill"
-	curated "github.com/agezt/agezt/kernel/skill"
+	curated "github.com/agezt/agezt/kernel/modules/skills/skill"
 	"reflect"
 	"testing"
 )

@@ -14,7 +14,8 @@ kernel/webui/dist/**/*.woff binary
 kernel/webui/dist/**/*.ttf binary
 # Built-in skill bundles are go:embed-ded into the binary (M852). Force LF so a
 # Windows checkout doesn't embed CRLF — the shell setup script must run on Linux.
-plugins/builtinskills/** text eol=lf
+# W3.3 moved the bundles into the skills module; the rule follows them.
+kernel/modules/skills/builtins/** text eol=lf
 
 # Go source: force LF, same reasoning as the lines above. gofmt normalises to
 # LF, so a CRLF-stored .go file is reported by `gofmt -l` on line endings alone

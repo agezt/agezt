@@ -5,7 +5,7 @@ package skill
 import (
 	"context"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	curated "github.com/agezt/agezt/kernel/skill"
+	curated "github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // LifecycleStore is the Forge's existing lifecycle boundary.

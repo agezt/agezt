@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/mcp"
-	"github.com/agezt/agezt/kernel/skill"
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // FormatVersion is the on-disk/wire manifest version. Bump on breaking changes.

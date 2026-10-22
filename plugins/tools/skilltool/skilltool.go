@@ -20,7 +20,7 @@ package skilltool
 import (
 	"sync"
 
-	"github.com/agezt/agezt/kernel/skill"
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // forge is the subset of *skill.Forge the tool needs — an interface so tests can

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
 // Package builtinmarket is the marketplace's built-in "Official" catalogue: it
-// wraps the binary's embedded skill bundles (plugins/builtinskills) — and a few
+// wraps the binary's embedded skill bundles (the skills module's built-in bundles) — and a few
 // curated combo packs that add an MCP server + CLI-tool requirements — into
 // installable market.Packs. It is always present and works offline; remote
 // marketplaces (Phase 2) layer on top. It references the embedded bundle bytes
-// via builtinskills.Bundle rather than duplicating them.
+// via skill.BuiltinBundle rather than duplicating them.
 package builtinmarket
 
 import (
@@ -13,8 +13,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/mcp"
-	"github.com/agezt/agezt/kernel/skill"
-	"github.com/agezt/agezt/plugins/builtinskills"
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // MarketplaceName is the built-in catalogue's stable name.
@@ -151,8 +150,8 @@ type Library struct {
 // Best-effort per bundle: a bundle that fails to read is skipped, not fatal.
 func New() *Library {
 	l := &Library{index: map[string]market.Pack{}, featured: map[string]bool{}}
-	for _, name := range builtinskills.Names() {
-		md, res, err := builtinskills.Bundle(name)
+	for _, name := range skill.BuiltinNames() {
+		md, res, err := skill.BuiltinBundle(name)
 		if err != nil {
 			continue
 		}
@@ -173,7 +172,7 @@ func New() *Library {
 	for _, c := range combos {
 		var packSkills []market.PackSkill
 		for _, name := range c.skills {
-			md, res, err := builtinskills.Bundle(name)
+			md, res, err := skill.BuiltinBundle(name)
 			if err != nil {
 				continue
 			}
