@@ -17,7 +17,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/mcp"
-	"github.com/agezt/agezt/kernel/memory"
+	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/toolforge"
 	"github.com/agezt/agezt/kernel/warden"
@@ -273,7 +273,7 @@ type Config struct {
 	// run's System prompt, so the assistant knows who it works for. Gated by
 	// AGEZT_USER_PROFILE (default on); a no-op until a profile exists.
 	ProfileInject bool
-	// TasteInject prepends curated "what good looks like" exemplars (kernel/taste)
+	// TasteInject prepends curated "what good looks like" exemplars (kernel/modules/knowledge/taste)
 	// scoped to the run, so output quality is anchored to concrete examples. Gated
 	// by AGEZT_TASTE_INJECT (default on); a no-op until exemplars exist.
 	TasteInject bool

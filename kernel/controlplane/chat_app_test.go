@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
-	"github.com/agezt/agezt/kernel/memory"
+	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )

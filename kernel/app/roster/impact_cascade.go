@@ -11,7 +11,7 @@ import (
 	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/configcenter"
-	"github.com/agezt/agezt/kernel/memory"
+	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	core "github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/skill"
 	"github.com/agezt/agezt/kernel/workflow"

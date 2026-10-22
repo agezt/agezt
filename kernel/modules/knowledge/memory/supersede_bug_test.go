@@ -1,27 +1,31 @@
 // SPDX-License-Identifier: MIT
 //
-// Proof-of-failure: kernel/memory/consolidate.go supersedeExisting silently
-// returns nil when the old record is absent from the store.
+// Regression: kernel/modules/knowledge/memory/consolidate.go supersedeExisting
+// must not silently return nil when the old record is absent from the store.
 //
-// ROOT CAUSE
-// consolidate.go:251 has:
+// ROOT CAUSE (fixed)
+// The guard was:
 //     if err != nil || !found { return err }
 // When the record is absent, FileStore.Get returns (zero Record{}, false, nil).
 // The guard fires (err=nil, found=false → true||false = true) and executes
-// `return err` — but err is nil! supersedeExisting silently returns nil,
-// DistillBrain counts the absent record as successfully superseded, and a
-// zero Record{} is written back to the store under the absent record's ID.
+// `return err` — but err is nil! supersedeExisting silently returned nil,
+// DistillBrain counted the absent record as successfully superseded, and a
+// zero Record{} was written back to the store under the absent record's ID.
 //
-// IMPACT
+// IMPACT (fixed)
 // - Silent, incorrect tracking state: absent record appears superseded.
 // - Zero Record{} written to store under the absent record's ID.
 // - Second DistillBrain pass re-clusters the stale zero record → duplicate consolidation.
 // - Orphaned consolidation: a "new" summary record is created even though
 //   the old one is already superseded/absent.
+//
+// The guard now reports ErrRecordNotFound, so a caller can tell "the record
+// was deleted concurrently" from "the supersede worked".
 
 package memory
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
@@ -110,20 +114,15 @@ func TestSupersedeExisting_SilentNoopOnAbsentRecord(t *testing.T) {
 		t.Fatal("Get should return not-found for k2")
 	}
 
-	// The bug: supersedeExisting silently returns nil even though oldID is absent.
+	// supersedeExisting must report the absent record, and report it as the
+	// named sentinel, so a caller can tell it apart from a real failure.
 	err = m.supersedeExisting("corr", oldID, newID)
-
-	// EXPECTED (correct) behavior: err must be non-nil.
-	// ACTUAL (buggy) behavior: err == nil.
 	if err == nil {
 		t.Errorf("supersedeExisting returned nil for absent oldID %q", oldID)
-		t.Errorf("  Root cause: consolidate.go:251")
-		t.Errorf("    if err != nil || !found { return err }")
-		t.Errorf("  When %q absent: err=nil, found=false", oldID)
-		t.Errorf("    → guard fires (false || true = true)")
-		t.Errorf("    → executes: return err   ← err is nil!")
-		t.Errorf("    → supersedeExisting silently returns nil (should return non-nil)")
-		t.Errorf("  Expected: a non-nil error (e.g. ErrRecordNotFound)")
+		t.Errorf("  The guard must not execute `return err` when err is nil")
+		t.Errorf("  Expected: a non-nil error")
+	} else if !errors.Is(err, ErrRecordNotFound) {
+		t.Errorf("supersedeExisting returned %v for absent oldID %q, want an error wrapping ErrRecordNotFound", err, oldID)
 	}
 
 	// Verify the absent record was NOT corrupted in the store.

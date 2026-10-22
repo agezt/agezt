@@ -9,7 +9,7 @@
 // relevance *to this operator specifically* — the hole salience.go left open
 // for "the full world-model relevance signals land with Memory".
 //
-// It deliberately mirrors kernel/memory's two-layer split, because the same
+// It deliberately mirrors kernel/modules/knowledge/memory's two-layer split, because the same
 // properties are wanted (auditability, reversibility, dedupe):
 //
 //   - Store (this file) is a pure, file-backed graph store — no bus, no

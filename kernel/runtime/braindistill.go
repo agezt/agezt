@@ -3,7 +3,7 @@
 package runtime
 
 // Brain distillation surface (M804): the kernel-side wrapper for one memory
-// consolidation pass (kernel/memory.DistillBrain) — clusters related
+// consolidation pass (kernel/modules/knowledge/memory.DistillBrain) — clusters related
 // records by the M803 local embeddings, merges each cluster through the
 // provider into one consolidated record, and supersedes the originals.
 // Runs on demand (`agt memory consolidate`, the console) and on the
@@ -14,7 +14,7 @@ package runtime
 import (
 	"context"
 
-	"github.com/agezt/agezt/kernel/memory"
+	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
 // DistillBrain runs one consolidation pass over the memory store under

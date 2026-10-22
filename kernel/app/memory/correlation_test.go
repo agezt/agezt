@@ -12,7 +12,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
-	store "github.com/agezt/agezt/kernel/memory"
+	store "github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
 func TestEveryMemoryStoreMutationRetainsAdmittedCorrelation(t *testing.T) {

@@ -8,8 +8,8 @@ import (
 	"github.com/agezt/agezt/kernel/app"
 	apptaste "github.com/agezt/agezt/kernel/app/taste"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	curated "github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/platform/schema"
-	curated "github.com/agezt/agezt/kernel/taste"
 	"reflect"
 	"testing"
 )

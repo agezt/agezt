@@ -49,9 +49,6 @@
     {"pattern": "kernel/toolreg", "layer": 3, "module": "runs", "note": "-> app/tools registry (W2.3)"},
     {"pattern": "kernel/toolexec", "layer": 3, "module": "runs", "note": "-> app/tools.Invoke (W2.3)"},
 
-    {"pattern": "kernel/memory", "layer": 3, "module": "knowledge"},
-    {"pattern": "kernel/worldmodel", "layer": 3, "module": "knowledge"},
-    {"pattern": "kernel/taste", "layer": 3, "module": "knowledge"},
 
     {"pattern": "kernel/skill", "layer": 3, "module": "skills"},
     {"pattern": "kernel/market", "layer": 3, "module": "market"},

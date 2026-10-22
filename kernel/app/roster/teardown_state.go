@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/configcenter"
-	"github.com/agezt/agezt/kernel/memory"
+	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/platform/fileworkspace"
 	core "github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/skill"

@@ -10,7 +10,7 @@ import (
 	"context"
 	"github.com/agezt/agezt/kernel/contextselect"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/memory"
+	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/skill"
 	"time"
 )

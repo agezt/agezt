@@ -3,8 +3,8 @@
 package runtime
 
 import (
+	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/seat"
-	"github.com/agezt/agezt/kernel/taste"
 )
 
 // Taste returns the curated "what good looks like" exemplar store.

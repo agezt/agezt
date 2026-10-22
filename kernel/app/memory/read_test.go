@@ -11,7 +11,7 @@ import (
 	"time"
 
 	appmemory "github.com/agezt/agezt/kernel/app/memory"
-	store "github.com/agezt/agezt/kernel/memory"
+	store "github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
 func readFixture(t *testing.T) (*store.FileStore, *appmemory.Service) {

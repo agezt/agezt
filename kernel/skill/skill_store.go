@@ -114,7 +114,7 @@ var ErrEmptyBody = errors.New("skill: empty body")
 
 // FileStore is the file-backed Store. All skills live in a single
 // <dir>/skills.json object keyed by id, snapshotted atomically on every
-// mutation (write-temp + rename). Mirrors kernel/worldmodel's FileStore.
+// mutation (write-temp + rename). Mirrors kernel/modules/knowledge/worldmodel's FileStore.
 type FileStore struct {
 	path string
 

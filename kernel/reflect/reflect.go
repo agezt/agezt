@@ -25,7 +25,7 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
-	"github.com/agezt/agezt/kernel/worldmodel"
+	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 )
 
 // Config tunes a reflection pass.

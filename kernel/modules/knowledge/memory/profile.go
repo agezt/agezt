@@ -148,11 +148,33 @@ func (m *Manager) DistillProfile(ctx context.Context, corr string, provider llm.
 		if !validFacet(facet) || strings.TrimSpace(f.Content) == "" {
 			continue
 		}
+		content := strings.TrimSpace(f.Content)
+		subject := profileSubjectPrefix + facet
+		tags := map[string]string{"scope": "", "source": "profile"}
+		// The facet's SUBJECT is stable, but a record's identity is its CONTENT
+		// (ScopedID). So a pass whose synthesized content changes writes the new
+		// facet under a new id — and the previous version would stay active
+		// forever, leaving the operator with two conflicting versions of the
+		// same facet injected into every run. Retire the previous version
+		// first: the facet is updated, never duplicated, and the audit trail
+		// shows which record the new one replaced.
+		newID := ScopedID(TypePreference, subject, content, scopeOf(tags))
+		for _, old := range current {
+			// `current` holds the SHARED facets only (the private ones are
+			// filtered out below), so every record here is the shared profile.
+			if old.Subject != subject || old.ID == newID {
+				continue
+			}
+			// A record that vanished concurrently needs no superseding.
+			if err := m.supersedeExisting(corr, old.ID, newID); err != nil && !errors.Is(err, ErrRecordNotFound) {
+				return report, err
+			}
+		}
 		if _, _, err := m.Remember(corr, RememberSpec{
 			Type:    TypePreference,
-			Subject: profileSubjectPrefix + facet,
-			Content: strings.TrimSpace(f.Content),
-			Tags:    map[string]string{"scope": "", "source": "profile"},
+			Subject: subject,
+			Content: content,
+			Tags:    tags,
 			Actor:   "profile",
 			Force:   true, // explicit curation — bypass low-value retention filtering
 		}); err != nil {

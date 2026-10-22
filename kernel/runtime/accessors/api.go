@@ -22,7 +22,8 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/market"
-	"github.com/agezt/agezt/kernel/memory"
+	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
+	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/scheduler"
@@ -30,7 +31,6 @@ import (
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/warden"
-	"github.com/agezt/agezt/kernel/worldmodel"
 )
 
 // KernelAPI is the surface the Accessor needs from its host kernel.

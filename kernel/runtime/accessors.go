@@ -9,8 +9,8 @@ package runtime
 import (
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/market"
+	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/skill"
-	"github.com/agezt/agezt/kernel/worldmodel"
 )
 
 // Journal exposes the underlying journal for read-only inspection (used by

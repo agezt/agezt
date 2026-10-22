@@ -17,7 +17,7 @@ import (
 // Graph wraps a Store with the kernel bus so every node/edge mutation is
 // journaled (durable-before-publish) under the originating run's
 // correlation_id. This is the journaling boundary — the Store stays pure. It
-// mirrors kernel/memory.Manager exactly, for the same reason: `agt why` must
+// mirrors kernel/modules/knowledge/memory.Manager exactly, for the same reason: `agt why` must
 // be able to explain why the graph believes what it believes (SPEC-05 §3.3).
 type Graph struct {
 	store Store

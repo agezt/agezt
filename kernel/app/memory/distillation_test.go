@@ -13,7 +13,7 @@ import (
 
 	appmemory "github.com/agezt/agezt/kernel/app/memory"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	store "github.com/agezt/agezt/kernel/memory"
+	store "github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
 type fakeDistiller struct {

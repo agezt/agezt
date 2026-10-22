@@ -468,7 +468,7 @@ const (
 	KindOKRObjectiveAchieved Kind = "okr.objective.achieved"
 
 	// Taste overlay: curated "what good looks like" exemplars were injected into
-	// a run's system prompt (kernel/taste).
+	// a run's system prompt (kernel/modules/knowledge/taste).
 	KindTasteInjected Kind = "taste.injected"
 
 	// Capability marketplace (control plane): pack and source changes, plus the

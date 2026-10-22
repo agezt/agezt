@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/worldmodel"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 

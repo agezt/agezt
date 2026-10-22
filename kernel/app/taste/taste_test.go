@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	apptaste "github.com/agezt/agezt/kernel/app/taste"
-	curated "github.com/agezt/agezt/kernel/taste"
+	curated "github.com/agezt/agezt/kernel/modules/knowledge/taste"
 )
 
 func tasteFixture(t *testing.T) (*curated.Store, *apptaste.Service, string) {

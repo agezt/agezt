@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"strings"
 
-	kmemory "github.com/agezt/agezt/kernel/memory"
+	kmemory "github.com/agezt/agezt/kernel/modules/knowledge/memory"
+	kworld "github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	kskill "github.com/agezt/agezt/kernel/skill"
-	kworld "github.com/agezt/agezt/kernel/worldmodel"
 )
 
 func MemoryCandidates(hits []kmemory.Scored, nowMS int64) []Candidate {

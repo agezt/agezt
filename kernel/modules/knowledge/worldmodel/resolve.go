@@ -156,7 +156,7 @@ func Neighbors(entityID string, es []Entity, rs []Relation) []Neighbor {
 
 // recencyFactor decays with age: 1.0 for "now", asymptoting toward 0 for old
 // nodes. A node never drops out of resolve on recency alone — it only loses
-// ranking weight. Mirrors kernel/memory's recency model.
+// ranking weight. Mirrors kernel/modules/knowledge/memory's recency model.
 func recencyFactor(lastSeenMS, nowMS int64) float64 {
 	ageMS := nowMS - lastSeenMS
 	if ageMS <= 0 {
@@ -169,7 +169,7 @@ func recencyFactor(lastSeenMS, nowMS int64) float64 {
 
 // tokenize lowercases s and splits on any non-alphanumeric rune, dropping
 // empties and 1-character tokens (noise). Stable and dependency-free; mirrors
-// kernel/memory.tokenize so resolve and recall rank consistently.
+// kernel/modules/knowledge/memory.tokenize so resolve and recall rank consistently.
 func tokenize(s string) []string {
 	fields := strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
