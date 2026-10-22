@@ -4,17 +4,16 @@ package plugins
 import (
 	"context"
 	"sort"
+
+	"github.com/agezt/agezt/kernel/contract/types"
 )
 
 // Registration is the daemon-supplied manifest projected by plugin_list. Spawning,
 // hashes, allowlist enforcement and process lifecycle stay outside this read port.
-type Registration struct {
-	Prefix, Path string
-	Args         []string
-	ToolCount    int
-	HashPinned   bool
-	AllowedTools []string
-}
+// It is the contract type itself — not a copy of it — so the host hands its
+// manifest over without a field-by-field projection and the two sides cannot
+// drift.
+type Registration = types.PluginInfo
 type Reader interface{ Plugins() []Registration }
 type Service struct{ reader Reader }
 

@@ -3,9 +3,7 @@
 package types
 
 // This file holds the value-type declarations themselves. The package's
-// documentation — what belongs here and why — lives in doc.go, and the two
-// were previously split across this file's own package comment and doc.go,
-// which made `go doc` stack two different descriptions on top of each other.
+// documentation — what belongs here and why — lives in doc.go.
 
 // SubAgentLimits reports the active delegation-governance ceilings
 // (M46–M48) for `agt status` (M49). Enabled mirrors whether the

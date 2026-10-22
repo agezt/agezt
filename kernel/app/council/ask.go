@@ -75,10 +75,11 @@ func (e Engines) Ask(ctx context.Context, in AskRequest) (AskOutput, error) {
 	for _, op := range res.Opinions {
 		opinions = append(opinions, OpinionRow{Seat: op.Seat, Model: op.Model, Round: op.Round, Text: op.Text, Error: op.Error})
 	}
-	members := make([]Member, 0, len(res.Members))
-	for _, m := range res.Members {
-		members = append(members, Member{Seat: m.Seat, Model: m.Model})
-	}
+	// The panel's members are the contract type itself — the copy keeps the
+	// answer's member list an empty array (never null) without the app
+	// knowing the row's fields.
+	members := make([]Member, len(res.Members))
+	copy(members, res.Members)
 	return AskOutput{CorrelationID: corr, Question: res.Question, Consensus: res.Consensus, Dissent: res.Dissent, Rounds: res.Rounds, Members: members, Opinions: opinions, AsOf: res.AsOf, Brief: res.Brief}, nil
 }
 

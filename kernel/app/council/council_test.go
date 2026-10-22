@@ -63,7 +63,7 @@ func TestMembers(t *testing.T) {
 	if out, _ := f.service().Members(context.Background(), MembersRequest{}); encode(t, out) != `{"members":[],"count":0}` {
 		t.Fatal("no panel is an empty array", encode(t, out))
 	}
-	f.members = []Member{{"Chair", "m1"}, {"Elder 2", "m2"}}
+	f.members = []Member{{Seat: "Chair", Model: "m1"}, {Seat: "Elder 2", Model: "m2"}}
 	if out, _ := f.service().Members(context.Background(), MembersRequest{}); encode(t, out) != `{"members":[{"seat":"Chair","model":"m1"},{"seat":"Elder 2","model":"m2"}],"count":2}` {
 		t.Fatal(encode(t, out))
 	}
@@ -161,9 +161,9 @@ func TestRoles(t *testing.T) {
 		want    string
 	}{
 		{nil, `{"thinker":"","worker":"","verifier":"","available_models":[],"auto_filled":true}`},
-		{[]Member{{"Chair", "a"}}, `{"thinker":"a","worker":"a","verifier":"a","available_models":["a"],"auto_filled":true}`},
-		{[]Member{{"Chair", "a"}, {"Scribe", "b"}}, `{"thinker":"a","worker":"b","verifier":"a","available_models":["a","b"],"auto_filled":true}`},
-		{[]Member{{"x", "a"}, {"y", "b"}, {"z", "c"}, {"w", "d"}}, `{"thinker":"a","worker":"b","verifier":"c","available_models":["a","b","c","d"],"auto_filled":true}`},
+		{[]Member{{Seat: "Chair", Model: "a"}}, `{"thinker":"a","worker":"a","verifier":"a","available_models":["a"],"auto_filled":true}`},
+		{[]Member{{Seat: "Chair", Model: "a"}, {Seat: "Scribe", Model: "b"}}, `{"thinker":"a","worker":"b","verifier":"a","available_models":["a","b"],"auto_filled":true}`},
+		{[]Member{{Seat: "x", Model: "a"}, {Seat: "y", Model: "b"}, {Seat: "z", Model: "c"}, {Seat: "w", Model: "d"}}, `{"thinker":"a","worker":"b","verifier":"c","available_models":["a","b","c","d"],"auto_filled":true}`},
 	} {
 		f.members = c.members
 		if out, _ := f.service().Roles(context.Background(), RolesRequest{}); encode(t, out) != c.want {
