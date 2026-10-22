@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.63 the reaper's findings have one declaration, 2026-10-22
+## Current checkpoint — W2.64 the execution profile's rows have one declaration, 2026-10-22
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -561,6 +561,30 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   12 mutations, 12 caught. The archcheck allowlist stays at 129 import
   violations and 13 call sites; the package count stays at 271 (no new
   package).
+- W2.64 (the execution profile's rows have one declaration) is committed on
+  `main` as a code commit plus a docs commit and published from
+  `arch/w2-dispatch` the same way. The profile, the health check, the secret
+  policy, the inventory and the health report were described **twice**: once in
+  the module that builds them (`kernel/executionprofile`) and once in the
+  operation that publishes them (`kernel/app/execprofile`), and the
+  operation's copy was filled in **field by field** (thirty-seven field
+  copies).
+  They are declared **once** now, in the module: the operation's `Profile`,
+  `Check`, `SecretPolicy`, `ListOutput` and `CheckOutput` are aliases of the
+  module's `Profile`, `HealthCheck`, `SecretPolicy`, `Inventory` and
+  `HealthReport`. The module's rows carry every field (the optional ones lost
+  their `omitempty`), the profile row keeps the operator's key order (the
+  secret policy last), and the operation keeps only the list rule — an empty
+  list is `null`, an empty profile list is an empty array — instead of
+  rebuilding the row. The module's rows were never marshalled, so the
+  `omitempty` change is invisible outside the module.
+  **No wire changed**: the same keys in the same order with the same values,
+  the unset lists stay `null` and the empty profile list stays an empty array.
+  14 mutations, 14 caught. The mutation run found a **test gap** — the
+  operation's fixture exercised the null rule for the profile's tools and
+  notes only — and it is fixed and named. The archcheck allowlist stays at 129
+  import violations and 13 call sites; the package count stays at 271 (no new
+  package).
 - W2.45a (typed roster status collection) is committed on `main` as a code
   commit plus a docs commit and published from `arch/w2-dispatch` the same way.
   `kernel/controlplane/roster_status.go` (371 lines) is gone: the journal-derived
@@ -998,11 +1022,12 @@ Preserve unrelated dirty changes: deletions of
 Continue roadmap §4.5/order 7 after the completed roster, steer, run-fold,
 remote-mirror, operation-audit, run-derived-row, projection, warden,
 shared-row-type, remote-backend-list, peer-wire-contract, artifact-row,
-boundary-row and reaper-row domains: the application's own artifact row and
+boundary-row, reaper-row and execution-profile-row domains: the application's
+own artifact row and
 the data-lake's records (their
 own wires, their own spellings), the introspection tool's compact reaper view
-(its own wire, for the model), the execution profile's rows (the module omits
-the empty optional fields, the application carries every field), the remote
+(its own wire, for the model), the skill's metrics row (the store's row is the
+on-disk format), the remote
 backends' two **policies** (the
 application supports them for a direct run, the host refuses them for a
 dispatched seat), the wider run/tool adapter convergence, W3 modules and

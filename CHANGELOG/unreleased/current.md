@@ -1002,6 +1002,14 @@ This file holds the active `[Unreleased]` working set.
   same keys, in the same order, with the same values, the unset lists still
   empty and an empty finding still an empty list.
 
+- **The execution profile's rows are one row each.** The profile, the health
+  check, the secret policy, the inventory and the health report were declared
+  twice — once where the daemon builds them and once where it publishes them —
+  and the published copy was filled in field by field. They are now declared
+  once, and the daemon publishes them as they are. The answers are unchanged:
+  the same keys, in the same order, with the same values, the unset lists still
+  empty and the secret policy still last.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now
