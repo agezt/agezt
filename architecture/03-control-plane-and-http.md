@@ -717,6 +717,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `run_disconnect.go` | `disconnectSignal`: the client connection's close signal the typed run uses to cancel itself (the read deadline is cleared first, so a long run is never mistaken for a disconnect). |
 | `app/runs/run.go` | The typed `run` operation: the request, the output (one typed shape for the plain run and the dry-run plan) and the ports the host binds (the routed kernel, the journal fold, the disconnect signal, the remote peer mirror). |
 | `app/runs/run_resolve.go` | The resolution: intent, tenant, model, agent (the whole profile), vision admission, system, timeout, tools, cost cap, execution profile, remote peer, auto-approve grants, trust, assure and the dry-run branch. |
+| `app/runs/run_profile.go` | `WardenProfile`: the one place that resolves a warden-family execution profile — it refuses an id the run tools do not route, refuses the container profile without an active container backend, and layers the profile's sandbox override onto the context. The direct run path and the dispatched seat path both use it. |
 | `app/runs/run_execute.go` | The execution: the run subject subscription, the budget advisory, the remote-agezt delegation, the assured/retry/plain run, the drain and the enriched terminal answer. |
 | `app/runs/run_dryrun.go` | The dry-run plan: the effective model and its catalog capabilities, the system/timeout/cost-cap sources, the effective tool set and the preventive warnings. |
 | `app/runs/run_pricing.go` | `modelPriced` (the authoritative "can a cost cap bind?" check) and `strictPricingPlan`. |
@@ -923,7 +924,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `workboard_handlers.go` | `workboard_lanes/show/create/claim/heartbeat/comment/block/fail/unblock/complete/prove/seat/archive`. |
 | `workboard_handlers_link.go` | `workboard_link/policy/depend/reclaim/sweep`. |
 | `workboard_handlers_dispatch.go` | `workboard_dispatch`, `workboard_watch`. |
-| `workboard_dispatch.go` | `runWorkboardDispatch`, `applyWardenExecutionProfile`. |
+| `workboard_dispatch.go` | `runWorkboardDispatch`; `applyWardenExecutionProfile` keeps the host's own gates (the trimmed id, the empty id, the environment policy and the remote backends a dispatched seat may not use) and asks the application for the warden profile itself (`app/runs.WardenProfile`). |
 | `workboard_dispatch_helpers.go` | Dispatch intent builder, publish, latest run id, watch events. |
 | `workboard_dispatch_register.go` | `registerWorkboardCommands`. |
 | `workboard_dispatch_resp.go` | `workboardWriteResp`. |

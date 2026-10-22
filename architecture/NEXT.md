@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.56 typed profile and snapshot projections, 2026-10-21
+## Current checkpoint — W2.57 one warden branch, 2026-10-21
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -371,9 +371,31 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   plugin reader's conversions of RUNTIME types, the one confirmed duplicate
   (the warden branch in `workboard_dispatch.go`, which mirrors
   `app/runs/run_resolve.go`), the dead `boardReadDefaultLimit` constant, and
-  the remote mirror's two remaining duplicates (the environment value that
-  the settings store also declares, and the peer list's parser that the
-  application layer already owns).
+  the remote mirror's own environment read (which is not a second source of
+  truth: the settings store writes the same variable into the process
+  environment as an `ApplyLive` setting).
+- W2.57 (one warden branch) is committed on `main` as a code commit plus a
+  docs commit and published from `arch/w2-dispatch` the same way. The
+  warden-family execution profile was resolved twice — once by the direct run
+  path in the application layer, once by the dispatched seat path in the
+  control plane, whose own comment said it "mirrors the warden branch of the
+  run handler". `kernel/app/runs/run_profile.go` (new) gains
+  `WardenProfile(ctx, k, id)`: it resolves the profile, refuses an id the run
+  tools do not route, refuses the container profile without an active
+  container backend and layers the sandbox override onto the context. Both
+  callers use it now. The control plane keeps what is its own: the id's
+  trimming, the empty id, the environment policy gate and the rejection of
+  the remote backends (ssh, k8s, modal, daytona, remote-agezt), which only a
+  direct run can use.
+  10 mutations: 9 caught, 1 recorded equivalent (trimming the id is
+  redundant with `WardenProfileForRun`'s own trimming).
+  **One operator-visible wording change**, documented in the evidence doc and
+  the changelog: the dispatched seat path now reports the application's
+  refusals instead of its own terser ones — the routability refusal and the
+  container-backend refusal now read exactly like the direct run path's.
+  The policy refusal and the remote-backend refusal, and their order, are
+  unchanged. The archcheck allowlist stays at 129 import violations and 13
+  call sites; the package count stays at 270 (no new package).
 - W2.45a (typed roster status collection) is committed on `main` as a code
   commit plus a docs commit and published from `arch/w2-dispatch` the same way.
   `kernel/controlplane/roster_status.go` (371 lines) is gone: the journal-derived
@@ -809,20 +831,18 @@ Preserve unrelated dirty changes: deletions of
 ### Next
 
 Continue roadmap §4.5/order 7 after the completed roster, steer, run-fold,
-remote-mirror, operation-audit, run-derived-row and projection domains: the
-control plane's remaining conversions of the RUNTIME types (the council's
-`runtime.CouncilMember` and the runtime's plugin registration — the app
-layer cannot import `kernel/runtime`, so these need another shape), the one
-confirmed duplicate (the warden branch in `workboard_dispatch.go`, which
-mirrors `app/runs/run_resolve.go`), the dead `boardReadDefaultLimit`
-constant, and the remote mirror's two remaining duplicates (the environment
-value that the settings store also declares, and the peer list's parser that
-the application layer already owns). Wider run/tool adapter convergence, W3
-modules and journal raw-ref GC, W4 triggers/channel supervision/config/
-signing, and W5 generated SDK/frontend convergence and zero allowances remain
-open. The overall target is the architecture in `20-target-architecture.md`,
-delivered incrementally to protected `main`, with runnable proof and
-source-aligned documentation.
+remote-mirror, operation-audit, run-derived-row, projection and warden
+domains: the control plane's remaining conversions of the RUNTIME types (the
+council's `runtime.CouncilMember` and the runtime's plugin registration — the
+app layer cannot import `kernel/runtime`, so these need another shape), the
+dead `boardReadDefaultLimit` constant, and the remote backends' list, which
+appears twice with opposite meanings (the application supports them for a
+direct run, the host refuses them for a dispatched seat). Wider run/tool
+adapter convergence, W3 modules and journal raw-ref GC, W4
+triggers/channel supervision/config/signing, and W5 generated SDK/frontend
+convergence and zero allowances remain open. The overall target is the
+architecture in `20-target-architecture.md`, delivered incrementally to
+protected `main`, with runnable proof and source-aligned documentation.
 
 ---
 

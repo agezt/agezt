@@ -10,11 +10,11 @@ import (
 	"fmt"
 	"strings"
 
+	appruns "github.com/agezt/agezt/kernel/app/runs"
 	appworkboard "github.com/agezt/agezt/kernel/app/workboard"
 	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/kernel/workboard"
 )
 
@@ -59,10 +59,10 @@ func (b workboardExecutionContext) Isolation(ctx context.Context, id string) (co
 
 // applyWardenExecutionProfile resolves a warden-family execution profile id
 // (local|warden|container) and layers its sandbox override onto ctx, returning
-// the effective label. It mirrors the warden branch of the run handler
-// (server.go handleRun) but returns errors as values so the async dispatch path
-// can degrade gracefully. Remote backends (ssh/k8s/modal/daytona) are handled
-// only by handleRun and are rejected here.
+// the effective label. The resolution itself belongs to the application layer
+// (app/runs.WardenProfile), so the dispatched seat path and the direct run
+// path cannot drift apart. Remote backends (ssh/k8s/modal/daytona) are
+// handled only by the direct run path and are rejected here.
 func (s *Server) applyWardenExecutionProfile(ctx context.Context, id string) (context.Context, string, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
@@ -75,12 +75,5 @@ func (s *Server) applyWardenExecutionProfile(ctx context.Context, id string) (co
 	case "ssh", "k8s", "modal", "daytona", "remote-agezt":
 		return ctx, "", fmt.Errorf("seat isolation %q is only available on direct runs, not workboard dispatch", id)
 	}
-	p, ok := executionprofile.WardenProfileForRun(id)
-	if !ok {
-		return ctx, "", fmt.Errorf("%q is not a routable execution profile", id)
-	}
-	if p == warden.ProfileContainer && s.k.Warden().EffectiveProfile(p) != warden.ProfileContainer {
-		return ctx, "", fmt.Errorf("%q requires an active container backend", id)
-	}
-	return warden.WithProfileOverride(ctx, p), string(p), nil
+	return appruns.WardenProfile(ctx, s.k, id)
 }

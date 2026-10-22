@@ -132,10 +132,11 @@ document gains the new package).
 
 ## Not done here
 
-The mirror's configured value is read from the environment only. The settings
-store declares the same variable (`kernel/settings/schema_builtin.go`), and
-the mirror still ignores the store — the two sources of truth stay as they
-are, because changing that would change the operator-visible behavior.
+The mirror's configured value is read from the environment
+(`AGEZT_REMOTE_EVENT_MIRROR`). The settings store declares the same variable
+(`kernel/settings/schema_builtin.go`) as an `ApplyLive` setting, so a value
+set through the store is written into the process environment and the mirror
+sees it live — there is one source of truth, not two.
 
 The tenant's run activity still re-projects the folded runs into
 `apptenants.Run` in the control plane (`kernel/controlplane/tenant.go`). With
