@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.54 typed operation-audit argument policy, 2026-10-21
+## Current checkpoint — W2.55 typed run-derived rows, 2026-10-21
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -329,6 +329,30 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   duplicate (`workboard_dispatch.go:66-86` mirrors the warden branch of
   `app/runs/run_resolve.go:311-319`) and one dead constant
   (`boardReadDefaultLimit` in `board.go:16`).
+- W2.55 (typed run-derived rows) is committed on `main` as a code commit plus
+  a docs commit and published from `arch/w2-dispatch` the same way. With the
+  fold in the application layer (W2.52), two consumers still re-projected
+  the folded run into a second copy of a run row: the schedule's firing
+  views copied nine fields into `appschedule.FiringRun`, and the tenant's
+  activity summary copied six into `apptenants.Run`. Both copies are gone —
+  `kernel/app/schedule` and `kernel/app/tenants` read `appruns.Run`
+  directly, so the firing view, the tenant summary and the runs view cannot
+  disagree about a run, and the control plane passes the fold straight
+  through. `kernel/app/schedule` and `kernel/app/tenants` now import
+  `kernel/app/runs` (safe: `app/runs` imports `app/roster`,
+  `app/execprofile` and the approval package, none of which import them).
+  20 mutations, 20 caught: the first pass caught 18 and left two open (the
+  status filter's failed and abandoned branches were never exercised), the
+  second caught 19 and left the failed run's duration open, and the third
+  caught all 20 after both tests were strengthened. The archcheck allowlist
+  stays at 129 import violations and 13 call sites; the package count stays
+  at 270 (no new package).
+  The projections that are left in the control plane convert RUNTIME types —
+  the council's `runtime.CouncilMember`, the governor's snapshot, the
+  runtime's plugin registration — into the application's row types. The
+  application layer cannot import `kernel/runtime` (the runtime's own tests
+  import the app layer), so those conversions stay where they are for now.
+  They are the next candidates.
 - W2.45a (typed roster status collection) is committed on `main` as a code
   commit plus a docs commit and published from `arch/w2-dispatch` the same way.
   `kernel/controlplane/roster_status.go` (371 lines) is gone: the journal-derived
@@ -764,14 +788,16 @@ Preserve unrelated dirty changes: deletions of
 ### Next
 
 Continue roadmap §4.5/order 7 after the completed roster, steer, run-fold,
-remote-mirror and operation-audit domains: the control plane's remaining
-re-projections between the application's row types (the council, budget,
-routing, plugin, schedule firing and tenant run rows), the one confirmed
-duplicate (the warden branch in `workboard_dispatch.go`, which mirrors
-`app/runs/run_resolve.go`), and the remote mirror's two remaining duplicates
-(the environment value that the settings store also declares, and the peer
-list's parser that the application layer already owns). Wider run/tool
-adapter convergence, W3 modules and journal raw-ref GC, W4
+remote-mirror, operation-audit and run-derived-row domains: the control
+plane's remaining re-projections of the RUNTIME types (the council's
+`runtime.CouncilMember`, the governor's snapshot, the runtime's plugin
+registration — the app layer cannot import `kernel/runtime`, so these need
+another shape), the one confirmed duplicate (the warden branch in
+`workboard_dispatch.go`, which mirrors `app/runs/run_resolve.go`), the dead
+`boardReadDefaultLimit` constant, and the remote mirror's two remaining
+duplicates (the environment value that the settings store also declares, and
+the peer list's parser that the application layer already owns). Wider
+run/tool adapter convergence, W3 modules and journal raw-ref GC, W4
 triggers/channel supervision/config/signing, and W5 generated SDK/frontend
 convergence and zero allowances remain open. The overall target is the
 architecture in `20-target-architecture.md`, delivered incrementally to

@@ -704,7 +704,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `client_helpers.go` | `dial` (5 s), `setReadDeadlineFromCtx`, timeout→ctx error mapping, `writeRequest`, `readOneResponse`, `toString`, `toBool`. |
 | `client_update.go` | Typed client wrappers `UpdateCheck`/`UpdateApply` and their result types; `Close`. |
 | `tenant.go` | `tenantService`: binds `app/tenants` to the daemon's registry (none when multi-tenancy is disabled) and each tenant's run activity (`kernelFor` + the `app/runs` fold). |
-| `app/tenants/tenants.go` | Typed operator-only `tenant_create`/`token`/`release`/`remove` (audited; strict id, blank required, untrimmed) and read-only `tenant_list`/`tenant_stats` (per-tenant runs, outcomes, spend, last activity; error rows; closed tenants released again). |
+| `app/tenants/tenants.go` | Typed operator-only `tenant_create`/`token`/`release`/`remove` (audited; strict id, blank required, untrimmed) and read-only `tenant_list`/`tenant_stats` (per-tenant runs, outcomes, spend, last activity; error rows; closed tenants released again). The activity summary counts the application's own folded run rows (`app/runs`). |
 | `tenant_helpers.go` | `tenantOf`, `kernelFor` (Acquire tenant kernel), `SetTenants`. |
 | `shutdown.go` | `scheduleShutdown`: after the acknowledgement grace delay, closes `shutdownCh` so the daemon exits via the same path as SIGTERM. |
 | `app/system/lifecycle.go` | Typed operator-only `halt`/`resume` (strict reason, audited), `journal_verify` (read-only) and `shutdown` (audited; acknowledges, then schedules the exit). |
@@ -734,6 +734,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `runs.go` | `runReads`, the app/runs snapshot port over the routed kernel: the journal read the application folds. |
 | `app/runs/collect.go` | The run fold: `Collect` walks the journal once and turns a run's events into the application's `Run` row (the intent, the agent, the start time and sequence, the phase, the iters, the cost, the model, the answer excerpt, the parent link, the failure reason and the terminal status), with the payload extractors it feeds on and `RunRows`, the conversion into the roster status' row type. |
 | `app/runs/runs.go` | Typed `runs_list` (strict status/intent/model, lenient limit/cost, newest-first with seq tie-break, `<ms>:<seq>` cursor, live phase/tool) and `runs_stats` (window, intent scope, success rate, failure reasons, delegation, spend and duration distributions). |
+| `app/schedule/firing_*.go` | The schedule's firing views (fires, stats, latest): they join the schedule firings with the application's folded run rows (`app/runs`), so a firing's outcome, duration, spend, failure reason and answer preview are the same run the runs view reports. |
 | `status.go` | `handleStatus`: one-round-trip health overview (version, halted, budget, tools, HTTP bindings, channels, AWS cred chain, fallback counts). |
 | `app/storage/disk.go` | Typed `disk_stats` (M131): the journal directory's size beside the home filesystem's free space from the injected `DiskFreeFunc`; the disk fields appear only for a known, non-zero filesystem. |
 | `storage.go` | `storageFilesystem` and `dirUsage`, the host ports behind `storage_stats` (M927), `disk_stats` and the journal size. |
@@ -894,7 +895,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `schedule.go` | `schedule_enable`, `schedule_test` (next fire forecast), `registerScheduleCommands`. |
 | `schedule_add.go` | `schedule_add` (interval/at/days/tz/once/window/continuous; agent/workflow/system-task/tool targets). |
 | `schedule_edit.go` | `schedule_edit`. |
-| `schedule_helpers.go` | `schedule_list`, entry views, arg/cadence validation, execution metadata. |
+| `schedule_helpers.go` | `schedule_list`, entry views, arg/cadence validation, execution metadata. The firing reads pass the `app/runs` fold to `app/schedule`, which joins it with the schedule firings. |
 | `schedule_misc.go` | `schedule_system_tasks`, `schedule_rm`, `schedule_run`, runnable validation. |
 
 **Pulse**
