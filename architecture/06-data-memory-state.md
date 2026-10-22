@@ -1,6 +1,6 @@
 # 06 — Data, Memory & State
 
-**Scope:** `kernel/event`, `kernel/journal`, `kernel/bus`, `kernel/ulid`, `kernel/platform/filestore`, `kernel/modules/knowledge/memory`, `kernel/modules/knowledge/worldmodel`, `kernel/modules/artifacts/datalake`, `kernel/modules/artifacts/artifact`, `kernel/board`, `kernel/workboard`, `kernel/okr`, `kernel/modules/knowledge/taste`, `kernel/anomaly`, `kernel/alerter`.
+**Scope:** `kernel/event`, `kernel/journal`, `kernel/bus`, `kernel/ulid`, `kernel/platform/filestore`, `kernel/modules/knowledge/memory`, `kernel/modules/knowledge/worldmodel`, `kernel/modules/artifacts/datalake`, `kernel/modules/artifacts/artifact`, `kernel/modules/board/board`, `kernel/workboard`, `kernel/okr`, `kernel/modules/knowledge/taste`, `kernel/anomaly`, `kernel/alerter`.
 
 Sibling docs: [00-README.md](00-README.md) (overview) · [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md) (where these stores are opened/wired) · [02-cli-cmd-agt.md](02-cli-cmd-agt.md) (`agt journal|why|memory|world|board|workboard|okr|taste`) · [03-control-plane-and-http.md](03-control-plane-and-http.md) (handlers, SSE, webhooks, REST mailbox) · [04-agent-runtime.md](04-agent-runtime.md) (agent loop, context injection, proof/assure) · [05-governance-routing-security.md](05-governance-routing-security.md) (redact, state, edict capabilities) · [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md) (pulse, standing orders, workflow, selfrepair, cadence systemtasks) · [10-tools.md](10-tools.md) (`boardtool`, `workboardtool`, `artifacts`, `db` tools) · [11-frontend-console.md](11-frontend-console.md).
 
@@ -495,15 +495,19 @@ Gotchas:
 
 ---
 
-## 11. `kernel/board` — shared message board / mailbox
+## 11. `kernel/modules/board/board` — shared message board / mailbox
+
+**Home.** The board is the **board module** (L3). W3.5 moved it from the top of
+`kernel/` into `kernel/modules/board/board`; the package name does not change,
+so the move is an import-path change for the module itself.
 
 **Purpose.** Persistent topic board + agent-to-agent mailbox (M647 topics, M788 addressed DMs + replies, M849 broadcast + help, M937 per-reader ack).
 
 | File | What it does |
 |---|---|
-| `board.go` | `MaxMessages=1000` (oldest dropped), `Message{ID, Topic, From, To, ReplyTo, Text, Help, TSMS, AckedBy}`, `Everyone="*"`, `Store{mu, path, msgs}`, `Open(dir)` (`<dir>/board.json`, a JSON array), `Post`, `Send` (assigns ULID + ts, trims, caps, saves), `Broadcast` (topic `broadcast`, To `*`), `HelpRequest` (topic `help`, Help=true, To defaults to `*`), `OpenHelp` (help messages with no reply), `Get`, `Ack` (per-reader, idempotent), `Inbox(to, limit, includeAnswered)`, `Replies(id)` (oldest first), `Read(topic)`, `Topics`, `save`. |
+| `board.go` | `MaxMessages=1000` (oldest dropped), `Message{ID, Topic, From, To, ReplyTo, Text, Help, TSMS, AckedBy}`, `Everyone="*"`, `Store{mu, path, msgs}`, `Open(dir)` (`<dir>/board.json`, a JSON array), `Post`, `Send` (assigns ULID + ts, trims, caps, **persists the prospective board first and adopts it in memory only once the write succeeded** — W3.5), `Broadcast` (topic `broadcast`, To `*`), `HelpRequest` (topic `help`, Help=true, To defaults to `*`), `OpenHelp` (help messages with no reply), `Get`, `Ack` (per-reader, idempotent; same persist-first rule), `Inbox(to, limit, includeAnswered)`, `Replies(id)` (oldest first), `Read(topic)`, `Topics`, `save`. |
 
-Tests: `board_test.go`, `a2a_test.go`, `ack_test.go`, `coverage_test.go`.
+Tests: `board_test.go`, `a2a_test.go`, `ack_test.go`, `coverage_test.go`, `save_failure_test.go` (a write that fails must not change the board — W3.5).
 
 **Inbox semantics:** a message is "for me" if `To` equals my slug (case-insensitive) or it is a broadcast I didn't send. Unless `includeAnswered`, drop: anything I acked; directed messages with any reply; help broadcasts with any reply; plain broadcasts that *I* replied to.
 

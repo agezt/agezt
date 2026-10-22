@@ -1074,6 +1074,17 @@ This file holds the active `[Unreleased]` working set.
   the journal which blobs it still names and leaves those alone; deleting such
   an artifact by hand is refused, with the reason spelled out.
 
+- **The board module has a home, and a write that failed is not on the board.**
+  The shared message board now lives in `kernel/modules/board`; nothing else
+  about it changes.
+
+  It had a way to lose a message, though: the store added the message to its
+  in-memory list and saved afterwards, so when the save failed the message
+  stayed on the board — the caller had been told the post did not happen, and
+  the next successful write put it on disk. At the cap, the same failed write
+  also dropped the oldest message. The board now writes first and remembers
+  only what was written: a failed write changes nothing.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now

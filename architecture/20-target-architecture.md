@@ -235,7 +235,7 @@ and the platform services it needs.
 | `pulse` | observers, briefs | `Beat`, `Observers.*`, `Briefs` | eventlog, channels/api (sinks) | `pulse`, `anomaly`, `alerter` |
 | `channels` | accounts, conversations (sessions), live state | `Send`, `SendMedia`, `Accounts.*`, `Conversation.*` | config/secrets, netout, runs/api | `channel`, `channelwire`, `builtinchannels`, channel handler in `cmd/agezt` |
 | `reasoning` | — (stateless harnesses) | `Council`, `Conductor`, `Research` | runs/api, tools invoker, modelgw | `runtime/{council,conductor,research}*` |
-| `board` | board/mailbox | `Post/Read/Watch` | store, eventlog | `board` |
+| `board` | board/mailbox | `Post/Read/Watch` | store, eventlog | `kernel/modules/board/board` |
 | `artifacts` | blobs, index, data lake | `Put/Get/List/Collect`, `DB.*` | store | `kernel/modules/artifacts` (`artifact`, `datalake`) |
 | `extensions` | MCP registry, plugin specs, ACP catalog, toolforge, toolbox | `MCP.*`, `Plugins.*`, `Forge.*`, `Toolbox.*` | sandbox, netout, store | `mcp`, `plugin`, `toolforge`, `toolbox`, `acpcatalog` |
 | `providers` | catalog, keyring selection, ChatGPT auth | `Catalog.Sync`, `Keys.*`, `SignIn` | secrets, netout, modelgw registry | `catalog`, `chatgptauth`, `providerboot` |
