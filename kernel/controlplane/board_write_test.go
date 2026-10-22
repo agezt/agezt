@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 

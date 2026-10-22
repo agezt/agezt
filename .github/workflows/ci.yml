@@ -64,7 +64,7 @@ jobs:
           for package in \
             ./plugins/providers/voice \
             ./kernel/stt \
-            ./kernel/board \
+            ./kernel/modules/board/board \
             ./tools/jsonschemagen \
             ./plugins/tools/runstool \
             ./plugins/tools/workboardtool \

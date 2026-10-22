@@ -88,6 +88,12 @@ func (s *Store) Post(topic, from, text string, nowMS int64) (Message, error) {
 
 // Send appends a message — addressed (To set) or plain — assigning its ID and
 // timestamp, and persists, dropping the oldest past MaxMessages (M788).
+//
+// The prospective board is persisted FIRST and adopted in memory only once the
+// write succeeded: a save that fails must not change what the board holds —
+// otherwise a post the caller was told had failed is on the board anyway (and
+// the next successful save writes it to disk), and at the cap the failed post
+// also drops the oldest message.
 func (s *Store) Send(m Message, nowMS int64) (Message, error) {
 	m.ID = ulid.New()
 	m.Topic = strings.TrimSpace(m.Topic)
@@ -97,11 +103,17 @@ func (s *Store) Send(m Message, nowMS int64) (Message, error) {
 	m.TSMS = nowMS
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.msgs = append(s.msgs, m)
-	if len(s.msgs) > MaxMessages {
-		s.msgs = s.msgs[len(s.msgs)-MaxMessages:]
+	next := make([]Message, 0, len(s.msgs)+1)
+	next = append(next, s.msgs...)
+	next = append(next, m)
+	if len(next) > MaxMessages {
+		next = next[len(next)-MaxMessages:]
 	}
-	return m, s.save()
+	if err := s.save(next); err != nil {
+		return m, err
+	}
+	s.msgs = next
+	return m, nil
 }
 
 // Broadcast appends a message addressed to Everyone (M849): it lands in every
@@ -163,6 +175,9 @@ func (s *Store) Get(id string) (Message, bool) {
 // Ack marks the message id as read by `by` (M937): it leaves by's unanswered
 // Inbox without a reply being written. Per-reader and idempotent. Reports
 // whether the id exists; a blank `by` acks nothing (the caller validates).
+//
+// Like Send, the ack is persisted before it is adopted in memory: a save that
+// fails must not leave the board claiming an ack that was never written.
 func (s *Store) Ack(id, by string) (Message, bool, error) {
 	by = strings.TrimSpace(by)
 	s.mu.Lock()
@@ -174,8 +189,14 @@ func (s *Store) Ack(id, by string) (Message, bool, error) {
 		if by == "" || ackedBy(s.msgs[i], strings.ToLower(by)) {
 			return s.msgs[i], true, nil
 		}
-		s.msgs[i].AckedBy = append(s.msgs[i].AckedBy, by)
-		return s.msgs[i], true, s.save()
+		next := make([]Message, len(s.msgs))
+		copy(next, s.msgs)
+		next[i].AckedBy = append(append([]string(nil), next[i].AckedBy...), by)
+		if err := s.save(next); err != nil {
+			return s.msgs[i], true, err
+		}
+		s.msgs = next
+		return next[i], true, nil
 	}
 	return Message{}, false, nil
 }
@@ -298,6 +319,8 @@ func (s *Store) Topics() map[string]int {
 	return counts
 }
 
-func (s *Store) save() error {
-	return filestore.Save(s.path, s.msgs)
+// save persists the given board state. The caller passes the prospective
+// state so a failed write leaves the in-memory board untouched.
+func (s *Store) save(msgs []Message) error {
+	return filestore.Save(s.path, msgs)
 }

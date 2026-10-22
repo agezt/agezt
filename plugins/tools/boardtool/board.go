@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 // DefaultReadLimit / MaxReadLimit bound op=read.

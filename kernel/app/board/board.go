@@ -7,7 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	shared "github.com/agezt/agezt/kernel/board"
+	shared "github.com/agezt/agezt/kernel/modules/board/board"
 	"sort"
 	"strconv"
 	"strings"

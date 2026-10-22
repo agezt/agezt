@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/httpserver"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 type boardPostedPayload struct {

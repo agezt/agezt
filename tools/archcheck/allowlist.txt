@@ -5,7 +5,7 @@
 # may only be DELETED (the check fails when a listed edge no longer occurs).
 adapter-bypass kernel/agentgw -> kernel/modules/knowledge/memory
 adapter-bypass kernel/agentgw -> kernel/roster
-adapter-bypass kernel/controlplane -> kernel/board
+adapter-bypass kernel/controlplane -> kernel/modules/board/board
 adapter-bypass kernel/controlplane -> kernel/cadence
 adapter-bypass kernel/controlplane -> kernel/modules/knowledge/memory
 adapter-bypass kernel/controlplane -> kernel/modules/skills/skill
@@ -17,7 +17,7 @@ adapter-bypass kernel/controlplane -> kernel/update
 adapter-bypass kernel/controlplane -> kernel/workboard
 adapter-bypass kernel/controlplane -> kernel/workflow
 adapter-bypass kernel/openaiapi -> kernel/convo
-adapter-bypass kernel/restapi -> kernel/board
+adapter-bypass kernel/restapi -> kernel/modules/board/board
 adapter-bypass kernel/restapi -> kernel/update
 adapter-bypass kernel/webui -> kernel/convo
 cross-module kernel/cadence/systemtasks -> kernel/catalog
@@ -74,10 +74,10 @@ cross-module kernel/runtime/runexec -> kernel/modules/skills/skill
 cross-module kernel/runtime/runexec -> kernel/roster
 cross-module kernel/runtime/runexec -> kernel/standing
 cross-module kernel/runtime/runexec -> kernel/voicetool
-cross-module kernel/selfrepair -> kernel/board
+cross-module kernel/selfrepair -> kernel/modules/board/board
 cross-module kernel/selfrepair -> kernel/runtime
 cross-module kernel/toolreg -> kernel/modules/artifacts/artifact
-cross-module kernel/toolreg -> kernel/board
+cross-module kernel/toolreg -> kernel/modules/board/board
 cross-module kernel/toolreg -> kernel/modules/artifacts/datalake
 plugin-reach plugins/builtinchannels -> kernel/channelwire
 plugin-reach plugins/builtinchannels -> kernel/pulse
@@ -98,7 +98,7 @@ plugin-reach plugins/providers/compat -> kernel/catalog
 plugin-reach plugins/tools/acpagent -> kernel/acp
 plugin-reach plugins/tools/acpagent -> kernel/acpcatalog
 plugin-reach plugins/tools/artifacts -> kernel/modules/artifacts/artifact
-plugin-reach plugins/tools/boardtool -> kernel/board
+plugin-reach plugins/tools/boardtool -> kernel/modules/board/board
 plugin-reach plugins/tools/browser -> kernel/modules/artifacts/artifact
 plugin-reach plugins/tools/codeexec -> kernel/modules/artifacts/artifact
 plugin-reach plugins/tools/conductor -> kernel/runtime
@@ -112,7 +112,7 @@ plugin-reach plugins/tools/introspecttool -> kernel/cadence
 plugin-reach plugins/tools/introspecttool -> kernel/runtime
 plugin-reach plugins/tools/introspecttool -> kernel/standing
 plugin-reach plugins/tools/mcptool -> kernel/mcp
-plugin-reach plugins/tools/overseertool -> kernel/board
+plugin-reach plugins/tools/overseertool -> kernel/modules/board/board
 plugin-reach plugins/tools/overseertool -> kernel/roster
 plugin-reach plugins/tools/overseertool -> kernel/runtime
 plugin-reach plugins/tools/research -> kernel/runtime

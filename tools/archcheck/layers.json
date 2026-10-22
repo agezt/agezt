@@ -72,7 +72,6 @@
     {"pattern": "kernel/roster", "layer": 3, "module": "agents"},
     {"pattern": "kernel/selfrepair", "layer": 3, "module": "agents"},
 
-    {"pattern": "kernel/board", "layer": 3, "module": "board"},
 
 
     {"pattern": "kernel/mcp", "layer": 3, "module": "extensions"},

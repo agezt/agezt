@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 type mailboxNotification struct {

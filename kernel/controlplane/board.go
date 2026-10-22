@@ -8,7 +8,7 @@ package controlplane
 import (
 	"path/filepath"
 
-	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 // boardReadMaxLimit bounds CmdBoardRead.

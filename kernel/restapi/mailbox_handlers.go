@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 func (s *Server) handleMailboxMessages(w http.ResponseWriter, r *http.Request) {
