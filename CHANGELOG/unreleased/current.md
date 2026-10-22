@@ -945,6 +945,13 @@ This file holds the active `[Unreleased]` working set.
   spend, its ceiling, the strict-pricing flag and each per-task cap — the
   application now owns what those rows contain.
 
+- **A warden execution profile is resolved in one place.** A direct run and
+  a dispatched seat now resolve the warden-family profile the same way and
+  refuse the same way. The dispatched seat's two refusals now read exactly
+  like the direct run's — they name the profile and, for the container
+  backend, say how to start it; the policy refusal and the "direct runs
+  only" refusal are unchanged.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now
