@@ -3,8 +3,8 @@ package workflow
 
 import (
 	"encoding/json"
+	graphs "github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/platform/schema"
-	graphs "github.com/agezt/agezt/kernel/workflow"
 	"reflect"
 )
 

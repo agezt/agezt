@@ -117,6 +117,7 @@
 - **`kernel/modules/work/proof`** — Package proof is AGEZT's "PROOF > VIBES" record: the durable, checkable evidence that a workboard task actually satisfied its acceptance criteria before it was allowed to reach done.
 - **`kernel/modules/work/seat`** — Package seat names the execution "seats" a workboard task can be dispatched under — the AGEZT answer to Matrix's "choose the right execution seat for the job".
 - **`kernel/modules/work/workboard`** — Package workboard is AGEZT's durable typed task queue.
+- **`kernel/modules/workflows/workflow`** — Package workflow is the n8n-style workflow engine (M798): durable, named graphs of TYPED nodes — trigger, tool, llm, condition, transform, delay — wired by edges and carrying data between nodes with {{path}} templates.
 - **`kernel/netguard`** — Package netguard is the network-egress guard (SPEC-06 security defaults): it stops outbound tool traffic from reaching the host's own internal network.
 - **`kernel/openaiapi`** — Package openaiapi serves an OpenAI-compatible HTTP surface (ROADMAP P7-API-01, SPEC-15 §3): POST /v1/chat/completions, POST /v1/responses, GET /v1/models and GET /v1/models/{id}, so any OpenAI client, SDK, or IDE can drive Agezt as if it were OpenAI.
 - **`kernel/planner`** — Package planner generates `scheduler.Plan`-shaped JSON from a natural-language intent by asking the configured Provider to emit a DAG.
@@ -168,4 +169,3 @@
 - **`kernel/warden`** — Package warden is the process-isolation layer (SPEC-06 §2; TASKS P1-WARD-01).
 - **`kernel/webhook`** — Package webhook is the outbound-webhook dispatcher (ROADMAP P7-API-02): it subscribes to the journal bus and POSTs matching events to operator-configured HTTP endpoints, so external systems learn what Agezt is doing in real time (a run completed, an approval is pending, the system halted).
 - **`kernel/webui`** — Package webui serves the Agezt Web UI (SPEC-07, decision A4): a React 19 + Vite single-page app, built to static assets and go:embed-ded into the daemon (see embed.go) — one binary, no Node at runtime, and no Go dependency added.
-- **`kernel/workflow`** — Package workflow is the n8n-style workflow engine (M798): durable, named graphs of TYPED nodes — trigger, tool, llm, condition, transform, delay — wired by edges and carrying data between nodes with {{path}} templates.

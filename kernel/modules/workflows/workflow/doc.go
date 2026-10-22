@@ -6,9 +6,15 @@
 // Unlike kernel/planner (intent-in, agent-loop-per-node), a workflow node is
 // a precise, deterministic step: THIS tool with THESE args, THIS prompt to
 // THIS model, THIS branch on THIS value. The graph is what you see on the
-// console canvas; the engine (kernel/runtime) executes it under the same
-// governance as everything else — tool nodes pass Edict, llm nodes ride the
-// Governor, every step is journaled (workflow.*).
+// console canvas; the engine executes it under the same governance as
+// everything else — tool nodes pass Edict, llm nodes ride the Governor,
+// every step is journaled (workflow.*).
+//
+// This package is the workflows module (kernel/modules/workflows). It owns
+// the durable store, the trigger runner, the copilot and the graph engine;
+// the engine holds no provider, no tool registry, no bus and no sandbox of
+// its own — every capability arrives through Ports, so a run keeps the host's
+// policy gates, its audit arc and its spend attribution.
 //
 // Storage mirrors kernel/standing: one atomic JSON file, journaled CRUD.
 package workflow

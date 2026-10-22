@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
+package workflow
 
-// Provenance: Workflow execution orchestration: runWorkflowGraph + mergeMode +
-//             execNodeWithReliability + wfSnippet + nodeInputPreview. Code extracted
-//             from workflowrun.go during the Day-47 god-file split. Public API
-//             unchanged.
+// The run: one stored graph, executed node by node, journaled as it goes.
+//
+// Provenance (why the run exists) travels with the call, not with a context
+// key the module cannot read: the host fills Provenance in from its own wake
+// context and the module stamps it on every workflow.* event it publishes.
 
 import (
 	"context"
@@ -15,24 +16,122 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/workflow"
 )
 
-func (k *Kernel) runWorkflowGraph(ctx context.Context, corr string, w workflow.Workflow, payload any) (RunWorkflowResult, error) {
+// ErrHalted is returned when the host reports that the kernel is halted. The
+// host translates it into its own sentinel, so the caller sees one error.
+var ErrHalted = errors.New("workflow: kernel is halted")
+
+// workflowStepCap is a defense-in-depth bound on executed steps per run —
+// validation already rejects cycles, so this can only fire on an engine bug.
+const workflowStepCap = 256
+
+// Run executes one stored workflow under corr. payload becomes
+// {{trigger.payload}}. Halted kernels refuse; the run respects ctx
+// cancellation between and inside nodes. The first failing node fails the
+// run (error branching arrives with M800).
+func (e *Engine) Run(ctx context.Context, corr, ref string, payload any, prov Provenance) (RunResult, error) {
+	if e.halted() {
+		return RunResult{}, ErrHalted
+	}
+	w, found := e.store.Get(ref)
+	if !found {
+		return RunResult{}, ErrNotFound
+	}
+	if err := Validate(w); err != nil { // defense: stores can predate rules
+		return RunResult{}, err
+	}
+	ctx = toolapi.WithCorrelation(ctx, corr)
+	runMeta := provenanceMap(ctx, prov)
+
+	e.publish(event.Spec{
+		Subject: "workflow." + w.Name, Kind: event.KindWorkflowStarted, Actor: "workflow",
+		CorrelationID: corr,
+		Payload:       mergeRunPayload(map[string]any{"id": w.ID, "name": w.Name, "nodes": len(w.Nodes)}, runMeta),
+	})
+
+	res, err := e.runWorkflowGraph(ctx, corr, w, payload, prov)
+	if err != nil {
+		e.publish(event.Spec{
+			Subject: "workflow." + w.Name, Kind: event.KindWorkflowFailed, Actor: "workflow",
+			CorrelationID: corr,
+			Payload:       mergeRunPayload(map[string]any{"id": w.ID, "name": w.Name, "error": err.Error(), "executed": res.Executed}, runMeta),
+		})
+		return res, err
+	}
+	e.publish(event.Spec{
+		Subject: "workflow." + w.Name, Kind: event.KindWorkflowCompleted, Actor: "workflow",
+		CorrelationID: corr,
+		Payload:       mergeRunPayload(map[string]any{"id": w.ID, "name": w.Name, "executed": res.Executed}, runMeta),
+	})
+	return res, nil
+}
+
+// provenanceMap is the run's audit stamp: what fired it and who ran it.
+func provenanceMap(ctx context.Context, prov Provenance) map[string]any {
+	source := strings.TrimSpace(prov.Source)
+	if source == "" {
+		source = "manual"
+	}
+	agentSlug := strings.TrimSpace(toolapi.AgentFromContext(ctx))
+	runner := source
+	if agentSlug != "" {
+		runner = "agent"
+	}
+	out := map[string]any{
+		"source": source,
+		"runner": runner,
+	}
+	if agentSlug != "" {
+		out["agent"] = agentSlug
+	}
+	if prov.ScheduleID != "" {
+		out["schedule_id"] = prov.ScheduleID
+	}
+	if prov.StandingID != "" {
+		out["standing_id"] = prov.StandingID
+	}
+	if prov.StandingName != "" {
+		out["standing_name"] = prov.StandingName
+	}
+	if prov.TriggerSubject != "" {
+		out["trigger_subject"] = prov.TriggerSubject
+	}
+	if prov.ParentCorrelation != "" {
+		out["parent_correlation_id"] = prov.ParentCorrelation
+	}
+	return out
+}
+
+func mergeRunPayload(base, extra map[string]any) map[string]any {
+	for k, v := range extra {
+		base[k] = v
+	}
+	return base
+}
+
+func (e *Engine) halted() bool {
+	return e.ports.Halted != nil && e.ports.Halted()
+}
+
+// runWorkflowGraph walks the graph from the trigger, executing each node
+// once and threading its output into the templates of the nodes downstream.
+func (e *Engine) runWorkflowGraph(ctx context.Context, corr string, w Workflow, payload any, prov Provenance) (RunResult, error) {
 	// Outgoing edges grouped by (from, port); incoming counts for merge "all".
 	edges := map[string]map[string][]string{}
 	indegree := map[string]int{}
-	for _, e := range w.Edges {
-		if edges[e.From] == nil {
-			edges[e.From] = map[string][]string{}
+	for _, ed := range w.Edges {
+		if edges[ed.From] == nil {
+			edges[ed.From] = map[string][]string{}
 		}
-		edges[e.From][e.Port] = append(edges[e.From][e.Port], e.To)
-		indegree[e.To]++
+		edges[ed.From][ed.Port] = append(edges[ed.From][ed.Port], ed.To)
+		indegree[ed.To]++
 	}
 
 	data := map[string]any{"trigger": map[string]any{"payload": payload}}
-	res := RunWorkflowResult{Outputs: map[string]any{}}
+	res := RunResult{Outputs: map[string]any{}}
 	executed := map[string]bool{}
 	tokens := map[string]int{} // incoming tokens received, for merge mode "all"
 
@@ -55,13 +154,13 @@ func (k *Kernel) runWorkflowGraph(ctx context.Context, corr string, w workflow.W
 		node := w.NodeByID(id)
 		// A merge in "all" mode waits for a token on EVERY incoming edge —
 		// later tokens re-enqueue it, so skipping here is safe.
-		if node.Type == workflow.NodeMerge && mergeMode(node) == "all" && tokens[id] < indegree[id] {
+		if node.Type == NodeMerge && mergeMode(node) == "all" && tokens[id] < indegree[id] {
 			continue
 		}
 		executed[id] = true
 
 		inputPreview := nodeInputPreview(node, data)
-		output, port, attempts, err := k.execNodeWithReliability(ctx, corr, node, w, data, payload)
+		output, port, attempts, err := e.execNodeWithReliability(ctx, corr, node, w, data, payload, prov)
 		handled := false
 		if err != nil && len(edges[id]["error"]) > 0 {
 			// The node wired an error branch: the run survives, the error
@@ -98,7 +197,7 @@ func (k *Kernel) runWorkflowGraph(ctx context.Context, corr string, w workflow.W
 			nodePayload["error"] = err.Error()
 			nodePayload["handled"] = handled
 		}
-		_, _ = k.bus.Publish(event.Spec{
+		e.publish(event.Spec{
 			Subject: "workflow." + w.Name, Kind: event.KindWorkflowNode, Actor: "workflow",
 			CorrelationID: corr,
 			Payload:       nodePayload,
@@ -118,8 +217,8 @@ func (k *Kernel) runWorkflowGraph(ctx context.Context, corr string, w workflow.W
 	return res, nil
 }
 
-func mergeMode(n *workflow.Node) string {
-	var c workflow.MergeConfig
+func mergeMode(n *Node) string {
+	var c MergeConfig
 	_ = json.Unmarshal(n.Config, &c)
 	if c.Mode == "" {
 		return "any"
@@ -133,7 +232,7 @@ func mergeMode(n *workflow.Node) string {
 // retry_delay_sec between attempts). A cancelled RUN never retries — only
 // the node's own failures do. Returns the attempts actually used so the
 // journal can say "succeeded on attempt 3".
-func (k *Kernel) execNodeWithReliability(ctx context.Context, corr string, n *workflow.Node, w workflow.Workflow, data map[string]any, payload any) (any, string, int, error) {
+func (e *Engine) execNodeWithReliability(ctx context.Context, corr string, n *Node, w Workflow, data map[string]any, payload any, prov Provenance) (any, string, int, error) {
 	attempts := 1 + n.Retries
 	var (
 		output any
@@ -145,7 +244,7 @@ func (k *Kernel) execNodeWithReliability(ctx context.Context, corr string, n *wo
 		if n.TimeoutSec > 0 {
 			actx, cancel = context.WithTimeout(ctx, time.Duration(n.TimeoutSec)*time.Second)
 		}
-		output, port, err = k.execWorkflowNode(actx, corr, n, w, data, payload)
+		output, port, err = e.execWorkflowNode(actx, corr, n, w, data, payload, prov)
 		if cancel != nil {
 			// Name the per-node deadline distinctly: "context deadline
 			// exceeded" alone reads as the whole run dying.
@@ -201,48 +300,48 @@ func wfSnippet(v any) (string, bool) {
 // interpolated args/prompt/url/items — for the journal's input snippet.
 // Preview-only (the executor re-interpolates authoritatively); a node type
 // with no meaningful input previews as "".
-func nodeInputPreview(n *workflow.Node, data map[string]any) string {
+func nodeInputPreview(n *Node, data map[string]any) string {
 	switch n.Type {
-	case workflow.NodeTool:
-		var c workflow.ToolConfig
+	case NodeTool:
+		var c ToolConfig
 		_ = json.Unmarshal(n.Config, &c)
-		return strings.TrimSpace(workflow.Interpolate(string(c.Args), data))
-	case workflow.NodeLLM:
-		var c workflow.LLMConfig
+		return strings.TrimSpace(Interpolate(string(c.Args), data))
+	case NodeLLM:
+		var c LLMConfig
 		_ = json.Unmarshal(n.Config, &c)
-		return workflow.Interpolate(c.Prompt, data)
-	case workflow.NodeCondition:
-		var c workflow.ConditionConfig
+		return Interpolate(c.Prompt, data)
+	case NodeCondition:
+		var c ConditionConfig
 		_ = json.Unmarshal(n.Config, &c)
-		return workflow.Interpolate(c.Left, data) + " " + c.Op + " " + workflow.Interpolate(c.Right, data)
-	case workflow.NodeHTTP:
-		var c workflow.HTTPConfig
+		return Interpolate(c.Left, data) + " " + c.Op + " " + Interpolate(c.Right, data)
+	case NodeHTTP:
+		var c HTTPConfig
 		_ = json.Unmarshal(n.Config, &c)
-		return strings.ToUpper(strings.TrimSpace(c.Method)) + " " + workflow.Interpolate(c.URL, data)
-	case workflow.NodeCode:
-		var c workflow.CodeConfig
+		return strings.ToUpper(strings.TrimSpace(c.Method)) + " " + Interpolate(c.URL, data)
+	case NodeCode:
+		var c CodeConfig
 		_ = json.Unmarshal(n.Config, &c)
-		return strings.TrimSpace(workflow.Interpolate(c.Input, data))
-	case workflow.NodeMap, workflow.NodeFilter:
+		return strings.TrimSpace(Interpolate(c.Input, data))
+	case NodeMap, NodeFilter:
 		var c struct {
 			Items string `json:"items"`
 		}
 		_ = json.Unmarshal(n.Config, &c)
-		return workflow.Interpolate(c.Items, data)
-	case workflow.NodeSwitch:
-		var c workflow.SwitchConfig
+		return Interpolate(c.Items, data)
+	case NodeSwitch:
+		var c SwitchConfig
 		_ = json.Unmarshal(n.Config, &c)
-		return workflow.Interpolate(c.Value, data)
-	case workflow.NodeSubflow:
-		var c workflow.SubflowConfig
+		return Interpolate(c.Value, data)
+	case NodeSubflow:
+		var c SubflowConfig
 		_ = json.Unmarshal(n.Config, &c)
-		return strings.TrimSpace(workflow.Interpolate(c.Payload, data))
-	case workflow.NodePipeline:
-		var c workflow.PipelineConfig
+		return strings.TrimSpace(Interpolate(c.Payload, data))
+	case NodePipeline:
+		var c PipelineConfig
 		_ = json.Unmarshal(n.Config, &c)
 		parts := make([]string, 0, len(c.Steps))
 		for _, step := range c.Steps {
-			args := strings.TrimSpace(workflow.Interpolate(string(step.Args), data))
+			args := strings.TrimSpace(Interpolate(string(step.Args), data))
 			if args == "" {
 				args = "{}"
 			}
@@ -252,12 +351,3 @@ func nodeInputPreview(n *workflow.Node, data map[string]any) string {
 	}
 	return ""
 }
-
-// wfDepthKey carries subworkflow nesting depth through the run context.
-type wfDepthKey struct{}
-
-const maxSubflowDepth = 3
-
-// execWorkflowNode runs one node and returns (output, firedPort, error).
-// Most nodes fire the default "" port; condition fires true/false, switch
-// fires a case port or "default".

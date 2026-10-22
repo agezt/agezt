@@ -39,6 +39,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/work/okr"
 	"github.com/agezt/agezt/kernel/modules/work/seat"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
+	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/reranktool"
@@ -54,7 +55,6 @@ import (
 	"github.com/agezt/agezt/kernel/toolforge"
 	"github.com/agezt/agezt/kernel/voicetool"
 	"github.com/agezt/agezt/kernel/warden"
-	"github.com/agezt/agezt/kernel/workflow"
 )
 
 // This file is the kernel's composition root: Open + Close + closeAll +

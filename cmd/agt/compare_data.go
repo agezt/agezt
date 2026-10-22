@@ -86,7 +86,7 @@ func compareCapabilities() []compareCapability {
 			Status:      compareStatusSupported,
 			Expectation: "Cron jobs, standing orders/hooks, and workflow/taskflow automation.",
 			Agezt:       "AGEZT has typed schedules, standing orders, workflow canvas/runner, and schedule/standing tools.",
-			Evidence:    []string{"kernel/cadence/cadence.go", "kernel/standing/standing.go", "kernel/workflow/workflow.go", "plugins/tools/schedule/schedule.go", "plugins/tools/standingtool/standing.go"},
+			Evidence:    []string{"kernel/cadence/cadence.go", "kernel/standing/standing.go", "kernel/modules/workflows/workflow/workflow.go", "plugins/tools/schedule/schedule.go", "plugins/tools/standingtool/standing.go"},
 			Next:        "Add OpenClaw/Hermes cron/standing import dry-runs and parity demos.",
 		},
 		{
@@ -126,7 +126,7 @@ func compareCapabilities() []compareCapability {
 			Status:      compareStatusSupported,
 			Expectation: "Run/file checkpoints with operator-triggered rollback for mutations.",
 			Agezt:       "AGEZT has `agt rollback list/show/dry-run/apply`, `agt rollback list --run <id>`, a local checkpoint catalog, workshop pre-mutation skill.status checkpoints, workflow.snapshot checkpoints for CLI workflow edits, daemon file.snapshot checkpoints for file write/append/replace/delete, config.setting checkpoints for `agt config set`, Web UI run-detail rollback list/apply, rollback_mode labels for irreversible tools, and journaled `skill.restored` / `workflow.restored` rollback paths.",
-			Evidence:    []string{"cmd/agt/rollback.go", "cmd/agt/skill_workshop.go", "cmd/agt/workflow.go", "cmd/agt/config.go", "plugins/tools/file/checkpoint.go", "cmd/agezt/main.go", "kernel/webui/rollback.go", "frontend/src/components/RunDetail.tsx", "kernel/app/tools/inventory.go", "kernel/app/skill/lifecycle.go", "kernel/app/skill/operations.go", "kernel/controlplane/workflow.go", "kernel/modules/skills/skill/forge.go", "kernel/workflow/workflow.go"},
+			Evidence:    []string{"cmd/agt/rollback.go", "cmd/agt/skill_workshop.go", "cmd/agt/workflow.go", "cmd/agt/config.go", "plugins/tools/file/checkpoint.go", "cmd/agezt/main.go", "kernel/webui/rollback.go", "frontend/src/components/RunDetail.tsx", "kernel/app/tools/inventory.go", "kernel/app/skill/lifecycle.go", "kernel/app/skill/operations.go", "kernel/controlplane/workflow.go", "kernel/modules/skills/skill/forge.go", "kernel/modules/workflows/workflow/workflow.go"},
 			Next:        "Broaden checkpoint hooks to patch/coding/package-update paths and add agent-detail rollback grouping.",
 		},
 		{
@@ -136,7 +136,7 @@ func compareCapabilities() []compareCapability {
 			Status:      compareStatusPartial,
 			Expectation: "Kanban-like durable tasks with worker lanes, dependencies, comments, heartbeats, and crash recovery.",
 			Agezt:       "AGEZT now has a durable typed `kernel/workboard` store with tasks, dependencies, comments, links, claims, heartbeats, status transitions, idempotency keys, retry/escalation policy, persistence, journaled runtime mutations, `agt workboard` CLI commands including lanes/depend/reclaim/sweep/policy/fail/dispatch/watch, an agent-facing `workboard` tool, and a separate Edict capability; dispatch refuses unresolved dependencies, claims assigned roster agents, links run correlations, starts async runs, automatically retries failed Workboard attempts up to task policy, escalates exhausted attempts, moves successful dispatches to review, exposes task/run events, groups tasks by assignee lane in CLI/API/Web UI, provides a dedicated Workboard detail UI for dependencies, attempts, links/artifacts, events, comments, block/fail/unblock/complete/policy/dispatch actions, and can reclaim stale claims on demand or through AGEZT_WORKBOARD_SWEEP_EVERY.",
-			Evidence:    []string{"kernel/modules/work/workboard/workboard.go", "kernel/runtime/workboard.go", "kernel/app/workboard/workboard.go", "kernel/app/workboard/operations.go", "kernel/app/workboard/dispatch.go", "kernel/app/workboard/execution.go", "cmd/agt/workboard.go", "cmd/agt/workboard_test.go", "cmd/agezt/main.go", "kernel/settings/schema.go", "plugins/tools/workboardtool/workboard.go", "kernel/edict/toolmap.go", "kernel/modules/board/board/board.go", "kernel/workflow/workflow.go", "cmd/agt/conductor.go", "kernel/webui/webui.go", "kernel/webui/webui_test.go"},
+			Evidence:    []string{"kernel/modules/work/workboard/workboard.go", "kernel/runtime/workboard.go", "kernel/app/workboard/workboard.go", "kernel/app/workboard/operations.go", "kernel/app/workboard/dispatch.go", "kernel/app/workboard/execution.go", "cmd/agt/workboard.go", "cmd/agt/workboard_test.go", "cmd/agezt/main.go", "kernel/settings/schema.go", "plugins/tools/workboardtool/workboard.go", "kernel/edict/toolmap.go", "kernel/modules/board/board/board.go", "kernel/modules/workflows/workflow/workflow.go", "cmd/agt/conductor.go", "kernel/webui/webui.go", "kernel/webui/webui_test.go"},
 			Next:        "Add graph-style dependency visualization, inline artifact/diff preview, and process/delegation heartbeat integration.",
 		},
 		{

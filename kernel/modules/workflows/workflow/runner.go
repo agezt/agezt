@@ -25,10 +25,21 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 )
 
+// Trigger says why a workflow fired. The host turns it into the run's
+// provenance, so a cron-triggered run is never labelled "manual".
+type Trigger struct {
+	// Source is the trigger kind: "cron" or "event".
+	Source string
+	// Subject is the matched event subject (event triggers only).
+	Subject string
+	// Reason is a short human label ("cron interval", "event task.failed")
+	// for the daemon's logging.
+	Reason string
+}
+
 // FireFunc executes one triggered workflow. payload becomes
-// {{trigger.payload}}; reason is a short human label ("cron interval",
-// "event task.failed") for the daemon's logging.
-type FireFunc func(ctx context.Context, w Workflow, payload any, reason string)
+// {{trigger.payload}}; t says what fired it.
+type FireFunc func(ctx context.Context, w Workflow, payload any, t Trigger)
 
 // RunnerConfig tunes the trigger runner. Zero values mean defaults.
 type RunnerConfig struct {
@@ -123,7 +134,7 @@ type triggerRunner struct {
 // kernel/standing, kernel/cadence, kernel/pulse and kernel/agent all already do
 // this; the standing-order FireFunc carries an eight-line comment explaining
 // this exact hazard. kernel/workflow was the gap.
-func (r *triggerRunner) safeFire(ctx context.Context, wf Workflow, payload map[string]any, reason string) {
+func (r *triggerRunner) safeFire(ctx context.Context, wf Workflow, payload map[string]any, t Trigger) {
 	defer func() {
 		rec := recover()
 		if rec == nil {
@@ -140,12 +151,12 @@ func (r *triggerRunner) safeFire(ctx context.Context, wf Workflow, payload map[s
 			Payload: map[string]any{
 				"id":     wf.ID,
 				"name":   wf.Name,
-				"reason": reason,
+				"reason": t.Reason,
 				"panic":  fmt.Sprintf("%v", rec),
 			},
 		})
 	}()
-	r.fire(ctx, wf, payload, reason)
+	r.fire(ctx, wf, payload, t)
 }
 
 // onEvent matches one journal event against every enabled event trigger.
@@ -186,7 +197,7 @@ func (r *triggerRunner) onEvent(ctx context.Context, ev *event.Event) {
 			}
 		}
 		wf := w
-		go r.safeFire(ctx, wf, payload, "event "+ev.Subject)
+		go r.safeFire(ctx, wf, payload, Trigger{Source: "event", Subject: ev.Subject, Reason: "event " + ev.Subject})
 	}
 }
 
@@ -218,7 +229,7 @@ func (r *triggerRunner) onTick(ctx context.Context) {
 			r.mu.Unlock()
 			if due {
 				wf := w
-				go r.safeFire(ctx, wf, map[string]any{"kind": "cron", "fired_at": now.Format(time.RFC3339)}, "cron interval")
+				go r.safeFire(ctx, wf, map[string]any{"kind": "cron", "fired_at": now.Format(time.RFC3339)}, Trigger{Source: "cron", Reason: "cron interval"})
 			}
 		case spec.DailyAt != "":
 			hhmm := now.Format("15:04")
@@ -234,7 +245,7 @@ func (r *triggerRunner) onTick(ctx context.Context) {
 			r.mu.Unlock()
 			if !already {
 				wf := w
-				go r.safeFire(ctx, wf, map[string]any{"kind": "cron", "fired_at": now.Format(time.RFC3339)}, "cron daily "+spec.DailyAt)
+				go r.safeFire(ctx, wf, map[string]any{"kind": "cron", "fired_at": now.Format(time.RFC3339)}, Trigger{Source: "cron", Reason: "cron daily " + spec.DailyAt})
 			}
 		}
 	}

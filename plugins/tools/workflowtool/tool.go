@@ -20,8 +20,8 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/workflow"
 )
 
 // Kernel is the slice of the runtime kernel this tool drives — satisfied by

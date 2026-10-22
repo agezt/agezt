@@ -35,6 +35,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/work/okr"
 	"github.com/agezt/agezt/kernel/modules/work/seat"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
+	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/resume"
 	"github.com/agezt/agezt/kernel/roster"
@@ -46,7 +47,6 @@ import (
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/toolforge"
 	"github.com/agezt/agezt/kernel/warden"
-	"github.com/agezt/agezt/kernel/workflow"
 )
 
 type Kernel struct {

@@ -46,6 +46,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	kernelmemory "github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
+	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/pulse"
 	"github.com/agezt/agezt/kernel/redact"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
@@ -54,7 +55,6 @@ import (
 	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/kernel/update"
 	"github.com/agezt/agezt/kernel/warden"
-	"github.com/agezt/agezt/kernel/workflow"
 	"github.com/agezt/agezt/plugins/builtinchannels"
 	"github.com/agezt/agezt/plugins/builtinguardians"
 	"github.com/agezt/agezt/plugins/builtinmarket"
@@ -1698,11 +1698,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// The runner consults the store live, so canvas/CLI saves take effect
 	// without a restart; each firing runs the graph under its own correlation
 	// (the workflow.* journal arc is the audit trail either way).
-	wfFire := func(fctx context.Context, w workflow.Workflow, payload any, reason string) {
-		rctx, cancel := context.WithTimeout(fctx, 15*time.Minute)
-		defer cancel()
-		_, _ = k.RunWorkflow(rctx, k.NewCorrelation(), w.Name, payload)
-	}
+	//
+	// The fire goes through the kernel so the trigger's source rides the run's
+	// provenance: a cron-triggered run is journalled as source:"cron" and an
+	// event-triggered one as source:"event" — never as "manual", which is what
+	// a run without a trigger is.
+	wfFire := k.FireWorkflow
 	if err := workflow.StartTriggers(ctx, k.Bus(), k.Workflows(), workflow.RunnerConfig{}, wfFire); err != nil {
 		fmt.Fprintf(stdout, "  workflows        : trigger runner failed to start: %v\n", err)
 	} else {

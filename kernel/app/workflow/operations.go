@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	graphs "github.com/agezt/agezt/kernel/workflow"
+	graphs "github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"strings"
 )
 

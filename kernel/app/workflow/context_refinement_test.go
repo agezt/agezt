@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	graphs "github.com/agezt/agezt/kernel/workflow"
+	graphs "github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"testing"
 	"time"
 )
