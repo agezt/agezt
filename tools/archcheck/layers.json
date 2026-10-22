@@ -52,11 +52,6 @@
 
     {"pattern": "kernel/market", "layer": 3, "module": "market"},
 
-    {"pattern": "kernel/workboard", "layer": 3, "module": "work"},
-    {"pattern": "kernel/okr", "layer": 3, "module": "work"},
-    {"pattern": "kernel/proof", "layer": 3, "module": "work"},
-    {"pattern": "kernel/assure", "layer": 3, "module": "work"},
-    {"pattern": "kernel/seat", "layer": 3, "module": "work"},
 
     {"pattern": "kernel/workflow", "layer": 3, "module": "workflows"},
 

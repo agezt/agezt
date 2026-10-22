@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	appwork "github.com/agezt/agezt/kernel/app/workboard"
 	"github.com/agezt/agezt/kernel/event"
-	tasks "github.com/agezt/agezt/kernel/workboard"
+	tasks "github.com/agezt/agezt/kernel/modules/work/workboard"
 	"testing"
 )
 

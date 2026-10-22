@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/kernel/proof"
+	"github.com/agezt/agezt/kernel/modules/work/proof"
 )
 
 const (
@@ -174,7 +174,7 @@ type CreateSpec struct {
 	// proof gate (see Complete / Prove); leaving it empty keeps the task ungated.
 	AcceptanceCriteria []string
 	// Seat names the execution preset the task is dispatched under (see
-	// kernel/seat). Empty = the assigned agent's defaults. Validation lives at the
+	// kernel/modules/work/seat). Empty = the assigned agent's defaults. Validation lives at the
 	// control plane so this package stays dependency-free.
 	Seat        string
 	RetryPolicy *RetryPolicy

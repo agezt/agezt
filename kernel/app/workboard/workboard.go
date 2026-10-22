@@ -7,7 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	tasks "github.com/agezt/agezt/kernel/workboard"
+	tasks "github.com/agezt/agezt/kernel/modules/work/workboard"
 	"sort"
 	"strings"
 )

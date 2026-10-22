@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	objectives "github.com/agezt/agezt/kernel/okr"
+	objectives "github.com/agezt/agezt/kernel/modules/work/okr"
 )
 
 type Reader interface {

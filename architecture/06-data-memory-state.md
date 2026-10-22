@@ -1,6 +1,6 @@
 # 06 — Data, Memory & State
 
-**Scope:** `kernel/event`, `kernel/journal`, `kernel/bus`, `kernel/ulid`, `kernel/platform/filestore`, `kernel/modules/knowledge/memory`, `kernel/modules/knowledge/worldmodel`, `kernel/modules/artifacts/datalake`, `kernel/modules/artifacts/artifact`, `kernel/modules/board/board`, `kernel/workboard`, `kernel/okr`, `kernel/modules/knowledge/taste`, `kernel/anomaly`, `kernel/alerter`.
+**Scope:** `kernel/event`, `kernel/journal`, `kernel/bus`, `kernel/ulid`, `kernel/platform/filestore`, `kernel/modules/knowledge/memory`, `kernel/modules/knowledge/worldmodel`, `kernel/modules/artifacts/datalake`, `kernel/modules/artifacts/artifact`, `kernel/modules/board/board`, `kernel/modules/work/workboard`, `kernel/modules/work/okr`, `kernel/modules/knowledge/taste`, `kernel/anomaly`, `kernel/alerter`.
 
 Sibling docs: [00-README.md](00-README.md) (overview) · [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md) (where these stores are opened/wired) · [02-cli-cmd-agt.md](02-cli-cmd-agt.md) (`agt journal|why|memory|world|board|workboard|okr|taste`) · [03-control-plane-and-http.md](03-control-plane-and-http.md) (handlers, SSE, webhooks, REST mailbox) · [04-agent-runtime.md](04-agent-runtime.md) (agent loop, context injection, proof/assure) · [05-governance-routing-security.md](05-governance-routing-security.md) (redact, state, edict capabilities) · [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md) (pulse, standing orders, workflow, selfrepair, cadence systemtasks) · [10-tools.md](10-tools.md) (`boardtool`, `workboardtool`, `artifacts`, `db` tools) · [11-frontend-console.md](11-frontend-console.md).
 
@@ -527,7 +527,7 @@ Payload `{topic, chars, id?, from?, to?, reply_to?, help?}` (text is not journal
 
 ---
 
-## 12. `kernel/workboard` — durable task state machine + proof gate
+## 12. `kernel/modules/work/workboard` — durable task state machine + proof gate
 
 **Purpose.** Restart-safe typed task queue (distinct from the board: tasks, not messages) that agents/workflows coordinate on, with the "PROOF > VIBES" gate.
 
@@ -554,7 +554,7 @@ Tests: `workboard_test.go`, `proof_gate_test.go`, `coverage_supp_test.go`.
 
 ---
 
-## 13. `kernel/okr` — objectives & key results
+## 13. `kernel/modules/work/okr` — objectives & key results
 
 | File | What it does |
 |---|---|

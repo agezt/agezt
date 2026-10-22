@@ -1085,6 +1085,18 @@ This file holds the active `[Unreleased]` working set.
   also dropped the oldest message. The board now writes first and remembers
   only what was written: a failed write changes nothing.
 
+- **The work module has a home, and a seat pinned to "container" is routed.**
+  The task queue, the objectives, the proof, the assurance verdicts and the
+  execution seats now live in `kernel/modules/work`; nothing else about them
+  changes.
+
+  A seat pinned to the `container` isolation surface was quietly ignored,
+  though: a seat names the *surface*, a run profile names the *implementation*
+  that provides it ("docker"), and the seat's value was handed to the profile
+  resolver as if it were a profile — where it was refused, so the task ran with
+  the agent's own isolation instead of the seat's. The two are now translated
+  where they meet.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now

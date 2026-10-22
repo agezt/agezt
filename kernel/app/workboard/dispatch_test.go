@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 	appwork "github.com/agezt/agezt/kernel/app/workboard"
-	tasks "github.com/agezt/agezt/kernel/workboard"
+	tasks "github.com/agezt/agezt/kernel/modules/work/workboard"
 	"reflect"
 	"strings"
 	"testing"

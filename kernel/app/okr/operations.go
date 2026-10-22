@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	objectives "github.com/agezt/agezt/kernel/okr"
+	objectives "github.com/agezt/agezt/kernel/modules/work/okr"
 	"strings"
 )
 

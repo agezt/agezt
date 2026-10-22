@@ -14,7 +14,7 @@ adapter-bypass kernel/controlplane -> kernel/runtime
 adapter-bypass kernel/controlplane -> kernel/standing
 adapter-bypass kernel/controlplane -> kernel/toolbox
 adapter-bypass kernel/controlplane -> kernel/update
-adapter-bypass kernel/controlplane -> kernel/workboard
+adapter-bypass kernel/controlplane -> kernel/modules/work/workboard
 adapter-bypass kernel/controlplane -> kernel/workflow
 adapter-bypass kernel/openaiapi -> kernel/convo
 adapter-bypass kernel/restapi -> kernel/modules/board/board
@@ -32,7 +32,7 @@ cross-module kernel/modules/knowledge/memory -> kernel/agent
 cross-module kernel/pulse -> kernel/agent
 cross-module kernel/reflect -> kernel/modules/knowledge/worldmodel
 cross-module kernel/runtime -> kernel/modules/artifacts/artifact
-cross-module kernel/runtime -> kernel/assure
+cross-module kernel/runtime -> kernel/modules/work/assure
 cross-module kernel/runtime -> kernel/cadence
 cross-module kernel/runtime -> kernel/catalog
 cross-module kernel/runtime -> kernel/modules/artifacts/datalake
@@ -43,15 +43,15 @@ cross-module kernel/runtime -> kernel/modules/knowledge/memory
 cross-module kernel/runtime -> kernel/modules/knowledge/taste
 cross-module kernel/runtime -> kernel/modules/knowledge/worldmodel
 cross-module kernel/runtime -> kernel/modules/skills/skill
-cross-module kernel/runtime -> kernel/okr
-cross-module kernel/runtime -> kernel/proof
+cross-module kernel/runtime -> kernel/modules/work/okr
+cross-module kernel/runtime -> kernel/modules/work/proof
 cross-module kernel/runtime -> kernel/reranktool
 cross-module kernel/runtime -> kernel/roster
-cross-module kernel/runtime -> kernel/seat
+cross-module kernel/runtime -> kernel/modules/work/seat
 cross-module kernel/runtime -> kernel/standing
 cross-module kernel/runtime -> kernel/toolforge
 cross-module kernel/runtime -> kernel/voicetool
-cross-module kernel/runtime -> kernel/workboard
+cross-module kernel/runtime -> kernel/modules/work/workboard
 cross-module kernel/runtime -> kernel/workflow
 cross-module kernel/runtime/accessors -> kernel/modules/artifacts/artifact
 cross-module kernel/runtime/accessors -> kernel/cadence
@@ -64,7 +64,7 @@ cross-module kernel/runtime/accessors -> kernel/modules/skills/skill
 cross-module kernel/runtime/accessors -> kernel/roster
 cross-module kernel/runtime/accessors -> kernel/standing
 cross-module kernel/runtime/runexec -> kernel/modules/artifacts/artifact
-cross-module kernel/runtime/runexec -> kernel/assure
+cross-module kernel/runtime/runexec -> kernel/modules/work/assure
 cross-module kernel/runtime/runexec -> kernel/cadence
 cross-module kernel/runtime/runexec -> kernel/catalog
 cross-module kernel/runtime/runexec -> kernel/modules/artifacts/datalake
@@ -121,7 +121,7 @@ plugin-reach plugins/tools/schedule -> kernel/roster
 plugin-reach plugins/tools/skilltool -> kernel/modules/skills/skill
 plugin-reach plugins/tools/standingtool -> kernel/roster
 plugin-reach plugins/tools/standingtool -> kernel/standing
-plugin-reach plugins/tools/workboardtool -> kernel/workboard
+plugin-reach plugins/tools/workboardtool -> kernel/modules/work/workboard
 plugin-reach plugins/tools/workflowtool -> kernel/runtime
 plugin-reach plugins/tools/workflowtool -> kernel/workflow
 upward kernel/channel -> kernel/bus

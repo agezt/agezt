@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/assure"
-	"github.com/agezt/agezt/kernel/proof"
+	"github.com/agezt/agezt/kernel/modules/work/assure"
+	"github.com/agezt/agezt/kernel/modules/work/proof"
 )
 
 // A task with no acceptance criteria is ungated: Complete works as before.

@@ -4,7 +4,7 @@ package controlplane_test
 import (
 	"context"
 	"github.com/agezt/agezt/kernel/controlplane"
-	"github.com/agezt/agezt/kernel/okr"
+	"github.com/agezt/agezt/kernel/modules/work/okr"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"reflect"
 	"strings"

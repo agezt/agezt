@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/workboard"
+	"github.com/agezt/agezt/kernel/modules/work/workboard"
 )
 
 type input struct {

@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/okr"
-	"github.com/agezt/agezt/kernel/workboard"
+	"github.com/agezt/agezt/kernel/modules/work/okr"
+	"github.com/agezt/agezt/kernel/modules/work/workboard"
 )
 
 // OKR returns the durable objectives-and-key-results store.

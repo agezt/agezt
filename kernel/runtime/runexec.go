@@ -10,7 +10,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/agezt/agezt/kernel/assure"
+	"github.com/agezt/agezt/kernel/modules/work/assure"
 	"github.com/agezt/agezt/kernel/roster"
 )
 

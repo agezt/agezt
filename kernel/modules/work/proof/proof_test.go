@@ -5,7 +5,7 @@ package proof
 import (
 	"testing"
 
-	"github.com/agezt/agezt/kernel/assure"
+	"github.com/agezt/agezt/kernel/modules/work/assure"
 )
 
 func TestSatisfied(t *testing.T) {

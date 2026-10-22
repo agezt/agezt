@@ -4,7 +4,7 @@ package controlplane
 import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	appworkboard "github.com/agezt/agezt/kernel/app/workboard"
-	"github.com/agezt/agezt/kernel/workboard"
+	"github.com/agezt/agezt/kernel/modules/work/workboard"
 )
 
 func (s *Server) workboardDispatcher() *appworkboard.Dispatch {

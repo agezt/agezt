@@ -4,7 +4,7 @@ package workboard
 
 import (
 	"context"
-	tasks "github.com/agezt/agezt/kernel/workboard"
+	tasks "github.com/agezt/agezt/kernel/modules/work/workboard"
 	"time"
 )
 

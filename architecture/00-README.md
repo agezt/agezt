@@ -205,7 +205,7 @@ Every Go package, one line each, with the document that covers it in depth.
 | `envscrub` | The child-env rules: launch allowlist + secret-name test. |
 | `platform/sandbox` | The only way to build a child process outside warden: `Command`/`CommandContext` preset `IsolatedEnv` (allowlist + grants); `HelperEnv` (all but secrets) for operator helper CLIs. |
 | `redact` | Secret scrubbing (vault values + patterns), installed on the bus before journaling. |
-| `seat` | Named execution "seats" for workboard dispatch. |
+| `seat` | Named execution "seats" for workboard dispatch. Now in the work module (`kernel/modules/work/seat`, W3.6). |
 | `tenant`, `tenantctx` | Multi-tenancy: one base dir + kernel per tenant; tenant id in `context`. |
 | `state` | First-class mutable key/value state namespaces. |
 
@@ -222,8 +222,8 @@ Every Go package, one line each, with the document that covers it in depth.
 | `datalake` | File-based structured store ("Personal Data Lake") behind the `db` tool. Now in the artifacts module (`kernel/modules/artifacts/datalake`, W3.4). |
 | `artifact` | BLAKE3 content-addressed blob store + index + collection. Now in the artifacts module (`kernel/modules/artifacts/artifact`, W3.4). |
 | `board` | Shared topic-addressed message board/mailbox (**one** `board.Store` per daemon). Now in the board module (`kernel/modules/board/board`, W3.5). |
-| `workboard` | Durable typed task queue with acceptance criteria and the Proof gate. |
-| `okr` | Objectives/key results computed live from workboard status. |
+| `workboard` | Durable typed task queue with acceptance criteria and the Proof gate. Now in the work module (`kernel/modules/work/workboard`, W3.6). |
+| `okr` | Objectives/key results computed live from workboard status. Now in the work module (`kernel/modules/work/okr`, W3.6). |
 | `taste` | Operator-authored "what good looks like" exemplars injected before runs. |
 | `anomaly` | Runaway circuit breaker (>120 tool calls / 10 s ⇒ halt). |
 | `alerter` | Pushes warning/critical alerts to channels. |

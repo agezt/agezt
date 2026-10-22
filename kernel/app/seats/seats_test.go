@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/modules/work/seat"
 	"github.com/agezt/agezt/kernel/platform/schema"
-	"github.com/agezt/agezt/kernel/seat"
 )
 
 func store(t *testing.T) *seat.Store {

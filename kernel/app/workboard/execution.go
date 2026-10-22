@@ -6,8 +6,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/agezt/agezt/internal/strutil"
-	"github.com/agezt/agezt/kernel/seat"
-	"github.com/agezt/agezt/kernel/workboard"
+	"github.com/agezt/agezt/kernel/executionprofile"
+	"github.com/agezt/agezt/kernel/modules/work/seat"
+	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"strings"
 )
 
@@ -88,7 +89,10 @@ func (s *Execution) Run(ctx context.Context, in ExecutionInput) (ExecutionOutput
 				ctx = s.context.Tools(ctx, st.Tools)
 			}
 			if st.ExecutionProfile != "" {
-				isoProfile = st.ExecutionProfile
+				// A seat names the isolation *surface* ("container"); a run
+				// profile names the implementation that provides it ("docker").
+				// Translate, or the seat's value is not routable at all.
+				isoProfile = executionprofile.SeatProfileID(st.ExecutionProfile)
 				isoSource = "seat " + st.ID
 			}
 		}

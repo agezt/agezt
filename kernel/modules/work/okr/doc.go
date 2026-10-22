@@ -6,7 +6,7 @@
 // rolls their completion up into a percentage.
 //
 // The rollup is deliberately fed by DONE tasks, and because the proof gate
-// (kernel/proof + kernel/workboard) only lets a criteria-bearing task reach done
+// (the work module's proof + workboard packages) only lets a criteria-bearing task reach done
 // once its acceptance criteria are proven, "done tasks rolling up" is exactly
 // "proven tasks rolling up" for gated work — legitimately-completed ungated tasks
 // count too. This package stays pure data (no kernel deps): the runtime supplies
