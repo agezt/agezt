@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/types"
 )
 
 type StatusOutput struct {
@@ -44,13 +45,10 @@ type FallbackStatus struct {
 	LastMS     int64  `json:"last_ms"`
 }
 
-type DelegationStatus struct {
-	Enabled            bool  `json:"enabled"`
-	MaxDepth           int   `json:"max_depth"`
-	MaxFanout          int   `json:"max_fanout"`
-	MaxSpendMicrocents int64 `json:"max_spend_microcents"`
-	MaxTotal           int   `json:"max_total"`
-}
+// DelegationStatus reports the active delegation-governance ceilings. It is
+// the contract type itself, so the status row carries the runtime's ceilings
+// unchanged.
+type DelegationStatus = types.SubAgentLimits
 
 // VersionOutput retains brand.Binary as the wire key through custom encoding,
 // rather than hardcoding the product name in a struct tag.

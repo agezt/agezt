@@ -984,6 +984,15 @@ This file holds the active `[Unreleased]` working set.
   files and the API's answers are unchanged: the same keys, the same values,
   the same omissions.
 
+- **A council's opinion, a tenant's listing row and the delegation ceilings
+  are each one row.** The panel's position in one round, the tenant registry's
+  listing snapshot and the active delegation ceilings were each declared twice
+  — once where they are produced and once where they are published — and each
+  copy was filled in field by field. They are now declared once, so the
+  council's answer, the tenant listing, the status row and the introspection
+  tool publish the host's rows as they are. Nothing on the wire changes: the
+  same keys, in the same order, with the same omissions and the same values.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now

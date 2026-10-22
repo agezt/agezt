@@ -163,10 +163,7 @@ func (s *Service) Status(_ context.Context, _ StatusInput) (StatusOutput, error)
 		PendingApprovals:  pendingApprovals,
 		ProviderFallbacks: FallbackStatus{Count: fb.providerCount, LastReason: fb.providerLast, LastMS: fb.providerLastMS},
 		ModelFallbacks:    FallbackStatus{Count: fb.modelCount, LastReason: fb.modelLast, LastMS: fb.modelLastMS},
-		Delegation: DelegationStatus{
-			Enabled: dl.Enabled, MaxDepth: dl.MaxDepth, MaxFanout: dl.MaxFanout,
-			MaxSpendMicrocents: dl.MaxSpendMicrocents, MaxTotal: dl.MaxTotal,
-		},
+		Delegation:        dl,
 	}
 	if s.tenants != nil {
 		count := s.tenants.Count()

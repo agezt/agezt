@@ -89,14 +89,8 @@ func (s *kernelSource) Overview() Overview {
 		PendingApprovals:       pendingApprovals,
 		ProviderFallbacks:      fbCount,
 		ProviderFallbackReason: fbReason,
-		Delegation: Delegation{
-			Enabled:            dl.Enabled,
-			MaxDepth:           dl.MaxDepth,
-			MaxFanout:          dl.MaxFanout,
-			MaxSpendMicrocents: dl.MaxSpendMicrocents,
-			MaxTotal:           dl.MaxTotal,
-		},
-		Reaper: reaper,
+		Delegation:             dl,
+		Reaper:                 reaper,
 	}
 }
 

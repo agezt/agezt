@@ -11,12 +11,41 @@ package types
 // (defaulting to 1 when enabled and unset, exactly as runSubAgent
 // does); MaxFanout / MaxSpendMicrocents of 0 mean unbounded. Read-only —
 // surfaces config the operator set, makes silent governance legible.
+//
+// The json names are the row's wire: the status operation and the
+// introspection tool both publish these ceilings under them, so the row
+// carries them once, here.
 type SubAgentLimits struct {
-	Enabled            bool
-	MaxDepth           int
-	MaxFanout          int
-	MaxSpendMicrocents int64
-	MaxTotal           int
+	Enabled            bool  `json:"enabled"`
+	MaxDepth           int   `json:"max_depth"`
+	MaxFanout          int   `json:"max_fanout"`
+	MaxSpendMicrocents int64 `json:"max_spend_microcents"`
+	MaxTotal           int   `json:"max_total"`
+}
+
+// Opinion is one member's position in one round of a council: the seat that
+// spoke, the model that spoke for it, the round it belongs to, the text, and
+// the error when that seat's call failed.
+//
+// The runtime records the opinions and the council operation publishes them,
+// so the row is declared once, here, and both sides alias it.
+type Opinion struct {
+	Seat  string `json:"seat"`
+	Model string `json:"model"`
+	Round int    `json:"round"`
+	Text  string `json:"text"`
+	Error string `json:"error,omitempty"`
+}
+
+// TenantInfo is a tenant listing snapshot: the tenant that exists on disk and
+// whether its kernel is currently loaded.
+//
+// The tenant registry owns the row and the tenant operation publishes it, so
+// the row is declared once, here, and both sides alias it.
+type TenantInfo struct {
+	ID      string `json:"id"`
+	BaseDir string `json:"base_dir"`
+	Open    bool   `json:"open"`
 }
 
 // PluginInfo is the daemon-supplied manifest entry for one external

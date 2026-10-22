@@ -13,14 +13,20 @@
 // contract layer — pure types and interfaces, no logic (P4) — is the right
 // home for it.
 //
-// The three types here are:
+// The five types here are:
 //
 //   - CouncilMember: one seat of the Council of Elders (the seat and the
 //     model that speaks for it). The application's council row is an alias
 //     of this type, so the host hands its membership over without copying.
 //   - PluginInfo: the manifest entry of one external plugin. The
 //     application's plugin registration is an alias of this type.
-//   - SubAgentLimits: the delegation-governance ceilings (M46–M48).
+//   - SubAgentLimits: the delegation-governance ceilings (M46–M48). The
+//     status operation's row and the introspection tool's row are aliases of
+//     this type.
+//   - Opinion: one council member's position in one round. The runtime's
+//     opinion and the application's council row are aliases of this type.
+//   - TenantInfo: one tenant's listing snapshot. The tenant registry's row
+//     and the application's tenant row are aliases of this type.
 //
 // Rules of the road:
 //
@@ -30,5 +36,6 @@
 //     application name is declared here exactly once; the other side
 //     aliases it, so the two can never drift apart.
 //   - The runtime's own aliases (runtime.CouncilMember, runtime.PluginInfo,
-//     runtime.SubAgentLimits) stay, so the host's public API is unchanged.
+//     runtime.SubAgentLimits, runtime.Opinion) stay, so the host's public API
+//     is unchanged.
 package types

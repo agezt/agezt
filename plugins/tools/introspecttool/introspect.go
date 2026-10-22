@@ -14,19 +14,15 @@ import (
 
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/standing"
 )
 
 // Delegation mirrors the active sub-agent governance ceilings (M46–M48) for the
-// overview. 0 fan-out / spend / total = unbounded.
-type Delegation struct {
-	Enabled            bool  `json:"enabled"`
-	MaxDepth           int   `json:"max_depth"`
-	MaxFanout          int   `json:"max_fanout"`
-	MaxSpendMicrocents int64 `json:"max_spend_microcents"`
-	MaxTotal           int   `json:"max_total"`
-}
+// overview. 0 fan-out / spend / total = unbounded. It is the contract type
+// itself, so the overview carries the runtime's ceilings unchanged.
+type Delegation = types.SubAgentLimits
 
 // ReaperOverview is the daemon's stale/degraded/misconfigured fleet snapshot.
 type ReaperOverview struct {

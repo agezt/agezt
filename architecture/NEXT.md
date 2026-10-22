@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.61 the artifact row has one declaration, 2026-10-22
+## Current checkpoint — W2.62 the boundary rows have one declaration, 2026-10-22
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -514,6 +514,28 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   shared value type belongs in the contract layer. The correction is in
   `architecture/124-w257-one-warden-branch-evidence.md` and in the W2.55
   bullet above.
+- W2.62 (the boundary rows have one declaration) is committed on `main` as a
+  code commit plus a docs commit and published from `arch/w2-dispatch` the same
+  way. Three rows crossed the host/application boundary and each was described
+  **twice**: the council opinion (`kernel/runtime.Opinion` and
+  `kernel/app/council.OpinionRow`), the tenant listing snapshot
+  (`kernel/tenant.Info` and `kernel/app/tenants.Row`) and the delegation
+  ceilings (`kernel/contract/types.SubAgentLimits`,
+  `kernel/app/system.DelegationStatus` and
+  `plugins/tools/introspecttool.Delegation`). Each copy was filled in **field
+  by field** — five fields per opinion, three per tenant, five per ceiling row.
+  `kernel/contract/types` (L1) now declares each row once: `Opinion` (new),
+  `TenantInfo` (new) and `SubAgentLimits` (which gains the json names the wire
+  already used). The runtime keeps its public names (`runtime.Opinion`,
+  `tenant.Info`), the application and the plugin alias them, and the three
+  field-copy loops are gone: the council answer, the tenant listing, the status
+  row and the introspection tool publish the host's rows **unchanged**.
+  No wire changed — the same json names, in the same order, with the same
+  `omitempty` behaviour and the same values; the empty-list rule (an empty
+  array, never `null`) is kept.
+  14 mutations, 14 caught. The archcheck allowlist stays at 129 import
+  violations and 13 call sites; the package count stays at 271 (no new
+  package).
 - W2.45a (typed roster status collection) is committed on `main` as a code
   commit plus a docs commit and published from `arch/w2-dispatch` the same way.
   `kernel/controlplane/roster_status.go` (371 lines) is gone: the journal-derived
@@ -950,8 +972,9 @@ Preserve unrelated dirty changes: deletions of
 
 Continue roadmap §4.5/order 7 after the completed roster, steer, run-fold,
 remote-mirror, operation-audit, run-derived-row, projection, warden,
-shared-row-type, remote-backend-list, peer-wire-contract and artifact-row
-domains: the application's own artifact row and the data-lake's records (their
+shared-row-type, remote-backend-list, peer-wire-contract, artifact-row and
+boundary-row domains: the application's own artifact row and the data-lake's
+records (their
 own wires, their own spellings), the remote backends' two **policies** (the
 application supports them for a direct run, the host refuses them for a
 dispatched seat), the wider run/tool adapter convergence, W3 modules and
