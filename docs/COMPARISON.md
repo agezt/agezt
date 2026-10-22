@@ -41,12 +41,12 @@ These claims are grounded in the current repository structure and documented beh
 
 ### 1. Durable agents instead of prompt sessions
 
-AGEZT separates agent identity from chat sessions, schedules, and workflows. The architecture centers on durable profiles in `kernel/roster`, execution in `kernel/runtime`, communication in `kernel/board`, and operator/API surfaces in `kernel/controlplane` and the frontend.
+AGEZT separates agent identity from chat sessions, schedules, and workflows. The architecture centers on durable profiles in `kernel/modules/agents/roster`, execution in `kernel/runtime`, communication in `kernel/board`, and operator/API surfaces in `kernel/controlplane` and the frontend.
 
 Evidence to inspect:
 
 - `docs/ARCHITECTURE.md`
-- `kernel/roster/`
+- `kernel/modules/agents/roster/`
 - `kernel/runtime/`
 - `kernel/controlplane/roster.go`
 - `frontend/src/components/AgentDetail.tsx`

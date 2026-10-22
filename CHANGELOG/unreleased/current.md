@@ -1118,6 +1118,21 @@ This file holds the active `[Unreleased]` working set.
   `source:"cron"`, an event fire as `source:"event"` with the matched subject.
   A run nobody triggered is still `"manual"`.
 
+- **The agents module has a home, and a guardian's lowered ceiling survives the
+  boot.** The durable agent identity (roster) and the auto-repair coordinator
+  (selfrepair) now live in `kernel/modules/agents`; nothing else about them
+  changes.
+
+  A guardian's built-in spend ceiling ($5/run, $10/day) was assigned outright
+  on every boot, so an operator who tightened a guardian's budget had it
+  silently raised back — the daemon undid the operator's own policy. The
+  built-in caps are now ceilings: a cap above the maximum is clamped down, an
+  unset one is filled, and a ceiling the operator lowered is left alone.
+
+  The control plane and the self-repair coordinator no longer import the
+  overseer tool: the outcome of one agent repair belongs to the module, and
+  the repair source itself is injected by the daemon.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now

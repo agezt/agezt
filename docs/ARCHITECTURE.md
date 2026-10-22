@@ -22,7 +22,7 @@ The user's repeated design constraint is that agents must feel and behave like i
 
 The system currently has these major layers:
 
-- `kernel/roster`: durable profile store for agent identity.
+- `kernel/modules/agents/roster`: durable profile store for agent identity.
 - `kernel/runtime`: agent execution runtime, tool execution, retry handling, lifecycle completion, delegation, and run journal emission.
 - `kernel/controlplane`: API/control-plane command handlers for roster, schedule, standing orders, workflows, memory, board/mailbox, tools, status, and Web UI support.
 - `kernel/scheduler`, `kernel/standing`, `kernel/cadence`: scheduled/standing trigger infrastructure.
@@ -38,7 +38,7 @@ Version and dependency source of truth: backend Go version and module inventory 
 
 ## Agent Identity Model
 
-Durable agent identity is represented primarily by `kernel/roster.Profile`.
+Durable agent identity is represented primarily by `kernel/modules/agents/roster.Profile`.
 
 Important identity fields include:
 

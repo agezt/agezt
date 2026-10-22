@@ -635,4 +635,4 @@ All errors follow a consistent format:
 - [AGEZT Architecture Report](./ARCHITECTURAL-REPORT.md)
 - [Controlplane Protocol](../kernel/controlplane/protocol.go)
 - [Event Bus Design](../kernel/bus/bus.go)
-- [Agent Roster](../kernel/roster/roster.go)
+- [Agent Roster](../kernel/modules/agents/roster/roster.go)

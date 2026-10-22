@@ -193,7 +193,7 @@ The governor enforces these caps only when they are non-zero:
 - Per-day: `if req.AgentDailyCeilingMc > 0 { ... }`
 
 This is verified by `TestAdd_BudgetRemainsUnlimitedByDefault` in
-`kernel/roster/roster_test.go`.
+`kernel/modules/agents/roster/roster_test.go`.
 
 #### Setting agent budget caps
 
@@ -278,17 +278,17 @@ defaults** applied at profile creation:
 | `MaxDailyMc` | 50_000_000 µ¢ ($0.05) | `defaultSystemGuardianMaxDailyMc` |
 
 These are applied by `applySystemGuardianDefaults()` in
-`kernel/roster/roster.go` and enforced by `TestAdd_SystemGuardianDefaults*`
+`kernel/modules/agents/roster/roster.go` and enforced by `TestAdd_SystemGuardianDefaults*`
 tests. They can be overridden via CLI or API like any other agent.
 
 #### Unit tests
 
 | Test | File | What it covers |
 |---|---|---|
-| `TestAdd_BudgetRemainsUnlimitedByDefault` | `kernel/roster/roster_test.go` | Regular agents have `MaxCostMc=0`, `MaxDailyMc=0` (unlimited); explicit caps are honored |
-| `TestAdd_AssignsIdentityAndDefaults` | `kernel/roster/roster_test.go` | Budget defaults (0) are part of the identity defaults check |
-| `TestAdd_SystemGuardianDefaultsQuietCappedAndIsolated` | `kernel/roster/roster_test.go` | System guardians get their own budget defaults |
-| `TestUpdate_SystemGuardianCannotLoosenQuietDefaults` | `kernel/roster/roster_test.go` | System guardian budgets are re-raised on edit |
+| `TestAdd_BudgetRemainsUnlimitedByDefault` | `kernel/modules/agents/roster/roster_test.go` | Regular agents have `MaxCostMc=0`, `MaxDailyMc=0` (unlimited); explicit caps are honored |
+| `TestAdd_AssignsIdentityAndDefaults` | `kernel/modules/agents/roster/roster_test.go` | Budget defaults (0) are part of the identity defaults check |
+| `TestAdd_SystemGuardianDefaultsQuietCappedAndIsolated` | `kernel/modules/agents/roster/roster_test.go` | System guardians get their own budget defaults |
+| `TestUpdate_SystemGuardianCannotLoosenQuietDefaults` | `kernel/modules/agents/roster/roster_test.go` | System guardian budgets are re-raised on edit |
 | `TestAgentCapabilities_PatchesResourceAuthority` | `kernel/controlplane/roster_test.go` | Budget fields can be patched via capabilities endpoint |
 
 ---

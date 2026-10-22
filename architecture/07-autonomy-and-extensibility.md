@@ -1826,7 +1826,7 @@ Packages that read **no** env themselves: roster, standing, scheduler, market, m
    `WithTrustCeiling` only ever tightens (VULN-001).
 5. **Untrusted data stays wrapped.** Standing trigger payloads go in an UNTRUSTED envelope (VULN-004). Channel inbound text is data. Voice transcripts are `ObservationUntrusted`.
 6. **Workflows cannot launder tool calls.** Every tool/http/code/pipeline node passes `policyHook`. Agent-created workflows are saved **disabled**. The copilot never saves.
-7. **System guardians:** `roster.Store.Remove` does not check `System`; the guard is in runtime/controlplane. Guardian reconcile **resets `MaxCostMc` / `MaxDailyMc` to $5 / $10 on every boot**, overwriting any lower ceilings the operator set.
+7. **System guardians:** `roster.Store.Remove` does not check `System`; the guard is in runtime/controlplane. ✅ **Fixed (W3.8):** Guardian reconcile **reset `MaxCostMc` / `MaxDailyMc` to $5 / $10 on every boot**, overwriting any lower ceilings the operator set. The built-in caps are ceilings, and the reconcile only tightens: a cap above the built-in maximum is clamped down, an unset one is filled, and a ceiling the operator lowered is left alone.
 
 **Correctness / UX**
 
