@@ -724,9 +724,10 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `app/runs/run_args.go` | The strict argument readers: a mistyped flag is a usage error, never a silent default. |
 | `app/steer/steer.go` | Live run control (M32/M608): typed `cancel_run` and `run_pause/resume/step/steer/intervene` specs, strict codecs and the intervention mapping over the routed kernel's `Runs` port (tenant-routed). |
 | `remote_mirror.go` | The mirror's host bindings: the peer lookup, the two peer fetches, the redactor and the journal publish, behind the app layer's mirror decision. |
-| `remote_mirror_fetch.go` | `fetchRemoteEvents`, `fetchRemoteArtifacts` (HTTP calls to peer REST API); they decode the peer's answer into the app layer's typed rows. |
+| `remote_mirror_fetch.go` | `fetchRemoteEvents`, `fetchRemoteArtifacts` (HTTP calls to peer REST API); they decode the peer's answer straight into the app layer's typed rows — the canonical event and the contract row (`contract/remoteapi.Artifact`), so there is no field-by-field projection left. |
 | `remote_mirror_helpers.go` | Peer lookup through `app/nodes.ParsePeers` and the payload redaction for mirrored events. The mirror mode and payload mode moved to the app layer (`app/remote/mirror.go`). |
-| `app/remote/mirror.go` | The remote run mirror's decisions: whether the mirror runs (the mode), what a mirror that cannot reach the peer looks like, which fields of a peer event and artifact travel, whether a payload is redacted before it travels, and how much travels (200 events, 200 artifacts). |
+| `app/remote/mirror.go` | The remote run mirror's decisions: whether the mirror runs (the mode), what a mirror that cannot reach the peer looks like, which fields of a peer event and artifact travel, whether a payload is redacted before it travels, and how much travels (200 events, 200 artifacts). The rows it hands the host are the peer's own rows: the canonical event and the contract artifact row (`contract/remoteapi`). |
+| `contract/remoteapi/artifact.go` | The artifact row as a peer serves it (`id`, `ref`, `name`, `mime`, `kind`, `source`, `sender`, `corr`, `size`, `created_ms`, `caption`). The serving adapter (`restapi.ArtifactEntry`) and the reading application (`app/remote.Artifact`) are the same declaration, so the wire cannot drift between the two daemons (W2.60). |
 
 **Runs listing / status / daemon ops**
 
