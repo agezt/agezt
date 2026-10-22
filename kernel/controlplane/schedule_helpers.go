@@ -29,16 +29,8 @@ func (s *Server) scheduleLifecycle(ctx context.Context) *appschedule.Lifecycle {
 }
 
 func (s *Server) scheduleFiringReads(k *runtime.Kernel) *appschedule.FiringService {
-	return appschedule.NewFiringService(k.Journal(), func() (map[string]appschedule.FiringRun, error) {
-		rows, err := appruns.Collect(k.Journal().Range)
-		if err != nil {
-			return nil, err
-		}
-		out := make(map[string]appschedule.FiringRun, len(rows))
-		for id, row := range rows {
-			out[id] = appschedule.FiringRun{Completed: row.Completed, Failed: row.Failed, Abandoned: row.Abandoned, StartedUnixMS: row.StartedUnixMS, CompletedUnixMS: row.CompletedUnixMS, FailedUnixMS: row.FailedUnixMS, SpentMicrocents: row.SpentMicrocents, FailReason: row.FailReason, AnswerPreview: row.AnswerPreview}
-		}
-		return out, nil
+	return appschedule.NewFiringService(k.Journal(), func() (map[string]appruns.Run, error) {
+		return appruns.Collect(k.Journal().Range)
 	})
 }
 func (s *Server) scheduleReads() *appschedule.Service {

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	appruns "github.com/agezt/agezt/kernel/app/runs"
 	appschedule "github.com/agezt/agezt/kernel/app/schedule"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/event"
@@ -38,7 +39,7 @@ func firingEvent(t *testing.T, corr string, ms, seq int64, payload any) *event.E
 	}
 	return &event.Event{Kind: event.KindScheduleFired, CorrelationID: corr, TSUnixMS: ms, Seq: seq, Payload: raw}
 }
-func firingFixture(t *testing.T) (*firingReader, map[string]appschedule.FiringRun) {
+func firingFixture(t *testing.T) (*firingReader, map[string]appruns.Run) {
 	t.Helper()
 	reader := &firingReader{events: []*event.Event{
 		{Kind: event.KindTaskReceived, CorrelationID: "manual", TSUnixMS: 500, Seq: 7},
@@ -49,12 +50,12 @@ func firingFixture(t *testing.T) (*firingReader, map[string]appschedule.FiringRu
 		firingEvent(t, "tie-failed", 300, 5, map[string]any{"schedule_id": "A", "intent": "alpha tie", "target": "unknown"}),
 		{Kind: event.KindScheduleFired, CorrelationID: "legacy", TSUnixMS: 400, Seq: 6, Payload: json.RawMessage(`{`)},
 	}}
-	runs := map[string]appschedule.FiringRun{"complete": {Completed: true, Failed: true, Abandoned: true, StartedUnixMS: 100, CompletedUnixMS: 80, SpentMicrocents: 10, AnswerPreview: "done"}, "failed": {Failed: true, Abandoned: true, StartedUnixMS: 150, FailedUnixMS: 140, SpentMicrocents: 20}, "abandoned": {Abandoned: true, SpentMicrocents: 30}, "running": {}, "tie-failed": {Failed: true, StartedUnixMS: 295, FailedUnixMS: 303, FailReason: "denied", SpentMicrocents: 40, AnswerPreview: "retry"}}
+	runs := map[string]appruns.Run{"complete": {Completed: true, Failed: true, Abandoned: true, StartedUnixMS: 100, CompletedUnixMS: 80, SpentMicrocents: 10, AnswerPreview: "done"}, "failed": {Failed: true, Abandoned: true, StartedUnixMS: 150, FailedUnixMS: 140, SpentMicrocents: 20}, "abandoned": {Abandoned: true, SpentMicrocents: 30}, "running": {}, "tie-failed": {Failed: true, StartedUnixMS: 295, FailedUnixMS: 303, FailReason: "denied", SpentMicrocents: 40, AnswerPreview: "retry"}}
 	return reader, runs
 }
 func TestScheduleFiringViewsRetainSharedOutcomePrecedenceDurationMetadataAndLatestTie(t *testing.T) {
 	reader, runs := firingFixture(t)
-	service := appschedule.NewFiringService(reader, func() (map[string]appschedule.FiringRun, error) { return runs, nil })
+	service := appschedule.NewFiringService(reader, func() (map[string]appruns.Run, error) { return runs, nil })
 	out, err := service.Fires(context.Background(), appschedule.FiresInput{Limit: 20})
 	if err != nil || out.Count != 6 || out.NextCursor != "" {
 		t.Fatal(out, err)
@@ -69,6 +70,11 @@ func TestScheduleFiringViewsRetainSharedOutcomePrecedenceDurationMetadataAndLate
 		t.Fatal(ids)
 	}
 	c, f, a, r, l := byCorr["complete"], byCorr["failed"], byCorr["abandoned"], byCorr["running"], byCorr["legacy"]
+	tf := byCorr["tie-failed"]
+	// A failed run whose failure came after it started carries its duration.
+	if tf.Status != "failed" || tf.Reason != "denied" || tf.DurationMS != 8 || tf.SpentMC != 40 || tf.AnswerPreview != "retry" {
+		t.Fatal(tf)
+	}
 	if c.Status != "completed" || c.DurationMS != -20 || c.SpentMC != 10 || c.AnswerPreview != "done" || c.Model != "m1" || c.Executor != "override" || c.Category != "custom" || c.EffectClass != "effect" || c.UsesLLM || c.Action != "run workflow owned-flow" || c.AutonomyRunbook["retry"] != float64(3) {
 		t.Fatal(c)
 	}
@@ -93,7 +99,7 @@ func TestScheduleFiringViewsRetainSharedOutcomePrecedenceDurationMetadataAndLate
 }
 func TestScheduleFiringFiltersRunBeforeLimitAndCursorKeepsStrictlyOlderTie(t *testing.T) {
 	reader, runs := firingFixture(t)
-	service := appschedule.NewFiringService(reader, func() (map[string]appschedule.FiringRun, error) { return runs, nil })
+	service := appschedule.NewFiringService(reader, func() (map[string]appruns.Run, error) { return runs, nil })
 	for _, tc := range []struct {
 		in     appschedule.FiresInput
 		ids    []string
@@ -102,6 +108,9 @@ func TestScheduleFiringFiltersRunBeforeLimitAndCursorKeepsStrictlyOlderTie(t *te
 		{appschedule.FiresInput{Limit: 2}, []string{"legacy", "tie-failed"}, "300:5"},
 		{appschedule.FiresInput{Limit: 2, CursorOK: true, CursorMS: 300, CursorSeq: 5}, []string{"running", "abandoned"}, "250:3"},
 		{appschedule.FiresInput{Limit: 1, ID: "A", Status: "completed"}, []string{"complete"}, "100:1"},
+		{appschedule.FiresInput{Limit: 20, Status: "failed"}, []string{"tie-failed", "failed"}, ""},
+		{appschedule.FiresInput{Limit: 20, Status: "abandoned"}, []string{"abandoned"}, ""},
+		{appschedule.FiresInput{Limit: 20, Status: "running"}, []string{"legacy", "running"}, ""},
 		{appschedule.FiresInput{Limit: 20, Intent: "aLpHa"}, []string{"tie-failed", "running", "failed", "complete"}, ""},
 		{appschedule.FiresInput{Limit: 20, ID: " A "}, []string{}, ""},
 		{appschedule.FiresInput{Limit: 20, Status: "FAILED"}, []string{}, ""},
@@ -126,7 +135,7 @@ func TestScheduleFiringFiltersRunBeforeLimitAndCursorKeepsStrictlyOlderTie(t *te
 }
 func TestScheduleFiringOutputsRetainRequiredZeroFieldsOptionalRunbookAndEmptyCollections(t *testing.T) {
 	reader, runs := firingFixture(t)
-	service := appschedule.NewFiringService(reader, func() (map[string]appschedule.FiringRun, error) { return runs, nil })
+	service := appschedule.NewFiringService(reader, func() (map[string]appruns.Run, error) { return runs, nil })
 	out, err := service.Fires(context.Background(), appschedule.FiresInput{Limit: 20})
 	if err != nil {
 		t.Fatal(err)
@@ -153,7 +162,7 @@ func TestScheduleFiringOutputsRetainRequiredZeroFieldsOptionalRunbookAndEmptyCol
 			t.Fatal(row)
 		}
 	}
-	empty := appschedule.NewFiringService(&firingReader{}, func() (map[string]appschedule.FiringRun, error) { return map[string]appschedule.FiringRun{}, nil })
+	empty := appschedule.NewFiringService(&firingReader{}, func() (map[string]appruns.Run, error) { return map[string]appruns.Run{}, nil })
 	fires, err := empty.Fires(context.Background(), appschedule.FiresInput{Limit: 20})
 	raw, _ = json.Marshal(fires)
 	if err != nil || string(raw) != `{"fires":[],"count":0,"next_cursor":""}` {
@@ -180,7 +189,7 @@ func TestScheduleFiringViewsRetainOriginalRunAndJournalCausesWithZeroOutputs(t *
 				reader.cause = cause
 			}
 			calls := 0
-			service := appschedule.NewFiringService(reader, func() (map[string]appschedule.FiringRun, error) {
+			service := appschedule.NewFiringService(reader, func() (map[string]appruns.Run, error) {
 				calls++
 				if phase == "runs" {
 					return nil, cause
@@ -216,8 +225,8 @@ func TestScheduleFiringServiceUsesActualOwnedJournalSequenceAndLatestSameMSTie(t
 		}
 		lastSeq = e.Seq
 	}
-	service := appschedule.NewFiringService(j, func() (map[string]appschedule.FiringRun, error) {
-		return map[string]appschedule.FiringRun{"first": {Completed: true}, "second": {Failed: true, FailReason: "late"}}, nil
+	service := appschedule.NewFiringService(j, func() (map[string]appruns.Run, error) {
+		return map[string]appruns.Run{"first": {Completed: true}, "second": {Failed: true, FailReason: "late"}}, nil
 	})
 	out, err := service.Fires(context.Background(), appschedule.FiresInput{Limit: 1})
 	if err != nil || out.Count != 1 || out.Fires[0].CorrelationID != "second" || out.NextCursor != journal.EncodeCursor(100, lastSeq) {
@@ -234,7 +243,7 @@ func TestScheduleFiringLimitRetainsThousandRowCapBeforeCursorBoundary(t *testing
 	for i := 1; i <= 1005; i++ {
 		reader.events = append(reader.events, &event.Event{Kind: event.KindScheduleFired, CorrelationID: "fixture", TSUnixMS: int64(i), Seq: int64(i)})
 	}
-	service := appschedule.NewFiringService(reader, func() (map[string]appschedule.FiringRun, error) { return map[string]appschedule.FiringRun{}, nil })
+	service := appschedule.NewFiringService(reader, func() (map[string]appruns.Run, error) { return map[string]appruns.Run{}, nil })
 	out, err := service.Fires(context.Background(), appschedule.FiresInput{Limit: 2000})
 	if err != nil || out.Count != 1000 || len(out.Fires) != 1000 || out.Fires[999].FiredUnixMS != 6 || out.NextCursor != "6:6" {
 		t.Fatal(out.Count, len(out.Fires), out.NextCursor, err)
