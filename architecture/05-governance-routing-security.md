@@ -1,6 +1,6 @@
 # 05 — Governance, Routing & Security
 
-**Scope:** `kernel/governor`, `kernel/catalog`, `kernel/creds` (+ `kernel/creds/sigv4`), `kernel/chatgptauth`, `kernel/settings`, `kernel/configcenter`, `kernel/executionprofile`, `kernel/edict`, `kernel/warden`, `kernel/netguard`, `kernel/envscrub`, `kernel/redact`, `kernel/approval`, `kernel/seat`, `kernel/tenant`, `kernel/tenantctx`, `kernel/state`.
+**Scope:** `kernel/governor`, `kernel/catalog`, `kernel/creds` (+ `kernel/creds/sigv4`), `kernel/chatgptauth`, `kernel/settings`, `kernel/configcenter`, `kernel/executionprofile`, `kernel/edict`, `kernel/warden`, `kernel/netguard`, `kernel/envscrub`, `kernel/redact`, `kernel/approval`, `kernel/modules/work/seat`, `kernel/tenant`, `kernel/tenantctx`, `kernel/state`.
 
 Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md) (boot wiring that builds these objects) · [03-control-plane-and-http.md](03-control-plane-and-http.md) (HTTP/control-plane surfaces over them) · [04-agent-runtime.md](04-agent-runtime.md) (`policyHook`, run context setters) · [06-data-memory-state.md](06-data-memory-state.md) (bus/journal that receives the events) · [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md) (standing orders that apply trust ceilings) · [08-providers.md](08-providers.md) (providerboot builds the governor; provider retry/Retry-After) · [10-tools.md](10-tools.md) (tools that call warden/netguard/envscrub).
 
@@ -44,7 +44,7 @@ All source read from the working tree (disk), 2026-10-02.
 | `kernel/envscrub` | — | kernel/creds, plugins/tools/{acpagent,browser,coding} |
 | `kernel/redact` | — | cmd/agezt, kernel/controlplane, kernel/openaiapi, plugins/builtintools |
 | `kernel/approval` | kernel/bus, kernel/event, kernel/ulid | kernel/configcenter, kernel/controlplane, kernel/runtime(+accessors, runexec), kernel/scheduler, plugins/tools/forgetool |
-| `kernel/seat` | internal/atomicfile | kernel/controlplane, kernel/runtime |
+| `kernel/modules/work/seat` | internal/atomicfile | kernel/controlplane, kernel/runtime |
 | `kernel/tenant` | — | cmd/agezt, kernel/controlplane |
 | `kernel/tenantctx` | — | kernel/runtime, plugins/tools/peer |
 | `kernel/state` | internal/atomicfile | cmd/agezt, kernel/pulse, kernel/runtime(+accessors, runexec) |
@@ -643,11 +643,11 @@ Tests: `configcenter_test.go`, `coverage_boost/extra/supp_test.go`.
 
 # Part F — Execution seats, tenancy, state
 
-## F.1 `kernel/seat`
+## F.1 `kernel/modules/work/seat`
 
 Task-facing execution presets for workboard dispatch. `Seat{ID, Name, Description, ExecutionProfile, ModelChain, Tools, RestrictTools, Icon, Builtin}`. Built-ins: `default` (inherit), `reader` (tools restricted to `web_search, fetch, browser.read, artifacts, db`), `builder` (`local`), `isolated` (`warden`). `Store` (`OpenStore(<base>/seats)`, `seats.json`, ≤500 custom, id `^[a-z][a-z0-9-]{1,31}$`, temp-file crash recovery) overlays custom seats; `Create`, `Delete` (built-ins immutable), `Valid`, `List`, `Get`. `ValidExecutionProfile` accepts `"", local, warden, container`.
 
-Applied in `controlplane/workboard_dispatch.go`: seat `ModelChain` → `WithModel`+`WithModelChain` (governor `req.ModelChain`), `RestrictTools` → `WithTools`, `ExecutionProfile` → `applyWardenExecutionProfile` (exec-profile policy check → `WardenProfileForRun` → `warden.WithProfileOverride`), degrading with a task comment on failure.
+Applied in `controlplane/workboard_dispatch.go`: seat `ModelChain` → `WithModel`+`WithModelChain` (governor `req.ModelChain`), `RestrictTools` → `WithTools`, `ExecutionProfile` → `executionprofile.SeatProfileID` (the seat names the isolation *surface* — "container" — and the run profile names the implementation — "docker" — so the two vocabularies are translated here) → `applyWardenExecutionProfile` (exec-profile policy check → `WardenProfileForRun` → `warden.WithProfileOverride`), degrading with a task comment on failure.
 
 Files: `seat.go` (types, built-ins, `Get`, `IsBuiltin`), `store.go` (custom store). Tests: `seat_test.go`, `store_test.go`, `coverage_supp_test.go`.
 

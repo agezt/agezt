@@ -1,6 +1,6 @@
 # 04 — Agent Runtime (kernel/runtime, kernel/agent, tool execution, delegation, resume, proof)
 
-**Scope:** `kernel/runtime` (81 non-test files) and its sub-packages `kernel/runtime/{accessors,compose,lifecycle,runexec,types}`; the agent loop `kernel/agent`; and the satellite packages `kernel/toolexec`, `kernel/toolreg`, `kernel/toolforge`, `kernel/contextselect`, `kernel/convo`, `kernel/delegation`, `kernel/intent`, `kernel/intervention`, `kernel/planner`, `kernel/reflect`, `kernel/resume`, `kernel/meshctx`, `kernel/proof`, `kernel/assure`.
+**Scope:** `kernel/runtime` (81 non-test files) and its sub-packages `kernel/runtime/{accessors,compose,lifecycle,runexec,types}`; the agent loop `kernel/agent`; and the satellite packages `kernel/toolexec`, `kernel/toolreg`, `kernel/toolforge`, `kernel/contextselect`, `kernel/convo`, `kernel/delegation`, `kernel/intent`, `kernel/intervention`, `kernel/planner`, `kernel/reflect`, `kernel/resume`, `kernel/meshctx`, `kernel/modules/work/proof`, `kernel/modules/work/assure`.
 
 Everything below was read from the working tree on disk (2026-10-02), not from `docs/`. Where a code comment contradicts the code, the code wins and the discrepancy is listed under "Gotchas".
 
@@ -59,15 +59,15 @@ kernel/resume       -> internal/atomicfile, agent
 kernel/planner      -> internal/strutil, agent, intent
 kernel/reflect      -> bus, event, journal, worldmodel
 kernel/contextselect-> memory, skill, worldmodel
-kernel/proof        -> assure
-kernel/assure, convo, intent, intervention, meshctx -> (none)
+modules/work/proof  -> modules/work/assure
+modules/work/assure, convo, intent, intervention, meshctx -> (none)
 ```
 
 Reverse deps (who uses this area):
 
 - `kernel/runtime` is imported by `cmd/agezt`, `kernel/controlplane`, `kernel/selfrepair`, `kernel/cadence/systemtasks`, `kernel/toolreg`, `plugins/builtinguardians`, `plugins/builtintools`, and the tools `conductor`, `config`, `council`, `introspecttool`, `overseertool`, `research`, `workflowtool`.
 - `kernel/agent` is imported by every provider (`plugins/providers/*`), every tool (`plugins/tools/*`), `governor`, `memory`, `skill`, `scheduler`, `pulse`, `market`, `plugin`, `worldmodel`, `controlplane`, `cmd/agt`, `cmd/agezt`.
-- `kernel/convo` is used by `controlplane`, `openaiapi`, `webui`. `kernel/meshctx` by `restapi`, `plugins/tools/peer`, `cmd/agt`. `kernel/planner` by `controlplane`, `cmd/agt`. `kernel/proof` by `workboard`. `kernel/toolforge` by `controlplane` and `plugins/tools/forgetool`. `kernel/resume` by `cmd/agezt` (boot resumer).
+- `kernel/convo` is used by `controlplane`, `openaiapi`, `webui`. `kernel/meshctx` by `restapi`, `plugins/tools/peer`, `cmd/agt`. `kernel/planner` by `controlplane`, `cmd/agt`. `kernel/modules/work/proof` by `kernel/modules/work/workboard`. `kernel/toolforge` by `controlplane` and `plugins/tools/forgetool`. `kernel/resume` by `cmd/agezt` (boot resumer).
 
 Layering notes:
 - `kernel/toolreg` imports `kernel/runtime`. This is an upward edge: a "registry" sits above the composition root because `Spec.PreOpen` mutates `*runtime.Config` and `KernelDeps` carries `*runtime.Kernel`. It is not a cycle (runtime does not import toolreg).
@@ -697,7 +697,7 @@ The planner is used by controlplane/`agt plan` and executes through the schedule
 
 ---
 
-## 10. kernel/assure and kernel/proof
+## 10. kernel/modules/work/assure and kernel/modules/work/proof
 
 - `assure/assure.go`: `DefaultMaxAttempts=3`, `MaxMaxAttempts=10`, `Verdict{Complete, Gap}`, `RunFn`, `VerifyFn`, `Attempt`, `Result{Answer, Complete, Attempts, Gap, History}`. `Until`: run, then verify against the **original** task; if incomplete, retry with `retryInstruction(task, gap)`. A run or verify error aborts. `ParseVerdict` tolerates fences and prose; the kernel treats unparseable output as incomplete.
 - `proof/proof.go`: `Criterion{Text, Met, Note}`, `Evidence{Corr, Artifacts, JournalFrom, JournalTo}`, `Proof{Verdict, Criteria, Evidence, Attempts, Judge, ProvedMS}`, `Satisfied()` (verdict complete AND all criteria met), `UnmetCount`, `Clone`. Pure data.

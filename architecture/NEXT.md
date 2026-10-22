@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.5 the board module, 2026-10-22
+## Current checkpoint — W3.6 the work module, 2026-10-22
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1289,10 +1289,36 @@ files, five of the seventeen mutations would have escaped.
   package name, the same exported API, the same messages, the same
   `board.json`, the same cap, the same inbox semantics, the same events and
   the same single-shared-store invariant.
+- W3.6 (the work module) is committed on `main` as a code commit plus a docs
+  commit and published from `arch/w2-dispatch` the same way. Five packages
+  were already one module — the layer map named `kernel/workboard`,
+  `kernel/okr`, `kernel/proof`, `kernel/assure` and `kernel/seat` as layer 3 in
+  the module `work` — but all five sat at the top of `kernel/`, outside the
+  `kernel/modules/` tree W3 establishes as the target home of the bounded
+  contexts; they moved to `kernel/modules/work/{workboard,okr,proof,assure,seat}`.
+  The package names do not change, so the move is an import-path change and
+  nothing else (54 files repointed). The placement is now *derived*
+  (`kernel/modules/*/...` → module `work`) and the five hand-written layer
+  rules are gone; the eight allowlist entries moved with their edges, so the
+  ratchet stays at 128/13.
+  The roadmap's second ask — fix the `"container"` seat → profile mapping — was
+  a **silently ignored seat**: a seat names the isolation *surface*
+  ("container"), a run profile names the *implementation* ("docker"), and the
+  dispatch handed the seat's value straight to the profile resolver — where
+  "container" is not a run profile, so the resolver refused it and the dispatch
+  **degraded**: the task ran with the agent's own isolation instead of the
+  seat's. The two vocabularies are now translated once, where the seat's value
+  becomes a run profile (`executionprofile.SeatProfileID`).
+  6 mutations, 6 caught — and the mutations on the moved packages prove the
+  suites still test the module after the move (the proof gate is not
+  bypassable, a custom seat still wins over the built-in one). Nothing else
+  changed: the same package names, the same exported APIs, the same records,
+  the same proof gate, the same custom-first seat resolution, the same
+  degradation behaviour for a genuinely unavailable profile, the same wire and
+  the same events.
 
-**W3.6 — the work module (the next slice, to scope).** The roadmap's
-order continues with `modules/work` (workboard, OKR, proof, assure, seats —
-fix the `"container"` seat mapping), `modules/workflows`
+**W3.7 — the workflows module (the next slice, to scope).** The roadmap's
+order continues with `modules/workflows`
 (move `runtime/workflowrun*` + draft + test-node; fix the trigger `source`
 labels), `modules/agents` (roster, guardians, selfrepair, reaper, overseer
 ops — this removes the `controlplane/selfrepair` →
@@ -1316,7 +1342,9 @@ have: the module **defines the port** and the host answers it from its own
 event log, once per operation and for the whole batch. **W3.5's** — W3.2's
 shape plus a fix in the store's own write path: the state is **persisted
 first** and adopted in memory only once the write succeeded, so a failed write
-changes nothing.
+changes nothing. **W3.6's** — W3.2's shape plus a fix at a **vocabulary
+boundary**: the seat names an isolation surface, the run profile names an
+implementation, and the two are translated once where they meet.
 
 The overall target is the architecture in `20-target-architecture.md`, delivered
 incrementally to protected `main`, with runnable proof and source-aligned
