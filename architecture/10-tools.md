@@ -1,6 +1,6 @@
 # 10 — First-party tools, guardians, market seed, skill bundles
 
-**Scope:** `plugins/tools/*` (30 tool packages), `plugins/builtintools` (the boot tool registry), `plugins/builtinguardians` (self-healing guardian fleet), `plugins/builtinmarket` (Official marketplace seed), `plugins/builtinskills` (+ its 16 embedded agentskills.io bundle directories).
+**Scope:** `plugins/tools/*` (30 tool packages), `plugins/builtintools` (the boot tool registry), `plugins/builtinguardians` (self-healing guardian fleet), `plugins/builtinmarket` (Official marketplace seed). The 16 embedded agentskills.io bundle directories are **not** a plugin any more — they live in the skills module (`kernel/modules/skills/builtins`) since W3.3; the market seed reads them from there.
 
 Related docs: kernel-side contract and registry plumbing (`kernel/agent`, `kernel/toolreg`, `kernel/runtime` tool loop, research/council/conductor orchestration) → [04-agent-runtime.md](04-agent-runtime.md); Edict, warden, netguard, envscrub, executionprofile, settings/creds → [05-governance-routing-security.md](05-governance-routing-security.md); artifact index, board, datalake, workboard → [06-data-memory-state.md](06-data-memory-state.md); cadence, standing, skill Forge, market, mcp, acp/acpcatalog, workflow, plugin host, memory/world/voice/image/rerank tools → [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md); daemon boot order (`cmd/agezt/boot_tools.go`, `main.go`) → [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md); channels used by notify/send_media → [09-channels.md](09-channels.md); console Tools/Market/Skills views → [11-frontend-console.md](11-frontend-console.md).
 
@@ -267,7 +267,7 @@ Tests: containment (`..`, abs, symlink both paths, symlinked parent, walk links)
 
 - `browser.read` (`Tool`): stdlib only — no JS. `client()` = `netguard.New(opts).HTTPClient(30s)` with `CheckRedirect` re-applying the allowlist each hop (≤10). Per-invoke cookie jar shim (copy of client) if `Cookies` set (PSL-aware `cookiejar`, `cookies.go`) — but nothing in production enables it. `HTMLToText` (`htmltext.go`) is a regex/state-machine extractor (no `x/net/html`, lean-deps policy): strip script/style/noscript blocks (closed and unclosed), comments, tags; block tags → paragraph breaks; entity decoding; whitespace collapse.
 - `browser.action` (`ActionTool`): spawns `node browse.mjs` (`runActionDriver`, `sandbox.CommandContext` → `IsolatedEnv`, JSON spec on stdin, 512 KiB stdout/stderr `limitedBuffer`). `prepareProfile`: `isolated` (default, strips session/tab/user dir), `session` (`<SessionRoot>/<session_id>` contained; ids `[A-Za-z0-9._-]{1,80}`, no leading dot), `user-attached` and `remote-cdp` (require operator env; CDP URL scheme http/https/ws/wss + egress check). Tab state (`action_tabs.go`) persists final URL + snapshot refs per session/tab as JSON so `tab_id` / `ref` can be reused; it is not a live tab. Output normalized, screenshots/downloads copied into the artifact index (`attachArtifacts`, only browser temp paths accepted), result is untrusted.
-- `ResolveActionDriverPath` searches `plugins/builtinskills/browseruse/scripts/browse.mjs` relative to cwd ancestors and the executable — a runtime dependency of a Go tool on a skill bundle's script.
+- `ResolveActionDriverPath` searches `kernel/modules/skills/builtins/browseruse/scripts/browse.mjs` relative to cwd ancestors and the executable — a runtime dependency of a Go tool on a skill bundle's script.
 
 | File | What it does |
 |---|---|
@@ -437,13 +437,13 @@ Tests: `builtinguardians_test.go`, `coverage_supp_test.go` (fake Host; idempoten
 
 ---
 
-## 7. `plugins/builtinmarket` and `plugins/builtinskills`
+## 7. `plugins/builtinmarket` and the skills module's built-in bundles
 
-### builtinskills
+### the built-in bundles (`kernel/modules/skills/builtins`)
 
-- `//go:embed` of 16 directories into `bundles embed.FS`; `builtinBundles` (seed order) = browseruse, computeruse, dataanalysis, dockerservices, gitops, webresearch, pdftools, imagetools, sqldb, archivetools, httpapi, emailtools, sshremote, cryptotools, calendartools, officedocs.
-- `Forge` interface (`Create, Promote, Get`), `SeedAll(f, corr)` (best-effort per bundle), `Names()`, `Bundle(name) (skillMD, resources, err)`, `seedOne` (parse SKILL.md frontmatter via `skill.ParseSkillMD` → `Create` (content-addressed: unchanged bundle dedupes) → promote up to 3 steps to `StatusActive`).
-- Depends only on `kernel/skill`. Used by `cmd/agezt` (seed) and `builtinmarket`; `browser.ResolveActionDriverPath` also finds `browseruse/scripts/browse.mjs` on disk.
+- `//go:embed` of 16 directories into `bundles embed.FS`; `builtinBundles` (seed order) = browseruse, computeruse, dataanalysis, dockerservices, gitops, webresearch, pdftools, imagetools, sqldb, archivetools, httpapi, emailtools, sshremote, cryptotools, calendartools, officedocs. `Names()` returns a copy of the list; `Bundle(name)` returns the raw SKILL.md plus the resource files (SKILL.md itself is never a resource).
+- The **seeding** lives in the module (`kernel/modules/skills/skill/builtins.go`): `SeedBuiltins(f, corr)` installs every bundle and promotes it to `StatusActive` (best-effort per bundle — one failure does not stop the others, and the **first** failure is the one reported). A quarantined or archived built-in is **never** resurrected (W3.3).
+- The module's public seam for the plugin layer is `skill.BuiltinNames()` / `skill.BuiltinBundle(name)`; `cmd/agezt` seeds with `skill.SeedBuiltins(forge, "")` and `builtinmarket` reads the same bytes through the seam — a built-in skill is never duplicated. `browser.ResolveActionDriverPath` also finds `browseruse/scripts/browse.mjs` on disk.
 
 | Bundle dir | Skill name | Purpose | `tools:` | Files |
 |---|---|---|---|---|
@@ -552,4 +552,4 @@ Adding a **guardian**: append to `guardians` (slug `guardian-*`, exactly one tri
 - **Registry order is load-bearing** (banner + plugins-last). `toolreg.Names()` exists only for the ratchet and is allowlisted in `tools/deadcodecheck`.
 - **Boot banner drift**: `main.go` prints "seeded N (health, doctor, stuck, budget, routing, code)" — omits `guardian-initiative` (7 guardians ship).
 - **Layering**: `cmd/agezt` imports `plugins/tools/codeexec` directly (display-only `Languages()` banner type assertion); `cmd/agt` imports `plugins/tools/peer` for doctor checks. Kernel never imports plugins — Conductor uses the `runtime.CodeExecutor` interface, council/research/conductor tools import `kernel/runtime` (plugin → kernel only).
-- **browser.action depends on a skill bundle file** (`plugins/builtinskills/browseruse/scripts/browse.mjs`) located by walking cwd/executable ancestors; packaged installs must set `AGEZT_BROWSER_ACTION_DRIVER`.
+- **browser.action depends on a skill bundle file** (`kernel/modules/skills/builtins/browseruse/scripts/browse.mjs`) located by walking cwd/executable ancestors; packaged installs must set `AGEZT_BROWSER_ACTION_DRIVER`.

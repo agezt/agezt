@@ -227,7 +227,7 @@ and the platform services it needs.
 | `runs` | run registry, resume tickets, steering/interventions | `Start`, `Get`, `List`, `Cancel`, `Steer`, `Halt`/`Resume`, `Why` | eventlog, modelgw, policy, tools invoker | `runtime` run engine, `runexec`, `agent` loop, `resume`, `delegation`, `intervention`, `convo`, `contextselect`, `planner`, `scheduler` (plans), `meshctx` |
 | `agents` (fleet) | roster profiles, guardians | `Create/Edit/Remove/Wake`, `Repair`, `Overseer.*` | store, runs/api, triggers/api | `roster`, `selfrepair`, overseer logic, `builtinguardians` seeding, reaper |
 | `knowledge` | memory, world model, taste, operator profile | `Remember/Recall/Forget`, `World.*`, `Taste.*`, `Profile.Distill` | store, eventlog, modelgw (aux) | `memory`, `worldmodel`, `taste`, brain/profile distill |
-| `skills` | skills + bundles | `Create/Promote/Quarantine/Activate`, `Bundle.*` | store, eventlog, modelgw | `skill`, `builtinskills` seeding |
+| `skills` | skills + bundles | `Create/Promote/Quarantine/Activate`, `Bundle.*` | store, eventlog, modelgw | `kernel/modules/skills` (Forge + built-in bundles + seeding) |
 | `market` | packs, sources, installs | `List/Install/Uninstall/Sync/Publish` | store, netout, skills/api, mcp/api | `market`, `builtinmarket` |
 | `work` | workboard tasks, OKRs, proofs, seats | `Task.*`, `OKR.*`, `Prove`, `Dispatch` | store, runs/api, eventlog | `workboard`, `okr`, `proof`, `assure`, `seat` |
 | `workflows` | workflow graphs, run history projection | `Save/Run/Test/Draft` | store, tools invoker, modelgw | `workflow`, `workflowexec`, `runtime/workflowrun*`, `workflowdraft` |

@@ -230,7 +230,6 @@ plugins/
 ├── builtinchannels/    # inbound/outbound channel adapters
 ├── builtinguardians/   # self-healing system agents (System=true)
 ├── builtinmarket/      # built-in marketplace entries
-├── builtinskills/      # 16 markdown SKILL.md files (dataanalysis, webresearch, …)
 ├── builtintools/       # 10 first-party tool implementations
 ├── channels/           # community / external channel plugins
 ├── external/           # cross-vendor adapters (mcpbridge, …)

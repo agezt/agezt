@@ -279,7 +279,7 @@ Every Go package, one line each, with the document that covers it in depth.
 | `tools/*` (30 pkgs) | Agent tools (shell, file, http, fetch, browser, websearch, research, code_exec, council, conductor, overseer, board, workboard, workflow, schedule, standing, skill, config, db, artifacts, notify, send_media, mcp, acp_agent, coding, peer, homeassistant, introspect, runs, tool_forge) | [10](10-tools.md) |
 | `builtintools` | Registers 32 tool specs in a ratcheted order; external plugin host last | [10](10-tools.md) |
 | `builtinguardians` | 7 seeded system guardian agents (health, doctor, stuck, budget, routing, code, initiative) | [10](10-tools.md) |
-| `builtinskills` | 16 embedded agentskills.io bundles, seeded + promoted at boot | [10](10-tools.md) |
+| `skills` module | `kernel/modules/skills/skill` + `kernel/modules/skills/builtins` — the Forge, the 16 embedded agentskills.io bundles, seeded + promoted at boot (W3.3) | [07](07-autonomy-and-extensibility.md) |
 | `builtinmarket` | Official offline marketplace: 16 single-bundle packs + 12 curated combos | [10](10-tools.md) |
 
 ---
