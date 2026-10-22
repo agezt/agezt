@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.55 typed run-derived rows, 2026-10-21
+## Current checkpoint — W2.56 typed profile and snapshot projections, 2026-10-21
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -353,6 +353,27 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   application layer cannot import `kernel/runtime` (the runtime's own tests
   import the app layer), so those conversions stay where they are for now.
   They are the next candidates.
+- W2.56 (typed profile and snapshot projections) is committed on `main` as a
+  code commit plus a docs commit and published from `arch/w2-dispatch` the
+  same way. `kernel/app/routing/agents.go` (new) gains
+  `Agents(profiles []roster.Profile) []Agent` and
+  `kernel/app/budget/snapshot.go` (new) gains
+  `SnapshotOf(snap governor.BudgetSnapshot) Snapshot`: the roster's profiles
+  and the governor's counters become the application's rows in the
+  application, and the control plane's two inline conversions now call it.
+  The host reads its own data and hands it over; the application's row stays
+  the application's business. The two new imports are safe in this
+  direction (`kernel/roster` and `kernel/governor` import no app package).
+  16 mutations, 16 caught, no equivalent recorded. The archcheck allowlist
+  stays at 129 import violations and 13 call sites; the package count stays
+  at 270 (no new package).
+  What is left of the control plane's derived logic: the council's and the
+  plugin reader's conversions of RUNTIME types, the one confirmed duplicate
+  (the warden branch in `workboard_dispatch.go`, which mirrors
+  `app/runs/run_resolve.go`), the dead `boardReadDefaultLimit` constant, and
+  the remote mirror's two remaining duplicates (the environment value that
+  the settings store also declares, and the peer list's parser that the
+  application layer already owns).
 - W2.45a (typed roster status collection) is committed on `main` as a code
   commit plus a docs commit and published from `arch/w2-dispatch` the same way.
   `kernel/controlplane/roster_status.go` (371 lines) is gone: the journal-derived
@@ -788,20 +809,20 @@ Preserve unrelated dirty changes: deletions of
 ### Next
 
 Continue roadmap §4.5/order 7 after the completed roster, steer, run-fold,
-remote-mirror, operation-audit and run-derived-row domains: the control
-plane's remaining re-projections of the RUNTIME types (the council's
-`runtime.CouncilMember`, the governor's snapshot, the runtime's plugin
-registration — the app layer cannot import `kernel/runtime`, so these need
-another shape), the one confirmed duplicate (the warden branch in
-`workboard_dispatch.go`, which mirrors `app/runs/run_resolve.go`), the dead
-`boardReadDefaultLimit` constant, and the remote mirror's two remaining
-duplicates (the environment value that the settings store also declares, and
-the peer list's parser that the application layer already owns). Wider
-run/tool adapter convergence, W3 modules and journal raw-ref GC, W4
-triggers/channel supervision/config/signing, and W5 generated SDK/frontend
-convergence and zero allowances remain open. The overall target is the
-architecture in `20-target-architecture.md`, delivered incrementally to
-protected `main`, with runnable proof and source-aligned documentation.
+remote-mirror, operation-audit, run-derived-row and projection domains: the
+control plane's remaining conversions of the RUNTIME types (the council's
+`runtime.CouncilMember` and the runtime's plugin registration — the app
+layer cannot import `kernel/runtime`, so these need another shape), the one
+confirmed duplicate (the warden branch in `workboard_dispatch.go`, which
+mirrors `app/runs/run_resolve.go`), the dead `boardReadDefaultLimit`
+constant, and the remote mirror's two remaining duplicates (the environment
+value that the settings store also declares, and the peer list's parser that
+the application layer already owns). Wider run/tool adapter convergence, W3
+modules and journal raw-ref GC, W4 triggers/channel supervision/config/
+signing, and W5 generated SDK/frontend convergence and zero allowances remain
+open. The overall target is the architecture in `20-target-architecture.md`,
+delivered incrementally to protected `main`, with runnable proof and
+source-aligned documentation.
 
 ---
 

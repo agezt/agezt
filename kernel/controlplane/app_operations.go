@@ -119,12 +119,7 @@ var sandboxOperations = func() []app.Operation {
 type budgetGovernor struct{ g *governor.Governor }
 
 func (b budgetGovernor) Snapshot() appbudget.Snapshot {
-	snap := b.g.Snapshot()
-	rows := make([]appbudget.TaskSnapshot, 0, len(snap.PerTask))
-	for _, row := range snap.PerTask {
-		rows = append(rows, appbudget.TaskSnapshot{TaskType: row.TaskType, SpentMicrocents: row.SpentMicrocents, CapMicrocents: row.CapMicrocents})
-	}
-	return appbudget.Snapshot{UTCDate: snap.UTCDate, SpentMicrocents: snap.SpentMicrocents, CeilingMicrocents: snap.CeilingMicrocents, PerTask: rows, StrictPricing: snap.StrictPricing}
+	return appbudget.SnapshotOf(b.g.Snapshot())
 }
 
 func (b budgetGovernor) SetDailyCeiling(microcents int64) { b.g.SetDailyCeiling(microcents) }
@@ -187,12 +182,7 @@ var routingOperations = func() []app.Operation {
 				}
 			},
 			Agents: func() []approuting.Agent {
-				profiles := s.k.Roster().List()
-				agents := make([]approuting.Agent, 0, len(profiles))
-				for _, p := range profiles {
-					agents = append(agents, approuting.Agent{Slug: p.Slug, Model: p.Model, Fallbacks: p.Fallbacks})
-				}
-				return agents
+				return approuting.Agents(s.k.Roster().List())
 			},
 			Journal: func(visit func(*event.Event)) {
 				_ = s.k.Journal().Range(func(e *event.Event) error {
