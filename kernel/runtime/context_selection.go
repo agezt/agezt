@@ -8,9 +8,9 @@ import (
 
 	"github.com/agezt/agezt/kernel/contextselect"
 	"github.com/agezt/agezt/kernel/event"
-	kmemory "github.com/agezt/agezt/kernel/memory"
+	kmemory "github.com/agezt/agezt/kernel/modules/knowledge/memory"
+	kworld "github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	kskill "github.com/agezt/agezt/kernel/skill"
-	kworld "github.com/agezt/agezt/kernel/worldmodel"
 )
 
 // publishContextSelection publishes a context.selection event when there is

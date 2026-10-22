@@ -1030,6 +1030,21 @@ This file holds the active `[Unreleased]` working set.
   host's governed path, so a refusal still reports `Ran=false` and no
   invocation) and the same answers on the wire.
 
+- **The knowledge module has a home, and a profile facet no longer
+  duplicates.** The memory store, the world model and the taste store were
+  already a module — the layer map named them as one — but they sat at the top
+  of `kernel/` instead of in the module tree; they now live in
+  `kernel/modules/knowledge`. Nothing about them changes: the same packages,
+  the same API, the same records on disk, the same events and the same
+  injection into a run.
+
+  A profile facet, though, was not always one record. A memory record's
+  identity is its content, so a facet whose synthesized wording changed was
+  written under a new id while the previous version stayed active — and the
+  operator got two conflicting versions of the same facet injected into every
+  run. A facet now replaces its predecessor instead of joining it, and the
+  replaced record keeps its audit trail.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now

@@ -11,7 +11,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
-	graph "github.com/agezt/agezt/kernel/worldmodel"
+	graph "github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 )
 
 func TestEveryGraphMutationRetainsAdmittedCorrelation(t *testing.T) {

@@ -106,7 +106,7 @@ func keywordOverlap(qTokens []string, sk Skill) int {
 
 // recencyFactor decays with age: 1.0 for "now", asymptoting toward 0 for old
 // skills. A skill never drops out of retrieval on recency alone. Mirrors
-// kernel/memory's recency model.
+// kernel/modules/knowledge/memory's recency model.
 func recencyFactor(lastSeenMS, nowMS int64) float64 {
 	ageMS := nowMS - lastSeenMS
 	if ageMS <= 0 {
@@ -118,7 +118,7 @@ func recencyFactor(lastSeenMS, nowMS int64) float64 {
 }
 
 // tokenize lowercases s and splits on any non-alphanumeric rune, dropping
-// empties and 1-character tokens. Mirrors kernel/memory.tokenize so all three
+// empties and 1-character tokens. Mirrors kernel/modules/knowledge/memory.tokenize so all three
 // knowledge layers rank consistently.
 func tokenize(s string) []string {
 	fields := strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {

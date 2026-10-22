@@ -11,10 +11,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/memory"
+	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
+	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
+	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/skill"
-	"github.com/agezt/agezt/kernel/taste"
-	"github.com/agezt/agezt/kernel/worldmodel"
 )
 
 // injectMemory prepends a compact "Relevant memory" block to the system

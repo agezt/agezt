@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/agezt/agezt/kernel/memory"
+	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
 func (g *Gateway) handleMemoryWrite(w http.ResponseWriter, r *http.Request) {

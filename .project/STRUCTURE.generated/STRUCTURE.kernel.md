@@ -105,8 +105,10 @@
 - **`kernel/journal`** — Package journal is the append-only, BLAKE3-hash-chained event log that backs the entire system.
 - **`kernel/market`** — Package market is AGEZT's capability marketplace: it packages skills, MCP servers, and CLI-tool requirements into installable "packs", catalogues them in "marketplaces" (a built-in Official one plus, later, synced remotes), and installs a pack by materializing its parts into the systems that already run them — skills into the Forge, MCP servers into the MCP registry, tool needs reported to the Toolbox.
 - **`kernel/mcp`** — Package mcp is governed runtime self-install for MCP servers (M796): a durable registry of Model Context Protocol servers plus a minimal MCP client, so an agent (or operator) can ADD a server and ATTACH it while the daemon runs — no restart, no separate bridge binary, no env-var surgery.
-- **`kernel/memory`** — Package memory implements the memory store (ROADMAP §2.3): a journaled, content-addressed knowledge store that the agent loop reads as injected context and that the operator, the agent, and an auto-distiller can write to.
 - **`kernel/meshctx`** — Package meshctx carries the cross-node delegation hop count for the M8 mesh.
+- **`kernel/modules/knowledge/memory`** — Package memory implements the memory store (ROADMAP §2.3): a journaled, content-addressed knowledge store that the agent loop reads as injected context and that the operator, the agent, and an auto-distiller can write to.
+- **`kernel/modules/knowledge/taste`** — Package taste is AGEZT's curated "what good looks like" store: a small set of operator-authored exemplars that are injected into runs before the model acts, so output quality is shaped by concrete examples of good work rather than left to chance.
+- **`kernel/modules/knowledge/worldmodel`** — Package worldmodel implements "World Model v1" (SPEC-05 §3): a journaled, content-addressed graph of the operator's world — the projects, repos, people, accounts, channels and topics they care about, and the weighted relations between them.
 - **`kernel/modules/reasoning`** — Package reasoning is the reasoning module: the Council of Elders (a multi-model panel that deliberates and reconciles), the Conductor (a verify-driven Thinker→Worker→Verifier loop) and the deep-research harness.
 - **`kernel/modules/reasoning/api`** — Package api is the reasoning module's public vocabulary: the rows and results the council, the conductor and the research harness produce, and the pure helpers both sides share.
 - **`kernel/netguard`** — Package netguard is the network-egress guard (SPEC-06 security defaults): it stops outbound tool traffic from reaching the host's own internal network.
@@ -151,7 +153,6 @@
 - **`kernel/state`** — Package state implements the first-class mutable state store (DECISIONS B0c).
 - **`kernel/streamlimit`** — Package streamlimit caps the number of concurrent long-lived streams (SSE connections) a single client key may hold open at once.
 - **`kernel/stt`** — Package stt is a minimal speech-to-text client for the OpenAI-compatible `/v1/audio/transcriptions` endpoint, using net/http only — no dependency.
-- **`kernel/taste`** — Package taste is AGEZT's curated "what good looks like" store: a small set of operator-authored exemplars that are injected into runs before the model acts, so output quality is shaped by concrete examples of good work rather than left to chance.
 - **`kernel/tenant`** — Package tenant is the multi-tenant isolation foundation (ROADMAP P6-MULTI).
 - **`kernel/tenantctx`** — Package tenantctx carries the identity of the tenant a run belongs to through the run's context.Context, so tools that behave differently per tenant (e.g.
 - **`kernel/toolbox`** — Package toolbox is the host CLI-tool inventory + installer (M956).
@@ -167,4 +168,3 @@
 - **`kernel/webui`** — Package webui serves the Agezt Web UI (SPEC-07, decision A4): a React 19 + Vite single-page app, built to static assets and go:embed-ded into the daemon (see embed.go) — one binary, no Node at runtime, and no Go dependency added.
 - **`kernel/workboard`** — Package workboard is AGEZT's durable typed task queue.
 - **`kernel/workflow`** — Package workflow is the n8n-style workflow engine (M798): durable, named graphs of TYPED nodes — trigger, tool, llm, condition, transform, delay — wired by edges and carrying data between nodes with {{path}} templates.
-- **`kernel/worldmodel`** — Package worldmodel implements "World Model v1" (SPEC-05 §3): a journaled, content-addressed graph of the operator's world — the projects, repos, people, accounts, channels and topics they care about, and the weighted relations between them.

@@ -15,7 +15,7 @@ import (
 
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/configcenter"
-	"github.com/agezt/agezt/kernel/memory"
+	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	core "github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/skill"
 )

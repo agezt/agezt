@@ -21,7 +21,7 @@ import (
 // Forge wraps a Store with the kernel bus so every skill transition is
 // journaled (durable-before-publish) under the originating run's correlation.
 // This is the journaling boundary — the Store stays pure. It mirrors
-// kernel/memory.Manager and kernel/worldmodel.Graph; the state machine
+// kernel/modules/knowledge/memory.Manager and kernel/modules/knowledge/worldmodel.Graph; the state machine
 // (skill.go) is the only thing that makes Forge more than a third copy.
 type Forge struct {
 	store Store
@@ -37,7 +37,7 @@ type Forge struct {
 	// (each run calls Activate then RecordOutcome on the shared Forge, and the
 	// control plane serves connections concurrently) cannot interleave their Get→Put
 	// pairs — losing a metric update or, worse, resurrecting a just-quarantined skill
-	// to active by writing back a stale snapshot (M424). Mirrors kernel/memory.Manager.
+	// to active by writing back a stale snapshot (M424). Mirrors kernel/modules/knowledge/memory.Manager.
 	// The exported mutators take it; the unexported helpers (promoteWithReason,
 	// quarantineLocked, maybeAuto*) assume it is already held.
 	mu sync.Mutex

@@ -8,7 +8,7 @@ import (
 	"context"
 
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	graph "github.com/agezt/agezt/kernel/worldmodel"
+	graph "github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 )
 
 type AddInput struct {

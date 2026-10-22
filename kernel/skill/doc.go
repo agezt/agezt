@@ -8,7 +8,7 @@
 // skill mutation is a content-addressed, hash-chained event, so you can ask
 // why a skill exists, when it was promoted, and undo it (`agt skill revert`).
 //
-// Two layers, mirroring kernel/memory and kernel/worldmodel:
+// Two layers, mirroring kernel/modules/knowledge/memory and kernel/modules/knowledge/worldmodel:
 //
 //   - Store (this file) is a pure, file-backed record store — no bus, no
 //     journaling — owning content-addressing and the legal-transition table.

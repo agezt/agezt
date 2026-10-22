@@ -9,7 +9,7 @@ import (
 	"errors"
 	"time"
 
-	store "github.com/agezt/agezt/kernel/memory"
+	store "github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
 type GetInput struct {

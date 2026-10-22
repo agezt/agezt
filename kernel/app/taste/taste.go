@@ -8,7 +8,7 @@ import (
 	"errors"
 	"time"
 
-	curated "github.com/agezt/agezt/kernel/taste"
+	curated "github.com/agezt/agezt/kernel/modules/knowledge/taste"
 )
 
 type ListInput struct {

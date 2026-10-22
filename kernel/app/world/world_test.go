@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	appworld "github.com/agezt/agezt/kernel/app/world"
-	graph "github.com/agezt/agezt/kernel/worldmodel"
+	graph "github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 )
 
 func worldFixture(t *testing.T) (*graph.FileStore, *appworld.Service) {

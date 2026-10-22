@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/taste"
+	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 )
 
 func TestInjectTastePrependsExemplars(t *testing.T) {

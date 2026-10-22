@@ -46,7 +46,7 @@ func compareCapabilities() []compareCapability {
 			Status:      compareStatusSupported,
 			Expectation: "Long-term memory with searchable/project context and user profile state.",
 			Agezt:       "AGEZT separates long-term memory from an entity/relation world model and exposes audit commands.",
-			Evidence:    []string{"kernel/memory/memory.go", "kernel/worldmodel/worldmodel.go", "cmd/agt/memory.go", "cmd/agt/world.go"},
+			Evidence:    []string{"kernel/modules/knowledge/memory/memory.go", "kernel/modules/knowledge/worldmodel/worldmodel.go", "cmd/agt/memory.go", "cmd/agt/world.go"},
 			Next:        "Add MEMORY.md/USER.md/SOUL.md import/export and compiled operator-readable views.",
 		},
 		{

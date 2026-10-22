@@ -11,7 +11,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	store "github.com/agezt/agezt/kernel/memory"
+	store "github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
 type EmptyInput struct{}

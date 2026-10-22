@@ -8,7 +8,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
-	"github.com/agezt/agezt/kernel/worldmodel"
+	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 )
 
 // TestReflect_NilBusSkipsPublish covers the e.bus == nil early return in

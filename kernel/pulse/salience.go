@@ -25,7 +25,7 @@ const relevanceBoost = 0.15
 // Relevance answers "is this text about something the operator actually cares
 // about?" — the world-model signal SPEC-05 §3.4 promised salience. It is an
 // interface (not a direct worldmodel dependency) so pulse stays decoupled from
-// the graph package; the daemon adapts kernel/worldmodel.Graph to it. A nil
+// the graph package; the daemon adapts kernel/modules/knowledge/worldmodel.Graph to it. A nil
 // Relevance simply means no boost (v1 behaviour unchanged).
 type Relevance interface {
 	// IsActiveSubject reports whether text refers to a known active entity,

@@ -1,6 +1,6 @@
 # 06 — Data, Memory & State
 
-**Scope:** `kernel/event`, `kernel/journal`, `kernel/bus`, `kernel/ulid`, `kernel/platform/filestore`, `kernel/memory`, `kernel/worldmodel`, `kernel/datalake`, `kernel/artifact`, `kernel/board`, `kernel/workboard`, `kernel/okr`, `kernel/taste`, `kernel/anomaly`, `kernel/alerter`.
+**Scope:** `kernel/event`, `kernel/journal`, `kernel/bus`, `kernel/ulid`, `kernel/platform/filestore`, `kernel/modules/knowledge/memory`, `kernel/modules/knowledge/worldmodel`, `kernel/datalake`, `kernel/artifact`, `kernel/board`, `kernel/workboard`, `kernel/okr`, `kernel/taste`, `kernel/anomaly`, `kernel/alerter`.
 
 Sibling docs: [00-README.md](00-README.md) (overview) · [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md) (where these stores are opened/wired) · [02-cli-cmd-agt.md](02-cli-cmd-agt.md) (`agt journal|why|memory|world|board|workboard|okr|taste`) · [03-control-plane-and-http.md](03-control-plane-and-http.md) (handlers, SSE, webhooks, REST mailbox) · [04-agent-runtime.md](04-agent-runtime.md) (agent loop, context injection, proof/assure) · [05-governance-routing-security.md](05-governance-routing-security.md) (redact, state, edict capabilities) · [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md) (pulse, standing orders, workflow, selfrepair, cadence systemtasks) · [10-tools.md](10-tools.md) (`boardtool`, `workboardtool`, `artifacts`, `db` tools) · [11-frontend-console.md](11-frontend-console.md).
 
@@ -331,7 +331,7 @@ Subscriber inventory (`grep "\.Subscribe("`, non-test): `cmd/agezt/main.go` (`>`
 
 ---
 
-## 7. `kernel/memory`
+## 7. `kernel/modules/knowledge/memory`
 
 **Purpose.** The agent's long-term knowledge: content-addressed records, journaled mutations, hybrid retrieval, scope privacy, and LLM maintenance passes (per-run distill, brain consolidation, operator profile).
 
@@ -411,7 +411,7 @@ All Manager events use subject `memory.<suffix-of-kind>` and actor `memory`.
 | Per-run distill | `Manager.Distill(ctx, corr, provider, model, intent, transcript)` | `runexec.Runner.MaybeDistill` after a run whose folded tool count ≥ `MemoryDistillMinTools` (`AGEZT_MEMORY_DISTILL_MIN_TOOLS`, daemonconfig default 6, runner fallback 4) | One `TaskType:"distill"` completion; ≤3 facts JSON; **subject-level dedupe (M993)**: if an active `source=distill` record exists for `(type, normalized subject, scope)` it is reinforced instead of adding a near-duplicate. Facts tagged `source=distill` (+scope). Non-JSON answer = no-op. |
 | Retro dedupe | `DedupeDistilled(corr, dryRun)` | `agt memory tidy`/controlplane, cadence systemtask | Groups active distill notes by `distillKey`, keeps the strongest (confidence, then recency), **Forgets** (tombstones) the rest. |
 | Brain consolidation | `DistillBrain(ctx, corr, provider, model)` | `AGEZT_BRAIN_DISTILL_EVERY` ticker (`cmd/agezt/main_pulse.go`, corr `brain-distill-<ulid>`), `agt memory consolidate` | Clusters (≥3 records, cosine ≥0.55, same scope), merges ≤4 clusters/pass (≤12 records each) through `agent.GenerateObject`, writes a `source=brain-distill` record, supersedes originals (`memory.superseded`), then one `memory.consolidated`. Provider error aborts the pass; unusable answer skips the cluster. |
-| Operator profile | `DistillProfile(ctx, corr, provider, model)` | `AGEZT_USER_PROFILE` (default on, requires memory) daily ticker (`AGEZT_USER_PROFILE_EVERY`, default 24h), cadence systemtask, `agt memory profile` | Reads ≤60 freshest shared non-profile records + current facets; writes each facet as a `TypePreference` record, subject `operator profile: <facet>`, tags `{scope:"", source:"profile"}`, `Force:true`; publishes `memory.profiled`. |
+| Operator profile | `DistillProfile(ctx, corr, provider, model)` | `AGEZT_USER_PROFILE` (default on, requires memory) daily ticker (`AGEZT_USER_PROFILE_EVERY`, default 24h), cadence systemtask, `agt memory profile` | Reads ≤60 freshest shared non-profile records + current facets; writes each facet as a `TypePreference` record, subject `operator profile: <facet>`, tags `{scope:"", source:"profile"}`, `Force:true`; **supersedes the previous version of the facet** (a record's identity is its CONTENT, so a changed facet would otherwise leave the old one active forever — two conflicting versions injected into every run); publishes `memory.profiled` and `memory.superseded`. |
 | Hygiene / prune | `Hygiene`, `Prune(corr, olderThanMs, dryRun)` | `agt memory hygiene/prune`, controlplane tidy | Prune hard-deletes only tombstoned/superseded rows older than the cutoff → `memory.pruned {pruned}`. |
 | Clean | `CleanLowValue(corr, dryRun)` | controlplane (dry-run default), cadence systemtask | Re-applies `AssessRetention` to everything except operator/curated/constraint/PREFERENCE rows; hard-deletes rejects → `memory.cleaned`. |
 | Audit / suspend | `Audit()`, `Suspend(corr,id,reason)` | `agt memory audit` | Reports expired/suspended ids and contradiction groups (same type + normalized subject + scope, differing content); `memory.suspended`. |
@@ -426,7 +426,7 @@ All Manager events use subject `memory.<suffix-of-kind>` and actor `memory`.
 
 ---
 
-## 8. `kernel/worldmodel`
+## 8. `kernel/modules/knowledge/worldmodel`
 
 **Purpose.** "World Model v1" (SPEC-05 §3): a journaled, content-addressed graph of the operator's world, resolved *before* memory during context assembly and used by Pulse salience (`IsActiveSubject`).
 
@@ -567,7 +567,7 @@ Tests: `okr_test.go`, `coverage_supp_test.go`.
 
 ---
 
-## 14. `kernel/taste` — exemplar overlay
+## 14. `kernel/modules/knowledge/taste` — exemplar overlay
 
 | File | What it does |
 |---|---|

@@ -26,6 +26,12 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 )
 
+// ErrRecordNotFound is returned when a mutation targets a record the store does
+// not hold — the record was deleted concurrently, or the caller's view of the
+// store is stale. Callers that treat "already gone" as a benign outcome test
+// for it with errors.Is.
+var ErrRecordNotFound = errors.New("memory: record not found")
+
 // Clustering / pass bounds. Threshold 0.55 under hashed-n-gram cosine means
 // "clearly about the same thing" (near-duplicates and re-extractions land
 // 0.6+, mere topic neighbours ~0.3). A pass consolidates at most
@@ -253,7 +259,7 @@ func (m *Manager) supersedeExisting(corr, oldID, newID string) error {
 		return err
 	}
 	if !found {
-		return fmt.Errorf("memory: record %q not found (may have been deleted concurrently)", oldID)
+		return fmt.Errorf("%w: %q (may have been deleted concurrently)", ErrRecordNotFound, oldID)
 	}
 	if old.SupersededBy != "" {
 		return nil // already linked (idempotent across overlapping passes)
