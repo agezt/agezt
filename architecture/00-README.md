@@ -219,8 +219,8 @@ Every Go package, one line each, with the document that covers it in depth.
 | `platform/filestore` | Tolerant load + atomic private (0600/0700) save for single-file JSON stores, plus a cross-process `Lock` for files the daemon and `agt` both write. |
 | `memory` | Content-addressed memory: private by default, shared opt-in, distillation, dedupe, tidy, operator profile facets, keyword + hashed/provider embeddings. |
 | `worldmodel` | Journaled graph of the operator's world (entities, relations). |
-| `datalake` | File-based structured store ("Personal Data Lake") behind the `db` tool. |
-| `artifact` | BLAKE3 content-addressed blob store + index + collection. |
+| `datalake` | File-based structured store ("Personal Data Lake") behind the `db` tool. Now in the artifacts module (`kernel/modules/artifacts/datalake`, W3.4). |
+| `artifact` | BLAKE3 content-addressed blob store + index + collection. Now in the artifacts module (`kernel/modules/artifacts/artifact`, W3.4). |
 | `board` | Shared topic-addressed message board/mailbox (**one** `board.Store` per daemon). |
 | `workboard` | Durable typed task queue with acceptance criteria and the Proof gate. |
 | `okr` | Objectives/key results computed live from workboard status. |
@@ -470,11 +470,11 @@ backlog. Details and file references are in the linked documents.
 | ✅ Fixed (W1.6c): one corrupt mid-journal line aborted `runtime.Open`; it is now quarantined and the gap journaled. Open: no journal index — `agt why` = 3 full scans (measured, deferred: W1.6b). | [06](06-data-memory-state.md) |
 | Operator-profile facet text changes create a second active record (the old one is never superseded); both are injected into every run. | [06](06-data-memory-state.md) |
 | ✅ **Fixed (W0.4):** Anomaly breaker disarmed after one trip and was not re-armed after resume. Anomaly/alerter watchers died silently on panic. | [06](06-data-memory-state.md) |
-| Artifact GC can delete blobs still referenced by journal `raw_ref`. ~~JSON stores are written 0644~~ ✅ Fixed (W1.3): 0600/0700. Failed distillation is journaled as `memory.written`. | [06](06-data-memory-state.md) |
+| ✅ **Fixed (W3.4):** Artifact GC can delete blobs still referenced by journal `raw_ref`. The collector asks the journal which refs it still names (once per operation, the whole batch at a time) and leaves those blobs alone; an explicit delete of such an artifact is refused. ~~JSON stores are written 0644~~ ✅ Fixed (W1.3): 0600/0700. Failed distillation is journaled as `memory.written`. | [06](06-data-memory-state.md) |
 | ✅ **Fixed (W2.2b):** new root runs with profile-sourced soul/model values remain resumable. Provenance is tied to the agent slug; explicit per-run system/model/tools overrides stay non-resumable. The control plane no longer re-copies profile defaults as explicit overrides. Older non-resumable tickets are still quarantined. | [04](04-agent-runtime.md) |
 | `epistemicGate` scans the whole journal on every gated tool call, even when escalation is off. | [04](04-agent-runtime.md) |
 | Conversation history misses agent replies on most channels (only Telegram/Slack/Discord/Matrix/Signal fold them back). | [09](09-channels.md) |
-| Built-in skills re-promote a quarantined (unchanged) built-in skill at next boot. Guardian reconcile resets operator-lowered spend caps to $5/$10 every boot. `SelfRepairPolicy.EscalateTo` is ignored. Pulse initiative level is neither live-changeable nor persisted. Cron/event workflow runs are labelled `source:"manual"`. `reranktool` can panic on a short `scores` slice. | [07](07-autonomy-and-extensibility.md) |
+| ✅ **Fixed (W3.3):** Built-in skills re-promote a quarantined (unchanged) built-in skill at next boot — the seeding now stops at a quarantined or archived built-in. Guardian reconcile resets operator-lowered spend caps to $5/$10 every boot. `SelfRepairPolicy.EscalateTo` is ignored. Pulse initiative level is neither live-changeable nor persisted. Cron/event workflow runs are labelled `source:"manual"`. `reranktool` can panic on a short `scores` slice. | [07](07-autonomy-and-extensibility.md) |
 | Channel conversation continuity is a journal fold per sender/thread that **re-scans the whole journal for every inbound message** (there is no session object). | [07](07-autonomy-and-extensibility.md) |
 
 ### 9.3 Drift, dead code, docs

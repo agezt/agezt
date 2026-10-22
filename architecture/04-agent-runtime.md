@@ -104,7 +104,7 @@ The canonical single-agent tool loop (DECISIONS B0d). It defines `Provider` (LLM
 | `LoopConfig` | see 3.3 |
 | `ToolSelector` / `ToolSelectionRequest` | `func(ctx, {Intent, Iter, Messages, Tools}) ([]ToolDef, error)` |
 | `ToolMemo` | per-run TTL+LRU cache of successful read-only results. Keys are SHA-256 of name+input. Defaults `DefaultToolMemoTTL=5m`, `DefaultToolMemoMaxEntries=256` |
-| `ArtifactPutter` | `Put([]byte) (ref, error)`. `kernel/artifact.Store` satisfies it |
+| `ArtifactPutter` | `Put([]byte) (ref, error)`. `kernel/modules/artifacts/artifact.Store` satisfies it |
 | `Middleware` / `Wrap` | provider middleware (M997): `TransformRequest`, `WrapComplete`, `WrapStream`, `SynthesizeStream`. Helpers: `ExtractReasoningMiddleware`, `SimulateStreamingMiddleware`, `DefaultParamsMiddleware` |
 | `GenerateObject` | JSON-schema-constrained one-shot with `DefaultObjectRepairs=2` repair rounds. Returns `*ObjectError` wrapping `ErrNoObjectGenerated` |
 

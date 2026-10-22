@@ -1,6 +1,6 @@
 # 06 — Data, Memory & State
 
-**Scope:** `kernel/event`, `kernel/journal`, `kernel/bus`, `kernel/ulid`, `kernel/platform/filestore`, `kernel/modules/knowledge/memory`, `kernel/modules/knowledge/worldmodel`, `kernel/datalake`, `kernel/artifact`, `kernel/board`, `kernel/workboard`, `kernel/okr`, `kernel/modules/knowledge/taste`, `kernel/anomaly`, `kernel/alerter`.
+**Scope:** `kernel/event`, `kernel/journal`, `kernel/bus`, `kernel/ulid`, `kernel/platform/filestore`, `kernel/modules/knowledge/memory`, `kernel/modules/knowledge/worldmodel`, `kernel/modules/artifacts/datalake`, `kernel/modules/artifacts/artifact`, `kernel/board`, `kernel/workboard`, `kernel/okr`, `kernel/modules/knowledge/taste`, `kernel/anomaly`, `kernel/alerter`.
 
 Sibling docs: [00-README.md](00-README.md) (overview) · [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md) (where these stores are opened/wired) · [02-cli-cmd-agt.md](02-cli-cmd-agt.md) (`agt journal|why|memory|world|board|workboard|okr|taste`) · [03-control-plane-and-http.md](03-control-plane-and-http.md) (handlers, SSE, webhooks, REST mailbox) · [04-agent-runtime.md](04-agent-runtime.md) (agent loop, context injection, proof/assure) · [05-governance-routing-security.md](05-governance-routing-security.md) (redact, state, edict capabilities) · [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md) (pulse, standing orders, workflow, selfrepair, cadence systemtasks) · [10-tools.md](10-tools.md) (`boardtool`, `workboardtool`, `artifacts`, `db` tools) · [11-frontend-console.md](11-frontend-console.md).
 
@@ -451,7 +451,7 @@ Notes / gotchas:
 
 ---
 
-## 9. `kernel/datalake`
+## 9. `kernel/modules/artifacts/datalake`
 
 **Purpose.** "Personal Data Lake" (M834): dependency-free structured collections agents and the console share (rendered as generic tables or bespoke views).
 
@@ -472,14 +472,14 @@ Tests: `datalake_test.go`, `datewrite_test.go`, `json_equal_bug_test.go`, `cover
 
 ---
 
-## 10. `kernel/artifact`
+## 10. `kernel/modules/artifacts/artifact`
 
 **Purpose.** Content-addressed blob store (SPEC-04 §3.6) + browsable metadata index (M822/M823).
 
 | File | What it does |
 |---|---|
 | `artifact.go` | `Store{dir}`, `Open` (0700), `Ref(data)` (hex BLAKE3-256), `Put` (dedup: skip if exists; atomicfile 0600), `Get` (re-hashes and returns `ErrCorrupt` on mismatch), `Has`, `Size`, `pathFor` (`<dir>/<ref[:2]>/<ref>`), `validRef` (64 lowercase hex — path-traversal guard); errors `ErrNotFound`, `ErrCorrupt`, `ErrBadRef`. |
-| `index.go` | `Entry` (per-arrival: `art-<ulid>` id, ref, name, mime, kind `image|tool-output|file…`, source `telegram|slack|run…`, sender, corr, size, created_ms, caption), `Filter{Kind, Source, Corr}`, `Index{store, dir, mu, entries}`, `OpenIndex` (`<artifacts>/index/*.json`), `PutEntry`, `IndexRef` (index an already-stored blob), `List` (newest first), `StaleEntries`, `Collect(olderThanMs)` (M845 collector), `Get`, `Bytes`, `Count`, `Delete` (removes meta; GCs the blob only if no other entry references the ref). |
+| `index.go` | `Entry` (per-arrival: `art-<ulid>` id, ref, name, mime, kind `image|tool-output|file…`, source `telegram|slack|run…`, sender, corr, size, created_ms, caption), `Filter{Kind, Source, Corr}`, `Index{store, dir, mu, entries, guard}`, `OpenIndex` (`<artifacts>/index/*.json`), `PutEntry`, `IndexRef` (index an already-stored blob), `List` (newest first), `StaleEntries` (the age-based candidates **minus the ones the journal still names**), `Collect(olderThanMs)` (M845 collector), `Get`, `Bytes`, `Count`, `Delete` (removes meta; GCs the blob only if no other entry references the ref **and** the journal does not name it — otherwise it refuses with `ErrStillReferenced`), `RefGuard` (the port: `ReferencedRefs(candidates) map[string]bool` — asked once per operation with the whole batch), `SetRefGuard`. |
 
 Tests: `artifact_test.go`, `index_test.go`.
 
@@ -489,7 +489,7 @@ Flow:
 3. `runtime.ProveTask` lists `Filter{Corr}` entries as proof evidence.
 
 Gotchas:
-- `Index.Delete`/`Collect` GC a blob when no *index entry* references it, but the journal's `tool.result.raw_ref` may still point at it → the journal can hold dangling refs after a collect. Conversely, offloaded blobs that were never indexed are never GC'd.
+- `Index.Delete`/`Collect` GC a blob when no *index entry* references it — and they now also leave alone the blobs the **journal** still names (the `tool.result.raw_ref` of an offloaded output): the collector asks the `RefGuard` once per operation, and the host answers from the journal's own events. A journal-named artifact is not a collection candidate at all, and an explicit delete of one is refused with `ErrStillReferenced`. Fixed in W3.4; the journal keeps those names forever (append-only, full retention), so a journal-named artifact stays until the journal forgets it. Offloaded blobs that were never indexed are still never GC'd.
 - `PutEntry` updates the in-memory map before writing the meta file; a meta write failure leaves an in-memory-only entry until restart.
 - No events are emitted by this package.
 

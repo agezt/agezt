@@ -1060,6 +1060,20 @@ This file holds the active `[Unreleased]` working set.
   a lifecycle decision: a quarantined or archived built-in stays where it is,
   and the boot report says which status it was left in.
 
+- **The artifacts module has a home, and the collector stops deleting bytes the
+  journal still names.** The blob store and the Personal Data Lake were already
+  a module; they now live in `kernel/modules/artifacts`, and nothing else about
+  them changes — the same records, the same bytes, the same collections.
+
+  The artifact collector, though, had a way to lose data. A tool output too
+  large to inline is stored as a blob and the journaled `tool.result` points
+  at it; the collector deleted the blob whenever no other index entry
+  referenced it, never looking at the journal. So collecting stale artifacts
+  could delete a run's output while the journal still claimed the bytes were
+  there, and fetching them by their reference failed. The collector now asks
+  the journal which blobs it still names and leaves those alone; deleting such
+  an artifact by hand is refused, with the reason spelled out.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now
