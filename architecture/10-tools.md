@@ -354,7 +354,7 @@ Both tools hold only a `runner` pointer (no mutex; set once in Configure) and re
 | `homeassistant_helpers.go` | `matchAllowed` (exact / `domain.*` / `*`), `Capabilities` banner string. |
 | **http** `http.go` | Whole tool: `Tool`, `New`, `SetOnBlock`, netguard `client`, `Definition`, `Invoke` (GET/POST only), `hostAllowed`, `flattenHeaders`, `errResult`. |
 | **introspecttool** `doc.go` | Package doc. |
-| `introspect.go` | View types (`Overview`, `Delegation`, `Reaper*`), `Source`, `Tool`, `Bind`, `Definition`, `Invoke` (overview/reaper/schedules/standing). |
+| `introspect.go` | View types (`Overview`, `Delegation`, `Reaper*`), `Source`, `Tool`, `Bind`, `Definition`, `Invoke` (overview/reaper/schedules/standing). The delegation row is the contract type itself (`contract/types.SubAgentLimits`), so the overview carries the kernel's ceilings without a projection (W2.62). |
 | `introspect_views.go` | `scheduleView`, `next`, `standingView`, `okJSON`, `errResult`. |
 | `kernelsource.go` | Kernel adapter: `Overview`, `Schedules`, `Reaper`, `Standing`, provider-fallback health, reaper overview. |
 | **mcptool** `tool.go` | `Kernel` interface (Add/Attach/Detach/Remove MCP, store, attached), `Tool`, `Bind`, `Definition`, `Invoke`. |

@@ -522,7 +522,7 @@ Subjects for loop events are `agent.<actor>.<suffix>`, with actor `agent-<corr>`
 | `runtime/lifecycle` | `doc.go`, `api.go` (`KernelAPI`: `Halted/SetHalted/Runs/RunsMu/RunWG/Suspend/PublishBus`), `manager.go` | Live (section 4.6). Test: `manager_test.go`. |
 | `runtime/accessors` | `doc.go`, `api.go`, `accessors.go`, `accessors_mutate.go` (48 funcs: getters, standing/roster CRUD with events) | **Constructed in Open (`k.accessors`) but never called.** `*Kernel`'s own `accessors_*.go` methods re-implement the same logic. Duplicate code, drift risk. Test: `accessors_test.go`. |
 | `runtime/compose` | `doc.go`, `api.go` (`OpenAPI` interface), `stores.go` (intentionally empty) | **Dead**: no importers. Day-20b extraction rolled back; `Open` lives in `runtime/compose.go`. |
-| `contract/types` | `doc.go`, `types.go` (`SubAgentLimits`, `PluginInfo`, `CouncilMember`) | The shared value types (L1 contract). The runtime aliases them (`PluginInfo`, `CouncilMember`, `SubAgentLimits`) and so does the application layer (`app/council.Member`, `app/plugins.Registration`), so the host and the application name the same type. Moved here from `runtime/types` in W2.58. |
+| `contract/types` | `doc.go`, `types.go` (`SubAgentLimits`, `PluginInfo`, `CouncilMember`, `Opinion`, `TenantInfo`) | The shared value types (L1 contract). The runtime aliases them (`PluginInfo`, `CouncilMember`, `SubAgentLimits`, `Opinion`) and so does the application layer (`app/council.Member`, `app/council.OpinionRow`, `app/plugins.Registration`, `app/tenants.Row`, `app/system.DelegationStatus`), so the host and the application name the same type. Moved here from `runtime/types` in W2.58; the opinion, tenant and delegation rows joined it in W2.62. |
 
 ---
 
@@ -615,7 +615,7 @@ Root package, grouped by concern; every non-test file is listed.
 | `workboard.go` | Workboard state transitions with `workboard.task.*` events (create/claim/heartbeat/comment/block/fail/unblock/retry policy/complete/review/archive/link/dependency/reclaim/sweep), `assureCriteriaMaxTokens=800`. |
 | `workboard_proof.go` | `ProveTask`, `verifyCriteria`, `parseCriteriaVerdict`, `gatherProofEvidence` (artifacts plus journal seq range under corr). |
 | `okr.go` | OKR CRUD and rollup from workboard done-status, `okr.*` events. |
-| `council.go`, `council_helpers.go` | Council of Elders: multi-seat, multi-round deliberation with chair synthesis and web grounding. |
+| `council.go`, `council_helpers.go` | Council of Elders: multi-seat, multi-round deliberation with chair synthesis and web grounding. The opinion row is the contract type itself (`contract/types.Opinion`), so the application's council operation publishes the panel's positions without a projection (W2.62). |
 | `conductor.go`, `conductor_helpers.go`, `conductor_steps.go` | Conductor: thinker plan, worker, verifier (code execution via `CodeExecutor` or LLM critique), with rounds. |
 | `research.go`, `research_helpers.go`, `research_prompts.go`, `research_run.go`, `research_verify.go` | Deep research: sub-question plan, search/fetch through `RunTool`, cited synthesis, adversarial claim verification, confidence. |
 | `workflowrun.go`, `workflowrun_graph.go`, `workflowrun_node.go`, `workflowrun_helpers.go`, `workflowtestnode.go` | Workflow execution: `RunWorkflow` (step cap 256), graph walk, per-node retry/timeout (`execNodeWithReliability`), node kinds (llm, tool, code_exec, pipeline, subflow depth ≤3, conditions/items), `TestWorkflowNode`. |
