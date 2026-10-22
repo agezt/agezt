@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/agezt/agezt/internal/atomicfile"
+	"github.com/agezt/agezt/kernel/contract/remoteapi"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -20,19 +21,11 @@ import (
 // is per-arrival, so the same image sent twice is two Entries pointing at one
 // blob. This is the queryable, deletable layer the file-manager (M823) and the
 // inbound-image persistence (M822) build on, while Store stays a pure blob store.
-type Entry struct {
-	ID        string `json:"id"`
-	Ref       string `json:"ref"`
-	Name      string `json:"name,omitempty"`
-	Mime      string `json:"mime,omitempty"`
-	Kind      string `json:"kind,omitempty"`   // image | tool-output | file | …
-	Source    string `json:"source,omitempty"` // telegram | slack | discord | run | …
-	Sender    string `json:"sender,omitempty"`
-	Corr      string `json:"corr,omitempty"`
-	Size      int64  `json:"size"`
-	CreatedMs int64  `json:"created_ms"`
-	Caption   string `json:"caption,omitempty"`
-}
+//
+// It is the contract row (kernel/contract/remoteapi) — the same declaration the
+// REST adapter serves and the peer call reads — so the stored row and the
+// served row cannot drift. The on-disk shape is unchanged.
+type Entry = remoteapi.Artifact
 
 // Filter narrows List; empty fields impose no constraint (exact match otherwise).
 type Filter struct {
@@ -89,7 +82,7 @@ func (i *Index) PutEntry(meta Entry, data []byte, createdMs int64) (Entry, error
 	meta.ID = "art-" + ulid.New()
 	meta.Ref = ref
 	meta.Size = int64(len(data))
-	meta.CreatedMs = createdMs
+	meta.CreatedMS = createdMs
 	i.mu.Lock()
 	i.entries[meta.ID] = meta
 	i.mu.Unlock()
@@ -113,7 +106,7 @@ func (i *Index) IndexRef(ref string, meta Entry, createdMs int64) (Entry, error)
 	}
 	meta.ID = "art-" + ulid.New()
 	meta.Ref = ref
-	meta.CreatedMs = createdMs
+	meta.CreatedMS = createdMs
 	if meta.Size == 0 {
 		if sz, serr := i.store.Size(ref); serr == nil {
 			meta.Size = sz
@@ -157,8 +150,8 @@ func (i *Index) List(f Filter) []Entry {
 	}
 	i.mu.Unlock()
 	sort.Slice(out, func(a, b int) bool {
-		if out[a].CreatedMs != out[b].CreatedMs {
-			return out[a].CreatedMs > out[b].CreatedMs
+		if out[a].CreatedMS != out[b].CreatedMS {
+			return out[a].CreatedMS > out[b].CreatedMS
 		}
 		return out[a].ID > out[b].ID
 	})
@@ -167,20 +160,20 @@ func (i *Index) List(f Filter) []Entry {
 
 // StaleEntries returns the entries created strictly before olderThanMs, OLDEST
 // first — the collector's candidates for removal (M845). Entries with no creation
-// time (CreatedMs<=0) are never considered stale, so a malformed entry isn't
+// time (CreatedMS<=0) are never considered stale, so a malformed entry isn't
 // reaped by accident.
 func (i *Index) StaleEntries(olderThanMs int64) []Entry {
 	i.mu.Lock()
 	out := make([]Entry, 0)
 	for _, e := range i.entries {
-		if e.CreatedMs > 0 && e.CreatedMs < olderThanMs {
+		if e.CreatedMS > 0 && e.CreatedMS < olderThanMs {
 			out = append(out, e)
 		}
 	}
 	i.mu.Unlock()
 	sort.Slice(out, func(a, b int) bool {
-		if out[a].CreatedMs != out[b].CreatedMs {
-			return out[a].CreatedMs < out[b].CreatedMs // oldest first
+		if out[a].CreatedMS != out[b].CreatedMS {
+			return out[a].CreatedMS < out[b].CreatedMS // oldest first
 		}
 		return out[a].ID < out[b].ID
 	})

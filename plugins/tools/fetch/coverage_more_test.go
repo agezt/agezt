@@ -57,7 +57,7 @@ func TestFetchCoverageDefaultUserAgentExplicitNameAndDetectMime(t *testing.T) {
 	if sawUA != DefaultUserAgent {
 		t.Fatalf("User-Agent = %q, want %q", sawUA, DefaultUserAgent)
 	}
-	if idx.got.Name != "saved.txt" || idx.got.Kind != "download" || idx.got.CreatedMs != 99 {
+	if idx.got.Name != "saved.txt" || idx.got.Kind != "download" || idx.got.CreatedMS != 99 {
 		t.Fatalf("stored entry = %+v", idx.got)
 	}
 	if idx.got.Mime == "" {

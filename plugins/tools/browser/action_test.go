@@ -861,7 +861,7 @@ func (f *fakeActionIndex) PutEntry(meta artifact.Entry, data []byte, createdMs i
 	meta.ID = "art-test-" + string(rune('a'+len(f.entries)))
 	meta.Ref = "ref-" + meta.ID
 	meta.Size = int64(len(data))
-	meta.CreatedMs = createdMs
+	meta.CreatedMS = createdMs
 	f.entries = append(f.entries, meta)
 	f.data = append(f.data, append([]byte(nil), data...))
 	return meta, nil

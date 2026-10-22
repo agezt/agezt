@@ -23,7 +23,7 @@ func (f *fakeIndex) PutEntry(meta artifact.Entry, data []byte, createdMs int64) 
 	meta.ID = "art-test"
 	meta.Ref = "deadbeef"
 	meta.Size = int64(len(data))
-	meta.CreatedMs = createdMs
+	meta.CreatedMS = createdMs
 	f.got = meta
 	f.data = data
 	return meta, nil
@@ -53,8 +53,8 @@ func TestFetch_SavesImageAsArtifact(t *testing.T) {
 	if idx.got.Mime != "image/png" || idx.got.Kind != "image" || idx.got.Name != "cat.png" || idx.got.Source != "fetch" {
 		t.Fatalf("stored entry = %+v", idx.got)
 	}
-	if string(idx.data) != "PNGBYTES" || idx.got.CreatedMs != 7 {
-		t.Fatalf("data/time = %q,%d", idx.data, idx.got.CreatedMs)
+	if string(idx.data) != "PNGBYTES" || idx.got.CreatedMS != 7 {
+		t.Fatalf("data/time = %q,%d", idx.data, idx.got.CreatedMS)
 	}
 	// The result reports the saved artifact id.
 	if !strings.Contains(res.Output, "art-test") || !strings.Contains(res.Output, `"saved": true`) {

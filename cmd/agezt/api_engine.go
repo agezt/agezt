@@ -138,12 +138,9 @@ func (e kernelAPIEngine) ArtifactEntries(kind, source, corr string) ([]restapi.A
 	if idx == nil {
 		return nil, fmt.Errorf("artifact index unavailable")
 	}
-	ents := idx.List(artifact.Filter{Kind: kind, Source: source, Corr: corr})
-	out := make([]restapi.ArtifactEntry, 0, len(ents))
-	for _, a := range ents {
-		out = append(out, restArtifactEntry(a))
-	}
-	return out, nil
+	// The store's row is the wire row (the contract row), so the list is
+	// handed over as it is — no field-by-field copy.
+	return idx.List(artifact.Filter{Kind: kind, Source: source, Corr: corr}), nil
 }
 
 func (e kernelAPIEngine) ArtifactBytes(id string, maxBytes int64) ([]byte, restapi.ArtifactEntry, error) {
@@ -156,7 +153,7 @@ func (e kernelAPIEngine) ArtifactBytes(id string, maxBytes int64) ([]byte, resta
 		return nil, restapi.ArtifactEntry{}, restapi.ErrArtifactNotFound
 	}
 	if maxBytes > 0 && meta.Size > maxBytes {
-		return nil, restArtifactEntry(meta), restapi.ErrArtifactTooLarge
+		return nil, meta, restapi.ErrArtifactTooLarge
 	}
 	data, meta, err := idx.Bytes(id)
 	if err != nil {
@@ -166,23 +163,7 @@ func (e kernelAPIEngine) ArtifactBytes(id string, maxBytes int64) ([]byte, resta
 		return nil, restapi.ArtifactEntry{}, err
 	}
 	if maxBytes > 0 && int64(len(data)) > maxBytes {
-		return nil, restArtifactEntry(meta), restapi.ErrArtifactTooLarge
+		return nil, meta, restapi.ErrArtifactTooLarge
 	}
-	return data, restArtifactEntry(meta), nil
-}
-
-func restArtifactEntry(a artifact.Entry) restapi.ArtifactEntry {
-	return restapi.ArtifactEntry{
-		ID:        a.ID,
-		Ref:       a.Ref,
-		Name:      a.Name,
-		Mime:      a.Mime,
-		Kind:      a.Kind,
-		Source:    a.Source,
-		Sender:    a.Sender,
-		Corr:      a.Corr,
-		Size:      a.Size,
-		CreatedMS: a.CreatedMs,
-		Caption:   a.Caption,
-	}
+	return data, meta, nil
 }

@@ -65,7 +65,7 @@ func TestArtifactGetRetainsBytesReferenceAndErrorMapping(t *testing.T) {
 	}
 }
 func TestArtifactListRetainsRequiredEmptyFieldsAndFilters(t *testing.T) {
-	idx := &index{rows: []blobs.Entry{{ID: "owned", Ref: "ref", Size: 3, CreatedMs: 100}}}
+	idx := &index{rows: []blobs.Entry{{ID: "owned", Ref: "ref", Name: "one.txt", Mime: "text/plain", Kind: "image", Source: "run", Sender: "agent-1", Corr: "corr", Size: 3, CreatedMS: 100, Caption: "note"}}}
 	out, err := appartifacts.New(nil, idx, nil).List(context.Background(), appartifacts.ListInput{Kind: "image", Source: "run", CorrelationID: "corr"})
 	if err != nil || out.Count != 1 || !reflect.DeepEqual(idx.filter, blobs.Filter{Kind: "image", Source: "run", Corr: "corr"}) {
 		t.Fatal(out, err, idx.filter)
@@ -79,6 +79,13 @@ func TestArtifactListRetainsRequiredEmptyFieldsAndFilters(t *testing.T) {
 			t.Fatal("required empty field lost", key, string(raw))
 		}
 	}
+	// The row carries the values the store holds: every field of the stored
+	// row arrives under its own name.
+	if entry["id"] != "owned" || entry["ref"] != "ref" || entry["name"] != "one.txt" || entry["mime"] != "text/plain" ||
+		entry["kind"] != "image" || entry["source"] != "run" || entry["sender"] != "agent-1" || entry["corr"] != "corr" ||
+		entry["size"] != float64(3) || entry["created_ms"] != float64(100) || entry["caption"] != "note" {
+		t.Fatal("the listed row does not carry the stored values", string(raw))
+	}
 	idx.rows = nil
 	out, err = appartifacts.New(nil, idx, nil).List(context.Background(), appartifacts.ListInput{})
 	raw, _ = json.Marshal(out)
@@ -90,7 +97,7 @@ func TestArtifactCollectRetainsCutoffProjectionAndDryRunSeparation(t *testing.T)
 	now := time.UnixMilli(100 * 24 * 60 * 60 * 1000)
 	for _, days := range []int{0, -1, 7} {
 		for _, dry := range []bool{true, false} {
-			idx := &index{rows: []blobs.Entry{{ID: "first", Name: "one", Kind: "file", Source: "run", Size: 4, CreatedMs: 1}, {ID: "second", Name: "two", Size: 5, CreatedMs: 2}}}
+			idx := &index{rows: []blobs.Entry{{ID: "first", Name: "one", Kind: "file", Source: "run", Size: 4, CreatedMS: 1}, {ID: "second", Name: "two", Size: 5, CreatedMS: 2}}}
 			out, err := appartifacts.New(nil, idx, func() time.Time { return now }).Collect(context.Background(), appartifacts.CollectInput{OlderThanDays: days, DryRun: dry})
 			wantDays := days
 			if wantDays <= 0 {
