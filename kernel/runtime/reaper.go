@@ -12,11 +12,17 @@ package runtime
 
 import ()
 
+// The finding rows below are the reaper's rows: one declaration per finding,
+// published as they are. Every field is always present — the empty optional
+// fields are explicit rather than omitted — so the operator's scan (the
+// application layer) and the runtime never drift apart. The rows are read-only
+// values: nothing here is marshalled on its own.
+
 // ReaperAgent is a dead-agent candidate: an enabled, non-retired roster agent,
 // old enough to judge, with no task activity since the idle cutoff.
 type ReaperAgent struct {
 	Slug         string `json:"slug"`
-	Name         string `json:"name,omitempty"`
+	Name         string `json:"name"`
 	LastActiveMS int64  `json:"last_active_ms"` // 0 = never ran a task
 }
 
@@ -25,15 +31,15 @@ type ReaperAgent struct {
 // separate action by a guardian/doctor or operator.
 type DegradedAgent struct {
 	Slug              string `json:"slug"`
-	Name              string `json:"name,omitempty"`
+	Name              string `json:"name"`
 	Failures          int    `json:"failures"`
 	Window            int    `json:"window"`
 	Threshold         int    `json:"threshold"`
-	DoctorAgent       string `json:"doctor_agent,omitempty"`
-	SelfRepairEnabled bool   `json:"self_repair_enabled,omitempty"`
-	EscalateTo        string `json:"escalate_to,omitempty"`
-	LastFailureMS     int64  `json:"last_failure_ms,omitempty"`
-	LastReason        string `json:"last_reason,omitempty"`
+	DoctorAgent       string `json:"doctor_agent"`
+	SelfRepairEnabled bool   `json:"self_repair_enabled"`
+	EscalateTo        string `json:"escalate_to"`
+	LastFailureMS     int64  `json:"last_failure_ms"`
+	LastReason        string `json:"last_reason"`
 }
 
 // MisconfiguredAgent is an enabled, non-retired agent whose runtime override
@@ -41,11 +47,11 @@ type DegradedAgent struct {
 // knobs will not actually apply until repaired.
 type MisconfiguredAgent struct {
 	Slug              string   `json:"slug"`
-	Name              string   `json:"name,omitempty"`
-	Issues            []string `json:"issues,omitempty"`
-	DoctorAgent       string   `json:"doctor_agent,omitempty"`
-	SelfRepairEnabled bool     `json:"self_repair_enabled,omitempty"`
-	EscalateTo        string   `json:"escalate_to,omitempty"`
+	Name              string   `json:"name"`
+	Issues            []string `json:"issues"`
+	DoctorAgent       string   `json:"doctor_agent"`
+	SelfRepairEnabled bool     `json:"self_repair_enabled"`
+	EscalateTo        string   `json:"escalate_to"`
 }
 
 // RoutingPressureAgent is an enabled, non-retired agent whose recent per-task
@@ -54,93 +60,68 @@ type MisconfiguredAgent struct {
 // they have not yet crossed the failed-run health threshold.
 type RoutingPressureAgent struct {
 	Slug              string `json:"slug"`
-	Name              string `json:"name,omitempty"`
+	Name              string `json:"name"`
 	Count             int    `json:"count"`
 	Threshold         int    `json:"threshold"`
 	WindowSec         int    `json:"window_sec"`
-	DoctorAgent       string `json:"doctor_agent,omitempty"`
-	SelfRepairEnabled bool   `json:"self_repair_enabled,omitempty"`
-	EscalateTo        string `json:"escalate_to,omitempty"`
-	LastFallbackMS    int64  `json:"last_fallback_ms,omitempty"`
-	LastReason        string `json:"last_reason,omitempty"`
-	LastFailedModel   string `json:"last_failed_model,omitempty"`
-	LastNextModel     string `json:"last_next_model,omitempty"`
-	TaskType          string `json:"task_type,omitempty"`
+	DoctorAgent       string `json:"doctor_agent"`
+	SelfRepairEnabled bool   `json:"self_repair_enabled"`
+	EscalateTo        string `json:"escalate_to"`
+	LastFallbackMS    int64  `json:"last_fallback_ms"`
+	LastReason        string `json:"last_reason"`
+	LastFailedModel   string `json:"last_failed_model"`
+	LastNextModel     string `json:"last_next_model"`
+	TaskType          string `json:"task_type"`
 }
 
-// RetryPressureAgent is an enabled, non-retired agent whose whole-run retry
-// policy is being exercised repeatedly. This is separate from failed terminal
-// runs: it catches agents that are still trying to recover before they fully
-// fail the health window.
+// RetryPressureAgent is an enabled, non-retired agent whose recent runs hit
+// transient provider failures often enough to cross the retry-pressure
+// threshold: it catches agents that are still trying to recover before they
+// fully fail the health window.
 type RetryPressureAgent struct {
 	Slug              string `json:"slug"`
-	Name              string `json:"name,omitempty"`
+	Name              string `json:"name"`
 	Count             int    `json:"count"`
 	Threshold         int    `json:"threshold"`
 	WindowSec         int    `json:"window_sec"`
-	DoctorAgent       string `json:"doctor_agent,omitempty"`
-	SelfRepairEnabled bool   `json:"self_repair_enabled,omitempty"`
-	EscalateTo        string `json:"escalate_to,omitempty"`
-	LastRetryMS       int64  `json:"last_retry_ms,omitempty"`
-	LastReason        string `json:"last_reason,omitempty"`
-	NextAttempt       int    `json:"next_attempt,omitempty"`
-	MaxAttempts       int    `json:"max_attempts,omitempty"`
+	DoctorAgent       string `json:"doctor_agent"`
+	SelfRepairEnabled bool   `json:"self_repair_enabled"`
+	EscalateTo        string `json:"escalate_to"`
+	LastRetryMS       int64  `json:"last_retry_ms"`
+	LastReason        string `json:"last_reason"`
+	NextAttempt       int    `json:"next_attempt"`
+	MaxAttempts       int    `json:"max_attempts"`
 }
 
-// RoutingForcedProbationAgent is an enabled, non-retired agent that is still
-// under model-chain fallback pressure, but a manager/owner recently forced a
-// specific routing chain and that same chain is still active. The doctor layer
-// should observe the probation window before retuning it again.
-type RoutingForcedProbationAgent struct {
+// RoutingForcedAgent is an enabled, non-retired agent whose model chain was
+// forced by a manager or owner. The three forced findings — still in probation,
+// failed after it, or exhausted by repeated forced generations — are one row;
+// the report keeps one list per phase.
+//
+// Provenance: the probation, failed and exhausted findings were three
+// identical declarations of the same row; they are one declaration now.
+type RoutingForcedAgent struct {
 	Slug              string   `json:"slug"`
-	Name              string   `json:"name,omitempty"`
+	Name              string   `json:"name"`
 	Count             int      `json:"count"`
 	Threshold         int      `json:"threshold"`
 	WindowSec         int      `json:"window_sec"`
-	DoctorAgent       string   `json:"doctor_agent,omitempty"`
-	SelfRepairEnabled bool     `json:"self_repair_enabled,omitempty"`
-	EscalateTo        string   `json:"escalate_to,omitempty"`
-	LastFallbackMS    int64    `json:"last_fallback_ms,omitempty"`
-	LastForcedMS      int64    `json:"last_forced_ms,omitempty"`
-	LastReason        string   `json:"last_reason,omitempty"`
-	TaskType          string   `json:"task_type,omitempty"`
-	ForcedChain       []string `json:"forced_chain,omitempty"`
-	ForceGeneration   int      `json:"routing_force_generation,omitempty"`
+	DoctorAgent       string   `json:"doctor_agent"`
+	SelfRepairEnabled bool     `json:"self_repair_enabled"`
+	EscalateTo        string   `json:"escalate_to"`
+	LastFallbackMS    int64    `json:"last_fallback_ms"`
+	LastForcedMS      int64    `json:"last_forced_ms"`
+	LastReason        string   `json:"last_reason"`
+	TaskType          string   `json:"task_type"`
+	ForcedChain       []string `json:"forced_chain"`
+	ForceGeneration   int      `json:"routing_force_generation"`
 }
 
-type RoutingForcedFailedAgent struct {
-	Slug              string   `json:"slug"`
-	Name              string   `json:"name,omitempty"`
-	Count             int      `json:"count"`
-	Threshold         int      `json:"threshold"`
-	WindowSec         int      `json:"window_sec"`
-	DoctorAgent       string   `json:"doctor_agent,omitempty"`
-	SelfRepairEnabled bool     `json:"self_repair_enabled,omitempty"`
-	EscalateTo        string   `json:"escalate_to,omitempty"`
-	LastFallbackMS    int64    `json:"last_fallback_ms,omitempty"`
-	LastForcedMS      int64    `json:"last_forced_ms,omitempty"`
-	LastReason        string   `json:"last_reason,omitempty"`
-	TaskType          string   `json:"task_type,omitempty"`
-	ForcedChain       []string `json:"forced_chain,omitempty"`
-	ForceGeneration   int      `json:"routing_force_generation,omitempty"`
-}
-
-type RoutingForcedExhaustedAgent struct {
-	Slug              string   `json:"slug"`
-	Name              string   `json:"name,omitempty"`
-	Count             int      `json:"count"`
-	Threshold         int      `json:"threshold"`
-	WindowSec         int      `json:"window_sec"`
-	DoctorAgent       string   `json:"doctor_agent,omitempty"`
-	SelfRepairEnabled bool     `json:"self_repair_enabled,omitempty"`
-	EscalateTo        string   `json:"escalate_to,omitempty"`
-	LastFallbackMS    int64    `json:"last_fallback_ms,omitempty"`
-	LastForcedMS      int64    `json:"last_forced_ms,omitempty"`
-	LastReason        string   `json:"last_reason,omitempty"`
-	TaskType          string   `json:"task_type,omitempty"`
-	ForcedChain       []string `json:"forced_chain,omitempty"`
-	ForceGeneration   int      `json:"routing_force_generation,omitempty"`
-}
+// The three forced phases keep their names — the runtime's public API is
+// unchanged — but they are one row.
+type RoutingForcedProbationAgent = RoutingForcedAgent
+type RoutingForcedFailedAgent = RoutingForcedAgent
+type RoutingForcedExhaustedAgent = RoutingForcedAgent
 
 // RoutingUnstableAgent is an enabled, non-retired agent whose routing repair
 // loop already rolled back recently and is still under model-chain fallback
@@ -149,18 +130,18 @@ type RoutingForcedExhaustedAgent struct {
 // chain still destabilized again.
 type RoutingUnstableAgent struct {
 	Slug              string   `json:"slug"`
-	Name              string   `json:"name,omitempty"`
+	Name              string   `json:"name"`
 	Count             int      `json:"count"`
 	Threshold         int      `json:"threshold"`
 	WindowSec         int      `json:"window_sec"`
-	DoctorAgent       string   `json:"doctor_agent,omitempty"`
-	SelfRepairEnabled bool     `json:"self_repair_enabled,omitempty"`
-	EscalateTo        string   `json:"escalate_to,omitempty"`
-	LastRollbackMS    int64    `json:"last_rollback_ms,omitempty"`
-	TaskType          string   `json:"task_type,omitempty"`
-	CurrentChain      []string `json:"current_chain,omitempty"`
-	PreviousChain     []string `json:"previous_chain,omitempty"`
-	LastReason        string   `json:"last_reason,omitempty"`
+	DoctorAgent       string   `json:"doctor_agent"`
+	SelfRepairEnabled bool     `json:"self_repair_enabled"`
+	EscalateTo        string   `json:"escalate_to"`
+	LastRollbackMS    int64    `json:"last_rollback_ms"`
+	TaskType          string   `json:"task_type"`
+	CurrentChain      []string `json:"current_chain"`
+	PreviousChain     []string `json:"previous_chain"`
+	LastReason        string   `json:"last_reason"`
 }
 
 // ReaperReport is the read-only result of a scan: dead-agent candidates plus
