@@ -29,6 +29,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/agezt/agezt/kernel/contract/types"
 )
 
 // idPattern restricts a tenant id to a single safe path segment: lowercase
@@ -115,12 +117,9 @@ func loadOrMintToken(dir string) (string, error) {
 }
 
 // Info is a listing snapshot: a tenant that exists on disk, and whether its
-// kernel is currently loaded.
-type Info struct {
-	ID      string `json:"id"`
-	BaseDir string `json:"base_dir"`
-	Open    bool   `json:"open"`
-}
+// kernel is currently loaded. It is the contract type itself, so the tenant
+// operation publishes the registry's rows unchanged.
+type Info = types.TenantInfo
 
 // Registry manages isolated tenants under a shared root. It is safe for
 // concurrent use.

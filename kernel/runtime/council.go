@@ -22,13 +22,7 @@ import (
 type CouncilMember = types.CouncilMember
 
 // Opinion is one member's position in one round.
-type Opinion struct {
-	Seat  string `json:"seat"`
-	Model string `json:"model"`
-	Round int    `json:"round"`
-	Text  string `json:"text"`
-	Error string `json:"error,omitempty"`
-}
+type Opinion = types.Opinion
 
 // CouncilResult is the outcome: every recorded opinion, plus the chair's
 // synthesized consensus (and any noted dissent).

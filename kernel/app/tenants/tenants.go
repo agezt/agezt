@@ -70,11 +70,9 @@ type TokenOutput struct {
 	Token string `json:"token"`
 }
 
-type Row struct {
-	ID      string `json:"id"`
-	BaseDir string `json:"base_dir"`
-	Open    bool   `json:"open"`
-}
+// Row is one tenant in the listing. It is the registry's own row — the
+// contract type — so the listing publishes the registry's rows unchanged.
+type Row = tenant.Info
 
 type ListOutput struct {
 	Tenants []Row `json:"tenants"`
@@ -175,10 +173,8 @@ func (s *Service) List(context.Context, ListRequest) (ListOutput, error) {
 	if err != nil {
 		return ListOutput{}, err
 	}
-	out := ListOutput{Tenants: make([]Row, 0, len(infos)), Count: len(infos)}
-	for _, i := range infos {
-		out.Tenants = append(out.Tenants, Row{ID: i.ID, BaseDir: i.BaseDir, Open: i.Open})
-	}
+	out := ListOutput{Tenants: make([]Row, len(infos)), Count: len(infos)}
+	copy(out.Tenants, infos)
 	return out, nil
 }
 

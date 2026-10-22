@@ -59,3 +59,67 @@ func TestSubAgentLimitsCeilings(t *testing.T) {
 		t.Fatal("the unset ceilings are zero", zero)
 	}
 }
+
+// TestSubAgentLimitsWireShape: the delegation ceilings are a wire row — the
+// status operation and the introspection tool publish them under these names.
+func TestSubAgentLimitsWireShape(t *testing.T) {
+	raw, err := json.Marshal(SubAgentLimits{Enabled: true, MaxDepth: 2, MaxFanout: 3, MaxSpendMicrocents: 1500, MaxTotal: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != `{"enabled":true,"max_depth":2,"max_fanout":3,"max_spend_microcents":1500,"max_total":4}` {
+		t.Fatal(string(raw))
+	}
+	var back SubAgentLimits
+	if err := json.Unmarshal([]byte(`{"enabled":true,"max_depth":2,"max_fanout":3,"max_spend_microcents":1500,"max_total":4}`), &back); err != nil {
+		t.Fatal(err)
+	}
+	if back != (SubAgentLimits{Enabled: true, MaxDepth: 2, MaxFanout: 3, MaxSpendMicrocents: 1500, MaxTotal: 4}) {
+		t.Fatal(back)
+	}
+}
+
+// TestOpinionWireShape: one member's position in one round. The error is
+// omitted when the seat's call did not fail.
+func TestOpinionWireShape(t *testing.T) {
+	raw, err := json.Marshal(Opinion{Seat: "Chair", Model: "m1", Round: 1, Text: "yes"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != `{"seat":"Chair","model":"m1","round":1,"text":"yes"}` {
+		t.Fatal(string(raw))
+	}
+	raw, err = json.Marshal(Opinion{Seat: "Scribe", Model: "m2", Round: 1, Error: "provider failed"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != `{"seat":"Scribe","model":"m2","round":1,"text":"","error":"provider failed"}` {
+		t.Fatal(string(raw))
+	}
+	var back Opinion
+	if err := json.Unmarshal([]byte(`{"seat":"Chair","model":"m1","round":1,"text":"yes"}`), &back); err != nil {
+		t.Fatal(err)
+	}
+	if back != (Opinion{Seat: "Chair", Model: "m1", Round: 1, Text: "yes"}) {
+		t.Fatal(back)
+	}
+}
+
+// TestTenantInfoWireShape: the tenant listing snapshot. The registry owns the
+// row and the tenant operation publishes it under these names.
+func TestTenantInfoWireShape(t *testing.T) {
+	raw, err := json.Marshal(TenantInfo{ID: "acme", BaseDir: "/tenants/acme", Open: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != `{"id":"acme","base_dir":"/tenants/acme","open":true}` {
+		t.Fatal(string(raw))
+	}
+	var back TenantInfo
+	if err := json.Unmarshal([]byte(`{"id":"acme","base_dir":"/tenants/acme","open":true}`), &back); err != nil {
+		t.Fatal(err)
+	}
+	if back != (TenantInfo{ID: "acme", BaseDir: "/tenants/acme", Open: true}) {
+		t.Fatal(back)
+	}
+}

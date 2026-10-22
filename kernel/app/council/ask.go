@@ -10,6 +10,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/platform/schema"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -38,13 +39,9 @@ type AskRequest struct {
 	Corr     json.RawMessage `json:"corr,omitempty"`
 }
 
-type OpinionRow struct {
-	Seat  string `json:"seat"`
-	Model string `json:"model"`
-	Round int    `json:"round"`
-	Text  string `json:"text"`
-	Error string `json:"error,omitempty"`
-}
+// OpinionRow is one member's position in one round. It is the contract type
+// itself, so the panel's answer carries the runtime's opinions unchanged.
+type OpinionRow = types.Opinion
 
 type AskOutput struct {
 	CorrelationID string       `json:"correlation_id"`
@@ -71,10 +68,11 @@ func (e Engines) Ask(ctx context.Context, in AskRequest) (AskOutput, error) {
 	if err != nil {
 		return AskOutput{}, err
 	}
-	opinions := make([]OpinionRow, 0, len(res.Opinions))
-	for _, op := range res.Opinions {
-		opinions = append(opinions, OpinionRow{Seat: op.Seat, Model: op.Model, Round: op.Round, Text: op.Text, Error: op.Error})
-	}
+	// The panel's opinions are the contract type itself — the copy keeps the
+	// answer's opinion list an empty array (never null) without the app
+	// knowing the row's fields.
+	opinions := make([]OpinionRow, len(res.Opinions))
+	copy(opinions, res.Opinions)
 	// The panel's members are the contract type itself — the copy keeps the
 	// answer's member list an empty array (never null) without the app
 	// knowing the row's fields.
