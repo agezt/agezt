@@ -221,7 +221,7 @@ Every Go package, one line each, with the document that covers it in depth.
 | `worldmodel` | Journaled graph of the operator's world (entities, relations). |
 | `datalake` | File-based structured store ("Personal Data Lake") behind the `db` tool. Now in the artifacts module (`kernel/modules/artifacts/datalake`, W3.4). |
 | `artifact` | BLAKE3 content-addressed blob store + index + collection. Now in the artifacts module (`kernel/modules/artifacts/artifact`, W3.4). |
-| `board` | Shared topic-addressed message board/mailbox (**one** `board.Store` per daemon). |
+| `board` | Shared topic-addressed message board/mailbox (**one** `board.Store` per daemon). Now in the board module (`kernel/modules/board/board`, W3.5). |
 | `workboard` | Durable typed task queue with acceptance criteria and the Proof gate. |
 | `okr` | Objectives/key results computed live from workboard status. |
 | `taste` | Operator-authored "what good looks like" exemplars injected before runs. |

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 // mailboxDefaultLimit / mailboxMaxLimit bound the list endpoints (mirrors the

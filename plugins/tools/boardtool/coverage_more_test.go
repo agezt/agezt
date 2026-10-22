@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 func TestBoardCoverageNewBindBindStoreOnPostCurrent(t *testing.T) {

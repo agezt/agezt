@@ -5,8 +5,8 @@ package controlplane_test
 import (
 	"context"
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"path/filepath"
 	"strings"

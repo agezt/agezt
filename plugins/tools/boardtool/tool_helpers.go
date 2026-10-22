@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 func applyActorIdentity(ctx context.Context, in *input) toolapi.Result {

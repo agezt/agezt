@@ -2,7 +2,10 @@
 
 package board
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestPostReadTopics(t *testing.T) {
 	st, err := Open(t.TempDir())
@@ -49,10 +52,21 @@ func TestPersistenceAndFreshOpenSeesWrites(t *testing.T) {
 func TestCapAtMaxMessages(t *testing.T) {
 	st, _ := Open(t.TempDir())
 	for i := 0; i < MaxMessages+50; i++ {
-		st.Post("t", "", "m", int64(i))
+		st.Post("t", "", fmt.Sprintf("m-%d", i), int64(i))
 	}
-	if n := len(st.Read("", MaxMessages+100)); n != MaxMessages {
+	msgs := st.Read("", MaxMessages+100)
+	if n := len(msgs); n != MaxMessages {
 		t.Errorf("board grew to %d, want cap %d", n, MaxMessages)
+	}
+	// The oldest are dropped FIRST: the newest survive and the oldest are
+	// gone. Counting alone would not catch a cap that keeps the oldest.
+	if msgs[0].Text != fmt.Sprintf("m-%d", MaxMessages+49) {
+		t.Errorf("the newest message is %q, want m-%d", msgs[0].Text, MaxMessages+49)
+	}
+	for _, m := range msgs {
+		if m.Text == "m-0" {
+			t.Errorf("the oldest message survived the cap: %+v", m)
+		}
 	}
 }
 

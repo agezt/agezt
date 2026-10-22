@@ -53,6 +53,8 @@ func TestMatch(t *testing.T) {
 		{"kernel/modules/*/...", "kernel/modules/knowledge/internal/store", true, "knowledge"},
 		{"kernel/modules/*/...", "kernel/modules/skills/skill", true, "skills"},
 		{"kernel/modules/*/...", "kernel/modules/skills/builtins", true, "skills"},
+		{"kernel/modules/*/...", "kernel/modules/board/board", true, "board"},
+		{"kernel/modules/*/...", "kernel/modules/artifacts/artifact", true, "artifacts"},
 		{"kernel/modules/*/...", "kernel/modules", false, ""},
 		{"kernel/modules/*", "kernel/modules/runs/api", false, ""},
 	}
@@ -329,17 +331,19 @@ func TestRepoLayerMapIsValid(t *testing.T) {
 	}
 	// Spot-check placements the roadmap depends on.
 	want := map[string]Class{
-		"kernel/agent":                    {Layer: LayerModule, Module: "runs"},
-		"kernel/runtime/runexec":          {Layer: LayerModule, Module: "runs"},
-		"kernel/modules/knowledge/memory": {Layer: LayerModule, Module: "knowledge"},
-		"kernel/modules/skills/skill":     {Layer: LayerModule, Module: "skills"},
-		"kernel/modules/skills/builtins":  {Layer: LayerModule, Module: "skills"},
-		"kernel/controlplane":             {Layer: LayerAdapter},
-		"kernel/governor":                 {Layer: LayerPlatform},
-		"kernel/event":                    {Layer: LayerContract},
-		"kernel/modules/runs/api":         {Layer: LayerModule, Module: "runs"},
-		"plugins/tools/overseertool":      {Layer: LayerPlugin},
-		"internal/atomicfile":             {Layer: LayerFoundation},
+		"kernel/agent":                      {Layer: LayerModule, Module: "runs"},
+		"kernel/runtime/runexec":            {Layer: LayerModule, Module: "runs"},
+		"kernel/modules/knowledge/memory":   {Layer: LayerModule, Module: "knowledge"},
+		"kernel/modules/skills/skill":       {Layer: LayerModule, Module: "skills"},
+		"kernel/modules/skills/builtins":    {Layer: LayerModule, Module: "skills"},
+		"kernel/modules/board/board":        {Layer: LayerModule, Module: "board"},
+		"kernel/modules/artifacts/artifact": {Layer: LayerModule, Module: "artifacts"},
+		"kernel/controlplane":               {Layer: LayerAdapter},
+		"kernel/governor":                   {Layer: LayerPlatform},
+		"kernel/event":                      {Layer: LayerContract},
+		"kernel/modules/runs/api":           {Layer: LayerModule, Module: "runs"},
+		"plugins/tools/overseertool":        {Layer: LayerPlugin},
+		"internal/atomicfile":               {Layer: LayerFoundation},
 	}
 	for rel, w := range want {
 		got, ok := cfg.classify(rel)

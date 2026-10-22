@@ -606,7 +606,7 @@ toolchain integrity probe).
 
 | Job | Gate |
 |---|---|
-| `test (linux)` | `go vet ./...`, `go test ./...`, **100% statement-coverage ratchet** on 10 packages (`plugins/providers/voice`, `kernel/stt`, `kernel/board`, `tools/jsonschemagen`, `plugins/tools/runstool`, `plugins/tools/workboardtool`, `plugins/providers/internal/provopts`, `plugins/tools/standingtool`, `kernel/event`, `kernel/tunnel`), `go build ./...`. |
+| `test (linux)` | `go vet ./...`, `go test ./...`, **100% statement-coverage ratchet** on 10 packages (`plugins/providers/voice`, `kernel/stt`, `kernel/modules/board/board`, `tools/jsonschemagen`, `plugins/tools/runstool`, `plugins/tools/workboardtool`, `plugins/providers/internal/provopts`, `plugins/tools/standingtool`, `kernel/event`, `kernel/tunnel`), `go build ./...`. |
 | `race-breadth` | `CGO_ENABLED=1 go test -race ./...`. |
 | `race-depth` | `go test -race -count=20` on channel, controlplane, chatgptauth, runtime, pulse, governor, bus, journal. |
 | `e2e smoke (linux)` | Build both binaries, `scripts/e2e-smoke.sh`. |

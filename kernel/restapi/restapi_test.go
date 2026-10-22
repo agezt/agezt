@@ -12,12 +12,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/meshctx"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 // fakeEngine implements Engine. RunModel publishes its tokens on the bus under

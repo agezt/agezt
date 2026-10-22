@@ -7,7 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/agezt/agezt/kernel/board"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 	"net"
 	"os"
 	"path/filepath"

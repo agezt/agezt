@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.4 the artifacts module, 2026-10-22
+## Current checkpoint — W3.5 the board module, 2026-10-22
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1262,10 +1262,37 @@ files, five of the seventeen mutations would have escaped.
   11 mutations, 11 caught. Nothing else changed: the same on-disk layout, the
   same package names, the same exported API (three things added: the port, its
   setter and the sentinel), the same wire and the same events.
+- W3.5 (the board module) is committed on `main` as a code commit plus a docs
+  commit and published from `arch/w2-dispatch` the same way. The shared
+  message board was already a module — the layer map named `kernel/board` as
+  layer 3 in the module `board` — but the package sat at the top of `kernel/`,
+  outside the `kernel/modules/` tree W3 establishes as the target home of the
+  bounded contexts; it moved to `kernel/modules/board/board`. The package name
+  does not change, so the move is an import-path change and nothing else (49
+  files repointed). The placement is now *derived*
+  (`kernel/modules/*/...` → module `board`) and the hand-written layer rule is
+  gone; the six allowlist entries moved with their edges, so the ratchet stays
+  at 128/13.
+  The roadmap named no defect for this step, and the slice found one anyway:
+  the store appended to its in-memory list and **then** saved, so a write that
+  failed left the message on the board anyway — and the next successful save
+  wrote it to disk — while at the cap the failed write had also dropped the
+  oldest message from memory, which the next successful save made permanent.
+  The board now persists the **prospective** state and adopts it in memory
+  only once the write succeeded (the ack follows the same rule), so a failed
+  write changes nothing: not the message, not the cap, not the reader's
+  inbox.
+  10 mutations, 10 caught. The run also found two honest gaps in the
+  **tests** — the cap test asserted only the *count* (a cap that kept the
+  oldest would have passed it), and the ack's failed-write path was not
+  covered — and they are fixed and named. Nothing else changed: the same
+  package name, the same exported API, the same messages, the same
+  `board.json`, the same cap, the same inbox semantics, the same events and
+  the same single-shared-store invariant.
 
-**W3.5 — the board module (the next slice, to scope).** The roadmap's
-order continues with `modules/board`, then `modules/work` (workboard, OKR,
-proof, assure, seats — fix the `"container"` seat mapping), `modules/workflows`
+**W3.6 — the work module (the next slice, to scope).** The roadmap's
+order continues with `modules/work` (workboard, OKR, proof, assure, seats —
+fix the `"container"` seat mapping), `modules/workflows`
 (move `runtime/workflowrun*` + draft + test-node; fix the trigger `source`
 labels), `modules/agents` (roster, guardians, selfrepair, reaper, overseer
 ops — this removes the `controlplane/selfrepair` →
@@ -1286,7 +1313,10 @@ module's own seed data, which moves *into* the module (the plugin that held
 the bytes is gone) and the slice carries the bug the roadmap named for it.
 **W3.4's** — W3.2's shape plus a fix that needs knowledge the module cannot
 have: the module **defines the port** and the host answers it from its own
-event log, once per operation and for the whole batch.
+event log, once per operation and for the whole batch. **W3.5's** — W3.2's
+shape plus a fix in the store's own write path: the state is **persisted
+first** and adopted in memory only once the write succeeded, so a failed write
+changes nothing.
 
 The overall target is the architecture in `20-target-architecture.md`, delivered
 incrementally to protected `main`, with runnable proof and source-aligned

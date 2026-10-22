@@ -22,10 +22,10 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	kernelauth "github.com/agezt/agezt/kernel/auth"
-	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/httpserver"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/netguard"
 	"github.com/agezt/agezt/kernel/openaiapi"
 	"github.com/agezt/agezt/kernel/pulse"

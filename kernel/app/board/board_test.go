@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	appboard "github.com/agezt/agezt/kernel/app/board"
-	shared "github.com/agezt/agezt/kernel/board"
+	shared "github.com/agezt/agezt/kernel/modules/board/board"
 	"reflect"
 	"sort"
 	"strconv"

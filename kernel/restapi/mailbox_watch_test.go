@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 // TestMailboxWatch_FiltersAndStreams drives the SSE watch end to end over a

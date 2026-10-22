@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	core "github.com/agezt/agezt/kernel/roster"

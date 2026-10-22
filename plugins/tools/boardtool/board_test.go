@@ -8,8 +8,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 // fakeStore is an in-memory boardStore so the tool's op → store mapping is

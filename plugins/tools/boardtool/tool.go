@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/board"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 // Definition implements toolapi.Tool.
