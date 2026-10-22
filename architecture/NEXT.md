@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.1 the reasoning module, 2026-10-22
+## Current checkpoint — W3.2 the knowledge module, 2026-10-22
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -611,6 +611,32 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   council's default deliberation round was not asserted — and it is fixed and
   named. The archcheck allowlist stays at 129 import violations and 13 call
   sites; the package count grows by two (271 → 273).
+- W3.2 (the knowledge module) is committed on `main` as a code commit plus a
+  docs commit and published from `arch/w2-dispatch` the same way. The knowledge
+  module was already a module — the layer map named `kernel/memory`,
+  `kernel/worldmodel` and `kernel/taste` as layer 3 in the module `knowledge` —
+  but the packages sat at the top of `kernel/`, outside the `kernel/modules/`
+  tree W3 establishes as the target home of the bounded contexts. They moved to
+  `kernel/modules/knowledge/{memory,worldmodel,taste}`. The package names do not
+  change, so the move is an import-path change and nothing else (68 files
+  repointed); the placement is now *derived* (`kernel/modules/*/...` → module
+  `knowledge`) and the three hand-written layer rules are gone; the 13
+  allowlist entries moved with their edges, so the ratchet is unchanged.
+  The roadmap's second ask — the profile-facet supersede bug — is fixed: a
+  memory record's identity is its CONTENT, so a facet whose synthesized wording
+  changed was written under a new id and the previous version stayed active
+  forever, leaving the operator with two conflicting versions of the same facet
+  injected into every run while the package doc promised "updated across passes
+  (never duplicates)". `DistillProfile` now retires the previous version before
+  writing the new one (the superseded record keeps its audit trail), only the
+  shared facets are candidates, and an absent record reports the named
+  `memory.ErrRecordNotFound` instead of silently succeeding. The old
+  `supersede_bug_test.go` — a proof-of-failure that had outlived its bug — is
+  now a regression test. 8 mutations, 8 caught; the run also produced an honest
+  finding (the scope guard in the supersede loop was unreachable, so it was
+  deleted and the invariant it protected is now asserted where it is
+  enforced). Nothing else changed: the same packages, the same exported API,
+  the same records on disk, the same events and the same injection order.
 - W2.45a (typed roster status collection) is committed on `main` as a code
   commit plus a docs commit and published from `arch/w2-dispatch` the same way.
   `kernel/controlplane/roster_status.go` (371 lines) is gone: the journal-derived
@@ -1099,15 +1125,51 @@ was not asserted) and it is fixed and named. The archcheck allowlist stays at
 129 import violations and 13 call sites; the package count grows by two
 (271 → 273).
 
-**W3.2 — the knowledge module (the next slice, to scope).** The roadmap's
-order is `modules/knowledge` (memory, world, taste, profile distill — with the
-profile-facet supersede bug to fix in its rewrite PR), then `modules/skills`,
-`modules/artifacts` (artifact + datalake, with the journal `raw_ref` GC),
-`modules/board`, `modules/work`, `modules/workflows`, `modules/agents`,
-`modules/extensions`, `modules/providers` and `modules/runs` last. The
-reasoning module is the template to follow: the module owns the feature, the
-**api** package owns the vocabulary and the ports, the host keeps its public
-names as aliases and delegates, and the composition root injects the service.
+**W3.2 — the knowledge module (delivered).** The module was already a module —
+the layer map named `kernel/memory`, `kernel/worldmodel` and `kernel/taste` as
+layer 3 in the module `knowledge` — but the packages sat at the top of
+`kernel/`, outside the `kernel/modules/` tree W3 establishes as the target home
+of the bounded contexts. They moved to `kernel/modules/knowledge/{memory,
+worldmodel,taste}`; the package names do not change, so the move is an
+import-path change and nothing else (68 files repointed). The placement is now
+*derived* (`kernel/modules/*/...` → module `knowledge`) and the three
+hand-written layer rules are gone; the 13 allowlist entries moved with their
+edges, so the ratchet is unchanged.
+
+The roadmap's second ask — the profile-facet supersede bug — is fixed. A memory
+record's identity is its CONTENT, so a facet whose synthesized wording changed
+was written under a new id and the previous version stayed active forever: the
+operator got two conflicting versions of the same facet injected into every
+run, while the package doc promised "updated across passes (never
+duplicates)". `DistillProfile` now retires the previous version before writing
+the new one (the superseded record keeps its audit trail), only the shared
+facets are candidates, and an absent record reports the named
+`memory.ErrRecordNotFound` instead of silently succeeding. The old
+`supersede_bug_test.go` — a proof-of-failure that had outlived its bug — is now
+a regression test. 8 mutations, 8 caught; the run also produced an honest
+finding (the scope guard in the supersede loop was unreachable, so it was
+deleted and the invariant it protected is now asserted where it is enforced).
+
+**W3.3 — the skills module (the next slice, to scope).** The roadmap's order
+is `modules/skills` (+ builtin seeding; stop re-promoting operator-quarantined
+built-ins), then `modules/artifacts` (artifact + datalake, with the journal
+`raw_ref` GC), `modules/board`, `modules/work` (workboard, OKR, proof, assure,
+seats — fix the `"container"` seat mapping), `modules/workflows` (move
+`runtime/workflowrun*` + draft + test-node; fix the trigger `source` labels),
+`modules/agents` (roster, guardians, selfrepair, reaper, overseer ops — this
+removes the `controlplane/selfrepair` → `plugins/tools/overseertool` edge),
+`modules/extensions` (mcp, plugin host, toolforge, toolbox, acpcatalog),
+`modules/providers` (catalog, chatgptauth, providerboot) and `modules/runs`
+last (what remains of `kernel/runtime` + `runexec` + the agent loop + resume +
+delegation + intervention; `kernel/runtime` is deleted when empty).
+
+Two shapes are now proven, and the next slice picks the one that fits:
+**W3.1's** — the feature's logic moves into the module, the module's **api**
+package owns the vocabulary and the ports, the host keeps its public names as
+aliases and delegates, and the composition root injects the service. **W3.2's**
+— the module's packages move into the module's home, the placement becomes
+derived from the layer map, the allowlist moves with the edges, and the slice
+carries the bug the roadmap named for it.
 
 The overall target is the architecture in `20-target-architecture.md`, delivered
 incrementally to protected `main`, with runnable proof and source-aligned
