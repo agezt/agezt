@@ -977,6 +977,13 @@ This file holds the active `[Unreleased]` working set.
   on the way. Nothing on the wire changes: the same keys, the same values,
   the same bounds and the same rules about what a payload may do.
 
+- **A stored artifact and the one a peer serves are the same row.** The
+  metadata the daemon stores for an artifact, the metadata it serves over the
+  API and the metadata the CLI reads from a peer are now one declaration, so
+  the daemon no longer copies an artifact's fields on the way out. The stored
+  files and the API's answers are unchanged: the same keys, the same values,
+  the same omissions.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now
