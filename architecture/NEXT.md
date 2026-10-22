@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.59 one remote-backend list, 2026-10-22
+## Current checkpoint — W2.60 the peer's wire has one declaration, 2026-10-22
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -456,6 +456,34 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   socket test hit its five-second pipe deadline ("read pipe: i/o timeout") on
   one iteration; the same command then passed and the test passes on its own.
   The slice changes no socket, no deadline and no timeout.
+- W2.60 (the peer's wire has one declaration) is committed on `main` as a code
+  commit plus a docs commit and published from `arch/w2-dispatch` the same
+  way. A delegated run's peer answers two HTTP endpoints, and the rows it
+  sends were described three times — once on the serving side
+  (`restapi.ArtifactEntry`), once on the reading side (`app/remote.Artifact`
+  and `app/remote.Event`), each without the other's names. The host's two
+  peer fetches therefore decoded the peer's answer into an anonymous struct
+  and copied every field into the application's row: nineteen field copies
+  that could drop a field or swap a name.
+  `kernel/contract/remoteapi` (new, L1) is the contract between two daemons
+  — the artifact row with the wire's json names. The serving adapter's row,
+  the application's row and the contract row are now the same declaration,
+  and the application's event row is the canonical event, the very row the
+  peer serves. The host's fetches decode the peer's answer straight into the
+  application's rows, and both field-copy loops are gone. Only a spelling
+  changed: the row says `CreatedMS`, the wire key `created_ms` does not.
+  14 mutations, 14 caught: the first pass left one test gap open (the
+  published artifact row's sender was not asserted) and the strengthened test
+  catches it on the repeat. The archcheck allowlist stays at 129 import
+  violations and 13 call sites; the package count is 271 (the new contract
+  package).
+  **What is left of the artifact row:** the store's own row
+  (`kernel/artifact.Entry`, which the REST adapter copies field by field in
+  `cmd/agezt/api_engine.go`) and the application's own artifact row
+  (`kernel/app/artifacts.Entry`, which spells the correlation
+  `CorrelationID`). They are the store's row and the application's row, not
+  the peer's wire, so they keep their own declarations — but they are the next
+  candidates for the same treatment.
   **One claim was corrected in place:** the W2.55/W2.56/W2.57 notes said the
   application layer "cannot import `kernel/runtime`". That is wrong — the
   layer rule allows L4 → L3 and `app/system` already imports
@@ -899,14 +927,15 @@ Preserve unrelated dirty changes: deletions of
 
 Continue roadmap §4.5/order 7 after the completed roster, steer, run-fold,
 remote-mirror, operation-audit, run-derived-row, projection, warden,
-shared-row-type and remote-backend-list domains: the remote backends' two
-**policies** (the application supports them for a direct run, the host refuses
-them for a dispatched seat), the wider run/tool adapter convergence, W3
-modules and journal raw-ref GC, W4 triggers/channel supervision/config/signing,
-and W5 generated SDK/frontend convergence and zero allowances remain open. The
-overall target is the architecture in `20-target-architecture.md`, delivered
-incrementally to protected `main`, with runnable proof and source-aligned
-documentation.
+shared-row-type, remote-backend-list and peer-wire-contract domains: the
+artifact row's two other homes (the store's row and the application's own
+artifact row), the remote backends' two **policies** (the application supports
+them for a direct run, the host refuses them for a dispatched seat), the
+wider run/tool adapter convergence, W3 modules and journal raw-ref GC, W4
+triggers/channel supervision/config/signing, and W5 generated SDK/frontend
+convergence and zero allowances remain open. The overall target is the
+architecture in `20-target-architecture.md`, delivered incrementally to
+protected `main`, with runnable proof and source-aligned documentation.
 
 ---
 

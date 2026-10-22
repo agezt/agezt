@@ -22,7 +22,6 @@ import (
 
 	appnodes "github.com/agezt/agezt/kernel/app/nodes"
 	appremote "github.com/agezt/agezt/kernel/app/remote"
-	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
@@ -52,36 +51,12 @@ func fetchRemoteEvents(ctx context.Context, p appnodes.Peer, corr string) ([]app
 		return nil, fmt.Errorf("status %d", resp.StatusCode)
 	}
 	var body struct {
-		Events []struct {
-			ID            string          `json:"id"`
-			Seq           int64           `json:"seq"`
-			TSUnixMS      int64           `json:"ts_unix_ms"`
-			Subject       string          `json:"subject"`
-			Actor         string          `json:"actor"`
-			Kind          event.Kind      `json:"kind"`
-			CorrelationID string          `json:"correlation_id"`
-			Hash          string          `json:"hash"`
-			Payload       json.RawMessage `json:"payload"`
-		} `json:"events"`
+		Events []appremote.Event `json:"events"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, remoteEventMirrorResponseLimit)).Decode(&body); err != nil {
 		return nil, err
 	}
-	out := make([]appremote.Event, 0, len(body.Events))
-	for _, ev := range body.Events {
-		out = append(out, appremote.Event{
-			ID:            ev.ID,
-			Seq:           ev.Seq,
-			TSUnixMS:      ev.TSUnixMS,
-			Subject:       ev.Subject,
-			Actor:         ev.Actor,
-			Kind:          ev.Kind,
-			CorrelationID: ev.CorrelationID,
-			Hash:          ev.Hash,
-			Payload:       ev.Payload,
-		})
-	}
-	return out, nil
+	return body.Events, nil
 }
 
 func fetchRemoteArtifacts(ctx context.Context, p appnodes.Peer, corr string) ([]appremote.Artifact, bool, error) {
@@ -110,39 +85,11 @@ func fetchRemoteArtifacts(ctx context.Context, p appnodes.Peer, corr string) ([]
 		return nil, false, fmt.Errorf("status %d", resp.StatusCode)
 	}
 	var body struct {
-		Entries []struct {
-			ID        string `json:"id"`
-			Ref       string `json:"ref"`
-			Name      string `json:"name"`
-			Mime      string `json:"mime"`
-			Kind      string `json:"kind"`
-			Source    string `json:"source"`
-			Sender    string `json:"sender"`
-			Corr      string `json:"corr"`
-			Size      int64  `json:"size"`
-			CreatedMs int64  `json:"created_ms"`
-			Caption   string `json:"caption"`
-		} `json:"entries"`
-		Truncated bool `json:"truncated"`
+		Entries   []appremote.Artifact `json:"entries"`
+		Truncated bool                 `json:"truncated"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, remoteArtifactMirrorResponseLimit)).Decode(&body); err != nil {
 		return nil, false, err
 	}
-	out := make([]appremote.Artifact, 0, len(body.Entries))
-	for _, a := range body.Entries {
-		out = append(out, appremote.Artifact{
-			ID:        a.ID,
-			Ref:       a.Ref,
-			Name:      a.Name,
-			Mime:      a.Mime,
-			Kind:      a.Kind,
-			Source:    a.Source,
-			Sender:    a.Sender,
-			Corr:      a.Corr,
-			Size:      a.Size,
-			CreatedMS: a.CreatedMs,
-			Caption:   a.Caption,
-		})
-	}
-	return out, body.Truncated, nil
+	return body.Entries, body.Truncated, nil
 }

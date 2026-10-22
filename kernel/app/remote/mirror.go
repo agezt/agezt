@@ -19,6 +19,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	appnodes "github.com/agezt/agezt/kernel/app/nodes"
+	"github.com/agezt/agezt/kernel/contract/remoteapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -80,33 +81,18 @@ func PayloadMode(mode string) string {
 
 // Event is one peer event, as the peer reported it. The payload is the raw
 // bytes the peer sent; what happens to them is the mirror's decision.
-type Event struct {
-	ID            string
-	Seq           int64
-	TSUnixMS      int64
-	Subject       string
-	Actor         string
-	Kind          event.Kind
-	CorrelationID string
-	Hash          string
-	Payload       json.RawMessage
-}
+//
+// It is the canonical event (kernel/event) — the very row the peer serves —
+// so the host decodes the peer's answer into it without a projection.
+type Event = event.Event
 
 // Artifact is one peer artifact's metadata. The artifact's bytes never
 // travel; only its description does.
-type Artifact struct {
-	ID        string
-	Ref       string
-	Name      string
-	Mime      string
-	Kind      string
-	Source    string
-	Sender    string
-	Corr      string
-	Size      int64
-	CreatedMS int64
-	Caption   string
-}
+//
+// It is the contract row (kernel/contract/remoteapi) — the very row the peer
+// serves — so the host decodes the peer's answer into it without a
+// projection.
+type Artifact = remoteapi.Artifact
 
 // Redactor turns a raw payload into its redacted form. It reports false
 // when the payload cannot be redacted, and then the payload does not travel.

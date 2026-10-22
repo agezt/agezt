@@ -182,7 +182,7 @@ func restArtifactEntry(a artifact.Entry) restapi.ArtifactEntry {
 		Sender:    a.Sender,
 		Corr:      a.Corr,
 		Size:      a.Size,
-		CreatedMs: a.CreatedMs,
+		CreatedMS: a.CreatedMs,
 		Caption:   a.Caption,
 	}
 }

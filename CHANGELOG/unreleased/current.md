@@ -970,6 +970,13 @@ This file holds the active `[Unreleased]` working set.
   remote backend, and the `code_exec` tool still exports a remote run's
   artifacts from the local root.
 
+- **A peer daemon and its reader share one description of the rows they
+  exchange.** The metadata a peer serves for an artifact and the events it
+  serves for a run are now declared once, so the daemon that answers and the
+  daemon that reads cannot drift apart, and a field can no longer be dropped
+  on the way. Nothing on the wire changes: the same keys, the same values,
+  the same bounds and the same rules about what a payload may do.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now

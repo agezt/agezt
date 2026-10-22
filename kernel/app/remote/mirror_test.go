@@ -282,6 +282,12 @@ func TestMirrorPublishesThePeerArtifacts(t *testing.T) {
 	if rows[0]["size"] != int64(12) || rows[0]["created_ms"] != int64(1002) {
 		t.Errorf("row = %v", rows[0])
 	}
+	// The row carries every field the peer described: the ref, the mime, the
+	// kind, the source, the sender and the correlation.
+	if rows[0]["ref"] != "abc" || rows[0]["mime"] != "text/plain" || rows[0]["kind"] != "tool-output" ||
+		rows[0]["source"] != "run" || rows[0]["sender"] != "agent-run-abc" || rows[0]["corr"] != "run-abc" {
+		t.Errorf("row = %v", rows[0])
+	}
 }
 
 // Artifacts that cannot be read do not sink the mirror: the events still
