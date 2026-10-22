@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/workboard"
+	"github.com/agezt/agezt/kernel/modules/work/workboard"
 )
 
 type covKernel struct {

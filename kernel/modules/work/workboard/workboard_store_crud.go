@@ -11,7 +11,7 @@ package workboard
 import (
 	"errors"
 	"fmt"
-	"github.com/agezt/agezt/kernel/proof"
+	"github.com/agezt/agezt/kernel/modules/work/proof"
 	"github.com/agezt/agezt/kernel/ulid"
 	"sort"
 	"strings"

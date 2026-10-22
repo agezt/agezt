@@ -7,7 +7,7 @@ import (
 	appwork "github.com/agezt/agezt/kernel/app/workboard"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
-	tasks "github.com/agezt/agezt/kernel/workboard"
+	tasks "github.com/agezt/agezt/kernel/modules/work/workboard"
 	"os"
 	"path/filepath"
 	"reflect"

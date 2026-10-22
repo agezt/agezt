@@ -12,7 +12,7 @@
 // default.
 package proof
 
-import "github.com/agezt/agezt/kernel/assure"
+import "github.com/agezt/agezt/kernel/modules/work/assure"
 
 // Criterion is one acceptance criterion a task must satisfy. Text is set when
 // the task is created; Met and Note are filled by the judge at prove time.

@@ -25,6 +25,10 @@ const (
 const (
 	IDLocal  = "local"
 	IDWarden = "warden"
+	// IDDocker is the container-isolation run profile. A seat names the
+	// *surface* ("container"), a run profile names the *implementation*
+	// ("docker") — SeatProfileID translates between them.
+	IDDocker = "docker"
 )
 
 // Profile is one execution profile. Every field is always present — the empty
@@ -143,10 +147,31 @@ func WardenProfileForRun(id string) (warden.Profile, bool) {
 		return warden.ProfileNone, true
 	case IDWarden:
 		return warden.ProfileNamespace, true
-	case "docker":
+	case IDDocker:
 		return warden.ProfileContainer, true
 	default:
 		return "", false
+	}
+}
+
+// SeatProfileID translates a seat's isolation surface into the run profile id
+// that routes it.
+//
+// The two vocabularies are not the same. A seat names the *surface* the run
+// should be isolated in ("container" — the seat store accepts exactly
+// "", "local", "warden" and "container"), while a run profile names the
+// *implementation* that provides it ("docker"). Without the translation a seat
+// pinned to "container" is a value the operator can set and the dispatcher
+// cannot route: the run fails with "not routable for run tools yet".
+//
+// Every other value is passed through unchanged — the seats' "local" and
+// "warden" are already run profile ids.
+func SeatProfileID(surface string) string {
+	switch strings.ToLower(strings.TrimSpace(surface)) {
+	case "container":
+		return IDDocker
+	default:
+		return strings.TrimSpace(surface)
 	}
 }
 

@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/workboard"
+	"github.com/agezt/agezt/kernel/modules/work/workboard"
 )
 
 func (t *Tool) list(k Kernel, in input) (toolapi.Result, error) {

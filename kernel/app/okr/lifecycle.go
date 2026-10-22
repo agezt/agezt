@@ -3,7 +3,7 @@ package okr
 
 import (
 	"context"
-	objectives "github.com/agezt/agezt/kernel/okr"
+	objectives "github.com/agezt/agezt/kernel/modules/work/okr"
 )
 
 type MutationHost interface {

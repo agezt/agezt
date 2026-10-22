@@ -5,7 +5,7 @@ package runtime_test
 import (
 	"testing"
 
-	"github.com/agezt/agezt/kernel/okr"
+	"github.com/agezt/agezt/kernel/modules/work/okr"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )

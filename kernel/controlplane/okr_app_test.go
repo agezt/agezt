@@ -4,9 +4,9 @@ package controlplane
 import (
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/okr"
+	"github.com/agezt/agezt/kernel/modules/work/okr"
+	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/workboard"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"reflect"
 	"strings"

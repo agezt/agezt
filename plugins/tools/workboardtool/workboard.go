@@ -14,7 +14,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/workboard"
+	"github.com/agezt/agezt/kernel/modules/work/workboard"
 )
 
 type Kernel interface {

@@ -61,7 +61,7 @@ func WriteFile(path string, data []byte, mode os.FileMode) error {
 				// The target is gone and the retry rename also failed; the
 				// data is still in memory, so a direct (non-atomic) write is
 				// the last resort that keeps the file from being lost
-				// entirely. (kernel/seat used to preserve its fixed-name temp
+				// entirely. (kernel/modules/work/seat used to preserve its fixed-name temp
 				// for next-boot recovery to cover exactly this window.)
 				if werr := os.WriteFile(path, data, mode); werr == nil {
 					return nil

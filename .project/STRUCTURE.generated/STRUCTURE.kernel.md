@@ -65,7 +65,6 @@
 - **`kernel/app/workflow`** — Package workflow owns workflow management and observation services over selected graph, journal and execution ports.
 - **`kernel/app/world`** — Package world owns transport-independent world graph use cases.
 - **`kernel/approval`** — Package approval is the human-in-the-loop pause point.
-- **`kernel/assure`** — Package assure is the "do-it-for-sure" loop: run a task, verify it was actually accomplished, and retry with the verifier's gap fed back — up to a bounded number of attempts, stopping the moment a verdict reports the task complete (M651).
 - **`kernel/auth`** — Package auth owns transport-independent credential verification and authority tiers.
 - **`kernel/bus`** — Package bus is the in-process pub/sub that fans events out to subscribers.
 - **`kernel/cadence`** — Package cadence is the typed schedule subsystem (autonomy): it wakes agent tasks, workflows, daemon maintenance tasks, or approved tools on recurring, one-shot, daily, or continuous cadences.
@@ -113,8 +112,12 @@
 - **`kernel/modules/reasoning/api`** — Package api is the reasoning module's public vocabulary: the rows and results the council, the conductor and the research harness produce, and the pure helpers both sides share.
 - **`kernel/modules/skills/builtins`** — Package builtins ships the skill bundles baked into the binary — the agentskills.io shape (M847): a SKILL.md plus reference files and scripts, embedded here and materialized into the skill store by the skills module.
 - **`kernel/modules/skills/skill`** — Package skill implements "Forge v1" (SPEC-05 §4–5): the agent learns reusable, named procedures ("skills") from what it does, and those skills are governed through a journaled, reversible state machine instead of straight-to-active markdown.
+- **`kernel/modules/work/assure`** — Package assure is the "do-it-for-sure" loop: run a task, verify it was actually accomplished, and retry with the verifier's gap fed back — up to a bounded number of attempts, stopping the moment a verdict reports the task complete (M651).
+- **`kernel/modules/work/okr`** — Package okr is AGEZT's durable objectives-and-key-results spine: the layer that makes fleet work legible as progress toward goals rather than a flat task queue.
+- **`kernel/modules/work/proof`** — Package proof is AGEZT's "PROOF > VIBES" record: the durable, checkable evidence that a workboard task actually satisfied its acceptance criteria before it was allowed to reach done.
+- **`kernel/modules/work/seat`** — Package seat names the execution "seats" a workboard task can be dispatched under — the AGEZT answer to Matrix's "choose the right execution seat for the job".
+- **`kernel/modules/work/workboard`** — Package workboard is AGEZT's durable typed task queue.
 - **`kernel/netguard`** — Package netguard is the network-egress guard (SPEC-06 security defaults): it stops outbound tool traffic from reaching the host's own internal network.
-- **`kernel/okr`** — Package okr is AGEZT's durable objectives-and-key-results spine: the layer that makes fleet work legible as progress toward goals rather than a flat task queue.
 - **`kernel/openaiapi`** — Package openaiapi serves an OpenAI-compatible HTTP surface (ROADMAP P7-API-01, SPEC-15 §3): POST /v1/chat/completions, POST /v1/responses, GET /v1/models and GET /v1/models/{id}, so any OpenAI client, SDK, or IDE can drive Agezt as if it were OpenAI.
 - **`kernel/planner`** — Package planner generates `scheduler.Plan`-shaped JSON from a natural-language intent by asking the configured Provider to emit a DAG.
 - **`kernel/platform/browsercallback`** — Package browsercallback owns OAuth browser callback query/result presentation.
@@ -134,7 +137,6 @@
 - **`kernel/plugin/testdata/echoplugin`** — Command echoplugin is a minimal reference implementation of the agezt plugin protocol.
 - **`kernel/plugin/testdata/floodplugin`** — Command floodplugin is a hostile-plugin fixture for the M177 frame bound: on startup it writes a large UN-terminated blob to stdout (no '\n'), simulating a plugin that floods the host's stdout reader.
 - **`kernel/plugin/testdata/idechoplugin`** — Command idechoplugin is a minimal protocol fixture for the M180 reload test: its single tool ("idecho") returns, as Output, the host-assigned request id it received.
-- **`kernel/proof`** — Package proof is AGEZT's "PROOF > VIBES" record: the durable, checkable evidence that a workboard task actually satisfied its acceptance criteria before it was allowed to reach done.
 - **`kernel/pulse`** — Package pulse implements the proactive heart (SPEC-03): a second heartbeat that triggers itself and, on every beat, asks "what changed? · is it important? · should I act or tell the user?".
 - **`kernel/redact`** — Package redact scrubs secrets from text before it is persisted.
 - **`kernel/reflect`** — Package reflect implements "Reflection v1" (SPEC-05 §6): the meta-cognition loop.
@@ -147,7 +149,6 @@
 - **`kernel/runtime/lifecycle`** — Package lifecycle is the kernel's run-lifecycle surface extracted into a sub-package as the first step of the Day 12 sub-package split.
 - **`kernel/runtime/runexec`** — Package runexec owns the kernel's run engine.
 - **`kernel/scheduler`** — Package scheduler is the DAG layer that sits *above* the first-party single-agent tool-loop (DECISIONS B0d, SPEC-02 §4).
-- **`kernel/seat`** — Package seat names the execution "seats" a workboard task can be dispatched under — the AGEZT answer to Matrix's "choose the right execution seat for the job".
 - **`kernel/selfrepair`** — Package selfrepair wires the deterministic doctor/auto-repair coordinator (Phase 2.6 extraction from cmd/agezt): it subscribes to the reaper pulse observer, claims broken/degraded/routing-unstable agents, drives the overseertool repair source, and escalates through the mailbox + wake chain when a repair fails.
 - **`kernel/settings`** — Package settings is the file-backed config store behind the Config Center (M693): the NON-SECRET, operator-editable settings the daemon would otherwise only read from environment variables.
 - **`kernel/standing`** — Package standing implements the standing-order model and store (SPEC-16 §4).
@@ -167,5 +168,4 @@
 - **`kernel/warden`** — Package warden is the process-isolation layer (SPEC-06 §2; TASKS P1-WARD-01).
 - **`kernel/webhook`** — Package webhook is the outbound-webhook dispatcher (ROADMAP P7-API-02): it subscribes to the journal bus and POSTs matching events to operator-configured HTTP endpoints, so external systems learn what Agezt is doing in real time (a run completed, an approval is pending, the system halted).
 - **`kernel/webui`** — Package webui serves the Agezt Web UI (SPEC-07, decision A4): a React 19 + Vite single-page app, built to static assets and go:embed-ded into the daemon (see embed.go) — one binary, no Node at runtime, and no Go dependency added.
-- **`kernel/workboard`** — Package workboard is AGEZT's durable typed task queue.
 - **`kernel/workflow`** — Package workflow is the n8n-style workflow engine (M798): durable, named graphs of TYPED nodes — trigger, tool, llm, condition, transform, delay — wired by edges and carrying data between nodes with {{path}} templates.
