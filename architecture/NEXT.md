@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.62 the boundary rows have one declaration, 2026-10-22
+## Current checkpoint — W2.63 the reaper's findings have one declaration, 2026-10-22
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -536,6 +536,31 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   14 mutations, 14 caught. The archcheck allowlist stays at 129 import
   violations and 13 call sites; the package count stays at 271 (no new
   package).
+- W2.63 (the reaper's findings have one declaration) is committed on `main` as
+  a code commit plus a docs commit and published from `arch/w2-dispatch` the
+  same way. Every finding the reaper publishes — the dead, degraded,
+  misconfigured, retry-pressure, routing-pressure, forced and unstable rows —
+  was described **twice**: once where the runtime finds it
+  (`kernel/runtime/reaper.go`) and once where the application publishes it
+  (`kernel/app/reaper/reaper.go`), and the application's copy was filled in
+  **field by field** (about seventy field copies across seven helpers). The
+  forced findings were worse: `RoutingForcedProbationAgent`,
+  `RoutingForcedFailedAgent` and `RoutingForcedExhaustedAgent` were three
+  byte-identical declarations of the same row.
+  The findings are declared **once** now, in the runtime: the application's
+  seven row types are aliases of the runtime's seven rows, the three forced
+  phases are one row (`RoutingForcedAgent`, with the three old names kept as
+  aliases so the runtime's public API is unchanged) and the seven copy loops
+  are gone — the scan hands the runtime's lists over with a slice copy. The
+  runtime's finding rows also carry every field (the optional ones lost their
+  `omitempty`); they were never marshalled, so nothing observable changes.
+  **No wire changed**: the operator's scan keeps the same keys in the same
+  order, the unset lists stay `null` and an empty finding stays an empty array.
+  The introspection tool keeps its own compact reaper view for the model — its
+  own wire, not the operator's scan.
+  12 mutations, 12 caught. The archcheck allowlist stays at 129 import
+  violations and 13 call sites; the package count stays at 271 (no new
+  package).
 - W2.45a (typed roster status collection) is committed on `main` as a code
   commit plus a docs commit and published from `arch/w2-dispatch` the same way.
   `kernel/controlplane/roster_status.go` (371 lines) is gone: the journal-derived
@@ -972,10 +997,13 @@ Preserve unrelated dirty changes: deletions of
 
 Continue roadmap §4.5/order 7 after the completed roster, steer, run-fold,
 remote-mirror, operation-audit, run-derived-row, projection, warden,
-shared-row-type, remote-backend-list, peer-wire-contract, artifact-row and
-boundary-row domains: the application's own artifact row and the data-lake's
-records (their
-own wires, their own spellings), the remote backends' two **policies** (the
+shared-row-type, remote-backend-list, peer-wire-contract, artifact-row,
+boundary-row and reaper-row domains: the application's own artifact row and
+the data-lake's records (their
+own wires, their own spellings), the introspection tool's compact reaper view
+(its own wire, for the model), the execution profile's rows (the module omits
+the empty optional fields, the application carries every field), the remote
+backends' two **policies** (the
 application supports them for a direct run, the host refuses them for a
 dispatched seat), the wider run/tool adapter convergence, W3 modules and
 journal raw-ref GC, W4 triggers/channel supervision/config/signing, and W5

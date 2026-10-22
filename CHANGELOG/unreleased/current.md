@@ -993,6 +993,15 @@ This file holds the active `[Unreleased]` working set.
   tool publish the host's rows as they are. Nothing on the wire changes: the
   same keys, in the same order, with the same omissions and the same values.
 
+- **The reaper's findings are one row each.** Every finding the reaper
+  publishes — the dead, degraded, misconfigured, retry-pressure,
+  routing-pressure, forced and unstable rows — was described twice: once where
+  the runtime finds it and once where the daemon publishes it, and the copy was
+  filled in field by field. They are now declared once, and the daemon's scan
+  publishes the findings as they are. The scan's answers are unchanged: the
+  same keys, in the same order, with the same values, the unset lists still
+  empty and an empty finding still an empty list.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now
