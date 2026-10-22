@@ -11,11 +11,8 @@ import (
 	"github.com/agezt/agezt/kernel/board"
 )
 
-// boardReadDefaultLimit / boardReadMaxLimit bound CmdBoardRead.
-const (
-	boardReadDefaultLimit = 50
-	boardReadMaxLimit     = 500
-)
+// boardReadMaxLimit bounds CmdBoardRead.
+const boardReadMaxLimit = 500
 
 // boardReader returns a store for READ handlers: the daemon's shared instance
 // when wired (SetBoard), else a fresh read-only Open — writes are atomic, so a

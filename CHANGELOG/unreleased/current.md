@@ -960,6 +960,16 @@ This file holds the active `[Unreleased]` working set.
   Nothing operator-visible changes: the wire shapes, the plugin rows' order,
   the manifest's defensive copies and the empty-panel answer are the same.
 
+- **The remote execution backends are named in one place.** The run path, the
+  dispatched seat, the `code_exec` tool and the profile inventory now agree on
+  which profiles are remote (ssh, k8s, modal, daytona, remote-agezt) and on
+  how each one is spelled, so a new remote backend cannot be added in one
+  place and forgotten in another. The behaviour is unchanged: a direct run
+  still resolves a remote backend (and still refuses it with its own message
+  when the backend is not active), a dispatched seat still refuses every
+  remote backend, and the `code_exec` tool still exports a remote run's
+  artifacts from the local root.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now

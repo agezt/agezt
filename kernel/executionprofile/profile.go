@@ -155,20 +155,20 @@ func RoutableRunProfileIDsFor(inv Inventory) []string {
 	if p, ok := inv.Find("docker"); ok && p.Routed && !p.Degraded && p.EffectiveIsolation == string(warden.ProfileContainer) {
 		ids = append(ids, "docker")
 	}
-	if p, ok := inv.Find("ssh"); ok && p.Routed && !p.Degraded {
-		ids = append(ids, "ssh")
+	if p, ok := inv.Find(IDSSH); ok && p.Routed && !p.Degraded {
+		ids = append(ids, IDSSH)
 	}
-	if p, ok := inv.Find("remote-agezt"); ok && p.Routed && !p.Degraded {
-		ids = append(ids, "remote-agezt")
+	if p, ok := inv.Find(IDRemoteAgezt); ok && p.Routed && !p.Degraded {
+		ids = append(ids, IDRemoteAgezt)
 	}
-	if p, ok := inv.Find("modal"); ok && p.Routed && !p.Degraded {
-		ids = append(ids, "modal")
+	if p, ok := inv.Find(IDModal); ok && p.Routed && !p.Degraded {
+		ids = append(ids, IDModal)
 	}
-	if p, ok := inv.Find("daytona"); ok && p.Routed && !p.Degraded {
-		ids = append(ids, "daytona")
+	if p, ok := inv.Find(IDDaytona); ok && p.Routed && !p.Degraded {
+		ids = append(ids, IDDaytona)
 	}
-	if p, ok := inv.Find("k8s"); ok && p.Routed && !p.Degraded {
-		ids = append(ids, "k8s")
+	if p, ok := inv.Find(IDK8s); ok && p.Routed && !p.Degraded {
+		ids = append(ids, IDK8s)
 	}
 	return ids
 }
