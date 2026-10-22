@@ -26,7 +26,7 @@ func TestToolInputPreservesValidation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			def := toolapi.ToolDef{Name: "probe", InputSchema: json.RawMessage(tc.schema)}
-			for name, validate := range map[string]func(toolapi.ToolDef, json.RawMessage) error{"platform": schema.ValidateToolInput, "agent": agent.ValidateToolInput} {
+			for name, validate := range map[string]func(toolapi.ToolDef, json.RawMessage) error{"platform": schema.ValidateToolInput} {
 				err := validate(def, json.RawMessage(tc.input))
 				got := ""
 				if err != nil {

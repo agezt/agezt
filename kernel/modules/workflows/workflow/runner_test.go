@@ -44,17 +44,19 @@ type fireRecorder struct {
 		name    string
 		payload any
 		reason  string
+		trigger Trigger
 	}
 }
 
-func (r *fireRecorder) fn(_ context.Context, w Workflow, payload any, reason string) {
+func (r *fireRecorder) fn(_ context.Context, w Workflow, payload any, t Trigger) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.fires = append(r.fires, struct {
 		name    string
 		payload any
 		reason  string
-	}{w.Name, payload, reason})
+		trigger Trigger
+	}{w.Name, payload, t.Reason, t})
 }
 
 func (r *fireRecorder) count() int {
@@ -309,7 +311,7 @@ func TestTriggerRunner_PanicIsContained(t *testing.T) {
 
 	var mu sync.Mutex
 	calls := 0
-	fire := func(_ context.Context, _ Workflow, _ any, _ string) {
+	fire := func(_ context.Context, _ Workflow, _ any, _ Trigger) {
 		mu.Lock()
 		calls++
 		n := calls

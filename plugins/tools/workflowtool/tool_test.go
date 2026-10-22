@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/workflow"
 )
 
 // fakeKernel records calls and serves a real (temp-dir) workflow store so

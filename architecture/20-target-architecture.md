@@ -230,7 +230,7 @@ and the platform services it needs.
 | `skills` | skills + bundles | `Create/Promote/Quarantine/Activate`, `Bundle.*` | store, eventlog, modelgw | `kernel/modules/skills` (Forge + built-in bundles + seeding) |
 | `market` | packs, sources, installs | `List/Install/Uninstall/Sync/Publish` | store, netout, skills/api, mcp/api | `market`, `builtinmarket` |
 | `work` | workboard tasks, OKRs, proofs, seats | `Task.*`, `OKR.*`, `Prove`, `Dispatch` | store, runs/api, eventlog | `kernel/modules/work` (`workboard`, `okr`, `proof`, `assure`, `seat`) |
-| `workflows` | workflow graphs, run history projection | `Save/Run/Test/Draft` | store, tools invoker, modelgw | `workflow`, `workflowexec`, `runtime/workflowrun*`, `workflowdraft` |
+| `workflows` | workflow graphs, run history projection | `Save/Run/Test/Draft` | store, tools invoker, modelgw | `kernel/modules/workflows/workflow` (store, validate, templates, trigger runner, engine, draft, test-node) |
 | `triggers` | schedules, standing orders, webhooks-in, observation rules, system tasks | `Create/Fire/Pause`, `SystemTask.*` | store, eventlog, clock, runs/api, workflows/api | `cadence`(+`systemtasks`), `standing`, pulse initiative, workflow triggers |
 | `pulse` | observers, briefs | `Beat`, `Observers.*`, `Briefs` | eventlog, channels/api (sinks) | `pulse`, `anomaly`, `alerter` |
 | `channels` | accounts, conversations (sessions), live state | `Send`, `SendMedia`, `Accounts.*`, `Conversation.*` | config/secrets, netout, runs/api | `channel`, `channelwire`, `builtinchannels`, channel handler in `cmd/agezt` |

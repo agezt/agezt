@@ -6,8 +6,8 @@ import (
 	"fmt"
 	appworkflow "github.com/agezt/agezt/kernel/app/workflow"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/workflow"
 	"os"
 )
 

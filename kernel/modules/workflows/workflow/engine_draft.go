@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
+package workflow
 
 // Workflow copilot (M802): turn a plain-language description into a
 // validated workflow graph. The provider sees the full node-type reference
 // and must answer with ONE JSON object in the engine's own schema; the
-// kernel extracts it, auto-lays-out the canvas positions, and runs the same
+// module extracts it, auto-lays-out the canvas positions, and runs the same
 // Validate the save path uses. A draft that fails to parse or validate gets
 // exactly one repair round-trip (the error goes back to the model verbatim).
 // The result is returned UNSAVED — the canvas (or the caller) reviews and
@@ -20,12 +20,11 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/workflow"
 )
 
 // workflowDraftSystem is the copilot's contract: the node library, the
 // template syntax, and the strict-JSON output rule. Kept in lockstep with
-// kernel/workflow validation — if a rule changes there, change it here.
+// the module's validation — if a rule changes there, change it here.
 const workflowDraftSystem = `You design workflows for the agezt workflow engine. Answer with EXACTLY ONE JSON object — no prose, no markdown fences.
 
 Schema:
@@ -56,71 +55,74 @@ Rules: ids are short snake_case; give every non-trigger node a label; the graph 
 // errDraftEmpty is returned when the description is blank.
 var errDraftEmpty = errors.New("workflow draft: a description is required")
 
-// DraftWorkflow asks the configured provider to design a workflow from a
+// Draft asks the configured provider to design a workflow from a
 // plain-language description. name, when non-empty, overrides whatever the
 // model chose (the canvas knows the workflow it's editing). The returned
 // workflow is validated and auto-laid-out but NOT saved.
-func (k *Kernel) DraftWorkflow(ctx context.Context, corr, name, description string) (workflow.Workflow, error) {
+func (e *Engine) Draft(ctx context.Context, corr, name, description string) (Workflow, error) {
 	description = strings.TrimSpace(description)
 	if description == "" {
-		return workflow.Workflow{}, errDraftEmpty
+		return Workflow{}, errDraftEmpty
 	}
 	basePrompt := "Design a workflow for this request:\n\n" + description
-	return k.draftLoop(ctx, corr, basePrompt, name, "draft")
+	return e.draftLoop(ctx, corr, basePrompt, name, "draft")
 }
 
-// RefineWorkflow (M805) revises an existing graph from a plain-language
+// Refine (M805) revises an existing graph from a plain-language
 // instruction: the provider sees the CURRENT graph JSON (the canvas's truth,
 // unsaved edits included) plus the change request, and answers with the full
 // revised graph under the same contract. The base's name is preserved and
 // the result is returned UNSAVED, exactly like a fresh draft.
-func (k *Kernel) RefineWorkflow(ctx context.Context, corr string, base workflow.Workflow, instruction string) (workflow.Workflow, error) {
+func (e *Engine) Refine(ctx context.Context, corr string, base Workflow, instruction string) (Workflow, error) {
 	instruction = strings.TrimSpace(instruction)
 	if instruction == "" {
-		return workflow.Workflow{}, errors.New("workflow refine: an instruction is required")
+		return Workflow{}, errors.New("workflow refine: an instruction is required")
 	}
-	if err := workflow.Validate(base); err != nil {
-		return workflow.Workflow{}, fmt.Errorf("workflow refine: base graph: %w", err)
+	if err := Validate(base); err != nil {
+		return Workflow{}, fmt.Errorf("workflow refine: base graph: %w", err)
 	}
 	baseJSON, err := json.Marshal(map[string]any{
 		"name": base.Name, "description": base.Description,
 		"nodes": base.Nodes, "edges": base.Edges,
 	})
 	if err != nil {
-		return workflow.Workflow{}, fmt.Errorf("workflow refine: %w", err)
+		return Workflow{}, fmt.Errorf("workflow refine: %w", err)
 	}
 	basePrompt := "Here is an existing workflow:\n\n" + string(baseJSON) +
 		"\n\nRevise it per this request (return the COMPLETE revised workflow, keeping unrelated nodes, ids, and positions unchanged):\n\n" + instruction
-	return k.draftLoop(ctx, corr, basePrompt, base.Name, "refine")
+	return e.draftLoop(ctx, corr, basePrompt, base.Name, "refine")
 }
 
 // draftLoop runs the shared design conversation: up to two provider
 // round-trips (the attempt and one repair carrying the exact rejection),
 // journaling workflow.drafted on success. mode tags the journal payload so
 // `agt why` distinguishes fresh drafts from refinements.
-func (k *Kernel) draftLoop(ctx context.Context, corr, basePrompt, name, mode string) (workflow.Workflow, error) {
-	if k.cfg.Provider == nil {
-		return workflow.Workflow{}, errors.New("workflow " + mode + ": no provider configured")
+func (e *Engine) draftLoop(ctx context.Context, corr, basePrompt, name, mode string) (Workflow, error) {
+	if e.ports.HasProvider == nil || !e.ports.HasProvider() {
+		return Workflow{}, errors.New("workflow " + mode + ": no provider configured")
 	}
 	prompt := basePrompt
 	// The LIVE default model, not the boot seed — drafting must follow a
 	// hot-swapped default (M816) like every other provider call does.
-	model := k.effectiveConfig(ctx).Model
+	model := ""
+	if e.ports.DefaultModel != nil {
+		model = e.ports.DefaultModel(ctx)
+	}
 	var lastErr error
 	for attempt := 1; attempt <= 2; attempt++ {
 		// completeAux stamps CorrelationID (previously dropped here, leaving
 		// draft spend unattributable) alongside the workflow routing class.
-		resp, err := k.completeAux(ctx, corr, "workflow", llm.CompletionRequest{
+		resp, err := e.complete(ctx, corr, "workflow", llm.CompletionRequest{
 			Model:    model,
 			System:   workflowDraftSystem,
 			Messages: []llm.Message{{Role: llm.RoleUser, Content: prompt}},
 		})
 		if err != nil {
-			return workflow.Workflow{}, fmt.Errorf("workflow %s: %w", mode, err)
+			return Workflow{}, fmt.Errorf("workflow %s: %w", mode, err)
 		}
 		w, err := parseWorkflowDraft(resp.Message.Content, name)
 		if err == nil {
-			_, _ = k.bus.Publish(event.Spec{
+			e.publish(event.Spec{
 				Subject: "workflow." + w.Name, Kind: event.KindWorkflowDrafted, Actor: "workflow",
 				CorrelationID: corr,
 				Payload: map[string]any{
@@ -138,20 +140,20 @@ func (k *Kernel) draftLoop(ctx context.Context, corr, basePrompt, name, mode str
 			"\n\nPrevious answer:\n" + resp.Message.Content +
 			"\n\nReturn a corrected JSON object."
 	}
-	return workflow.Workflow{}, fmt.Errorf("workflow %s: %w", mode, lastErr)
+	return Workflow{}, fmt.Errorf("workflow %s: %w", mode, lastErr)
 }
 
 // parseWorkflowDraft extracts the JSON object from a model answer, decodes
 // it as a workflow, applies the name override + auto-layout, and validates.
-func parseWorkflowDraft(answer, nameOverride string) (workflow.Workflow, error) {
+func parseWorkflowDraft(answer, nameOverride string) (Workflow, error) {
 	raw, err := extractJSONObject(answer)
 	if err != nil {
-		return workflow.Workflow{}, err
+		return Workflow{}, err
 	}
-	var w workflow.Workflow
+	var w Workflow
 	dec := json.NewDecoder(strings.NewReader(raw))
 	if err := dec.Decode(&w); err != nil {
-		return workflow.Workflow{}, fmt.Errorf("decode workflow JSON: %w", err)
+		return Workflow{}, fmt.Errorf("decode workflow JSON: %w", err)
 	}
 	if strings.TrimSpace(nameOverride) != "" {
 		w.Name = strings.TrimSpace(nameOverride)
@@ -159,8 +161,8 @@ func parseWorkflowDraft(answer, nameOverride string) (workflow.Workflow, error) 
 	// A draft is a proposal: id/timestamps/enabled are the store's business.
 	w.ID, w.CreatedMS, w.UpdatedMS, w.Enabled = "", 0, 0, false
 	autoLayoutWorkflow(&w)
-	if err := workflow.Validate(w); err != nil {
-		return workflow.Workflow{}, err
+	if err := Validate(w); err != nil {
+		return Workflow{}, err
 	}
 	return w, nil
 }
@@ -204,7 +206,7 @@ func extractJSONObject(s string) (string, error) {
 // autoLayoutWorkflow assigns canvas positions when the draft has none:
 // BFS depth from the trigger becomes the row, order within a row the column.
 // Presentation only — never semantics — so a partial layout is left alone.
-func autoLayoutWorkflow(w *workflow.Workflow) {
+func autoLayoutWorkflow(w *Workflow) {
 	for _, n := range w.Nodes {
 		if n.X != 0 || n.Y != 0 {
 			return // the model (or a human) already placed things
@@ -212,12 +214,12 @@ func autoLayoutWorkflow(w *workflow.Workflow) {
 	}
 	depth := map[string]int{}
 	adj := map[string][]string{}
-	for _, e := range w.Edges {
-		adj[e.From] = append(adj[e.From], e.To)
+	for _, ed := range w.Edges {
+		adj[ed.From] = append(adj[ed.From], ed.To)
 	}
 	var queue []string
 	for _, n := range w.Nodes {
-		if n.Type == workflow.NodeTrigger {
+		if n.Type == NodeTrigger {
 			depth[n.ID] = 0
 			queue = append(queue, n.ID)
 		}

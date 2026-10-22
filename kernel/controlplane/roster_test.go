@@ -21,10 +21,10 @@ import (
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
+	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/standing"
-	"github.com/agezt/agezt/kernel/workflow"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 

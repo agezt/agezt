@@ -1097,6 +1097,27 @@ This file holds the active `[Unreleased]` working set.
   the agent's own isolation instead of the seat's. The two are now translated
   where they meet.
 
+- **The workflows module has a home, and a trigger says why it fired.**
+  The workflow store, schema, validation, templating, template gallery and
+  trigger runner now live in `kernel/modules/workflows/workflow`, together with
+  the engine that used to sit in the composition root (`kernel/runtime`'s
+  `workflowrun*`, `workflowdraft` and `workflowtestnode`). Nothing else about
+  them changes: the same events, the same store file, the same node types, the
+  same reliability semantics, the same errors.
+
+  The engine holds no provider, no tool registry, no bus and no sandbox of its
+  own any more — every capability arrives through explicit ports, so a run
+  keeps the host's policy gates, its audit arc and its spend attribution.
+
+  A workflow fired by the cron or event trigger was journalled as
+  `source:"manual"`, though: the trigger runner is the only place that knows
+  what fired a workflow and it said only a human label, so the run carried no
+  wake context and the provenance fell back to "manual" — every automatic run
+  in the journal looked like a human had pressed the button. The runner now
+  hands the host what fired it, and a cron fire is journalled as
+  `source:"cron"`, an event fire as `source:"event"` with the matched subject.
+  A run nobody triggered is still `"manual"`.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now

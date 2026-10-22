@@ -4,7 +4,7 @@ package workflow
 import (
 	"context"
 	"errors"
-	graphs "github.com/agezt/agezt/kernel/workflow"
+	graphs "github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"strings"
 	"time"
 )

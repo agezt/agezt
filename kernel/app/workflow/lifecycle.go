@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	graphs "github.com/agezt/agezt/kernel/workflow"
+	graphs "github.com/agezt/agezt/kernel/modules/workflows/workflow"
 )
 
 // Writer preserves runtime facade publication and core store identity/rollback.

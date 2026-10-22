@@ -13,8 +13,8 @@ import (
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
+	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	core "github.com/agezt/agezt/kernel/roster"
-	"github.com/agezt/agezt/kernel/workflow"
 )
 
 // ImpactPorts are the host's capabilities the teardown impact analysis reads.

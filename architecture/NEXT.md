@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.6 the work module, 2026-10-22
+## Current checkpoint — W3.7 the workflows module, 2026-10-22
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1317,10 +1317,52 @@ files, five of the seventeen mutations would have escaped.
   degradation behaviour for a genuinely unavailable profile, the same wire and
   the same events.
 
-**W3.7 — the workflows module (the next slice, to scope).** The roadmap's
-order continues with `modules/workflows`
-(move `runtime/workflowrun*` + draft + test-node; fix the trigger `source`
-labels), `modules/agents` (roster, guardians, selfrepair, reaper, overseer
+- W3.7 (the workflows module) is committed on `main` as a code commit plus a
+  docs commit and published from `arch/w2-dispatch` the same way. The workflow
+  engine was in two places and neither was the module home: the store, schema,
+  validation, templating, template gallery and trigger runner sat at the top of
+  `kernel/` (`kernel/workflow`), and the *engine* — the graph walk, the per-node
+  dispatchers, the reliability wrapper, the copilot and the single-node test —
+  sat in the composition root (`kernel/runtime/workflowrun*.go`,
+  `workflowdraft.go`, `workflowtestnode.go`, `*runtime.Kernel` methods reaching
+  into the kernel's own fields). Both moved to
+  `kernel/modules/workflows/workflow`; the package name does not change, so the
+  store move is an import-path change and nothing else (41 files repointed).
+  The engine could not simply be repointed — a module may not import another
+  module (P5) — so the module now holds **no provider, no tool registry, no bus
+  and no sandbox of its own**, and every capability arrives through
+  `workflow.Ports`. The runtime keeps its public names as delegations in
+  `kernel/runtime/workflow_host.go`, and the run's provenance — which used to
+  be read from the runtime's wake context, invisible to a module — now travels
+  as an explicit `workflow.Provenance` the host fills in.
+  The module is **one package**: the target architecture lists four homes and
+  the archcheck ratchet forbids the split the runtime's own imports would cause
+  (each extra package is one more cross-module edge, and the ratchet only
+  tightens). That package split belongs to the slice that stops the runtime
+  from importing the module at all.
+  The roadmap's second ask — fix the trigger `source` labels — was a **silent
+  trigger**: the trigger runner is the only place that knows what fired a
+  workflow and it told the host only a human label, so the daemon's fire
+  closure ran the workflow with no wake context and the provenance fell back
+  to `"manual"` — every cron and event run in the journal looked like a human
+  had pressed the button. The runner now hands the host what fired it
+  (`Trigger{Source, Subject, Reason}`), the host maps it into the wake
+  context, and a cron fire is journalled as `source:"cron"`, an event fire as
+  `source:"event"` with the matched subject. A run nobody triggered is still
+  `"manual"`.
+  10 mutations, 10 caught (the first M09 run was a build failure, not an
+  escape; it was re-run with a compiling anchor and caught). The move broke two
+  live references and both are fixed: the OpenClaw/Hermes parity ledger
+  (`cmd/agt/compare_data.go`) asserts that its evidence files exist and three
+  rows still pointed at `kernel/workflow/workflow.go`, and `kernel/agent`'s
+  `ValidateToolInput` forwarder lost its only caller (the engine's pipeline
+  schema check now calls `kernel/platform/schema` directly, because a module
+  may not import `kernel/agent`) and was removed. Nothing else changed: the
+  same events, the same store file, the same node types, the same reliability
+  semantics, the same errors, the same public API.
+
+**W3.8 — the agents module (the next slice, to scope).** The roadmap's
+order continues with `modules/agents` (roster, guardians, selfrepair, reaper, overseer
 ops — this removes the `controlplane/selfrepair` →
 `plugins/tools/overseertool` edge), `modules/extensions` (mcp, plugin host,
 toolforge, toolbox, acpcatalog), `modules/providers` (catalog, chatgptauth,

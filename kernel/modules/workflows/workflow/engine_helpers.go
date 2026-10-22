@@ -1,36 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
+package workflow
 
-// Provenance: Workflow execution helpers: invokeWorkflowTool + workflowItems +
-//             withItem + parseMaybeJSONValue + evalCondition + parseMaybeJSON +
-//             truncateForErr. Code extracted from workflowrun.go during the Day-47
-//             god-file split. Public API unchanged.
+// Pure helpers shared by the node types: template resolution, condition
+// evaluation and the JSON coercion that keeps structured outputs structured.
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
-
-	"github.com/agezt/agezt/kernel/ulid"
-	"github.com/agezt/agezt/kernel/workflow"
 )
-
-func (k *Kernel) invokeWorkflowTool(ctx context.Context, corr, toolName, callID string, args json.RawMessage) (any, string, error) {
-	// Node labels repeat across runs, nested graphs and retry attempts. Keep
-	// each physical invocation distinct for policy/result and latency joins.
-	callID += "-" + ulid.New()
-	out, err := k.RunTool(ctx, corr, callID, toolName, args)
-	if err != nil {
-		return nil, "", err
-	}
-	if out.IsError {
-		return nil, "", fmt.Errorf("tool %s failed: %s", toolName, truncateForErr(out.Output))
-	}
-	return parseMaybeJSON(out.Output), "", nil
-}
 
 // workflowItems resolves a map/filter items reference — "{{a.output.list}}"
 // or the bare path "a.output.list" — to the array it names.
@@ -38,7 +18,7 @@ func workflowItems(ref string, data map[string]any) ([]any, error) {
 	path := strings.TrimSpace(ref)
 	path = strings.TrimPrefix(path, "{{")
 	path = strings.TrimSuffix(path, "}}")
-	v := workflow.Lookup(data, strings.TrimSpace(path))
+	v := Lookup(data, strings.TrimSpace(path))
 	items, ok := v.([]any)
 	if !ok {
 		return nil, fmt.Errorf("items %q did not resolve to an array", ref)

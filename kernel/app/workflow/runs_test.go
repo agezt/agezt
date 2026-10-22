@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
-	graphs "github.com/agezt/agezt/kernel/workflow"
+	graphs "github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"reflect"
 	"testing"
 	"time"

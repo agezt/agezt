@@ -1329,7 +1329,7 @@ Tests: `toolbox_test`, `toolbox_cov_test`.
 
 # Part III — The workflow engine
 
-## 16. `kernel/workflow` and its executor in `kernel/runtime`
+## 16. `kernel/modules/workflows/workflow` — the workflow engine
 
 **Purpose.** n8n-style automation (M798). A workflow is a durable, named, **acyclic** graph of typed nodes. Nodes are joined by edges that carry ports, and data passes between them through `{{path}}` templates.
 
@@ -1337,10 +1337,9 @@ Responsibilities are split across packages:
 
 | Package / file | Owns |
 |---|---|
-| `kernel/workflow` | Schema, `Validate`, `Store`, templating, built-in gallery, cron/event trigger runner |
-| `kernel/runtime/workflowrun*.go` | Execution |
-| `kernel/runtime/workflowdraft.go` | Copilot (draft/refine) |
-| `kernel/runtime/workflowtestnode.go` | Single-node test |
+| `kernel/modules/workflows/workflow` | Schema, `Validate`, `Store`, templating, built-in gallery, cron/event trigger runner |
+| `kernel/modules/workflows/workflow/engine*.go` | Execution, copilot (draft/refine), single-node test |
+| `kernel/runtime/workflow_host.go` | The host's face of the module: the public names, the ports, the wake-context mapping |
 | `kernel/webui` + `kernel/controlplane` | Webhook trigger |
 
 ### 16.1 Schema
@@ -1470,22 +1469,28 @@ Capability mapping for the `workflow` tool:
 | Env | None. Cooldown and tick are code defaults. |
 | Events | `workflow.saved`, `workflow.updated`, `workflow.removed`, `workflow.restored`, `workflow.started`, `workflow.node`, `workflow.completed`, `workflow.failed`, `workflow.panic`, `workflow.drafted`. Subject `workflow.<name>`, actor `workflow`. |
 
-**`kernel/workflow` files:**
+**`kernel/modules/workflows/workflow` files:**
 
 | File | Contents |
 |---|---|
-| `doc.go` | Model doc; execution lives in runtime. |
+| `doc.go` | Model doc; the module owns the engine. |
 | `workflow.go` | Node-type constants, `knownTypes`, `failable`, Node/Edge/Workflow, limits, `Validate` (Kahn), `TriggerConfig`, `canonicalDailyAt`, `TriggerSpec`. |
 | `workflow_node.go` | Per-node config structs, `TriggerNode`, `NodeByID`, `Store` struct. |
 | `workflow_validate.go` | Trigger validation, condition ops, `validateEdgePort`, reliability bounds, per-type `validateNodeConfig`. |
 | `workflow_store.go` | `OpenStore`, `Save`, `Restore`, `SetEnabled`, `Remove`, `Get`, `List`, `Count`. |
-| `runner.go` | `StartTriggers` (event + cron), `safeFire`, `SubjectMatch` (`*` matches one token, trailing `>` matches one or more). |
+| `runner.go` | `StartTriggers` (event + cron), `safeFire`, `Trigger`, `SubjectMatch` (`*` matches one token, trailing `>` matches one or more). |
 | `template.go` | `Interpolate`, `Lookup`, `renderValue`. |
 | `templates.go` | `Template` and the five-entry gallery. |
+| `engine.go` | `Ports`, `Provenance`, `RunResult`, `NodeTestResult`, `Engine`, the store CRUD and the event publication. |
+| `engine_run.go` | `Run`, the graph walk, the per-node reliability wrapper, the journal snippets, the provenance map. |
+| `engine_node.go` | The per-node dispatchers (tool, llm, condition, transform, delay, http, code, map, filter, switch, merge, approval, subflow, pipeline). |
+| `engine_helpers.go` | The pure helpers: item resolution, condition evaluation, JSON coercion. |
+| `engine_draft.go` | The copilot: the node-type contract, the draft/refine loop, the JSON extraction, the auto-layout. |
+| `engine_testnode.go` | The single-node test. |
 
 Tests:
-- In this package: `runner_test`, `templates_test`, `workflow_test`.
-- In runtime: `workflowrun_test`, `workflowrun_m800_test`, `workflowreliability_test`, `workflowdraft_test`.
+- In this package: `runner_test`, `templates_test`, `workflow_test`, `trigger_source_test`.
+- In runtime: `workflowrun_test`, `workflowrun_m800_test`, `workflowreliability_test`, `workflowdraft_test`, `workflow_trigger_source_test`.
 
 ### 16.5 `kernel/workflowexec` — dead code
 
@@ -1826,7 +1831,7 @@ Packages that read **no** env themselves: roster, standing, scheduler, market, m
 **Correctness / UX**
 
 8. **Self-update is inert and can strand the daemon** (§19.4). `DefaultPublicKeyHex` is empty and no build injects it. The background checker halts the kernel before verifying and never resumes on failure.
-9. **Workflow cron/event fires carry no `WakeContext`** (`main.go:1686`), so they are labelled `source:"manual"` in `workflow.started`.
+9. ✅ **Fixed (W3.7):** Workflow cron/event fires carry no `WakeContext` (`main.go:1686`), so they are labelled `source:"manual"` in `workflow.started`. The trigger runner now hands the host what fired the workflow (`Trigger{Source, Subject, Reason}`), and the host maps that source into the run's provenance — a cron fire is journalled as `source:"cron"`, an event fire as `source:"event"` with the matched subject.
 10. **Standing wakes always set `Reason:"event"`**, even for cron and manual fires. Standing has **no overlap guard** and no timezone. Cron ignores `CooldownSec`.
 11. **Pulse:**
     - `SetInitiative` is not reachable from the control plane and is not persisted.
