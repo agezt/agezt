@@ -27,6 +27,10 @@ const (
 	IDWarden = "warden"
 )
 
+// Profile is one execution profile. Every field is always present — the empty
+// optional fields are explicit rather than omitted — so the profile is
+// published as it is. The secret policy comes last, the way the operator
+// reads it.
 type Profile struct {
 	ID                 string        `json:"id"`
 	Name               string        `json:"name"`
@@ -36,19 +40,19 @@ type Profile struct {
 	RequestedIsolation string        `json:"requested_isolation"`
 	EffectiveIsolation string        `json:"effective_isolation"`
 	Degraded           bool          `json:"degraded"`
-	DegradeReason      string        `json:"degrade_reason,omitempty"`
+	DegradeReason      string        `json:"degrade_reason"`
 	Tools              []string      `json:"tools"`
 	Backends           []string      `json:"backends"`
 	FileSystem         string        `json:"filesystem"`
 	Network            string        `json:"network"`
 	Environment        string        `json:"environment"`
 	Secrets            string        `json:"secrets"`
-	SecretPolicy       *SecretPolicy `json:"secret_policy,omitempty"`
 	Limits             []string      `json:"limits"`
 	BrowserAccess      string        `json:"browser_access"`
 	Cleanup            string        `json:"cleanup"`
-	PolicyCapability   string        `json:"policy_capability,omitempty"`
-	Notes              []string      `json:"notes,omitempty"`
+	PolicyCapability   string        `json:"policy_capability"`
+	Notes              []string      `json:"notes"`
+	SecretPolicy       *SecretPolicy `json:"secret_policy,omitempty"`
 }
 
 type Inventory struct {

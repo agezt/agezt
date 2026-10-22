@@ -17,17 +17,19 @@ const (
 	CheckFail    CheckStatus = "fail"
 )
 
+// HealthCheck is one health check of the inventory. Every field is always
+// present, so the check is published as it is.
 type HealthCheck struct {
 	ID               string      `json:"id"`
 	ProfileID        string      `json:"profile_id"`
 	Status           CheckStatus `json:"status"`
 	Title            string      `json:"title"`
 	Detail           string      `json:"detail"`
-	Next             string      `json:"next,omitempty"`
+	Next             string      `json:"next"`
 	Routed           bool        `json:"routed"`
 	Degraded         bool        `json:"degraded"`
-	BackendAvailable bool        `json:"backend_available,omitempty"`
-	Backend          string      `json:"backend,omitempty"`
+	BackendAvailable bool        `json:"backend_available"`
+	Backend          string      `json:"backend"`
 }
 
 type HealthReport struct {

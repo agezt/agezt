@@ -34,69 +34,28 @@ func New(ports Ports) *Service { return &Service{ports: ports} }
 // copyList keeps the wire's null for an empty list.
 func copyList(in []string) []string { return append([]string(nil), in...) }
 
-type SecretPolicy struct {
-	Mode              string `json:"mode"`
-	Scope             string `json:"scope"`
-	ValuesForwarded   bool   `json:"values_forwarded"`
-	MetadataForwarded bool   `json:"metadata_forwarded"`
-	Valid             bool   `json:"valid"`
-	Detail            string `json:"detail"`
-}
+// The rows are the module's rows — one declaration per row, published as they
+// are. The application does not rebuild them field by field any more; it only
+// keeps the list rule (an empty list is null on the wire).
+type (
+	SecretPolicy = executionprofile.SecretPolicy
+	Profile      = executionprofile.Profile
+	Check        = executionprofile.HealthCheck
+	ListOutput   = executionprofile.Inventory
+	CheckOutput  = executionprofile.HealthReport
+)
 
-// Profile is one execution profile; every field is always present, the lists
-// are null when empty, and the secret policy appears only when the profile
-// carries one.
-type Profile struct {
-	ID                 string        `json:"id"`
-	Name               string        `json:"name"`
-	Summary            string        `json:"summary"`
-	Status             string        `json:"status"`
-	Routed             bool          `json:"routed"`
-	RequestedIsolation string        `json:"requested_isolation"`
-	EffectiveIsolation string        `json:"effective_isolation"`
-	Degraded           bool          `json:"degraded"`
-	DegradeReason      string        `json:"degrade_reason"`
-	Tools              []string      `json:"tools"`
-	Backends           []string      `json:"backends"`
-	FileSystem         string        `json:"filesystem"`
-	Network            string        `json:"network"`
-	Environment        string        `json:"environment"`
-	Secrets            string        `json:"secrets"`
-	Limits             []string      `json:"limits"`
-	BrowserAccess      string        `json:"browser_access"`
-	Cleanup            string        `json:"cleanup"`
-	PolicyCapability   string        `json:"policy_capability"`
-	Notes              []string      `json:"notes"`
-	SecretPolicy       *SecretPolicy `json:"secret_policy,omitempty"`
-}
-
+// profile hands the module's row over as it is; the list rule is the only
+// thing the application keeps: an empty list is null on the wire.
 func profile(p executionprofile.Profile) Profile {
-	row := Profile{
-		ID: p.ID, Name: p.Name, Summary: p.Summary, Status: string(p.Status), Routed: p.Routed,
-		RequestedIsolation: p.RequestedIsolation, EffectiveIsolation: p.EffectiveIsolation,
-		Degraded: p.Degraded, DegradeReason: p.DegradeReason,
-		Tools: copyList(p.Tools), Backends: copyList(p.Backends),
-		FileSystem: p.FileSystem, Network: p.Network, Environment: p.Environment, Secrets: p.Secrets,
-		Limits: copyList(p.Limits), BrowserAccess: p.BrowserAccess, Cleanup: p.Cleanup,
-		PolicyCapability: p.PolicyCapability, Notes: copyList(p.Notes),
-	}
-	if sp := p.SecretPolicy; sp != nil {
-		row.SecretPolicy = &SecretPolicy{Mode: sp.Mode, Scope: sp.Scope, ValuesForwarded: sp.ValuesForwarded, MetadataForwarded: sp.MetadataForwarded, Valid: sp.Valid, Detail: sp.Detail}
-	}
-	return row
+	p.Tools = copyList(p.Tools)
+	p.Backends = copyList(p.Backends)
+	p.Limits = copyList(p.Limits)
+	p.Notes = copyList(p.Notes)
+	return p
 }
 
 type ListRequest struct{}
-
-type ListOutput struct {
-	HostOS         string    `json:"host_os"`
-	HostArch       string    `json:"host_arch"`
-	Profiles       []Profile `json:"profiles"`
-	Count          int       `json:"count"`
-	RoutedCount    int       `json:"routed_count"`
-	SupportedCount int       `json:"supported_count"`
-	DegradedCount  int       `json:"degraded_count"`
-}
 
 func (s *Service) List(_ context.Context, _ ListRequest) (ListOutput, error) {
 	inv := s.ports.Inventory()
@@ -149,38 +108,10 @@ func (s *Service) Show(_ context.Context, in ShowRequest) (ShowOutput, error) {
 
 type CheckRequest struct{}
 
-// Check is one health check; every field is always present.
-type Check struct {
-	ID               string `json:"id"`
-	ProfileID        string `json:"profile_id"`
-	Status           string `json:"status"`
-	Title            string `json:"title"`
-	Detail           string `json:"detail"`
-	Next             string `json:"next"`
-	Routed           bool   `json:"routed"`
-	Degraded         bool   `json:"degraded"`
-	BackendAvailable bool   `json:"backend_available"`
-	Backend          string `json:"backend"`
-}
-
-type CheckOutput struct {
-	HostOS              string   `json:"host_os"`
-	HostArch            string   `json:"host_arch"`
-	Checks              []Check  `json:"checks"`
-	Count               int      `json:"count"`
-	OKCount             int      `json:"ok_count"`
-	WarningCount        int      `json:"warning_count"`
-	FailCount           int      `json:"fail_count"`
-	RoutableRunProfiles []string `json:"routable_run_profiles"`
-}
-
-// Check diagnoses the inventory under the configured profile policy.
 func (s *Service) Check(_ context.Context, _ CheckRequest) (CheckOutput, error) {
 	report := executionprofile.Diagnose(s.ports.Inventory(), executionprofile.HealthOptions{Policy: s.ports.Policy()})
 	checks := make([]Check, 0, len(report.Checks))
-	for _, c := range report.Checks {
-		checks = append(checks, Check{ID: c.ID, ProfileID: c.ProfileID, Status: string(c.Status), Title: c.Title, Detail: c.Detail, Next: c.Next, Routed: c.Routed, Degraded: c.Degraded, BackendAvailable: c.BackendAvailable, Backend: c.Backend})
-	}
+	checks = append(checks, report.Checks...)
 	return CheckOutput{HostOS: report.HostOS, HostArch: report.HostArch, Checks: checks, Count: report.Count, OKCount: report.OKCount, WarningCount: report.WarningCount, FailCount: report.FailCount, RoutableRunProfiles: copyList(report.RoutableRunProfiles)}, nil
 }
 

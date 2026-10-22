@@ -37,7 +37,7 @@ func inventory() executionprofile.Inventory {
 				SecretPolicy: &executionprofile.SecretPolicy{Mode: "deny", Scope: "remote/cloud", ValuesForwarded: true, MetadataForwarded: true, Valid: true, Detail: "d"},
 				Limits:       []string{"l"}, BrowserAccess: "none", Cleanup: "c", PolicyCapability: "cap", Notes: []string{"n"},
 			},
-			{ID: "bare", Tools: []string{}, Notes: []string{}},
+			{ID: "bare", Tools: []string{}, Backends: []string{}, Limits: []string{}, Notes: []string{}},
 		},
 		Count: 2, RoutedCount: 1, SupportedCount: 1, DegradedCount: 1,
 	}
@@ -107,7 +107,7 @@ func TestCheck(t *testing.T) {
 		t.Fatal(out.RoutableRunProfiles, report.RoutableRunProfiles)
 	}
 	for i, c := range report.Checks {
-		if out.Checks[i] != (Check{ID: c.ID, ProfileID: c.ProfileID, Status: string(c.Status), Title: c.Title, Detail: c.Detail, Next: c.Next, Routed: c.Routed, Degraded: c.Degraded, BackendAvailable: c.BackendAvailable, Backend: c.Backend}) {
+		if out.Checks[i] != c {
 			t.Fatalf("check %d: %+v / %+v", i, out.Checks[i], c)
 		}
 	}
