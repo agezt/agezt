@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-164 package(s):
+165 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -111,6 +111,8 @@
 - **`kernel/modules/knowledge/worldmodel`** — Package worldmodel implements "World Model v1" (SPEC-05 §3): a journaled, content-addressed graph of the operator's world — the projects, repos, people, accounts, channels and topics they care about, and the weighted relations between them.
 - **`kernel/modules/reasoning`** — Package reasoning is the reasoning module: the Council of Elders (a multi-model panel that deliberates and reconciles), the Conductor (a verify-driven Thinker→Worker→Verifier loop) and the deep-research harness.
 - **`kernel/modules/reasoning/api`** — Package api is the reasoning module's public vocabulary: the rows and results the council, the conductor and the research harness produce, and the pure helpers both sides share.
+- **`kernel/modules/skills/builtins`** — Package builtins ships the skill bundles baked into the binary — the agentskills.io shape (M847): a SKILL.md plus reference files and scripts, embedded here and materialized into the skill store by the skills module.
+- **`kernel/modules/skills/skill`** — Package skill implements "Forge v1" (SPEC-05 §4–5): the agent learns reusable, named procedures ("skills") from what it does, and those skills are governed through a journaled, reversible state machine instead of straight-to-active markdown.
 - **`kernel/netguard`** — Package netguard is the network-egress guard (SPEC-06 security defaults): it stops outbound tool traffic from reaching the host's own internal network.
 - **`kernel/okr`** — Package okr is AGEZT's durable objectives-and-key-results spine: the layer that makes fleet work legible as progress toward goals rather than a flat task queue.
 - **`kernel/openaiapi`** — Package openaiapi serves an OpenAI-compatible HTTP surface (ROADMAP P7-API-01, SPEC-15 §3): POST /v1/chat/completions, POST /v1/responses, GET /v1/models and GET /v1/models/{id}, so any OpenAI client, SDK, or IDE can drive Agezt as if it were OpenAI.
@@ -148,7 +150,6 @@
 - **`kernel/seat`** — Package seat names the execution "seats" a workboard task can be dispatched under — the AGEZT answer to Matrix's "choose the right execution seat for the job".
 - **`kernel/selfrepair`** — Package selfrepair wires the deterministic doctor/auto-repair coordinator (Phase 2.6 extraction from cmd/agezt): it subscribes to the reaper pulse observer, claims broken/degraded/routing-unstable agents, drives the overseertool repair source, and escalates through the mailbox + wake chain when a repair fails.
 - **`kernel/settings`** — Package settings is the file-backed config store behind the Config Center (M693): the NON-SECRET, operator-editable settings the daemon would otherwise only read from environment variables.
-- **`kernel/skill`** — Package skill implements "Forge v1" (SPEC-05 §4–5): the agent learns reusable, named procedures ("skills") from what it does, and those skills are governed through a journaled, reversible state machine instead of straight-to-active markdown.
 - **`kernel/standing`** — Package standing implements the standing-order model and store (SPEC-16 §4).
 - **`kernel/state`** — Package state implements the first-class mutable state store (DECISIONS B0c).
 - **`kernel/streamlimit`** — Package streamlimit caps the number of concurrent long-lived streams (SSE connections) a single client key may hold open at once.

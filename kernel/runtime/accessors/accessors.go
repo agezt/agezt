@@ -29,9 +29,9 @@ import (
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/scheduler"
-	"github.com/agezt/agezt/kernel/skill"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/warden"
 )

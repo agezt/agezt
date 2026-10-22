@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/skill"
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // skillBundle is the portable, shareable representation of a single skill — the

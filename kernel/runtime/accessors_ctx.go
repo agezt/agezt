@@ -15,8 +15,8 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/reflect"
-	"github.com/agezt/agezt/kernel/skill"
 )
 
 // Reflect returns the reflection engine backing `agt reflect` and the optional

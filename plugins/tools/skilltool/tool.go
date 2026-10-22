@@ -10,7 +10,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/skill"
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // Definition implements toolapi.Tool.

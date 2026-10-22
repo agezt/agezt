@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.2 the knowledge module, 2026-10-22
+## Current checkpoint — W3.3 the skills module, 2026-10-22
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -637,6 +637,40 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   deleted and the invariant it protected is now asserted where it is
   enforced). Nothing else changed: the same packages, the same exported API,
   the same records on disk, the same events and the same injection order.
+- W3.3 (the skills module) is committed on `main` as a code commit plus a
+  docs commit and published from `arch/w2-dispatch` the same way. The Forge
+  was already a module — the layer map named `kernel/skill` as layer 3 in the
+  module `skills` — but the package sat at the top of `kernel/`, outside the
+  `kernel/modules/` tree W3 establishes as the target home of the bounded
+  contexts; it moved to `kernel/modules/skills/skill`. The package name does
+  not change, so the move is an import-path change and nothing else (59 files
+  repointed). The 16 embedded agentskills.io bundles were a **plugin**
+  (`plugins/builtinskills`) — the module's own seed data lived outside the
+  module, and the plugin reached back into the module to seed it; they are
+  now in the module too: the bytes in `kernel/modules/skills/builtins` and the
+  seeding in `kernel/modules/skills/skill/builtins.go`, over a `ForgeAPI`
+  interface so the failure path is testable. The placement is now *derived*
+  (`kernel/modules/*/...` → module `skills`) and the hand-written layer rule
+  is gone; nine allowlist entries moved with their edges and one was deleted
+  with the plugin, so the ratchet **drops** from 129 to 128.
+  The roadmap's ask — stop re-promoting operator-quarantined built-ins — is
+  fixed: the seeder promoted every built-in unconditionally, and
+  `quarantined → active` is a legal edge, so an operator's quarantine (and
+  the automatic regression quarantine) was undone by the daemon's own seeding
+  on the next boot; the seeder now stops at a quarantined or archived
+  built-in and reports the status it left the skill in. The move also broke
+  two live references **silently**, and both are fixed: the browser action's
+  driver lookup still pointed at the old bundle path (its e2e test skips
+  when the driver is missing, so nothing failed) and `.gitattributes` no
+  longer forced LF on the embedded bundles, which a Windows checkout would
+  have embedded as CRLF. 17 mutations, 16 caught, and the seventeenth is
+  recorded as an **equivalent** (the `archived` half of the guard is
+  defensive — the transition matrix already refuses `archived → active`). The
+  run also produced honest findings about the **tests** — the seeding's
+  failure path and the module's public seam were untested — and they are
+  fixed and named. Nothing else changed: the same package name, the same
+  exported API, the same records on disk, the same events and the same
+  injection into a run.
 - W2.45a (typed roster status collection) is committed on `main` as a code
   commit plus a docs commit and published from `arch/w2-dispatch` the same way.
   `kernel/controlplane/roster_status.go` (371 lines) is gone: the journal-derived
@@ -1150,26 +1184,73 @@ a regression test. 8 mutations, 8 caught; the run also produced an honest
 finding (the scope guard in the supersede loop was unreachable, so it was
 deleted and the invariant it protected is now asserted where it is enforced).
 
-**W3.3 — the skills module (the next slice, to scope).** The roadmap's order
-is `modules/skills` (+ builtin seeding; stop re-promoting operator-quarantined
-built-ins), then `modules/artifacts` (artifact + datalake, with the journal
-`raw_ref` GC), `modules/board`, `modules/work` (workboard, OKR, proof, assure,
-seats — fix the `"container"` seat mapping), `modules/workflows` (move
-`runtime/workflowrun*` + draft + test-node; fix the trigger `source` labels),
-`modules/agents` (roster, guardians, selfrepair, reaper, overseer ops — this
-removes the `controlplane/selfrepair` → `plugins/tools/overseertool` edge),
-`modules/extensions` (mcp, plugin host, toolforge, toolbox, acpcatalog),
-`modules/providers` (catalog, chatgptauth, providerboot) and `modules/runs`
-last (what remains of `kernel/runtime` + `runexec` + the agent loop + resume +
-delegation + intervention; `kernel/runtime` is deleted when empty).
+**W3.3 — the skills module (delivered).** The Forge was already a module — the
+layer map named `kernel/skill` as layer 3 in the module `skills` — but the
+package sat at the top of `kernel/`, outside the `kernel/modules/` tree W3
+establishes as the target home of the bounded contexts; it moved to
+`kernel/modules/skills/skill`. The package name does not change, so the move
+is an import-path change and nothing else (59 files repointed).
 
-Two shapes are now proven, and the next slice picks the one that fits:
+The 16 embedded agentskills.io bundles were a **plugin**
+(`plugins/builtinskills`): the module's own seed data lived outside the
+module, and the plugin reached back into the module to seed it. They are now
+in the module too — the bytes in `kernel/modules/skills/builtins`, the
+seeding in `kernel/modules/skills/skill/builtins.go`, over a `ForgeAPI`
+interface so the failure path is testable. The `builtins` package does not
+import the `skill` package (that would be a cycle), so the module's own seam
+(`BuiltinNames`, `BuiltinBundle`) is what the marketplace plugin reads.
+
+The placement is now *derived* (`kernel/modules/*/...` → module `skills`) and
+the hand-written layer rule is gone; nine allowlist entries moved with their
+edges and one was deleted with the plugin, so the ratchet **drops** from 129
+to 128 (a plugin-reach edge fewer, because the plugin that reached into the
+module no longer exists).
+
+The roadmap's ask — stop re-promoting operator-quarantined built-ins — is
+fixed. The seeder promoted every built-in to `active` on every boot, and
+`quarantined → active` is a legal edge of the lifecycle matrix, so a built-in
+the operator (or the regression guard) pulled out of production came straight
+back into the retrieval pool on the next boot. The seeder now stops at a
+quarantined or archived built-in, and the report it returns names the status
+the skill was actually left in, so the boot log can explain the absence.
+
+The move also broke two live references **silently**, and both are fixed: the
+browser action's driver lookup still pointed at the old bundle path (its e2e
+test skips when the driver is missing, so nothing failed) and `.gitattributes`
+no longer forced LF on the embedded bundles, which a Windows checkout would
+have embedded as CRLF.
+
+17 mutations, 16 caught; the seventeenth is recorded as an **equivalent** (the
+`archived` half of the guard is defensive — the transition matrix already
+refuses `archived → active`, so the promote fails and the loop stops either
+way). The run also made three test gaps **visible** — the seeding's failure
+path (one bundle failing must not stop the others, and the *first* failure is
+the one reported), the module's public seam and the SKILL.md leaking into the
+bundle resources — and they are fixed and named; without the three new test
+files, five of the seventeen mutations would have escaped.
+
+**W3.4 — the artifacts module (the next slice, to scope).** The roadmap's
+order continues with `modules/artifacts` (artifact + datalake, with the
+journal `raw_ref` GC), then `modules/board`, `modules/work` (workboard, OKR,
+proof, assure, seats — fix the `"container"` seat mapping), `modules/workflows`
+(move `runtime/workflowrun*` + draft + test-node; fix the trigger `source`
+labels), `modules/agents` (roster, guardians, selfrepair, reaper, overseer
+ops — this removes the `controlplane/selfrepair` →
+`plugins/tools/overseertool` edge), `modules/extensions` (mcp, plugin host,
+toolforge, toolbox, acpcatalog), `modules/providers` (catalog, chatgptauth,
+providerboot) and `modules/runs` last (what remains of `kernel/runtime` +
+`runexec` + the agent loop + resume + delegation + intervention;
+`kernel/runtime` is deleted when empty).
+
+Three shapes are now proven, and the next slice picks the one that fits:
 **W3.1's** — the feature's logic moves into the module, the module's **api**
 package owns the vocabulary and the ports, the host keeps its public names as
 aliases and delegates, and the composition root injects the service. **W3.2's**
 — the module's packages move into the module's home, the placement becomes
 derived from the layer map, the allowlist moves with the edges, and the slice
-carries the bug the roadmap named for it.
+carries the bug the roadmap named for it. **W3.3's** — W3.2's shape plus the
+module's own seed data, which moves *into* the module (the plugin that held
+the bytes is gone) and the slice carries the bug the roadmap named for it.
 
 The overall target is the architecture in `20-target-architecture.md`, delivered
 incrementally to protected `main`, with runnable proof and source-aligned

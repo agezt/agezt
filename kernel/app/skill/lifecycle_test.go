@@ -8,7 +8,7 @@ import (
 	appskill "github.com/agezt/agezt/kernel/app/skill"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/journal"
-	curated "github.com/agezt/agezt/kernel/skill"
+	curated "github.com/agezt/agezt/kernel/modules/skills/skill"
 	"testing"
 )
 

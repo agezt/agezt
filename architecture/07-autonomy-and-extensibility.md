@@ -1,7 +1,7 @@
 # 07 — Autonomy & Extensibility
 
 **Scope:** `kernel/roster`, `kernel/cadence` (+ `cadence/systemtasks`), `kernel/scheduler`, `kernel/standing`, `kernel/pulse`,
-`kernel/selfrepair`, `kernel/skill`, `kernel/market`, `kernel/plugin`, `kernel/mcp`, `kernel/acp`, `kernel/acpcatalog`,
+`kernel/selfrepair`, `kernel/modules/skills/skill` (+ `kernel/modules/skills/builtins`), `kernel/market`, `kernel/plugin`, `kernel/mcp`, `kernel/acp`, `kernel/acpcatalog`,
 `kernel/workflow`, `kernel/workflowexec`, `kernel/update`, `kernel/toolbox`, `kernel/channel`, `kernel/channelwire`,
 `kernel/stt`, `kernel/voicetool`, `kernel/imagetool`, `kernel/reranktool`, `kernel/internal/testfixtures`.
 Also covers the parts of `cmd/agezt` and `kernel/runtime` that turn these packages into running behaviour,
@@ -770,7 +770,14 @@ Capability can be added in six ways, from tightest to loosest coupling:
 
 Every resulting tool is governed by Edict. An unmapped tool name becomes a one-off capability. An unknown capability is **default-deny** unless `AGEZT_ALLOW_ALL` is set. See [05](05-governance-routing-security.md).
 
-## 9. `kernel/skill` — Forge v1 (learned procedures)
+## 9. `kernel/modules/skills/skill` — Forge v1 (learned procedures)
+
+**Home.** The Forge is the **skills module** (L3). W3.3 moved it from the top of
+`kernel/` into `kernel/modules/skills/skill`, and moved the 16 embedded
+agentskills.io bundle directories into the sibling package
+`kernel/modules/skills/builtins` (the bytes and the listing; the seeding lives
+in the module, in `skill/builtins.go`). The package names do not change, so the
+move is an import-path change for the module itself.
 
 **Purpose.** Agents learn reusable, named procedures from their own runs. Skills are governed by a journaled, reversible state machine instead of being written straight to active markdown (SPEC-05 §4–5).
 
@@ -864,7 +871,7 @@ There are two layers:
 
 **Related entry points.**
 - Agent tool `skill` (capability `skill`): ops `learn`, `list`, `show`, `promote`, `retire`, `files`, `read`.
-- Built-in skills: 16 agentskills.io bundles, seeded by `builtinskills.SeedAll` (`main.go:1490`) and promoted to active.
+- Built-in skills: 16 agentskills.io bundles, seeded by `skill.SeedBuiltins` (`main.go:1505`) and promoted to active. A built-in the operator **quarantined** is not promoted back — the seeding makes the built-ins available, it does not re-open a lifecycle decision (W3.3).
 - Export lives in the CLI (`cmd/agt/skill_export*.go`). It writes `<slug>-<id12>.skill.json` without status, metrics, agent or resources. Importing it creates a fresh draft.
 
 ### 9.4 Persistence, env, events
@@ -894,8 +901,9 @@ There are two layers:
 | `forge_transitions.go` | `Promote`, `Reassign`, `Quarantine`, `Archive`, `RestoreStatus`, `Revert`. |
 | `retrieve.go` | `Retrieve` / `RetrieveShadow` ranking. |
 | `shadowtest.go` | `ShadowTest`. |
+| `builtins.go` | The built-in seeding: `ForgeAPI`, `Seeded`, `BuiltinNames`, `BuiltinBundle`, `SeedBuiltins`, `seedOne` (parse → create → promote, never resurrecting a quarantined built-in). |
 
-Tests: `activation`, `agentscope`, `autoquarantine` (+ rate boundary), `autoshadow`, `bundle`, `bundle_symlink_escape`, `coverage100`, `forge`, `forge_m424` (concurrency), `hygiene`, `reassign`, `retrieve_pool`, `shadoweval`, `skill`, `skillmd`, `transitions_matrix`.
+Tests: `activation`, `agentscope`, `autoquarantine` (+ rate boundary), `autoshadow`, `bundle`, `bundle_symlink_escape`, `builtins` (+ `builtins_coverage`, `builtins_failure`, `builtins_public`, `builtins_quarantine`), `coverage100`, `forge`, `forge_m424` (concurrency), `hygiene`, `reassign`, `retrieve_pool`, `shadoweval`, `skill`, `skillmd`, `transitions_matrix`.
 
 ## 10. `kernel/market` — capability marketplace
 

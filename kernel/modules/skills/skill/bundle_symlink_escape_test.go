@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 //
-// Round-6 elite-bug-hunter reproduction: kernel/skill/bundle.go
+// Round-6 elite-bug-hunter reproduction: kernel/modules/skills/skill/bundle.go
 // in-bundle symlink escape during Read.
 //
-// BUG: kernel/skill/bundle.go, Read(name, rel)
+// BUG: kernel/modules/skills/skill/bundle.go, Read(name, rel)
 //
 //	func (b *BundleStore) Read(name, rel string) ([]byte, error) {
 //	    cleaned, err := cleanRel(rel)   // validates the REQUESTED path

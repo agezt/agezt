@@ -8,8 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/agezt/agezt/kernel/event"
+	curated "github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/platform/journalview"
-	curated "github.com/agezt/agezt/kernel/skill"
 	"time"
 )
 

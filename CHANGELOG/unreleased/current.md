@@ -1045,6 +1045,21 @@ This file holds the active `[Unreleased]` working set.
   run. A facet now replaces its predecessor instead of joining it, and the
   replaced record keeps its audit trail.
 
+- **The skills module has a home, and a quarantined built-in stays
+  quarantined.** The Forge was already a module — the layer map named it as
+  one — but it sat at the top of `kernel/` instead of in the module tree; it
+  now lives in `kernel/modules/skills`. The 16 embedded agentskills.io bundles
+  were a plugin (`plugins/builtinskills`); they are now the module's own, and
+  the seeding lives with them. Nothing else about them changes: the same
+  bundles, the same bytes, the same records, the same events.
+
+  The seeding promoted every built-in to active on every boot — and a
+  quarantined skill can legally be promoted back — so a built-in the operator
+  pulled out of production came straight back into the retrieval pool on the
+  next boot. The seeding now makes the built-ins *available* without re-opening
+  a lifecycle decision: a quarantined or archived built-in stays where it is,
+  and the boot report says which status it was left in.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now

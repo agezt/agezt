@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	curated "github.com/agezt/agezt/kernel/skill"
+	curated "github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 type CurationStore interface {

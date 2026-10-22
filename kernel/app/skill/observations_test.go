@@ -8,7 +8,7 @@ import (
 	"errors"
 	appskill "github.com/agezt/agezt/kernel/app/skill"
 	"github.com/agezt/agezt/kernel/event"
-	curated "github.com/agezt/agezt/kernel/skill"
+	curated "github.com/agezt/agezt/kernel/modules/skills/skill"
 	"reflect"
 	"testing"
 	"time"

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	kskill "github.com/agezt/agezt/kernel/skill"
+	kskill "github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 func TokenCost(text string) int {

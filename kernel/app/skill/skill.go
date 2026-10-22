@@ -5,7 +5,7 @@ package skill
 
 import (
 	"context"
-	curated "github.com/agezt/agezt/kernel/skill"
+	curated "github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // Reader is the actual read-only Forge surface, preserving store error causes.

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/skill"
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 func writeBundleFile(t *testing.T, dir, file, name, body string, id string) {

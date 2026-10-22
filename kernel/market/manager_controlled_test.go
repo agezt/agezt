@@ -4,7 +4,7 @@ package market
 import (
 	"context"
 	"errors"
-	"github.com/agezt/agezt/kernel/skill"
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"testing"
 )
 

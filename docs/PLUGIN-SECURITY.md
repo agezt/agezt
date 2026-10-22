@@ -15,7 +15,7 @@ AGEZT has two categories of plugins with very different trust profiles:
 
 | Category | Runs where | Isolated? | Examples |
 |---|---|---|---|
-| **In-process** (built-in) | Daemon address space | No | `plugins/tools/*`, `plugins/channels/*`, `plugins/providers/*`, `plugins/builtinskills/*` |
+| **In-process** (built-in) | Daemon address space | No | `plugins/tools/*`, `plugins/channels/*`, `plugins/providers/*` |
 | **Out-of-process** (external) | Separate OS process | Yes (process boundary) | Plugins via `AGEZT_PLUGINS`, MCP bridge |
 
 **In-process plugins** are compiled into the daemon binary. They are trusted

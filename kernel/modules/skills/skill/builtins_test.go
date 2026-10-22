@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: MIT
 
-package builtinskills
+package skill
 
 import (
 	"testing"
 
-	"github.com/agezt/agezt/kernel/skill"
+	"github.com/agezt/agezt/kernel/modules/skills/builtins"
 )
 
 // newForge builds a real Forge over a temp store + bundle store — the same wiring
 // the daemon uses, so the seed test exercises Create + bundle materialization +
 // promotion end to end.
-func newForge(t *testing.T) *skill.Forge {
+func newForge(t *testing.T) *Forge {
 	t.Helper()
 	dir := t.TempDir()
-	store, err := skill.Open(dir)
+	store, err := Open(dir)
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}
-	f := skill.NewForge(store, nil)
-	bundles, err := skill.OpenBundles(dir)
+	f := NewForge(store, nil)
+	bundles, err := OpenBundles(dir)
 	if err != nil {
 		t.Fatalf("open bundles: %v", err)
 	}
@@ -27,14 +27,14 @@ func newForge(t *testing.T) *skill.Forge {
 	return f
 }
 
-func TestSeedAll_InstallsActiveBrowserUse(t *testing.T) {
+func TestSeedBuiltins_InstallsActiveBrowserUse(t *testing.T) {
 	f := newForge(t)
-	seeded, err := SeedAll(f, "")
+	seeded, err := SeedBuiltins(f, "")
 	if err != nil {
 		t.Fatalf("SeedAll: %v", err)
 	}
-	if len(seeded) != len(builtinBundles) {
-		t.Fatalf("seeded %d bundles, want %d", len(seeded), len(builtinBundles))
+	if len(seeded) != len(builtins.Names()) {
+		t.Fatalf("seeded %d bundles, want %d", len(seeded), len(builtins.Names()))
 	}
 
 	var bu *Seeded
@@ -49,7 +49,7 @@ func TestSeedAll_InstallsActiveBrowserUse(t *testing.T) {
 	if !bu.Created {
 		t.Errorf("first seed should create the skill")
 	}
-	if bu.Status != skill.StatusActive {
+	if bu.Status != StatusActive {
 		t.Errorf("browser-use status = %q, want active (in the retrieval pool)", bu.Status)
 	}
 
@@ -77,9 +77,9 @@ func TestSeedAll_InstallsActiveBrowserUse(t *testing.T) {
 	}
 }
 
-func TestSeedAll_InstallsComputerUse(t *testing.T) {
+func TestSeedBuiltins_InstallsComputerUse(t *testing.T) {
 	f := newForge(t)
-	if _, err := SeedAll(f, ""); err != nil {
+	if _, err := SeedBuiltins(f, ""); err != nil {
 		t.Fatalf("SeedAll: %v", err)
 	}
 	// The computer-use bundle's desktop driver must be materialized.
@@ -101,9 +101,9 @@ func TestSeedAll_InstallsComputerUse(t *testing.T) {
 	}
 }
 
-func TestSeedAll_InstallsDataAnalysis(t *testing.T) {
+func TestSeedBuiltins_InstallsDataAnalysis(t *testing.T) {
 	f := newForge(t)
-	if _, err := SeedAll(f, ""); err != nil {
+	if _, err := SeedBuiltins(f, ""); err != nil {
 		t.Fatalf("SeedAll: %v", err)
 	}
 	driver, err := f.Bundles().Read("data-analysis", "scripts/analyze.py")
@@ -124,9 +124,9 @@ func TestSeedAll_InstallsDataAnalysis(t *testing.T) {
 	}
 }
 
-func TestSeedAll_InstallsDockerServices(t *testing.T) {
+func TestSeedBuiltins_InstallsDockerServices(t *testing.T) {
 	f := newForge(t)
-	seeded, err := SeedAll(f, "")
+	seeded, err := SeedBuiltins(f, "")
 	if err != nil {
 		t.Fatalf("SeedAll: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestSeedAll_InstallsDockerServices(t *testing.T) {
 	if got == nil {
 		t.Fatalf("docker-services not seeded: %+v", seeded)
 	}
-	if got.Status != skill.StatusActive {
+	if got.Status != StatusActive {
 		t.Errorf("docker-services status = %q, want active", got.Status)
 	}
 	svc, err := f.Bundles().Read("docker-services", "scripts/svc.sh")
@@ -160,9 +160,9 @@ func TestSeedAll_InstallsDockerServices(t *testing.T) {
 	}
 }
 
-func TestSeedAll_InstallsGitOps(t *testing.T) {
+func TestSeedBuiltins_InstallsGitOps(t *testing.T) {
 	f := newForge(t)
-	seeded, err := SeedAll(f, "")
+	seeded, err := SeedBuiltins(f, "")
 	if err != nil {
 		t.Fatalf("SeedAll: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestSeedAll_InstallsGitOps(t *testing.T) {
 	if got == nil {
 		t.Fatalf("git-ops not seeded: %+v", seeded)
 	}
-	if got.Status != skill.StatusActive {
+	if got.Status != StatusActive {
 		t.Errorf("git-ops status = %q, want active", got.Status)
 	}
 	flow, err := f.Bundles().Read("git-ops", "scripts/gitflow.sh")
@@ -196,9 +196,9 @@ func TestSeedAll_InstallsGitOps(t *testing.T) {
 	}
 }
 
-func TestSeedAll_InstallsWebResearch(t *testing.T) {
+func TestSeedBuiltins_InstallsWebResearch(t *testing.T) {
 	f := newForge(t)
-	seeded, err := SeedAll(f, "")
+	seeded, err := SeedBuiltins(f, "")
 	if err != nil {
 		t.Fatalf("SeedAll: %v", err)
 	}
@@ -211,7 +211,7 @@ func TestSeedAll_InstallsWebResearch(t *testing.T) {
 	if got == nil {
 		t.Fatalf("web-research not seeded: %+v", seeded)
 	}
-	if got.Status != skill.StatusActive {
+	if got.Status != StatusActive {
 		t.Errorf("web-research status = %q, want active", got.Status)
 	}
 	ex, err := f.Bundles().Read("web-research", "scripts/extract.py")
@@ -232,9 +232,9 @@ func TestSeedAll_InstallsWebResearch(t *testing.T) {
 	}
 }
 
-func TestSeedAll_InstallsPDFTools(t *testing.T) {
+func TestSeedBuiltins_InstallsPDFTools(t *testing.T) {
 	f := newForge(t)
-	seeded, err := SeedAll(f, "")
+	seeded, err := SeedBuiltins(f, "")
 	if err != nil {
 		t.Fatalf("SeedAll: %v", err)
 	}
@@ -247,7 +247,7 @@ func TestSeedAll_InstallsPDFTools(t *testing.T) {
 	if got == nil {
 		t.Fatalf("pdf-tools not seeded: %+v", seeded)
 	}
-	if got.Status != skill.StatusActive {
+	if got.Status != StatusActive {
 		t.Errorf("pdf-tools status = %q, want active", got.Status)
 	}
 	drv, err := f.Bundles().Read("pdf-tools", "scripts/pdf.py")
@@ -268,9 +268,9 @@ func TestSeedAll_InstallsPDFTools(t *testing.T) {
 	}
 }
 
-func TestSeedAll_InstallsImageTools(t *testing.T) {
+func TestSeedBuiltins_InstallsImageTools(t *testing.T) {
 	f := newForge(t)
-	seeded, err := SeedAll(f, "")
+	seeded, err := SeedBuiltins(f, "")
 	if err != nil {
 		t.Fatalf("SeedAll: %v", err)
 	}
@@ -283,7 +283,7 @@ func TestSeedAll_InstallsImageTools(t *testing.T) {
 	if got == nil {
 		t.Fatalf("image-tools not seeded: %+v", seeded)
 	}
-	if got.Status != skill.StatusActive {
+	if got.Status != StatusActive {
 		t.Errorf("image-tools status = %q, want active", got.Status)
 	}
 	drv, err := f.Bundles().Read("image-tools", "scripts/img.py")
@@ -304,9 +304,9 @@ func TestSeedAll_InstallsImageTools(t *testing.T) {
 	}
 }
 
-func TestSeedAll_InstallsSQLDB(t *testing.T) {
+func TestSeedBuiltins_InstallsSQLDB(t *testing.T) {
 	f := newForge(t)
-	seeded, err := SeedAll(f, "")
+	seeded, err := SeedBuiltins(f, "")
 	if err != nil {
 		t.Fatalf("SeedAll: %v", err)
 	}
@@ -319,7 +319,7 @@ func TestSeedAll_InstallsSQLDB(t *testing.T) {
 	if got == nil {
 		t.Fatalf("sql-db not seeded: %+v", seeded)
 	}
-	if got.Status != skill.StatusActive {
+	if got.Status != StatusActive {
 		t.Errorf("sql-db status = %q, want active", got.Status)
 	}
 	drv, err := f.Bundles().Read("sql-db", "scripts/db.py")
@@ -340,9 +340,9 @@ func TestSeedAll_InstallsSQLDB(t *testing.T) {
 	}
 }
 
-func TestSeedAll_InstallsArchiveTools(t *testing.T) {
+func TestSeedBuiltins_InstallsArchiveTools(t *testing.T) {
 	f := newForge(t)
-	seeded, err := SeedAll(f, "")
+	seeded, err := SeedBuiltins(f, "")
 	if err != nil {
 		t.Fatalf("SeedAll: %v", err)
 	}
@@ -355,7 +355,7 @@ func TestSeedAll_InstallsArchiveTools(t *testing.T) {
 	if got == nil {
 		t.Fatalf("archive-tools not seeded: %+v", seeded)
 	}
-	if got.Status != skill.StatusActive {
+	if got.Status != StatusActive {
 		t.Errorf("archive-tools status = %q, want active", got.Status)
 	}
 	drv, err := f.Bundles().Read("archive-tools", "scripts/arc.py")
@@ -376,9 +376,9 @@ func TestSeedAll_InstallsArchiveTools(t *testing.T) {
 	}
 }
 
-func TestSeedAll_InstallsHTTPAPI(t *testing.T) {
+func TestSeedBuiltins_InstallsHTTPAPI(t *testing.T) {
 	f := newForge(t)
-	seeded, err := SeedAll(f, "")
+	seeded, err := SeedBuiltins(f, "")
 	if err != nil {
 		t.Fatalf("SeedAll: %v", err)
 	}
@@ -391,7 +391,7 @@ func TestSeedAll_InstallsHTTPAPI(t *testing.T) {
 	if got == nil {
 		t.Fatalf("http-api-client not seeded: %+v", seeded)
 	}
-	if got.Status != skill.StatusActive {
+	if got.Status != StatusActive {
 		t.Errorf("http-api-client status = %q, want active", got.Status)
 	}
 	drv, err := f.Bundles().Read("http-api-client", "scripts/api.py")
@@ -412,9 +412,9 @@ func TestSeedAll_InstallsHTTPAPI(t *testing.T) {
 	}
 }
 
-func TestSeedAll_InstallsEmailTools(t *testing.T) {
+func TestSeedBuiltins_InstallsEmailTools(t *testing.T) {
 	f := newForge(t)
-	seeded, err := SeedAll(f, "")
+	seeded, err := SeedBuiltins(f, "")
 	if err != nil {
 		t.Fatalf("SeedAll: %v", err)
 	}
@@ -427,7 +427,7 @@ func TestSeedAll_InstallsEmailTools(t *testing.T) {
 	if got == nil {
 		t.Fatalf("email-tools not seeded: %+v", seeded)
 	}
-	if got.Status != skill.StatusActive {
+	if got.Status != StatusActive {
 		t.Errorf("email-tools status = %q, want active", got.Status)
 	}
 	drv, err := f.Bundles().Read("email-tools", "scripts/mail.py")
@@ -448,9 +448,9 @@ func TestSeedAll_InstallsEmailTools(t *testing.T) {
 	}
 }
 
-func TestSeedAll_InstallsSSHRemote(t *testing.T) {
+func TestSeedBuiltins_InstallsSSHRemote(t *testing.T) {
 	f := newForge(t)
-	seeded, err := SeedAll(f, "")
+	seeded, err := SeedBuiltins(f, "")
 	if err != nil {
 		t.Fatalf("SeedAll: %v", err)
 	}
@@ -463,7 +463,7 @@ func TestSeedAll_InstallsSSHRemote(t *testing.T) {
 	if got == nil {
 		t.Fatalf("ssh-remote not seeded: %+v", seeded)
 	}
-	if got.Status != skill.StatusActive {
+	if got.Status != StatusActive {
 		t.Errorf("ssh-remote status = %q, want active", got.Status)
 	}
 	drv, err := f.Bundles().Read("ssh-remote", "scripts/ssh.py")
@@ -484,9 +484,9 @@ func TestSeedAll_InstallsSSHRemote(t *testing.T) {
 	}
 }
 
-func TestSeedAll_InstallsCryptoTools(t *testing.T) {
+func TestSeedBuiltins_InstallsCryptoTools(t *testing.T) {
 	f := newForge(t)
-	seeded, err := SeedAll(f, "")
+	seeded, err := SeedBuiltins(f, "")
 	if err != nil {
 		t.Fatalf("SeedAll: %v", err)
 	}
@@ -499,7 +499,7 @@ func TestSeedAll_InstallsCryptoTools(t *testing.T) {
 	if got == nil {
 		t.Fatalf("crypto-tools not seeded: %+v", seeded)
 	}
-	if got.Status != skill.StatusActive {
+	if got.Status != StatusActive {
 		t.Errorf("crypto-tools status = %q, want active", got.Status)
 	}
 	drv, err := f.Bundles().Read("crypto-tools", "scripts/crypto.py")
@@ -520,9 +520,9 @@ func TestSeedAll_InstallsCryptoTools(t *testing.T) {
 	}
 }
 
-func TestSeedAll_InstallsCalendarTools(t *testing.T) {
+func TestSeedBuiltins_InstallsCalendarTools(t *testing.T) {
 	f := newForge(t)
-	seeded, err := SeedAll(f, "")
+	seeded, err := SeedBuiltins(f, "")
 	if err != nil {
 		t.Fatalf("SeedAll: %v", err)
 	}
@@ -535,7 +535,7 @@ func TestSeedAll_InstallsCalendarTools(t *testing.T) {
 	if got == nil {
 		t.Fatalf("calendar-tools not seeded: %+v", seeded)
 	}
-	if got.Status != skill.StatusActive {
+	if got.Status != StatusActive {
 		t.Errorf("calendar-tools status = %q, want active", got.Status)
 	}
 	drv, err := f.Bundles().Read("calendar-tools", "scripts/cal.py")
@@ -556,9 +556,9 @@ func TestSeedAll_InstallsCalendarTools(t *testing.T) {
 	}
 }
 
-func TestSeedAll_InstallsOfficeDocs(t *testing.T) {
+func TestSeedBuiltins_InstallsOfficeDocs(t *testing.T) {
 	f := newForge(t)
-	seeded, err := SeedAll(f, "")
+	seeded, err := SeedBuiltins(f, "")
 	if err != nil {
 		t.Fatalf("SeedAll: %v", err)
 	}
@@ -571,7 +571,7 @@ func TestSeedAll_InstallsOfficeDocs(t *testing.T) {
 	if got == nil {
 		t.Fatalf("office-docs not seeded: %+v", seeded)
 	}
-	if got.Status != skill.StatusActive {
+	if got.Status != StatusActive {
 		t.Errorf("office-docs status = %q, want active", got.Status)
 	}
 	drv, err := f.Bundles().Read("office-docs", "scripts/office.py")
@@ -592,12 +592,12 @@ func TestSeedAll_InstallsOfficeDocs(t *testing.T) {
 	}
 }
 
-func TestSeedAll_Idempotent(t *testing.T) {
+func TestSeedBuiltins_Idempotent(t *testing.T) {
 	f := newForge(t)
-	if _, err := SeedAll(f, ""); err != nil {
+	if _, err := SeedBuiltins(f, ""); err != nil {
 		t.Fatalf("first SeedAll: %v", err)
 	}
-	seeded, err := SeedAll(f, "")
+	seeded, err := SeedBuiltins(f, "")
 	if err != nil {
 		t.Fatalf("second SeedAll: %v", err)
 	}
@@ -605,101 +605,19 @@ func TestSeedAll_Idempotent(t *testing.T) {
 		if s.Created {
 			t.Errorf("re-seed created %q again (should dedupe on content address)", s.Name)
 		}
-		if s.Status != skill.StatusActive {
+		if s.Status != StatusActive {
 			t.Errorf("re-seed left %q at %q, want active", s.Name, s.Status)
 		}
 	}
 }
 
-func TestNames_ReturnsCopy(t *testing.T) {
-	got := Names()
-	if len(got) == 0 {
-		t.Fatal("Names() returned empty slice")
-	}
-	if len(got) != len(builtinBundles) {
-		t.Fatalf("Names() = %d, want %d", len(got), len(builtinBundles))
-	}
-	// Verify it's a copy by modifying the returned slice.
-	got[0] = "modified"
-	if builtinBundles[0] == "modified" {
-		t.Error("Names() should return a copy of builtinBundles")
-	}
-	// All expected bundles are present.
-	expected := map[string]bool{"browseruse": false, "computeruse": false, "dataanalysis": false,
-		"dockerservices": false, "gitops": false, "webresearch": false, "pdftools": false,
-		"imagetools": false, "sqldb": false, "archivetools": false, "httpapi": false,
-		"emailtools": false, "sshremote": false, "cryptotools": false, "calendartools": false,
-		"officedocs": false}
-	for _, n := range builtinBundles {
-		if _, ok := expected[n]; ok {
-			expected[n] = true
-		} else {
-			t.Errorf("unexpected bundle name: %q", n)
-		}
-	}
-}
-
-func TestBundle_NonexistentReturnsError(t *testing.T) {
-	md, res, err := Bundle("nonexistent-bundle")
-	if err == nil {
-		t.Fatal("Bundle with nonexistent name should return error")
-	}
-	if md != nil {
-		t.Error("md should be nil on error")
-	}
-	if len(res) != 0 {
-		t.Error("res should be empty on error")
-	}
-}
-
-func TestBundle_ExistingBundleReturnsContent(t *testing.T) {
-	md, res, err := Bundle("browseruse")
-	if err != nil {
-		t.Fatalf("Bundle(browseruse): %v", err)
-	}
-	if len(md) == 0 {
-		t.Error("browseruse SKILL.md should not be empty")
-	}
-	// Should have resource files like scripts/browse.mjs.
-	if _, ok := res["scripts/browse.mjs"]; !ok {
-		t.Errorf("expected scripts/browse.mjs in resources, got %v", keys(res))
-	}
-}
-
-func keys(m map[string][]byte) []string {
-	var k []string
-	for key := range m {
-		k = append(k, key)
-	}
-	return k
-}
-
-func TestBundle_AllBundlesHaveSKILLMD(t *testing.T) {
-	for _, name := range builtinBundles {
-		md, res, err := Bundle(name)
+func TestBuiltins_AllBundlesParseable(t *testing.T) {
+	for _, name := range builtins.Names() {
+		md, _, err := builtins.Bundle(name)
 		if err != nil {
 			t.Fatalf("Bundle(%q): %v", name, err)
 		}
-		if len(md) == 0 {
-			t.Errorf("Bundle(%q) has empty SKILL.md", name)
-		}
-		// If the bundle has scripts/ and reference/ dirs, they should be in resources.
-		if name == "browseruse" || name == "computeruse" || name == "dataanalysis" {
-			if len(res) == 0 {
-				t.Errorf("Bundle(%q) expected resources, got none", name)
-			}
-		}
-	}
-}
-
-func TestBundle_AllBundlesParseable(t *testing.T) {
-	for _, name := range builtinBundles {
-		md, _, err := Bundle(name)
-		if err != nil {
-			t.Fatalf("Bundle(%q): %v", name, err)
-		}
-		_, perr := skill.ParseSkillMD(md)
-		if perr != nil {
+		if _, perr := ParseSkillMD(md); perr != nil {
 			t.Errorf("Bundle(%q) SKILL.md failed to parse: %v", name, perr)
 		}
 	}

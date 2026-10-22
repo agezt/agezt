@@ -50,7 +50,6 @@
     {"pattern": "kernel/toolexec", "layer": 3, "module": "runs", "note": "-> app/tools.Invoke (W2.3)"},
 
 
-    {"pattern": "kernel/skill", "layer": 3, "module": "skills"},
     {"pattern": "kernel/market", "layer": 3, "module": "market"},
 
     {"pattern": "kernel/workboard", "layer": 3, "module": "work"},

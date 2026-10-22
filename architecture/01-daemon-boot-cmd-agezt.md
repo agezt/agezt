@@ -39,7 +39,7 @@ Sibling docs: [00-README.md](00-README.md) · [02-cli-cmd-agt.md](02-cli-cmd-agt
   controlplane, creds(+sigv4), edict, event, governor, httpserver, market, memory, netguard, openaiapi, pulse, redact,
   restapi, resume, roster, runtime, selfrepair, settings, skill, standing, state, stt, tenant, toolreg, tunnel, ulid,
   update, warden, webhook, webui, workflow) and the plugin aggregators `plugins/{builtinchannels, builtinguardians,
-  builtinmarket, builtinskills, builtintools, providerboot}` + four sidecar adapters `plugins/providers/{embed,image,rerank,voice}`
+  builtinmarket, builtintools, providerboot}` + four sidecar adapters `plugins/providers/{embed,image,rerank,voice}`
   + `plugins/tools/codeexec` (banner type assertion only).
 - Nothing imports it (it is `main`).
 - **Layering rule it enforces by existing:** kernel packages are plugin-free; every plugin→kernel binding is a closure or
@@ -161,7 +161,7 @@ Legend: **F** = fatal (exit 1), **W** = warn and degrade, **B** = best-effort.
 41  bootSteps table (only #1 fatal):
       1 late-configure tools: toolSet.ConfigureLate(LateDeps{KernelDeps, ChannelSend, ChannelSendMedia, Board, BoardNotify})  F
       2 schedule tool banner      3 board tool banner/failure
-      4 skill tool: builtinskills.SeedAll(forge) + k.SetMarket(market.NewManager{CompositeLibrary(builtinmarket.New(), market.Store), …})
+      4 skill tool: skill.SeedBuiltins(forge) + k.SetMarket(market.NewManager{CompositeLibrary(builtinmarket.New(), market.Store), …})
       5 introspect  6 overseer  7 builtinguardians.SeedAll(NewKernelHost(k))  8 code_exec  9 tool_forge
      10 workflow   11 workboard  12 k.AttachEnabledMCPServers(ctx)
 42  buildCadence(ctx, k, onScheduledAnswer[SCHEDULE_NOTIFY])
@@ -206,7 +206,7 @@ Legend: **F** = fatal (exit 1), **W** = warn and degrade, **B** = best-effort.
 | Sidecar model services | step 15 → `runtime.Config.{MemoryEmbedder, Voice, ImageGenerator, Reranker}` | nil ⇒ the runtime does not register `voice` / `image_generate` / `rerank` tools. Typed-nil avoidance for `Voice`. |
 | Tools | steps 14, 16, 20, 41.1 | `builtintools.RegisterAll` + `toolreg.BuildAll`; the kernel adds `memory`, `world`, `delegate`, `delegate_await`, `market`, `voice`, `image_generate`, `rerank` itself during `Open`. See [10-tools.md](10-tools.md). |
 | Channels | step 12 (manifests), step 30 (instances) | `channelwire.BuildKind` per manifest (multi-account `kind#label` instances). One shared inbound handler. See [09-channels.md](09-channels.md). |
-| Skills | step 41.4 | `builtinskills.SeedAll(forge, "")` — idempotent, content-addressed. |
+| Skills | step 41.4 | `skill.SeedBuiltins(forge, "")` — idempotent, content-addressed; a quarantined built-in stays quarantined. |
 | Market | step 41.4 | `k.SetMarket(market.NewManager{Library: NewCompositeLibrary(builtinmarket.New(), Store), Store: market.NewStore(base), Skills: forge, MCP: k, Verify: market.VerifyPack, Syncer: market.NewSyncer()})`. |
 | Guardians | step 41.7 | `builtinguardians.SeedAll(builtinguardians.NewKernelHost(k), "")` — System-marked agents, idempotent by slug, operator removals respected. |
 | MCP servers | step 41.12 | `k.AttachEnabledMCPServers(ctx)`; per-server failures printed, never fatal. |
