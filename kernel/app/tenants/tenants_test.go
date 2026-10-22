@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	appruns "github.com/agezt/agezt/kernel/app/runs"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/platform/schema"
 	"github.com/agezt/agezt/kernel/tenant"
@@ -153,23 +154,23 @@ func TestList(t *testing.T) {
 
 func TestStats(t *testing.T) {
 	r := &fakeRegistry{infos: []tenant.Info{{ID: "busy", Open: true}, {ID: "closed"}, {ID: "broken"}, {ID: "unreadable"}, {ID: "unreadable-open", Open: true}}}
-	activity := func(id string) (func() ([]Run, error), error) {
+	activity := func(id string) (func() (map[string]appruns.Run, error), error) {
 		switch id {
 		case "broken":
 			return nil, errors.New("cannot open")
 		case "unreadable", "unreadable-open":
-			return func() ([]Run, error) { return nil, errors.New("journal unreadable") }, nil
+			return func() (map[string]appruns.Run, error) { return nil, errors.New("journal unreadable") }, nil
 		case "busy":
-			return func() ([]Run, error) {
-				return []Run{
-					{SpentMicrocents: 10, StartedUnixMS: 100, CompletedUnixMS: 900, Completed: true},
-					{SpentMicrocents: 5, StartedUnixMS: 200, FailedUnixMS: 1_500, Failed: true, Completed: false},
-					{SpentMicrocents: 1, StartedUnixMS: 1_200},
-					{StartedUnixMS: 50, CompletedUnixMS: 60, Completed: true, Failed: true},
+			return func() (map[string]appruns.Run, error) {
+				return map[string]appruns.Run{
+					"a": {SpentMicrocents: 10, StartedUnixMS: 100, CompletedUnixMS: 900, Completed: true},
+					"b": {SpentMicrocents: 5, StartedUnixMS: 200, FailedUnixMS: 1_500, Failed: true, Completed: false},
+					"c": {SpentMicrocents: 1, StartedUnixMS: 1_200},
+					"d": {StartedUnixMS: 50, CompletedUnixMS: 60, Completed: true, Failed: true},
 				}, nil
 			}, nil
 		}
-		return func() ([]Run, error) { return nil, nil }, nil
+		return func() (map[string]appruns.Run, error) { return nil, nil }, nil
 	}
 	out, err := New(r, activity, time.Now).Stats(context.Background(), ListRequest{})
 	if err != nil {

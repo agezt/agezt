@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/app"
+	appruns "github.com/agezt/agezt/kernel/app/runs"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/platform/schema"
 	"github.com/agezt/agezt/kernel/tenant"
@@ -33,16 +34,10 @@ type Registry interface {
 	Remove(id string) (bool, error)
 }
 
-// Run is the slice of one run the activity summary counts.
-type Run struct {
-	SpentMicrocents                              int64
-	StartedUnixMS, CompletedUnixMS, FailedUnixMS int64
-	Completed, Failed                            bool
-}
-
 // Activity opens one tenant's kernel and returns a reader for its runs; an
-// error means the kernel could not be opened.
-type Activity func(id string) (func() ([]Run, error), error)
+// error means the kernel could not be opened. The runs are the application's
+// own folded rows, so the summary counts the same runs the runs view shows.
+type Activity func(id string) (func() (map[string]appruns.Run, error), error)
 
 // Service runs the tenant operations; a nil registry means multi-tenancy is
 // disabled.

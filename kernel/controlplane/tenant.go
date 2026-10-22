@@ -17,21 +17,13 @@ func (s *Server) tenantService() *apptenants.Service {
 	if s.tenants != nil {
 		registry = s.tenants
 	}
-	activity := func(id string) (func() ([]apptenants.Run, error), error) {
+	activity := func(id string) (func() (map[string]appruns.Run, error), error) {
 		k, err := s.kernelFor(id)
 		if err != nil {
 			return nil, err
 		}
-		return func() ([]apptenants.Run, error) {
-			entries, err := appruns.Collect(k.Journal().Range)
-			if err != nil {
-				return nil, err
-			}
-			runs := make([]apptenants.Run, 0, len(entries))
-			for _, r := range entries {
-				runs = append(runs, apptenants.Run{SpentMicrocents: r.SpentMicrocents, StartedUnixMS: r.StartedUnixMS, CompletedUnixMS: r.CompletedUnixMS, FailedUnixMS: r.FailedUnixMS, Completed: r.Completed, Failed: r.Failed})
-			}
-			return runs, nil
+		return func() (map[string]appruns.Run, error) {
+			return appruns.Collect(k.Journal().Range)
 		}, nil
 	}
 	return apptenants.New(registry, activity, time.Now)

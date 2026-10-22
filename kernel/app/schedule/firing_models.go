@@ -3,19 +3,17 @@
 package schedule
 
 import (
+	appruns "github.com/agezt/agezt/kernel/app/runs"
 	"github.com/agezt/agezt/kernel/event"
 )
 
 type FiringJournal interface {
 	Range(func(*event.Event) error) error
 }
-type FiringRun struct {
-	Completed, Failed, Abandoned                                  bool
-	StartedUnixMS, CompletedUnixMS, FailedUnixMS, SpentMicrocents int64
-	FailReason, AnswerPreview                                     string
-}
 
-func firingRunStatus(r FiringRun) string {
+// firingRunStatus reports a firing's run outcome: the same precedence the
+// runs view uses, so the two views never disagree.
+func firingRunStatus(r appruns.Run) string {
 	switch {
 	case r.Completed:
 		return "completed"
@@ -30,10 +28,10 @@ func firingRunStatus(r FiringRun) string {
 
 type FiringService struct {
 	journal FiringJournal
-	runs    func() (map[string]FiringRun, error)
+	runs    func() (map[string]appruns.Run, error)
 }
 
-func NewFiringService(journal FiringJournal, runs func() (map[string]FiringRun, error)) *FiringService {
+func NewFiringService(journal FiringJournal, runs func() (map[string]appruns.Run, error)) *FiringService {
 	return &FiringService{journal: journal, runs: runs}
 }
 

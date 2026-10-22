@@ -933,6 +933,12 @@ This file holds the active `[Unreleased]` working set.
   nothing for an empty argument set — and the native and the typed command
   paths now apply the same policy instead of two copies of it.
 
+- **The schedule firings and the tenant summary read the same run rows as
+  the runs view.** A firing still reports its run's outcome, duration, spend,
+  failure reason and answer preview, and a tenant still reports its run
+  counts, spend and last activity — they are now computed from one shared
+  definition of a run instead of three.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now
