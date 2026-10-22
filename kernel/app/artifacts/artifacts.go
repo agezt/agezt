@@ -114,7 +114,7 @@ func (s *Service) List(_ context.Context, in ListInput) (ListOutput, error) {
 	rows := s.index.List(blobs.Filter{Kind: in.Kind, Source: in.Source, Corr: in.CorrelationID})
 	out := make([]Entry, 0, len(rows))
 	for _, e := range rows {
-		out = append(out, Entry{ID: e.ID, Ref: e.Ref, Name: e.Name, Mime: e.Mime, Kind: e.Kind, Source: e.Source, Sender: e.Sender, CorrelationID: e.Corr, Size: e.Size, CreatedMS: e.CreatedMs, Caption: e.Caption})
+		out = append(out, Entry{ID: e.ID, Ref: e.Ref, Name: e.Name, Mime: e.Mime, Kind: e.Kind, Source: e.Source, Sender: e.Sender, CorrelationID: e.Corr, Size: e.Size, CreatedMS: e.CreatedMS, Caption: e.Caption})
 	}
 	return ListOutput{Count: len(out), Entries: out}, nil
 }
@@ -145,7 +145,7 @@ func (s *Service) Collect(_ context.Context, in CollectInput) (CollectOutput, er
 		candidates := make([]Candidate, 0, len(rows))
 		for _, e := range rows {
 			out.Bytes += e.Size
-			candidates = append(candidates, Candidate{ID: e.ID, Name: e.Name, Kind: e.Kind, Source: e.Source, Size: e.Size, CreatedMS: e.CreatedMs})
+			candidates = append(candidates, Candidate{ID: e.ID, Name: e.Name, Kind: e.Kind, Source: e.Source, Size: e.Size, CreatedMS: e.CreatedMS})
 		}
 		out.Count = len(candidates)
 		out.Candidates = &candidates

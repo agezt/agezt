@@ -101,7 +101,7 @@ func (f *fakeCodeExecIndex) PutEntry(meta artifact.Entry, data []byte, createdMs
 	meta.ID = fmt.Sprintf("art-%d", len(f.entries)+1)
 	meta.Ref = fmt.Sprintf("ref-%d", len(f.entries)+1)
 	meta.Size = int64(len(data))
-	meta.CreatedMs = createdMs
+	meta.CreatedMS = createdMs
 	f.entries = append(f.entries, meta)
 	f.data = append(f.data, append([]byte(nil), data...))
 	return meta, nil

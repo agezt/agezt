@@ -21,22 +21,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/remoteapi"
 	"github.com/agezt/agezt/plugins/tools/peer"
 )
 
-type peerArtifactEntry struct {
-	ID        string `json:"id"`
-	Ref       string `json:"ref"`
-	Name      string `json:"name,omitempty"`
-	Mime      string `json:"mime,omitempty"`
-	Kind      string `json:"kind,omitempty"`
-	Source    string `json:"source,omitempty"`
-	Sender    string `json:"sender,omitempty"`
-	Corr      string `json:"corr,omitempty"`
-	Size      int64  `json:"size"`
-	CreatedMs int64  `json:"created_ms"`
-	Caption   string `json:"caption,omitempty"`
-}
+// peerArtifactEntry is one artifact row as a peer serves it. It is the
+// contract row (kernel/contract/remoteapi) — the same declaration the
+// serving daemon uses — so the CLI reads the peer's wire without a second
+// description of it.
+type peerArtifactEntry = remoteapi.Artifact
 type peerArtifactList struct {
 	Peer          string              `json:"peer"`
 	URL           string              `json:"url"`

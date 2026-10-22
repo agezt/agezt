@@ -29,7 +29,7 @@ func TestIndex_PutListGetBytes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PutEntry: %v", err)
 	}
-	if e1.ID == "" || e1.Ref == "" || e1.Size != 7 || e1.CreatedMs != 100 {
+	if e1.ID == "" || e1.Ref == "" || e1.Size != 7 || e1.CreatedMS != 100 {
 		t.Fatalf("entry not filled in: %+v", e1)
 	}
 	_, err = idx.PutEntry(artifact.Entry{Kind: "tool-output", Source: "run"}, []byte("log output"), 200)
@@ -39,7 +39,7 @@ func TestIndex_PutListGetBytes(t *testing.T) {
 
 	// List newest-first.
 	all := idx.List(artifact.Filter{})
-	if len(all) != 2 || all[0].CreatedMs != 200 {
+	if len(all) != 2 || all[0].CreatedMS != 200 {
 		t.Fatalf("List = %d entries, newest-first broken: %+v", len(all), all)
 	}
 	// Filter by kind.
@@ -100,7 +100,7 @@ func TestIndex_IndexRefForAlreadyStoredBlob(t *testing.T) {
 	if err != nil {
 		t.Fatalf("IndexRef: %v", err)
 	}
-	if e.Ref != ref || e.Size == 0 || e.CreatedMs != 42 || e.Corr != "run-1" {
+	if e.Ref != ref || e.Size == 0 || e.CreatedMS != 42 || e.Corr != "run-1" {
 		t.Fatalf("entry not filled from store: %+v", e)
 	}
 	got := idx.List(artifact.Filter{Kind: "tool-output"})

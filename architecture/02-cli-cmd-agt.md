@@ -595,7 +595,7 @@ Op names are `controlplane.Cmd*` constants with their wire string in parentheses
 | `peers.go` | `agt peers` dispatcher + health list from `AGEZT_PEERS` (tokens never printed). |
 | `peers_inspect.go` | `checkPeer`, `peersModels`, `fetchPeerModels`. |
 | `peers_remote.go` | `peersRoute` (which peer serves a model), `peersRun` (fetch a remote run). |
-| `peers_fetch.go` | HTTP primitives `fetchPeerRun`, `fetchPeerArtifacts`, `fetchPeerArtifactBytes` (bounded). |
+| `peers_fetch.go` | HTTP primitives `fetchPeerRun`, `fetchPeerArtifacts`, `fetchPeerArtifactBytes` (bounded). The peer's artifact rows are the contract row (`contract/remoteapi.Artifact`) — the same declaration the serving daemon uses — so the CLI carries no second description of the peer's wire (W2.61). |
 | `peers_fetch_cmd.go` | CLI wrappers for `artifacts` and `artifact-get`. |
 | `acp.go` | ACP stdio server (`controlPlaneRunner.Prompt` → streamed `run`, `llm.token` → chunks), `acp config`, `acp agents`. |
 | `status.go` | `agt status` (version skew, uptime, runs, tools, journal head, fallbacks, channels, aws creds, mesh, schedules, tenants, approvals, delegation caps). |

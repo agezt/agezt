@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.60 the peer's wire has one declaration, 2026-10-22
+## Current checkpoint — W2.61 the artifact row has one declaration, 2026-10-22
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -484,6 +484,29 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   `CorrelationID`). They are the store's row and the application's row, not
   the peer's wire, so they keep their own declarations — but they are the next
   candidates for the same treatment.
+- W2.61 (the artifact row has one declaration) is committed on `main` as a
+  code commit plus a docs commit and published from `arch/w2-dispatch` the
+  same way. The artifact metadata row was described four times — the store's
+  persisted row, the peer's wire, the REST adapter's row and the CLI's peer
+  reader — and the daemon's REST adapter copied the store's row into the wire
+  row field by field on every artifact it served.
+  The store's row (`kernel/artifact.Entry`) and the CLI's peer row
+  (`cmd/agt/peers_fetch.go`) are now the contract row, and the copy
+  (`cmd/agezt/api_engine.go`'s `restArtifactEntry`) is gone. The on-disk shape
+  is unchanged (the same json names, in the same order, with the same
+  `omitempty` behaviour) and the wire key `created_ms` is unchanged; only the
+  Go spelling changed (`CreatedMs` → `CreatedMS`), which is a mechanical
+  rename across the store, the application, the commands and the plugin
+  tests.
+  The application's own artifact row (`kernel/app/artifacts.Entry`) keeps its
+  declaration: it is the typed operation's own output wire — it spells the
+  correlation `CorrelationID` and keeps the empty keys — so the copy into it
+  remains.
+  12 mutations, 12 caught. The application's listed-row test now asserts the
+  *values* the store holds under every key, not only that the keys are there
+  — that was the test gap the mutation run found. The archcheck allowlist
+  stays at 129 import violations and 13 call sites; the package count stays
+  at 271 (no new package).
   **One claim was corrected in place:** the W2.55/W2.56/W2.57 notes said the
   application layer "cannot import `kernel/runtime`". That is wrong — the
   layer rule allows L4 → L3 and `app/system` already imports
@@ -927,15 +950,16 @@ Preserve unrelated dirty changes: deletions of
 
 Continue roadmap §4.5/order 7 after the completed roster, steer, run-fold,
 remote-mirror, operation-audit, run-derived-row, projection, warden,
-shared-row-type, remote-backend-list and peer-wire-contract domains: the
-artifact row's two other homes (the store's row and the application's own
-artifact row), the remote backends' two **policies** (the application supports
-them for a direct run, the host refuses them for a dispatched seat), the
-wider run/tool adapter convergence, W3 modules and journal raw-ref GC, W4
-triggers/channel supervision/config/signing, and W5 generated SDK/frontend
-convergence and zero allowances remain open. The overall target is the
-architecture in `20-target-architecture.md`, delivered incrementally to
-protected `main`, with runnable proof and source-aligned documentation.
+shared-row-type, remote-backend-list, peer-wire-contract and artifact-row
+domains: the application's own artifact row and the data-lake's records (their
+own wires, their own spellings), the remote backends' two **policies** (the
+application supports them for a direct run, the host refuses them for a
+dispatched seat), the wider run/tool adapter convergence, W3 modules and
+journal raw-ref GC, W4 triggers/channel supervision/config/signing, and W5
+generated SDK/frontend convergence and zero allowances remain open. The
+overall target is the architecture in `20-target-architecture.md`, delivered
+incrementally to protected `main`, with runnable proof and source-aligned
+documentation.
 
 ---
 
