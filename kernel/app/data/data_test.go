@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	"github.com/agezt/agezt/kernel/datalake"
+	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 

@@ -65,7 +65,6 @@
 - **`kernel/app/workflow`** — Package workflow owns workflow management and observation services over selected graph, journal and execution ports.
 - **`kernel/app/world`** — Package world owns transport-independent world graph use cases.
 - **`kernel/approval`** — Package approval is the human-in-the-loop pause point.
-- **`kernel/artifact`** — Package artifact is a content-addressed (BLAKE3) blob store — the substrate for SPEC-04 §3.6 artifacts: tool/run outputs that are too large to inline in an event are written here and referenced by their content hash, so the journal stays small while the bytes survive in the lineage and dedupe automatically.
 - **`kernel/assure`** — Package assure is the "do-it-for-sure" loop: run a task, verify it was actually accomplished, and retry with the verifier's gap fed back — up to a bounded number of attempts, stopping the moment a verdict reports the task complete (M651).
 - **`kernel/auth`** — Package auth owns transport-independent credential verification and authority tiers.
 - **`kernel/board`** — Package board is the in-process shared message board: a persistent, topic-addressed space every agent — the lead, its sub-agents, scheduled and standing-order agents, and the continuous loops — can post to and read from, so they can coordinate and talk to each other (M647).
@@ -90,7 +89,6 @@
 - **`kernel/convo`** — Package convo collapses a multi-turn conversation into a single Agezt intent — the deliberate, lossy-by-design mapping that lets the single-intent governed loop carry conversational context.
 - **`kernel/creds`** — Package creds is the local credentials vault for provider env vars.
 - **`kernel/creds/sigv4`** — Package sigv4 implements the AWS Signature Version 4 algorithm.
-- **`kernel/datalake`** — Package datalake is AGEZT's file-based structured store — the "Personal Data Lake" (M834).
 - **`kernel/delegation`** — Package delegation provides sub-agent orchestration for the agent loop: sync/async delegate tools, spawn bookkeeping, depth tracking, and ancestry helpers.
 - **`kernel/edict`** — Package edict is the policy engine + trust ladder (TASKS P1-EDICT-01..03; DECISIONS F3/F4).
 - **`kernel/envscrub`** — Package envscrub builds child-process environments that keep ordinary OS launch variables while dropping daemon/provider secrets.
@@ -106,6 +104,8 @@
 - **`kernel/market`** — Package market is AGEZT's capability marketplace: it packages skills, MCP servers, and CLI-tool requirements into installable "packs", catalogues them in "marketplaces" (a built-in Official one plus, later, synced remotes), and installs a pack by materializing its parts into the systems that already run them — skills into the Forge, MCP servers into the MCP registry, tool needs reported to the Toolbox.
 - **`kernel/mcp`** — Package mcp is governed runtime self-install for MCP servers (M796): a durable registry of Model Context Protocol servers plus a minimal MCP client, so an agent (or operator) can ADD a server and ATTACH it while the daemon runs — no restart, no separate bridge binary, no env-var surgery.
 - **`kernel/meshctx`** — Package meshctx carries the cross-node delegation hop count for the M8 mesh.
+- **`kernel/modules/artifacts/artifact`** — Package artifact is a content-addressed (BLAKE3) blob store — the substrate for SPEC-04 §3.6 artifacts: tool/run outputs that are too large to inline in an event are written here and referenced by their content hash, so the journal stays small while the bytes survive in the lineage and dedupe automatically.
+- **`kernel/modules/artifacts/datalake`** — Package datalake is AGEZT's file-based structured store — the "Personal Data Lake" (M834).
 - **`kernel/modules/knowledge/memory`** — Package memory implements the memory store (ROADMAP §2.3): a journaled, content-addressed knowledge store that the agent loop reads as injected context and that the operator, the agent, and an auto-distiller can write to.
 - **`kernel/modules/knowledge/taste`** — Package taste is AGEZT's curated "what good looks like" store: a small set of operator-authored exemplars that are injected into runs before the model acts, so output quality is shaped by concrete examples of good work rather than left to chance.
 - **`kernel/modules/knowledge/worldmodel`** — Package worldmodel implements "World Model v1" (SPEC-05 §3): a journaled, content-addressed graph of the operator's world — the projects, repos, people, accounts, channels and topics they care about, and the weighted relations between them.

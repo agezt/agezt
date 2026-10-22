@@ -34,16 +34,35 @@ type Filter struct {
 	Corr   string
 }
 
+// RefGuard reports which blobs are still referenced from OUTSIDE the index —
+// in practice by a journal event's raw_ref: the tool.result that offloaded a
+// large output names the blob it wrote, and the journal keeps that name.
+//
+// The collector must never remove a blob the guard protects. The journal is
+// the durable record of the run, so a raw_ref that points at deleted bytes is
+// a dangling promise: `agt artifact_get <ref>` fails and the run's output is
+// lost, while the journal still claims the bytes are there. The bytes belong
+// to the journal until the journal forgets them.
+//
+// The guard is asked ONCE per operation, with the candidate refs, so the host
+// can answer from a single pass over its event log instead of one pass per
+// ref. A nil guard protects nothing (the collector then behaves as before).
+type RefGuard interface {
+	ReferencedRefs(candidates []string) map[string]bool
+}
+
 // Index is a metadata sidecar over a blob Store. Entries persist as one JSON file
 // each under <baseDir>/index/<id>.json; the blob shards (<aa>/<ref>) are
 // untouched. An in-memory map (loaded at Open) backs queries; all access is
 // mutex-guarded. Deleting an Entry garbage-collects its blob only when no other
-// Entry still references that ref.
+// Entry still references that ref — and never when the RefGuard says the
+// journal still names those bytes.
 type Index struct {
 	store   *Store
 	dir     string
 	mu      sync.Mutex
 	entries map[string]Entry
+	guard   RefGuard
 }
 
 // OpenIndex opens (creating if needed) the metadata index for store, rooted at
@@ -69,6 +88,28 @@ func OpenIndex(store *Store, baseDir string) (*Index, error) {
 		}
 	}
 	return idx, nil
+}
+
+// SetRefGuard installs the guard that tells the collector which blobs the
+// journal still names. The host owns that knowledge (the journal is its
+// event log), so the module asks instead of guessing. A nil guard removes the
+// protection — the collector then behaves exactly as it did before.
+func (i *Index) SetRefGuard(g RefGuard) {
+	i.mu.Lock()
+	i.guard = g
+	i.mu.Unlock()
+}
+
+// protectedRefs asks the guard which of the candidate refs are still named by
+// the journal. A nil guard protects nothing.
+func (i *Index) protectedRefs(candidates []string) map[string]bool {
+	i.mu.Lock()
+	g := i.guard
+	i.mu.Unlock()
+	if g == nil || len(candidates) == 0 {
+		return nil
+	}
+	return g.ReferencedRefs(candidates)
 }
 
 // PutEntry stores data in the blob store and records a metadata Entry. The caller
@@ -162,6 +203,10 @@ func (i *Index) List(f Filter) []Entry {
 // first — the collector's candidates for removal (M845). Entries with no creation
 // time (CreatedMS<=0) are never considered stale, so a malformed entry isn't
 // reaped by accident.
+//
+// The candidates are the COLLECTABLE ones: an entry whose blob the journal
+// still names (a tool.result's raw_ref) is not a candidate at all, so the
+// dry-run and the reap agree and neither promises bytes it will not free.
 func (i *Index) StaleEntries(olderThanMs int64) []Entry {
 	i.mu.Lock()
 	out := make([]Entry, 0)
@@ -177,16 +222,34 @@ func (i *Index) StaleEntries(olderThanMs int64) []Entry {
 		}
 		return out[a].ID < out[b].ID
 	})
-	return out
+	refs := make([]string, 0, len(out))
+	for _, e := range out {
+		refs = append(refs, e.Ref)
+	}
+	protected := i.protectedRefs(refs)
+	if len(protected) == 0 {
+		return out
+	}
+	collectable := make([]Entry, 0, len(out))
+	for _, e := range out {
+		if !protected[e.Ref] {
+			collectable = append(collectable, e)
+		}
+	}
+	return collectable
 }
 
 // Collect deletes the entries created before olderThanMs and returns how many
-// were removed and the summed bytes of their entries (the blob is GC'd by Delete
-// only when no surviving entry references it, so freed disk may be ≤ bytes). The
-// collector (M845) runs this after the operator confirms a dry-run.
+// were removed and the summed bytes of their entries (the blob is GC'd by the
+// delete only when no surviving entry references it, so freed disk may be ≤
+// bytes). The collector (M845) runs this after the operator confirms a dry-run.
+//
+// The candidates come from StaleEntries, so the journal-referenced artifacts are
+// already excluded — the guard is asked once for the whole batch, not once per
+// entry.
 func (i *Index) Collect(olderThanMs int64) (collected int, bytes int64) {
 	for _, e := range i.StaleEntries(olderThanMs) {
-		if err := i.Delete(e.ID); err == nil {
+		if err := i.deleteEntry(e.ID); err == nil {
 			collected++
 			bytes += e.Size
 		}
@@ -222,8 +285,26 @@ func (i *Index) Count() int {
 
 // Delete removes the entry and its metadata file. The underlying blob is
 // garbage-collected only when no remaining entry references the same ref (the
-// content-address dedup means one blob may back several arrivals).
+// content-address dedup means one blob may back several arrivals) — and never
+// when the RefGuard says the journal still names those bytes: the deletion is
+// refused with ErrStillReferenced instead, because a raw_ref pointing at
+// deleted bytes would be a dangling promise.
 func (i *Index) Delete(id string) error {
+	i.mu.Lock()
+	e, ok := i.entries[id]
+	i.mu.Unlock()
+	if !ok {
+		return ErrNotFound
+	}
+	if i.protectedRefs([]string{e.Ref})[e.Ref] {
+		return ErrStillReferenced
+	}
+	return i.deleteEntry(id)
+}
+
+// deleteEntry removes the entry and collects its blob when nothing else
+// references it. The caller holds no lock; the guard check already happened.
+func (i *Index) deleteEntry(id string) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	e, ok := i.entries[id]

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/artifact"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 )
 
 // fakeIndex is an in-memory stand-in for *artifact.Index.

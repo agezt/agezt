@@ -15,10 +15,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/executionprofile"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/warden"
 )
 

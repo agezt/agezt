@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.3 the skills module, 2026-10-22
+## Current checkpoint — W3.4 the artifacts module, 2026-10-22
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1228,10 +1228,43 @@ path (one bundle failing must not stop the others, and the *first* failure is
 the one reported), the module's public seam and the SKILL.md leaking into the
 bundle resources — and they are fixed and named; without the three new test
 files, five of the seventeen mutations would have escaped.
+- W3.4 (the artifacts module) is committed on `main` as a code commit plus a
+  docs commit and published from `arch/w2-dispatch` the same way. The blob
+  store and the Personal Data Lake were already a module — the layer map named
+  `kernel/artifact` and `kernel/datalake` as layer 3 in the module `artifacts`
+  — but both packages sat at the top of `kernel/`, outside the
+  `kernel/modules/` tree W3 establishes as the target home of the bounded
+  contexts; they moved to `kernel/modules/artifacts/{artifact,datalake}`. The
+  package names do not change, so the move is an import-path change and nothing
+  else (44 files repointed). The placement is now *derived*
+  (`kernel/modules/*/...` → module `artifacts`) and the two hand-written layer
+  rules are gone; the thirteen allowlist entries moved with their edges, so the
+  ratchet stays at 128/13.
+  The roadmap's second ask — GC respects the journal's `raw_ref` — was a
+  **data-loss defect the codemap had already written down**. A tool output too
+  large to inline is offloaded into the blob store and the journaled
+  `tool.result` carries the blob's `raw_ref`; the collector removed the blob
+  whenever no other *index entry* referenced it, never looking at the journal —
+  so a collected run's output was gone while the journal still claimed the
+  bytes were there, and `agt artifact_get <ref>` failed. The module cannot read
+  the journal (a module sees another module's api package and nothing else), so
+  it now **asks**: the index takes a `RefGuard` port, the host answers from the
+  journal's own events (one pass per operation, the whole candidate batch at a
+  time), the collector's candidates exclude the blobs the journal names, and an
+  explicit delete of such an artifact is refused with `ErrStillReferenced` and a
+  sentence the operator can act on. The protection is narrow: an artifact the
+  journal never named is collected exactly as before.
+  The cost is stated plainly in the evidence: the journal is append-only with
+  full retention, so it names those refs forever — a journal-named artifact
+  stays until the journal forgets it (freeing it needs a journal retention,
+  named as future work), and the guard costs one journal pass per collect or
+  delete (the boot path is untouched).
+  11 mutations, 11 caught. Nothing else changed: the same on-disk layout, the
+  same package names, the same exported API (three things added: the port, its
+  setter and the sentinel), the same wire and the same events.
 
-**W3.4 — the artifacts module (the next slice, to scope).** The roadmap's
-order continues with `modules/artifacts` (artifact + datalake, with the
-journal `raw_ref` GC), then `modules/board`, `modules/work` (workboard, OKR,
+**W3.5 — the board module (the next slice, to scope).** The roadmap's
+order continues with `modules/board`, then `modules/work` (workboard, OKR,
 proof, assure, seats — fix the `"container"` seat mapping), `modules/workflows`
 (move `runtime/workflowrun*` + draft + test-node; fix the trigger `source`
 labels), `modules/agents` (roster, guardians, selfrepair, reaper, overseer
@@ -1251,6 +1284,9 @@ derived from the layer map, the allowlist moves with the edges, and the slice
 carries the bug the roadmap named for it. **W3.3's** — W3.2's shape plus the
 module's own seed data, which moves *into* the module (the plugin that held
 the bytes is gone) and the slice carries the bug the roadmap named for it.
+**W3.4's** — W3.2's shape plus a fix that needs knowledge the module cannot
+have: the module **defines the port** and the host answers it from its own
+event log, once per operation and for the whole batch.
 
 The overall target is the architecture in `20-target-architecture.md`, delivered
 incrementally to protected `main`, with runnable proof and source-aligned

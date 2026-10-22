@@ -4,7 +4,7 @@
 // work with — the Personal Data Lake (M834). One agent can create a collection
 // (table), insert/query/update/delete records, and another agent (or the human
 // in chat) reads the same data later. It is the agent-facing front of
-// kernel/datalake; the Web UI renders the same collections.
+// kernel/modules/artifacts/datalake; the Web UI renders the same collections.
 //
 // Capability-wise a db op reads or writes structured local state, mapped onto
 // the memory capability (the existing "agent's own durable knowledge" axis) so
@@ -19,8 +19,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/datalake"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 )
 
 // Store is the slice of *datalake.Lake the tool needs — an interface so the tool

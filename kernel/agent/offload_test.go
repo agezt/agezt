@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/agent"
-	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 

@@ -82,7 +82,7 @@ export function localMonthKey(d: Date): string {
  *  operator typed. So this touches a value only when it is EXACTLY one whole
  *  date, and returns the input unchanged otherwise: it never truncates, never
  *  guesses at an out-of-range date, and never rejects. It mirrors
- *  `canonicalDate` in kernel/datalake/datalake.go, and the two test fixture
+ *  `canonicalDate` in kernel/modules/artifacts/datalake/datalake.go, and the two test fixture
  *  tables (datalakedate.test.ts and datewrite_test.go) are kept identical so
  *  the two implementations cannot drift silently across the language seam. */
 export function canonicalDate(s: string): string {

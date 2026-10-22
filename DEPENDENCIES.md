@@ -29,7 +29,7 @@ Entries are grouped by role:
 | `github.com/coder/websocket` | v1.8.15 | `plugins/channels/nostr` | WebSocket protocol support is not in the Go standard library; Nostr relay connectivity needs it. |
 | `golang.org/x/net` | v0.57.0 | `plugins/tools/browser` | Public Suffix List for eTLD+1 cookie partitioning; the browser tool's cookie jar uses it to prevent cross-site cookie leaks (VULN psl-fix). Kept current as a direct dependency because it is compiled into the browser tool. |
 | `github.com/emersion/go-imap/v2` | v2.0.0-beta.8 | `plugins/channels/email` | IMAP protocol support is not in the Go standard library; used for inbound email-channel functionality. |
-| `lukechampine.com/blake3` | v1.4.1 | `kernel/event`, `kernel/journal`, `kernel/artifact` | DECISIONS B3 freezes BLAKE3 as the hash function for the event chain and content addressing. The standard library has no BLAKE3 implementation. This is the canonical pure-Go implementation (MIT, well-maintained, no CGO). POLICY §1.3 pre-blesses a BLAKE3 implementation as an acceptable core dep. |
+| `lukechampine.com/blake3` | v1.4.1 | `kernel/event`, `kernel/journal`, `kernel/modules/artifacts/artifact` | DECISIONS B3 freezes BLAKE3 as the hash function for the event chain and content addressing. The standard library has no BLAKE3 implementation. This is the canonical pure-Go implementation (MIT, well-maintained, no CGO). POLICY §1.3 pre-blesses a BLAKE3 implementation as an acceptable core dep. |
 
 ### Indirect deps (6, all reachable from a Direct dep above)
 
@@ -125,7 +125,7 @@ A dependency MAY be added only when **all five** POLICY §1.1 conditions hold:
 These belong in plugins, never the core (POLICY §1.2):
 
 - Browser automation (chromedp, playwright-go) → `plugin-tool-browser`
-- Vector math / ANN libraries → `plugin-memory-flintvector` (or own embedded HNSW in `kernel/memory` at M2)
+- Vector math / ANN libraries → `plugin-memory-flintvector` (or own embedded HNSW in `kernel/modules/knowledge/memory` at M2)
 - Container runtimes / Docker clients → `plugin-warden-container` / deploy tooling
 - Audio/video codecs → ambient plugins
 - LLM SDKs (anthropic, openai, ollama clients) → respective `plugin-provider-*` (each provider plugin owns its dialect translation, SPEC-15)

@@ -142,7 +142,7 @@ describe("localDayKey / localMonthKey", () => {
 // truncate a timestamp to its day because it only feeds a comparison, but
 // rewriting stored data the same way would destroy the time the operator typed.
 // canonicalDate therefore touches a value only when it is EXACTLY one whole
-// date. The fixture table mirrors kernel/datalake's datewrite_test.go case for
+// date. The fixture table mirrors the data lake's datewrite_test.go case for
 // case, so the two implementations of this rule cannot drift silently.
 describe("canonicalDate", () => {
   it("pads a whole date to fixed width, with either separator", () => {

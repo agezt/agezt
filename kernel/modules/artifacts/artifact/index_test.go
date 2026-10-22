@@ -5,7 +5,7 @@ package artifact_test
 import (
 	"testing"
 
-	"github.com/agezt/agezt/kernel/artifact"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 )
 
 func openIdx(t *testing.T) (*artifact.Index, string) {

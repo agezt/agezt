@@ -5,7 +5,7 @@
 package tooloutput
 
 // ArtifactPutter is the slice of a content-addressed store the loop needs to
-// offload large outputs. kernel/artifact.Store satisfies it. An interface keeps
+// offload large outputs. kernel/modules/artifacts/artifact.Store satisfies it. An interface keeps
 // kernel/agent decoupled from the storage package.
 type ArtifactPutter interface {
 	Put(data []byte) (ref string, err error)

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/artifact"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 )
 
 func TestActionTool_InvokeRunsDriverAndNormalizesOutput(t *testing.T) {

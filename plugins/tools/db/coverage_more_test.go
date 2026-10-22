@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/datalake"
+	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 )
 
 func TestDBCoverageDefinitionAndHelpers(t *testing.T) {

@@ -18,8 +18,8 @@ import (
 	"time"
 
 	"encoding/base64"
-	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/executionprofile"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/warden"
 	"path/filepath"
 )

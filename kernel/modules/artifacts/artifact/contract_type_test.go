@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/contract/remoteapi"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 )
 
 // TestEntryIsTheContractRow: the store's row IS the contract row — the same

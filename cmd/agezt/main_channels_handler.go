@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 

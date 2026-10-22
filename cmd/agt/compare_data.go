@@ -156,7 +156,7 @@ func compareCapabilities() []compareCapability {
 			Status:      compareStatusSupported,
 			Expectation: "Speech, image/media handling, generated artifacts, and channel media sends where supported.",
 			Agezt:       "AGEZT has STT/TTS, voice mode, image provider, artifact store, sendmedia tool, media-capable channel adapters, and a channel media capability matrix for image/voice in/out coverage in API/Web UI.",
-			Evidence:    []string{"kernel/stt/stt.go", "kernel/webui/tts.go", "plugins/providers/image/image.go", "kernel/artifact/artifact.go", "plugins/tools/sendmedia/sendmedia.go", "kernel/app/channels/inventory.go", "frontend/src/features/channels/components/Channels.tsx"},
+			Evidence:    []string{"kernel/stt/stt.go", "kernel/webui/tts.go", "plugins/providers/image/image.go", "kernel/modules/artifacts/artifact/artifact.go", "plugins/tools/sendmedia/sendmedia.go", "kernel/app/channels/inventory.go", "frontend/src/features/channels/components/Channels.tsx"},
 			Next:        "Add artifact-native media review flows in the console.",
 		},
 		{
