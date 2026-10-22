@@ -371,9 +371,9 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   plugin reader's conversions of RUNTIME types, the one confirmed duplicate
   (the warden branch in `workboard_dispatch.go`, which mirrors
   `app/runs/run_resolve.go`), the dead `boardReadDefaultLimit` constant, and
-  the remote mirror's two remaining duplicates (the environment value that
-  the settings store also declares, and the peer list's parser that the
-  application layer already owns).
+  the remote mirror's own environment read (which is not a second source of
+  truth: the settings store writes the same variable into the process
+  environment as an `ApplyLive` setting).
 - W2.57 (one warden branch) is committed on `main` as a code commit plus a
   docs commit and published from `arch/w2-dispatch` the same way. The
   warden-family execution profile was resolved twice — once by the direct run
@@ -835,15 +835,13 @@ remote-mirror, operation-audit, run-derived-row, projection and warden
 domains: the control plane's remaining conversions of the RUNTIME types (the
 council's `runtime.CouncilMember` and the runtime's plugin registration — the
 app layer cannot import `kernel/runtime`, so these need another shape), the
-dead `boardReadDefaultLimit` constant, the remote mirror's two remaining
-duplicates (the environment value that the settings store also declares, and
-the peer list's parser that the application layer already owns), and the
-remote backends' list, which appears twice with opposite meanings (the
-application supports them for a direct run, the host refuses them for a
-dispatched seat). Wider run/tool adapter convergence, W3 modules and journal
-raw-ref GC, W4 triggers/channel supervision/config/signing, and W5 generated
-SDK/frontend convergence and zero allowances remain open. The overall target
-is the architecture in `20-target-architecture.md`, delivered incrementally to
+dead `boardReadDefaultLimit` constant, and the remote backends' list, which
+appears twice with opposite meanings (the application supports them for a
+direct run, the host refuses them for a dispatched seat). Wider run/tool
+adapter convergence, W3 modules and journal raw-ref GC, W4
+triggers/channel supervision/config/signing, and W5 generated SDK/frontend
+convergence and zero allowances remain open. The overall target is the
+architecture in `20-target-architecture.md`, delivered incrementally to
 protected `main`, with runnable proof and source-aligned documentation.
 
 ---
