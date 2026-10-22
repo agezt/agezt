@@ -952,6 +952,14 @@ This file holds the active `[Unreleased]` working set.
   backend, say how to start it; the policy refusal and the "direct runs
   only" refusal are unchanged.
 
+- **The council's panel and the plugin manifest have one row type.** The seat
+  and model of a council member and the six fields of a plugin's manifest
+  entry are declared once, in the contract layer, and the host and the
+  application name that same declaration — the host no longer copies the
+  fields of every row it hands over, and the two sides cannot drift apart.
+  Nothing operator-visible changes: the wire shapes, the plugin rows' order,
+  the manifest's defensive copies and the empty-panel answer are the same.
+
 - **File Manager mutations and snapshot restores use typed application
   operations.** They keep their policy checks, audit arc, call identity and
   domain `error_code` values, and stay operator-only. Typed operations can now

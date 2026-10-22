@@ -298,20 +298,11 @@ var councilOperations = func() []app.Operation {
 		s := ctx.Value(systemHostKey{}).(*Server)
 		return appcouncil.New(appcouncil.Ports{
 			Members: func() []appcouncil.Member {
-				defaults := s.k.CouncilDefaultMembers()
-				members := make([]appcouncil.Member, 0, len(defaults))
-				for _, m := range defaults {
-					members = append(members, appcouncil.Member{Seat: m.Seat, Model: m.Model})
-				}
-				return members
+				return s.k.CouncilDefaultMembers()
 			},
 			SetMembers: func(members []appcouncil.Member) {
 				s.k.SetCouncilMembers(func() []runtime.CouncilMember {
-					out := make([]runtime.CouncilMember, len(members))
-					for i, m := range members {
-						out[i] = runtime.CouncilMember{Seat: m.Seat, Model: m.Model}
-					}
-					return out
+					return members
 				})
 			},
 			Store: func() appcouncil.Store { return settings.NewStore(s.baseDir) },

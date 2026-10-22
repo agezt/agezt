@@ -89,9 +89,13 @@ the application, which is a separate decision.
 
 The projections that convert **runtime** types (the council's
 `runtime.CouncilMember` and the runtime's plugin registration) stay where
-they are: the application layer cannot import `kernel/runtime`, and the
-runtime cannot import the application layer without breaking the layer
-rule. They are listed as candidates in `architecture/NEXT.md`.
+they are: the runtime must not import the application layer — that edge points
+upward and breaks the layer rule — and a shared VALUE type does not belong in
+the runtime's own package tree either, because the application layer may not
+reach into a module's internals. The types belong to the contract layer, so
+both sides can name the same one. They are listed as candidates in
+`architecture/NEXT.md`; W2.58 moves them to `kernel/contract/types` and deletes
+the projections.
 
 The cloned-kernel harness of the earlier slices — the pre-slice handler and
 the registered operation on two kernels, compared step by step — is not part

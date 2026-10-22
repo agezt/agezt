@@ -18,14 +18,14 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
-// Member is one seat on the panel and the model that speaks for it.
-type Member struct {
-	Seat  string `json:"seat"`
-	Model string `json:"model"`
-}
+// Member is one seat on the panel and the model that speaks for it. It is the
+// contract type itself — not a copy of it — so the host hands its membership
+// over without a field-by-field projection and the two sides cannot drift.
+type Member = types.CouncilMember
 
 // Store is the config store the membership persists to.
 type Store interface {

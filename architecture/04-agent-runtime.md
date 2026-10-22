@@ -40,15 +40,15 @@ kernel/agent        -> kernel/bus kernel/event                 (leaf-ish; import
 kernel/runtime      -> brand, agent, agentgw, approval, artifact, assure, bus, cadence, catalog, configcenter,
                        contextselect, datalake, delegation, edict, event, governor, imagetool, intent, intervention,
                        journal, market, mcp, memory, okr, proof, reflect, reranktool, resume, roster, runtime/accessors,
-                       runtime/lifecycle, runtime/runexec, runtime/types, scheduler, seat, skill, standing, state,
+                       runtime/lifecycle, runtime/runexec, scheduler, seat, skill, standing, state,
                        taste, tenantctx, toolexec, toolforge, ulid, voicetool, warden, workboard, workflow, worldmodel
 kernel/runtime/runexec   -> agent, agentgw, approval, artifact, assure, bus, cadence, catalog, configcenter, datalake,
                             edict, event, intent, journal, memory, reflect, resume, roster, scheduler, skill, standing,
                             state, voicetool, warden, worldmodel           (never imports kernel/runtime; KernelAPI interface)
 kernel/runtime/lifecycle -> event, ulid
-kernel/runtime/accessors -> (store packages) + runtime/types
+kernel/runtime/accessors -> (store packages) + contract/types
 kernel/runtime/compose   -> agent, edict, imagetool, mcp, reranktool, voicetool, warden    (NO importers: dead)
-kernel/runtime/types     -> (none)
+kernel/contract/types    -> (none)   (the shared value types; L1 contract, W2.58)
 kernel/app/tools   -> contract/{toolapi,toolphaseapi}, platform/toolpipeline
 kernel/toolexec     -> contract/toolapi, platform/toolpipeline (legacy forwarding only)
 kernel/platform/toolpipeline -> contract/{llm,policyapi,toolapi,toolphaseapi}, event, platform/{policyctx,schema,toolaudit,toolinvoke,tooloutput}
@@ -522,7 +522,7 @@ Subjects for loop events are `agent.<actor>.<suffix>`, with actor `agent-<corr>`
 | `runtime/lifecycle` | `doc.go`, `api.go` (`KernelAPI`: `Halted/SetHalted/Runs/RunsMu/RunWG/Suspend/PublishBus`), `manager.go` | Live (section 4.6). Test: `manager_test.go`. |
 | `runtime/accessors` | `doc.go`, `api.go`, `accessors.go`, `accessors_mutate.go` (48 funcs: getters, standing/roster CRUD with events) | **Constructed in Open (`k.accessors`) but never called.** `*Kernel`'s own `accessors_*.go` methods re-implement the same logic. Duplicate code, drift risk. Test: `accessors_test.go`. |
 | `runtime/compose` | `doc.go`, `api.go` (`OpenAPI` interface), `stores.go` (intentionally empty) | **Dead**: no importers. Day-20b extraction rolled back; `Open` lives in `runtime/compose.go`. |
-| `runtime/types` | `doc.go`, `types.go` (`SubAgentLimits`, `PluginInfo`, `CouncilMember`) | Shared value types aliased by runtime (`PluginInfo`, `CouncilMember`, `SubAgentLimits`). |
+| `contract/types` | `doc.go`, `types.go` (`SubAgentLimits`, `PluginInfo`, `CouncilMember`) | The shared value types (L1 contract). The runtime aliases them (`PluginInfo`, `CouncilMember`, `SubAgentLimits`) and so does the application layer (`app/council.Member`, `app/plugins.Registration`), so the host and the application name the same type. Moved here from `runtime/types` in W2.58. |
 
 ---
 

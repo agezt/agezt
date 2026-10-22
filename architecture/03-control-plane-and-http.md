@@ -848,7 +848,8 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `planner.go` | `plan_generate`, `plan_refine` (LLM plan JSON; LIVE). |
 | `conductor.go` | Streaming `conductor_ask` (Thinker→Worker→Verifier). |
 | `council.go` | Streaming `council_ask` (multi-model panel) and `sanitizeCorr`. |
-| `app/council/council.go` | Typed `council_members`, `conductor_roles` (the panel's models round-robin for thinker, worker and verifier) and audited `council_set`: the default panel, replaced from `{seat, model}` entries, persisted in seat order as `AGEZT_COUNCIL_MEMBERS`, applied live with blank seats named by position, unknown catalog models reported. |
+| `app/council/council.go` | Typed `council_members`, `conductor_roles` (the panel's models round-robin for thinker, worker and verifier) and audited `council_set`: the default panel, replaced from `{seat, model}` entries, persisted in seat order as `AGEZT_COUNCIL_MEMBERS`, applied live with blank seats named by position, unknown catalog models reported. The panel row is the contract type itself (`contract/types.CouncilMember`), so the host hands its membership over without a projection. |
+| `contract/types/types.go` | The shared value types the host and the application both name: `CouncilMember` (a seat and the model that speaks for it), `PluginInfo` (one external plugin's manifest entry) and `SubAgentLimits` (the delegation ceilings M46–M48). The application's council row and plugin registration are aliases of them (W2.58). |
 | `research.go` | `research_ask` (deep-research harness; LIVE). |
 | `app/chat/suggestions.go` | Typed `chat_suggestions`: up to five next-prompt chips, at most three from the primary kernel's active memory and the rest from the recently used tools' catalog, deduped by ID (no LLM). |
 | `app/chat/summary.go` | Typed audited `chat_summarize` (LIVE, no frames): one bounded `summarize` provider call folding the turns' last 24 KiB into a briefing, on the primary kernel's provider and default model. |
@@ -941,7 +942,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `app/tools/forge_catalog.go`, `forge_lifecycle.go`, `forge_lifecycle_operations.go` | Eight typed native toolforge operations: two unaudited reads and six mandatory audited lifecycle writes (promotion is operator-only). Kernel/store owns durable lifecycle transitions. |
 | `toolbox.go` | Host discovery/installer adapters and shared market/ACP JSON helpers; all three native toolbox operations are app-owned. |
 | `artifact.go` | `artifact_get` (re-verified bytes), `artifact_list`, `artifact_delete`, `artifact_collect`. |
-| `plugin.go` | Selected runtime-manifest Reader adapter → app/plugins.Service; codec/socket framing uses generic app dispatcher. |
+| `plugin.go` | Selected runtime-manifest Reader adapter → app/plugins.Service; the manifest is handed over as the contract type itself (`contract/types.PluginInfo`), so the field-by-field projection is gone; codec/socket framing uses generic app dispatcher. |
 | `app/data/data.go` | Typed operator window onto the data lake (M836): read-only `data_collections` and `data_records` (search, sort, direction, page) and audited `data_insert`, `data_update`, `data_delete`, `data_create_collection` and `data_drop_collection`, with operator provenance, strict collection/id/name arguments, lenient paging and the lake's not-found, exists and system-collection errors. |
 | `args_lenient.go` | `dlBool`/`dlInt`, the lenient flag and count readers the cognition commands use. |
 | `app/edict/reads.go` | Typed `edict_show`, `edict_deny_list` (removable runtime rules) and `edict_test` (dry-run decision) over the routed kernel's policy engine; strict tenant, capability checked first for the probe. |

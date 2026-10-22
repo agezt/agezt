@@ -84,6 +84,7 @@
 - **`kernel/contract/policyapi`** — Package policyapi defines the tool-policy verdict and callback contract.
 - **`kernel/contract/toolapi`** — Package toolapi is the tool contract: what a tool is (Tool, ToolDef, Result) and the governance metadata it declares (ToolCapability, ToolEffect, ObservationTrust).
 - **`kernel/contract/toolphaseapi`** — Package toolphaseapi defines the batch-aware invocation service port.
+- **`kernel/contract/types`** — Package types is the contract-layer home for the value types that cross the boundary between the host (the runtime and its accessors) and the application layer.
 - **`kernel/controlplane`** — Package controlplane is the local control protocol between the agezt daemon and the agt CLI.
 - **`kernel/convo`** — Package convo collapses a multi-turn conversation into a single Agezt intent — the deliberate, lossy-by-design mapping that lets the single-intent governed loop carry conversational context.
 - **`kernel/creds`** — Package creds is the local credentials vault for provider env vars.
@@ -138,7 +139,6 @@
 - **`kernel/runtime/accessors`** — Package accessors is the kernel's read-mostly surface extracted into a sub-package on Day 13 of the runtime split.
 - **`kernel/runtime/lifecycle`** — Package lifecycle is the kernel's run-lifecycle surface extracted into a sub-package as the first step of the Day 12 sub-package split.
 - **`kernel/runtime/runexec`** — Package runexec owns the kernel's run engine.
-- **`kernel/runtime/types`** — Package types is the shared-type home for the value types the kernel/runtime sub-packages pass across the host/sub-package boundary.
 - **`kernel/scheduler`** — Package scheduler is the DAG layer that sits *above* the first-party single-agent tool-loop (DECISIONS B0d, SPEC-02 §4).
 - **`kernel/seat`** — Package seat names the execution "seats" a workboard task can be dispatched under — the AGEZT answer to Matrix's "choose the right execution seat for the job".
 - **`kernel/selfrepair`** — Package selfrepair wires the deterministic doctor/auto-repair coordinator (Phase 2.6 extraction from cmd/agezt): it subscribes to the reaper pulse observer, claims broken/degraded/routing-unstable agents, drives the overseertool repair source, and escalates through the mailbox + wake chain when a repair fails.
