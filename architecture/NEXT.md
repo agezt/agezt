@@ -419,6 +419,12 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   18 mutations, 18 caught, no equivalent recorded. The archcheck allowlist
   stays at 129 import violations and 13 call sites; the package count stays
   at 270 (the old package moved, the new one took its place).
+  The control plane suite passed at count=20 twice; an earlier count=20 run
+  failed once and the failing test's name was not captured (that run's output
+  was piped through the tail of the log, so only the suite's deliberate
+  operator-repair panic lines and the `FAIL` summary survived). The
+  observation is recorded in the evidence doc, not dismissed — the name is
+  still unknown, and the slice carries no timing, concurrency or I/O change.
   **One claim was corrected in place:** the W2.55/W2.56/W2.57 notes said the
   application layer "cannot import `kernel/runtime`". That is wrong — the
   layer rule allows L4 → L3 and `app/system` already imports

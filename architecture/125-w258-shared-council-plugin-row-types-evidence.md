@@ -123,6 +123,17 @@ allowlisted call sites — the ratchet is unchanged) and `tools/structure-md`
 types, the council, the plugins, the runtime accessors and the control plane
 — pass at count=20.
 
+One observation is recorded rather than dismissed. An earlier `count=20` run
+of the control plane suite failed once, and **the failing test's name was not
+captured** — that run's output had been piped through the tail of the log, so
+only the operator-repair panic lines (which the suite prints on purpose) and
+the `FAIL` summary survived. The same command then passed twice in a row
+(`ok ... 1134.521s` and `ok ... 1227.726s`), and the exact head is green in
+CI, including the two race jobs. The slice carries no timing, concurrency or
+I/O change — it is a type unification and the removal of four field copies —
+so the failure is not attributed to it; it is recorded because its name is
+still unknown.
+
 ## Not done here
 
 The remote backends' list — ssh, k8s, modal, daytona and remote-agezt — still
