@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.57 one warden branch, 2026-10-21
+## Current checkpoint — W2.58 one shared row type, 2026-10-22
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -349,10 +349,13 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   at 270 (no new package).
   The projections that are left in the control plane convert RUNTIME types —
   the council's `runtime.CouncilMember`, the governor's snapshot, the
-  runtime's plugin registration — into the application's row types. The
-  application layer cannot import `kernel/runtime` (the runtime's own tests
-  import the app layer), so those conversions stay where they are for now.
-  They are the next candidates.
+  runtime's plugin registration — into the application's row types. Those
+  conversions stayed where they were for the W2.56 slice; they are the next
+  candidates. (The reason recorded here at the time — "the application layer
+  cannot import `kernel/runtime`" — was wrong, and is corrected in W2.58:
+  the layer rule allows L4 → L3, and `app/system` already imports
+  `kernel/runtime`. The prohibition that matters is the module reach, and a
+  shared value type belongs in the contract layer.)
 - W2.56 (typed profile and snapshot projections) is committed on `main` as a
   code commit plus a docs commit and published from `arch/w2-dispatch` the
   same way. `kernel/app/routing/agents.go` (new) gains
@@ -367,8 +370,7 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   16 mutations, 16 caught, no equivalent recorded. The archcheck allowlist
   stays at 129 import violations and 13 call sites; the package count stays
   at 270 (no new package).
-  What is left of the control plane's derived logic: the council's and the
-  plugin reader's conversions of RUNTIME types, the one confirmed duplicate
+  What is left of the control plane's derived logic: the one confirmed duplicate
   (the warden branch in `workboard_dispatch.go`, which mirrors
   `app/runs/run_resolve.go`), the dead `boardReadDefaultLimit` constant, and
   the remote mirror's own environment read (which is not a second source of
@@ -396,6 +398,34 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   The policy refusal and the remote-backend refusal, and their order, are
   unchanged. The archcheck allowlist stays at 129 import violations and 13
   call sites; the package count stays at 270 (no new package).
+- W2.58 (one shared row type for the council and the plugins) is committed on
+  `main` as a code commit plus a docs commit and published from
+  `arch/w2-dispatch` the same way. The council's membership and the plugin
+  manifest were carried across the host/application boundary twice — once as
+  the runtime's value types (`kernel/runtime/types`), once as the
+  application's row types (`app/council.Member`, `app/plugins.Registration`)
+  — so the host copied the fields of every row it handed over. The three
+  shared value types move down to the contract layer, where a shared VALUE
+  type belongs: `kernel/contract/types` (new) holds `CouncilMember`,
+  `PluginInfo` and `SubAgentLimits` verbatim, `kernel/runtime/types` is
+  deleted, the runtime keeps its public aliases (so the host's API is
+  unchanged), and `app/council.Member` and `app/plugins.Registration` are now
+  aliases of the contract types. The four projections that existed only
+  because the types differed are gone: the control plane's council read and
+  write, the control plane's manifest reader, and the council answer's member
+  list. The semantics are unchanged: the wire shapes, the plugin rows' prefix
+  ordering, the manifest's defensive copies and the empty-array-never-null
+  rule for an empty panel.
+  18 mutations, 18 caught, no equivalent recorded. The archcheck allowlist
+  stays at 129 import violations and 13 call sites; the package count stays
+  at 270 (the old package moved, the new one took its place).
+  **One claim was corrected in place:** the W2.55/W2.56/W2.57 notes said the
+  application layer "cannot import `kernel/runtime`". That is wrong — the
+  layer rule allows L4 → L3 and `app/system` already imports
+  `kernel/runtime`. The prohibition that matters is the module reach, and a
+  shared value type belongs in the contract layer. The correction is in
+  `architecture/124-w257-one-warden-branch-evidence.md` and in the W2.55
+  bullet above.
 - W2.45a (typed roster status collection) is committed on `main` as a code
   commit plus a docs commit and published from `arch/w2-dispatch` the same way.
   `kernel/controlplane/roster_status.go` (371 lines) is gone: the journal-derived
@@ -831,17 +861,14 @@ Preserve unrelated dirty changes: deletions of
 ### Next
 
 Continue roadmap §4.5/order 7 after the completed roster, steer, run-fold,
-remote-mirror, operation-audit, run-derived-row, projection and warden
-domains: the control plane's remaining conversions of the RUNTIME types (the
-council's `runtime.CouncilMember` and the runtime's plugin registration — the
-app layer cannot import `kernel/runtime`, so these need another shape), the
-dead `boardReadDefaultLimit` constant, and the remote backends' list, which
-appears twice with opposite meanings (the application supports them for a
-direct run, the host refuses them for a dispatched seat). Wider run/tool
-adapter convergence, W3 modules and journal raw-ref GC, W4
-triggers/channel supervision/config/signing, and W5 generated SDK/frontend
-convergence and zero allowances remain open. The overall target is the
-architecture in `20-target-architecture.md`, delivered incrementally to
+remote-mirror, operation-audit, run-derived-row, projection, warden and
+shared-row-type domains: the dead `boardReadDefaultLimit` constant, and the
+remote backends' list, which appears twice with opposite meanings (the
+application supports them for a direct run, the host refuses them for a
+dispatched seat). Wider run/tool adapter convergence, W3 modules and journal
+raw-ref GC, W4 triggers/channel supervision/config/signing, and W5 generated
+SDK/frontend convergence and zero allowances remain open. The overall target
+is the architecture in `20-target-architecture.md`, delivered incrementally to
 protected `main`, with runnable proof and source-aligned documentation.
 
 ---
