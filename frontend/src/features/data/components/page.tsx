@@ -57,7 +57,7 @@ function windowSplit<T>(first: T[], second: T[], limit: number): [T[], T[]] {
   return [a, second.slice(0, Math.max(0, limit - a.length))];
 }
 
-// Data view (M836): the human window onto the Personal Data Lake (kernel/datalake,
+// Data view (M836): the human window onto the Personal Data Lake (kernel/modules/artifacts/datalake,
 // M834/M835) — the structured collections agents build and fill via the `db` tool.
 // Pick a collection on the left, browse/search its records on the right, and add /
 // edit / delete rows by hand. Reads /api/data/collections + /api/data/records;

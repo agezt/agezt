@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 )
 
 // covIndex is a tiny per-test fake. The existing artifacts_test.go already

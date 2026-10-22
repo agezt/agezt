@@ -74,8 +74,6 @@
 
     {"pattern": "kernel/board", "layer": 3, "module": "board"},
 
-    {"pattern": "kernel/artifact", "layer": 3, "module": "artifacts"},
-    {"pattern": "kernel/datalake", "layer": 3, "module": "artifacts"},
 
     {"pattern": "kernel/mcp", "layer": 3, "module": "extensions"},
     {"pattern": "kernel/plugin", "layer": 3, "module": "extensions"},

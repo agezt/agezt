@@ -33,7 +33,7 @@ var (
 // It is the contract row (kernel/contract/remoteapi) — the same declaration
 // the reading side of the peer call uses — so the wire cannot drift between
 // the daemon that serves it and the daemon that reads it. It mirrors
-// kernel/artifact.Entry but keeps this package decoupled from the artifact
+// kernel/modules/artifacts/artifact.Entry but keeps this package decoupled from the artifact
 // store implementation and never includes bytes.
 type ArtifactEntry = remoteapi.Artifact
 

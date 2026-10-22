@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 	appartifacts "github.com/agezt/agezt/kernel/app/artifacts"
-	blobs "github.com/agezt/agezt/kernel/artifact"
+	blobs "github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"testing"
 	"time"
 )

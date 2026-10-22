@@ -6,7 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
-	blobs "github.com/agezt/agezt/kernel/artifact"
+	blobs "github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"time"
 )
 
@@ -125,6 +125,11 @@ func (s *Service) Delete(_ context.Context, in DeleteInput) (DeleteOutput, error
 	if err := s.index.Delete(in.ID); err != nil {
 		if errors.Is(err, blobs.ErrNotFound) {
 			return DeleteOutput{}, errors.New("artifact not found: " + in.ID)
+		}
+		if errors.Is(err, blobs.ErrStillReferenced) {
+			// The journal still names these bytes (a tool.result's raw_ref);
+			// removing them would leave the reference dangling.
+			return DeleteOutput{}, errors.New("artifact is still referenced by the journal: " + in.ID)
 		}
 		return DeleteOutput{}, err
 	}

@@ -19,9 +19,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 )
 
 // MaxReadBytes caps how much of a text artifact `read` returns inline, so pulling

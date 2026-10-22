@@ -10,9 +10,9 @@ package runtime
 import (
 	"errors"
 
-	"github.com/agezt/agezt/kernel/artifact"
-	"github.com/agezt/agezt/kernel/datalake"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
+	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 	"github.com/agezt/agezt/kernel/standing"
 )
 

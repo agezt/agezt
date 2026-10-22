@@ -2,7 +2,7 @@
 package controlplane
 
 import (
-	"github.com/agezt/agezt/kernel/artifact"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"os"
 	"path/filepath"
 	"reflect"

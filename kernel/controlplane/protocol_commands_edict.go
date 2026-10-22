@@ -226,7 +226,7 @@ const (
 	CmdArtifactCollect = "artifact_collect"
 
 	// Personal Data Lake (M836) — the Web UI Data view + CLI read/manage the
-	// agent-built structured collections (kernel/datalake, M834/M835).
+	// agent-built structured collections (kernel/modules/artifacts/datalake, M834/M835).
 	//
 	// CmdDataCollections lists every collection with its schema + record count.
 	// Returns: collections — []object{name,title,icon,view,desc,fields,builtin,system,count,created_ms,created_by}.

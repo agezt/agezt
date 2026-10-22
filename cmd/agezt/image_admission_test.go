@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )

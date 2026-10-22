@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/artifact"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/plugins/tools/fetch"
 	httptool "github.com/agezt/agezt/plugins/tools/http"

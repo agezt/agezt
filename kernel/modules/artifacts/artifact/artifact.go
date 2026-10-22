@@ -42,6 +42,13 @@ var ErrCorrupt = errors.New("artifact: content does not match its ref")
 // never escape the store directory.
 var ErrBadRef = errors.New("artifact: malformed ref")
 
+// ErrStillReferenced is returned when an artifact cannot be removed because
+// the journal still names its bytes (a tool.result's raw_ref). The journal is
+// the durable record of the run: a raw_ref that points at deleted bytes is a
+// dangling promise — `agt artifact_get <ref>` fails and the run's output is
+// gone. The bytes belong to the journal until the journal forgets them.
+var ErrStillReferenced = errors.New("artifact: still referenced by the journal")
+
 // Store is a content-addressed blob store rooted at a directory.
 type Store struct {
 	dir string

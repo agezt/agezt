@@ -18,20 +18,20 @@ import (
 
 	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/approval"
-	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
-	"github.com/agezt/agezt/kernel/datalake"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/imagetool"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/mcp"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
+	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
@@ -173,6 +173,11 @@ func Open(cfg Config) (*Kernel, error) {
 	if err != nil {
 		return fail("runtime: artifact index", err)
 	}
+	// The journal owns the bytes it names: a tool.result's raw_ref points at an
+	// offloaded output, and the journal keeps that name forever. The collector
+	// must not remove a blob the journal still references, so the index asks
+	// the journal (through the guard) before it collects anything.
+	artIndex.SetRefGuard(&journalRefGuard{j: j})
 
 	// Personal Data Lake (M834): file-based structured collections agents build
 	// and share. Pure on-disk (no handle to close), so its error path just unwinds

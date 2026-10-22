@@ -6,8 +6,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/artifact"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 

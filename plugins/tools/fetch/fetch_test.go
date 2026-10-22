@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/artifact"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 )
 
 // fakeIndex captures PutEntry calls.

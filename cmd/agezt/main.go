@@ -845,7 +845,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// registry-built specs and (a) wires the egress-block audit (M109) — when a
 	// netguard-guarded tool refuses a dial, a netguard.blocked event is journaled
 	// so an operator can see attempted SSRF / metadata reads — and (b) runs each
-	// spec's Configure hook: kernel/artifact-index/data-lake/runner injection for
+	// spec's Configure hook: kernel/modules/artifacts injection for
 	// the Set*-injection batch and the kernel Binds for the zero-arg tools
 	// (schedule, runs, standing, skill, introspect, overseer, tool_forge, mcp,
 	// workflow, workboard). Wired here because the tools are built before the
