@@ -13,7 +13,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )

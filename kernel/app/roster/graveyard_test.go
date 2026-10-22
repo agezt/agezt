@@ -14,8 +14,8 @@ import (
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/platform/schema"
-	core "github.com/agezt/agezt/kernel/roster"
 )
 
 const graveyardDay = 24 * 3600 * 1000

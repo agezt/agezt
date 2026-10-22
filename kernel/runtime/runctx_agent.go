@@ -14,8 +14,8 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/roster"
 )
 
 // WithAgentProfile binds a run to a roster profile (M790): its system prompt

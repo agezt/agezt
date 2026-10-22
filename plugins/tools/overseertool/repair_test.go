@@ -8,7 +8,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/governor"
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/settings"
 )

@@ -5,8 +5,8 @@ import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
-	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/standing"
 )

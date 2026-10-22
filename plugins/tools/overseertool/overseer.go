@@ -18,8 +18,8 @@ package overseertool
 import (
 	"sync"
 
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
-	"github.com/agezt/agezt/kernel/roster"
 )
 
 // Source is the narrow slice of the live kernel the overseer steers — an
@@ -100,15 +100,10 @@ type SearchFilter struct {
 }
 
 // RepairResult is the operator/guardian-facing outcome of one self-repair pass.
-type RepairResult struct {
-	Agent                         string   `json:"agent"`
-	Correlation                   string   `json:"correlation"`
-	Applied                       []string `json:"applied,omitempty"`
-	RoutingTaskType               string   `json:"routing_task_type,omitempty"`
-	RoutingTaskModelChain         []string `json:"routing_task_model_chain,omitempty"`
-	PreviousRoutingTaskModelChain []string `json:"previous_routing_task_model_chain,omitempty"`
-	Answer                        string   `json:"answer,omitempty"`
-}
+// The row is declared once, in the agents module (roster); the plugin keeps
+// its own name as an alias, so every importer compiles unchanged while the
+// module owns the vocabulary.
+type RepairResult = roster.RepairResult
 
 // Tool implements agent.Tool. Created unbound via New(); Bind wires the live
 // kernel Source after the daemon opens.

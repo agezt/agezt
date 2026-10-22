@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // TestFleetLock_RefusesAgentEditAndCreate verifies the V-012 opt-in guard: when

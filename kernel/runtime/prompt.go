@@ -11,7 +11,7 @@ package runtime
 import (
 	"strings"
 
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // AgentProfileSystem renders a profile's system prompt: its soul, standing

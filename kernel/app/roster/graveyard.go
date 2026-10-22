@@ -13,7 +13,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	core "github.com/agezt/agezt/kernel/roster"
+	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // GraveyardRequest keeps older_than_days raw: legacy callers send a number or a

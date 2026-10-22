@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
+	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/platform/fileworkspace"
-	core "github.com/agezt/agezt/kernel/roster"
 )
 
 // WorkspacePorts are the host's capabilities the workspace helpers need. The

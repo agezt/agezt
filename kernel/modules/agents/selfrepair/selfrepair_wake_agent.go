@@ -14,8 +14,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
-	"github.com/agezt/agezt/kernel/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 

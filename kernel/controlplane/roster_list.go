@@ -3,7 +3,7 @@ package controlplane
 
 import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 func (s *Server) rosterListService() *approster.ListService {

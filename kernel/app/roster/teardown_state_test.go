@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/configcenter"
+	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
-	core "github.com/agezt/agezt/kernel/roster"
 )
 
 // stateFake is a host stand-in for the teardown state ports.

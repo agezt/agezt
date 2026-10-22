@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 func degradedAgents(profiles []roster.Profile, runs map[string]agentRunHealth) []DegradedAgent {

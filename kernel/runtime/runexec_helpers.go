@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 func retryReason(err error) string {

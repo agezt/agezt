@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // TestRetryReason_Classifies covers the day-11 helper that

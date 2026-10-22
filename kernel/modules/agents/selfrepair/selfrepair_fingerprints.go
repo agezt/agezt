@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 func autoRepairPayloadString(pl map[string]any, key string) string {

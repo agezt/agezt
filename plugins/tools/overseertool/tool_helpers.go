@@ -14,8 +14,8 @@ import (
 	"encoding/json"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
-	"github.com/agezt/agezt/kernel/roster"
 )
 
 // parseProfile decodes the op=edit/create profile into a roster.Profile. The

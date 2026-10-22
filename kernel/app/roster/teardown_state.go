@@ -10,10 +10,10 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/configcenter"
+	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/platform/fileworkspace"
-	core "github.com/agezt/agezt/kernel/roster"
 )
 
 // TeardownStatePorts are the host's capabilities the agent teardown's state

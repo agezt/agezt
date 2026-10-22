@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // Internal tests for the per-run config resolution surface (refactor Phase 3.3).

@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/cadence"
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/standing"
 )
 
@@ -237,8 +237,21 @@ func reconcileExistingGuardian(h Host, p roster.Profile) error {
 	}
 	_, _, err := h.UpdateAgent(p.Slug, func(dst *roster.Profile) {
 		dst.ToolDeny = appendUnique(dst.ToolDeny, "memory")
-		dst.MaxCostMc = maxCostMc
-		dst.MaxDailyMc = maxDailyMc
+		// The built-in spend caps are CEILINGS, and the reconcile only ever
+		// tightens: a cap above the built-in maximum is clamped down and an
+		// unset one is filled, but a ceiling the OPERATOR lowered is left
+		// alone. The reconcile used to assign the built-in values outright,
+		// so every boot silently raised a guardian's lowered cap back to
+		// $5/$10 — the operator's tightening did not survive a restart,
+		// and the guardian-budget guardian's own contract ("pause or lower
+		// max_daily_mc; never raise ceilings") was broken by the daemon
+		// itself. Same rule as the trust ceiling right below.
+		if dst.MaxCostMc <= 0 || dst.MaxCostMc > maxCostMc {
+			dst.MaxCostMc = maxCostMc
+		}
+		if dst.MaxDailyMc <= 0 || dst.MaxDailyMc > maxDailyMc {
+			dst.MaxDailyMc = maxDailyMc
+		}
 		if trustRank(dst.TrustCeiling) > trustRank(defaultTrustCeiling) {
 			dst.TrustCeiling = defaultTrustCeiling
 		}

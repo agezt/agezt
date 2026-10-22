@@ -17,9 +17,8 @@ import (
 
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/plugins/tools/overseertool"
 )
 
 func publishOperatorAction(k *runtime.Kernel, subject, corr string, payload map[string]any) {
@@ -65,8 +64,10 @@ func (s *Server) launchOperatorWake(corr string, p roster.Profile, intent, reaso
 func (s *Server) launchOperatorRepair(corr string, p roster.Profile, reason string, lineage approster.IncidentLineage) {
 	approster.LaunchOperatorRepair(approster.RepairLaunchPorts{
 		Repair: func(slug, reason string) (approster.RepairOutcome, error) {
-			src := overseertool.NewKernelSource(s.k, s.baseDir)
-			res, err := src.RepairAgent(slug, reason)
+			if s.repairSource == nil {
+				return approster.RepairOutcome{}, fmt.Errorf("agent repair is not available on this daemon")
+			}
+			res, err := s.repairSource.RepairAgent(slug, reason)
 			if err != nil {
 				return approster.RepairOutcome{}, err
 			}

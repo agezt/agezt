@@ -2,7 +2,7 @@
 
 package routing
 
-import "github.com/agezt/agezt/kernel/roster"
+import "github.com/agezt/agezt/kernel/modules/agents/roster"
 
 // Agents maps the roster's profiles into the routing view's agents: the
 // handle the operator addresses, the model the agent runs and its ordered

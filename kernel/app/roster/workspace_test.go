@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/internal/brand"
-	core "github.com/agezt/agezt/kernel/roster"
+	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 func TestWorkspaceInfo(t *testing.T) {

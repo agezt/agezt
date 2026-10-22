@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 func TestWithAgentProfile_TrustCeilingAppliesToContext(t *testing.T) {

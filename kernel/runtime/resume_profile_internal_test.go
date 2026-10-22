@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/resume"
-	"github.com/agezt/agezt/kernel/roster"
 )
 
 func TestResumeTicket_ProfileDefaultsAndExplicitOverrides(t *testing.T) {

@@ -18,7 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // store is the subset of *cadence.Store the tool needs — an interface so tests

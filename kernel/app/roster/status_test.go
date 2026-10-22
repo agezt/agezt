@@ -2,7 +2,7 @@
 package roster
 
 import (
-	core "github.com/agezt/agezt/kernel/roster"
+	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"reflect"
 	"testing"
 	"time"

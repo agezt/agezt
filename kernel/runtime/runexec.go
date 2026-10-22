@@ -10,8 +10,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/work/assure"
-	"github.com/agezt/agezt/kernel/roster"
 )
 
 // This file is the kernel's run engine: the entry points an external

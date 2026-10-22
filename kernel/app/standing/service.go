@@ -5,7 +5,7 @@ package standing
 import (
 	"context"
 	"fmt"
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	orders "github.com/agezt/agezt/kernel/standing"
 	"strings"
 )

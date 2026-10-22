@@ -15,8 +15,8 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/journal"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/roster"
 )
 
 // testServer is a full gateway integration test setup with an HTTP server.

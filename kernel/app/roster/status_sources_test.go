@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/event"
-	core "github.com/agezt/agezt/kernel/roster"
+	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // journalOf returns a journal port over a fixed event list.

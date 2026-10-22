@@ -11,7 +11,7 @@ package runtime
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"strings"
 )
 

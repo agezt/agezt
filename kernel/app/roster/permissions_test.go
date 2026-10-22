@@ -14,8 +14,8 @@ import (
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
+	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/platform/schema"
-	core "github.com/agezt/agezt/kernel/roster"
 )
 
 type permTool struct{ name, description string }

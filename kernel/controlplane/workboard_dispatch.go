@@ -13,8 +13,8 @@ import (
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 	appworkboard "github.com/agezt/agezt/kernel/app/workboard"
 	"github.com/agezt/agezt/kernel/executionprofile"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
-	"github.com/agezt/agezt/kernel/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 

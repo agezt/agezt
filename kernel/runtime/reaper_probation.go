@@ -15,7 +15,7 @@ import (
 	"encoding/json"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 func (k *Kernel) routingForcedProbationAgents(profiles []roster.Profile, routing []RoutingPressureAgent, cutoffMS int64) ([]RoutingForcedProbationAgent, []RoutingForcedFailedAgent, []RoutingForcedExhaustedAgent, []RoutingPressureAgent) {

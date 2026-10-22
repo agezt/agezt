@@ -5,7 +5,7 @@ package routing
 import (
 	"testing"
 
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 func TestAgentsMapsTheRosterProfiles(t *testing.T) {

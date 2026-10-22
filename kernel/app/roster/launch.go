@@ -5,7 +5,7 @@ package roster
 import (
 	"fmt"
 
-	core "github.com/agezt/agezt/kernel/roster"
+	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // WakeLaunchPorts are the host's capabilities an operator wake needs. The

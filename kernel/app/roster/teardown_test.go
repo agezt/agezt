@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/cadence"
-	core "github.com/agezt/agezt/kernel/roster"
+	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/standing"
 )
 

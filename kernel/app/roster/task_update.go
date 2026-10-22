@@ -12,8 +12,8 @@ import (
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/platform/schema"
-	core "github.com/agezt/agezt/kernel/roster"
 )
 
 // TaskUpdateRequest keeps every argument raw: args.task and the flat id/title/

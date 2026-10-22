@@ -13,7 +13,7 @@ import (
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
-	core "github.com/agezt/agezt/kernel/roster"
+	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 func repairEvent(seq int64, pl map[string]any) *event.Event {

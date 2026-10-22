@@ -12,11 +12,10 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
-	"github.com/agezt/agezt/kernel/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
-	"github.com/agezt/agezt/plugins/tools/overseertool"
 )
 
 func TestAutoRepairShouldHandle(t *testing.T) {
@@ -499,7 +498,7 @@ func TestAutoRepairDispatch_RoutingRollbackPublishesRollbackCompletion(t *testin
 	}
 	defer sub.Cancel()
 	src := fakeAutoRepairSource{
-		rollback: overseertool.RepairResult{
+		rollback: roster.RepairResult{
 			Agent:                         "builder",
 			Applied:                       []string{"task_model_chain"},
 			RoutingTaskType:               "code",
@@ -816,7 +815,7 @@ func TestApplyAutoRepairResolution_DelegatesViaMailbox(t *testing.T) {
 func TestApplyAutoRepairResolution_ForcesRoutingChain(t *testing.T) {
 	coord := newAutoRepairCoordinator(time.Hour)
 	src := &fakeAutoRepairSource{
-		applyChain: overseertool.RepairResult{
+		applyChain: roster.RepairResult{
 			Agent:                         "builder",
 			Applied:                       []string{"task_model_chain"},
 			RoutingTaskType:               "code",
@@ -856,7 +855,7 @@ func TestApplyAutoRepairResolution_ForceChainIncrementsGeneration(t *testing.T) 
 	})
 	coord := newAutoRepairCoordinator(time.Hour)
 	src := &fakeAutoRepairSource{
-		applyChain: overseertool.RepairResult{
+		applyChain: roster.RepairResult{
 			Agent:                         "builder",
 			Applied:                       []string{"task_model_chain"},
 			RoutingTaskType:               "code",
@@ -1104,8 +1103,8 @@ func (p *routingProvider) SetTaskModelChains(chains map[string][]string) {
 
 type fakeAutoRepairSource struct {
 	err               error
-	rollback          overseertool.RepairResult
-	applyChain        overseertool.RepairResult
+	rollback          roster.RepairResult
+	applyChain        roster.RepairResult
 	lastApplyRef      string
 	lastApplyTaskType string
 	lastApplyChain    []string
@@ -1122,28 +1121,28 @@ type panickingAutoRepairSource struct {
 	calls int
 }
 
-func (f *panickingAutoRepairSource) RepairAgent(ref, reason string) (overseertool.RepairResult, error) {
+func (f *panickingAutoRepairSource) RepairAgent(ref, reason string) (roster.RepairResult, error) {
 	f.calls++
 	if f.calls == 1 {
 		panic("repair tool exploded")
 	}
-	return overseertool.RepairResult{Agent: ref, Answer: reason}, nil
+	return roster.RepairResult{Agent: ref, Answer: reason}, nil
 }
 
-func (f *countingAutoRepairSource) RepairAgent(ref, reason string) (overseertool.RepairResult, error) {
+func (f *countingAutoRepairSource) RepairAgent(ref, reason string) (roster.RepairResult, error) {
 	f.calls++
-	return overseertool.RepairResult{Agent: ref, Answer: reason}, nil
+	return roster.RepairResult{Agent: ref, Answer: reason}, nil
 }
 
-func (f fakeAutoRepairSource) RepairAgent(ref, reason string) (overseertool.RepairResult, error) {
-	return overseertool.RepairResult{}, f.err
+func (f fakeAutoRepairSource) RepairAgent(ref, reason string) (roster.RepairResult, error) {
+	return roster.RepairResult{}, f.err
 }
 
-func (f fakeAutoRepairSource) RollbackRouting(ref, taskType string, targetChain []string, reason string) (overseertool.RepairResult, error) {
+func (f fakeAutoRepairSource) RollbackRouting(ref, taskType string, targetChain []string, reason string) (roster.RepairResult, error) {
 	return f.rollback, f.err
 }
 
-func (f *fakeAutoRepairSource) ApplyRoutingChain(ref, taskType string, targetChain []string, reason string) (overseertool.RepairResult, error) {
+func (f *fakeAutoRepairSource) ApplyRoutingChain(ref, taskType string, targetChain []string, reason string) (roster.RepairResult, error) {
 	f.lastApplyRef = ref
 	f.lastApplyTaskType = taskType
 	f.lastApplyChain = append([]string(nil), targetChain...)
