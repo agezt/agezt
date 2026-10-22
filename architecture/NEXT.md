@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W2.58 one shared row type, 2026-10-22
+## Current checkpoint — W2.59 one remote-backend list, 2026-10-22
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -425,6 +425,37 @@ The owner resumed work after the report break. The W0–W5 objective remains ope
   operator-repair panic lines and the `FAIL` summary survived). The
   observation is recorded in the evidence doc, not dismissed — the name is
   still unknown, and the slice carries no timing, concurrency or I/O change.
+- W2.59 (one remote-backend list) is committed on `main` as a code commit plus
+  a docs commit and published from `arch/w2-dispatch` the same way. The remote
+  execution backends — ssh, k8s, modal, daytona and remote-agezt — were named
+  in four places with three different sets: the application's run path, the
+  control plane's dispatched seat, the `code_exec` tool's artifact export
+  (four of them) and the profile inventory. The two host-side lists had
+  opposite meanings — the application supports a remote backend for a direct
+  run, the control plane refuses it for a dispatched seat — and two literal
+  lists with opposite meanings are two places to forget a name.
+  `kernel/executionprofile/remote_backends.go` (new) owns the names: the five
+  id constants, `RemoteBackendIDs` and `IsRemoteBackend(id)` (case- and
+  space-insensitive). The inventory's profiles and its routable ids, the run
+  path's switch, the dispatched seat's refusal and the `code_exec` tool's
+  artifact rule all name the backends through it. The **policies** stay where
+  they were — the application still resolves a remote backend for a direct run
+  with its own refusal when the backend is inactive, the host still refuses it
+  for a dispatched seat with the same message, and the `code_exec` tool still
+  exports the remote artifacts from the local root.
+  The dead `boardReadDefaultLimit` constant in `kernel/controlplane/board.go`
+  is removed with it.
+  19 mutations: 18 caught, 1 recorded equivalent (the `code_exec` tool's
+  remote-agezt exception — that profile never runs the tool). The first pass
+  left one test gap open (the routable-ids lookup, invisible while every
+  backend was active); the strengthened test catches it on the repeat. The
+  archcheck allowlist stays at 129 import violations and 13 call sites; the
+  package count stays at 270 (no new package).
+  One observation is recorded rather than dismissed: an earlier count=20 run
+  of the control plane's affected tests failed once, when the workboard app
+  socket test hit its five-second pipe deadline ("read pipe: i/o timeout") on
+  one iteration; the same command then passed and the test passes on its own.
+  The slice changes no socket, no deadline and no timeout.
   **One claim was corrected in place:** the W2.55/W2.56/W2.57 notes said the
   application layer "cannot import `kernel/runtime`". That is wrong — the
   layer rule allows L4 → L3 and `app/system` already imports
@@ -867,15 +898,15 @@ Preserve unrelated dirty changes: deletions of
 ### Next
 
 Continue roadmap §4.5/order 7 after the completed roster, steer, run-fold,
-remote-mirror, operation-audit, run-derived-row, projection, warden and
-shared-row-type domains: the dead `boardReadDefaultLimit` constant, and the
-remote backends' list, which appears twice with opposite meanings (the
-application supports them for a direct run, the host refuses them for a
-dispatched seat). Wider run/tool adapter convergence, W3 modules and journal
-raw-ref GC, W4 triggers/channel supervision/config/signing, and W5 generated
-SDK/frontend convergence and zero allowances remain open. The overall target
-is the architecture in `20-target-architecture.md`, delivered incrementally to
-protected `main`, with runnable proof and source-aligned documentation.
+remote-mirror, operation-audit, run-derived-row, projection, warden,
+shared-row-type and remote-backend-list domains: the remote backends' two
+**policies** (the application supports them for a direct run, the host refuses
+them for a dispatched seat), the wider run/tool adapter convergence, W3
+modules and journal raw-ref GC, W4 triggers/channel supervision/config/signing,
+and W5 generated SDK/frontend convergence and zero allowances remain open. The
+overall target is the architecture in `20-target-architecture.md`, delivered
+incrementally to protected `main`, with runnable proof and source-aligned
+documentation.
 
 ---
 

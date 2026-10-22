@@ -452,6 +452,7 @@ Tests: `warden_test.go`, `container_test.go`, `capbuf_test.go`, `classify_test.g
 - `WardenProfileForRun(id)`: `local`→`none`, `warden`→`namespace`, `docker`→`container`; everything else not routable via warden. `RoutableRunProfileIDsFor(inv)` adds docker/ssh/remote-agezt/modal/daytona/k8s when routed and not degraded.
 - `ProfilePolicy` from `AGEZT_EXEC_PROFILE_ALLOW` / `AGEZT_EXEC_PROFILE_DENY`.
 - Remote backends: `SSHConfigFromEnv` (`AGEZT_EXEC_SSH*`), `K8sConfigFromEnv` (`AGEZT_EXEC_K8S*`), `ModalConfigFromEnv` (`AGEZT_EXEC_MODAL*`), `DaytonaConfigFromEnv` (`AGEZT_EXEC_DAYTONA*`), each with argv builders and `With*Override`/`*OverrideFrom` ctx helpers.
+- One remote-backend list (W2.59): `RemoteBackendIDs` = ssh, k8s, modal, daytona, remote-agezt, and `IsRemoteBackend(id)` (case- and space-insensitive) over it. The app's run path resolves the backends by these ids, the control plane refuses them for a dispatched seat, and the `code_exec` tool exports their artifacts from the local root — so a new remote backend is named in one place.
 - Env passthrough: `AGEZT_EXEC_ENV_{LOCAL,WARDEN,DOCKER}` (non-secret names; secret-shaped and `AGEZT_*` rejected) and `AGEZT_EXEC_SECRET_ENV_{…}` (explicit secret names allowed). `IsSecretEnvName` duplicates envscrub's fragment list.
 - Secret files: `AGEZT_EXEC_SECRET_FILES_{LOCAL,WARDEN,DOCKER}` → `PrepareSecretFileMounts` loads the vault, writes each secret to a 0600 temp file, returns `ENVNAME=<path>` (docker: `/workspace/...` path) + cleanup.
 - Remote secret policy `AGEZT_EXEC_REMOTE_SECRET_POLICY`: default/invalid = `deny`; `metadata` = names only; values are never exported.
@@ -463,6 +464,7 @@ Tests: `warden_test.go`, `container_test.go`, `capbuf_test.go`, `classify_test.g
 | `profile.go` | `Status`, `Profile`, `Inventory`, `Options`, `Build`, `Find`, `WardenProfileForRun`, `RoutableRunProfileIDs[For]`. |
 | `profile_local.go` | Builders for local, warden, worktree-coding, browser-session, docker profiles. |
 | `profile_remote.go` | Builders for ssh, remote-agezt, modal, daytona, k8s profiles. |
+| `remote_backends.go` | The one remote-backend list: `RemoteBackendIDs` and `IsRemoteBackend(id)` (W2.59). |
 | `profile_helpers.go` | Tool-set helpers. |
 | `policy.go` | `ProfilePolicy`, `PolicyFromEnv`, `ParseProfilePolicy`, `Allows`, `RoutableRunProfileIDsForPolicy`. |
 | `check.go` | Health checks, `Diagnose`, `RemoteArtifactBytesEnv`. |

@@ -925,7 +925,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `workboard_handlers.go` | `workboard_lanes/show/create/claim/heartbeat/comment/block/fail/unblock/complete/prove/seat/archive`. |
 | `workboard_handlers_link.go` | `workboard_link/policy/depend/reclaim/sweep`. |
 | `workboard_handlers_dispatch.go` | `workboard_dispatch`, `workboard_watch`. |
-| `workboard_dispatch.go` | `runWorkboardDispatch`; `applyWardenExecutionProfile` keeps the host's own gates (the trimmed id, the empty id, the environment policy and the remote backends a dispatched seat may not use) and asks the application for the warden profile itself (`app/runs.WardenProfile`). |
+| `workboard_dispatch.go` | `runWorkboardDispatch`; `applyWardenExecutionProfile` keeps the host's own gates (the trimmed id, the empty id, the environment policy and the remote backends a dispatched seat may not use — the list is `executionprofile.IsRemoteBackend`, so the app, the host and the code_exec tool name the same backends) and asks the application for the warden profile itself (`app/runs.WardenProfile`). |
 | `workboard_dispatch_helpers.go` | Dispatch intent builder, publish, latest run id, watch events. |
 | `workboard_dispatch_register.go` | `registerWorkboardCommands`. |
 | `workboard_dispatch_resp.go` | `workboardWriteResp`. |
