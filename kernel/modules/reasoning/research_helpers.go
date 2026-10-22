@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
+package reasoning
 
-// Provenance: Research: parsers (SubQuestions / SearchHits / Verdict) + extractors
-//             (JSONArray / CitedSources / Claims) + classifiers (Confidence /
-//             classifyResearchVerdict / firstIndexOf) + the regex variables each
-//             helper uses. The LLM-input prompt builders (4 buildXxx funcs) live in
-//             research_prompts.go. Code extracted from research.go during the Day-67
-//             god-file split. Public API unchanged.
+// research_helpers.go owns the parsers (SubQuestions / SearchHits / Verdict),
+// the extractors (JSONArray / CitedSources / Claims) and the classifiers
+// (Confidence / classifyResearchVerdict / firstIndexOf) the research harness
+// uses on the model's output, plus the regex patterns each helper needs. The
+// LLM-input prompt builders live in research_prompts.go.
 
 import (
 	"encoding/json"
@@ -15,8 +14,12 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 )
 
+// parseSubQuestions extracts up to max sub-questions from a planner reply. It
+// tolerates a JSON array (optionally inside a code fence) or a numbered/bulleted
 // list, always includes the original question, and dedupes case-insensitively.
 func parseSubQuestions(raw, question string, max int) []string {
 	raw = strings.TrimSpace(raw)
@@ -157,6 +160,7 @@ func extractClaims(markdown string, n int) []ResearchClaim {
 	return claims
 }
 
+// reSupportedWord matches "SUPPORTED" as a whole word so it never fires inside
 // "UNSUPPORTED".
 var reSupportedWord = regexp.MustCompile(`\bSUPPORTED\b`)
 
@@ -184,7 +188,7 @@ func parseResearchVerdict(reply string) (verdict, note string) {
 		if up == "SUPPORTED" || up == "REFUTED" || up == "UNCERTAIN" {
 			continue
 		}
-		note = clip(l, 240)
+		note = api.Clip(l, 240)
 		break
 	}
 	return verdict, note

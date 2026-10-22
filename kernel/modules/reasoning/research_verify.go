@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
+package reasoning
 
-// Provenance: Research: verifyResearchClaims. Code extracted from research.go during
-//             the Day-67 god-file split. Public API unchanged.
+// research_verify.go owns the adversarial verification pass (Faz 2): each cited
+// claim is put through a skeptical, refute-first check against the text of the
+// source(s) it cites.
 
 import (
 	"context"
@@ -12,14 +13,15 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
+// verifyResearchClaims runs the adversarial verifier over each claim in
 // parallel (like councilRound), returning claims with their verdicts filled.
-func (k *Kernel) verifyResearchClaims(ctx context.Context, corr, model string, sources []ResearchSource, claims []ResearchClaim) []ResearchClaim {
-	if len(claims) == 0 || k.cfg.Provider == nil {
+func (s *Service) verifyResearchClaims(ctx context.Context, corr, model string, sources []ResearchSource, claims []ResearchClaim) []ResearchClaim {
+	if len(claims) == 0 || s.deps.HasProvider == nil || !s.deps.HasProvider() {
 		return nil
 	}
 	byID := make(map[string]ResearchSource, len(sources))
-	for _, s := range sources {
-		byID[s.ID] = s
+	for _, src := range sources {
+		byID[src.ID] = src
 	}
 	out := make([]ResearchClaim, len(claims))
 	var wg sync.WaitGroup
@@ -28,7 +30,7 @@ func (k *Kernel) verifyResearchClaims(ctx context.Context, corr, model string, s
 		go func(i int, c ResearchClaim) {
 			defer wg.Done()
 			c.Verdict = "uncertain"
-			resp, err := k.completeAux(ctx, corr, "research-verify", llm.CompletionRequest{
+			resp, err := s.complete(ctx, corr, "research-verify", llm.CompletionRequest{
 				Model:     model,
 				MaxTokens: researchVerifyMaxTokens,
 				System:    researchVerifySystem,
@@ -47,5 +49,3 @@ func (k *Kernel) verifyResearchClaims(ctx context.Context, corr, model string, s
 	wg.Wait()
 	return out
 }
-
-// --- pure helpers (unit-tested without a Kernel) ---

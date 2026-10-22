@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 // Package research owns the deep-research harness surface (M1001): the
-// operator, Web UI and CLI surface for the research harness in kernel/runtime.
+// operator, Web UI and CLI surface for the research harness in kernel/modules/reasoning.
 // The operation runs plan -> gather -> synthesize -> adversarial verify and
 // returns a cited report. The agent reaches the same engine through the
 // `research` tool; the underlying web_search and browser.read calls stay gated
@@ -17,14 +17,14 @@ import (
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 	"github.com/agezt/agezt/kernel/platform/schema"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
 // Engines runs the research harness under a correlation, and mints one when
 // the caller supplies none.
 type Engines struct {
-	Research       func(ctx context.Context, corr, question string, opts runtime.ResearchOptions) (runtime.ResearchReport, error)
+	Research       func(ctx context.Context, corr, question string, opts api.ResearchOptions) (api.ResearchReport, error)
 	NewCorrelation func() string
 }
 
@@ -93,7 +93,7 @@ func (e Engines) Ask(ctx context.Context, in AskRequest) (AskOutput, error) {
 	if v, ok := app.LenientValue(in.Verify).(bool); ok {
 		verify = v
 	}
-	rep, err := e.Research(ctx, corr, question, runtime.ResearchOptions{
+	rep, err := e.Research(ctx, corr, question, api.ResearchOptions{
 		MaxSubQuestions: app.LenientCount(in.MaxSubQuestions),
 		MaxSources:      app.LenientCount(in.MaxSources),
 		Verify:          verify,

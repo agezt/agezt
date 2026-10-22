@@ -28,6 +28,7 @@ import (
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/mcp"
 	"github.com/agezt/agezt/kernel/memory"
+	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 	"github.com/agezt/agezt/kernel/okr"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/resume"
@@ -94,6 +95,14 @@ type Kernel struct {
 	// so the kernel never imports the codeexec plugin. nil when the sandbox is
 	// off — the Verifier then falls back to LLM critique.
 	conductorExec CodeExecutor
+
+	// reasoning is the reasoning module (the Council, the Conductor and the
+	// deep-research harness). The module lives in kernel/modules/reasoning; the
+	// runtime cannot import it (a module may import another module's api
+	// package and nothing else — archcheck's principle P5), so the composition
+	// root builds the service and injects it here with SetReasoning. nil until
+	// it is wired.
+	reasoning api.Service
 
 	catalogStore *catalog.Store
 	catalog      *catalog.Catalog // snapshot — refreshable via ReloadCatalog

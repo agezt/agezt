@@ -11,6 +11,26 @@ import (
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
+// CodeExecutor is the minimal slice of the code_exec tool the Verifier needs to
+// actually run a worker's code. Satisfied by *codeexec.Tool (its RunScript), but
+// declared here so the kernel never imports the plugin (jarvis-pillars-map: the
+// kernel imports no plugins). Wired by the daemon via SetConductorExec.
+type CodeExecutor interface {
+	// RunScript runs code once in the sandbox and returns its combined output,
+	// an isError verdict (non-zero exit / timeout / unavailable language), and a
+	// transport error. inputJSON is surfaced to the script as ./stdin.txt.
+	RunScript(ctx context.Context, language, code, inputJSON string) (output string, isError bool, err error)
+}
+
+// SetConductorExec injects the code-execution backend used by the Conductor's
+// Verifier role. Called once after Open (before any run), mirroring the council
+// SetRunner / code_exec Bind wiring. Passing nil disables exec-verification (the
+// Verifier then always critiques).
+//
+// The backend stays in the host: the reasoning module asks for it through its
+// RunCode port, so the run keeps the host's policy checks and its audit arc.
+func (k *Kernel) SetConductorExec(x CodeExecutor) { k.conductorExec = x }
+
 // codeExecution adapts the already-wired sandbox runner, not the public
 // code_exec tool's wider project/files/packages API. It is private to one call:
 // neither the registry nor the runner's execution/network settings are changed.
