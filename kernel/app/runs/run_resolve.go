@@ -267,13 +267,13 @@ func applyExecutionProfile(ctx context.Context, k *runtime.Kernel, execProfile s
 		return ctx, "", false, fmt.Errorf("execution profile %q is blocked by policy: %s", execProfile, reason)
 	}
 	switch {
-	case strings.EqualFold(execProfile, "ssh"):
+	case strings.EqualFold(execProfile, executionprofile.IDSSH):
 		sshCfg := executionprofile.SSHConfigFromEnv()
 		if !sshCfg.Active() {
 			return ctx, "", false, errors.New(`execution profile "ssh" requires an active SSH backend (set AGEZT_EXEC_SSH=1 and AGEZT_EXEC_SSH_TARGET=user@host)`)
 		}
 		return executionprofile.WithSSHOverride(ctx, sshCfg), "ssh", false, nil
-	case strings.EqualFold(execProfile, "k8s"):
+	case strings.EqualFold(execProfile, executionprofile.IDK8s):
 		k8sCfg := executionprofile.K8sConfigFromEnv()
 		if !k8sCfg.Active() {
 			return ctx, "", false, errors.New(`execution profile "k8s" requires an active Kubernetes backend (set AGEZT_EXEC_K8S=1 and AGEZT_EXEC_K8S_POD=<pod>; optional AGEZT_EXEC_K8S_NAMESPACE/CONTEXT/CONTAINER/WORKDIR)`)
@@ -282,7 +282,7 @@ func applyExecutionProfile(ctx context.Context, k *runtime.Kernel, execProfile s
 			return ctx, "", false, err
 		}
 		return executionprofile.WithK8sOverride(ctx, k8sCfg), "k8s", false, nil
-	case strings.EqualFold(execProfile, "modal"):
+	case strings.EqualFold(execProfile, executionprofile.IDModal):
 		modalCfg := executionprofile.ModalConfigFromEnv()
 		if !modalCfg.Active() {
 			return ctx, "", false, errors.New(`execution profile "modal" requires an active Modal backend (set AGEZT_EXEC_MODAL=1; optional AGEZT_EXEC_MODAL_REF or AGEZT_EXEC_MODAL_IMAGE)`)
@@ -291,7 +291,7 @@ func applyExecutionProfile(ctx context.Context, k *runtime.Kernel, execProfile s
 			return ctx, "", false, err
 		}
 		return executionprofile.WithModalOverride(ctx, modalCfg), "modal", false, nil
-	case strings.EqualFold(execProfile, "daytona"):
+	case strings.EqualFold(execProfile, executionprofile.IDDaytona):
 		daytonaCfg := executionprofile.DaytonaConfigFromEnv()
 		if !daytonaCfg.Active() {
 			return ctx, "", false, errors.New(`execution profile "daytona" requires an active Daytona backend (set AGEZT_EXEC_DAYTONA=1 and AGEZT_EXEC_DAYTONA_SANDBOX=<id-or-name>)`)
@@ -300,7 +300,7 @@ func applyExecutionProfile(ctx context.Context, k *runtime.Kernel, execProfile s
 			return ctx, "", false, err
 		}
 		return executionprofile.WithDaytonaOverride(ctx, daytonaCfg), "daytona", false, nil
-	case strings.EqualFold(execProfile, "remote-agezt"):
+	case strings.EqualFold(execProfile, executionprofile.IDRemoteAgezt):
 		if _, ok := k.Tools()["remote_run"]; !ok {
 			return ctx, "", false, errors.New(`execution profile "remote-agezt" requires configured AGEZT peers (set AGEZT_PEERS=name=https://host|token so the remote_run tool is registered)`)
 		}

@@ -144,7 +144,10 @@ func (t *Tool) exportArtifactsFromDir(ctx context.Context, dir, profile string) 
 		return nil, nil
 	}
 	root := filepath.Join(dir, artifactExportDir)
-	if profile == "ssh" || profile == "k8s" || profile == "modal" || profile == "daytona" {
+	if executionprofile.IsRemoteBackend(profile) && profile != executionprofile.IDRemoteAgezt {
+		// The remote code_exec backends export from the local root. The
+		// remote-agezt profile is not one of them: it never runs the
+		// code_exec tool — its artifacts live on the peer.
 		root = dir
 	}
 	info, err := os.Stat(root)

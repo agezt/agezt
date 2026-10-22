@@ -61,8 +61,10 @@ func (b workboardExecutionContext) Isolation(ctx context.Context, id string) (co
 // (local|warden|container) and layers its sandbox override onto ctx, returning
 // the effective label. The resolution itself belongs to the application layer
 // (app/runs.WardenProfile), so the dispatched seat path and the direct run
-// path cannot drift apart. Remote backends (ssh/k8s/modal/daytona) are
-// handled only by the direct run path and are rejected here.
+// path cannot drift apart. Remote backends (ssh/k8s/modal/daytona/
+// remote-agezt) are handled only by the direct run path and are rejected
+// here; the list of those backends is the executionprofile package's, so a
+// new one cannot be forgotten here.
 func (s *Server) applyWardenExecutionProfile(ctx context.Context, id string) (context.Context, string, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
@@ -71,8 +73,7 @@ func (s *Server) applyWardenExecutionProfile(ctx context.Context, id string) (co
 	if ok, reason := executionprofile.PolicyFromEnv().Allows(id); !ok {
 		return ctx, "", fmt.Errorf("blocked by policy: %s", reason)
 	}
-	switch strings.ToLower(id) {
-	case "ssh", "k8s", "modal", "daytona", "remote-agezt":
+	if executionprofile.IsRemoteBackend(id) {
 		return ctx, "", fmt.Errorf("seat isolation %q is only available on direct runs, not workboard dispatch", id)
 	}
 	return appruns.WardenProfile(ctx, s.k, id)

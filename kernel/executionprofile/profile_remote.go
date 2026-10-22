@@ -25,7 +25,7 @@ func sshProfile(tools map[string]bool, cfg SSHConfig) Profile {
 		notes = []string{"shell routes through ssh; code_exec syncs its workspace with scp before running on the remote host"}
 	}
 	return Profile{
-		ID:                 "ssh",
+		ID:                 IDSSH,
 		Name:               "SSH remote",
 		Summary:            "Shell-only remote execution over the system ssh client.",
 		Status:             status,
@@ -56,7 +56,7 @@ func remoteAgeztProfile(tools map[string]bool) Profile {
 	}
 	secretPolicy := RemoteSecretPolicyFromEnv()
 	return Profile{
-		ID:                 "remote-agezt",
+		ID:                 IDRemoteAgezt,
 		Name:               "Remote AGEZT peer",
 		Summary:            "Whole-run delegation to another AGEZT daemon through the remote_run peer tool.",
 		Status:             status,
@@ -98,7 +98,7 @@ func modalProfile(tools map[string]bool, cfg ModalConfig) Profile {
 		notes = []string{"shell routes through `modal shell --cmd`; code_exec mounts its generated workspace with `modal shell --add-local` and copies back .agezt-artifacts through a bounded archive"}
 	}
 	return Profile{
-		ID:                 "modal",
+		ID:                 IDModal,
 		Name:               "Modal cloud sandbox",
 		Summary:            "Modal-backed shell/code execution through the Modal CLI.",
 		Status:             status,
@@ -142,7 +142,7 @@ func daytonaProfile(tools map[string]bool, cfg DaytonaConfig) Profile {
 		notes = []string{"shell routes through `daytona exec`; code_exec materializes its workspace through bounded `daytona exec` writes and copies back .agezt-artifacts through a bounded archive"}
 	}
 	return Profile{
-		ID:                 "daytona",
+		ID:                 IDDaytona,
 		Name:               "Daytona workspace",
 		Summary:            "Daytona sandbox shell/code execution through the Daytona CLI.",
 		Status:             status,
@@ -186,7 +186,7 @@ func k8sProfile(tools map[string]bool, cfg K8sConfig) Profile {
 		notes = []string{"shell routes through kubectl exec; code_exec copies its workspace into an existing pod before running there and copies back .agezt-artifacts; job lifecycle is still planned"}
 	}
 	return Profile{
-		ID:                 "k8s",
+		ID:                 IDK8s,
 		Name:               "Kubernetes pod",
 		Summary:            "Kubernetes-backed shell/code execution through kubectl exec against a configured existing pod.",
 		Status:             status,
