@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/remoteapi"
 )
 
 const (
@@ -29,21 +30,12 @@ var (
 )
 
 // ArtifactEntry is the REST-safe metadata shape for one artifact index entry.
-// It mirrors kernel/artifact.Entry but keeps this package decoupled from the
-// artifact store implementation and never includes bytes.
-type ArtifactEntry struct {
-	ID        string `json:"id"`
-	Ref       string `json:"ref"`
-	Name      string `json:"name,omitempty"`
-	Mime      string `json:"mime,omitempty"`
-	Kind      string `json:"kind,omitempty"`
-	Source    string `json:"source,omitempty"`
-	Sender    string `json:"sender,omitempty"`
-	Corr      string `json:"corr,omitempty"`
-	Size      int64  `json:"size"`
-	CreatedMs int64  `json:"created_ms"`
-	Caption   string `json:"caption,omitempty"`
-}
+// It is the contract row (kernel/contract/remoteapi) — the same declaration
+// the reading side of the peer call uses — so the wire cannot drift between
+// the daemon that serves it and the daemon that reads it. It mirrors
+// kernel/artifact.Entry but keeps this package decoupled from the artifact
+// store implementation and never includes bytes.
+type ArtifactEntry = remoteapi.Artifact
 
 // ArtifactLister is an optional Engine extension. Older or minimal engines do
 // not have to implement it; the route then reports artifact metadata unavailable.

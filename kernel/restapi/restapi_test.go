@@ -497,8 +497,8 @@ func TestArtifacts_MetadataOnlyWithFiltersAndLimit(t *testing.T) {
 	eng := &fakeArtifactEngine{
 		fakeEngine: &fakeEngine{model: "m", b: b},
 		artifacts: []ArtifactEntry{
-			{ID: "art-2", Ref: strings.Repeat("b", 64), Name: "second.png", Mime: "image/png", Kind: "image", Source: "run", Corr: "run-abc", Size: 20, CreatedMs: 2000},
-			{ID: "art-1", Ref: strings.Repeat("a", 64), Name: "first.txt", Mime: "text/plain", Kind: "file", Source: "run", Corr: "run-abc", Size: 10, CreatedMs: 1000, Caption: "note"},
+			{ID: "art-2", Ref: strings.Repeat("b", 64), Name: "second.png", Mime: "image/png", Kind: "image", Source: "run", Corr: "run-abc", Size: 20, CreatedMS: 2000},
+			{ID: "art-1", Ref: strings.Repeat("a", 64), Name: "first.txt", Mime: "text/plain", Kind: "file", Source: "run", Corr: "run-abc", Size: 10, CreatedMS: 1000, Caption: "note"},
 		},
 	}
 	s := New(eng, b, "secret", "9.9.9")
@@ -545,7 +545,7 @@ func TestArtifactBytes_DefaultDenyThenAllow(t *testing.T) {
 	}
 	b := bus.New(j)
 	t.Cleanup(func() { b.Close(); j.Close() })
-	entry := ArtifactEntry{ID: "art-1", Ref: strings.Repeat("a", 64), Name: "result.txt", Mime: "text/plain", Kind: "tool-output", Corr: "run-abc", Size: 11, CreatedMs: 1000}
+	entry := ArtifactEntry{ID: "art-1", Ref: strings.Repeat("a", 64), Name: "result.txt", Mime: "text/plain", Kind: "tool-output", Corr: "run-abc", Size: 11, CreatedMS: 1000}
 	eng := &fakeArtifactEngine{
 		fakeEngine:    &fakeEngine{model: "m", b: b},
 		artifacts:     []ArtifactEntry{entry},
