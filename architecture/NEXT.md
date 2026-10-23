@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.8 the agents module, 2026-10-22
+## Current checkpoint — W3.9 the reaper's home and the agents module's api package, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1403,18 +1403,52 @@ files, five of the seventeen mutations would have escaped.
   still pointed at `kernel/roster/roster.go`. Nothing else changed: the same
   profiles, the same store, the same events, the same caps for a guardian that
   never had a lowered one.
+- W3.9 (the reaper's home and the agents module's api package) is committed on
+  `main` as a code commit plus a docs commit and published from
+  `arch/w2-dispatch` the same way. The fleet's read-only health scan lived in
+  the composition root (`kernel/runtime/reaper*.go` — the scan, the health
+  classification, the routing and retry pressure, the forced probation) and
+  reached into the kernel's own fields for the journal, the roster, the
+  artifact index, the schedules, the standing orders and the provider. It moved
+  to the agents module — `kernel/modules/agents/reaper` — with the findings it
+  publishes declared **once**, in the module's vocabulary
+  (`kernel/modules/agents/api`).
+  A module may import another module's api package and nothing else (P5), so
+  the module holds **no journal, no roster, no artifact index and no provider
+  of its own**: every fact it judges arrives through the host's ports
+  (`api.ReaperPorts` — the journal, the fleet, the runtime-override
+  validation, the artifact index, the governor's live model chains, the
+  trigger bindings). The runtime keeps its public names as **aliases** of the
+  module's rows and holds the module as `api.ReaperScanner`; the composition
+  root (`cmd/agezt: openAppKernel`) builds the scanner over the kernel's ports
+  and injects it, exactly as it already does for the reasoning module, so the
+  primary kernel and every tenant kernel are wired. The host's own
+  runtime-config validation is what the module asks about a profile's
+  overrides, so **the doctor and the reaper can never disagree** about what a
+  valid override is.
+  The ratchet is **unchanged** at 126/13: the runtime's api import is free (an
+  api package is exempt from the cross-module rule), the module's
+  implementation is reached only by the composition root, and no adapter or
+  plugin grew an edge (275 packages now — two new ones, no new edge).
+  21 mutations, 21 caught — and the run found three honest gaps in the
+  **tests**, all fixed and named: the binding findings were only asserted on
+  their own (so an agent with a broken override *and* a broken binding lost one
+  of them), the retired agent's *schedule* binding was never exercised (only
+  its standing order), and neither "an agent that ran recently is not a
+  candidate" nor the stale-artifact totals were covered at all.
+  Nothing else changed: the same findings, the same rows, the same wire JSON,
+  the same env knobs.
 
-**W3.9 — the reaper and the module's api package (the next slice, to scope).**
-The roadmap's order continues with the **reaper** (the runtime's health loop:
-`kernel/runtime/reaper*.go` — the scan, the health report, the probation, the
-routing pressure — plus the reaper's report rows that the repair brief is built
-from; moving it is the same ports rewrite W3.7 did for the workflow engine),
-the agents module's **api** package (the vocabulary + the ports, so the host
-stops importing the module's internals), then `modules/extensions` (mcp, plugin
-host, toolforge, toolbox, acpcatalog), `modules/providers` (catalog,
+**W3.10 — `modules/extensions` (the next slice, to scope).**
+The roadmap's order continues with `modules/extensions` (mcp, plugin host,
+toolforge, toolbox, acpcatalog), then `modules/providers` (catalog,
 chatgptauth, providerboot) and `modules/runs` last (what remains of
 `kernel/runtime` + `runexec` + the agent loop + resume + delegation +
 intervention; `kernel/runtime` is deleted when empty).
+The agents module still owes step 8's third item — the **overseer ops** (the
+overseer tool as an L6 caller of `app` ops). The reaper and the module's api
+package are done (W3.9); the overseer ops were the part that needed the api
+door, and that door now exists.
 
 Three shapes are now proven, and the next slice picks the one that fits:
 **W3.1's** — the feature's logic moves into the module, the module's **api**
@@ -1433,6 +1467,12 @@ first** and adopted in memory only once the write succeeded, so a failed write
 changes nothing. **W3.6's** — W3.2's shape plus a fix at a **vocabulary
 boundary**: the seat names an isolation surface, the run profile names an
 implementation, and the two are translated once where they meet.
+**W3.9's** — W3.1's shape applied to a module that already had a home: the
+scan's logic moves into the module, the module's **api** package owns the
+finding rows and the ports, the host keeps its public names as aliases and
+delegates, and the composition root injects the scanner — and the host's own
+validation (the runtime-config table the doctor uses) is what the module asks
+about a profile's overrides, so the doctor and the reaper cannot disagree.
 
 The overall target is the architecture in `20-target-architecture.md`, delivered
 incrementally to protected `main`, with runnable proof and source-aligned

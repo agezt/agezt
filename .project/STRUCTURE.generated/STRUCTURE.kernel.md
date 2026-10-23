@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-165 package(s):
+167 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
@@ -102,6 +102,8 @@
 - **`kernel/market`** — Package market is AGEZT's capability marketplace: it packages skills, MCP servers, and CLI-tool requirements into installable "packs", catalogues them in "marketplaces" (a built-in Official one plus, later, synced remotes), and installs a pack by materializing its parts into the systems that already run them — skills into the Forge, MCP servers into the MCP registry, tool needs reported to the Toolbox.
 - **`kernel/mcp`** — Package mcp is governed runtime self-install for MCP servers (M796): a durable registry of Model Context Protocol servers plus a minimal MCP client, so an agent (or operator) can ADD a server and ATTACH it while the daemon runs — no restart, no separate bridge binary, no env-var surgery.
 - **`kernel/meshctx`** — Package meshctx carries the cross-node delegation hop count for the M8 mesh.
+- **`kernel/modules/agents/api`** — Package api is the agents module's public vocabulary: the rows the module publishes, the ports it needs from the host and the surface the host talks to.
+- **`kernel/modules/agents/reaper`** — Package reaper is the agents module's reaper: the read-only DETECTION half of the fleet's health scan.
 - **`kernel/modules/agents/roster`** — Package roster is the durable agent roster (M783): named, persistent agent profiles — an identity ("researcher", "ops-watcher") with its own soul (system prompt), model (+ ordered fallbacks), default task type, per-run spend ceiling, memory scope, and workspace subdirectory.
 - **`kernel/modules/agents/selfrepair`** — Package selfrepair wires the deterministic doctor/auto-repair coordinator (Phase 2.6 extraction from cmd/agezt): it subscribes to the reaper pulse observer, claims broken/degraded/routing-unstable agents, drives the overseertool repair source, and escalates through the mailbox + wake chain when a repair fails.
 - **`kernel/modules/artifacts/artifact`** — Package artifact is a content-addressed (BLAKE3) blob store — the substrate for SPEC-04 §3.6 artifacts: tool/run outputs that are too large to inline in an event are written here and referenced by their content hash, so the journal stays small while the bytes survive in the lineage and dedupe automatically.

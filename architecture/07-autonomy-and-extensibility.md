@@ -160,7 +160,7 @@ There are no channel, comms, skill or persona fields. Persona = `Soul` + `Instru
    **`roster.Store.Remove` itself does not check `System`.** The guard lives one layer up.
 4. Agent-reachable edits and repairs refuse System targets (`overseertool/kernelsource.go:102`, `overseertool/tool.go:279`).
    Operators can still edit, pause and retire guardians.
-5. The reaper (`runtime/reaper_scan.go:65`) and auto-repair (`selfrepair_filters.go:28`) skip System agents.
+5. The reaper (`modules/agents/reaper/reaper.go:94`) and auto-repair (`selfrepair_filters.go:28`) skip System agents.
 
 ### 1.4 Persistence, concurrency, events
 

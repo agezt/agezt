@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
+package reaper
 
-// Provenance: Reaper health-classification helpers (degraded + misconfigured +
-//             binding/hierarchy config issues). Code extracted from reaper_scan.go
-//             during the Day-91 god-file split. Public API unchanged.
+// Reaper health-classification helpers (degraded + misconfigured +
+// binding/hierarchy config issues).
 
 import (
 	"sort"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
-func degradedAgents(profiles []roster.Profile, runs map[string]agentRunHealth) []DegradedAgent {
+// degradedAgents finds the agents whose recent terminal runs crossed their
+// profile's health threshold.
+func degradedAgents(profiles []roster.Profile, runs map[string]agentRunHealth) []api.DegradedAgent {
 	byAgent := map[string][]agentRunHealth{}
 	for _, r := range runs {
 		if r.agent == "" || r.status == "" {
@@ -21,7 +23,7 @@ func degradedAgents(profiles []roster.Profile, runs map[string]agentRunHealth) [
 		}
 		byAgent[r.agent] = append(byAgent[r.agent], r)
 	}
-	var out []DegradedAgent
+	var out []api.DegradedAgent
 	for _, p := range profiles {
 		if !p.Enabled || p.Retired || p.HealthPolicy == nil {
 			continue
@@ -52,7 +54,7 @@ func degradedAgents(profiles []roster.Profile, runs map[string]agentRunHealth) [
 		if failures < threshold {
 			continue
 		}
-		row := DegradedAgent{
+		row := api.DegradedAgent{
 			Slug:          p.Slug,
 			Name:          p.Name,
 			Failures:      failures,
@@ -72,27 +74,30 @@ func degradedAgents(profiles []roster.Profile, runs map[string]agentRunHealth) [
 	return out
 }
 
-func (k *Kernel) misconfiguredAgents(profiles []roster.Profile) []MisconfiguredAgent {
-	var out []MisconfiguredAgent
+// misconfiguredAgents finds the agents whose runtime overrides or hierarchy
+// references are invalid, so one or more intended autonomy knobs will not
+// actually apply until repaired.
+func (s *Scanner) misconfiguredAgents(profiles []roster.Profile) []api.MisconfiguredAgent {
+	var out []api.MisconfiguredAgent
 	bySlug := make(map[string]roster.Profile, len(profiles))
 	for _, p := range profiles {
 		bySlug[p.Slug] = p
 	}
-	bindingIssues := k.agentBindingConfigIssues(bySlug)
+	bindingIssues := s.bindingConfigIssues(bySlug)
 	seen := map[string]bool{}
 	for _, p := range profiles {
 		bindings := bindingIssues[p.Slug]
 		if len(bindings) == 0 && (!p.Enabled || p.Retired) {
 			continue
 		}
-		issues := agentRuntimeConfigIssues(p.ConfigOverrides)
-		issues = append(issues, agentHierarchyConfigIssues(p, bySlug)...)
+		issues := s.runtimeConfigIssues(p.ConfigOverrides)
+		issues = append(issues, hierarchyConfigIssues(p, bySlug)...)
 		issues = append(issues, bindings...)
 		if len(issues) == 0 {
 			continue
 		}
 		seen[p.Slug] = true
-		row := MisconfiguredAgent{
+		row := api.MisconfiguredAgent{
 			Slug: p.Slug,
 			Name: p.Name,
 		}
@@ -112,7 +117,7 @@ func (k *Kernel) misconfiguredAgents(profiles []roster.Profile) []MisconfiguredA
 		if seen[slug] || len(issues) == 0 {
 			continue
 		}
-		row := MisconfiguredAgent{Slug: slug}
+		row := api.MisconfiguredAgent{Slug: slug}
 		for _, issue := range issues {
 			row.Issues = append(row.Issues, issue.Key+": "+issue.Issue)
 		}
@@ -122,23 +127,36 @@ func (k *Kernel) misconfiguredAgents(profiles []roster.Profile) []MisconfiguredA
 	return out
 }
 
-func (k *Kernel) agentBindingConfigIssues(bySlug map[string]roster.Profile) map[string][]agentConfigIssue {
-	out := map[string][]agentConfigIssue{}
+// runtimeConfigIssues asks the host which of a profile's runtime overrides do
+// not parse. The host owns the table of knobs it consumes, so the module and
+// the doctor can never disagree about what is valid.
+func (s *Scanner) runtimeConfigIssues(overrides map[string]string) []api.ConfigIssue {
+	if s.ports.RuntimeConfigIssues == nil {
+		return nil
+	}
+	return s.ports.RuntimeConfigIssues(overrides)
+}
+
+// bindingConfigIssues reports the trigger bindings that point at an agent
+// that cannot run them (missing, retired, paused or a managed sub-agent that
+// may not be called directly).
+func (s *Scanner) bindingConfigIssues(bySlug map[string]roster.Profile) map[string][]api.ConfigIssue {
+	out := map[string][]api.ConfigIssue{}
 	add := func(slug, key, issue string) {
 		slug = strings.TrimSpace(slug)
 		if slug == "" {
 			return
 		}
-		out[slug] = append(out[slug], agentConfigIssue{Key: key, Issue: issue})
+		out[slug] = append(out[slug], api.ConfigIssue{Key: key, Issue: issue})
 	}
-	if sched := k.Schedules(); sched != nil {
-		for _, e := range sched.List() {
-			slug := strings.TrimSpace(e.Agent)
+	if s.ports.Schedules != nil {
+		for _, b := range s.ports.Schedules() {
+			slug := strings.TrimSpace(b.Agent)
 			if slug == "" {
 				continue
 			}
 			p, ok := bySlug[slug]
-			key := "schedule:" + e.ID
+			key := "schedule:" + b.ID
 			if !ok {
 				add(slug, key, "bound schedule targets missing agent")
 				continue
@@ -156,14 +174,14 @@ func (k *Kernel) agentBindingConfigIssues(bySlug map[string]roster.Profile) map[
 			}
 		}
 	}
-	if standing := k.Standing(); standing != nil {
-		for _, o := range standing.List() {
-			slug := strings.TrimSpace(o.Agent)
+	if s.ports.Standing != nil {
+		for _, b := range s.ports.Standing() {
+			slug := strings.TrimSpace(b.Agent)
 			if slug == "" {
 				continue
 			}
 			p, ok := bySlug[slug]
-			key := "standing:" + o.ID
+			key := "standing:" + b.ID
 			if !ok {
 				add(slug, key, "bound standing order targets missing agent")
 				continue
@@ -184,10 +202,13 @@ func (k *Kernel) agentBindingConfigIssues(bySlug map[string]roster.Profile) map[
 	return out
 }
 
-func agentHierarchyConfigIssues(p roster.Profile, bySlug map[string]roster.Profile) []agentConfigIssue {
-	var issues []agentConfigIssue
+// hierarchyConfigIssues reports an agent whose owner/parent references cannot
+// hold: no owner at all for a managed sub-agent, a self-reference, or a
+// reference to a missing, retired or paused agent.
+func hierarchyConfigIssues(p roster.Profile, bySlug map[string]roster.Profile) []api.ConfigIssue {
+	var issues []api.ConfigIssue
 	if !p.AllowsDirectCall() && strings.TrimSpace(p.OwnerAgent) == "" && strings.TrimSpace(p.ParentAgent) == "" {
-		issues = append(issues, agentConfigIssue{Key: "hierarchy", Issue: "managed sub-agent has no owner_agent or parent_agent"})
+		issues = append(issues, api.ConfigIssue{Key: "hierarchy", Issue: "managed sub-agent has no owner_agent or parent_agent"})
 	}
 	for label, ref := range map[string]string{"owner_agent": p.OwnerAgent, "parent_agent": p.ParentAgent} {
 		ref = strings.TrimSpace(ref)
@@ -195,20 +216,20 @@ func agentHierarchyConfigIssues(p roster.Profile, bySlug map[string]roster.Profi
 			continue
 		}
 		if strings.EqualFold(ref, strings.TrimSpace(p.Slug)) {
-			issues = append(issues, agentConfigIssue{Key: label, Issue: "points to itself"})
+			issues = append(issues, api.ConfigIssue{Key: label, Issue: "points to itself"})
 			continue
 		}
 		manager, ok := bySlug[ref]
 		if !ok {
-			issues = append(issues, agentConfigIssue{Key: label, Issue: ref + " is missing from the roster"})
+			issues = append(issues, api.ConfigIssue{Key: label, Issue: ref + " is missing from the roster"})
 			continue
 		}
 		if manager.Retired {
-			issues = append(issues, agentConfigIssue{Key: label, Issue: ref + " is retired"})
+			issues = append(issues, api.ConfigIssue{Key: label, Issue: ref + " is retired"})
 			continue
 		}
 		if !manager.Enabled {
-			issues = append(issues, agentConfigIssue{Key: label, Issue: ref + " is paused"})
+			issues = append(issues, api.ConfigIssue{Key: label, Issue: ref + " is paused"})
 		}
 	}
 	return issues

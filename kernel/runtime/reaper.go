@@ -2,174 +2,175 @@
 
 package runtime
 
-// The reaper (#53) finds what's gone stale — agents that look abandoned and
-// artifacts past their useful life — so they can be retired to the graveyard
-// (roster.SetRetired, M846) or collected (artifact Collect, M845). This file is
-// the DETECTION half: read-only scans. It mutates nothing — retire/collect stay
-// operator-gated. The pulse ReaperObserver (kernel/pulse) runs ReaperScan on a
-// cadence to surface candidates autonomously; the control plane exposes it
-// on-demand for `agt reaper` and the UI.
-
-import ()
-
-// The finding rows below are the reaper's rows: one declaration per finding,
-// published as they are. Every field is always present — the empty optional
-// fields are explicit rather than omitted — so the operator's scan (the
-// application layer) and the runtime never drift apart. The rows are read-only
-// values: nothing here is marshalled on its own.
-
-// ReaperAgent is a dead-agent candidate: an enabled, non-retired roster agent,
-// old enough to judge, with no task activity since the idle cutoff.
-type ReaperAgent struct {
-	Slug         string `json:"slug"`
-	Name         string `json:"name"`
-	LastActiveMS int64  `json:"last_active_ms"` // 0 = never ran a task
-}
-
-// DegradedAgent is an enabled roster agent whose recent terminal runs crossed
-// its profile health threshold. Detection only: repair/escalation remains a
-// separate action by a guardian/doctor or operator.
-type DegradedAgent struct {
-	Slug              string `json:"slug"`
-	Name              string `json:"name"`
-	Failures          int    `json:"failures"`
-	Window            int    `json:"window"`
-	Threshold         int    `json:"threshold"`
-	DoctorAgent       string `json:"doctor_agent"`
-	SelfRepairEnabled bool   `json:"self_repair_enabled"`
-	EscalateTo        string `json:"escalate_to"`
-	LastFailureMS     int64  `json:"last_failure_ms"`
-	LastReason        string `json:"last_reason"`
-}
-
-// MisconfiguredAgent is an enabled, non-retired agent whose runtime override
-// config or hierarchy references are invalid, so one or more intended autonomy
-// knobs will not actually apply until repaired.
-type MisconfiguredAgent struct {
-	Slug              string   `json:"slug"`
-	Name              string   `json:"name"`
-	Issues            []string `json:"issues"`
-	DoctorAgent       string   `json:"doctor_agent"`
-	SelfRepairEnabled bool     `json:"self_repair_enabled"`
-	EscalateTo        string   `json:"escalate_to"`
-}
-
-// RoutingPressureAgent is an enabled, non-retired agent whose recent per-task
-// model-chain fallbacks crossed the routing pressure threshold. This catches
-// agents that are limping along by repeatedly dropping to backup models even if
-// they have not yet crossed the failed-run health threshold.
-type RoutingPressureAgent struct {
-	Slug              string `json:"slug"`
-	Name              string `json:"name"`
-	Count             int    `json:"count"`
-	Threshold         int    `json:"threshold"`
-	WindowSec         int    `json:"window_sec"`
-	DoctorAgent       string `json:"doctor_agent"`
-	SelfRepairEnabled bool   `json:"self_repair_enabled"`
-	EscalateTo        string `json:"escalate_to"`
-	LastFallbackMS    int64  `json:"last_fallback_ms"`
-	LastReason        string `json:"last_reason"`
-	LastFailedModel   string `json:"last_failed_model"`
-	LastNextModel     string `json:"last_next_model"`
-	TaskType          string `json:"task_type"`
-}
-
-// RetryPressureAgent is an enabled, non-retired agent whose recent runs hit
-// transient provider failures often enough to cross the retry-pressure
-// threshold: it catches agents that are still trying to recover before they
-// fully fail the health window.
-type RetryPressureAgent struct {
-	Slug              string `json:"slug"`
-	Name              string `json:"name"`
-	Count             int    `json:"count"`
-	Threshold         int    `json:"threshold"`
-	WindowSec         int    `json:"window_sec"`
-	DoctorAgent       string `json:"doctor_agent"`
-	SelfRepairEnabled bool   `json:"self_repair_enabled"`
-	EscalateTo        string `json:"escalate_to"`
-	LastRetryMS       int64  `json:"last_retry_ms"`
-	LastReason        string `json:"last_reason"`
-	NextAttempt       int    `json:"next_attempt"`
-	MaxAttempts       int    `json:"max_attempts"`
-}
-
-// RoutingForcedAgent is an enabled, non-retired agent whose model chain was
-// forced by a manager or owner. The three forced findings — still in probation,
-// failed after it, or exhausted by repeated forced generations — are one row;
-// the report keeps one list per phase.
+// reaper.go is the runtime's face of the agents module's reaper. The scan
+// itself — the dead, degraded, misconfigured, retry-pressure, routing-pressure,
+// forced-probation and unstable findings, plus the stale-artifact totals —
+// lives in kernel/modules/agents/reaper; this file keeps the host's public
+// names, hands the module the ports it needs and forwards the scan.
 //
-// Provenance: the probation, failed and exhausted findings were three
-// identical declarations of the same row; they are one declaration now.
-type RoutingForcedAgent struct {
-	Slug              string   `json:"slug"`
-	Name              string   `json:"name"`
-	Count             int      `json:"count"`
-	Threshold         int      `json:"threshold"`
-	WindowSec         int      `json:"window_sec"`
-	DoctorAgent       string   `json:"doctor_agent"`
-	SelfRepairEnabled bool     `json:"self_repair_enabled"`
-	EscalateTo        string   `json:"escalate_to"`
-	LastFallbackMS    int64    `json:"last_fallback_ms"`
-	LastForcedMS      int64    `json:"last_forced_ms"`
-	LastReason        string   `json:"last_reason"`
-	TaskType          string   `json:"task_type"`
-	ForcedChain       []string `json:"forced_chain"`
-	ForceGeneration   int      `json:"routing_force_generation"`
+// A module may import another module's api package and nothing else
+// (archcheck's principle P5), so the runtime never imports the module's
+// implementation: it talks to it through api.ReaperScanner and builds its ports
+// through api.ReaperPorts. The composition root (the daemon) owns the concrete
+// scanner and injects it with SetReaperScanner.
+
+import (
+	"strings"
+
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/agents/api"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
+)
+
+// The rows the host and the module both name are declared once, in the
+// module's api package. The runtime keeps its own names as aliases, so every
+// importer compiles unchanged while the implementation lives in the module.
+type (
+	// ReaperAgent is a dead-agent candidate.
+	ReaperAgent = api.ReaperAgent
+	// DegradedAgent is an agent whose recent runs crossed its health threshold.
+	DegradedAgent = api.DegradedAgent
+	// MisconfiguredAgent is an agent whose overrides or hierarchy are invalid.
+	MisconfiguredAgent = api.MisconfiguredAgent
+	// RetryPressureAgent is an agent that keeps hitting transient failures.
+	RetryPressureAgent = api.RetryPressureAgent
+	// RoutingPressureAgent is an agent that keeps dropping to backup models.
+	RoutingPressureAgent = api.RoutingPressureAgent
+	// RoutingForcedAgent is an agent whose model chain was forced. The three
+	// forced phases are one row; the old names stay as aliases.
+	RoutingForcedAgent = api.RoutingForcedAgent
+	// RoutingForcedProbationAgent is a forced chain still on probation.
+	RoutingForcedProbationAgent = api.RoutingForcedProbationAgent
+	// RoutingForcedFailedAgent is a forced chain that failed after it.
+	RoutingForcedFailedAgent = api.RoutingForcedFailedAgent
+	// RoutingForcedExhaustedAgent is a forced chain exhausted by repetition.
+	RoutingForcedExhaustedAgent = api.RoutingForcedExhaustedAgent
+	// RoutingUnstableAgent is a chain that rolled back and destabilized again.
+	RoutingUnstableAgent = api.RoutingUnstableAgent
+	// ReaperReport is the read-only result of a scan.
+	ReaperReport = api.ReaperReport
+)
+
+// SetReaperScanner injects the agents module's reaper. Called once after Open
+// by the composition root (the daemon), which builds the scanner over the
+// host's ports with reaper.New(k.ReaperPorts()).
+func (k *Kernel) SetReaperScanner(s api.ReaperScanner) {
+	k.configMu.Lock()
+	k.reaperScanner = s
+	k.configMu.Unlock()
 }
 
-// The three forced phases keep their names — the runtime's public API is
-// unchanged — but they are one row.
-type RoutingForcedProbationAgent = RoutingForcedAgent
-type RoutingForcedFailedAgent = RoutingForcedAgent
-type RoutingForcedExhaustedAgent = RoutingForcedAgent
-
-// RoutingUnstableAgent is an enabled, non-retired agent whose routing repair
-// loop already rolled back recently and is still under model-chain fallback
-// pressure for the same task type. This is a stronger signal than plain
-// routing pressure: self-repair already tried to retune the chain and the
-// chain still destabilized again.
-type RoutingUnstableAgent struct {
-	Slug              string   `json:"slug"`
-	Name              string   `json:"name"`
-	Count             int      `json:"count"`
-	Threshold         int      `json:"threshold"`
-	WindowSec         int      `json:"window_sec"`
-	DoctorAgent       string   `json:"doctor_agent"`
-	SelfRepairEnabled bool     `json:"self_repair_enabled"`
-	EscalateTo        string   `json:"escalate_to"`
-	LastRollbackMS    int64    `json:"last_rollback_ms"`
-	TaskType          string   `json:"task_type"`
-	CurrentChain      []string `json:"current_chain"`
-	PreviousChain     []string `json:"previous_chain"`
-	LastReason        string   `json:"last_reason"`
+// reaperService returns the injected reaper, or nil.
+func (k *Kernel) reaperService() api.ReaperScanner {
+	k.configMu.Lock()
+	defer k.configMu.Unlock()
+	return k.reaperScanner
 }
 
-// ReaperReport is the read-only result of a scan: dead-agent candidates plus
-// stale-artifact totals. Detection only.
-type ReaperReport struct {
-	DeadAgents             []ReaperAgent                 `json:"dead_agents"`
-	DegradedAgents         []DegradedAgent               `json:"degraded_agents,omitempty"`
-	MisconfiguredAgents    []MisconfiguredAgent          `json:"misconfigured_agents,omitempty"`
-	RetryPressure          []RetryPressureAgent          `json:"retry_pressure_agents,omitempty"`
-	RoutingPressure        []RoutingPressureAgent        `json:"routing_pressure_agents,omitempty"`
-	RoutingForced          []RoutingForcedProbationAgent `json:"routing_forced_probation_agents,omitempty"`
-	RoutingForcedFailed    []RoutingForcedFailedAgent    `json:"routing_forced_failed_agents,omitempty"`
-	RoutingForcedExhausted []RoutingForcedExhaustedAgent `json:"routing_forced_exhausted_agents,omitempty"`
-	RoutingUnstable        []RoutingUnstableAgent        `json:"routing_unstable_agents,omitempty"`
-	StaleArtifacts         int                           `json:"stale_artifacts"`
-	StaleBytes             int64                         `json:"stale_bytes"`
-}
-
-// Empty reports whether the scan found nothing to reap.
-func (r ReaperReport) Empty() bool {
-	return len(r.DeadAgents) == 0 && len(r.DegradedAgents) == 0 && len(r.MisconfiguredAgents) == 0 && len(r.RetryPressure) == 0 && len(r.RoutingPressure) == 0 && len(r.RoutingForced) == 0 && len(r.RoutingForcedFailed) == 0 && len(r.RoutingForcedExhausted) == 0 && len(r.RoutingUnstable) == 0 && r.StaleArtifacts == 0
-}
-
-// ReaperScan finds dead-agent candidates (enabled, non-retired, created before
-// agentIdleCutoffMs, and with no task activity at/after it) and counts stale
-// artifacts (created before artifactStaleCutoffMs). Both cutoffs are absolute
-// wall-clock ms — the caller passes `now - grace`. Read-only.
+// ReaperPorts returns the host's ports for the reaper: the journal, the fleet,
+// the host's own runtime-config validation, the artifact index, the
+// governor's live model chains and the trigger bindings.
 //
-// "Created before the cutoff" is a grace window: a freshly-added agent that
-// hasn't run yet is not reaped until it's been idle past the threshold, so the
-// scan never flags an agent the operator just set up.
+// It is the runtime's side of the module boundary — the module holds no
+// journal, no roster, no artifact index and no provider of its own, so every
+// fact it judges comes from the host.
+func (k *Kernel) ReaperPorts() api.ReaperPorts {
+	return api.ReaperPorts{
+		Journal: k.reaperJournalRange,
+		Profiles: func() []roster.Profile {
+			if k.roster == nil {
+				return nil
+			}
+			return k.roster.List()
+		},
+		RuntimeConfigIssues: func(overrides map[string]string) []api.ConfigIssue {
+			return agentRuntimeConfigIssues(overrides)
+		},
+		StaleArtifacts: func(cutoffMS int64) (int, int64) {
+			idx := k.ArtifactIndex()
+			if idx == nil {
+				return 0, 0
+			}
+			var count int
+			var bytes int64
+			for _, e := range idx.StaleEntries(cutoffMS) {
+				count++
+				bytes += e.Size
+			}
+			return count, bytes
+		},
+		TaskModelChain: k.currentTaskModelChain,
+		Schedules: func() []api.Binding {
+			sched := k.Schedules()
+			if sched == nil {
+				return nil
+			}
+			entries := sched.List()
+			out := make([]api.Binding, 0, len(entries))
+			for _, e := range entries {
+				out = append(out, api.Binding{ID: e.ID, Agent: e.Agent})
+			}
+			return out
+		},
+		Standing: func() []api.Binding {
+			st := k.Standing()
+			if st == nil {
+				return nil
+			}
+			orders := st.List()
+			out := make([]api.Binding, 0, len(orders))
+			for _, o := range orders {
+				out = append(out, api.Binding{ID: o.ID, Agent: o.Agent})
+			}
+			return out
+		},
+	}
+}
+
+// reaperJournalRange walks the durable journal once for the reaper.
+func (k *Kernel) reaperJournalRange(fn func(*event.Event) error) error {
+	j := k.Journal()
+	if j == nil {
+		return nil
+	}
+	return j.Range(fn)
+}
+
+// currentTaskModelChain is the governor's live model chain for a task type:
+// the chain the host would route that task type over right now.
+func (k *Kernel) currentTaskModelChain(taskType string) []string {
+	taskType = strings.TrimSpace(taskType)
+	if taskType == "" {
+		return nil
+	}
+	type taskModelChainsSource interface {
+		TaskModelChainsView() map[string][]string
+	}
+	gov, ok := k.Provider().(taskModelChainsSource)
+	if !ok {
+		return nil
+	}
+	src := gov.TaskModelChainsView()[taskType]
+	if len(src) == 0 {
+		return nil
+	}
+	out := make([]string, len(src))
+	copy(out, src)
+	return out
+}
+
+// ReaperScan finds dead-agent candidates and counts stale artifacts. Both
+// cutoffs are absolute wall-clock ms — the caller passes `now - grace`.
+// Read-only.
+//
+// A kernel whose composition root did not wire the reaper answers with an
+// empty report: the module is injected, not built here (the runtime may not
+// import a module's implementation), so an unwired kernel has no scanner to
+// ask.
+func (k *Kernel) ReaperScan(agentIdleCutoffMs, artifactStaleCutoffMs int64) ReaperReport {
+	svc := k.reaperService()
+	if svc == nil {
+		return ReaperReport{}
+	}
+	return svc.Scan(agentIdleCutoffMs, artifactStaleCutoffMs)
+}

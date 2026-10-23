@@ -1,38 +1,17 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
+package reaper
 
-// Reaper small helpers: currentTaskModelChain + sameTaskModelChain +
-// plStringAny + plStringsAny + plIntAny + parsePositiveInt +
-// ReaperReport.Empty. Carved out of reaper.go during the Day 34 god
-// file split #1.
+// Reaper small helpers: sameTaskModelChain + plStringAny + plStringsAny +
+// plIntAny + parsePositiveInt.
 
 import (
 	"encoding/json"
 	"strings"
 )
 
-func (k *Kernel) currentTaskModelChain(taskType string) []string {
-	taskType = strings.TrimSpace(taskType)
-	if taskType == "" {
-		return nil
-	}
-	type taskModelChainsSource interface {
-		TaskModelChainsView() map[string][]string
-	}
-	gov, ok := k.Provider().(taskModelChainsSource)
-	if !ok {
-		return nil
-	}
-	src := gov.TaskModelChainsView()[taskType]
-	if len(src) == 0 {
-		return nil
-	}
-	out := make([]string, len(src))
-	copy(out, src)
-	return out
-}
-
+// sameTaskModelChain reports whether two model chains are the same, ignoring
+// case and surrounding blanks.
 func sameTaskModelChain(a, b []string) bool {
 	if len(a) != len(b) || len(a) == 0 {
 		return false
@@ -45,11 +24,13 @@ func sameTaskModelChain(a, b []string) bool {
 	return true
 }
 
+// plStringAny reads a string out of a decoded payload.
 func plStringAny(v any) string {
 	s, _ := v.(string)
 	return s
 }
 
+// plStringsAny reads a list of non-empty strings out of a decoded payload.
 func plStringsAny(v any) []string {
 	raw, ok := v.([]any)
 	if !ok || len(raw) == 0 {
@@ -67,6 +48,8 @@ func plStringsAny(v any) []string {
 	return out
 }
 
+// plIntAny reads an integer out of a decoded payload, whatever shape it
+// arrived in.
 func plIntAny(v any) int {
 	switch n := v.(type) {
 	case int:
@@ -83,6 +66,8 @@ func plIntAny(v any) int {
 	}
 }
 
+// parsePositiveInt reads a positive integer out of an environment value. Any
+// character that is not a digit makes the whole value invalid.
 func parsePositiveInt(raw string) int {
 	n := 0
 	for _, r := range raw {

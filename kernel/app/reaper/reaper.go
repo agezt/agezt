@@ -15,8 +15,8 @@ import (
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/platform/schema"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
 // DefaultDays is the idle and stale grace period when none (or a non-positive
@@ -25,11 +25,11 @@ const DefaultDays = 30
 
 // Service scans the primary kernel at the daemon's clock.
 type Service struct {
-	scan func(agentIdleCutoffMs, artifactStaleCutoffMs int64) runtime.ReaperReport
+	scan func(agentIdleCutoffMs, artifactStaleCutoffMs int64) api.ReaperReport
 	now  func() time.Time
 }
 
-func New(scan func(int64, int64) runtime.ReaperReport, now func() time.Time) *Service {
+func New(scan func(int64, int64) api.ReaperReport, now func() time.Time) *Service {
 	return &Service{scan: scan, now: now}
 }
 
@@ -38,17 +38,17 @@ type ScanRequest struct {
 	StaleDays json.RawMessage `json:"stale_days,omitempty"`
 }
 
-// The scan's rows are the runtime's finding rows — one declaration per
+// The scan's rows are the module's finding rows — one declaration per
 // finding, published as they are. The application does not rebuild them field
 // by field any more.
 type (
-	DeadRow          = runtime.ReaperAgent
-	DegradedRow      = runtime.DegradedAgent
-	MisconfiguredRow = runtime.MisconfiguredAgent
-	RetryRow         = runtime.RetryPressureAgent
-	RoutingRow       = runtime.RoutingPressureAgent
-	ForcedRow        = runtime.RoutingForcedAgent
-	UnstableRow      = runtime.RoutingUnstableAgent
+	DeadRow          = api.ReaperAgent
+	DegradedRow      = api.DegradedAgent
+	MisconfiguredRow = api.MisconfiguredAgent
+	RetryRow         = api.RetryPressureAgent
+	RoutingRow       = api.RoutingPressureAgent
+	ForcedRow        = api.RoutingForcedAgent
+	UnstableRow      = api.RoutingUnstableAgent
 )
 
 // ScanOutput lists every finding with its count; every list is an array and
