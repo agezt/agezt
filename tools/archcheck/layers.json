@@ -62,9 +62,6 @@
 
     {"pattern": "kernel/channelwire", "layer": 3, "module": "channels"},
 
-    {"pattern": "kernel/catalog", "layer": 3, "module": "providers"},
-    {"pattern": "kernel/chatgptauth", "layer": 3, "module": "providers"},
-
     {"pattern": "kernel/update", "layer": 3, "module": "system"},
 
     {"pattern": "kernel/voicetool", "layer": 3, "module": "media"},

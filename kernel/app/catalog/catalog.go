@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
-	providercatalog "github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/event"
+	providercatalog "github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 

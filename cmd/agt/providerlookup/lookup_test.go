@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/cmd/agt/providerlookup"
-	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 func TestCredentialLookup_DuplicateBareVaultNeedsScopeOrEnv(t *testing.T) {

@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/catalog"
-	"github.com/agezt/agezt/kernel/chatgptauth"
 	"github.com/agezt/agezt/kernel/governor"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
+	"github.com/agezt/agezt/kernel/modules/providers/chatgptauth"
 )
 
 // cliCachePayload is a trimmed Codex CLI models_cache.json: two listed models

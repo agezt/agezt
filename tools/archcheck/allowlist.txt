@@ -20,7 +20,7 @@ adapter-bypass kernel/openaiapi -> kernel/convo
 adapter-bypass kernel/restapi -> kernel/modules/board/board
 adapter-bypass kernel/restapi -> kernel/update
 adapter-bypass kernel/webui -> kernel/convo
-cross-module kernel/cadence/systemtasks -> kernel/catalog
+cross-module kernel/cadence/systemtasks -> kernel/modules/providers/catalog
 cross-module kernel/cadence/systemtasks -> kernel/runtime
 cross-module kernel/channelwire -> kernel/pulse
 cross-module kernel/contextselect -> kernel/modules/knowledge/memory
@@ -34,7 +34,7 @@ cross-module kernel/reflect -> kernel/modules/knowledge/worldmodel
 cross-module kernel/runtime -> kernel/modules/artifacts/artifact
 cross-module kernel/runtime -> kernel/modules/work/assure
 cross-module kernel/runtime -> kernel/cadence
-cross-module kernel/runtime -> kernel/catalog
+cross-module kernel/runtime -> kernel/modules/providers/catalog
 cross-module kernel/runtime -> kernel/modules/artifacts/datalake
 cross-module kernel/runtime -> kernel/imagetool
 cross-module kernel/runtime -> kernel/market
@@ -55,7 +55,7 @@ cross-module kernel/runtime -> kernel/modules/work/workboard
 cross-module kernel/runtime -> kernel/modules/workflows/workflow
 cross-module kernel/runtime/accessors -> kernel/modules/artifacts/artifact
 cross-module kernel/runtime/accessors -> kernel/cadence
-cross-module kernel/runtime/accessors -> kernel/catalog
+cross-module kernel/runtime/accessors -> kernel/modules/providers/catalog
 cross-module kernel/runtime/accessors -> kernel/modules/artifacts/datalake
 cross-module kernel/runtime/accessors -> kernel/market
 cross-module kernel/runtime/accessors -> kernel/modules/knowledge/memory
@@ -66,7 +66,7 @@ cross-module kernel/runtime/accessors -> kernel/standing
 cross-module kernel/runtime/runexec -> kernel/modules/artifacts/artifact
 cross-module kernel/runtime/runexec -> kernel/modules/work/assure
 cross-module kernel/runtime/runexec -> kernel/cadence
-cross-module kernel/runtime/runexec -> kernel/catalog
+cross-module kernel/runtime/runexec -> kernel/modules/providers/catalog
 cross-module kernel/runtime/runexec -> kernel/modules/artifacts/datalake
 cross-module kernel/runtime/runexec -> kernel/modules/knowledge/memory
 cross-module kernel/runtime/runexec -> kernel/modules/knowledge/worldmodel
@@ -92,9 +92,9 @@ plugin-reach plugins/builtintools -> kernel/modules/extensions/plugin
 plugin-reach plugins/builtintools -> kernel/runtime
 plugin-reach plugins/builtintools -> kernel/toolreg
 plugin-reach plugins/providerboot -> kernel/agent
-plugin-reach plugins/providerboot -> kernel/catalog
-plugin-reach plugins/providerboot -> kernel/chatgptauth
-plugin-reach plugins/providers/compat -> kernel/catalog
+plugin-reach plugins/providerboot -> kernel/modules/providers/catalog
+plugin-reach plugins/providerboot -> kernel/modules/providers/chatgptauth
+plugin-reach plugins/providers/compat -> kernel/modules/providers/catalog
 plugin-reach plugins/tools/acpagent -> kernel/acp
 plugin-reach plugins/tools/acpagent -> kernel/modules/extensions/acpcatalog
 plugin-reach plugins/tools/artifacts -> kernel/modules/artifacts/artifact
@@ -125,7 +125,7 @@ plugin-reach plugins/tools/workboardtool -> kernel/modules/work/workboard
 plugin-reach plugins/tools/workflowtool -> kernel/runtime
 plugin-reach plugins/tools/workflowtool -> kernel/modules/workflows/workflow
 upward kernel/channel -> kernel/bus
-upward kernel/governor -> kernel/catalog
+upward kernel/governor -> kernel/modules/providers/catalog
 upward kernel/runtime -> kernel/agentgw
 upward kernel/runtime/accessors -> kernel/agentgw
 upward kernel/runtime/runexec -> kernel/agentgw

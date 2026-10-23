@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/creds"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 // cmdProviderSetup implements `agt provider setup [provider-id]` — the guided

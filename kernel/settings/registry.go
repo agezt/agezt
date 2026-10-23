@@ -17,7 +17,7 @@ import (
 // sections — one JSON file per section (<id>.json). Skills/plugins "drop" a
 // section here (via the control plane, `agt config schema register`, or the
 // `config` tool) and the Config Center merges it with the built-in schema. This
-// is the disk-merge pattern from kernel/catalog applied to config schema.
+// is the disk-merge pattern from kernel/modules/providers/catalog applied to config schema.
 const SchemaDir = "schemas"
 
 // envNamePattern constrains registered field env-var names: an AGEZT_ prefix,

@@ -13,12 +13,12 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
-	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/journal"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 // ---- helpers ----

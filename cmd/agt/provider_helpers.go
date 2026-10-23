@@ -9,7 +9,7 @@ import (
 	"io"
 
 	"github.com/agezt/agezt/internal/paths"
-	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 func loadCatalogIfAny(stderr io.Writer) (*catalog.Catalog, error) {

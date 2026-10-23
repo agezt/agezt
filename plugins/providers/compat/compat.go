@@ -3,7 +3,7 @@
 // Package compat builds a wire `llm.Provider` from a `catalog.Provider`
 // entry — no per-provider Go package needed. The Family hint on the
 // catalog entry (derived from the upstream `npm` field, see
-// kernel/catalog.FamilyFromNPM) picks the right adapter, the `api`
+// kernel/modules/providers/catalog.FamilyFromNPM) picks the right adapter, the `api`
 // field supplies the base URL, and the `env` list resolves
 // credentials via the supplied lookup function.
 //
@@ -63,8 +63,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/plugins/providers/anthropic"
 	"github.com/agezt/agezt/plugins/providers/bedrock"
 	"github.com/agezt/agezt/plugins/providers/cohere"

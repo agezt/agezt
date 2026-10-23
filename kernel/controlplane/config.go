@@ -438,7 +438,7 @@ var configEnvVars = []string{
 	// the daemon's secrets by default — SEC-003).
 	"AGEZT_AWS_CREDENTIAL_PROCESS_ALLOWED",
 	"AGEZT_AWS_CREDENTIAL_PROCESS_ENV",
-	// ChatGPT subscription auth (kernel/chatgptauth).
+	// ChatGPT subscription auth (kernel/modules/providers/chatgptauth).
 	"AGEZT_CHATGPT_OAUTH",
 	// Per-provider knobs the compat adapter reads directly.
 	"AGEZT_ANTHROPIC_THINKING_BUDGET",

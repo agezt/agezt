@@ -5,7 +5,7 @@ package main
 import (
 	"testing"
 
-	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 func TestCatalogCredentialLookup_DuplicateBareVaultNeedsScopeOrEnv(t *testing.T) {

@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/chatgptauth"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/modules/providers/chatgptauth"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 

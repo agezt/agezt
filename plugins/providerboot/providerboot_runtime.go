@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/agezt/agezt/kernel/agent"
-	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/governor"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 func Boot(d Deps) (*Result, error) {

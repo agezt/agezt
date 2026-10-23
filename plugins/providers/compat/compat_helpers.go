@@ -8,7 +8,7 @@ package compat
 // Public API unchanged.
 
 import (
-	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 // IsSupportedFamily reports whether Build will accept the given family

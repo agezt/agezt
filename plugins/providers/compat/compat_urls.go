@@ -11,7 +11,7 @@ package compat
 import (
 	"strings"
 
-	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 func compatVendorBaseURL(npm string) string {

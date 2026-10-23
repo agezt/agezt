@@ -86,7 +86,7 @@ type Config struct {
 	// ModelToolCapable, when set, reports whether the given model id
 	// advertises tool-use (capable) and whether the catalog knows the
 	// model at all (known). Injected by the daemon (backed by the model
-	// catalog) so the Governor stays decoupled from kernel/catalog. Used
+	// catalog) so the Governor stays decoupled from kernel/modules/providers/catalog. Used
 	// only when StrictModelCapabilities is on. Nil disables the gate.
 	ModelToolCapable func(model string) (capable, known bool)
 
@@ -126,7 +126,7 @@ type Config struct {
 	// ToolCapableAlternative, when set, returns a tool-capable substitute
 	// model id for a tool-incapable one (and whether one was found). Injected
 	// by the daemon, backed by the catalog (same-provider substitute), so the
-	// Governor stays decoupled from kernel/catalog. Used only when
+	// Governor stays decoupled from kernel/modules/providers/catalog. Used only when
 	// DownRouteToolModels is on. Nil disables down-routing.
 	ToolCapableAlternative func(model string) (alt string, found bool)
 
@@ -134,7 +134,7 @@ type Config struct {
 	// provider family with a NATIVE structured-output (JSON mode) switch, and
 	// whether the model is known to the catalog at all. Injected by the daemon
 	// (backed by catalog.FamilySupportsNativeJSONMode) so the Governor stays
-	// decoupled from kernel/catalog. Used to journal capability.degraded when a
+	// decoupled from kernel/modules/providers/catalog. Used to journal capability.degraded when a
 	// JSON-mode request lands on a non-native model. Nil disables the check.
 	ModelJSONNative func(model string) (native, known bool)
 

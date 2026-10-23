@@ -17,7 +17,7 @@ import (
 //   - installed.json   — provenance of every installed pack (what it materialized)
 //   - marketplaces/<n>/index.json — cached remote marketplace indexes (Phase 2)
 //
-// It mirrors kernel/catalog.Store: atomic writes, crash-safe, mutex-guarded.
+// It mirrors kernel/modules/providers/catalog.Store: atomic writes, crash-safe, mutex-guarded.
 type Store struct {
 	dir string
 	mu  sync.RWMutex

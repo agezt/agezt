@@ -13,8 +13,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
-	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 // cmdCatalogSync implements `agt catalog sync [url] [--local] [--json]`.

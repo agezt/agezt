@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/agezt/agezt/kernel/creds"
 )
 
 // makeJWT builds an unsigned JWT whose payload carries the given claims (only the
@@ -180,5 +182,97 @@ func TestLogout(t *testing.T) {
 	}
 	if m.HasTokens() {
 		t.Fatal("tokens remain after logout")
+	}
+}
+
+// TestLogout_RemovesTheVaultSecret: the logout must remove the secret from
+// the VAULT, not only from the manager's memory. A vault that keeps the
+// token leaves the subscription signed in on disk — the operator asked to
+// sign out and the bytes are still there.
+func TestLogout_RemovesTheVaultSecret(t *testing.T) {
+	t.Setenv("AGEZT_VAULT_PASSPHRASE", "test-pass")
+	dir := t.TempDir()
+	m := NewManager(dir)
+	if err := m.StoreTokens(Tokens{AccessToken: "a", RefreshToken: "r"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Logout(); err != nil {
+		t.Fatal(err)
+	}
+	v := creds.NewStore(dir)
+	if err := v.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if v.Has(VaultKey) {
+		t.Fatalf("the vault still holds %q after the logout", VaultKey)
+	}
+}
+
+// TestToken_EmptyAccessTokenRefreshes: a stored refresh token with NO access
+// token is not a usable session — the access token must be fetched, not
+// returned empty.
+func TestToken_EmptyAccessTokenRefreshes(t *testing.T) {
+	withLoopbackClient(t)
+	var gotForm url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		gotForm = r.Form
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"at-new","refresh_token":"rt-new","id_token":"h.h.h"}`))
+	}))
+	defer srv.Close()
+	prevEP := tokenEP
+	tokenEP = srv.URL
+	t.Cleanup(func() { tokenEP = prevEP })
+
+	m := newTestManager(t)
+	if err := m.StoreTokens(Tokens{RefreshToken: "rt-only"}); err != nil {
+		t.Fatal(err)
+	}
+	access, _, err := m.Token(context.Background())
+	if err != nil {
+		t.Fatalf("Token: %v", err)
+	}
+	if access != "at-new" {
+		t.Fatalf("access = %q, want the refreshed token", access)
+	}
+	if gotForm.Get("grant_type") != "refresh_token" {
+		t.Fatalf("refresh form = %v, want a refresh_token grant", gotForm)
+	}
+}
+
+// TestToken_NearExpiryWithoutRefreshTokenDoesNotCallTheProvider: a token
+// that is about to expire but has NO refresh token cannot be refreshed, so
+// the daemon must keep using it rather than burn a round trip that cannot
+// succeed.
+func TestToken_NearExpiryWithoutRefreshTokenDoesNotCallTheProvider(t *testing.T) {
+	withLoopbackClient(t)
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"at-new","refresh_token":"rt-new","id_token":"h.h.h"}`))
+	}))
+	defer srv.Close()
+	prevEP := tokenEP
+	tokenEP = srv.URL
+	t.Cleanup(func() { tokenEP = prevEP })
+
+	m := newTestManager(t)
+	// Expires inside the refresh skew, so only the missing refresh token
+	// keeps it from being refreshed.
+	near := makeJWT(map[string]any{"exp": float64(time.Now().Add(time.Minute).Unix())})
+	if err := m.StoreTokens(Tokens{AccessToken: near}); err != nil {
+		t.Fatal(err)
+	}
+	access, _, err := m.Token(context.Background())
+	if err != nil {
+		t.Fatalf("Token: %v", err)
+	}
+	if access != near {
+		t.Fatalf("access = %q, want the stored token", access)
+	}
+	if calls != 0 {
+		t.Fatalf("the provider was called %d times, want none: there is no refresh token to use", calls)
 	}
 }

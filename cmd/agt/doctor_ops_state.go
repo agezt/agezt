@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 func checkExposure(status map[string]any) doctorCheck {

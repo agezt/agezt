@@ -5,7 +5,7 @@ package compat
 import (
 	"testing"
 
-	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 // DeepSeek is named in the README's compat vendor list, but before M232 its

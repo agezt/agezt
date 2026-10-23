@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 func TestCmdDoctor_Help(t *testing.T) {

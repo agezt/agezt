@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	appplugins "github.com/agezt/agezt/kernel/app/plugins"
-	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/contract/types"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
