@@ -81,7 +81,6 @@ cross-module kernel/toolreg -> kernel/modules/board/board
 cross-module kernel/toolreg -> kernel/modules/artifacts/datalake
 plugin-reach plugins/builtinchannels -> kernel/channelwire
 plugin-reach plugins/builtinchannels -> kernel/pulse
-plugin-reach plugins/builtinguardians -> kernel/cadence
 plugin-reach plugins/builtinguardians -> kernel/modules/agents/roster
 plugin-reach plugins/builtinguardians -> kernel/runtime
 plugin-reach plugins/builtinmarket -> kernel/market
@@ -98,7 +97,6 @@ plugin-reach plugins/tools/boardtool -> kernel/modules/board/board
 plugin-reach plugins/tools/config -> kernel/runtime
 plugin-reach plugins/tools/db -> kernel/modules/artifacts/datalake
 plugin-reach plugins/tools/forgetool -> kernel/modules/extensions/toolforge
-plugin-reach plugins/tools/introspecttool -> kernel/cadence
 plugin-reach plugins/tools/introspecttool -> kernel/runtime
 plugin-reach plugins/tools/mcptool -> kernel/modules/extensions/mcp
 plugin-reach plugins/tools/schedule -> kernel/cadence

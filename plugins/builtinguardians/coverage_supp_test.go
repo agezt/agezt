@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
@@ -31,12 +31,12 @@ func (h *errHost) AddStanding(_ standingapi.Order) (standingapi.Order, error) {
 	return standingapi.Order{}, errors.New("add standing error")
 }
 
-func (h *errHost) AddInterval(_ string, _ time.Duration, _, _ string) (cadence.Entry, error) {
-	return cadence.Entry{}, errors.New("add interval error")
+func (h *errHost) AddInterval(_ string, _ time.Duration, _, _ string) (cadenceapi.Entry, error) {
+	return cadenceapi.Entry{}, errors.New("add interval error")
 }
 
-func (h *errHost) AddDaily(_ string, _ int, _, _ string) (cadence.Entry, error) {
-	return cadence.Entry{}, errors.New("add daily error")
+func (h *errHost) AddDaily(_ string, _ int, _, _ string) (cadenceapi.Entry, error) {
+	return cadenceapi.Entry{}, errors.New("add daily error")
 }
 
 // TestSeedAll_AddAgentError checks that when AddAgent fails, firstErr is set

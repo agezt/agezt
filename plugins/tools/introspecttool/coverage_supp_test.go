@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 )
 
@@ -51,8 +51,8 @@ func TestNext_NonInt64ReturnsZero(t *testing.T) {
 }
 
 func TestScheduleView_AssureIntType(t *testing.T) {
-	v := scheduleView(cadence.Entry{
-		ID: "s-assure", Intent: "test", Mode: cadence.ModeOnce,
+	v := scheduleView(cadenceapi.Entry{
+		ID: "s-assure", Intent: "test", Mode: cadenceapi.ModeOnce,
 		Source: "operator", Enabled: true, NextRunUnix: 1000,
 		Assure: 3,
 	})

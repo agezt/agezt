@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
@@ -13,8 +13,8 @@ import (
 type fakeHost struct {
 	agents    []roster.Profile
 	standings []standingapi.Order
-	intervals []cadence.Entry
-	dailies   []cadence.Entry
+	intervals []cadenceapi.Entry
+	dailies   []cadenceapi.Entry
 }
 
 func (h *fakeHost) Agents() []roster.Profile { return h.agents }
@@ -63,8 +63,8 @@ func (h *fakeHost) SetStandingEnabled(id string, enabled bool) (standingapi.Orde
 	}
 	return standingapi.Order{}, nil
 }
-func (h *fakeHost) Schedules() []cadence.Entry {
-	out := make([]cadence.Entry, 0, len(h.intervals)+len(h.dailies))
+func (h *fakeHost) Schedules() []cadenceapi.Entry {
+	out := make([]cadenceapi.Entry, 0, len(h.intervals)+len(h.dailies))
 	out = append(out, h.intervals...)
 	out = append(out, h.dailies...)
 	return out
@@ -92,13 +92,13 @@ func (h *fakeHost) Reschedule(id string, mode string, interval time.Duration, at
 	}
 	return false, nil
 }
-func (h *fakeHost) AddInterval(intent string, interval time.Duration, _, agent string) (cadence.Entry, error) {
-	e := cadence.Entry{ID: "schedule-" + agent, Intent: intent, Agent: agent, IntervalSec: int64(interval / time.Second)}
+func (h *fakeHost) AddInterval(intent string, interval time.Duration, _, agent string) (cadenceapi.Entry, error) {
+	e := cadenceapi.Entry{ID: "schedule-" + agent, Intent: intent, Agent: agent, IntervalSec: int64(interval / time.Second)}
 	h.intervals = append(h.intervals, e)
 	return e, nil
 }
-func (h *fakeHost) AddDaily(intent string, atMinutes int, _, agent string) (cadence.Entry, error) {
-	e := cadence.Entry{ID: "schedule-" + agent, Intent: intent, Agent: agent, Mode: cadence.ModeDaily, AtMinutes: atMinutes}
+func (h *fakeHost) AddDaily(intent string, atMinutes int, _, agent string) (cadenceapi.Entry, error) {
+	e := cadenceapi.Entry{ID: "schedule-" + agent, Intent: intent, Agent: agent, Mode: cadenceapi.ModeDaily, AtMinutes: atMinutes}
 	h.dailies = append(h.dailies, e)
 	return e, nil
 }
@@ -333,11 +333,11 @@ func TestSeedAll_ReconcilesExistingGuardianScheduleCadence(t *testing.T) {
 	}
 	h := &fakeHost{
 		agents: existing,
-		intervals: []cadence.Entry{{
+		intervals: []cadenceapi.Entry{{
 			ID:          "sched-health",
 			Agent:       "guardian-health",
 			Intent:      "Run one system-health sweep.",
-			Mode:        cadence.ModeInterval,
+			Mode:        cadenceapi.ModeInterval,
 			IntervalSec: 60,
 			Enabled:     true,
 			Source:      "system",
@@ -528,11 +528,11 @@ func TestReconcileExistingGuardianSchedule_NoneTriggerType(t *testing.T) {
 }
 
 func TestReconcileExistingGuardianSchedule_DailyMatch(t *testing.T) {
-	h := &fakeHost{dailies: []cadence.Entry{{
+	h := &fakeHost{dailies: []cadenceapi.Entry{{
 		ID:        "sched-" + "guardian-code",
 		Agent:     "guardian-code",
 		Intent:    "Review agent-written tools and workspace code for efficiency and correctness.",
-		Mode:      cadence.ModeDaily,
+		Mode:      cadenceapi.ModeDaily,
 		AtMinutes: 3 * 60,
 		Enabled:   true,
 		Source:    "system",
@@ -561,11 +561,11 @@ func TestReconcileExistingGuardianSchedule_DailyMatch(t *testing.T) {
 }
 
 func TestReconcileExistingGuardianSchedule_DailyMismatch(t *testing.T) {
-	h := &fakeHost{dailies: []cadence.Entry{{
+	h := &fakeHost{dailies: []cadenceapi.Entry{{
 		ID:        "sched-" + "guardian-code",
 		Agent:     "guardian-code",
 		Intent:    "Review agent-written tools and workspace code for efficiency and correctness.",
-		Mode:      cadence.ModeInterval,
+		Mode:      cadenceapi.ModeInterval,
 		AtMinutes: 0,
 		Enabled:   true,
 		Source:    "system",
@@ -587,7 +587,7 @@ func TestReconcileExistingGuardianSchedule_DailyMismatch(t *testing.T) {
 	if len(h.dailies) != 1 {
 		t.Fatalf("got %d dailies, want 1", len(h.dailies))
 	}
-	if h.dailies[0].Mode != cadence.ModeDaily {
+	if h.dailies[0].Mode != cadenceapi.ModeDaily {
 		t.Errorf("mode = %q, want daily", h.dailies[0].Mode)
 	}
 	if h.dailies[0].AtMinutes != 3*60 {
@@ -596,11 +596,11 @@ func TestReconcileExistingGuardianSchedule_DailyMismatch(t *testing.T) {
 }
 
 func TestReconcileExistingGuardianSchedule_IntervalAlreadySufficient(t *testing.T) {
-	h := &fakeHost{intervals: []cadence.Entry{{
+	h := &fakeHost{intervals: []cadenceapi.Entry{{
 		ID:          "sched-" + "guardian-health",
 		Agent:       "guardian-health",
 		Intent:      "Run one system-health sweep.",
-		Mode:        cadence.ModeInterval,
+		Mode:        cadenceapi.ModeInterval,
 		IntervalSec: 86400, // already > 43200
 		Enabled:     true,
 		Source:      "system",
@@ -629,11 +629,11 @@ func TestReconcileExistingGuardianSchedule_IntervalAlreadySufficient(t *testing.
 }
 
 func TestReconcileExistingGuardianSchedule_NonMatchingSchedulesSkipped(t *testing.T) {
-	h := &fakeHost{intervals: []cadence.Entry{{
+	h := &fakeHost{intervals: []cadenceapi.Entry{{
 		ID:          "sched-other",
 		Agent:       "other-agent",
 		Intent:      "something else",
-		Mode:        cadence.ModeInterval,
+		Mode:        cadenceapi.ModeInterval,
 		IntervalSec: 60,
 		Enabled:     true,
 		Source:      "env",

@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
@@ -45,10 +45,10 @@ type Host interface {
 	// DISABLED (Store.Add always creates enabled), so it ships dormant until the
 	// operator opts into autonomy (M999).
 	SetStandingEnabled(id string, enabled bool) (standingapi.Order, error)
-	Schedules() []cadence.Entry
+	Schedules() []cadenceapi.Entry
 	Reschedule(id string, mode string, interval time.Duration, atMinutes, days int) (bool, error)
-	AddInterval(intent string, interval time.Duration, model, agent string) (cadence.Entry, error)
-	AddDaily(intent string, atMinutes int, model, agent string) (cadence.Entry, error)
+	AddInterval(intent string, interval time.Duration, model, agent string) (cadenceapi.Entry, error)
+	AddDaily(intent string, atMinutes int, model, agent string) (cadenceapi.Entry, error)
 }
 
 // Seeded reports what happened for one guardian.
@@ -304,16 +304,16 @@ func reconcileExistingGuardianSchedule(h Host, g guardian) error {
 			continue
 		}
 		if g.daily {
-			if e.Mode == cadence.ModeDaily && e.AtMinutes == g.dailyAtMinutes {
+			if e.Mode == cadenceapi.ModeDaily && e.AtMinutes == g.dailyAtMinutes {
 				return nil
 			}
-			_, err := h.Reschedule(e.ID, cadence.ModeDaily, 0, g.dailyAtMinutes, 0)
+			_, err := h.Reschedule(e.ID, cadenceapi.ModeDaily, 0, g.dailyAtMinutes, 0)
 			return err
 		}
-		if e.Mode == cadence.ModeInterval && e.IntervalSec >= g.intervalSec {
+		if e.Mode == cadenceapi.ModeInterval && e.IntervalSec >= g.intervalSec {
 			return nil
 		}
-		_, err := h.Reschedule(e.ID, cadence.ModeInterval, time.Duration(g.intervalSec)*time.Second, 0, 0)
+		_, err := h.Reschedule(e.ID, cadenceapi.ModeInterval, time.Duration(g.intervalSec)*time.Second, 0, 0)
 		return err
 	}
 	return nil

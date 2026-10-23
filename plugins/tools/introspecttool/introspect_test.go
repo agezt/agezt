@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 )
 
@@ -17,13 +17,13 @@ import (
 type fakeSource struct {
 	ov     Overview
 	reaper ReaperReport
-	sch    []cadence.Entry
+	sch    []cadenceapi.Entry
 	stnd   []standingapi.Order
 }
 
 func (f *fakeSource) Overview() Overview            { return f.ov }
 func (f *fakeSource) Reaper() ReaperReport          { return f.reaper }
-func (f *fakeSource) Schedules() []cadence.Entry    { return f.sch }
+func (f *fakeSource) Schedules() []cadenceapi.Entry { return f.sch }
 func (f *fakeSource) Standing() []standingapi.Order { return f.stnd }
 
 func newBound() (*Tool, *fakeSource) {
@@ -44,9 +44,9 @@ func newBound() (*Tool, *fakeSource) {
 			DegradedAgents:      []ReaperDegradedAgent{{Slug: "worker", Failures: 2}},
 			MisconfiguredAgents: []ReaperMisconfiguredAgent{{Slug: "builder", Issues: []string{"AGEZT_MAX_ITER: must be an integer"}}},
 		},
-		sch: []cadence.Entry{
-			{ID: "s-late", Intent: "weekly report", Mode: cadence.ModeOnce, Source: "operator", Enabled: true, NextRunUnix: 5000},
-			{ID: "s-soon", Intent: "morning brief", Mode: cadence.ModeOnce, Source: "operator", Enabled: true, NextRunUnix: 1000, Fires: 3, Model: "deepseek-chat"},
+		sch: []cadenceapi.Entry{
+			{ID: "s-late", Intent: "weekly report", Mode: cadenceapi.ModeOnce, Source: "operator", Enabled: true, NextRunUnix: 5000},
+			{ID: "s-soon", Intent: "morning brief", Mode: cadenceapi.ModeOnce, Source: "operator", Enabled: true, NextRunUnix: 1000, Fires: 3, Model: "deepseek-chat"},
 		},
 		stnd: []standingapi.Order{
 			{
@@ -190,8 +190,8 @@ func TestDefinition_ReturnsStaticDef(t *testing.T) {
 
 func TestScheduleView_OmitsZeroFields(t *testing.T) {
 	// Entry with all zero optional fields — they should be absent from the map.
-	v := scheduleView(cadence.Entry{
-		ID: "s-test", Intent: "test", Mode: cadence.ModeOnce,
+	v := scheduleView(cadenceapi.Entry{
+		ID: "s-test", Intent: "test", Mode: cadenceapi.ModeOnce,
 		Source: "operator", Enabled: true, NextRunUnix: 1000,
 	})
 	if v["last_run_unix"] != nil {
@@ -209,8 +209,8 @@ func TestScheduleView_OmitsZeroFields(t *testing.T) {
 }
 
 func TestScheduleView_IncludesNonZeroFields(t *testing.T) {
-	v := scheduleView(cadence.Entry{
-		ID: "s-test", Intent: "test", Mode: cadence.ModeOnce,
+	v := scheduleView(cadenceapi.Entry{
+		ID: "s-test", Intent: "test", Mode: cadenceapi.ModeOnce,
 		Source: "operator", Enabled: true, NextRunUnix: 1000,
 		LastRunUnix: 500, Fires: 3, Model: "deepseek", Assure: 2,
 	})

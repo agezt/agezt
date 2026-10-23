@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package cadence
+package cadenceapi
 
 // Provenance: Cadence Entry: FormatDays + ParseDays + dayAbbr +
 //             maskWeekdays/maskWeekends (days-bitmask helpers). Code extracted from
@@ -18,8 +18,8 @@ var dayAbbr = [7]string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}
 
 // Weekday bitmask shortcuts (over time.Weekday: Sunday=0 .. Saturday=6).
 const (
-	maskWeekdays = 1<<int(time.Monday) | 1<<int(time.Tuesday) | 1<<int(time.Wednesday) | 1<<int(time.Thursday) | 1<<int(time.Friday)
-	maskWeekends = 1<<int(time.Sunday) | 1<<int(time.Saturday)
+	MaskWeekdays = 1<<int(time.Monday) | 1<<int(time.Tuesday) | 1<<int(time.Wednesday) | 1<<int(time.Thursday) | 1<<int(time.Friday)
+	MaskWeekends = 1<<int(time.Sunday) | 1<<int(time.Saturday)
 )
 
 // FormatDays renders a weekday bitmask compactly ("" for every day, "Mon-Fri",
@@ -29,9 +29,9 @@ func FormatDays(days int) string {
 		return ""
 	}
 	switch days {
-	case maskWeekdays:
+	case MaskWeekdays:
 		return "Mon-Fri"
-	case maskWeekends:
+	case MaskWeekends:
 		return "Sat,Sun"
 	}
 	var names []string
@@ -65,9 +65,9 @@ func ParseDays(spec string) (int, error) {
 	case "", "daily", "everyday", "every-day", "all":
 		return 0, nil
 	case "weekdays", "weekday":
-		return maskWeekdays, nil
+		return MaskWeekdays, nil
 	case "weekends", "weekend":
-		return maskWeekends, nil
+		return MaskWeekends, nil
 	}
 	mask := 0
 	for _, part := range strings.Split(spec, ",") {

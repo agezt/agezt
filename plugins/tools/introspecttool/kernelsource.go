@@ -9,7 +9,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/strutil"
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/event"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
@@ -94,7 +94,7 @@ func (s *kernelSource) Overview() Overview {
 	}
 }
 
-func (s *kernelSource) Schedules() []cadence.Entry {
+func (s *kernelSource) Schedules() []cadenceapi.Entry {
 	if sched := s.k.Schedules(); sched != nil {
 		return sched.List()
 	}
