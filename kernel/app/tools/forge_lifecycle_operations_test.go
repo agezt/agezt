@@ -157,8 +157,8 @@ func TestForgeLifecycleNativeCodecErrorsBeforeFactoryAndOrder(t *testing.T) {
 	factory := 0
 	d, _ := forgeLifecycleDispatcher(t, p, a, &factory, opapi.Operator)
 	cases := []struct{ name, raw, want string }{
-		{"toolforge_draft", `{}`, "args.tool required"}, {"toolforge_draft", `{"tool":false}`, "args.tool: json: cannot unmarshal bool into Go value of type toolforge.ScriptTool"},
-		{"toolforge_edit", `{"ref":false,"tool":false}`, "args.ref must be a string"}, {"toolforge_edit", `{"ref":"owned"}`, "args.tool required"}, {"toolforge_edit", `{"ref":"owned","tool":[]}`, "args.tool: json: cannot unmarshal array into Go value of type toolforge.ScriptTool"},
+		{"toolforge_draft", `{}`, "args.tool required"}, {"toolforge_draft", `{"tool":false}`, "args.tool: json: cannot unmarshal bool into Go value of type toolforgeapi.ScriptTool"},
+		{"toolforge_edit", `{"ref":false,"tool":false}`, "args.ref must be a string"}, {"toolforge_edit", `{"ref":"owned"}`, "args.tool required"}, {"toolforge_edit", `{"ref":"owned","tool":[]}`, "args.tool: json: cannot unmarshal array into Go value of type toolforgeapi.ScriptTool"},
 		{"toolforge_test", `{"ref":null,"input":false}`, "args.ref must be a string"}, {"toolforge_test", `{"ref":"owned","input":null}`, "args.input must be a string"}, {"toolforge_test", `{"ref":"owned","input":false}`, "args.input must be a string"},
 		{"toolforge_promote", `{"ref":" \t "}`, "args.ref required"}, {"toolforge_quarantine", `{"ref":1,"reason":false}`, "args.ref must be a string"}, {"toolforge_quarantine", `{"ref":"owned","reason":null}`, "args.reason must be a string"}, {"toolforge_remove", `{}`, "args.ref required"},
 	}

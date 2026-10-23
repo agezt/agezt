@@ -19,18 +19,21 @@ import (
 
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 )
 
 // Kernel is the slice of the runtime kernel this tool drives — satisfied by
 // *runtime.Kernel and easy to fake in tests.
+//
+// The rows it carries are the contract's (kernel/contract/toolforgeapi): a
+// plugin may reach the contract layer and nothing else, so the tool names
+// the row, not the module that keeps it.
 type Kernel interface {
-	DraftScriptTool(corr string, st toolforge.ScriptTool) (toolforge.ScriptTool, error)
-	UpdateScriptTool(corr, ref string, mutate func(*toolforge.ScriptTool)) (toolforge.ScriptTool, bool, error)
-	TestScriptTool(ctx context.Context, corr, ref, input string) (toolforge.ScriptTool, string, error)
-	RequestToolPromotion(ctx context.Context, corr, ref string) (toolforge.ScriptTool, approval.Decision, string, error)
-	ToolForge() *toolforge.Store
+	DraftScriptTool(corr string, st toolforgeapi.ScriptTool) (toolforgeapi.ScriptTool, error)
+	UpdateScriptTool(corr, ref string, mutate func(*toolforgeapi.ScriptTool)) (toolforgeapi.ScriptTool, bool, error)
+	TestScriptTool(ctx context.Context, corr, ref, input string) (toolforgeapi.ScriptTool, string, error)
+	RequestToolPromotion(ctx context.Context, corr, ref string) (toolforgeapi.ScriptTool, approval.Decision, string, error)
 }
 
 // Tool implements toolapi.Tool. Construct with New, then Bind the live kernel
@@ -38,23 +41,42 @@ type Kernel interface {
 type Tool struct {
 	mu sync.RWMutex
 	k  Kernel
+	// store is the READ side of the forge (op=list, op=show). It arrives
+	// through the contract's port, because the tool is a plugin and may not
+	// reach the module that keeps the store.
+	store toolforgeapi.Store
 }
 
 // New returns an unbound Tool — Invoke reports the forge unavailable until
 // Bind is called.
 func New() *Tool { return &Tool{} }
 
-// Bind wires the live kernel. Called once after the kernel opens.
-func (t *Tool) Bind(k Kernel) {
+// Bind wires the live kernel and the store the read ops read through. Called
+// once after the kernel opens.
+//
+// The store is a SEPARATE port on purpose: the kernel's lifecycle methods
+// speak the contract's row, but the store is a concrete implementation that
+// lives in the module — a plugin may not name it. A nil store stays a nil
+// port, so the tool reports that the store is unavailable instead of calling
+// into a nil implementation.
+func (t *Tool) Bind(k Kernel, store toolforgeapi.Store) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.k = k
+	t.store = store
 }
 
 func (t *Tool) current() Kernel {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.k
+}
+
+// currentStore returns the bound store, or nil when it was not wired.
+func (t *Tool) currentStore() toolforgeapi.Store {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.store
 }
 
 // Definition implements toolapi.Tool.
@@ -130,7 +152,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 
 	switch in.Op {
 	case "draft":
-		st, err := k.DraftScriptTool(corr, toolforge.ScriptTool{
+		st, err := k.DraftScriptTool(corr, toolforgeapi.ScriptTool{
 			Name:        in.Name,
 			Description: in.Description,
 			Language:    in.Language,
@@ -148,7 +170,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		if strings.TrimSpace(in.Ref) == "" {
 			return errResult(`op=update needs a "ref" (the tool's id or name)`), nil
 		}
-		st, found, err := k.UpdateScriptTool(corr, in.Ref, func(dst *toolforge.ScriptTool) {
+		st, found, err := k.UpdateScriptTool(corr, in.Ref, func(dst *toolforgeapi.ScriptTool) {
 			if strings.TrimSpace(in.Description) != "" {
 				dst.Description = in.Description
 			}
@@ -214,7 +236,11 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		}
 
 	case "list":
-		all := k.ToolForge().List()
+		store := t.currentStore()
+		if store == nil {
+			return errResult("the tool forge store is not available on this daemon"), nil
+		}
+		all := store.List()
 		views := make([]map[string]any, 0, len(all))
 		for _, st := range all {
 			views = append(views, view(st))
@@ -225,7 +251,11 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		if strings.TrimSpace(in.Ref) == "" {
 			return errResult(`op=show needs a "ref" (the tool's id or name)`), nil
 		}
-		st, found := k.ToolForge().Get(strings.TrimSpace(in.Ref))
+		store := t.currentStore()
+		if store == nil {
+			return errResult("the tool forge store is not available on this daemon"), nil
+		}
+		st, found := store.Get(strings.TrimSpace(in.Ref))
 		if !found {
 			return errResult("no script tool " + in.Ref), nil
 		}
@@ -243,7 +273,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 	}
 }
 
-func view(st toolforge.ScriptTool) map[string]any {
+func view(st toolforgeapi.ScriptTool) map[string]any {
 	v := map[string]any{
 		"id":        st.ID,
 		"name":      st.Name,
@@ -254,7 +284,7 @@ func view(st toolforge.ScriptTool) map[string]any {
 	if st.Description != "" {
 		v["description"] = st.Description
 	}
-	if st.Status == toolforge.StatusActive {
+	if st.Status == toolforgeapi.StatusActive {
 		v["callable_as"] = "forge_" + st.Name
 	}
 	return v

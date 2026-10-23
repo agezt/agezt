@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
+	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 )
 
 func TestForgeCoverageDefinition(t *testing.T) {
@@ -33,7 +33,7 @@ func TestForgeCoverageDefinition(t *testing.T) {
 
 func TestForgeCoverageViewAndOKJSON(t *testing.T) {
 	// view() with empty/active/draft.
-	draft := toolforge.ScriptTool{ID: "t1", Name: "fetch_weather", Language: "python", Status: toolforge.StatusDraft}
+	draft := toolforgeapi.ScriptTool{ID: "t1", Name: "fetch_weather", Language: "python", Status: toolforgeapi.StatusDraft}
 	v := view(draft)
 	if v["id"] != "t1" || v["name"] != "fetch_weather" || v["language"] != "python" || v["status"] != "draft" {
 		t.Fatalf("view draft = %+v", v)
@@ -45,7 +45,7 @@ func TestForgeCoverageViewAndOKJSON(t *testing.T) {
 		t.Fatalf("empty description should be omitted: %+v", v)
 	}
 
-	active := toolforge.ScriptTool{ID: "t2", Name: "t2", Status: toolforge.StatusActive, Description: "do a thing"}
+	active := toolforgeapi.ScriptTool{ID: "t2", Name: "t2", Status: toolforgeapi.StatusActive, Description: "do a thing"}
 	v2 := view(active)
 	if v2["callable_as"] != "forge_t2" || v2["description"] != "do a thing" {
 		t.Fatalf("view active = %+v", v2)

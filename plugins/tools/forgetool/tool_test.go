@@ -10,11 +10,16 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/approval"
+	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 )
 
 // fakeKernel drives the tool against a real toolforge.Store with a canned
 // sandbox verdict — the kernel's journaling is covered by runtime tests.
+//
+// The rows it speaks are the contract's: the plugin may not name the module
+// in its own code, and the store is only here because the fake needs a real
+// implementation to answer with.
 type fakeKernel struct {
 	store   *toolforge.Store
 	testOut string
@@ -24,33 +29,33 @@ type fakeKernel struct {
 	reason   string
 }
 
-func (f *fakeKernel) DraftScriptTool(_ string, st toolforge.ScriptTool) (toolforge.ScriptTool, error) {
+func (f *fakeKernel) DraftScriptTool(_ string, st toolforgeapi.ScriptTool) (toolforgeapi.ScriptTool, error) {
 	return f.store.Add(st)
 }
 
-func (f *fakeKernel) UpdateScriptTool(_, ref string, mutate func(*toolforge.ScriptTool)) (toolforge.ScriptTool, bool, error) {
+func (f *fakeKernel) UpdateScriptTool(_ string, ref string, mutate func(*toolforgeapi.ScriptTool)) (toolforgeapi.ScriptTool, bool, error) {
 	st, err := f.store.Update(ref, mutate)
 	if errors.Is(err, toolforge.ErrNotFound) {
-		return toolforge.ScriptTool{}, false, nil
+		return toolforgeapi.ScriptTool{}, false, nil
 	}
 	if err != nil {
-		return toolforge.ScriptTool{}, false, err
+		return toolforgeapi.ScriptTool{}, false, err
 	}
 	return st, true, nil
 }
 
-func (f *fakeKernel) TestScriptTool(_ context.Context, _, ref, _ string) (toolforge.ScriptTool, string, error) {
+func (f *fakeKernel) TestScriptTool(_ context.Context, _, ref, _ string) (toolforgeapi.ScriptTool, string, error) {
 	st, err := f.store.RecordTest(ref, f.testOK)
 	return st, f.testOut, err
 }
 
-func (f *fakeKernel) RequestToolPromotion(_ context.Context, _, ref string) (toolforge.ScriptTool, approval.Decision, string, error) {
+func (f *fakeKernel) RequestToolPromotion(_ context.Context, _, ref string) (toolforgeapi.ScriptTool, approval.Decision, string, error) {
 	st, found := f.store.Get(ref)
 	if !found {
-		return toolforge.ScriptTool{}, "", "", errors.New("toolforge: no script tool " + ref)
+		return toolforgeapi.ScriptTool{}, "", "", errors.New("toolforge: no script tool " + ref)
 	}
 	if !st.TestedOK {
-		return toolforge.ScriptTool{}, "", "", toolforge.ErrUntested
+		return toolforgeapi.ScriptTool{}, "", "", toolforge.ErrUntested
 	}
 	if f.decision == approval.DecisionGrant {
 		st, err := f.store.Promote(ref)
@@ -58,8 +63,6 @@ func (f *fakeKernel) RequestToolPromotion(_ context.Context, _, ref string) (too
 	}
 	return st, f.decision, f.reason, nil
 }
-
-func (f *fakeKernel) ToolForge() *toolforge.Store { return f.store }
 
 func newBound(t *testing.T) (*Tool, *fakeKernel) {
 	t.Helper()
@@ -69,7 +72,7 @@ func newBound(t *testing.T) (*Tool, *fakeKernel) {
 	}
 	fk := &fakeKernel{store: store, testOut: "ok", testOK: true}
 	tool := New()
-	tool.Bind(fk)
+	tool.Bind(fk, store)
 	return tool, fk
 }
 

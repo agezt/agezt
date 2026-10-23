@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/introspecttool"
@@ -66,6 +67,55 @@ func TestToolKernelDepsSuppliesTheOverseerPort(t *testing.T) {
 	}
 	if got := deps.Overseer.ActiveRunIDs(); len(got) != 0 {
 		t.Errorf("a freshly opened daemon has no active runs, got %v", got)
+	}
+}
+
+// TestToolKernelDepsSuppliesTheForgePort: the tool_forge tool reads the
+// script-tool store through the contract's port. The port is supplied HERE —
+// at the composition root — so a daemon that dropped it would leave the tool
+// answering "not available" on every live box, while every test that builds
+// the tool by hand stayed green. This test is the only one that sees that
+// wiring, so it asserts it directly.
+func TestToolKernelDepsSuppliesTheForgePort(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	deps := toolKernelDeps(k, t.TempDir(), io.Discard)
+	if deps.Forge == nil {
+		t.Fatal("the daemon must supply the forge port")
+	}
+
+	// The port must answer the LIVE store — a port bound to nothing would
+	// still be non-nil.
+	if got := deps.Forge.List(); len(got) != 0 {
+		t.Fatalf("a freshly opened daemon has no script tools, got %v", got)
+	}
+	if _, err := k.DraftScriptTool("corr", toolforgeapi.ScriptTool{
+		Name:        "echo",
+		Description: "echoes",
+		Language:    "python",
+		Code:        "print(1)",
+	}); err != nil {
+		t.Fatalf("DraftScriptTool: %v", err)
+	}
+	all := deps.Forge.List()
+	if len(all) != 1 || all[0].Name != "echo" {
+		t.Fatalf("the port must answer the live store, got %v", all)
+	}
+}
+
+// TestForgeStoreStaysANilPortWithoutAStore: a daemon with no store must hand
+// over a NIL port, not a port wrapping a nil implementation — otherwise the
+// tool would call into nil instead of reporting that the store is missing.
+func TestForgeStoreStaysANilPortWithoutAStore(t *testing.T) {
+	if got := forgeStore(nil); got != nil {
+		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
+	}
+	if got := forgePort(nil); got != nil {
+		t.Fatalf("a missing store must yield a nil port, got %v", got)
 	}
 }
 
