@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -153,14 +153,14 @@ func TestFindRoutingPressure_FoundAndNotFound(t *testing.T) {
 // --- repairTaskType ---
 
 func TestRepairTaskType_UsesProfileTaskType(t *testing.T) {
-	tt := repairTaskType(roster.Profile{Slug: "a", TaskType: "research"}, kernelruntime.ReaperReport{})
+	tt := repairTaskType(agentapi.Profile{Slug: "a", TaskType: "research"}, kernelruntime.ReaperReport{})
 	if tt != "research" {
 		t.Fatalf("repairTaskType = %q, want research", tt)
 	}
 }
 
 func TestRepairTaskType_FallsBackToRoutingPressure(t *testing.T) {
-	tt := repairTaskType(roster.Profile{Slug: "b"}, kernelruntime.ReaperReport{
+	tt := repairTaskType(agentapi.Profile{Slug: "b"}, kernelruntime.ReaperReport{
 		RoutingPressure: []kernelruntime.RoutingPressureAgent{
 			{Slug: "b", TaskType: "code"},
 		},
@@ -171,7 +171,7 @@ func TestRepairTaskType_FallsBackToRoutingPressure(t *testing.T) {
 }
 
 func TestRepairTaskType_EmptyWhenNoSignal(t *testing.T) {
-	tt := repairTaskType(roster.Profile{Slug: "c"}, kernelruntime.ReaperReport{})
+	tt := repairTaskType(agentapi.Profile{Slug: "c"}, kernelruntime.ReaperReport{})
 	if tt != "" {
 		t.Fatalf("repairTaskType with no signal = %q, want empty", tt)
 	}
@@ -180,21 +180,21 @@ func TestRepairTaskType_EmptyWhenNoSignal(t *testing.T) {
 // --- managedSubAgentRepairHint ---
 
 func TestManagedSubAgentRepairHint_WithParent(t *testing.T) {
-	hint := managedSubAgentRepairHint(roster.Profile{Slug: "sub", ParentAgent: "parent"})
+	hint := managedSubAgentRepairHint(agentapi.Profile{Slug: "sub", ParentAgent: "parent"})
 	if hint == "" {
 		t.Fatal("hint should not be empty")
 	}
 }
 
 func TestManagedSubAgentRepairHint_WithOwnerOnly(t *testing.T) {
-	hint := managedSubAgentRepairHint(roster.Profile{Slug: "sub", OwnerAgent: "owner"})
+	hint := managedSubAgentRepairHint(agentapi.Profile{Slug: "sub", OwnerAgent: "owner"})
 	if hint == "" {
 		t.Fatal("hint should not be empty")
 	}
 }
 
 func TestManagedSubAgentRepairHint_NoManager(t *testing.T) {
-	hint := managedSubAgentRepairHint(roster.Profile{Slug: "sub"})
+	hint := managedSubAgentRepairHint(agentapi.Profile{Slug: "sub"})
 	if hint == "" {
 		t.Fatal("hint should not be empty even without manager")
 	}

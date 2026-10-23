@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/governor"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/settings"
 )
@@ -30,7 +30,7 @@ func TestParseRepairProposal_RoutingAwareFields(t *testing.T) {
 }
 
 func TestApplyRepairProposal_AppliesTaskType(t *testing.T) {
-	dst := &roster.Profile{TaskType: "research"}
+	dst := &agentapi.Profile{TaskType: "research"}
 	applied := applyRepairProposal(dst, &repairProposal{TaskType: "code"})
 	if dst.TaskType != "code" {
 		t.Fatalf("dst task_type = %q, want code", dst.TaskType)
@@ -42,7 +42,7 @@ func TestApplyRepairProposal_AppliesTaskType(t *testing.T) {
 
 func TestBuildRepairBrief_IncludesRoutingEvidenceAndCurrentChain(t *testing.T) {
 	brief := buildRepairBrief(
-		roster.Profile{Slug: "builder", TaskType: "code", Model: "gpt-5"},
+		agentapi.Profile{Slug: "builder", TaskType: "code", Model: "gpt-5"},
 		kernelruntime.ReaperReport{
 			RoutingPressure: []kernelruntime.RoutingPressureAgent{{
 				Slug:            "builder",
@@ -71,7 +71,7 @@ func TestBuildRepairBrief_IncludesRoutingEvidenceAndCurrentChain(t *testing.T) {
 }
 
 func TestRepairProposalTaskType_FallsBackToExistingProfile(t *testing.T) {
-	got := repairProposalTaskType(roster.Profile{TaskType: "research"}, &repairProposal{TaskModelChain: []string{"gpt-5"}})
+	got := repairProposalTaskType(agentapi.Profile{TaskType: "research"}, &repairProposal{TaskModelChain: []string{"gpt-5"}})
 	if got != "research" {
 		t.Fatalf("task type = %q, want research", got)
 	}

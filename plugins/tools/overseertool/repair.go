@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -20,7 +20,7 @@ type repairProposal struct {
 	ConfigOverrides map[string]string `json:"config_overrides"`
 }
 
-func buildRepairBrief(p roster.Profile, rep kernelruntime.ReaperReport, reason string, currentTaskChain []string) string {
+func buildRepairBrief(p agentapi.Profile, rep kernelruntime.ReaperReport, reason string, currentTaskChain []string) string {
 	var out []string
 	out = append(out,
 		`You are the agent "`+p.Slug+`". This is an autonomous self-repair run requested by the overseer.`,
@@ -204,7 +204,7 @@ func cleanRepairProposal(p *repairProposal) {
 	}
 }
 
-func applyRepairProposal(dst *roster.Profile, prop *repairProposal) []string {
+func applyRepairProposal(dst *agentapi.Profile, prop *repairProposal) []string {
 	if dst == nil || prop == nil {
 		return nil
 	}
@@ -235,7 +235,7 @@ func applyRepairProposal(dst *roster.Profile, prop *repairProposal) []string {
 	return applied
 }
 
-func repairTaskType(p roster.Profile, rep kernelruntime.ReaperReport) string {
+func repairTaskType(p agentapi.Profile, rep kernelruntime.ReaperReport) string {
 	if taskType := strings.TrimSpace(p.TaskType); taskType != "" {
 		return taskType
 	}
@@ -245,7 +245,7 @@ func repairTaskType(p roster.Profile, rep kernelruntime.ReaperReport) string {
 	return ""
 }
 
-func repairProposalTaskType(current roster.Profile, prop *repairProposal) string {
+func repairProposalTaskType(current agentapi.Profile, prop *repairProposal) string {
 	if prop == nil {
 		return ""
 	}

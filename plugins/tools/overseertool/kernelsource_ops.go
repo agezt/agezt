@@ -17,7 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
@@ -101,7 +102,7 @@ func (s *kernelSource) WakeAgent(ref, intent, reason string) (string, error) {
 	return corr, nil
 }
 
-func (s *kernelSource) SearchAgents(filter SearchFilter) []roster.Profile {
+func (s *kernelSource) SearchAgents(filter SearchFilter) []agentapi.Profile {
 	all := s.k.Roster().List()
 	if len(all) == 0 {
 		return nil
@@ -110,7 +111,7 @@ func (s *kernelSource) SearchAgents(filter SearchFilter) []roster.Profile {
 	if limit <= 0 {
 		limit = 100
 	}
-	out := make([]roster.Profile, 0, min(len(all), limit))
+	out := make([]agentapi.Profile, 0, min(len(all), limit))
 	query := strings.ToLower(strings.TrimSpace(filter.Query))
 	state := strings.ToLower(strings.TrimSpace(filter.State))
 	model := strings.ToLower(strings.TrimSpace(filter.Model))
@@ -228,7 +229,7 @@ func (s *kernelSource) RepairAgent(ref, reason string) (RepairResult, error) {
 		if len(prop.TaskModelChain) > 0 && repairProposalTaskType(p, prop) == "" {
 			return RepairResult{}, fmt.Errorf("repair proposal included task_model_chain without a task_type or existing agent task type")
 		}
-		_, _, uerr := s.k.UpdateProfile(p.Slug, func(dst *roster.Profile) {
+		_, _, uerr := s.k.UpdateProfile(p.Slug, func(dst *agentapi.Profile) {
 			applied = applyRepairProposal(dst, prop)
 		})
 		if uerr != nil {
@@ -305,7 +306,7 @@ func (s *kernelSource) ApplyRoutingChain(ref, taskType string, targetChain []str
 	}, nil
 }
 
-func managedSubAgentRepairHint(p roster.Profile) string {
+func managedSubAgentRepairHint(p agentapi.Profile) string {
 	manager := strings.TrimSpace(p.ParentAgent)
 	if manager == "" {
 		manager = strings.TrimSpace(p.OwnerAgent)
@@ -320,7 +321,7 @@ func managedSubAgentRepairHint(p roster.Profile) string {
 // OpenHelp opens the board fresh and returns its open help requests. A failure
 // to open (no board yet) yields an empty list rather than an error — the
 // overseer should still report on everything else.
-func (s *kernelSource) OpenHelp(limit int) []board.Message {
+func (s *kernelSource) OpenHelp(limit int) []boardapi.Message {
 	st, err := board.Open(s.boardDir)
 	if err != nil {
 		return nil
