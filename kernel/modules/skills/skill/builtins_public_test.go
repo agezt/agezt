@@ -15,7 +15,7 @@ import (
 // resources. A seam that drifts from the seeding would let the marketplace
 // publish a catalogue the daemon does not actually ship.
 func TestBuiltinNames_ExposesTheEmbeddedBundles(t *testing.T) {
-	names := BuiltinNames()
+	names := NewBuiltins().Names()
 	if len(names) == 0 {
 		t.Fatal("BuiltinNames() returned no bundles")
 	}
@@ -25,7 +25,7 @@ func TestBuiltinNames_ExposesTheEmbeddedBundles(t *testing.T) {
 
 	var withResources int
 	for _, n := range names {
-		md, res, err := BuiltinBundle(n)
+		md, res, err := NewBuiltins().Bundle(n)
 		if err != nil {
 			t.Fatalf("BuiltinBundle(%q): %v", n, err)
 		}
@@ -52,7 +52,7 @@ func TestBuiltinNames_ExposesTheEmbeddedBundles(t *testing.T) {
 	// The seam hands out a copy: a caller mutating the slice must not reach the
 	// module's own bundle list.
 	names[0] = "modified"
-	if BuiltinNames()[0] == "modified" {
+	if NewBuiltins().Names()[0] == "modified" {
 		t.Error("BuiltinNames() must return a copy")
 	}
 }

@@ -23,12 +23,52 @@ func TestTheRowsAreTheContractRows(t *testing.T) {
 		{"Skill", Skill{}, skillapi.Skill{}},
 		{"Metrics", Metrics{}, skillapi.Metrics{}},
 		{"CreateSpec", CreateSpec{}, skillapi.CreateSpec{}},
+		{"SkillMD", SkillMD{}, skillapi.SkillMD{}},
 	} {
 		if reflect.TypeOf(c.module) != reflect.TypeOf(c.contract) {
 			t.Errorf("the %s row drifted from the contract: %v vs %v",
 				c.name, reflect.TypeOf(c.module), reflect.TypeOf(c.contract))
 		}
 	}
+}
+
+// TestTheParserIsTheContractParser: the SKILL.md parser lives in the contract
+// (it is pure, and the marketplace's built-in catalogue — a plugin — parses
+// the built-in bundles with it). The module's name is a delegation, so there
+// is one parser: the module's verdict and the contract's must agree on every
+// document, and the error must be the same error.
+func TestTheParserIsTheContractParser(t *testing.T) {
+	docs := []string{
+		"",
+		"no frontmatter at all",
+		"---\nname: x\n---\nbody\n",
+		"---\nname: x\ntriggers: [a, b]\ntools_required:\n  - shell\n---\nbody\n",
+		"---\ndescription: no name\n---\nbody\n",
+		"---\nname: x\n---\n",
+		"---\nname: x\n---\nbody\n",
+		"---\nname: \"quoted\"\ndescription: 'single'\n---\nbody\n",
+	}
+	for _, doc := range docs {
+		gotMD, gotErr := ParseSkillMD([]byte(doc))
+		wantMD, wantErr := skillapi.ParseSkillMD([]byte(doc))
+		if (gotErr == nil) != (wantErr == nil) {
+			t.Errorf("the module and the contract disagree on the verdict for %q: %v vs %v", doc, gotErr, wantErr)
+			continue
+		}
+		if gotErr != nil && gotErr.Error() != wantErr.Error() {
+			t.Errorf("the module's error %q differs from the contract's %q", gotErr, wantErr)
+		}
+		if !reflect.DeepEqual(gotMD, wantMD) {
+			t.Errorf("the module parsed %+v, the contract %+v", gotMD, wantMD)
+		}
+	}
+}
+
+// TestTheBuiltinsAreTheContractPort: the module's built-in bundles are read
+// through the contract's port — the marketplace's catalogue is a plugin, so it
+// may not name this module.
+func TestTheBuiltinsAreTheContractPort(t *testing.T) {
+	var _ skillapi.Builtins = NewBuiltins()
 }
 
 // TestTheForgeIsTheContractPort: the module's Forge — the journaled,

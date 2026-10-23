@@ -2,10 +2,14 @@
 
 package builtinmarket
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
+)
 
 func TestNew_ReturnsNonNilLibrary(t *testing.T) {
-	l := New()
+	l := New(skill.NewBuiltins())
 	if l == nil {
 		t.Fatal("New() returned nil")
 	}
@@ -15,7 +19,7 @@ func TestNew_ReturnsNonNilLibrary(t *testing.T) {
 }
 
 func TestNew_ContainsMultiplePacks(t *testing.T) {
-	l := New()
+	l := New(skill.NewBuiltins())
 	if len(l.packs) == 0 {
 		t.Fatal("New() produced zero packs — expected at least the built-in skill bundles")
 	}
@@ -25,7 +29,7 @@ func TestNew_ContainsMultiplePacks(t *testing.T) {
 }
 
 func TestNew_IncludesCombos(t *testing.T) {
-	l := New()
+	l := New(skill.NewBuiltins())
 	found := map[string]bool{"web-research-pro": false, "git-workshop": false}
 	for _, p := range l.packs {
 		if _, ok := found[p.Name]; ok {
@@ -54,7 +58,7 @@ func TestSeededPacks_ReferenceOnlyPublishedPackages(t *testing.T) {
 		"@modelcontextprotocol/server-fetch",
 	}
 
-	for _, p := range New().packs {
+	for _, p := range New(skill.NewBuiltins()).packs {
 		for _, srv := range p.MCPServers {
 			for _, arg := range srv.Args {
 				for _, bad := range unpublished {
@@ -72,7 +76,7 @@ func TestSeededPacks_ReferenceOnlyPublishedPackages(t *testing.T) {
 // future edit cannot quietly revert to the npm spelling.
 func TestWebResearchPro_UsesThePyPIFetchServer(t *testing.T) {
 	var found bool
-	for _, p := range New().packs {
+	for _, p := range New(skill.NewBuiltins()).packs {
 		if p.Name != "web-research-pro" {
 			continue
 		}
@@ -95,7 +99,7 @@ func TestWebResearchPro_UsesThePyPIFetchServer(t *testing.T) {
 }
 
 func TestLibrary_Marketplaces_ReturnsOfficialCatalogue(t *testing.T) {
-	l := New()
+	l := New(skill.NewBuiltins())
 	mps := l.Marketplaces()
 	if len(mps) != 1 {
 		t.Fatalf("Marketplaces() returned %d catalogues, want 1", len(mps))
@@ -119,7 +123,7 @@ func TestLibrary_Marketplaces_ReturnsOfficialCatalogue(t *testing.T) {
 }
 
 func TestLibrary_Marketplaces_AllPacksHaveNames(t *testing.T) {
-	l := New()
+	l := New(skill.NewBuiltins())
 	mps := l.Marketplaces()
 	for _, mp := range mps {
 		for _, entry := range mp.Packs {
@@ -134,7 +138,7 @@ func TestLibrary_Marketplaces_AllPacksHaveNames(t *testing.T) {
 }
 
 func TestLibrary_ResolvePack_Found(t *testing.T) {
-	l := New()
+	l := New(skill.NewBuiltins())
 	// Resolve the first pack from the list.
 	if len(l.packs) == 0 {
 		t.Fatal("no packs to resolve")
@@ -150,7 +154,7 @@ func TestLibrary_ResolvePack_Found(t *testing.T) {
 }
 
 func TestLibrary_ResolvePack_NotFound(t *testing.T) {
-	l := New()
+	l := New(skill.NewBuiltins())
 	_, err := l.ResolvePack("", "nonexistent-pack", "")
 	if err == nil {
 		t.Fatal("ResolvePack for nonexistent pack should return error")
@@ -158,7 +162,7 @@ func TestLibrary_ResolvePack_NotFound(t *testing.T) {
 }
 
 func TestLibrary_ResolvePack_AllPacksResolvable(t *testing.T) {
-	l := New()
+	l := New(skill.NewBuiltins())
 	for _, p := range l.packs {
 		got, err := l.ResolvePack("", p.Name, "")
 		if err != nil {
@@ -208,7 +212,7 @@ func TestCategoryFor_UnknownBundle(t *testing.T) {
 }
 
 func TestLibrary_MarketplacePacksHaveValidCategories(t *testing.T) {
-	l := New()
+	l := New(skill.NewBuiltins())
 	mps := l.Marketplaces()
 	validCategories := map[string]bool{
 		"web": true, "desktop": true, "data": true, "dev": true,
@@ -229,7 +233,7 @@ func TestLibrary_MarketplacePacksHaveValidCategories(t *testing.T) {
 }
 
 func TestLibrary_New_AllPacksHaveVersion(t *testing.T) {
-	l := New()
+	l := New(skill.NewBuiltins())
 	for _, p := range l.packs {
 		if p.Version == "" {
 			t.Errorf("pack %q has no version", p.Name)
@@ -238,7 +242,7 @@ func TestLibrary_New_AllPacksHaveVersion(t *testing.T) {
 }
 
 func TestLibrary_New_AllPacksHaveAuthor(t *testing.T) {
-	l := New()
+	l := New(skill.NewBuiltins())
 	for _, p := range l.packs {
 		if p.Author == "" {
 			t.Errorf("pack %q has no author", p.Name)
@@ -247,7 +251,7 @@ func TestLibrary_New_AllPacksHaveAuthor(t *testing.T) {
 }
 
 func TestLibrary_New_AllPacksHaveAtLeastOneSkill(t *testing.T) {
-	l := New()
+	l := New(skill.NewBuiltins())
 	for _, p := range l.packs {
 		if len(p.Skills) == 0 {
 			t.Errorf("pack %q has zero skills", p.Name)
@@ -256,7 +260,7 @@ func TestLibrary_New_AllPacksHaveAtLeastOneSkill(t *testing.T) {
 }
 
 func TestLibrary_New_ComboPacksHaveToolRequirements(t *testing.T) {
-	l := New()
+	l := New(skill.NewBuiltins())
 	for _, p := range l.packs {
 		if p.Name == "web-research-pro" || p.Name == "git-workshop" {
 			if len(p.ToolRequirements) == 0 {
@@ -267,7 +271,7 @@ func TestLibrary_New_ComboPacksHaveToolRequirements(t *testing.T) {
 }
 
 func TestLibrary_New_PacksHaveTags(t *testing.T) {
-	l := New()
+	l := New(skill.NewBuiltins())
 	for _, p := range l.packs {
 		if len(p.Tags) == 0 {
 			t.Errorf("pack %q has no tags", p.Name)
@@ -276,7 +280,7 @@ func TestLibrary_New_PacksHaveTags(t *testing.T) {
 }
 
 func TestLibrary_FeaturedCombosSurfaceInEntries(t *testing.T) {
-	l := New()
+	l := New(skill.NewBuiltins())
 	mp := l.Marketplaces()[0]
 	featured := map[string]bool{}
 	for _, e := range mp.Packs {
@@ -295,7 +299,7 @@ func TestLibrary_FeaturedCombosSurfaceInEntries(t *testing.T) {
 }
 
 func TestLibrary_MultiSkillCombosCarryAllBundles(t *testing.T) {
-	l := New()
+	l := New(skill.NewBuiltins())
 	for name, wantSkills := range map[string]int{
 		"github-automation": 2, // gitops + httpapi
 		"data-analyst-pro":  2, // dataanalysis + sqldb
@@ -316,7 +320,7 @@ func TestLibrary_MultiSkillCombosCarryAllBundles(t *testing.T) {
 }
 
 func TestNew_AllPacksGetEntry(t *testing.T) {
-	l := New()
+	l := New(skill.NewBuiltins())
 	mps := l.Marketplaces()
 	if len(mps) == 0 {
 		t.Fatal("no marketplaces")

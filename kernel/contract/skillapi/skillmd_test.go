@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-package skill
+package skillapi
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -79,6 +80,10 @@ func TestParseSkillMD_BlockListsAndQuotes(t *testing.T) {
 
 // TestParseSkillMD_Errors: missing frontmatter, missing name, empty body,
 // unterminated frontmatter all fail closed.
+//
+// The error is measured too, not just its presence: a parser that rejects a
+// document for the WRONG reason still rejects it, and the reason is what an
+// importer (or an operator reading the log) acts on.
 func TestParseSkillMD_Errors(t *testing.T) {
 	cases := map[string]string{
 		"no frontmatter": "# Just markdown, no frontmatter\nbody",
@@ -90,5 +95,19 @@ func TestParseSkillMD_Errors(t *testing.T) {
 		if _, err := ParseSkillMD([]byte(src)); err == nil {
 			t.Errorf("%s: expected an error, got nil", label)
 		}
+	}
+
+	// A document without the opening fence fails with the frontmatter error —
+	// not with some other error the parser happens to hit on the way.
+	if _, err := ParseSkillMD([]byte("# Just markdown, no frontmatter\nbody")); !errors.Is(err, ErrNoFrontmatter) {
+		t.Errorf("a document without frontmatter = %v, want ErrNoFrontmatter", err)
+	}
+	// The unterminated document is a different failure.
+	if _, err := ParseSkillMD([]byte("---\nname: x\nbody with no closing fence")); errors.Is(err, ErrNoFrontmatter) {
+		t.Error("an unterminated frontmatter must not be reported as a missing one")
+	}
+	// The empty-body document is neither.
+	if _, err := ParseSkillMD([]byte("---\nname: x\n---\n   \n")); errors.Is(err, ErrNoFrontmatter) {
+		t.Error("an empty body must not be reported as a missing frontmatter")
 	}
 }
