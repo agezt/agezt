@@ -8,28 +8,28 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/contract/reasoningapi"
 )
 
 type fakeRunner struct {
-	gotCfg runtime.ConductorConfig
-	res    runtime.ConductorResult
+	gotCfg reasoningapi.ConductorConfig
+	res    reasoningapi.ConductorResult
 	err    error
 }
 
-func (f *fakeRunner) Conduct(_ context.Context, _ string, cfg runtime.ConductorConfig) (runtime.ConductorResult, error) {
+func (f *fakeRunner) Conduct(_ context.Context, _ string, cfg reasoningapi.ConductorConfig) (reasoningapi.ConductorResult, error) {
 	f.gotCfg = cfg
 	return f.res, f.err
 }
 
 func TestConductor_Invoke(t *testing.T) {
-	fr := &fakeRunner{res: runtime.ConductorResult{
+	fr := &fakeRunner{res: reasoningapi.ConductorResult{
 		Task:   "add(2,2)",
 		Answer: "def add(a,b): return a+b",
 		Passed: true,
 		Roles:  map[string]string{"thinker": "m1", "worker": "m2", "verifier": "m3"},
 		Rounds: 1,
-		Steps: []runtime.ConductorStep{
+		Steps: []reasoningapi.ConductorStep{
 			{Round: 0, Role: "thinker", Model: "m1", Text: "plan"},
 			{Round: 1, Role: "worker", Model: "m2", Text: "code"},
 			{Round: 1, Role: "verifier", Model: "m3", Verdict: "pass", Reason: "ran cleanly"},
@@ -52,6 +52,61 @@ func TestConductor_Invoke(t *testing.T) {
 		if !strings.Contains(r.Output, want) {
 			t.Errorf("output missing %q:\n%s", want, r.Output)
 		}
+	}
+}
+
+// TestConductor_SurfacesTheWholeTranscript pins the output mapping: the
+// answer, the verdict, the resolved role models, the round count, the plan and
+// every recorded step must reach the agent. A mapping that quietly drops a
+// field leaves the agent with a thinner transcript than the run produced.
+func TestConductor_SurfacesTheWholeTranscript(t *testing.T) {
+	fr := &fakeRunner{res: reasoningapi.ConductorResult{
+		Task:   "add(2,2)",
+		Answer: "ok",
+		Passed: true,
+		Roles:  map[string]string{"thinker": "m1", "worker": "m2", "verifier": "m3"},
+		Plan:   "the plan",
+		Rounds: 2,
+		Steps: []reasoningapi.ConductorStep{
+			{Round: 1, Role: "verifier", Model: "m3", Verdict: "pass", Reason: "ran cleanly"},
+		},
+	}}
+	tool := New()
+	tool.SetRunner(fr)
+
+	r, err := tool.Invoke(context.Background(), json.RawMessage(`{"task":"add(2,2)"}`))
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if r.IsError {
+		t.Fatalf("unexpected error: %s", r.Output)
+	}
+	var out map[string]any
+	if err := json.Unmarshal([]byte(r.Output), &out); err != nil {
+		t.Fatalf("output not valid JSON: %v", err)
+	}
+	for _, key := range []string{"answer", "passed", "roles", "rounds", "plan", "steps"} {
+		if _, ok := out[key]; !ok {
+			t.Errorf("output is missing %q", key)
+		}
+	}
+	if out["passed"] != true {
+		t.Errorf("passed = %v, want true", out["passed"])
+	}
+	if out["rounds"].(float64) != 2 {
+		t.Errorf("rounds = %v, want 2", out["rounds"])
+	}
+	roles, _ := out["roles"].(map[string]any)
+	if roles["worker"] != "m2" || roles["verifier"] != "m3" {
+		t.Errorf("roles = %v, want the resolved role models", roles)
+	}
+	steps, _ := out["steps"].([]any)
+	if len(steps) != 1 {
+		t.Fatalf("steps = %v, want the recorded step", out["steps"])
+	}
+	step, _ := steps[0].(map[string]any)
+	if step["role"] != "verifier" || step["verdict"] != "pass" || step["reason"] != "ran cleanly" {
+		t.Errorf("step = %v, want the role, the verdict and the reason", step)
 	}
 }
 

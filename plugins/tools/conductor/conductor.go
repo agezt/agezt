@@ -16,15 +16,16 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/reasoningapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
-// Runner is the slice of *runtime.Kernel the tool needs — an interface so the
-// tool is decoupled and unit-testable with a fake.
+// Runner is the slice of the host the tool needs — an interface so the tool is
+// decoupled and unit-testable with a fake. The rows it names live in the
+// contract layer: a plugin may only reach the contract and the platform.
 type Runner interface {
-	Conduct(ctx context.Context, corr string, cfg runtime.ConductorConfig) (runtime.ConductorResult, error)
+	Conduct(ctx context.Context, corr string, cfg reasoningapi.ConductorConfig) (reasoningapi.ConductorResult, error)
 }
 
 // Tool is the `conductor` implementation of toolapi.Tool.
@@ -94,7 +95,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		return errResult("task required"), nil
 	}
 	corr := toolapi.CorrelationFromContext(ctx)
-	res, err := t.runner.Conduct(ctx, corr, runtime.ConductorConfig{
+	res, err := t.runner.Conduct(ctx, corr, reasoningapi.ConductorConfig{
 		Task:      in.Task,
 		Thinker:   in.Thinker,
 		Worker:    in.Worker,

@@ -816,6 +816,18 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The council, the conductor and the research tools no longer reach into the
+  kernel for a type.** The rows the reasoning module produces — a consensus,
+  a transcript, a cited report — move to the contract layer
+  (`kernel/contract/reasoningapi`), because the agent-facing tools that show
+  them are plugins and a plugin may only reach the contract and the platform
+  layers. The module re-exports the rows as aliases, so the host's public
+  names and the module's surface do not move, and the module, the host and the
+  tools now speak one type. The tools' behaviour, their rows and their wire
+  JSON are unchanged; the three plugin-reach edges this removes are gone from
+  the architecture ratchet.
+
+
 - **The provider bootstrap engine has a home in the providers module.** The
   daemon's provider selection, alternate registration and hot reload move out
   of the `providerboot` plugin into `kernel/modules/providers/boot`. The wire

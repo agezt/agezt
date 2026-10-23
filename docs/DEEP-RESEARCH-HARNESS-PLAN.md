@@ -19,8 +19,8 @@ parity and one competitors cannot easily answer.
 | Question → sub-questions / plan | `planner` (LLM→DAG) | `kernel/planner/planner.go` |
 | URL discovery | `websearch` (keyless DDG, SSRF-protected) | `plugins/tools/websearch/websearch.go` |
 | Fetch page + convert to text | `browser.read` / `browser.action` | `plugins/tools/browser/` |
-| Multi-source triangulation (consensus) | **`council`** (different models → agreement) | `plugins/tools/council/` + `kernel/runtime` |
-| Contradiction/adversarial verification | **`conductor`** (Thinker/Worker/**Verifier**) | `plugins/tools/conductor/` + `kernel/runtime` |
+| Multi-source triangulation (consensus) | **`council`** (different models → agreement) | `plugins/tools/council/` + `kernel/contract/reasoningapi` (the rows; the host implements the tool's `Runner` port) |
+| Contradiction/adversarial verification | **`conductor`** (Thinker/Worker/**Verifier**) | `plugins/tools/conductor/` + `kernel/contract/reasoningapi` (the rows; the host implements the tool's `Runner` port) |
 | Orchestration | `workflow` DAG engine | `kernel/workflow/` |
 | Persistence (findings/entities) | `memory` + `worldmodel` | `kernel/memory/`, `kernel/worldmodel/` |
 | Audit + citation chain | hash-chained journal + `why` | `kernel/journal/`, `cmd/agt/why.go` |

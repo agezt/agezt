@@ -9,18 +9,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/contract/reasoningapi"
 )
 
 type fakeRunner struct {
-	report      runtime.ResearchReport
+	report      reasoningapi.ResearchReport
 	err         error
 	gotQuestion string
-	gotOpts     runtime.ResearchOptions
+	gotOpts     reasoningapi.ResearchOptions
 	called      bool
 }
 
-func (f *fakeRunner) Research(_ context.Context, _, question string, opts runtime.ResearchOptions) (runtime.ResearchReport, error) {
+func (f *fakeRunner) Research(_ context.Context, _, question string, opts reasoningapi.ResearchOptions) (reasoningapi.ResearchReport, error) {
 	f.called = true
 	f.gotQuestion = question
 	f.gotOpts = opts
@@ -38,10 +38,10 @@ func TestResearchTool_Definition(t *testing.T) {
 }
 
 func TestResearchTool_HappyPath(t *testing.T) {
-	fr := &fakeRunner{report: runtime.ResearchReport{
+	fr := &fakeRunner{report: reasoningapi.ResearchReport{
 		Question:     "why is the sky blue?",
 		SubQuestions: []string{"why is the sky blue?"},
-		Sources: []runtime.ResearchSource{
+		Sources: []reasoningapi.ResearchSource{
 			{ID: "S1", URL: "https://a.example", Title: "Rayleigh", Text: "big body text stays internal", Rank: 1},
 		},
 		Markdown:     "The sky is blue due to Rayleigh scattering [S1]. Confidence: high.",
@@ -83,6 +83,75 @@ func TestResearchTool_HappyPath(t *testing.T) {
 	}
 	if out["confidence"].(float64) != 1 {
 		t.Fatalf("confidence not surfaced: %v", out["confidence"])
+	}
+}
+
+// TestResearchTool_SurfacesTheWholeReport pins the output mapping: every field
+// of the report the run produced must reach the agent — the claims and their
+// verdicts, the verification flag, the cited-source count, the sub-questions,
+// the notes and the source rows with their citation ids and ranks. A mapping
+// that quietly drops a field leaves the agent with a thinner report than the
+// run paid for.
+func TestResearchTool_SurfacesTheWholeReport(t *testing.T) {
+	fr := &fakeRunner{report: reasoningapi.ResearchReport{
+		Question:     "q",
+		SubQuestions: []string{"q1"},
+		Sources: []reasoningapi.ResearchSource{
+			{ID: "S1", URL: "https://a.example", Title: "A", Rank: 2},
+		},
+		Markdown:     "m",
+		Claims:       []reasoningapi.ResearchClaim{{Text: "c1", SourceIDs: []string{"S1"}, Verdict: "supported"}},
+		Confidence:   0.75,
+		CitedSources: 3,
+		Verified:     true,
+		Notes:        []string{"n1"},
+	}}
+	tool := New()
+	tool.SetRunner(fr)
+
+	res, err := tool.Invoke(context.Background(), json.RawMessage(`{"question":"q"}`))
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("unexpected IsError: %q", res.Output)
+	}
+	var out map[string]any
+	if err := json.Unmarshal([]byte(res.Output), &out); err != nil {
+		t.Fatalf("output not valid JSON: %v", err)
+	}
+	for _, key := range []string{
+		"question", "sub_questions", "sources", "markdown", "claims",
+		"confidence", "cited_sources", "verified", "notes",
+	} {
+		if _, ok := out[key]; !ok {
+			t.Errorf("output is missing %q", key)
+		}
+	}
+	if out["cited_sources"].(float64) != 3 {
+		t.Errorf("cited_sources = %v, want 3", out["cited_sources"])
+	}
+	if out["verified"] != true {
+		t.Errorf("verified = %v, want true", out["verified"])
+	}
+	if out["confidence"].(float64) != 0.75 {
+		t.Errorf("confidence = %v, want 0.75", out["confidence"])
+	}
+	claims, _ := out["claims"].([]any)
+	if len(claims) != 1 {
+		t.Fatalf("claims = %v, want the one verified claim", out["claims"])
+	}
+	claim, _ := claims[0].(map[string]any)
+	if claim["text"] != "c1" || claim["verdict"] != "supported" {
+		t.Errorf("claim = %v, want the text and its verdict", claim)
+	}
+	sources, _ := out["sources"].([]any)
+	if len(sources) != 1 {
+		t.Fatalf("sources = %v, want the one gathered source", out["sources"])
+	}
+	src, _ := sources[0].(map[string]any)
+	if src["id"] != "S1" || src["url"] != "https://a.example" || src["rank"].(float64) != 2 {
+		t.Errorf("source row = %v, want the citation id, url and rank", src)
 	}
 }
 

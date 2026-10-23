@@ -9,19 +9,19 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/reasoningapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
 type covRunner struct {
 	gotCorr string
 	gotQ    string
-	gotOpts runtime.ResearchOptions
-	report  runtime.ResearchReport
+	gotOpts reasoningapi.ResearchOptions
+	report  reasoningapi.ResearchReport
 	err     error
 }
 
-func (f *covRunner) Research(_ context.Context, corr, q string, opts runtime.ResearchOptions) (runtime.ResearchReport, error) {
+func (f *covRunner) Research(_ context.Context, corr, q string, opts reasoningapi.ResearchOptions) (reasoningapi.ResearchReport, error) {
 	f.gotCorr = corr
 	f.gotQ = q
 	f.gotOpts = opts
@@ -84,10 +84,10 @@ func TestResearchCoverageInvokeValidation(t *testing.T) {
 }
 
 func TestResearchCoverageInvokeHappyPath(t *testing.T) {
-	fr := &covRunner{report: runtime.ResearchReport{
+	fr := &covRunner{report: reasoningapi.ResearchReport{
 		Question:     "q",
 		SubQuestions: []string{"q1", "q2"},
-		Sources:      []runtime.ResearchSource{{ID: "S1", URL: "https://x", Title: "X", Rank: 1}},
+		Sources:      []reasoningapi.ResearchSource{{ID: "S1", URL: "https://x", Title: "X", Rank: 1}},
 		Markdown:     "answer",
 		Confidence:   0.75,
 		CitedSources: 1,

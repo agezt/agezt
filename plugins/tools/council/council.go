@@ -15,15 +15,16 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/reasoningapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
-// Runner is the slice of *runtime.Kernel the tool needs — an interface so the
-// tool is decoupled and unit-testable with a fake.
+// Runner is the slice of the host the tool needs — an interface so the tool is
+// decoupled and unit-testable with a fake. The rows it names live in the
+// contract layer: a plugin may only reach the contract and the platform.
 type Runner interface {
-	Council(ctx context.Context, corr, question string, members []runtime.CouncilMember, rounds int) (runtime.CouncilResult, error)
+	Council(ctx context.Context, corr, question string, members []reasoningapi.CouncilMember, rounds int) (reasoningapi.CouncilResult, error)
 }
 
 // Tool is the `council` implementation of toolapi.Tool.
