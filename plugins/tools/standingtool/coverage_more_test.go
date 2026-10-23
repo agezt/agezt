@@ -9,25 +9,27 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/standing"
 )
 
 type fakeHost struct {
-	orders    []standing.Order
+	orders    []standingapi.Order
 	store     *standing.Store
 	addErr    error
 	removeOK  bool
 	removeErr error
-	gotAdd    standing.Order
+	gotAdd    standingapi.Order
 	gotRemove string
 }
 
-func (f *fakeHost) AddStanding(o standing.Order) (standing.Order, error) {
+func (f *fakeHost) AddStanding(o standingapi.Order) (standingapi.Order, error) {
 	f.gotAdd = o
 	if f.addErr != nil {
-		return standing.Order{}, f.addErr
+		return standingapi.Order{}, f.addErr
 	}
 	o.ID = "so-1"
 	f.orders = append(f.orders, o)
@@ -39,16 +41,12 @@ func (f *fakeHost) RemoveStanding(id string) (bool, error) {
 	return f.removeOK, f.removeErr
 }
 
-func (f *fakeHost) Standing() *standing.Store { return f.store }
-
-// fakeRosterHost is a host that also implements rosterHost so we can exercise
-// validateActingAgent's roster lookup.
-type fakeRosterHost struct {
-	fakeHost
-	roster *roster.Store
+func (f *fakeHost) StandingList() []standingapi.Order {
+	if f.store != nil {
+		return f.store.List()
+	}
+	return f.orders
 }
-
-func (f *fakeRosterHost) Roster() *roster.Store { return f.roster }
 
 func TestStandingCoverageDefinition(t *testing.T) {
 	tool := New()
@@ -81,23 +79,28 @@ func TestStandingCoverageBind(t *testing.T) {
 	if tool.host != h {
 		t.Fatal("Bind(fakeHost) should set host")
 	}
+	// The roster lookup is a separate, optional wiring: an unwired lookup
+	// must leave the tool unable to judge (not panic, not a silent block).
+	if tool.agentLookup != nil {
+		t.Fatal("New should leave the agent lookup nil")
+	}
+	tool.BindAgentLookup(nil)
+	if tool.agentLookup != nil {
+		t.Fatal("BindAgentLookup(nil) should not set the lookup")
+	}
+	tool.BindAgentLookup(func(string) (agentapi.Profile, bool) { return agentapi.Profile{}, false })
+	if tool.agentLookup == nil {
+		t.Fatal("BindAgentLookup should set the lookup")
+	}
 }
 
 func TestStandingCoverageValidateActingAgent(t *testing.T) {
-	// Host doesn't implement rosterHost → no validation, no error.
+	// No roster lookup wired → no validation, no error.
 	tool := New()
 	tool.Bind(&fakeHost{})
 	res, blocked := tool.validateActingAgent("alice")
 	if blocked {
-		t.Fatalf("non-roster host should not block, got %+v", res)
-	}
-
-	// rosterHost without a roster store → no validation, no block.
-	tool = New()
-	tool.Bind(&fakeRosterHost{})
-	res, blocked = tool.validateActingAgent("alice")
-	if blocked {
-		t.Fatalf("nil roster should not block, got %+v", res)
+		t.Fatalf("unwired lookup should not block, got %+v", res)
 	}
 
 	// Build a real roster with one profile (alice) for the cases below.
@@ -110,7 +113,8 @@ func TestStandingCoverageValidateActingAgent(t *testing.T) {
 	}
 
 	tool = New()
-	tool.Bind(&fakeRosterHost{roster: r})
+	tool.Bind(&fakeHost{})
+	tool.BindAgentLookup(r.Get)
 	res, blocked = tool.validateActingAgent("ghost")
 	if !blocked || !strings.Contains(res.Output, "is not in the roster") {
 		t.Fatalf("unknown agent: %+v", res)
@@ -169,12 +173,12 @@ func TestStandingCoverageValidateActingAgent(t *testing.T) {
 
 func TestStandingCoverageManagedSubAgentHint(t *testing.T) {
 	cases := []struct {
-		p    roster.Profile
+		p    agentapi.Profile
 		want []string
 	}{
-		{p: roster.Profile{Slug: "x", ParentAgent: "boss"}, want: []string{"boss", "managed sub-agent"}},
-		{p: roster.Profile{Slug: "x", OwnerAgent: "owner"}, want: []string{"owner", "managed sub-agent"}},
-		{p: roster.Profile{Slug: "x"}, want: []string{"managed sub-agent", "route the work"}},
+		{p: agentapi.Profile{Slug: "x", ParentAgent: "boss"}, want: []string{"boss", "managed sub-agent"}},
+		{p: agentapi.Profile{Slug: "x", OwnerAgent: "owner"}, want: []string{"owner", "managed sub-agent"}},
+		{p: agentapi.Profile{Slug: "x"}, want: []string{"managed sub-agent", "route the work"}},
 	}
 	for _, tc := range cases {
 		got := managedSubAgentStandingHint(tc.p)

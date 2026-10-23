@@ -14,7 +14,7 @@ import (
 
 	"encoding/json"
 
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
@@ -24,13 +24,13 @@ func validateScheduledJob(in input) toolapi.Result {
 	default:
 		return toolapi.Result{}
 	}
-	if scheduleTarget(in) == cadence.TargetIntent && strings.TrimSpace(in.Intent) == "" {
+	if scheduleTarget(in) == cadenceapi.TargetIntent && strings.TrimSpace(in.Intent) == "" {
 		return errResult("target=agent needs agent task text in the intent field")
 	}
 	return toolapi.Result{}
 }
 
-func applyTypedTarget(ctx context.Context, st store, e cadence.Entry, in input) (cadence.Entry, toolapi.Result, bool) {
+func applyTypedTarget(ctx context.Context, st cadenceapi.Store, e cadenceapi.Entry, in input) (cadenceapi.Entry, toolapi.Result, bool) {
 	target := scheduleTarget(in)
 	in.Workflow = strings.TrimSpace(in.Workflow)
 	in.System = strings.TrimSpace(in.System)
@@ -41,7 +41,7 @@ func applyTypedTarget(ctx context.Context, st store, e cadence.Entry, in input) 
 			bindings++
 		}
 	}
-	if target == cadence.TargetIntent {
+	if target == cadenceapi.TargetIntent {
 		if bindings > 0 {
 			return e, errResult("target=agent/intent cannot also set workflow, system_task, or tool"), false
 		}
@@ -59,38 +59,38 @@ func applyTypedTarget(ctx context.Context, st store, e cadence.Entry, in input) 
 		payload = b
 	}
 	switch target {
-	case cadence.TargetWorkflow:
+	case cadenceapi.TargetWorkflow:
 		if in.Workflow == "" {
 			return e, errResult("target=workflow needs workflow"), false
 		}
 		if _, err := st.SetWorkflowTarget(e.ID, in.Workflow, payload); err != nil {
 			return e, errResult(err.Error()), false
 		}
-		e.Target, e.Workflow, e.Payload = cadence.TargetWorkflow, in.Workflow, payload
+		e.Target, e.Workflow, e.Payload = cadenceapi.TargetWorkflow, in.Workflow, payload
 		e = applyActingAgent(ctx, st, e)
-	case cadence.TargetSystemTask:
+	case cadenceapi.TargetSystemTask:
 		if in.System == "" {
 			return e, errResult("target=system_task needs system_task"), false
 		}
 		if in.Payload != nil {
 			return e, errResult("target=system_task does not accept payload; choose a whitelisted system_task only"), false
 		}
-		if !cadence.IsSystemTask(in.System) {
+		if !cadenceapi.IsSystemTask(in.System) {
 			return e, errResult("unknown system task: " + in.System), false
 		}
 		if _, err := st.SetSystemTaskTarget(e.ID, in.System); err != nil {
 			return e, errResult(err.Error()), false
 		}
-		e.Target, e.SystemTask = cadence.TargetSystemTask, in.System
+		e.Target, e.SystemTask = cadenceapi.TargetSystemTask, in.System
 		e.Agent, e.Model, e.Payload = "", "", nil
-	case cadence.TargetTool:
+	case cadenceapi.TargetTool:
 		if in.Tool == "" {
 			return e, errResult("target=tool needs tool"), false
 		}
 		if _, err := st.SetToolTarget(e.ID, in.Tool, payload); err != nil {
 			return e, errResult(err.Error()), false
 		}
-		e.Target, e.Tool, e.Payload = cadence.TargetTool, in.Tool, payload
+		e.Target, e.Tool, e.Payload = cadenceapi.TargetTool, in.Tool, payload
 		e = applyActingAgent(ctx, st, e)
 	default:
 		return e, errResult("unknown target " + target + " (agent|workflow|system_task|tool)"), false
@@ -98,7 +98,7 @@ func applyTypedTarget(ctx context.Context, st store, e cadence.Entry, in input) 
 	return e, toolapi.Result{}, true
 }
 
-func finalizeEntry(ctx context.Context, st store, e cadence.Entry, in input, msg string) toolapi.Result {
+func finalizeEntry(ctx context.Context, st cadenceapi.Store, e cadenceapi.Entry, in input, msg string) toolapi.Result {
 	e, res, ok := applyTypedTarget(ctx, st, e, in)
 	if !ok {
 		_, _ = st.Remove(e.ID)
@@ -176,7 +176,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		}
 		days := 0 // 0 = every day
 		if in.Days != "" {
-			d, err := cadence.ParseDays(in.Days)
+			d, err := cadenceapi.ParseDays(in.Days)
 			if err != nil {
 				return errResult("bad days spec: " + err.Error()), nil
 			}
@@ -229,7 +229,7 @@ func parseHHMM(s string) (int, bool) {
 	return h*60 + m, true
 }
 
-func entryView(e cadence.Entry) map[string]any {
+func entryView(e cadenceapi.Entry) map[string]any {
 	v := map[string]any{
 		"id":      e.ID,
 		"intent":  e.Intent,
@@ -273,7 +273,7 @@ func entryView(e cadence.Entry) map[string]any {
 	return v
 }
 
-func okEntry(msg string, e cadence.Entry) toolapi.Result {
+func okEntry(msg string, e cadenceapi.Entry) toolapi.Result {
 	view := entryView(e)
 	view["message"] = msg
 	return okJSON(view)

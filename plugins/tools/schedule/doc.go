@@ -14,4 +14,10 @@
 //
 // The tool is created unbound and Bound to the live store after the kernel
 // opens (the store is the kernel's), mirroring the notify tool's lifecycle.
+//
+// The tool is a PLUGIN, and a plugin may reach the contract and the platform
+// layers and nothing else — so it names the schedule entry where it lives
+// (kernel/contract/cadenceapi) and takes the store as the contract's PORT
+// (cadenceapi.Store). The module's *cadence.Store implements that port; the
+// tool never names the module.
 package schedule

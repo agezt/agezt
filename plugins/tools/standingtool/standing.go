@@ -16,36 +16,52 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	"github.com/agezt/agezt/kernel/standing"
 )
 
-// host is the kernel surface the tool needs — journaled standing CRUD. An
-// interface so tests inject a fake (or a real store adapter) without a kernel.
-type host interface {
-	AddStanding(o standing.Order) (standing.Order, error)
+// Host is the kernel surface the tool needs — journaled standing CRUD. It is
+// an interface so tests inject a fake (or a real store adapter) without a
+// kernel.
+//
+// The rows it speaks are the contract's (kernel/contract/standingapi) and the
+// agent profile it checks is the contract's too (kernel/contract/agentapi):
+// the tool is a plugin, and a plugin may reach the contract and the platform
+// layers and nothing else — so a row a plugin has to name cannot live in a
+// module's implementation package.
+type Host interface {
+	// AddStanding journals a new standing order.
+	AddStanding(o standingapi.Order) (standingapi.Order, error)
+	// RemoveStanding deletes a standing order by id.
 	RemoveStanding(id string) (bool, error)
-	Standing() *standing.Store
-}
-
-type rosterHost interface {
-	Roster() *roster.Store
+	// StandingList returns every standing order.
+	StandingList() []standingapi.Order
 }
 
 // Tool implements toolapi.Tool. Created unbound via New(); Bind wires the kernel.
 type Tool struct {
-	host host
+	host        Host
+	agentLookup func(string) (agentapi.Profile, bool)
 }
 
 // New returns an unbound standing tool.
 func New() *Tool { return &Tool{} }
 
 // Bind wires the live kernel standing surface. Called once after the kernel opens.
-func (t *Tool) Bind(h host) {
+func (t *Tool) Bind(h Host) {
 	if h != nil {
 		t.host = h
+	}
+}
+
+// BindAgentLookup wires the roster lookup the tool needs to check whether the
+// acting agent may create a direct self-wake order. It arrives as a function
+// of the contract's profile row, so the plugin never names the roster module.
+func (t *Tool) BindAgentLookup(lookup func(string) (agentapi.Profile, bool)) {
+	if lookup != nil {
+		t.agentLookup = lookup
 	}
 }
 
@@ -116,13 +132,13 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		if strings.TrimSpace(in.Subject) == "" {
 			return errResult(`op=create_event needs a "subject" (the event to trigger on)`), nil
 		}
-		return t.create(ctx, in, standing.Trigger{Type: standing.TriggerEvent, Subject: strings.TrimSpace(in.Subject)})
+		return t.create(ctx, in, standingapi.Trigger{Type: standingapi.TriggerEvent, Subject: strings.TrimSpace(in.Subject)})
 
 	case "create_cron":
 		if strings.TrimSpace(in.Schedule) == "" {
 			return errResult(`op=create_cron needs a "schedule" (a cron expression)`), nil
 		}
-		return t.create(ctx, in, standing.Trigger{Type: standing.TriggerCron, Schedule: strings.TrimSpace(in.Schedule)})
+		return t.create(ctx, in, standingapi.Trigger{Type: standingapi.TriggerCron, Schedule: strings.TrimSpace(in.Schedule)})
 
 	case "remove":
 		if in.ID == "" {
@@ -138,7 +154,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		return okJSON(map[string]any{"removed": in.ID}), nil
 
 	case "list":
-		orders := t.host.Standing().List()
+		orders := t.host.StandingList()
 		out := make([]map[string]any, 0, len(orders))
 		for _, o := range orders {
 			out = append(out, orderView(o))
@@ -152,7 +168,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 	}
 }
 
-func (t *Tool) create(ctx context.Context, in input, trig standing.Trigger) (toolapi.Result, error) {
+func (t *Tool) create(ctx context.Context, in input, trig standingapi.Trigger) (toolapi.Result, error) {
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
 		return errResult(`a "name" is required`), nil
@@ -160,17 +176,17 @@ func (t *Tool) create(ctx context.Context, in input, trig standing.Trigger) (too
 	if strings.TrimSpace(in.Plan) == "" {
 		return errResult(`a "plan" is required (what to run when it fires)`), nil
 	}
-	mode := standing.InitiativeMode(strings.TrimSpace(in.Mode))
+	mode := standingapi.InitiativeMode(strings.TrimSpace(in.Mode))
 	if mode == "" {
-		mode = standing.InitiativeAsk // conservative default: confirm before acting
+		mode = standingapi.InitiativeAsk // conservative default: confirm before acting
 	}
 	assure := max(in.Assure, 0)
 	cooldown := max64(in.Cooldown, 0)
-	o := standing.Order{
+	o := standingapi.Order{
 		Name:        name,
 		Enabled:     true,
-		Triggers:    []standing.Trigger{trig},
-		Initiative:  standing.Initiative{Mode: mode},
+		Triggers:    []standingapi.Trigger{trig},
+		Initiative:  standingapi.Initiative{Mode: mode},
 		Plan:        strings.TrimSpace(in.Plan),
 		Assure:      assure,
 		CooldownSec: cooldown,
@@ -190,12 +206,14 @@ func (t *Tool) create(ctx context.Context, in input, trig standing.Trigger) (too
 	return okJSON(v), nil
 }
 
+// validateActingAgent checks the acting agent may create a direct self-wake
+// order. A missing lookup means the roster is not wired: the tool cannot
+// judge, so it does not block — the same posture the schedule tool takes.
 func (t *Tool) validateActingAgent(slug string) (toolapi.Result, bool) {
-	h, ok := t.host.(rosterHost)
-	if !ok || h.Roster() == nil {
+	if t.agentLookup == nil {
 		return toolapi.Result{}, false
 	}
-	p, found := h.Roster().Get(slug)
+	p, found := t.agentLookup(slug)
 	if !found {
 		return errResult("acting agent " + slug + " is not in the roster"), true
 	}
@@ -211,11 +229,8 @@ func (t *Tool) validateActingAgent(slug string) (toolapi.Result, bool) {
 	return toolapi.Result{}, false
 }
 
-func managedSubAgentStandingHint(p roster.Profile) string {
-	manager := strings.TrimSpace(p.ParentAgent)
-	if manager == "" {
-		manager = strings.TrimSpace(p.OwnerAgent)
-	}
+func managedSubAgentStandingHint(p agentapi.Profile) string {
+	manager := p.ManagedBy()
 	hint := "route the work through its parent/owner agent"
 	if manager != "" {
 		hint = "wake " + manager + " or delegate through it"
@@ -223,7 +238,7 @@ func managedSubAgentStandingHint(p roster.Profile) string {
 	return "agent " + p.Slug + " is a managed sub-agent and cannot create a standing order that wakes itself directly; " + hint
 }
 
-func orderView(o standing.Order) map[string]any {
+func orderView(o standingapi.Order) map[string]any {
 	trigs := make([]map[string]any, 0, len(o.Triggers))
 	for _, tr := range o.Triggers {
 		m := map[string]any{"type": string(tr.Type)}

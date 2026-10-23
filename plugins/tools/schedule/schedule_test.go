@@ -10,21 +10,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // fakeStore records calls so the tool's mapping (op → store method + args) is
 // asserted without a real on-disk schedule store.
 type fakeStore struct {
-	added               []cadence.Entry
+	added               []cadenceapi.Entry
 	lastOnce            time.Time
 	lastIntv            time.Duration
 	lastAtMin, lastDays int
 	removed             string
 	removeOK            bool
-	entries             []cadence.Entry
+	entries             []cadenceapi.Entry
 	lastAssureID        string
 	lastAssureN         int
 	lastAgentID         string
@@ -38,27 +38,27 @@ type fakeStore struct {
 	lastPayload         json.RawMessage
 }
 
-func (f *fakeStore) Add(intent string, interval time.Duration, model, source string, now time.Time) (cadence.Entry, error) {
+func (f *fakeStore) Add(intent string, interval time.Duration, model, source string, now time.Time) (cadenceapi.Entry, error) {
 	f.lastIntv = interval
-	e := cadence.Entry{ID: "ev1", Intent: intent, Mode: cadence.ModeInterval, IntervalSec: int64(interval / time.Second), Model: strings.TrimSpace(model), Source: source, Enabled: true, NextRunUnix: now.Add(interval).Unix()}
+	e := cadenceapi.Entry{ID: "ev1", Intent: intent, Mode: cadenceapi.ModeInterval, IntervalSec: int64(interval / time.Second), Model: strings.TrimSpace(model), Source: source, Enabled: true, NextRunUnix: now.Add(interval).Unix()}
 	f.added = append(f.added, e)
 	return e, nil
 }
-func (f *fakeStore) AddDaily(intent string, atMinutes, days int, tz, model, source string, now time.Time) (cadence.Entry, error) {
+func (f *fakeStore) AddDaily(intent string, atMinutes, days int, tz, model, source string, now time.Time) (cadenceapi.Entry, error) {
 	f.lastAtMin, f.lastDays = atMinutes, days
-	e := cadence.Entry{ID: "day1", Intent: intent, Mode: cadence.ModeDaily, AtMinutes: atMinutes, Days: days, Model: strings.TrimSpace(model), Source: source, Enabled: true}
+	e := cadenceapi.Entry{ID: "day1", Intent: intent, Mode: cadenceapi.ModeDaily, AtMinutes: atMinutes, Days: days, Model: strings.TrimSpace(model), Source: source, Enabled: true}
 	f.added = append(f.added, e)
 	return e, nil
 }
-func (f *fakeStore) AddOnce(intent string, at time.Time, model, source string, now time.Time) (cadence.Entry, error) {
+func (f *fakeStore) AddOnce(intent string, at time.Time, model, source string, now time.Time) (cadenceapi.Entry, error) {
 	f.lastOnce = at
-	e := cadence.Entry{ID: "once1", Intent: intent, Mode: cadence.ModeOnce, Model: strings.TrimSpace(model), Source: source, Enabled: true, NextRunUnix: at.Unix()}
+	e := cadenceapi.Entry{ID: "once1", Intent: intent, Mode: cadenceapi.ModeOnce, Model: strings.TrimSpace(model), Source: source, Enabled: true, NextRunUnix: at.Unix()}
 	f.added = append(f.added, e)
 	return e, nil
 }
-func (f *fakeStore) AddContinuous(intent string, cooldown time.Duration, model, source string, now time.Time) (cadence.Entry, error) {
+func (f *fakeStore) AddContinuous(intent string, cooldown time.Duration, model, source string, now time.Time) (cadenceapi.Entry, error) {
 	f.lastIntv = cooldown
-	e := cadence.Entry{ID: "cont1", Intent: intent, Mode: cadence.ModeContinuous, IntervalSec: int64(cooldown / time.Second), Model: strings.TrimSpace(model), Source: source, Enabled: true, NextRunUnix: now.Unix()}
+	e := cadenceapi.Entry{ID: "cont1", Intent: intent, Mode: cadenceapi.ModeContinuous, IntervalSec: int64(cooldown / time.Second), Model: strings.TrimSpace(model), Source: source, Enabled: true, NextRunUnix: now.Unix()}
 	f.added = append(f.added, e)
 	return e, nil
 }
@@ -66,13 +66,13 @@ func (f *fakeStore) Remove(id string) (bool, error) {
 	f.removed = id
 	for i := range f.added {
 		if f.added[i].ID == id {
-			f.added = append(append([]cadence.Entry{}, f.added[:i]...), f.added[i+1:]...)
+			f.added = append(append([]cadenceapi.Entry{}, f.added[:i]...), f.added[i+1:]...)
 			return true, nil
 		}
 	}
 	return f.removeOK, nil
 }
-func (f *fakeStore) List() []cadence.Entry { return f.entries }
+func (f *fakeStore) List() []cadenceapi.Entry { return f.entries }
 
 func (f *fakeStore) SetAssure(id string, n int) (bool, error) {
 	f.lastAssureID, f.lastAssureN = id, n
@@ -98,7 +98,7 @@ func (f *fakeStore) SetWorkflowTarget(id, ref string, payload json.RawMessage) (
 	f.lastWorkflowID, f.lastWorkflow, f.lastPayload = id, ref, append(json.RawMessage(nil), payload...)
 	for i := range f.added {
 		if f.added[i].ID == id {
-			f.added[i].Target, f.added[i].Workflow, f.added[i].Payload = cadence.TargetWorkflow, ref, payload
+			f.added[i].Target, f.added[i].Workflow, f.added[i].Payload = cadenceapi.TargetWorkflow, ref, payload
 			return true, nil
 		}
 	}
@@ -108,7 +108,7 @@ func (f *fakeStore) SetSystemTaskTarget(id, task string) (bool, error) {
 	f.lastSystemID, f.lastSystem = id, task
 	for i := range f.added {
 		if f.added[i].ID == id {
-			f.added[i].Target, f.added[i].SystemTask = cadence.TargetSystemTask, task
+			f.added[i].Target, f.added[i].SystemTask = cadenceapi.TargetSystemTask, task
 			return true, nil
 		}
 	}
@@ -118,7 +118,7 @@ func (f *fakeStore) SetToolTarget(id, tool string, payload json.RawMessage) (boo
 	f.lastToolID, f.lastTool, f.lastPayload = id, tool, append(json.RawMessage(nil), payload...)
 	for i := range f.added {
 		if f.added[i].ID == id {
-			f.added[i].Target, f.added[i].Tool, f.added[i].Payload = cadence.TargetTool, tool, payload
+			f.added[i].Target, f.added[i].Tool, f.added[i].Payload = cadenceapi.TargetTool, tool, payload
 			return true, nil
 		}
 	}
@@ -211,12 +211,12 @@ func TestAgentTargetRequiresTaskButTypedTargetCanBeLabeless(t *testing.T) {
 		"op":          "every",
 		"interval":    "1h",
 		"target":      "system_task",
-		"system_task": cadence.SystemTaskMemoryClean,
+		"system_task": cadenceapi.SystemTaskMemoryClean,
 	})
 	if isErr {
 		t.Fatalf("typed target should not need an intent label: %+v", out)
 	}
-	if out["target"] != "system_task" || out["system_task"] != cadence.SystemTaskMemoryClean {
+	if out["target"] != "system_task" || out["system_task"] != cadenceapi.SystemTaskMemoryClean {
 		t.Fatalf("entry view missing system task: %+v", out)
 	}
 }
@@ -227,7 +227,7 @@ func TestOpContinuous_Loop(t *testing.T) {
 	if isErr {
 		t.Fatalf("unexpected error: %v", out)
 	}
-	if len(f.added) != 1 || f.added[0].Mode != cadence.ModeContinuous {
+	if len(f.added) != 1 || f.added[0].Mode != cadenceapi.ModeContinuous {
 		t.Fatalf("AddContinuous not called: %+v", f.added)
 	}
 	if f.lastIntv != 30*time.Second {
@@ -304,7 +304,7 @@ func TestManagedSubAgentCannotScheduleDirectWake(t *testing.T) {
 		t.Fatalf("managed sub-agent tool schedule should error because it would bind the sub-agent identity")
 	}
 
-	_, isErr = invokeCtx(t, ctx, tool, map[string]any{"op": "every", "interval": "1h", "target": "system_task", "system_task": cadence.SystemTaskMemoryClean})
+	_, isErr = invokeCtx(t, ctx, tool, map[string]any{"op": "every", "interval": "1h", "target": "system_task", "system_task": cadenceapi.SystemTaskMemoryClean})
 	if isErr {
 		t.Fatalf("system task schedule should still be allowed because it does not bind the managed actor")
 	}
@@ -428,7 +428,7 @@ func TestToolTargetPreservesModelOverrideMetadata(t *testing.T) {
 }
 
 func TestSystemTaskTarget(t *testing.T) {
-	for _, task := range cadence.SystemTasks() {
+	for _, task := range cadenceapi.SystemTasks() {
 		t.Run(task, func(t *testing.T) {
 			f := &fakeStore{}
 			out, isErr := invoke(t, newTool(f), map[string]any{
@@ -456,7 +456,7 @@ func TestSystemTaskTargetRejectsPayload(t *testing.T) {
 		"op":          "daily",
 		"at":          "03:00",
 		"target":      "system_task",
-		"system_task": cadence.SystemTaskCatalogSync,
+		"system_task": cadenceapi.SystemTaskCatalogSync,
 		"payload":     map[string]any{"instructions": "also do this"},
 	})
 	if !isErr {
@@ -477,7 +477,7 @@ func TestDefinitionSystemTaskEnumMatchesCadence(t *testing.T) {
 	if err := json.Unmarshal(def.InputSchema, &schema); err != nil {
 		t.Fatalf("schema parse: %v", err)
 	}
-	if got, want := schema.Properties["system_task"].Enum, cadence.SystemTasks(); !reflect.DeepEqual(got, want) {
+	if got, want := schema.Properties["system_task"].Enum, cadenceapi.SystemTasks(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("system_task enum = %v want %v", got, want)
 	}
 }
@@ -514,8 +514,25 @@ func TestOpDaily_ParsesTimeAndDays(t *testing.T) {
 	if f.lastAtMin != 9*60+30 {
 		t.Errorf("atMinutes = %d, want %d", f.lastAtMin, 9*60+30)
 	}
-	if f.lastDays == 0 {
-		t.Error("days should be a non-zero weekday mask for mon-fri")
+	// The mask must be the WEEKDAY mask exactly. "non-zero" would accept any
+	// wrong mask — every day, the weekend, a single day — and a schedule that
+	// fires on the wrong days is silently wrong: the entry is stored, the
+	// operator sees it, and it never fires when it should.
+	want := 1<<1 | 1<<2 | 1<<3 | 1<<4 | 1<<5 // Sun=0 .. Sat=6
+	if f.lastDays != want {
+		t.Errorf("days mask = %d, want %d", f.lastDays, want)
+	}
+}
+
+func TestOpDaily_ParsesTheWeekendMask(t *testing.T) {
+	f := &fakeStore{}
+	_, isErr := invoke(t, newTool(f), map[string]any{"op": "daily", "at": "10:00", "days": "weekends", "intent": "weekend sweep"})
+	if isErr {
+		t.Fatal("unexpected error")
+	}
+	want := 1<<0 | 1<<6 // Sunday and Saturday
+	if f.lastDays != want {
+		t.Errorf("days mask = %d, want %d", f.lastDays, want)
 	}
 }
 
@@ -539,8 +556,8 @@ func TestOpRemove_NotFound(t *testing.T) {
 }
 
 func TestOpList(t *testing.T) {
-	f := &fakeStore{entries: []cadence.Entry{
-		{ID: "a", Intent: "x", Mode: cadence.ModeInterval, IntervalSec: 3600, Enabled: true, Source: "agent"},
+	f := &fakeStore{entries: []cadenceapi.Entry{
+		{ID: "a", Intent: "x", Mode: cadenceapi.ModeInterval, IntervalSec: 3600, Enabled: true, Source: "agent"},
 	}}
 	out, _ := invoke(t, newTool(f), map[string]any{"op": "list"})
 	if out["count"].(float64) != 1 {

@@ -73,7 +73,10 @@ func specRuns() toolreg.Spec {
 
 // specStanding — standing orders (`standing`, M645): the agent creates durable
 // event/cron trigger rules that wake an agent later. Configure binds the kernel
-// (it satisfies the tool's journaled standing-CRUD surface).
+// (it satisfies the tool's journaled standing-CRUD surface) and the roster
+// lookup the tool needs to check whether the acting agent may create a direct
+// self-wake order — the lookup comes as a function of the contract's profile
+// row, so the plugin never names the roster module.
 func specStanding() toolreg.Spec {
 	var st *standingtool.Tool
 	return toolreg.Spec{
@@ -85,6 +88,9 @@ func specStanding() toolreg.Spec {
 		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.K != nil {
 				st.Bind(d.K)
+				if d.K.Roster() != nil {
+					st.BindAgentLookup(d.K.Roster().Get)
+				}
 			}
 			return nil
 		},

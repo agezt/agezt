@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/standing"
@@ -15,18 +17,15 @@ import (
 
 // testHost wraps a real standing.Store so the tool's Order construction is
 // validated end-to-end against the real standing.Validate.
+//
+// The store is the module's implementation and the tool only names the
+// contract's port (kernel/contract/standingapi), so the fixture crosses the
+// layer boundary here — in the test, where the architecture allows it.
 type testHost struct{ store *standing.Store }
 
-func (h testHost) AddStanding(o standing.Order) (standing.Order, error) { return h.store.Add(o) }
-func (h testHost) RemoveStanding(id string) (bool, error)               { return h.store.Remove(id) }
-func (h testHost) Standing() *standing.Store                            { return h.store }
-
-type testRosterHost struct {
-	testHost
-	roster *roster.Store
-}
-
-func (h testRosterHost) Roster() *roster.Store { return h.roster }
+func (h testHost) AddStanding(o standingapi.Order) (standingapi.Order, error) { return h.store.Add(o) }
+func (h testHost) RemoveStanding(id string) (bool, error)                     { return h.store.Remove(id) }
+func (h testHost) StandingList() []standingapi.Order                          { return h.store.List() }
 
 func newTool(t *testing.T) (*Tool, *standing.Store) {
 	t.Helper()
@@ -85,7 +84,7 @@ func TestCreateEvent_PassesValidationAndPersists(t *testing.T) {
 		t.Fatalf("order not persisted, count=%d", st.Count())
 	}
 	// Default mode is the conservative "ask".
-	if out["mode"] != string(standing.InitiativeAsk) {
+	if out["mode"] != string(standingapi.InitiativeAsk) {
 		t.Errorf("mode = %v, want ask", out["mode"])
 	}
 	trigs := out["triggers"].([]any)
@@ -160,7 +159,8 @@ func TestCreateEvent_ManagedSubAgentCannotCreateDirectWake(t *testing.T) {
 		t.Fatalf("add worker: %v", err)
 	}
 	tool := New()
-	tool.Bind(testRosterHost{testHost: testHost{st}, roster: rs})
+	tool.Bind(testHost{st})
+	tool.BindAgentLookup(rs.Get)
 	raw, _ := json.Marshal(map[string]any{
 		"op": "create_event", "name": "self-wake", "subject": "task.failed", "plan": "wake me",
 	})
@@ -254,4 +254,17 @@ func TestUnboundIsSafe(t *testing.T) {
 	if !res.IsError {
 		t.Error("an unbound tool should return an error result")
 	}
+}
+
+// TestTheContractRowsAreTheModuleRows: the tool speaks the CONTRACT's row
+// types, and the module's rows ARE the contract's — asserted as function
+// types, because an assignment would also accept a copy with the same fields
+// while a function type requires identity. A drifting module row would break
+// every plugin that names it, silently.
+func TestTheContractRowsAreTheModuleRows(t *testing.T) {
+	var _ func(standingapi.Order) = func(standing.Order) {}
+	var _ func(standingapi.Trigger) = func(standing.Trigger) {}
+	var _ func(standingapi.Initiative) = func(standing.Initiative) {}
+	var _ func(standingapi.InitiativeMode) = func(standing.InitiativeMode) {}
+	var _ func(agentapi.Profile) = func(roster.Profile) {}
 }
