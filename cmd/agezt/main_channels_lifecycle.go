@@ -15,9 +15,9 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
-	"github.com/agezt/agezt/kernel/channelwire"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/platform/channelwire"
 	"github.com/agezt/agezt/kernel/pulse"
 )
 

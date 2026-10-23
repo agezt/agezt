@@ -103,6 +103,46 @@ func TestBuildKind_MultiChannelKeysByName(t *testing.T) {
 	}
 }
 
+// TestBuildKindHandsOverTheAccountLabel: a labelled account's factory must
+// see its OWN label, and the default instance must see the empty one. The
+// label is what tells a factory which account it is building — its config
+// getter reads "<base>#<label>" — so a factory that always saw "" would
+// build the default instance's configuration twice and the labelled account
+// would never be configured at all.
+//
+// The label discovery reads the process environment, so the test pins one
+// labelled account of a real channel kind ("telegram" has a config-schema
+// section, and the section's base env is AGEZT_TELEGRAM_TOKEN).
+func TestBuildKindHandsOverTheAccountLabel(t *testing.T) {
+	t.Setenv("AGEZT_TELEGRAM_TOKEN#bot2", "token-for-bot2")
+
+	var seen []string
+	Register("telegram", func(d Deps) Built {
+		seen = append(seen, d.Label)
+		return Built{
+			Channels: []channel.Channel{fakeChannel{name: "telegram"}},
+			Desc:     "1 chat allowed",
+		}
+	})
+
+	insts := BuildKind(context.Background(), "telegram", nil, nil)
+	if len(insts) != 2 {
+		t.Fatalf("want the default instance and the labelled one, got %d: %+v", len(insts), insts)
+	}
+	if len(seen) != 2 {
+		t.Fatalf("the factory ran %d times, want 2: %v", len(seen), seen)
+	}
+	if seen[0] != "" {
+		t.Errorf("the default instance's factory saw label %q, want the empty one", seen[0])
+	}
+	if seen[1] != "bot2" {
+		t.Errorf("the labelled instance's factory saw label %q, want %q", seen[1], "bot2")
+	}
+	if insts[1].Label != "bot2" {
+		t.Errorf("the labelled instance reports label %q, want %q", insts[1].Label, "bot2")
+	}
+}
+
 // The "manifest with no factory" case is deliberately NOT tested here any
 // more. It used to be, against a synthetic wiretest manifest and a
 // MissingFactories() helper that no binary called. The assertion that matters

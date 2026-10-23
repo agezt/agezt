@@ -6,7 +6,7 @@ package builtinchannels
 
 import (
 	"github.com/agezt/agezt/kernel/channel"
-	"github.com/agezt/agezt/kernel/channelwire"
+	"github.com/agezt/agezt/kernel/platform/channelwire"
 	"github.com/agezt/agezt/plugins/channels/chatwebhook"
 )
 
