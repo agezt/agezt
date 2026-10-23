@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package introspecttool
+package introspect
 
 import (
 	"encoding/json"
@@ -10,6 +10,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
+	"github.com/agezt/agezt/kernel/contract/introspectapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/event"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
@@ -31,9 +32,9 @@ type kernelSource struct {
 
 // NewKernelSource binds the introspect tool to the live kernel. Wired in
 // cmd/agezt once the kernel opens, exactly like the other self-knowledge tools.
-func NewKernelSource(k *kernelruntime.Kernel) Source { return &kernelSource{k: k} }
+func NewKernelSource(k *kernelruntime.Kernel) introspectapi.Source { return &kernelSource{k: k} }
 
-func (s *kernelSource) Overview() Overview {
+func (s *kernelSource) Overview() introspectapi.Overview {
 	k := s.k
 
 	headSeq, _ := k.Journal().Head() // (seq, hash); hash unused here
@@ -72,7 +73,7 @@ func (s *kernelSource) Overview() Overview {
 	}
 	sort.Strings(names)
 
-	return Overview{
+	return introspectapi.Overview{
 		Daemon:                 brand.Version,
 		Protocol:               brand.ProtocolVersion,
 		Model:                  k.Model(),
@@ -101,24 +102,57 @@ func (s *kernelSource) Schedules() []cadenceapi.Entry {
 	return nil
 }
 
-func (s *kernelSource) Reaper() ReaperReport {
-	rep := s.k.ReaperScan(time.Now().Add(-reaperOverviewWindow).UnixMilli(), time.Now().Add(-reaperOverviewWindow).UnixMilli())
-	out := ReaperReport{StaleArtifacts: rep.StaleArtifacts, StaleBytes: rep.StaleBytes}
+func (s *kernelSource) Reaper() introspectapi.ReaperReport {
+	return reaperReport(s.scan())
+}
+
+// scan runs the reaper over the window the health report cares about.
+func (s *kernelSource) scan() kernelruntime.ReaperReport {
+	cutoff := time.Now().Add(-reaperOverviewWindow).UnixMilli()
+	return s.k.ReaperScan(cutoff, cutoff)
+}
+
+// reaperReport projects the reaper's own scan row onto the contract's row.
+// The projection is a hand-written field-for-field copy, so it is pinned by a
+// test: a field dropped here would be silent — the agent would read a fleet
+// scan that is missing a bucket without ever being told.
+func reaperReport(rep kernelruntime.ReaperReport) introspectapi.ReaperReport {
+	out := introspectapi.ReaperReport{StaleArtifacts: rep.StaleArtifacts, StaleBytes: rep.StaleBytes}
 	for _, a := range rep.DeadAgents {
-		out.DeadAgents = append(out.DeadAgents, ReaperAgent{Slug: a.Slug, Name: a.Name, LastActiveMS: a.LastActiveMS})
+		out.DeadAgents = append(out.DeadAgents, introspectapi.ReaperAgent{Slug: a.Slug, Name: a.Name, LastActiveMS: a.LastActiveMS})
 	}
 	for _, a := range rep.DegradedAgents {
-		out.DegradedAgents = append(out.DegradedAgents, ReaperDegradedAgent{
+		out.DegradedAgents = append(out.DegradedAgents, introspectapi.ReaperDegradedAgent{
 			Slug: a.Slug, Name: a.Name, Failures: a.Failures, Window: a.Window, Threshold: a.Threshold,
 			DoctorAgent: a.DoctorAgent, SelfRepairEnabled: a.SelfRepairEnabled, EscalateTo: a.EscalateTo,
 			LastFailureMS: a.LastFailureMS, LastReason: a.LastReason,
 		})
 	}
 	for _, a := range rep.MisconfiguredAgents {
-		out.MisconfiguredAgents = append(out.MisconfiguredAgents, ReaperMisconfiguredAgent{
+		out.MisconfiguredAgents = append(out.MisconfiguredAgents, introspectapi.ReaperMisconfiguredAgent{
 			Slug: a.Slug, Name: a.Name, Issues: append([]string(nil), a.Issues...),
 			DoctorAgent: a.DoctorAgent, SelfRepairEnabled: a.SelfRepairEnabled, EscalateTo: a.EscalateTo,
 		})
+	}
+	return out
+}
+
+// reaperOverview projects the same scan onto the overview's fleet snapshot:
+// the counts and the slugs, without the rows themselves.
+func reaperOverview(rep kernelruntime.ReaperReport) introspectapi.ReaperOverview {
+	out := introspectapi.ReaperOverview{
+		DeadAgents:          len(rep.DeadAgents),
+		DegradedAgents:      len(rep.DegradedAgents),
+		MisconfiguredAgents: len(rep.MisconfiguredAgents),
+	}
+	for _, a := range rep.DeadAgents {
+		out.DeadSlugs = append(out.DeadSlugs, a.Slug)
+	}
+	for _, a := range rep.DegradedAgents {
+		out.DegradedSlugs = append(out.DegradedSlugs, a.Slug)
+	}
+	for _, a := range rep.MisconfiguredAgents {
+		out.MisconfiguredSlugs = append(out.MisconfiguredSlugs, a.Slug)
 	}
 	return out
 }
@@ -164,21 +198,6 @@ func (s *kernelSource) providerFallbacks() (int, string) {
 	return count, last
 }
 
-func (s *kernelSource) reaperOverview() ReaperOverview {
-	rep := s.k.ReaperScan(time.Now().Add(-reaperOverviewWindow).UnixMilli(), time.Now().Add(-reaperOverviewWindow).UnixMilli())
-	out := ReaperOverview{
-		DeadAgents:          len(rep.DeadAgents),
-		DegradedAgents:      len(rep.DegradedAgents),
-		MisconfiguredAgents: len(rep.MisconfiguredAgents),
-	}
-	for _, a := range rep.DeadAgents {
-		out.DeadSlugs = append(out.DeadSlugs, a.Slug)
-	}
-	for _, a := range rep.DegradedAgents {
-		out.DegradedSlugs = append(out.DegradedSlugs, a.Slug)
-	}
-	for _, a := range rep.MisconfiguredAgents {
-		out.MisconfiguredSlugs = append(out.MisconfiguredSlugs, a.Slug)
-	}
-	return out
+func (s *kernelSource) reaperOverview() introspectapi.ReaperOverview {
+	return reaperOverview(s.scan())
 }
