@@ -11,8 +11,8 @@ package builtinguardians
 import (
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	"github.com/agezt/agezt/kernel/standing"
 )
 
 func defaultGuardianNoisePolicy() *roster.NoisePolicy {
@@ -63,13 +63,13 @@ func appendUnique(xs []string, want string) []string {
 	return append(xs, want)
 }
 
-func sameEventSubjects(triggers []standing.Trigger, subjects []string) bool {
+func sameEventSubjects(triggers []standingapi.Trigger, subjects []string) bool {
 	if len(subjects) == 0 {
 		return false
 	}
 	got := map[string]int{}
 	for _, t := range triggers {
-		if t.Type != standing.TriggerEvent || t.Subject == "" {
+		if t.Type != standingapi.TriggerEvent || t.Subject == "" {
 			return false
 		}
 		got[t.Subject]++

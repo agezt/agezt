@@ -10,9 +10,9 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/event"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/standing"
 )
 
 // fallbackWindow bounds the journal scan for provider.fallback events — recent
@@ -123,7 +123,7 @@ func (s *kernelSource) Reaper() ReaperReport {
 	return out
 }
 
-func (s *kernelSource) Standing() []standing.Order {
+func (s *kernelSource) Standing() []standingapi.Order {
 	if st := s.k.Standing(); st != nil {
 		return st.List()
 	}

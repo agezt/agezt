@@ -7,6 +7,24 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/contract/standingapi"
+)
+
+// The module's standing-order rows ARE the contract's rows — the same
+// declaration the control plane serves, the plugins report and the store
+// persists, so they cannot drift apart.
+//
+// The assertion is a FUNCTION type: an assignment would also accept a copy
+// with the same fields, while a function type requires the two types to be
+// IDENTICAL. So a module that ever declares its own copy is reported at the
+// seam instead of at the far end of the wiring.
+var (
+	_ func(standingapi.Order)          = func(Order) {}
+	_ func(standingapi.Trigger)        = func(Trigger) {}
+	_ func(standingapi.Initiative)     = func(Initiative) {}
+	_ func(standingapi.InitiativeMode) = func(InitiativeMode) {}
+	_ func(standingapi.TriggerType)    = func(TriggerType) {}
 )
 
 func TestInitiativeModeMaxAutonomyTrust(t *testing.T) {

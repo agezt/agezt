@@ -399,11 +399,16 @@ Files: `doc.go` (import rule), `systemtasks.go` (`Info`, `Run`), `systemtasks_he
 budget, cooldown, assure budget and briefing channel. The package owns the record, the store, the event runner and its own
 cron ticker. The daemon supplies the `FireFunc`.
 
+**The rows live in the contract layer** (`kernel/contract/standingapi`): the introspector and the guardians are plugins,
+and a plugin may reach the contract and the platform layers and nothing else — so a row a plugin has to name cannot
+live in this package. `kernel/standing` keeps the names as aliases, so every existing caller is unchanged; the store
+and the runner stay here.
+
 ### 5.1 Types
 
 - `TriggerType`: `TriggerCron="cron"`, `TriggerEvent="event"`. `Trigger{Type, Schedule, Subject}`.
 - `InitiativeMode`: `inform_only`, `ask`, `act_or_ask`. `Initiative{Mode, MaxTrust "L0..L4", BudgetPerRunMc}`.
-- `(InitiativeMode).MaxAutonomyTrust()` (`standing_triggers.go:32`): `inform_only`→`"L0"`, `ask`→`"L1"`, else none (M999).
+- `(InitiativeMode).MaxAutonomyTrust()` (`kernel/contract/standingapi/standingapi.go:147`): `inform_only`→`"L0"`, `ask`→`"L1"`, else none (M999).
 - **`Order`:**
 
   | Field (JSON) | Meaning |

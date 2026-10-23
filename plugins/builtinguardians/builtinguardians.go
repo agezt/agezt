@@ -24,8 +24,8 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	"github.com/agezt/agezt/kernel/standing"
 )
 
 // USD is one US dollar in the kernel's spend unit (microcents): $1 = 1e9.
@@ -38,13 +38,13 @@ type Host interface {
 	Agents() []roster.Profile
 	AddAgent(p roster.Profile) (roster.Profile, error)
 	UpdateAgent(ref string, mutate func(*roster.Profile)) (roster.Profile, bool, error)
-	StandingOrders() []standing.Order
-	UpdateStanding(id string, mutate func(*standing.Order)) (standing.Order, bool, error)
-	AddStanding(o standing.Order) (standing.Order, error)
+	StandingOrders() []standingapi.Order
+	UpdateStanding(id string, mutate func(*standingapi.Order)) (standingapi.Order, bool, error)
+	AddStanding(o standingapi.Order) (standingapi.Order, error)
 	// SetStandingEnabled pauses/resumes an order — used to seed a responder order
 	// DISABLED (Store.Add always creates enabled), so it ships dormant until the
 	// operator opts into autonomy (M999).
-	SetStandingEnabled(id string, enabled bool) (standing.Order, error)
+	SetStandingEnabled(id string, enabled bool) (standingapi.Order, error)
 	Schedules() []cadence.Entry
 	Reschedule(id string, mode string, interval time.Duration, atMinutes, days int) (bool, error)
 	AddInterval(intent string, interval time.Duration, model, agent string) (cadence.Entry, error)
@@ -285,7 +285,7 @@ func reconcileExistingGuardianStanding(h Host, g guardian) error {
 		if o.CooldownSec >= g.eventCooldownSec {
 			return nil
 		}
-		_, _, err := h.UpdateStanding(o.ID, func(dst *standing.Order) {
+		_, _, err := h.UpdateStanding(o.ID, func(dst *standingapi.Order) {
 			if dst.CooldownSec < g.eventCooldownSec {
 				dst.CooldownSec = g.eventCooldownSec
 			}
@@ -324,17 +324,17 @@ func reconcileExistingGuardianSchedule(h Host, g guardian) error {
 func seedTrigger(h Host, g guardian) (string, error) {
 	switch {
 	case len(g.events) > 0:
-		trigs := make([]standing.Trigger, 0, len(g.events))
+		trigs := make([]standingapi.Trigger, 0, len(g.events))
 		for _, s := range g.events {
-			trigs = append(trigs, standing.Trigger{Type: standing.TriggerEvent, Subject: s})
+			trigs = append(trigs, standingapi.Trigger{Type: standingapi.TriggerEvent, Subject: s})
 		}
-		o, err := h.AddStanding(standing.Order{
+		o, err := h.AddStanding(standingapi.Order{
 			Name:        g.name,
 			Triggers:    trigs,
 			Agent:       g.slug,
 			Plan:        g.plan,
 			CooldownSec: g.eventCooldownSec,
-			Initiative:  standing.Initiative{Mode: standing.InitiativeActOrAsk, MaxTrust: defaultTrustCeiling},
+			Initiative:  standingapi.Initiative{Mode: standingapi.InitiativeActOrAsk, MaxTrust: defaultTrustCeiling},
 		})
 		if err == nil && g.disabled {
 			// Store.Add always creates enabled; flip it off so the responder ships

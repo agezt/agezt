@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/standing"
 )
 
 // kernelHost adapts the live *runtime.Kernel to the seeder's Host. Each write
@@ -31,19 +31,19 @@ func (h *kernelHost) UpdateAgent(ref string, mutate func(*roster.Profile)) (rost
 	return h.k.UpdateProfile(ref, mutate)
 }
 
-func (h *kernelHost) StandingOrders() []standing.Order {
+func (h *kernelHost) StandingOrders() []standingapi.Order {
 	return h.k.Standing().List()
 }
 
-func (h *kernelHost) UpdateStanding(id string, mutate func(*standing.Order)) (standing.Order, bool, error) {
+func (h *kernelHost) UpdateStanding(id string, mutate func(*standingapi.Order)) (standingapi.Order, bool, error) {
 	return h.k.UpdateStanding(id, mutate)
 }
 
-func (h *kernelHost) AddStanding(o standing.Order) (standing.Order, error) {
+func (h *kernelHost) AddStanding(o standingapi.Order) (standingapi.Order, error) {
 	return h.k.Standing().Add(o)
 }
 
-func (h *kernelHost) SetStandingEnabled(id string, enabled bool) (standing.Order, error) {
+func (h *kernelHost) SetStandingEnabled(id string, enabled bool) (standingapi.Order, error) {
 	return h.k.SetStandingEnabled(id, enabled)
 }
 

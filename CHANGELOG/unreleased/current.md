@@ -857,6 +857,16 @@ This file holds the active `[Unreleased]` working set.
   — and now has one home on the profile row, so the two surfaces cannot drift
   apart.
 
+- **The standing order's row moves to the contract layer.** The tool that
+  reports the daemon's own live state and the plugin that seeds and reconciles
+  the autonomous fleet both reach into the standing module for its rows, and
+  both are plugins — which may reach the contract and the platform layers and
+  nothing else. The rows now live in the contract layer, the standing module
+  keeps its names, and the store, the runner and every existing caller are
+  unchanged. The standing order's wire is now pinned by a test, so a renamed
+  field can no longer break the control plane, the Web UI and the persisted
+  store silently.
+
 - **The council, the conductor and the research tools no longer reach into the
   kernel for a type.** The rows the reasoning module produces — a consensus,
   a transcript, a cited report — move to the contract layer

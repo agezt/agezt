@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	"github.com/agezt/agezt/kernel/standing"
 )
 
 type fakeHost struct {
 	agents    []roster.Profile
-	standings []standing.Order
+	standings []standingapi.Order
 	intervals []cadence.Entry
 	dailies   []cadence.Entry
 }
@@ -32,21 +32,21 @@ func (h *fakeHost) UpdateAgent(ref string, mutate func(*roster.Profile)) (roster
 	}
 	return roster.Profile{}, false, nil
 }
-func (h *fakeHost) StandingOrders() []standing.Order {
-	out := make([]standing.Order, len(h.standings))
+func (h *fakeHost) StandingOrders() []standingapi.Order {
+	out := make([]standingapi.Order, len(h.standings))
 	copy(out, h.standings)
 	return out
 }
-func (h *fakeHost) UpdateStanding(id string, mutate func(*standing.Order)) (standing.Order, bool, error) {
+func (h *fakeHost) UpdateStanding(id string, mutate func(*standingapi.Order)) (standingapi.Order, bool, error) {
 	for i := range h.standings {
 		if h.standings[i].ID == id {
 			mutate(&h.standings[i])
 			return h.standings[i], true, nil
 		}
 	}
-	return standing.Order{}, false, nil
+	return standingapi.Order{}, false, nil
 }
-func (h *fakeHost) AddStanding(o standing.Order) (standing.Order, error) {
+func (h *fakeHost) AddStanding(o standingapi.Order) (standingapi.Order, error) {
 	if o.ID == "" {
 		o.ID = "standing-" + o.Agent
 	}
@@ -54,14 +54,14 @@ func (h *fakeHost) AddStanding(o standing.Order) (standing.Order, error) {
 	h.standings = append(h.standings, o)
 	return o, nil
 }
-func (h *fakeHost) SetStandingEnabled(id string, enabled bool) (standing.Order, error) {
+func (h *fakeHost) SetStandingEnabled(id string, enabled bool) (standingapi.Order, error) {
 	for i := range h.standings {
 		if h.standings[i].ID == id {
 			h.standings[i].Enabled = enabled
 			return h.standings[i], nil
 		}
 	}
-	return standing.Order{}, nil
+	return standingapi.Order{}, nil
 }
 func (h *fakeHost) Schedules() []cadence.Entry {
 	out := make([]cadence.Entry, 0, len(h.intervals)+len(h.dailies))
@@ -164,7 +164,7 @@ func TestSeedAll_SeedsEveryGuardian(t *testing.T) {
 		if o.CooldownSec < 8*3600 {
 			t.Errorf("standing %q cooldown = %ds, want >= 28800s", o.Name, o.CooldownSec)
 		}
-		if err := standing.Validate(o); err != nil {
+		if err := standingapi.Validate(o); err != nil {
 			t.Errorf("standing %q invalid: %v", o.Name, err)
 		}
 	}
@@ -304,11 +304,11 @@ func TestSeedAll_ReconcilesExistingGuardianStandingCooldown(t *testing.T) {
 	}
 	h := &fakeHost{
 		agents: existing,
-		standings: []standing.Order{{
+		standings: []standingapi.Order{{
 			ID:       "standing-guardian-routing",
 			Name:     "Guardian · Routing",
 			Agent:    "guardian-routing",
-			Triggers: []standing.Trigger{{Type: standing.TriggerEvent, Subject: "provider.fallback"}, {Type: standing.TriggerEvent, Subject: "rate.limited"}},
+			Triggers: []standingapi.Trigger{{Type: standingapi.TriggerEvent, Subject: "provider.fallback"}, {Type: standingapi.TriggerEvent, Subject: "rate.limited"}},
 			Plan:     "old plan",
 		}},
 	}
@@ -389,14 +389,14 @@ func TestGuardianSoulsDoNotTellSystemAgentsToWriteMemoryLogs(t *testing.T) {
 }
 
 func TestSameEventSubjects(t *testing.T) {
-	trigs := []standing.Trigger{{Type: standing.TriggerEvent, Subject: "a"}, {Type: standing.TriggerEvent, Subject: "b"}}
+	trigs := []standingapi.Trigger{{Type: standingapi.TriggerEvent, Subject: "a"}, {Type: standingapi.TriggerEvent, Subject: "b"}}
 	if !sameEventSubjects(trigs, []string{"b", "a"}) {
 		t.Fatal("same subjects should match regardless of order")
 	}
 	if sameEventSubjects(trigs, []string{"a"}) {
 		t.Fatal("partial subject set should not match")
 	}
-	if sameEventSubjects(append(trigs, standing.Trigger{Type: standing.TriggerCron, Schedule: "* * * * *"}), []string{"a", "b"}) {
+	if sameEventSubjects(append(trigs, standingapi.Trigger{Type: standingapi.TriggerCron, Schedule: "* * * * *"}), []string{"a", "b"}) {
 		t.Fatal("mixed trigger order should not match guardian event-only trigger")
 	}
 }
@@ -473,24 +473,24 @@ func TestSameEventSubjects_EdgeCases(t *testing.T) {
 		t.Error("sameEventSubjects(nil, []) should be false")
 	}
 	// Non-event trigger shouldn't match.
-	trigs := []standing.Trigger{{Type: standing.TriggerCron, Schedule: "* * * * *"}}
+	trigs := []standingapi.Trigger{{Type: standingapi.TriggerCron, Schedule: "* * * * *"}}
 	if sameEventSubjects(trigs, []string{"a"}) {
 		t.Error("cron trigger should not match event subjects")
 	}
 	// Empty subject trigger shouldn't match.
-	trigs2 := []standing.Trigger{{Type: standing.TriggerEvent, Subject: ""}}
+	trigs2 := []standingapi.Trigger{{Type: standingapi.TriggerEvent, Subject: ""}}
 	if sameEventSubjects(trigs2, []string{"a"}) {
 		t.Error("empty subject trigger should not match")
 	}
 	// Exact match.
-	trigs3 := []standing.Trigger{{Type: standing.TriggerEvent, Subject: "a"}}
+	trigs3 := []standingapi.Trigger{{Type: standingapi.TriggerEvent, Subject: "a"}}
 	if !sameEventSubjects(trigs3, []string{"a"}) {
 		t.Error("exact match should return true")
 	}
 	// Duplicate subject in triggers (count > 1).
-	trigs4 := []standing.Trigger{
-		{Type: standing.TriggerEvent, Subject: "a"},
-		{Type: standing.TriggerEvent, Subject: "a"},
+	trigs4 := []standingapi.Trigger{
+		{Type: standingapi.TriggerEvent, Subject: "a"},
+		{Type: standingapi.TriggerEvent, Subject: "a"},
 	}
 	if sameEventSubjects(trigs4, []string{"a"}) {
 		t.Error("duplicate subject should not match single-entry subjects")

@@ -13,10 +13,10 @@ import (
 	"sort"
 
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/standing"
 )
 
 // Delegation mirrors the active sub-agent governance ceilings (M46–M48) for the
@@ -106,7 +106,7 @@ type Source interface {
 	// Schedules returns every cadence entry (operator- and agent-created).
 	Schedules() []cadence.Entry
 	// Standing returns every standing order on this daemon.
-	Standing() []standing.Order
+	Standing() []standingapi.Order
 }
 
 // Tool implements toolapi.Tool. Created unbound via New(); Bind wires the Source.
