@@ -995,6 +995,19 @@ This file holds the active `[Unreleased]` working set.
   The guardians' quiet defaults — silent on success, no memory writes — are
   the operator's contract, and they are now asserted.
 
+- **The plugin host's reach becomes a contract's rows and a spawn port.** The
+  built-in tools plugin hosts out-of-process plugins and named the module
+  that owns the child process. The operator's plugin declarations (the
+  plugins, their binary pins and their tool allowlists) are pure rows with
+  pure parsers, so they now live in the contract layer; the spawn itself
+  goes through the contract's port, and the daemon hands the implementation
+  over.
+  The rules that moved with the rows (a malformed pin or a duplicate prefix
+  is refused) and the rules that stayed with the host (the binary's digest
+  is checked against the operator's pin, the child's environment is the
+  scrubbed base plus exactly the granted variables) are both still measured
+  where they live.
+
 - **The channel factory layer moves down to the platform layer.** The seam
   between the daemon and the channel plugins — where each channel *kind*
   registers a `Factory` and the daemon walks the manifest registry calling

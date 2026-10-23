@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.36 the channel factory layer moves down to the platform layer, 2026-10-24
+## Current checkpoint — W3.37 the plugin host's reach becomes a contract's rows and a spawn port, 2026-10-24
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2442,6 +2442,57 @@ files, five of the seventeen mutations would have escaped.
   (the live kernel) and the plugin host. Those are the hard ones to invert:
   the plugin *registers into* a registry the daemon owns, which is a
   dependency in the opposite direction of the one the rule forbids.
+
+- W3.37 (the plugin host's reach becomes a contract's rows and a spawn port)
+  is committed on `main` the same way. The built-in tools plugin hosts
+  **out-of-process plugins** — the child processes the daemon spawns, whose
+  tools register into the daemon's tool registry — and it named the module
+  that owns the child process. It named it for two different reasons, and
+  the two want different answers.
+  The operator's declarations (`AGEZT_PLUGINS`, `AGEZT_PLUGIN_PINS`,
+  `AGEZT_PLUGIN_TOOLS`) are **pure rows with pure parsers**, and a row a
+  plugin names belongs in the contract layer — so they moved there whole,
+  with `git mv`: the `PinSpec`, the `ToolAllowlistSpec`, the
+  `PluginSpecEntry`, their three parsers and the BLAKE3 pin format check
+  (the parser that accepts a pin and the host that verifies the binary
+  against it must agree on what a pin looks like — one spelling of it).
+  The **spawn** itself is the host's implementation, so it goes through the
+  contract's **port** (`pluginapi.Spawner`, one method) and the daemon hands
+  the implementation over at the composition root; the app-layer adapter
+  (`kernel/app/pluginhost`) answers the port from the module. The running
+  plugin answers **three verbs** through the port's other side
+  (`pluginapi.Spawned`): its tools, their declared capabilities and the
+  close — the host's own verbs (invoke, reload, liveness) stay with the
+  host, because a plugin that could name them could drive the process
+  directly.
+  The **ratchet went DOWN**: 82/13 → **81/13** — the `plugin-reach` edge is
+  gone and the **stale allowlist entry was deleted**.
+  The slice was careful about **which rules travel**: the *slug*-style rules
+  moved with the rows (a malformed pin is refused, a **duplicate prefix is a
+  hard error** — a duplicate pin would otherwise silently keep the last
+  hash, shadowing the operator's intended one, M216 — and an empty tool
+  allowlist is refused rather than read as "deny everything"), while the
+  *binary* rules stayed with the module (the digest of the file is compared
+  against the operator's pin and a mismatch is a refusal, M1.ff; an oversized
+  frame tears the plugin down rather than letting an untrusted child drive
+  the host to OOM, M177; a callback the operator did not wire is rejected;
+  the child's environment is the **scrubbed** base plus exactly the
+  variables `AGEZT_PLUGIN_ENV` grants).
+  The **test moved with the promise — and split in two**: the old test
+  proved the strongest thing (a real probe plugin, spawned, asked what it
+  saw in its environment), but it needed the host's module, which the plugin
+  may not name and which the gate cannot see anyway (test imports do not
+  enter archcheck). So the promise was **split into the two halves that make
+  it**, and both are measured: the plugin side measures the **request** it
+  hands the port (no `OPENAI_API_KEY`, no `AGEZT_VAULT_PASSPHRASE`, the
+  granted variable present, `PATH` present, and the operator's **pin** and
+  **tool allowlist** carried along), and the host side measures the child
+  against a **real child process** (the same probe, now a shared fixture in
+  `kernel/internal/testfixtures`), including that a binary which does not
+  match the operator's pin **does not start**.
+  12 mutations: 12 caught — none survived, none was a compile error, none
+  was skipped on a stale anchor; and the last one is measured by the
+  **archcheck gate** rather than by a test.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

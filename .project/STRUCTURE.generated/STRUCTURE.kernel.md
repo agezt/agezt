@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-196 package(s):
+198 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -39,6 +39,7 @@
 - **`kernel/app/opaudit`** — Package opaudit owns the operation audit's policy: what may be journaled about an operation's arguments and errors.
 - **`kernel/app/overseer`** — Package overseer owns the implementation behind the overseer's supervisory port — the half of the surface that reads and steers the LIVE system.
 - **`kernel/app/persona`** — Package persona owns the owner's chat defaults: the daemon's default identity (M710), the fallback system instructions for runs not bound to a roster agent, and the saved prompt library (M713) the Chat view launches from.
+- **`kernel/app/pluginhost`** — Package pluginhost answers the plugin contract's ports from the plugin host module.
 - **`kernel/app/plugins`** — SPDX-License-Identifier: MIT
 - **`kernel/app/providers`** — Package providers owns provider management and journal observation services.
 - **`kernel/app/pulse`** — Package pulse owns proactive-engine control and event observation services over selected resident controller, observer, settings, journal and bus ports.
@@ -92,6 +93,7 @@
 - **`kernel/contract/mcpapi`** — Package mcpapi is the contract layer's home for the MCP server row: the description of one registered MCP server — a stdio command or a remote HTTP endpoint the daemon can spawn and speak MCP to.
 - **`kernel/contract/opapi`** — Package opapi defines transport-independent operation metadata and host ports.
 - **`kernel/contract/overseerapi`** — Package overseerapi is the contract the supervisory surface and the implementations that answer it agree on.
+- **`kernel/contract/pluginapi`** — Package pluginapi is the contract for out-of-process plugins.
 - **`kernel/contract/policyapi`** — Package policyapi defines the tool-policy verdict and callback contract.
 - **`kernel/contract/proofapi`** — Package proofapi is the contract layer's home for AGEZT's "PROOF > VIBES" record: the durable, checkable evidence that a workboard task actually satisfied its acceptance criteria before it was allowed to reach done.
 - **`kernel/contract/pulseapi`** — Package pulseapi is the contract the briefing rows and the surfaces that deliver them agree on.
