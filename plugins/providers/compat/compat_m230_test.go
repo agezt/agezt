@@ -5,7 +5,7 @@ package compat
 import (
 	"testing"
 
-	"github.com/agezt/agezt/kernel/modules/providers/catalog"
+	"github.com/agezt/agezt/kernel/contract/catalogapi"
 )
 
 func TestCompatVendorBaseURL(t *testing.T) {
@@ -18,7 +18,7 @@ func TestCompatVendorBaseURL(t *testing.T) {
 		"@ai-sdk/perplexity":          "https://api.perplexity.ai",
 		"@ai-sdk/fireworks":           "https://api.fireworks.ai/inference/v1",
 		"@openrouter/ai-sdk-provider": "https://openrouter.ai/api/v1",
-		// Case-insensitive, mirroring catalog.FamilyFromNPM.
+		// Case-insensitive, mirroring catalogapi.FamilyFromNPM.
 		"@AI-SDK/Groq": "https://api.groq.com/openai/v1",
 		// Not vendors compat ships a default for → "" (guard stays active).
 		"@ai-sdk/openai-compatible": "",
@@ -41,7 +41,7 @@ func TestCompatVendorBaseURL_AllAreOpenAICompatibleFamily(t *testing.T) {
 		"@ai-sdk/deepinfra", "@ai-sdk/perplexity", "@ai-sdk/fireworks",
 		"@openrouter/ai-sdk-provider",
 	} {
-		if got := catalog.FamilyFromNPM(npm); got != catalog.FamilyOpenAICompatible {
+		if got := catalogapi.FamilyFromNPM(npm); got != catalogapi.FamilyOpenAICompatible {
 			t.Errorf("FamilyFromNPM(%q) = %v, want FamilyOpenAICompatible", npm, got)
 		}
 		if compatVendorBaseURL(npm) == "" {
@@ -54,11 +54,11 @@ func TestCompatVendorBaseURL_AllAreOpenAICompatibleFamily(t *testing.T) {
 // URL is filled in) instead of being refused.
 func TestBuild_KnownCompatVendorEmptyAPIUsesDefault(t *testing.T) {
 	for _, npm := range []string{"@ai-sdk/groq", "@ai-sdk/xai", "@openrouter/ai-sdk-provider"} {
-		entry := &catalog.Provider{
+		entry := &catalogapi.Provider{
 			ID: "vendor", NPM: npm,
 			Env:    []string{"VENDOR_API_KEY"},
 			API:    "",
-			Models: map[string]*catalog.Model{"m": {ID: "m"}},
+			Models: map[string]*catalogapi.Model{"m": {ID: "m"}},
 		}
 		if _, _, err := Build(entry, "m", func(string) string { return "k" }); err != nil {
 			t.Errorf("%s: Build with empty api should succeed now, got %v", npm, err)
@@ -68,11 +68,11 @@ func TestBuild_KnownCompatVendorEmptyAPIUsesDefault(t *testing.T) {
 
 // An explicit catalog `api` still wins over the built-in default.
 func TestBuild_ExplicitAPIOverridesVendorDefault(t *testing.T) {
-	entry := &catalog.Provider{
+	entry := &catalogapi.Provider{
 		ID: "groq", NPM: "@ai-sdk/groq",
 		Env:    []string{"GROQ_API_KEY"},
 		API:    "https://proxy.internal/v1",
-		Models: map[string]*catalog.Model{"m": {ID: "m"}},
+		Models: map[string]*catalogapi.Model{"m": {ID: "m"}},
 	}
 	if _, _, err := Build(entry, "m", func(string) string { return "k" }); err != nil {
 		t.Fatalf("Build with explicit api: %v", err)

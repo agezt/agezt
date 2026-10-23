@@ -8,24 +8,24 @@ package compat
 // Public API unchanged.
 
 import (
-	"github.com/agezt/agezt/kernel/modules/providers/catalog"
+	"github.com/agezt/agezt/kernel/contract/catalogapi"
 )
 
 // IsSupportedFamily reports whether Build will accept the given family
 // in this build. Used by the daemon's auto-pick to skip catalog
 // entries we can't talk to.
-func IsSupportedFamily(f catalog.Family) bool {
+func IsSupportedFamily(f catalogapi.Family) bool {
 	switch f {
-	case catalog.FamilyAnthropic,
-		catalog.FamilyOllama,
-		catalog.FamilyOpenAI,
-		catalog.FamilyOpenAICompatible,
-		catalog.FamilyGoogle,
-		catalog.FamilyMistral,
-		catalog.FamilyCohere,
-		catalog.FamilyAzure,
-		catalog.FamilyAWSBedrock,
-		catalog.FamilyGoogleVertex:
+	case catalogapi.FamilyAnthropic,
+		catalogapi.FamilyOllama,
+		catalogapi.FamilyOpenAI,
+		catalogapi.FamilyOpenAICompatible,
+		catalogapi.FamilyGoogle,
+		catalogapi.FamilyMistral,
+		catalogapi.FamilyCohere,
+		catalogapi.FamilyAzure,
+		catalogapi.FamilyAWSBedrock,
+		catalogapi.FamilyGoogleVertex:
 		return true
 	}
 	return false
@@ -42,11 +42,11 @@ func envLookup(lookup CredLookup, name string) string {
 	return lookup(name)
 }
 
-func providerEnvLookup(p *catalog.Provider, lookup CredLookup, name string) string {
+func providerEnvLookup(p *catalogapi.Provider, lookup CredLookup, name string) string {
 	if lookup == nil {
 		return ""
 	}
-	for _, lookupName := range catalog.ProviderCredentialLookupNames(p.ID, name) {
+	for _, lookupName := range catalogapi.ProviderCredentialLookupNames(p.ID, name) {
 		if v := lookup(lookupName); v != "" {
 			return v
 		}
