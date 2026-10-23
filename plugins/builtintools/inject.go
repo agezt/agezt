@@ -31,8 +31,10 @@ import (
 
 // specConfig — the agent's window into the Config Center: read/write/register
 // settings (same registry + vault as the `agt config` CLI and HTTP routes).
-// The kernel is injected after runtime.Open so live-apply fields
-// (provider/model) can rebuild the provider in place via Reload().
+// The live daemon's port is injected after runtime.Open so live-apply fields
+// (provider/model) can rebuild the provider in place via Reload() — and so
+// agent-scoped writes reach the roster. The tool is a plugin, so it takes the
+// contract's port, never the kernel itself.
 func specConfig() toolreg.Spec {
 	var ct *configtool.Tool
 	return toolreg.Spec{
@@ -42,8 +44,8 @@ func specConfig() toolreg.Spec {
 			return toolreg.Built{Tool: ct, Desc: "config()"}, nil
 		},
 		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
-			if d.K != nil {
-				ct.SetKernel(d.K)
+			if d.Config != nil {
+				ct.SetKernel(d.Config)
 			}
 			return nil
 		},

@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.31 the workboard chain moves to the contract layer, 2026-10-23
+## Current checkpoint — W3.32 the config tool's reach into the runtime becomes a port, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2207,6 +2207,59 @@ files, five of the seventeen mutations would have escaped.
   catches (the verdict parser's fence trimming is redundant with its span
   isolation; a live kernel always opens its board, so that nil-branch is
   unreachable).
+
+- W3.32 (the config tool's reach into the runtime becomes a port) is committed
+  on `main` the same way. The `config` tool — the agent's window into the
+  Config Center, which reads and writes the settings the daemon, the
+  `agt config` CLI and the HTTP routes share, and which can write a setting
+  **live** (rebuilding the provider in place) or **agent-scoped** (on one
+  agent's profile) — is a plugin, so it may not hold the daemon's
+  implementation. It reached for exactly three things: the roster's profile
+  edit, the provider rebuild, and the run's own config overrides.
+  The port now lives in the contract layer (`kernel/contract/configapi`) with
+  those three methods and nothing else; the **adapter** that answers it lives
+  in the app layer (`kernel/app/configtool`), because answering it needs the
+  live kernel and the app layer is the only layer that may see it; and the
+  daemon hands the port over at the composition root, exactly like the forge,
+  workflow, data-lake and workboard ports before it.
+  The **ratchet went DOWN**: 90/13 → **89/13** — the plugin-reach edge is
+  gone, and the **stale allowlist entry was deleted**.
+  This is the first slice in this run that moves **no row at all**, so what
+  the slice pins is the **shape of a reach**: the port has exactly three
+  methods, the reload answers the **error only** (the catalogue the reload
+  produced is the daemon's business, and the plugin may not name the catalog
+  module — that narrowing is what made an adapter necessary), and the profile
+  edit answers the contract's own `agentapi.Profile` row (the roster module's
+  `Profile` is that row's alias, so the kernel's method already fits the port
+  without a copy).
+  The **nil-port rule** is stated twice on purpose — at the composition root
+  and in the adapter — and each is measured on its own: a daemon with no
+  kernel hands over a **nil** port, not a port wrapping a nil implementation,
+  and the tool degrades instead of dereferencing nothing (no daemon → no
+  agent overrides; an agent-scoped write without a daemon → "agent-scoped
+  config needs a live kernel").
+  The **behaviour that changed** is recorded honestly: the run's overrides
+  used to be read by a package-level function, so a tool built without a
+  daemon still saw them; now they arrive through the port, so a daemon-less
+  tool sees none — in the daemon nothing changes, and the only difference is
+  for a tool that was never wired to a daemon at all.
+  The permanent tests: the **port's shape** (exactly three methods, each
+  signature pinned), the **adapter** (a missing kernel is a nil port, the
+  profile edit reaches the **live** roster, an unknown agent is answered as
+  "not found" and no error, the overrides are a **copy**), the **tool names
+  the contract** (the port field IS the contract's port, `SetKernel` takes
+  the contract's port), the tool's **behaviour through the port** (no daemon
+  → no overrides, the agent-scoped read, the unknown agent, the live-apply
+  reload, the restart-apply field that must NOT reload, the failed reload
+  that must be reported) and the **wiring, twice**.
+  The plugin's own test was **rebuilt on a fake port** — the point of a port
+  is that the tool is testable without a daemon — and the real delegation is
+  covered by the adapter's test.
+  19 mutations: 17 caught, 2 equivalent — seven were re-authored (two
+  **compile errors**, five **stale anchors**) so the code still compiles; the
+  two equivalent ones are recorded as such (the provider rebuild's failure is
+  not reachable from a test; the composition root's nil check is redundant
+  with the adapter's — defence in depth, kept on purpose).
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

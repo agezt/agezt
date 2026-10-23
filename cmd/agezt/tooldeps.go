@@ -5,8 +5,10 @@ package main
 import (
 	"io"
 
+	"github.com/agezt/agezt/kernel/app/configtool"
 	"github.com/agezt/agezt/kernel/app/introspect"
 	"github.com/agezt/agezt/kernel/app/overseer"
+	"github.com/agezt/agezt/kernel/contract/configapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
@@ -58,7 +60,23 @@ func toolKernelDeps(k *runtime.Kernel, baseDir string, stdout io.Writer) toolreg
 		// The workboard tool reads the task store through a contract port;
 		// the daemon hands the live store over, for the same reason.
 		Workboard: workboardStore(k),
+		// The config tool writes through a contract port — the agent-scoped
+		// override path and the live-apply reload. The implementation that
+		// answers it needs the live kernel, so the daemon builds it here (the
+		// tool is a plugin and may reach neither).
+		Config: configSource(k),
 	}
+}
+
+// configSource hands the live daemon's port to the tool registry — the
+// config tool's way into the roster and the provider. The nil-port rule is
+// the same as the forge store's: a daemon with no kernel hands over a nil
+// port, not a port wrapping nothing.
+func configSource(k *runtime.Kernel) configapi.Kernel {
+	if k == nil {
+		return nil
+	}
+	return configtool.NewKernelSource(k)
 }
 
 // workboardStore hands the live task store to the tool registry as the

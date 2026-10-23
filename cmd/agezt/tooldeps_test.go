@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
@@ -253,6 +254,52 @@ func TestToolKernelDepsSuppliesTheWorkboardPort(t *testing.T) {
 // hand over a NIL port, not a port wrapping a nil implementation.
 func TestWorkboardStoreStaysANilPortWithoutABoard(t *testing.T) {
 	if got := workboardStore(nil); got != nil {
+		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
+	}
+}
+
+// TestToolKernelDepsSuppliesTheConfigPort: the daemon hands the config tool
+// its live-daemon port — the agent-scoped write path and the live-apply
+// reload. The port is supplied HERE — at the composition root — so a daemon
+// that dropped it would leave the tool unable to write an agent's override
+// on every live box, while every test that builds the tool by hand stayed
+// green. This test is the only one that sees that wiring, so it asserts it
+// directly.
+func TestToolKernelDepsSuppliesTheConfigPort(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	deps := toolKernelDeps(k, t.TempDir(), io.Discard)
+	if deps.Config == nil {
+		t.Fatal("the daemon must supply the config port")
+	}
+
+	// The port must answer the LIVE roster — a profile added to the kernel
+	// is the profile the port edits.
+	if _, err := k.AddProfile(agentapi.Profile{Slug: "researcher"}); err != nil {
+		t.Fatalf("AddProfile: %v", err)
+	}
+	got, found, err := deps.Config.UpdateProfile("researcher", func(p *agentapi.Profile) {
+		p.ConfigOverrides = map[string]string{"AGEZT_MODEL": "agent-model"}
+	})
+	if err != nil {
+		t.Fatalf("UpdateProfile: %v", err)
+	}
+	if !found {
+		t.Fatal("the port must reach the live roster")
+	}
+	if got.ConfigOverrides["AGEZT_MODEL"] != "agent-model" {
+		t.Fatalf("the port did not edit the live profile: %+v", got.ConfigOverrides)
+	}
+}
+
+// TestConfigSourceStaysANilPortWithoutAKernel: a daemon with no kernel must
+// hand over a NIL port, not a port wrapping a nil implementation.
+func TestConfigSourceStaysANilPortWithoutAKernel(t *testing.T) {
+	if got := configSource(nil); got != nil {
 		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
 	}
 }

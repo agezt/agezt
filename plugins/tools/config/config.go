@@ -12,26 +12,30 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/configapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/edict"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/settings"
 )
 
 // Tool implements toolapi.Tool. It is constructed in buildTools() before the kernel
 // exists; SetKernel binds the kernel afterwards so live-apply fields (provider /
 // model) can rebuild the provider in place via Reload().
+//
+// The kernel arrives as the CONTRACT's port (configapi.Kernel) — this tool is a
+// plugin, and a plugin may not hold the daemon's implementation.
 type Tool struct {
 	baseDir string
-	kernel  *kernelruntime.Kernel
+	kernel  configapi.Kernel
 }
 
 // New returns a config Tool scoped to baseDir.
 func New(baseDir string) *Tool { return &Tool{baseDir: baseDir} }
 
-// SetKernel binds the kernel for live reloads (called once the kernel is open).
-func (t *Tool) SetKernel(k *kernelruntime.Kernel) { t.kernel = k }
+// SetKernel binds the live daemon's port for live reloads and agent-scoped
+// writes (called once the kernel is open).
+func (t *Tool) SetKernel(k configapi.Kernel) { t.kernel = k }
 
 // Definition implements toolapi.Tool.
 func (t *Tool) Definition() toolapi.ToolDef {
@@ -113,6 +117,16 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 
 func (t *Tool) registry() *settings.Registry { return settings.NewRegistry(t.baseDir) }
 
+// agentOverrides returns the config overrides the run in this context
+// carries. A tool with no daemon behind it has none — the same posture the
+// agent-scoped write takes ("agent-scoped config needs a live kernel").
+func (t *Tool) agentOverrides(ctx context.Context) map[string]string {
+	if t.kernel == nil {
+		return nil
+	}
+	return t.kernel.AgentConfigOverrides(ctx)
+}
+
 func (t *Tool) doSchema() (toolapi.Result, error) {
 	var b strings.Builder
 	for _, sec := range t.registry().Sections() {
@@ -150,7 +164,7 @@ func (t *Tool) doGet(ctx context.Context, in input) (toolapi.Result, error) {
 		return errf("unknown setting %q", name), nil
 	}
 	agentSlug := toolapi.AgentFromContext(ctx)
-	agentOverrides := kernelruntime.AgentConfigOverrides(ctx)
+	agentOverrides := t.agentOverrides(ctx)
 	if scope == "agent" {
 		if agentSlug == "" {
 			return errf("scope=agent requires a named agent run"), nil
@@ -274,7 +288,7 @@ func (t *Tool) doSet(ctx context.Context, in input) (toolapi.Result, error) {
 	// Live-apply provider/model in place; everything else takes effect on restart.
 	if field.Apply == settings.ApplyLive && !field.Secret && t.kernel != nil {
 		_ = os.Setenv(name, value)
-		if _, _, err := t.kernel.Reload(); err != nil {
+		if err := t.kernel.Reload(); err != nil {
 			return toolapi.Result{Output: fmt.Sprintf("%s saved, but live reload failed: %v", name, err), IsError: true}, nil
 		}
 		return toolapi.Result{Output: name + " applied live"}, nil
