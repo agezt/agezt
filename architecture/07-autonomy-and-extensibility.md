@@ -49,7 +49,7 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 | `selfrepair` | brand, strutil, board, bus, event, roster, runtime | cmd/agezt only |
 | `skill` | agent, bus, contract/skillapi, event, filestore | cmd/agezt, cmd/agt, contextselect, controlplane, market, runtime (+accessors, runexec), builtinskills |
 | `market` | atomicfile, agent, contract/marketapi, edict, mcp, netguard, skill | cmd/agezt, cmd/agt, controlplane, runtime (+accessors) |
-| `plugin` | agent | cmd/agt, plugins/builtintools |
+| `plugin` | agent, contract/pluginapi, contract/toolapi, platform/sandbox | cmd/agt |
 | `mcp` | filestore, netguard, ulid | controlplane, market, runtime (+compose) |
 | `acp` | brand, platform/acpclient | cmd/agt |
 | `acpcatalog` | — | app/acpbridge, controlplane |
@@ -1129,10 +1129,10 @@ Tests: `installguard`, `librarydefensive`, `librarypick`, `libraryversion`, `lis
 ### 11.4 Boot wiring
 
 `plugins/builtintools/plugins.go` (`buildPlugins`):
-1. Parse `AGEZT_PLUGIN_PINS` (`prefix=<blake3hex>`), `AGEZT_PLUGIN_TOOLS` (`prefix=t1+t2`) and `AGEZT_PLUGINS` (`prefix=path args,...`, quote-aware). A malformed value is a **hard boot error**.
-2. Spawn every plugin under a shared 30 s context. A plugin that fails is logged as a warning and skipped.
+1. Parse `AGEZT_PLUGIN_PINS` (`prefix=<blake3hex>`), `AGEZT_PLUGIN_TOOLS` (`prefix=t1+t2`) and `AGEZT_PLUGINS` (`prefix=path args,...`, quote-aware). A malformed value is a **hard boot error**. The parsers and the rows they return live in the contract layer (`kernel/contract/pluginapi`) — they are pure, and the built-in tools plugin may not name a module (W3.37).
+2. Spawn every plugin under a shared 30 s context, through the contract's **spawn port** (`pluginapi.Spawner`), which the daemon hands over at the composition root. A plugin that fails is logged as a warning and skipped.
 3. Register each plugin's tools as `<prefix>.<tool>`.
-4. Record a `runtime.PluginInfo` for the plugin list in the control plane.
+4. Record a `types.PluginInfo` for the plugin list in the control plane.
 
 The package has no persistence and publishes no events of its own; calls show up as ordinary tool events.
 
@@ -1147,10 +1147,15 @@ The package has no persistence and publishes no events of its own; calls show up
 | `host_loop.go` | `readFrame`, `readLoop`, `deliver`, callbacks, `markDead`. |
 | `host_wire.go` | `Invoke*`, `startWaiter`, `Close`, `call*`, `write*`. |
 | `host_lifecycle.go` | `IsAlive`, `Reload`, `respawn`, `remoteTool` type. |
-| `pin.go` | `resolvePluginPath`, `makeChild`, `VerifyPin`, `HashFile`. |
-| `pinspec.go` | `ParsePinSpec`, `ParseToolAllowlistSpec`. |
-| `pluginspec.go` | `ParsePluginSpec`, quote-aware `splitFields`. |
+| `pin.go` | `resolvePluginPath`, `makeChild`, `VerifyPin`, `HashFile`, `LooksLikePin`. |
 | `proc_unix.go` / `proc_windows.go` | Process group handling and kill. |
+
+The spec rows and their parsers moved to the contract layer (W3.37):
+`kernel/contract/pluginapi/pinspec.go` (`ParsePinSpec`, `ParseToolAllowlistSpec`,
+`LooksLikeBLAKE3Pin`) and `kernel/contract/pluginapi/pluginspec.go`
+(`ParsePluginSpec`, quote-aware `splitFields`); the spawn port lives in
+`kernel/contract/pluginapi/spawn.go` (`Spawner`, `SpawnRequest`, `Spawned`),
+answered by the app-layer adapter `kernel/app/pluginhost`.
 
 Tests: 23 files covering allowlist, callbacks and their limit, capability, close, dead tools, death errors, delivery, flood, frames, host, pins, plugin spec, process handling, progress, protocol version, reaping, reload, and tool capabilities. `testdata/` holds `echoplugin` (the reference template), `floodplugin` and `idechoplugin`.
 

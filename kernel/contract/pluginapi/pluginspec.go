@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package plugin
+package pluginapi
 
 import (
 	"fmt"

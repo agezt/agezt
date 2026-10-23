@@ -19,11 +19,11 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/pluginapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/envscrub"
-	"github.com/agezt/agezt/kernel/modules/extensions/plugin"
 	"github.com/agezt/agezt/kernel/redact"
-	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/toolreg"
 )
 
@@ -56,18 +56,18 @@ func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
 	// silently-broken pin that lets a modified binary slip through next
 	// reboot. Unknown pins (for plugins not in AGEZT_PLUGINS) become warnings
 	// after the plugin loop runs.
-	var pins plugin.PinSpec
+	var pins pluginapi.PinSpec
 	if pinSpec := strings.TrimSpace(d.Get(brand.EnvPrefix + "PLUGIN_PINS")); pinSpec != "" {
-		parsed, err := plugin.ParsePinSpec(pinSpec)
+		parsed, err := pluginapi.ParsePinSpec(pinSpec)
 		if err != nil {
 			return toolreg.Built{}, fmt.Errorf("%sPLUGIN_PINS: %w", brand.EnvPrefix, err)
 		}
 		pins = parsed
 	}
 	// Tool allowlist (M1.hh) — same hard-error semantics as pins.
-	var allowedTools plugin.ToolAllowlistSpec
+	var allowedTools pluginapi.ToolAllowlistSpec
 	if allowSpec := strings.TrimSpace(d.Get(brand.EnvPrefix + "PLUGIN_TOOLS")); allowSpec != "" {
-		parsed, err := plugin.ParseToolAllowlistSpec(allowSpec)
+		parsed, err := pluginapi.ParseToolAllowlistSpec(allowSpec)
 		if err != nil {
 			return toolreg.Built{}, fmt.Errorf("%sPLUGIN_TOOLS: %w", brand.EnvPrefix, err)
 		}
@@ -76,9 +76,9 @@ func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
 	// Env grants — same spec shape and hard-error semantics as the tool
 	// allowlist: prefix=NAME1+NAME2 passes exactly those variables to that
 	// plugin on top of the scrubbed base environment (pluginEnv).
-	var envGrants plugin.ToolAllowlistSpec
+	var envGrants pluginapi.ToolAllowlistSpec
 	if grantSpec := strings.TrimSpace(d.Get(brand.EnvPrefix + "PLUGIN_ENV")); grantSpec != "" {
-		parsed, err := plugin.ParseToolAllowlistSpec(grantSpec)
+		parsed, err := pluginapi.ParseToolAllowlistSpec(grantSpec)
 		if err != nil {
 			return toolreg.Built{}, fmt.Errorf("%sPLUGIN_ENV: %w", brand.EnvPrefix, err)
 		}
@@ -89,7 +89,7 @@ func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
 	// pin/allowlist specs parsed just above. A repeated prefix used to spawn
 	// two processes whose tools then collided with a misleading "in-process
 	// version" warning; rejecting it surfaces the typo instead.
-	entries, err := plugin.ParsePluginSpec(spec)
+	entries, err := pluginapi.ParsePluginSpec(spec)
 	if err != nil {
 		return toolreg.Built{}, fmt.Errorf("%sPLUGINS: %w", brand.EnvPrefix, err)
 	}
@@ -101,14 +101,14 @@ func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
 
 	var built toolreg.Built
 	var registered []string
-	var spawned []*plugin.Plugin
+	var spawned []pluginapi.Spawned
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	for _, e := range entries {
 		prefix := e.Prefix
 		usedPrefixes = append(usedPrefixes, prefix)
-		cfg := plugin.Config{
+		cfg := pluginapi.SpawnRequest{
 			Path: e.Path,
 			Args: e.Args,
 			Logger: func(line string) {
@@ -118,7 +118,13 @@ func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
 			AllowedTools: allowedTools[prefix], // nil if no allowlist for this prefix
 			Env:          pluginEnv(d.Get, envGrants[prefix]),
 		}
-		p, err := plugin.Spawn(ctx, cfg)
+		// The spawn itself is the HOST's job (the binary pinning, the frame
+		// caps, the callback bridge, the teardown), and this plugin may not
+		// name the host's module: the daemon hands the contract's port over.
+		if d.Plugins == nil {
+			return toolreg.Built{}, fmt.Errorf("%sPLUGINS: the plugin host is not available", brand.EnvPrefix)
+		}
+		p, err := d.Plugins.Spawn(ctx, cfg)
 		if err != nil {
 			fmt.Fprintf(d.Stderr, "WARNING: plugin %q (%s) failed to start: %v\n", prefix, e.Path, err)
 			continue
@@ -144,7 +150,7 @@ func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
 		// subtracted by Set.PluginManifest, so the served tool_count stays
 		// the post-conflict number — what the model actually sees — and the
 		// operator can spot when a conflict shadowed a tool they expected.
-		built.Infos = append(built.Infos, runtime.PluginInfo{
+		built.Infos = append(built.Infos, types.PluginInfo{
 			Prefix:       prefix,
 			Path:         e.Path,
 			Args:         append([]string(nil), e.Args...),
