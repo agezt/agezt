@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.18 the standing order's row moves to the contract layer, 2026-10-23
+## Current checkpoint — W3.19 the schedule entry's row moves to the contract layer, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1725,6 +1725,27 @@ files, five of the seventeen mutations would have escaped.
   and the initiative's `max_trust`, but not at the initiative's second field.
   A mutation that survives is a missing assertion, so the assertion was added
   and the mutation re-run.
+
+- W3.19 (the schedule entry's row moves to the contract layer) is committed on
+  `main` the same way — the same shape as W3.18, on the cadence side. The
+  introspector and the guardians both name the schedule entry's row, and both
+  are plugins. The row and its rules moved to `kernel/contract/cadenceapi`: the
+  entry, `Validate`, `Forecast`, `Advance`, `SafeInterval`, `UsesInterval`, the
+  day-mask helpers, the modes, the targets, the sources, and the
+  **system-task catalog** (`Entry.Validate` checks a system-task target, so the
+  catalog has to be where the row is). `kernel/cadence` keeps every name as an
+  alias, so the store, the engine, the ticker, the CLI and the schedule tool
+  are unchanged.
+  Three rules about the row had to be **exported** rather than kept
+  unexported (the module's store and engine call them, and a method can only
+  be defined in its type's package) — the same rules about the same row, with
+  the W3.14 recipe's shape.
+  The **ratchet went DOWN**: 110/13 → **108/13** — both plugin-reach edges are
+  gone, and the **two stale allowlist entries were deleted**.
+  9 mutations: 8 caught, 1 build error recorded separately — and three of the
+  caught mutations are the **timing rules** (the busy-loop floor, the daily
+  slot, the window walk), caught by the module's own DST and interval tests,
+  which now run against the contract's implementation of the same rules.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
