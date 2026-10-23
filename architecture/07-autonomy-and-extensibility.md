@@ -53,7 +53,7 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 | `mcp` | filestore, netguard, ulid | controlplane, market, runtime (+compose) |
 | `acp` | brand | cmd/agt, tools/acpagent |
 | `acpcatalog` | — | controlplane, tools/acpagent |
-| `workflow` | bus, event, filestore, ulid | cmd/agezt, controlplane, runtime, tools/workflowtool |
+| `workflow` | bus, contract/workflowapi, event, filestore, ulid | cmd/agezt, controlplane, runtime |
 | `workflowexec` | — | **nobody** (dead; see §16.5) |
 | `update` | brand, netguard | cmd/agezt, controlplane, restapi |
 | `toolbox` | — | controlplane |
@@ -1376,7 +1376,8 @@ Responsibilities are split across packages:
 
 | Package / file | Owns |
 |---|---|
-| `kernel/modules/workflows/workflow` | Schema, `Validate`, `Store`, templating, built-in gallery, cron/event trigger runner |
+| `kernel/contract/workflowapi` | The rows (`Workflow`, `Node`, `Edge`, the per-node config types), the **rule** (`Validate` and its validators) and the port (`Store`) — the agent-facing tool is a plugin, so it may name the contract and nothing else |
+| `kernel/modules/workflows/workflow` | The `Store`, templating, built-in gallery, cron/event trigger runner; the rows and the rule are **aliases** of the contract's (one row, one spelling) |
 | `kernel/modules/workflows/workflow/engine*.go` | Execution, copilot (draft/refine), single-node test |
 | `kernel/runtime/workflow_host.go` | The host's face of the module: the public names, the ports, the wake-context mapping |
 | `kernel/webui` + `kernel/controlplane` | Webhook trigger |
@@ -1513,19 +1514,28 @@ Capability mapping for the `workflow` tool:
 | File | Contents |
 |---|---|
 | `doc.go` | Model doc; the module owns the engine. |
-| `workflow.go` | Node-type constants, `knownTypes`, `failable`, Node/Edge/Workflow, limits, `Validate` (Kahn), `TriggerConfig`, `canonicalDailyAt`, `TriggerSpec`. |
-| `workflow_node.go` | Per-node config structs, `TriggerNode`, `NodeByID`, `Store` struct. |
-| `workflow_validate.go` | Trigger validation, condition ops, `validateEdgePort`, reliability bounds, per-type `validateNodeConfig`. |
+| `aliases.go` | The rows and the rule as **aliases** of the contract's: `Workflow`, `Node`, `Edge`, the config types, the node-type constants, `RunResult`, `Validate` (a delegation). One row, one spelling. |
 | `workflow_store.go` | `OpenStore`, `Save`, `Restore`, `SetEnabled`, `Remove`, `Get`, `List`, `Count`. |
 | `runner.go` | `StartTriggers` (event + cron), `safeFire`, `Trigger`, `SubjectMatch` (`*` matches one token, trailing `>` matches one or more). |
 | `template.go` | `Interpolate`, `Lookup`, `renderValue`. |
 | `templates.go` | `Template` and the five-entry gallery. |
-| `engine.go` | `Ports`, `Provenance`, `RunResult`, `NodeTestResult`, `Engine`, the store CRUD and the event publication. |
+| `engine.go` | `Ports`, `Provenance`, `Engine`, the store CRUD and the event publication. |
 | `engine_run.go` | `Run`, the graph walk, the per-node reliability wrapper, the journal snippets, the provenance map. |
 | `engine_node.go` | The per-node dispatchers (tool, llm, condition, transform, delay, http, code, map, filter, switch, merge, approval, subflow, pipeline). |
 | `engine_helpers.go` | The pure helpers: item resolution, condition evaluation, JSON coercion. |
 | `engine_draft.go` | The copilot: the node-type contract, the draft/refine loop, the JSON extraction, the auto-layout. |
 | `engine_testnode.go` | The single-node test. |
+
+**`kernel/contract/workflowapi` files** (the rows and the rule):
+
+| File | Contents |
+|---|---|
+| `doc.go` | Model doc; the contract's house rules (rows, constants and pure functions only). |
+| `workflow.go` | Node-type constants, `knownTypes`, `failable`, Node/Edge/Workflow, limits, `Validate` (Kahn), `TriggerConfig`, `canonicalDailyAt`, `TriggerSpec`. |
+| `node.go` | Per-node config structs, `TriggerNode`, `NodeByID`. |
+| `workflow_validate.go` | Trigger validation, condition ops, `validateEdgePort`, reliability bounds, per-type `validateNodeConfig`. |
+| `run.go` | `RunResult`, `NodeTestResult` — the outcome the agent-facing tool reports. |
+| `store.go` | The `Store` port (`Get`, `List`) the agent-facing tool reads through. |
 
 Tests:
 - In this package: `runner_test`, `templates_test`, `workflow_test`, `trigger_source_test`.
