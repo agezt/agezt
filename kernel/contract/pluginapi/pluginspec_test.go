@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-package plugin
+package pluginapi_test
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/contract/pluginapi"
 )
 
 func TestParsePluginSpec_Valid(t *testing.T) {
-	got, err := ParsePluginSpec("search=/usr/bin/agezt-search,scrape=/opt/scraper -v --depth 2")
+	got, err := pluginapi.ParsePluginSpec("search=/usr/bin/agezt-search,scrape=/opt/scraper -v --depth 2")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -27,7 +29,7 @@ func TestParsePluginSpec_Valid(t *testing.T) {
 }
 
 func TestParsePluginSpec_WhitespaceTolerated(t *testing.T) {
-	got, err := ParsePluginSpec("  a = /bin/x ,  b=/bin/y  ")
+	got, err := pluginapi.ParsePluginSpec("  a = /bin/x ,  b=/bin/y  ")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -38,7 +40,7 @@ func TestParsePluginSpec_WhitespaceTolerated(t *testing.T) {
 
 func TestParsePluginSpec_EmptyAndTrailingCommas(t *testing.T) {
 	for _, spec := range []string{"", "   ", ",", " , , "} {
-		got, err := ParsePluginSpec(spec)
+		got, err := pluginapi.ParsePluginSpec(spec)
 		if err != nil {
 			t.Errorf("spec %q: unexpected error %v", spec, err)
 		}
@@ -47,7 +49,7 @@ func TestParsePluginSpec_EmptyAndTrailingCommas(t *testing.T) {
 		}
 	}
 	// A trailing comma after a real entry is fine.
-	got, err := ParsePluginSpec("a=/x,")
+	got, err := pluginapi.ParsePluginSpec("a=/x,")
 	if err != nil || len(got) != 1 {
 		t.Fatalf("got %+v, err %v", got, err)
 	}
@@ -63,7 +65,7 @@ func TestParsePluginSpec_Errors(t *testing.T) {
 	}
 	for name, spec := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, err := ParsePluginSpec(spec); err == nil {
+			if _, err := pluginapi.ParsePluginSpec(spec); err == nil {
 				t.Fatalf("spec %q: expected error, got nil", spec)
 			}
 		})
@@ -73,7 +75,7 @@ func TestParsePluginSpec_Errors(t *testing.T) {
 func TestParsePluginSpec_DuplicatePrefixRejected(t *testing.T) {
 	// The M223 bug: two entries with the same prefix used to spawn two
 	// processes and emit a misleading conflict warning. Now a hard error.
-	_, err := ParsePluginSpec("search=/bin/a,search=/bin/b")
+	_, err := pluginapi.ParsePluginSpec("search=/bin/a,search=/bin/b")
 	if err == nil {
 		t.Fatal("expected duplicate-prefix error")
 	}
@@ -81,14 +83,14 @@ func TestParsePluginSpec_DuplicatePrefixRejected(t *testing.T) {
 		t.Errorf("error = %q, want 'more than once'", err)
 	}
 	// Whitespace around the duplicate must not let it slip through.
-	if _, err := ParsePluginSpec("x=/a, x =/b"); err == nil {
+	if _, err := pluginapi.ParsePluginSpec("x=/a, x =/b"); err == nil {
 		t.Fatal("expected duplicate-prefix error despite whitespace")
 	}
 }
 
 func TestParsePluginSpec_QuotedPathWithSpaces(t *testing.T) {
 	// The Windows case: a plugin under "Program Files".
-	got, err := ParsePluginSpec(`win="C:/Program Files/agezt-tool.exe" --verbose`)
+	got, err := pluginapi.ParsePluginSpec(`win="C:/Program Files/agezt-tool.exe" --verbose`)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -104,7 +106,7 @@ func TestParsePluginSpec_QuotedPathWithSpaces(t *testing.T) {
 }
 
 func TestParsePluginSpec_SingleQuotesAndQuotedArg(t *testing.T) {
-	got, err := ParsePluginSpec(`a=/opt/x 'two words' z`)
+	got, err := pluginapi.ParsePluginSpec(`a=/opt/x 'two words' z`)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -116,7 +118,7 @@ func TestParsePluginSpec_SingleQuotesAndQuotedArg(t *testing.T) {
 		t.Errorf("args = %v, want %v", got[0].Args, want)
 	}
 	// Single-quoted path with spaces.
-	got2, err := ParsePluginSpec(`b='/opt/my app/bin'`)
+	got2, err := pluginapi.ParsePluginSpec(`b='/opt/my app/bin'`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +129,7 @@ func TestParsePluginSpec_SingleQuotesAndQuotedArg(t *testing.T) {
 
 func TestParsePluginSpec_UnquotedSpacesStillSplit(t *testing.T) {
 	// Backward-compatibility: without quotes, spaces split as before.
-	got, err := ParsePluginSpec("a=/bin/x -v --depth 2")
+	got, err := pluginapi.ParsePluginSpec("a=/bin/x -v --depth 2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,23 +139,23 @@ func TestParsePluginSpec_UnquotedSpacesStillSplit(t *testing.T) {
 }
 
 func TestParsePluginSpec_UnterminatedQuote(t *testing.T) {
-	if _, err := ParsePluginSpec(`a="/bin/unclosed`); err == nil {
+	if _, err := pluginapi.ParsePluginSpec(`a="/bin/unclosed`); err == nil {
 		t.Fatal("expected unterminated-quote error")
 	}
-	if _, err := ParsePluginSpec(`a="/bin/x"`); err != nil {
+	if _, err := pluginapi.ParsePluginSpec(`a="/bin/x"`); err != nil {
 		t.Fatalf("a balanced quote should be fine, got %v", err)
 	}
 }
 
 func TestParsePluginSpec_EmptyQuotedPathRejected(t *testing.T) {
 	// `prefix=""` parses to one empty field — still an empty path.
-	if _, err := ParsePluginSpec(`a=""`); err == nil {
+	if _, err := pluginapi.ParsePluginSpec(`a=""`); err == nil {
 		t.Fatal("expected empty-path error for a=\"\"")
 	}
 }
 
 func TestParsePluginSpec_NoArgsHasEmptyArgs(t *testing.T) {
-	got, err := ParsePluginSpec("a=/bin/x")
+	got, err := pluginapi.ParsePluginSpec("a=/bin/x")
 	if err != nil {
 		t.Fatal(err)
 	}

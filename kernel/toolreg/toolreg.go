@@ -30,6 +30,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/introspectapi"
 	"github.com/agezt/agezt/kernel/contract/overseerapi"
+	"github.com/agezt/agezt/kernel/contract/pluginapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
@@ -59,6 +60,13 @@ type BuildDeps struct {
 	// (kernel/contract/acpapi). Nil when unwired — the tool then registers
 	// only when a default command is configured.
 	ACP acpapi.Catalog
+	// Plugins is the out-of-process plugin spawn port: the built-in tools
+	// plugin hosts child processes, and the host side of that (the binary
+	// pinning, the frame caps, the callback bridge, the teardown) lives in
+	// a module the plugin may not name. The daemon supplies the contract's
+	// port (kernel/contract/pluginapi). Nil when unwired — the plugin tool
+	// then reports that the host is not available.
+	Plugins pluginapi.Spawner
 }
 
 // KernelDeps carries the post-Open dependencies for the Configure phase.

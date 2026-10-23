@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/modules/extensions/plugin"
+	"github.com/agezt/agezt/kernel/contract/pluginapi"
 	"github.com/agezt/agezt/plugins/tools/peer"
 )
 
@@ -20,7 +20,7 @@ func checkPlugins() doctorCheck {
 	if spec == "" {
 		return ok("plugins", "no external plugins configured")
 	}
-	entries, err := plugin.ParsePluginSpec(spec)
+	entries, err := pluginapi.ParsePluginSpec(spec)
 	if err != nil {
 		return fail("plugins", "AGEZT_PLUGINS is malformed: "+err.Error(),
 			"the daemon will refuse to start — fix the spec: AGEZT_PLUGINS=\"<prefix>=<path> [args],…\"")
@@ -33,25 +33,25 @@ func checkPlugins() doctorCheck {
 
 	// Pins and tool-allowlists are parsed with the same hard-error semantics;
 	// a malformed one is equally startup-blocking.
-	var pins plugin.PinSpec
+	var pins pluginapi.PinSpec
 	if pinSpec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PLUGIN_PINS")); pinSpec != "" {
-		pins, err = plugin.ParsePinSpec(pinSpec)
+		pins, err = pluginapi.ParsePinSpec(pinSpec)
 		if err != nil {
 			return fail("plugins", "AGEZT_PLUGIN_PINS is malformed: "+err.Error(),
 				"the daemon will refuse to start — fix the spec: AGEZT_PLUGIN_PINS=\"<prefix>=<hash>,…\"")
 		}
 	}
-	var allowed plugin.ToolAllowlistSpec
+	var allowed pluginapi.ToolAllowlistSpec
 	if toolSpec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PLUGIN_TOOLS")); toolSpec != "" {
-		allowed, err = plugin.ParseToolAllowlistSpec(toolSpec)
+		allowed, err = pluginapi.ParseToolAllowlistSpec(toolSpec)
 		if err != nil {
 			return fail("plugins", "AGEZT_PLUGIN_TOOLS is malformed: "+err.Error(),
 				"the daemon will refuse to start — fix the spec: AGEZT_PLUGIN_TOOLS=\"<prefix>=<tool>+<tool>,…\"")
 		}
 	}
-	var envGrants plugin.ToolAllowlistSpec
+	var envGrants pluginapi.ToolAllowlistSpec
 	if grantSpec := strings.TrimSpace(os.Getenv(brand.EnvPrefix + "PLUGIN_ENV")); grantSpec != "" {
-		envGrants, err = plugin.ParseToolAllowlistSpec(grantSpec)
+		envGrants, err = pluginapi.ParseToolAllowlistSpec(grantSpec)
 		if err != nil {
 			return fail("plugins", "AGEZT_PLUGIN_ENV is malformed: "+err.Error(),
 				"the daemon will refuse to start — fix the spec: AGEZT_PLUGIN_ENV=\"<prefix>=<VAR>+<VAR>,…\"")

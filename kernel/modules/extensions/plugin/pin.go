@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/pluginapi"
 	"github.com/agezt/agezt/kernel/platform/sandbox"
 	"lukechampine.com/blake3"
 )
@@ -71,7 +72,7 @@ func makeChild(path string, args []string) *osexec.Cmd {
 // last looked at it" — is exactly what hash pinning answers.
 func VerifyPin(path, pin string) error {
 	expected := strings.ToLower(strings.TrimSpace(pin))
-	if !looksLikeBLAKE3Pin(expected) {
+	if !pluginapi.LooksLikeBLAKE3Pin(expected) {
 		return fmt.Errorf("plugin: pin for %q is not a 64-char lowercase hex BLAKE3-256 digest", path)
 	}
 	got, err := HashFile(path)
@@ -83,22 +84,6 @@ func VerifyPin(path, pin string) error {
 			ErrPinMismatch, path, expected, got)
 	}
 	return nil
-}
-
-// looksLikeBLAKE3Pin is a cheap sanity check on the pin format
-// before we burn I/O on hashing the file. BLAKE3-256 → 32 bytes →
-// 64 hex chars.
-func looksLikeBLAKE3Pin(s string) bool {
-	if len(s) != 64 {
-		return false
-	}
-	for i := range len(s) {
-		c := s[i]
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
-			return false
-		}
-	}
-	return true
 }
 
 // HashFile returns the lowercase-hex BLAKE3-256 digest of the file
@@ -132,7 +117,7 @@ func HashBytes(data []byte) string {
 // lowercase hex). Exported so the `agt plugin registry` installer can reject a
 // malformed pin in an untrusted index before downloading anything.
 func LooksLikePin(s string) bool {
-	return looksLikeBLAKE3Pin(strings.ToLower(strings.TrimSpace(s)))
+	return pluginapi.LooksLikeBLAKE3Pin(strings.ToLower(strings.TrimSpace(s)))
 }
 
 // ErrPinMismatch is wrapped in the error VerifyPin returns when the

@@ -10,6 +10,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/app/acpbridge"
+	"github.com/agezt/agezt/kernel/app/pluginhost"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/toolreg"
@@ -86,6 +87,10 @@ func toolBuildDeps(baseDir string, stderr io.Writer, ward warden.Engine, notifyT
 		// plugin and may not name the catalogue module, so the daemon hands
 		// the contract's port over.
 		ACP: acpbridge.NewCatalog(),
+		// The built-in tools plugin hosts out-of-process plugins; the host
+		// side of that lives in a module the plugin may not name, so the
+		// daemon hands the contract's spawn port over.
+		Plugins: pluginhost.NewSpawner(),
 	}
 }
 

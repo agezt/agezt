@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package plugin
+package pluginapi
 
 import (
 	"fmt"
@@ -51,7 +51,7 @@ func ParsePinSpec(spec string) (PinSpec, error) {
 		if prefix == "" {
 			return nil, fmt.Errorf("plugin: pin entry %q has empty prefix", entry)
 		}
-		if !looksLikeBLAKE3Pin(pin) {
+		if !LooksLikeBLAKE3Pin(pin) {
 			return nil, fmt.Errorf("plugin: pin for %q is not a 64-char lowercase hex BLAKE3-256 digest (got %q)", prefix, pin)
 		}
 		// A duplicate prefix would silently keep the last pin — for a binary-integrity
@@ -63,6 +63,26 @@ func ParsePinSpec(spec string) (PinSpec, error) {
 		out[prefix] = pin
 	}
 	return out, nil
+}
+
+// LooksLikeBLAKE3Pin is a cheap sanity check on the pin format
+// before we burn I/O on hashing the file. BLAKE3-256 → 32 bytes →
+// 64 hex chars.
+//
+// It lives here because the PIN row lives here: the parser that accepts a
+// pin and the verifier that checks the binary against it must agree on what
+// a pin looks like, and there is one spelling of that.
+func LooksLikeBLAKE3Pin(s string) bool {
+	if len(s) != 64 {
+		return false
+	}
+	for i := range len(s) {
+		c := s[i]
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			return false
+		}
+	}
+	return true
 }
 
 // UnusedPins returns prefixes in spec that didn't match any in
