@@ -1,0 +1,55 @@
+// SPDX-License-Identifier: MIT
+
+package main
+
+import (
+	"testing"
+
+	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/plugins/providers/mock"
+)
+
+// TestSeedBuiltInGuardiansSeedsTheLiveFleet: the daemon's guardians are
+// seeded through the contract's port, and the seeding is REAL — the roster
+// holds the guardians afterwards. A daemon that handed the seeder nothing
+// would report a fleet it never created.
+func TestSeedBuiltInGuardiansSeedsTheLiveFleet(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	seeded, err := seedBuiltInGuardians(k)
+	if err != nil {
+		t.Fatalf("seedBuiltInGuardians: %v", err)
+	}
+	if len(seeded) == 0 {
+		t.Fatal("the daemon must seed its guardian fleet")
+	}
+
+	// The seeder's work must be in the LIVE roster, not in a copy.
+	agents := k.Roster().List()
+	if len(agents) < len(seeded) {
+		t.Fatalf("the live roster holds %d agents, the seeder reported %d", len(agents), len(seeded))
+	}
+	slugs := map[string]bool{}
+	for _, a := range agents {
+		slugs[a.Slug] = true
+	}
+	for _, s := range seeded {
+		if !slugs[s.Slug] {
+			t.Fatalf("the guardian %q was reported but is not in the roster", s.Slug)
+		}
+	}
+}
+
+// TestSeedBuiltInGuardiansRefusesAMissingKernel: a daemon with no kernel
+// hands the seeder a nil port, and the seeder refuses it — the boot step
+// hears about it instead of the daemon panicking on the first read.
+func TestSeedBuiltInGuardiansRefusesAMissingKernel(t *testing.T) {
+	seeded, err := seedBuiltInGuardians(nil)
+	if err == nil {
+		t.Fatalf("a missing kernel must be refused, got %v", seeded)
+	}
+}

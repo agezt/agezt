@@ -5,32 +5,33 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 type fakeHost struct {
-	agents    []roster.Profile
+	agents    []agentapi.Profile
 	standings []standingapi.Order
 	intervals []cadenceapi.Entry
 	dailies   []cadenceapi.Entry
 }
 
-func (h *fakeHost) Agents() []roster.Profile { return h.agents }
-func (h *fakeHost) AddAgent(p roster.Profile) (roster.Profile, error) {
+func (h *fakeHost) Agents() []agentapi.Profile { return h.agents }
+func (h *fakeHost) AddAgent(p agentapi.Profile) (agentapi.Profile, error) {
 	p.Enabled = true
 	h.agents = append(h.agents, p)
 	return p, nil
 }
-func (h *fakeHost) UpdateAgent(ref string, mutate func(*roster.Profile)) (roster.Profile, bool, error) {
+func (h *fakeHost) UpdateAgent(ref string, mutate func(*agentapi.Profile)) (agentapi.Profile, bool, error) {
 	for i := range h.agents {
 		if h.agents[i].Slug == ref || h.agents[i].ID == ref {
 			mutate(&h.agents[i])
 			return h.agents[i], true, nil
 		}
 	}
-	return roster.Profile{}, false, nil
+	return agentapi.Profile{}, false, nil
 }
 func (h *fakeHost) StandingOrders() []standingapi.Order {
 	out := make([]standingapi.Order, len(h.standings))
@@ -240,7 +241,7 @@ func TestSeedAll_Idempotent(t *testing.T) {
 }
 
 func TestSeedAll_ReconcilesExistingGuardianSafetyDefaults(t *testing.T) {
-	h := &fakeHost{agents: []roster.Profile{{
+	h := &fakeHost{agents: []agentapi.Profile{{
 		Slug:    "guardian-health",
 		System:  true,
 		Enabled: false,
@@ -255,14 +256,14 @@ func TestSeedAll_ReconcilesExistingGuardianSafetyDefaults(t *testing.T) {
 		TrustCeiling: "L4",
 		MemoryScope:  "guardian-health",
 		ToolDeny:     []string{"notify"},
-		NoisePolicy: &roster.NoisePolicy{
+		NoisePolicy: &agentapi.NoisePolicy{
 			MinNotifySeverity: "info",
 		},
 	}}}
 	if _, err := SeedAll(h, ""); err != nil {
 		t.Fatal(err)
 	}
-	var got *roster.Profile
+	var got *agentapi.Profile
 	for i := range h.agents {
 		if h.agents[i].Slug == "guardian-health" {
 			got = &h.agents[i]
@@ -298,9 +299,9 @@ func TestSeedAll_ReconcilesExistingGuardianSafetyDefaults(t *testing.T) {
 }
 
 func TestSeedAll_ReconcilesExistingGuardianStandingCooldown(t *testing.T) {
-	existing := make([]roster.Profile, 0, len(guardians))
+	existing := make([]agentapi.Profile, 0, len(guardians))
 	for _, g := range guardians {
-		existing = append(existing, roster.Profile{Slug: g.slug, System: true, Enabled: true})
+		existing = append(existing, agentapi.Profile{Slug: g.slug, System: true, Enabled: true})
 	}
 	h := &fakeHost{
 		agents: existing,
@@ -327,9 +328,9 @@ func TestSeedAll_ReconcilesExistingGuardianStandingCooldown(t *testing.T) {
 }
 
 func TestSeedAll_ReconcilesExistingGuardianScheduleCadence(t *testing.T) {
-	existing := make([]roster.Profile, 0, len(guardians))
+	existing := make([]agentapi.Profile, 0, len(guardians))
 	for _, g := range guardians {
-		existing = append(existing, roster.Profile{Slug: g.slug, System: true, Enabled: true})
+		existing = append(existing, agentapi.Profile{Slug: g.slug, System: true, Enabled: true})
 	}
 	h := &fakeHost{
 		agents: existing,
@@ -357,7 +358,7 @@ func TestSeedAll_ReconcilesExistingGuardianScheduleCadence(t *testing.T) {
 func TestSeedAll_SeedsMissingGuardiansAndLeavesPresentOnesUntouched(t *testing.T) {
 	// Built-in system guardians are restored when missing; operator control is
 	// expressed through pause/retire/edit, which reconcile preserves.
-	h := &fakeHost{agents: []roster.Profile{{Slug: "guardian-health", System: true, Enabled: true}}}
+	h := &fakeHost{agents: []agentapi.Profile{{Slug: "guardian-health", System: true, Enabled: true}}}
 	out, err := SeedAll(h, "")
 	if err != nil {
 		t.Fatal(err)
@@ -498,7 +499,7 @@ func TestSameEventSubjects_EdgeCases(t *testing.T) {
 }
 
 func TestReconcileExistingGuardian_NonSystemSkipped(t *testing.T) {
-	h := &fakeHost{agents: []roster.Profile{{
+	h := &fakeHost{agents: []agentapi.Profile{{
 		Slug:   "user-agent",
 		System: false,
 	}}}

@@ -11,12 +11,12 @@ package builtinguardians
 import (
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
-func defaultGuardianNoisePolicy() *roster.NoisePolicy {
-	return &roster.NoisePolicy{
+func defaultGuardianNoisePolicy() *agentapi.NoisePolicy {
+	return &agentapi.NoisePolicy{
 		SilentOnSuccess:      true,
 		DisableMemoryWrites:  true,
 		MinNotifySeverity:    defaultMinNotifySeverity,

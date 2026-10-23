@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // errHost delegates to fakeHost but returns errors from configurable methods.
@@ -18,11 +18,11 @@ type errHost struct {
 	errOnAddAgent bool
 }
 
-func (h *errHost) AddAgent(_ roster.Profile) (roster.Profile, error) {
+func (h *errHost) AddAgent(_ agentapi.Profile) (agentapi.Profile, error) {
 	if h.errOnAddAgent {
-		return roster.Profile{}, errors.New("add agent error")
+		return agentapi.Profile{}, errors.New("add agent error")
 	}
-	p := roster.Profile{Slug: "test", System: true}
+	p := agentapi.Profile{Slug: "test", System: true}
 	h.agents = append(h.agents, p)
 	return p, nil
 }
