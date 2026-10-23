@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // ErrHalted is the sentinel returned when a run hits a halted kernel.

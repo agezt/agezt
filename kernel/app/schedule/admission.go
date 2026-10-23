@@ -5,7 +5,7 @@ package schedule
 import (
 	"errors"
 	"github.com/agezt/agezt/kernel/cadence"
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"strings"
 )
 

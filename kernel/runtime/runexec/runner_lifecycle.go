@@ -13,9 +13,9 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/work/assure"
 	"github.com/agezt/agezt/kernel/resume"
-	"github.com/agezt/agezt/kernel/roster"
 )
 
 func (r *Runner) CompleteAgentLifecycle(ctx context.Context, corr string) {

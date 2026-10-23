@@ -11,11 +11,11 @@ import (
 	"time"
 
 	approster "github.com/agezt/agezt/kernel/app/roster"
-	"github.com/agezt/agezt/plugins/tools/overseertool"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 type routingChainApplier interface {
-	ApplyRoutingChain(ref, taskType string, targetChain []string, reason string) (overseertool.RepairResult, error)
+	ApplyRoutingChain(ref, taskType string, targetChain []string, reason string) (roster.RepairResult, error)
 }
 
 // postOperatorHelp posts an operator help request to target on the shared board
@@ -38,7 +38,10 @@ func (s *Server) postOperatorHelp(target, text string) (string, error) {
 // applyRoutingChain forces a task type's model chain through the overseer repair
 // source.
 func (s *Server) applyRoutingChain(slug, taskType string, chain []string, reason string) (approster.RoutingChainResult, error) {
-	src, ok := overseertool.NewKernelSource(s.k, s.baseDir).(routingChainApplier)
+	if s.repairSource == nil {
+		return approster.RoutingChainResult{}, fmt.Errorf("force_chain resolution is not available on this daemon")
+	}
+	src, ok := s.repairSource.(routingChainApplier)
 	if !ok {
 		return approster.RoutingChainResult{}, fmt.Errorf("force_chain resolution is not supported by the active repair source")
 	}

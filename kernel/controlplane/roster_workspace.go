@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 
 	approster "github.com/agezt/agezt/kernel/app/roster"
-	core "github.com/agezt/agezt/kernel/roster"
+	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // workspacePorts binds the host's filesystem to the application's workspace

@@ -62,9 +62,6 @@
 
     {"pattern": "kernel/channelwire", "layer": 3, "module": "channels"},
 
-    {"pattern": "kernel/roster", "layer": 3, "module": "agents"},
-    {"pattern": "kernel/selfrepair", "layer": 3, "module": "agents"},
-
 
 
     {"pattern": "kernel/mcp", "layer": 3, "module": "extensions"},

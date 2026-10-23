@@ -5,7 +5,7 @@ package schedule_test
 import (
 	appschedule "github.com/agezt/agezt/kernel/app/schedule"
 	"github.com/agezt/agezt/kernel/cadence"
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"reflect"
 	"testing"
 )

@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/agezt/agezt/kernel/app/providers"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
@@ -134,6 +135,11 @@ type Server struct {
 	// Nil when update is disabled; the update handlers report that.
 	updateSvc appupdate.Backend
 
+	// repairSource is the agent-repair surface the operator's incident
+	// resolution drives, injected via SetRepairSource. Nil when unwired; the
+	// repair paths report that rather than dereferencing nil.
+	repairSource roster.RepairSource
+
 	// One stable application-owned channel OAuth state/service per Server.
 	channelOAuthOnce    sync.Once
 	channelOAuthState   *appchannels.OAuthMemory
@@ -190,6 +196,14 @@ func (s *Server) SetBoard(st *board.Store, notify func(m board.Message, corr str
 	s.boardStore = st
 	s.boardNotify = notify
 }
+
+// SetRepairSource wires the agent-repair surface the operator's incident
+// resolution drives (the overseer's repair source). The daemon injects it:
+// the control plane must not import the tool that provides it — an adapter
+// reaches the module's vocabulary, not a plugin (archcheck's principle P5).
+// Nil when unwired; the repair paths then report that instead of
+// dereferencing nil.
+func (s *Server) SetRepairSource(src roster.RepairSource) { s.repairSource = src }
 
 // SetUpdateService wires the self-update engine (M860). Nil when update is
 // disabled; update commands report that rather than dereferencing nil.

@@ -11,8 +11,8 @@ import (
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/platform/schema"
-	core "github.com/agezt/agezt/kernel/roster"
 )
 
 // WakeRequest keeps every argument raw: ref and intent are strict strings, while

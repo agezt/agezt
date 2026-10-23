@@ -43,6 +43,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/market"
+	"github.com/agezt/agezt/kernel/modules/agents/selfrepair"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	kernelmemory "github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
@@ -50,7 +51,6 @@ import (
 	"github.com/agezt/agezt/kernel/pulse"
 	"github.com/agezt/agezt/kernel/redact"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/selfrepair"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/kernel/update"
@@ -64,6 +64,7 @@ import (
 	"github.com/agezt/agezt/plugins/providers/rerank"
 	"github.com/agezt/agezt/plugins/providers/voice"
 	"github.com/agezt/agezt/plugins/tools/codeexec"
+	"github.com/agezt/agezt/plugins/tools/overseertool"
 )
 
 func main() {
@@ -1123,6 +1124,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	if cancelOnDisconnect {
 		cancelOnDisconnectDesc = "on (a dropped `agt run` client cancels its run)"
 	}
+	// The agent-repair surface (the overseer's kernel source). The daemon owns
+	// the wiring: the control plane and the self-repair module both ASK for a
+	// repair, and neither imports the tool that provides it — an adapter
+	// reaches the module's vocabulary, never a plugin (archcheck's P5).
+	repairSource := overseertool.NewKernelSource(k, baseDir)
+	srv.SetRepairSource(repairSource)
 	if err := srv.Start(ctx); err != nil {
 		fmt.Fprintf(stderr, "%s: start control plane: %v\n", brand.Binary, err)
 		return 1
@@ -1692,7 +1699,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// stop/start, self-update, or hard kill — left mid-flight, so ongoing work
 	// survives the interruption. Runs the roster + run infra armed just above.
 	fmt.Fprintf(stdout, "  run resume       : %s\n", buildResumer(ctx, k))
-	fmt.Fprintf(stdout, "  auto repair      : %s\n", selfrepair.WireAutoRepair(ctx, k, baseDir, boardStore, boardNotify))
+	fmt.Fprintf(stdout, "  auto repair      : %s\n", selfrepair.WireAutoRepair(ctx, k, repairSource, boardStore, boardNotify))
 
 	// Workflow triggers (M799): arm cron/event triggers for ENABLED workflows.
 	// The runner consults the store live, so canvas/CLI saves take effect

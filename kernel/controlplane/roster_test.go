@@ -18,11 +18,11 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
-	"github.com/agezt/agezt/kernel/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -1832,6 +1832,7 @@ func TestAgentRepair_AcceptsAndJournalsLifecycle(t *testing.T) {
 		t.Fatalf("repair correlation missing: %+v", res)
 	}
 	var sawRequested, sawCompleted bool
+	var completedAnswer string
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		_ = k.Journal().Range(func(e *event.Event) error {
@@ -1848,6 +1849,7 @@ func TestAgentRepair_AcceptsAndJournalsLifecycle(t *testing.T) {
 				if pl["root_incident_id"] != "inc-root-1" {
 					t.Fatalf("repair lineage missing: %+v", pl)
 				}
+				completedAnswer, _ = pl["answer"].(string)
 			}
 			return nil
 		})
@@ -1858,6 +1860,14 @@ func TestAgentRepair_AcceptsAndJournalsLifecycle(t *testing.T) {
 	}
 	if !sawRequested || !sawCompleted {
 		t.Fatalf("repair lifecycle incomplete: requested=%v completed=%v", sawRequested, sawCompleted)
+	}
+	// The repair must actually have REPAIRED: the governed pass ran the agent
+	// and its answer is the pass's answer. Without this assertion a repair
+	// that did nothing at all — an empty result, a source that never ran —
+	// still satisfied "accepted" + "journaled" and the mutation run caught
+	// exactly that.
+	if !strings.Contains(completedAnswer, "repair complete") {
+		t.Fatalf("repair did not report the agent's answer: %q", completedAnswer)
 	}
 }
 

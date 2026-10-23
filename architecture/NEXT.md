@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.7 the workflows module, 2026-10-22
+## Current checkpoint — W3.8 the agents module, 2026-10-22
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1361,14 +1361,60 @@ files, five of the seventeen mutations would have escaped.
   same events, the same store file, the same node types, the same reliability
   semantics, the same errors, the same public API.
 
-**W3.8 — the agents module (the next slice, to scope).** The roadmap's
-order continues with `modules/agents` (roster, guardians, selfrepair, reaper, overseer
-ops — this removes the `controlplane/selfrepair` →
-`plugins/tools/overseertool` edge), `modules/extensions` (mcp, plugin host,
-toolforge, toolbox, acpcatalog), `modules/providers` (catalog, chatgptauth,
-providerboot) and `modules/runs` last (what remains of `kernel/runtime` +
-`runexec` + the agent loop + resume + delegation + intervention;
-`kernel/runtime` is deleted when empty).
+- W3.8 (the agents module) is committed on `main` as a code commit plus a
+  docs commit and published from `arch/w2-dispatch` the same way. Two packages
+  were already one module — the layer map named `kernel/roster` and
+  `kernel/selfrepair` as layer 3 in the module `agents` — but both sat at the
+  top of `kernel/`, outside the `kernel/modules/` tree W3 establishes as the
+  target home of the bounded contexts; they moved to
+  `kernel/modules/agents/{roster,selfrepair}`. The package names do not
+  change, so the move is an import-path change and nothing else (161 files
+  repointed). The placement is now *derived* (`kernel/modules/*/...` → module
+  `agents`) and the two hand-written layer rules are gone.
+  The roadmap's second ask — fix guardian reconcile resetting operator-lowered
+  caps — was a **ceiling the daemon raised behind the operator's back**: the
+  built-in fleet's reconcile assigned the built-in spend ceilings ($5/run,
+  $10/day) outright on every boot, so an operator who tightened a guardian's
+  budget got it silently raised back — the daemon undid the operator's own
+  policy, and the guardian-budget guardian's own contract ("pause or lower
+  max_daily_mc; never raise ceilings") was broken by the daemon itself. The
+  package's own test already stated the rule ("the reconcile only tightens —
+  clamps high / fills zero — it never raises an operator's tighter limit") but
+  only exercised the clamping half; the built-in caps are now **ceilings** (a
+  cap above the maximum is clamped down, an unset one is filled, a lowered one
+  is left alone), the same rule the trust ceiling right below it already
+  followed.
+  The roadmap's third ask — remove the `kernel/controlplane`/`selfrepair` →
+  `plugins/tools/overseertool` edge — is done by giving the row all three
+  callers speak (the outcome of one agent repair) to the module
+  (`roster.RepairResult`, with the overseer tool keeping its own name as an
+  alias) and by injecting the repair source from the daemon: the control plane
+  and the self-repair module now ask for a repair instead of importing the tool
+  that provides one. **Both `upward` edges are gone and the ratchet DROPS from
+  128 to 126** import violations (13 call sites unchanged).
+  8 mutations, 8 caught — and the run found an honest gap in the **tests**:
+  the operator's repair test asserted only that the repair was accepted and
+  journaled, so a repair that did nothing at all still satisfied it; the test
+  now asserts the repair reported the agent's own answer, and the mutations are
+  caught on the repeat (two mutations' first anchors did not compile — a build
+  failure is not an escape and is not counted as one). The move broke one live
+  reference and it is fixed: the OpenClaw/Hermes parity ledger
+  (`cmd/agt/compare_data.go`) asserts that its evidence files exist and one row
+  still pointed at `kernel/roster/roster.go`. Nothing else changed: the same
+  profiles, the same store, the same events, the same caps for a guardian that
+  never had a lowered one.
+
+**W3.9 — the reaper and the module's api package (the next slice, to scope).**
+The roadmap's order continues with the **reaper** (the runtime's health loop:
+`kernel/runtime/reaper*.go` — the scan, the health report, the probation, the
+routing pressure — plus the reaper's report rows that the repair brief is built
+from; moving it is the same ports rewrite W3.7 did for the workflow engine),
+the agents module's **api** package (the vocabulary + the ports, so the host
+stops importing the module's internals), then `modules/extensions` (mcp, plugin
+host, toolforge, toolbox, acpcatalog), `modules/providers` (catalog,
+chatgptauth, providerboot) and `modules/runs` last (what remains of
+`kernel/runtime` + `runexec` + the agent loop + resume + delegation +
+intervention; `kernel/runtime` is deleted when empty).
 
 Three shapes are now proven, and the next slice picks the one that fits:
 **W3.1's** — the feature's logic moves into the module, the module's **api**

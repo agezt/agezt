@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	core "github.com/agezt/agezt/kernel/roster"
+	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // launchRecorder collects what a launcher published.

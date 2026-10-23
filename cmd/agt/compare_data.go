@@ -36,7 +36,7 @@ func compareCapabilities() []compareCapability {
 			Status:      compareStatusSupported,
 			Expectation: "Agents/profiles survive beyond a single chat run and carry configuration.",
 			Agezt:       "AGEZT roster profiles are durable identities with lifecycle, authority, model routing, ownership, memory scope, and wake behavior.",
-			Evidence:    []string{"kernel/roster/roster.go", "kernel/runtime/runtime.go", "frontend/src/features/agents/components/Roster.tsx", "frontend/src/features/agents/components/AgentDetail.tsx"},
+			Evidence:    []string{"kernel/modules/agents/roster/roster.go", "kernel/runtime/runtime.go", "frontend/src/features/agents/components/Roster.tsx", "frontend/src/features/agents/components/AgentDetail.tsx"},
 			Next:        "Add importers for OpenClaw/Hermes profile and memory files.",
 		},
 		{

@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	core "github.com/agezt/agezt/kernel/roster"
+	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // ProfileView preserves the legacy JSON round trip and kind/managed augmentation.

@@ -8,7 +8,7 @@ import (
 	"github.com/agezt/agezt/kernel/app"
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"net"
 	"testing"
 	"time"

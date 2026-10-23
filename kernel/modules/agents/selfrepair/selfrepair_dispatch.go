@@ -15,9 +15,9 @@ import (
 	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/plugins/tools/overseertool"
 	"os"
 	"strings"
 )
@@ -110,7 +110,7 @@ func (c *autoRepairCoordinator) dispatch(ctx context.Context, k *kernelruntime.K
 		return
 	}
 	var (
-		res overseertool.RepairResult
+		res roster.RepairResult
 		err error
 	)
 	if cand.RoutingRollbackTaskType != "" && len(cand.RoutingRollbackToChain) > 0 {

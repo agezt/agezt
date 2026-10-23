@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/plugins/tools/overseertool"
 )
 
 const (
@@ -25,16 +25,22 @@ const (
 	autoRepairReaperWindow          = 30 * 24 * time.Hour
 )
 
+// RepairSource is the module's view of the agent-control surface the
+// auto-repair coordinator drives. The daemon injects the implementation; the
+// module never imports the tool that provides it — a module reaches another
+// module's api, never a plugin (archcheck's principle P5).
+type RepairSource = roster.RepairSource
+
 type autoRepairSource interface {
-	RepairAgent(ref, reason string) (overseertool.RepairResult, error)
+	RepairAgent(ref, reason string) (roster.RepairResult, error)
 }
 
 type autoRepairRoutingRollbacker interface {
-	RollbackRouting(ref, taskType string, targetChain []string, reason string) (overseertool.RepairResult, error)
+	RollbackRouting(ref, taskType string, targetChain []string, reason string) (roster.RepairResult, error)
 }
 
 type autoRepairRoutingChainApplier interface {
-	ApplyRoutingChain(ref, taskType string, targetChain []string, reason string) (overseertool.RepairResult, error)
+	ApplyRoutingChain(ref, taskType string, targetChain []string, reason string) (roster.RepairResult, error)
 }
 
 // Mailbox is the message-board surface auto-repair escalations post through.
@@ -49,7 +55,11 @@ type Mailbox interface {
 // WireAutoRepair subscribes the auto-repair coordinator to the reaper pulse
 // subject and launches it on ctx. It returns the boot-banner status string
 // ("armed (…)" or a "disabled (…)" reason) exactly as the daemon prints it.
-func WireAutoRepair(ctx context.Context, k *kernelruntime.Kernel, baseDir string, mailbox Mailbox, postNotify func(board.Message, string)) string {
+//
+// src is the agent-control surface the coordinator repairs through. The
+// daemon injects it: the module asks for the repair it needs, it does not
+// reach into the tool that provides it.
+func WireAutoRepair(ctx context.Context, k *kernelruntime.Kernel, src RepairSource, mailbox Mailbox, postNotify func(board.Message, string)) string {
 	if k == nil || k.Bus() == nil {
 		return "disabled"
 	}
@@ -61,7 +71,6 @@ func WireAutoRepair(ctx context.Context, k *kernelruntime.Kernel, baseDir string
 		return fmt.Sprintf("disabled (subscribe failed: %v)", err)
 	}
 	coord := newAutoRepairCoordinator(autoRepairCooldown())
-	src := overseertool.NewKernelSource(k, baseDir)
 	go coord.run(ctx, sub, k, src, mailbox, postNotify)
 	return fmt.Sprintf("armed (%s; cooldown %s)", autoRepairPulseSubject, coord.cooldown)
 }

@@ -9,7 +9,7 @@ import (
 	appstanding "github.com/agezt/agezt/kernel/app/standing"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
-	"github.com/agezt/agezt/kernel/roster"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	orders "github.com/agezt/agezt/kernel/standing"
 	"reflect"
 	"testing"
