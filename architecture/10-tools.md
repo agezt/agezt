@@ -343,9 +343,9 @@ The implementation that answers the port (app layer, `kernel/app/overseer`):
 | **acpagent** `doc.go` | Package doc (ACP client bridge, SPEC-15 §3). |
 | `acpagent.go` | `transport`, `dialFunc`, `Tool{Cmd, Cwd, Timeout, dial}`, `New`, `Definition` (task + optional `agent` slug), `render`, `truncate`, `platformShell`, `AbsCwd`. |
 | `acpagent_invoke.go` | `Invoke` (resolve via `acpcatalog.ResolveCommand`, spawn, ctx-watcher close, Initialize/NewSession/Prompt with bounded accumulation), `spawnAgent` (`exec.Command` via shell, scrubbed env, idempotent bounded close). |
-| **artifacts** `artifacts.go` | `Index` interface, `Tool`, list (filter/limit)/read (text detection, 256 KiB)/delete. |
+| **artifacts** `artifacts.go` | `Index` interface (the contract's rows: `remoteapi.Filter`, `remoteapi.Artifact`), `Tool`, list (filter/limit)/read (text detection, 256 KiB)/delete. |
 | **boardtool** `doc.go` | Package doc. |
-| `board.go` | Limits, `boardStore` interface, `PostNotifier`, `Tool{mu, store, now, notify}`, `Bind(dir)` (test/legacy), `BindStore`, `OnPost`. |
+| `board.go` | Limits, `boardStore` (the contract's `boardapi.Store` port), `PostNotifier`, `Tool{mu, store, now, notify}`, `BindStore` (the daemon hands the one shared store over), `OnPost`. |
 | `tool.go` | `Definition` (10 ops; op inferred when omitted), `input`, `clampLimit`, `Invoke` (notifies on post/send/reply/broadcast/help). |
 | `tool_helpers.go` | `applyActorIdentity` (no impersonation; defaults from/to), `msgView`, `okJSON`, `errResult`. |
 | **coding** `coding.go` | Bridge: git-repo check, detached worktree in temp, run `AGEZT_CODING_CMD` via shell with scrubbed env + task env, `git add -A` + `git diff --cached HEAD` on a fresh 30 s ctx, worktree removal; `renderResult`, `execCommand`, `AbsRepo`. |

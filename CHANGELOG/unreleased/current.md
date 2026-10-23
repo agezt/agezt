@@ -892,6 +892,21 @@ This file holds the active `[Unreleased]` working set.
   the wiring is now measured against a live kernel, so a daemon that stops
   handing the tools what they need fails a test instead of the agent.
 
+- **The board tool and the artifacts tool no longer reach into a module.** A
+  plugin may reach the contract and the platform layers and nothing else, yet
+  the board tool reached for the message row, the wildcard recipient and the
+  store it drove — and it could open a store of its own — while the artifacts
+  tool reached for the artifact row and the filter it queries with. The board
+  tool now names the rows where they live and takes the store through the
+  contract's port; the store of its own is gone, because two writer instances
+  silently drop each other's messages. The artifacts tool now names the
+  artifact row and the filter beside it. Nothing an operator or an agent can
+  see changes: the same messages, the same broadcasts, the same files listed.
+  One thing did change underneath, and it is worth knowing: the wildcard
+  recipient's value was read by name — by the persisted board file, by the
+  daemon's boot replay and by the SDK's mailbox filter — so it is now declared
+  once, in the contract, and pinned by a test.
+
 - **The council, the conductor and the research tools no longer reach into the
   kernel for a type.** The rows the reasoning module produces — a consensus,
   a transcript, a cited report — move to the contract layer

@@ -45,7 +45,11 @@ type Message = boardapi.Message
 // Everyone is the wildcard recipient for a broadcast (M849): a message To this
 // value lands in every agent's Inbox except the sender's. It is not a real agent
 // slug — Inbox special-cases it.
-const Everyone = "*"
+//
+// The value lives in the contract layer (kernel/contract/boardapi) with the
+// message row: the board tool is a plugin, and a plugin may only reach the
+// contract. The name stays here as an alias.
+const Everyone = boardapi.Everyone
 
 // Store is the persistent, concurrency-safe message board. Many agents (and
 // their goroutines) post concurrently, so every access is mutex-guarded.

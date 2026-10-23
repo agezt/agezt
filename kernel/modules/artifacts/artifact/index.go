@@ -28,11 +28,11 @@ import (
 type Entry = remoteapi.Artifact
 
 // Filter narrows List; empty fields impose no constraint (exact match otherwise).
-type Filter struct {
-	Kind   string
-	Source string
-	Corr   string
-}
+//
+// It is the contract's — the query over the artifact row — because the tool
+// that lists artifacts is a PLUGIN, and a plugin may reach the contract and
+// the platform layers and nothing else. The name stays here as an alias.
+type Filter = remoteapi.Filter
 
 // RefGuard reports which blobs are still referenced from OUTSIDE the index —
 // in practice by a journal event's raw_ref: the tool.result that offloaded a

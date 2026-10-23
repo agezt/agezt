@@ -19,9 +19,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/remoteapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 )
 
 // MaxReadBytes caps how much of a text artifact `read` returns inline, so pulling
@@ -32,11 +32,17 @@ const MaxReadBytes = 256 << 10 // 256 KiB
 // DefaultListLimit caps a `list` with no explicit limit.
 const DefaultListLimit = 50
 
-// Index is the slice of the artifact index the tool needs — satisfied by
-// *artifact.Index. An interface keeps the tool decoupled and testable.
+// Index is the slice of the artifact index the tool needs — satisfied by the
+// artifacts module's *artifact.Index. An interface keeps the tool decoupled
+// and testable.
+//
+// The rows it speaks are the contract's (kernel/contract/remoteapi): the tool
+// is a plugin, and a plugin may reach the contract and the platform layers and
+// nothing else — so a row a plugin has to name cannot live in a module's
+// implementation package.
 type Index interface {
-	List(f artifact.Filter) []artifact.Entry
-	Bytes(id string) ([]byte, artifact.Entry, error)
+	List(f remoteapi.Filter) []remoteapi.Artifact
+	Bytes(id string) ([]byte, remoteapi.Artifact, error)
 	Delete(id string) error
 }
 
@@ -126,7 +132,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 }
 
 func (t *Tool) list(in input) toolapi.Result {
-	entries := t.index.List(artifact.Filter{Kind: in.Kind, Source: in.Source, Corr: in.Corr})
+	entries := t.index.List(remoteapi.Filter{Kind: in.Kind, Source: in.Source, Corr: in.Corr})
 	limit := in.Limit
 	if limit <= 0 {
 		limit = DefaultListLimit

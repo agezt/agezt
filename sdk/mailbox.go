@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 )
@@ -69,7 +70,7 @@ func (c *Client) SendMail(ctx context.Context, d MailDraft) (Mail, error) {
 
 // Broadcast sends an announcement to EVERY inbox except the sender's.
 func (c *Client) Broadcast(ctx context.Context, from, text string) (Mail, error) {
-	return c.SendMail(ctx, MailDraft{From: from, To: "*", Text: text})
+	return c.SendMail(ctx, MailDraft{From: from, To: boardapi.Everyone, Text: text})
 }
 
 // Inbox returns what waits for name, newest first: messages addressed to it
@@ -173,7 +174,7 @@ func mailForName(name, from, to string) bool {
 	}
 	name = strings.ToLower(strings.TrimSpace(name))
 	directed := strings.ToLower(strings.TrimSpace(to)) == name
-	broadcast := to == "*" && strings.ToLower(strings.TrimSpace(from)) != name
+	broadcast := to == boardapi.Everyone && strings.ToLower(strings.TrimSpace(from)) != name
 	return directed || broadcast
 }
 

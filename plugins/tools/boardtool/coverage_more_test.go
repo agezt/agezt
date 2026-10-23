@@ -23,34 +23,16 @@ func TestBoardCoverageNewBindBindStoreOnPostCurrent(t *testing.T) {
 		t.Fatal("New should leave notify nil")
 	}
 
-	// Bind into a fresh temp dir.
-	if err := tool.Bind(t.TempDir()); err != nil {
-		t.Fatalf("Bind: %v", err)
-	}
-	if tool.store == nil {
-		t.Fatal("Bind should set store")
-	}
-	if err := tool.Bind(t.TempDir()); err != nil {
-		t.Fatalf("Bind again: %v", err)
-	}
-
-	// Bind error path: empty path.
-	if err := tool.Bind(""); err == nil {
-		t.Fatal("empty dir should error")
-	}
-
-	// Re-create so we can test bindStore (the internal injection helper used
-	// by the existing tests; BindStore is the public *board.Store path).
-	tool = New()
+	// BindStore wires the store the daemon hands over — the contract's port.
 	store := &fakeStore{}
-	tool.bindStore(store)
+	tool.BindStore(store)
 	if tool.store == nil {
-		t.Fatal("bindStore should set store")
+		t.Fatal("BindStore should set store")
 	}
-	// bindStore overwrites unconditionally (no nil guard) — document that.
-	tool.bindStore(nil)
+	// BindStore overwrites unconditionally (no nil guard) — document that.
+	tool.BindStore(nil)
 	if tool.store != nil {
-		t.Fatal("bindStore(nil) currently overwrites with nil; behavior is intentional or a future guard")
+		t.Fatal("BindStore(nil) currently overwrites with nil; behavior is intentional or a future guard")
 	}
 	// Re-set for downstream tests.
 	tool.bindStore(store)

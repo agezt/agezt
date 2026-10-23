@@ -22,6 +22,10 @@ import (
 // IDENTICAL.
 var _ func(remoteapi.Artifact) = func(artifact.Entry) {}
 
+// The filter IS the contract's: it is the query over the artifact row, and the
+// tool that lists artifacts is a PLUGIN — a plugin may only reach the contract.
+var _ func(remoteapi.Filter) = func(artifact.Filter) {}
+
 // TestEntryIsTheContractRow: the store's row IS the contract row — the same
 // declaration the REST adapter serves and the peer call reads — so the stored
 // row and the served row cannot drift apart.

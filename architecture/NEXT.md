@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.20 the two trigger tools name their rows where they live, 2026-10-23
+## Current checkpoint — W3.21 two more tools name their rows where they live, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1783,6 +1783,37 @@ files, five of the seventeen mutations would have escaped.
   was run again. Three mutations are caught **only** by the wiring tests: the
   tool's own suite proves the tool, and nothing but a test against a live
   kernel proves that the daemon still hands it what it needs.
+
+- W3.21 (two more tools name their rows where they live) is committed on
+  `main` the same way. The **board tool** (how agents talk to each other) and
+  the **artifacts tool** (the files an agent saved) each reached into a module:
+  for the rows they speak, for the filter they query with, and for the store
+  they drive. Both are plugins.
+  The board tool now names the board row and the **wildcard recipient** where
+  they live (`kernel/contract/boardapi`) and takes the store as a **port**
+  (`boardapi.Store`). Its old `Bind(dir)` — which opened a store of its own —
+  is **gone**: the daemon opens the one shared store and hands it over, because
+  two writer instances silently drop each other's messages. The artifacts tool
+  now names the artifact row and the filter beside it
+  (`kernel/contract/remoteapi`).
+  The **ratchet went DOWN**: 105/13 → **103/13** — both plugin-reach edges are
+  gone, and the **two stale allowlist entries were deleted**.
+  The interesting row was the **wildcard recipient**: `board.Everyone` was a
+  value the module used consistently, so **no test could see it change** — but
+  the value is read **by value** across the boundary (the persisted board file
+  stores it, the daemon's boot replay special-cases it, and the SDK's mailbox
+  filter compares the literal `"*"`), so a change to the constant would have
+  silently broken every reader that knows the value and not the constant. The
+  SDK now names the contract's constant instead of repeating the literal, and
+  a test pins the value itself.
+  The permanent tests: the **store port** as a compile-time promise plus a test
+  that the store still works when it is held as the port, the **identity
+  assertion** for the filter, the **wiring** measured against a real board
+  store and a real kernel, and — never measured before — the **wire shapes**
+  of the board view and the artifacts row, pinned key for key.
+  17 mutations: 14 caught, 3 build errors recorded separately — and one
+  mutation **survived the first round** (the wildcard's value), so the gap was
+  closed and it was run again.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
