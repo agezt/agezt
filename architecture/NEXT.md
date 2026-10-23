@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.12 the providers module's second half, 2026-10-23
+## Current checkpoint — W3.13 the reasoning rows move to the contract layer, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1557,6 +1557,38 @@ files, five of the seventeen mutations would have escaped.
   Nothing else changed: the same selection rules, the same registration order,
   the same live down-route eligibility set, the same prices and the same wire.
 
+- W3.13 (the reasoning rows move to the contract layer) is committed on `main`
+  the same way. Archcheck''s plugin rule is strict — a plugin (L6) may reach
+  the **contract** and the **platform** layers and nothing else — and the
+  council, the conductor and the research tools each reached into
+  `kernel/runtime` for exactly one reason: to name the reasoning module''s
+  rows in their `Runner` interface. The interface was already the right shape
+  (a port!); only its **types** were on the wrong side of the layer line. A
+  row the agent is shown is a contract between the module that produces it and
+  the tool that shows it, so it belongs at the bottom: the rows moved to
+  `kernel/contract/reasoningapi` (L1), the module''s api re-exports them as
+  **aliases** (so the host''s public names and the module''s surface do not
+  move), and the tools name the contract''s rows directly.
+  The **ratchet went DOWN again**: 123/13 → **120/13**, three plugin-reach
+  edges gone, no allowlist entry added.
+  The module, the host and the tools now speak **one** type, and the wiring
+  only compiles because it is one type — which is now **asserted at the seam**:
+  `kernel/modules/reasoning/api/identity_test.go` states the identity as a
+  **function type** on purpose, because an assignment would also accept a copy
+  with the same fields while a function type requires identity, so a module
+  that ever declares its own copy is reported at the seam instead of at the far
+  end of the wiring.
+  The three tools'' tests gained the assertion that was missing: the **whole**
+  result must reach the agent (the research tool''s claims, verdicts,
+  verification flag, cited-source count and source rows; the conductor''s
+  transcript steps, resolved role models and verdict; the council''s panel,
+  opinions, dissent and dated brief).
+  9 mutations, 9 caught, and 1 build error recorded separately: M10 (the
+  module copies the contract row instead of aliasing it) **escaped the first
+  round**, because the module''s own tests speak the module''s names
+  consistently and the divergence only shows where the host satisfies the
+  tools'' `Runner` interfaces — the identity assertion is what closed it.
+
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
 grew a gate, `kernel/modules/providers/api`. The slice was a **ports rewrite**:
@@ -1606,10 +1638,20 @@ so the module's own vocabulary had a home to grow into.
 The roadmap's order continues with `modules/runs` last (what remains of
 `kernel/runtime` + `runexec` + the agent loop + resume + delegation +
 intervention; `kernel/runtime` is deleted when empty). The agents module still
-owes step 8's third item — the **overseer ops** (the overseer tool as an L6
-caller of `app` ops). The reaper and the module's api package are done
-(W3.9); the overseer ops were the part that needed the api door, and that door
-now exists.
+owes step 8's third item — the **overseer ops**.
+
+The overseer tool is the next plugin-reach edge, and it is bigger than W3.13:
+it still holds the runtime kernel and reaches into the roster and the board
+modules, and its `Source` interface is typed on the roster's rows. The shape
+that works: the rows the tool and the host share move to the **contract**
+layer (the W3.13 recipe — a plugin may only reach the contract), and the
+kernel-side implementation moves to the **app** layer, because the app layer is
+the only one that can see both the roster (an agents-module package) and the
+run controls (the runtime) without a cross-module edge. The tool then calls
+typed app operations instead of the kernel's facade.
+
+The reaper and the module's api package are done (W3.9); the overseer ops were
+the part that needed the api door, and that door now exists.
 
 The overall target is the architecture in `20-target-architecture.md`, delivered
 incrementally to protected `main`, with runnable proof and source-aligned
