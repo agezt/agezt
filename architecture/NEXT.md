@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.32 the config tool's reach into the runtime becomes a port, 2026-10-23
+## Current checkpoint — W3.33 the guardian seeder's two reaches become one port, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2260,6 +2260,46 @@ files, five of the seventeen mutations would have escaped.
   two equivalent ones are recorded as such (the provider rebuild's failure is
   not reachable from a test; the composition root's nil check is redundant
   with the adapter's — defence in depth, kept on purpose).
+
+- W3.33 (the guardian seeder's two reaches become one port) is committed on
+  `main` the same way. The guardians are the daemon's internal fleet, and the
+  seeder that plants and reconciles them is a plugin. It reached into two
+  places, and both were the same mistake in different clothes: it carried a
+  `kernelHost` adapter **inside itself**, holding the live `*runtime.Kernel`
+  (a plugin may not hold the daemon's implementation), and it named the
+  roster module for two rows — `roster.Profile` and `roster.NoisePolicy` —
+  which are **aliases of the contract's own rows**, so the plugin was
+  reaching into a module to name rows that already lived in the contract.
+  The seeder's **port** moved to the contract layer
+  (`kernel/contract/guardianapi`) with the eleven methods the fleet needs
+  across the roster, the standing orders and the schedules, carrying the
+  contract's own rows; the **adapter** moved to the app layer
+  (`kernel/app/guardians`); and the plugin keeps no implementation at all.
+  The **ratchet went DOWN by TWO**: 89/13 → **87/13** — both `plugin-reach`
+  edges are gone and **both stale allowlist entries were deleted**.
+  The port is the whole of the reach: exactly eleven methods, and a twelfth
+  would be a new reach into the daemon and would have to be earned.
+  A **nil host is refused, not called into** — a daemon that handed over
+  nothing must hear that the fleet was not seeded, not panic on the first
+  read — and the daemon's seeding is measured against a **live** kernel: the
+  guardians the seeder reports are in the **roster** afterwards.
+  The **rules that were never measured** are measured now: the guardians'
+  quiet defaults (silent on success, no memory writes) are the operator's
+  contract, and they had never been asserted.
+  The plugin's test files now speak the contract as well; the only module
+  left in the plugin is the roster's **validation rule** (`roster.Validate`),
+  which reads the edict's trust ceiling and is therefore not pure — it stays
+  in the module.
+  13 mutations: 13 caught — one **survived** the first round (the adapter
+  dropped the profile edit and the test did not notice, because the roster's
+  own system-guardian defaults had filled a noise policy of their own and the
+  assertion was looking at exactly that field), so the test was strengthened
+  (the edit is now measured on a field the roster does not default) and it
+  was caught on the second round; one produced a **compile error** and was
+  re-authored; and one is measured by the **archcheck gate** rather than by
+  a test, because the roster module's `Profile` is an alias of the contract's
+  row — a plugin that named it again would compile and pass every test in
+  the package, so the gate is the only thing that can see it.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

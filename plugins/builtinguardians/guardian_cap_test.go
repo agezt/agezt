@@ -15,13 +15,13 @@ package builtinguardians
 import (
 	"testing"
 
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 )
 
 // TestSeedAll_KeepsAnOperatorsLoweredGuardianCap: a guardian whose caps the
 // operator lowered keeps them across the boot.
 func TestSeedAll_KeepsAnOperatorsLoweredGuardianCap(t *testing.T) {
-	h := &fakeHost{agents: []roster.Profile{{
+	h := &fakeHost{agents: []agentapi.Profile{{
 		Slug:         "guardian-health",
 		System:       true,
 		Enabled:      false,
@@ -33,7 +33,7 @@ func TestSeedAll_KeepsAnOperatorsLoweredGuardianCap(t *testing.T) {
 	if _, err := SeedAll(h, ""); err != nil {
 		t.Fatal(err)
 	}
-	var got *roster.Profile
+	var got *agentapi.Profile
 	for i := range h.agents {
 		if h.agents[i].Slug == "guardian-health" {
 			got = &h.agents[i]
@@ -54,7 +54,7 @@ func TestSeedAll_KeepsAnOperatorsLoweredGuardianCap(t *testing.T) {
 // the built-in ceiling (the reconcile fills, it does not leave a guardian
 // without a limit).
 func TestSeedAll_FillsAnUnsetGuardianCap(t *testing.T) {
-	h := &fakeHost{agents: []roster.Profile{{
+	h := &fakeHost{agents: []agentapi.Profile{{
 		Slug:         "guardian-health",
 		System:       true,
 		TrustCeiling: defaultTrustCeiling,
@@ -63,7 +63,7 @@ func TestSeedAll_FillsAnUnsetGuardianCap(t *testing.T) {
 	if _, err := SeedAll(h, ""); err != nil {
 		t.Fatal(err)
 	}
-	var got *roster.Profile
+	var got *agentapi.Profile
 	for i := range h.agents {
 		if h.agents[i].Slug == "guardian-health" {
 			got = &h.agents[i]

@@ -43,7 +43,7 @@ Sibling docs: [00-README.md](00-README.md) · [02-cli-cmd-agt.md](02-cli-cmd-agt
   + `plugins/tools/codeexec` (banner type assertion only).
 - Nothing imports it (it is `main`).
 - **Layering rule it enforces by existing:** kernel packages are plugin-free; every plugin→kernel binding is a closure or
-  interface value constructed here (e.g. `ChatGPTSync`, `market.Config.Library = builtinmarket.New()`, `builtinguardians.NewKernelHost(k)`).
+  interface value constructed here (e.g. `ChatGPTSync`, `market.Config.Library = builtinmarket.New()`, `guardians.NewKernelHost(k)`).
 
 ### 1.2 Subcommands (`run(args)` in `main.go`)
 
@@ -208,7 +208,7 @@ Legend: **F** = fatal (exit 1), **W** = warn and degrade, **B** = best-effort.
 | Channels | step 12 (manifests), step 30 (instances) | `channelwire.BuildKind` per manifest (multi-account `kind#label` instances). One shared inbound handler. See [09-channels.md](09-channels.md). |
 | Skills | step 41.4 | `skill.SeedBuiltins(forge, "")` — idempotent, content-addressed; a quarantined built-in stays quarantined. |
 | Market | step 41.4 | `k.SetMarket(market.NewManager{Library: NewCompositeLibrary(builtinmarket.New(), Store), Store: market.NewStore(base), Skills: forge, MCP: k, Verify: market.VerifyPack, Syncer: market.NewSyncer()})`. |
-| Guardians | step 41.7 | `builtinguardians.SeedAll(builtinguardians.NewKernelHost(k), "")` — System-marked agents, idempotent by slug, operator removals respected. |
+| Guardians | step 41.7 | `builtinguardians.SeedAll(guardians.NewKernelHost(k), "")` — System-marked agents, idempotent by slug, operator removals respected. The seeder takes the **contract's** port; the adapter that answers it lives in the app layer (`kernel/app/guardians`). |
 | MCP servers | step 41.12 | `k.AttachEnabledMCPServers(ctx)`; per-server failures printed, never fatal. |
 | Standing orders | step 44 | `standing.StartRunner` (bus) + `standing.StartCron`; `fire` = governed run AS roster agent with cost + trust ceilings. |
 | Schedules | step 42 | `cadence.NewEngine(store, run, 0, stdout)` with `Bus` (injection tripwire) and `RunTimeout`. |

@@ -80,8 +80,6 @@ cross-module kernel/toolreg -> kernel/modules/artifacts/artifact
 cross-module kernel/toolreg -> kernel/modules/board/board
 plugin-reach plugins/builtinchannels -> kernel/channelwire
 plugin-reach plugins/builtinchannels -> kernel/pulse
-plugin-reach plugins/builtinguardians -> kernel/modules/agents/roster
-plugin-reach plugins/builtinguardians -> kernel/runtime
 plugin-reach plugins/builtintools -> kernel/modules/extensions/plugin
 plugin-reach plugins/builtintools -> kernel/runtime
 plugin-reach plugins/builtintools -> kernel/toolreg

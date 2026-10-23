@@ -40,7 +40,7 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 
 | Package | Imports (internal) | Imported by (non-test) |
 |---|---|---|
-| `roster` | edict, filestore, ulid | cmd/agezt, agentgw, app/{roster, routing, runs, schedule, standing}, controlplane, modules/agents/{api, reaper, selfrepair}, runtime (+accessors, runexec), builtinguardians |
+| `roster` | edict, filestore, ulid | cmd/agezt, agentgw, app/{roster, routing, runs, schedule, standing}, controlplane, modules/agents/{api, reaper, selfrepair}, runtime (+accessors, runexec) |
 | `cadence` | bus, event, filestore, ulid | cmd/agezt, cmd/agt, app/{roster, schedule}, cadence/systemtasks, controlplane, runtime (+accessors, runexec) |
 | `cadence/systemtasks` | brand, cadence, catalog, event, runtime | cmd/agezt only |
 | `scheduler` | agent, approval, bus, event, intent, ulid | controlplane, runtime (+accessors, runexec) |

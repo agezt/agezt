@@ -19,37 +19,25 @@
 package builtinguardians
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
+	"github.com/agezt/agezt/kernel/contract/guardianapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // USD is one US dollar in the kernel's spend unit (microcents): $1 = 1e9.
 const usd int64 = 1_000_000_000
 
-// Host is the narrow slice of the kernel the seeder needs — an interface so the
-// package is testable with a fake and doesn't pull the kernel runtime. Satisfied
-// by the kernel adapter (kernelhost.go).
-type Host interface {
-	Agents() []roster.Profile
-	AddAgent(p roster.Profile) (roster.Profile, error)
-	UpdateAgent(ref string, mutate func(*roster.Profile)) (roster.Profile, bool, error)
-	StandingOrders() []standingapi.Order
-	UpdateStanding(id string, mutate func(*standingapi.Order)) (standingapi.Order, bool, error)
-	AddStanding(o standingapi.Order) (standingapi.Order, error)
-	// SetStandingEnabled pauses/resumes an order — used to seed a responder order
-	// DISABLED (Store.Add always creates enabled), so it ships dormant until the
-	// operator opts into autonomy (M999).
-	SetStandingEnabled(id string, enabled bool) (standingapi.Order, error)
-	Schedules() []cadenceapi.Entry
-	Reschedule(id string, mode string, interval time.Duration, atMinutes, days int) (bool, error)
-	AddInterval(intent string, interval time.Duration, model, agent string) (cadenceapi.Entry, error)
-	AddDaily(intent string, atMinutes int, model, agent string) (cadenceapi.Entry, error)
-}
+// Host is the narrow slice of the live daemon the seeder needs — the
+// contract's port (kernel/contract/guardianapi), so the package stays
+// testable with a fake and never pulls the kernel runtime. The implementation
+// that answers it lives in the app layer (kernel/app/guardians).
+type Host = guardianapi.Host
 
 // Seeded reports what happened for one guardian.
 type Seeded struct {
@@ -182,8 +170,15 @@ var guardians = []guardian{
 // SeedAll seeds every guardian (and its trigger) that isn't already present.
 // Idempotent by slug; best-effort per guardian. corr is the journaling
 // correlation (use "" for boot).
+//
+// A nil host is REFUSED, not called into: the host is the contract's port,
+// and a daemon that handed over nothing must hear that the fleet was not
+// seeded rather than panic on the first read.
 func SeedAll(h Host, corr string) ([]Seeded, error) {
-	have := map[string]roster.Profile{}
+	if h == nil {
+		return nil, errors.New("guardian seeding needs a live daemon")
+	}
+	have := map[string]agentapi.Profile{}
 	for _, p := range h.Agents() {
 		have[p.Slug] = p
 	}
@@ -203,7 +198,7 @@ func SeedAll(h Host, corr string) ([]Seeded, error) {
 			out = append(out, Seeded{Slug: g.slug, Created: false, Trigger: "existing"})
 			continue
 		}
-		if _, err := h.AddAgent(roster.Profile{
+		if _, err := h.AddAgent(agentapi.Profile{
 			Slug:         g.slug,
 			Name:         g.name,
 			Soul:         g.soul,
@@ -231,11 +226,11 @@ func SeedAll(h Host, corr string) ([]Seeded, error) {
 	return out, firstErr
 }
 
-func reconcileExistingGuardian(h Host, p roster.Profile) error {
+func reconcileExistingGuardian(h Host, p agentapi.Profile) error {
 	if !p.System {
 		return nil
 	}
-	_, _, err := h.UpdateAgent(p.Slug, func(dst *roster.Profile) {
+	_, _, err := h.UpdateAgent(p.Slug, func(dst *agentapi.Profile) {
 		dst.ToolDeny = appendUnique(dst.ToolDeny, "memory")
 		// The built-in spend caps are CEILINGS, and the reconcile only ever
 		// tightens: a cap above the built-in maximum is clamped down and an

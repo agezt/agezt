@@ -58,7 +58,6 @@ import (
 	"github.com/agezt/agezt/kernel/update"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/builtinchannels"
-	"github.com/agezt/agezt/plugins/builtinguardians"
 	"github.com/agezt/agezt/plugins/providers/embed"
 	"github.com/agezt/agezt/plugins/providers/image"
 	"github.com/agezt/agezt/plugins/providers/rerank"
@@ -1544,7 +1543,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 			// never blocks startup.
 			name: "built-in guardians",
 			run: func() (string, error) {
-				guards, gerr := builtinguardians.SeedAll(builtinguardians.NewKernelHost(k), "")
+				guards, gerr := seedBuiltInGuardians(k)
 				if gerr != nil {
 					fmt.Fprintf(stderr, "  built-in guardians: partial (%v)\n", gerr)
 					return "", nil

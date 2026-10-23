@@ -106,7 +106,7 @@ cmd/agezt main
  ├─ Set.ConfigureLate(LateDeps{ChannelSend, ChannelSendMedia, Board, BoardNotify})
  ├─ builtinskills.SeedAll(forge, "")                  # main.go:1490
  ├─ market library = NewCompositeLibrary(builtinmarket.New(), marketStore)   # main.go:1507
- └─ builtinguardians.SeedAll(NewKernelHost(k), "")    # main.go:1535 (best-effort)
+ └─ builtinguardians.SeedAll(guardians.NewKernelHost(k), "")  # main.go:1535 (best-effort)
 ```
 
 Tools are registered into the kernel map BEFORE the kernel/channels start, so the map is never mutated while the agent loop reads it; late tools are registered unbound and guard their binding with a mutex (`notify`, `sendmedia`, `boardtool`, `overseertool`, `forgetool`, `mcptool`, `workboardtool`…).
@@ -435,11 +435,13 @@ Every seeded profile: `MemoryScope system/<slug>`, `MaxCostMc` $5/run, `MaxDaily
 
 | File | What it does |
 |---|---|
-| `builtinguardians.go` | Package doc, `Host`, `Seeded`, `guardian` spec, budget consts, the `guardians` fleet, `SeedAll`, reconcile functions, `seedTrigger`. |
+| `builtinguardians.go` | Package doc, `Host` (the **contract's** port — `contract/guardianapi.Host`), `Seeded`, `guardian` spec, budget consts, the `guardians` fleet, `SeedAll` (a nil host is refused), reconcile functions, `seedTrigger`. |
 | `builtinguardians_helpers.go` | `defaultGuardianNoisePolicy`, `notifySeverityRank`, `trustRank`, `appendUnique`, `sameEventSubjects`. |
-| `kernelhost.go` | `kernelHost` adapter + `NewKernelHost`. |
 
-Tests: `builtinguardians_test.go`, `coverage_supp_test.go` (fake Host; idempotence, reconcile clamps, disabled initiative).
+The kernel adapter that answers the port lives in the **app layer**
+(`kernel/app/guardians`) — the plugin may not name the runtime.
+
+Tests: `builtinguardians_test.go`, `coverage_supp_test.go` (fake Host; idempotence, reconcile clamps, disabled initiative), `contract_type_test.go`, `seed_port_test.go`.
 
 ---
 

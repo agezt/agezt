@@ -68,7 +68,7 @@ modules/work/convo, intent, intervention, meshctx -> (none)
 
 Reverse deps (who uses this area):
 
-- `kernel/runtime` is imported by `cmd/agezt`, `kernel/controlplane`, `kernel/selfrepair`, `kernel/cadence/systemtasks`, `kernel/toolreg`, `kernel/app/overseer`, `kernel/app/introspect`, `plugins/builtinguardians`, `plugins/builtintools`, and the tools `conductor`, `config`, `council`, `research`.
+- `kernel/runtime` is imported by `cmd/agezt`, `kernel/controlplane`, `kernel/selfrepair`, `kernel/cadence/systemtasks`, `kernel/toolreg`, `kernel/app/overseer`, `kernel/app/introspect`, `kernel/app/guardians`, `plugins/builtintools`, and the tools `conductor`, `council`, `research`.
 - `kernel/agent` is imported by every provider (`plugins/providers/*`), every tool (`plugins/tools/*`), `governor`, `memory`, `skill`, `scheduler`, `pulse`, `market`, `plugin`, `worldmodel`, `controlplane`, `cmd/agt`, `cmd/agezt`.
 - `kernel/convo` is used by `controlplane`, `openaiapi`, `webui`. `kernel/meshctx` by `restapi`, `plugins/tools/peer`, `cmd/agt`. `kernel/planner` by `controlplane`, `cmd/agt`. The verifier's rows live in the **contract layer** now (`kernel/contract/proofapi` and `kernel/contract/assureapi`, W3.31) — the `proof` and `assure` modules keep their names as aliases, and `kernel/modules/work/workboard` names the contract's rows. `kernel/modules/extensions/toolforge` by `cmd/agezt`, `controlplane` and `kernel/runtime` — the forgetool (a plugin) reads it through the contract's port (`contract/toolforgeapi`), so it no longer names the module. `kernel/resume` by `cmd/agezt` (boot resumer).
 

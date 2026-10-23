@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-190 package(s):
+192 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -27,6 +27,7 @@
 - **`kernel/app/edict`** — Package edict owns the operator's view of one kernel's policy engine: the trust levels, ask policy and hard-deny rules, and a dry-run decision probe.
 - **`kernel/app/execprofile`** — Package execprofile reports the execution profiles a kernel can route work to: the inventory, one profile, and the health check of each profile and policy, built from the kernel's tools and warden and the host's remote backend configuration.
 - **`kernel/app/files`** — Package files applies console file mutations through the host's governed tool invocation port.
+- **`kernel/app/guardians`** — Package guardians is the app-layer adapter that lets the guardian seeder — a plugin — reach the live daemon without naming the runtime.
 - **`kernel/app/introspect`** — —
 - **`kernel/app/journal`** — Package journal owns the operator's journal reads: the head checkpoint, the last-N tail and the journal's size and shape statistics.
 - **`kernel/app/market`** — SPDX-License-Identifier: MIT
@@ -83,6 +84,7 @@
 - **`kernel/contract/channelapi`** — Package channelapi is the messaging-channel contract: the platform-neutral inbound message every channel normalises to (UnifiedMessage, SPEC-04 §1.3), what the kernel hands a channel to deliver (Outbound, Attachment, Reply), the Channel interface a duplex surface implements, and the Manifest a channel registers to describe itself.
 - **`kernel/contract/configapi`** — Package configapi is the contract the config tool and the implementation that answers it agree on.
 - **`kernel/contract/datalakeapi`** — Package datalakeapi is the contract layer's home for the Personal Data Lake's rows: one collection's definition (its schema and the columns it carries), one record (a row with a stable id and a free-form field map), the query that narrows a listing, and the summary a listing shows.
+- **`kernel/contract/guardianapi`** — Package guardianapi is the contract the guardian seeder and the implementation that answers it agree on.
 - **`kernel/contract/introspectapi`** — Package introspectapi is the contract layer's home for the introspector's rows: the daemon's own at-a-glance health snapshot and the reaper's fleet scan, as the agent-facing tool publishes them.
 - **`kernel/contract/llm`** — Package llm is the model-provider contract: the canonical conversation (Message, Role, ToolCall), one completion round trip (CompletionRequest, CompletionResponse, Usage, StopReason, Params) and the provider interfaces (Provider, StreamingProvider, Chunk).
 - **`kernel/contract/marketapi`** — Package marketapi is the contract layer's home for the marketplace's rows: one installable pack, the skills and MCP servers it carries, the catalogue entry a marketplace lists it under, and the catalogue itself — together with the rules that govern them (what makes a pack valid, what its canonical bytes and content hash are, how versions are ordered) and the port through which a catalogue is read.
