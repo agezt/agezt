@@ -99,10 +99,7 @@ plugin-reach plugins/tools/db -> kernel/modules/artifacts/datalake
 plugin-reach plugins/tools/forgetool -> kernel/modules/extensions/toolforge
 plugin-reach plugins/tools/introspecttool -> kernel/runtime
 plugin-reach plugins/tools/mcptool -> kernel/modules/extensions/mcp
-plugin-reach plugins/tools/schedule -> kernel/cadence
 plugin-reach plugins/tools/skilltool -> kernel/modules/skills/skill
-plugin-reach plugins/tools/standingtool -> kernel/modules/agents/roster
-plugin-reach plugins/tools/standingtool -> kernel/standing
 plugin-reach plugins/tools/workboardtool -> kernel/modules/work/workboard
 plugin-reach plugins/tools/workflowtool -> kernel/runtime
 plugin-reach plugins/tools/workflowtool -> kernel/modules/workflows/workflow

@@ -40,11 +40,11 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 
 | Package | Imports (internal) | Imported by (non-test) |
 |---|---|---|
-| `roster` | edict, filestore, ulid | cmd/agezt, agentgw, controlplane, runtime (+accessors, runexec), selfrepair, builtinguardians, tools/{config, overseertool, schedule, standingtool} |
-| `cadence` | bus, event, filestore, ulid | cmd/agezt, cmd/agt, cadence/systemtasks, controlplane, runtime (+accessors, runexec), builtinguardians, tools/{introspecttool, schedule} |
+| `roster` | edict, filestore, ulid | cmd/agezt, agentgw, app/{roster, routing, runs, schedule, standing}, controlplane, modules/agents/{api, reaper, selfrepair}, runtime (+accessors, runexec), builtinguardians |
+| `cadence` | bus, event, filestore, ulid | cmd/agezt, cmd/agt, app/{roster, schedule}, cadence/systemtasks, controlplane, runtime (+accessors, runexec) |
 | `cadence/systemtasks` | brand, cadence, catalog, event, runtime | cmd/agezt only |
 | `scheduler` | agent, approval, bus, event, intent, ulid | controlplane, runtime (+accessors, runexec) |
-| `standing` | bus, filestore, ulid | cmd/agezt, controlplane, runtime (+accessors, runexec), builtinguardians, tools/{introspecttool, standingtool} |
+| `standing` | bus, filestore, ulid | cmd/agezt, app/{roster, standing}, controlplane, runtime (+accessors, runexec) |
 | `pulse` | agent, bus, event, state, ulid, warden | cmd/agezt, alerter, channelwire, builtinchannels |
 | `selfrepair` | brand, strutil, board, bus, event, roster, runtime | cmd/agezt only |
 | `skill` | agent, bus, event, filestore | cmd/agezt, cmd/agt, contextselect, controlplane, market, runtime (+accessors, runexec), builtinmarket, builtinskills, tools/skilltool |
@@ -272,11 +272,13 @@ Governance applied per wake source:
 entries are due. It fires each one through a caller-supplied `RunFunc` with no overlap. The actual dispatch to targets is
 the closure in `cmd/agezt/main_cadence.go`.
 
-**The row lives in the contract layer** (`kernel/contract/cadenceapi`): the introspector and the guardians are plugins, and
+**The row lives in the contract layer** (`kernel/contract/cadenceapi`): the introspector, the guardians and the schedule tool are plugins, and
 a plugin may reach the contract and the platform layers and nothing else — so a row a plugin has to name cannot live in
 this package. `kernel/cadence` keeps the names as aliases, so every existing caller is unchanged; the store, the engine and
 the ticker stay here — they are the implementation. The row's rules travel with it: `Validate`, `Forecast`, `Advance`,
-`SafeInterval`, `UsesInterval`, the day-mask helpers and the system-task catalog.
+`SafeInterval`, `UsesInterval`, the day-mask helpers and the system-task catalog. The **store** a plugin drives is a port
+(`cadenceapi.Store`) in the contract layer for the same reason: the schedule tool takes the store through the port, and
+the module's `*cadence.Store` implements it.
 
 ### 3.1 Key API
 
@@ -352,7 +354,8 @@ the ticker stay here — they are the implementation. The row's rules travel wit
 - `cmd/agezt/main.go:1633` calls `buildCadence` (`main_cadence.go:25`).
 - Control plane: `schedule_*` commands (`schedule_add.go`, `schedule_misc.go`, `schedule_edit.go`, …).
 - Agent tool `schedule` (`plugins/tools/schedule`). A schedule an agent creates is bound to the acting agent, except system
-  tasks.
+  tasks. The tool is a plugin: it takes the store as the contract's **port** (`cadenceapi.Store`) and the roster lookup by
+  injection, so it names neither this package nor the roster module.
 
 **Files:**
 
@@ -405,7 +408,7 @@ Files: `doc.go` (import rule), `systemtasks.go` (`Info`, `Run`), `systemtasks_he
 budget, cooldown, assure budget and briefing channel. The package owns the record, the store, the event runner and its own
 cron ticker. The daemon supplies the `FireFunc`.
 
-**The rows live in the contract layer** (`kernel/contract/standingapi`): the introspector and the guardians are plugins,
+**The rows live in the contract layer** (`kernel/contract/standingapi`): the introspector, the guardians and the standing tool are plugins,
 and a plugin may reach the contract and the platform layers and nothing else — so a row a plugin has to name cannot
 live in this package. `kernel/standing` keeps the names as aliases, so every existing caller is unchanged; the store
 and the runner stay here.
@@ -476,7 +479,9 @@ and the runner stay here.
   `controlplane.LateDeps.StandingFire`.
 - `cmd/agezt/main_overlay_anomaly.go:97`: `standingTrustCeiling`.
 - Control-plane `standing_*` commands.
-- Agent tool `standing` (`plugins/tools/standingtool`): default mode `ask`; auto-binds the acting agent.
+- Agent tool `standing` (`plugins/tools/standingtool`): default mode `ask`; auto-binds the acting agent. The tool is a plugin:
+  it names the contract's rows, takes the profile lookup by injection and lists the orders through the kernel's
+  `StandingList()`, so it reaches neither this package nor the roster module.
 
 **Files:**
 

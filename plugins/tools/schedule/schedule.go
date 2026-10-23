@@ -15,32 +15,16 @@ import (
 
 	"encoding/json"
 
-	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
-// store is the subset of *cadence.Store the tool needs — an interface so tests
-// can inject a fake without a real on-disk store.
-type store interface {
-	Add(intent string, interval time.Duration, model, source string, now time.Time) (cadence.Entry, error)
-	AddDaily(intent string, atMinutes, days int, tz, model, source string, now time.Time) (cadence.Entry, error)
-	AddOnce(intent string, at time.Time, model, source string, now time.Time) (cadence.Entry, error)
-	AddContinuous(intent string, cooldown time.Duration, model, source string, now time.Time) (cadence.Entry, error)
-	SetAssure(id string, n int) (bool, error)
-	SetAgent(id, agent string) (bool, error)
-	SetWorkflowTarget(id, ref string, payload json.RawMessage) (bool, error)
-	SetSystemTaskTarget(id, task string) (bool, error)
-	SetToolTarget(id, tool string, payload json.RawMessage) (bool, error)
-	Remove(id string) (bool, error)
-	List() []cadence.Entry
-}
-
 // Tool implements toolapi.Tool. Created unbound via New(); Bind wires the store.
 type Tool struct {
 	mu          sync.RWMutex
-	store       store
+	store       cadenceapi.Store
 	now         func() time.Time
 	agentLookup func(string) (agentapi.Profile, bool)
 }
@@ -48,8 +32,10 @@ type Tool struct {
 // New returns an unbound schedule tool (no store until Bind).
 func New() *Tool { return &Tool{now: time.Now} }
 
-// Bind wires the live cadence store. Called once after the kernel opens.
-func (t *Tool) Bind(s *cadence.Store) {
+// Bind wires the live cadence store. Called once after the kernel opens. The
+// store arrives as the contract's port: the tool is a plugin, so it may not
+// name the module that holds the implementation.
+func (t *Tool) Bind(s cadenceapi.Store) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if s != nil {
@@ -63,7 +49,7 @@ func (t *Tool) BindAgentLookup(lookup func(string) (agentapi.Profile, bool)) {
 	t.agentLookup = lookup
 }
 
-func (t *Tool) current() (store, func() time.Time, func(string) (agentapi.Profile, bool)) {
+func (t *Tool) current() (cadenceapi.Store, func() time.Time, func(string) (agentapi.Profile, bool)) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	now := t.now
@@ -75,7 +61,7 @@ func (t *Tool) current() (store, func() time.Time, func(string) (agentapi.Profil
 
 // Definition implements toolapi.Tool.
 func (t *Tool) Definition() toolapi.ToolDef {
-	systemTaskEnum, _ := json.Marshal(cadence.SystemTasks())
+	systemTaskEnum, _ := json.Marshal(cadenceapi.SystemTasks())
 	return toolapi.ToolDef{
 		Name:       "schedule",
 		Capability: toolapi.ToolCapability{Name: string(edict.CapSchedule)},
@@ -140,7 +126,7 @@ const source = "agent" // marks schedules the agent created, for operator visibi
 // each firing runs-verifies-retries up to n attempts (M654). Best-effort: a
 // SetAssure failure leaves the entry a single-pass schedule (no worse than
 // assure being unset). Returns the entry with Assure reflected for display.
-func applyAssure(st store, e cadence.Entry, n int) cadence.Entry {
+func applyAssure(st cadenceapi.Store, e cadenceapi.Entry, n int) cadenceapi.Entry {
 	if n > 0 {
 		if _, err := st.SetAssure(e.ID, n); err == nil {
 			e.Assure = n
@@ -149,7 +135,7 @@ func applyAssure(st store, e cadence.Entry, n int) cadence.Entry {
 	return e
 }
 
-func applyActingAgent(ctx context.Context, st store, e cadence.Entry) cadence.Entry {
+func applyActingAgent(ctx context.Context, st cadenceapi.Store, e cadenceapi.Entry) cadenceapi.Entry {
 	if slug := toolapi.AgentFromContext(ctx); slug != "" {
 		if _, err := st.SetAgent(e.ID, slug); err == nil {
 			e.Agent = slug
@@ -163,7 +149,7 @@ func scheduleBindsActingAgent(in input) bool {
 	if target == "" {
 		return strings.TrimSpace(in.Workflow) == "" && strings.TrimSpace(in.System) == "" && strings.TrimSpace(in.Tool) == ""
 	}
-	return target == "agent" || target == cadence.TargetIntent || target == cadence.TargetWorkflow || target == cadence.TargetTool
+	return target == "agent" || target == cadenceapi.TargetIntent || target == cadenceapi.TargetWorkflow || target == cadenceapi.TargetTool
 }
 
 func validateActingAgentSchedule(ctx context.Context, in input, lookup func(string) (agentapi.Profile, bool)) toolapi.Result {
@@ -204,17 +190,17 @@ func scheduleTarget(in input) string {
 	if target == "" {
 		switch {
 		case strings.TrimSpace(in.Workflow) != "":
-			target = cadence.TargetWorkflow
+			target = cadenceapi.TargetWorkflow
 		case strings.TrimSpace(in.System) != "":
-			target = cadence.TargetSystemTask
+			target = cadenceapi.TargetSystemTask
 		case strings.TrimSpace(in.Tool) != "":
-			target = cadence.TargetTool
+			target = cadenceapi.TargetTool
 		default:
-			target = cadence.TargetIntent
+			target = cadenceapi.TargetIntent
 		}
 	}
 	if target == "agent" {
-		return cadence.TargetIntent
+		return cadenceapi.TargetIntent
 	}
 	return target
 }

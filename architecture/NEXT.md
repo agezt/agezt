@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.19 the schedule entry's row moves to the contract layer, 2026-10-23
+## Current checkpoint — W3.20 the two trigger tools name their rows where they live, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1727,7 +1727,9 @@ files, five of the seventeen mutations would have escaped.
   and the mutation re-run.
 
 - W3.19 (the schedule entry's row moves to the contract layer) is committed on
-  `main` the same way — the same shape as W3.18, on the cadence side. The
+  `main` the same way and is **delivered through PR #814 at `8a36b75a`** after
+  all 24 exact-head CI jobs (the merge tree equalled the tested head
+  `27e3e625`). The same shape as W3.18, on the cadence side. The
   introspector and the guardians both name the schedule entry's row, and both
   are plugins. The row and its rules moved to `kernel/contract/cadenceapi`: the
   entry, `Validate`, `Forecast`, `Advance`, `SafeInterval`, `UsesInterval`, the
@@ -1746,6 +1748,41 @@ files, five of the seventeen mutations would have escaped.
   caught mutations are the **timing rules** (the busy-loop floor, the daily
   slot, the window walk), caught by the module's own DST and interval tests,
   which now run against the contract's implementation of the same rules.
+
+- W3.20 (the two trigger tools name their rows where they live) is committed
+  on `main` the same way. The **schedule tool** (the agent's own cron) and the
+  **standing tool** (the agent's own durable wake rules) each reached into a
+  module — one for the rows they speak, one for the store they drive — and
+  both are plugins. Nothing moved **out** of a module this time: W3.18 and
+  W3.19 had already put the standing and the schedule rows in the contract
+  layer, and the modules kept their names as aliases, so what was left was the
+  plugin's half — each tool still named the *alias*, and the alias lives in a
+  module's implementation package, so each paid a `plugin-reach` edge for a row
+  that was never theirs to name.
+  The schedule tool now takes the store as a **port** (`cadenceapi.Store` — the
+  eleven methods it drives; the module's `*cadence.Store` implements it), and
+  the standing tool takes the **profile lookup** by injection (the shape the
+  schedule tool already used in W3.17) and lists the orders through the
+  kernel's `StandingList()`. The standing tool's third copy of the "who
+  manages this agent?" rule was dropped: W3.17 had already moved it onto the
+  profile row as `agentapi.Profile.ManagedBy()`.
+  The **ratchet went DOWN**: 108/13 → **105/13** — all three plugin-reach edges
+  are gone, and the **three stale allowlist entries were deleted**.
+  The permanent tests: the **identity assertions** (the module's four standing
+  rows and the roster's profile ARE the contract's, as function types), the
+  **store port** as a compile-time promise plus a test that the store still
+  works when it is held as the port, and — the new part — the **wiring**
+  measured against a **real kernel**: a managed sub-agent is still refused with
+  its manager named (so the roster lookup really crossed the wire), and a
+  schedule the tool creates lands in the kernel's own cadence store (so the
+  port really carries the live store).
+  18 mutations: 17 caught, 1 build error recorded separately — and one
+  mutation **survived the first round** (the day mask: the test asserted only
+  that it was non-zero, which any wrong mask satisfies), so the test was
+  strengthened to assert the exact weekday and weekend masks and the mutation
+  was run again. Three mutations are caught **only** by the wiring tests: the
+  tool's own suite proves the tool, and nothing but a test against a live
+  kernel proves that the daemon still hands it what it needs.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
