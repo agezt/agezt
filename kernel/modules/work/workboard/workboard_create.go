@@ -9,6 +9,7 @@ package workboard
 import (
 	"errors"
 	"fmt"
+	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/modules/work/proof"
 	"github.com/agezt/agezt/kernel/platform/filestore"
 	"github.com/agezt/agezt/kernel/ulid"
@@ -28,7 +29,7 @@ func OpenStore(dir string) (*Store, error) {
 		if t == nil {
 			continue
 		}
-		if _, ok := statusOrder[t.Status]; !ok {
+		if !workboardapi.KnownStatus(t.Status) {
 			return nil, fmt.Errorf("%w in %s: %s", ErrInvalidStatus, s.path, t.Status)
 		}
 		cp := cloneTask(*t)
@@ -47,7 +48,7 @@ func (s *Store) Create(spec CreateSpec, now time.Time) (Task, bool, error) {
 	if spec.Status == "" {
 		spec.Status = StatusTriage
 	}
-	if _, ok := statusOrder[spec.Status]; !ok {
+	if !workboardapi.KnownStatus(spec.Status) {
 		return Task{}, false, fmt.Errorf("%w: %s", ErrInvalidStatus, spec.Status)
 	}
 	if spec.RetryPolicy != nil && spec.RetryPolicy.MaxAttempts < 1 {

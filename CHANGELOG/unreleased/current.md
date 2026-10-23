@@ -977,6 +977,33 @@ This file holds the active `[Unreleased]` working set.
   daemon's own wiring is now measured: the catalogue the daemon serves must
   not be empty.
 
+- **The workboard chain moves to the contract layer.** The `workboard` tool — the
+  agent-facing durable typed task queue, which lists, shows, creates, claims,
+  heartbeats, comments, blocks, fails with a retry policy, completes, archives,
+  links and declares dependencies — is a plugin, so the description of one task
+  and everything that hangs off it now live in the contract layer. The chain
+  moves **as a whole**, because a task carries its acceptance criteria, a
+  criterion carries a proof, and a proof carries the verdict the completion
+  judge reached: so the rows live in `kernel/contract/workboardapi`,
+  `kernel/contract/proofapi` (moved with `git mv`, so the history follows the
+  rows) and `kernel/contract/assureapi`. The rules travel with them — the
+  status rule is pure, so it belongs where the row is, and the module keeps it
+  as a one-line delegation — while the assurance **loop** stays in the module:
+  it is the implementation.
+  The tool's read path changes shape: the task store used to be reached
+  through the kernel (`k.Workboard()`, a concrete implementation a plugin
+  should never hold) and now arrives as the contract's port
+  (`workboardapi.Store`), handed over by the daemon.
+  The stored file's format is unchanged, and that is now pinned by a test: a
+  task is written to `workboard.json` and read back by the CLI, the console,
+  the Web UI and the tool, so a renamed field would have silently dropped it.
+  The eight lifecycle values are pinned too — a renamed state would orphan
+  every stored task.
+  One real defect surfaced while measuring: `StatusOrder` documented `-1` for a
+  status the board does not know and returned `0`, which is triage's place, so
+  an unknown status would have sorted as the first lane. The implementation now
+  honours the documented contract.
+
 - **The data-lake rows move to the contract layer.** The `db` tool — the
   agent's database, which creates collections, writes records and queries
   them, and which the console and the Web UI read the same lake through — is

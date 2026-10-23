@@ -20,7 +20,7 @@ func TestToolCreateClaimCommentComplete(t *testing.T) {
 	}
 	fh := &fakeKernel{st: st}
 	tool := New()
-	tool.Bind(fh)
+	tool.Bind(fh, st)
 
 	ctx := toolapi.WithAgent(toolapi.WithCorrelation(context.Background(), "run-123"), "builder")
 	res, err := tool.Invoke(ctx, json.RawMessage(`{"op":"create","title":"Ship workboard","assignee":"builder","idempotency_key":"wb-1"}`))
@@ -71,7 +71,7 @@ func TestToolRetryPolicyFail(t *testing.T) {
 	}
 	fh := &fakeKernel{st: st}
 	tool := New()
-	tool.Bind(fh)
+	tool.Bind(fh, st)
 
 	ctx := toolapi.WithAgent(toolapi.WithCorrelation(context.Background(), "run-123"), "builder")
 	res, err := tool.Invoke(ctx, json.RawMessage(`{"op":"create","title":"Retry","assignee":"builder","max_attempts":2,"escalate_to":"lead"}`))
@@ -117,8 +117,6 @@ func TestToolRetryPolicyFail(t *testing.T) {
 type fakeKernel struct {
 	st *workboard.Store
 }
-
-func (f *fakeKernel) Workboard() *workboard.Store { return f.st }
 
 func (f *fakeKernel) CreateWorkboardTask(_ string, spec workboard.CreateSpec) (workboard.Task, bool, error) {
 	return f.st.Create(spec, time.Now())
@@ -299,7 +297,7 @@ func TestWorkboard_ShowNotFound(t *testing.T) {
 		t.Fatal(err)
 	}
 	tl := New()
-	tl.Bind(&fakeKernel{st: st})
+	tl.Bind(&fakeKernel{st: st}, st)
 	res, err := tl.Invoke(context.Background(), json.RawMessage(`{"op":"show","id":"nonexistent"}`))
 	if err != nil {
 		t.Fatalf("show nonexistent returned hard error: %v", err)
@@ -315,7 +313,7 @@ func TestWorkboard_ShowNeedsID(t *testing.T) {
 		t.Fatal(err)
 	}
 	tl := New()
-	tl.Bind(&fakeKernel{st: st})
+	tl.Bind(&fakeKernel{st: st}, st)
 	if res, _ := tl.Invoke(context.Background(), json.RawMessage(`{"op":"show"}`)); !res.IsError {
 		t.Error("show without id should error")
 	}
@@ -327,7 +325,7 @@ func TestWorkboard_BlockAndUnblock(t *testing.T) {
 		t.Fatal(err)
 	}
 	tl := New()
-	tl.Bind(&fakeKernel{st: st})
+	tl.Bind(&fakeKernel{st: st}, st)
 	ctx := toolapi.WithAgent(context.Background(), "builder")
 	res, _ := tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"block-test"}`))
 	var created struct{ Task struct{ ID string } }
@@ -347,7 +345,7 @@ func TestWorkboard_ArchiveAndLink(t *testing.T) {
 		t.Fatal(err)
 	}
 	tl := New()
-	tl.Bind(&fakeKernel{st: st})
+	tl.Bind(&fakeKernel{st: st}, st)
 	ctx := toolapi.WithAgent(context.Background(), "builder")
 	// Create the dependency task first.
 	res, _ := tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"prereq"}`))
@@ -372,7 +370,7 @@ func TestWorkboard_EmptyOp(t *testing.T) {
 		t.Fatal(err)
 	}
 	tl := New()
-	tl.Bind(&fakeKernel{st: st})
+	tl.Bind(&fakeKernel{st: st}, st)
 	if res, _ := tl.Invoke(context.Background(), json.RawMessage(`{}`)); !res.IsError {
 		t.Error("empty op should error")
 	}
@@ -384,7 +382,7 @@ func TestWorkboard_UnknownOp(t *testing.T) {
 		t.Fatal(err)
 	}
 	tl := New()
-	tl.Bind(&fakeKernel{st: st})
+	tl.Bind(&fakeKernel{st: st}, st)
 	if res, _ := tl.Invoke(context.Background(), json.RawMessage(`{"op":"frobnicate"}`)); !res.IsError {
 		t.Error("unknown op should error")
 	}
@@ -396,7 +394,7 @@ func TestWorkboard_List(t *testing.T) {
 		t.Fatal(err)
 	}
 	tl := New()
-	tl.Bind(&fakeKernel{st: st})
+	tl.Bind(&fakeKernel{st: st}, st)
 	ctx := toolapi.WithAgent(context.Background(), "builder")
 	// Create two tasks.
 	tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"Task One","tenant":"team-a"}`))
@@ -421,7 +419,7 @@ func TestWorkboard_ListWithStatusFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	tl := New()
-	tl.Bind(&fakeKernel{st: st})
+	tl.Bind(&fakeKernel{st: st}, st)
 	ctx := toolapi.WithAgent(context.Background(), "builder")
 	tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"Task One","status":"triage"}`))
 	tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"Task Two","status":"ready"}`))
@@ -441,7 +439,7 @@ func TestWorkboard_ListWithBadStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	tl := New()
-	tl.Bind(&fakeKernel{st: st})
+	tl.Bind(&fakeKernel{st: st}, st)
 	if res, _ := tl.Invoke(context.Background(), json.RawMessage(`{"op":"list","status":"bogus"}`)); !res.IsError {
 		t.Error("list with bad status should error")
 	}
@@ -453,7 +451,7 @@ func TestWorkboard_ListLimits(t *testing.T) {
 		t.Fatal(err)
 	}
 	tl := New()
-	tl.Bind(&fakeKernel{st: st})
+	tl.Bind(&fakeKernel{st: st}, st)
 	ctx := toolapi.WithAgent(context.Background(), "builder")
 	for i := 0; i < 5; i++ {
 		tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"Task"}`))
@@ -475,7 +473,7 @@ func TestWorkboard_Policy(t *testing.T) {
 		t.Fatal(err)
 	}
 	tl := New()
-	tl.Bind(&fakeKernel{st: st})
+	tl.Bind(&fakeKernel{st: st}, st)
 	ctx := toolapi.WithAgent(context.Background(), "builder")
 	res, _ := tl.Invoke(ctx, json.RawMessage(`{"op":"create","title":"policy-test"}`))
 	var created struct{ Task struct{ ID string } }

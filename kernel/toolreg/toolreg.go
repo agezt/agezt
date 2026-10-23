@@ -30,6 +30,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/overseerapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
+	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
@@ -88,6 +89,12 @@ type KernelDeps struct {
 	// contract's port (kernel/contract/workflowapi). Nil when unwired — the
 	// tool then reports that instead of dereferencing nil.
 	Workflows workflowapi.Store
+	// Workboard is the task-store port the workboard tool reads through
+	// (op=list, op=show). The tool is a plugin, so it may not name the module
+	// that keeps the store; the daemon supplies it through the contract's
+	// port (kernel/contract/workboardapi). Nil when unwired — the tool then
+	// reports that instead of dereferencing nil.
+	Workboard workboardapi.Store
 }
 
 // LateDeps carries the dependencies for the ConfigureLate phase — wiring that

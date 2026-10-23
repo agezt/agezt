@@ -253,7 +253,7 @@ func specWorkboard() toolreg.Spec {
 		},
 		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.K != nil {
-				wb.Bind(d.K)
+				wb.Bind(d.K, d.Workboard)
 			}
 			return nil
 		},

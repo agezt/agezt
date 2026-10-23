@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-package proof
+package proofapi
 
 import (
 	"testing"
 
-	"github.com/agezt/agezt/kernel/modules/work/assure"
+	"github.com/agezt/agezt/kernel/contract/assureapi"
 )
 
 func TestSatisfied(t *testing.T) {
@@ -16,18 +16,18 @@ func TestSatisfied(t *testing.T) {
 	}{
 		{
 			name: "no criteria, complete verdict",
-			p:    Proof{Verdict: assure.Verdict{Complete: true}},
+			p:    Proof{Verdict: assureapi.Verdict{Complete: true}},
 			want: true,
 		},
 		{
 			name: "no criteria, incomplete verdict",
-			p:    Proof{Verdict: assure.Verdict{Complete: false, Gap: "not done"}},
+			p:    Proof{Verdict: assureapi.Verdict{Complete: false, Gap: "not done"}},
 			want: false,
 		},
 		{
 			name: "complete verdict, all criteria met",
 			p: Proof{
-				Verdict:  assure.Verdict{Complete: true},
+				Verdict:  assureapi.Verdict{Complete: true},
 				Criteria: []Criterion{{Text: "tests pass", Met: true}, {Text: "doc updated", Met: true}},
 			},
 			want: true,
@@ -35,7 +35,7 @@ func TestSatisfied(t *testing.T) {
 		{
 			name: "complete verdict, one criterion unmet",
 			p: Proof{
-				Verdict:  assure.Verdict{Complete: true},
+				Verdict:  assureapi.Verdict{Complete: true},
 				Criteria: []Criterion{{Text: "tests pass", Met: true}, {Text: "doc updated", Met: false}},
 			},
 			want: false,
@@ -43,7 +43,7 @@ func TestSatisfied(t *testing.T) {
 		{
 			name: "incomplete verdict overrides met criteria",
 			p: Proof{
-				Verdict:  assure.Verdict{Complete: false, Gap: "verifier not convinced"},
+				Verdict:  assureapi.Verdict{Complete: false, Gap: "verifier not convinced"},
 				Criteria: []Criterion{{Text: "tests pass", Met: true}},
 			},
 			want: false,

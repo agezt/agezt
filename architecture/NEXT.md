@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.30 the data-lake rows move to the contract layer, 2026-10-23
+## Current checkpoint — W3.31 the workboard chain moves to the contract layer, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2153,6 +2153,60 @@ files, five of the seventeen mutations would have escaped.
   was masked because the lake's raw message also says "already exists"), so
   the tests were strengthened and they were run again; one had a **stale
   anchor** and one was a **compile error**, so both were re-authored.
+
+- W3.31 (the workboard chain moves to the contract layer) is committed on
+  `main` the same way. The `workboard` tool — the agent-facing durable typed
+  task queue — is a plugin, so the description of one task and everything that
+  hangs off it now live in the contract layer. The chain moves **as a whole**,
+  because a task carries its acceptance criteria, a criterion carries a
+  **proof**, and a proof carries the **verdict** the completion judge reached:
+  so the rows live in `kernel/contract/workboardapi`, `kernel/contract/proofapi`
+  (moved with `git mv`, so the history follows the rows) and
+  `kernel/contract/assureapi`. The **rules travel with them** — the status
+  rule (`ParseStatus`, the lifecycle order, the known-status set) is pure, so
+  it belongs where the row is, and the module keeps it as a one-line
+  **delegation**; the assurance **loop** stays in the module, because it is
+  the implementation.
+  The tool's read path changes shape: the task store used to be reached
+  **through the kernel** (`k.Workboard()` — a concrete implementation a plugin
+  should never hold), and now it arrives as the contract's **port**
+  (`workboardapi.Store`: `Get`, `List`), which the **daemon hands over** as
+  a second argument to `Bind(k, store)`.
+  The **ratchet went DOWN**: 91/13 → **90/13** — the plugin-reach edge is
+  gone, and the **stale allowlist entry was deleted**.
+  The **wire matters most here**: a task is **persisted**
+  (`$AGEZT_HOME/workboard.json`) and read back by the `agt workboard` CLI,
+  the console, the Web UI's task detail and the tool, so the row's JSON keys
+  are a contract with every task file already on disk. The wire had never been
+  measured; it is now pinned key for key (the task's five always-fields and
+  twenty optional ones, the proof's, the criterion's, the evidence's), and the
+  eight **lifecycle values** are pinned too.
+  The **refusals say which refusal they are**: the empty status is refused as
+  the bare contract error, an unknown status is refused naming itself — and an
+  unknown status has **no position** in the lifecycle (`-1`), it is not "the
+  first one", which is triage's place. That last one was a **real defect** the
+  new tests found: `StatusOrder` documented `-1` and returned `0`, so an
+  unknown status would have sorted as the triage lane. The implementation now
+  honours the documented contract.
+  The **wiring** is measured twice, because a daemon that dropped either
+  would leave the tool answering "not available" on every live box while
+  every hand-built test stayed green: the composition root's own test asserts
+  the port is present and answers the **live** board, and the built-in tools'
+  test asserts the registered tool is bound to that same port.
+  The permanent tests: the **wire shape** (the task's, the proof's, the
+  criterion's and the evidence's key sets, the lifecycle values, the port's
+  method set), the **identity assertions** (the modules' rows ARE the
+  contract's rows), a test that each module's rule and the contract's agree
+  on **every** verdict, a test that the **plugin** names the contract and
+  **not** the module, the tool's **read path** (the filter it asks the port
+  for, the **bounds** of the limit, the failed-attempt count on the wire) and
+  the **wiring**.
+  37 mutations: 33 caught, 4 equivalent — nine were re-authored (seven
+  **compile errors**, two **stale anchors**) so the code still compiles; the
+  four equivalent ones are recorded as such rather than dressed up as
+  catches (the verdict parser's fence trimming is redundant with its span
+  isolation; a live kernel always opens its board, so that nil-branch is
+  unreachable).
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

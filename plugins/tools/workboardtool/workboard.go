@@ -13,44 +13,63 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/work/workboard"
 )
 
 type Kernel interface {
-	Workboard() *workboard.Store
-	CreateWorkboardTask(corr string, spec workboard.CreateSpec) (workboard.Task, bool, error)
-	ClaimWorkboardTask(corr, id, agent, runID string) (workboard.Task, error)
-	HeartbeatWorkboardTask(corr, id, agent, runID string) (workboard.Task, error)
-	CommentWorkboardTask(corr, id, author, body string) (workboard.Task, error)
-	BlockWorkboardTask(corr, id, actor, reason string) (workboard.Task, error)
-	FailWorkboardTask(corr, id, actor, reason string) (workboard.Task, workboard.RetryDecision, error)
-	UnblockWorkboardTask(corr, id, actor string) (workboard.Task, error)
-	CompleteWorkboardTask(corr, id, actor string) (workboard.Task, error)
-	ArchiveWorkboardTask(corr, id, actor string) (workboard.Task, error)
-	LinkWorkboardTask(corr, id, typ, target string) (workboard.Task, error)
-	SetWorkboardRetryPolicy(corr, id, actor string, policy *workboard.RetryPolicy) (workboard.Task, error)
-	AddWorkboardDependency(corr, id, dependsOn string) (workboard.Task, error)
-	ReclaimStaleWorkboardTask(corr, id, actor string, staleAfter time.Duration) (workboard.Task, error)
+	CreateWorkboardTask(corr string, spec workboardapi.CreateSpec) (workboardapi.Task, bool, error)
+	ClaimWorkboardTask(corr, id, agent, runID string) (workboardapi.Task, error)
+	HeartbeatWorkboardTask(corr, id, agent, runID string) (workboardapi.Task, error)
+	CommentWorkboardTask(corr, id, author, body string) (workboardapi.Task, error)
+	BlockWorkboardTask(corr, id, actor, reason string) (workboardapi.Task, error)
+	FailWorkboardTask(corr, id, actor, reason string) (workboardapi.Task, workboardapi.RetryDecision, error)
+	UnblockWorkboardTask(corr, id, actor string) (workboardapi.Task, error)
+	CompleteWorkboardTask(corr, id, actor string) (workboardapi.Task, error)
+	ArchiveWorkboardTask(corr, id, actor string) (workboardapi.Task, error)
+	LinkWorkboardTask(corr, id, typ, target string) (workboardapi.Task, error)
+	SetWorkboardRetryPolicy(corr, id, actor string, policy *workboardapi.RetryPolicy) (workboardapi.Task, error)
+	AddWorkboardDependency(corr, id, dependsOn string) (workboardapi.Task, error)
+	ReclaimStaleWorkboardTask(corr, id, actor string, staleAfter time.Duration) (workboardapi.Task, error)
 }
 
 type Tool struct {
 	mu sync.RWMutex
 	k  Kernel
+	// store is the READ side of the board (op=list, op=show). It arrives
+	// through the contract's port, because the tool is a plugin and may not
+	// reach the module that keeps the store.
+	store workboardapi.Store
 }
 
 func New() *Tool { return &Tool{} }
 
-func (t *Tool) Bind(k Kernel) {
+// Bind wires the live kernel and the store the read ops read through. Called
+// once after the kernel opens.
+//
+// The store is a SEPARATE port on purpose: the kernel's lifecycle methods
+// speak the contract's row, but the store is a concrete implementation that
+// lives in the module — a plugin may not name it. A nil store stays a nil
+// port, so the tool reports that the board is unavailable instead of calling
+// into a nil implementation.
+func (t *Tool) Bind(k Kernel, store workboardapi.Store) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.k = k
+	t.store = store
 }
 
 func (t *Tool) current() Kernel {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.k
+}
+
+// currentStore returns the bound store, or nil when it was not wired.
+func (t *Tool) currentStore() workboardapi.Store {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.store
 }
 
 func (t *Tool) Definition() toolapi.ToolDef {

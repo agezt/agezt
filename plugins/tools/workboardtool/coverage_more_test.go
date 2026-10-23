@@ -20,7 +20,6 @@ type covKernel struct {
 	createErr error
 }
 
-func (f *covKernel) Workboard() *workboard.Store { return f.workboard }
 func (f *covKernel) CreateWorkboardTask(_ string, spec workboard.CreateSpec) (workboard.Task, bool, error) {
 	f.gotCreate = spec
 	if f.createErr != nil {
@@ -71,7 +70,7 @@ func TestWorkboardCoverageBindCurrent(t *testing.T) {
 	if tool.current() != nil {
 		t.Fatal("New should leave kernel nil")
 	}
-	tool.Bind(&covKernel{})
+	tool.Bind(&covKernel{}, nil)
 	if tool.current() == nil {
 		t.Fatal("Bind should set kernel")
 	}
@@ -92,7 +91,7 @@ func TestWorkboardCoverageInvokeValidation(t *testing.T) {
 	}
 
 	tool := New()
-	tool.Bind(&covKernel{})
+	tool.Bind(&covKernel{}, nil)
 	res, err = tool.Invoke(context.Background(), json.RawMessage(`{"op":"list"}`))
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
@@ -106,7 +105,7 @@ func TestWorkboardCoverageInvokeValidation(t *testing.T) {
 		t.Fatalf("workboard.OpenStore: %v", err)
 	}
 	tool = New()
-	tool.Bind(&covKernel{workboard: st})
+	tool.Bind(&covKernel{workboard: st}, st)
 	res, err = tool.Invoke(context.Background(), json.RawMessage(`{"op":"show"}`))
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
@@ -206,7 +205,7 @@ func TestWorkboardCoverageInvokeOps(t *testing.T) {
 		t.Fatalf("workboard.OpenStore: %v", err)
 	}
 	tool := New()
-	tool.Bind(&covKernel{workboard: st})
+	tool.Bind(&covKernel{workboard: st}, st)
 
 	cases := map[string]bool{
 		`{"op":"list"}`:             false,
@@ -241,7 +240,7 @@ func TestWorkboardCoverageInvokeOps(t *testing.T) {
 	}
 
 	failing := &covKernel{workboard: st, createErr: errors.New("create failed")}
-	tool.Bind(failing)
+	tool.Bind(failing, st)
 	res, err := tool.Invoke(context.Background(), json.RawMessage(`{"op":"create","title":"t"}`))
 	if err != nil || !res.IsError || !strings.Contains(res.Output, "create failed") {
 		t.Fatalf("create error = %+v, %v", res, err)
