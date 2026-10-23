@@ -847,6 +847,16 @@ This file holds the active `[Unreleased]` working set.
   field can no longer leave a tool reporting an empty value under a key
   nobody reads.
 
+- **Two more tools name the agent profile where it lives.** The config tool
+  and the schedule tool each reached into the agents module for one type — the
+  agent profile — and nothing else. That row already lives in the contract
+  layer; the module merely kept an alias of it. The tools now name the
+  contract row directly, the module keeps its name, and every other caller is
+  unchanged. The rule that answers "who manages this agent?" had been written
+  twice — once in the schedule tool and once in the overseer's repair surface
+  — and now has one home on the profile row, so the two surfaces cannot drift
+  apart.
+
 - **The council, the conductor and the research tools no longer reach into the
   kernel for a type.** The rows the reasoning module produces — a consensus,
   a transcript, a cited report — move to the contract layer
