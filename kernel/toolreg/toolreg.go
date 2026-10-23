@@ -25,6 +25,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/introspectapi"
 	"github.com/agezt/agezt/kernel/contract/overseerapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/journal"
@@ -67,6 +68,12 @@ type KernelDeps struct {
 	// answers the contract (kernel/contract/overseerapi). Nil when unwired —
 	// the tool then reports that instead of dereferencing nil.
 	Overseer overseerapi.Source
+	// Introspect is the daemon self-knowledge port the introspect tool reads.
+	// The tool is a plugin, so it may not reach the live kernel itself; the
+	// daemon supplies the app-layer implementation that answers the contract
+	// (kernel/contract/introspectapi). Nil when unwired — the tool then reports
+	// that instead of dereferencing nil.
+	Introspect introspectapi.Source
 }
 
 // LateDeps carries the dependencies for the ConfigureLate phase — wiring that

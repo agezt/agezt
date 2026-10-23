@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-178 package(s):
+180 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -26,6 +26,7 @@
 - **`kernel/app/edict`** — Package edict owns the operator's view of one kernel's policy engine: the trust levels, ask policy and hard-deny rules, and a dry-run decision probe.
 - **`kernel/app/execprofile`** — Package execprofile reports the execution profiles a kernel can route work to: the inventory, one profile, and the health check of each profile and policy, built from the kernel's tools and warden and the host's remote backend configuration.
 - **`kernel/app/files`** — Package files applies console file mutations through the host's governed tool invocation port.
+- **`kernel/app/introspect`** — —
 - **`kernel/app/journal`** — Package journal owns the operator's journal reads: the head checkpoint, the last-N tail and the journal's size and shape statistics.
 - **`kernel/app/market`** — SPDX-License-Identifier: MIT
 - **`kernel/app/memory`** — Package memory owns transport-independent memory use cases.
@@ -78,6 +79,7 @@
 - **`kernel/contract/cadenceapi`** — —
 - **`kernel/contract/catalogapi`** — Package catalogapi is the contract layer's home for the provider catalog's rows: the description of one provider and the models it serves.
 - **`kernel/contract/channelapi`** — Package channelapi is the messaging-channel contract: the platform-neutral inbound message every channel normalises to (UnifiedMessage, SPEC-04 §1.3), what the kernel hands a channel to deliver (Outbound, Attachment, Reply), the Channel interface a duplex surface implements, and the Manifest a channel registers to describe itself.
+- **`kernel/contract/introspectapi`** — Package introspectapi is the contract layer's home for the introspector's rows: the daemon's own at-a-glance health snapshot and the reaper's fleet scan, as the agent-facing tool publishes them.
 - **`kernel/contract/llm`** — Package llm is the model-provider contract: the canonical conversation (Message, Role, ToolCall), one completion round trip (CompletionRequest, CompletionResponse, Usage, StopReason, Params) and the provider interfaces (Provider, StreamingProvider, Chunk).
 - **`kernel/contract/mcpapi`** — Package mcpapi is the contract layer's home for the MCP server row: the description of one registered MCP server — a stdio command or a remote HTTP endpoint the daemon can spawn and speak MCP to.
 - **`kernel/contract/opapi`** — Package opapi defines transport-independent operation metadata and host ports.

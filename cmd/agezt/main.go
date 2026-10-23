@@ -851,21 +851,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// (schedule, runs, standing, skill, introspect, overseer, tool_forge, mcp,
 	// workflow, workboard). Wired here because the tools are built before the
 	// kernel exists (same ordering as gov.SetBus).
-	if err := toolSet.Configure(toolreg.KernelDeps{
-		K:               k,
-		Bus:             k.Bus(),
-		Artifacts:       k.ArtifactIndex(),
-		Lake:            k.DataLake(),
-		Journal:         k.Journal(),
-		BaseDir:         baseDir,
-		Stdout:          stdout,
-		NetguardPublish: netguardPublish(k.Bus()),
-		// The overseer tool steers the fleet through a contract port; the
-		// implementation that answers it needs the live kernel and the board
-		// store, so the daemon builds it here (the tool is a plugin and may
-		// reach neither).
-		Overseer: overseer.NewKernelSource(k, baseDir),
-	}); err != nil {
+	if err := toolSet.Configure(toolKernelDeps(k, baseDir, stdout)); err != nil {
 		fmt.Fprintf(stderr, "%s: configure tools: %v\n", brand.Binary, err)
 		return 1
 	}

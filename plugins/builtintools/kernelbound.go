@@ -133,8 +133,10 @@ func specIntrospect() toolreg.Spec {
 			return toolreg.Built{Tool: it}, nil
 		},
 		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
-			if d.K != nil {
-				it.Bind(introspecttool.NewKernelSource(d.K))
+			// The tool may not name the kernel: the daemon hands over the
+			// app layer's adapter through the contract's port.
+			if d.Introspect != nil {
+				it.Bind(d.Introspect)
 			}
 			return nil
 		},

@@ -934,6 +934,23 @@ This file holds the active `[Unreleased]` working set.
   names belong to an upstream service, and a renamed one would have silently
   emptied every existing catalog file.
 
+- **The introspector's rows move to the contract layer, and the code that
+  gathers them to the app layer.** The introspect tool lets the agent read the
+  daemon's own live state — the health overview and the reaper's fleet scan —
+  and it is a plugin, so it may reach the contract and the platform layers and
+  nothing else. The rows it publishes now live in the contract layer
+  (`kernel/contract/introspectapi`), and the code that assembles them from the
+  live kernel now lives in the app layer (`kernel/app/introspect`). The tool
+  reads that state through the contract's port, and the daemon hands the
+  adapter over instead of the tool building its own.
+  Nothing an operator or an agent reads changes: the tool's wire is
+  byte-identical, and it is now pinned by a test.
+  One thing did change underneath, and it is worth knowing: the daemon's tool
+  wiring is now assembled in one named place (`cmd/agezt/tooldeps.go`) and
+  measured there — a wiring that nobody witnesses is a wiring that can be
+  dropped silently, and the symptom would have been the introspect tool
+  answering "not available on this daemon" on every live box.
+
 - **The council, the conductor and the research tools no longer reach into the
   kernel for a type.** The rows the reasoning module produces — a consensus,
   a transcript, a cited report — move to the contract layer

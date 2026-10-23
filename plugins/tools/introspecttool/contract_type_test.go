@@ -7,11 +7,43 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/introspectapi"
 	"github.com/agezt/agezt/kernel/contract/types"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/plugins/providers/mock"
 )
+
+// TestTheRowsAreTheContractRows: every row the plugin publishes IS the
+// contract's row, not a copy of it. A copy would drift — the plugin would
+// then publish a shape the contract no longer describes, and the app-layer
+// adapter (which builds the contract's row) would no longer fit the plugin.
+func TestTheRowsAreTheContractRows(t *testing.T) {
+	for _, c := range []struct {
+		name     string
+		plugin   any
+		contract any
+	}{
+		{"Delegation", Delegation{}, introspectapi.Delegation{}},
+		{"ReaperOverview", ReaperOverview{}, introspectapi.ReaperOverview{}},
+		{"ReaperAgent", ReaperAgent{}, introspectapi.ReaperAgent{}},
+		{"ReaperDegradedAgent", ReaperDegradedAgent{}, introspectapi.ReaperDegradedAgent{}},
+		{"ReaperMisconfiguredAgent", ReaperMisconfiguredAgent{}, introspectapi.ReaperMisconfiguredAgent{}},
+		{"ReaperReport", ReaperReport{}, introspectapi.ReaperReport{}},
+		{"Overview", Overview{}, introspectapi.Overview{}},
+	} {
+		if reflect.TypeOf(c.plugin) != reflect.TypeOf(c.contract) {
+			t.Errorf("the %s row drifted from the contract: %v vs %v",
+				c.name, reflect.TypeOf(c.plugin), reflect.TypeOf(c.contract))
+		}
+	}
+}
+
+// TestTheSourceIsTheContractPort: the tool reads through the contract's
+// port, so the app layer's adapter satisfies it without the plugin naming
+// the kernel.
+func TestTheSourceIsTheContractPort(t *testing.T) {
+	if reflect.TypeOf((*Source)(nil)).Elem() != reflect.TypeOf((*introspectapi.Source)(nil)).Elem() {
+		t.Fatal("the source drifted from the contract port")
+	}
+}
 
 // TestDelegationIsTheContractType: the overview's delegation row IS the
 // contract type, not a copy of it. The kernel's ceilings therefore reach the
@@ -40,30 +72,5 @@ func TestOverviewCarriesTheDelegationCeilings(t *testing.T) {
 	}
 	if wire["enabled"] != true || wire["max_depth"] != float64(2) || wire["max_fanout"] != float64(3) || wire["max_spend_microcents"] != float64(1500) || wire["max_total"] != float64(4) {
 		t.Fatalf("the delegation wire lost a ceiling: %+v", wire)
-	}
-}
-
-// TestKernelSourceCarriesTheKernelCeilings: the live kernel's ceilings reach
-// the overview as they are — the adapter hands the kernel's own row over, so
-// the agent reads the same numbers the status operation publishes.
-func TestKernelSourceCarriesTheKernelCeilings(t *testing.T) {
-	k, err := kernelruntime.Open(kernelruntime.Config{
-		BaseDir:                    t.TempDir(),
-		Provider:                   mock.New(),
-		Tools:                      map[string]toolapi.Tool{},
-		SubAgentTool:               true,
-		SubAgentMaxDepth:           2,
-		SubAgentMaxFanout:          3,
-		SubAgentMaxSpendMicrocents: 500,
-		SubAgentMaxTotal:           7,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { k.Close() })
-	got := NewKernelSource(k).Overview().Delegation
-	want := types.SubAgentLimits{Enabled: true, MaxDepth: 2, MaxFanout: 3, MaxSpendMicrocents: 500, MaxTotal: 7}
-	if got != want {
-		t.Fatalf("delegation = %+v, want %+v", got, want)
 	}
 }
