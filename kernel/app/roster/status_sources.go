@@ -9,9 +9,9 @@ import (
 
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/event"
+	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
-	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/standing"
 )
 
@@ -62,7 +62,7 @@ type StatusSources struct {
 	// Board lists the board's open help requests — the escalations.
 	Board func() []board.Message
 	// Reaper runs the reaper scan over the window.
-	Reaper func(reaperCut int64) runtime.ReaperReport
+	Reaper func(reaperCut int64) agentsapi.ReaperReport
 	// RepairCooldown is how long a repair stays ineligible. Nil reads the
 	// environment.
 	RepairCooldown func() time.Duration

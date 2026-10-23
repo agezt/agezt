@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/agents/reaper"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
@@ -48,6 +49,10 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 	// The kernel cannot import the reasoning module itself (archcheck's
 	// principle P5), so the composition root builds it and injects it.
 	k.SetReasoning(reasoning.New(k.ReasoningDependencies()))
+	// The same holds for the agents module's reaper: the kernel cannot import
+	// a module's implementation, so the composition root builds the scanner
+	// over the kernel's own ports and injects it.
+	k.SetReaperScanner(reaper.New(k.ReaperPorts()))
 	t.Cleanup(func() { k.Close() })
 
 	srv := controlplane.NewServer(k, dir)

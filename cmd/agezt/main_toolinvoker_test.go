@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/toolexec"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -73,5 +75,24 @@ func TestOpenAppKernelBindsPrimaryAndTenant(t *testing.T) {
 		if found != 1 {
 			t.Errorf("%s decisions=%d", name, found)
 		}
+	}
+}
+
+// TestOpenAppKernelWiresTheReaper: the daemon IS the composition root — it
+// builds the agents module's reaper over the kernel's own ports and injects
+// it, so the daemon's scan is the module's scan and not an empty report.
+func TestOpenAppKernelWiresTheReaper(t *testing.T) {
+	k, err := openAppKernel(kernelruntime.Config{BaseDir: t.TempDir(), Provider: mock.New(), Tools: map[string]toolapi.Tool{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { k.Close() })
+	if _, err := k.Roster().Add(roster.Profile{Slug: "dormant"}); err != nil {
+		t.Fatal(err)
+	}
+	future := time.Now().Add(time.Hour).UnixMilli()
+	rep := k.ReaperScan(future, future)
+	if len(rep.DeadAgents) != 1 || rep.DeadAgents[0].Slug != "dormant" {
+		t.Fatalf("the daemon's reaper did not answer: %+v", rep.DeadAgents)
 	}
 }

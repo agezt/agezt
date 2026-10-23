@@ -25,6 +25,7 @@ import (
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/mcp"
+	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
@@ -103,6 +104,14 @@ type Kernel struct {
 	// root builds the service and injects it here with SetReasoning. nil until
 	// it is wired.
 	reasoning api.Service
+
+	// reaperScanner is the agents module's reaper (the read-only fleet health
+	// scan). The module lives in kernel/modules/agents/reaper; the runtime
+	// cannot import it (a module may import another module's api package and
+	// nothing else — archcheck's principle P5), so the composition root builds
+	// the scanner and injects it here with SetReaperScanner. nil until it is
+	// wired.
+	reaperScanner agentsapi.ReaperScanner
 
 	catalogStore *catalog.Store
 	catalog      *catalog.Catalog // snapshot — refreshable via ReloadCatalog

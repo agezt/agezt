@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/modules/agents/reaper"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
@@ -47,6 +48,9 @@ func TestReaperNativeScan(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
+	// The kernel cannot import the agents module's reaper (archcheck's
+	// principle P5), so the composition root builds it and injects it.
+	k.SetReaperScanner(reaper.New(k.ReaperPorts()))
 	reg, err := tenant.New(filepath.Join(dir, "tenants"), func(_ string, baseDir string) (io.Closer, error) {
 		return runtime.Open(runtime.Config{BaseDir: baseDir, Provider: mock.New()})
 	})

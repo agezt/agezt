@@ -5,16 +5,17 @@ package runtime
 import (
 	"context"
 	"time"
+
+	"github.com/agezt/agezt/kernel/modules/agents/api"
 )
 
 // agentConfigIssue describes one malformed runtime override on an agent
 // profile. Unknown AGEZT_* keys are allowed as generic config overlays; only
 // the runtime knobs this process actually consumes are validated here.
-type agentConfigIssue struct {
-	Key   string
-	Value string
-	Issue string
-}
+//
+// It is the agents module's row (api.ConfigIssue): the doctor and the
+// reaper's misconfiguration finding must never be able to disagree.
+type agentConfigIssue = api.ConfigIssue
 
 // agentOverride is one runtime knob a named agent may retune for its own runs
 // via Profile.ConfigOverrides.

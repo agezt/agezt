@@ -1,25 +1,59 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
+package reaper
+
+// The reaper's own tests. They run the MODULE over the host's real ports —
+// the same ports the daemon wires — so a port that lies (a journal that is
+// not the kernel's, a roster that is not the fleet) fails here rather than in
+// production.
+//
+// The host is the runtime kernel; the test reaches it only to build the ports
+// (kernel.ReaperPorts) and to publish the events the scan reads.
 
 import (
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/standing"
+	"github.com/agezt/agezt/plugins/providers/mock"
 )
+
+// openScanner spins a real kernel over a temp journal and returns it with the
+// module built over the host's ports.
+func openScanner(t *testing.T) (*runtime.Kernel, *Scanner) {
+	t.Helper()
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:  t.TempDir(),
+		Provider: mock.New(mock.FinalText("ok")),
+		Tools:    map[string]toolapi.Tool{},
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+	return k, New(k.ReaperPorts())
+}
 
 // A future cutoff makes every existing agent "old enough to judge", so the scan
 // flags exactly the enabled, non-retired one with no activity — and a past cutoff
 // (everything within the grace window) flags nothing.
 func TestReaperScan_FlagsIdleFiltersRetiredPausedAndNew(t *testing.T) {
-	k := openCausesKernel(t)
-	for _, slug := range []string{"live", "retired", "paused"} {
-		if _, err := k.Roster().Add(roster.Profile{Slug: slug}); err != nil {
-			t.Fatalf("add %s: %v", slug, err)
+	k, scan := openScanner(t)
+	for _, p := range []roster.Profile{
+		{Slug: "live"},
+		{Slug: "retired"},
+		{Slug: "paused"},
+		// A shipped guardian is long-lived by design — it is never reaped.
+		{Slug: "system", System: true},
+	} {
+		if _, err := k.Roster().Add(p); err != nil {
+			t.Fatalf("add %s: %v", p.Slug, err)
 		}
 	}
 	if _, err := k.Roster().SetRetired("retired", true); err != nil {
@@ -30,7 +64,7 @@ func TestReaperScan_FlagsIdleFiltersRetiredPausedAndNew(t *testing.T) {
 	}
 
 	future := time.Now().Add(time.Hour).UnixMilli()
-	rep := k.ReaperScan(future, future)
+	rep := scan.Scan(future, future)
 	if len(rep.DeadAgents) != 1 || rep.DeadAgents[0].Slug != "live" {
 		t.Fatalf("dead agents = %+v, want exactly [live]", rep.DeadAgents)
 	}
@@ -40,13 +74,13 @@ func TestReaperScan_FlagsIdleFiltersRetiredPausedAndNew(t *testing.T) {
 
 	// Past cutoff: every agent is within the grace window → nothing flagged.
 	past := time.Now().Add(-time.Hour).UnixMilli()
-	if rep2 := k.ReaperScan(past, past); len(rep2.DeadAgents) != 0 || !rep2.Empty() {
+	if rep2 := scan.Scan(past, past); len(rep2.DeadAgents) != 0 || !rep2.Empty() {
 		t.Errorf("past cutoff should flag nothing, got %+v", rep2.DeadAgents)
 	}
 }
 
 func TestReaperScan_FlagsDegradedAgentsFromHealthPolicy(t *testing.T) {
-	k := openCausesKernel(t)
+	k, scan := openScanner(t)
 	if _, err := k.Roster().Add(roster.Profile{
 		Slug: "worker",
 		HealthPolicy: &roster.HealthPolicy{
@@ -75,7 +109,7 @@ func TestReaperScan_FlagsDegradedAgentsFromHealthPolicy(t *testing.T) {
 		})
 	}
 
-	rep := k.ReaperScan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
+	rep := scan.Scan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
 	if len(rep.DegradedAgents) != 1 {
 		t.Fatalf("degraded agents = %+v, want exactly one", rep.DegradedAgents)
 	}
@@ -89,7 +123,7 @@ func TestReaperScan_FlagsDegradedAgentsFromHealthPolicy(t *testing.T) {
 }
 
 func TestReaperScan_FlagsRetryPressureAgents(t *testing.T) {
-	k := openCausesKernel(t)
+	k, scan := openScanner(t)
 	if _, err := k.Roster().Add(roster.Profile{
 		Slug: "worker",
 		HealthPolicy: &roster.HealthPolicy{
@@ -127,7 +161,7 @@ func TestReaperScan_FlagsRetryPressureAgents(t *testing.T) {
 		Payload: map[string]any{"agent": "paused", "reason": "timeout"},
 	})
 
-	rep := k.ReaperScan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
+	rep := scan.Scan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
 	if len(rep.RetryPressure) != 1 {
 		t.Fatalf("retry pressure agents = %+v, want exactly one", rep.RetryPressure)
 	}
@@ -141,7 +175,7 @@ func TestReaperScan_FlagsRetryPressureAgents(t *testing.T) {
 }
 
 func TestReaperScan_FlagsMisconfiguredAgentsFromRuntimeOverrides(t *testing.T) {
-	k := openCausesKernel(t)
+	k, scan := openScanner(t)
 	if _, err := k.Roster().Add(roster.Profile{
 		Slug: "miswired",
 		HealthPolicy: &roster.HealthPolicy{
@@ -156,7 +190,7 @@ func TestReaperScan_FlagsMisconfiguredAgentsFromRuntimeOverrides(t *testing.T) {
 		t.Fatalf("add miswired: %v", err)
 	}
 
-	rep := k.ReaperScan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
+	rep := scan.Scan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
 	if len(rep.MisconfiguredAgents) != 1 {
 		t.Fatalf("misconfigured agents = %+v, want exactly one", rep.MisconfiguredAgents)
 	}
@@ -170,7 +204,7 @@ func TestReaperScan_FlagsMisconfiguredAgentsFromRuntimeOverrides(t *testing.T) {
 }
 
 func TestReaperScan_FlagsMisconfiguredAgentHierarchy(t *testing.T) {
-	k := openCausesKernel(t)
+	k, scan := openScanner(t)
 	directFalse := false
 	for _, p := range []roster.Profile{
 		{Slug: "lead"},
@@ -190,7 +224,7 @@ func TestReaperScan_FlagsMisconfiguredAgentHierarchy(t *testing.T) {
 		t.Fatalf("retire owner: %v", err)
 	}
 
-	rep := k.ReaperScan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
+	rep := scan.Scan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
 	issues := map[string]string{}
 	for _, row := range rep.MisconfiguredAgents {
 		issues[row.Slug] = strings.Join(row.Issues, "\n")
@@ -207,12 +241,20 @@ func TestReaperScan_FlagsMisconfiguredAgentHierarchy(t *testing.T) {
 }
 
 func TestReaperScan_FlagsMisconfiguredAutomationBindings(t *testing.T) {
-	k := openCausesKernel(t)
+	k, scan := openScanner(t)
 	directFalse := false
 	for _, p := range []roster.Profile{
 		{Slug: "lead"},
-		{Slug: "worker", ParentAgent: "lead", DirectCallable: &directFalse},
+		// A managed sub-agent with a broken override AND a broken binding:
+		// both findings belong to the same agent's row.
+		{
+			Slug:            "worker",
+			ParentAgent:     "lead",
+			DirectCallable:  &directFalse,
+			ConfigOverrides: map[string]string{"AGEZT_MAX_ITER": "abc"},
+		},
 		{Slug: "paused"},
+		{Slug: "retired"},
 	} {
 		if _, err := k.Roster().Add(p); err != nil {
 			t.Fatalf("add %s: %v", p.Slug, err)
@@ -220,6 +262,9 @@ func TestReaperScan_FlagsMisconfiguredAutomationBindings(t *testing.T) {
 	}
 	if _, err := k.Roster().SetEnabled("paused", false); err != nil {
 		t.Fatalf("pause: %v", err)
+	}
+	if _, err := k.Roster().SetRetired("retired", true); err != nil {
+		t.Fatalf("retire: %v", err)
 	}
 	schedWorker, err := k.Schedules().Add("worker job", time.Hour, "", "test", time.Now())
 	if err != nil {
@@ -235,6 +280,13 @@ func TestReaperScan_FlagsMisconfiguredAutomationBindings(t *testing.T) {
 	if _, err := k.Schedules().SetAgent(schedMissing.ID, "ghost"); err != nil {
 		t.Fatalf("bind ghost schedule: %v", err)
 	}
+	schedRetired, err := k.Schedules().Add("retired job", time.Hour, "", "test", time.Now())
+	if err != nil {
+		t.Fatalf("add retired schedule: %v", err)
+	}
+	if _, err := k.Schedules().SetAgent(schedRetired.ID, "retired"); err != nil {
+		t.Fatalf("bind retired schedule: %v", err)
+	}
 	standingPaused, err := k.Standing().Add(standing.Order{
 		Name:     "paused order",
 		Agent:    "paused",
@@ -245,25 +297,44 @@ func TestReaperScan_FlagsMisconfiguredAutomationBindings(t *testing.T) {
 		t.Fatalf("add paused standing: %v", err)
 	}
 	_ = standingPaused
+	standingRetired, err := k.Standing().Add(standing.Order{
+		Name:     "retired order",
+		Agent:    "retired",
+		Plan:     "do it",
+		Triggers: []standing.Trigger{{Type: standing.TriggerCron, Schedule: "0 9 * * *"}},
+	})
+	if err != nil {
+		t.Fatalf("add retired standing: %v", err)
+	}
+	_ = standingRetired
 
-	rep := k.ReaperScan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
+	rep := scan.Scan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
 	issues := map[string]string{}
 	for _, row := range rep.MisconfiguredAgents {
 		issues[row.Slug] = strings.Join(row.Issues, "\n")
 	}
 	for slug, want := range map[string]string{
-		"worker": "bound schedule cannot call managed sub-agent",
-		"ghost":  "bound schedule targets missing agent",
-		"paused": "bound standing order targets paused agent",
+		"worker":  "bound schedule cannot call managed sub-agent",
+		"ghost":   "bound schedule targets missing agent",
+		"paused":  "bound standing order targets paused agent",
+		"retired": "bound standing order targets retired agent",
 	} {
 		if !strings.Contains(issues[slug], want) {
 			t.Fatalf("%s issue = %q, want %q; all=%+v", slug, issues[slug], want, rep.MisconfiguredAgents)
 		}
 	}
+	// Both findings belong to the same agent: the broken override and the
+	// broken binding are one row, not two.
+	if !strings.Contains(issues["worker"], "AGEZT_MAX_ITER") {
+		t.Fatalf("the worker's override issue was lost: %q", issues["worker"])
+	}
+	if !strings.Contains(issues["retired"], "bound schedule targets retired agent") {
+		t.Fatalf("the retired agent's schedule issue was lost: %q", issues["retired"])
+	}
 }
 
 func TestReaperScan_FlagsRoutingPressureAgentsFromModelFallbacks(t *testing.T) {
-	k := openCausesKernel(t)
+	k, scan := openScanner(t)
 	if _, err := k.Roster().Add(roster.Profile{
 		Slug: "router",
 		HealthPolicy: &roster.HealthPolicy{
@@ -290,7 +361,7 @@ func TestReaperScan_FlagsRoutingPressureAgentsFromModelFallbacks(t *testing.T) {
 		})
 	}
 
-	rep := k.ReaperScan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
+	rep := scan.Scan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
 	if len(rep.RoutingPressure) != 1 {
 		t.Fatalf("routing pressure agents = %+v, want exactly one", rep.RoutingPressure)
 	}
@@ -304,7 +375,7 @@ func TestReaperScan_FlagsRoutingPressureAgentsFromModelFallbacks(t *testing.T) {
 }
 
 func TestReaperScan_FlagsRoutingUnstableAgentsAfterRollbackAndRenewedPressure(t *testing.T) {
-	k := openCausesKernel(t)
+	k, scan := openScanner(t)
 	if _, err := k.Roster().Add(roster.Profile{
 		Slug: "router",
 		HealthPolicy: &roster.HealthPolicy{
@@ -344,7 +415,7 @@ func TestReaperScan_FlagsRoutingUnstableAgentsAfterRollbackAndRenewedPressure(t 
 		},
 	})
 
-	rep := k.ReaperScan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
+	rep := scan.Scan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
 	if len(rep.RoutingUnstable) != 1 {
 		t.Fatalf("routing unstable agents = %+v, want exactly one", rep.RoutingUnstable)
 	}
@@ -358,7 +429,7 @@ func TestReaperScan_FlagsRoutingUnstableAgentsAfterRollbackAndRenewedPressure(t 
 }
 
 func TestReaperScan_SuppressesRoutingPressureDuringForcedChainProbation(t *testing.T) {
-	k := openCausesKernel(t)
+	k, scan := openScanner(t)
 	if _, err := k.Roster().Add(roster.Profile{
 		Slug: "router",
 		HealthPolicy: &roster.HealthPolicy{
@@ -398,7 +469,7 @@ func TestReaperScan_SuppressesRoutingPressureDuringForcedChainProbation(t *testi
 		},
 	})
 
-	rep := k.ReaperScan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
+	rep := scan.Scan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
 	if len(rep.RoutingPressure) != 0 {
 		t.Fatalf("routing pressure should be suppressed during forced probation: %+v", rep.RoutingPressure)
 	}
@@ -416,7 +487,7 @@ func TestReaperScan_SuppressesRoutingPressureDuringForcedChainProbation(t *testi
 
 func TestReaperScan_FlagsForcedChainFailureAfterProbationExpires(t *testing.T) {
 	t.Setenv("AGEZT_ROUTING_FORCE_PROBATION", "1ms")
-	k := openCausesKernel(t)
+	k, scan := openScanner(t)
 	if _, err := k.Roster().Add(roster.Profile{
 		Slug: "router",
 		HealthPolicy: &roster.HealthPolicy{
@@ -457,7 +528,7 @@ func TestReaperScan_FlagsForcedChainFailureAfterProbationExpires(t *testing.T) {
 	})
 	time.Sleep(3 * time.Millisecond)
 
-	rep := k.ReaperScan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
+	rep := scan.Scan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
 	if len(rep.RoutingForced) != 0 {
 		t.Fatalf("forced probation should have expired: %+v", rep.RoutingForced)
 	}
@@ -475,7 +546,7 @@ func TestReaperScan_FlagsForcedChainFailureAfterProbationExpires(t *testing.T) {
 
 func TestReaperScan_FlagsForcedChainExhaustionAfterRepeatedForcedGenerations(t *testing.T) {
 	t.Setenv("AGEZT_ROUTING_FORCE_PROBATION", "1ms")
-	k := openCausesKernel(t)
+	k, scan := openScanner(t)
 	if _, err := k.Roster().Add(roster.Profile{
 		Slug: "router",
 		HealthPolicy: &roster.HealthPolicy{
@@ -516,7 +587,7 @@ func TestReaperScan_FlagsForcedChainExhaustionAfterRepeatedForcedGenerations(t *
 	})
 	time.Sleep(3 * time.Millisecond)
 
-	rep := k.ReaperScan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
+	rep := scan.Scan(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(-time.Hour).UnixMilli())
 	if len(rep.RoutingForcedExhausted) != 1 {
 		t.Fatalf("forced exhausted agents = %+v, want exactly one", rep.RoutingForcedExhausted)
 	}
@@ -526,5 +597,55 @@ func TestReaperScan_FlagsForcedChainExhaustionAfterRepeatedForcedGenerations(t *
 	got := rep.RoutingForcedExhausted[0]
 	if got.Slug != "router" || got.ForceGeneration != 2 {
 		t.Fatalf("bad forced exhausted row: %+v", got)
+	}
+}
+
+// The module reads the fleet through the host's ports: a host that supplies no
+// ports at all gets an empty report, not a crash.
+func TestReaperScan_WithoutPortsFindsNothing(t *testing.T) {
+	rep := New(api.ReaperPorts{}).Scan(time.Now().UnixMilli(), time.Now().UnixMilli())
+	if !rep.Empty() {
+		t.Fatalf("a host with no ports must yield an empty report: %+v", rep)
+	}
+}
+
+// TestReaperScan_JudgesTheFleetTheHostGave: the scan judges the fleet the host
+// hands over and nothing else. An agent that ran a task after the cutoff is
+// alive; one that did not is a candidate, and the report carries when it was
+// last seen.
+func TestReaperScan_JudgesTheFleetTheHostGave(t *testing.T) {
+	ports := api.ReaperPorts{
+		Profiles: func() []roster.Profile {
+			return []roster.Profile{
+				{Slug: "stale", Name: "Stale", Enabled: true, CreatedMS: 1000},
+				{Slug: "awake", Name: "Awake", Enabled: true, CreatedMS: 1000},
+				{Slug: "dormant", Name: "Dormant", Enabled: true, CreatedMS: 1000},
+			}
+		},
+		Journal: func(fn func(*event.Event) error) error {
+			for _, e := range []*event.Event{
+				{Kind: event.KindTaskReceived, CorrelationID: "c-stale", TSUnixMS: 2000, Payload: []byte(`{"agent":"stale"}`)},
+				{Kind: event.KindTaskReceived, CorrelationID: "c-awake", TSUnixMS: 5000, Payload: []byte(`{"agent":"awake"}`)},
+			} {
+				if err := fn(e); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+		StaleArtifacts: func(cutoffMS int64) (int, int64) { return 3, 4096 },
+	}
+	rep := New(ports).Scan(4000, 4000)
+	if len(rep.DeadAgents) != 2 {
+		t.Fatalf("dead agents = %+v, want exactly the dormant and the stale one", rep.DeadAgents)
+	}
+	if rep.DeadAgents[0].Slug != "dormant" || rep.DeadAgents[0].LastActiveMS != 0 {
+		t.Fatalf("bad dormant row: %+v", rep.DeadAgents[0])
+	}
+	if rep.DeadAgents[1].Slug != "stale" || rep.DeadAgents[1].LastActiveMS != 2000 {
+		t.Fatalf("the stale agent's last activity was lost: %+v", rep.DeadAgents[1])
+	}
+	if rep.StaleArtifacts != 3 || rep.StaleBytes != 4096 {
+		t.Fatalf("the stale artifact totals were lost: %+v", rep)
 	}
 }

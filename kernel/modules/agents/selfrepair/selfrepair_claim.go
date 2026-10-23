@@ -10,13 +10,14 @@ package selfrepair
 
 import (
 	"fmt"
+	"github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"sort"
 	"time"
 )
 
-func (c *autoRepairCoordinator) claim(k *kernelruntime.Kernel, rep kernelruntime.ReaperReport, profiles []roster.Profile) []autoRepairCandidate {
+func (c *autoRepairCoordinator) claim(k *kernelruntime.Kernel, rep api.ReaperReport, profiles []roster.Profile) []autoRepairCandidate {
 	bySlug := make(map[string]roster.Profile, len(profiles))
 	for _, p := range profiles {
 		bySlug[p.Slug] = p

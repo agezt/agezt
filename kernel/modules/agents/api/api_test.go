@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
+package api
+
+// The module's own vocabulary: the rows it publishes and the shape they keep.
 
 import (
 	"encoding/json"
@@ -49,5 +51,30 @@ func TestTheThreeForcedPhasesAreOneRow(t *testing.T) {
 	}
 	if reflect.TypeOf(RoutingForcedExhaustedAgent{}) != reflect.TypeOf(RoutingForcedAgent{}) {
 		t.Error("the exhausted row drifted from the forced row")
+	}
+}
+
+// TestEmptyReportsNothingToReap: a report with no finding and no stale
+// artifact is empty; every kind of finding makes it non-empty.
+func TestEmptyReportsNothingToReap(t *testing.T) {
+	if !(ReaperReport{}).Empty() {
+		t.Error("a fresh report must be empty")
+	}
+	notEmpty := []ReaperReport{
+		{DeadAgents: []ReaperAgent{{Slug: "d"}}},
+		{DegradedAgents: []DegradedAgent{{Slug: "g"}}},
+		{MisconfiguredAgents: []MisconfiguredAgent{{Slug: "m"}}},
+		{RetryPressure: []RetryPressureAgent{{Slug: "r"}}},
+		{RoutingPressure: []RoutingPressureAgent{{Slug: "p"}}},
+		{RoutingForced: []RoutingForcedAgent{{Slug: "f"}}},
+		{RoutingForcedFailed: []RoutingForcedFailedAgent{{Slug: "ff"}}},
+		{RoutingForcedExhausted: []RoutingForcedExhaustedAgent{{Slug: "fe"}}},
+		{RoutingUnstable: []RoutingUnstableAgent{{Slug: "u"}}},
+		{StaleArtifacts: 1},
+	}
+	for i, rep := range notEmpty {
+		if rep.Empty() {
+			t.Errorf("report %d carries a finding and must not be empty", i)
+		}
 	}
 }
