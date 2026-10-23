@@ -3,27 +3,35 @@
 package main
 
 // Provider bootstrap glue (Phase 2.4): the selection/registration/reload logic
-// itself lives in plugins/providerboot — this file only assembles the daemon's
-// dependency bundle for it. awschain.go (the credential chain builders) stays
-// in cmd/agezt because the AWS/IMDS stages are host concerns, not provider
-// bootstrap.
+// itself lives in the providers module (kernel/modules/providers/boot) — this
+// file only assembles the daemon's dependency bundle for it. awschain.go (the
+// credential chain builders) stays in cmd/agezt because the AWS/IMDS stages are
+// host concerns, not provider bootstrap.
 
 import (
 	"io"
 
 	"github.com/agezt/agezt/kernel/creds"
+	"github.com/agezt/agezt/kernel/modules/providers/boot"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
-	"github.com/agezt/agezt/plugins/providerboot"
 )
 
-// providerDeps builds the providerboot dependency bundle from a catalog
+// bootDeps assembles the provider-boot dependency bundle. It is the ONE place
+// the daemon wires the module's ports: the module refuses to run unwired (and
+// says so loudly), so every boot path must go through here — a path that
+// forgets the ports cannot hide them.
+func bootDeps(cat *catalog.Catalog, lookup func(string) string, baseDir string, stderr io.Writer) boot.Deps {
+	return boot.Deps{Catalog: cat, Lookup: lookup, BaseDir: baseDir, Stderr: stderr, Ports: providerPorts()}
+}
+
+// providerDeps builds the provider-boot dependency bundle from a catalog
 // snapshot + the credentials vault, rebuilding the catalog-scoped chained
 // credential lookup (vault → env → AWS chain) so a freshly rotated key or
 // synced catalog is honoured. Get is left nil (os.Getenv — the Config Center
 // injects operator edits into the process env before boot).
-func providerDeps(cat *catalog.Catalog, credStore *creds.Store, baseDir string, stderr io.Writer) providerboot.Deps {
+func providerDeps(cat *catalog.Catalog, credStore *creds.Store, baseDir string, stderr io.Writer) boot.Deps {
 	lookup, _ := buildAWSCredChain(catalogScopedVaultLookup(cat, credStore.Lookup))
-	return providerboot.Deps{Catalog: cat, Lookup: lookup, BaseDir: baseDir, Stderr: stderr}
+	return bootDeps(cat, lookup, baseDir, stderr)
 }
 
 // firstRunSetupNeeded reports whether the daemon-ready banner should carry the
@@ -33,6 +41,6 @@ func providerDeps(cat *catalog.Catalog, credStore *creds.Store, baseDir string, 
 // check fired exactly backwards: the sentinel resolves model "" (no nudge), and
 // "mock" only appears via the deliberate AGEZT_DEMO_ECHO=1 escape hatch (nudge
 // on a correctly configured demo daemon).
-func firstRunSetupNeeded(res *providerboot.Result) bool {
-	return res != nil && res.Primary == providerboot.UnconfiguredName
+func firstRunSetupNeeded(res *boot.Result) bool {
+	return res != nil && res.Primary == boot.UnconfiguredName
 }

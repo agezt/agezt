@@ -2,7 +2,7 @@
 
 **Scope:** `kernel/governor`, `kernel/modules/providers/catalog`, `kernel/creds` (+ `kernel/creds/sigv4`), `kernel/modules/providers/chatgptauth`, `kernel/settings`, `kernel/configcenter`, `kernel/executionprofile`, `kernel/edict`, `kernel/warden`, `kernel/netguard`, `kernel/envscrub`, `kernel/redact`, `kernel/approval`, `kernel/modules/work/seat`, `kernel/tenant`, `kernel/tenantctx`, `kernel/state`.
 
-Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md) (boot wiring that builds these objects) · [03-control-plane-and-http.md](03-control-plane-and-http.md) (HTTP/control-plane surfaces over them) · [04-agent-runtime.md](04-agent-runtime.md) (`policyHook`, run context setters) · [06-data-memory-state.md](06-data-memory-state.md) (bus/journal that receives the events) · [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md) (standing orders that apply trust ceilings) · [08-providers.md](08-providers.md) (providerboot builds the governor; provider retry/Retry-After) · [10-tools.md](10-tools.md) (tools that call warden/netguard/envscrub).
+Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md) (boot wiring that builds these objects) · [03-control-plane-and-http.md](03-control-plane-and-http.md) (HTTP/control-plane surfaces over them) · [04-agent-runtime.md](04-agent-runtime.md) (`policyHook`, run context setters) · [06-data-memory-state.md](06-data-memory-state.md) (bus/journal that receives the events) · [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md) (standing orders that apply trust ceilings) · [08-providers.md](08-providers.md) (the providers module's boot engine builds the governor; provider retry/Retry-After) · [10-tools.md](10-tools.md) (tools that call warden/netguard/envscrub).
 
 All source read from the working tree (disk), 2026-10-02.
 
@@ -30,11 +30,11 @@ All source read from the working tree (disk), 2026-10-02.
 
 | Package | Depends on (internal) | Imported by |
 |---|---|---|
-| `kernel/governor` | kernel/agent, kernel/bus, kernel/modules/providers/catalog, kernel/event | cmd/agezt, cmd/agt, kernel/controlplane, kernel/runtime, plugins/providerboot |
-| `kernel/modules/providers/catalog` | internal/atomicfile, kernel/netguard | cmd/agezt, cmd/agt, cmd/agt/providerlookup, kernel/cadence/systemtasks, kernel/controlplane, kernel/governor, kernel/runtime(+accessors, runexec), plugins/providerboot, plugins/providers/compat |
+| `kernel/governor` | kernel/agent, kernel/bus, kernel/modules/providers/catalog, kernel/event | cmd/agezt, cmd/agt, kernel/controlplane, kernel/runtime, kernel/modules/providers/boot |
+| `kernel/modules/providers/catalog` | internal/atomicfile, kernel/netguard | cmd/agezt, cmd/agt, cmd/agt/providerlookup, kernel/cadence/systemtasks, kernel/controlplane, kernel/governor, kernel/runtime(+accessors, runexec), kernel/modules/providers/boot, plugins/providers/compat |
 | `kernel/creds` | internal/atomicfile, internal/strutil, kernel/creds/sigv4, kernel/envscrub | cmd/agezt, cmd/agt, cmd/agt/providerlookup, kernel/modules/providers/chatgptauth, kernel/controlplane, kernel/executionprofile, plugins/tools/config |
 | `kernel/creds/sigv4` | — | cmd/agezt, kernel/creds, plugins/providers/bedrock |
-| `kernel/modules/providers/chatgptauth` | internal/brand, kernel/creds, kernel/netguard | kernel/controlplane, plugins/providerboot |
+| `kernel/modules/providers/chatgptauth` | internal/brand, kernel/creds, kernel/netguard | kernel/controlplane, kernel/modules/providers/boot |
 | `kernel/settings` | internal/atomicfile | cmd/agezt, kernel/channelwire, kernel/controlplane, plugins/tools/config, plugins/tools/overseertool |
 | `kernel/configcenter` | kernel/approval | cmd/agt, kernel/agentgw, kernel/controlplane, kernel/runtime(+accessors, runexec) |
 | `kernel/executionprofile` | kernel/creds, kernel/warden | kernel/controlplane, plugins/tools/codeexec, plugins/tools/shell |
@@ -175,7 +175,7 @@ flowchart LR
 ```
 
 - Model → provider resolution is **by hoisting**, not by restriction: if no provider lists the model, the chain is unchanged and the model id is sent to the cost-preferred provider (benefit of the doubt). The `modelKnownUnservable` skip (M955) is the only place a model is rejected before dispatch, and only when *every* registered provider declares a non-empty `Models` list.
-- `ProviderInfo.Models` comes from the catalog (`catalogModelIDs` in providerboot); empty = unknown coverage.
+- `ProviderInfo.Models` comes from the catalog (`catalogModelIDs` in the boot engine); empty = unknown coverage.
 - Quality/latency are **not** ordering dimensions (doc.go says so explicitly).
 
 ### A.1.4 Retry, breaker, Retry-After
@@ -211,7 +211,7 @@ Price lookup `priceForOk`: live catalog `FindModel` (exact; `provider/model` syn
 - `usageMu`: usage index only. `breaker.mu`, `respCache.mu` internal.
 - `bus atomic.Pointer[bus.Bus]`; `liveCatalog atomic.Pointer[catalog.Catalog]` is **package-global** (shared by all governors incl. tenant siblings).
 
-### A.1.8 Config / env (parsed in `plugins/providerboot`, `governorConfigFromEnv`)
+### A.1.8 Config / env (parsed in `kernel/modules/providers/boot`, `governorConfigFromEnv`)
 
 `AGEZT_PROVIDER`, `AGEZT_MODEL`, `AGEZT_TASK_ROUTES`, `AGEZT_TASK_ROUTE_REQUIRES`, `AGEZT_TASK_MODEL_OVERRIDES`, `AGEZT_TASK_MODEL_CHAINS`, `AGEZT_FALLBACK_CHAINS`, `AGEZT_DEFAULT_CHAIN`, `AGEZT_TASK_BUDGETS` (microcents, >0), `AGEZT_RATE_PER_MIN`, `AGEZT_MODEL_STRICT`, `AGEZT_PRICING_STRICT`, `AGEZT_MODEL_DOWNROUTE`, `AGEZT_MODEL_DOWNROUTE_CROSS`, `AGEZT_LLM_CACHE_TTL`. Daily ceiling boots at `DefaultDailyCeilingMicrocents` and is adjusted at runtime via `SetDailyCeiling` (control plane / UI). Tenant quotas: `AGEZT_TENANT_DAILY_CEILING` (USD), `AGEZT_TENANT_RATE_PER_MIN` (daemonconfig).
 
@@ -250,7 +250,7 @@ Tests (30 files): budget scopes (`*budget*_test.go`, `agent_budget_test.go`, `ce
 
 ## A.2 `kernel/modules/providers/catalog`
 
-**Purpose.** Data-driven provider/model registry mirroring models.dev `api.json`. Feeds: providerboot (which providers to build + their `Models`), governor pricing (`SetCatalog`), capability injections (`ToolCapableAlternative`, `StrictToolArgsNative`, `FamilySupportsNativeJSONMode`), the vault credential naming scheme, and the Models UI.
+**Purpose.** Data-driven provider/model registry mirroring models.dev `api.json`. Feeds: the boot engine (which providers to build + their `Models`), governor pricing (`SetCatalog`), capability injections (`ToolCapableAlternative`, `StrictToolArgsNative`, `FamilySupportsNativeJSONMode`), the vault credential naming scheme, and the Models UI.
 
 **Key types/functions.** `Catalog{Providers map[string]*Provider, SyncedAt, Sources}`, `Provider{ID, Name, Env, NPM, API, Doc, Models}`, `Model{ID, Name, Family, Attachment, Reasoning, ToolCall, StrictToolArgs, SchemaConstrainedDecoding, GrammarConstrainedDecoding, Knowledge, Release, Modalities, OpenWeight, Limit, Cost}`, `Cost` (USD/MTok floats → `*MicrocentsPerMTok()` int64), `Family` + `FamilyFromNPM` (maps `@ai-sdk/*` package → wire dialect; groq/xai/deepseek/… → openai-compatible; unknown → `FamilyUnknown`), `Store` (`Load`, `SaveAPI`, `SaveLocal`, `SaveCustom`, `UpsertCustomProvider`, `LoadMeta`), `Syncer` (`Sync`), `DiscoverOllama`, `FindModel`, `ToolCapableAlternative[Among]`, `VisionCapableAmong`, `BestModelsAcross`, `ProviderCredentialName` / `ProviderCredentialLookupNames` / `DuplicateCredentialEnvs`, `(*Provider).HasCredentials(lookup)`.
 
@@ -286,7 +286,7 @@ flowchart TD
   RUN[run ctx: agent profile model + fallbacks / seat chain / task type] --> REQ[agent.CompletionRequest\nModel, ModelChain, TaskType, Agent, AgentDailyCeilingMc]
   REQ --> GOV[Governor.completeChained -> preflight -> routeChain]
   GOV --> PI[ProviderInfo chosen\n(Name, AuthMode, Models from catalog)]
-  PI --> AD[provider adapter (plugins/providers/*)\nbuilt by providerboot from catalog Provider:\nFamily from NPM, base URL from API]
+  PI --> AD[provider adapter (plugins/providers/*)\nbuilt by the boot engine from catalog Provider:\nFamily from NPM, base URL from API]
   AD --> CR[CredLookup chain:\nscoped vault key provider:ID:ENV -> bare vault ENV -> os env\n(AWS: + shared file / credential_process / IMDS / STS / SSO / web identity)]
   AD --> HTTP[HTTP endpoint; adapter retry honours Retry-After]
   CAT[(catalog api/local/custom.json)] --> PI
@@ -540,7 +540,7 @@ Tests: `redact_test.go`, milestone regressions `redact_m228/m231/m366/m490_test.
 
 ## D.4 `kernel/modules/providers/chatgptauth`
 
-"Sign in with ChatGPT" (unofficial Codex CLI OAuth client `app_EMoamEEZ73f0CkXaXp7hrann`, `auth.openai.com`, redirect `http://localhost:1455/auth/callback`, callback listener `127.0.0.1:1455`). `Manager` (per baseDir, `mu`): `Token(ctx)` refreshes proactively 2 min before the access-token JWT `exp`, tolerating refresh failure while a non-empty access token exists; `ForceRefresh` (on 401); `StoreTokens`; `ExchangeCode(code, verifier)`; `ImportFromCodexCLI(path)` (`DefaultCodexAuthPath` = `~/.codex/auth.json`); `Account()` (email from id_token); `Logout`. Helpers `GeneratePKCE`, `RandomState`, `AuthorizeURL`. Token endpoint calls use `netguard.New().HTTPClient` (public-only). Persistence: JSON `Tokens{access_token, refresh_token, id_token, account_id, last_refresh}` as vault key `AGEZT_CHATGPT_OAUTH` (shown read-only in the settings schema). Account id extracted from id_token claims. Consumers: providerboot (`openairesponses` subscription provider, `AuthSubscription` tier), controlplane login routes.
+"Sign in with ChatGPT" (unofficial Codex CLI OAuth client `app_EMoamEEZ73f0CkXaXp7hrann`, `auth.openai.com`, redirect `http://localhost:1455/auth/callback`, callback listener `127.0.0.1:1455`). `Manager` (per baseDir, `mu`): `Token(ctx)` refreshes proactively 2 min before the access-token JWT `exp`, tolerating refresh failure while a non-empty access token exists; `ForceRefresh` (on 401); `StoreTokens`; `ExchangeCode(code, verifier)`; `ImportFromCodexCLI(path)` (`DefaultCodexAuthPath` = `~/.codex/auth.json`); `Account()` (email from id_token); `Logout`. Helpers `GeneratePKCE`, `RandomState`, `AuthorizeURL`. Token endpoint calls use `netguard.New().HTTPClient` (public-only). Persistence: JSON `Tokens{access_token, refresh_token, id_token, account_id, last_refresh}` as vault key `AGEZT_CHATGPT_OAUTH` (shown read-only in the settings schema). Account id extracted from id_token claims. Consumers: the boot engine (`openairesponses` subscription provider, `AuthSubscription` tier), controlplane login routes.
 
 | File | What it does |
 |---|---|
@@ -593,7 +593,7 @@ Two distinct things share the name "Config Center":
 - **Store** (`store.go`): `config.json` account-keyed; account-less accessors operate on `_default`. `Validate(field, value)`.
 - **Multi-account** (`accounts.go`): `AccountSep="#"`, `SuffixEnv(base,label)`, `AccountLabels(keys, bases)`, `FieldGetter(label)` (reads process env), `SectionEnvs(sectionID)`.
 - **Reload boundary** (`boundary.go`): `ReloadBoundaries(sections)` groups env names by Apply.
-- **Persistence → runtime**: `cmd/agezt injectConfig` (before providerboot): computes `pinned` = schema envs already set in the real env (shown read-only in UI), then (unless `AGEZT_CONFIG=off`) `os.Setenv` for every non-empty store value and every vault `AGEZT_*` secret **not already set** in the real env. So precedence for AGEZT_* settings is: real env > config.json/vault. Live edits for `ApplyLive` fields are applied by the control plane via `os.Setenv` + provider reload.
+- **Persistence → runtime**: `cmd/agezt injectConfig` (before the boot engine): computes `pinned` = schema envs already set in the real env (shown read-only in UI), then (unless `AGEZT_CONFIG=off`) `os.Setenv` for every non-empty store value and every vault `AGEZT_*` secret **not already set** in the real env. So precedence for AGEZT_* settings is: real env > config.json/vault. Live edits for `ApplyLive` fields are applied by the control plane via `os.Setenv` + provider reload.
 
 | File | What it does |
 |---|---|

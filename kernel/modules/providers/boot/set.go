@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-package providerboot
+package boot
 
-// Provenance: Package providerboot: liveEligible map + eligibleSet — the
+// Provenance: Package boot: liveEligible map + eligibleSet — the
 //             cross-provider down-route eligibility set, threaded through Boot +
 //             Reload so the set is rebuilt on every reload (not frozen at boot — the
 //             2026-08 live-drift survey caught this). has + set are the two
-//             operations on it. Extracted from providerboot.go during the Day-211
+//             operations on it. Extracted from boot.go during the Day-211
 //             god-file split. Public API unchanged.
 
 import (

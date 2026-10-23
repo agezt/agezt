@@ -233,7 +233,6 @@ plugins/
 ├── builtintools/       # 10 first-party tool implementations
 ├── channels/           # community / external channel plugins
 ├── external/           # cross-vendor adapters (mcpbridge, …)
-├── providerboot/       # one-time provider bootstrap (ChatGPT subscription, …)
 ├── providers/          # 148 LLM provider adapters
 ├── tools/              # 141 tool plugins (research, fetch, browser, …)
 └── sdk/                # plugin-author SDK

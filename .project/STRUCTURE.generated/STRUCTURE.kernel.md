@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-167 package(s):
+169 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -116,6 +116,8 @@
 - **`kernel/modules/knowledge/memory`** — Package memory implements the memory store (ROADMAP §2.3): a journaled, content-addressed knowledge store that the agent loop reads as injected context and that the operator, the agent, and an auto-distiller can write to.
 - **`kernel/modules/knowledge/taste`** — Package taste is AGEZT's curated "what good looks like" store: a small set of operator-authored exemplars that are injected into runs before the model acts, so output quality is shaped by concrete examples of good work rather than left to chance.
 - **`kernel/modules/knowledge/worldmodel`** — Package worldmodel implements "World Model v1" (SPEC-05 §3): a journaled, content-addressed graph of the operator's world — the projects, repos, people, accounts, channels and topics they care about, and the weighted relations between them.
+- **`kernel/modules/providers/api`** — Package api is the providers module's gate: the vocabulary the module owns and the seams it needs from the world above it.
+- **`kernel/modules/providers/boot`** — Package boot owns provider bootstrap for the daemon: primary selection, alternate registration, the governor's construction, and the hot-reload path — Boot and Reload share ONE registration path (registerAlternates), retiring the boot-vs-reload drift class (M928/M816 and the 2026-08 survey's live drifts: middleware dropped on reload, the cross-provider down-route eligibility set frozen at boot).
 - **`kernel/modules/providers/catalog`** — Package catalog is the live provider/model registry.
 - **`kernel/modules/providers/chatgptauth`** — Package chatgptauth manages the OAuth tokens for the "Sign in with ChatGPT" provider — the same subscription auth Codex CLI uses.
 - **`kernel/modules/reasoning`** — Package reasoning is the reasoning module: the Council of Elders (a multi-model panel that deliberates and reconciles), the Conductor (a verify-driven Thinker→Worker→Verifier loop) and the deep-research harness.

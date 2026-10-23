@@ -45,6 +45,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/agents/selfrepair"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	kernelmemory "github.com/agezt/agezt/kernel/modules/knowledge/memory"
+	"github.com/agezt/agezt/kernel/modules/providers/boot"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
@@ -58,7 +59,6 @@ import (
 	"github.com/agezt/agezt/plugins/builtinchannels"
 	"github.com/agezt/agezt/plugins/builtinguardians"
 	"github.com/agezt/agezt/plugins/builtinmarket"
-	"github.com/agezt/agezt/plugins/providerboot"
 	"github.com/agezt/agezt/plugins/providers/embed"
 	"github.com/agezt/agezt/plugins/providers/image"
 	"github.com/agezt/agezt/plugins/providers/rerank"
@@ -149,7 +149,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s: warning: %sFORCE_START=1 — starting despite a live daemon at %s\n", brand.Binary, brand.EnvPrefix, addr)
 	}
 
-	// Load catalog once; share with providerboot.Boot + runtime.Config so
+	// Load catalog once; share with boot.Boot + runtime.Config so
 	// the daemon and the kernel see the same snapshot. An empty catalog
 	// on disk is fine: provider selection falls through to the unconfigured
 	// sentinel and surfaces a hint in the banner.
@@ -185,7 +185,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Config Center bridge (M693): inject the config store + AGEZT_* vault secrets
 	// into the process environment so the existing os.Getenv consumers (provider,
 	// channels, interfaces) read operator edits unchanged. The real environment
-	// wins; the store/vault only fill gaps. Must run BEFORE providerboot.Boot +
+	// wins; the store/vault only fill gaps. Must run BEFORE boot.Boot +
 	// channel construction read the env. configPinned (schema vars set in the real env) is
 	// handed to the control plane so the Config Center can show them read-only.
 	configPinned := injectConfig(baseDir, credStore, stdout)
@@ -208,7 +208,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// registers as a live provider once the operator signs in. When signed in
 	// this also refreshes the served model ids from the backend, so the entry
 	// tracks OpenAI's Codex model cadence instead of freezing at first boot.
-	providerboot.SeedChatGPTCatalog(catStore, baseDir)
+	boot.SeedChatGPTCatalog(catStore, baseDir, providerPorts())
 	cat, _ := catStore.Load()
 
 	// Credential resolution chain (M1.dd):
@@ -236,7 +236,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	}
 	credDesc := fmt.Sprintf("vault entries=%d at %s — at-rest: %s — %s", credCount, credStore.Path, atRest, awsChainDesc)
 
-	bootRes, err := providerboot.Boot(providerboot.Deps{Catalog: cat, Lookup: credLookup, BaseDir: baseDir, Stderr: stderr})
+	bootRes, err := boot.Boot(bootDeps(cat, credLookup, baseDir, stderr))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", brand.Binary, err)
 		return 1
@@ -350,7 +350,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// inside via `k.Catalog()` once the kernel exists.
 	//
 	// Note that this captures `gov` (the Governor instance), `catStore`,
-	// `credStore`, and rebuilds via providerboot.Reload — the same
+	// `credStore`, and rebuilds via boot.Reload — the same
 	// SelectPrimary → BuildFromCatalog path Boot uses — so the live
 	// post-reload registry matches what a fresh boot would have
 	// produced for the same on-disk state.
@@ -661,10 +661,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 		if err != nil {
 			return fmt.Errorf("catalog: %w", err)
 		}
-		// providerboot.Reload shares Boot's selection + registration path, so
+		// boot.Reload shares Boot's selection + registration path, so
 		// the live post-reload registry matches what a fresh boot would have
 		// produced for the same on-disk state (M928/M816 parity).
-		model2, err := providerboot.Reload(gov, providerDeps(c, credStore, baseDir, stderr))
+		model2, err := boot.Reload(gov, providerDeps(c, credStore, baseDir, stderr))
 		if err != nil {
 			return err
 		}
@@ -679,7 +679,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 
 	// Vision sidecar picker (M821): returns a keyed vision-capable model id the
 	// governor can route to, or ("", false) if none. Eligibility is the shared
-	// providerboot.Eligible predicate (supported family + credentialed) so the
+	// boot.Eligible predicate (supported family + credentialed) so the
 	// pick is always routable. Uses the LIVE catalog (k.Catalog()) so a freshly
 	// synced/credentialed vision provider is picked up without a restart. Injected
 	// into the runtime so DescribeImages can caption images for non-vision models.
@@ -693,7 +693,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 		lookup, _ := buildAWSCredChain(catalogScopedVaultLookup(cat, credStore.Lookup))
 		return cat.VisionCapableAmong(func(provID string) bool {
-			return providerboot.Eligible(cat.Providers[provID], lookup)
+			return boot.Eligible(providerPorts(), cat.Providers[provID], lookup)
 		})
 	}
 
@@ -721,7 +721,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 		for _, p := range cat.ProviderList() {
 			e := cat.Providers[p.ID]
-			if !providerboot.Eligible(e, lookup) {
+			if !boot.Eligible(providerPorts(), e, lookup) {
 				continue
 			}
 			if _, ok := e.Models[modelID]; ok {
@@ -764,7 +764,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 		lookup, _ := buildAWSCredChain(catalogScopedVaultLookup(cat, credStore.Lookup))
 		models := cat.BestModelsAcross(func(provID string) bool {
-			return providerboot.Eligible(cat.Providers[provID], lookup)
+			return boot.Eligible(providerPorts(), cat.Providers[provID], lookup)
 		}, 3)
 		// No keyed provider listed a model → fall back to the active model so a
 		// single-provider setup still convenes a (degenerate) council.
@@ -1118,7 +1118,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		Channels:           collectChannels(),  // M141: configured channels for `agt status`
 		// Post-sign-in ChatGPT catalog refresh + model surface. The kernel never
 		// imports the provider layer, so the hook is supplied here.
-		ChatGPTSync: func() ([]string, string) { return providerboot.SyncChatGPTCatalog(catStore, baseDir) },
+		ChatGPTSync: func() ([]string, string) { return boot.SyncChatGPTCatalog(catStore, baseDir, providerPorts()) },
 	})
 	cancelOnDisconnectDesc := "disabled (set " + brand.EnvPrefix + "CANCEL_ON_DISCONNECT=on)"
 	if cancelOnDisconnect {

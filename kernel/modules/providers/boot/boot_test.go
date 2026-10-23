@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package providerboot
+package boot
 
 // Boot/Reload tests. The first four moved here from cmd/agezt with the Phase
 // 2.4 extraction (adapted to the Deps-based API; t.Setenv still works through
@@ -11,6 +11,10 @@ package providerboot
 // down-route eligibility set is live, the unconfigured sentinel is promoted
 // away, and alternates land in the registry BEFORE gov.Replace rebuilds the
 // routing chains.
+//
+// The engine drives the wire adapters through api.Ports, so these tests stand
+// the adapters in (see ports_test.go). The real adapters are exercised at the
+// composition root, where they are bound.
 
 import (
 	"context"
@@ -24,7 +28,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
-	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 // bootFixtureAPI is a 4-provider catalog: alpha/beta/gamma keyed via
@@ -109,7 +112,7 @@ func mapGet(m map[string]string) func(string) string {
 
 // provSnap is one registry entry's identity for boot-vs-reload comparison.
 // ProviderType captures middleware wrapping: an unwrapped provider is the
-// concrete adapter type, a wrapped one is the agent middleware wrapper — so
+// concrete adapter type, a wrapped one is the middleware wrapper — so
 // snapshot equality fails if one path wraps and the other doesn't.
 type provSnap struct {
 	Name         string
@@ -153,7 +156,7 @@ func TestBuildFromCatalog_CrossProviderModelDoesNotFailBoot(t *testing.T) {
 			"minimax-m2": {ID: "minimax-m2", ToolCall: true, Limit: catalog.Limit{Context: 200000}},
 		},
 	}
-	d := Deps{Lookup: func(string) string { return "" }}
+	d := Deps{Lookup: func(string) string { return "" }, Ports: ports()}
 
 	// Model NOT in this provider's catalog → must NOT error; run model preserved
 	// for routing, provider still constructed.
@@ -191,7 +194,7 @@ func TestBoot_UnconfiguredWhenNoProvider(t *testing.T) {
 	t.Setenv(brand.EnvPrefix+"MODEL", "")
 	t.Setenv(brand.EnvPrefix+"DEMO_ECHO", "")
 
-	res, err := Boot(Deps{Catalog: catalog.NewEmpty(), Lookup: func(string) string { return "" }, BaseDir: t.TempDir()})
+	res, err := Boot(Deps{Catalog: catalog.NewEmpty(), Lookup: func(string) string { return "" }, BaseDir: t.TempDir(), Ports: ports()})
 	if err != nil {
 		t.Fatalf("Boot: %v", err)
 	}
@@ -224,7 +227,7 @@ func TestBoot_DemoEchoRequiresExplicitEnv(t *testing.T) {
 	t.Setenv(brand.EnvPrefix+"MODEL", "")
 	t.Setenv(brand.EnvPrefix+"DEMO_ECHO", "1")
 
-	res, err := Boot(Deps{Catalog: catalog.NewEmpty(), Lookup: func(string) string { return "" }, BaseDir: t.TempDir()})
+	res, err := Boot(Deps{Catalog: catalog.NewEmpty(), Lookup: func(string) string { return "" }, BaseDir: t.TempDir(), Ports: ports()})
 	if err != nil {
 		t.Fatalf("Boot: %v", err)
 	}
@@ -234,7 +237,11 @@ func TestBoot_DemoEchoRequiresExplicitEnv(t *testing.T) {
 	if !strings.Contains(res.Desc, "demo echo") {
 		t.Errorf("banner desc = %q, want it to mention demo echo", res.Desc)
 	}
+	if res.Primary != "mock" {
+		t.Errorf("Primary = %q, want the demo provider", res.Primary)
+	}
 
+	// The demo provider answers the run — it is the primary the engine picked.
 	resp, err := res.Governor.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "mock",
 		Messages: []llm.Message{{Role: llm.RoleUser, Content: "hello e2e"}},
@@ -242,8 +249,8 @@ func TestBoot_DemoEchoRequiresExplicitEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
-	if got := resp.Message.Content; got != "[echo] hello e2e" {
-		t.Errorf("response = %q, want %q", got, "[echo] hello e2e")
+	if resp.Message.Content == "" {
+		t.Error("demo echo provider answered with an empty body")
 	}
 }
 
@@ -253,7 +260,7 @@ func TestSelectPrimary_UnknownProviderIsHardError(t *testing.T) {
 	t.Setenv(brand.EnvPrefix+"PROVIDER", "does-not-exist")
 	t.Setenv(brand.EnvPrefix+"MODEL", "")
 	t.Setenv(brand.EnvPrefix+"DEMO_ECHO", "1")
-	if _, _, _, _, err := SelectPrimary(Deps{Catalog: catalog.NewEmpty(), Lookup: func(string) string { return "" }, BaseDir: t.TempDir()}); err == nil {
+	if _, _, _, _, err := SelectPrimary(Deps{Catalog: catalog.NewEmpty(), Lookup: func(string) string { return "" }, BaseDir: t.TempDir(), Ports: ports()}); err == nil {
 		t.Fatal("unknown provider id should be a hard error")
 	}
 }
@@ -273,7 +280,7 @@ func TestBootReloadParity(t *testing.T) {
 		brand.EnvPrefix + "MODEL":           "alpha-large",
 		brand.EnvPrefix + "GEN_TEMPERATURE": "0.4", // non-empty middleware stack
 	}
-	dConfigured := Deps{Catalog: cat, Lookup: keyedLookup, BaseDir: base, Get: mapGet(configured)}
+	dConfigured := Deps{Catalog: cat, Lookup: keyedLookup, BaseDir: base, Get: mapGet(configured), Ports: ports()}
 
 	// Path 1: straight boot into the configured state.
 	direct, err := Boot(dConfigured)
@@ -286,7 +293,7 @@ func TestBootReloadParity(t *testing.T) {
 	unconfigured := map[string]string{
 		brand.EnvPrefix + "GEN_TEMPERATURE": "0.4",
 	}
-	viaReload, err := Boot(Deps{Catalog: cat, Lookup: keyedLookup, BaseDir: base, Get: mapGet(unconfigured)})
+	viaReload, err := Boot(Deps{Catalog: cat, Lookup: keyedLookup, BaseDir: base, Get: mapGet(unconfigured), Ports: ports()})
 	if err != nil {
 		t.Fatalf("Boot (unconfigured): %v", err)
 	}
@@ -315,7 +322,7 @@ func TestMiddlewareSurvivesReload(t *testing.T) {
 		brand.EnvPrefix + "DEMO_ECHO":       "1",
 		brand.EnvPrefix + "GEN_TEMPERATURE": "0.7",
 	}
-	d := Deps{Catalog: catalog.NewEmpty(), Lookup: func(string) string { return "" }, BaseDir: t.TempDir(), Get: mapGet(env)}
+	d := Deps{Catalog: catalog.NewEmpty(), Lookup: func(string) string { return "" }, BaseDir: t.TempDir(), Get: mapGet(env), Ports: ports()}
 	res, err := Boot(d)
 	if err != nil {
 		t.Fatalf("Boot: %v", err)
@@ -324,7 +331,7 @@ func TestMiddlewareSurvivesReload(t *testing.T) {
 	if !ok {
 		t.Fatal("demo-echo primary not registered")
 	}
-	if _, raw := info.Provider.(*mock.Provider); raw {
+	if _, raw := info.Provider.(*fakeProvider); raw {
 		t.Fatal("boot: primary registered unwrapped despite a non-empty middleware stack")
 	}
 
@@ -335,7 +342,7 @@ func TestMiddlewareSurvivesReload(t *testing.T) {
 	if !ok {
 		t.Fatal("primary missing after reload")
 	}
-	if _, raw := info.Provider.(*mock.Provider); raw {
+	if _, raw := info.Provider.(*fakeProvider); raw {
 		t.Error("reload registered the RAW provider — middleware dropped on the reload path")
 	}
 }
@@ -365,7 +372,7 @@ func TestEligibleUpdatesAcrossReload(t *testing.T) {
 		return ""
 	}
 
-	res, err := Boot(Deps{Catalog: cat, Lookup: alphaBeta, BaseDir: base, Get: mapGet(env)})
+	res, err := Boot(Deps{Catalog: cat, Lookup: alphaBeta, BaseDir: base, Get: mapGet(env), Ports: ports()})
 	if err != nil {
 		t.Fatalf("Boot: %v", err)
 	}
@@ -375,7 +382,7 @@ func TestEligibleUpdatesAcrossReload(t *testing.T) {
 	}
 
 	// Rotate: beta's key revoked, gamma's added → Reload must refresh the set.
-	if _, err := Reload(res.Governor, Deps{Catalog: cat, Lookup: alphaGamma, BaseDir: base, Get: mapGet(env)}); err != nil {
+	if _, err := Reload(res.Governor, Deps{Catalog: cat, Lookup: alphaGamma, BaseDir: base, Get: mapGet(env), Ports: ports()}); err != nil {
 		t.Fatalf("Reload: %v", err)
 	}
 	if res.Eligible("beta") {
@@ -399,7 +406,7 @@ func TestEligibleUpdatesAcrossReload(t *testing.T) {
 // at primary[0] refusing every run.
 func TestReload_SentinelPromotedToPrimary(t *testing.T) {
 	base := t.TempDir()
-	res, err := Boot(Deps{Catalog: catalog.NewEmpty(), Lookup: func(string) string { return "" }, BaseDir: base, Get: mapGet(map[string]string{})})
+	res, err := Boot(Deps{Catalog: catalog.NewEmpty(), Lookup: func(string) string { return "" }, BaseDir: base, Get: mapGet(map[string]string{}), Ports: ports()})
 	if err != nil {
 		t.Fatalf("Boot: %v", err)
 	}
@@ -410,7 +417,7 @@ func TestReload_SentinelPromotedToPrimary(t *testing.T) {
 	// First-run wizard equivalent: the operator configures a provider, then
 	// reloads (demo echo keeps the test offline).
 	env := map[string]string{brand.EnvPrefix + "DEMO_ECHO": "1"}
-	model, err := Reload(res.Governor, Deps{Catalog: catalog.NewEmpty(), Lookup: func(string) string { return "" }, BaseDir: base, Get: mapGet(env)})
+	model, err := Reload(res.Governor, Deps{Catalog: catalog.NewEmpty(), Lookup: func(string) string { return "" }, BaseDir: base, Get: mapGet(env), Ports: ports()})
 	if err != nil {
 		t.Fatalf("Reload: %v", err)
 	}
@@ -425,15 +432,11 @@ func TestReload_SentinelPromotedToPrimary(t *testing.T) {
 		t.Fatalf("routing chain = %v, want the new primary at position 0", provs)
 	}
 	// The M816 symptom was runs STILL failing with "no provider configured".
-	resp, err := res.Governor.Complete(context.Background(), llm.CompletionRequest{
+	if _, err := res.Governor.Complete(context.Background(), llm.CompletionRequest{
 		Model:    "mock",
 		Messages: []llm.Message{{Role: llm.RoleUser, Content: "post-reload"}},
-	})
-	if err != nil {
+	}); err != nil {
 		t.Fatalf("Complete after reload: %v", err)
-	}
-	if got := resp.Message.Content; got != "[echo] post-reload" {
-		t.Errorf("response = %q, want %q", got, "[echo] post-reload")
 	}
 }
 
@@ -447,7 +450,7 @@ func TestReload_AlternatesRegisteredBeforeReplace(t *testing.T) {
 	base := t.TempDir()
 
 	// Boot with the catalog present but nothing keyed → no alternates.
-	res, err := Boot(Deps{Catalog: cat, Lookup: func(string) string { return "" }, BaseDir: base, Get: mapGet(map[string]string{})})
+	res, err := Boot(Deps{Catalog: cat, Lookup: func(string) string { return "" }, BaseDir: base, Get: mapGet(map[string]string{}), Ports: ports()})
 	if err != nil {
 		t.Fatalf("Boot: %v", err)
 	}
@@ -455,7 +458,7 @@ func TestReload_AlternatesRegisteredBeforeReplace(t *testing.T) {
 	// Keys arrive + a primary is selected; one reload must make BOTH the new
 	// primary and the other keyed providers routable.
 	env := map[string]string{brand.EnvPrefix + "PROVIDER": "alpha"}
-	if _, err := Reload(res.Governor, Deps{Catalog: cat, Lookup: keyedLookup, BaseDir: base, Get: mapGet(env)}); err != nil {
+	if _, err := Reload(res.Governor, Deps{Catalog: cat, Lookup: keyedLookup, BaseDir: base, Get: mapGet(env), Ports: ports()}); err != nil {
 		t.Fatalf("Reload: %v", err)
 	}
 

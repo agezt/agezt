@@ -1,4 +1,4 @@
-package providerboot
+package boot
 
 // Provenance: SPDX-License-Identifier: MIT ChatGPT provider-boot: SeedChatGPTCatalog
 //             + SyncChatGPTCatalog (the public seeding entry points) +
@@ -9,6 +9,7 @@ package providerboot
 import (
 	"time"
 
+	"github.com/agezt/agezt/kernel/modules/providers/api"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/providers/chatgptauth"
 )
@@ -20,8 +21,8 @@ import (
 // is authoritative — the seed-once-and-never-update behaviour it replaces is
 // what left signed-in installs pinned to a model list frozen at first boot. A
 // builtin (offline) set never overwrites an entry already on disk.
-func SeedChatGPTCatalog(store *catalog.Store, baseDir string) {
-	writeChatGPTEntry(store, resolveChatGPTModels(chatgptauth.NewManager(baseDir)))
+func SeedChatGPTCatalog(store *catalog.Store, baseDir string, ports api.Ports) {
+	writeChatGPTEntry(store, ports, resolveChatGPTModels(ports, chatgptauth.NewManager(baseDir)))
 }
 
 // SyncChatGPTCatalog refreshes the catalog entry after a sign-in and reports the
@@ -31,7 +32,7 @@ func SeedChatGPTCatalog(store *catalog.Store, baseDir string) {
 //
 // It is called on every sign-in status poll, so it must stay cheap: discovery is
 // memoized and the catalog write is skipped when the entry already matches.
-func SyncChatGPTCatalog(store *catalog.Store, baseDir string) (models []string, defaultModel string) {
+func SyncChatGPTCatalog(store *catalog.Store, baseDir string, ports api.Ports) (models []string, defaultModel string) {
 	// Signing in unlocks the backend source, so drop a memo that came from the
 	// weaker CLI-cache one. A backend result is already the best available and
 	// stays memoized — otherwise polling would mean one request per poll.
@@ -41,15 +42,15 @@ func SyncChatGPTCatalog(store *catalog.Store, baseDir string) (models []string, 
 	}
 	chatgptModelCache.mu.Unlock()
 
-	set := resolveChatGPTModels(chatgptauth.NewManager(baseDir))
-	writeChatGPTEntry(store, set)
+	set := resolveChatGPTModels(ports, chatgptauth.NewManager(baseDir))
+	writeChatGPTEntry(store, ports, set)
 	return set.IDs, set.Default
 }
 
 // writeChatGPTEntry persists the entry when it would actually change anything: a
 // builtin (offline) set never overwrites what is already on disk, and a set that
 // matches the stored model ids is a no-op.
-func writeChatGPTEntry(store *catalog.Store, set chatgptModelSet) {
+func writeChatGPTEntry(store *catalog.Store, ports api.Ports, set chatgptModelSet) {
 	if store == nil {
 		return
 	}
@@ -66,7 +67,7 @@ func writeChatGPTEntry(store *catalog.Store, set chatgptModelSet) {
 			return
 		}
 	}
-	_, _ = store.UpsertCustomProvider(chatgptCatalogEntry(set))
+	_, _ = store.UpsertCustomProvider(chatgptCatalogEntry(ports, set))
 }
 
 // sameModelIDs reports whether a stored model map holds exactly ids.

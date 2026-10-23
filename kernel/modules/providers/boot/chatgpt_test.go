@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package providerboot
+package boot
 
 import (
 	"os"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/governor"
+	"github.com/agezt/agezt/kernel/modules/providers/api"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/providers/chatgptauth"
 )
@@ -16,10 +17,10 @@ import (
 // cliCachePayload is a trimmed Codex CLI models_cache.json: two listed models
 // out of priority order plus one hidden entry.
 const cliCachePayload = `{"models":[
- {"slug":"gpt-5.4","display_name":"GPT-5.4","visibility":"list","priority":16,"context_window":300000,"base_instructions":"instr-54"},
- {"slug":"codex-auto-review","display_name":"Codex Auto Review","visibility":"hide","priority":43,"base_instructions":"instr-review"},
- {"slug":"gpt-5.6-sol","display_name":"GPT-5.6-Sol","visibility":"list","priority":1,"context_window":400000,"max_context_window":500000,
-  "input_modalities":["text","image"],"base_instructions":"instr-sol"}
+    {"slug":"gpt-5.4","display_name":"GPT-5.4","visibility":"list","priority":16,"context_window":300000,"base_instructions":"instr-54"},
+    {"slug":"codex-auto-review","display_name":"Codex Auto Review","visibility":"hide","priority":43,"base_instructions":"instr-review"},
+    {"slug":"gpt-5.6-sol","display_name":"GPT-5.6-Sol","visibility":"list","priority":1,"context_window":400000,"max_context_window":500000,
+      "input_modalities":["text","image"],"base_instructions":"instr-sol"}
 ]}`
 
 // resetChatGPTModelCache clears the process-wide discovery memo so tests don't
@@ -55,7 +56,7 @@ func codexHome(t *testing.T, cache string) string {
 // model plus the vault token key (so HasCredentials reflects sign-in state).
 func TestChatGPTCatalogEntry(t *testing.T) {
 	set := builtinChatGPTModelSet()
-	p := chatgptCatalogEntry(set)
+	p := chatgptCatalogEntry(ports(), set)
 	if p == nil {
 		t.Fatal("chatgptCatalogEntry returned nil")
 	}
@@ -88,7 +89,7 @@ func TestChatGPTCatalogEntryFromDiscovery(t *testing.T) {
 	if !ok {
 		t.Fatal("chatgptModelsFromCLICache returned ok=false")
 	}
-	p := chatgptCatalogEntry(set)
+	p := chatgptCatalogEntry(ports(), set)
 	sol := p.Models["gpt-5.6-sol"]
 	if sol == nil {
 		t.Fatal("gpt-5.6-sol missing from catalog entry")
@@ -175,8 +176,9 @@ func TestResolveChatGPTModels(t *testing.T) {
 	codexHome(t, "")
 	resetChatGPTModelCache(t)
 	mgr := chatgptauth.NewManager(t.TempDir())
+	p := ports()
 
-	set := resolveChatGPTModels(mgr)
+	set := resolveChatGPTModels(p, mgr)
 	if set.Source != chatgptSourceBuiltin {
 		t.Fatalf("Source = %q, want %q", set.Source, chatgptSourceBuiltin)
 	}
@@ -189,14 +191,14 @@ func TestResolveChatGPTModels(t *testing.T) {
 
 	// A builtin result is never memoized, so the cache source is picked up next.
 	codexHome(t, cliCachePayload)
-	set = resolveChatGPTModels(mgr)
+	set = resolveChatGPTModels(p, mgr)
 	if set.Source != chatgptSourceCache || set.Default != "gpt-5.6-sol" {
 		t.Fatalf("Source = %q, Default = %q, want cache/gpt-5.6-sol", set.Source, set.Default)
 	}
 
 	// Authoritative results ARE memoized: removing the cache changes nothing.
 	codexHome(t, "")
-	if again := resolveChatGPTModels(mgr); again.Source != chatgptSourceCache {
+	if again := resolveChatGPTModels(p, mgr); again.Source != chatgptSourceCache {
 		t.Errorf("Source = %q after cache removal, want the memoized %q", again.Source, chatgptSourceCache)
 	}
 }
@@ -210,15 +212,16 @@ func TestSeedChatGPTCatalog(t *testing.T) {
 	// real Codex cache can't answer discovery and memoize an authoritative set.
 	codexHome(t, "")
 	resetChatGPTModelCache(t)
+	p := ports()
 
 	// nil store must not panic.
-	SeedChatGPTCatalog(nil, t.TempDir())
+	SeedChatGPTCatalog(nil, t.TempDir(), p)
 
 	baseDir := t.TempDir()
 	store := catalog.NewStore(t.TempDir())
 
 	// First seed adds the chatgpt entry (builtin — nothing better available).
-	SeedChatGPTCatalog(store, baseDir)
+	SeedChatGPTCatalog(store, baseDir, p)
 	cur, err := store.Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -228,14 +231,14 @@ func TestSeedChatGPTCatalog(t *testing.T) {
 	}
 
 	// Plant a stale entry, as a pre-fix install would have on disk.
-	stale := chatgptCatalogEntry(builtinChatGPTModelSet())
+	stale := chatgptCatalogEntry(p, builtinChatGPTModelSet())
 	stale.Models = map[string]*catalog.Model{"gpt-5-codex": {ID: "gpt-5-codex", Name: "gpt-5-codex"}}
 	if _, err := store.UpsertCustomProvider(stale); err != nil {
 		t.Fatalf("UpsertCustomProvider: %v", err)
 	}
 
 	// A builtin set must NOT clobber what is already on disk.
-	SeedChatGPTCatalog(store, baseDir)
+	SeedChatGPTCatalog(store, baseDir, p)
 	cur, _ = store.Load()
 	if cur.Providers["chatgpt"].Models["gpt-5-codex"] == nil {
 		t.Error("builtin seed overwrote an existing entry")
@@ -244,7 +247,7 @@ func TestSeedChatGPTCatalog(t *testing.T) {
 	// An authoritative set must refresh it, dropping the dead model id.
 	resetChatGPTModelCache(t)
 	codexHome(t, cliCachePayload)
-	SeedChatGPTCatalog(store, baseDir)
+	SeedChatGPTCatalog(store, baseDir, p)
 	cur, _ = store.Load()
 	got := cur.Providers["chatgpt"]
 	if got.Models["gpt-5-codex"] != nil {
@@ -264,14 +267,15 @@ func TestSyncChatGPTCatalog(t *testing.T) {
 	baseDir := t.TempDir()
 	dir := t.TempDir()
 	store := catalog.NewStore(dir)
+	p := ports()
 
-	stale := chatgptCatalogEntry(builtinChatGPTModelSet())
+	stale := chatgptCatalogEntry(p, builtinChatGPTModelSet())
 	stale.Models = map[string]*catalog.Model{"gpt-5-codex": {ID: "gpt-5-codex", Name: "gpt-5-codex"}}
 	if _, err := store.UpsertCustomProvider(stale); err != nil {
 		t.Fatalf("UpsertCustomProvider: %v", err)
 	}
 
-	models, defaultModel := SyncChatGPTCatalog(store, baseDir)
+	models, defaultModel := SyncChatGPTCatalog(store, baseDir, p)
 	if defaultModel != "gpt-5.6-sol" || len(models) != 2 {
 		t.Fatalf("surface = %v / %q, want 2 models defaulting to gpt-5.6-sol", models, defaultModel)
 	}
@@ -290,7 +294,7 @@ func TestSyncChatGPTCatalog(t *testing.T) {
 		t.Fatalf("chtimes: %v", err)
 	}
 	marker, _ := os.Stat(path)
-	if _, _ = SyncChatGPTCatalog(store, baseDir); true {
+	if _, _ = SyncChatGPTCatalog(store, baseDir, p); true {
 		after, err := os.Stat(path)
 		if err != nil {
 			t.Fatalf("stat after: %v", err)
@@ -301,7 +305,7 @@ func TestSyncChatGPTCatalog(t *testing.T) {
 	}
 
 	// A nil store is a no-op that still reports the surface.
-	if ids, def := SyncChatGPTCatalog(nil, baseDir); len(ids) != 2 || def != "gpt-5.6-sol" {
+	if ids, def := SyncChatGPTCatalog(nil, baseDir, p); len(ids) != 2 || def != "gpt-5.6-sol" {
 		t.Errorf("nil-store surface = %v / %q", ids, def)
 	}
 }
@@ -309,8 +313,8 @@ func TestSyncChatGPTCatalog(t *testing.T) {
 // TestBuildChatGPTPrimary_NotSignedIn confirms the primary build refuses when
 // no tokens exist, honoring the "registered only when signed in" rule.
 func TestBuildChatGPTPrimary_NotSignedIn(t *testing.T) {
-	dir := t.TempDir()
-	prov, desc, auth, ok := buildChatGPTPrimary(dir, "")
+	d := Deps{BaseDir: t.TempDir(), Ports: ports()}
+	prov, desc, auth, ok := buildChatGPTPrimary(d, "")
 	if ok {
 		t.Fatal("buildChatGPTPrimary returned ok=true with no tokens")
 	}
@@ -319,38 +323,27 @@ func TestBuildChatGPTPrimary_NotSignedIn(t *testing.T) {
 	}
 }
 
-// TestNewChatGPTProvider checks the discovered per-model prompts are attached to
-// the adapter — without them a new model gets the stale vendored prompt.
+// TestNewChatGPTProvider checks the discovered per-model prompts are handed to
+// the ChatGPT adapter — without them a new model gets the stale vendored prompt.
+// The adapter is above the module, so the module's own duty is the HAND-OVER:
+// the model it picked and the instructions it discovered.
 func TestNewChatGPTProvider(t *testing.T) {
 	set, ok := chatgptModelsFromCLICache(writeCache(t, cliCachePayload))
 	if !ok {
 		t.Fatal("cache parse failed")
 	}
-	p := newChatGPTProvider(chatgptauth.NewManager(t.TempDir()), set.Default, set)
-	if p == nil {
+	p := ports()
+	d := Deps{Ports: p}
+	prov := newChatGPTProvider(d, chatgptauth.NewManager(t.TempDir()), set.Default, set)
+	if prov == nil {
 		t.Fatal("newChatGPTProvider returned nil")
 	}
-	if p.Model != "gpt-5.6-sol" {
-		t.Errorf("Model = %q, want gpt-5.6-sol", p.Model)
+	if p.chatGPTModel != "gpt-5.6-sol" {
+		t.Errorf("adapter was asked for model %q, want gpt-5.6-sol", p.chatGPTModel)
 	}
-	if p.Instructions["gpt-5.6-sol"] != "instr-sol" {
-		t.Errorf("Instructions not attached: %v", p.Instructions)
+	if p.chatGPTInstructions["gpt-5.6-sol"] != "instr-sol" {
+		t.Errorf("instructions not handed over: %v", p.chatGPTInstructions)
 	}
-}
-
-// TestChatGPTTokenFn builds a token func from a manager and exercises both the
-// force and non-force branches. Neither should panic; both propagate an error
-// when no tokens exist, which is all we need for coverage of the closure body.
-func TestChatGPTTokenFn(t *testing.T) {
-	mgr := chatgptauth.NewManager(t.TempDir())
-	fn := chatgptTokenFn(mgr)
-	if fn == nil {
-		t.Fatal("chatgptTokenFn returned nil")
-	}
-	// non-force path
-	_, _, _ = fn(t.Context(), false)
-	// force path
-	_, _, _ = fn(t.Context(), true)
 }
 
 // TestRegisterChatGPTAlternate covers the two early-return guards: chatgpt is
@@ -358,17 +351,78 @@ func TestChatGPTTokenFn(t *testing.T) {
 // the registry.
 func TestRegisterChatGPTAlternate_Guards(t *testing.T) {
 	reg := governor.NewRegistry()
+	p := ports()
+	d := Deps{BaseDir: t.TempDir(), Ports: p}
 
 	// primaryName == "chatgpt" → refuse (already the primary).
-	if registerChatGPTAlternate(reg, t.TempDir(), "chatgpt", false, nil) {
+	if registerChatGPTAlternate(reg, d, "chatgpt", false, nil) {
 		t.Error("registerChatGPTAlternate should refuse when chatgpt is primary")
 	}
 
 	// Not signed in → refuse.
-	if registerChatGPTAlternate(reg, t.TempDir(), "openai", false, nil) {
+	if registerChatGPTAlternate(reg, d, "openai", false, nil) {
 		t.Error("registerChatGPTAlternate should refuse when not signed in")
 	}
-	if registerChatGPTAlternate(reg, t.TempDir(), "openai", true, nil) {
+	if registerChatGPTAlternate(reg, d, "openai", true, nil) {
 		t.Error("registerChatGPTAlternate should refuse when not signed in (replace path)")
+	}
+}
+
+// TestPortsNotWired pins the loud failure: a Deps without the wire adapters is
+// a wiring error, and the engine says so instead of running without them (an
+// engine that quietly ran unwrapped is the middleware-drift class).
+func TestPortsNotWired(t *testing.T) {
+	d := Deps{Catalog: catalog.NewEmpty(), Lookup: func(string) string { return "" }, BaseDir: t.TempDir()}
+	if _, err := Boot(d); err == nil {
+		t.Error("Boot without ports must fail loudly")
+	}
+	if _, _, _, _, err := SelectPrimary(d); err == nil {
+		t.Error("SelectPrimary without ports must fail loudly")
+	}
+	if _, _, _, _, err := BuildFromCatalog(d, &catalog.Provider{ID: "x"}, ""); err == nil {
+		t.Error("BuildFromCatalog without ports must fail loudly")
+	}
+}
+
+// TestModelInfoListed pins the module's own picker rule: a model reaches the
+// picker when it has a slug and is not hidden.
+func TestModelInfoListed(t *testing.T) {
+	cases := []struct {
+		name string
+		info api.ModelInfo
+		want bool
+	}{
+		{"listed", api.ModelInfo{Slug: "m", Visibility: "list"}, true},
+		{"empty visibility", api.ModelInfo{Slug: "m"}, true},
+		{"hidden", api.ModelInfo{Slug: "m", Visibility: "hide"}, false},
+		{"hidden mixed case", api.ModelInfo{Slug: "m", Visibility: "HIDE"}, false},
+		{"no slug", api.ModelInfo{Visibility: "list"}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.info.Listed(); got != tc.want {
+				t.Errorf("Listed() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestSortModels pins the module's ordering rule: no slug → dropped, and the
+// backend's priority decides the order (slug breaks a tie).
+func TestSortModels(t *testing.T) {
+	got := api.SortModels([]api.ModelInfo{
+		{Slug: "b", Priority: 2},
+		{Slug: "", Priority: 1},
+		{Slug: "a", Priority: 1},
+		{Slug: "c", Priority: 2},
+	})
+	want := []string{"a", "b", "c"}
+	if len(got) != len(want) {
+		t.Fatalf("SortModels = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i].Slug != want[i] {
+			t.Errorf("SortModels[%d] = %q, want %q", i, got[i].Slug, want[i])
+		}
 	}
 }

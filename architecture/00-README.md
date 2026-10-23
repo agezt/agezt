@@ -24,7 +24,7 @@ page, then open the area document you need.
 | 05 | [05-governance-routing-security.md](05-governance-routing-security.md) | `governor` routing/budgets/breakers, `catalog`, `creds` vault + `sigv4`, `chatgptauth`, `settings`, `configcenter`, `executionprofile`, **Edict** policy, `warden`, `netguard`, `envscrub`, `redact`, `approval`, `seat`, `tenant`, `tenantctx`, `state` | ~720 lines |
 | 06 | [06-data-memory-state.md](06-data-memory-state.md) | `event` (170 kinds, registry closed — W1.6), `journal` (BLAKE3 chain), `bus`, `ulid`, `filestore`, `memory`, `worldmodel`, `datalake`, `artifact`, `board`, `workboard`, `okr`, `taste`, `anomaly`, `alerter`; the store table | ~680 lines |
 | 07 | [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md) | `roster`, `cadence`(+`systemtasks`), `scheduler`, `standing`, `pulse`, `selfrepair`, `skill`, `market`, `plugin`, `mcp`, `acp`, `acpcatalog`, `workflow`, `workflowexec`, `update`, `toolbox`, `channel`, `channelwire`, `stt`, `voicetool`, `imagetool`, `reranktool`; how wakes become governed runs | ~1860 lines |
-| 08 | [08-providers.md](08-providers.md) | Provider contract, 8 wire adapters + `compat` factory, sidecars (embed/voice/image/rerank), `providerboot` boot/reload, ChatGPT subscription, Bedrock/Vertex auth, `plugins/sdk`, `mcpbridge` | ~790 lines |
+| 08 | [08-providers.md](08-providers.md) | Provider contract, 8 wire adapters + `compat` factory, sidecars (embed/voice/image/rerank), `providers/boot` boot/reload, ChatGPT subscription, Bedrock/Vertex auth, `plugins/sdk`, `mcpbridge` | ~790 lines |
 | 09 | [09-channels.md](09-channels.md) | `Channel` interface, 25 transport packages → 34 channel kinds, `builtinchannels` factories, multi-account `ENV#label`, inbound → run → reply | ~655 lines |
 | 10 | [10-tools.md](10-tools.md) | Tool contract, catalog of 30 registered tools + 10 browser verbs, code_exec/shell/file/browser/research/council/conductor/overseer, guardians, built-in market and skills | ~550 lines |
 | 11 | [11-frontend-console.md](11-frontend-console.md) | React 19 console: build→embed, hash routing, nav IA (36 views), data layer/SSE, design system, every file, guard tests, e2e | ~670 lines |
@@ -107,7 +107,7 @@ Tool allowlists, execution profiles and agent resolution remain control-plane fe
 | `cmd/agezt/` | Daemon binary and **composition root**: the only place that sees both the kernel and `plugins/*` and wires them together. → [01](01-daemon-boot-cmd-agezt.md) |
 | `cmd/agt/` | Operator CLI (`package main` + `dial`, `format`, `haltresume`, `jsonout`, `keys`, `providerlookup`, `router`, `whoami`). → [02](02-cli-cmd-agt.md) |
 | `kernel/` | All core subsystems (94 packages). Must not import `plugins/*`; one known exception, see [§4.1](#41-layering-rules-and-the-verified-import-graph). |
-| `plugins/` | Pluggable implementations: `providers/*`, `channels/*`, `tools/*`, `builtin{channels,tools,guardians,market,skills}`, `providerboot`, `sdk` (plugin authoring kit), `external/mcpbridge`. |
+| `plugins/` | Pluggable implementations: `providers/*`, `channels/*`, `tools/*`, `builtin{channels,tools,guardians,market,skills}`, `sdk` (plugin authoring kit), `external/mcpbridge`. |
 | `internal/` | Tiny shared leaf helpers (`brand`, `paths`, `atomicfile`, `strutil`). |
 | `sdk/` | Go SDK (control plane) + `python/`, `rust/`, `typescript/` REST SDKs. → [12](12-sdks-and-contract.md) |
 | `contract/` | `fixtures/` (hand-written JSON event fixtures) and `gen/` (generated from `.project/agezt-contract.jsonc`, the plugin JSON-RPC contract). |
@@ -271,7 +271,7 @@ Every Go package, one line each, with the document that covers it in depth.
 | `providers/{embed,voice,image,rerank}` | Modality sidecars (embeddings, STT/TTS, image gen, rerank) | [08](08-providers.md) |
 | `providers/mock` | Offline echo provider (tests, `AGEZT_DEMO_ECHO=1`) | [08](08-providers.md) |
 | `providers/internal/{httpread,provopts,retry,toolname}` | Bounded bodies, Params/ProviderOptions, retry/Retry-After, injective tool-name sanitising | [08](08-providers.md) |
-| `providerboot` | Boot + Reload share one registration path; primary via `AGEZT_PROVIDER` or `unconfigured` sentinel | [08](08-providers.md) |
+| `providers/boot` | Boot + Reload share one registration path; primary via `AGEZT_PROVIDER` or `unconfigured` sentinel | [08](08-providers.md) |
 | `sdk` (+`example/greet`) | Go kit for out-of-process tool plugins | [08](08-providers.md) |
 | `external/mcpbridge` | Standalone MCP→plugin-protocol bridge binary (largely superseded by `kernel/modules/extensions/mcp`) | [08](08-providers.md) |
 | `channels/*` (25 pkgs) | Telegram, Slack, Discord, Matrix, Signal, WhatsApp (Cloud + gateway), email (SMTP/IMAP), IRC/Twitch, SMS, LINE, Feishu, DingTalk, WeCom, Zalo, OneBot (QQ/WeChat), Nostr, Mastodon, Nextcloud Talk, iMessage (BlueBubbles), Teams, Home Assistant, chat-webhook (Google Chat/Mattermost), generic webhook, push (7 providers) | [09](09-channels.md) |
@@ -291,7 +291,7 @@ Every Go package, one line each, with the document that covers it in depth.
 2. Load and validate the catalog. Load the vault and upgrade it to machine-bound encryption in place.
 3. **`injectConfig`**: settings pins + `config.json` + vault `AGEZT_*` values are written into the process env.
    Then `daemonconfig.Load` parses about 75 env vars into a typed `Config` (fatal vs warn per var).
-4. `providerboot.Boot` builds the **governor**. Then warden, Edict (ask-policy, hard-deny floor, optional
+4. `boot.Boot` builds the **governor**. Then warden, Edict (ask-policy, hard-deny floor, optional
    allow-all), channel manifests and tool specs are built.
 5. **`runtime.Open(cfg)`** opens the journal (full chain re-verify), state, bus and every store.
 6. The governor and warden get the bus. Tools are configured. **The redactor is installed on the bus before any run.**
@@ -411,7 +411,7 @@ other; the board is the best-known case of this.
 | `policy.decision` precedes every `tool.invoked`; exactly one terminal event per run; panic firewall in the loop | `kernel/agent`; [04](04-agent-runtime.md) |
 | **Default-allow** posture: every known capability is L4 by default; restriction is opt-out. Hard denies, SSRF guards, budgets and explicit HITL stay | `kernel/edict`; [05](05-governance-routing-security.md) |
 | **Unmapped tool ⇒ unknown capability ⇒ default-deny** (unless `AGEZT_ALLOW_ALL`); guard tests turn this into a test failure | `plugins/builtintools` guards; [10](10-tools.md) |
-| No default provider/model: `unconfigured` sentinel until `AGEZT_PROVIDER`/catalog keys exist | `plugins/providerboot`; [08](08-providers.md) |
+| No default provider/model: `unconfigured` sentinel until `AGEZT_PROVIDER`/catalog keys exist | `kernel/modules/providers/boot`; [08](08-providers.md) |
 | Recoverable config mismatches warn and degrade; they never hard-fail boot | `daemonconfig`, boot table; [01](01-daemon-boot-cmd-agezt.md) |
 | New `AGEZT_*` env vars read in `cmd/agezt` must be added to controlplane `configEnvVars` | controlplane guard test; [01](01-daemon-boot-cmd-agezt.md), [03](03-control-plane-and-http.md) |
 | Memory and skills are private to the authoring agent by default; sharing is opt-in | `memory`, `skill`; [06](06-data-memory-state.md), [07](07-autonomy-and-extensibility.md) |

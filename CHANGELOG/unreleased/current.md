@@ -816,6 +816,26 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The provider bootstrap engine has a home in the providers module.** The
+  daemon's provider selection, alternate registration and hot reload move out
+  of the `providerboot` plugin into `kernel/modules/providers/boot`. The wire
+  adapters they drive — the OpenAI-compatible family, the offline demo
+  provider, the ChatGPT Responses backend — and the middleware stack now
+  arrive through the module's new `api.Ports`, which the composition root
+  binds; the module itself reaches no plugin. The daemon's behaviour is
+  unchanged: the same selection rules, the same registration order, the same
+  live down-route eligibility set and the same middleware stack on the boot
+  and the reload path alike. A wiring that is missing an adapter is now a
+  loud startup error instead of a silent unwrapped provider.
+
+- **The provider middleware stack is built in the agent runtime.** The
+  environment-driven stack (`AGEZT_GEN_TEMPERATURE`, `AGEZT_EXTRACT_REASONING`,
+  `AGEZT_SIMULATE_STREAMING`) is now `agent.MiddlewareFromEnv`, next to the
+  middlewares it builds; the provider boot engine asks for it through its
+  port instead of importing the agent runtime. The knobs and their meaning
+  are unchanged.
+
+
 - **Chat history summaries use a typed application operation.** The briefing
   call, its routing, input cap and errors are unchanged; it stays live, audited
   and operator-only. Already-canceled requests now stop before any audit or

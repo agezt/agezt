@@ -39,7 +39,7 @@ Sibling docs: [00-README.md](00-README.md) · [02-cli-cmd-agt.md](02-cli-cmd-agt
   controlplane, creds(+sigv4), edict, event, governor, httpserver, market, memory, netguard, openaiapi, pulse, redact,
   restapi, resume, roster, runtime, selfrepair, settings, skill, standing, state, stt, tenant, toolreg, tunnel, ulid,
   update, warden, webhook, webui, workflow) and the plugin aggregators `plugins/{builtinchannels, builtinguardians,
-  builtinmarket, builtintools, providerboot}` + four sidecar adapters `plugins/providers/{embed,image,rerank,voice}`
+  builtinmarket, builtintools}` + four sidecar adapters `plugins/providers/{embed,image,rerank,voice}`
   + `plugins/tools/codeexec` (banner type assertion only).
 - Nothing imports it (it is `main`).
 - **Layering rule it enforces by existing:** kernel packages are plugin-free; every plugin→kernel binding is a closure or
@@ -62,7 +62,7 @@ Sibling docs: [00-README.md](00-README.md) · [02-cli-cmd-agt.md](02-cli-cmd-agt
 | `doc.go` | Package comment (subcommands, "daemon starts unconfigured, Setup screen asks for a provider"). |
 | `main.go` | `main`, `run`, `printHelp`, **`runDaemon`** (the ~1,670-line boot sequence, section 2), `drainWait` (100 ms poll until `active()==0` or timeout), `defaultChannelHistory=10`, `channelHistoryLimit()` (`AGEZT_CHANNEL_HISTORY`). Ends with an orphaned doc comment for `visionGate` (the function moved to `main_channels.go`). |
 | `main_toolinvoker.go` | `openAppKernel`: primary and tenant composition bind `app/tools.NewInvoker` before runtime.Open; each kernel receives its own policy/audit/lookup/hook ports (W2.3m). It also builds the **reasoning module** over the kernel's own ports and injects it (`k.SetReasoning(reasoning.New(k.ReasoningDependencies()))`), so the Council, the Conductor and the research harness are wired on the primary kernel and on every tenant kernel (W3.1). Standalone runtime callers retain the legacy default. |
-| `boot_providers.go` | Phase 2.4 glue: `providerDeps(cat, credStore, baseDir, stderr) providerboot.Deps` (rebuilds the catalog-scoped vault→env→AWS lookup for reloads); `firstRunSetupNeeded(res)` = `res.Primary == providerboot.UnconfiguredName`. |
+| `boot_providers.go` | Phase 2.4 glue: `providerDeps(cat, credStore, baseDir, stderr) boot.Deps` (rebuilds the catalog-scoped vault→env→AWS lookup for reloads); `firstRunSetupNeeded(res)` = `res.Primary == boot.UnconfiguredName`. |
 | `boot_tools.go` | `buildTools(baseDir, stderr, ward, notifyTargets)`: `builtintools.RegisterAll()` → `toolreg.BuildAll(BuildDeps{BaseDir, WorkspaceRoot, Warden, Stderr, Get: os.Getenv, AllowAll, NotifyTargets})` → warns on `set.NetguardGaps()`; returns tool map, `*toolreg.Set`, plugin manifest, per-tool capability map, banner. Also `councilSeatName(i)` ("Elder Alpha/Beta/Gamma", then "Elder N"). |
 | `boot_ops.go` | `runUpdate` (CLI) and `startUpdateChecker(ctx, k, svc, …)`: ticker → `svc.Check` → publish `update.available` → `k.DrainAndHalt(svc.DrainTimeout())` → `svc.Apply` → publish `update.applied` → **`os.Exit(0)`**; on failure publishes `update.failed` (KindAnomalyDetected). |
 | `api_engine.go` | `kernelAPIEngine{k}` adapts `*runtime.Kernel` to BOTH `openaiapi.Engine` (+`UsageReporter`) and `restapi.Engine`: `RunModel` (WithModel/WithJSONMode/WithImages + `visionGate`), `UsageFor` (governor in-memory index fast path, journal `budget.consumed` fold fallback), `DefaultModel`, `ModelIDs` (catalog), `EventsForCorrelation` (journal range), `ArtifactEntries`/`ArtifactBytes`. `tenantAPIEngine(reg, id)` resolves a tenant kernel via `reg.Acquire`. Kept here on purpose so `kernel/restapi` stays interface-only. |
@@ -114,9 +114,9 @@ Legend: **F** = fatal (exit 1), **W** = warn and degrade, **B** = best-effort.
  4  creds.NewStore(base).Load()  → EncryptInPlace()  (machine-bound AES-256-GCM upgrade)               F / W
  5  injectConfig(base, vault)   settings.Registry pins + settings.Store(config.json) + vault AGEZT_* → os.Setenv
  6  daemonconfig.Load(nil, stderr)  → dcfg                                                             F (historic fatals)
- 7  providerboot.SeedChatGPTCatalog(catStore, base); cat := catStore.Load()
+ 7  boot.SeedChatGPTCatalog(catStore, base); cat := catStore.Load()
  8  credLookup := buildAWSCredChain(catalogScopedVaultLookup(cat, vault.Lookup))
- 9  providerboot.Boot{Catalog, Lookup, BaseDir} → Governor (gov), model, Primary                        F
+ 9  boot.Boot{Catalog, Lookup, BaseDir} → Governor (gov), model, Primary                        F
 10  warden.NewWithOptions(nil, wardenOptionsFromEnv())          (bus attached later)
 11  edict.New{AskPolicy(APPROVAL_MODE), HardDeny(default + EDICT_DENY), [ALLOW_ALL ⇒ all L4 + UnknownAllow]}
 12  builtinchannels.RegisterAll()                     (channel manifest registry populated)
@@ -177,7 +177,7 @@ Legend: **F** = fatal (exit 1), **W** = warn and degrade, **B** = best-effort.
 
 ### 2.1 Dependency rules embedded in the order
 
-- **Config before everything env-driven.** `injectConfig` (step 5) must precede `daemonconfig.Load`, `providerboot.Boot`,
+- **Config before everything env-driven.** `injectConfig` (step 5) must precede `daemonconfig.Load`, `boot.Boot`,
   channel construction and `buildTools` because all of them read `os.Getenv`. Real env wins; the Config Center store
   and AGEZT_*-named vault secrets only fill gaps (`os.Getenv(name)=="" ⇒ os.Setenv`). `configPinned` (schema fields set
   in the real env) goes to the control plane so the Config Center renders them read-only. `AGEZT_CONFIG=off` skips
@@ -192,7 +192,7 @@ Legend: **F** = fatal (exit 1), **W** = warn and degrade, **B** = best-effort.
   durable-policy replay and orphan reconciliation all happen before the control plane accepts connections.
 - **Forward-declared kernel:** `var k *kernelruntime.Kernel` is captured by `cfg.OnReload`, `cfg.VisionModel`,
   `cfg.ModelAvailable`, `cfg.CouncilMembers`; each nil-checks `k` and re-derives the keyed provider set from the LIVE
-  catalog (`k.Catalog()`) + `providerboot.Eligible`, so newly-keyed providers are used without restart.
+  catalog (`k.Catalog()`) + `boot.Eligible`, so newly-keyed providers are used without restart.
 - **Control plane is constructed in one shot** (`NewServerWithDeps`, "Phase 2.6 3b-ii") so tenant tokens authorize from
   the first accepted connection; only `Pulse`/`Observers`, `ChannelSend`, `StandingFire` arrive later via `srv.Bind(LateDeps)`.
 - **Defer order on exit** (LIFO): `sub.Cancel` → `srv.Stop` → `reg.CloseAll` (tenants) → `cancel` → `k.Close`. The tenant
@@ -202,7 +202,7 @@ Legend: **F** = fatal (exit 1), **W** = warn and degrade, **B** = best-effort.
 
 | Family | Registration point | Mechanism |
 |---|---|---|
-| Providers / models | step 9 (`providerboot.Boot`), reload via `cfg.OnReload` → `providerboot.Reload(gov, providerDeps(...))` + `k.SetModel` | Governor holds the registry; unconfigured boot resolves to sentinel primary `providerboot.UnconfiguredName` (banner prints "setup needed"). ChatGPT subscription provider seeded into the catalog by `SeedChatGPTCatalog`, refreshed post-sign-in through `Deps.ChatGPTSync`. See [08-providers.md](08-providers.md). |
+| Providers / models | step 9 (`boot.Boot`), reload via `cfg.OnReload` → `boot.Reload(gov, providerDeps(...))` + `k.SetModel` | Governor holds the registry; unconfigured boot resolves to sentinel primary `boot.UnconfiguredName` (banner prints "setup needed"). ChatGPT subscription provider seeded into the catalog by `SeedChatGPTCatalog`, refreshed post-sign-in through `Deps.ChatGPTSync`. See [08-providers.md](08-providers.md). |
 | Sidecar model services | step 15 → `runtime.Config.{MemoryEmbedder, Voice, ImageGenerator, Reranker}` | nil ⇒ the runtime does not register `voice` / `image_generate` / `rerank` tools. Typed-nil avoidance for `Voice`. |
 | Tools | steps 14, 16, 20, 41.1 | `builtintools.RegisterAll` + `toolreg.BuildAll`; the kernel adds `memory`, `world`, `delegate`, `delegate_await`, `market`, `voice`, `image_generate`, `rerank` itself during `Open`. See [10-tools.md](10-tools.md). |
 | Channels | step 12 (manifests), step 30 (instances) | `channelwire.BuildKind` per manifest (multi-account `kind#label` instances). One shared inbound handler. See [09-channels.md](09-channels.md). |
@@ -412,7 +412,7 @@ Column "When": **pre** = before `injectConfig`; **Load** = captured once by `dae
 
 ### 3.4 Read during boot by packages `runDaemon` calls (documented elsewhere)
 
-- `plugins/providerboot` ([08](08-providers.md)): `AGEZT_PROVIDER`, `AGEZT_MODEL`, `AGEZT_DEMO_ECHO` (keyless echo mock
+- `kernel/modules/providers/boot` ([08](08-providers.md)): `AGEZT_PROVIDER`, `AGEZT_MODEL`, `AGEZT_DEMO_ECHO` (keyless echo mock
   used by every e2e harness), `AGEZT_DEFAULT_CHAIN`, `AGEZT_FALLBACK_CHAINS`, `AGEZT_TASK_ROUTES`, `AGEZT_TASK_MODEL_CHAINS`,
   `AGEZT_TASK_MODEL_OVERRIDES`, `AGEZT_TASK_ROUTE_REQUIRES`, `AGEZT_TASK_BUDGETS`, `AGEZT_GEN_TEMPERATURE`, `_GEN_TOP_P`,
   `_GEN_REASONING_EFFORT`, `AGEZT_LLM_CACHE_TTL`, `AGEZT_RATE_PER_MIN`, `AGEZT_MODEL_DOWNROUTE(_CROSS)`, `AGEZT_MODEL_STRICT`,
@@ -500,7 +500,7 @@ Tests: `daemonconfig_test.go` — `TestLoad_Defaults`, `_KnowledgeSwitches`, `_P
 - **Invariant:** `BuildStamp()` must be referenced from `main` (it is, in the ready banner) or the linker dead-strips
   `BuildCommit/BuildTime` and the `-X` stamp silently no-ops.
 - **Used by:** both binaries, `internal/paths`, daemonconfig, acp, cadence/systemtasks, chatgptauth, controlplane, restapi,
-  runtime, selfrepair, update, builtinchannels, builtintools, providerboot, introspect/overseer tools.
+  runtime, selfrepair, update, builtinchannels, builtintools, introspect/overseer tools.
 - Files: `brand.go`. Tests: `brand_test.go`, `buildinfo_test.go`.
 
 ### 6.2 `internal/paths`

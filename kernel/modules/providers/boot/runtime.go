@@ -1,19 +1,28 @@
 // SPDX-License-Identifier: MIT
 
-package providerboot
+package boot
 
 import (
 	"fmt"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 func Boot(d Deps) (*Result, error) {
+	ports, err := d.ports()
+	if err != nil {
+		return nil, err
+	}
 	cat := d.Catalog
 	reg := governor.NewRegistry()
-	mw := Middleware(d.Get) // M997: opt-in; empty by default → providers registered unwrapped
+	// M997: opt-in; empty by default → providers registered unwrapped. The
+	// stack is built ONCE per boot cycle and applied to the primary and every
+	// alternate alike.
+	wrap := ports.Wrap(d.get)
+	if wrap == nil {
+		return nil, fmt.Errorf("provider boot: the middleware wrapper is nil (wiring error)")
+	}
 	primary, primaryDesc, model, authMode, err := SelectPrimary(d)
 	if err != nil {
 		return nil, err
@@ -21,7 +30,7 @@ func Boot(d Deps) (*Result, error) {
 	primaryName := primary.Name()
 	if err := reg.Register(&governor.ProviderInfo{
 		Name:     primaryName,
-		Provider: agent.Wrap(primary, mw...),
+		Provider: wrap(primary),
 		AuthMode: authMode,
 		Models:   catalogModelIDs(cat, primaryName),
 	}); err != nil {
@@ -34,7 +43,7 @@ func Boot(d Deps) (*Result, error) {
 	// non-catalog name that simply won't match, which is fine.) The set is
 	// mutex-guarded and REFRESHED by Reload — the altFinder closure below reads
 	// it live instead of freezing the boot-time snapshot.
-	registered := registerAlternates(reg, d, primaryName, mw, false)
+	registered := registerAlternates(reg, d, primaryName, wrap, false)
 	extraProviders := len(registered) - 1 // everything but the primary
 	es := &eligibleSet{m: registered}
 	liveEligible.Store(reg, es)
@@ -146,7 +155,16 @@ func Boot(d Deps) (*Result, error) {
 // fail a provider reload. They remain boot-only until a follow-up ApplyConfig
 // pass. Task-model chains already have their own live path (chainsSetter).
 func Reload(gov *governor.Governor, d Deps) (string, error) {
-	mw := Middleware(d.Get) // M997 middleware follows the current env, same as Boot
+	ports, err := d.ports()
+	if err != nil {
+		return "", err
+	}
+	// M997 middleware follows the current env, same as Boot — and is built once
+	// per reload cycle, so the primary and the alternates share one stack.
+	wrap := ports.Wrap(d.get)
+	if wrap == nil {
+		return "", fmt.Errorf("provider boot: the middleware wrapper is nil (wiring error)")
+	}
 	// Re-run the same selection logic the boot path uses. Errors are surfaced
 	// to the operator rather than swallowed — a missing credential after
 	// rotation should be visible immediately, not next time the daemon happens
@@ -171,7 +189,7 @@ func Reload(gov *governor.Governor, d Deps) (string, error) {
 	}
 	// Reconcile alternates through the SAME path Boot uses (replace semantics +
 	// stale-drop sweep), middleware-wrapped like Boot.
-	eligible := registerAlternates(reg, d, prov.Name(), mw, true)
+	eligible := registerAlternates(reg, d, prov.Name(), wrap, true)
 	// Refresh the LIVE cross-provider down-route eligibility set the
 	// governor's altFinder closure reads (drift fix: it used to stay frozen at
 	// the boot-time snapshot).
@@ -182,7 +200,7 @@ func Reload(gov *governor.Governor, d Deps) (string, error) {
 	// routing chains over the reconciled registry.
 	if err := gov.Replace(&governor.ProviderInfo{
 		Name:     prov.Name(),
-		Provider: agent.Wrap(prov, mw...),
+		Provider: wrap(prov),
 		AuthMode: auth,
 		Models:   catalogModelIDs(d.Catalog, prov.Name()),
 	}); err != nil {

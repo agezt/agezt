@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package providerboot
+package boot
 
 // registerAlternates with replace=true (the Reload path, née
 // reconcileAlternateProviders, M928) keeps the hot-reload registry in parity
@@ -21,7 +21,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
-	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 const reconcileFixtureAPI = `{
@@ -105,7 +104,7 @@ func TestReconcileAlternateProviders_RegistersKeyedAlternates(t *testing.T) {
 	// and nothing else is registered.
 	reg := governor.NewRegistry()
 	if err := reg.Register(&governor.ProviderInfo{
-		Name: "mock", Provider: mock.New(), AuthMode: governor.AuthLocal,
+		Name: "mock", Provider: &fakeProvider{name: "mock"}, AuthMode: governor.AuthLocal,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +112,8 @@ func TestReconcileAlternateProviders_RegistersKeyedAlternates(t *testing.T) {
 	// Reload selected "alpha" as the new primary (the caller installs it via
 	// gov.Replace afterwards); reconcile must register "beta" as an alternate
 	// with its catalog model list and leave "unkeyed" out.
-	registerAlternates(reg, Deps{Catalog: cat, Lookup: reconcileLookup, BaseDir: t.TempDir()}, "alpha", nil, true)
+	p := ports()
+	registerAlternates(reg, Deps{Catalog: cat, Lookup: reconcileLookup, BaseDir: t.TempDir(), Ports: p}, "alpha", p.Wrap(nil), true)
 
 	beta, ok := reg.Get("beta")
 	if !ok {
@@ -142,12 +142,13 @@ func TestReconcileAlternateProviders_DropsStaleAlternates(t *testing.T) {
 	}
 	// ...while a FALLBACK entry is never touched (the demoted offline mock).
 	if err := reg.Register(&governor.ProviderInfo{
-		Name: "mock", Provider: mock.New(), AuthMode: governor.AuthLocal, IsFallback: true,
+		Name: "mock", Provider: &fakeProvider{name: "mock"}, AuthMode: governor.AuthLocal, IsFallback: true,
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	registerAlternates(reg, Deps{Catalog: cat, Lookup: reconcileLookup, BaseDir: t.TempDir()}, "alpha", nil, true)
+	p := ports()
+	registerAlternates(reg, Deps{Catalog: cat, Lookup: reconcileLookup, BaseDir: t.TempDir(), Ports: p}, "alpha", p.Wrap(nil), true)
 
 	if _, ok := reg.Get("stale-prov"); ok {
 		t.Error("stale alternate (no longer credentialed/in catalog) was not removed")
