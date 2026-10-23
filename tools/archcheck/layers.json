@@ -60,8 +60,6 @@
     {"pattern": "kernel/anomaly", "layer": 3, "module": "pulse"},
     {"pattern": "kernel/alerter", "layer": 3, "module": "pulse"},
 
-    {"pattern": "kernel/channelwire", "layer": 3, "module": "channels"},
-
     {"pattern": "kernel/update", "layer": 3, "module": "system"},
 
     {"pattern": "kernel/voicetool", "layer": 3, "module": "media"},

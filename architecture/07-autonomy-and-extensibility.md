@@ -2,7 +2,7 @@
 
 **Scope:** `kernel/roster`, `kernel/cadence` (+ `cadence/systemtasks`), `kernel/scheduler`, `kernel/standing`, `kernel/pulse`,
 `kernel/selfrepair`, `kernel/modules/skills/skill` (+ `kernel/modules/skills/builtins`), `kernel/market`, `kernel/modules/extensions/plugin`, `kernel/modules/extensions/mcp`, `kernel/acp`, `kernel/platform/acpclient`, `kernel/modules/extensions/acpcatalog`,
-`kernel/workflow`, `kernel/workflowexec`, `kernel/update`, `kernel/modules/extensions/toolbox`, `kernel/channel`, `kernel/channelwire`,
+`kernel/workflow`, `kernel/workflowexec`, `kernel/update`, `kernel/modules/extensions/toolbox`, `kernel/channel`, `kernel/platform/channelwire`,
 `kernel/stt`, `kernel/voicetool`, `kernel/imagetool`, `kernel/reranktool`, `kernel/internal/testfixtures`.
 Also covers the parts of `cmd/agezt` and `kernel/runtime` that turn these packages into running behaviour,
 because most "fire" logic lives in the daemon, not in the packages.
@@ -542,7 +542,7 @@ runs, through the governed path.
 - `QuietHours` / `ParseQuietHours("22-7")`: only alert and act break through quiet hours.
 - `Brief`, `BriefSink`, `LogSink`, `SinkFunc`, `MultiSink`: channels supply sinks via `channelwire.Built.Sink`.
   The rows live in the contract layer (`kernel/contract/pulseapi` — W3.34); the module keeps every name as an alias,
-  and the channel factory layer (`kernel/channelwire`) names the contract too, so no transport plugin reaches the
+  and the channel factory layer (`kernel/platform/channelwire`) names the contract too, so no transport plugin reaches the
   pulse module.
 
 ### 6.2 Initiative semantics (`engine_process.go:64-108`)
@@ -1601,11 +1601,13 @@ Recommendation: delete it, or finish the extraction. Do not wire new code to it.
 
 Tests: `channel_test`, `coverage_test`, `guard_test`, `history_test`, `registry_race_test`, `split_test`.
 
-## 18. `kernel/channelwire` — channel factory layer (Phase 2.1)
+## 18. `kernel/platform/channelwire` — channel factory layer (Phase 2.1)
 
 **Purpose.** Each channel kind registers a `Factory` that builds its configured instances: the default account plus every `#label` account. The daemon then runs one loop over `channel.Manifests()` instead of 27 hand-written builders.
 
 The package sits **above** `kernel/channel` because factories return a `pulseapi.BriefSink` (the briefing row lives in the contract layer — W3.34). Importing the pulse module into `kernel/channel` would drag `kernel/agent` into every transport plugin (`channelwire.go:14-18`).
+
+It lives in the **platform** layer (W3.36): the factory layer is the seam between the daemon — which owns the bus, the inbound handler and the configuration — and the channel plugins, which build their transports against it. It depends only on the contract and the platform layers, and that placement is what lets a channel plugin name it: a plugin may reach the contract and the platform, and nothing else.
 
 **API:**
 - `Deps{Ctx, Bus, Handler, Get func(baseEnv) string, Label}`. Factories read configuration **only** through `Get`, which retired the old `os.Setenv` overlay hack.

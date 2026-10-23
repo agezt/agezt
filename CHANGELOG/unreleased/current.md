@@ -995,6 +995,20 @@ This file holds the active `[Unreleased]` working set.
   The guardians' quiet defaults — silent on success, no memory writes — are
   the operator's contract, and they are now asserted.
 
+- **The channel factory layer moves down to the platform layer.** The seam
+  between the daemon and the channel plugins — where each channel *kind*
+  registers a `Factory` and the daemon walks the manifest registry calling
+  `BuildKind` per kind — was classified as a module, so the built-in
+  channels plugin could not name it without an allowlist entry. It was
+  never a module's business: it depends only on the contract and platform
+  layers and it is the wiring between the daemon and the plugins that build
+  their transports against it.
+  It now lives in the platform layer (`kernel/platform/channelwire`), where
+  a plugin may reach it — the plugin-reach edge and its stale allowlist
+  entry are both gone.
+  No behaviour changed: the registration, the lookup, the built instances
+  and the brief sink on each instance are as they were.
+
 - **The ACP bridge's two reaches become a platform client and a port.** The
   **acp_agent** tool — the bridge that delegates a task to an *external* agent
   that speaks the Agent Client Protocol — is a plugin, and it reached into two

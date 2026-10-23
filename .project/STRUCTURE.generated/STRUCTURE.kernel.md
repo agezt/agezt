@@ -74,7 +74,6 @@
 - **`kernel/cadence`** — Package cadence is the typed schedule subsystem (autonomy): it wakes agent tasks, workflows, daemon maintenance tasks, or approved tools on recurring, one-shot, daily, or continuous cadences.
 - **`kernel/cadence/systemtasks`** — Package systemtasks holds the executors behind cadence's built-in system tasks (catalog_sync, artifact_collect, memory_clean, memory_tidy, log_clean, graveyard_scan, profile_distill) — the daemon-side maintenance work a schedule entry with Target=system_task dispatches (Phase 2.6 extraction from cmd/agezt; the catalogue + validation already lived in kernel/cadence).
 - **`kernel/channel`** — Package channel is the in-process channel machinery: the inbound Allowlist, the panic Guard, the process-wide manifest/liveness registry, conversation history and message splitting.
-- **`kernel/channelwire`** — Package channelwire is the channel FACTORY layer (Phase 2.1 of docs/REFACTORING-SCAN-2026-08.md): each channel kind registers a Factory that builds its configured instances from a Deps bundle, and the daemon walks the manifest registry calling BuildKind per kind — one loop instead of 27 hand-listed builder call sites (the allInsts drift surface).
 - **`kernel/configcenter`** — Package configcenter is the typed, audited, environment-aware configuration surface of the daemon.
 - **`kernel/contextselect`** — Package contextselect provides context candidate scoring, selection, and failure analysis for agent runs.
 - **`kernel/contract/acpapi`** — Package acpapi is the contract the ACP-agent bridge and the catalogue of installed ACP agents agree on.
@@ -161,6 +160,7 @@
 - **`kernel/planner`** — Package planner generates `scheduler.Plan`-shaped JSON from a natural-language intent by asking the configured Provider to emit a DAG.
 - **`kernel/platform/acpclient`** — Package acpclient speaks the Agent Client Protocol (SPEC-15 §3) as the CLIENT: it drives an external ACP agent (Gemini CLI, Claude Code's adapter, Codex, …) over JSON-RPC 2.0 on stdio — initialize → session/new → session/prompt — and relays the agent's streamed agent_message_chunk updates.
 - **`kernel/platform/browsercallback`** — Package browsercallback owns OAuth browser callback query/result presentation.
+- **`kernel/platform/channelwire`** — Package channelwire is the channel FACTORY layer (Phase 2.1 of docs/REFACTORING-SCAN-2026-08.md): each channel kind registers a Factory that builds its configured instances from a Deps bundle, and the daemon walks the manifest registry calling BuildKind per kind — one loop instead of 27 hand-listed builder call sites (the allInsts drift surface).
 - **`kernel/platform/filestore`** — Package filestore is the persistence platform for the daemon's single-file JSON stores (architecture/20-target-architecture.md §5, layer L2): a tolerant Load, an atomic Save, and a cross-process Lock for files that more than one process writes (the vault and settings are written by both the daemon and `agt`).
 - **`kernel/platform/fileworkspace`** — Package fileworkspace owns console workspace path checks and filesystem primitives.
 - **`kernel/platform/journalview`** — SPDX-License-Identifier: MIT

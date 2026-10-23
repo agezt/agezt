@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/channel"
-	"github.com/agezt/agezt/kernel/channelwire"
+	"github.com/agezt/agezt/kernel/platform/channelwire"
 )
 
 // factoryTODO is the RATCHET for the channel-factory migration (Phase 2.1 of

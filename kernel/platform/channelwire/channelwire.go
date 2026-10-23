@@ -19,6 +19,15 @@
 // contract and never the module that composes briefs.
 // kernel/channel stays the pure vocabulary (Channel, UnifiedMessage,
 // Manifest); channelwire is the wiring above it.
+//
+// The layer is the PLATFORM one (W3.36): the factory layer is the seam
+// between the daemon — which owns the bus, the inbound handler and the
+// configuration — and the channel plugins, which build their transports
+// against it. It carries no domain knowledge beyond the channel vocabulary
+// itself (which is the contract layer's), and it depends only on the
+// contract and the platform layers. That placement is what lets a channel
+// plugin name it: a plugin may reach the contract and the platform, and
+// nothing else.
 package channelwire
 
 import (

@@ -6,12 +6,15 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/contract/pulseapi"
+	"github.com/agezt/agezt/kernel/platform/channelwire"
 )
 
 const (
 	contractPkg = "github.com/agezt/agezt/kernel/contract/pulseapi"
 	modulePkg   = "github.com/agezt/agezt/kernel/pulse"
+	platformPkg = "github.com/agezt/agezt/kernel/platform/channelwire"
 )
 
 // TestTheChannelsNameTheContractRows: the built-in channels are a PLUGIN, so
@@ -50,5 +53,25 @@ func TestTheChannelsDoNotNameThePulseModule(t *testing.T) {
 	// reach: the archcheck gate is what enforces it.
 	if modulePkg == contractPkg {
 		t.Fatal("the module and the contract must be different packages")
+	}
+}
+
+// TestTheChannelsNameThePlatformFactoryLayer: the factory layer the channels
+// register against is the PLATFORM one (kernel/platform/channelwire) — the
+// seam between the daemon (which owns the bus, the inbound handler and the
+// configuration) and the channel plugins. A plugin may reach the platform, so
+// naming it needs no allowlist entry.
+func TestTheChannelsNameThePlatformFactoryLayer(t *testing.T) {
+	field, ok := reflect.TypeOf(channelwire.Deps{}).FieldByName("Bus")
+	if !ok {
+		t.Fatal("the deps row must carry the bus")
+	}
+	// The declared field type is the platform's bus — the row the factory
+	// layer hands to every channel factory.
+	if field.Type != reflect.TypeOf((*bus.Bus)(nil)) {
+		t.Errorf("the factory layer's deps drifted from the platform's bus: %v", field.Type)
+	}
+	if got := reflect.TypeOf(channelwire.Deps{}).PkgPath(); got != platformPkg {
+		t.Errorf("the factory layer must come from %s, got %s", platformPkg, got)
 	}
 }

@@ -12,8 +12,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/channel"
-	"github.com/agezt/agezt/kernel/channelwire"
 	"github.com/agezt/agezt/kernel/contract/pulseapi"
+	"github.com/agezt/agezt/kernel/platform/channelwire"
 	"github.com/agezt/agezt/plugins/channels/nostr"
 	"github.com/agezt/agezt/plugins/channels/onebot"
 	"github.com/agezt/agezt/plugins/channels/zalo"
