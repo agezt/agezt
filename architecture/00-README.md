@@ -243,7 +243,7 @@ Every Go package, one line each, with the document that covers it in depth.
 | `market` | Capability marketplace: packs, Ed25519 signing, remote sync, vetting, install/uninstall. |
 | `plugin` | Out-of-process plugin host (stdio line-JSON, BLAKE3 pins, capability manifest). |
 | `mcp` | Durable MCP server registry + client (stdio, Streamable HTTP, lazy dispatcher). |
-| `acp`, `acpcatalog` | ACP server (IDEs drive AGEZT over stdio JSON-RPC) and discovery of installed ACP coding agents. |
+| `acp`, `acpcatalog`, `platform/acpclient` | ACP server (IDEs drive AGEZT over stdio JSON-RPC), the ACP client (AGEZT drives an external ACP agent — platform layer), and discovery of installed ACP coding agents. |
 | `workflow`, `workflowexec` | n8n-style typed node graphs (trigger/tool/llm/condition/transform/delay), store and triggers. **Execution actually lives in `kernel/runtime/workflowrun*.go`**: a sequential breadth-first walk with per-node retry/timeout, every tool/http/code node using the shared governed invoker. `workflowexec` has no importers. |
 | `update` | Self-update (endpoint or GitHub, staging, sentinel, watchdog). |
 | `toolbox` | Host CLI-tool inventory + cross-platform installer. |

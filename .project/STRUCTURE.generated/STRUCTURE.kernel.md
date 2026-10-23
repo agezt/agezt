@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-193 package(s):
+196 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -10,6 +10,7 @@
 - **`kernel/alerter`** — Package alerter pushes warning/critical alerts to the configured channels (M782).
 - **`kernel/anomaly`** — Package anomaly is the autonomous-operation circuit breaker (SPEC-06 §5): it watches for runaway signals and, on a spike, auto-engages a halt so a looping or runaway agent cannot burn budget or take repeated action unsupervised.
 - **`kernel/app`** — Package app implements the transport-independent typed operation pipeline.
+- **`kernel/app/acpbridge`** — Package acpbridge answers the ACP bridge tool's contract port.
 - **`kernel/app/approvals`** — Package approvals owns the human-in-the-loop approval history: the journal's approval requests joined with their grants, denials and timeouts.
 - **`kernel/app/artifacts`** — Package artifacts owns transport-independent blob, metadata and collection use cases.
 - **`kernel/app/audit`** — Package audit owns the guard audit reads folded from the journal: egress blocks, run-rate throttles and sandboxed executions, as paged logs and windowed statistics.
@@ -76,6 +77,7 @@
 - **`kernel/channelwire`** — Package channelwire is the channel FACTORY layer (Phase 2.1 of docs/REFACTORING-SCAN-2026-08.md): each channel kind registers a Factory that builds its configured instances from a Deps bundle, and the daemon walks the manifest registry calling BuildKind per kind — one loop instead of 27 hand-listed builder call sites (the allInsts drift surface).
 - **`kernel/configcenter`** — Package configcenter is the typed, audited, environment-aware configuration surface of the daemon.
 - **`kernel/contextselect`** — Package contextselect provides context candidate scoring, selection, and failure analysis for agent runs.
+- **`kernel/contract/acpapi`** — Package acpapi is the contract the ACP-agent bridge and the catalogue of installed ACP agents agree on.
 - **`kernel/contract/agentapi`** — Package agentapi is the contract the agent roster and the tools that steer it agree on.
 - **`kernel/contract/assureapi`** — Package assureapi is the contract layer's home for the "do-it-for-sure" rows: the completion judgement for one attempt, the record of one run+verify cycle, and the outcome of an assured run.
 - **`kernel/contract/boardapi`** — Package boardapi is the contract the message board and the tools that read it agree on.
@@ -157,6 +159,7 @@
 - **`kernel/netguard`** — Package netguard is the network-egress guard (SPEC-06 security defaults): it stops outbound tool traffic from reaching the host's own internal network.
 - **`kernel/openaiapi`** — Package openaiapi serves an OpenAI-compatible HTTP surface (ROADMAP P7-API-01, SPEC-15 §3): POST /v1/chat/completions, POST /v1/responses, GET /v1/models and GET /v1/models/{id}, so any OpenAI client, SDK, or IDE can drive Agezt as if it were OpenAI.
 - **`kernel/planner`** — Package planner generates `scheduler.Plan`-shaped JSON from a natural-language intent by asking the configured Provider to emit a DAG.
+- **`kernel/platform/acpclient`** — Package acpclient speaks the Agent Client Protocol (SPEC-15 §3) as the CLIENT: it drives an external ACP agent (Gemini CLI, Claude Code's adapter, Codex, …) over JSON-RPC 2.0 on stdio — initialize → session/new → session/prompt — and relays the agent's streamed agent_message_chunk updates.
 - **`kernel/platform/browsercallback`** — Package browsercallback owns OAuth browser callback query/result presentation.
 - **`kernel/platform/filestore`** — Package filestore is the persistence platform for the daemon's single-file JSON stores (architecture/20-target-architecture.md §5, layer L2): a tolerant Load, an atomic Save, and a cross-process Lock for files that more than one process writes (the vault and settings are written by both the daemon and `agt`).
 - **`kernel/platform/fileworkspace`** — Package fileworkspace owns console workspace path checks and filesystem primitives.
