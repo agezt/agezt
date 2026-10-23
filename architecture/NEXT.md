@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.17 two more tools name the agent profile where it lives, 2026-10-23
+## Current checkpoint — W3.18 the standing order's row moves to the contract layer, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1703,6 +1703,28 @@ files, five of the seventeen mutations would have escaped.
   of the slice's shape: a plugin that names the module's alias instead of the
   contract row compiles and behaves **identically**, so only the layer rule can
   tell the difference.
+
+- W3.18 (the standing order's row moves to the contract layer) is committed on
+  `main` the same way. The **introspector** (the tool that reports the daemon's
+  own live state) and the **guardians** (the plugin that seeds and reconciles
+  the autonomous fleet) both reach into the standing module for its rows, and
+  both are plugins — a row a plugin has to name cannot live in a module's
+  implementation package. The rows moved to `kernel/contract/standingapi`
+  (`Order`, `Trigger`, `Initiative`, the two mode types, the pure `Validate`
+  and the `MaxAutonomyTrust` rule); `kernel/standing` keeps every name as an
+  alias, so the store, the runner, the control plane and the standing tool are
+  unchanged.
+  The **ratchet went DOWN**: 112/13 → **110/13** — both plugin-reach edges are
+  gone, and the **two stale allowlist entries were deleted**.
+  The **wire shape got measured, which it never had**: the standing order's
+  JSON keys are what the control plane serves, the Web UI reads and the store
+  persists, and they are read by name — a renamed key is a silent break for
+  every consumer outside the package.
+  9 mutations: 8 caught, 1 build error recorded separately — and **M03 escaped
+  the first round**: the omits-empty assertion looked at the order's top level
+  and the initiative's `max_trust`, but not at the initiative's second field.
+  A mutation that survives is a missing assertion, so the assertion was added
+  and the mutation re-run.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
