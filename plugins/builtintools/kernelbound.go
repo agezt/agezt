@@ -221,7 +221,8 @@ func specMCP() toolreg.Spec {
 // specWorkflow — workflow authoring (`workflow`, M802): the agent authors and
 // runs durable workflows in the SAME store the console canvas edits (Edict
 // workflow.manage, AskFirst by default; tool nodes inside a run re-gate per
-// call).
+// call). Configure binds the live kernel and hands over the library the read
+// ops (op=list, op=show) read through the contract's port.
 func specWorkflow() toolreg.Spec {
 	var wt *workflowtool.Tool
 	return toolreg.Spec{
@@ -232,7 +233,7 @@ func specWorkflow() toolreg.Spec {
 		},
 		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.K != nil {
-				wt.Bind(d.K)
+				wt.Bind(d.K, d.Workflows)
 			}
 			return nil
 		},

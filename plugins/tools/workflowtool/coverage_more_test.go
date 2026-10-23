@@ -32,7 +32,7 @@ func TestOkJSON_MarshalError(t *testing.T) {
 func TestSaveUpdatePath(t *testing.T) {
 	fk := newFakeKernel(t)
 	tool := New()
-	tool.Bind(fk)
+	tool.Bind(fk, fk.store)
 
 	// First save: create.
 	out1 := invoke(t, tool, `{"op":"save","workflow":`+graphJSON+`}`)

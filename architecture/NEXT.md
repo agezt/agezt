@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.28 the script-tool rows move to the contract layer, 2026-10-23
+## Current checkpoint — W3.29 the workflow rows move to the contract layer, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2054,6 +2054,59 @@ files, five of the seventeen mutations would have escaped.
   only ever read on an untested tool), so the tests were strengthened and
   they were run again; one had a **stale anchor**, so it was re-authored and
   run again.
+
+- W3.29 (the workflow rows move to the contract layer) is committed on
+  `main` the same way. The `workflow` tool — the agent's automation
+  primitive: it authors durable, named, acyclic graphs of typed nodes and
+  runs them — is a plugin, so the description of one workflow, its typed
+  nodes, the edges that wire them, the trigger configuration that starts it,
+  the per-node config payloads and the outcome of a run now live in the
+  contract layer (`kernel/contract/workflowapi`). The **rule travels with
+  them** (the graph rule is pure — stdlib only): exactly one trigger, known
+  node types, edges that resolve, legal ports, per-type configs, an acyclic
+  graph. The rule's own tests moved **with** it, because a proof that stays
+  behind while the rule travels would be a proof of nothing. The module
+  keeps its names as **aliases** and its rule as a one-line **delegation**;
+  the store, the engine, the trigger runner and the templates stay in the
+  module — they are the implementation.
+  The tool's **read path changes shape**: the workflow library used to be
+  reached through the kernel (`k.Workflows()` — a concrete implementation a
+  plugin should never hold); now it arrives as the contract's **port**
+  (`workflowapi.Store`), handed over by the **daemon** as a second argument
+  to `Bind(k, store)`. The outcome the tool reports (`RunResult`) is a row
+  of the contract too — so the plugin no longer names the kernel either.
+  The **ratchet went DOWN twice**: 95/13 → **93/13** — two `plugin-reach`
+  edges are gone (to the workflows module and to the kernel), and the
+  **stale allowlist entries were deleted**.
+  The **wire matters** here as much as it did for the script tools: a
+  workflow is **persisted** and read back by key, so the row's JSON keys are
+  a contract with every workflow file already on disk. The wire had never
+  been measured; it is now pinned key for key, with the always-fields and
+  the optional ones pinned too, and the fifteen **node types** pinned (a
+  renamed type would orphan every stored graph that uses it). The rules are
+  measured **rule by rule**, each with **its own message**, and every
+  **limit** is measured **at its boundary**; the limit **numbers** are
+  pinned separately, because a test that measures a limit against the
+  constant itself passes any value at all.
+  The interesting gap was the **wiring**: a port nobody hands over is
+  silently nil, so the tool would answer "not available on this daemon" on
+  every live box while every test that built the tool by hand stayed green.
+  The daemon's wiring was pulled out into a named function
+  (`cmd/agezt/tooldeps.go`) and **measured there** — the port must answer
+  the **live** library — and the **nil-port rule** is stated once.
+  The permanent tests: the **identity assertions**, a test that the module's
+  rule and the contract's agree on every verdict **and message**, a test
+  that the **plugin** names the contract and **neither** the module **nor**
+  the kernel, the tool's **wire** and the **wiring, twice**.
+  The **parity ledger** (`cmd/agt/compare_data.go`) names the files that
+  back each parity claim and asserts they exist, so the rows' old path
+  there was repointed at their new home.
+  79 mutations: 77 caught — seven **survived the first round** (every one a
+  **test gap**, not a rule gap), so the tests were strengthened and they
+  were run again; two were **equivalent** (rules that cannot fire, proven
+  and recorded as such) and were re-authored as reachable rules; one had a
+  **stale anchor**, two were **compile errors** and one was **misclassified**
+  by the harness, so the classifier was fixed and it was run again.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

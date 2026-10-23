@@ -69,6 +69,9 @@ func collect(t reflect.Type, seen map[string]bool) {
 	for t.Kind() == reflect.Pointer || t.Kind() == reflect.Slice || t.Kind() == reflect.Array || t.Kind() == reflect.Map {
 		t = t.Elem()
 	}
+	if pkg := t.PkgPath(); pkg != "" {
+		seen[pkg] = true
+	}
 	switch t.Kind() {
 	case reflect.Func:
 		for i := 0; i < t.NumIn(); i++ {
@@ -83,8 +86,5 @@ func collect(t reflect.Type, seen map[string]bool) {
 			collect(t.Field(i).Type, seen)
 		}
 		return
-	}
-	if pkg := t.PkgPath(); pkg != "" {
-		seen[pkg] = true
 	}
 }

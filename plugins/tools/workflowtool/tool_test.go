@@ -8,12 +8,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
 // fakeKernel records calls and serves a real (temp-dir) workflow store so
 // list/show exercise the same code paths the daemon does.
+//
+// The rows it speaks are the contract's: the plugin may not name the module
+// in its own code, and the store is only here because the fake needs a real
+// implementation to answer with.
 type fakeKernel struct {
 	store      *workflow.Store
 	savedCorr  string
@@ -32,21 +36,19 @@ func newFakeKernel(t *testing.T) *fakeKernel {
 	return &fakeKernel{store: st}
 }
 
-func (f *fakeKernel) Workflows() *workflow.Store { return f.store }
-
-func (f *fakeKernel) SaveWorkflow(corr string, w workflow.Workflow) (workflow.Workflow, bool, error) {
+func (f *fakeKernel) SaveWorkflow(corr string, w workflowapi.Workflow) (workflowapi.Workflow, bool, error) {
 	f.savedCorr = corr
 	return f.store.Save(w)
 }
 
-func (f *fakeKernel) SetWorkflowEnabled(_ string, ref string, enabled bool) (workflow.Workflow, error) {
+func (f *fakeKernel) SetWorkflowEnabled(_ string, ref string, enabled bool) (workflowapi.Workflow, error) {
 	f.enabledRef, f.enabledVal = ref, enabled
 	return f.store.SetEnabled(ref, enabled)
 }
 
-func (f *fakeKernel) RunWorkflow(_ context.Context, _ string, ref string, payload any) (runtime.RunWorkflowResult, error) {
+func (f *fakeKernel) RunWorkflow(_ context.Context, _ string, ref string, payload any) (workflowapi.RunResult, error) {
 	f.ranRef, f.ranPayload = ref, payload
-	return runtime.RunWorkflowResult{
+	return workflowapi.RunResult{
 		Executed: []string{"start", "greet"},
 		Outputs:  map[string]any{"greet": "hello"},
 	}, nil
@@ -76,7 +78,7 @@ func TestWorkflowToolDefinitionStatesReusableChainNotIdentity(t *testing.T) {
 func TestWorkflowTool_SaveRunEnableLifecycle(t *testing.T) {
 	fk := newFakeKernel(t)
 	tool := New()
-	tool.Bind(fk)
+	tool.Bind(fk, fk.store)
 
 	// save: validated by the store, arrives disabled.
 	out := invoke(t, tool, `{"op":"save","workflow":`+graphJSON+`}`)
@@ -126,7 +128,7 @@ func TestWorkflowTool_RefusalsAndValidation(t *testing.T) {
 	}
 
 	fk := newFakeKernel(t)
-	tool.Bind(fk)
+	tool.Bind(fk, fk.store)
 
 	for _, tc := range []struct{ input, want string }{
 		{`{"op":"save"}`, `"workflow" object`},

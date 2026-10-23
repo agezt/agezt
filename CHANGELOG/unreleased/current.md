@@ -977,6 +977,28 @@ This file holds the active `[Unreleased]` working set.
   daemon's own wiring is now measured: the catalogue the daemon serves must
   not be empty.
 
+- **The workflow rows move to the contract layer.** The `workflow` tool — the
+  agent's automation primitive, which authors durable, named, acyclic graphs
+  of typed nodes and runs them — is a plugin, so the description of one
+  workflow, its typed nodes, the edges that wire them, the trigger
+  configuration that starts it, the per-node config payloads and the outcome
+  of a run now live in the contract layer (`kernel/contract/workflowapi`).
+  The rule travels with the rows: the graph rule — exactly one trigger,
+  known node types, edges that resolve, legal ports, per-type configs, an
+  acyclic graph — is pure, and it is the rule the whole daemon enforces. The
+  rule's own tests moved with it. The module keeps its names as aliases and
+  its rule as a delegation; the store, the engine, the trigger runner and
+  the templates stay in the module: they are the implementation.
+  The tool's read path changes shape: the workflow library used to be
+  reached through the kernel — a concrete implementation a plugin should
+  never hold — and it now arrives through the contract's port, handed over by
+  the daemon. The outcome the tool reports is a row of the contract too, so
+  the plugin no longer names the kernel either.
+  The stored file's format is unchanged, and that is now pinned by a test: a
+  workflow is written to `workflows.json` and read back by key, so a renamed
+  field would have silently dropped it — and a renamed node type would have
+  orphaned every stored graph that uses it.
+
 - **The script-tool rows move to the contract layer.** The `tool_forge` tool — the
   agent's self-tooling primitive, which drafts a script, tests it in the
   code-exec sandbox and, once the operator promotes it, becomes a tool every run

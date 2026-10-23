@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/agezt/agezt/kernel/platform/filestore"
@@ -16,6 +17,18 @@ import (
 
 // Workflow Store: OpenStore + Save + Restore + SetEnabled + Remove + Get + find + List + Count + save.
 // Code extracted from workflow.go during the Day-46 god-file split. Public API unchanged.
+
+// Store is the persistent workflow registry, a single JSON file rewritten
+// atomically on change. Safe for concurrent use. Mirrors kernel/standing.
+//
+// The store is the IMPLEMENTATION: it stays in the module (W3.29 moved the
+// rows and the rule to the contract, not the persistence).
+type Store struct {
+	path  string
+	mu    sync.Mutex
+	now   func() time.Time
+	items []*Workflow
+}
 
 func OpenStore(dir string) (*Store, error) {
 	s := &Store{now: time.Now}

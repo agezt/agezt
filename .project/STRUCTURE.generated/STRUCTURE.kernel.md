@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-183 package(s):
+184 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -94,6 +94,7 @@
 - **`kernel/contract/toolforgeapi`** — Package toolforgeapi is the contract layer's home for the script-tool rows: one named, durable script the agent can call as a tool, the lifecycle state it is in, the rule that decides whether it may be drafted, and the port through which the agent-facing tool reads the stored ones.
 - **`kernel/contract/toolphaseapi`** — Package toolphaseapi defines the batch-aware invocation service port.
 - **`kernel/contract/types`** — Package types is the contract-layer home for the value types that cross the boundary between the host (the runtime and its accessors) and the application layer.
+- **`kernel/contract/workflowapi`** — Package workflowapi is the contract layer's home for the workflow rows: one durable, named graph, the typed steps it is made of, the edges that wire them, the trigger configuration that starts it, the outcome of a run, and the rule that decides whether a graph may run at all.
 - **`kernel/controlplane`** — Package controlplane is the local control protocol between the agezt daemon and the agt CLI.
 - **`kernel/convo`** — Package convo collapses a multi-turn conversation into a single Agezt intent — the deliberate, lossy-by-design mapping that lets the single-intent governed loop carry conversational context.
 - **`kernel/creds`** — Package creds is the local credentials vault for provider env vars.

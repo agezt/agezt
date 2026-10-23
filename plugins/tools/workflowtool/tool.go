@@ -19,18 +19,20 @@ import (
 	"sync"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
 // Kernel is the slice of the runtime kernel this tool drives — satisfied by
 // *runtime.Kernel and easy to fake in tests.
+//
+// The rows it carries are the contract's (kernel/contract/workflowapi): a
+// plugin may reach the contract layer and nothing else, so the tool names
+// the row, not the module that keeps it.
 type Kernel interface {
-	Workflows() *workflow.Store
-	SaveWorkflow(corr string, w workflow.Workflow) (workflow.Workflow, bool, error)
-	SetWorkflowEnabled(corr, ref string, enabled bool) (workflow.Workflow, error)
-	RunWorkflow(ctx context.Context, corr, ref string, payload any) (runtime.RunWorkflowResult, error)
+	SaveWorkflow(corr string, w workflowapi.Workflow) (workflowapi.Workflow, bool, error)
+	SetWorkflowEnabled(corr, ref string, enabled bool) (workflowapi.Workflow, error)
+	RunWorkflow(ctx context.Context, corr, ref string, payload any) (workflowapi.RunResult, error)
 }
 
 // Tool implements toolapi.Tool. Construct with New, then Bind the live kernel
@@ -38,23 +40,42 @@ type Kernel interface {
 type Tool struct {
 	mu sync.RWMutex
 	k  Kernel
+	// store is the READ side of the workflow library (op=list, op=show). It
+	// arrives through the contract's port, because the tool is a plugin and
+	// may not reach the module that keeps the store.
+	store workflowapi.Store
 }
 
 // New returns an unbound Tool — Invoke reports workflows unavailable until
 // Bind is called.
 func New() *Tool { return &Tool{} }
 
-// Bind wires the live kernel. Called once after the kernel opens.
-func (t *Tool) Bind(k Kernel) {
+// Bind wires the live kernel and the store the read ops read through. Called
+// once after the kernel opens.
+//
+// The store is a SEPARATE port on purpose: the kernel's lifecycle methods
+// speak the contract's row, but the store is a concrete implementation that
+// lives in the module — a plugin may not name it. A nil store stays a nil
+// port, so the tool reports that the library is unavailable instead of
+// calling into a nil implementation.
+func (t *Tool) Bind(k Kernel, store workflowapi.Store) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.k = k
+	t.store = store
 }
 
 func (t *Tool) current() Kernel {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.k
+}
+
+// currentStore returns the bound store, or nil when it was not wired.
+func (t *Tool) currentStore() workflowapi.Store {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.store
 }
 
 // Definition implements toolapi.Tool.
@@ -128,7 +149,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		if len(in.Workflow) == 0 {
 			return errResult(`op=save needs a "workflow" object (name, nodes, edges)`), nil
 		}
-		var w workflow.Workflow
+		var w workflowapi.Workflow
 		if err := json.Unmarshal(in.Workflow, &w); err != nil {
 			return errResult("workflow JSON: " + err.Error()), nil
 		}
@@ -182,7 +203,11 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		return okJSON(view(w)), nil
 
 	case "list":
-		all := k.Workflows().List()
+		store := t.currentStore()
+		if store == nil {
+			return errResult("the workflow library is not available on this daemon"), nil
+		}
+		all := store.List()
 		views := make([]map[string]any, 0, len(all))
 		for _, w := range all {
 			views = append(views, view(w))
@@ -193,7 +218,11 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		if strings.TrimSpace(in.Ref) == "" {
 			return errResult(`op=show needs a "ref" (the workflow's id or name)`), nil
 		}
-		w, found := k.Workflows().Get(strings.TrimSpace(in.Ref))
+		store := t.currentStore()
+		if store == nil {
+			return errResult("the workflow library is not available on this daemon"), nil
+		}
+		w, found := store.Get(strings.TrimSpace(in.Ref))
 		if !found {
 			return errResult("no workflow " + in.Ref), nil
 		}
@@ -209,7 +238,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 	}
 }
 
-func view(w workflow.Workflow) map[string]any {
+func view(w workflowapi.Workflow) map[string]any {
 	v := map[string]any{
 		"id":      w.ID,
 		"name":    w.Name,
