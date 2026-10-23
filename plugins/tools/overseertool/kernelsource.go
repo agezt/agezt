@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -56,7 +56,7 @@ func fleetLockEnabled() bool {
 
 func (s *kernelSource) IsHalted() bool         { return s.k.IsHalted() }
 func (s *kernelSource) ActiveRunIDs() []string { return s.k.ActiveRunIDs() }
-func (s *kernelSource) Agents() []roster.Profile {
+func (s *kernelSource) Agents() []agentapi.Profile {
 	return s.k.Roster().List()
 }
 func (s *kernelSource) AgentImpact(slug string) []string { return s.k.AgentImpact(slug) }
@@ -64,10 +64,10 @@ func (s *kernelSource) CancelRun(corr string) bool       { return s.k.CancelRun(
 func (s *kernelSource) Halt(reason string)               { s.k.HaltWith(reason) }
 func (s *kernelSource) ResumeAll(reason string)          { s.k.ResumeWith(reason) }
 
-func (s *kernelSource) SetAgentEnabled(ref string, enabled bool) (roster.Profile, error) {
+func (s *kernelSource) SetAgentEnabled(ref string, enabled bool) (agentapi.Profile, error) {
 	return s.k.SetProfileEnabled(ref, enabled)
 }
-func (s *kernelSource) SetAgentRetired(ref string, retired bool, reason string) (roster.Profile, error) {
+func (s *kernelSource) SetAgentRetired(ref string, retired bool, reason string) (agentapi.Profile, error) {
 	r := strings.TrimSpace(reason)
 	if r == "" {
 		return s.k.SetProfileRetired(ref, retired)
@@ -91,16 +91,16 @@ func (s *kernelSource) SetAgentRetired(ref string, retired bool, reason string) 
 // "defang" it even though the System flag itself is preserved (and RemoveProfile
 // already refuses to delete it). Operators can still edit guardians through the
 // admin control-plane path; only the agent-reachable tool path is restricted.
-func (s *kernelSource) EditAgent(ref string, in roster.Profile) (roster.Profile, error) {
+func (s *kernelSource) EditAgent(ref string, in agentapi.Profile) (agentapi.Profile, error) {
 	if s.fleetLock {
-		return roster.Profile{}, errors.New("fleet administration via the overseer tool is locked (AGEZT_OVERSEER_FLEET_LOCK): an operator must make agent edits through the console/CLI")
+		return agentapi.Profile{}, errors.New("fleet administration via the overseer tool is locked (AGEZT_OVERSEER_FLEET_LOCK): an operator must make agent edits through the console/CLI")
 	}
 	cur, ok := s.k.Roster().Get(ref)
 	if !ok {
-		return roster.Profile{}, fmt.Errorf("unknown agent: %s", ref)
+		return agentapi.Profile{}, fmt.Errorf("unknown agent: %s", ref)
 	}
 	if cur.System {
-		return roster.Profile{}, fmt.Errorf("agent %q is a protected system guardian — it can be retuned only by an operator, not via the overseer tool", cur.Slug)
+		return agentapi.Profile{}, fmt.Errorf("agent %q is a protected system guardian — it can be retuned only by an operator, not via the overseer tool", cur.Slug)
 	}
 	// Discover which fields the caller explicitly provided. JSON unmarshal into
 	// a flat map tells us the set of top-level keys — nil pointers and zero-value
@@ -114,7 +114,7 @@ func (s *kernelSource) EditAgent(ref string, in roster.Profile) (roster.Profile,
 			}
 		}
 	}
-	p, found, err := s.k.UpdateProfile(ref, func(dst *roster.Profile) {
+	p, found, err := s.k.UpdateProfile(ref, func(dst *agentapi.Profile) {
 		applyProfilePatchField(provided, "name", &dst.Name, in.Name)
 		applyProfilePatchField(provided, "soul", &dst.Soul, in.Soul)
 		applyProfilePatchField(provided, "model", &dst.Model, in.Model)
@@ -169,10 +169,10 @@ func (s *kernelSource) EditAgent(ref string, in roster.Profile) (roster.Profile,
 		}
 	})
 	if err != nil {
-		return roster.Profile{}, err
+		return agentapi.Profile{}, err
 	}
 	if !found {
-		return roster.Profile{}, fmt.Errorf("unknown agent: %s", ref)
+		return agentapi.Profile{}, fmt.Errorf("unknown agent: %s", ref)
 	}
 	return p, nil
 }
@@ -186,9 +186,9 @@ func applyProfilePatchField[T comparable](provided map[string]bool, key string, 
 
 // CreateAgent adds a brand-new agent. System is forced off — only boot-time
 // guardian seeding may mint a protected agent.
-func (s *kernelSource) CreateAgent(in roster.Profile) (roster.Profile, error) {
+func (s *kernelSource) CreateAgent(in agentapi.Profile) (agentapi.Profile, error) {
 	if s.fleetLock {
-		return roster.Profile{}, errors.New("fleet administration via the overseer tool is locked (AGEZT_OVERSEER_FLEET_LOCK): an operator must create agents through the console/CLI")
+		return agentapi.Profile{}, errors.New("fleet administration via the overseer tool is locked (AGEZT_OVERSEER_FLEET_LOCK): an operator must create agents through the console/CLI")
 	}
 	in.System = false
 	return s.k.AddProfile(in)
@@ -209,10 +209,10 @@ func (s *kernelSource) DeleteAgent(ref string) (bool, error) {
 }
 
 // GetAgent returns the full profile for a single agent by slug or id.
-func (s *kernelSource) GetAgent(ref string) (roster.Profile, bool, error) {
+func (s *kernelSource) GetAgent(ref string) (agentapi.Profile, bool, error) {
 	p, ok := s.k.Roster().Get(ref)
 	if !ok {
-		return roster.Profile{}, false, nil
+		return agentapi.Profile{}, false, nil
 	}
 	return p, true, nil
 }
@@ -222,13 +222,13 @@ func (s *kernelSource) GetAgent(ref string) (roster.Profile, bool, error) {
 // are applied on top. The System flag from the source is never copied. Slug in
 // overrides is required. Fleet lock, when set, also refuses cloning through
 // this tool.
-func (s *kernelSource) CloneAgent(source string, overrides roster.Profile) (roster.Profile, error) {
+func (s *kernelSource) CloneAgent(source string, overrides agentapi.Profile) (agentapi.Profile, error) {
 	if s.fleetLock {
-		return roster.Profile{}, errors.New("fleet administration via the overseer tool is locked (AGEZT_OVERSEER_FLEET_LOCK): an operator must create agents through the console/CLI")
+		return agentapi.Profile{}, errors.New("fleet administration via the overseer tool is locked (AGEZT_OVERSEER_FLEET_LOCK): an operator must create agents through the console/CLI")
 	}
 	src, ok := s.k.Roster().Get(source)
 	if !ok {
-		return roster.Profile{}, fmt.Errorf("unknown source agent: %s", source)
+		return agentapi.Profile{}, fmt.Errorf("unknown source agent: %s", source)
 	}
 	// Copy mutable fields from source, then apply overrides on top.
 	built := src
@@ -320,7 +320,7 @@ func (s *kernelSource) CloneAgent(source string, overrides roster.Profile) (rost
 		built.Lifecycle = overrides.Lifecycle
 	}
 	if len(overrides.TaskList) > 0 {
-		built.TaskList = append([]roster.AgentTask(nil), overrides.TaskList...)
+		built.TaskList = append([]agentapi.AgentTask(nil), overrides.TaskList...)
 	}
 
 	return s.k.AddProfile(built)

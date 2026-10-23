@@ -62,7 +62,7 @@ func (f *profileWriteFixture) service() *ProfileWriteService {
 func TestRosterProfileAddValidationAndEffects(t *testing.T) {
 	for raw, want := range map[string]string{
 		`{}`:                                 "args.profile required",
-		`{"profile":"x"}`:                    "args.profile: json: cannot unmarshal string into Go value of type roster.Profile",
+		`{"profile":"x"}`:                    "args.profile: json: cannot unmarshal string into Go value of type agentapi.Profile",
 		`{"profile":{"max_cost_mc":"many"}}`: "args.profile: json: cannot unmarshal string into Go struct field Profile.max_cost_mc of type int64",
 		`{"profile":{"slug":"n","owner_agent":"ghost"}}`:                         `roster: owner_agent "ghost" does not exist`,
 		`{"profile":{"slug":"n","parent_agent":"gone"}}`:                         `roster: parent_agent "gone" is retired`,
@@ -115,7 +115,7 @@ func editRun(t *testing.T, f *profileWriteFixture, raw string) (ProfileWriteOutp
 func TestRosterProfileEditPatchSemantics(t *testing.T) {
 	for raw, want := range map[string]string{
 		`{}`: "args.ref required", `{"ref":1,"profile":{}}`: "args.ref must be a string", `{"ref":"a"}`: "args.profile required",
-		`{"ref":"a","profile":[1]}`:    "args.profile: json: cannot unmarshal array into Go value of type roster.Profile",
+		`{"ref":"a","profile":[1]}`:    "args.profile: json: cannot unmarshal array into Go value of type agentapi.Profile",
 		`{"ref":"ghost","profile":{}}`: "unknown agent: ghost", `{"ref":"a","profile":{"parent_agent":"gone"}}`: `roster: parent_agent "gone" is retired`,
 	} {
 		f := newProfileWriteFixture()

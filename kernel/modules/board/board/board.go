@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/platform/filestore"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -35,26 +36,11 @@ const MaxMessages = 1000
 // recipient agent (a roster slug or any agreed name) for direct agent-to-agent
 // messages; ReplyTo links an answer back to the message it answers; ID makes
 // both possible. Plain topic posts (M647) simply leave them empty.
-type Message struct {
-	ID      string `json:"id,omitempty"`
-	Topic   string `json:"topic"`
-	From    string `json:"from,omitempty"`
-	To      string `json:"to,omitempty"`
-	ReplyTo string `json:"reply_to,omitempty"`
-	Text    string `json:"text"`
-	// Help marks a message as a request for assistance (M849): it stays in
-	// recipients' inboxes until any agent answers it, and OpenHelp surfaces the
-	// still-unanswered ones so an overseer or peer can pick them up. A help
-	// message is journaled under board.help[.<to>] so a standing order can wake a
-	// responder.
-	Help bool  `json:"help,omitempty"`
-	TSMS int64 `json:"ts_ms"`
-	// AckedBy lists the readers that explicitly acknowledged this message
-	// (M937 mailbox): an acked message leaves that reader's unanswered Inbox
-	// without needing a reply. Per-reader, so a broadcast acked by one agent
-	// still shows for every other recipient.
-	AckedBy []string `json:"acked_by,omitempty"`
-}
+//
+// The row itself lives in the contract layer (kernel/contract/boardapi): the
+// tools that read the board are plugins, and a plugin may only reach the
+// contract. This package keeps the name, so every existing caller is unchanged.
+type Message = boardapi.Message
 
 // Everyone is the wildcard recipient for a broadcast (M849): a message To this
 // value lands in every agent's Inbox except the sender's. It is not a real agent

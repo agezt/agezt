@@ -18,8 +18,8 @@ package overseertool
 import (
 	"sync"
 
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	"github.com/agezt/agezt/kernel/modules/board/board"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 )
 
 // Source is the narrow slice of the live kernel the overseer steers — an
@@ -29,37 +29,37 @@ type Source interface {
 	// Read.
 	IsHalted() bool
 	ActiveRunIDs() []string
-	Agents() []roster.Profile
-	OpenHelp(limit int) []board.Message
+	Agents() []agentapi.Profile
+	OpenHelp(limit int) []boardapi.Message
 	AgentImpact(slug string) []string
 	// Intervene. Each mirrors an operator control and journals through the kernel.
 	CancelRun(corr string) bool
 	Halt(reason string)
 	ResumeAll(reason string)
-	SetAgentEnabled(ref string, enabled bool) (roster.Profile, error)
-	SetAgentRetired(ref string, retired bool, reason string) (roster.Profile, error)
+	SetAgentEnabled(ref string, enabled bool) (agentapi.Profile, error)
+	SetAgentRetired(ref string, retired bool, reason string) (agentapi.Profile, error)
 	// EditAgent applies the mutable fields of `in` to the agent named by ref
 	// (the same set the webui's agent-edit allows, including config_overrides
 	// and governance knobs). The System flag is never touched. CreateAgent adds
 	// a brand-new agent. Both let a guardian "treat" or build other agents —
 	// the agent-facing half of the webui's roster admin (M961).
-	EditAgent(ref string, in roster.Profile) (roster.Profile, error)
-	CreateAgent(in roster.Profile) (roster.Profile, error)
+	EditAgent(ref string, in agentapi.Profile) (agentapi.Profile, error)
+	CreateAgent(in agentapi.Profile) (agentapi.Profile, error)
 	// DeleteAgent permanently removes a non-System agent by slug or id.
 	// Returns true when the agent existed. System agents are refused — pause
 	// or retire them instead.
 	DeleteAgent(ref string) (bool, error)
 	// GetAgent returns the full profile for a single agent by slug or id.
 	// Returns false when the agent does not exist.
-	GetAgent(ref string) (roster.Profile, bool, error)
+	GetAgent(ref string) (agentapi.Profile, bool, error)
 	// CloneAgent creates a new agent by copying an existing profile's fields
 	// and applying the caller's overrides on top. The slug in `overrides` is
 	// required. Source must be an existing agent. System flag is never copied.
-	CloneAgent(source string, overrides roster.Profile) (roster.Profile, error)
+	CloneAgent(source string, overrides agentapi.Profile) (agentapi.Profile, error)
 	// SearchAgents returns agents matching the given filter criteria. An empty
 	// filter returns all non-retired agents (same as Agents()). All filter fields
 	// are AND-ed together; empty/nil fields are ignored.
-	SearchAgents(filter SearchFilter) []roster.Profile
+	SearchAgents(filter SearchFilter) []agentapi.Profile
 	// BulkSetEnabled pauses (false) or resumes (true) multiple agents at once.
 	// Returns one result per slug, continuing past individual errors.
 	BulkSetEnabled(slugs []string, enabled bool) []BulkResult
@@ -103,7 +103,7 @@ type SearchFilter struct {
 // The row is declared once, in the agents module (roster); the plugin keeps
 // its own name as an alias, so every importer compiles unchanged while the
 // module owns the vocabulary.
-type RepairResult = roster.RepairResult
+type RepairResult = agentapi.RepairResult
 
 // Tool implements agent.Tool. Created unbound via New(); Bind wires the live
 // kernel Source after the daemon opens.

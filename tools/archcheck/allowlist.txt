@@ -108,7 +108,6 @@ plugin-reach plugins/tools/introspecttool -> kernel/runtime
 plugin-reach plugins/tools/introspecttool -> kernel/standing
 plugin-reach plugins/tools/mcptool -> kernel/modules/extensions/mcp
 plugin-reach plugins/tools/overseertool -> kernel/modules/board/board
-plugin-reach plugins/tools/overseertool -> kernel/modules/agents/roster
 plugin-reach plugins/tools/overseertool -> kernel/runtime
 plugin-reach plugins/tools/schedule -> kernel/cadence
 plugin-reach plugins/tools/schedule -> kernel/modules/agents/roster

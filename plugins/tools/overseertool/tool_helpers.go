@@ -13,34 +13,34 @@ import (
 
 	"encoding/json"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
-// parseProfile decodes the op=edit/create profile into a roster.Profile. The
+// parseProfile decodes the op=edit/create profile into a agentapi.Profile. The
 // canonical shape is a nested "profile" object, but some models flatten the
 // fields straight onto the tool input (e.g. {"op":"create","slug":"x",...})
 // instead of nesting them — so when "profile" is missing/empty we fall back to
 // reading the profile fields off the top-level input. Either shape works; only
 // a genuinely empty payload (no profile object AND no flat fields) is an error,
 // so a guardian still can't silently no-op an edit.
-func parseProfile(profileRaw, fullRaw json.RawMessage) (roster.Profile, error) {
+func parseProfile(profileRaw, fullRaw json.RawMessage) (agentapi.Profile, error) {
 	if hasProfileObject(profileRaw) {
-		var p roster.Profile
+		var p agentapi.Profile
 		if err := json.Unmarshal(profileRaw, &p); err != nil {
-			return roster.Profile{}, fmt.Errorf("profile: %w", err)
+			return agentapi.Profile{}, fmt.Errorf("profile: %w", err)
 		}
 		return p, nil
 	}
 	if hasFlatProfileFields(fullRaw) {
-		var p roster.Profile
+		var p agentapi.Profile
 		if err := json.Unmarshal(fullRaw, &p); err != nil {
-			return roster.Profile{}, fmt.Errorf("profile: %w", err)
+			return agentapi.Profile{}, fmt.Errorf("profile: %w", err)
 		}
 		return p, nil
 	}
-	return roster.Profile{}, fmt.Errorf(`a "profile" object is required (nest the agent fields under "profile", or pass them as top-level keys like "slug"/"name"/"soul"/"model")`)
+	return agentapi.Profile{}, fmt.Errorf(`a "profile" object is required (nest the agent fields under "profile", or pass them as top-level keys like "slug"/"name"/"soul"/"model")`)
 }
 
 // hasProfileObject reports whether raw is a populated "profile" object (not
@@ -72,7 +72,7 @@ func cancelNote(ok bool) string {
 	return "no in-flight run matched that id (already finished or unknown)"
 }
 
-func agentView(p roster.Profile) map[string]any {
+func agentView(p agentapi.Profile) map[string]any {
 	state := "enabled"
 	switch {
 	case p.Retired:
@@ -90,7 +90,7 @@ func agentView(p roster.Profile) map[string]any {
 	return v
 }
 
-func helpView(m board.Message) map[string]any {
+func helpView(m boardapi.Message) map[string]any {
 	v := map[string]any{"id": m.ID, "text": m.Text}
 	if m.From != "" {
 		v["from"] = m.From

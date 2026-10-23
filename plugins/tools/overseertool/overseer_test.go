@@ -8,9 +8,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 // fakeSource is an in-memory Source recording interventions so the tool's
@@ -18,8 +18,8 @@ import (
 type fakeSource struct {
 	halted     bool
 	runs       []string
-	agents     []roster.Profile
-	help       []board.Message
+	agents     []agentapi.Profile
+	help       []boardapi.Message
 	impact     []string
 	cancelled  string
 	cancelOK   bool
@@ -29,25 +29,25 @@ type fakeSource struct {
 	retired    map[string]bool
 	setErr     error
 	edited     string
-	editFields roster.Profile
-	created    roster.Profile
+	editFields agentapi.Profile
+	created    agentapi.Profile
 	repaired   string
 	repairRes  RepairResult
 	deleted    string
 	deleteOK   bool
 	deleteErr  error
 	getRef     string
-	getResult  roster.Profile
+	getResult  agentapi.Profile
 	getOK      bool
 	cloneSrc   string
-	cloneOver  roster.Profile
+	cloneOver  agentapi.Profile
 }
 
 func (f *fakeSource) IsHalted() bool              { return f.halted }
 func (f *fakeSource) ActiveRunIDs() []string      { return f.runs }
-func (f *fakeSource) Agents() []roster.Profile    { return f.agents }
+func (f *fakeSource) Agents() []agentapi.Profile  { return f.agents }
 func (f *fakeSource) AgentImpact(string) []string { return f.impact }
-func (f *fakeSource) OpenHelp(limit int) []board.Message {
+func (f *fakeSource) OpenHelp(limit int) []boardapi.Message {
 	if limit > 0 && len(f.help) > limit {
 		return f.help[:limit]
 	}
@@ -56,29 +56,29 @@ func (f *fakeSource) OpenHelp(limit int) []board.Message {
 func (f *fakeSource) CancelRun(corr string) bool { f.cancelled = corr; return f.cancelOK }
 func (f *fakeSource) Halt(string)                { f.haltCalls++; f.halted = true }
 func (f *fakeSource) ResumeAll(string)           { f.resumes++; f.halted = false }
-func (f *fakeSource) SetAgentEnabled(ref string, enabled bool) (roster.Profile, error) {
+func (f *fakeSource) SetAgentEnabled(ref string, enabled bool) (agentapi.Profile, error) {
 	if f.setErr != nil {
-		return roster.Profile{}, f.setErr
+		return agentapi.Profile{}, f.setErr
 	}
 	if f.enabled == nil {
 		f.enabled = map[string]bool{}
 	}
 	f.enabled[ref] = enabled
-	return roster.Profile{Slug: ref, Enabled: enabled}, nil
+	return agentapi.Profile{Slug: ref, Enabled: enabled}, nil
 }
-func (f *fakeSource) SetAgentRetired(ref string, retired bool, _ string) (roster.Profile, error) {
+func (f *fakeSource) SetAgentRetired(ref string, retired bool, _ string) (agentapi.Profile, error) {
 	if f.setErr != nil {
-		return roster.Profile{}, f.setErr
+		return agentapi.Profile{}, f.setErr
 	}
 	if f.retired == nil {
 		f.retired = map[string]bool{}
 	}
 	f.retired[ref] = retired
-	return roster.Profile{Slug: ref, Retired: retired, Enabled: !retired}, nil
+	return agentapi.Profile{Slug: ref, Retired: retired, Enabled: !retired}, nil
 }
-func (f *fakeSource) EditAgent(ref string, in roster.Profile) (roster.Profile, error) {
+func (f *fakeSource) EditAgent(ref string, in agentapi.Profile) (agentapi.Profile, error) {
 	if f.setErr != nil {
-		return roster.Profile{}, f.setErr
+		return agentapi.Profile{}, f.setErr
 	}
 	f.edited = ref
 	in.Slug = ref
@@ -86,9 +86,9 @@ func (f *fakeSource) EditAgent(ref string, in roster.Profile) (roster.Profile, e
 	f.editFields = in
 	return in, nil
 }
-func (f *fakeSource) CreateAgent(in roster.Profile) (roster.Profile, error) {
+func (f *fakeSource) CreateAgent(in agentapi.Profile) (agentapi.Profile, error) {
 	if f.setErr != nil {
-		return roster.Profile{}, f.setErr
+		return agentapi.Profile{}, f.setErr
 	}
 	in.System = false
 	f.created = in
@@ -101,26 +101,26 @@ func (f *fakeSource) DeleteAgent(ref string) (bool, error) {
 	f.deleted = ref
 	return f.deleteOK, nil
 }
-func (f *fakeSource) GetAgent(ref string) (roster.Profile, bool, error) {
+func (f *fakeSource) GetAgent(ref string) (agentapi.Profile, bool, error) {
 	if f.setErr != nil {
-		return roster.Profile{}, false, f.setErr
+		return agentapi.Profile{}, false, f.setErr
 	}
 	f.getRef = ref
 	if f.getOK {
 		return f.getResult, true, nil
 	}
-	return roster.Profile{}, false, nil
+	return agentapi.Profile{}, false, nil
 }
-func (f *fakeSource) CloneAgent(source string, overrides roster.Profile) (roster.Profile, error) {
+func (f *fakeSource) CloneAgent(source string, overrides agentapi.Profile) (agentapi.Profile, error) {
 	if f.setErr != nil {
-		return roster.Profile{}, f.setErr
+		return agentapi.Profile{}, f.setErr
 	}
 	f.cloneSrc = source
 	f.cloneOver = overrides
 	overrides.System = false
 	return overrides, nil
 }
-func (f *fakeSource) SearchAgents(_ SearchFilter) []roster.Profile {
+func (f *fakeSource) SearchAgents(_ SearchFilter) []agentapi.Profile {
 	return f.agents
 }
 func (f *fakeSource) BulkSetEnabled(slugs []string, enabled bool) []BulkResult {
@@ -205,8 +205,8 @@ func TestStatus(t *testing.T) {
 	f := &fakeSource{
 		halted: true,
 		runs:   []string{"c1", "c2"},
-		agents: []roster.Profile{{Slug: "a"}, {Slug: "b"}},
-		help:   []board.Message{{ID: "h1", Help: true}},
+		agents: []agentapi.Profile{{Slug: "a"}, {Slug: "b"}},
+		help:   []boardapi.Message{{ID: "h1", Help: true}},
 	}
 	out, isErr := invoke(t, newTool(f), map[string]any{"op": "status"})
 	if isErr {
@@ -294,7 +294,7 @@ func TestInterventionSurfacesError(t *testing.T) {
 }
 
 func TestHelpTriage(t *testing.T) {
-	f := &fakeSource{help: []board.Message{
+	f := &fakeSource{help: []boardapi.Message{
 		{ID: "h1", From: "worker", Text: "build red", Help: true},
 	}}
 	out, _ := invoke(t, newTool(f), map[string]any{"op": "help"})
@@ -454,7 +454,7 @@ func TestRepairAgent(t *testing.T) {
 func TestRepairAgent_RefusesSystemGuardian(t *testing.T) {
 	f := &fakeSource{
 		getOK:     true,
-		getResult: roster.Profile{Slug: "system-doctor", System: true},
+		getResult: agentapi.Profile{Slug: "system-doctor", System: true},
 		repairRes: RepairResult{Agent: "system-doctor", Correlation: "corr-1"},
 	}
 	out, isErr := invoke(t, newTool(f), map[string]any{"op": "repair", "agent": "system-doctor", "reason": "defang"})
@@ -471,7 +471,7 @@ func TestRepairAgent_RefusesSystemGuardian(t *testing.T) {
 func TestRepairAgent_AllowsOrdinaryAgent(t *testing.T) {
 	f := &fakeSource{
 		getOK:     true,
-		getResult: roster.Profile{Slug: "builder"},
+		getResult: agentapi.Profile{Slug: "builder"},
 		repairRes: RepairResult{Agent: "builder", Correlation: "corr-1"},
 	}
 	if out, isErr := invoke(t, newTool(f), map[string]any{"op": "repair", "agent": "builder", "reason": "misconfigured"}); isErr {
@@ -525,7 +525,7 @@ func TestDeleteSurfacesError(t *testing.T) {
 }
 
 func TestGetAgent(t *testing.T) {
-	f := &fakeSource{getOK: true, getResult: roster.Profile{Slug: "scout", Name: "Scout", Model: "deepseek-chat", Enabled: true}}
+	f := &fakeSource{getOK: true, getResult: agentapi.Profile{Slug: "scout", Name: "Scout", Model: "deepseek-chat", Enabled: true}}
 	out, isErr := invoke(t, newTool(f), map[string]any{"op": "get", "agent": "scout"})
 	if isErr {
 		t.Fatalf("get errored: %v", out)
@@ -587,7 +587,7 @@ func TestCloneNeedsSlug(t *testing.T) {
 }
 
 func TestSearchAgents(t *testing.T) {
-	f := &fakeSource{agents: []roster.Profile{
+	f := &fakeSource{agents: []agentapi.Profile{
 		{Slug: "scout", Enabled: true},
 		{Slug: "builder", Enabled: true},
 	}}
@@ -601,7 +601,7 @@ func TestSearchAgents(t *testing.T) {
 }
 
 func TestSearchAgentsWithFilter(t *testing.T) {
-	f := &fakeSource{agents: []roster.Profile{
+	f := &fakeSource{agents: []agentapi.Profile{
 		{Slug: "scout", Enabled: true},
 		{Slug: "builder", Enabled: true},
 	}}
@@ -729,7 +729,7 @@ func TestCancelNote_HappyAndSad(t *testing.T) {
 
 func TestHelpView_WithAndWithoutFields(t *testing.T) {
 	// All fields zero.
-	v := helpView(board.Message{ID: "m1", Text: "hello"})
+	v := helpView(boardapi.Message{ID: "m1", Text: "hello"})
 	if v["from"] != nil {
 		t.Error("helpView should omit from when empty")
 	}
@@ -740,7 +740,7 @@ func TestHelpView_WithAndWithoutFields(t *testing.T) {
 		t.Error("helpView should omit at when TSMS is 0")
 	}
 	// With optional fields.
-	v2 := helpView(board.Message{ID: "m2", Text: "world", From: "a", To: "b", TSMS: 1000})
+	v2 := helpView(boardapi.Message{ID: "m2", Text: "world", From: "a", To: "b", TSMS: 1000})
 	if v2["from"] != "a" || v2["to"] != "b" || v2["at"] == nil {
 		t.Error("helpView should include non-zero optional fields")
 	}
@@ -767,15 +767,15 @@ func TestClip_ShortAndLong(t *testing.T) {
 }
 
 func TestAgentView_StateLabels(t *testing.T) {
-	enabled := agentView(roster.Profile{Slug: "s1", Enabled: true})
+	enabled := agentView(agentapi.Profile{Slug: "s1", Enabled: true})
 	if enabled["state"] != "enabled" {
 		t.Errorf("enabled state = %q, want enabled", enabled["state"])
 	}
-	paused := agentView(roster.Profile{Slug: "s2", Enabled: false})
+	paused := agentView(agentapi.Profile{Slug: "s2", Enabled: false})
 	if paused["state"] != "paused" {
 		t.Errorf("paused state = %q, want paused", paused["state"])
 	}
-	retired := agentView(roster.Profile{Slug: "s3", Retired: true})
+	retired := agentView(agentapi.Profile{Slug: "s3", Retired: true})
 	if retired["state"] != "retired" {
 		t.Errorf("retired state = %q, want retired", retired["state"])
 	}

@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-170 package(s):
+172 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -72,6 +72,8 @@
 - **`kernel/channelwire`** — Package channelwire is the channel FACTORY layer (Phase 2.1 of docs/REFACTORING-SCAN-2026-08.md): each channel kind registers a Factory that builds its configured instances from a Deps bundle, and the daemon walks the manifest registry calling BuildKind per kind — one loop instead of 27 hand-listed builder call sites (the allInsts drift surface).
 - **`kernel/configcenter`** — Package configcenter is the typed, audited, environment-aware configuration surface of the daemon.
 - **`kernel/contextselect`** — Package contextselect provides context candidate scoring, selection, and failure analysis for agent runs.
+- **`kernel/contract/agentapi`** — Package agentapi is the contract the agent roster and the tools that steer it agree on.
+- **`kernel/contract/boardapi`** — Package boardapi is the contract the message board and the tools that read it agree on.
 - **`kernel/contract/channelapi`** — Package channelapi is the messaging-channel contract: the platform-neutral inbound message every channel normalises to (UnifiedMessage, SPEC-04 §1.3), what the kernel hands a channel to deliver (Outbound, Attachment, Reply), the Channel interface a duplex surface implements, and the Manifest a channel registers to describe itself.
 - **`kernel/contract/llm`** — Package llm is the model-provider contract: the canonical conversation (Message, Role, ToolCall), one completion round trip (CompletionRequest, CompletionResponse, Usage, StopReason, Params) and the provider interfaces (Provider, StreamingProvider, Chunk).
 - **`kernel/contract/opapi`** — Package opapi defines transport-independent operation metadata and host ports.

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 )
 
 // TestFleetLock_RefusesAgentEditAndCreate verifies the V-012 opt-in guard: when
@@ -17,11 +17,11 @@ import (
 func TestFleetLock_RefusesAgentEditAndCreate(t *testing.T) {
 	locked := &kernelSource{fleetLock: true} // nil kernel: guard must return before any k deref
 
-	if _, err := locked.EditAgent("some-agent", roster.Profile{Name: "x"}); err == nil ||
+	if _, err := locked.EditAgent("some-agent", agentapi.Profile{Name: "x"}); err == nil ||
 		!strings.Contains(err.Error(), "locked") {
 		t.Fatalf("EditAgent under lock: err = %v, want a 'locked' refusal", err)
 	}
-	if _, err := locked.CreateAgent(roster.Profile{Slug: "new-agent"}); err == nil ||
+	if _, err := locked.CreateAgent(agentapi.Profile{Slug: "new-agent"}); err == nil ||
 		!strings.Contains(err.Error(), "locked") {
 		t.Fatalf("CreateAgent under lock: err = %v, want a 'locked' refusal", err)
 	}

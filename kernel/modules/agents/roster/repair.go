@@ -2,6 +2,8 @@
 
 package roster
 
+import "github.com/agezt/agezt/kernel/contract/agentapi"
+
 // The agents module's vocabulary for REPAIRING an agent.
 //
 // A repair pass is a governed run of the target agent that may change its
@@ -14,15 +16,11 @@ package roster
 // it through it.
 
 // RepairResult is the operator/guardian-facing outcome of one self-repair pass.
-type RepairResult struct {
-	Agent                         string   `json:"agent"`
-	Correlation                   string   `json:"correlation"`
-	Applied                       []string `json:"applied,omitempty"`
-	RoutingTaskType               string   `json:"routing_task_type,omitempty"`
-	RoutingTaskModelChain         []string `json:"routing_task_model_chain,omitempty"`
-	PreviousRoutingTaskModelChain []string `json:"previous_routing_task_model_chain,omitempty"`
-	Answer                        string   `json:"answer,omitempty"`
-}
+//
+// The row itself lives in the contract layer (kernel/contract/agentapi): the
+// overseer tool (a plugin) and the self-repair coordinator both speak it, and a
+// plugin may only reach the contract. This package keeps the name.
+type RepairResult = agentapi.RepairResult
 
 // RepairSource is the module's view of the agent-control surface a repair
 // pass drives. The daemon injects the implementation; the module never
