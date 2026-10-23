@@ -38,7 +38,7 @@ Version and dependency source of truth: backend Go version and module inventory 
 
 ## Agent Identity Model
 
-Durable agent identity is represented primarily by `kernel/modules/agents/roster.Profile`.
+Durable agent identity is represented primarily by `kernel/modules/agents/roster.Profile`. The row itself lives in the contract layer (`kernel/contract/agentapi.Profile`, W3.14) because the tools that steer the roster are plugins and a plugin may only reach the contract; the roster package keeps the name, so every caller is unchanged.
 
 Important identity fields include:
 

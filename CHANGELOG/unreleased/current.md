@@ -816,6 +816,17 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The roster's rows move to the contract layer.** The agent profile row (and
+  the policies that hang off it, and the repair outcome) and the board's
+  message row live in the contract layer now, because the tools that steer the
+  roster are plugins and a plugin may only reach the contract and the
+  platform. The roster and the board keep their names as aliases, so every
+  existing caller is unchanged, and the profile's wire keys are pinned by a
+  test — the Web UI, the SDK and the persisted files read them by name. A
+  malformed roster payload now names the contract package in the decode
+  error (`... of type agentapi.Profile` instead of `... of type
+  roster.Profile`); the rejection itself is unchanged.
+
 - **The council, the conductor and the research tools no longer reach into the
   kernel for a type.** The rows the reasoning module produces — a consensus,
   a transcript, a cited report — move to the contract layer

@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.13 the reasoning rows move to the contract layer, 2026-10-23
+## Current checkpoint — W3.14 the roster's rows move to the contract layer, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1589,6 +1589,41 @@ files, five of the seventeen mutations would have escaped.
   consistently and the divergence only shows where the host satisfies the
   tools'' `Runner` interfaces — the identity assertion is what closed it.
 
+- W3.14 (the roster's rows move to the contract layer) is committed on `main`
+  the same way. The agents module's profile row (and the policies that hang off
+  it, and the repair outcome) and the board's message row move down to the
+  **contract** layer (`kernel/contract/agentapi`, `kernel/contract/boardapi`).
+  The reason is the plugin rule: a plugin (L6) may reach the contract and the
+  platform layers and nothing else, and the **overseer tool** reached into the
+  roster module for **types only** — its `Source` interface returns
+  `[]roster.Profile` and its edit payload is a `roster.Profile`. A row the
+  overseer must name is a contract between the module that owns the roster and
+  the tool that steers it, so it belongs at the bottom. The roster and the
+  board keep their names as aliases, so every existing caller is unchanged,
+  and the Profile's three pure rules (`Kind`, `AllowsDirectCall`,
+  `AllowsDelegationFrom`) moved with the row.
+  The **ratchet went DOWN**: 120/13 → **119/13** — the overseer's edge to the
+  roster module is gone, and the **stale allowlist entry was deleted**, because
+  a leftover entry fails the archcheck gate ("the debt was paid, the list must
+  shrink").
+  The permanent tests: the **identity assertions** (the W3.13 recipe, applied
+  twice) state that the module's row and the contract's row are the same type
+  — as a **function type**, because an assignment would also accept a copy
+  with the same fields while a function type requires identity, so a module
+  that ever declares its own copy is reported at the seam instead of at the far
+  end of the wiring — and the **wire shape got measured, which it never had**:
+  the profile's and the message's JSON keys are what the Web UI, the SDK and
+  the persisted files read by name, so a renamed key is a silent break for
+  every consumer outside the package, and no test in the package would notice
+  because the package writes and reads the same struct.
+  8 mutations: 6 caught, 2 build errors recorded separately (the two
+  mutations that make a module copy the contract row instead of aliasing it —
+  the identity assertion fires at the seam), and **M07/M08 escaped the first
+  round** for exactly the wire-shape reason above; the two wire-shape tests
+  closed them.
+  The overseer tool still holds the live kernel and opens the board store, so
+  two of its plugin-reach edges remain — the **second half** of the slice.
+
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
 grew a gate, `kernel/modules/providers/api`. The slice was a **ports rewrite**:
@@ -1640,18 +1675,24 @@ The roadmap's order continues with `modules/runs` last (what remains of
 intervention; `kernel/runtime` is deleted when empty). The agents module still
 owes step 8's third item — the **overseer ops**.
 
-The overseer tool is the next plugin-reach edge, and it is bigger than W3.13:
-it still holds the runtime kernel and reaches into the roster and the board
-modules, and its `Source` interface is typed on the roster's rows. The shape
-that works: the rows the tool and the host share move to the **contract**
-layer (the W3.13 recipe — a plugin may only reach the contract), and the
-kernel-side implementation moves to the **app** layer, because the app layer is
-the only one that can see both the roster (an agents-module package) and the
-run controls (the runtime) without a cross-module edge. The tool then calls
-typed app operations instead of the kernel's facade.
+The overseer tool is the next plugin-reach edge, and it is bigger than W3.13
+and W3.14: W3.14 moved its **rows** to the contract layer (so the tool names
+the contract's profile and message instead of the roster module's), but the
+tool still holds the live kernel and opens the board store — two edges that
+can only go away when the **implementation** moves out of the plugin.
 
-The reaper and the module's api package are done (W3.9); the overseer ops were
-the part that needed the api door, and that door now exists.
+Where it goes is the whole design: the **app** layer. It is the only layer
+that can see the roster (an agents-module package), the board (a board-module
+package) and the run controls (the runtime) at once — a module may not import
+another module, and the plugin may import neither. So `kernel/app/overseer`
+would hold the typed operations over the live kernel, and the tool would call
+them the way every other agent-facing surface calls the app layer — which is
+also the roadmap's end state for this step: the overseer tool becomes an L6
+caller of typed app operations.
+
+The reaper and the module's api package are done (W3.9); the rows the tool
+shares with the host are done (W3.13, W3.14); what is left is the tool's
+call path.
 
 The overall target is the architecture in `20-target-architecture.md`, delivered
 incrementally to protected `main`, with runnable proof and source-aligned
