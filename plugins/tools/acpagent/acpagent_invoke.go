@@ -14,9 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/kernel/acp"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/modules/extensions/acpcatalog"
+	"github.com/agezt/agezt/kernel/platform/acpclient"
 	"github.com/agezt/agezt/kernel/platform/sandbox"
 )
 
@@ -41,9 +40,17 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Resul
 	}
 	// Resolve which ACP agent to drive: an explicit `agent` slug (must be
 	// installed) wins; otherwise the configured default command (t.Cmd).
-	cmd, ok := acpcatalog.ResolveCommand(in.Agent, t.Cmd)
+	//
+	// The catalogue answers through the contract's port — the tool is a
+	// plugin and may not name the catalogue module. A tool built without a
+	// catalogue has nothing to resolve, so it says so instead of calling
+	// into nothing.
+	if t.Catalog == nil {
+		return toolapi.Result{Output: "no ACP agent to delegate to (the ACP catalogue is not available)", IsError: true}, nil
+	}
+	cmd, ok := t.Catalog.ResolveCommand(in.Agent, t.Cmd)
 	if !ok {
-		installed := acpcatalog.InstalledSlugs()
+		installed := t.Catalog.InstalledSlugs()
 		hint := "set AGEZT_ACP_AGENT_CMD or install an ACP agent"
 		if len(installed) > 0 {
 			hint = "available installed agents: " + strings.Join(installed, ", ")
@@ -78,7 +85,7 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Resul
 		_ = tr.close()
 	}()
 
-	client := acp.NewClient(tr.out, tr.in)
+	client := acpclient.NewClient(tr.out, tr.in)
 	if err := client.Initialize(ctx); err != nil {
 		return toolapi.Result{Output: "ACP initialize failed: " + err.Error(), IsError: true}, nil
 	}

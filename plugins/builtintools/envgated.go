@@ -75,15 +75,15 @@ func specCoding() toolreg.Spec {
 // acp`). It drives an external agent speaking the Agent Client Protocol over
 // stdio (Gemini CLI, Claude Code's adapter, Codex, …) over JSON-RPC and relays
 // its answer. Registered when AGEZT_ACP_AGENT_CMD sets a default command OR
-// any catalog ACP agent is installed on the host (discovery via
-// kernel/acpcatalog), so a run can delegate to any installed agent by slug
+// any catalog ACP agent is installed on the host (discovery via the ACP
+// catalogue port), so a run can delegate to any installed agent by slug
 // without configuration.
 func specACPAgent() toolreg.Spec {
 	return toolreg.Spec{
 		Name: "acp_agent",
 		Build: func(d toolreg.BuildDeps) (toolreg.Built, error) {
 			acpCmd := strings.TrimSpace(d.Get(brand.EnvPrefix + "ACP_AGENT_CMD"))
-			at := acpagent.New(acpCmd, acpagent.AbsCwd(d.WorkspaceRoot))
+			at := acpagent.New(acpCmd, acpagent.AbsCwd(d.WorkspaceRoot), d.ACP)
 			if at == nil {
 				return toolreg.Built{}, nil
 			}

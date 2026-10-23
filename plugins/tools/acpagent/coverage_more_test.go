@@ -14,7 +14,7 @@ import (
 )
 
 func TestACPAgentCoverageDefinitionAndHelpers(t *testing.T) {
-	tool := New("claude-code-acp", "/workspace")
+	tool := New("claude-code-acp", "/workspace", fakeCatalog{})
 	def := tool.Definition()
 	if def.Name != "acp_agent" {
 		t.Fatalf("Name = %q", def.Name)
@@ -80,7 +80,7 @@ func TestACPAgentCoverageRender(t *testing.T) {
 }
 
 func TestACPAgentCoverageInvokeValidation(t *testing.T) {
-	tool := &Tool{Cmd: "x", Cwd: "/w", dial: func(_ context.Context, _, _ string) (*transport, error) {
+	tool := &Tool{Cmd: "x", Cwd: "/w", Catalog: fakeCatalog{}, dial: func(_ context.Context, _, _ string) (*transport, error) {
 		return nil, errors.New("dial failed")
 	}}
 	// Malformed JSON.

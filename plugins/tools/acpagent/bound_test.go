@@ -21,7 +21,7 @@ func TestACPAgent_BoundsRunawayStream(t *testing.T) {
 	for i := range chunks {
 		chunks[i] = strings.Repeat("x", chunkSize)
 	}
-	tool := &Tool{Cmd: "x", Cwd: "/w", dial: fakePeer(&peerRunner{chunks: chunks})}
+	tool := &Tool{Cmd: "x", Cwd: "/w", Catalog: fakeCatalog{}, dial: fakePeer(&wirePeer{chunks: chunks})}
 
 	out, isErr := invoke(t, tool, "go")
 	if isErr {
@@ -59,7 +59,7 @@ func TestACPAgent_RunawayGuard_StopsExactlyAtCap(t *testing.T) {
 	for i := range chunks {
 		chunks[i] = strings.Repeat("x", chunkSize)
 	}
-	tool := &Tool{Cmd: "x", Cwd: "/w", dial: fakePeer(&peerRunner{chunks: chunks})}
+	tool := &Tool{Cmd: "x", Cwd: "/w", Catalog: fakeCatalog{}, dial: fakePeer(&wirePeer{chunks: chunks})}
 
 	out, isErr := invoke(t, tool, "go")
 	if isErr {

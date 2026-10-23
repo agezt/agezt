@@ -25,6 +25,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/acpapi"
 	"github.com/agezt/agezt/kernel/contract/configapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/introspectapi"
@@ -51,6 +52,13 @@ type BuildDeps struct {
 	Get           func(name string) string
 	AllowAll      bool
 	NotifyTargets map[string][]string
+	// ACP is the ACP-agent catalogue port: the acp_agent tool asks it which
+	// ACP agents this host has installed and which launch command a chosen
+	// slug maps to. The tool is a plugin, so it may not name the catalogue
+	// module; the daemon supplies the contract's port
+	// (kernel/contract/acpapi). Nil when unwired — the tool then registers
+	// only when a default command is configured.
+	ACP acpapi.Catalog
 }
 
 // KernelDeps carries the post-Open dependencies for the Configure phase.

@@ -8,37 +8,15 @@ package acp
 
 import (
 	"bufio"
-	"bytes"
 	"context"
-	"encoding/json"
 	"io"
 	"sync"
+
+	"github.com/agezt/agezt/kernel/platform/acpclient"
 )
 
-func newBoundedScanner(r io.Reader) *bufio.Scanner {
-	sc := bufio.NewScanner(r)
-	sc.Buffer(make([]byte, 0, 64*1024), maxMessageBytes)
-	return sc
-}
-
-// scanMessage reads the next non-blank newline-delimited message from sc into v,
-// returning io.EOF at a clean end of stream.
-func scanMessage(sc *bufio.Scanner, v any) error {
-	for sc.Scan() {
-		line := bytes.TrimSpace(sc.Bytes())
-		if len(line) == 0 {
-			continue
-		}
-		return json.Unmarshal(line, v)
-	}
-	if err := sc.Err(); err != nil {
-		return err
-	}
-	return io.EOF
-}
-
 // ProtocolVersion is the ACP version this server implements.
-const ProtocolVersion = 1
+const ProtocolVersion = acpclient.ProtocolVersion
 
 // ChunkKind distinguishes the two streamed content kinds the ACP protocol
 // renders differently: the assistant's answer vs. its reasoning / chain of

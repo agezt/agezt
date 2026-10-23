@@ -16,9 +16,9 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/strutil"
+	"github.com/agezt/agezt/kernel/contract/acpapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/extensions/acpcatalog"
 )
 
 // transport is the spawned agent's stdio: out is its stdout (we read), in is its
@@ -43,16 +43,29 @@ type Tool struct {
 	Cwd string
 	// Timeout overrides DefaultTimeout when > 0.
 	Timeout time.Duration
+	// Catalog answers which ACP agents this host has installed and which
+	// launch command a chosen slug maps to. The tool is a PLUGIN, so it may
+	// not name the catalogue module: the daemon hands the contract's port
+	// over (kernel/contract/acpapi). Nil when unwired — the tool then
+	// reports that instead of dereferencing nil.
+	Catalog acpapi.Catalog
 	// dial spawns the agent; overridable in tests. Defaults to spawnAgent.
 	dial dialFunc
 }
 
-// New builds an ACP-agent bridge Tool. cmd is the DEFAULT external ACP agent
-func New(cmd, cwd string) *Tool {
-	if strings.TrimSpace(cmd) == "" && !acpcatalog.AnyInstalled() {
+// New builds an ACP-agent bridge Tool. cmd is the DEFAULT external ACP agent.
+//
+// catalog is the contract's port to the ACP catalogue; the tool registers
+// itself when a default command is configured OR when the catalogue reports
+// an installed agent (discovery makes it usable without configuration). A nil
+// catalogue with no default command means the tool stays disabled — the
+// daemon hands the port over, and a tool built by hand without one has
+// nothing to discover.
+func New(cmd, cwd string, catalog acpapi.Catalog) *Tool {
+	if strings.TrimSpace(cmd) == "" && (catalog == nil || !catalog.AnyInstalled()) {
 		return nil
 	}
-	return &Tool{Cmd: cmd, Cwd: cwd, dial: spawnAgent}
+	return &Tool{Cmd: cmd, Cwd: cwd, Catalog: catalog, dial: spawnAgent}
 }
 func (t *Tool) Definition() toolapi.ToolDef {
 	return toolapi.ToolDef{

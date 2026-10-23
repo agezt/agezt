@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package acp
+package acpclient
 
 import (
 	"bufio"
@@ -10,11 +10,12 @@ import (
 	"io"
 )
 
-// Client drives an external ACP agent (SPEC-15 §3, the inverse of Server): it
-// speaks ACP JSON-RPC 2.0 as the *client* — initialize → session/new →
-// session/prompt — over the agent process's stdio, relaying the agent's
-// streamed agent_message_chunk updates. Used by the acp-agent bridge tool so a
-// Agezt run can orchestrate another ACP agent as a step.
+// Client drives an external ACP agent (SPEC-15 §3, the inverse of the
+// daemon's ACP server): it speaks ACP JSON-RPC 2.0 as the *client* —
+// initialize → session/new → session/prompt — over the agent process's
+// stdio, relaying the agent's streamed agent_message_chunk updates. Used by
+// the acp-agent bridge tool so an Agezt run can orchestrate another ACP agent
+// as a step.
 //
 // Usage is synchronous: one call at a time on a single goroutine.
 type Client struct {
@@ -27,7 +28,7 @@ type Client struct {
 // stdout (we read responses/notifications), agentIn is its stdin (we write
 // requests).
 func NewClient(agentOut io.Reader, agentIn io.Writer) *Client {
-	return &Client{enc: json.NewEncoder(agentIn), sc: newBoundedScanner(agentOut)}
+	return &Client{enc: json.NewEncoder(agentIn), sc: NewBoundedScanner(agentOut)}
 }
 
 // Initialize negotiates the protocol version. The agent's capabilities are
@@ -97,7 +98,7 @@ func (c *Client) Prompt(ctx context.Context, sessionID, text string, onChunk fun
 func (c *Client) call(ctx context.Context, method string, params any, onNotify func(method string, params json.RawMessage)) (json.RawMessage, error) {
 	c.nextID++
 	id := c.nextID
-	if err := c.enc.Encode(request{JSONRPC: "2.0", ID: json.RawMessage(fmt.Sprintf("%d", id)), Method: method, Params: mustRaw(params)}); err != nil {
+	if err := c.enc.Encode(Request{JSONRPC: "2.0", ID: json.RawMessage(fmt.Sprintf("%d", id)), Method: method, Params: mustRaw(params)}); err != nil {
 		return nil, fmt.Errorf("acp client: write %s: %w", method, err)
 	}
 	for {
@@ -109,9 +110,9 @@ func (c *Client) call(ctx context.Context, method string, params any, onNotify f
 			Method string          `json:"method"`
 			Params json.RawMessage `json:"params"`
 			Result json.RawMessage `json:"result"`
-			Error  *rpcError       `json:"error"`
+			Error  *RPCError       `json:"error"`
 		}
-		if err := scanMessage(c.sc, &msg); err != nil {
+		if err := ScanMessage(c.sc, &msg); err != nil {
 			return nil, fmt.Errorf("acp client: read %s: %w", method, err)
 		}
 		// Notification (no id, has method) → relay and keep reading.
