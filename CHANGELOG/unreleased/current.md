@@ -995,6 +995,21 @@ This file holds the active `[Unreleased]` working set.
   The guardians' quiet defaults — silent on success, no memory writes — are
   the operator's contract, and they are now asserted.
 
+- **The registry's pre-Open phase becomes a contract's port.** The tool
+  registry's pre-Open hook — the one moment before the kernel opens where a
+  tool may still change the daemon's configuration — took the daemon's live
+  configuration type as its parameter, so every tool that used it had to name
+  the runtime. The `code_exec` tool needed exactly one verb there: install
+  the script runner the script-tool forge executes forged tools through.
+  That verb now lives in the contract layer, as a port with exactly one
+  method, and the built-in tools plugin no longer names the runtime at all.
+  The registry — the one place that knows both the contract and the daemon —
+  wraps the daemon's configuration and hands the port over.
+  The shape of the reach is pinned (one method, one verb, the runner's
+  signature argument by argument) and the wiring is measured against the built
+  instance: after the pre-Open phase the runner is the tool that was built, and
+  a tool that was gated off installs nothing.
+
 - **The plugin host's reach becomes a contract's rows and a spawn port.** The
   built-in tools plugin hosts out-of-process plugins and named the module
   that owns the child process. The operator's plugin declarations (the
