@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.21 two more tools name their rows where they live, 2026-10-23
+## Current checkpoint — W3.22 the MCP server's row moves to the contract layer, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1814,6 +1814,39 @@ files, five of the seventeen mutations would have escaped.
   17 mutations: 14 caught, 3 build errors recorded separately — and one
   mutation **survived the first round** (the wildcard's value), so the gap was
   closed and it was run again.
+
+- W3.22 (the MCP server's row moves to the contract layer) is committed on
+  `main` the same way. Two plugins name the description of one registered MCP
+  server — a stdio command or a remote HTTP endpoint the daemon can spawn and
+  speak MCP to: the **MCP tool** and the **marketplace** that ships the
+  builtin server packs. The row moves to `kernel/contract/mcpapi`, and **the
+  rule travels with it**: `Validate` (the name format, the one-transport rule,
+  the URL's shape, the caps) is pure, so it belongs where the row is, and the
+  caps are the contract's too.
+  The MCP tool may no longer name the **registry** — it asks the kernel for the
+  **rows** instead (`MCPServers()` / `MCPServer(ref)`, the same shape the
+  standing tool got in W3.20) — and the registry, the store that persists the
+  rows, stays in the module.
+  The **ratchet went DOWN**: 103/13 → **101/13** — both plugin-reach edges are
+  gone, and the **two stale allowlist entries were deleted**.
+  The row's **wire had never been measured**, and this is the row where it
+  matters most: the registry **persists** it and the control plane and the Web
+  UI read it back **by key**, so a renamed key is a silent break — the old
+  registry file would lose the field and the UI would read nothing. The wire
+  is now pinned (the exact key set, and the always-fields that must stay on
+  the wire even when they are empty).
+  The **caps are measured at the boundary** (32 accepted / 33 rejected, 128 /
+  129): a test that builds `Cap+1` items passes whatever the cap is, so the
+  policy is spelled out instead of read back from the constant — and two
+  mutations that survived the first round were exactly that shape.
+  The permanent tests: the **identity assertion** (the module's row IS the
+  contract's, as a function type), a test that the module's `Validate` and the
+  contract's agree on every verdict **and** on the message (a second copy of
+  the rule would drift silently), and the **wiring** measured against a real
+  kernel.
+  13 mutations: 11 caught, 2 build errors recorded separately.
+  One **operator-visible** change is recorded honestly: a JSON decode error
+  now says `mcpapi.Server` where it used to say `mcp.Server`.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

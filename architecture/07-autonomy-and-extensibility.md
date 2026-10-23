@@ -50,7 +50,7 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 | `skill` | agent, bus, event, filestore | cmd/agezt, cmd/agt, contextselect, controlplane, market, runtime (+accessors, runexec), builtinmarket, builtinskills, tools/skilltool |
 | `market` | atomicfile, agent, edict, mcp, netguard, skill | cmd/agezt, cmd/agt, controlplane, runtime (+accessors), builtinmarket |
 | `plugin` | agent | cmd/agt, plugins/builtintools |
-| `mcp` | filestore, netguard, ulid | controlplane, market, runtime (+compose), builtinmarket, tools/mcptool |
+| `mcp` | filestore, netguard, ulid | controlplane, market, runtime (+compose) |
 | `acp` | brand | cmd/agt, tools/acpagent |
 | `acpcatalog` | — | controlplane, tools/acpagent |
 | `workflow` | bus, event, filestore, ulid | cmd/agezt, controlplane, runtime, tools/workflowtool |
@@ -1160,6 +1160,15 @@ Enabled servers attach at boot. Their tools are merged into every run, either ea
 
 **`Server`.**
 
+The row itself lives in the contract layer (`kernel/contract/mcpapi`): the MCP
+tool and the marketplace that ships the builtin server packs are plugins, and
+a plugin may reach the contract and the platform layers and nothing else — so
+a row a plugin has to name cannot live in this package. `kernel/modules/extensions/mcp`
+keeps the name as an alias, and the **registry** — the store that persists
+these rows — stays here. The row's wire is pinned by a test: the registry file
+is read back by key, so a renamed key would lose the field in every existing
+file.
+
 | Field | Notes |
 |---|---|
 | `ID` | |
@@ -1173,6 +1182,8 @@ Enabled servers attach at boot. Their tools are merged into every run, either ea
 | `CreatedMS`, `UpdatedMS` | |
 
 `Validate` caps args, headers and env at 32 entries each, and `ToolAllow` at 128.
+The rule travels with the row, so it lives in the contract layer too, and the
+module's `Validate` is a one-line delegation to it.
 
 **`Store`.** `OpenStore`, `Add`, `SetEnabled`, `Remove`, `Get`, `List`, `Count`. There is **no Update**: to change a server, remove it and re-add it.
 

@@ -907,6 +907,19 @@ This file holds the active `[Unreleased]` working set.
   daemon's boot replay and by the SDK's mailbox filter — so it is now declared
   once, in the contract, and pinned by a test.
 
+- **The MCP server's row moves to the contract layer.** The MCP tool and the
+  marketplace that ships the builtin server packs both describe a registered
+  MCP server, and both are plugins — so the description now lives in the
+  contract layer, together with the rule that checks it, and the tool asks
+  the kernel for the rows instead of naming the registry. The registry, the
+  store that persists these rows, stays where it was.
+  The registry's file format is unchanged, and that is now pinned by a test:
+  the row's wire had never been measured, and it is the one row that is
+  written to disk and read back by key — a renamed key would have lost the
+  field in every existing registry file, silently.
+  One thing an operator can see changes: a malformed MCP server payload is
+  now reported as `mcpapi.Server` rather than `mcp.Server`.
+
 - **The council, the conductor and the research tools no longer reach into the
   kernel for a type.** The rows the reasoning module produces — a consensus,
   a transcript, a cited report — move to the contract layer
