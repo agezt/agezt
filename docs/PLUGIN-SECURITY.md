@@ -64,7 +64,7 @@ AGEZT_PLUGIN_PINS="search=a1b2c3...(64 hex chars),translate=d4e5f6...(64 hex cha
 
 At spawn time, the daemon hashes the plugin binary and compares it to the pin.
 If they differ, the daemon refuses to start the plugin and journals the
-mismatch. See `kernel/plugin/pin.go` (`VerifyPin`, `HashFile`).
+mismatch. See `kernel/modules/extensions/plugin/pin.go` (`VerifyPin`, `HashFile`).
 
 **How to pin a plugin:**
 
@@ -83,11 +83,11 @@ export AGEZT_PLUGIN_PINS="search=a1b2c3d4..."
 question — "did this binary change since I last verified it?" — without
 requiring a public-key distribution story. The operator records the hash once,
 personally, and the daemon enforces it on every spawn. See the design note in
-`kernel/plugin/pin.go`.
+`kernel/modules/extensions/plugin/pin.go`.
 
 **Path resolution.** The pin verifier resolves bare plugin names through
 `$PATH` so the hashed file and the executed file are the same binary. A path
-with a separator is used as-is. See `resolvePluginPath` in `kernel/plugin/pin.go`.
+with a separator is used as-is. See `resolvePluginPath` in `kernel/modules/extensions/plugin/pin.go`.
 
 **Limitations.**
 
@@ -110,18 +110,18 @@ host manages their lifecycle:
 
 - **Spawn.** The daemon launches the plugin via `os/exec` with stdin/stdout
   piped. The child runs in its own process group so teardown kills the whole
-  tree, not just the direct child. See `kernel/plugin/host.go`, `kernel/plugin/pin.go`.
+  tree, not just the direct child. See `kernel/modules/extensions/plugin/host.go`, `kernel/modules/extensions/plugin/pin.go`.
 - **Crash isolation.** If a plugin exits unexpectedly, the host marks all its
   tools as unavailable. Subsequent invocations return a clear error. The daemon
   and all other plugins keep running. See the lifecycle note in
-  `kernel/plugin/protocol.go`.
+  `kernel/modules/extensions/plugin/protocol.go`.
 - **Process-group kill.** On shutdown or reload, the host sends a `shutdown`
   request, waits a short grace period, then kills the process group if the
   plugin didn't exit on its own. This prevents orphaned grandchildren.
-  See `setProcessGroup` in `kernel/plugin/pin.go`.
+  See `setProcessGroup` in `kernel/modules/extensions/plugin/pin.go`.
 - **Hot-reload.** A plugin can be reloaded (re-spawned) without restarting the
   daemon. The host tears down the old process and spawns a fresh one, re-running
-  pin verification. See reload tests in `kernel/plugin/reload_test.go`.
+  pin verification. See reload tests in `kernel/modules/extensions/plugin/reload_test.go`.
 
 **Limitations.**
 
@@ -143,8 +143,8 @@ or a malicious plugin smuggles harmful tool definitions past configuration.
 
 **Control.** The host applies a tool allowlist at spawn time. Only tools
 declared in the allowlist are registered with the daemon's tool registry;
-others are silently dropped. See `kernel/plugin/allowlist_test.go`,
-`kernel/plugin/host.go`.
+others are silently dropped. See `kernel/modules/extensions/plugin/allowlist_test.go`,
+`kernel/modules/extensions/plugin/host.go`.
 
 The allowlist is configured via `AGEZT_PLUGIN_TOOLS`:
 
@@ -160,7 +160,7 @@ exist from the agent's perspective.
 **Additionally:** a plugin may advertise at most `DefaultMaxAdvertisedTools`
 (256) tools at initialize. A plugin exceeding this fails to spawn with
 `ErrTooManyTools`. This bounds the memory cost of registration. See
-`kernel/plugin/host.go`.
+`kernel/modules/extensions/plugin/host.go`.
 
 ---
 
@@ -173,16 +173,16 @@ requests, causing memory exhaustion or goroutine proliferation.
 
 | Bound | Default | What it prevents | Source |
 |---|---|---|---|
-| `MaxFrameBytes` | 16 MiB | A single stdout frame from OOMing the daemon | `kernel/plugin/host.go` |
-| `MaxConcurrentCallbacks` | 16 | Unbounded `host/invoke` goroutine spawning | `kernel/plugin/host.go` |
-| `MaxAdvertisedTools` | 256 | Registration memory blow-up at spawn | `kernel/plugin/host.go` |
-| `InvokeTimeout` | (configurable) | A hung tool invocation blocking forever | `kernel/plugin/host.go` |
-| `InitTimeout` | (configurable) | A plugin that never initializes blocking boot | `kernel/plugin/host.go` |
+| `MaxFrameBytes` | 16 MiB | A single stdout frame from OOMing the daemon | `kernel/modules/extensions/plugin/host.go` |
+| `MaxConcurrentCallbacks` | 16 | Unbounded `host/invoke` goroutine spawning | `kernel/modules/extensions/plugin/host.go` |
+| `MaxAdvertisedTools` | 256 | Registration memory blow-up at spawn | `kernel/modules/extensions/plugin/host.go` |
+| `InvokeTimeout` | (configurable) | A hung tool invocation blocking forever | `kernel/modules/extensions/plugin/host.go` |
+| `InitTimeout` | (configurable) | A plugin that never initializes blocking boot | `kernel/modules/extensions/plugin/host.go` |
 
 When a frame exceeds `MaxFrameBytes`, the plugin is torn down (`markDead`) and
 its tools become unavailable — the daemon is not killed. When a plugin exceeds
 the callback cap, excess `host/invoke` requests are rejected with
-`ErrTooManyCallbacks` rather than queued. See `kernel/plugin/callbacklimit_test.go`.
+`ErrTooManyCallbacks` rather than queued. See `kernel/modules/extensions/plugin/callbacklimit_test.go`.
 
 ---
 
@@ -197,7 +197,7 @@ HTTP tool rather than opening its own socket). These callbacks are:
 
 - **Bounded.** At most `DefaultMaxConcurrentCallbacks` (16) simultaneous
   callbacks per plugin. Excess requests are rejected. See
-  `kernel/plugin/host.go`.
+  `kernel/modules/extensions/plugin/host.go`.
 - **Governed.** A host callback runs a host-registered tool, which itself
   passes through the same Edict policy and trust ladder as any agent-initiated
   tool call. The plugin does not bypass governance.
@@ -223,7 +223,7 @@ promises.
 `agt skill registry <url> --install <name>` commands verify the downloaded
 content against a BLAKE3 hash from the registry index **before** writing it to
 the operator's plugin directory. See `kernel/market/verify.go`,
-`kernel/plugin/pin.go` (`HashBytes`).
+`kernel/modules/extensions/plugin/pin.go` (`HashBytes`).
 
 The flow:
 
@@ -305,7 +305,7 @@ environment (the safe default).
 
 **Limitations.**
 
-- `kernel/plugin` itself still treats `Config.Env = nil` as "inherit": a new
+- `kernel/modules/extensions/plugin` itself still treats `Config.Env = nil` as "inherit": a new
   spawn site must pass an environment. The archcheck `exec` rule (and, from
   W1.5, the sandbox launcher) is what keeps spawn sites few and reviewed.
   Plugin authors should not assume secrets are available.
@@ -324,7 +324,7 @@ understand, or the host sends a method the plugin doesn't handle, and the agent 
 error instead of a clear "this plugin is incompatible."
 
 **Control.** The plugin protocol now carries a `ProtocolVersion` constant in
-`kernel/plugin/protocol.go` (currently `1`). Plugins echo it back in their `initialize` response
+`kernel/modules/extensions/plugin/protocol.go` (currently `1`). Plugins echo it back in their `initialize` response
 via the `protocol_version` field. The host's spawn path calls `checkProtocolVersion` immediately
 after parsing the initialize response:
 
@@ -351,8 +351,8 @@ after parsing the initialize response:
   the version check cannot distinguish "v1 plugin" from "plugin that doesn't know about the field."
   This is intentional — it avoids breaking the existing plugin ecosystem.
 
-See: `kernel/plugin/protocol.go` (`ProtocolVersion`, `InitializeResult`), `kernel/plugin/host.go`
-(`checkProtocolVersion`, `ErrProtocolVersionMismatch`), `kernel/plugin/protocol_version_test.go`.
+See: `kernel/modules/extensions/plugin/protocol.go` (`ProtocolVersion`, `InitializeResult`), `kernel/modules/extensions/plugin/host.go`
+(`checkProtocolVersion`, `ErrProtocolVersionMismatch`), `kernel/modules/extensions/plugin/protocol_version_test.go`.
 
 ---
 

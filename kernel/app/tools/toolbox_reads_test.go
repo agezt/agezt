@@ -3,7 +3,7 @@ package tools
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/toolbox"
+	"github.com/agezt/agezt/kernel/modules/extensions/toolbox"
 	"reflect"
 	"sort"
 	"testing"

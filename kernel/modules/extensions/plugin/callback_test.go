@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/plugin"
+	"github.com/agezt/agezt/kernel/modules/extensions/plugin"
 )
 
 // doubleTool is a tiny in-process toolapi.Tool the test wires into

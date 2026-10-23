@@ -12,7 +12,7 @@
 // out-of-process plugin surface is TOOLS ONLY. The never-implemented channel,
 // provider, coding_agent, memory, storage and tunnel halves were removed
 // rather than left looking specified. Note that the SHIPPED tool protocol is
-// kernel/plugin/protocol.go (line-JSON initialize / tool/invoke / host/invoke,
+// kernel/modules/extensions/plugin/protocol.go (line-JSON initialize / tool/invoke / host/invoke,
 // not JSON-RPC 2.0 register); reconciling this file with it is roadmap W5.2.
 
 // =====================================================================

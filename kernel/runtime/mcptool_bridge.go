@@ -16,7 +16,7 @@ import (
 	"encoding/json"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/mcp"
+	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 )
 
 func mcpToolName(server, tool string) string {

@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	apptools "github.com/agezt/agezt/kernel/app/tools"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	"github.com/agezt/agezt/kernel/mcp"
+	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"net"

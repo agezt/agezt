@@ -2,7 +2,7 @@
 
 // Command greet is a complete, runnable agezt plugin written with the
 // official Go SDK (github.com/agezt/agezt/plugins/sdk). It is the
-// counterpart to kernel/plugin/testdata/echoplugin — same capabilities,
+// counterpart to kernel/modules/extensions/plugin/testdata/echoplugin — same capabilities,
 // but the protocol plumbing is handled by the SDK so only the tool
 // logic remains. Copy this file as the starting point for a new plugin.
 //

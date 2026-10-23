@@ -13,8 +13,8 @@ import (
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/toolforge"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 

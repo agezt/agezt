@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/toolbox"
+	"github.com/agezt/agezt/kernel/modules/extensions/toolbox"
 )
 
 type ToolboxInstaller interface {

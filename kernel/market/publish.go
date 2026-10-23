@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/mcp"
+	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 )
 
 // PackManifest is the AUTHORING shape of a pack on disk: skills are referenced

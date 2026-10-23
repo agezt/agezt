@@ -3,7 +3,7 @@ package tools
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/mcp"
+	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"sort"
 )
 

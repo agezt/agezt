@@ -13,7 +13,7 @@ adapter-bypass kernel/controlplane -> kernel/modules/workflows/workflow
 adapter-bypass kernel/controlplane -> kernel/modules/agents/roster
 adapter-bypass kernel/controlplane -> kernel/runtime
 adapter-bypass kernel/controlplane -> kernel/standing
-adapter-bypass kernel/controlplane -> kernel/toolbox
+adapter-bypass kernel/controlplane -> kernel/modules/extensions/toolbox
 adapter-bypass kernel/controlplane -> kernel/update
 adapter-bypass kernel/controlplane -> kernel/modules/work/workboard
 adapter-bypass kernel/openaiapi -> kernel/convo
@@ -26,7 +26,7 @@ cross-module kernel/channelwire -> kernel/pulse
 cross-module kernel/contextselect -> kernel/modules/knowledge/memory
 cross-module kernel/contextselect -> kernel/modules/knowledge/worldmodel
 cross-module kernel/contextselect -> kernel/modules/skills/skill
-cross-module kernel/market -> kernel/mcp
+cross-module kernel/market -> kernel/modules/extensions/mcp
 cross-module kernel/market -> kernel/modules/skills/skill
 cross-module kernel/modules/knowledge/memory -> kernel/agent
 cross-module kernel/pulse -> kernel/agent
@@ -38,7 +38,7 @@ cross-module kernel/runtime -> kernel/catalog
 cross-module kernel/runtime -> kernel/modules/artifacts/datalake
 cross-module kernel/runtime -> kernel/imagetool
 cross-module kernel/runtime -> kernel/market
-cross-module kernel/runtime -> kernel/mcp
+cross-module kernel/runtime -> kernel/modules/extensions/mcp
 cross-module kernel/runtime -> kernel/modules/knowledge/memory
 cross-module kernel/runtime -> kernel/modules/knowledge/taste
 cross-module kernel/runtime -> kernel/modules/knowledge/worldmodel
@@ -49,7 +49,7 @@ cross-module kernel/runtime -> kernel/reranktool
 cross-module kernel/runtime -> kernel/modules/agents/roster
 cross-module kernel/runtime -> kernel/modules/work/seat
 cross-module kernel/runtime -> kernel/standing
-cross-module kernel/runtime -> kernel/toolforge
+cross-module kernel/runtime -> kernel/modules/extensions/toolforge
 cross-module kernel/runtime -> kernel/voicetool
 cross-module kernel/runtime -> kernel/modules/work/workboard
 cross-module kernel/runtime -> kernel/modules/workflows/workflow
@@ -86,9 +86,9 @@ plugin-reach plugins/builtinguardians -> kernel/modules/agents/roster
 plugin-reach plugins/builtinguardians -> kernel/runtime
 plugin-reach plugins/builtinguardians -> kernel/standing
 plugin-reach plugins/builtinmarket -> kernel/market
-plugin-reach plugins/builtinmarket -> kernel/mcp
+plugin-reach plugins/builtinmarket -> kernel/modules/extensions/mcp
 plugin-reach plugins/builtinmarket -> kernel/modules/skills/skill
-plugin-reach plugins/builtintools -> kernel/plugin
+plugin-reach plugins/builtintools -> kernel/modules/extensions/plugin
 plugin-reach plugins/builtintools -> kernel/runtime
 plugin-reach plugins/builtintools -> kernel/toolreg
 plugin-reach plugins/providerboot -> kernel/agent
@@ -96,7 +96,7 @@ plugin-reach plugins/providerboot -> kernel/catalog
 plugin-reach plugins/providerboot -> kernel/chatgptauth
 plugin-reach plugins/providers/compat -> kernel/catalog
 plugin-reach plugins/tools/acpagent -> kernel/acp
-plugin-reach plugins/tools/acpagent -> kernel/acpcatalog
+plugin-reach plugins/tools/acpagent -> kernel/modules/extensions/acpcatalog
 plugin-reach plugins/tools/artifacts -> kernel/modules/artifacts/artifact
 plugin-reach plugins/tools/boardtool -> kernel/modules/board/board
 plugin-reach plugins/tools/browser -> kernel/modules/artifacts/artifact
@@ -107,11 +107,11 @@ plugin-reach plugins/tools/config -> kernel/runtime
 plugin-reach plugins/tools/council -> kernel/runtime
 plugin-reach plugins/tools/db -> kernel/modules/artifacts/datalake
 plugin-reach plugins/tools/fetch -> kernel/modules/artifacts/artifact
-plugin-reach plugins/tools/forgetool -> kernel/toolforge
+plugin-reach plugins/tools/forgetool -> kernel/modules/extensions/toolforge
 plugin-reach plugins/tools/introspecttool -> kernel/cadence
 plugin-reach plugins/tools/introspecttool -> kernel/runtime
 plugin-reach plugins/tools/introspecttool -> kernel/standing
-plugin-reach plugins/tools/mcptool -> kernel/mcp
+plugin-reach plugins/tools/mcptool -> kernel/modules/extensions/mcp
 plugin-reach plugins/tools/overseertool -> kernel/modules/board/board
 plugin-reach plugins/tools/overseertool -> kernel/modules/agents/roster
 plugin-reach plugins/tools/overseertool -> kernel/runtime

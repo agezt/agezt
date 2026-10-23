@@ -96,7 +96,7 @@ func compareCapabilities() []compareCapability {
 			Status:      compareStatusSupported,
 			Expectation: "Attach external tools/MCP servers and avoid flooding the model with every schema.",
 			Agezt:       "AGEZT has an MCP bridge, MCP registry, tool catalog, toolforge, and runtime tool-selection surfaces.",
-			Evidence:    []string{"kernel/mcp/store.go", "plugins/external/mcpbridge/mcp.go", "kernel/runtime/toolsearch.go", "kernel/toolforge/toolforge.go"},
+			Evidence:    []string{"kernel/modules/extensions/mcp/store.go", "plugins/external/mcpbridge/mcp.go", "kernel/runtime/toolsearch.go", "kernel/modules/extensions/toolforge/toolforge.go"},
 			Next:        "Make policy-aware deferred tool discovery a named product feature with metrics.",
 		},
 		{

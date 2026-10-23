@@ -284,7 +284,7 @@ Facts that contradict the generator's own header ("CI verifies in sync"):
   the generator itself errors. (The 2026-09 audit records the ignore as "intentional"; the gate is still vacuous.)
 - No Go package imports `contract/gen` (import graph + grep). The `multi-arch` CI job regenerates it before cross-build only so `./...`-style
   builds don't miss it. `docs/REFACTORING-SCAN-2026-08.md` already flags it as dead architecture (7-kind `Capability` enum, `RegisterParams`
-  never implemented by `kernel/plugin`).
+  never implemented by `kernel/modules/extensions/plugin`).
 - It is **not** the REST SDK contract; none of the four app SDKs is generated from it. REST SDK types are hand-written per language.
 
 Tests: `tools/jsonschemagen/main_test.go` (`TestStripJSONCComments`, `TestExportedName`, `TestRefTypeName`, `TestEndToEndContract`) and

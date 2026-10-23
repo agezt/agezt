@@ -5,7 +5,7 @@ package market
 import (
 	"testing"
 
-	"github.com/agezt/agezt/kernel/mcp"
+	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 

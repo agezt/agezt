@@ -81,7 +81,7 @@ The numbers are **approximate**; corrected by manual review. Coverage % alone is
 - **Coverage:** ~90%
 - **Last M-report:** M912 (MCP catalog library 43 preset)
 - **M-report count:** 44
-- **Code sites:** `kernel/plugin` (7 src, 23 test), `kernel/mcp` (3+3), `plugins/sdk` (1+2)
+- **Code sites:** `kernel/modules/extensions/plugin` (7 src, 23 test), `kernel/modules/extensions/mcp` (3+3), `plugins/sdk` (1+2)
 - **Major gaps:** **The `tools_box` package has src=0** (only test=1) — the actual plugins live under `plugins/tools/*`. The library-style plugin registry is good. There is still a **`plugins/builtinmarket/` plugin fork** speculation.
 - **Linked items:** F-19 (external vault — plugin side), F-11 (research harness — deep plugin)
 - **Commit hint:** `PHASE-M912-MCP-CATALOG-LIBRARY-REPORT.md`
@@ -121,7 +121,7 @@ The numbers are **approximate**; corrected by manual review. Coverage % alone is
 - **Coverage:** ~80%
 - **Last M-report:** M585 (certify-main), M509 (sjari), M422 (plugin zombie pin)
 - **M-report count:** 15
-- **Code sites:** `kernel/market` (8 src, 3 test), `kernel/plugin` (cross-cutting), `kernel/state` (cross-cutting)
+- **Code sites:** `kernel/market` (8 src, 3 test), `kernel/modules/extensions/plugin` (cross-cutting), `kernel/state` (cross-cutting)
 - **Major gaps:** **Cross-document debt**: `docs/MISSING-PARTS-REPORT.md` and `docs/MISSING-PARTS-PLAN.md` now exist (2026-07-04, P0-2/P0-3 closed). **CHANGELOG reorg (H-04)** is still open (646 KB).
 - **Linked items:** H-04 (CHANGELOG reorg), F-21 (widget marketplace — shared market infrastructure)
 - **Commit hint:** `PHASE-M585-...-REPORT.md`

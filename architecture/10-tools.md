@@ -46,7 +46,7 @@ Then `policyHook` calls `edict.Decide` (or `DecideWithCeiling` under an initiati
 
 **Purpose.** Tool mirror of `builtinchannels`: each first-party tool contributes a `toolreg.Spec` whose `Build` contains the construction logic that used to live inline in `cmd/agezt` (Phase 2.2 of the 2026-08 refactor). Env reads go through `BuildDeps.Get` so tests drive registration with a map-backed env.
 
-**Depends on:** `internal/brand`, `kernel/agent`, `kernel/plugin`, `kernel/redact`, `kernel/runtime`, `kernel/toolreg`, and all 30 `plugins/tools/*` packages. **Used by:** `cmd/agezt` (`boot_tools.go`), `plugins/tools/tool_effects_test.go`.
+**Depends on:** `internal/brand`, `kernel/agent`, `kernel/modules/extensions/plugin`, `kernel/redact`, `kernel/runtime`, `kernel/toolreg`, and all 30 `plugins/tools/*` packages. **Used by:** `cmd/agezt` (`boot_tools.go`), `plugins/tools/tool_effects_test.go`.
 
 ### `toolreg.Spec` lifecycle (defined in `kernel/toolreg/toolreg.go`)
 
@@ -159,8 +159,8 @@ Legend — **Cap**: Edict capability (from the tool's own `ToolDef.Capability`; 
 
 | Name | Registered by | Cap |
 |---|---|---|
-| `forge_<name>` | kernel/toolforge + runtime (via `cfg.ScriptRunner` = code_exec) | `code.exec` (switch prefix) |
-| `mcp_<server>_<tool>` / lazy `mcp_<name>` | kernel/mcp | `mcp.call` (switch prefix) |
+| `forge_<name>` | kernel/modules/extensions/toolforge + runtime (via `cfg.ScriptRunner` = code_exec) | `code.exec` (switch prefix) |
+| `mcp_<server>_<tool>` / lazy `mcp_<name>` | kernel/modules/extensions/mcp | `mcp.call` (switch prefix) |
 | `memory`, `world`, `delegate`, `delegate_await`, `market`, `voice`, `image_generate`, `rerank` | kernel/runtime + kernel/{memory,worldmodel,market,voicetool,imagetool,reranktool} | `memory`, `world`, `delegate`, `delegate`, `market.install`, `provider.call` ×3 — guarded by `kernel/runtime/capability_guard_test.go` |
 
 ---

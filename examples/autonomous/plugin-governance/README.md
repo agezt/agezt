@@ -21,7 +21,7 @@ And from `docs/PLUGIN-SECURITY.md`:
 
 The echo daemon (`AGEZT_DEMO_ECHO=1`) has no external plugins loaded by default. To see a live external plugin spawn, pin verification, and crash recovery, the operator must:
 
-1. Build a plugin (e.g., from `kernel/plugin/testdata/echoplugin/`)
+1. Build a plugin (e.g., from `kernel/modules/extensions/plugin/testdata/echoplugin/`)
 2. Configure `AGEZT_PLUGINS` and `AGEZT_PLUGIN_PINS`
 3. Start the daemon with those env vars
 

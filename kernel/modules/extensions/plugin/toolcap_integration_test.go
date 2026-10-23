@@ -11,7 +11,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/plugin"
+	"github.com/agezt/agezt/kernel/modules/extensions/plugin"
 )
 
 func TestSpawn_RejectsTooManyAdvertisedTools(t *testing.T) {

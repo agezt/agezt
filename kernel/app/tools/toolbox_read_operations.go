@@ -6,7 +6,7 @@ import (
 	"errors"
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	"github.com/agezt/agezt/kernel/toolbox"
+	"github.com/agezt/agezt/kernel/modules/extensions/toolbox"
 )
 
 func ToolboxReadOperations(provider func(context.Context) *ToolboxReads) ([]app.Operation, error) {

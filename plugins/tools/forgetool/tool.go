@@ -20,7 +20,7 @@ import (
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/toolforge"
+	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 )
 
 // Kernel is the slice of the runtime kernel this tool drives — satisfied by

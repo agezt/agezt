@@ -4,7 +4,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/toolforge"
+	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"reflect"
 	"testing"
 )

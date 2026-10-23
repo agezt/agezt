@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.9 the reaper's home and the agents module's api package, 2026-10-23
+## Current checkpoint — W3.10 the extensions module, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1438,11 +1438,47 @@ files, five of the seventeen mutations would have escaped.
   candidate" nor the stale-artifact totals were covered at all.
   Nothing else changed: the same findings, the same rows, the same wire JSON,
   the same env knobs.
+- W3.10 (the extensions module) is committed on `main` as a code commit plus a
+  docs commit and published from `arch/w2-dispatch` the same way. Five
+  packages were already one module — the layer map named `kernel/mcp`,
+  `kernel/plugin`, `kernel/toolforge`, `kernel/toolbox` and `kernel/acpcatalog`
+  as layer 3 in the module `extensions` — but they sat at the top of `kernel/`,
+  outside the `kernel/modules/` tree W3 establishes as the target home of the
+  bounded contexts; they moved to
+  `kernel/modules/extensions/{mcp,plugin,toolforge,toolbox,acpcatalog}`. The
+  package names do not change, so the move is an import-path change and nothing
+  else (83 files repointed). The placement is now *derived*
+  (`kernel/modules/*/...` → module `extensions`) and the five hand-written
+  layer rules are gone.
+  The module's name does not change, so every edge keeps its shape and only its
+  path changes: the **ratchet stays at 126/13** and the nine allowlist entries
+  moved with their edges. A module that is five packages is not a new problem
+  — the five packages already were one module, so the host already reached them
+  through five edges; it is *splitting* a module into more packages that would
+  cost edges.
+  The moved packages keep their own suites, and they are the proof that the
+  move did not quietly stop testing anything. One test was **strengthened**:
+  the malformed-pin test asserted only that *an* error came back, while a
+  malformed pin must be rejected as a malformed **digest** ("your pin is not a
+  digest" and "the file changed" are different sentences to an operator).
+  12 mutations, 12 caught — the run found an honest gap in the **tests** (the
+  malformed-pin test said only that something failed) and one **equivalent
+  mutant** (removing the empty-command guard changes nothing, because the next
+  guard refuses the same case); both are recorded.
+  The move broke four kinds of live reference and all are fixed: the
+  OpenClaw/Hermes parity ledger (`cmd/agt/compare_data.go`) asserts that its
+  evidence files exist and two rows pointed at the old paths; the dead-code
+  checker's own path-prefix allowlist moved with the package; the layer map's
+  five hand-written rules are gone; and eleven live documents (plus the
+  plugin-governance example and the SDK's doc comment) named the old paths —
+  the **dated** reports (`.project/PHASE-*`, `CHANGELOG/unreleased/m*.md`, the
+  dated scans and audits) describe the tree as it was and are left alone.
+  Nothing else changed: the same packages, the same exported APIs, the same
+  stores, the same protocol, the same recipes and the same wire.
 
-**W3.10 — `modules/extensions` (the next slice, to scope).**
-The roadmap's order continues with `modules/extensions` (mcp, plugin host,
-toolforge, toolbox, acpcatalog), then `modules/providers` (catalog,
-chatgptauth, providerboot) and `modules/runs` last (what remains of
+**W3.11 — `modules/providers` (the next slice, to scope).**
+The roadmap's order continues with `modules/providers` (catalog,
+chatgptauth, providerboot) and then `modules/runs` last (what remains of
 `kernel/runtime` + `runexec` + the agent loop + resume + delegation +
 intervention; `kernel/runtime` is deleted when empty).
 The agents module still owes step 8's third item — the **overseer ops** (the
@@ -1473,6 +1509,12 @@ finding rows and the ports, the host keeps its public names as aliases and
 delegates, and the composition root injects the scanner — and the host's own
 validation (the runtime-config table the doctor uses) is what the module asks
 about a profile's overrides, so the doctor and the reaper cannot disagree.
+**W3.10's** — W3.2's shape for a module that was already several packages: the
+packages move into the module's home, the placement becomes derived, the
+allowlist moves with the edges (the module's *name* does not change, so no
+edge changes shape), and the slice pays the bill of every live reference that
+named the old paths — the parity ledger, the dead-code checker's own path
+prefix, the layer map and the documents.
 
 The overall target is the architecture in `20-target-architecture.md`, delivered
 incrementally to protected `main`, with runnable proof and source-aligned

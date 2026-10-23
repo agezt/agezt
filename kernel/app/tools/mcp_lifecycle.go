@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	"github.com/agezt/agezt/kernel/mcp"
+	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 )
 
 // MCPLifecycleWriter retains the runtime's durable registration and peer lifecycle.

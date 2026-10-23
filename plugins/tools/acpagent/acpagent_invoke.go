@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/acp"
-	"github.com/agezt/agezt/kernel/acpcatalog"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/modules/extensions/acpcatalog"
 	"github.com/agezt/agezt/kernel/platform/sandbox"
 )
 

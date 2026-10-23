@@ -273,7 +273,7 @@ Every Go package, one line each, with the document that covers it in depth.
 | `providers/internal/{httpread,provopts,retry,toolname}` | Bounded bodies, Params/ProviderOptions, retry/Retry-After, injective tool-name sanitising | [08](08-providers.md) |
 | `providerboot` | Boot + Reload share one registration path; primary via `AGEZT_PROVIDER` or `unconfigured` sentinel | [08](08-providers.md) |
 | `sdk` (+`example/greet`) | Go kit for out-of-process tool plugins | [08](08-providers.md) |
-| `external/mcpbridge` | Standalone MCP→plugin-protocol bridge binary (largely superseded by `kernel/mcp`) | [08](08-providers.md) |
+| `external/mcpbridge` | Standalone MCP→plugin-protocol bridge binary (largely superseded by `kernel/modules/extensions/mcp`) | [08](08-providers.md) |
 | `channels/*` (25 pkgs) | Telegram, Slack, Discord, Matrix, Signal, WhatsApp (Cloud + gateway), email (SMTP/IMAP), IRC/Twitch, SMS, LINE, Feishu, DingTalk, WeCom, Zalo, OneBot (QQ/WeChat), Nostr, Mastodon, Nextcloud Talk, iMessage (BlueBubbles), Teams, Home Assistant, chat-webhook (Google Chat/Mattermost), generic webhook, push (7 providers) | [09](09-channels.md) |
 | `builtinchannels` | Registers 34 manifests + factories, multi-account expansion, Connect wizard metadata | [09](09-channels.md) |
 | `tools/*` (30 pkgs) | Agent tools (shell, file, http, fetch, browser, websearch, research, code_exec, council, conductor, overseer, board, workboard, workflow, schedule, standing, skill, config, db, artifacts, notify, send_media, mcp, acp_agent, coding, peer, homeassistant, introspect, runs, tool_forge) | [10](10-tools.md) |

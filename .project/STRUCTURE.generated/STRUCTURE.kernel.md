@@ -5,7 +5,6 @@
 167 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
-- **`kernel/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
 - **`kernel/agentgw`** — Package agentgw provides a secure gateway for AI agent subprocess code to communicate with the AGEZT kernel.
 - **`kernel/alerter`** — Package alerter pushes warning/critical alerts to the configured channels (M782).
@@ -100,7 +99,6 @@
 - **`kernel/intervention`** — Package intervention defines the protocol grammar for safe live changes to a running agent.
 - **`kernel/journal`** — Package journal is the append-only, BLAKE3-hash-chained event log that backs the entire system.
 - **`kernel/market`** — Package market is AGEZT's capability marketplace: it packages skills, MCP servers, and CLI-tool requirements into installable "packs", catalogues them in "marketplaces" (a built-in Official one plus, later, synced remotes), and installs a pack by materializing its parts into the systems that already run them — skills into the Forge, MCP servers into the MCP registry, tool needs reported to the Toolbox.
-- **`kernel/mcp`** — Package mcp is governed runtime self-install for MCP servers (M796): a durable registry of Model Context Protocol servers plus a minimal MCP client, so an agent (or operator) can ADD a server and ATTACH it while the daemon runs — no restart, no separate bridge binary, no env-var surgery.
 - **`kernel/meshctx`** — Package meshctx carries the cross-node delegation hop count for the M8 mesh.
 - **`kernel/modules/agents/api`** — Package api is the agents module's public vocabulary: the rows the module publishes, the ports it needs from the host and the surface the host talks to.
 - **`kernel/modules/agents/reaper`** — Package reaper is the agents module's reaper: the read-only DETECTION half of the fleet's health scan.
@@ -109,6 +107,14 @@
 - **`kernel/modules/artifacts/artifact`** — Package artifact is a content-addressed (BLAKE3) blob store — the substrate for SPEC-04 §3.6 artifacts: tool/run outputs that are too large to inline in an event are written here and referenced by their content hash, so the journal stays small while the bytes survive in the lineage and dedupe automatically.
 - **`kernel/modules/artifacts/datalake`** — Package datalake is AGEZT's file-based structured store — the "Personal Data Lake" (M834).
 - **`kernel/modules/board/board`** — Package board is the in-process shared message board: a persistent, topic-addressed space every agent — the lead, its sub-agents, scheduled and standing-order agents, and the continuous loops — can post to and read from, so they can coordinate and talk to each other (M647).
+- **`kernel/modules/extensions/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
+- **`kernel/modules/extensions/mcp`** — Package mcp is governed runtime self-install for MCP servers (M796): a durable registry of Model Context Protocol servers plus a minimal MCP client, so an agent (or operator) can ADD a server and ATTACH it while the daemon runs — no restart, no separate bridge binary, no env-var surgery.
+- **`kernel/modules/extensions/plugin`** — Package plugin is the kernel's out-of-process plugin host (M1.y).
+- **`kernel/modules/extensions/plugin/testdata/echoplugin`** — Command echoplugin is a minimal reference implementation of the agezt plugin protocol.
+- **`kernel/modules/extensions/plugin/testdata/floodplugin`** — Command floodplugin is a hostile-plugin fixture for the M177 frame bound: on startup it writes a large UN-terminated blob to stdout (no '\n'), simulating a plugin that floods the host's stdout reader.
+- **`kernel/modules/extensions/plugin/testdata/idechoplugin`** — Command idechoplugin is a minimal protocol fixture for the M180 reload test: its single tool ("idecho") returns, as Output, the host-assigned request id it received.
+- **`kernel/modules/extensions/toolbox`** — Package toolbox is the host CLI-tool inventory + installer (M956).
+- **`kernel/modules/extensions/toolforge`** — Package toolforge is the script-tool forge (M794): agent-authored code promoted into durable, callable tools — the close of the write→use→improve cycle.
 - **`kernel/modules/knowledge/memory`** — Package memory implements the memory store (ROADMAP §2.3): a journaled, content-addressed knowledge store that the agent loop reads as injected context and that the operator, the agent, and an auto-distiller can write to.
 - **`kernel/modules/knowledge/taste`** — Package taste is AGEZT's curated "what good looks like" store: a small set of operator-authored exemplars that are injected into runs before the model acts, so output quality is shaped by concrete examples of good work rather than left to chance.
 - **`kernel/modules/knowledge/worldmodel`** — Package worldmodel implements "World Model v1" (SPEC-05 §3): a journaled, content-addressed graph of the operator's world — the projects, repos, people, accounts, channels and topics they care about, and the weighted relations between them.
@@ -138,10 +144,6 @@
 - **`kernel/platform/toolinvoke`** — Package toolinvoke provides panic-contained execution of an admitted tool.
 - **`kernel/platform/tooloutput`** — Package tooloutput represents tool audit output with an inline preview and a content-addressed artifact reference, preserving full bytes for the caller.
 - **`kernel/platform/toolpipeline`** — Package toolpipeline supplies the generic governed tool-call mechanism.
-- **`kernel/plugin`** — Package plugin is the kernel's out-of-process plugin host (M1.y).
-- **`kernel/plugin/testdata/echoplugin`** — Command echoplugin is a minimal reference implementation of the agezt plugin protocol.
-- **`kernel/plugin/testdata/floodplugin`** — Command floodplugin is a hostile-plugin fixture for the M177 frame bound: on startup it writes a large UN-terminated blob to stdout (no '\n'), simulating a plugin that floods the host's stdout reader.
-- **`kernel/plugin/testdata/idechoplugin`** — Command idechoplugin is a minimal protocol fixture for the M180 reload test: its single tool ("idecho") returns, as Output, the host-assigned request id it received.
 - **`kernel/pulse`** — Package pulse implements the proactive heart (SPEC-03): a second heartbeat that triggers itself and, on every beat, asks "what changed? · is it important? · should I act or tell the user?".
 - **`kernel/redact`** — Package redact scrubs secrets from text before it is persisted.
 - **`kernel/reflect`** — Package reflect implements "Reflection v1" (SPEC-05 §6): the meta-cognition loop.
@@ -160,9 +162,7 @@
 - **`kernel/stt`** — Package stt is a minimal speech-to-text client for the OpenAI-compatible `/v1/audio/transcriptions` endpoint, using net/http only — no dependency.
 - **`kernel/tenant`** — Package tenant is the multi-tenant isolation foundation (ROADMAP P6-MULTI).
 - **`kernel/tenantctx`** — Package tenantctx carries the identity of the tenant a run belongs to through the run's context.Context, so tools that behave differently per tenant (e.g.
-- **`kernel/toolbox`** — Package toolbox is the host CLI-tool inventory + installer (M956).
 - **`kernel/toolexec`** — Package toolexec retains the legacy tool execution compatibility entry points.
-- **`kernel/toolforge`** — Package toolforge is the script-tool forge (M794): agent-authored code promoted into durable, callable tools — the close of the write→use→improve cycle.
 - **`kernel/toolreg`** — Package toolreg is the first-party tool registry (Phase 2.2).
 - **`kernel/tunnel`** — Package tunnel exposes a local Agezt HTTP service (the Web UI or REST API) to the public internet by supervising an operator-chosen tunnel binary — cloudflared, ngrok, Tailscale, or any custom command.
 - **`kernel/ulid`** — Package ulid implements ULID generation per DECISIONS B2 — 128-bit lexicographically sortable identifiers with a 48-bit millisecond timestamp prefix and 80-bit cryptographic randomness, encoded as 26 Crockford base32 characters.
