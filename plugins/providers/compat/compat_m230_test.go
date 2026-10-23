@@ -5,7 +5,7 @@ package compat
 import (
 	"testing"
 
-	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 func TestCompatVendorBaseURL(t *testing.T) {

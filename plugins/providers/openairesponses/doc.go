@@ -9,6 +9,6 @@
 //
 // This is an UNOFFICIAL, undocumented backend (it requires Codex's own system
 // instructions, embedded below) and may break or violate OpenAI's terms — see
-// kernel/chatgptauth. The instructions.md file is Codex's prompt, vendored from
+// kernel/modules/providers/chatgptauth. The instructions.md file is Codex's prompt, vendored from
 // the Apache-2.0 openai/codex repo so the backend accepts our requests.
 package openairesponses

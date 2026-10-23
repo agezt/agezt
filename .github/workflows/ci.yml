@@ -120,7 +120,7 @@ jobs:
     # Keep this list in sync with the concurrency/context fixes:
     #   kernel/channel        — VULN-002 registry RWMutex (boot-window race)
     #   kernel/controlplane   — pulse read-timeout + ctx-aware sleep + oauth ctx
-    #   kernel/chatgptauth    — ExchangeCode ctx cancellation
+    #   kernel/modules/providers/chatgptauth    — ExchangeCode ctx cancellation
     #   kernel/runtime        — WithTrustCeiling clamp / delegation ctx
     #   kernel/pulse          — engine fan-out / subscription lifecycle
     #   kernel/governor       — soft budget caps (concurrent recordUsage)
@@ -160,7 +160,7 @@ jobs:
           bash scripts/ci-go-retry.sh go test -race -count="${RACE_STRESS_COUNT}" -timeout=40m \
             ./kernel/channel/... \
             ./kernel/controlplane/... \
-            ./kernel/chatgptauth/... \
+            ./kernel/modules/providers/chatgptauth/... \
             ./kernel/runtime/... \
             ./kernel/pulse/... \
             ./kernel/governor/... \

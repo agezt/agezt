@@ -13,9 +13,9 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
-	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )

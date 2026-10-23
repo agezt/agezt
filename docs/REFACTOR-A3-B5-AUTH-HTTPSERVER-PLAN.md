@@ -27,7 +27,7 @@ They overlap only on the middleware + token-compare. Measured surface shows auth
 | tenant resolution | controlplane/tenant.go (9.6 KB) + kernel/tenant + kernel/tenantctx | **domain** |
 | channel OAuth | controlplane/channel_oauth.go (12.1 KB) | **domain** |
 | provider OAuth | controlplane/provider_oauth.go (7.6 KB) | **domain** |
-| ChatGPT auth | kernel/chatgptauth | **domain** |
+| ChatGPT auth | kernel/modules/providers/chatgptauth | **domain** |
 | credentials | kernel/creds (13 files) | **domain** |
 
 **Verdict:** split by layer. `kernel/auth` owns the domain; `kernel/httpserver` owns transport and

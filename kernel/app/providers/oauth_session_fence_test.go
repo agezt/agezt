@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/chatgptauth"
 	"github.com/agezt/agezt/kernel/creds"
+	"github.com/agezt/agezt/kernel/modules/providers/chatgptauth"
 )
 
 func TestOAuthLogoutPreventsLateCallbackPersistence(t *testing.T) {

@@ -15,7 +15,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 // Pricing tables. All values in USD-microcents per million tokens

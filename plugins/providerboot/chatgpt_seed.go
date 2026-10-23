@@ -9,8 +9,8 @@ package providerboot
 import (
 	"time"
 
-	"github.com/agezt/agezt/kernel/catalog"
-	"github.com/agezt/agezt/kernel/chatgptauth"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
+	"github.com/agezt/agezt/kernel/modules/providers/chatgptauth"
 )
 
 // SeedChatGPTCatalog keeps the chatgpt entry in custom.json in step with what

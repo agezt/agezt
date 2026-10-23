@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/agezt/agezt/kernel/chatgptauth"
+	"github.com/agezt/agezt/kernel/modules/providers/chatgptauth"
 )
 
 var errProviderLoginExpired = errors.New("invalid or expired sign-in")

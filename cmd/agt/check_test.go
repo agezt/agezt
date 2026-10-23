@@ -10,8 +10,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 func TestParseCheckFlags(t *testing.T) {

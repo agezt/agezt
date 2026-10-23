@@ -1,6 +1,6 @@
 # 05 — Governance, Routing & Security
 
-**Scope:** `kernel/governor`, `kernel/catalog`, `kernel/creds` (+ `kernel/creds/sigv4`), `kernel/chatgptauth`, `kernel/settings`, `kernel/configcenter`, `kernel/executionprofile`, `kernel/edict`, `kernel/warden`, `kernel/netguard`, `kernel/envscrub`, `kernel/redact`, `kernel/approval`, `kernel/modules/work/seat`, `kernel/tenant`, `kernel/tenantctx`, `kernel/state`.
+**Scope:** `kernel/governor`, `kernel/modules/providers/catalog`, `kernel/creds` (+ `kernel/creds/sigv4`), `kernel/modules/providers/chatgptauth`, `kernel/settings`, `kernel/configcenter`, `kernel/executionprofile`, `kernel/edict`, `kernel/warden`, `kernel/netguard`, `kernel/envscrub`, `kernel/redact`, `kernel/approval`, `kernel/modules/work/seat`, `kernel/tenant`, `kernel/tenantctx`, `kernel/state`.
 
 Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md) (boot wiring that builds these objects) · [03-control-plane-and-http.md](03-control-plane-and-http.md) (HTTP/control-plane surfaces over them) · [04-agent-runtime.md](04-agent-runtime.md) (`policyHook`, run context setters) · [06-data-memory-state.md](06-data-memory-state.md) (bus/journal that receives the events) · [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md) (standing orders that apply trust ceilings) · [08-providers.md](08-providers.md) (providerboot builds the governor; provider retry/Retry-After) · [10-tools.md](10-tools.md) (tools that call warden/netguard/envscrub).
 
@@ -30,11 +30,11 @@ All source read from the working tree (disk), 2026-10-02.
 
 | Package | Depends on (internal) | Imported by |
 |---|---|---|
-| `kernel/governor` | kernel/agent, kernel/bus, kernel/catalog, kernel/event | cmd/agezt, cmd/agt, kernel/controlplane, kernel/runtime, plugins/providerboot |
-| `kernel/catalog` | internal/atomicfile, kernel/netguard | cmd/agezt, cmd/agt, cmd/agt/providerlookup, kernel/cadence/systemtasks, kernel/controlplane, kernel/governor, kernel/runtime(+accessors, runexec), plugins/providerboot, plugins/providers/compat |
-| `kernel/creds` | internal/atomicfile, internal/strutil, kernel/creds/sigv4, kernel/envscrub | cmd/agezt, cmd/agt, cmd/agt/providerlookup, kernel/chatgptauth, kernel/controlplane, kernel/executionprofile, plugins/tools/config |
+| `kernel/governor` | kernel/agent, kernel/bus, kernel/modules/providers/catalog, kernel/event | cmd/agezt, cmd/agt, kernel/controlplane, kernel/runtime, plugins/providerboot |
+| `kernel/modules/providers/catalog` | internal/atomicfile, kernel/netguard | cmd/agezt, cmd/agt, cmd/agt/providerlookup, kernel/cadence/systemtasks, kernel/controlplane, kernel/governor, kernel/runtime(+accessors, runexec), plugins/providerboot, plugins/providers/compat |
+| `kernel/creds` | internal/atomicfile, internal/strutil, kernel/creds/sigv4, kernel/envscrub | cmd/agezt, cmd/agt, cmd/agt/providerlookup, kernel/modules/providers/chatgptauth, kernel/controlplane, kernel/executionprofile, plugins/tools/config |
 | `kernel/creds/sigv4` | — | cmd/agezt, kernel/creds, plugins/providers/bedrock |
-| `kernel/chatgptauth` | internal/brand, kernel/creds, kernel/netguard | kernel/controlplane, plugins/providerboot |
+| `kernel/modules/providers/chatgptauth` | internal/brand, kernel/creds, kernel/netguard | kernel/controlplane, plugins/providerboot |
 | `kernel/settings` | internal/atomicfile | cmd/agezt, kernel/channelwire, kernel/controlplane, plugins/tools/config, plugins/tools/overseertool |
 | `kernel/configcenter` | kernel/approval | cmd/agt, kernel/agentgw, kernel/controlplane, kernel/runtime(+accessors, runexec) |
 | `kernel/executionprofile` | kernel/creds, kernel/warden | kernel/controlplane, plugins/tools/codeexec, plugins/tools/shell |
@@ -49,7 +49,7 @@ All source read from the working tree (disk), 2026-10-02.
 | `kernel/tenantctx` | — | kernel/runtime, plugins/tools/peer |
 | `kernel/state` | internal/atomicfile | cmd/agezt, kernel/pulse, kernel/runtime(+accessors, runexec) |
 
-Layering notes: `governor` imports `kernel/agent` (it *is* an `agent.Provider`) and `kernel/catalog` (pricing only; capability lookups are injected as funcs to stay decoupled). `edict` and `netguard`, `envscrub`, `redact`, `tenant`, `tenantctx`, `sigv4` are leaf packages. `edict` is the most widely imported kernel package in this area because tools declare their capability via `edict.Capability`.
+Layering notes: `governor` imports `kernel/agent` (it *is* an `agent.Provider`) and `kernel/modules/providers/catalog` (pricing only; capability lookups are injected as funcs to stay decoupled). `edict` and `netguard`, `envscrub`, `redact`, `tenant`, `tenantctx`, `sigv4` are leaf packages. `edict` is the most widely imported kernel package in this area because tools declare their capability via `edict.Capability`.
 
 ---
 
@@ -71,7 +71,7 @@ Layering notes: `governor` imports `kernel/agent` (it *is* an `agent.Provider`) 
 
 ---
 
-# Part A — Model routing (`kernel/governor`, `kernel/catalog`)
+# Part A — Model routing (`kernel/governor`, `kernel/modules/providers/catalog`)
 
 ## A.1 `kernel/governor`
 
@@ -248,7 +248,7 @@ Price lookup `priceForOk`: live catalog `FindModel` (exact; `provider/model` syn
 
 Tests (30 files): budget scopes (`*budget*_test.go`, `agent_budget_test.go`, `ceiling_set_internal_test.go`), chains (`modelchain*_test.go`, `agentchain_test.go`, `fallbackchains_internal_test.go`, `modeloverride_test.go`, `modelroute_test.go`, `require_test.go`, `routes_test.go`), pricing (`pricing_internal_test.go`, `pricing_fuzz_internal_test.go`, `overflow_test.go`, `strict_pricing_test.go`, `unpriced_budget_test.go`), resilience (`retry_test.go`, `breaker_test.go`, `nilresp_test.go`), concurrency (`snapshot_race_test.go`, `usage_index_internal_test.go`), `cache_test.go`, `capability_degraded_test.go`, `governor_correlation_test.go`.
 
-## A.2 `kernel/catalog`
+## A.2 `kernel/modules/providers/catalog`
 
 **Purpose.** Data-driven provider/model registry mirroring models.dev `api.json`. Feeds: providerboot (which providers to build + their `Models`), governor pricing (`SetCatalog`), capability injections (`ToolCapableAlternative`, `StrictToolArgsNative`, `FamilySupportsNativeJSONMode`), the vault credential naming scheme, and the Models UI.
 
@@ -508,7 +508,7 @@ Tests: `redact_test.go`, milestone regressions `redact_m228/m231/m366/m490_test.
 
 ---
 
-# Part D — Credentials (`kernel/creds`, `kernel/creds/sigv4`, `kernel/chatgptauth`)
+# Part D — Credentials (`kernel/creds`, `kernel/creds/sigv4`, `kernel/modules/providers/chatgptauth`)
 
 ## D.1 Vault storage format and encryption
 
@@ -538,7 +538,7 @@ Tests: `redact_test.go`, milestone regressions `redact_m228/m231/m366/m490_test.
 
 `kernel/creds/sigv4`: `SignRequest(req, service, region, body, Creds, now)` adds `Authorization`, `X-Amz-Date`, `X-Amz-Content-Sha256`, `X-Amz-Security-Token`; `CanonicalQuery`, `AWSURIEncode`. Used by Bedrock, STS/SSO, and cmd/agezt.
 
-## D.4 `kernel/chatgptauth`
+## D.4 `kernel/modules/providers/chatgptauth`
 
 "Sign in with ChatGPT" (unofficial Codex CLI OAuth client `app_EMoamEEZ73f0CkXaXp7hrann`, `auth.openai.com`, redirect `http://localhost:1455/auth/callback`, callback listener `127.0.0.1:1455`). `Manager` (per baseDir, `mu`): `Token(ctx)` refreshes proactively 2 min before the access-token JWT `exp`, tolerating refresh failure while a non-empty access token exists; `ForceRefresh` (on 401); `StoreTokens`; `ExchangeCode(code, verifier)`; `ImportFromCodexCLI(path)` (`DefaultCodexAuthPath` = `~/.codex/auth.json`); `Account()` (email from id_token); `Logout`. Helpers `GeneratePKCE`, `RandomState`, `AuthorizeURL`. Token endpoint calls use `netguard.New().HTTPClient` (public-only). Persistence: JSON `Tokens{access_token, refresh_token, id_token, account_id, last_refresh}` as vault key `AGEZT_CHATGPT_OAUTH` (shown read-only in the settings schema). Account id extracted from id_token claims. Consumers: providerboot (`openairesponses` subscription provider, `AuthSubscription` tier), controlplane login routes.
 

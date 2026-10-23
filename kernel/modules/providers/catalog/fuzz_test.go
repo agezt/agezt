@@ -5,7 +5,7 @@ package catalog_test
 import (
 	"testing"
 
-	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 // FuzzParseAPIFile hardens the catalog parser against a malformed or hostile

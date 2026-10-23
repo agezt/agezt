@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/kernel/chatgptauth"
+	"github.com/agezt/agezt/kernel/modules/providers/chatgptauth"
 	"github.com/agezt/agezt/kernel/platform/browsercallback"
 	"github.com/agezt/agezt/kernel/runtime"
 )

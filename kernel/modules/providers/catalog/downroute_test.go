@@ -5,7 +5,7 @@ package catalog_test
 import (
 	"testing"
 
-	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 // catWithModels builds a single-provider catalog for the down-routing tests.

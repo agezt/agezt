@@ -314,7 +314,7 @@ function ProviderKeysTab() {
 
   // Split: keyless first (one-click), then keyed. We rely on `env[]` length —
   // an empty list means "no credentials required" per the catalog convention
-  // (see kernel/catalog/types.go HasCredentials).
+  // (see kernel/modules/providers/catalog/types.go HasCredentials).
   const keyless = visible.filter((p) => !p.env || p.env.length === 0);
   const keyed = visible.filter((p) => p.env && p.env.length > 0);
 

@@ -13,7 +13,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 // ---- fixture ----
@@ -161,6 +161,16 @@ func TestHasCredentials(t *testing.T) {
 	}
 	if !((&catalog.Provider{}).HasCredentials(func(string) string { return "" })) {
 		t.Error("no env list means local provider, always credentialed")
+	}
+}
+
+// TestHasCredentials_NilLookupRefuses: a provider that needs credentials and
+// a nil lookup must be refused — there is nothing to look the secret up with.
+// It must be refused, not crash on a nil call.
+func TestHasCredentials_NilLookupRefuses(t *testing.T) {
+	p := &catalog.Provider{ID: "acme", Env: []string{"ACME_API_KEY"}}
+	if p.HasCredentials(nil) {
+		t.Error("a provider that needs credentials must be refused when nothing can be looked up")
 	}
 }
 

@@ -15,8 +15,8 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
-	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 // cmdQuickstart implements `agt quickstart` — a one-command, client-side

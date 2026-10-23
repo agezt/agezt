@@ -10,9 +10,9 @@ import (
 	"context"
 
 	"github.com/agezt/agezt/kernel/agent"
-	"github.com/agezt/agezt/kernel/chatgptauth"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
+	"github.com/agezt/agezt/kernel/modules/providers/chatgptauth"
 	"github.com/agezt/agezt/plugins/providers/openairesponses"
 )
 

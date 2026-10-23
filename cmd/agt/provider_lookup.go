@@ -11,7 +11,7 @@ package main
 
 import (
 	"github.com/agezt/agezt/cmd/agt/providerlookup"
-	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 // catalogCredentialLookup delegates to providerlookup.CredentialLookup.

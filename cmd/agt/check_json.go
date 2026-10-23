@@ -12,8 +12,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/strutil"
-	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/plugins/providers/compat"
 )
 

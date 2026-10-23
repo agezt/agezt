@@ -15,8 +15,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
-	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/creds"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 func openCredsStore(stderr io.Writer) (*creds.Store, error) {

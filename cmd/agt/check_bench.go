@@ -12,7 +12,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 type benchResult struct {

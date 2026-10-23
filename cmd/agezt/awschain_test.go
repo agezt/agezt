@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/catalog"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 // TestBuildAWSCredChain_WebIdentityAutoActivates: the standard EKS-injected

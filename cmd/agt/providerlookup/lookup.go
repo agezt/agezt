@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/catalog"
 	"github.com/agezt/agezt/kernel/creds"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
 // ScopedVaultLookup returns a vault-lookup function that respects
