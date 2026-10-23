@@ -6,9 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"sort"
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
@@ -117,6 +119,57 @@ func TestForgeStoreStaysANilPortWithoutAStore(t *testing.T) {
 	}
 	if got := forgePort(nil); got != nil {
 		t.Fatalf("a missing store must yield a nil port, got %v", got)
+	}
+}
+
+// TestToolKernelDepsSuppliesTheLakePort: the db tool drives the data lake
+// through the contract's port. The port is supplied HERE — at the composition
+// root — so a daemon that dropped it would leave the tool unable to reach
+// the lake on every live box, while every test that builds the tool by hand
+// stayed green. This test is the only one that sees that wiring.
+func TestToolKernelDepsSuppliesTheLakePort(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	deps := toolKernelDeps(k, t.TempDir(), io.Discard)
+	if deps.Lake == nil {
+		t.Fatal("the daemon must supply the lake port")
+	}
+
+	// The port must answer the LIVE lake — a port bound to nothing would
+	// still be non-nil. The daemon seeds the lake's built-in collections.
+	all := deps.Lake.ListCollections()
+	if len(all) == 0 {
+		t.Fatal("the live lake carries its built-in collections")
+	}
+	names := make([]string, 0, len(all))
+	for _, c := range all {
+		names = append(names, c.Name)
+	}
+	sort.Strings(names)
+	if names[0] != "bookmarks" {
+		t.Fatalf("the port must answer the live lake, got %v", names)
+	}
+	if _, err := deps.Lake.CreateCollection(datalakeapi.Schema{Name: "agent-notes"}, "tester"); err != nil {
+		t.Fatalf("CreateCollection: %v", err)
+	}
+	after := deps.Lake.ListCollections()
+	if len(after) != len(all)+1 {
+		t.Fatalf("the port must answer the live lake, got %d collections", len(after))
+	}
+}
+
+// TestLakeStoreStaysANilPortWithoutALake: a daemon with no lake must hand
+// over a NIL port, not a port wrapping a nil implementation.
+func TestLakeStoreStaysANilPortWithoutALake(t *testing.T) {
+	if got := lakeStore(nil); got != nil {
+		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
+	}
+	if got := lakePort(nil); got != nil {
+		t.Fatalf("a missing lake must yield a nil port, got %v", got)
 	}
 }
 

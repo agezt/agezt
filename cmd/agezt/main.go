@@ -1441,7 +1441,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 						K:         k,
 						Bus:       k.Bus(),
 						Artifacts: k.ArtifactIndex(),
-						Lake:      k.DataLake(),
+						Lake:      lakeStore(k),
 						Journal:   k.Journal(),
 						BaseDir:   baseDir,
 						Stdout:    stdout,

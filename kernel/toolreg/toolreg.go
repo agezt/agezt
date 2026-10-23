@@ -25,6 +25,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/introspectapi"
 	"github.com/agezt/agezt/kernel/contract/overseerapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
@@ -32,7 +33,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
-	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
@@ -56,7 +56,7 @@ type KernelDeps struct {
 	K         *runtime.Kernel
 	Bus       *bus.Bus
 	Artifacts *artifact.Index
-	Lake      *datalake.Lake
+	Lake      datalakeapi.Lake
 	Journal   *journal.Journal
 	BaseDir   string
 	Stdout    io.Writer

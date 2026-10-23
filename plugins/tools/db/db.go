@@ -18,24 +18,15 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 )
 
-// Store is the slice of *datalake.Lake the tool needs — an interface so the tool
-// is decoupled and unit-testable with a fake.
-type Store interface {
-	ListCollections() []datalake.CollectionInfo
-	CreateCollection(sc datalake.Schema, actor string) (datalake.Schema, error)
-	DropCollection(name string) error
-	Schema(name string) (datalake.Schema, bool)
-	Insert(coll string, fields map[string]any, actor string) (datalake.Record, error)
-	Get(coll, id string) (datalake.Record, error)
-	Update(coll, id string, patch map[string]any, actor string) (datalake.Record, error)
-	Delete(coll, id string) error
-	Query(coll string, q datalake.Query) ([]datalake.Record, error)
-}
+// Store is the port the tool drives the lake through — the CONTRACT's port
+// (kernel/contract/datalakeapi), so the tool names the rows and the port and
+// never the module that keeps the lake.
+type Store = datalakeapi.Lake
 
 // Tool is the `db` implementation of toolapi.Tool.
 type Tool struct {
@@ -94,20 +85,20 @@ func (t *Tool) Definition() toolapi.ToolDef {
 }
 
 type input struct {
-	Op         string           `json:"op"`
-	Collection string           `json:"collection,omitempty"`
-	Name       string           `json:"name,omitempty"`
-	Title      string           `json:"title,omitempty"`
-	Icon       string           `json:"icon,omitempty"`
-	View       string           `json:"view,omitempty"`
-	Fields     []datalake.Field `json:"fields,omitempty"`
-	ID         string           `json:"id,omitempty"`
-	Record     map[string]any   `json:"record,omitempty"`
-	Search     string           `json:"search,omitempty"`
-	Equals     map[string]any   `json:"equals,omitempty"`
-	Sort       string           `json:"sort,omitempty"`
-	Desc       bool             `json:"desc,omitempty"`
-	Limit      int              `json:"limit,omitempty"`
+	Op         string              `json:"op"`
+	Collection string              `json:"collection,omitempty"`
+	Name       string              `json:"name,omitempty"`
+	Title      string              `json:"title,omitempty"`
+	Icon       string              `json:"icon,omitempty"`
+	View       string              `json:"view,omitempty"`
+	Fields     []datalakeapi.Field `json:"fields,omitempty"`
+	ID         string              `json:"id,omitempty"`
+	Record     map[string]any      `json:"record,omitempty"`
+	Search     string              `json:"search,omitempty"`
+	Equals     map[string]any      `json:"equals,omitempty"`
+	Sort       string              `json:"sort,omitempty"`
+	Desc       bool                `json:"desc,omitempty"`
+	Limit      int                 `json:"limit,omitempty"`
 }
 
 const defaultQueryLimit = 50
@@ -165,11 +156,11 @@ func dataLakeActor(ctx context.Context) string {
 
 func (t *Tool) create(in input, actor string) (toolapi.Result, error) {
 	name := firstNonEmpty(in.Name, in.Collection)
-	sc, err := t.lake.CreateCollection(datalake.Schema{
+	sc, err := t.lake.CreateCollection(datalakeapi.Schema{
 		Name: name, Title: in.Title, Icon: in.Icon, View: in.View, Fields: in.Fields,
 	}, actor)
 	if err != nil {
-		if errors.Is(err, datalake.ErrExists) {
+		if errors.Is(err, datalakeapi.ErrExists) {
 			return errResult(fmt.Sprintf("collection %q already exists", name)), nil
 		}
 		return errResult(err.Error()), nil
@@ -187,9 +178,9 @@ func (t *Tool) drop(in input) (toolapi.Result, error) {
 
 func dropErr(name string, err error) string {
 	switch {
-	case errors.Is(err, datalake.ErrNotFound):
+	case errors.Is(err, datalakeapi.ErrNotFound):
 		return fmt.Sprintf("no such collection %q", name)
-	case errors.Is(err, datalake.ErrSystem):
+	case errors.Is(err, datalakeapi.ErrSystem):
 		return fmt.Sprintf("%q is a built-in collection and cannot be dropped", name)
 	default:
 		return err.Error()
@@ -247,7 +238,7 @@ func (t *Tool) query(in input) (toolapi.Result, error) {
 	if limit <= 0 {
 		limit = defaultQueryLimit
 	}
-	recs, err := t.lake.Query(in.Collection, datalake.Query{
+	recs, err := t.lake.Query(in.Collection, datalakeapi.Query{
 		Search: in.Search, Equals: in.Equals, SortBy: in.Sort, Desc: in.Desc, Limit: limit,
 	})
 	if err != nil {
@@ -257,7 +248,7 @@ func (t *Tool) query(in input) (toolapi.Result, error) {
 }
 
 func notFoundOr(what string, err error) string {
-	if errors.Is(err, datalake.ErrNotFound) {
+	if errors.Is(err, datalakeapi.ErrNotFound) {
 		return fmt.Sprintf("no such collection or record: %s", what)
 	}
 	return err.Error()
