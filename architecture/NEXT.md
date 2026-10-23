@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.11 the providers module's first half, 2026-10-23
+## Current checkpoint — W3.12 the providers module's second half, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1511,74 +1511,105 @@ files, five of the seventeen mutations would have escaped.
   alone. Nothing else changed: the same packages, the same exported APIs, the
   same stores, the same prices and the same wire.
 
-**W3.12 — the providerboot half of `modules/providers` (the next slice, to
-scope).**
-The roadmap's order continues with the **providerboot** half of
-`modules/providers`, then `modules/runs` last (what remains of
-`kernel/runtime` + `runexec` + the agent loop + resume + delegation +
-intervention; `kernel/runtime` is deleted when empty).
-The agents module still owes step 8's third item — the **overseer ops** (the
-overseer tool as an L6 caller of `app` ops). The reaper and the module's api
-package are done (W3.9); the overseer ops were the part that needed the api
-door, and that door now exists.
+- W3.12 (the providerboot half of the providers module) is committed on `main`
+  as a code commit plus a docs commit and published from `arch/w2-dispatch` the
+  same way. `plugins/providerboot` was **not** a library that happened to sit
+  under `plugins/`: it imported the **concrete** provider packages
+  (`plugins/providers/{compat,mock,openairesponses}`) so the kernel would never
+  grow a kernel→plugins edge, it was typed against them
+  (`chatgptModelSet.Info` was a `map[string]openairesponses.ModelInfo`) and it
+  reached into `kernel/agent` for the middleware stack. Moving it into the
+  module as-is would have added **four** edges the ratchet refuses to grow
+  (three upward, one cross-module providers→runs), so the slice is a **ports
+  rewrite** — the shape W3.7 and W3.9 proved.
+  The engine is now `kernel/modules/providers/boot` and the module grew a gate,
+  `kernel/modules/providers/api`: the module asks the adapters for what it
+  needs through `api.Ports` (an **interface**, so a missing adapter is a
+  compile error at the wiring site, not a nil dereference on a boot path), the
+  module keeps **its own vocabulary** (`api.ModelInfo` replaces the adapter's
+  row, and the module owns the picker and ordering rules), the middleware
+  stack stays the host's (`agent.MiddlewareFromEnv`, asked for through the
+  `Wrap` port, so it is built once per boot cycle and reaches the primary and
+  every alternate alike), and the composition root
+  (`cmd/agezt/boot_providerports.go`) binds the ports to the real adapters.
+  The **ratchet went DOWN**: 126/13 → **123/13**, because the three edges the
+  plugin needed are gone, and **no** allowlist entry was added.
+  The engine's own suites moved with it and now drive the engine through
+  **fake ports** — the module never imports a plugin, so its tests must not
+  pretend to — and the fake mirrors the real adapters' contracts (an empty
+  model id and a model the entry does not serve are both refused), because a
+  fake that accepts what the real adapter rejects hides exactly the bugs the
+  run looks for. The **real** adapters are measured where they are bound, in
+  the root (the demo echo's answer, the compat construction, the empty-model
+  refusal, the family gate, the placeholder model, the ChatGPT base URL, the
+  backend-reply mapping, the token function's two branches).
+  **Nine tests were added** where the port seam opened a gap: an unsupported
+  family must not be registered as an alternate; the middleware must reach the
+  alternates and not only the primary; a nil wrapper and an unwired `Deps` must
+  be **loud** errors rather than a silently unwrapped provider; the catalog
+  entry must record the base URL the **adapter** serves; signing in must drop
+  the weaker Codex-CLI memo; the module's own picker and ordering rules needed
+  tests of their own; and the middleware stack — which moved packages — needed
+  six.
+  19 mutations, 19 caught; two needed a second round and both are recorded
+  (M03's anchor pointed at the wrong file, M07's plain removal was a **build
+  error** because `fmt` became unused, so the guard was neutered instead).
+  Nothing else changed: the same selection rules, the same registration order,
+  the same live down-route eligibility set, the same prices and the same wire.
 
-**What the first look at W3.12 already says.** `plugins/providerboot` (14
-files) is **not** a library that happens to sit under `plugins/` — it is a
-library that imports the **concrete** provider packages
+**W3.12 — the providerboot half of `modules/providers` (delivered).**
+`plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
+grew a gate, `kernel/modules/providers/api`. The slice was a **ports rewrite**:
+the engine asks the wire adapters (the compat family, the offline demo
+provider, the ChatGPT Responses backend) and the middleware stack for what it
+needs through `api.Ports`, the composition root binds them, and the **ratchet
+went down** — 126/13 → **123/13**, with no new allowlist entry.
+
+The middleware stack moved to the runs module (`agent.MiddlewareFromEnv`), so
+the engine reaches no plugin, and the module reaches no other module: the
+providers module owns the decisions and asks for the wire. The module's own
+model row (`api.ModelInfo`) replaced the adapter's, and the module owns the
+picker and ordering rules that used to live in the plugin. The daemon's
+behaviour is unchanged: the same selection rules, the same registration order,
+the same live down-route eligibility set, the same prices and the same wire.
+
+**How the slice was shaped (the scope note, kept).**
+`plugins/providerboot` (14 files) was **not** a library that happened to sit
+under `plugins/` — it imported the **concrete** provider packages
 (`plugins/providers/compat`, `mock`, `openairesponses`) precisely so the kernel
-never grows a kernel→plugins edge; its own doc says so. It is also typed
-against them (`chatgptModelSet.Info` is a `map[string]openairesponses.ModelInfo`)
-and it reaches into `kernel/agent` for the middleware stack. Moving it into
-`kernel/modules/providers` (L3) as-is would add **four** edges the ratchet
-refuses to grow: three **upward** ones (module → plugin) and one
-cross-module one (providers → runs, for `kernel/agent`).
+never grows a kernel→plugins edge; its own doc said so. It was also typed
+against them (`chatgptModelSet.Info` was a
+`map[string]openairesponses.ModelInfo`) and it reached into `kernel/agent` for
+the middleware stack. Moving it into `kernel/modules/providers` (L3) as-is
+would have added **four** edges the ratchet refuses to grow: three **upward**
+ones (module → plugin) and one cross-module one (providers → runs, for
+`kernel/agent`).
 
-So the slice is a **ports rewrite**, the same shape as W3.7's workflow engine
+So the slice was a **ports rewrite**, the same shape as W3.7's workflow engine
 and W3.9's reaper:
 
 - the module asks for a provider through a **port** (the composition root
   supplies `compat.Build`, the demo-echo provider and the ChatGPT adapter),
 - the module's own vocabulary replaces the adapter's types (a module-local
   model-info row instead of `openairesponses.ModelInfo`),
-- the **middleware stack stays the host's** — the module returns the raw
-  provider and the host wraps it, on the boot path and on the reload path
-  alike (the M997 drift fix wrapped both; the wrap must not fall between the
-  two),
+- the **middleware stack stays the host's** — the module asks the runs module
+  for the stack through a port and wraps the primary and every alternate with
+  it, on the boot path and on the reload path alike (the M997 drift fix
+  wrapped both; the wrap must not fall between the two),
 - the daemon's primary selection, the alternate registration and the live
   down-route eligibility set keep their behaviour exactly.
 
 `kernel/catalog` and `kernel/chatgptauth` are already in the module (W3.11),
-so the module's own vocabulary has a home to grow into.
+so the module's own vocabulary had a home to grow into.
 
-Three shapes are now proven, and the next slice picks the one that fits:
-**W3.1's** — the feature's logic moves into the module, the module's **api**
-package owns the vocabulary and the ports, the host keeps its public names as
-aliases and delegates, and the composition root injects the service. **W3.2's**
-— the module's packages move into the module's home, the placement becomes
-derived from the layer map, the allowlist moves with the edges, and the slice
-carries the bug the roadmap named for it. **W3.3's** — W3.2's shape plus the
-module's own seed data, which moves *into* the module (the plugin that held
-the bytes is gone) and the slice carries the bug the roadmap named for it.
-**W3.4's** — W3.2's shape plus a fix that needs knowledge the module cannot
-have: the module **defines the port** and the host answers it from its own
-event log, once per operation and for the whole batch. **W3.5's** — W3.2's
-shape plus a fix in the store's own write path: the state is **persisted
-first** and adopted in memory only once the write succeeded, so a failed write
-changes nothing. **W3.6's** — W3.2's shape plus a fix at a **vocabulary
-boundary**: the seat names an isolation surface, the run profile names an
-implementation, and the two are translated once where they meet.
-**W3.9's** — W3.1's shape applied to a module that already had a home: the
-scan's logic moves into the module, the module's **api** package owns the
-finding rows and the ports, the host keeps its public names as aliases and
-delegates, and the composition root injects the scanner — and the host's own
-validation (the runtime-config table the doctor uses) is what the module asks
-about a profile's overrides, so the doctor and the reaper cannot disagree.
-**W3.10's** — W3.2's shape for a module that was already several packages: the
-packages move into the module's home, the placement becomes derived, the
-allowlist moves with the edges (the module's *name* does not change, so no
-edge changes shape), and the slice pays the bill of every live reference that
-named the old paths — the parity ledger, the dead-code checker's own path
-prefix, the layer map and the documents.
+**What is next.**
+The roadmap's order continues with `modules/runs` last (what remains of
+`kernel/runtime` + `runexec` + the agent loop + resume + delegation +
+intervention; `kernel/runtime` is deleted when empty). The agents module still
+owes step 8's third item — the **overseer ops** (the overseer tool as an L6
+caller of `app` ops). The reaper and the module's api package are done
+(W3.9); the overseer ops were the part that needed the api door, and that door
+now exists.
 
 The overall target is the architecture in `20-target-architecture.md`, delivered
 incrementally to protected `main`, with runnable proof and source-aligned

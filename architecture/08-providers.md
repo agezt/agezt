@@ -2,10 +2,10 @@
 
 **Scope:** `plugins/providers/*` (anthropic, bedrock, cohere, compat, embed, google, image, ollama, openai,
 openairesponses, rerank, vertex, voice, mock, internal/httpread, internal/provopts, internal/retry,
-internal/toolname), `plugins/providerboot`, `plugins/sdk` (+ `example/greet`), `plugins/external/mcpbridge`.
+internal/toolname), `kernel/modules/providers/boot`, `plugins/sdk` (+ `example/greet`), `plugins/external/mcpbridge`.
 
 Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md) (who calls
-`providerboot.Boot`/`Reload`, AWS credential chain, daemonconfig) · [04-agent-runtime.md](04-agent-runtime.md)
+`boot.Boot`/`Reload`, AWS credential chain, daemonconfig) · [04-agent-runtime.md](04-agent-runtime.md)
 (`kernel/agent` loop, middleware, GenerateObject) · [05-governance-routing-security.md](05-governance-routing-security.md)
 (governor routing/chains/budgets, catalog, creds, sigv4, chatgptauth, netguard) ·
 [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md) (kernel/modules/extensions/plugin host, kernel/modules/extensions/mcp in-kernel MCP,
@@ -20,7 +20,7 @@ voicetool/imagetool/reranktool) · [02-cli-cmd-agt.md](02-cli-cmd-agt.md) (`agt 
 |---|---|
 | **LLM wire adapters** (`anthropic`, `openai`, `openairesponses`, `google`, `vertex`, `bedrock`, `cohere`, `ollama`) | Translate the canonical, dialect-free `agent.CompletionRequest` / `agent.CompletionResponse` (defined in `kernel/agent`) to/from one vendor wire format. Each implements `agent.Provider`; all except `openairesponses` also implement `agent.StreamingProvider`. |
 | **`compat`** | The *only* factory that turns a `catalog.Provider` entry (models.dev-derived) + model id + credential lookup into a live `agent.Provider`, dispatching on `catalog.Family`. Wraps the result so `Name()` = catalog provider id. |
-| **`providerboot`** | Daemon provider bootstrap: primary selection (`AGEZT_PROVIDER`), alternate registration (every other credentialed catalog provider + ChatGPT), middleware stack (M997), governor construction from env, and hot reload — Boot and Reload share one registration path. Also ChatGPT model discovery + catalog seeding. |
+| **`providers/boot`** | Daemon provider bootstrap: primary selection (`AGEZT_PROVIDER`), alternate registration (every other credentialed catalog provider + ChatGPT), the middleware stack (M997, asked for through a port), governor construction from env, and hot reload — Boot and Reload share one registration path. Also ChatGPT model discovery + catalog seeding. The engine of the `providers` module: it drives the wire adapters through `providers/api.Ports`, so it imports no plugin. |
 | **Shared internals** (`internal/httpread`, `retry`, `provopts`, `toolname`) | Bounded body reads (64 MiB), exponential-backoff retry honouring `Retry-After`, `Params`/`ProviderOptions` application helpers, injective tool-name sanitisation + reversal. |
 | **Non-chat modality clients** (`embed`, `image`, `rerank`, `voice`) | OpenAI-compatible (plus native ElevenLabs/Deepgram/Cartesia for voice) clients that satisfy *kernel-side seams structurally* (memory.Embedder, runtime ImageGen/Reranker/Voice) without the kernel importing them. Constructed in `cmd/agezt/main.go` from `AGEZT_EMBED_*`, `AGEZT_IMAGE_*`, `AGEZT_RERANK_*`, `AGEZT_STT_*`/`AGEZT_TTS_*`. |
 | **`mock`** | Scripted/responder offline provider. Used by ~155 test files across the repo and by the explicit `AGEZT_DEMO_ECHO=1` demo path. |
@@ -77,12 +77,12 @@ type StreamingProvider interface {
   are display-only. Providers that receive whole tool calls (Gemini, Vertex, Ollama) **synthesise** the
   Start→JSONDelta→Stop triple.
 
-### Composition helpers used by providerboot (defined in kernel/agent)
+### Composition helpers used by the boot engine (defined in kernel/agent)
 
 * `agent.Wrap(p, mws...)` (`middleware.go`) — applies `Middleware{TransformRequest, WrapComplete, WrapStream,
   SynthesizeStream}`; returns a `StreamingProvider` only if `p` streams or a middleware synthesises.
 * `agent.DefaultParamsMiddleware`, `agent.ExtractReasoningMiddleware("<think>","</think>")`,
-  `agent.SimulateStreamingMiddleware` — wired by `providerboot.Middleware`.
+  `agent.SimulateStreamingMiddleware` — wired by `agent.MiddlewareFromEnv`.
 * `agent.GenerateObject(ctx, p, req, schema, out)` (`generate.go`) — structured output for *every* provider: sets
   `JSONMode`, appends schema to system prompt, extracts/validates JSON, up to `DefaultObjectRepairs=2` repair turns.
   This is why adapters without native JSON mode still work for structured output.
@@ -427,7 +427,7 @@ Also: `IsSupportedFamily(f)` (the 10 wired families), `FirstModelID(p)` (alphabe
 | `compat_urls.go` | `compatVendorBaseURL`, `defaultBaseURL`. |
 | `compat_wrap.go` | `FirstModelID`, `namedProvider`, `namedStreamingProvider`, `wrapNamed`. |
 
-Consumers: `plugins/providerboot`, `cmd/agt` (`check_all*.go`, `check_helpers.go`, `check_json.go` — `agt check`
+Consumers: `kernel/modules/providers/boot`, `cmd/agt` (`check_all*.go`, `check_helpers.go`, `check_json.go` — `agt check`
 builds providers directly to probe them). Tests: `compat_test.go`, `compat_m230/m232/m233_test.go`, coverage.
 
 ### 3.14 `plugins/providers/embed`, `image`, `rerank`, `voice`, `mock`
@@ -447,26 +447,31 @@ builds providers directly to probe them). Tests: `compat_test.go`, `compat_m230/
 
 ---
 
-## 4. `plugins/providerboot` — catalog + keyring → live registry
+## 4. `kernel/modules/providers/boot` — catalog + keyring → live registry
 
-Imports: `internal/brand`, `kernel/agent`, `kernel/modules/providers/catalog`, `kernel/modules/providers/chatgptauth`, `kernel/governor`,
-`plugins/providers/{compat,mock,openairesponses}`. Called only from `cmd/agezt` (`main.go`, `boot_providers.go`).
-Lives under `plugins/` so the kernel never grows a kernel→plugins edge.
+Imports: `internal/brand`, `kernel/contract/llm`, `kernel/governor`, `kernel/modules/providers/{api,catalog,chatgptauth}`.
+Called only from `cmd/agezt` (`main.go`, `boot_providers.go`, `boot_providerports.go`).
+
+It is the `providers` module's ENGINE, so it imports no plugin. The wire adapters — the compat family, the
+offline mock, the ChatGPT Responses backend — and the middleware stack (which lives in the `runs` module) arrive
+through `api.Ports`, and the composition root (`cmd/agezt/boot_providerports.go`) binds them. That is what keeps
+the kernel free of a kernel→plugins edge: the module never reaches up, the root wires down. The module keeps its own
+model row (`api.ModelInfo`) and its own picker rule; the adapters map their wire shapes into it.
 
 ### Public surface
 
 | Symbol | Purpose |
 |---|---|
-| `Deps{Catalog, Lookup, BaseDir, Get, Stderr}` | Inputs. `Lookup` = daemon's chained credential resolver (vault provider-scoped → vault legacy → env → `~/.aws` → IMDSv2; built in cmd/agezt `buildAWSCredChain(catalogScopedVaultLookup(...))`). `Get` nil → `os.Getenv`; `Stderr` nil → discard. |
+| `Deps{Catalog, Lookup, BaseDir, Get, Stderr, Ports}` | Inputs. `Lookup` = daemon's chained credential resolver (vault provider-scoped → vault legacy → env → `~/.aws` → IMDSv2; built in cmd/agezt `buildAWSCredChain(catalogScopedVaultLookup(...))`). `Get` nil → `os.Getenv`; `Stderr` nil → discard. `Ports` = the wire adapters (`api.Ports`); a nil `Ports` is a **loud** wiring error, never a silent unwrapped provider. |
 | `Result{Governor, Primary, Model, Desc, AuthMode, Eligible func(id) bool}` | Output of `Boot`. |
 | `Boot(d) (*Result, error)` | Build registry + governor. |
 | `Reload(gov, d) (model string, error)` | Hot reload (`agt provider reload` / control-plane `provider_reload`). |
 | `SelectPrimary(d)` | Primary selection. |
-| `BuildFromCatalog(d, entry, modelOverride)` | compat.Build wrapper with model-placeholder logic. |
-| `Eligible(entry, lookup)` | THE eligibility predicate: supported compat family **and** `entry.HasCredentials(lookup)`. Shared by registration, vision sidecar picker, keyed-model delegation predicate, council membership (cmd/agezt). |
-| `Middleware(get) []agent.Middleware` | M997 opt-in stack. |
+| `BuildFromCatalog(d, entry, modelOverride)` | Adapter-backed construction with the model-placeholder logic. |
+| `Eligible(ports, entry, lookup)` | THE eligibility predicate: supported adapter family **and** `entry.HasCredentials(lookup)`. Shared by registration, vision sidecar picker, keyed-model delegation predicate, council membership (cmd/agezt). |
+| `api.Ports` | The seams the engine needs from the adapters: `Build`, `SupportedFamily`, `FirstModelID`, `DemoEcho`, `Wrap`, `ChatGPTDiscover`, `ChatGPTProvider`, `ChatGPTBaseURL`. It is an **interface**, so a missing adapter is a compile error at the wiring site. The M997 middleware stack enters through `Wrap`; it is built by `agent.MiddlewareFromEnv` in the `runs` module. |
 | `UnconfiguredName = "unconfigured"` | Sentinel primary name; the daemon's first-run nudge keys off `Result.Primary == UnconfiguredName`. |
-| `SeedChatGPTCatalog(store, baseDir)`, `SyncChatGPTCatalog(store, baseDir) ([]string, string)` | Keep the `chatgpt` entry in `custom.json` in step with discovery. `SyncChatGPTCatalog` is injected into the control plane as the `ChatGPTSync` hook (sign-in status poll). |
+| `SeedChatGPTCatalog(store, baseDir, ports)`, `SyncChatGPTCatalog(store, baseDir, ports) ([]string, string)` | Keep the `chatgpt` entry in `custom.json` in step with discovery. `SyncChatGPTCatalog` is injected into the control plane as the `ChatGPTSync` hook (sign-in status poll). |
 
 ### Boot flow
 
@@ -476,20 +481,20 @@ cmd/agezt main:
   credStore.Load + EncryptInPlace                        (05)
   injectConfig (Config Center → process env)             (01)
   daemonconfig.Load                                      (01)
-  providerboot.SeedChatGPTCatalog(catStore, baseDir)  ── may hit chatgpt /models
+  boot.SeedChatGPTCatalog(catStore, baseDir, ports)  ── may hit chatgpt /models
   cat := catStore.Load()
   credLookup := buildAWSCredChain(catalogScopedVaultLookup(cat, credStore.Lookup))
-  providerboot.Boot(Deps{cat, credLookup, baseDir, stderr})
+  boot.Boot(Deps{cat, credLookup, baseDir, stderr, ports})
 
 Boot:
- 1. reg := governor.NewRegistry(); mw := Middleware(d.Get)
+ 1. reg := governor.NewRegistry(); wrap := ports.Wrap(d.get)   ── the stack is built ONCE per boot cycle
  2. SelectPrimary(d):
       AGEZT_PROVIDER == "chatgpt" → buildChatGPTPrimary (error if not signed in)      AuthSubscription
       AGEZT_PROVIDER == <id>      → cat.Providers[id] (unknown id = hard error) → BuildFromCatalog
       unset && AGEZT_DEMO_ECHO=1  → mock echo provider ("[echo] <last user msg>"), model "mock"   AuthLocal
       unset                       → unconfiguredProvider{} (every Complete fails with actionable msg)
- 3. reg.Register(primary wrapped in agent.Wrap(primary, mw...), Models = catalog model ids)
- 4. registerAlternates(reg, d, primaryName, mw, replace=false):
+ 3. reg.Register(primary wrapped by wrap(...), Models = catalog model ids)
+ 4. registerAlternates(reg, d, primaryName, wrap, replace=false):
       for each catalog entry != primary with Eligible(): BuildFromCatalog(entry, "") → Register
         (AuthAPIKey, or AuthLocal when entry.Env empty); build errors skipped silently
       registerChatGPTAlternate (if signed in and not primary) → Models = discovered ids
@@ -512,7 +517,7 @@ surfaced as default — governor returns `ErrNoModelConfigured` if no route/chai
 is not in this provider's catalog (it rides a chain on another provider), a warning is printed and the placeholder is
 used for construction instead of failing boot.
 
-### Governor env knobs parsed here (`providerboot_config.go`, boot only)
+### Governor env knobs parsed here (`config.go`, boot only)
 
 `AGEZT_RATE_PER_MIN`, `AGEZT_TASK_ROUTES`, `AGEZT_TASK_ROUTE_REQUIRES`, `AGEZT_TASK_MODEL_OVERRIDES`,
 `AGEZT_TASK_MODEL_CHAINS`, `AGEZT_FALLBACK_CHAINS`, `AGEZT_DEFAULT_CHAIN`, `AGEZT_TASK_BUDGETS`, `AGEZT_MODEL_STRICT=on`,
@@ -527,7 +532,7 @@ entries count).
 
 ```
 cmd/agezt reload closure: credStore.Load(); redactor.SetSecrets(...); c := catStore.Load()
-  model := providerboot.Reload(gov, providerDeps(c, credStore, baseDir, stderr)); k.SetModel(model)
+  model := boot.Reload(gov, providerDeps(c, credStore, baseDir, stderr)); k.SetModel(model)
 
 Reload:
  1. mw := Middleware(d.Get)                      (env re-read → middleware follows live config)
@@ -574,13 +579,13 @@ Hard-coding model ids is what broke this path historically; the builtin list is 
 | File | What it does |
 |---|---|
 | `doc.go` | Package doc. |
-| `providerboot.go` | `Deps` (+`get`, `stderr`), `Result`, `Eligible`, `Middleware`, `registerAlternates` doc comment. |
-| `providerboot_register.go` | `registerAlternates`, `SelectPrimary`. |
-| `providerboot_catalog.go` | `catalogModelIDs`, `demoEchoProvider`, `BuildFromCatalog`. |
-| `providerboot_runtime.go` | `Boot`, `Reload`. |
-| `providerboot_config.go` | `govEnvConfig`, `governorConfigFromEnv`. |
-| `providerboot_set.go` | `eligibleSet` (RWMutex map) + `liveEligible sync.Map`. |
-| `providerboot_stub.go` | `UnconfiguredName`, `unconfiguredProvider`. |
+| `boot.go` | `Deps` (+`get`, `stderr`, `ports`), `Result`, `Eligible`, `registerAlternates` doc comment. |
+| `register.go` | `registerAlternates`, `SelectPrimary`. |
+| `catalog.go` | `catalogModelIDs`, `BuildFromCatalog`. |
+| `runtime.go` | `Boot`, `Reload`. |
+| `config.go` | `govEnvConfig`, `governorConfigFromEnv`. |
+| `set.go` | `eligibleSet` (RWMutex map) + `liveEligible sync.Map`. |
+| `stub.go` | `UnconfiguredName`, `unconfiguredProvider`. |
 | `chatgpt.go` | Fallback model snapshot, source labels, `chatgptCacheTTL`, `chatgptModelSet` (+`Authoritative`), memo cache, `resolveChatGPTModels`, `discoverChatGPTModels`, `chatgptCLICachePath`, `chatgptModelsFromCLICache`, `chatgptModelSetFrom`, `builtinChatGPTModelSet`, `chatgptCatalogEntry`. |
 | `chatgpt_build.go` | `chatgptTokenFn`, `newChatGPTProvider`, `buildChatGPTPrimary`, `registerChatGPTAlternate`. |
 | `chatgpt_seed.go` | `SeedChatGPTCatalog`, `SyncChatGPTCatalog`, `writeChatGPTEntry`, `sameModelIDs`. |
@@ -719,13 +724,13 @@ Tests: `main_test.go`, `mcp_m428_test.go` (panic/wedge regression), `limits_test
    `toolname_test.go`, `vision_test.go`, streaming + malformed stream, `limit_test.go` for the 64 MiB cap) and a compat
    test. Run `agt check` against a real key (it builds via `compat.Build` directly).
 8. Provider-specific auth that is not a static key (OAuth, subscription) follows the ChatGPT pattern instead: a
-   dedicated builder in `providerboot` that registers via `registerAlternates`-style code, and a catalog entry with an
+   dedicated builder in the boot engine that registers via `registerAlternates`-style code, and a catalog entry with an
    empty `npm` so the compat loop ignores it.
 
 ### Other extension points
 
 * New sampling knob → `agent.Params` + every adapter's `applyParams` (zero must stay byte-identical).
-* New middleware → `agent.Middleware` in `kernel/agent`, opt-in env in `providerboot.Middleware`
+* New middleware → `agent.Middleware` in `kernel/agent`, opt-in env in `agent.MiddlewareFromEnv`
   (new `AGEZT_*` env read in cmd/agezt must also be listed in controlplane `configEnvVars` — see 01/03 guard).
 * New modality client → mirror `embed`/`image`: stdlib-typed method satisfying a kernel seam structurally,
   constructed in `cmd/agezt/main.go`, netguard client with explicit loopback/private allowance if local servers are
