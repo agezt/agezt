@@ -59,7 +59,7 @@ only one that imports almost every other kernel subsystem (50+ internal imports,
 Imports (from `internal-deps.txt`): `internal/brand internal/strutil kernel/{acpcatalog agent approval artifact board bus cadence catalog channel
 chatgptauth configcenter convo creds datalake edict event executionprofile governor intent intervention journal market mcp memory
 netguard okr planner redact reflect roster runtime scheduler seat settings skill standing taste tenant toolbox toolforge ulid update
-warden workboard workflow worldmodel}` **and `plugins/tools/overseertool`** (layering violation — see Gotchas).
+warden workboard workflow worldmodel}`.
 Imported by: `cmd/agezt`, `cmd/agt`, `cmd/agt/{dial,haltresume,keys,whoami}`, `kernel/webui`, `sdk`.
 
 ### 1.2 Protocol (deliverable a)
@@ -876,7 +876,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `roster_status_views.go` | The host's source binding for the app's status collection (the journal, the folded run rows, the schedules, the standing orders, the board's open help requests, the reaper scan) and the app StatusService window/render adapter. |
 | `roster_escalation.go` | The operator action bus: `publishOperatorAction` and the two thin adapters that bind the host's run and governed-repair capabilities to the app layer's launchers. |
 | `roster_wake_helpers.go` | Operator force-generation and exhausted-chain lookups — moved to the app layer (`app/roster/resolve_journal.go`). |
-| `roster_resolve.go` | Resolve ports: operator help delegation and routing-chain application (`overseertool.NewKernelSource` → `ApplyRoutingChain`). |
+| `roster_resolve.go` | Resolve ports: operator help delegation and routing-chain application (the app layer's overseer source → `ApplyRoutingChain`). |
 | `roster_workspace.go` | The workspace helpers' host bindings: the filesystem and the base directory behind the app layer's workspace decisions. |
 | `roster_helpers.go` | Payload accessors `plString/plStrings`, `intNumber` — moved to the app layer with their last readers. |
 | `tool.go` | `tool_list` (+ catalog probe, rollback mode). |
@@ -1315,8 +1315,7 @@ and warns when no console password is set.
 
 ## 14. Cross-area surprises
 
-- **Layering violation**: `kernel/controlplane` imports `plugins/tools/overseertool` (`roster_escalation.go`'s repair adapter and `roster_resolve.go` call
-  `overseertool.NewKernelSource(s.k, s.baseDir)`), contradicting "kernel never imports plugins".
+- ✅ **Layering resolved (W3.8, W3.15):** `kernel/controlplane` no longer imports `plugins/tools/overseertool`. The repair engine lives in the app layer (`kernel/app/overseer`) behind the contract port (`kernel/contract/overseerapi`), and the daemon injects it; the control plane speaks the agents module's own `roster.RepairSource`.
 - **Protected delivery checkpoint after W2.19e:** authenticated GitHub reads verify open PR #701 at local ae063ff, main base e5379d8 and successful old-head CI37357717652.188 scoped files+35 removals are prepared; GitHub create_tree is denied by the required-approval/never-policy gate. No remote object/ref written. CLI HTTP401 and local read-only Git are separate constraints; unpublished snapshot final-head CI and protected merge remain open.
 - **Channel account typed binding (W2.27m, local delivery pending):** concrete set/remove results and two primary POST writer specs; ordered codec admission preserves errors/unknown args; native wrappers/manual rows removed. Selected root ports and persistence semantics unchanged. Mandatory audit success/canceled preflight now precede effects.576 native cases20:288 normal raw response/file exact+288 canceled/no effects;29 valid mutations/schema/source/native/tenant/closed-journal20/full gates. OAuth/gateway/inbox/send and protected delivery remain.
 - **Channel inventory typed binding (W2.27l, local delivery pending):** concrete DTOs/typed probes and matrices/full nested schema/GET primary read spec/shared dispatcher; native wrapper/manual row removed. Secret value absence/public emptiness/empty arrays and selected reader preserved. Native codec retains MediaCaps order; canceled preflight stops before Prepare.160 native cases20=80 raw byte-exact normal+80 changed cancellation,27 valid mutations/source/schema/root/tenant/media-order20/full Go/race gates;242 packages135 imports13 calls,133 kernel packages/2872 Go files. Remaining channel typed binding/native exit/protected publication remain.

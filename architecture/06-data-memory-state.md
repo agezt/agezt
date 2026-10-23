@@ -49,7 +49,7 @@ From `internal-deps.txt`:
 | `worldmodel` | **agent**, bus, **edict**, event, filestore | contextselect, controlplane, reflect, runtime(+accessors, runexec) |
 | `datalake` | atomicfile, ulid | controlplane, runtime(+accessors, runexec), toolreg, plugins/tools/db |
 | `artifact` | atomicfile, ulid | cmd/agezt, controlplane, runtime(+accessors, runexec), toolreg, plugins/tools/{artifacts,browser,codeexec,fetch} |
-| `board` | filestore, ulid | cmd/agezt, controlplane, restapi, selfrepair, toolreg, plugins/tools/{boardtool,overseertool} |
+| `board` | filestore, ulid | cmd/agezt, controlplane, restapi, selfrepair, toolreg, kernel/app/overseer, plugins/tools/boardtool |
 | `workboard` | filestore, **proof**, ulid | controlplane, runtime, plugins/tools/workboardtool |
 | `okr` | filestore, ulid | controlplane, runtime |
 | `taste` | filestore, ulid | controlplane, runtime |

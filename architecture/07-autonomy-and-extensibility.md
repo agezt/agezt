@@ -46,7 +46,7 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 | `scheduler` | agent, approval, bus, event, intent, ulid | controlplane, runtime (+accessors, runexec) |
 | `standing` | bus, filestore, ulid | cmd/agezt, controlplane, runtime (+accessors, runexec), builtinguardians, tools/{introspecttool, standingtool} |
 | `pulse` | agent, bus, event, state, ulid, warden | cmd/agezt, alerter, channelwire, builtinchannels |
-| `selfrepair` | brand, strutil, board, bus, event, roster, runtime, **plugins/tools/overseertool** | cmd/agezt only |
+| `selfrepair` | brand, strutil, board, bus, event, roster, runtime | cmd/agezt only |
 | `skill` | agent, bus, event, filestore | cmd/agezt, cmd/agt, contextselect, controlplane, market, runtime (+accessors, runexec), builtinmarket, builtinskills, tools/skilltool |
 | `market` | atomicfile, agent, edict, mcp, netguard, skill | cmd/agezt, cmd/agt, controlplane, runtime (+accessors), builtinmarket |
 | `plugin` | agent | cmd/agt, plugins/builtintools |
@@ -63,8 +63,12 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 | `voicetool` / `imagetool` / `reranktool` | agent, edict | runtime (+compose, runexec) |
 | `internal/testfixtures` | agent | test files only (agent, controlplane, runtime `mock_helpers_test.go`) |
 
-Layering note: `kernel/selfrepair` (and `kernel/controlplane`) import `plugins/tools/overseertool`. These are the only
-kernel→plugins imports outside tests. They break the "kernel never imports plugins" rule. See §7.6.
+Layering note: the kernel→plugins edges are **gone**. The control plane and the
+self-repair module once imported `plugins/tools/overseertool` for the repair
+engine; they now speak the agents module's own repair vocabulary
+(`roster.RepairSource`) and the daemon injects the implementation, which lives
+in the app layer (`kernel/app/overseer`) behind the contract port
+(`kernel/contract/overseerapi`). See §7.6.
 
 ---
 
@@ -153,12 +157,12 @@ There are no channel, comms, skill or persona fields. Persona = `Soul` + `Instru
 
 1. `Store.Update` restores `System` (and `ID`, `Slug`, `CreatedMS`, `Enabled`, `Retired*`) from the pre-mutation snapshot
    (`roster_store.go:160-162`, MASS-003). Mutators run under `safeCall`, which converts a panic into an error.
-2. Clients cannot set it: `controlplane/roster_crud.go:38` forces `System=false` on add. `overseertool/kernelsource.go:193,235`
+2. Clients cannot set it: `controlplane/roster_crud.go:38` forces `System=false` on add. `app/overseer/source.go:194,236`
    does the same on create and clone.
 3. No hard delete: `runtime/accessors_roster.go:113-118` and `controlplane/roster_lifecycle.go:110` refuse with
    "protected system guardian — pause or retire it".
    **`roster.Store.Remove` itself does not check `System`.** The guard lives one layer up.
-4. Agent-reachable edits and repairs refuse System targets (`overseertool/kernelsource.go:102`, `overseertool/tool.go:279`).
+4. Agent-reachable edits and repairs refuse System targets (`app/overseer/source.go:103`, `overseertool/tool.go:279`).
    Operators can still edit, pause and retire guardians.
 5. The reaper (`modules/agents/reaper/reaper.go:94`) and auto-repair (`selfrepair_filters.go:28`) skip System agents.
 
@@ -647,7 +651,7 @@ Exported surface: `WireAutoRepair(ctx, k, baseDir, mailbox Mailbox, postNotify) 
 
 | Aspect | Details |
 |---|---|
-| Persistence | No files of its own. History = journal (`doctor.auto_repair` events). Routing changes persist via overseertool → settings `AGEZT_TASK_MODEL_CHAINS`. Profile changes go to `roster.json`. |
+| Persistence | No files of its own. History = journal (`doctor.auto_repair` events). Routing changes persist via the app-layer overseer → settings `AGEZT_TASK_MODEL_CHAINS`. Profile changes go to `roster.json`. |
 | Concurrency | One coordinator goroutine (bus sub, buffer 64) plus one goroutine per dispatched candidate. `c.mu` guards inflight/last. `claim` holds `c.mu` while scanning the whole journal: O(journal) per tick. |
 | Env | `AGEZT_AUTO_REPAIR` (`off`), `AGEZT_AUTO_REPAIR_COOLDOWN` (30 m), `AGEZT_ROUTING_ROLLBACK_PROBATION` (2 h). |
 | Events | Subject `doctor.auto_repair`, kind `info`, actor `kernel`. `phase` ∈ queued, attempts_exhausted, routing_*_detected, routing_rollback_{queued,completed,failed}, completed, failed, escalation_{failed,skipped,woke,answered}, resolution_{failed,applied}, delegation_{queued,failed,woke}. Panics: `selfrepair.panic`. |
@@ -659,7 +663,7 @@ Exported surface: `WireAutoRepair(ctx, k, baseDir, mailbox Mailbox, postNotify) 
 
 | File | Contents |
 |---|---|
-| `doc.go` | Import posture (imports runtime + overseertool; runtime never imports selfrepair). |
+| `doc.go` | Import posture (imports runtime + the agents module's repair vocabulary; runtime never imports selfrepair). |
 | `selfrepair.go` | Subject/time constants, source/rollbacker/applier interfaces, `Mailbox`, `WireAutoRepair`. |
 | `selfrepair_coordinator.go` | Coordinator/candidate structs, env parsers, `run` loop, `handleTick` (scan → claim → queued → `go dispatch`). |
 | `selfrepair_claim.go` | Priority-ordered `claim` (rollback-plan injection), `claimOne` gate (in-flight / cooldown / max-attempts). |
@@ -684,7 +688,7 @@ panics, armed/disabled).
 2. `handleTick`: `ReaperScan` → `claim` → `queued` → `go dispatch`.
 3. `dispatch`:
    - exhausted or unstable mode → `autoEscalate` + `autoWakeManager`;
-   - otherwise `RollbackRouting` (if a probation plan exists) or `src.RepairAgent` (`overseertool/kernelsource_ops.go:190`);
+   - otherwise `RollbackRouting` (if a probation plan exists) or `src.RepairAgent` (`app/overseer/ops.go:192`);
    - publish `completed`, or `failed` → escalate.
 4. `autoWakeManager` → `autoRepairWakeAgent` (governed run as the parent/owner) → `autoReplyEscalation` →
    `applyAutoRepairResolution`.
@@ -696,13 +700,20 @@ panics, armed/disabled).
 - **New resolution value:** update `cleanAutoRepairResolution` (whitelist), `applyAutoRepairResolution`, and the JSON
   contract string.
 
-### 7.6 Layering violation
+### 7.6 Layering: resolved
 
-`selfrepair.go:17` and `selfrepair_dispatch.go:20` import `plugins/tools/overseertool`. This is intentional (`doc.go:9-11`)
-so the operator repair button, the overseer `op=repair`, and auto-repair share one repair engine (`NewKernelSource`,
-`RepairResult`, `ApplyRoutingChain`). There is no cycle, but it breaks the "kernel never imports plugins" law.
-`autoRepairSource` is already an interface, so cmd/agezt could inject it, or the repair engine could move into a kernel
-package.
+The edge is gone. `selfrepair` and `controlplane` used to import
+`plugins/tools/overseertool` for the repair engine — the only kernel→plugins
+imports outside tests, and a break of the "kernel never imports plugins" law.
+Today the operator repair button, the overseer `op=repair` and auto-repair
+still share ONE repair engine, but it lives in the **app layer**
+(`kernel/app/overseer`) behind the **contract port**
+(`kernel/contract/overseerapi.Source`). The daemon builds it and injects it:
+the control plane takes a `roster.RepairSource`, the self-repair module takes
+its own source interface, and the overseer tool takes the contract's port. A
+plugin may reach the contract and the platform layers and nothing else, so the
+port has to live at the bottom and the implementation has to live above the
+modules.
 
 ## 8. `kernel/scheduler` — plan DAG executor (not a timer)
 
@@ -1797,7 +1808,7 @@ Packages that read **no** env themselves: roster, standing, scheduler, market, m
 | **A standing trigger type** | 1. Add a `TriggerType` + `Validate` case.<br>2. Add a `StartX` driver using `safeFire` + `pruneToLive`, wired in `buildStandingRunner`.<br>3. Pick a subject convention for `TriggeredIntent`.<br>4. Update the controlplane and `standingtool`. |
 | **A pulse observer** | 1. Implement `Observer`: transition-based with a silent baseline; set `Hints["severity"]`, optionally `issue_key` / `actionable`.<br>2. Inject kernel data via a func type (pulse never imports runtime).<br>3. Register it in `buildPulse` (permanent) or via `AddObserver` (removable). Its subject is `pulse.observer.<Source>`.<br>4. Add its env var to `configEnvVars`. |
 | **A self-repair mode / resolution** | See §7.5. |
-| **A roster field** | 1. Add it to `Profile` (`omitempty`).<br>2. Normalize + validate.<br>3. If kernel-owned, restore it from the snapshot in `Store.Update` and strip it in `controlplane/roster_crud.go` + `overseertool/kernelsource.go`.<br>4. Extend `AutonomyRunbook` if it affects waking; extend guardian defaults/reconcile if needed.<br>5. Add it to the hand-written controlplane views. |
+| **A roster field** | 1. Add it to `Profile` (`omitempty`).<br>2. Normalize + validate.<br>3. If kernel-owned, restore it from the snapshot in `Store.Update` and strip it in `controlplane/roster_crud.go` + `app/overseer/source.go`.<br>4. Extend `AutonomyRunbook` if it affects waking; extend guardian defaults/reconcile if needed.<br>5. Add it to the hand-written controlplane views. |
 | **A plan node kind** | 1. Append a `NodeKind` and implement `Node`.<br>2. Decide whether it holds a worker slot (only `KindGate` doesn't).<br>3. Add a case in `controlplane/server_handlers_plan.go`. |
 | **A built-in skill bundle** | Add a dir under `plugins/builtinskills/<name>/` (SKILL.md + resources) plus two list lines and a test ([10](10-tools.md)). The library is considered saturated. |
 | **A market pack** | Built-in: `plugins/builtinmarket`. Remote: author a `pack.json` dir, `agt market publish` (optionally signed with `agt market keygen`), host `marketplace.json`; consumers run `agt market add <url> --pubkey <hex>` then `sync`. |
@@ -1864,7 +1875,7 @@ Packages that read **no** env themselves: roster, standing, scheduler, market, m
 
 **Structural**
 
-20. **Layering violation:** `kernel/selfrepair` and `kernel/controlplane` import `plugins/tools/overseertool` (§7.6).
+20. **Layering (resolved):** `kernel/selfrepair` and `kernel/controlplane` no longer import `plugins/tools/overseertool`; the repair engine moved to the app layer behind a contract port (§7.6).
 21. **Dead code:** `kernel/workflowexec` is an orphaned duplicate of runtime constants. `acpcatalog.ResolveLaunch` has no in-tree caller (allowlisted). `plugin.Config.HostTools` callbacks, `Reload` and progress callbacks are implemented and tested but have no production caller. The daemon keeps no `*plugin.Plugin` handle, so plugins are never `Close()`d at shutdown.
 22. **Misplaced doc comments** remain from the god-file splits across cadence, standing, scheduler, skill and acp. Godoc for those symbols is wrong; read the code.
 23. **`kernel/scheduler` is the plan DAG executor**, not a time scheduler. Time-based waking lives in `cadence` and in `standing`'s own cron. Despite a stale comment in `standing/runner.go:46-47`, standing cron does not reuse cadence.

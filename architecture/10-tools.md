@@ -85,7 +85,7 @@ Order drives the daemon `tools :` boot banner and guarantees in-process names be
 | `tools.go` | `RegisterAll()` (the ordered registration list), `splitHosts` CSV helper, `specBrowserAction` (Configure injects artifact index into `*browser.ActionTool`), `specFetch` (fetch + `AllowAll`→loopback/private, Configure injects artifact index). |
 | `tools_helpers.go` | `buildHTTP`, `buildBrowserRead`, `buildBrowserAction`, `buildWebSearch`: env → allowlist/egress flags (see §4 env table). browser.action is opt-in (`AGEZT_BROWSER_ACTIONS=1` + resolvable `browse.mjs` driver) and contributes the 10 `browser.*` verb tools as `Built.Extra`. |
 | `inject.go` | `specConfig` (SetKernel), `specArtifacts` (SetIndex), `specDB` (SetStore lake), `specCouncil`/`specConductor`/`specResearch` (SetRunner kernel), `specCodeExec` (gates on `AGEZT_SANDBOX!=off` and `codeexec.DetectRuntimes()` non-empty; PreOpen sets `cfg.ScriptRunner`; Configure → SetIndex, `Bind(bus)`, `K.SetConductorExec(ce)`). |
-| `kernelbound.go` | Zero-arg kernel-bound specs: `schedule` (binds `K.Schedules()` + roster lookup), `runs` (journal), `standing`, `skill` (Forge), `introspect` (`introspecttool.NewKernelSource`), `overseer` (`overseertool.NewKernelSource(K, BaseDir)`), `tool_forge`, `mcp`, `workflow`, `workboard`. No banner descs. |
+| `kernelbound.go` | Zero-arg kernel-bound specs: `schedule` (binds `K.Schedules()` + roster lookup), `runs` (journal), `standing`, `skill` (Forge), `introspect` (`introspecttool.NewKernelSource`), `overseer` (binds the injected `d.Overseer` port — the app-layer implementation the daemon supplies), `tool_forge`, `mcp`, `workflow`, `workboard`. No banner descs. |
 | `latebound.go` | `notify`/`send_media` (only built when `BuildDeps.NotifyTargets` non-empty; Late binds channel sender + pinned targets; send_media resolves artifact refs lazily via `K.Artifacts().Get`), `board` (always built; Late binds the ONE shared `*board.Store` + `BoardNotify`). |
 | `envgated.go` | `specShell` (warden, WorkDir=workspace root, BaseDir), `specFile` (`filetool.NewWithCheckpoint(root, baseDir)`; error = hard boot failure), `specCoding` (`AGEZT_CODING_CMD`), `specACPAgent` (`AGEZT_ACP_AGENT_CMD` OR any installed acpcatalog agent), `specHomeAssistant` (URL+TOKEN+≥1 allowlist axis), `specRemoteRun` (`AGEZT_PEERS` / `AGEZT_TENANT_PEERS`; parse error = hard boot failure). |
 | `plugins.go` | `specPlugins`/`buildPlugins`: parses `AGEZT_PLUGIN_PINS`, `AGEZT_PLUGIN_TOOLS`, `AGEZT_PLUGINS` (malformed → hard error), `plugin.Spawn`s each with a 30 s init context, prefixes tools `<prefix>.`, records M900 declared caps + `runtime.PluginInfo`, warns on unused pins/allowlists. Plugin stderr is pattern-redacted via `pluginLogLine` (`redact.New()`). A failed plugin is skipped, never fatal. |
@@ -179,7 +179,7 @@ Legend — **Cap**: Edict capability (from the tool's own `ToolDef.Capability`; 
 | `AGEZT_HOMEASSISTANT_URL`, `_TOKEN`, `_TOOL_READ`, `_TOOL_SERVICES`, `_TOOL_ALLOW_ALL_SERVICES` | `specHomeAssistant` | HA tool gating |
 | `AGEZT_PEERS`, `AGEZT_TENANT_PEERS` (JSON) | `specRemoteRun` | mesh peers |
 | `AGEZT_PLUGINS`, `AGEZT_PLUGIN_PINS`, `AGEZT_PLUGIN_TOOLS` | `buildPlugins` | external plugin host |
-| `AGEZT_OVERSEER_FLEET_LOCK` | `overseertool.fleetLockEnabled` (direct `os.Getenv`) | opt-in lock on agent-initiated edit/create/clone/delete |
+| `AGEZT_OVERSEER_FLEET_LOCK` | `app/overseer.fleetLockEnabled` (direct `os.Getenv`) | opt-in lock on agent-initiated edit/create/clone/delete |
 | `AGEZT_TASK_MODEL_CHAINS` | written by overseer repair/routing; read/written by guardian-routing via `config` tool | per-task model chains |
 | `AGEZT_CODING_TASK` | set by coding tool for the child | task handoff (no shell quoting) |
 | `AGEZT_TOOLFORGE_AUTO_PROMOTE` | daemonconfig (01 doc) | default on — tested forge drafts auto-promote |
@@ -311,23 +311,29 @@ Since W3.1 the panel, the Conductor and the research harness are implemented in 
 
 ### 5.7 Overseer (`plugins/tools/overseertool`)
 
-- `Tool{mu, src Source}`; `Bind(NewKernelSource(k, baseDir))`. `Source` is a 25-method interface (read: IsHalted/ActiveRunIDs/Agents/OpenHelp/AgentImpact; intervene: CancelRun/Halt/ResumeAll/SetAgentEnabled/SetAgentRetired/EditAgent/CreateAgent/DeleteAgent/GetAgent/CloneAgent/SearchAgents/Bulk*/WakeAgent/RepairAgent).
+- `Tool{mu, src Source}`; `Bind(src)` — the source is INJECTED by the daemon. `Source` is a 25-method interface (read: IsHalted/ActiveRunIDs/Agents/OpenHelp/AgentImpact; intervene: CancelRun/Halt/ResumeAll/SetAgentEnabled/SetAgentRetired/EditAgent/CreateAgent/DeleteAgent/GetAgent/CloneAgent/SearchAgents/Bulk*/WakeAgent/RepairAgent).
+- **The port lives in the contract layer** (`kernel/contract/overseerapi`: `Source`, `BulkResult`, `SearchFilter`) and the **implementation lives in the app layer** (`kernel/app/overseer`). The tool is a plugin, so it may reach the contract and the platform layers and nothing else — while the implementation needs the live kernel and the board store, which only the app layer may see. The tool keeps its own names as aliases.
 - **Ops:** `status, agents, runs, help, cancel, halt, resume, pause, unpause, retire, revive, impact, edit, create, delete, get, clone, search, bulk_pause, bulk_unpause, bulk_retire, bulk_revive, bulk_delete, wake, repair`.
 - **Protections:** `EditAgent` refuses `System` agents (agent path only; operator control plane can still edit) and uses PATCH semantics (only keys present in the input JSON apply; id/slug/enabled/retired/System never touched). `CreateAgent`/`CloneAgent` force `System=false`. `DeleteAgent` refuses System. `op=repair` refuses System targets in the tool (PE-006) but not in `kernelSource.RepairAgent` (operator console uses it). `AGEZT_OVERSEER_FLEET_LOCK` (opt-in) refuses agent-initiated edit/create/clone/delete (V-012).
 - **WakeAgent** refuses retired/paused/managed-sub-agents, spawns `go k.RunWith(context.Background()+agent profile+MaxCost, …)` and returns the new correlation immediately.
-- **RepairAgent** builds a brief from the reaper report (`repair.go:buildRepairBrief`), runs AS the agent, parses a closing JSON proposal (`soul, model, fallbacks, task_type, task_model_chain, config_overrides`) and applies it; routing changes update the governor's task chains live and persist `AGEZT_TASK_MODEL_CHAINS` via `settings.NewStore(baseDir).Save()` (`kernelsource_chains.go`).
+- **RepairAgent** builds a brief from the reaper report (`kernel/app/overseer/repair.go:buildRepairBrief`), runs AS the agent, parses a closing JSON proposal (`soul, model, fallbacks, task_type, task_model_chain, config_overrides`) and applies it; routing changes update the governor's task chains live and persist `AGEZT_TASK_MODEL_CHAINS` via `settings.NewStore(baseDir).Save()` (`kernel/app/overseer/chains.go`).
 - Flattened inputs: models often put profile fields at top level; `parseProfile` accepts either a `profile` object or flat fields, ignoring `overseerControlKeys`.
 - `Invoke` ignores its ctx (`_ context.Context`).
 
 | File | What it does |
 |---|---|
-| `overseer.go` | Package doc, `Source`, `BulkResult`, `SearchFilter`, `RepairResult`, `Tool`, `New`, `Bind`, `current`. |
+| `overseer.go` | Package doc, `Source`/`BulkResult`/`SearchFilter` (aliases of the contract's), `RepairResult`, `Tool`, `New`, `Bind`, `current`. |
 | `tool_contract.go` | `Definition` (op enum, schema), `input`. |
 | `tool.go` | `Invoke` op dispatcher, System guard for repair, `overseerControlKeys`. |
 | `tool_helpers.go` | `parseProfile`, flat-field detection, `cancelNote`, `agentView`, `helpView`, `cleanSlugs`, `okJSON`, `errResult`. |
-| `kernelsource.go` | `kernelSource`, `NewKernelSource`, fleet lock, read/intervene adapters, PATCH `EditAgent`, `CreateAgent`, `DeleteAgent`, `GetAgent`, `CloneAgent`. |
-| `kernelsource_ops.go` | Bulk ops, `WakeAgent`, `SearchAgents`, `RepairAgent`, `RollbackRouting`, `ApplyRoutingChain`, `OpenHelp` (reads board under `<home>/board`). |
-| `kernelsource_chains.go` | Task model chain read/set via governor (`TaskModelChainsView`/`SetTaskModelChains`), persist to settings. |
+
+The implementation that answers the port (app layer, `kernel/app/overseer`):
+
+| File | What it does |
+|---|---|
+| `source.go` | `kernelSource`, `NewKernelSource`, fleet lock, read/intervene adapters, PATCH `EditAgent`, `CreateAgent`, `DeleteAgent`, `GetAgent`, `CloneAgent`. |
+| `ops.go` | Bulk ops, `WakeAgent`, `SearchAgents`, `RepairAgent`, `RollbackRouting`, `ApplyRoutingChain`, `OpenHelp` (reads board under `<home>/board`). |
+| `chains.go` | Task model chain read/set via governor (`TaskModelChainsView`/`SetTaskModelChains`), persist to settings. |
 | `repair.go` | Repair brief builder, reaper lookups, proposal parse/clean/apply, task-type selection. |
 
 ### 5.8 Other tool packages — file tables
@@ -540,7 +546,7 @@ Adding a **guardian**: append to `guardians` (slug `guardian-*`, exactly one tri
 - **browser.action and its 10 verbs declare no `ToolDef.Capability`** — they resolve only through the edict name switch. `TestBootTools_DeclareTheirCapability` doesn't catch it because `buildRealBootTools` runs with an empty env, so browser.action is gated off in that walk. Same for any env-gated tool (coding, acp_agent, homeassistant, remote_run, notify/send_media, code_exec on a runtime-less CI box) — they happen to declare, but the guard does not prove it.
 - **Model-facing descriptions/comments drift from posture:** mcptool/acpagent/peer docs say "Ask by default"/"Ask-first", but all capabilities are Allow by default. `tool_forge`'s description says a draft goes live only when the operator approves, yet `AGEZT_TOOLFORGE_AUTO_PROMOTE` defaults ON (auto-promotes tested tools).
 - **`AGEZT_BROWSER_COOKIES` is a dead knob**: listed in controlplane `configEnvVars`, but `browser.Tool.EnableCookies` is never called; `tools_helpers.go` comments it as handled by a "browser.cookies tool" that is actually the Playwright verb.
-- **Overseer System guard is tool-path only**: `EditAgent` refuses System agents inside `kernelSource`, but `op=repair`'s refusal lives in `tool.go` only (operator path via `RepairAgent` stays open by design). Fleet lock is opt-in.
+- **Overseer System guard is tool-path only**: `EditAgent` refuses System agents inside the app-layer source (`kernel/app/overseer/source.go`), but `op=repair`'s refusal lives in `tool.go` only (operator path via `RepairAgent` stays open by design). Fleet lock is opt-in.
 - **Overseer persists settings directly** (`settings.NewStore(baseDir).Save()` for `AGEZT_TASK_MODEL_CHAINS`) from a plugin — a second writer of the settings file besides the control plane/config tool; concurrent writes are last-writer-wins.
 - **WakeAgent uses `context.Background()`** — a woken run is detached from the caller's cancellation (intended async semantics, but it bypasses any caller ctx deadline).
 - **File rollback catalog** (`appendRollbackCheckpoint`) is an unlocked load-modify-write of one JSON file; concurrent mutating file ops in parallel runs can drop a checkpoint. Checkpoints are skipped for files >8 MiB (the write then fails rather than proceeding unchecked).

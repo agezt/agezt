@@ -35,7 +35,7 @@ All source read from the working tree (disk), 2026-10-02.
 | `kernel/creds` | internal/atomicfile, internal/strutil, kernel/creds/sigv4, kernel/envscrub | cmd/agezt, cmd/agt, cmd/agt/providerlookup, kernel/modules/providers/chatgptauth, kernel/controlplane, kernel/executionprofile, plugins/tools/config |
 | `kernel/creds/sigv4` | — | cmd/agezt, kernel/creds, plugins/providers/bedrock |
 | `kernel/modules/providers/chatgptauth` | internal/brand, kernel/creds, kernel/netguard | kernel/controlplane, kernel/modules/providers/boot |
-| `kernel/settings` | internal/atomicfile | cmd/agezt, kernel/channelwire, kernel/controlplane, plugins/tools/config, plugins/tools/overseertool |
+| `kernel/settings` | internal/atomicfile | cmd/agezt, kernel/channelwire, kernel/controlplane, kernel/app/overseer, plugins/tools/config |
 | `kernel/configcenter` | kernel/approval | cmd/agt, kernel/agentgw, kernel/controlplane, kernel/runtime(+accessors, runexec) |
 | `kernel/executionprofile` | kernel/creds, kernel/warden | kernel/controlplane, plugins/tools/codeexec, plugins/tools/shell |
 | `kernel/edict` | internal/atomicfile | ~45 importers: cmd/agezt, daemonconfig, agentgw, controlplane, delegation, imagetool, market, memory, reranktool, roster, runtime(+accessors, compose, runexec), voicetool, worldmodel, and essentially every `plugins/tools/*` package |

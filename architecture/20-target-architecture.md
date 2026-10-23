@@ -129,7 +129,7 @@ Today → target mapping of the key moves:
 | 13 `jsonstore` users + `board` single-instance rule | `platform/filestore` (**done W1.3**: 0600/0700 + cross-process `Lock`; path registry not needed, see roadmap) | P5; perms; vault races |
 | `kernel/channel` + `channelwire` + `builtinchannels` | `contract/channelapi` (**done W1.1**) + `modules/channels` (supervisor, conversation store, accounts from config schema) + `plugins/channels/*` transports | Silent dead channels, panics crash daemon, history misses replies |
 | `kernel/modules/extensions/plugin` + `plugins/sdk` + dead `contract/gen` | `platform/extension` (one out-of-process protocol, kinds: tool now; channel/provider later) + delete the dead schema halves | Dead architecture |
-| `kernel/controlplane` → `plugins/tools/overseertool` | overseer logic → `modules/fleet` ops; the tool becomes a thin L6 caller of `app` | Kernel→plugins edge |
+| `kernel/controlplane` → `plugins/tools/overseertool` | ✅ **done (W3.8, W3.15)**: the repair engine lives in `kernel/app/overseer` behind the contract port `kernel/contract/overseerapi`; the tool is a thin L6 caller of the port | Kernel→plugins edge |
 
 ---
 
