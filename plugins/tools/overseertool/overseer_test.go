@@ -753,19 +753,6 @@ func TestOkJSON_MarshalErrorOverseer(t *testing.T) {
 	}
 }
 
-func TestClip_ShortAndLong(t *testing.T) {
-	if clip("short", 10) != "short" {
-		t.Error("clip should return the full string when shorter than max")
-	}
-	if clip("hello world", 5) != "hell…" {
-		t.Errorf("clip = %q, want %q", clip("hello world", 5), "hell…")
-	}
-	got := clip("ab", 1)
-	if got != "a" {
-		t.Errorf("clip(ab, 1) = %q, want %q", got, "a")
-	}
-}
-
 func TestAgentView_StateLabels(t *testing.T) {
 	enabled := agentView(agentapi.Profile{Slug: "s1", Enabled: true})
 	if enabled["state"] != "enabled" {

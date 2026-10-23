@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/app/overseer"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
@@ -22,7 +23,6 @@ import (
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
-	"github.com/agezt/agezt/plugins/tools/overseertool"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
 
@@ -59,7 +59,7 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 	// The operator's repair surface is injected (the daemon owns the wiring: the
 	// control plane asks for a repair, it does not import the tool that provides
 	// it).
-	srv.SetRepairSource(overseertool.NewKernelSource(k, dir))
+	srv.SetRepairSource(overseer.NewKernelSource(k, dir))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	if err := srv.Start(ctx); err != nil {

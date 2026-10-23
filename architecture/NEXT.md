@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.14 the roster's rows move to the contract layer, 2026-10-23
+## Current checkpoint — W3.15 the overseer's implementation moves to the app layer, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1624,6 +1624,42 @@ files, five of the seventeen mutations would have escaped.
   The overseer tool still holds the live kernel and opens the board store, so
   two of its plugin-reach edges remain — the **second half** of the slice.
 
+- W3.15 (the overseer's implementation moves to the app layer) is committed on
+  `main` the same way, and it closes that second half. W3.14 moved the tool's
+  **rows** down to the contract layer; what was left were two edges that could
+  not be closed by moving a type, because they are not types: the overseer tool
+  held the **live kernel** (`kernel/runtime`) and opened the **board store**
+  (`kernel/modules/board/board`) itself.
+  The **port** moves to the contract layer (`kernel/contract/overseerapi`: the
+  25-method `Source` plus `BulkResult` and `SearchFilter`) and the
+  **implementation** moves to the app layer (`kernel/app/overseer`: the
+  kernel-backed source, the bulk/wake/search/repair ops, the task-model chains
+  and the repair brief) — the app layer is the only one that may see both the
+  runs module and the board module. The tool keeps the tool (the op dispatcher,
+  the schema, the views) and names the contract; `toolreg.KernelDeps` gains
+  `Overseer`, and the daemon builds the implementation and injects it. That is
+  the W3.12 ports recipe applied to a plugin instead of a module.
+  The **ratchet went DOWN**: 119/13 → **117/13** — both plugin-reach edges of
+  the overseer tool are gone, and the **two stale allowlist entries were
+  deleted** ("the debt was paid, the list must shrink").
+  The permanent tests: the **identity assertion** states that the tool's
+  `Source`/`BulkResult`/`SearchFilter` ARE the contract's, as a **function
+  type** (an assignment would also accept a copy with the same method set,
+  while a function type requires identity); the **injected port** is measured
+  through the real spec — the fake the daemon supplies must reach the tool, and
+  an **unwired** port must be a clear error, not a panic and not a silent
+  success; and the **live kernel** is driven directly, because the tool's own
+  suite proves the op → port mapping with a fake and nothing proved that the
+  implementation *behind* the port still reads and steers the live system.
+  The move also **exposed a gap that is now closed**: the guardian guard, the
+  forced `System=false` on create and the PATCH semantics of the agent-facing
+  edit live in the implementation, and the tool's fake never reached them, so
+  they had **never** been measured.
+  12 mutations: 10 caught, 2 build errors recorded separately (one of them the
+  identity assertion firing at the seam; the other a first anchor whose
+  deletion left an unused variable — a build failure is not an escape, and the
+  re-anchored mutation is caught).
+
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
 grew a gate, `kernel/modules/providers/api`. The slice was a **ports rewrite**:
@@ -1672,27 +1708,21 @@ so the module's own vocabulary had a home to grow into.
 **What is next.**
 The roadmap's order continues with `modules/runs` last (what remains of
 `kernel/runtime` + `runexec` + the agent loop + resume + delegation +
-intervention; `kernel/runtime` is deleted when empty). The agents module still
-owes step 8's third item — the **overseer ops**.
+intervention; `kernel/runtime` is deleted when empty). The agents module's
+step 8 is **done**: the reaper and the module's api package (W3.9), the rows
+the tool shares with the host (W3.13, W3.14) and the tool's call path
+(W3.15).
 
-The overseer tool is the next plugin-reach edge, and it is bigger than W3.13
-and W3.14: W3.14 moved its **rows** to the contract layer (so the tool names
-the contract's profile and message instead of the roster module's), but the
-tool still holds the live kernel and opens the board store — two edges that
-can only go away when the **implementation** moves out of the plugin.
+What is left of the overseer is **not** a layer problem: the tool's operations
+are still tool-facing rather than transport-facing typed operations in the
+control plane's registry. The port is now where such an operation would sit
+(`kernel/contract/overseerapi`), and the implementation that answers it is in
+the app layer, so the operation can be exposed without moving anything else —
+that is a **surface** question, not a **layer** question.
 
-Where it goes is the whole design: the **app** layer. It is the only layer
-that can see the roster (an agents-module package), the board (a board-module
-package) and the run controls (the runtime) at once — a module may not import
-another module, and the plugin may import neither. So `kernel/app/overseer`
-would hold the typed operations over the live kernel, and the tool would call
-them the way every other agent-facing surface calls the app layer — which is
-also the roadmap's end state for this step: the overseer tool becomes an L6
-caller of typed app operations.
-
-The reaper and the module's api package are done (W3.9); the rows the tool
-shares with the host are done (W3.13, W3.14); what is left is the tool's
-call path.
+The other plugin-reach edges each need their own slice: the config tool, the
+schedule tool, the guardians, the built-in tools and the introspector still
+reach into modules they should only name.
 
 The overall target is the architecture in `20-target-architecture.md`, delivered
 incrementally to protected `main`, with runnable proof and source-aligned

@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: MIT
 
-package overseertool
+// Package overseer owns the implementation behind the overseer's supervisory
+// port — the half of the surface that reads and steers the LIVE system.
+//
+// The port itself is a contract (kernel/contract/overseerapi): the tool that
+// exposes supervision to agents is a plugin, and a plugin may only reach the
+// contract and the platform layers. The implementation needs the live kernel
+// (the runs module) and the board store (the board module), and the app layer
+// is the only layer that may see both.
+//
+// The daemon builds the source and injects it: the control plane takes it as
+// the agents module's repair source, and the overseer tool takes it as the
+// contract's port.
+package overseer
 
 import (
 	"encoding/json"
@@ -12,6 +24,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/overseerapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -32,7 +45,7 @@ type kernelSource struct {
 
 // NewKernelSource builds the kernel-backed Source. baseDir is the daemon's base
 // directory; the board lives at <baseDir>/board.
-func NewKernelSource(k *kernelruntime.Kernel, baseDir string) Source {
+func NewKernelSource(k *kernelruntime.Kernel, baseDir string) overseerapi.Source {
 	return &kernelSource{
 		k:         k,
 		baseDir:   baseDir,

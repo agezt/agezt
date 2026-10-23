@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package overseertool
+package overseer
 
 // Bulk + wake + search + repair operations on the kernelSource:
 // BulkSetEnabled + BulkSetRetired + BulkDelete + WakeAgent + SearchAgents
@@ -19,15 +19,16 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
+	"github.com/agezt/agezt/kernel/contract/overseerapi"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
-func (s *kernelSource) BulkSetEnabled(slugs []string, enabled bool) []BulkResult {
-	results := make([]BulkResult, 0, len(slugs))
+func (s *kernelSource) BulkSetEnabled(slugs []string, enabled bool) []overseerapi.BulkResult {
+	results := make([]overseerapi.BulkResult, 0, len(slugs))
 	for _, slug := range slugs {
 		_, err := s.k.SetProfileEnabled(slug, enabled)
-		r := BulkResult{Slug: slug, Success: err == nil}
+		r := overseerapi.BulkResult{Slug: slug, Success: err == nil}
 		if err != nil {
 			r.Error = err.Error()
 		}
@@ -36,8 +37,8 @@ func (s *kernelSource) BulkSetEnabled(slugs []string, enabled bool) []BulkResult
 	return results
 }
 
-func (s *kernelSource) BulkSetRetired(slugs []string, retired bool, reason string) []BulkResult {
-	results := make([]BulkResult, 0, len(slugs))
+func (s *kernelSource) BulkSetRetired(slugs []string, retired bool, reason string) []overseerapi.BulkResult {
+	results := make([]overseerapi.BulkResult, 0, len(slugs))
 	r := strings.TrimSpace(reason)
 	for _, slug := range slugs {
 		var err error
@@ -46,7 +47,7 @@ func (s *kernelSource) BulkSetRetired(slugs []string, retired bool, reason strin
 		} else {
 			_, err = s.k.SetProfileRetired(slug, retired, r)
 		}
-		res := BulkResult{Slug: slug, Success: err == nil}
+		res := overseerapi.BulkResult{Slug: slug, Success: err == nil}
 		if err != nil {
 			res.Error = err.Error()
 		}
@@ -55,11 +56,11 @@ func (s *kernelSource) BulkSetRetired(slugs []string, retired bool, reason strin
 	return results
 }
 
-func (s *kernelSource) BulkDelete(slugs []string) []BulkResult {
-	results := make([]BulkResult, 0, len(slugs))
+func (s *kernelSource) BulkDelete(slugs []string) []overseerapi.BulkResult {
+	results := make([]overseerapi.BulkResult, 0, len(slugs))
 	for _, slug := range slugs {
 		_, err := s.k.RemoveProfile(slug)
-		r := BulkResult{Slug: slug, Success: err == nil}
+		r := overseerapi.BulkResult{Slug: slug, Success: err == nil}
 		if err != nil {
 			r.Error = err.Error()
 		}
@@ -102,7 +103,7 @@ func (s *kernelSource) WakeAgent(ref, intent, reason string) (string, error) {
 	return corr, nil
 }
 
-func (s *kernelSource) SearchAgents(filter SearchFilter) []agentapi.Profile {
+func (s *kernelSource) SearchAgents(filter overseerapi.SearchFilter) []agentapi.Profile {
 	all := s.k.Roster().List()
 	if len(all) == 0 {
 		return nil
@@ -188,19 +189,19 @@ func (s *kernelSource) SearchAgents(filter SearchFilter) []agentapi.Profile {
 	return out
 }
 
-func (s *kernelSource) RepairAgent(ref, reason string) (RepairResult, error) {
+func (s *kernelSource) RepairAgent(ref, reason string) (agentapi.RepairResult, error) {
 	p, ok := s.k.Roster().Get(ref)
 	if !ok {
-		return RepairResult{}, fmt.Errorf("unknown agent: %s", ref)
+		return agentapi.RepairResult{}, fmt.Errorf("unknown agent: %s", ref)
 	}
 	if p.Retired {
-		return RepairResult{}, fmt.Errorf("agent %s is retired — revive it first", p.Slug)
+		return agentapi.RepairResult{}, fmt.Errorf("agent %s is retired — revive it first", p.Slug)
 	}
 	if !p.Enabled {
-		return RepairResult{}, fmt.Errorf("agent %s is paused", p.Slug)
+		return agentapi.RepairResult{}, fmt.Errorf("agent %s is paused", p.Slug)
 	}
 	if !p.AllowsDirectCall() {
-		return RepairResult{}, errors.New(managedSubAgentRepairHint(p))
+		return agentapi.RepairResult{}, errors.New(managedSubAgentRepairHint(p))
 	}
 	cut := time.Now().Add(-30 * 24 * time.Hour).UnixMilli()
 	report := s.k.ReaperScan(cut, cut)
@@ -219,7 +220,7 @@ func (s *kernelSource) RepairAgent(ref, reason string) (RepairResult, error) {
 		answer, err = s.k.RunWith(ctx, corr, brief)
 	}
 	if err != nil {
-		return RepairResult{}, err
+		return agentapi.RepairResult{}, err
 	}
 	var applied []string
 	var routingTaskType string
@@ -227,25 +228,25 @@ func (s *kernelSource) RepairAgent(ref, reason string) (RepairResult, error) {
 	var previousRoutingTaskModelChain []string
 	if prop := parseRepairProposal(answer); prop != nil {
 		if len(prop.TaskModelChain) > 0 && repairProposalTaskType(p, prop) == "" {
-			return RepairResult{}, fmt.Errorf("repair proposal included task_model_chain without a task_type or existing agent task type")
+			return agentapi.RepairResult{}, fmt.Errorf("repair proposal included task_model_chain without a task_type or existing agent task type")
 		}
 		_, _, uerr := s.k.UpdateProfile(p.Slug, func(dst *agentapi.Profile) {
 			applied = applyRepairProposal(dst, prop)
 		})
 		if uerr != nil {
-			return RepairResult{}, uerr
+			return agentapi.RepairResult{}, uerr
 		}
 		if len(prop.TaskModelChain) > 0 {
 			routingTaskType = repairProposalTaskType(p, prop)
 			previousRoutingTaskModelChain = s.taskModelChain(routingTaskType)
 			if err := s.setTaskModelChain(routingTaskType, prop.TaskModelChain); err != nil {
-				return RepairResult{}, err
+				return agentapi.RepairResult{}, err
 			}
 			routingTaskModelChain = append([]string(nil), prop.TaskModelChain...)
 			applied = append(applied, "task_model_chain")
 		}
 	}
-	return RepairResult{
+	return agentapi.RepairResult{
 		Agent:                         p.Slug,
 		Correlation:                   corr,
 		Applied:                       applied,
@@ -256,47 +257,47 @@ func (s *kernelSource) RepairAgent(ref, reason string) (RepairResult, error) {
 	}, nil
 }
 
-func (s *kernelSource) RollbackRouting(ref, taskType string, targetChain []string, reason string) (RepairResult, error) {
+func (s *kernelSource) RollbackRouting(ref, taskType string, targetChain []string, reason string) (agentapi.RepairResult, error) {
 	return s.ApplyRoutingChain(ref, taskType, targetChain, reason)
 }
 
-func (s *kernelSource) ApplyRoutingChain(ref, taskType string, targetChain []string, reason string) (RepairResult, error) {
+func (s *kernelSource) ApplyRoutingChain(ref, taskType string, targetChain []string, reason string) (agentapi.RepairResult, error) {
 	p, ok := s.k.Roster().Get(ref)
 	if !ok {
-		return RepairResult{}, fmt.Errorf("unknown agent: %s", ref)
+		return agentapi.RepairResult{}, fmt.Errorf("unknown agent: %s", ref)
 	}
 	if p.Retired {
-		return RepairResult{}, fmt.Errorf("agent %s is retired — revive it first", p.Slug)
+		return agentapi.RepairResult{}, fmt.Errorf("agent %s is retired — revive it first", p.Slug)
 	}
 	if !p.Enabled {
-		return RepairResult{}, fmt.Errorf("agent %s is paused", p.Slug)
+		return agentapi.RepairResult{}, fmt.Errorf("agent %s is paused", p.Slug)
 	}
 	if !p.AllowsDirectCall() {
-		return RepairResult{}, errors.New(managedSubAgentRepairHint(p))
+		return agentapi.RepairResult{}, errors.New(managedSubAgentRepairHint(p))
 	}
 	taskType = strings.TrimSpace(taskType)
 	if taskType == "" {
-		return RepairResult{}, fmt.Errorf("routing chain update requires a task type")
+		return agentapi.RepairResult{}, fmt.Errorf("routing chain update requires a task type")
 	}
 	currentChain := s.taskModelChain(taskType)
 	if len(currentChain) == 0 {
-		return RepairResult{}, fmt.Errorf("routing chain update found no current chain for task type %s", taskType)
+		return agentapi.RepairResult{}, fmt.Errorf("routing chain update found no current chain for task type %s", taskType)
 	}
 	targetChain = sanitizeTaskModelChain(targetChain)
 	if len(targetChain) == 0 {
-		return RepairResult{}, fmt.Errorf("routing chain update target chain for %s is empty", taskType)
+		return agentapi.RepairResult{}, fmt.Errorf("routing chain update target chain for %s is empty", taskType)
 	}
 	if strings.EqualFold(strings.Join(currentChain, "\n"), strings.Join(targetChain, "\n")) {
-		return RepairResult{}, fmt.Errorf("routing target for %s already matches the current chain", taskType)
+		return agentapi.RepairResult{}, fmt.Errorf("routing target for %s already matches the current chain", taskType)
 	}
 	if err := s.setTaskModelChain(taskType, targetChain); err != nil {
-		return RepairResult{}, err
+		return agentapi.RepairResult{}, err
 	}
 	text := "set " + taskType + " chain to " + strings.Join(targetChain, " → ")
 	if reason = strings.TrimSpace(reason); reason != "" {
 		text += " (" + clip(reason, 220) + ")"
 	}
-	return RepairResult{
+	return agentapi.RepairResult{
 		Agent:                         p.Slug,
 		Applied:                       []string{"task_model_chain"},
 		RoutingTaskType:               taskType,

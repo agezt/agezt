@@ -35,6 +35,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/app/overseer"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/channelwire"
 	"github.com/agezt/agezt/kernel/controlplane"
@@ -64,7 +65,6 @@ import (
 	"github.com/agezt/agezt/plugins/providers/rerank"
 	"github.com/agezt/agezt/plugins/providers/voice"
 	"github.com/agezt/agezt/plugins/tools/codeexec"
-	"github.com/agezt/agezt/plugins/tools/overseertool"
 )
 
 func main() {
@@ -860,6 +860,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 		BaseDir:         baseDir,
 		Stdout:          stdout,
 		NetguardPublish: netguardPublish(k.Bus()),
+		// The overseer tool steers the fleet through a contract port; the
+		// implementation that answers it needs the live kernel and the board
+		// store, so the daemon builds it here (the tool is a plugin and may
+		// reach neither).
+		Overseer: overseer.NewKernelSource(k, baseDir),
 	}); err != nil {
 		fmt.Fprintf(stderr, "%s: configure tools: %v\n", brand.Binary, err)
 		return 1
@@ -1128,7 +1133,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// the wiring: the control plane and the self-repair module both ASK for a
 	// repair, and neither imports the tool that provides it — an adapter
 	// reaches the module's vocabulary, never a plugin (archcheck's P5).
-	repairSource := overseertool.NewKernelSource(k, baseDir)
+	repairSource := overseer.NewKernelSource(k, baseDir)
 	srv.SetRepairSource(repairSource)
 	if err := srv.Start(ctx); err != nil {
 		fmt.Fprintf(stderr, "%s: start control plane: %v\n", brand.Binary, err)

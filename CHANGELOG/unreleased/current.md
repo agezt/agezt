@@ -827,6 +827,16 @@ This file holds the active `[Unreleased]` working set.
   error (`... of type agentapi.Profile` instead of `... of type
   roster.Profile`); the rejection itself is unchanged.
 
+- **The overseer tool no longer reaches into the kernel.** The tool that lets
+  an agent supervise the fleet used to hold the live kernel and open the board
+  store itself. It cannot any more: a tool plugin may reach the contract and
+  the platform layers and nothing else. The port it steers the fleet through
+  now lives in the contract layer, the implementation that answers it lives in
+  the app layer, and the daemon builds it and injects it. The tool keeps its
+  name and its operations, and the daemon's behaviour is unchanged — the same
+  guardian guards, the same fleet lock, the same repair engine, the same
+  board.
+
 - **The council, the conductor and the research tools no longer reach into the
   kernel for a type.** The rows the reasoning module produces — a consensus,
   a transcript, a cited report — move to the contract layer

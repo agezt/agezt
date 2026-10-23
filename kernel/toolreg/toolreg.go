@@ -25,6 +25,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/overseerapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
@@ -60,6 +61,12 @@ type KernelDeps struct {
 	// netguard.blocked event (M109). Supplied by the daemon; Configure wires it
 	// into every Netguard spec's instances that implement NetguardAware.
 	NetguardPublish func(toolName string) func(ip, reason string)
+	// Overseer is the supervisory port the overseer tool steers the fleet
+	// through. The tool is a plugin, so it may not reach the live kernel or the
+	// board store itself; the daemon supplies the app-layer implementation that
+	// answers the contract (kernel/contract/overseerapi). Nil when unwired —
+	// the tool then reports that instead of dereferencing nil.
+	Overseer overseerapi.Source
 }
 
 // LateDeps carries the dependencies for the ConfigureLate phase — wiring that

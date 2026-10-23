@@ -142,9 +142,11 @@ Verified with `go list` (internal edges only):
   `kernel/runtime` (14), `internal/atomicfile` (14), `kernel/platform/filestore` (13).
 - **Highest fan-out:** `cmd/agezt` (59 internal imports), `kernel/controlplane` (49), `kernel/runtime` (48),
   `plugins/builtintools` (36), `cmd/agt` (33), `plugins/builtinchannels` (29).
-- **The kernel never imports `plugins/*` — with one exception.** `kernel/controlplane` (`roster_repair.go`,
-  `roster_wake.go`) and `kernel/selfrepair` import `plugins/tools/overseertool`. These are the only
-  kernel→plugins edges in the graph.
+- **The kernel never imports `plugins/*`.** The last exception was the overseer tool: `kernel/controlplane`
+  (`roster_repair.go`, `roster_wake.go`) and `kernel/selfrepair` imported `plugins/tools/overseertool`.
+  Those edges are **gone** — the repair engine moved to the app layer
+  (`kernel/app/overseer`) behind a contract port (`kernel/contract/overseerapi`),
+  and the daemon injects it.
 - **Other upward or unusual edges:**
   - `kernel/toolreg` → `kernel/runtime`.
   - `kernel/governor`, `kernel/modules/knowledge/memory` and `kernel/modules/knowledge/worldmodel` → `kernel/agent` (the data layer depends on the loop types). Since W1.1 the types they use live in `kernel/contract/{llm,toolapi}` (aliased in `kernel/agent`); W1.2 repointed the importers: `governor` and `worldmodel` no longer import the loop; `memory` still does, for `GenerateObject` only (a model-gateway helper, moves with `platform/modelgw`).
@@ -480,7 +482,7 @@ backlog. Details and file references are in the linked documents.
 ### 9.3 Drift, dead code, docs
 | Finding | Area |
 |---|---|
-| Kernel→plugins edge: `kernel/controlplane`, `kernel/selfrepair` → `plugins/tools/overseertool`. Module→adapter edge: `kernel/runtime` (+`accessors`, `runexec`) → `kernel/agentgw`. All 200 forbidden edges are now tracked by `tools/archcheck` (ratchet). | §4.1, [20](20-target-architecture.md) |
+| ✅ **Resolved (W3.8, W3.15):** the kernel→plugins edge `kernel/controlplane`, `kernel/selfrepair` → `plugins/tools/overseertool` is gone — the repair engine moved to the app layer behind a contract port. Module→adapter edge: `kernel/runtime` (+`accessors`, `runexec`) → `kernel/agentgw`. All forbidden edges are now tracked by `tools/archcheck` (ratchet). | §4.1, [20](20-target-architecture.md) |
 | ✅ **Removed (W0.5):** `kernel/workflowexec` and `kernel/runtime/compose` had no importers. Open: `acpcatalog.ResolveLaunch` and plugin host callbacks/`Reload` have no production caller. `runtime/accessors` is constructed but unused. `delegation` tool types duplicate runtime's. `ErrHalted`/`ErrNoVisionModel` are each defined twice. | [04](04-agent-runtime.md) |
 | ✅ **Fixed (W0.5):** `contract/gen` CI drift check could never fail (gitignored output + `git diff`); it now builds the package. Open: `sdkparity` only checks report freshness. Fixtures are self-validating only. | [12](12-sdks-and-contract.md) |
 | `designsystem.test.ts` scans only `components/`, not `features/`. 9 frontend modules are used only by their tests. Monaco loads from a CDN the CSP blocks. Fake file tree on 404. Observe badge never clears. | [11](11-frontend-console.md) |
