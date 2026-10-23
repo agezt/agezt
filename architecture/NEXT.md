@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.35 the ACP bridge's two reaches become a platform client and a port, 2026-10-24
+## Current checkpoint — W3.36 the channel factory layer moves down to the platform layer, 2026-10-24
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2392,6 +2392,56 @@ files, five of the seventeen mutations would have escaped.
   comparison) and were caught after the test was strengthened; one produced a
   **compile error** and was re-authored; and the last two are measured by the
   **archcheck gate** rather than by a test.
+
+- W3.36 (the channel factory layer moves down to the platform layer) is
+  committed on `main` the same way. The **channel factory layer** — the seam
+  between the daemon and the channel plugins, where each channel *kind*
+  registers a `Factory` and the daemon walks the manifest registry calling
+  `BuildKind` per kind — was classified as a module
+  (`kernel/channelwire`, L3, module "channels"), so the built-in channels
+  plugin could not name it without an allowlist entry. It was never a
+  module's business: it depends only on the contract layer (the channel
+  vocabulary, the briefing row) and the platform layer (the bus, the
+  settings), it carries no domain knowledge beyond the vocabulary itself,
+  and it is the wiring between the daemon — which owns the bus, the shared
+  inbound handler and the configuration — and the channel plugins that
+  build their transports against it.
+  So it moved **down** to the platform layer
+  (`kernel/platform/channelwire`, with `git mv`, so the history follows the
+  code), and the explicit L3 rule in `layers.json` was deleted — it would
+  have matched nothing and the "channels" module would have been left empty.
+  The **ratchet went DOWN**: 83/13 → **82/13** — the `plugin-reach` edge is
+  gone and the **stale allowlist entry was deleted**.
+  This is the same shape as W3.35 (the ACP client): a package that mixes an
+  **adapter's** job with **infrastructure's** job ends up unreachable from
+  the plugins that legitimately need the infrastructure half — the fix is to
+  split the layer, not to allowlist the reach.
+  A pure move must not change a behaviour, so the slice's proof is about
+  the reach and about the behaviours the move could have broken: the
+  registration, the lookup, the built instances, the brief sink on the
+  instance, the config getter and the **account label** the factory
+  receives.
+  The slice found a **measurement gap of its own**: the mutation "the
+  factory hands over the empty account label instead of the labelled one"
+  **survived** the first round, because no test built a *labelled* account
+  through `BuildKind` — and the label is what tells a factory WHICH account
+  it is building (its config getter reads `<base>#<label>`), so a factory
+  that always saw the empty label would build the default instance's
+  configuration twice and the labelled account would never be configured at
+  all. The test now pins a labelled account of a real kind
+  (`AGEZT_TELEGRAM_TOKEN#bot2`) and asserts which label each factory call
+  saw.
+  8 mutations: 8 caught — one survived the first round (the label) and was
+  caught after the test was strengthened; one was **ineffective** (it added
+  the layer rule where the first-match rule already won, so the
+  classification never changed) and was re-authored; and the two gate-gated
+  ones say what only the gate can say — that the **classification** is the
+  rule, and that the gate still sees this plugin's reaches at all.
+  The remaining plugin-reach edges are the **registration seams**: the
+  built-in tools reach `kernel/toolreg` (the tool registry), `kernel/runtime`
+  (the live kernel) and the plugin host. Those are the hard ones to invert:
+  the plugin *registers into* a registry the daemon owns, which is a
+  dependency in the opposite direction of the one the rule forbids.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

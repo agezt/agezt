@@ -3,7 +3,7 @@
 **Scope:** the 25 transport packages under `plugins/channels/` (which back 34 registered channel *kinds*),
 the cross-channel invariant test at `plugins/channels/inbound_failclosed_test.go`, and the registration/factory
 layer `plugins/builtinchannels`. The vocabulary they implement (`kernel/channel`) and the factory wiring
-(`kernel/channelwire`) are owned by [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md); they are
+(`kernel/platform/channelwire`) are owned by [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md); they are
 summarized here only as far as needed to explain the contract. Daemon boot order is in
 [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md); the Channels wizard / OAuth / account HTTP handlers are in
 [03-control-plane-and-http.md](03-control-plane-and-http.md); the `notify` / `send_media` agent tools are in
@@ -31,7 +31,7 @@ summarized here only as far as needed to explain the contract. Daemon boot order
 
 ---
 
-## 1. The contract (`kernel/channel`, `kernel/channelwire`)
+## 1. The contract (`kernel/channel`) and the factory layer (`kernel/platform/channelwire`)
 
 ### 1.1 `channel.Channel` (kernel/channel/channel.go:97)
 
@@ -76,7 +76,7 @@ De-facto invariants every implementation follows (not enforced by the type syste
 | `Manifest`, `MediaCaps`, `RegisterManifest`, `Manifests` (sorted by Display), `LookupManifest` | registry.go | Process-global manifest registry (RWMutex — VULN-002 fix: boot writes race control-plane reads). |
 | `SetLive`/`IsLive`, `SetLiveInstances`/`IsLiveInstance`, `InstanceKey(kind,label)` | registry.go | Which kinds / `kind#label` instances actually started this process (Channels page "live" vs "restart to start"). |
 
-### 1.4 `kernel/channelwire` (factory layer)
+### 1.4 `kernel/platform/channelwire` (factory layer)
 
 - `Deps{Ctx, Bus, Handler, Get func(baseEnv) string, Label}` — the **entire** kernel surface a factory may touch.
   `Get` = `settings.FieldGetter(label)` → `os.Getenv(base + "#" + label)` (or bare `base` for the default account).
@@ -226,7 +226,7 @@ are uniformly `kernel/bus`, `kernel/channel`, `kernel/event`, `kernel/ulid`; plu
 **Purpose.** The single place that describes every shipped channel (manifests) and binds each kind to a
 `channelwire.Factory`. Kept out of the kernel (kernel never imports plugins) and out of the transport packages
 (which stay transport-only). Imported only by `cmd/agezt` (`main.go:294`); it imports `internal/brand`,
-`kernel/channel`, `kernel/channelwire`, `kernel/contract/pulseapi` and all 25 transport packages.
+`kernel/channel`, `kernel/platform/channelwire`, `kernel/contract/pulseapi` and all 25 transport packages.
 
 **Key API.** `RegisterAll()` — idempotent; `channel.RegisterManifest` for each of the 34 `manifests`, then 34
 `channelwire.Register(kind, factory)` calls. Everything else is unexported.
