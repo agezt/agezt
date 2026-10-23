@@ -73,6 +73,7 @@ Layering notes:
 - `kernel/toolreg` imports `kernel/runtime`. This is an upward edge: a "registry" sits above the composition root because `Spec.PreOpen` mutates `*runtime.Config` and `KernelDeps` carries `*runtime.Kernel`. It is not a cycle (runtime does not import toolreg).
 - The kernel never imports `plugins/*`. Plugins are injected through interfaces: `toolforge.Runner`, `CodeExecutor`, `Voice`, `ImageGen`, `Reranker`, `memory.Embedder`, and the closures `VisionModel`, `ModelAvailable`, `CouncilMembers`.
 - `kernel/runtime` imports `kernel/modules/reasoning/api` — the reasoning module's vocabulary and ports — but not the module's implementation. A module may import another module's api package and nothing else (P5), so the reasoning module is injected into the kernel by the composition root (`cmd/agezt`) instead of being imported from it. `kernel/modules/reasoning` itself imports only the contract layer (`llm`, `toolapi`, `types`), `kernel/event` and `kernel/ulid` (W3.1).
+- `kernel/runtime` imports `kernel/modules/agents/api` — the agents module's vocabulary and ports — but not the module's implementation, for the same reason: the reaper is injected into the kernel by the composition root (`cmd/agezt`) with `SetReaperScanner`. `kernel/modules/agents/reaper` itself imports only its own module (`agents/api`, `agents/roster`), `kernel/event` and `internal/brand` (W3.9).
 
 ---
 
@@ -493,6 +494,25 @@ Behaviour is unchanged: the same error texts ("council: question required", "res
 
 ---
 
+### 4.14 kernel/modules/agents — the agents module's reaper (W3.9)
+
+The reaper — the read-only DETECTION half of the fleet's health scan — moved out of `kernel/runtime` into the agents module. The module holds **no kernel of its own**: it has no journal, no roster, no artifact index and no provider. Everything it reads arrives through its ports, so every fact it judges is the host's own fact.
+
+| Layer | Package | What it holds |
+|---|---|---|
+| vocabulary (L3, `…/api`) | `kernel/modules/agents/api` | The finding rows (`ReaperAgent`, `DegradedAgent`, `MisconfiguredAgent`, `RetryPressureAgent`, `RoutingPressureAgent`, `RoutingForcedAgent` with the three phase names kept as aliases, `RoutingUnstableAgent`, `ReaperReport` + `Empty()`), the rows the host and the module share (`ConfigIssue`, `Binding`), the module's ports (`ReaperPorts`) and its surface (`ReaperScanner`). A module may import another module's **api** package and nothing else (P5), so this is the only door between the module and the host. |
+| implementation (L3) | `kernel/modules/agents/reaper` | `reaper.go` (the scan: dead agents, degraded agents, misconfigured agents, stale artifacts), `reaper_health.go` (the health classification: degraded, misconfigured, the trigger bindings and the hierarchy references), `reaper_routing.go` (the routing and retry pressure + their env knobs), `reaper_probation.go` (the forced-chain probation, the exhausted and the unstable chains), `reaper_helpers.go` (the pure payload helpers). |
+
+Wiring, in one line each:
+
+- The **host** (`kernel/runtime/reaper.go`) keeps its public names as aliases of the module's vocabulary and holds the module as `api.ReaperScanner`. It cannot import the module's implementation (L3 → L3 across modules), so it talks to it through the api package only.
+- The **ports** (`api.ReaperPorts`): `Journal` (the durable journal — the scan reads the task, retry, provider-fallback and doctor events from it), `Profiles` (the fleet), `RuntimeConfigIssues` (the host's own runtime-override validation — the doctor and the reaper cannot disagree about what is valid), `StaleArtifacts` (the artifact index), `TaskModelChain` (the governor's live routing), `Schedules` and `Standing` (the trigger bindings).
+- The **composition root** (`cmd/agezt/main_toolinvoker.go: openAppKernel`) builds the scanner over the host's ports and injects it with `SetReaperScanner`. The primary kernel and every tenant kernel go through the same function, so both are wired.
+
+Behaviour is unchanged: the same findings, the same rows, the same wire JSON and the same env knobs (`AGEZT_ROUTING_PRESSURE_THRESHOLD/WINDOW`, `AGEZT_RETRY_PRESSURE_THRESHOLD/WINDOW`, `AGEZT_ROUTING_FORCE_PROBATION`, `AGEZT_ROUTING_UNSTABLE_THRESHOLD/WINDOW`). A kernel whose composition root forgot the wiring answers with an **empty report** — the module is injected, not built inside the runtime — so the daemon's wiring is covered by a permanent test in `cmd/agezt`.
+
+---
+
 ## 5. Run events emitted (this area)
 
 Subjects for loop events are `agent.<actor>.<suffix>`, with actor `agent-<corr>` (root) or `subagent-<childCorr>`. Every event carries `CorrelationID`. Ephemeral events use `bus.PublishStreaming` (not journaled).
@@ -637,7 +657,7 @@ Root package, grouped by concern; every non-test file is listed.
 | `workflowrun.go`, `workflowrun_graph.go`, `workflowrun_node.go`, `workflowrun_helpers.go`, `workflowtestnode.go` | Workflow execution: `RunWorkflow` (step cap 256), graph walk, per-node retry/timeout (`execNodeWithReliability`), node kinds (llm, tool, code_exec, pipeline, subflow depth ≤3, conditions/items), `TestWorkflowNode`. |
 | `workflowdraft.go` | Workflow copilot `DraftWorkflow`/`RefineWorkflow` (one repair round; returned unsaved), `autoLayoutWorkflow`. |
 | `braindistill.go` | `DistillBrain`, `DistillProfile` wrappers over kernel/memory. |
-| `reaper.go`, `reaper_scan.go`, `reaper_health.go`, `reaper_routing.go`, `reaper_probation.go`, `reaper_helpers.go` | Read-only staleness and health scans (`ReaperScan`): idle/degraded/misconfigured agents, routing/retry pressure, forced probation, stale artifacts. Env knobs `AGEZT_ROUTING_PRESSURE_THRESHOLD/WINDOW`, `AGEZT_RETRY_PRESSURE_THRESHOLD/WINDOW`, `AGEZT_ROUTING_FORCE_PROBATION`, `AGEZT_ROUTING_UNSTABLE_THRESHOLD/WINDOW`. The finding rows are declared once, here: the three forced phases are one row (`RoutingForcedAgent`, with the three phase names kept as aliases) and every field is always present, so the daemon's scan publishes the findings as they are (W2.63). |
+| `reaper.go` | The runtime's face of the agents module's reaper: the `ReaperAgent`/`DegradedAgent`/`MisconfiguredAgent`/`RetryPressureAgent`/`RoutingPressureAgent`/`RoutingForcedAgent`/`RoutingUnstableAgent`/`ReaperReport` aliases of the module's vocabulary, `SetReaperScanner` (the composition root injects the module's scanner), `ReaperPorts` (the host's ports: the journal, the fleet, the runtime-config validation, the artifact index, the governor's live model chains, the trigger bindings) and the delegating `ReaperScan`. The scan itself lives in `kernel/modules/agents/reaper` (W3.9) and the finding rows are declared once, in the module's api package: the three forced phases are one row (`RoutingForcedAgent`, with the three phase names kept as aliases) and every field is always present, so the daemon's scan publishes the findings as they are (W2.63, W3.9). |
 
 Tests (59 files), grouped:
 - Loop integration and approvals: `runtime_test.go`, `approval_test.go`, `autoapprove_test.go`.

@@ -188,8 +188,8 @@ cannot display or set them).
 | `AGEZT_FILE_ROOT` | `kernel/webui/files_route.go` | Files browser root |
 | `AGEZT_FILE_ROOT_MAX_BYTES` | `kernel/webui/files_route.go` | |
 | `AGEZT_FILE_ROOT_MAX_ENTRIES` | `kernel/webui/files_route.go` | |
-| `AGEZT_RETRY_PRESSURE_THRESHOLD` | `kernel/runtime/reaper.go` | |
-| `AGEZT_RETRY_PRESSURE_WINDOW` | `kernel/runtime/reaper.go` | |
+| `AGEZT_RETRY_PRESSURE_THRESHOLD` | `kernel/modules/agents/reaper/reaper_routing.go` | |
+| `AGEZT_RETRY_PRESSURE_WINDOW` | `kernel/modules/agents/reaper/reaper_routing.go` | |
 | `AGEZT_ANTHROPIC_THINKING_BUDGET` | `plugins/providers/compat/compat.go` | |
 | `AGEZT_GOOGLE_THINKING_BUDGET` | `plugins/providers/compat/compat.go` | |
 | `AGEZT_GOOGLE_VERTEX_THINKING_BUDGET` | `plugins/providers/compat/compat.go` | |

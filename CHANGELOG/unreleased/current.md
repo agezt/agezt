@@ -1118,6 +1118,27 @@ This file holds the active `[Unreleased]` working set.
   `source:"cron"`, an event fire as `source:"event"` with the matched subject.
   A run nobody triggered is still `"manual"`.
 
+- **The reaper has a home, and the module has a door.** The fleet's read-only
+  health scan moved out of `kernel/runtime` into the agents module
+  (`kernel/modules/agents/reaper`), and the findings it publishes are declared
+  once, in the module's vocabulary (`kernel/modules/agents/api`).
+
+  The scan's answers do not change: the same dead, degraded, misconfigured,
+  retry-pressure, routing-pressure, forced-probation and unstable findings, the
+  same stale-artifact totals, the same wire JSON and the same env knobs. What
+  changes is where the facts come from. The module holds no kernel of its own,
+  so the journal, the fleet, the runtime-override validation, the artifact
+  index, the governor's live model chains and the trigger bindings all arrive
+  through the host's ports — and the host's own runtime-config validation stays
+  the one the doctor uses, so the doctor and the reaper cannot disagree about
+  what a valid override is.
+
+  The kernel cannot import a module's implementation (a module may import
+  another module's api package and nothing else), so the daemon builds the
+  scanner over the kernel's own ports and injects it — exactly as it already
+  does for the reasoning module. A kernel whose composition root forgot the
+  wiring answers with an empty report instead of a scan.
+
 - **The agents module has a home, and a guardian's lowered ceiling survives the
   boot.** The durable agent identity (roster) and the auto-repair coordinator
   (selfrepair) now live in `kernel/modules/agents`; nothing else about them
