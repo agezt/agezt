@@ -28,7 +28,7 @@ voicetool/imagetool/reranktool) · [02-cli-cmd-agt.md](02-cli-cmd-agt.md) (`agt 
 | **`plugins/external/mcpbridge`** | Standalone binary: an agezt plugin (plugin protocol on its stdio) that fronts one MCP server (JSON-RPC 2.0 over stdio or legacy HTTP+SSE). Predates and is superseded for most uses by the in-kernel `kernel/modules/extensions/mcp`. |
 
 Layering: everything here sits **above** the kernel. `plugins/providers/*` import `kernel/agent` (types),
-`kernel/modules/providers/catalog` (compat only), `kernel/netguard` (embed, voice, openairesponses), `kernel/creds/sigv4` (bedrock).
+`kernel/contract/catalogapi` (the catalog's rows — compat only), `kernel/netguard` (embed, voice, openairesponses), `kernel/creds/sigv4` (bedrock).
 The kernel never imports any of these packages (verified: only `cmd/agezt`, `cmd/agt` and test files import them).
 `plugins/sdk` and `plugins/external/mcpbridge` import nothing from the kernel except `mcpbridge → kernel/netguard`.
 
@@ -715,7 +715,7 @@ Tests: `main_test.go`, `mcp_m428_test.go` (panic/wedge regression), `limits_test
    `data:` URLs); `toolname.RestoreCalls(resp, toolname.Reverse(req.Tools))`.
 4. Optionally implement `CompleteStream` with `retry.DoHTTPStream`; emit chunks per the `agent.Chunk` contract and
    return the same assembled response; synthesise Start/Delta/Stop if tool calls arrive whole.
-5. Add a `catalog.Family` constant + `FamilyFromNPM` case (`kernel/modules/providers/catalog`, 05), and
+5. Add a `catalogapi.Family` constant + `FamilyFromNPM` case (`kernel/contract/catalogapi`, 05), and
    `FamilySupportsNativeJSONMode` if applicable.
 6. Wire it in `compat.Build` (new `case`, credentials via `providerEnvLookup` for multi-credential vendors, always
    `return wrapNamed(p.ID, x)`) and add the family to `compat.IsSupportedFamily`; add a `defaultBaseURL` if it has one
