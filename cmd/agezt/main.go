@@ -59,7 +59,6 @@ import (
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/builtinchannels"
 	"github.com/agezt/agezt/plugins/builtinguardians"
-	"github.com/agezt/agezt/plugins/builtinmarket"
 	"github.com/agezt/agezt/plugins/providers/embed"
 	"github.com/agezt/agezt/plugins/providers/image"
 	"github.com/agezt/agezt/plugins/providers/rerank"
@@ -1517,7 +1516,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 				// cache (Phase 2); the Syncer fetches them under netguard.
 				marketStore := market.NewStore(baseDir)
 				k.SetMarket(market.NewManager(market.Config{
-					Library: market.NewCompositeLibrary(builtinmarket.New(), marketStore),
+					Library: builtinMarketLibrary(marketStore),
 					Store:   marketStore,
 					Skills:  fg,
 					MCP:     k,

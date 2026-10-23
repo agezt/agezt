@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/market"
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/plugins/builtinmarket"
 )
 
@@ -18,7 +19,7 @@ func newTestMarketManager(t *testing.T) *market.Manager {
 	t.Helper()
 	store := market.NewStore(t.TempDir())
 	return market.NewManager(market.Config{
-		Library: market.NewCompositeLibrary(builtinmarket.New(), store),
+		Library: market.NewCompositeLibrary(builtinmarket.New(skill.NewBuiltins()), store),
 		Store:   store,
 	})
 }

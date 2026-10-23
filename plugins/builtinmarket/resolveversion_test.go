@@ -5,6 +5,8 @@ package builtinmarket
 import (
 	"strings"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // An explicit version is an exact request — the same rule the composite
@@ -15,7 +17,7 @@ import (
 // BEFORE the composite library's remote branches run, so a version a synced
 // marketplace genuinely has would be shadowed by the substitution.
 func TestResolvePackHonorsExplicitVersion(t *testing.T) {
-	l := New()
+	l := New(skill.NewBuiltins())
 	if len(l.packs) == 0 {
 		t.Fatal("no packs to resolve")
 	}

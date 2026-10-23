@@ -15,6 +15,7 @@ package skill
 import (
 	"fmt"
 
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/modules/skills/builtins"
 )
 
@@ -34,14 +35,24 @@ type Seeded struct {
 	Created bool
 }
 
-// BuiltinNames returns the embedded built-in bundle directory names.
-func BuiltinNames() []string { return builtins.Names() }
+// builtins is the module's implementation of the contract's Builtins port —
+// the built-in bundles baked into the binary.
+type builtinsImpl struct{}
 
-// BuiltinBundle returns one embedded built-in bundle's raw SKILL.md plus its
+// NewBuiltins returns the port through which the built-in bundles are read.
+// The bytes are an implementation (they live in the embedded builtins
+// package), so a plugin that publishes them — the marketplace's built-in
+// catalogue — reads them through this port instead of naming the module.
+func NewBuiltins() skillapi.Builtins { return builtinsImpl{} }
+
+// Names returns the embedded built-in bundle directory names.
+func (builtinsImpl) Names() []string { return builtins.Names() }
+
+// Bundle returns one embedded built-in bundle's raw SKILL.md plus its
 // resource files (relative path → bytes), so other packagers — e.g. the
 // marketplace's built-in "Official" seed — can wrap a built-in skill without
 // duplicating its bytes.
-func BuiltinBundle(name string) (skillMD []byte, resources map[string][]byte, err error) {
+func (builtinsImpl) Bundle(name string) (skillMD []byte, resources map[string][]byte, err error) {
 	return builtins.Bundle(name)
 }
 

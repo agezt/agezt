@@ -964,6 +964,19 @@ This file holds the active `[Unreleased]` working set.
   skill is written to `skills.json` and read back by key, so a renamed field
   would have silently dropped it.
 
+- **The marketplace's built-in catalogue reads the embedded bundles through the
+  contract's port.** The built-in "Official" catalogue — the packs built from
+  the skill bundles baked into the binary — is a plugin, so it may only name
+  the contract and the platform layers. The SKILL.md parser it reads them
+  with is pure and now lives in the contract layer, next to the skill rows;
+  the module keeps its name as a delegation, so the `agt skill import` CLI
+  and the marketplace cannot drift apart. The embedded bytes stay in the
+  skills module, and the daemon hands them to the catalogue through a port.
+  The catalogue's behaviour is unchanged — a bundle that cannot be read, or
+  whose SKILL.md does not parse, is still skipped rather than fatal — and the
+  daemon's own wiring is now measured: the catalogue the daemon serves must
+  not be empty.
+
 - **The council, the conductor and the research tools no longer reach into the
   kernel for a type.** The rows the reasoning module produces — a consensus,
   a transcript, a cited report — move to the contract layer

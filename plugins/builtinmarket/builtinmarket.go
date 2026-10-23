@@ -5,15 +5,15 @@
 // curated combo packs that add an MCP server + CLI-tool requirements — into
 // installable market.Packs. It is always present and works offline; remote
 // marketplaces (Phase 2) layer on top. It references the embedded bundle bytes
-// via skill.BuiltinBundle rather than duplicating them.
+// via the contract's built-ins port rather than duplicating them.
 package builtinmarket
 
 import (
 	"fmt"
 
 	"github.com/agezt/agezt/kernel/contract/mcpapi"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/market"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // MarketplaceName is the built-in catalogue's stable name.
@@ -148,14 +148,14 @@ type Library struct {
 
 // New builds the Official library from the embedded skill bundles + combos.
 // Best-effort per bundle: a bundle that fails to read is skipped, not fatal.
-func New() *Library {
+func New(builtins skillapi.Builtins) *Library {
 	l := &Library{index: map[string]market.Pack{}, featured: map[string]bool{}}
-	for _, name := range skill.BuiltinNames() {
-		md, res, err := skill.BuiltinBundle(name)
+	for _, name := range builtins.Names() {
+		md, res, err := builtins.Bundle(name)
 		if err != nil {
 			continue
 		}
-		parsed, perr := skill.ParseSkillMD(md)
+		parsed, perr := skillapi.ParseSkillMD(md)
 		if perr != nil {
 			continue
 		}
@@ -172,7 +172,7 @@ func New() *Library {
 	for _, c := range combos {
 		var packSkills []market.PackSkill
 		for _, name := range c.skills {
-			md, res, err := skill.BuiltinBundle(name)
+			md, res, err := builtins.Bundle(name)
 			if err != nil {
 				continue
 			}
