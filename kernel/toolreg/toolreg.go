@@ -25,6 +25,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/configapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/introspectapi"
 	"github.com/agezt/agezt/kernel/contract/overseerapi"
@@ -95,6 +96,12 @@ type KernelDeps struct {
 	// port (kernel/contract/workboardapi). Nil when unwired — the tool then
 	// reports that instead of dereferencing nil.
 	Workboard workboardapi.Store
+	// Config is the live-daemon port the config tool writes through — the
+	// agent-scoped override path and the live-apply reload. The tool is a
+	// plugin, so it may not name the runtime; the daemon supplies it through
+	// the contract's port (kernel/contract/configapi). Nil when unwired — the
+	// tool then reports that instead of dereferencing nil.
+	Config configapi.Kernel
 }
 
 // LateDeps carries the dependencies for the ConfigureLate phase — wiring that

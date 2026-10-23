@@ -5,12 +5,12 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/plugins/providers/mock"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func invoke(t *testing.T, tool *Tool, args map[string]any) (string, bool) {
@@ -153,34 +153,64 @@ func TestConfigTool_GetSetBuiltin(t *testing.T) {
 	}
 }
 
+// errReloadFailed is the failure the live-apply path reports.
+var errReloadFailed = errors.New("provider rebuild failed")
+
+// fakePort answers the config tool's port by hand — the tool is a plugin, so
+// its live daemon arrives as the contract's port, and a test can answer that
+// port without a daemon at all.
+type fakePort struct {
+	profiles   map[string]agentapi.Profile
+	overrides  map[string]string
+	reloads    int
+	reloadErr  error
+	profileErr error
+}
+
+func newFakePort() *fakePort {
+	return &fakePort{profiles: map[string]agentapi.Profile{}}
+}
+
+func (f *fakePort) UpdateProfile(ref string, mutate func(*agentapi.Profile)) (agentapi.Profile, bool, error) {
+	if f.profileErr != nil {
+		return agentapi.Profile{}, false, f.profileErr
+	}
+	p, ok := f.profiles[ref]
+	if !ok {
+		return agentapi.Profile{}, false, nil
+	}
+	mutate(&p)
+	f.profiles[ref] = p
+	return p, true, nil
+}
+
+func (f *fakePort) Reload() error {
+	f.reloads++
+	return f.reloadErr
+}
+
+func (f *fakePort) AgentConfigOverrides(context.Context) map[string]string {
+	out := make(map[string]string, len(f.overrides))
+	for k, v := range f.overrides {
+		out[k] = v
+	}
+	return out
+}
+
 func TestConfigTool_AgentScopedOverrides(t *testing.T) {
 	dir := t.TempDir()
 	tool := New(dir)
-	k, err := kernelruntime.Open(kernelruntime.Config{
-		BaseDir:  dir,
-		Provider: mock.New(mock.FinalText("ok")),
-	})
-	if err != nil {
-		t.Fatalf("runtime open: %v", err)
-	}
-	t.Cleanup(func() { k.Close() })
-	tool.SetKernel(k)
-
-	if _, err := k.AddProfile(agentapi.Profile{
+	port := newFakePort()
+	port.profiles["researcher"] = agentapi.Profile{
 		Slug: "researcher",
 		ConfigOverrides: map[string]string{
 			"AGEZT_MODEL": "agent-model",
 		},
-	}); err != nil {
-		t.Fatalf("add profile: %v", err)
 	}
+	port.overrides = map[string]string{"AGEZT_MODEL": "agent-model"}
+	tool.SetKernel(port)
 
-	ctx := kernelruntime.WithAgentProfile(context.Background(), agentapi.Profile{
-		Slug: "researcher",
-		ConfigOverrides: map[string]string{
-			"AGEZT_MODEL": "agent-model",
-		},
-	})
+	ctx := toolapi.WithAgent(context.Background(), "researcher")
 
 	raw, _ := json.Marshal(map[string]any{"op": "get", "name": "AGEZT_MODEL"})
 	res, err := tool.Invoke(ctx, raw)
@@ -196,7 +226,7 @@ func TestConfigTool_AgentScopedOverrides(t *testing.T) {
 	if err != nil || res.IsError {
 		t.Fatalf("set agent override: out=%q err=%v isErr=%v", res.Output, err, res.IsError)
 	}
-	got, ok := k.Roster().Get("researcher")
+	got, ok := port.profiles["researcher"]
 	if !ok || got.ConfigOverrides["AGEZT_MODEL"] != "agent-next" {
 		t.Fatalf("profile override not saved: %+v ok=%v", got.ConfigOverrides, ok)
 	}
@@ -206,7 +236,7 @@ func TestConfigTool_AgentScopedOverrides(t *testing.T) {
 	if err != nil || res.IsError {
 		t.Fatalf("clear agent override: out=%q err=%v isErr=%v", res.Output, err, res.IsError)
 	}
-	got, _ = k.Roster().Get("researcher")
+	got, _ = port.profiles["researcher"]
 	if _, ok := got.ConfigOverrides["AGEZT_MODEL"]; ok {
 		t.Fatalf("profile override should be cleared: %+v", got.ConfigOverrides)
 	}
