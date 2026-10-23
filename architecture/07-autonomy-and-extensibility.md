@@ -47,7 +47,7 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 | `standing` | bus, filestore, ulid | cmd/agezt, app/{roster, standing}, controlplane, runtime (+accessors, runexec) |
 | `pulse` | agent, bus, event, state, ulid, warden | cmd/agezt, alerter, channelwire, builtinchannels |
 | `selfrepair` | brand, strutil, board, bus, event, roster, runtime | cmd/agezt only |
-| `skill` | agent, bus, contract/skillapi, event, filestore | cmd/agezt, cmd/agt, contextselect, controlplane, market, runtime (+accessors, runexec), builtinmarket, builtinskills |
+| `skill` | agent, bus, contract/skillapi, event, filestore | cmd/agezt, cmd/agt, contextselect, controlplane, market, runtime (+accessors, runexec), builtinskills |
 | `market` | atomicfile, agent, edict, mcp, netguard, skill | cmd/agezt, cmd/agt, controlplane, runtime (+accessors), builtinmarket |
 | `plugin` | agent | cmd/agt, plugins/builtintools |
 | `mcp` | filestore, netguard, ulid | controlplane, market, runtime (+compose) |
@@ -1030,7 +1030,7 @@ The `Syncer` uses a netguard-wrapped client: loopback and private addresses are 
 | Concurrency | `Store` uses an RWMutex. `Manager` takes no lock, so two installs can interleave. |
 | Env | None. The `market` tool is always registered. |
 | Events | The package itself publishes nothing. `controlplane/market.go` streams `market.install.progress` / `market.uninstall.progress` frames (not journaled). It journals `market.pack.installed`, `market.pack.uninstalled`, `market.source.added`, `market.source.removed`, `market.synced` as ad-hoc kinds with no `kinds.go` constants. **Installs made by an agent through the tool emit no `market.pack.installed`.** |
-| Wiring | `main.go:1505-1514` builds `NewManager` over `NewCompositeLibrary(builtinmarket.New(), store)`, with the Forge for skills, the Kernel for MCP, `VerifyPack(p,"")`, and `NewSyncer()`. The tool is registered in `runtime/compose.go:273-276` and bound lazily. |
+| Wiring | `main.go` builds `NewManager` over `builtinMarketLibrary(store)` (which is `NewCompositeLibrary(builtinmarket.New(skill.NewBuiltins()), store)`), with the Forge for skills, the Kernel for MCP, `VerifyPack(p,"")`, and `NewSyncer()`. The tool is registered in `runtime/compose.go:273-276` and bound lazily. |
 | Agent tool `market` | Capability `market.install`. Ops: `search` (≤25 results), `show`, `install`. |
 
 **Files**

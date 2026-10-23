@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.25 the skill's rows move to the contract layer, 2026-10-23
+## Current checkpoint — W3.26 the marketplace's built-in catalogue reads the bundles through the contract's port, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1943,6 +1943,39 @@ files, five of the seventeen mutations would have escaped.
   the gap was closed and it was run again; and one was an **equivalent
   mutation** (a rule rewrite that changed nothing for any input),
   re-authored into a real disagreement and run again.
+
+- W3.26 (the marketplace's built-in catalogue reads the bundles through the
+  contract's port) is committed on `main` the same way. The built-in
+  "Official" catalogue — the packs built from the skill bundles **baked into
+  the binary** — is a plugin, and it reached into the skills module for two
+  things: the module's public seam for the embedded bundles, and the
+  **SKILL.md parser** it reads them with. The parser is pure, so it moves to
+  the contract layer with the rest of the skill rows, and the module keeps
+  its name as a **delegation** — one parser, so the module's own CLI
+  (`agt skill import`) and the marketplace cannot drift apart. The embedded
+  **bytes** stay in the module; the plugin reads them through the contract's
+  **port** (`skillapi.Builtins`), which the module implements
+  (`skill.NewBuiltins()`).
+  The **ratchet went DOWN**: 98/13 → **97/13** — the plugin-reach edge is
+  gone, and the **stale allowlist entry was deleted**.
+  The interesting gap was the **wiring**: the catalogue is built over
+  whatever the port hands over, so a daemon that handed over nothing would
+  offer **no packs at all** — and every test that builds the plugin by hand
+  would still be green. So the daemon's wiring was pulled out of `runDaemon`
+  into a named function (`cmd/agezt/marketlib.go`) and **measured there**.
+  The parser's errors are measured **by which error they are** — a parser
+  that rejects a document for the *wrong* reason still rejects it.
+  The permanent tests: the parser's own tests **moved with the parser** to
+  the contract, a test that the module's delegation and the contract's agree
+  on every document, the module's built-ins implementation IS the contract's
+  port, the **plugin reading through the port** (a bundle that cannot be read
+  — or whose SKILL.md does not parse — is **skipped**, not fatal), and the
+  **wiring**.
+  18 mutations: 18 caught — one **survived the first round** (the parser's
+  "no frontmatter" check removed: the test only asserted that *an* error came
+  back), so the error is now measured and it was run again; two were **first
+  authored as build errors** (a compile error is not a catch) and were
+  re-authored so the code still compiles.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
