@@ -9,20 +9,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/reasoningapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
 type covRunner struct {
 	gotCorr    string
 	gotQ       string
-	gotMembers []runtime.CouncilMember
+	gotMembers []reasoningapi.CouncilMember
 	gotRounds  int
-	res        runtime.CouncilResult
+	res        reasoningapi.CouncilResult
 	err        error
 }
 
-func (f *covRunner) Council(_ context.Context, corr, q string, members []runtime.CouncilMember, rounds int) (runtime.CouncilResult, error) {
+func (f *covRunner) Council(_ context.Context, corr, q string, members []reasoningapi.CouncilMember, rounds int) (reasoningapi.CouncilResult, error) {
 	f.gotCorr = corr
 	f.gotQ = q
 	f.gotMembers = members
@@ -94,14 +94,14 @@ func TestCouncilCoverageInvokeValidation(t *testing.T) {
 }
 
 func TestCouncilCoverageInvokeHappyPath(t *testing.T) {
-	r := &covRunner{res: runtime.CouncilResult{
+	r := &covRunner{res: reasoningapi.CouncilResult{
 		Consensus: "yes",
 		Dissent:   "no",
-		Members:   []runtime.CouncilMember{{Seat: "s1", Model: "m1"}, {Seat: "s2", Model: "m2"}},
+		Members:   []reasoningapi.CouncilMember{{Seat: "s1", Model: "m1"}, {Seat: "s2", Model: "m2"}},
 		Rounds:    2,
 		AsOf:      "2026-07-07",
 		Brief:     "summary",
-		Opinions: []runtime.Opinion{
+		Opinions: []reasoningapi.Opinion{
 			{Seat: "s1", Model: "m1", Round: 1, Text: "ok"},
 			{Seat: "s2", Model: "m2", Round: 2, Text: "", Error: "timeout"},
 		},

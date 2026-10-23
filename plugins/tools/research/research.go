@@ -18,15 +18,16 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/reasoningapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
-// Runner is the slice of *runtime.Kernel the tool needs — an interface so the
-// tool is decoupled and unit-testable with a fake.
+// Runner is the slice of the host the tool needs — an interface so the tool is
+// decoupled and unit-testable with a fake. The rows it names live in the
+// contract layer: a plugin may only reach the contract and the platform.
 type Runner interface {
-	Research(ctx context.Context, corr, question string, opts runtime.ResearchOptions) (runtime.ResearchReport, error)
+	Research(ctx context.Context, corr, question string, opts reasoningapi.ResearchOptions) (reasoningapi.ResearchReport, error)
 }
 
 // Tool is the `research` implementation of toolapi.Tool.
@@ -96,7 +97,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 	}
 	corr := toolapi.CorrelationFromContext(ctx)
 	verify := in.Verify == nil || *in.Verify // default on
-	report, err := t.runner.Research(ctx, corr, in.Question, runtime.ResearchOptions{
+	report, err := t.runner.Research(ctx, corr, in.Question, reasoningapi.ResearchOptions{
 		MaxSubQuestions: in.MaxSubQuestions,
 		MaxSources:      in.MaxSources,
 		Verify:          verify,
@@ -128,18 +129,18 @@ type researchSourceOut struct {
 }
 
 type researchOut struct {
-	Question     string                  `json:"question"`
-	SubQuestions []string                `json:"sub_questions"`
-	Sources      []researchSourceOut     `json:"sources"`
-	Markdown     string                  `json:"markdown"`
-	Claims       []runtime.ResearchClaim `json:"claims,omitempty"`
-	Confidence   float64                 `json:"confidence"`
-	CitedSources int                     `json:"cited_sources"`
-	Verified     bool                    `json:"verified"`
-	Notes        []string                `json:"notes,omitempty"`
+	Question     string                       `json:"question"`
+	SubQuestions []string                     `json:"sub_questions"`
+	Sources      []researchSourceOut          `json:"sources"`
+	Markdown     string                       `json:"markdown"`
+	Claims       []reasoningapi.ResearchClaim `json:"claims,omitempty"`
+	Confidence   float64                      `json:"confidence"`
+	CitedSources int                          `json:"cited_sources"`
+	Verified     bool                         `json:"verified"`
+	Notes        []string                     `json:"notes,omitempty"`
 }
 
-func researchOutput(r runtime.ResearchReport) researchOut {
+func researchOutput(r reasoningapi.ResearchReport) researchOut {
 	srcs := make([]researchSourceOut, 0, len(r.Sources))
 	for _, s := range r.Sources {
 		srcs = append(srcs, researchSourceOut{ID: s.ID, URL: s.URL, Title: s.Title, Rank: s.Rank})

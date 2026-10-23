@@ -9,12 +9,19 @@
 // aliases of these types, so the host's public API is unchanged while the
 // implementation lives in the module.
 //
+// The ROWS live in the contract layer (kernel/contract/reasoningapi), because
+// the agent-facing tools that expose them are plugins and a plugin may only
+// reach the contract and the platform layers. This package re-exports them
+// under the module's names, so the module, the host and the tools all speak
+// the same types — and no tool has to reach into the kernel for a type.
+//
 // Rules of the road:
 //
 //   - Types and pure helpers only. No logic that needs a provider, a tool
 //     invoker or an event bus — those are the implementation package's ports.
 //   - One type, one home. A row both the host and the module name is declared
-//     here exactly once; the other side aliases it.
+//     exactly once — in the contract package — and every other side aliases
+//     it.
 package api
 
 import (
@@ -24,124 +31,52 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/reasoningapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/event"
 )
 
 // CouncilMember is one seat: a human-readable label and the model id it speaks
 // with (a bare model id the Governor routes to its serving provider).
-type CouncilMember = types.CouncilMember
+type CouncilMember = reasoningapi.CouncilMember
 
 // Opinion is one member's position in one round.
-type Opinion = types.Opinion
+type Opinion = reasoningapi.Opinion
 
 // CouncilResult is the outcome: every recorded opinion, plus the chair's
 // synthesized consensus (and any noted dissent).
-type CouncilResult struct {
-	Question  string          `json:"question"`
-	Members   []CouncilMember `json:"members"`
-	Rounds    int             `json:"rounds"`
-	Opinions  []Opinion       `json:"opinions"`
-	Consensus string          `json:"consensus"`
-	Dissent   string          `json:"dissent,omitempty"`
-	// AsOf is the date the council convened on (YYYY-MM-DD), given to every seat so
-	// the panel reasons with a current clock instead of a stale training cutoff.
-	AsOf string `json:"as_of,omitempty"`
-	// Brief is the dated web research brief that grounded the panel (empty when web
-	// search is disabled, has no tool, or returned nothing). Surfaced so an operator
-	// can see what evidence the council was given.
-	Brief string `json:"brief,omitempty"`
-}
+type CouncilResult = reasoningapi.CouncilResult
 
 // ConductorConfig parameterises one Conduct run.
-type ConductorConfig struct {
-	Task      string
-	Thinker   string // model id or "@chain"; empty → filled from default members
-	Worker    string
-	Verifier  string
-	MaxRounds int  // worker↔verifier retry cap; <=0 → the default rounds
-	Plan      bool // run the optional instruction-tailoring call first
-}
+type ConductorConfig = reasoningapi.ConductorConfig
 
 // ConductorStep is one recorded action in the transcript.
-type ConductorStep struct {
-	Round   int            `json:"round"`
-	Role    string         `json:"role"` // thinker|worker|verifier
-	Model   string         `json:"model"`
-	Text    string         `json:"text,omitempty"`
-	Verdict string         `json:"verdict,omitempty"` // verifier: pass|fail
-	Reason  string         `json:"reason,omitempty"`
-	Exec    *ConductorExec `json:"exec,omitempty"`
-	Error   string         `json:"error,omitempty"`
-}
+type ConductorStep = reasoningapi.ConductorStep
 
 // ConductorExec records a verifier code-execution.
-type ConductorExec struct {
-	Ran      bool   `json:"ran"`
-	OK       bool   `json:"ok"`
-	Language string `json:"language,omitempty"`
-	Output   string `json:"output,omitempty"`
-}
+type ConductorExec = reasoningapi.ConductorExec
 
 // ConductorResult is the outcome of a Conduct run.
-type ConductorResult struct {
-	Task   string            `json:"task"`
-	Roles  map[string]string `json:"roles"` // role→resolved model label
-	Plan   string            `json:"plan,omitempty"`
-	Rounds int               `json:"rounds"` // worker attempts made
-	Steps  []ConductorStep   `json:"steps"`
-	Answer string            `json:"answer"`
-	Passed bool              `json:"passed"`
-}
+type ConductorResult = reasoningapi.ConductorResult
 
 // ResearchSource is one gathered, hashed web source. ID is the citation token
 // ("S1", "S2", ...) the synthesis must reference; Hash marks the fetched text so
 // a later re-run can detect that a source changed.
-type ResearchSource struct {
-	ID    string `json:"id"`
-	URL   string `json:"url"`
-	Title string `json:"title"`
-	Text  string `json:"text,omitempty"`
-	Hash  string `json:"hash"`
-	Rank  int    `json:"rank"`
-}
+type ResearchSource = reasoningapi.ResearchSource
 
 // ResearchClaim is one factual claim lifted from the synthesis and put through
 // adversarial verification (Faz 2). Verdict is "supported", "refuted", or
 // "uncertain"; SourceIDs are the [S#] tokens the claim cited.
-type ResearchClaim struct {
-	Text      string   `json:"text"`
-	SourceIDs []string `json:"source_ids"`
-	Verdict   string   `json:"verdict"`
-	Note      string   `json:"note,omitempty"`
-}
+type ResearchClaim = reasoningapi.ResearchClaim
 
 // ResearchReport is the outcome of a deep-research run: the sub-questions it
 // explored, the sources it grounded on, the cited synthesis, the verified
 // claims, and a confidence derived from verification (or citation coverage when
 // verification is off).
-type ResearchReport struct {
-	Question     string           `json:"question"`
-	SubQuestions []string         `json:"sub_questions"`
-	Sources      []ResearchSource `json:"sources"`
-	Markdown     string           `json:"markdown"`
-	Claims       []ResearchClaim  `json:"claims,omitempty"`
-	Confidence   float64          `json:"confidence"`
-	CitedSources int              `json:"cited_sources"`
-	Verified     bool             `json:"verified"`
-	Notes        []string         `json:"notes,omitempty"`
-}
+type ResearchReport = reasoningapi.ResearchReport
 
 // ResearchOptions tunes a research run. Zero values fall back to safe defaults.
-type ResearchOptions struct {
-	Model           string // optional provider model override; empty => routed default
-	MaxSubQuestions int    // default 3, capped at 8
-	ResultsPerQuery int    // default 4
-	MaxSources      int    // default 8, capped at 20
-	Verify          bool   // run the adversarial claim-verification pass (Faz 2)
-	MaxVerifyClaims int    // default 6, capped at 12; only meaningful when Verify
-}
+type ResearchOptions = reasoningapi.ResearchOptions
 
 // Dependencies are the module's ports: everything the reasoning module needs
 // from its host.

@@ -98,10 +98,8 @@ plugin-reach plugins/tools/artifacts -> kernel/modules/artifacts/artifact
 plugin-reach plugins/tools/boardtool -> kernel/modules/board/board
 plugin-reach plugins/tools/browser -> kernel/modules/artifacts/artifact
 plugin-reach plugins/tools/codeexec -> kernel/modules/artifacts/artifact
-plugin-reach plugins/tools/conductor -> kernel/runtime
 plugin-reach plugins/tools/config -> kernel/modules/agents/roster
 plugin-reach plugins/tools/config -> kernel/runtime
-plugin-reach plugins/tools/council -> kernel/runtime
 plugin-reach plugins/tools/db -> kernel/modules/artifacts/datalake
 plugin-reach plugins/tools/fetch -> kernel/modules/artifacts/artifact
 plugin-reach plugins/tools/forgetool -> kernel/modules/extensions/toolforge
@@ -112,7 +110,6 @@ plugin-reach plugins/tools/mcptool -> kernel/modules/extensions/mcp
 plugin-reach plugins/tools/overseertool -> kernel/modules/board/board
 plugin-reach plugins/tools/overseertool -> kernel/modules/agents/roster
 plugin-reach plugins/tools/overseertool -> kernel/runtime
-plugin-reach plugins/tools/research -> kernel/runtime
 plugin-reach plugins/tools/schedule -> kernel/cadence
 plugin-reach plugins/tools/schedule -> kernel/modules/agents/roster
 plugin-reach plugins/tools/skilltool -> kernel/modules/skills/skill
