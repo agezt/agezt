@@ -3,6 +3,7 @@
 package overseer
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
@@ -94,6 +95,9 @@ func TestManagedSubAgentRepairHint_WithParent(t *testing.T) {
 	if hint == "" {
 		t.Fatal("hint should not be empty")
 	}
+	if !strings.Contains(hint, "parent") {
+		t.Fatalf("hint = %q, want it to name the parent agent", hint)
+	}
 }
 
 func TestManagedSubAgentRepairHint_WithOwnerOnly(t *testing.T) {
@@ -101,12 +105,18 @@ func TestManagedSubAgentRepairHint_WithOwnerOnly(t *testing.T) {
 	if hint == "" {
 		t.Fatal("hint should not be empty")
 	}
+	if !strings.Contains(hint, "owner") {
+		t.Fatalf("hint = %q, want it to name the owner agent", hint)
+	}
 }
 
 func TestManagedSubAgentRepairHint_NoManager(t *testing.T) {
 	hint := managedSubAgentRepairHint(agentapi.Profile{Slug: "sub"})
 	if hint == "" {
 		t.Fatal("hint should not be empty even without manager")
+	}
+	if !strings.Contains(hint, "managed sub-agent") {
+		t.Fatalf("hint = %q, want it to say the agent is managed", hint)
 	}
 }
 

@@ -308,10 +308,7 @@ func (s *kernelSource) ApplyRoutingChain(ref, taskType string, targetChain []str
 }
 
 func managedSubAgentRepairHint(p agentapi.Profile) string {
-	manager := strings.TrimSpace(p.ParentAgent)
-	if manager == "" {
-		manager = strings.TrimSpace(p.OwnerAgent)
-	}
+	manager := p.ManagedBy()
 	hint := "route repair through its parent/owner agent"
 	if manager != "" {
 		hint = "request repair through " + manager

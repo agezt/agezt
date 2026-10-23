@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.16 three tools name the artifact row where it lives, 2026-10-23
+## Current checkpoint — W3.17 two more tools name the agent profile where it lives, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1684,6 +1684,25 @@ files, five of the seventeen mutations would have escaped.
   comparison would also have accepted a copy with the same fields.
   9 mutations: 8 caught, 1 build error recorded separately (the module's row
   stops being the contract's row — the identity assertion fires at the seam).
+
+- W3.17 (two more tools name the agent profile where it lives) is committed on
+  `main` the same way. The config tool and the schedule tool each reached into
+  the roster module for **one type** — the agent profile — and nothing else.
+  That row moved to the contract layer in W3.14, so the module only kept an
+  alias; the two tools named the alias, and the alias lives in a module's
+  implementation package. Now they name `agentapi.Profile`.
+  The slice also found what the rename exposed: **the "who manages this
+  agent?" rule was implemented twice** — once in the schedule tool, once in the
+  overseer's repair surface — with the same trigger and the same lookup. The
+  rule moved to the row it is about: `agentapi.Profile.ManagedBy()`. The two
+  surfaces keep their own wording, but they now agree on **who** manages the
+  agent.
+  The **ratchet went DOWN**: 114/13 → **112/13** — both plugin-reach edges are
+  gone, and the **two stale allowlist entries were deleted**.
+  9 mutations: 9 caught, 0 build errors — and the last one is the honest proof
+  of the slice's shape: a plugin that names the module's alias instead of the
+  contract row compiles and behaves **identically**, so only the layer rule can
+  tell the difference.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

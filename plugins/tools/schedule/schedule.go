@@ -16,9 +16,9 @@ import (
 	"encoding/json"
 
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // store is the subset of *cadence.Store the tool needs — an interface so tests
@@ -42,7 +42,7 @@ type Tool struct {
 	mu          sync.RWMutex
 	store       store
 	now         func() time.Time
-	agentLookup func(string) (roster.Profile, bool)
+	agentLookup func(string) (agentapi.Profile, bool)
 }
 
 // New returns an unbound schedule tool (no store until Bind).
@@ -57,13 +57,13 @@ func (t *Tool) Bind(s *cadence.Store) {
 	}
 }
 
-func (t *Tool) BindAgentLookup(lookup func(string) (roster.Profile, bool)) {
+func (t *Tool) BindAgentLookup(lookup func(string) (agentapi.Profile, bool)) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.agentLookup = lookup
 }
 
-func (t *Tool) current() (store, func() time.Time, func(string) (roster.Profile, bool)) {
+func (t *Tool) current() (store, func() time.Time, func(string) (agentapi.Profile, bool)) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	now := t.now
@@ -166,7 +166,7 @@ func scheduleBindsActingAgent(in input) bool {
 	return target == "agent" || target == cadence.TargetIntent || target == cadence.TargetWorkflow || target == cadence.TargetTool
 }
 
-func validateActingAgentSchedule(ctx context.Context, in input, lookup func(string) (roster.Profile, bool)) toolapi.Result {
+func validateActingAgentSchedule(ctx context.Context, in input, lookup func(string) (agentapi.Profile, bool)) toolapi.Result {
 	if lookup == nil || !scheduleBindsActingAgent(in) {
 		return toolapi.Result{}
 	}
@@ -190,11 +190,8 @@ func validateActingAgentSchedule(ctx context.Context, in input, lookup func(stri
 	return toolapi.Result{}
 }
 
-func managedSubAgentScheduleHint(p roster.Profile) string {
-	manager := strings.TrimSpace(p.ParentAgent)
-	if manager == "" {
-		manager = strings.TrimSpace(p.OwnerAgent)
-	}
+func managedSubAgentScheduleHint(p agentapi.Profile) string {
+	manager := p.ManagedBy()
 	hint := "route the work through its parent/owner agent"
 	if manager != "" {
 		hint = "wake " + manager + " or delegate through it"

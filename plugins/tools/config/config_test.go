@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -166,7 +166,7 @@ func TestConfigTool_AgentScopedOverrides(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 	tool.SetKernel(k)
 
-	if _, err := k.AddProfile(roster.Profile{
+	if _, err := k.AddProfile(agentapi.Profile{
 		Slug: "researcher",
 		ConfigOverrides: map[string]string{
 			"AGEZT_MODEL": "agent-model",
@@ -175,7 +175,7 @@ func TestConfigTool_AgentScopedOverrides(t *testing.T) {
 		t.Fatalf("add profile: %v", err)
 	}
 
-	ctx := kernelruntime.WithAgentProfile(context.Background(), roster.Profile{
+	ctx := kernelruntime.WithAgentProfile(context.Background(), agentapi.Profile{
 		Slug: "researcher",
 		ConfigOverrides: map[string]string{
 			"AGEZT_MODEL": "agent-model",

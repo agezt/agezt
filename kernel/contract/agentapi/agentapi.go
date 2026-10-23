@@ -206,6 +206,20 @@ func (p Profile) Kind() string {
 	return "custom"
 }
 
+// ManagedBy returns the slug of the agent that manages this one — its parent
+// agent, or its owner when there is no parent. Empty when nothing manages it.
+//
+// One rule, one home: the schedule tool and the overseer's repair surface
+// both answer "who manages this agent?", and two copies of the answer are two
+// copies that can drift apart. The rule belongs to the row it is about.
+func (p Profile) ManagedBy() string {
+	manager := strings.TrimSpace(p.ParentAgent)
+	if manager == "" {
+		manager = strings.TrimSpace(p.OwnerAgent)
+	}
+	return manager
+}
+
 // AllowsDirectCall returns the direct-call policy, defaulting old profiles to
 // true so existing roster files don't become inaccessible when the field is
 // introduced.

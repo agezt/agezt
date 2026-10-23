@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 func TestScheduleCoverageBindAndCurrent(t *testing.T) {
@@ -37,7 +37,7 @@ func TestScheduleCoverageBindAndCurrent(t *testing.T) {
 
 	// BindAgentLookup wires the lookup function.
 	called := false
-	tool.BindAgentLookup(func(string) (roster.Profile, bool) { called = true; return roster.Profile{}, false })
+	tool.BindAgentLookup(func(string) (agentapi.Profile, bool) { called = true; return agentapi.Profile{}, false })
 	if !called {
 		// touch it
 		lookupNow := tool.agentLookup
@@ -111,31 +111,31 @@ func TestScheduleCoverageValidateActingAgent(t *testing.T) {
 	}
 
 	// Acting agent (intent target) with no slug in context → no error.
-	res = validateActingAgentSchedule(context.Background(), input{Target: "agent"}, func(string) (roster.Profile, bool) { return roster.Profile{}, false })
+	res = validateActingAgentSchedule(context.Background(), input{Target: "agent"}, func(string) (agentapi.Profile, bool) { return agentapi.Profile{}, false })
 	if res.Output != "" {
 		t.Fatalf("no agent slug = %+v", res)
 	}
 
 	// Slug in context but unknown to lookup → "not in the roster".
 	ctx := toolapi.WithAgent(context.Background(), "missing")
-	res = validateActingAgentSchedule(ctx, input{Target: "agent"}, func(slug string) (roster.Profile, bool) {
-		return roster.Profile{}, false
+	res = validateActingAgentSchedule(ctx, input{Target: "agent"}, func(slug string) (agentapi.Profile, bool) {
+		return agentapi.Profile{}, false
 	})
 	if !res.IsError || !strings.Contains(res.Output, "not in the roster") {
 		t.Fatalf("unknown agent = %+v", res)
 	}
 
 	// Retired agent → "is retired".
-	res = validateActingAgentSchedule(ctx, input{Target: "agent"}, func(slug string) (roster.Profile, bool) {
-		return roster.Profile{Slug: "a", Retired: true}, true
+	res = validateActingAgentSchedule(ctx, input{Target: "agent"}, func(slug string) (agentapi.Profile, bool) {
+		return agentapi.Profile{Slug: "a", Retired: true}, true
 	})
 	if !res.IsError || !strings.Contains(res.Output, "retired") {
 		t.Fatalf("retired agent = %+v", res)
 	}
 
 	// Disabled agent → "is paused".
-	res = validateActingAgentSchedule(ctx, input{Target: "agent"}, func(slug string) (roster.Profile, bool) {
-		return roster.Profile{Slug: "a", Enabled: false}, true
+	res = validateActingAgentSchedule(ctx, input{Target: "agent"}, func(slug string) (agentapi.Profile, bool) {
+		return agentapi.Profile{Slug: "a", Enabled: false}, true
 	})
 	if !res.IsError || !strings.Contains(res.Output, "paused") {
 		t.Fatalf("disabled agent = %+v", res)
@@ -144,12 +144,12 @@ func TestScheduleCoverageValidateActingAgent(t *testing.T) {
 
 func TestScheduleCoverageManagedSubAgentHint(t *testing.T) {
 	cases := []struct {
-		p    roster.Profile
+		p    agentapi.Profile
 		want []string
 	}{
-		{p: roster.Profile{Slug: "x", ParentAgent: "boss"}, want: []string{"boss", "managed sub-agent"}},
-		{p: roster.Profile{Slug: "x", OwnerAgent: "owner"}, want: []string{"owner", "managed sub-agent"}},
-		{p: roster.Profile{Slug: "x"}, want: []string{"managed sub-agent", "route the work"}},
+		{p: agentapi.Profile{Slug: "x", ParentAgent: "boss"}, want: []string{"boss", "managed sub-agent"}},
+		{p: agentapi.Profile{Slug: "x", OwnerAgent: "owner"}, want: []string{"owner", "managed sub-agent"}},
+		{p: agentapi.Profile{Slug: "x"}, want: []string{"managed sub-agent", "route the work"}},
 	}
 	for _, tc := range cases {
 		got := managedSubAgentScheduleHint(tc.p)
