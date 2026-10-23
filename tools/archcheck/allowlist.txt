@@ -93,7 +93,6 @@ plugin-reach plugins/tools/acpagent -> kernel/modules/extensions/acpcatalog
 plugin-reach plugins/tools/config -> kernel/runtime
 plugin-reach plugins/tools/db -> kernel/modules/artifacts/datalake
 plugin-reach plugins/tools/forgetool -> kernel/modules/extensions/toolforge
-plugin-reach plugins/tools/skilltool -> kernel/modules/skills/skill
 plugin-reach plugins/tools/workboardtool -> kernel/modules/work/workboard
 plugin-reach plugins/tools/workflowtool -> kernel/runtime
 plugin-reach plugins/tools/workflowtool -> kernel/modules/workflows/workflow

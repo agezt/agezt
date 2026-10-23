@@ -13,6 +13,7 @@ package builtintools
 // store and stay in main.go until the LateDeps PR.
 
 import (
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/plugins/tools/forgetool"
@@ -113,7 +114,15 @@ func specSkill() toolreg.Spec {
 				return nil
 			}
 			if fg := d.K.Forge(); fg != nil {
-				sk.Bind(fg)
+				// The bundle store is handed over through the contract's
+				// port: a nil store must stay a nil port, or the tool would
+				// call into a nil implementation instead of reporting that
+				// bundles are unavailable.
+				var bundles skillapi.BundleStore
+				if b := fg.Bundles(); b != nil {
+					bundles = b
+				}
+				sk.Bind(fg, bundles)
 			}
 			return nil
 		},

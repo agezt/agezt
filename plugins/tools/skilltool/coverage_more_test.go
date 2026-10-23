@@ -9,40 +9,40 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // covForge is a test-only forge fake. The existing skilltool_test.go already
 // declares a fakeForge — we use a distinct name to avoid duplicate symbols.
 type covForge struct {
-	skills     []skill.Skill
+	skills     []skillapi.Skill
 	createErr  error
 	createOK   bool
 	listErr    error
 	getErr     error
 	gotGet     string
 	gotPromote string
-	promoteTo  skill.Status
+	promoteTo  skillapi.Status
 	promoteErr error
 	quarantine string
 	quarErr    error
-	bundles    *skill.BundleStore
+	bundles    skillapi.BundleStore
 }
 
-func (f *covForge) Create(_ string, spec skill.CreateSpec) (skill.Skill, bool, error) {
+func (f *covForge) Create(_ string, spec skillapi.CreateSpec) (skillapi.Skill, bool, error) {
 	if f.createErr != nil {
-		return skill.Skill{}, false, f.createErr
+		return skillapi.Skill{}, false, f.createErr
 	}
 	if !f.createOK {
-		return skill.Skill{ID: "sk-existing", Name: spec.Name, Status: skill.StatusDraft, Body: spec.Body}, false, nil
+		return skillapi.Skill{ID: "sk-existing", Name: spec.Name, Status: skillapi.StatusDraft, Body: spec.Body}, false, nil
 	}
-	sk := skill.Skill{ID: "sk-new", Name: spec.Name, Status: skill.StatusDraft, Body: spec.Body, Triggers: spec.Triggers, Description: spec.Description, Version: "1.0.0", Metrics: skill.Metrics{}}
+	sk := skillapi.Skill{ID: "sk-new", Name: spec.Name, Status: skillapi.StatusDraft, Body: spec.Body, Triggers: spec.Triggers, Description: spec.Description, Version: "1.0.0", Metrics: skillapi.Metrics{}}
 	f.skills = append(f.skills, sk)
 	return sk, true, nil
 }
 
-func (f *covForge) Promote(_ string, id string) (skill.Status, error) {
+func (f *covForge) Promote(_ string, id string) (skillapi.Status, error) {
 	f.gotPromote = id
 	if f.promoteErr != nil {
 		return "", f.promoteErr
@@ -55,40 +55,38 @@ func (f *covForge) Quarantine(_ string, id string, _ string) error {
 	return f.quarErr
 }
 
-func (f *covForge) Get(id string) (skill.Skill, bool, error) {
+func (f *covForge) Get(id string) (skillapi.Skill, bool, error) {
 	f.gotGet = id
 	if f.getErr != nil {
-		return skill.Skill{}, false, f.getErr
+		return skillapi.Skill{}, false, f.getErr
 	}
 	for _, s := range f.skills {
 		if s.ID == id {
 			return s, true, nil
 		}
 	}
-	return skill.Skill{}, false, nil
+	return skillapi.Skill{}, false, nil
 }
 
-func (f *covForge) List() ([]skill.Skill, error) {
+func (f *covForge) List() ([]skillapi.Skill, error) {
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
 	return f.skills, nil
 }
 
-func (f *covForge) Bundles() *skill.BundleStore { return f.bundles }
-
 func TestSkilltoolCoverageBindCurrentShortID(t *testing.T) {
 	tool := New()
-	if tool.current() != nil {
-		t.Fatal("New should leave forge nil")
+	if forge, bundles := tool.current(); forge != nil || bundles != nil {
+		t.Fatal("New should leave the forge and the bundle store nil")
 	}
-	tool.Bind(nil)
-	if tool.current() != nil {
-		t.Fatal("Bind(nil) should not set forge")
+	tool.Bind(nil, nil)
+	if forge, bundles := tool.current(); forge != nil || bundles != nil {
+		t.Fatal("Bind(nil, nil) should not set the forge")
 	}
 	f := &covForge{}
-	tool.Bind(f)
-	if tool.current() == nil {
+	tool.Bind(f, f.bundles)
+	if forge, _ := tool.current(); forge == nil {
 		t.Fatal("Bind(covForge) should set forge")
 	}
 
@@ -104,7 +102,7 @@ func TestSkilltoolCoverageBindCurrentShortID(t *testing.T) {
 }
 
 func TestSkilltoolCoverageSkillView(t *testing.T) {
-	sk := skill.Skill{ID: "sk-1", Name: "name", Status: skill.StatusActive, Version: "3.0.0", Metrics: skill.Metrics{Uses: 5}}
+	sk := skillapi.Skill{ID: "sk-1", Name: "name", Status: skillapi.StatusActive, Version: "3.0.0", Metrics: skillapi.Metrics{Uses: 5}}
 	v := skillView(sk)
 	if v["id"] != "sk-1" {
 		t.Fatalf("id = %v", v["id"])
@@ -149,7 +147,7 @@ func TestSkilltoolCoverageInvokeValidation(t *testing.T) {
 		t.Fatalf("unbound = %+v", res)
 	}
 
-	tool.Bind(&covForge{})
+	tool.Bind(&covForge{}, nil)
 	_, err = New().Invoke(context.Background(), json.RawMessage(`{`))
 	if err == nil || !strings.Contains(err.Error(), "parse input") {
 		t.Fatalf("parse error = %v", err)
@@ -175,7 +173,7 @@ func TestSkilltoolCoverageInvokeValidation(t *testing.T) {
 func TestSkilltoolCoverageLearnBranches(t *testing.T) {
 	f := &covForge{}
 	tool := New()
-	tool.Bind(f)
+	tool.Bind(f, f.bundles)
 
 	res, _ := tool.Invoke(context.Background(), json.RawMessage(`{"op":"learn","body":"x"}`))
 	if !res.IsError || !strings.Contains(res.Output, `"name"`) {
@@ -216,13 +214,13 @@ func TestSkilltoolCoverageLearnBranches(t *testing.T) {
 }
 
 func TestSkilltoolCoverageResolveAndShow(t *testing.T) {
-	f := &covForge{skills: []skill.Skill{
+	f := &covForge{skills: []skillapi.Skill{
 		{ID: "abc-1", Name: "first"},
 		{ID: "abc-2", Name: "second"},
 		{ID: "xyz-1", Name: "third"},
 	}}
 	tool := New()
-	tool.Bind(f)
+	tool.Bind(f, f.bundles)
 
 	sk, err := tool.resolve(f, "abc-1")
 	if err != nil || sk.Name != "first" {
@@ -269,9 +267,9 @@ func TestSkilltoolCoverageResolveAndShow(t *testing.T) {
 }
 
 func TestSkilltoolCoveragePromoteRetire(t *testing.T) {
-	f := &covForge{skills: []skill.Skill{{ID: "sk-1", Name: "n"}}, promoteTo: skill.StatusShadow}
+	f := &covForge{skills: []skillapi.Skill{{ID: "sk-1", Name: "n"}}, promoteTo: skillapi.StatusShadow}
 	tool := New()
-	tool.Bind(f)
+	tool.Bind(f, f.bundles)
 
 	res, _ := tool.Invoke(context.Background(), json.RawMessage(`{"op":"promote","id":"sk-1"}`))
 	if res.IsError {
@@ -306,7 +304,7 @@ func TestSkilltoolCoveragePromoteRetire(t *testing.T) {
 func TestSkilltoolCoverageListError(t *testing.T) {
 	f := &covForge{listErr: errors.New("nope")}
 	tool := New()
-	tool.Bind(f)
+	tool.Bind(f, f.bundles)
 	res, _ := tool.Invoke(context.Background(), json.RawMessage(`{"op":"list"}`))
 	if !res.IsError || !strings.Contains(res.Output, "nope") {
 		t.Fatalf("list err = %+v", res)
@@ -314,9 +312,9 @@ func TestSkilltoolCoverageListError(t *testing.T) {
 }
 
 func TestSkilltoolCoverageReadFilesBundlesNil(t *testing.T) {
-	f := &covForge{skills: []skill.Skill{{ID: "x", Name: "n"}}}
+	f := &covForge{skills: []skillapi.Skill{{ID: "x", Name: "n"}}}
 	tool := New()
-	tool.Bind(f)
+	tool.Bind(f, f.bundles)
 
 	res, _ := tool.Invoke(context.Background(), json.RawMessage(`{"op":"files","id":"x"}`))
 	if !res.IsError || !strings.Contains(res.Output, "bundles are not available") {

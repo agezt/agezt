@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -124,23 +125,10 @@ var ErrIllegalTransition = errors.New("skill: illegal lifecycle transition")
 var ErrNotFound = errors.New("skill: not found")
 
 // CreateSpec is the input to Create.
-type CreateSpec struct {
-	Name          string
-	Description   string
-	Triggers      []string
-	Body          string
-	ToolsRequired []string
-	// Resources is an optional bundle of on-disk files (relative path → content)
-	// that travel with the skill — reference docs and scripts (agentskills.io
-	// shape). When non-empty and a bundle store is wired (SetBundles), Create
-	// materializes them and records their manifest on the skill. Ignored when no
-	// bundle store is set.
-	Resources map[string][]byte
-	// Agent scopes the skill to one roster agent (M932). Empty = shared pool.
-	// Identical content re-proposed later refreshes the EXISTING record, so
-	// ownership stays with the first author.
-	Agent string
-}
+//
+// The row itself lives in the contract layer (kernel/contract/skillapi); the
+// name stays here as an alias, so every existing caller is unchanged.
+type CreateSpec = skillapi.CreateSpec
 
 // Create authors a new draft skill and journals it. Content-addressing by
 // (name, body) means an identical proposal dedupes onto the existing record

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
@@ -15,20 +16,20 @@ import (
 // fakeForge is an in-memory Forge stand-in: enough of the lifecycle to assert the
 // tool's op → Forge-method mapping without a real store + bus.
 type fakeForge struct {
-	byID     map[string]skill.Skill
+	byID     map[string]skillapi.Skill
 	lastCorr string
-	created  []skill.CreateSpec
+	created  []skillapi.CreateSpec
 	promoted string
 	retired  string
 	retErr   error
-	bundles  *skill.BundleStore
+	bundles  skillapi.BundleStore
 }
 
-func newFake() *fakeForge { return &fakeForge{byID: map[string]skill.Skill{}} }
+func newFake() *fakeForge { return &fakeForge{byID: map[string]skillapi.Skill{}} }
 
-func (f *fakeForge) Create(corr string, spec skill.CreateSpec) (skill.Skill, bool, error) {
+func (f *fakeForge) Create(corr string, spec skillapi.CreateSpec) (skillapi.Skill, bool, error) {
 	if f.retErr != nil {
-		return skill.Skill{}, false, f.retErr
+		return skillapi.Skill{}, false, f.retErr
 	}
 	f.lastCorr = corr
 	f.created = append(f.created, spec)
@@ -36,45 +37,43 @@ func (f *fakeForge) Create(corr string, spec skill.CreateSpec) (skill.Skill, boo
 	if existing, ok := f.byID[id]; ok {
 		return existing, false, nil
 	}
-	sk := skill.Skill{ID: id, Name: spec.Name, Description: spec.Description, Body: spec.Body, Triggers: spec.Triggers, Version: skill.DefaultVersion, Status: skill.StatusDraft}
+	sk := skillapi.Skill{ID: id, Name: spec.Name, Description: spec.Description, Body: spec.Body, Triggers: spec.Triggers, Version: skillapi.DefaultVersion, Status: skillapi.StatusDraft}
 	f.byID[id] = sk
 	return sk, true, nil
 }
 
-func (f *fakeForge) Promote(corr, id string) (skill.Status, error) {
+func (f *fakeForge) Promote(corr, id string) (skillapi.Status, error) {
 	f.lastCorr, f.promoted = corr, id
 	sk := f.byID[id]
-	sk.Status = skill.StatusShadow
+	sk.Status = skillapi.StatusShadow
 	f.byID[id] = sk
-	return skill.StatusShadow, nil
+	return skillapi.StatusShadow, nil
 }
 
 func (f *fakeForge) Quarantine(corr, id, reason string) error {
 	f.lastCorr, f.retired = corr, id
 	sk := f.byID[id]
-	sk.Status = skill.StatusQuarantined
+	sk.Status = skillapi.StatusQuarantined
 	f.byID[id] = sk
 	return nil
 }
 
-func (f *fakeForge) Get(id string) (skill.Skill, bool, error) {
+func (f *fakeForge) Get(id string) (skillapi.Skill, bool, error) {
 	sk, ok := f.byID[id]
 	return sk, ok, nil
 }
 
-func (f *fakeForge) List() ([]skill.Skill, error) {
-	out := make([]skill.Skill, 0, len(f.byID))
+func (f *fakeForge) List() ([]skillapi.Skill, error) {
+	out := make([]skillapi.Skill, 0, len(f.byID))
 	for _, sk := range f.byID {
 		out = append(out, sk)
 	}
 	return out, nil
 }
 
-func (f *fakeForge) Bundles() *skill.BundleStore { return f.bundles }
-
-func newTool(f forge) *Tool {
+func newTool(f *fakeForge) *Tool {
 	t := New()
-	t.Bind(f)
+	t.Bind(f, f.bundles)
 	return t
 }
 
