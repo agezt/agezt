@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-172 package(s):
+174 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -33,6 +33,7 @@
 - **`kernel/app/nodes`** — Package nodes owns the node registry: the local daemon plus the configured AGEZT_PEERS mesh nodes, each probed for token-redacted reachability.
 - **`kernel/app/okr`** — Package okr owns transport-independent objective reads, live rollup projections and lifecycle operations over selected store and kernel ports.
 - **`kernel/app/opaudit`** — Package opaudit owns the operation audit's policy: what may be journaled about an operation's arguments and errors.
+- **`kernel/app/overseer`** — Package overseer owns the implementation behind the overseer's supervisory port — the half of the surface that reads and steers the LIVE system.
 - **`kernel/app/persona`** — Package persona owns the owner's chat defaults: the daemon's default identity (M710), the fallback system instructions for runs not bound to a roster agent, and the saved prompt library (M713) the Chat view launches from.
 - **`kernel/app/plugins`** — SPDX-License-Identifier: MIT
 - **`kernel/app/providers`** — Package providers owns provider management and journal observation services.
@@ -77,6 +78,7 @@
 - **`kernel/contract/channelapi`** — Package channelapi is the messaging-channel contract: the platform-neutral inbound message every channel normalises to (UnifiedMessage, SPEC-04 §1.3), what the kernel hands a channel to deliver (Outbound, Attachment, Reply), the Channel interface a duplex surface implements, and the Manifest a channel registers to describe itself.
 - **`kernel/contract/llm`** — Package llm is the model-provider contract: the canonical conversation (Message, Role, ToolCall), one completion round trip (CompletionRequest, CompletionResponse, Usage, StopReason, Params) and the provider interfaces (Provider, StreamingProvider, Chunk).
 - **`kernel/contract/opapi`** — Package opapi defines transport-independent operation metadata and host ports.
+- **`kernel/contract/overseerapi`** — Package overseerapi is the contract the supervisory surface and the implementations that answer it agree on.
 - **`kernel/contract/policyapi`** — Package policyapi defines the tool-policy verdict and callback contract.
 - **`kernel/contract/reasoningapi`** — Package reasoningapi is the contract the reasoning module and the agent-facing tools that drive it agree on.
 - **`kernel/contract/remoteapi`** — Package remoteapi is the contract between two AGEZT daemons: the shape of the rows one daemon serves to a peer and the other reads back.
@@ -104,7 +106,7 @@
 - **`kernel/modules/agents/api`** — Package api is the agents module's public vocabulary: the rows the module publishes, the ports it needs from the host and the surface the host talks to.
 - **`kernel/modules/agents/reaper`** — Package reaper is the agents module's reaper: the read-only DETECTION half of the fleet's health scan.
 - **`kernel/modules/agents/roster`** — Package roster is the durable agent roster (M783): named, persistent agent profiles — an identity ("researcher", "ops-watcher") with its own soul (system prompt), model (+ ordered fallbacks), default task type, per-run spend ceiling, memory scope, and workspace subdirectory.
-- **`kernel/modules/agents/selfrepair`** — Package selfrepair wires the deterministic doctor/auto-repair coordinator (Phase 2.6 extraction from cmd/agezt): it subscribes to the reaper pulse observer, claims broken/degraded/routing-unstable agents, drives the overseertool repair source, and escalates through the mailbox + wake chain when a repair fails.
+- **`kernel/modules/agents/selfrepair`** — Package selfrepair wires the deterministic doctor/auto-repair coordinator (Phase 2.6 extraction from cmd/agezt): it subscribes to the reaper pulse observer, claims broken/degraded/routing-unstable agents, drives the overseer's repair source, and escalates through the mailbox + wake chain when a repair fails.
 - **`kernel/modules/artifacts/artifact`** — Package artifact is a content-addressed (BLAKE3) blob store — the substrate for SPEC-04 §3.6 artifacts: tool/run outputs that are too large to inline in an event are written here and referenced by their content hash, so the journal stays small while the bytes survive in the lineage and dedupe automatically.
 - **`kernel/modules/artifacts/datalake`** — Package datalake is AGEZT's file-based structured store — the "Personal Data Lake" (M834).
 - **`kernel/modules/board/board`** — Package board is the in-process shared message board: a persistent, topic-addressed space every agent — the lead, its sub-agents, scheduled and standing-order agents, and the continuous loops — can post to and read from, so they can coordinate and talk to each other (M647).

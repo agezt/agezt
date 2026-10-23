@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package overseertool
+package overseer
 
 import (
 	"encoding/json"

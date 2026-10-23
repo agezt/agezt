@@ -137,8 +137,10 @@ func specIntrospect() toolreg.Spec {
 
 // specOverseer — fleet supervision (`overseer`, M850): the brain/overseer agent
 // supervises and intervenes on the fleet — list/cancel runs, halt/resume the
-// daemon, pause/retire/revive agents, triage open help. BaseDir locates the
-// board it reads.
+// daemon, pause/retire/revive agents, triage open help. The Source it steers
+// through arrives in the deps: the tool is a plugin and may not reach the live
+// kernel or the board store itself, so the daemon supplies the app-layer
+// implementation that answers the contract.
 func specOverseer() toolreg.Spec {
 	var ot *overseertool.Tool
 	return toolreg.Spec{
@@ -148,8 +150,8 @@ func specOverseer() toolreg.Spec {
 			return toolreg.Built{Tool: ot}, nil
 		},
 		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
-			if d.K != nil {
-				ot.Bind(overseertool.NewKernelSource(d.K, d.BaseDir))
+			if d.Overseer != nil {
+				ot.Bind(d.Overseer)
 			}
 			return nil
 		},

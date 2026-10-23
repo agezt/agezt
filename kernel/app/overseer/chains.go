@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package overseertool
+package overseer
 
 // TaskModelChains persistence for the kernelSource: taskModelChainsSource
 // interface + taskModelChain + setTaskModelChain + persistTaskModelChains
