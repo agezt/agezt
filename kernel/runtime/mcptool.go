@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/mcpapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 )
@@ -19,6 +20,18 @@ import (
 // MCPStore returns the durable MCP-server registry (M796). Always non-nil
 // after Open.
 func (k *Kernel) MCPStore() *mcp.Store { return k.mcpStore }
+
+// MCPServers returns every registered MCP server — the ROW surface for the
+// agent-facing tool. The tool is a plugin, and a plugin may reach the
+// contract and the platform layers and nothing else, so it may not name the
+// registry: it asks for the rows instead.
+func (k *Kernel) MCPServers() []mcpapi.Server { return k.mcpStore.List() }
+
+// MCPServer returns one registered MCP server by id or name.
+func (k *Kernel) MCPServer(ref string) (mcpapi.Server, bool) {
+	srv, found := k.mcpStore.Get(ref)
+	return srv, found
+}
 
 // AddMCPServer validates and persists a new MCP server registration,
 // journaling mcp.added. Registration alone spawns nothing — attach does.

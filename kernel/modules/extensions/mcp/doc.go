@@ -16,4 +16,11 @@
 // instant kill switch.
 //
 // Storage mirrors kernel/roster: a single JSON file rewritten atomically.
+//
+// The SERVER ROW lives in the contract layer (kernel/contract/mcpapi), with
+// the rule that checks it: the MCP tool and the marketplace that ship the
+// builtin server packs are plugins, and a plugin may reach the contract and
+// the platform layers and nothing else — so a row a plugin has to name cannot
+// live in this package. This package keeps the name as an alias, and the
+// registry — the store that persists the rows — stays here.
 package mcp

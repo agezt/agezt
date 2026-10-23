@@ -11,8 +11,8 @@ package builtinmarket
 import (
 	"fmt"
 
+	"github.com/agezt/agezt/kernel/contract/mcpapi"
 	"github.com/agezt/agezt/kernel/market"
-	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
@@ -51,7 +51,7 @@ type combo struct {
 	category string
 	desc     string
 	tags     []string
-	mcp      []mcp.Server
+	mcp      []mcpapi.Server
 	tools    []string
 	featured bool
 }
@@ -63,7 +63,7 @@ var combos = []combo{
 		tags: []string{"web", "research", "mcp"},
 		// The fetch server ships on PyPI, not npm — @modelcontextprotocol/server-fetch
 		// has never been published (DEP-006). The UI catalog (Mcp.tsx) already has this right.
-		mcp:   []mcp.Server{{Name: "fetch", Command: "uvx", Args: []string{"mcp-server-fetch"}, Description: "HTTP fetch for the agent", Lazy: true}},
+		mcp:   []mcpapi.Server{{Name: "fetch", Command: "uvx", Args: []string{"mcp-server-fetch"}, Description: "HTTP fetch for the agent", Lazy: true}},
 		tools: []string{"rg", "fd"},
 	},
 	{
@@ -88,7 +88,7 @@ var combos = []combo{
 		name: "second-brain", skills: []string{"webresearch"}, category: "knowledge", featured: true,
 		desc: "Research that remembers: persistent knowledge-graph memory plus a structured reasoning scratchpad.",
 		tags: []string{"memory", "knowledge", "reasoning", "mcp"},
-		mcp: []mcp.Server{
+		mcp: []mcpapi.Server{
 			{Name: "memory", Command: "npx", Args: []string{"-y", "@modelcontextprotocol/server-memory"}, Description: "Persistent knowledge-graph memory", Lazy: true},
 			{Name: "thinking", Command: "npx", Args: []string{"-y", "@modelcontextprotocol/server-sequential-thinking"}, Description: "Step-by-step reasoning scratchpad", Lazy: true},
 		},
@@ -97,27 +97,27 @@ var combos = []combo{
 		name: "browser-automation-pro", skills: []string{"browseruse"}, category: "web", featured: true,
 		desc: "Drive a real browser: navigate, click, fill forms and screenshot via the official Playwright MCP.",
 		tags: []string{"browser", "automation", "playwright", "mcp"},
-		mcp:  []mcp.Server{{Name: "playwright", Command: "npx", Args: []string{"-y", "@playwright/mcp@latest"}, Description: "Browser automation via Playwright", Lazy: true}},
+		mcp:  []mcpapi.Server{{Name: "playwright", Command: "npx", Args: []string{"-y", "@playwright/mcp@latest"}, Description: "Browser automation via Playwright", Lazy: true}},
 	},
 	{
 		name: "deep-search", skills: []string{"webresearch"}, category: "web",
 		desc:  "Key-less web search via DuckDuckGo MCP with fast local text search for sifting results.",
 		tags:  []string{"search", "web", "mcp"},
-		mcp:   []mcp.Server{{Name: "duckduckgo", Command: "uvx", Args: []string{"duckduckgo-mcp-server"}, Description: "Web search via DuckDuckGo — no API key", Lazy: true}},
+		mcp:   []mcpapi.Server{{Name: "duckduckgo", Command: "uvx", Args: []string{"duckduckgo-mcp-server"}, Description: "Web search via DuckDuckGo — no API key", Lazy: true}},
 		tools: []string{"rg"},
 	},
 	{
 		name: "document-suite", skills: []string{"officedocs", "pdftools"}, category: "docs",
 		desc:  "Office documents and PDFs end-to-end, with an Excel MCP for real spreadsheets.",
 		tags:  []string{"docs", "office", "pdf", "excel"},
-		mcp:   []mcp.Server{{Name: "excel", Command: "uvx", Args: []string{"excel-mcp-server", "stdio"}, Description: "Create and edit Excel workbooks", Lazy: true}},
+		mcp:   []mcpapi.Server{{Name: "excel", Command: "uvx", Args: []string{"excel-mcp-server", "stdio"}, Description: "Create and edit Excel workbooks", Lazy: true}},
 		tools: []string{"pandoc"},
 	},
 	{
 		name: "personal-organizer", skills: []string{"emailtools", "calendartools"}, category: "comms",
 		desc: "Inbox and calendar in one pack, with timezone-aware scheduling via the time MCP.",
 		tags: []string{"email", "calendar", "assistant"},
-		mcp:  []mcp.Server{{Name: "time", Command: "uvx", Args: []string{"mcp-server-time"}, Description: "Current time and timezone conversions", Lazy: true}},
+		mcp:  []mcpapi.Server{{Name: "time", Command: "uvx", Args: []string{"mcp-server-time"}, Description: "Current time and timezone conversions", Lazy: true}},
 	},
 	{
 		name: "container-ops", skills: []string{"dockerservices"}, category: "dev",

@@ -19,19 +19,25 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/agezt/agezt/kernel/contract/mcpapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 )
 
 // Kernel is the slice of the runtime kernel this tool drives — satisfied by
 // *runtime.Kernel and easy to fake in tests.
+//
+// The rows it speaks are the contract's (kernel/contract/mcpapi): the tool is
+// a plugin, and a plugin may reach the contract and the platform layers and
+// nothing else — so it may not name the registry, and it asks the kernel for
+// the ROWS instead.
 type Kernel interface {
-	AddMCPServer(corr string, srv mcp.Server) (mcp.Server, error)
-	AttachMCPServer(ctx context.Context, corr, ref string) (mcp.Server, []string, error)
+	AddMCPServer(corr string, srv mcpapi.Server) (mcpapi.Server, error)
+	AttachMCPServer(ctx context.Context, corr, ref string) (mcpapi.Server, []string, error)
 	DetachMCPServer(corr, ref string) error
 	RemoveMCPServer(corr, ref string) (bool, error)
-	MCPStore() *mcp.Store
+	MCPServers() []mcpapi.Server
+	MCPServer(ref string) (mcpapi.Server, bool)
 	MCPAttached() map[string]int
 }
 
@@ -126,7 +132,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 
 	switch in.Op {
 	case "add":
-		srv, err := k.AddMCPServer(corr, mcp.Server{
+		srv, err := k.AddMCPServer(corr, mcpapi.Server{
 			Name:        in.Name,
 			Command:     in.Command,
 			Args:        in.Args,
@@ -164,7 +170,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 
 	case "list":
 		attached := k.MCPAttached()
-		servers := k.MCPStore().List()
+		servers := k.MCPServers()
 		views := make([]map[string]any, 0, len(servers))
 		for _, srv := range servers {
 			v := map[string]any{
@@ -182,7 +188,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		}
 		// A live connection whose registry row was removed still matters.
 		for name, n := range attached {
-			if _, found := k.MCPStore().Get(name); !found {
+			if _, found := k.MCPServer(name); !found {
 				views = append(views, map[string]any{"name": name, "attached": true, "tool_count": n, "unregistered": true})
 			}
 		}
