@@ -12,12 +12,12 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/channelwire"
-	"github.com/agezt/agezt/kernel/pulse"
+	"github.com/agezt/agezt/kernel/contract/pulseapi"
 	"github.com/agezt/agezt/plugins/channels/slack"
 	"github.com/agezt/agezt/plugins/channels/telegram"
 )
 
-func formatBrief(b pulse.Brief) string {
+func formatBrief(b pulseapi.Brief) string {
 	if b.Body != "" {
 		return "📣 " + b.Title + "\n" + b.Body
 	}
@@ -50,9 +50,9 @@ func buildTelegram(d channelwire.Deps) channelwire.Built {
 
 	// Pulse briefs → the allowlisted chats. Nil sink when no chat configured
 	// (the bot can still receive commands once a chat is allowlisted).
-	var sink pulse.BriefSink
+	var sink pulseapi.BriefSink
 	if len(chatIDs) > 0 {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+		sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 			var firstErr error
 			for _, id := range chatIDs {
 				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
@@ -88,9 +88,9 @@ func buildSlack(d channelwire.Deps) channelwire.Built {
 		Handler:       d.Handler,
 	})
 
-	var sink pulse.BriefSink
+	var sink pulseapi.BriefSink
 	if len(channelIDs) > 0 {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+		sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 			var firstErr error
 			for _, id := range channelIDs {
 				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {

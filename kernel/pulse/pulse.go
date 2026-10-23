@@ -4,7 +4,11 @@ package pulse
 
 // Package documentation lives in doc.go.
 
-import "context"
+import (
+	"context"
+
+	"github.com/agezt/agezt/kernel/contract/pulseapi"
+)
 
 // Severity is an observer-attached hint about how much a delta matters. It is
 // only a hint; Salience makes the actual importance call (SPEC-03 §3.3).
@@ -67,15 +71,17 @@ type Observer interface {
 }
 
 // Disposition is Salience's recommendation for what should happen to a delta
-// (SPEC-03 §4.2).
-type Disposition string
+// (SPEC-03 §4.2). The row lives in the contract layer (kernel/contract/
+// pulseapi) — W3.34 — because the brief that carries it is delivered to
+// surfaces that are plugins; the module keeps the name as an alias.
+type Disposition = pulseapi.Disposition
 
 const (
-	DispDrop   Disposition = "drop"   // journal only; never pushed
-	DispDigest Disposition = "digest" // batch into the next briefing
-	DispNotify Disposition = "notify" // send soon, normal priority
-	DispAlert  Disposition = "alert"  // send now, high priority
-	DispAct    Disposition = "act"    // consider autonomous action (v1: → ask/inform)
+	DispDrop   = pulseapi.DispDrop   // journal only; never pushed
+	DispDigest = pulseapi.DispDigest // batch into the next briefing
+	DispNotify = pulseapi.DispNotify // send soon, normal priority
+	DispAlert  = pulseapi.DispAlert  // send now, high priority
+	DispAct    = pulseapi.DispAct    // consider autonomous action (v1: → ask/inform)
 )
 
 // Dial is the single high-level salience knob (SPEC-03 §4.3). It maps

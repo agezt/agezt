@@ -12,7 +12,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/channelwire"
-	"github.com/agezt/agezt/kernel/pulse"
+	"github.com/agezt/agezt/kernel/contract/pulseapi"
 	"github.com/agezt/agezt/plugins/channels/homeassistant"
 	linechan "github.com/agezt/agezt/plugins/channels/line"
 	"github.com/agezt/agezt/plugins/channels/nextcloudtalk"
@@ -36,9 +36,9 @@ func buildNextcloudTalk(d channelwire.Deps) channelwire.Built {
 		Addr:      strings.TrimSpace(d.Get(brand.EnvPrefix + "NEXTCLOUDTALK_ADDR")),
 		Path:      strings.TrimSpace(d.Get(brand.EnvPrefix + "NEXTCLOUDTALK_PATH")),
 	})
-	var sink pulse.BriefSink
+	var sink pulseapi.BriefSink
 	if len(tokens) > 0 {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+		sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 			var firstErr error
 			for _, t := range tokens {
 				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: t, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
@@ -65,9 +65,9 @@ func buildHomeAssistant(d channelwire.Deps) channelwire.Built {
 		Bus:       d.Bus,
 	})
 
-	var sink pulse.BriefSink
+	var sink pulseapi.BriefSink
 	if len(services) > 0 {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+		sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 			var firstErr error
 			for _, svc := range services {
 				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: svc, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
@@ -92,7 +92,7 @@ func buildTeams(d channelwire.Deps) channelwire.Built {
 	ch := teams.New(teams.Config{Webhooks: hooks, Bus: d.Bus})
 
 	names := ch.Names()
-	sink := pulse.SinkFunc(func(b pulse.Brief) error {
+	sink := pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 		var firstErr error
 		for _, name := range names {
 			if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: name, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
@@ -129,9 +129,9 @@ func buildLine(d channelwire.Deps) channelwire.Built {
 		Path:        strings.TrimSpace(d.Get(brand.EnvPrefix + "LINE_PATH")),
 	})
 
-	var sink pulse.BriefSink
+	var sink pulseapi.BriefSink
 	if to := strings.TrimSpace(d.Get(brand.EnvPrefix + "LINE_TO")); to != "" {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+		sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 			return ch.Send(d.Ctx, channel.Outbound{ChannelID: to, Text: formatBrief(b), Priority: channel.PriorityNotify})
 		})
 	}

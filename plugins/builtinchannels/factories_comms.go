@@ -12,7 +12,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/channelwire"
-	"github.com/agezt/agezt/kernel/pulse"
+	"github.com/agezt/agezt/kernel/contract/pulseapi"
 	"github.com/agezt/agezt/plugins/channels/discord"
 	"github.com/agezt/agezt/plugins/channels/email"
 	"github.com/agezt/agezt/plugins/channels/matrix"
@@ -54,9 +54,9 @@ func buildEmail(d channelwire.Deps) channelwire.Built {
 		Handler:       handler,
 	})
 
-	var sink pulse.BriefSink
+	var sink pulseapi.BriefSink
 	if len(recipients) > 0 {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+		sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 			var firstErr error
 			for _, id := range recipients {
 				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
@@ -103,9 +103,9 @@ func buildDiscord(d channelwire.Deps) channelwire.Built {
 		Handler:       d.Handler,
 	})
 
-	var sink pulse.BriefSink
+	var sink pulseapi.BriefSink
 	if len(channelIDs) > 0 {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+		sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 			var firstErr error
 			for _, id := range channelIDs {
 				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
@@ -147,9 +147,9 @@ func buildMatrix(d channelwire.Deps) channelwire.Built {
 
 	// Pulse briefs → the allowlisted rooms. Nil sink when no room configured (the
 	// bot can still receive commands once a room is allowlisted).
-	var sink pulse.BriefSink
+	var sink pulseapi.BriefSink
 	if len(roomIDs) > 0 {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+		sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 			var firstErr error
 			for _, id := range roomIDs {
 				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
@@ -190,9 +190,9 @@ func buildWhatsApp(d channelwire.Deps) channelwire.Built {
 		Handler:       d.Handler,
 	})
 
-	var sink pulse.BriefSink
+	var sink pulseapi.BriefSink
 	if phoneID != "" && len(numbers) > 0 {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+		sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 			var firstErr error
 			for _, id := range numbers {
 				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {

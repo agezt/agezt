@@ -12,7 +12,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/channelwire"
-	"github.com/agezt/agezt/kernel/pulse"
+	"github.com/agezt/agezt/kernel/contract/pulseapi"
 	signalchan "github.com/agezt/agezt/plugins/channels/signal"
 	"github.com/agezt/agezt/plugins/channels/sms"
 )
@@ -42,9 +42,9 @@ func buildSMS(d channelwire.Deps) channelwire.Built {
 	})
 
 	// Pulse briefs → the allowlisted numbers (needs an outbound From).
-	var sink pulse.BriefSink
+	var sink pulseapi.BriefSink
 	if from != "" && len(numbers) > 0 {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+		sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 			var firstErr error
 			for _, id := range numbers {
 				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
@@ -96,9 +96,9 @@ func buildSignal(d channelwire.Deps) channelwire.Built {
 	// Pulse briefs → the allowlisted numbers. Nil sink when none configured (the
 	// bot can still receive commands once a number is allowlisted, and operators
 	// can still `agt send --channel signal --to <number>`).
-	var sink pulse.BriefSink
+	var sink pulseapi.BriefSink
 	if len(recipients) > 0 {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+		sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 			var firstErr error
 			for _, id := range recipients {
 				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {

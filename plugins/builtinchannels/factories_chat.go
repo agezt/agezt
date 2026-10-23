@@ -11,7 +11,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/channelwire"
-	"github.com/agezt/agezt/kernel/pulse"
+	"github.com/agezt/agezt/kernel/contract/pulseapi"
 	"github.com/agezt/agezt/plugins/channels/irc"
 )
 
@@ -38,9 +38,9 @@ func buildIRC(d channelwire.Deps) channelwire.Built {
 		Handler:   d.Handler,
 	})
 
-	var sink pulse.BriefSink
+	var sink pulseapi.BriefSink
 	if len(chans) > 0 {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+		sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 			var firstErr error
 			for _, c := range chans {
 				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: c, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
@@ -83,9 +83,9 @@ func buildTwitch(d channelwire.Deps) channelwire.Built {
 		Handler:   d.Handler,
 	})
 
-	var sink pulse.BriefSink
+	var sink pulseapi.BriefSink
 	if len(chans) > 0 {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+		sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 			var firstErr error
 			for _, c := range chans {
 				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: c, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {

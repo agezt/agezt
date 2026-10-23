@@ -13,7 +13,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/channelwire"
-	"github.com/agezt/agezt/kernel/pulse"
+	"github.com/agezt/agezt/kernel/contract/pulseapi"
 	"github.com/agezt/agezt/plugins/channels/push"
 )
 
@@ -23,7 +23,7 @@ func pushBuilt(d channelwire.Deps, cfg push.Config) channelwire.Built {
 	if err != nil {
 		return channelwire.NotConfigured
 	}
-	sink := pulse.SinkFunc(func(b pulse.Brief) error {
+	sink := pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 		return ch.Send(d.Ctx, channel.Outbound{Text: formatBrief(b), Priority: channel.PriorityNotify})
 	})
 	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: "push → " + ch.Name()}
