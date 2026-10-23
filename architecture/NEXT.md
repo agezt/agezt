@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.15 the overseer's implementation moves to the app layer, 2026-10-23
+## Current checkpoint — W3.16 three tools name the artifact row where it lives, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1660,6 +1660,31 @@ files, five of the seventeen mutations would have escaped.
   deletion left an unused variable — a build failure is not an escape, and the
   re-anchored mutation is caught).
 
+- W3.16 (three tools name the artifact row where it lives) is committed on
+  `main` the same way. The browser, the code executor and the fetch tool each
+  reached into the artifacts module for **one type** — the artifact row — and
+  nothing else. That row was already a contract row
+  (`kernel/contract/remoteapi`); the module merely aliased it
+  (`artifact.Entry = remoteapi.Artifact`). The tools named the alias, and the
+  alias lives in a module's implementation package, so each of the three paid
+  a `plugin-reach` edge for a type that was never theirs to begin with. Now
+  they name `remoteapi.Artifact` — the row's real home — and the module keeps
+  its name, so every other caller is unchanged.
+  The **ratchet went DOWN**: 117/13 → **114/13** — all three plugin-reach edges
+  are gone, and the **three stale allowlist entries were deleted**.
+  The permanent tests: the **wire conformance** states that the artifact
+  record a tool reports IS the contract row's wire, key for key — every key
+  the tool emits must be a key the contract row carries, the value must be
+  the row's own, and the **exact key set** is pinned. Nothing tied them
+  together before: the record is a hand-written map or struct, so a renamed
+  contract field would have left the tool emitting an empty value under a key
+  nobody reads any more — **silently**, for every consumer of the tool's
+  answer. The module's identity assertion was also **strengthened to the
+  function-type form** (the W3.13/W3.14 recipe): the old `reflect.TypeOf`
+  comparison would also have accepted a copy with the same fields.
+  9 mutations: 8 caught, 1 build error recorded separately (the module's row
+  stops being the contract's row — the identity assertion fires at the seam).
+
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
 grew a gate, `kernel/modules/providers/api`. The slice was a **ports rewrite**:
@@ -1719,6 +1744,17 @@ control plane's registry. The port is now where such an operation would sit
 (`kernel/contract/overseerapi`), and the implementation that answers it is in
 the app layer, so the operation can be exposed without moving anything else —
 that is a **surface** question, not a **layer** question.
+
+The plugin-reach edges are the remaining W3 debt, and they come in two
+shapes. The **cheap** shape is a tool that reaches into a module for a row
+that already lives in the contract — W3.16 was exactly that, and the same
+recipe applies to the remaining ones: name the contract row, keep the module's
+alias, delete the stale allowlist entry. The **expensive** shape is a tool
+that needs the module's **implementation** (the config tool, the schedule
+tool, the standing tool, the database tool, the workboard tool, the skill
+tool, the forgetool, the MCP tool, the introspector, the guardians, the market
+plugin): those need a port in the contract and an implementation in the app
+layer — the W3.15 recipe, one surface at a time.
 
 The other plugin-reach edges each need their own slice: the config tool, the
 schedule tool, the guardians, the built-in tools and the introspector still
