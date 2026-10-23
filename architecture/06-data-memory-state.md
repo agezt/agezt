@@ -59,7 +59,7 @@ From `internal-deps.txt`:
 Layering notes:
 - `memory` and `worldmodel` import `kernel/agent` (for `agent.Tool`, `agent.Provider`, `agent.GenerateObject`, `agent.AgentFromContext`) and `kernel/edict` (capability names `CapMemory`/`CapWorld`). The "pure store" half of each package is clean; the tool + LLM-distillation half drags the agent loop's types into the data layer.
 - `workboard` → `contract/workboardapi` → `contract/proofapi` → `contract/assureapi`: the task store embeds the verifier's verdict type in its on-disk shape. The rows live in the contract layer now (W3.31), so the `workboard` tool takes the store through the contract's **port** and no longer reaches the module.
-- `alerter` → `pulse` only for `pulse.BriefSink`, `pulse.Brief`, `pulse.DispAlert`, `pulse.QuietHours`.
+- `alerter` → `pulse` for `pulse.QuietHours` (the quiet-hours rule stays in the module) and for the briefing rows `pulse.BriefSink`, `pulse.Brief`, `pulse.DispAlert` — which are now **aliases** of the contract's rows (`kernel/contract/pulseapi`, W3.34), so one row and one spelling of it.
 
 ---
 
@@ -612,7 +612,7 @@ Tests: `detector_test.go`, `monitor_test.go`, `coverage_test.go`.
 |---|---|
 | `doc.go` | Scope: run failures, egress blocks, budget/rate trips, halts, approvals (M922); Pulse-originated kinds deliberately excluded (Pulse delivers its own briefs). |
 | `alerter.go` | `Level` (info/warning/critical) + `ParseLevel`; `Alert`; `Classify(ev)`; `doctorIncidentBits`, `intAny`; `Config{MinLevel, Cooldown 5m, MaxPerWindow 12, Window 10m, Mute pulse.QuietHours, MuteSources}` + `normalize`; `Notifier`; `New`; `Handle` (level → source mute → quiet-hours (criticals break through) → dedupe cooldown → flood cap → `sink.Deliver`); `ParseMuteSources`. |
-| `alerter_brief.go` | `brief` (→ `pulse.Brief{Disposition: DispAlert, IssueKey, CorrelationID}` with ⚠/🚨 title), `dedupeKey` (kind/correlation, or doctor subject/agent/phase/fingerprint), `alertIssueKey`, `Start(ctx, bus, sink, cfg)` (subscribe `>` buf 256, recover-on-panic), payload helpers. |
+| `alerter_brief.go` | `brief` (→ `pulse.Brief{Disposition: DispAlert, IssueKey, CorrelationID}` with ⚠/🚨 title — the row is the contract's `pulseapi.Brief` (W3.34)), `dedupeKey` (kind/correlation, or doctor subject/agent/phase/fingerprint), `alertIssueKey`, `Start(ctx, bus, sink, cfg)` (subscribe `>` buf 256, recover-on-panic), payload helpers. |
 
 Tests: `alerter_test.go`.
 

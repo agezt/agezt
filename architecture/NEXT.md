@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.33 the guardian seeder's two reaches become one port, 2026-10-23
+## Current checkpoint — W3.34 the briefing rows move to the contract layer, 2026-10-24
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2300,6 +2300,56 @@ files, five of the seventeen mutations would have escaped.
   a test, because the roster module's `Profile` is an alias of the contract's
   row — a plugin that named it again would compile and pass every test in
   the package, so the gate is the only thing that can see it.
+
+- W3.34 (the briefing rows move to the contract layer) is committed on
+  `main` the same way. The **pulse** engine composes the brief — the message
+  the daemon pushes at the operator when something is worth saying — and the
+  surfaces that deliver it (the daemon log, the Telegram chat, the Slack
+  channel, the push surface, the webhook) are the built-in channels, which
+  are a **PLUGIN**. The plugin reached into the pulse **module** for exactly
+  one thing: the row. `pulse.Brief` is the message the engine composes and
+  the plugin delivers, and `pulse.BriefSink` is the seam between them, so a
+  plugin that names them reaches into a module to name something that was
+  never the module's to own.
+  The row therefore moved to the contract layer
+  (`kernel/contract/pulseapi`): the brief, its **disposition** with its five
+  values, the sink port and the three sink implementations (`LogSink`,
+  `SinkFunc`, `MultiSink`) — all of it pure, so it belongs where the row is.
+  The module keeps every name as an **alias**, so there is one row and one
+  spelling of it, and the **composition** stays behind in the module
+  (`composeBrief`, `composeDigest`, the quiet-hours window, the salience
+  rules, the engine's loop) — that is the implementation, not the row.
+  The **channel factory layer** (`kernel/channelwire`) named the pulse
+  module for the same row and now names the contract too — which closed a
+  **second** edge and removed `kernel/agent` from that layer's transitive
+  dependencies, which is exactly what the layer's own package doc said it
+  was there to prevent.
+  The **ratchet went DOWN by TWO**: 87/13 → **85/13** — both edges are gone
+  and **both stale allowlist entries were deleted**.
+  The **wire matters** here: the brief is delivered to a human, so its JSON
+  keys are a contract with every consumer outside the package, and they had
+  never been measured. They are now pinned key for key — the four
+  always-present keys (`title`, `disposition`, `issue_key`, `items`) and the
+  two that are **dropped when empty** (`body`, `correlation_id`).
+  The five **dispositions** are wire too, and all five are pinned by value.
+  The **format the operator reads** is pinned in both its renderings — the
+  daemon log's `📣 BRIEF [notify] the fleet is quiet` line and the chat
+  surface's `📣 three things` message — two renderings of one row, both
+  previously unpinned.
+  The **sinks' rules** are the operator's contract and are pinned too: a
+  sink with **no writer** is a no-op rather than a panic, a **multi sink**
+  fans out to **every** sink even when one fails and answers the **first**
+  error (a Telegram outage must not suppress the daemon log line), and a
+  **nil sink** is skipped rather than called into.
+  The **identity** is pinned as well: the module's rows **are** the
+  contract's rows by type, not by shape, and the plugin's rows are the
+  contract's — a copy would drift.
+  14 mutations: 14 caught — none survived, none was a compile error, none
+  was skipped on a stale anchor; and two of them are measured by the
+  **archcheck gate** rather than by a test, because the module's `Brief` is
+  an alias of the contract's row, so a plugin (or the channel factory
+  layer) that named the module again would compile and pass every test in
+  the package.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

@@ -80,13 +80,13 @@ De-facto invariants every implementation follows (not enforced by the type syste
 
 - `Deps{Ctx, Bus, Handler, Get func(baseEnv) string, Label}` — the **entire** kernel surface a factory may touch.
   `Get` = `settings.FieldGetter(label)` → `os.Getenv(base + "#" + label)` (or bare `base` for the default account).
-- `Built{Channels []channel.Channel, Sink pulse.BriefSink, Desc string}`; `Desc == ""` (`NotConfigured`) = skip.
+- `Built{Channels []channel.Channel, Sink pulseapi.BriefSink, Desc string}`; `Desc == ""` (`NotConfigured`) = skip.
 - `Register(kind, Factory)` / `Lookup(kind)` — RWMutex-guarded map.
 - `Labels(kind)` — scans `os.Environ()` for `<base>#<label>` keys whose base belongs to the kind's Config Center
   section (`settings.SectionEnvs(kind)`), label regex `^[a-z0-9][a-z0-9_-]{0,31}$`.
 - `BuildKind(ctx, kind, bus, handler) []Instance` — calls the factory for `""` + every label; keys each instance
   `kind` or `kind#label`; the first channel of a Built carries the Sink. (Lives in channelwire, not channel, because
-  a factory returns a `pulse.BriefSink` and kernel/channel must not import pulse → agent.)
+  a factory returns a `pulseapi.BriefSink` and kernel/channel must not import pulse → agent.)
 
 ---
 
@@ -151,7 +151,7 @@ platform ──(poll / webhook / socket)──▶ channel package
 | Caller | Path |
 |---|---|
 | Inbound reply | the channel's own `Send`/`send` (corr passed only by telegram, slack, discord, matrix, signal, mastodon, nextcloudtalk, nostr, sms, webhook, whatsapp) |
-| Pulse briefs, M782 alert notifications | `Built.Sink` closures (`pulse.SinkFunc`) → `ch.Send(d.Ctx, Outbound{ChannelID: <each allowlisted id>, Text: "📣 "+Title+"\n"+Body, Priority: notify})`; combined into `pulse.MultiSink` |
+| Pulse briefs, M782 alert notifications | `Built.Sink` closures (`pulseapi.SinkFunc`) → `ch.Send(d.Ctx, Outbound{ChannelID: <each allowlisted id>, Text: "📣 "+Title+"\n"+Body, Priority: notify})`; combined into `pulseapi.MultiSink` |
 | `agt send --channel <kind[#label]> --to <id>` | control plane `ChannelSend` → `channelTargets` → `Send` on each matching instance |
 | `notify` / `send_media` agent tools | same `channelSend`/`channelSendMedia` closures; targets restricted to telegram/slack/discord **default** accounts with a non-empty allowlist |
 
@@ -226,7 +226,7 @@ are uniformly `kernel/bus`, `kernel/channel`, `kernel/event`, `kernel/ulid`; plu
 **Purpose.** The single place that describes every shipped channel (manifests) and binds each kind to a
 `channelwire.Factory`. Kept out of the kernel (kernel never imports plugins) and out of the transport packages
 (which stay transport-only). Imported only by `cmd/agezt` (`main.go:294`); it imports `internal/brand`,
-`kernel/channel`, `kernel/channelwire`, `kernel/pulse` and all 25 transport packages.
+`kernel/channel`, `kernel/channelwire`, `kernel/contract/pulseapi` and all 25 transport packages.
 
 **Key API.** `RegisterAll()` — idempotent; `channel.RegisterManifest` for each of the 34 `manifests`, then 34
 `channelwire.Register(kind, factory)` calls. Everything else is unexported.
@@ -246,7 +246,7 @@ Config Center schema** (so not settable from the UI, and invisible to label disc
 2. `splitNonEmpty(comma list)` → `channel.NewAllowlist`.
 3. Construct the transport with `Bus: d.Bus, Handler: d.Handler` (email passes the handler only when an inbox is
    set; teams/homeassistant/push get no handler).
-4. Sink: a `pulse.SinkFunc` that sends `formatBrief(b)` (`"📣 " + Title [+ "\n" + Body]`) to every allowlisted id,
+4. Sink: a `pulseapi.SinkFunc` that sends `formatBrief(b)` (`"📣 " + Title [+ "\n" + Body]`) to every allowlisted id,
    returning the first error; `nil` sink when no destination is known.
 5. `Desc`: the boot-banner text, including actionable hints ("NO allowlist (outbound-only; set …)").
 6. Dual-kind factories (dingtalk, feishu, wecom, mastodon, line, googlechat, mattermost) fall back to

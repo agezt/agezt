@@ -995,6 +995,28 @@ This file holds the active `[Unreleased]` working set.
   The guardians' quiet defaults — silent on success, no memory writes — are
   the operator's contract, and they are now asserted.
 
+- **The briefing rows move to the contract layer.** The **pulse** engine
+  composes the brief — the message the daemon pushes at the operator when
+  something is worth saying — and the surfaces that deliver it (the daemon
+  log, the Telegram chat, the Slack channel, the push surface, the webhook)
+  are the built-in channels, which are a plugin. The plugin reached into the
+  pulse **module** for exactly one thing: the row.
+  The brief, its **disposition** and its five values, the sink port and the
+  three sink implementations now live in the contract layer
+  (`kernel/contract/pulseapi`); the pulse module keeps every name as an
+  alias, so there is one row and one spelling of it, and the composition
+  stays behind in the module.
+  The **channel factory layer** named the pulse module for the same row and
+  now names the contract, which closed a second edge and kept `kernel/agent`
+  out of that layer's transitive dependencies.
+  The brief's JSON keys are a contract with every consumer outside the
+  package — the CLI, the Web UI and the chat surfaces — and they are now
+  pinned key for key, as are the five dispositions and the format the
+  operator reads.
+  A sink with **no writer** is a no-op rather than a panic, and a **multi
+  sink** keeps delivering to every sink when one fails: a Telegram outage
+  must not suppress the daemon log line.
+
 - **The config tool's reach into the runtime becomes a port.** The `config`
   tool — the agent's window into the Config Center, which reads and writes the
   settings the daemon, the `agt config` CLI and the HTTP routes share, and
