@@ -354,7 +354,7 @@ The implementation that answers the port (app layer, `kernel/app/overseer`):
 | `config.go` | `Tool{baseDir, kernel}`, `SetKernel`, `Definition`, `Invoke`, `doSchema`, `doGet`, `doSet` (agent scope → roster ConfigOverrides; secrets → vault; else settings + live reload). |
 | `config_helpers.go` | `configScope`, `doRegister`, `doUnregister`, `errf`. |
 | **council** `council.go` | `Runner`, `Tool`, `SetRunner`, `Definition`, `Invoke` (opinions view). |
-| **db** `db.go` | `Store` interface (datalake subset), `Tool`, `Definition`, `Invoke` op switch, `dataLakeActor`, per-op handlers, `jsonResult`. |
+| **db** `db.go` | `Store` (the contract's port — `contract/datalakeapi.Lake`), `Tool`, `Definition`, `Invoke` op switch, `dataLakeActor`, per-op handlers, `jsonResult`. |
 | **fetch** `fetch.go` | `Indexer`, `Tool`, `SetIndex`, `SetOnBlock`, netguard `client`, `Definition`, `Invoke` (GET → ≤50 MiB → `PutEntry`), `cleanMime`, `kindForMime`, `nameFromURL`. |
 | **forgetool** `tool.go` | `Kernel` interface (Draft/Update/Test/RequestToolPromotion — the rows are the contract's, `contract/toolforgeapi`), `Tool`, `Bind(k, store)` (the store arrives as the contract's `toolforgeapi.Store` port; the daemon hands it over), `Definition`, `Invoke` (draft/test/update/request_promotion/list/show). |
 | **homeassistant** `doc.go` | Package doc (separate allowlists from the HA channel; fixed destination). |

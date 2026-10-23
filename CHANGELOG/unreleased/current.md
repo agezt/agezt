@@ -977,6 +977,21 @@ This file holds the active `[Unreleased]` working set.
   daemon's own wiring is now measured: the catalogue the daemon serves must
   not be empty.
 
+- **The data-lake rows move to the contract layer.** The `db` tool — the
+  agent's database, which creates collections, writes records and queries
+  them, and which the console and the Web UI read the same lake through — is
+  a plugin, so the description of one collection, one record, the query, the
+  listing's summary and the three refusals the lake answers with now live in
+  the contract layer (`kernel/contract/datalakeapi`). The tool's own store
+  interface is replaced by the contract's port — one port, one spelling — and
+  the module keeps its names as aliases; the lake, its persistence and the
+  built-in collection gallery stay in the module: they are the implementation.
+  The registry stops holding the lake by its concrete type too: the lake
+  arrives as the contract's port.
+  The stored file's format is unchanged, and that is now pinned by a test: a
+  collection and its records are written to `datalake/<coll>/` and read
+  back, so a renamed field would have silently dropped it.
+
 - **The workflow rows move to the contract layer.** The `workflow` tool — the
   agent's automation primitive, which authors durable, named, acyclic graphs
   of typed nodes and runs them — is a plugin, so the description of one

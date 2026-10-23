@@ -78,7 +78,6 @@ cross-module kernel/modules/agents/selfrepair -> kernel/modules/board/board
 cross-module kernel/modules/agents/selfrepair -> kernel/runtime
 cross-module kernel/toolreg -> kernel/modules/artifacts/artifact
 cross-module kernel/toolreg -> kernel/modules/board/board
-cross-module kernel/toolreg -> kernel/modules/artifacts/datalake
 plugin-reach plugins/builtinchannels -> kernel/channelwire
 plugin-reach plugins/builtinchannels -> kernel/pulse
 plugin-reach plugins/builtinguardians -> kernel/modules/agents/roster
@@ -89,7 +88,6 @@ plugin-reach plugins/builtintools -> kernel/toolreg
 plugin-reach plugins/tools/acpagent -> kernel/acp
 plugin-reach plugins/tools/acpagent -> kernel/modules/extensions/acpcatalog
 plugin-reach plugins/tools/config -> kernel/runtime
-plugin-reach plugins/tools/db -> kernel/modules/artifacts/datalake
 plugin-reach plugins/tools/workboardtool -> kernel/modules/work/workboard
 upward kernel/channel -> kernel/bus
 upward kernel/governor -> kernel/modules/providers/catalog

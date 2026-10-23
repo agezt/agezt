@@ -47,7 +47,7 @@ From `internal-deps.txt`:
 | `bus` | event, journal | ~45 packages (all event producers/consumers, every channel plugin, codeexec) |
 | `memory` | **agent**, bus, **edict**, event, filestore | cmd/agezt, agentgw, contextselect, controlplane, runtime(+accessors, runexec) |
 | `worldmodel` | **agent**, bus, **edict**, event, filestore | contextselect, controlplane, reflect, runtime(+accessors, runexec) |
-| `datalake` | atomicfile, ulid | controlplane, runtime(+accessors, runexec), toolreg, plugins/tools/db |
+| `datalake` | atomicfile, contract/datalakeapi, ulid | controlplane, runtime(+accessors, runexec) |
 | `artifact` | atomicfile, ulid | cmd/agezt, controlplane, runtime(+accessors, runexec), toolreg (the browser, the code executor, the fetch tool and the artifacts tool name the contract row, not the module) |
 | `board` | filestore, ulid | cmd/agezt, controlplane, restapi, selfrepair, toolreg, kernel/app/overseer (the board tool takes the store through the contract's port) |
 | `workboard` | filestore, **proof**, ulid | controlplane, runtime, plugins/tools/workboardtool |
@@ -458,10 +458,18 @@ Notes / gotchas:
 | File | What it does |
 |---|---|
 | `doc.go` | Layout doc. |
-| `datalake.go` | Errors (`ErrNotFound`, `ErrExists`, `ErrSystem`), `Field`, `Schema` (name, title, lucide icon, view, desc, fields, Builtin, System, CreatedMs/By), `Record` (`rec-<ulid>` id, `Fields map[string]any`, created/updated ms + by), `Query` (Search substring, Equals, SortBy, Desc, Limit, Offset), `CollectionInfo`, `Lake{dir, mu, colls, now}`, `Open(baseDir, now)` (loads every collection dir; unreadable collections are skipped silently), `loadCollection`, `validName` (`[A-Za-z0-9_-]{1,64}`, not `_schema`). |
+| `aliases.go` | The rows and the errors as **aliases** of the contract's (`kernel/contract/datalakeapi`): `Field`, `Schema`, `Record`, `Query`, `CollectionInfo`, `ErrNotFound`, `ErrExists`, `ErrSystem`. One row, one spelling. |
+| `datalake.go` | `Lake{dir, mu, colls, now}`, `Open(baseDir, now)` (loads every collection dir; unreadable collections are skipped silently), `loadCollection`, `validName` (`[A-Za-z0-9_-]{1,64}`, not `_schema`). |
 | `datalake_schema.go` | `CreateCollection`, `EnsureCollection` (idempotent), `writeSchema`, `DropCollection` (refuses `System`), `ListCollections`, `titleOf`, `Schema`, `canonicalDate`/`canonicalizeDateFields` (copy-on-write; only fields the schema declares `date`, only whole-date values → `YYYY-MM-DD`). |
 | `datalake_records.go` | `Insert`, `Get`, `Update` (merge patch; `nil` value deletes key), `Delete`, `Query`, `Count`, match/sort helpers (`matchEquals` via JSON-normalized compare, `matchSearch`, `lessRecords`, `toFloat`, `jsonEqual`), `writeRecord`, `writeJSON` (atomicfile 0600). |
 | `builtins.go` | `BuiltinSchemas()` — 7 `Builtin+System` collections: expenses (view expense), calendar, tasks, notes, habits, bookmarks, contacts; `SeedBuiltins(actor)` (idempotent, run at every boot from `runtime.Open` with actor `system`, errors ignored). |
+
+**The rows live in the contract layer** (`kernel/contract/datalakeapi`, W3.30): the
+errors, `Field`, `Schema`, `Record`, `Query`, `CollectionInfo` and the `Lake`
+**port** the agent-facing `db` tool drives. The tool is a plugin, so it may
+name the contract and nothing else — it no longer names this module, and the
+tool registry no longer names it either (the lake arrives as the contract's
+port).
 
 Tests: `datalake_test.go`, `datewrite_test.go`, `json_equal_bug_test.go`, `coverage_boost_test.go`.
 

@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-184 package(s):
+185 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -79,6 +79,7 @@
 - **`kernel/contract/cadenceapi`** — —
 - **`kernel/contract/catalogapi`** — Package catalogapi is the contract layer's home for the provider catalog's rows: the description of one provider and the models it serves.
 - **`kernel/contract/channelapi`** — Package channelapi is the messaging-channel contract: the platform-neutral inbound message every channel normalises to (UnifiedMessage, SPEC-04 §1.3), what the kernel hands a channel to deliver (Outbound, Attachment, Reply), the Channel interface a duplex surface implements, and the Manifest a channel registers to describe itself.
+- **`kernel/contract/datalakeapi`** — Package datalakeapi is the contract layer's home for the Personal Data Lake's rows: one collection's definition (its schema and the columns it carries), one record (a row with a stable id and a free-form field map), the query that narrows a listing, and the summary a listing shows.
 - **`kernel/contract/introspectapi`** — Package introspectapi is the contract layer's home for the introspector's rows: the daemon's own at-a-glance health snapshot and the reaper's fleet scan, as the agent-facing tool publishes them.
 - **`kernel/contract/llm`** — Package llm is the model-provider contract: the canonical conversation (Message, Role, ToolCall), one completion round trip (CompletionRequest, CompletionResponse, Usage, StopReason, Params) and the provider interfaces (Provider, StreamingProvider, Chunk).
 - **`kernel/contract/marketapi`** — Package marketapi is the contract layer's home for the marketplace's rows: one installable pack, the skills and MCP servers it carries, the catalogue entry a marketplace lists it under, and the catalogue itself — together with the rules that govern them (what makes a pack valid, what its canonical bytes and content hash are, how versions are ordered) and the port through which a catalogue is read.

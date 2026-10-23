@@ -52,7 +52,7 @@ kernel/contract/types    -> (none)   (the shared value types; L1 contract, W2.58
 kernel/app/tools   -> contract/{toolapi,toolphaseapi}, platform/toolpipeline
 kernel/toolexec     -> contract/toolapi, platform/toolpipeline (legacy forwarding only)
 kernel/platform/toolpipeline -> contract/{llm,policyapi,toolapi,toolphaseapi}, event, platform/{policyctx,schema,toolaudit,toolinvoke,tooloutput}
-kernel/toolreg      -> agent, artifact, board, bus, channel, datalake, journal, runtime, warden
+kernel/toolreg      -> agent, artifact, board, bus, channel, journal, runtime, warden
 kernel/modules/extensions/toolforge    -> filestore, ulid
 kernel/delegation   -> agent, edict
 kernel/resume       -> internal/atomicfile, agent
