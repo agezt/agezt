@@ -977,6 +977,30 @@ This file holds the active `[Unreleased]` working set.
   daemon's own wiring is now measured: the catalogue the daemon serves must
   not be empty.
 
+- **The config tool's reach into the runtime becomes a port.** The `config`
+  tool — the agent's window into the Config Center, which reads and writes the
+  settings the daemon, the `agt config` CLI and the HTTP routes share, and
+  which can write a setting **live** (rebuilding the provider in place) or
+  **agent-scoped** (on one agent's profile) — is a plugin, so it may not hold
+  the daemon's implementation. It reached for exactly three things: the
+  roster's profile edit, the provider rebuild, and the run's own config
+  overrides. The port now lives in the contract layer
+  (`kernel/contract/configapi`) with those three methods and nothing else; the
+  adapter that answers it lives in the app layer (`kernel/app/configtool`),
+  because answering it needs the live kernel and the app layer is the only
+  layer that may see it; and the daemon hands the port over at the composition
+  root.
+  The reload answers **the error only** — the catalogue the reload produced is
+  the daemon's business, and a plugin may not name the catalog module.
+  A daemon with no kernel hands over a **nil** port, not a port wrapping a nil
+  implementation, and the tool degrades instead of dereferencing nothing: no
+  daemon means no agent overrides, and an agent-scoped write without a daemon
+  says so.
+  One behaviour changed and is worth naming: the run's overrides used to be
+  read by a package-level function, so a tool built without a daemon still
+  saw them; they now arrive through the port, so a daemon-less tool sees
+  none. In the daemon nothing changes.
+
 - **The workboard chain moves to the contract layer.** The `workboard` tool — the
   agent-facing durable typed task queue, which lists, shows, creates, claims,
   heartbeats, comments, blocks, fails with a retry policy, completes, archives,
