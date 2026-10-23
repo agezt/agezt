@@ -977,6 +977,21 @@ This file holds the active `[Unreleased]` working set.
   daemon's own wiring is now measured: the catalogue the daemon serves must
   not be empty.
 
+- **The marketplace's rows move to the contract layer.** The built-in
+  "Official" catalogue is a plugin, so the description of one installable
+  pack — the skills and MCP servers it carries, the catalogue row a
+  marketplace lists it under — now lives in the contract layer
+  (`kernel/contract/marketapi`), together with the rules that belong to it:
+  what makes a pack valid, what its canonical bytes and content hash are,
+  how two versions are ordered, and how a carried skill is summarised. The
+  catalogue's port moves with it, so the built-in catalogue implements the
+  contract rather than naming the market module. The manager, the store and
+  the syncer stay where they were.
+  A pack is signed, hashed and published, so its wire is a contract with
+  every published pack and every signature ever made. That wire had never
+  been measured; it is now pinned key for key, and the rules that decide what
+  may be installed are measured one by one.
+
 - **The council, the conductor and the research tools no longer reach into the
   kernel for a type.** The rows the reasoning module produces — a consensus,
   a transcript, a cited report — move to the contract layer

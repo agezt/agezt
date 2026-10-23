@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.26 the marketplace's built-in catalogue reads the bundles through the contract's port, 2026-10-23
+## Current checkpoint — W3.27 the market's rows move to the contract layer, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1976,6 +1976,41 @@ files, five of the seventeen mutations would have escaped.
   back), so the error is now measured and it was run again; two were **first
   authored as build errors** (a compile error is not a catch) and were
   re-authored so the code still compiles.
+
+- W3.27 (the market's rows move to the contract layer) is committed on `main`
+  the same way. The built-in "Official" catalogue is a plugin, and it reached
+  into the **market module** for the rows it speaks: the installable
+  **pack**, the **skill and MCP servers** it carries, the **catalogue entry**
+  and the **catalogue**. Those rows now live in `kernel/contract/marketapi`,
+  and the **rules travel with them** (a method can only be defined in its
+  type's package): what makes a pack valid, its canonical bytes, its content
+  hash, the catalogue row it projects to, the **version comparator** and the
+  **skill summary** — both pure, and both the ONE rule their callers must
+  share. The catalogue **port** (`marketapi.Library`) moves too: the built-in
+  catalogue implements the contract's port rather than naming the market
+  module. The **manager, store, syncer and composite library** stay in the
+  module.
+  The **ratchet went DOWN**: 97/13 → **96/13** — the plugin-reach edge is
+  gone, and the **stale allowlist entry was deleted**.
+  This is the row where the **wire matters**: a pack is **signed**, **hashed**
+  and **published**, so the row's JSON keys are a contract with every
+  published pack and every signature ever made — a renamed key would
+  silently change what the signature covers. The wire had never been
+  measured; it is now pinned key for key, with the always-fields pinned too.
+  The rules are measured **rule by rule** — `Validate` must refuse a name
+  that is not kebab-case, a version that is not semver, an empty pack, a
+  skill with an empty or unparseable SKILL.md, a resource that escapes its
+  bundle, and an MCP server the contract's own check refuses.
+  The permanent tests: the **identity assertions**, a test that the module's
+  comparator and the contract's agree on **every pair of versions** and its
+  summary and the contract's agree on **every skill**, the **plugin**
+  implementing the contract's port, and the **wiring**.
+  26 mutations: 26 caught — two **survived the first round** (the
+  malformed-version fallback and the summary's no-description branch: both
+  branches of a rule were untested), so the tests were strengthened and they
+  were run again; three were **first authored as build errors** (a compile
+  error is not a catch) and one had a stale anchor, so all four were
+  re-authored and run again.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
