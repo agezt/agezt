@@ -272,9 +272,15 @@ Governance applied per wake source:
 entries are due. It fires each one through a caller-supplied `RunFunc` with no overlap. The actual dispatch to targets is
 the closure in `cmd/agezt/main_cadence.go`.
 
+**The row lives in the contract layer** (`kernel/contract/cadenceapi`): the introspector and the guardians are plugins, and
+a plugin may reach the contract and the platform layers and nothing else — so a row a plugin has to name cannot live in
+this package. `kernel/cadence` keeps the names as aliases, so every existing caller is unchanged; the store, the engine and
+the ticker stay here — they are the implementation. The row's rules travel with it: `Validate`, `Forecast`, `Advance`,
+`SafeInterval`, `UsesInterval`, the day-mask helpers and the system-task catalog.
+
 ### 3.1 Key API
 
-- **Constants** (`cadence.go`):
+- **Constants** (`kernel/contract/cadenceapi`):
   - `MinInterval=1s`, `DefaultResolution=10s`
   - `SourceOperator="operator"`, `SourceEnv="env"`. builtinguardians uses `"system"` without a constant.
   - Targets: `TargetIntent=""` (legacy zero value = agent run), `TargetWorkflow="workflow"`,
@@ -1807,7 +1813,7 @@ Packages that read **no** env themselves: roster, standing, scheduler, market, m
 
 | To add… | Do this |
 |---|---|
-| **A system task** | 1. Add a const and a `SystemTaskInfo` entry in `kernel/cadence/cadence.go`.<br>2. Add a `case` in `systemtasks.Run` and a `runScheduledX` that publishes `schedule.system_task.x`.<br>3. Never import systemtasks from runtime/cadence.<br>4. Add any new env var to `configEnvVars`.<br>Validation, control plane, the schedule-tool enum and the fired payload pick it up automatically. |
+| **A system task** | 1. Add a const and a `SystemTaskInfo` entry in `kernel/contract/cadenceapi/systemtasks.go`.<br>2. Add a `case` in `systemtasks.Run` and a `runScheduledX` that publishes `schedule.system_task.x`.<br>3. Never import systemtasks from runtime/cadence.<br>4. Add any new env var to `configEnvVars`.<br>Validation, control plane, the schedule-tool enum and the fired payload pick it up automatically. |
 | **A cadence target kind** | 1. Add a `Target*` const.<br>2. Add a branch to `Entry.Validate`.<br>3. Add a store setter that clears conflicting fields.<br>4. Add a dispatch branch in `main_cadence.go` before the "unknown target" error.<br>5. Update `scheduleFiredEventPayload`, controlplane `schedule_add` / `validateScheduleRunnable` / `scheduleExecutionMetadata`, and the schedule tool. |
 | **A cadence mode** | Touch the const, an `Add*`, `advance`, the `Due` eager/deferred decision, `CompleteFiring`, `usesInterval`, `Cadence()`, `Forecast`, `Reschedule`, and controlplane validation. |
 | **A standing trigger type** | 1. Add a `TriggerType` + `Validate` case.<br>2. Add a `StartX` driver using `safeFire` + `pruneToLive`, wired in `buildStandingRunner`.<br>3. Pick a subject convention for `TriggeredIntent`.<br>4. Update the controlplane and `standingtool`. |

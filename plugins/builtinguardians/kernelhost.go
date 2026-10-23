@@ -5,7 +5,7 @@ package builtinguardians
 import (
 	"time"
 
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
@@ -47,7 +47,7 @@ func (h *kernelHost) SetStandingEnabled(id string, enabled bool) (standingapi.Or
 	return h.k.SetStandingEnabled(id, enabled)
 }
 
-func (h *kernelHost) Schedules() []cadence.Entry {
+func (h *kernelHost) Schedules() []cadenceapi.Entry {
 	return h.k.Schedules().List()
 }
 
@@ -55,26 +55,26 @@ func (h *kernelHost) Reschedule(id string, mode string, interval time.Duration, 
 	return h.k.Schedules().Reschedule(id, mode, interval, atMinutes, 0, days, "", time.Time{}, time.Now())
 }
 
-func (h *kernelHost) AddInterval(intent string, interval time.Duration, model, agent string) (cadence.Entry, error) {
+func (h *kernelHost) AddInterval(intent string, interval time.Duration, model, agent string) (cadenceapi.Entry, error) {
 	e, err := h.k.Schedules().Add(intent, interval, model, "system", time.Now())
 	if err != nil || agent == "" {
 		return e, err
 	}
 	if _, err := h.k.Schedules().SetAgent(e.ID, agent); err != nil {
-		return cadence.Entry{}, err
+		return cadenceapi.Entry{}, err
 	}
 	e.Agent = agent
 	return e, nil
 }
 
-func (h *kernelHost) AddDaily(intent string, atMinutes int, model, agent string) (cadence.Entry, error) {
+func (h *kernelHost) AddDaily(intent string, atMinutes int, model, agent string) (cadenceapi.Entry, error) {
 	// days=0 → every day; tz="" → daemon local.
 	e, err := h.k.Schedules().AddDaily(intent, atMinutes, 0, "", model, "system", time.Now())
 	if err != nil || agent == "" {
 		return e, err
 	}
 	if _, err := h.k.Schedules().SetAgent(e.ID, agent); err != nil {
-		return cadence.Entry{}, err
+		return cadenceapi.Entry{}, err
 	}
 	e.Agent = agent
 	return e, nil

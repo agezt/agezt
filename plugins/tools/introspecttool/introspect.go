@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/types"
@@ -104,7 +104,7 @@ type Source interface {
 	// Reaper returns the current dead/degraded/misconfigured fleet scan.
 	Reaper() ReaperReport
 	// Schedules returns every cadence entry (operator- and agent-created).
-	Schedules() []cadence.Entry
+	Schedules() []cadenceapi.Entry
 	// Standing returns every standing order on this daemon.
 	Standing() []standingapi.Order
 }

@@ -10,6 +10,21 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
+
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
+)
+
+// The module's schedule row IS the contract's row — the same declaration the
+// control plane serves, the plugins report and the store persists, so they
+// cannot drift apart.
+//
+// The assertion is a FUNCTION type: an assignment would also accept a copy
+// with the same fields, while a function type requires the two types to be
+// IDENTICAL. So a module that ever declares its own copy is reported at the
+// seam instead of at the far end of the wiring.
+var (
+	_ func(cadenceapi.Entry)          = func(Entry) {}
+	_ func(cadenceapi.SystemTaskInfo) = func(SystemTaskInfo) {}
 )
 
 func mustStore(t *testing.T) *Store {
@@ -537,10 +552,10 @@ func TestParseDays(t *testing.T) {
 		"":            0,
 		"daily":       0,
 		"all":         0,
-		"weekdays":    maskWeekdays,
-		"weekends":    maskWeekends,
-		"mon-fri":     maskWeekdays,
-		"sat,sun":     maskWeekends,
+		"weekdays":    cadenceapi.MaskWeekdays,
+		"weekends":    cadenceapi.MaskWeekends,
+		"mon-fri":     cadenceapi.MaskWeekdays,
+		"sat,sun":     cadenceapi.MaskWeekends,
 		"Mon,Wed,Fri": 1<<1 | 1<<3 | 1<<5,
 		"fri-mon":     1<<5 | 1<<6 | 1<<0 | 1<<1, // wrapping range
 		"tue":         1 << 2,
@@ -564,11 +579,11 @@ func TestParseDays(t *testing.T) {
 
 func TestFormatDays(t *testing.T) {
 	cases := map[int]string{
-		0:                  "",
-		AllDays:            "",
-		maskWeekdays:       "Mon-Fri",
-		maskWeekends:       "Sat,Sun",
-		1<<1 | 1<<3 | 1<<5: "Mon,Wed,Fri",
+		0:                       "",
+		AllDays:                 "",
+		cadenceapi.MaskWeekdays: "Mon-Fri",
+		cadenceapi.MaskWeekends: "Sat,Sun",
+		1<<1 | 1<<3 | 1<<5:      "Mon,Wed,Fri",
 	}
 	for mask, want := range cases {
 		if got := FormatDays(mask); got != want {
@@ -776,7 +791,7 @@ func TestStore_Window_SkipsDisallowedDay(t *testing.T) {
 	// After the last Friday slot (17:00) the next run jumps over the weekend to
 	// Monday 09:00, not Saturday — assert advance() directly from Friday 17:00.
 	fri17 := time.Date(2026, 6, 5, 17, 0, 0, 0, time.UTC)
-	nxt := time.Unix(e.advance(fri17), 0).UTC()
+	nxt := time.Unix(e.Advance(fri17), 0).UTC()
 	wantMon := time.Date(2026, 6, 8, 9, 0, 0, 0, time.UTC)
 	if !nxt.Equal(wantMon) {
 		t.Errorf("advance from Fri 17:00 = %s, want Mon 09:00", nxt.Format("2006-01-02 15:04"))

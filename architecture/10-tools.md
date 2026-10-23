@@ -415,7 +415,7 @@ Every package has `*_test.go` (unit + `coverage_*_test.go`); peer has 9 test fil
 
 ## 6. `plugins/builtinguardians` — self-healing guardian fleet
 
-**Purpose.** Seed System-flagged guardian agents + their trigger into the roster at boot (M961). **Depends on** `kernel/cadence`, `kernel/roster`, `kernel/runtime`, and the standing orders' rows (`kernel/contract/standingapi` — the plugin may not reach the standing module itself). **Used by** `cmd/agezt/main.go:1535` (best-effort; seed failure never blocks startup).
+**Purpose.** Seed System-flagged guardian agents + their trigger into the roster at boot (M961). **Depends on** `kernel/roster`, `kernel/runtime`, and the schedule rows and the standing rows (`kernel/contract/cadenceapi`, `kernel/contract/standingapi` — the plugin may not reach the cadence or the standing module itself). **Used by** `cmd/agezt/main.go:1535` (best-effort; seed failure never blocks startup).
 
 `Host` interface (`Agents, AddAgent, UpdateAgent, StandingOrders, UpdateStanding, AddStanding, SetStandingEnabled, Schedules, Reschedule, AddInterval, AddDaily`), implemented by `kernelHost` over `*runtime.Kernel` (schedules tagged source `system` so env sync never prunes them).
 

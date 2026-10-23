@@ -19,7 +19,7 @@ func TestAdvance_FloorsSubMinimumInterval(t *testing.T) {
 	now := time.Unix(1_000_000, 0)
 	for _, sec := range []int64{0, -100, -1} {
 		e := Entry{Mode: ModeInterval, IntervalSec: sec}
-		next := e.advance(now)
+		next := e.Advance(now)
 		if next <= now.Unix() {
 			t.Errorf("interval_sec=%d: advance=%d <= now=%d (would busy-loop)", sec, next, now.Unix())
 		}
@@ -29,7 +29,7 @@ func TestAdvance_FloorsSubMinimumInterval(t *testing.T) {
 	}
 	// Window mode also consumes IntervalSec.
 	e := Entry{Mode: ModeWindow, IntervalSec: 0, AtMinutes: 0, EndMinutes: 1440}
-	if next := e.advance(now); next <= now.Unix() {
+	if next := e.Advance(now); next <= now.Unix() {
 		t.Errorf("window interval_sec=0: advance=%d <= now (would busy-loop)", next)
 	}
 }

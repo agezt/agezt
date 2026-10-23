@@ -98,7 +98,7 @@ func (s *Store) Due(now time.Time) []Entry {
 			continue
 		}
 		e.LastRunUnix = now.Unix()
-		e.NextRunUnix = e.advance(now)
+		e.NextRunUnix = e.Advance(now)
 		changed = true
 		due = append(due, *e)
 	}
@@ -134,7 +134,7 @@ func (s *Store) CompleteFiring(id string, now time.Time) (bool, error) {
 			// just lived — this is the loop's heartbeat (M650).
 			s.entries[i].Fires++
 			s.entries[i].LastRunUnix = now.Unix()
-			s.entries[i].NextRunUnix = now.Add(e.safeInterval()).Unix()
+			s.entries[i].NextRunUnix = now.Add(e.SafeInterval()).Unix()
 			return false, s.save()
 		default:
 			// Recurring (interval/daily/window): Due already advanced NextRunUnix

@@ -29,7 +29,7 @@ func OpenStore(dir string) (*Store, error) {
 	// too, but repairing here makes the clamp durable and visible in
 	// `agt schedule list`.
 	for i := range s.entries {
-		if s.entries[i].usesInterval() && s.entries[i].Interval() < MinInterval {
+		if s.entries[i].UsesInterval() && s.entries[i].Interval() < MinInterval {
 			s.entries[i].IntervalSec = int64(MinInterval / time.Second)
 		}
 	}
