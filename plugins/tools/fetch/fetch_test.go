@@ -10,16 +10,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
+	"github.com/agezt/agezt/kernel/contract/remoteapi"
 )
 
 // fakeIndex captures PutEntry calls.
 type fakeIndex struct {
-	got  artifact.Entry
+	got  remoteapi.Artifact
 	data []byte
 }
 
-func (f *fakeIndex) PutEntry(meta artifact.Entry, data []byte, createdMs int64) (artifact.Entry, error) {
+func (f *fakeIndex) PutEntry(meta remoteapi.Artifact, data []byte, createdMs int64) (remoteapi.Artifact, error) {
 	meta.ID = "art-test"
 	meta.Ref = "deadbeef"
 	meta.Size = int64(len(data))

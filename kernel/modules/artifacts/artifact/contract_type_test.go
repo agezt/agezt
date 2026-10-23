@@ -13,6 +13,15 @@ import (
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 )
 
+// The stored row IS the contract row — the same declaration the REST adapter
+// serves and the peer call reads — so the stored row and the served row
+// cannot drift apart.
+//
+// The assertion is a FUNCTION type: an assignment would also accept a copy
+// with the same fields, while a function type requires the two types to be
+// IDENTICAL.
+var _ func(remoteapi.Artifact) = func(artifact.Entry) {}
+
 // TestEntryIsTheContractRow: the store's row IS the contract row — the same
 // declaration the REST adapter serves and the peer call reads — so the stored
 // row and the served row cannot drift apart.

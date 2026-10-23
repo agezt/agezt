@@ -22,8 +22,8 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/strutil"
+	"github.com/agezt/agezt/kernel/contract/remoteapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/platform/sandbox"
 )
 
@@ -132,20 +132,20 @@ func (t *ActionTool) attachArtifacts(normalized string) string {
 	return string(enc)
 }
 
-func (t *ActionTool) saveActionArtifact(path, forcedKind, name, caption string) (artifact.Entry, error) {
+func (t *ActionTool) saveActionArtifact(path, forcedKind, name, caption string) (remoteapi.Artifact, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
-		return artifact.Entry{}, errors.New("empty path")
+		return remoteapi.Artifact{}, errors.New("empty path")
 	}
 	if !isBrowserActionTempPath(path) {
-		return artifact.Entry{}, fmt.Errorf("refusing to save browser output outside browseruse temp dir: %s", path)
+		return remoteapi.Artifact{}, fmt.Errorf("refusing to save browser output outside browseruse temp dir: %s", path)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return artifact.Entry{}, fmt.Errorf("read %s: %w", path, err)
+		return remoteapi.Artifact{}, fmt.Errorf("read %s: %w", path, err)
 	}
 	if len(data) == 0 {
-		return artifact.Entry{}, fmt.Errorf("read %s: empty file", path)
+		return remoteapi.Artifact{}, fmt.Errorf("read %s: empty file", path)
 	}
 	cleanName := filepath.Base(strings.TrimSpace(name))
 	if cleanName == "." || cleanName == string(filepath.Separator) || cleanName == "" {
@@ -167,7 +167,7 @@ func (t *ActionTool) saveActionArtifact(path, forcedKind, name, caption string) 
 	if t.Now != nil {
 		now = t.Now()
 	}
-	return t.index.PutEntry(artifact.Entry{
+	return t.index.PutEntry(remoteapi.Artifact{
 		Kind:    kind,
 		Source:  "browser.action",
 		Name:    cleanName,
@@ -176,7 +176,7 @@ func (t *ActionTool) saveActionArtifact(path, forcedKind, name, caption string) 
 	}, data, now)
 }
 
-func actionArtifactRecord(e artifact.Entry) map[string]any {
+func actionArtifactRecord(e remoteapi.Artifact) map[string]any {
 	return map[string]any{
 		"id":   e.ID,
 		"ref":  e.Ref,

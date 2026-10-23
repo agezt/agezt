@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
+	"github.com/agezt/agezt/kernel/contract/remoteapi"
 )
 
 func TestActionTool_InvokeRunsDriverAndNormalizesOutput(t *testing.T) {
@@ -853,11 +853,11 @@ func mustRaw(t *testing.T, v any) json.RawMessage {
 }
 
 type fakeActionIndex struct {
-	entries []artifact.Entry
+	entries []remoteapi.Artifact
 	data    [][]byte
 }
 
-func (f *fakeActionIndex) PutEntry(meta artifact.Entry, data []byte, createdMs int64) (artifact.Entry, error) {
+func (f *fakeActionIndex) PutEntry(meta remoteapi.Artifact, data []byte, createdMs int64) (remoteapi.Artifact, error) {
 	meta.ID = "art-test-" + string(rune('a'+len(f.entries)))
 	meta.Ref = "ref-" + meta.ID
 	meta.Size = int64(len(data))

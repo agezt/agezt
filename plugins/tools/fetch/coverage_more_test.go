@@ -11,13 +11,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
+	"github.com/agezt/agezt/kernel/contract/remoteapi"
 )
 
 type failingIndex struct{}
 
-func (f failingIndex) PutEntry(artifact.Entry, []byte, int64) (artifact.Entry, error) {
-	return artifact.Entry{}, errors.New("disk full")
+func (f failingIndex) PutEntry(remoteapi.Artifact, []byte, int64) (remoteapi.Artifact, error) {
+	return remoteapi.Artifact{}, errors.New("disk full")
 }
 
 func TestFetchCoverageDefinitionAndParseErrors(t *testing.T) {

@@ -16,9 +16,9 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/remoteapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/warden"
 )
 
@@ -70,7 +70,7 @@ type Tool struct {
 // artifactIndexer is the slice of *artifact.Index code_exec needs for files a
 // script intentionally exports under .agezt-artifacts/.
 type artifactIndexer interface {
-	PutEntry(meta artifact.Entry, data []byte, createdMs int64) (artifact.Entry, error)
+	PutEntry(meta remoteapi.Artifact, data []byte, createdMs int64) (remoteapi.Artifact, error)
 }
 
 // NewWithWarden returns a Tool routed through the supplied warden engine — the
