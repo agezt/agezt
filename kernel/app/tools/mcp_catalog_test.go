@@ -4,7 +4,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/mcp"
+	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"reflect"
 	"strings"
 	"testing"

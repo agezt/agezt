@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/toolforge"
+	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 )
 
 func TestForgeCoverageDefinition(t *testing.T) {

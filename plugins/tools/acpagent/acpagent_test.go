@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/acp"
-	"github.com/agezt/agezt/kernel/acpcatalog"
+	"github.com/agezt/agezt/kernel/modules/extensions/acpcatalog"
 )
 
 // peerRunner is the fake external ACP agent's brain: it streams chunks and

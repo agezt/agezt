@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/approval"
-	"github.com/agezt/agezt/kernel/toolforge"
+	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 )
 
 // fakeKernel drives the tool against a real toolforge.Store with a canned

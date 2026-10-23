@@ -24,11 +24,12 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/market"
-	"github.com/agezt/agezt/kernel/mcp"
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
+	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
+	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
@@ -46,7 +47,6 @@ import (
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/state"
-	"github.com/agezt/agezt/kernel/toolforge"
 	"github.com/agezt/agezt/kernel/warden"
 )
 

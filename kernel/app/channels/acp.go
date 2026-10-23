@@ -4,7 +4,7 @@ package channels
 import (
 	"context"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/acpcatalog"
+	"github.com/agezt/agezt/kernel/modules/extensions/acpcatalog"
 	"os"
 	"strings"
 )

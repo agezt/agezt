@@ -12,7 +12,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/mcp"
+	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 

@@ -16,9 +16,9 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/strutil"
-	"github.com/agezt/agezt/kernel/acpcatalog"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/modules/extensions/acpcatalog"
 )
 
 // transport is the spawned agent's stdio: out is its stdout (we read), in is its

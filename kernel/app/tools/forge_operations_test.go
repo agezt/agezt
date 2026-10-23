@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/platform/schema"
-	"github.com/agezt/agezt/kernel/toolforge"
 	"reflect"
 	"testing"
 )

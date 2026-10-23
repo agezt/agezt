@@ -21,7 +21,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/envscrub"
-	"github.com/agezt/agezt/kernel/plugin"
+	"github.com/agezt/agezt/kernel/modules/extensions/plugin"
 	"github.com/agezt/agezt/kernel/redact"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/toolreg"

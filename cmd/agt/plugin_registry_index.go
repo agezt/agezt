@@ -17,7 +17,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
-	"github.com/agezt/agezt/kernel/plugin"
+	"github.com/agezt/agezt/kernel/modules/extensions/plugin"
 )
 
 func loadPluginIndex(source string, stderr io.Writer) (pluginIndex, bool) {

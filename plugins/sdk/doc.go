@@ -5,7 +5,7 @@
 // Writing a plugin by hand means implementing the line-delimited JSON
 // protocol yourself: the stdin read loop, the request/response frame
 // demux, write serialisation across goroutines, progress streaming, and
-// host-callback routing. The reference plugin (kernel/plugin/testdata/
+// host-callback routing. The reference plugin (kernel/modules/extensions/plugin/testdata/
 // echoplugin) is ~260 lines of exactly that boilerplate. This package
 // collapses it so a plugin author writes only their tool logic:
 //
@@ -40,7 +40,7 @@
 // does NOT import kernel/plugin or kernel/agent: a plugin must not have
 // to compile against the kernel (DECISIONS B0). The wire types here are
 // independent copies of the small plugin-side contract documented in
-// kernel/plugin/protocol.go — the same on-disk JSON shape an author in
+// kernel/modules/extensions/plugin/protocol.go — the same on-disk JSON shape an author in
 // Python or Rust would target by hand.
 //
 // # What Serve handles for you

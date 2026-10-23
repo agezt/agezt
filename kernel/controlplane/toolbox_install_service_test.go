@@ -6,7 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/toolbox"
+	"github.com/agezt/agezt/kernel/modules/extensions/toolbox"
 	"net"
 	"testing"
 	"time"

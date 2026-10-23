@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/acpcatalog"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/modules/extensions/acpcatalog"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 

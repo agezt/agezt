@@ -15,7 +15,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/plugin"
+	"github.com/agezt/agezt/kernel/modules/extensions/plugin"
 )
 
 // This is the live proof for the SDK: an SDK-authored plugin, compiled

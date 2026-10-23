@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/plugin"
+	"github.com/agezt/agezt/kernel/modules/extensions/plugin"
 )
 
 // TestInvokeWithProgress_StreamsThenTerminal exercises the M1.ss

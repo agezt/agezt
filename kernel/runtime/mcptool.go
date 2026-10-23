@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/mcp"
+	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 )
 
 // MCPStore returns the durable MCP-server registry (M796). Always non-nil

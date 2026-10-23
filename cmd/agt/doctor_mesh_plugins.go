@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/plugin"
+	"github.com/agezt/agezt/kernel/modules/extensions/plugin"
 	"github.com/agezt/agezt/plugins/tools/peer"
 )
 

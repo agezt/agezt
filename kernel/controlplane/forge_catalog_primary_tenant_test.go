@@ -4,7 +4,7 @@ package controlplane_test
 import (
 	"context"
 	"github.com/agezt/agezt/kernel/controlplane"
-	"github.com/agezt/agezt/kernel/toolforge"
+	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"strings"
 	"testing"

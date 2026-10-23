@@ -62,14 +62,6 @@
 
     {"pattern": "kernel/channelwire", "layer": 3, "module": "channels"},
 
-
-
-    {"pattern": "kernel/mcp", "layer": 3, "module": "extensions"},
-    {"pattern": "kernel/plugin", "layer": 3, "module": "extensions"},
-    {"pattern": "kernel/toolforge", "layer": 3, "module": "extensions"},
-    {"pattern": "kernel/toolbox", "layer": 3, "module": "extensions"},
-    {"pattern": "kernel/acpcatalog", "layer": 3, "module": "extensions"},
-
     {"pattern": "kernel/catalog", "layer": 3, "module": "providers"},
     {"pattern": "kernel/chatgptauth", "layer": 3, "module": "providers"},
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 package tools
 
-import "github.com/agezt/agezt/kernel/toolforge"
+import "github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 
 // ForgeItem is the light native view; code stays in the detail view only.
 type ForgeItem struct {

@@ -5,7 +5,7 @@ package controlplane
 import (
 	"context"
 
-	"github.com/agezt/agezt/kernel/toolbox"
+	"github.com/agezt/agezt/kernel/modules/extensions/toolbox"
 )
 
 // nativeToolboxReader binds existing bounded host discovery functions.

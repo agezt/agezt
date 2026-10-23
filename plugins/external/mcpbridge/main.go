@@ -96,7 +96,7 @@ const (
 
 // ----- agezt plugin protocol wire types --------------------------
 //
-// Mirrors kernel/plugin/protocol.go. Duplicated here (rather than
+// Mirrors kernel/modules/extensions/plugin/protocol.go. Duplicated here (rather than
 // imported) so the bridge stays at zero agezt dependencies, the
 // same contract every other plugin language must satisfy.
 

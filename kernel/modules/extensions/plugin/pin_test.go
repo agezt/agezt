@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/plugin"
+	"github.com/agezt/agezt/kernel/modules/extensions/plugin"
 )
 
 // TestVerifyPin_HashMatch covers the happy path: hash the file,
@@ -85,6 +85,13 @@ func TestVerifyPin_RejectsMalformedPin(t *testing.T) {
 			t.Errorf("case %d (uppercase): got error %v, expected nil or ErrPinMismatch", i, err)
 		} else if err == nil {
 			t.Errorf("case %d (%q): expected format-rejection error, got nil", i, c)
+		} else if errors.Is(err, plugin.ErrPinMismatch) {
+			// A malformed pin must be rejected as a malformed DIGEST, not
+			// as a hash mismatch: "your pin is not a digest" and "the file
+			// changed" are different sentences to an operator.
+			t.Errorf("case %d (%q): a malformed pin must be rejected as a format error, not as a hash mismatch: %v", i, c, err)
+		} else if !strings.Contains(err.Error(), "64-char lowercase hex") {
+			t.Errorf("case %d (%q): the rejection must say the pin is not a digest: %v", i, c, err)
 		}
 	}
 }

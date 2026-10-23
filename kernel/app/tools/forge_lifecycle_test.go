@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	"github.com/agezt/agezt/kernel/toolforge"
+	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"reflect"
 	"testing"
 	"time"
