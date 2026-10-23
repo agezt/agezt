@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/cadence"
-	"github.com/agezt/agezt/kernel/standing"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 )
 
 // fakeSource is an in-memory Source so the tool's formatting/dispatch is testable
@@ -18,13 +18,13 @@ type fakeSource struct {
 	ov     Overview
 	reaper ReaperReport
 	sch    []cadence.Entry
-	stnd   []standing.Order
+	stnd   []standingapi.Order
 }
 
-func (f *fakeSource) Overview() Overview         { return f.ov }
-func (f *fakeSource) Reaper() ReaperReport       { return f.reaper }
-func (f *fakeSource) Schedules() []cadence.Entry { return f.sch }
-func (f *fakeSource) Standing() []standing.Order { return f.stnd }
+func (f *fakeSource) Overview() Overview            { return f.ov }
+func (f *fakeSource) Reaper() ReaperReport          { return f.reaper }
+func (f *fakeSource) Schedules() []cadence.Entry    { return f.sch }
+func (f *fakeSource) Standing() []standingapi.Order { return f.stnd }
 
 func newBound() (*Tool, *fakeSource) {
 	src := &fakeSource{
@@ -48,11 +48,11 @@ func newBound() (*Tool, *fakeSource) {
 			{ID: "s-late", Intent: "weekly report", Mode: cadence.ModeOnce, Source: "operator", Enabled: true, NextRunUnix: 5000},
 			{ID: "s-soon", Intent: "morning brief", Mode: cadence.ModeOnce, Source: "operator", Enabled: true, NextRunUnix: 1000, Fires: 3, Model: "deepseek-chat"},
 		},
-		stnd: []standing.Order{
+		stnd: []standingapi.Order{
 			{
 				ID: "o1", Name: "error-watch", Enabled: true,
-				Triggers:   []standing.Trigger{{Type: standing.TriggerEvent, Subject: "task.failed"}},
-				Initiative: standing.Initiative{Mode: standing.InitiativeAsk},
+				Triggers:   []standingapi.Trigger{{Type: standingapi.TriggerEvent, Subject: "task.failed"}},
+				Initiative: standingapi.Initiative{Mode: standingapi.InitiativeAsk},
 				Plan:       "investigate the failure", Assure: 2,
 			},
 		},
@@ -243,9 +243,9 @@ func TestNext_ReturnsValue(t *testing.T) {
 }
 
 func TestStandingView_OmitsZeroFields(t *testing.T) {
-	o := standingView(standing.Order{
+	o := standingView(standingapi.Order{
 		ID: "o1", Name: "test", Enabled: true,
-		Initiative: standing.Initiative{Mode: standing.InitiativeAsk},
+		Initiative: standingapi.Initiative{Mode: standingapi.InitiativeAsk},
 		Plan:       "do something",
 	})
 	if o["assure"] != nil {
@@ -254,13 +254,13 @@ func TestStandingView_OmitsZeroFields(t *testing.T) {
 }
 
 func TestStandingView_IncludesScheduleAndSubject(t *testing.T) {
-	o := standingView(standing.Order{
+	o := standingView(standingapi.Order{
 		ID: "o1", Name: "test", Enabled: true,
-		Triggers: []standing.Trigger{
-			{Type: standing.TriggerCron, Schedule: "0 * * * *"},
-			{Type: standing.TriggerEvent, Subject: "task.failed"},
+		Triggers: []standingapi.Trigger{
+			{Type: standingapi.TriggerCron, Schedule: "0 * * * *"},
+			{Type: standingapi.TriggerEvent, Subject: "task.failed"},
 		},
-		Initiative: standing.Initiative{Mode: standing.InitiativeAsk},
+		Initiative: standingapi.Initiative{Mode: standingapi.InitiativeAsk},
 		Plan:       "do something", Assure: 2,
 	})
 	if o["assure"].(int) != 2 {

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/cadence"
-	"github.com/agezt/agezt/kernel/standing"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 )
 
 func TestErrResult_Format_OverseerLike(t *testing.T) {
@@ -21,13 +21,13 @@ func TestErrResult_Format_OverseerLike(t *testing.T) {
 }
 
 func TestStandingView_TriggerWithEmptySubjectAndSchedule(t *testing.T) {
-	o := standingView(standing.Order{
+	o := standingView(standingapi.Order{
 		ID: "o1", Name: "trigger-test", Enabled: true,
-		Triggers: []standing.Trigger{
-			{Type: standing.TriggerEvent}, // no Subject
-			{Type: standing.TriggerCron},  // no Schedule
+		Triggers: []standingapi.Trigger{
+			{Type: standingapi.TriggerEvent}, // no Subject
+			{Type: standingapi.TriggerCron},  // no Schedule
 		},
-		Initiative: standing.Initiative{Mode: standing.InitiativeAsk},
+		Initiative: standingapi.Initiative{Mode: standingapi.InitiativeAsk},
 		Plan:       "react",
 	})
 	trigs := o["triggers"].([]map[string]any)
@@ -35,10 +35,10 @@ func TestStandingView_TriggerWithEmptySubjectAndSchedule(t *testing.T) {
 		t.Fatalf("triggers = %d, want 2", len(trigs))
 	}
 	// Both should be present without extra fields.
-	if trigs[0]["type"] != string(standing.TriggerEvent) {
+	if trigs[0]["type"] != string(standingapi.TriggerEvent) {
 		t.Error("trigger 0 type mismatch")
 	}
-	if trigs[1]["type"] != string(standing.TriggerCron) {
+	if trigs[1]["type"] != string(standingapi.TriggerCron) {
 		t.Error("trigger 1 type mismatch")
 	}
 }

@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-174 package(s):
+175 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -82,6 +82,7 @@
 - **`kernel/contract/policyapi`** — Package policyapi defines the tool-policy verdict and callback contract.
 - **`kernel/contract/reasoningapi`** — Package reasoningapi is the contract the reasoning module and the agent-facing tools that drive it agree on.
 - **`kernel/contract/remoteapi`** — Package remoteapi is the contract between two AGEZT daemons: the shape of the rows one daemon serves to a peer and the other reads back.
+- **`kernel/contract/standingapi`** — Package standingapi is the contract the standing-order model and the surfaces that read it agree on.
 - **`kernel/contract/toolapi`** — Package toolapi is the tool contract: what a tool is (Tool, ToolDef, Result) and the governance metadata it declares (ToolCapability, ToolEffect, ObservationTrust).
 - **`kernel/contract/toolphaseapi`** — Package toolphaseapi defines the batch-aware invocation service port.
 - **`kernel/contract/types`** — Package types is the contract-layer home for the value types that cross the boundary between the host (the runtime and its accessors) and the application layer.

@@ -3,7 +3,7 @@
 package introspecttool
 
 // introspect_views.go owns the per-record render helpers used by
-// Tool.Invoke to flatten cadence.Entry / standing.Order rows for JSON
+// Tool.Invoke to flatten cadence.Entry / standingapi.Order rows for JSON
 // output, plus the okJSON / errResult formatters. The Tool type + its
 // toolapi.Tool surface live in introspect.go.
 
@@ -11,8 +11,8 @@ import (
 	"encoding/json"
 
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/standing"
 )
 
 // cadence string plus the load-bearing fields, omitting zero/empty noise.
@@ -50,7 +50,7 @@ func next(v map[string]any) int64 {
 
 // standingView renders one standing order — mirrors the standing tool's view so
 // the two read identically.
-func standingView(o standing.Order) map[string]any {
+func standingView(o standingapi.Order) map[string]any {
 	trigs := make([]map[string]any, 0, len(o.Triggers))
 	for _, tr := range o.Triggers {
 		m := map[string]any{"type": string(tr.Type)}

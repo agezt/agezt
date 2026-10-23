@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	"github.com/agezt/agezt/kernel/standing"
 )
 
 // errHost delegates to fakeHost but returns errors from configurable methods.
@@ -27,8 +27,8 @@ func (h *errHost) AddAgent(_ roster.Profile) (roster.Profile, error) {
 	return p, nil
 }
 
-func (h *errHost) AddStanding(_ standing.Order) (standing.Order, error) {
-	return standing.Order{}, errors.New("add standing error")
+func (h *errHost) AddStanding(_ standingapi.Order) (standingapi.Order, error) {
+	return standingapi.Order{}, errors.New("add standing error")
 }
 
 func (h *errHost) AddInterval(_ string, _ time.Duration, _, _ string) (cadence.Entry, error) {
