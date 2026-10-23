@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/remoteapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 )
 
 const (
@@ -74,7 +74,7 @@ type ActionTool struct {
 }
 
 type actionArtifactIndexer interface {
-	PutEntry(meta artifact.Entry, data []byte, createdMs int64) (artifact.Entry, error)
+	PutEntry(meta remoteapi.Artifact, data []byte, createdMs int64) (remoteapi.Artifact, error)
 }
 
 type actionRunSpec struct {

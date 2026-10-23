@@ -837,6 +837,16 @@ This file holds the active `[Unreleased]` working set.
   guardian guards, the same fleet lock, the same repair engine, the same
   board.
 
+- **Three tools name the artifact row where it lives.** The browser, the code
+  executor and the fetch tool each reached into the artifacts module for one
+  type — the artifact row — and nothing else. That row already lives in the
+  contract layer; the module merely kept an alias of it. The tools now name
+  the contract row directly, the module keeps its name, and every other
+  caller is unchanged. The tools' answers are unchanged too, and their
+  artifact records are now pinned to the contract row's wire, so a renamed
+  field can no longer leave a tool reporting an empty value under a key
+  nobody reads.
+
 - **The council, the conductor and the research tools no longer reach into the
   kernel for a type.** The rows the reasoning module produces — a consensus,
   a transcript, a cited report — move to the contract layer

@@ -18,8 +18,8 @@ import (
 	"time"
 
 	"encoding/base64"
+	"github.com/agezt/agezt/kernel/contract/remoteapi"
 	"github.com/agezt/agezt/kernel/executionprofile"
-	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/warden"
 	"path/filepath"
 )
@@ -46,6 +46,19 @@ type artifactExportRecord struct {
 	Mime string `json:"mime"`
 	Kind string `json:"kind"`
 	Size int64  `json:"size"`
+}
+
+// artifactExportRecordOf is the contract row as the tool exports it: the
+// row's own wire, key for key.
+func artifactExportRecordOf(e remoteapi.Artifact) artifactExportRecord {
+	return artifactExportRecord{
+		ID:   e.ID,
+		Ref:  e.Ref,
+		Name: e.Name,
+		Mime: e.Mime,
+		Kind: e.Kind,
+		Size: e.Size,
+	}
 }
 
 var errArtifactExportStop = errors.New("artifact export stopped")
@@ -225,7 +238,7 @@ func (t *Tool) exportArtifactsFromDir(ctx context.Context, dir, profile string) 
 		}
 		total += int64(len(data))
 		mimeType := artifactMime(rel, data)
-		entry, err := t.index.PutEntry(artifact.Entry{
+		entry, err := t.index.PutEntry(remoteapi.Artifact{
 			Kind:    artifactKind(mimeType),
 			Source:  "code_exec",
 			Name:    rel,
@@ -237,14 +250,7 @@ func (t *Tool) exportArtifactsFromDir(ctx context.Context, dir, profile string) 
 			problems = append(problems, fmt.Sprintf("save %s: %v", rel, err))
 			continue
 		}
-		records = append(records, artifactExportRecord{
-			ID:   entry.ID,
-			Ref:  entry.Ref,
-			Name: entry.Name,
-			Mime: entry.Mime,
-			Kind: entry.Kind,
-			Size: entry.Size,
-		})
+		records = append(records, artifactExportRecordOf(entry))
 	}
 	if len(problems) > 0 {
 		return records, errors.New(strings.Join(problems, "; "))

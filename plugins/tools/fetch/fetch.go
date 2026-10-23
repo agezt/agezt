@@ -26,9 +26,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/remoteapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
@@ -41,7 +41,7 @@ const MaxBytes = 50 << 20 // 50 MiB
 // Indexer is the slice of the artifact index the tool needs — satisfied by
 // *artifact.Index. An interface keeps the tool decoupled and testable.
 type Indexer interface {
-	PutEntry(meta artifact.Entry, data []byte, createdMs int64) (artifact.Entry, error)
+	PutEntry(meta remoteapi.Artifact, data []byte, createdMs int64) (remoteapi.Artifact, error)
 }
 
 // Tool is the `fetch` implementation of toolapi.Tool.
@@ -201,7 +201,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		name = nameFromURL(u)
 	}
 
-	e, err := t.index.PutEntry(artifact.Entry{
+	e, err := t.index.PutEntry(remoteapi.Artifact{
 		Kind:   kindForMime(mime),
 		Source: "fetch",
 		Name:   name,
@@ -211,15 +211,10 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		return errResult("save: " + err.Error()), nil
 	}
 
-	out, _ := json.MarshalIndent(map[string]any{
-		"id":    e.ID,
-		"ref":   e.Ref,
-		"name":  e.Name,
-		"mime":  e.Mime,
-		"size":  e.Size,
-		"saved": true,
-		"note":  "saved to the Files view; reference it by id",
-	}, "", "  ")
+	rec := artifactSaveRecord(e)
+	rec["saved"] = true
+	rec["note"] = "saved to the Files view; reference it by id"
+	out, _ := json.MarshalIndent(rec, "", "  ")
 	return toolapi.Result{
 		Output:            string(out),
 		ObservationTrust:  toolapi.ObservationUntrusted,
@@ -234,6 +229,19 @@ func cleanMime(ct string) string {
 		ct = ct[:i]
 	}
 	return strings.ToLower(strings.TrimSpace(ct))
+}
+
+// artifactSaveRecord is the artifact row as the tool reports it back: the
+// contract row's own wire, key for key. The tool's extra keys (saved, note)
+// are added by the caller.
+func artifactSaveRecord(e remoteapi.Artifact) map[string]any {
+	return map[string]any{
+		"id":   e.ID,
+		"ref":  e.Ref,
+		"name": e.Name,
+		"mime": e.Mime,
+		"size": e.Size,
+	}
 }
 
 // kindForMime buckets a mime into the artifact-index Kind the file manager groups by.

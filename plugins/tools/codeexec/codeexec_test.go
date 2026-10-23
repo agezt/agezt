@@ -16,9 +16,9 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/remoteapi"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/executionprofile"
-	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/warden"
 )
 
@@ -93,11 +93,11 @@ func newTool(t *testing.T, runtimes map[string]string, net bool) (*Tool, *fakeWa
 }
 
 type fakeCodeExecIndex struct {
-	entries []artifact.Entry
+	entries []remoteapi.Artifact
 	data    [][]byte
 }
 
-func (f *fakeCodeExecIndex) PutEntry(meta artifact.Entry, data []byte, createdMs int64) (artifact.Entry, error) {
+func (f *fakeCodeExecIndex) PutEntry(meta remoteapi.Artifact, data []byte, createdMs int64) (remoteapi.Artifact, error) {
 	meta.ID = fmt.Sprintf("art-%d", len(f.entries)+1)
 	meta.Ref = fmt.Sprintf("ref-%d", len(f.entries)+1)
 	meta.Size = int64(len(data))
