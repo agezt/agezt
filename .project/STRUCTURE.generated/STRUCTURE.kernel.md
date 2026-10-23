@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-192 package(s):
+193 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -93,6 +93,7 @@
 - **`kernel/contract/overseerapi`** — Package overseerapi is the contract the supervisory surface and the implementations that answer it agree on.
 - **`kernel/contract/policyapi`** — Package policyapi defines the tool-policy verdict and callback contract.
 - **`kernel/contract/proofapi`** — Package proofapi is the contract layer's home for AGEZT's "PROOF > VIBES" record: the durable, checkable evidence that a workboard task actually satisfied its acceptance criteria before it was allowed to reach done.
+- **`kernel/contract/pulseapi`** — Package pulseapi is the contract the briefing rows and the surfaces that deliver them agree on.
 - **`kernel/contract/reasoningapi`** — Package reasoningapi is the contract the reasoning module and the agent-facing tools that drive it agree on.
 - **`kernel/contract/remoteapi`** — Package remoteapi is the contract between two AGEZT daemons: the shape of the rows one daemon serves to a peer and the other reads back.
 - **`kernel/contract/skillapi`** — Package skillapi is the contract layer's home for the skill rows: the lifecycle state of a reusable procedure, the record itself, the input that authors one, the rules that govern the lifecycle, and the ports through which the agent-facing tool reads them.

@@ -12,7 +12,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/channelwire"
-	"github.com/agezt/agezt/kernel/pulse"
+	"github.com/agezt/agezt/kernel/contract/pulseapi"
 	"github.com/agezt/agezt/plugins/channels/chatwebhook"
 	"github.com/agezt/agezt/plugins/channels/push"
 )
@@ -59,9 +59,9 @@ func chatWebhookFactory(kind, prefix string) channelwire.Factory {
 			Path:       get("_PATH"),
 		})
 
-		var sink pulse.BriefSink
+		var sink pulseapi.BriefSink
 		if webhook != "" {
-			sink = pulse.SinkFunc(func(b pulse.Brief) error {
+			sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 				return ch.Send(d.Ctx, channel.Outbound{Text: formatBrief(b), Priority: channel.PriorityNotify})
 			})
 		}

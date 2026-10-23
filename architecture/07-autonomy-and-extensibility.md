@@ -513,7 +513,9 @@ runs, through the governed path.
   - `IssueKey()` returns `Hints["issue_key"]`, else `Source/Kind`.
 - `Observer{Name(); Poll(ctx) ([]Delta, error)}`.
 - Enums:
-  - `Disposition`: drop | digest | notify | alert | act.
+  - `Disposition`: drop | digest | notify | alert | act. The row and its values live in the contract layer
+    (`kernel/contract/pulseapi`) — the brief that carries it is delivered to surfaces that are **plugins**; the
+    module keeps the names as aliases.
   - `Dial`: quiet | balanced (default) | chatty.
   - `Delivery`: now | digest | drop.
   - `InitiativeLevel`: `off` | `ask` | `act`. `ParseInitiative` defaults unknown values to **act**.
@@ -539,6 +541,9 @@ runs, through the governed path.
 - `Route(dial, disp, quietActive)`: pure.
 - `QuietHours` / `ParseQuietHours("22-7")`: only alert and act break through quiet hours.
 - `Brief`, `BriefSink`, `LogSink`, `SinkFunc`, `MultiSink`: channels supply sinks via `channelwire.Built.Sink`.
+  The rows live in the contract layer (`kernel/contract/pulseapi` — W3.34); the module keeps every name as an alias,
+  and the channel factory layer (`kernel/channelwire`) names the contract too, so no transport plugin reaches the
+  pulse module.
 
 ### 6.2 Initiative semantics (`engine_process.go:64-108`)
 
@@ -1598,7 +1603,7 @@ Tests: `channel_test`, `coverage_test`, `guard_test`, `history_test`, `registry_
 
 **Purpose.** Each channel kind registers a `Factory` that builds its configured instances: the default account plus every `#label` account. The daemon then runs one loop over `channel.Manifests()` instead of 27 hand-written builders.
 
-The package sits **above** `kernel/channel` because factories return a `pulse.BriefSink`. Importing pulse into `kernel/channel` would drag `kernel/agent` into every transport plugin (`channelwire.go:14-18`).
+The package sits **above** `kernel/channel` because factories return a `pulseapi.BriefSink` (the briefing row lives in the contract layer — W3.34). Importing the pulse module into `kernel/channel` would drag `kernel/agent` into every transport plugin (`channelwire.go:14-18`).
 
 **API:**
 - `Deps{Ctx, Bus, Handler, Get func(baseEnv) string, Label}`. Factories read configuration **only** through `Get`, which retired the old `os.Setenv` overlay hack.

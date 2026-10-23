@@ -13,7 +13,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/channelwire"
-	"github.com/agezt/agezt/kernel/pulse"
+	"github.com/agezt/agezt/kernel/contract/pulseapi"
 	"github.com/agezt/agezt/plugins/channels/dingtalk"
 	"github.com/agezt/agezt/plugins/channels/feishu"
 	"github.com/agezt/agezt/plugins/channels/mastodon"
@@ -42,9 +42,9 @@ func buildDingTalk(d channelwire.Deps) channelwire.Built {
 		Addr:       addr,
 		Path:       strings.TrimSpace(d.Get(brand.EnvPrefix + "DINGTALK_PATH")),
 	})
-	var sink pulse.BriefSink
+	var sink pulseapi.BriefSink
 	if webhook != "" {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+		sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 			return ch.Send(d.Ctx, channel.Outbound{Text: formatBrief(b), Priority: channel.PriorityNotify})
 		})
 	}
@@ -74,9 +74,9 @@ func buildFeishu(d channelwire.Deps) channelwire.Built {
 		Addr:        addr,
 		Path:        strings.TrimSpace(d.Get(brand.EnvPrefix + "FEISHU_PATH")),
 	})
-	var sink pulse.BriefSink
+	var sink pulseapi.BriefSink
 	if chat != "" {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+		sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 			return ch.Send(d.Ctx, channel.Outbound{ChannelID: chat, Text: formatBrief(b), Priority: channel.PriorityNotify})
 		})
 	}
@@ -106,9 +106,9 @@ func buildWeCom(d channelwire.Deps) channelwire.Built {
 		Addr:       addr,
 		Path:       strings.TrimSpace(d.Get(brand.EnvPrefix + "WECOM_PATH")),
 	})
-	var sink pulse.BriefSink
+	var sink pulseapi.BriefSink
 	if len(users) > 0 {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+		sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 			var firstErr error
 			for _, u := range users {
 				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: u, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
@@ -151,7 +151,7 @@ func buildMastodon(d channelwire.Deps) channelwire.Built {
 		Handler:   d.Handler,
 		PollSecs:  poll,
 	})
-	sink := pulse.SinkFunc(func(b pulse.Brief) error {
+	sink := pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 		return ch.Send(d.Ctx, channel.Outbound{Text: formatBrief(b), Priority: channel.PriorityNotify})
 	})
 	return channelwire.Built{Channels: []channel.Channel{ch}, Sink: sink, Desc: fmt.Sprintf("Mastodon (two-way), allowlist=%d acct(s)", len(users))}

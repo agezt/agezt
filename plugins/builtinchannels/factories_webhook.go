@@ -11,7 +11,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/channelwire"
-	"github.com/agezt/agezt/kernel/pulse"
+	"github.com/agezt/agezt/kernel/contract/pulseapi"
 	webhookchan "github.com/agezt/agezt/plugins/channels/webhook"
 )
 
@@ -35,9 +35,9 @@ func buildWebhook(d channelwire.Deps) channelwire.Built {
 		Handler:     d.Handler,
 	})
 
-	var sink pulse.BriefSink
+	var sink pulseapi.BriefSink
 	if outboundURL != "" && len(channelIDs) > 0 {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+		sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 			var firstErr error
 			for _, id := range channelIDs {
 				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: id, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {

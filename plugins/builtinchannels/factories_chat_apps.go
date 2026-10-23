@@ -12,7 +12,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/channelwire"
-	"github.com/agezt/agezt/kernel/pulse"
+	"github.com/agezt/agezt/kernel/contract/pulseapi"
 	"github.com/agezt/agezt/plugins/channels/imessage"
 	"github.com/agezt/agezt/plugins/channels/whatsappgw"
 )
@@ -39,9 +39,9 @@ func buildWhatsAppGateway(d channelwire.Deps) channelwire.Built {
 		Secret:    strings.TrimSpace(d.Get(brand.EnvPrefix + "WHATSAPPGW_SECRET")),
 	})
 
-	var sink pulse.BriefSink
+	var sink pulseapi.BriefSink
 	if len(numbers) > 0 {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+		sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 			var firstErr error
 			for _, n := range numbers {
 				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: n, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {
@@ -82,9 +82,9 @@ func buildIMessage(d channelwire.Deps) channelwire.Built {
 		Secret:    strings.TrimSpace(d.Get(brand.EnvPrefix + "IMESSAGE_SECRET")),
 	})
 
-	var sink pulse.BriefSink
+	var sink pulseapi.BriefSink
 	if len(addresses) > 0 {
-		sink = pulse.SinkFunc(func(b pulse.Brief) error {
+		sink = pulseapi.SinkFunc(func(b pulseapi.Brief) error {
 			var firstErr error
 			for _, a := range addresses {
 				if err := ch.Send(d.Ctx, channel.Outbound{ChannelID: a, Text: formatBrief(b), Priority: channel.PriorityNotify}); err != nil && firstErr == nil {

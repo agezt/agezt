@@ -22,7 +22,6 @@ adapter-bypass kernel/restapi -> kernel/update
 adapter-bypass kernel/webui -> kernel/convo
 cross-module kernel/cadence/systemtasks -> kernel/modules/providers/catalog
 cross-module kernel/cadence/systemtasks -> kernel/runtime
-cross-module kernel/channelwire -> kernel/pulse
 cross-module kernel/contextselect -> kernel/modules/knowledge/memory
 cross-module kernel/contextselect -> kernel/modules/knowledge/worldmodel
 cross-module kernel/contextselect -> kernel/modules/skills/skill
@@ -79,7 +78,6 @@ cross-module kernel/modules/agents/selfrepair -> kernel/runtime
 cross-module kernel/toolreg -> kernel/modules/artifacts/artifact
 cross-module kernel/toolreg -> kernel/modules/board/board
 plugin-reach plugins/builtinchannels -> kernel/channelwire
-plugin-reach plugins/builtinchannels -> kernel/pulse
 plugin-reach plugins/builtintools -> kernel/modules/extensions/plugin
 plugin-reach plugins/builtintools -> kernel/runtime
 plugin-reach plugins/builtintools -> kernel/toolreg

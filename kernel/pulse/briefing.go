@@ -4,80 +4,35 @@ package pulse
 
 import (
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/agezt/agezt/kernel/contract/pulseapi"
 )
 
-// Brief is one composed message ready for delivery (SPEC-03 §6).
-type Brief struct {
-	Title         string      `json:"title"`
-	Body          string      `json:"body,omitempty"`
-	Disposition   Disposition `json:"disposition"`
-	IssueKey      string      `json:"issue_key"`
-	CorrelationID string      `json:"correlation_id,omitempty"`
-	Items         int         `json:"items"` // 1 for a single brief, N for a digest
-}
+// The ROWS now live in the contract layer (kernel/contract/pulseapi) — W3.34.
+// The brief is delivered to surfaces that are PLUGINS (the built-in channels
+// are), and a plugin may reach the contract and nothing else, so the row and
+// the sinks that carry it travel together. The module keeps every name as an
+// alias, so there is one row and one spelling of it.
+//
+// What stays here is the composition: composeBrief, composeDigest and the
+// quiet-hours window — the engine's work, not the row's.
 
-// BriefSink delivers a composed brief to a surface. v1 ships LogSink (daemon
-// log + journal via the engine); the Telegram sink slots in here in Phase 4
-// without touching the engine.
-type BriefSink interface {
-	Deliver(b Brief) error
-}
-
-// LogSink writes a one-line human brief to an io.Writer (the daemon's
-// stdout). This is the Phase 3 "brief to CLI/log" delivery.
-type LogSink struct{ W io.Writer }
-
-// Deliver implements BriefSink.
-func (l LogSink) Deliver(b Brief) error {
-	if l.W == nil {
-		return nil
-	}
-	if b.Body != "" {
-		_, err := fmt.Fprintf(l.W, "📣 BRIEF [%s] %s\n%s\n", b.Disposition, b.Title, indent(b.Body))
-		return err
-	}
-	_, err := fmt.Fprintf(l.W, "📣 BRIEF [%s] %s\n", b.Disposition, b.Title)
-	return err
-}
-
-// SinkFunc adapts a plain function to a BriefSink. The daemon uses it to wrap
-// a channel's Send into a sink (e.g. brief → Telegram sendMessage) without the
-// pulse package depending on any channel.
-type SinkFunc func(Brief) error
-
-// Deliver implements BriefSink.
-func (f SinkFunc) Deliver(b Brief) error { return f(b) }
-
-// MultiSink fans a brief out to several sinks (e.g. the daemon log AND
-// Telegram). Delivery continues to every sink; the first error is returned but
-// does not stop the others — a Telegram outage must not suppress the log line.
-type MultiSink []BriefSink
-
-// Deliver implements BriefSink.
-func (m MultiSink) Deliver(b Brief) error {
-	var firstErr error
-	for _, s := range m {
-		if s == nil {
-			continue
-		}
-		if err := s.Deliver(b); err != nil && firstErr == nil {
-			firstErr = err
-		}
-	}
-	return firstErr
-}
-
-func indent(s string) string {
-	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
-	for i, ln := range lines {
-		lines[i] = "    " + ln
-	}
-	return strings.Join(lines, "\n")
-}
+type (
+	// Brief is one composed message ready for delivery (SPEC-03 §6).
+	Brief = pulseapi.Brief
+	// BriefSink delivers a composed brief to a surface.
+	BriefSink = pulseapi.BriefSink
+	// LogSink writes a one-line human brief to an io.Writer (the daemon's
+	// stdout).
+	LogSink = pulseapi.LogSink
+	// SinkFunc adapts a plain function to a BriefSink.
+	SinkFunc = pulseapi.SinkFunc
+	// MultiSink fans a brief out to several sinks.
+	MultiSink = pulseapi.MultiSink
+)
 
 // composeBrief turns one scored delta into a single-item brief (SPEC-03 §6.2:
 // a one-liner for a single fact).

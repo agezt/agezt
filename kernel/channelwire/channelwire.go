@@ -12,8 +12,11 @@
 // say the same thing.
 //
 // This package — not kernel/channel — owns the factory types because a
-// factory returns a pulse.BriefSink: importing pulse into kernel/channel
-// would drag kernel/agent into every transport plugin's transitive deps.
+// factory returns a pulseapi.BriefSink: importing the pulse module into
+// kernel/channel would drag kernel/agent into every transport plugin's
+// transitive deps. The briefing ROW lives in the contract layer
+// (kernel/contract/pulseapi — W3.34), so the factory layer names the
+// contract and never the module that composes briefs.
 // kernel/channel stays the pure vocabulary (Channel, UnifiedMessage,
 // Manifest); channelwire is the wiring above it.
 package channelwire
@@ -26,7 +29,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
-	"github.com/agezt/agezt/kernel/pulse"
+	"github.com/agezt/agezt/kernel/contract/pulseapi"
 	"github.com/agezt/agezt/kernel/settings"
 )
 
@@ -58,7 +61,7 @@ type Deps struct {
 // return several from one env family (extras are keyed by their own Name).
 type Built struct {
 	Channels []channel.Channel
-	Sink     pulse.BriefSink
+	Sink     pulseapi.BriefSink
 	Desc     string
 }
 
@@ -98,7 +101,7 @@ type Instance struct {
 	Key     string // channel.InstanceKey(Kind, Label)
 	Desc    string
 	Channel channel.Channel
-	Sink    pulse.BriefSink // may be nil (outbound target unknown)
+	Sink    pulseapi.BriefSink // may be nil (outbound target unknown)
 }
 
 // Labels returns the configured NON-default account labels for a channel
