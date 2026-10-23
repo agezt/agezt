@@ -31,7 +31,7 @@ All source read from the working tree (disk), 2026-10-02.
 | Package | Depends on (internal) | Imported by |
 |---|---|---|
 | `kernel/governor` | kernel/agent, kernel/bus, kernel/modules/providers/catalog, kernel/event | cmd/agezt, cmd/agt, kernel/controlplane, kernel/runtime, kernel/modules/providers/boot |
-| `kernel/modules/providers/catalog` | internal/atomicfile, kernel/netguard | cmd/agezt, cmd/agt, cmd/agt/providerlookup, kernel/cadence/systemtasks, kernel/controlplane, kernel/governor, kernel/runtime(+accessors, runexec), kernel/modules/providers/boot, plugins/providers/compat |
+| `kernel/modules/providers/catalog` | internal/atomicfile, kernel/netguard | cmd/agezt, cmd/agt, cmd/agt/providerlookup, kernel/cadence/systemtasks, kernel/controlplane, kernel/governor, kernel/runtime(+accessors, runexec), kernel/modules/providers/boot (the compatibility adapters name the contract's rows, not the module) |
 | `kernel/creds` | internal/atomicfile, internal/strutil, kernel/creds/sigv4, kernel/envscrub | cmd/agezt, cmd/agt, cmd/agt/providerlookup, kernel/modules/providers/chatgptauth, kernel/controlplane, kernel/executionprofile, plugins/tools/config |
 | `kernel/creds/sigv4` | — | cmd/agezt, kernel/creds, plugins/providers/bedrock |
 | `kernel/modules/providers/chatgptauth` | internal/brand, kernel/creds, kernel/netguard | kernel/controlplane, kernel/modules/providers/boot |
@@ -254,6 +254,8 @@ Tests (30 files): budget scopes (`*budget*_test.go`, `agent_budget_test.go`, `ce
 
 **Key types/functions.** `Catalog{Providers map[string]*Provider, SyncedAt, Sources}`, `Provider{ID, Name, Env, NPM, API, Doc, Models}`, `Model{ID, Name, Family, Attachment, Reasoning, ToolCall, StrictToolArgs, SchemaConstrainedDecoding, GrammarConstrainedDecoding, Knowledge, Release, Modalities, OpenWeight, Limit, Cost}`, `Cost` (USD/MTok floats → `*MicrocentsPerMTok()` int64), `Family` + `FamilyFromNPM` (maps `@ai-sdk/*` package → wire dialect; groq/xai/deepseek/… → openai-compatible; unknown → `FamilyUnknown`), `Store` (`Load`, `SaveAPI`, `SaveLocal`, `SaveCustom`, `UpsertCustomProvider`, `LoadMeta`), `Syncer` (`Sync`), `DiscoverOllama`, `FindModel`, `ToolCapableAlternative[Among]`, `VisionCapableAmong`, `BestModelsAcross`, `ProviderCredentialName` / `ProviderCredentialLookupNames` / `DuplicateCredentialEnvs`, `(*Provider).HasCredentials(lookup)`.
 
+**The rows live in the contract layer** (`kernel/contract/catalogapi`), with the rules that belong to them — the family mapping, the native-JSON-mode families, the credential key shape, the model's helpers and the cost conversion. The compatibility adapters are plugins, and a plugin may reach the contract and the platform layers and nothing else, so a row a plugin has to name cannot live in this package. The module keeps the names its callers still use as one-line delegations; the family mapping it no longer uses is gone (a name nobody calls is dead code). The catalog itself — the merge of the sources, the sync, the store — stays here: it is the implementation. The rows' JSON field names are models.dev's, and the wire is pinned by a test: the catalog is fetched from models.dev and unmarshalled directly, and it is persisted as `api.json`, so a renamed field would have silently emptied every existing catalog file.
+
 **Merge precedence.** `Load` merges `api.json` → `local.json` → `custom.json`; later wins on non-empty scalar fields, model maps union with later winning per model id.
 
 **Credential naming.** Provider-scoped vault key `provider:<providerID>:<ENV>` is looked up first, then the bare env name — so two providers sharing `OPENAI_API_KEY` can carry different keys; `DuplicateCredentialEnvs` tells callers when a bare legacy vault entry is ambiguous.
@@ -265,8 +267,8 @@ Tests (30 files): budget scopes (`*budget*_test.go`, `agent_budget_test.go`, `ce
 | File | What it does |
 |---|---|
 | `doc.go` | Package doc: models.dev schema, three on-disk layers and precedence. |
-| `types.go` | `Provider`, credential naming helpers, `DuplicateCredentialEnvs`, `HasCredentials`, `Family` constants. |
-| `family.go` | `FamilyFromNPM`, `FamilySupportsNativeJSONMode`, `Model`, `Modalities`, capability predicates (`SupportsVision`, `SupportsPromptCache`, `SupportsStrictToolArgs`, `AgentWarnings`), `Limit`, `Cost` + microcent converters, `Catalog`. |
+| `types.go` | The names of the contract's rows: `Provider`, `Family` + the constants, the credential naming helpers, `DuplicateCredentialEnvs`. |
+| `family.go` | The names of the contract's model rows (`Model`, `Modalities`, `Limit`, `Cost`), `FamilySupportsNativeJSONMode`, and the `Catalog` aggregate. |
 | `catalog_merge.go` | `Merge`, `ParseAPIFile`, `MarshalAPI`. |
 | `catalog_ops.go` | `NewEmpty`, `ProviderList`, `FindModel`, `StrictToolArgsNative`, tool-capable/vision/best-model pickers. |
 | `store.go` | On-disk `Store`, file name constants, `Meta`, atomic writes, `UpsertCustomProvider`. |

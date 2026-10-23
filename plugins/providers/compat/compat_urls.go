@@ -11,7 +11,7 @@ package compat
 import (
 	"strings"
 
-	"github.com/agezt/agezt/kernel/modules/providers/catalog"
+	"github.com/agezt/agezt/kernel/contract/catalogapi"
 )
 
 func compatVendorBaseURL(npm string) string {
@@ -48,21 +48,21 @@ func compatVendorBaseURL(npm string) string {
 // single host (many vendors share it), so it returns "" here — per-vendor URLs
 // come from compatVendorBaseURL instead, and a vendor with neither is caught by
 // the empty-api guard in Build.
-func defaultBaseURL(f catalog.Family) string {
+func defaultBaseURL(f catalogapi.Family) string {
 	switch f {
-	case catalog.FamilyAnthropic:
+	case catalogapi.FamilyAnthropic:
 		// Includes the version segment: the anthropic adapter appends only
 		// "/messages" (the @ai-sdk/anthropic convention models.dev follows).
 		return "https://api.anthropic.com/v1"
-	case catalog.FamilyOpenAI:
+	case catalogapi.FamilyOpenAI:
 		return "https://api.openai.com/v1"
-	case catalog.FamilyGoogle:
+	case catalogapi.FamilyGoogle:
 		return "https://generativelanguage.googleapis.com"
-	case catalog.FamilyOllama:
+	case catalogapi.FamilyOllama:
 		return "http://localhost:11434"
-	case catalog.FamilyMistral:
+	case catalogapi.FamilyMistral:
 		return "https://api.mistral.ai/v1"
-	case catalog.FamilyCohere:
+	case catalogapi.FamilyCohere:
 		return "https://api.cohere.com"
 	}
 	return ""

@@ -920,6 +920,20 @@ This file holds the active `[Unreleased]` working set.
   One thing an operator can see changes: a malformed MCP server payload is
   now reported as `mcpapi.Server` rather than `mcp.Server`.
 
+- **The catalog's rows move to the contract layer.** The compatibility
+  adapters turn a catalog row into a wire provider, and they are plugins — so
+  the description of one provider and the models it serves now live in the
+  contract layer, together with the rules that belong to them: which wire
+  dialect a provider speaks, whether it has a native structured-output
+  switch, the shape of a provider-scoped credential key, what a model can do
+  and what an operator should be warned about, and the price conversion the
+  billing reads. The catalog itself — the merge of the sources, the sync from
+  models.dev, the store — stays where it was.
+  The catalog's file format is unchanged, and that is now pinned by a test:
+  the rows are fetched from models.dev and unmarshalled directly, so the field
+  names belong to an upstream service, and a renamed one would have silently
+  emptied every existing catalog file.
+
 - **The council, the conductor and the research tools no longer reach into the
   kernel for a type.** The rows the reasoning module produces — a consensus,
   a transcript, a cited report — move to the contract layer

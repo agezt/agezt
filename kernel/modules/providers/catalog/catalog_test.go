@@ -13,6 +13,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
@@ -118,7 +119,7 @@ func TestFamilyFromNPM(t *testing.T) {
 		"random-sdk":                  catalog.FamilyUnknown,
 	}
 	for in, want := range cases {
-		if got := catalog.FamilyFromNPM(in); got != want {
+		if got := catalogapi.FamilyFromNPM(in); got != want {
 			t.Errorf("FamilyFromNPM(%q)=%q want %q", in, got, want)
 		}
 	}

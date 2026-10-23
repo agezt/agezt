@@ -11,11 +11,11 @@ package compat
 import (
 	"context"
 
+	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
-	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
 
-func FirstModelID(p *catalog.Provider) string {
+func FirstModelID(p *catalogapi.Provider) string {
 	if p == nil || len(p.Models) == 0 {
 		return ""
 	}

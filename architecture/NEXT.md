@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.22 the MCP server's row moves to the contract layer, 2026-10-23
+## Current checkpoint — W3.23 the catalog's rows move to the contract layer, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1847,6 +1847,32 @@ files, five of the seventeen mutations would have escaped.
   13 mutations: 11 caught, 2 build errors recorded separately.
   One **operator-visible** change is recorded honestly: a JSON decode error
   now says `mcpapi.Server` where it used to say `mcp.Server`.
+
+- W3.23 (the catalog's rows move to the contract layer) is committed on `main`
+  the same way. The **compatibility adapter** turns a catalog row into a wire
+  provider, and it is a plugin — so the description of one provider and the
+  models it serves now live in `kernel/contract/catalogapi`, together with the
+  rules that belong to them: the NPM → family mapping, the native-JSON-mode
+  families, the credential key shape, the model's own helpers and the cost
+  conversion. The module keeps the names its callers still use as one-line
+  delegations, and the family mapping it no longer uses is **gone** — a name
+  nobody calls is dead code, and the dead-code gate says so. The **catalog**
+  itself — the merge of the sources, the sync from models.dev, the store —
+  stays in the module.
+  The **ratchet went DOWN**: 101/13 → **100/13** — the plugin-reach edge is
+  gone, and the **stale allowlist entry was deleted**.
+  This is the row where the **wire matters most**: the catalog is fetched
+  from **models.dev** and unmarshalled **directly** — the field names are
+  models.dev's — and it is persisted as `api.json`, so a renamed key would
+  silently drop every provider's models and the catalog would come back empty.
+  The wire had never been measured; it is now pinned key for key.
+  The permanent tests: the **identity assertions**, a test that the module's
+  names and the contract's agree on every verdict, the **rules measured where
+  the rows are**, and the **scoped-credential lookup** (the provider-scoped
+  vault key first, the bare env var second).
+  20 mutations: 18 caught, 2 build errors recorded separately — and two
+  mutations **survived the first round** (the scoped-credential lookup and the
+  model's vision helper), so both gaps were closed and they were run again.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

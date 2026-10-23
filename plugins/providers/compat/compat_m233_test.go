@@ -6,24 +6,24 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/modules/providers/catalog"
+	"github.com/agezt/agezt/kernel/contract/catalogapi"
 )
 
 // Moonshot AI (Kimi) ships an official @ai-sdk/moonshotai package and speaks the
 // OpenAI dialect, so — like DeepSeek (M232) — it would otherwise classify as
 // FamilyUnknown and be refused. M233 wires it.
 func TestMoonshot_NowFirstClass(t *testing.T) {
-	if got := catalog.FamilyFromNPM("@ai-sdk/moonshotai"); got != catalog.FamilyOpenAICompatible {
+	if got := catalogapi.FamilyFromNPM("@ai-sdk/moonshotai"); got != catalogapi.FamilyOpenAICompatible {
 		t.Fatalf("FamilyFromNPM(@ai-sdk/moonshotai) = %v, want FamilyOpenAICompatible", got)
 	}
 	if got := compatVendorBaseURL("@ai-sdk/moonshotai"); got != "https://api.moonshot.ai/v1" {
 		t.Errorf("compatVendorBaseURL(@ai-sdk/moonshotai) = %q, want the moonshot root", got)
 	}
-	entry := &catalog.Provider{
+	entry := &catalogapi.Provider{
 		ID: "moonshotai", NPM: "@ai-sdk/moonshotai",
 		Env:    []string{"MOONSHOT_API_KEY"},
 		API:    "",
-		Models: map[string]*catalog.Model{"kimi-k2": {ID: "kimi-k2"}},
+		Models: map[string]*catalogapi.Model{"kimi-k2": {ID: "kimi-k2"}},
 	}
 	if _, _, err := Build(entry, "kimi-k2", func(string) string { return "k" }); err != nil {
 		t.Fatalf("Build(moonshotai, empty api) should succeed now, got %v", err)
@@ -34,11 +34,11 @@ func TestMoonshot_NowFirstClass(t *testing.T) {
 // the openai-compatible escape hatch, not the old "this branch is unreachable"
 // claim that DeepSeek/Moonshot disproved (M233).
 func TestBuild_UnknownNPMGivesActionableError(t *testing.T) {
-	entry := &catalog.Provider{
+	entry := &catalogapi.Provider{
 		ID: "futurevendor", NPM: "@ai-sdk/some-future-vendor",
 		Env:    []string{"FUTUREVENDOR_API_KEY"},
 		API:    "",
-		Models: map[string]*catalog.Model{"m": {ID: "m"}},
+		Models: map[string]*catalogapi.Model{"m": {ID: "m"}},
 	}
 	_, _, err := Build(entry, "m", func(string) string { return "k" })
 	if err == nil {

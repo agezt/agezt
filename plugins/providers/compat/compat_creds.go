@@ -13,11 +13,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/modules/providers/catalog"
+	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/plugins/providers/bedrock"
 )
 
-func resolveAzureCreds(p *catalog.Provider, lookup CredLookup) (resource, key string, err error) {
+func resolveAzureCreds(p *catalogapi.Provider, lookup CredLookup) (resource, key string, err error) {
 	if lookup == nil {
 		return "", "", fmt.Errorf("%w: azure provider %q requires resource + api-key env vars (%v)",
 			ErrMissingCredentials, p.ID, p.Env)
@@ -75,7 +75,7 @@ type vertexCreds struct {
 //	                             the metadata server's project-id endpoint
 //	GOOGLE_VERTEX_METADATA_URL — override the metadata base URL (proxy/sidecar;
 //	                             implies metadata auth)
-func resolveVertexCreds(p *catalog.Provider, lookup CredLookup) (vertexCreds, error) {
+func resolveVertexCreds(p *catalogapi.Provider, lookup CredLookup) (vertexCreds, error) {
 	if lookup == nil {
 		return vertexCreds{}, fmt.Errorf("%w: vertex provider %q requires GOOGLE_APPLICATION_CREDENTIALS (service-account JSON) or GOOGLE_VERTEX_USE_METADATA=1 (GCE/GKE), plus GOOGLE_VERTEX_LOCATION (%v)",
 			ErrMissingCredentials, p.ID, p.Env)
@@ -143,7 +143,7 @@ type bedrockAuth struct {
 // is skipped in that case, but SigV4 still needs region for the
 // credential scope, so SigV4 + no-region + custom-api remains an
 // error).
-func resolveBedrockCreds(p *catalog.Provider, lookup CredLookup) (bedrockAuth, error) {
+func resolveBedrockCreds(p *catalogapi.Provider, lookup CredLookup) (bedrockAuth, error) {
 	if lookup == nil {
 		return bedrockAuth{}, fmt.Errorf("%w: bedrock provider %q requires AWS_BEARER_TOKEN_BEDROCK *or* (AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY), plus AWS_REGION (%v)",
 			ErrMissingCredentials, p.ID, p.Env)
@@ -205,7 +205,7 @@ func resolveBedrockCreds(p *catalog.Provider, lookup CredLookup) (bedrockAuth, e
 
 // compatVendorBaseURL returns the stable OpenAI-compatible v1 base URL for a
 // recognised vendor, keyed on the npm package the same way
-// catalog.FamilyFromNPM classifies it — so the URL table and the family table
+// catalogapi.FamilyFromNPM classifies it — so the URL table and the family table
 // agree on what counts as a known vendor. Returns "" for anything else, which
 // keeps the empty-`api` guard in Build active for genuinely-unknown
 // openai-compatible providers (M230).

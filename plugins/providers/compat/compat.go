@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Package compat builds a wire `llm.Provider` from a `catalog.Provider`
+// Package compat builds a wire `llm.Provider` from a `catalogapi.Provider`
 // entry — no per-provider Go package needed. The Family hint on the
 // catalog entry (derived from the upstream `npm` field, see
-// kernel/modules/providers/catalog.FamilyFromNPM) picks the right adapter, the `api`
+// kernel/modules/providers/catalogapi.FamilyFromNPM) picks the right adapter, the `api`
 // field supplies the base URL, and the `env` list resolves
 // credentials via the supplied lookup function.
 //
@@ -63,8 +63,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
-	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/plugins/providers/anthropic"
 	"github.com/agezt/agezt/plugins/providers/bedrock"
 	"github.com/agezt/agezt/plugins/providers/cohere"
@@ -93,7 +93,7 @@ type CredLookup func(name string) string
 
 // Build constructs a Provider for the given catalog entry + model id.
 //
-//   - p:          a catalog.Provider (typically from Kernel.Catalog())
+//   - p:          a catalogapi.Provider (typically from Kernel.Catalog())
 //   - modelID:    the model the agent loop will pass in
 //     CompletionRequest.Model. Must exist in p.Models.
 //   - lookup:     credential resolver; nil is treated as "no creds set"
@@ -101,7 +101,7 @@ type CredLookup func(name string) string
 // Returns (provider, modelID-used, error). The returned Provider's
 // Name() reports the catalog provider id so the Governor's registry
 // stays keyed on stable, catalog-aligned names.
-func Build(p *catalog.Provider, modelID string, lookup CredLookup) (llm.Provider, string, error) {
+func Build(p *catalogapi.Provider, modelID string, lookup CredLookup) (llm.Provider, string, error) {
 	if p == nil {
 		return nil, "", errors.New("compat: nil provider entry")
 	}
@@ -120,7 +120,7 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (llm.Provider
 			return nil, "", fmt.Errorf("%w: %q needs one of %v", ErrMissingCredentials, p.ID, p.Env)
 		}
 		for _, name := range p.Env {
-			for _, lookupName := range catalog.ProviderCredentialLookupNames(p.ID, name) {
+			for _, lookupName := range catalogapi.ProviderCredentialLookupNames(p.ID, name) {
 				if v := strings.TrimSpace(lookup(lookupName)); v != "" {
 					apiKey = v
 					break
@@ -145,16 +145,16 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (llm.Provider
 		base = defaultBaseURL(p.Family())
 	}
 	// For the well-known OpenAI-compatible vendors agezt already enumerates
-	// (catalog.FamilyFromNPM), carry their stable base URL too (M230) — so a
+	// (catalogapi.FamilyFromNPM), carry their stable base URL too (M230) — so a
 	// `groq`/`xai`/`cerebras`/… provider works with just an API key, no
 	// custom.json URL entry. An explicit catalog `api` still wins (set above);
 	// this is only the empty-`api` fallback, and an unrecognised compat vendor
 	// still hits the guard below.
-	if base == "" && p.Family() == catalog.FamilyOpenAICompatible {
+	if base == "" && p.Family() == catalogapi.FamilyOpenAICompatible {
 		base = compatVendorBaseURL(p.NPM)
 	}
 	switch p.Family() {
-	case catalog.FamilyAnthropic:
+	case catalogapi.FamilyAnthropic:
 		ap := anthropic.New(apiKey)
 		ap.BaseURL = base
 		ap.Endpoint = "" // force BaseURL-derived path
@@ -169,13 +169,13 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (llm.Provider
 			}
 		}
 		return wrapNamed(p.ID, ap), modelID, nil
-	case catalog.FamilyOllama:
+	case catalogapi.FamilyOllama:
 		op := ollama.New()
 		op.BaseURL = base
 		op.Endpoint = "" // force BaseURL-derived path
 		op.Model = modelID
 		return wrapNamed(p.ID, op), modelID, nil
-	case catalog.FamilyGoogle:
+	case catalogapi.FamilyGoogle:
 		// Gemini's generateContent API. Vertex (OAuth) is a separate
 		// family (FamilyGoogleVertex) and falls through to the
 		// unsupported branch below.
@@ -194,11 +194,11 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (llm.Provider
 			}
 		}
 		return wrapNamed(p.ID, gp), modelID, nil
-	case catalog.FamilyOpenAI, catalog.FamilyOpenAICompatible:
+	case catalogapi.FamilyOpenAI, catalogapi.FamilyOpenAICompatible:
 		// One adapter, two families: real OpenAI and openai-compatible
 		// (Groq, DeepSeek, Together, OpenRouter, xAI, Fireworks, …).
 		// Both use Bearer auth + /v1/chat/completions; only base URL
-		// and env-var name differ, and those come from the catalog.
+		// and env-var name differ, and those come from the catalogapi.
 		//
 		// For openai-compatible specifically, refuse an empty `api`:
 		// the adapter's default endpoint points at api.openai.com,
@@ -206,7 +206,7 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (llm.Provider
 		// wrong host. Known vendors (groq, xai, …) were already filled in
 		// above by compatVendorBaseURL; this catches the rest. Operators
 		// set the URL via custom.json.
-		if p.Family() == catalog.FamilyOpenAICompatible && strings.TrimSpace(base) == "" {
+		if p.Family() == catalogapi.FamilyOpenAICompatible && strings.TrimSpace(base) == "" {
 			return nil, "", fmt.Errorf("%w: provider %q is openai-compatible but has no `api` URL in the catalog — add it via custom.json",
 				ErrFamilyUnsupported, p.ID)
 		}
@@ -215,7 +215,7 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (llm.Provider
 		op.Endpoint = "" // force BaseURL-derived path
 		op.Model = modelID
 		return wrapNamed(p.ID, op), modelID, nil
-	case catalog.FamilyMistral:
+	case catalogapi.FamilyMistral:
 		// api.mistral.ai/v1 is wire-identical to OpenAI Chat
 		// Completions — Bearer auth, same body/response, same tool
 		// shape. Reuse the openai adapter; the per-family default
@@ -225,7 +225,7 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (llm.Provider
 		mp.Endpoint = "" // force BaseURL-derived path
 		mp.Model = modelID
 		return wrapNamed(p.ID, mp), modelID, nil
-	case catalog.FamilyCohere:
+	case catalogapi.FamilyCohere:
 		// Cohere v2 /v2/chat — Bearer auth, openai-shaped messages,
 		// but content-as-blocks on responses and nested usage. Its
 		// own adapter handles the translation.
@@ -234,7 +234,7 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (llm.Provider
 		cp.Endpoint = "" // force BaseURL-derived path
 		cp.Model = modelID
 		return wrapNamed(p.ID, cp), modelID, nil
-	case catalog.FamilyGoogleVertex:
+	case catalogapi.FamilyGoogleVertex:
 		// Vertex AI: Gemini body shape on the regional
 		// aiplatform.googleapis.com endpoint, authenticated by either a
 		// service-account JSON key or the GCE/GKE metadata server. The same
@@ -295,7 +295,7 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (llm.Provider
 			}
 		}
 		return wrapNamed(p.ID, vp), modelID, nil
-	case catalog.FamilyAWSBedrock:
+	case catalogapi.FamilyAWSBedrock:
 		// Bedrock M1.m: bearer-token auth + Anthropic body shape only.
 		// SigV4 signing and non-Anthropic vendor bodies (Mistral,
 		// Meta, Amazon Titan, Cohere, AI21, DeepSeek) land in M1.m.x.
@@ -313,7 +313,7 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (llm.Provider
 			bp.SetSigV4Creds(auth.SigV4)
 		}
 		return wrapNamed(p.ID, bp), modelID, nil
-	case catalog.FamilyAzure:
+	case catalogapi.FamilyAzure:
 		// Azure OpenAI Service: openai-shaped body, but the URL is
 		// resource+deployment-specific and auth is `api-key` (no
 		// scheme prefix). The catalog `env` list carries two
@@ -349,7 +349,7 @@ func Build(p *catalog.Provider, modelID string, lookup CredLookup) (llm.Provider
 		return wrapNamed(p.ID, op), modelID, nil
 	default:
 		// Reached when a provider's npm package isn't classified by
-		// catalog.FamilyFromNPM (e.g. a new @ai-sdk/<vendor> package agezt
+		// catalogapi.FamilyFromNPM (e.g. a new @ai-sdk/<vendor> package agezt
 		// doesn't enumerate yet — this is how DeepSeek and Moonshot looked
 		// before they were wired). Most such providers speak the OpenAI API,
 		// so point the operator at the generic-compat escape hatch rather than
