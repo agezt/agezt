@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-198 package(s):
+199 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -104,6 +104,7 @@
 - **`kernel/contract/toolapi`** — Package toolapi is the tool contract: what a tool is (Tool, ToolDef, Result) and the governance metadata it declares (ToolCapability, ToolEffect, ObservationTrust).
 - **`kernel/contract/toolforgeapi`** — Package toolforgeapi is the contract layer's home for the script-tool rows: one named, durable script the agent can call as a tool, the lifecycle state it is in, the rule that decides whether it may be drafted, and the port through which the agent-facing tool reads the stored ones.
 - **`kernel/contract/toolphaseapi`** — Package toolphaseapi defines the batch-aware invocation service port.
+- **`kernel/contract/toolregapi`** — Package toolregapi is the contract the tool registry's lifecycle hooks agree on.
 - **`kernel/contract/types`** — Package types is the contract-layer home for the value types that cross the boundary between the host (the runtime and its accessors) and the application layer.
 - **`kernel/contract/workboardapi`** — Package workboardapi is the contract layer's home for the workboard's rows: one durable work item (a task), its lifecycle state, the claim, dependency, attempt, comment and link records it carries, the retry policy and decision, and the creation spec an agent hands over.
 - **`kernel/contract/workflowapi`** — Package workflowapi is the contract layer's home for the workflow rows: one durable, named graph, the typed steps it is made of, the edges that wire them, the trigger configuration that starts it, the outcome of a run, and the rule that decides whether a graph may run at all.

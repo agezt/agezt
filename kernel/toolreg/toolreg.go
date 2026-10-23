@@ -33,6 +33,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/pluginapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/journal"
@@ -159,7 +160,12 @@ type Spec struct {
 	// failure; returning a zero Built skips registration.
 	Build func(BuildDeps) (Built, error)
 	// PreOpen may mutate the runtime Config before runtime.Open.
-	PreOpen func(tool toolapi.Tool, cfg *runtime.Config)
+	//
+	// The hook answers the CONTRACT's port, not the daemon's config type: a
+	// tool is a plugin and may not name the runtime (which lives in a
+	// module). The registry wraps the daemon's configuration in the port
+	// before calling the hook (W3.38).
+	PreOpen func(tool toolapi.Tool, cfg toolregapi.Config)
 	// Configure injects post-Open dependencies.
 	Configure func(tool toolapi.Tool, d KernelDeps) error
 	// Late injects live-channel / board dependencies.

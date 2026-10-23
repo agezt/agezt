@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.37 the plugin host's reach becomes a contract's rows and a spawn port, 2026-10-24
+## Current checkpoint — W3.38 the registry's pre-Open phase becomes a contract's port, 2026-10-24
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2493,6 +2493,55 @@ files, five of the seventeen mutations would have escaped.
   12 mutations: 12 caught — none survived, none was a compile error, none
   was skipped on a stale anchor; and the last one is measured by the
   **archcheck gate** rather than by a test.
+
+- W3.38 (the registry's pre-Open phase becomes a contract's port) is
+  committed on `main` the same way. The tool registry drives every first-party
+  tool through four phases — build, **pre-Open**, configure and late — and the
+  pre-Open phase was the one whose hook signature leaked the daemon:
+  `PreOpen func(tool toolapi.Tool, cfg *runtime.Config)`. The built-in tools
+  plugin is a PLUGIN, and `*runtime.Config` is the daemon's **live
+  configuration type**, so the hook forced the
+  `plugin-reach plugins/builtintools -> kernel/runtime` edge into the
+  allowlist. But the hook did not need the configuration — it needed **one
+  verb** on it: install the **script runner** the script-tool forge (M794)
+  executes forged tools through, before the kernel opens, so the forge is live
+  from the first run.
+  That verb moved to the contract layer (`kernel/contract/toolregapi`), which
+  declares **its own** `ScriptRunner` interface (the daemon's runner type
+  lives in a module, and a contract may not name a module — the two have the
+  same method set, so the daemon's runner satisfies the contract's one and the
+  value is assigned directly) and the **port** `Config` with **exactly one**
+  method, `SetScriptRunner`. The hook now answers the port and the plugin's
+  import of `kernel/runtime` is **gone**. The registry — the one place that
+  knows both the contract and the daemon — wraps the daemon's configuration in
+  a small adapter (`runtimeConfig`) and hands the port to each spec.
+  The **ratchet went DOWN**: 81/13 → **80/13** — the `plugin-reach` edge is
+  gone and the **stale allowlist entry was deleted**.
+  The **shape of the reach is pinned**: the port has exactly one method, the
+  runner exactly one, with its four arguments and three answers pinned by type
+  — written the way Go actually declares an interface method (**no receiver**:
+  `m.Type.In(0)` is the first *argument*).
+  The **rules that travelled** are the *shape* rules; the **rules that stayed**
+  are the *runtime* ones — when the phase runs (after the tools are built,
+  before `runtime.Open`), which spec's hook runs at all (only the specs that
+  actually built a tool), and what the daemon does with the installed runner.
+  The **wiring is measured against the built instance** — after
+  `ApplyPreOpen`, `cfg.ScriptRunner` must be the `*codeexec.Tool` the spec
+  built — and the **gated-off** case is measured too: with
+  `AGEZT_SANDBOX=off` the tool is never built, so the phase must leave
+  `cfg.ScriptRunner` **nil** rather than install a runner for a tool that does
+  not exist.
+  6 mutations: 6 caught — one was **re-authored** because it produced a
+  *compile error* rather than a measured failure (deleting the hook left the
+  contract import unused, so the import was deleted with it and the mutation
+  became a real "the plugin no longer takes part in the pre-Open phase"),
+  and the last one is measured by the **archcheck gate** rather than by a test.
+  **One plugin-reach edge remains in the whole tree**
+  (`plugins/builtintools -> kernel/toolreg`) — the registration seam: the
+  plugin *registers into* a registry the daemon owns, which is a dependency in
+  the opposite direction of the one the rule forbids. The registry's rows carry
+  the live kernel, so that slice is bigger: the registry's rows have to be
+  broken apart first, one port family at a time.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

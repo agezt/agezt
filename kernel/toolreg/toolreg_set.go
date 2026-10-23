@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -102,12 +103,31 @@ func (s *Set) Tools() map[string]toolapi.Tool {
 }
 
 // ApplyPreOpen runs every spec's PreOpen hook against cfg.
+//
+// The hook answers the CONTRACT's port, so the daemon's configuration is
+// wrapped in it here — that is the one place the registry knows both
+// (W3.38). A tool never names the runtime.
 func (s *Set) ApplyPreOpen(cfg *runtime.Config) {
+	port := runtimeConfig{cfg: cfg}
 	for _, p := range s.pairs {
 		if p.spec.PreOpen != nil {
-			p.spec.PreOpen(p.built.Tool, cfg)
+			p.spec.PreOpen(p.built.Tool, port)
 		}
 	}
+}
+
+// runtimeConfig answers the contract's pre-Open port over the daemon's
+// runtime configuration.
+type runtimeConfig struct{ cfg *runtime.Config }
+
+// SetScriptRunner installs the runner that executes forged script tools
+// (M794) in the daemon's configuration.
+//
+// The contract's runner and the daemon's runner interface have the same
+// method set, so the value is assigned directly — the registry does not
+// name the module that declares the daemon's own interface.
+func (c runtimeConfig) SetScriptRunner(r toolregapi.ScriptRunner) {
+	c.cfg.ScriptRunner = r
 }
 
 // Configure runs the post-Open phase: for every Netguard spec it wires

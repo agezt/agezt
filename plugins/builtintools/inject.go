@@ -18,7 +18,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/toolreg"
 	artifactstool "github.com/agezt/agezt/plugins/tools/artifacts"
 	"github.com/agezt/agezt/plugins/tools/codeexec"
@@ -196,8 +196,8 @@ func specCodeExec() toolreg.Spec {
 			desc := fmt.Sprintf("code_exec(langs=%s, %s)", strings.Join(ce.Languages(), "/"), netTag)
 			return toolreg.Built{Tool: ce, Desc: desc}, nil
 		},
-		PreOpen: func(_ toolapi.Tool, cfg *runtime.Config) {
-			cfg.ScriptRunner = ce
+		PreOpen: func(_ toolapi.Tool, cfg toolregapi.Config) {
+			cfg.SetScriptRunner(ce)
 		},
 		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
 			if d.Artifacts != nil {
