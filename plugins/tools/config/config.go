@@ -11,10 +11,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/settings"
 )
@@ -219,7 +219,7 @@ func (t *Tool) doSet(ctx context.Context, in input) (toolapi.Result, error) {
 		if t.kernel == nil {
 			return errf("agent-scoped config needs a live kernel"), nil
 		}
-		if _, found, err := t.kernel.UpdateProfile(agentSlug, func(p *roster.Profile) {
+		if _, found, err := t.kernel.UpdateProfile(agentSlug, func(p *agentapi.Profile) {
 			next := make(map[string]string, len(p.ConfigOverrides)+1)
 			for key, existing := range p.ConfigOverrides {
 				next[key] = existing

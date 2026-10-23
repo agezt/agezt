@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // fakeStore records calls so the tool's mapping (op → store method + args) is
@@ -280,11 +280,11 @@ func TestManagedSubAgentCannotScheduleDirectWake(t *testing.T) {
 	f := &fakeStore{}
 	tool := newTool(f)
 	no := false
-	tool.BindAgentLookup(func(ref string) (roster.Profile, bool) {
+	tool.BindAgentLookup(func(ref string) (agentapi.Profile, bool) {
 		if ref != "worker" {
-			return roster.Profile{}, false
+			return agentapi.Profile{}, false
 		}
-		return roster.Profile{Slug: "worker", Enabled: true, ParentAgent: "lead", DirectCallable: &no}, true
+		return agentapi.Profile{Slug: "worker", Enabled: true, ParentAgent: "lead", DirectCallable: &no}, true
 	})
 	ctx := toolapi.WithAgent(context.Background(), "worker")
 	raw, _ := json.Marshal(map[string]any{"op": "every", "interval": "1h", "intent": "wake me"})
