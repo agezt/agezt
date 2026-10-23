@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 func applyActorIdentity(ctx context.Context, in *input) toolapi.Result {
@@ -39,7 +39,7 @@ func applyActorIdentity(ctx context.Context, in *input) toolapi.Result {
 	return toolapi.Result{}
 }
 
-func msgView(m board.Message) map[string]any {
+func msgView(m boardapi.Message) map[string]any {
 	v := map[string]any{"topic": m.Topic, "text": m.Text}
 	if m.ID != "" {
 		v["id"] = m.ID

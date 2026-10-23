@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 // Definition implements toolapi.Tool.
@@ -140,7 +140,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		if topic == "" {
 			topic = "dm"
 		}
-		m, err := st.Send(board.Message{Topic: topic, From: in.From, To: in.To, Text: in.Text}, nowFn())
+		m, err := st.Send(boardapi.Message{Topic: topic, From: in.From, To: in.To, Text: in.Text}, nowFn())
 		if err != nil {
 			return errResult(err.Error()), nil
 		}
@@ -174,7 +174,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		}
 		// The reply goes back to the asker: addressed to orig.From, same topic,
 		// linked via ReplyTo so op=replies finds it.
-		m, err := st.Send(board.Message{
+		m, err := st.Send(boardapi.Message{
 			Topic: orig.Topic, From: in.From, To: orig.From, ReplyTo: orig.ID, Text: in.Text,
 		}, nowFn())
 		if err != nil {

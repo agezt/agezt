@@ -92,8 +92,6 @@ plugin-reach plugins/builtintools -> kernel/toolreg
 plugin-reach plugins/providers/compat -> kernel/modules/providers/catalog
 plugin-reach plugins/tools/acpagent -> kernel/acp
 plugin-reach plugins/tools/acpagent -> kernel/modules/extensions/acpcatalog
-plugin-reach plugins/tools/artifacts -> kernel/modules/artifacts/artifact
-plugin-reach plugins/tools/boardtool -> kernel/modules/board/board
 plugin-reach plugins/tools/config -> kernel/runtime
 plugin-reach plugins/tools/db -> kernel/modules/artifacts/datalake
 plugin-reach plugins/tools/forgetool -> kernel/modules/extensions/toolforge

@@ -43,3 +43,37 @@ type Message struct {
 	// still shows for every other recipient.
 	AckedBy []string `json:"acked_by,omitempty"`
 }
+
+// Everyone is the recipient that means "every agent on the board". A message
+// addressed to it lands in every inbox but the sender's.
+const Everyone = "*"
+
+// Store is the board-store port: the surface the board tool drives. It is a
+// port and not the module's store because the tool is a PLUGIN, and a plugin
+// may reach the contract and the platform layers and nothing else — so the
+// store a plugin has to name cannot live in a module's implementation
+// package. The board module's *board.Store implements it.
+type Store interface {
+	// Post appends a message to a topic.
+	Post(topic, from, text string, nowMS int64) (Message, error)
+	// Send appends a message (already addressed).
+	Send(m Message, nowMS int64) (Message, error)
+	// Broadcast appends a message to everyone.
+	Broadcast(from, text string, nowMS int64) (Message, error)
+	// HelpRequest appends a help request (optionally addressed).
+	HelpRequest(from, to, text string, nowMS int64) (Message, error)
+	// OpenHelp returns the still-unanswered help messages.
+	OpenHelp(limit int) []Message
+	// Get returns one message by id.
+	Get(id string) (Message, bool)
+	// Ack marks a message as read by one reader.
+	Ack(id, by string) (Message, bool, error)
+	// Inbox returns the messages addressed to one agent.
+	Inbox(to string, limit int, includeAnswered bool) []Message
+	// Replies returns the answers to one message.
+	Replies(id string, limit int) []Message
+	// Read returns the messages on one topic.
+	Read(topic string, limit int) []Message
+	// Topics returns the message count per topic.
+	Topics() map[string]int
+}

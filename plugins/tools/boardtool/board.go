@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/kernel/modules/board/board"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 )
 
 // DefaultReadLimit / MaxReadLimit bound op=read.
@@ -17,21 +17,11 @@ const (
 	MaxReadLimit     = 100
 )
 
-// boardStore is the kernel/board subset the tool needs — an interface so tests
-// can inject a fake without a real on-disk store.
-type boardStore interface {
-	Post(topic, from, text string, nowMS int64) (board.Message, error)
-	Send(m board.Message, nowMS int64) (board.Message, error)
-	Broadcast(from, text string, nowMS int64) (board.Message, error)
-	HelpRequest(from, to, text string, nowMS int64) (board.Message, error)
-	OpenHelp(limit int) []board.Message
-	Read(topic string, limit int) []board.Message
-	Inbox(to string, limit int, includeAnswered bool) []board.Message
-	Replies(id string, limit int) []board.Message
-	Get(id string) (board.Message, bool)
-	Topics() map[string]int
-	Ack(id, by string) (board.Message, bool, error)
-}
+// boardStore is the board surface the tool needs — the contract's port, so
+// tests can inject a fake without a real on-disk store, and so the plugin
+// never names the board module (it is a plugin: it may reach the contract and
+// the platform layers and nothing else).
+type boardStore = boardapi.Store
 
 // PostNotifier is called after a successful post/send so the host can journal a
 // board.posted event (M656/M788) — the primitive that lets one agent's message
@@ -39,9 +29,9 @@ type boardStore interface {
 // "board.dm.<slug>" for an addressed message). Kept as a plain closure so this
 // plugin stays free of the kernel bus/event packages and is trivially testable.
 // corr is the posting run's correlation id (may be empty).
-type PostNotifier func(m board.Message, corr string)
+type PostNotifier func(m boardapi.Message, corr string)
 
-// Tool implements agent.Tool. Created unbound via New(); Bind opens the store.
+// Tool implements agent.Tool. Created unbound via New(); BindStore wires the store.
 type Tool struct {
 	mu     sync.RWMutex
 	store  boardStore
@@ -52,24 +42,16 @@ type Tool struct {
 // New returns an unbound board tool.
 func New() *Tool { return &Tool{now: func() int64 { return time.Now().UnixMilli() }} }
 
-// Bind opens the shared board store under dir and wires it. Called once after
-// the daemon knows its base dir. Returns an error only if the store can't open.
-func (t *Tool) Bind(dir string) error {
-	st, err := board.Open(dir)
-	if err != nil {
-		return err
-	}
-	t.mu.Lock()
-	t.store = st
-	t.mu.Unlock()
-	return nil
-}
-
-// BindStore wires a pre-built store (M937): the daemon opens ONE kernel/board
-// store and hands the same instance to this tool, the control plane, and the
-// REST mailbox — separate instances would silently clobber each other's last
-// write (each holds the full message list in memory and saves it whole).
-func (t *Tool) BindStore(st *board.Store) { t.bindStore(st) }
+// BindStore wires the shared board store (M937): the daemon opens ONE
+// kernel/board store and hands the same instance to this tool, the control
+// plane, and the REST mailbox — separate instances would silently clobber each
+// other's last write (each holds the full message list in memory and saves it
+// whole).
+//
+// The store arrives as the contract's PORT: the tool is a plugin, so it may
+// not name the board module — and it may not open the store itself either.
+// The daemon opens it and hands it over.
+func (t *Tool) BindStore(st boardStore) { t.bindStore(st) }
 
 // bindStore wires a pre-built store (used by tests).
 func (t *Tool) bindStore(b boardStore) {
