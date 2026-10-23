@@ -48,8 +48,8 @@ From `internal-deps.txt`:
 | `memory` | **agent**, bus, **edict**, event, filestore | cmd/agezt, agentgw, contextselect, controlplane, runtime(+accessors, runexec) |
 | `worldmodel` | **agent**, bus, **edict**, event, filestore | contextselect, controlplane, reflect, runtime(+accessors, runexec) |
 | `datalake` | atomicfile, ulid | controlplane, runtime(+accessors, runexec), toolreg, plugins/tools/db |
-| `artifact` | atomicfile, ulid | cmd/agezt, controlplane, runtime(+accessors, runexec), toolreg, plugins/tools/artifacts (the browser, the code executor and the fetch tool name the contract row, not the module) |
-| `board` | filestore, ulid | cmd/agezt, controlplane, restapi, selfrepair, toolreg, kernel/app/overseer, plugins/tools/boardtool |
+| `artifact` | atomicfile, ulid | cmd/agezt, controlplane, runtime(+accessors, runexec), toolreg (the browser, the code executor, the fetch tool and the artifacts tool name the contract row, not the module) |
+| `board` | filestore, ulid | cmd/agezt, controlplane, restapi, selfrepair, toolreg, kernel/app/overseer (the board tool takes the store through the contract's port) |
 | `workboard` | filestore, **proof**, ulid | controlplane, runtime, plugins/tools/workboardtool |
 | `okr` | filestore, ulid | controlplane, runtime |
 | `taste` | filestore, ulid | controlplane, runtime |
@@ -511,7 +511,7 @@ Tests: `board_test.go`, `a2a_test.go`, `ack_test.go`, `coverage_test.go`, `save_
 
 **Inbox semantics:** a message is "for me" if `To` equals my slug (case-insensitive) or it is a broadcast I didn't send. Unless `includeAnswered`, drop: anything I acked; directed messages with any reply; help broadcasts with any reply; plain broadcasts that *I* replied to.
 
-**Single shared `board.Store` invariant (M937).** Each `Store` holds the whole list in memory and saves it whole, so two writer instances silently drop each other's messages. `cmd/agezt/main.go` opens **one** store at `$AGEZT_HOME/board/board.json` and hands it to: the `board` tool (`boardtool.Tool.BindStore` via `plugins/builtintools/latebound.go`), the control plane (`boardWriter()` returns *only* the shared instance; `boardReader()` may fall back to a fresh read-only `Open`), the REST mailbox (`restapi.SetMailbox`), and self-repair's `Mailbox` interface. Read-only fresh opens exist in `controlplane.boardReader` (fallback) and `overseertool.kernelSource.OpenHelp`. `boardtool.Tool.Bind(dir)` (which opens its own store) is now exercised only by tests.
+**Single shared `board.Store` invariant (M937).** Each `Store` holds the whole list in memory and saves it whole, so two writer instances silently drop each other's messages. `cmd/agezt/main.go` opens **one** store at `$AGEZT_HOME/board/board.json` and hands it to: the `board` tool (`boardtool.Tool.BindStore` via `plugins/builtintools/latebound.go`), the control plane (`boardWriter()` returns *only* the shared instance; `boardReader()` may fall back to a fresh read-only `Open`), the REST mailbox (`restapi.SetMailbox`), and self-repair's `Mailbox` interface. Read-only fresh opens exist in `controlplane.boardReader` (fallback) and `overseertool.kernelSource.OpenHelp`. The board tool is a plugin, so it may not name the module: it takes the store through the contract's **port** (`boardapi.Store`), and the plugin's old `Bind(dir)` — which opened a store of its own — is **gone**.
 
 **Events.** The store emits nothing; the daemon's `boardNotify(m, corr)` closure publishes `board.posted` (actor `board`) for every write through any door, with subject routing:
 
