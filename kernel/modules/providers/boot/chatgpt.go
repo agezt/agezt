@@ -1,4 +1,4 @@
-package providerboot
+package boot
 
 // Provenance: SPDX-License-Identifier: MIT ChatGPT provider-boot: types + cache +
 //             resolvers (the package surface). The seeding path lives in
@@ -7,7 +7,6 @@ package providerboot
 //             chatgpt.go during the Day-207 god-file split. Public API unchanged.
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -15,9 +14,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/agezt/agezt/kernel/modules/providers/api"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/providers/chatgptauth"
-	"github.com/agezt/agezt/plugins/providers/openairesponses"
 )
 
 // chatgptFallbackModels is the last-resort model set, used only when both
@@ -57,7 +56,7 @@ type chatgptModelSet struct {
 	// Default is the model used when nothing is pinned (IDs[0], or the builtin).
 	Default string
 	// Info carries the per-model metadata used to build catalog entries.
-	Info map[string]openairesponses.ModelInfo
+	Info map[string]api.ModelInfo
 	// Instructions maps model id → its backend-served system prompt.
 	Instructions map[string]string
 	// Source records which of the three sources answered.
@@ -89,7 +88,7 @@ var chatgptModelCache struct {
 // It never fails: a discovery error degrades to the next source, per the
 // boot-resilient-config rule (a recoverable mismatch must warn and degrade, not
 // block boot).
-func resolveChatGPTModels(mgr *chatgptauth.Manager) chatgptModelSet {
+func resolveChatGPTModels(ports api.Ports, mgr *chatgptauth.Manager) chatgptModelSet {
 	chatgptModelCache.mu.Lock()
 	if cached := chatgptModelCache.set; cached.Authoritative() && time.Since(chatgptModelCache.at) < chatgptCacheTTL {
 		chatgptModelCache.mu.Unlock()
@@ -97,7 +96,7 @@ func resolveChatGPTModels(mgr *chatgptauth.Manager) chatgptModelSet {
 	}
 	chatgptModelCache.mu.Unlock()
 
-	set, ok := discoverChatGPTModels(mgr)
+	set, ok := discoverChatGPTModels(ports, mgr)
 	if !ok {
 		set, ok = chatgptModelsFromCLICache(chatgptCLICachePath())
 	}
@@ -112,12 +111,12 @@ func resolveChatGPTModels(mgr *chatgptauth.Manager) chatgptModelSet {
 
 // discoverChatGPTModels asks the backend directly. ok is false when not signed
 // in or the call fails.
-func discoverChatGPTModels(mgr *chatgptauth.Manager) (chatgptModelSet, bool) {
+func discoverChatGPTModels(ports api.Ports, mgr *chatgptauth.Manager) (chatgptModelSet, bool) {
 	if mgr == nil || !mgr.HasTokens() {
 		return chatgptModelSet{}, false
 	}
-	models, err := openairesponses.ListModels(context.Background(), openairesponses.DefaultBaseURL, chatgptTokenFn(mgr))
-	if err != nil {
+	models, ok := ports.ChatGPTDiscover(mgr)
+	if !ok {
 		return chatgptModelSet{}, false
 	}
 	return chatgptModelSetFrom(models, chatgptSourceBackend)
@@ -142,23 +141,23 @@ func chatgptModelsFromCLICache(path string) (chatgptModelSet, bool) {
 		return chatgptModelSet{}, false
 	}
 	var payload struct {
-		Models []openairesponses.ModelInfo `json:"models"`
+		Models []api.ModelInfo `json:"models"`
 	}
 	if json.Unmarshal(raw, &payload) != nil {
 		return chatgptModelSet{}, false
 	}
-	return chatgptModelSetFrom(openairesponses.ParseModels(payload.Models), chatgptSourceCache)
+	return chatgptModelSetFrom(api.SortModels(payload.Models), chatgptSourceCache)
 }
 
 // chatgptModelSetFrom projects discovered models into a set, keeping only the
 // entries meant for an operator-facing picker. ok is false when none qualify.
-func chatgptModelSetFrom(models []openairesponses.ModelInfo, source string) (chatgptModelSet, bool) {
+func chatgptModelSetFrom(models []api.ModelInfo, source string) (chatgptModelSet, bool) {
 	set := chatgptModelSet{
-		Info:         map[string]openairesponses.ModelInfo{},
+		Info:         map[string]api.ModelInfo{},
 		Instructions: map[string]string{},
 		Source:       source,
 	}
-	for _, m := range models {
+	for _, m := range api.SortModels(models) {
 		// Hidden entries still carry usable instructions (an operator may pin one
 		// by id), so record them — but keep them out of the picker.
 		if s := strings.TrimSpace(m.BaseInstructions); s != "" {
@@ -173,7 +172,7 @@ func chatgptModelSetFrom(models []openairesponses.ModelInfo, source string) (cha
 	if len(set.IDs) == 0 {
 		return chatgptModelSet{}, false
 	}
-	set.Default = set.IDs[0] // ParseModels ordered by the backend's own priority
+	set.Default = set.IDs[0] // the models are ordered by the backend's own priority
 	return set, true
 }
 
@@ -182,12 +181,12 @@ func builtinChatGPTModelSet() chatgptModelSet {
 	set := chatgptModelSet{
 		IDs:          append([]string(nil), chatgptFallbackModels...),
 		Default:      chatgptFallbackDefault,
-		Info:         map[string]openairesponses.ModelInfo{},
+		Info:         map[string]api.ModelInfo{},
 		Instructions: map[string]string{},
 		Source:       chatgptSourceBuiltin,
 	}
 	for _, id := range set.IDs {
-		set.Info[id] = openairesponses.ModelInfo{Slug: id, DisplayName: id}
+		set.Info[id] = api.ModelInfo{Slug: id, DisplayName: id}
 	}
 	return set
 }
@@ -196,7 +195,7 @@ func builtinChatGPTModelSet() chatgptModelSet {
 // model ids are routable. Env is the vault token key, so HasCredentials reflects
 // sign-in state; NPM is empty (FamilyUnknown) so the compat loop never tries to
 // build it — the dedicated adapter does.
-func chatgptCatalogEntry(set chatgptModelSet) *catalog.Provider {
+func chatgptCatalogEntry(ports api.Ports, set chatgptModelSet) *catalog.Provider {
 	models := map[string]*catalog.Model{}
 	for _, id := range set.IDs {
 		info := set.Info[id]
@@ -220,7 +219,7 @@ func chatgptCatalogEntry(set chatgptModelSet) *catalog.Provider {
 		ID:     "chatgpt",
 		Name:   "ChatGPT (Sign in with ChatGPT)",
 		Env:    []string{chatgptauth.VaultKey},
-		API:    openairesponses.DefaultBaseURL,
+		API:    ports.ChatGPTBaseURL(),
 		Doc:    "https://chatgpt.com",
 		Models: models,
 	}

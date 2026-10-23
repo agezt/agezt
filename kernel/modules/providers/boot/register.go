@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-package providerboot
+package boot
 
 // Provider registration: registerAlternates + SelectPrimary.
-// Carved out of providerboot_runtime.go during the Day 189 god-file
-// split so the main file can stay focused on the Boot/Reload
-// lifecycle and the catalog file can stay focused on catalog-driven
-// provider construction.
+// Carved out of runtime.go during the Day 189 god-file split so the main file
+// can stay focused on the Boot/Reload lifecycle and the catalog file can stay
+// focused on catalog-driven provider construction.
 // Public API unchanged.
 
 import (
@@ -14,18 +13,33 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/governor"
 )
 
-func registerAlternates(reg *governor.Registry, d Deps, primaryName string, mw []agent.Middleware, replace bool) map[string]bool {
+// registerAlternates is the ONE shared registration path for every non-primary
+// provider: every OTHER credentialed + supported catalog provider is registered
+// as a model-routable alternate (SPEC-15 §1), plus the ChatGPT subscription
+// alternate when signed in. Boot calls it with replace=false (fresh registry,
+// Registry.Register); Reload calls it with replace=true (Registry.Replace,
+// then a stale-drop sweep removes alternates that lost eligibility — key
+// revoked / provider gone from the catalog). Build failures are skipped, never
+// fatal — a misconfigured alternate must not stop the daemon (boot) or the
+// reload. Fallback entries are never touched by the sweep.
+//
+// Every registered provider — including ChatGPT — is wrapped in the M997
+// middleware stack on BOTH paths (drift fix: the old reload path registered
+// raw providers, so GEN_TEMPERATURE / EXTRACT_REASONING / SIMULATE_STREAMING
+// silently stopped applying after any provider reload until restart).
+//
+// Returns the eligible set (catalog provider id → true, primary included) —
+func registerAlternates(reg *governor.Registry, d Deps, primaryName string, wrap func(llm.Provider) llm.Provider, replace bool) map[string]bool {
 	eligible := map[string]bool{primaryName: true}
 	for _, entry := range d.Catalog.ProviderList() {
 		if entry.ID == primaryName {
 			continue // already the primary
 		}
-		if !Eligible(entry, d.Lookup) {
+		if !Eligible(d.Ports, entry, d.Lookup) {
 			continue
 		}
 		p, _, _, auth, err := BuildFromCatalog(d, entry, "")
@@ -34,7 +48,7 @@ func registerAlternates(reg *governor.Registry, d Deps, primaryName string, mw [
 		}
 		info := &governor.ProviderInfo{
 			Name:     p.Name(),
-			Provider: agent.Wrap(p, mw...),
+			Provider: wrap(p),
 			AuthMode: auth,
 			Models:   catalogModelIDs(d.Catalog, entry.ID),
 		}
@@ -52,7 +66,7 @@ func registerAlternates(reg *governor.Registry, d Deps, primaryName string, mw [
 	// ChatGPT ("Sign in with ChatGPT") registers as a subscription alternate
 	// when signed in (and not already the primary) — its models route to the
 	// Responses backend adapter.
-	if registerChatGPTAlternate(reg, d.BaseDir, primaryName, replace, mw) {
+	if registerChatGPTAlternate(reg, d, primaryName, replace, wrap) {
 		eligible["chatgpt"] = true
 	}
 	if replace {
@@ -93,6 +107,10 @@ func registerAlternates(reg *governor.Registry, d Deps, primaryName string, mw [
 //	                                  chain; with neither, the governor returns
 //	                                  ErrNoModelConfigured.
 func SelectPrimary(d Deps) (llm.Provider, string, string, governor.AuthMode, error) {
+	ports, err := d.ports()
+	if err != nil {
+		return nil, "", "", "", err
+	}
 	cat := d.Catalog
 	// AGEZT_PROVIDER and AGEZT_MODEL are *config*, not credentials —
 	// always read from the config env directly (operators may want a one-off
@@ -103,7 +121,7 @@ func SelectPrimary(d Deps) (llm.Provider, string, string, governor.AuthMode, err
 	// ChatGPT ("Sign in with ChatGPT") is not a compat catalog provider — it uses
 	// the OAuth token store + Responses adapter, so build it directly.
 	if want == "chatgpt" {
-		prov, desc, auth, ok := buildChatGPTPrimary(d.BaseDir, modelOverride)
+		prov, desc, auth, ok := buildChatGPTPrimary(d, modelOverride)
 		if !ok {
 			return nil, "", "", "", fmt.Errorf(
 				"%sPROVIDER=chatgpt but not signed in — use Setup → Providers → Sign in with ChatGPT first", brand.EnvPrefix)
@@ -130,7 +148,7 @@ func SelectPrimary(d Deps) (llm.Provider, string, string, governor.AuthMode, err
 		if model == "" {
 			model = "mock"
 		}
-		return demoEchoProvider(),
+		return ports.DemoEcho(),
 			"demo echo mock (explicit " + brand.EnvPrefix + "DEMO_ECHO=1; offline e2e/demo)",
 			model, governor.AuthLocal, nil
 	}

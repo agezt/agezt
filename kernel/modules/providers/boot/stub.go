@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-package providerboot
+package boot
 
-// Provenance: Package providerboot: unconfiguredProvider stub + UnconfiguredName
+// Provenance: Package boot: unconfiguredProvider stub + UnconfiguredName
 //             const. This is the Provider the runtime falls back to when the catalog
 //             has zero eligible entries — every completion attempt fails fast with
 //             an actionable message telling the operator to add a provider + key +
-//             model. Extracted from providerboot.go during the Day-211 god-file
+//             model. Extracted from boot.go during the Day-211 god-file
 //             split. Public API unchanged.
 
 import (

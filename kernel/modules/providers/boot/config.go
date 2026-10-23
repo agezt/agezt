@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-package providerboot
+package boot
 
-// Provenance: providerboot_config.go holds Boot-time env parsing for the governor
+// Provenance: config.go holds Boot-time env parsing for the governor
 //             knobs (govEnvConfig + governorConfigFromEnv). Carved out of
-//             providerboot.go during the Day-211 god-file split so providerboot.go
+//             boot.go during the Day-211 god-file split so boot.go
 //             can stay focused on type definitions and the Boot/Reload entry points.
-//             The unconfiguredProvider stub lives in providerboot_stub.go.
+//             The unconfiguredProvider stub lives in stub.go.
 
 import (
 	"fmt"

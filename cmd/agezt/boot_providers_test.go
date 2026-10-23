@@ -3,12 +3,37 @@
 package main
 
 import (
+	"io"
 	"testing"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/modules/providers/boot"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
-	"github.com/agezt/agezt/plugins/providerboot"
 )
+
+// TestBootDepsWiresThePorts pins the daemon's single wiring point: every boot
+// path goes through bootDeps, and the bundle it returns carries the module's
+// ports. The module refuses to run unwired — and the daemon's boot path is
+// exactly the place where forgetting them would turn into a boot that never
+// starts.
+func TestBootDepsWiresThePorts(t *testing.T) {
+	d := bootDeps(catalog.NewEmpty(), func(string) string { return "" }, t.TempDir(), io.Discard)
+	if d.Ports == nil {
+		t.Fatal("bootDeps returned a bundle without the wire adapters")
+	}
+	// And the bundle boots: the module accepts it and answers with the
+	// unconfigured sentinel (no provider configured).
+	t.Setenv(brand.EnvPrefix+"PROVIDER", "")
+	t.Setenv(brand.EnvPrefix+"MODEL", "")
+	t.Setenv(brand.EnvPrefix+"DEMO_ECHO", "")
+	res, err := boot.Boot(d)
+	if err != nil {
+		t.Fatalf("Boot: %v", err)
+	}
+	if res.Primary != boot.UnconfiguredName {
+		t.Errorf("Primary = %q, want the %q sentinel", res.Primary, boot.UnconfiguredName)
+	}
+}
 
 // TestFirstRunNudgePolarity pins the banner nudge's polarity (Phase 2.4 drift
 // fix #3): the "setup needed" nudge must fire exactly when the daemon booted
@@ -24,7 +49,7 @@ func TestFirstRunNudgePolarity(t *testing.T) {
 	t.Setenv(brand.EnvPrefix+"PROVIDER", "")
 	t.Setenv(brand.EnvPrefix+"MODEL", "")
 	t.Setenv(brand.EnvPrefix+"DEMO_ECHO", "")
-	unconf, err := providerboot.Boot(providerboot.Deps{Catalog: catalog.NewEmpty(), Lookup: lookup, BaseDir: t.TempDir()})
+	unconf, err := boot.Boot(boot.Deps{Catalog: catalog.NewEmpty(), Lookup: lookup, BaseDir: t.TempDir(), Ports: providerPorts()})
 	if err != nil {
 		t.Fatalf("Boot (unconfigured): %v", err)
 	}
@@ -38,7 +63,7 @@ func TestFirstRunNudgePolarity(t *testing.T) {
 	// Explicit demo-echo boot resolves model "mock" — this is where the OLD
 	// inverted check fired; the nudge must stay silent.
 	t.Setenv(brand.EnvPrefix+"DEMO_ECHO", "1")
-	demo, err := providerboot.Boot(providerboot.Deps{Catalog: catalog.NewEmpty(), Lookup: lookup, BaseDir: t.TempDir()})
+	demo, err := boot.Boot(boot.Deps{Catalog: catalog.NewEmpty(), Lookup: lookup, BaseDir: t.TempDir(), Ports: providerPorts()})
 	if err != nil {
 		t.Fatalf("Boot (demo echo): %v", err)
 	}

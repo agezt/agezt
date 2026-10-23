@@ -91,9 +91,6 @@ plugin-reach plugins/builtinmarket -> kernel/modules/skills/skill
 plugin-reach plugins/builtintools -> kernel/modules/extensions/plugin
 plugin-reach plugins/builtintools -> kernel/runtime
 plugin-reach plugins/builtintools -> kernel/toolreg
-plugin-reach plugins/providerboot -> kernel/agent
-plugin-reach plugins/providerboot -> kernel/modules/providers/catalog
-plugin-reach plugins/providerboot -> kernel/modules/providers/chatgptauth
 plugin-reach plugins/providers/compat -> kernel/modules/providers/catalog
 plugin-reach plugins/tools/acpagent -> kernel/acp
 plugin-reach plugins/tools/acpagent -> kernel/modules/extensions/acpcatalog

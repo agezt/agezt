@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-82 package(s):
+81 package(s):
 
 - **`plugins/builtinchannels`** — Package builtinchannels registers the manifests for AGEZT's built-in communication channels (Telegram, WhatsApp, Slack, …) into the channel registry.
 - **`plugins/builtinguardians`** — Package builtinguardians ships the daemon's internal self-healing fleet: a small set of "guardian" agents baked into the binary and seeded into the roster at startup (M961), so the system watches and repairs itself out of the box — no operator setup.
@@ -35,7 +35,6 @@
 - **`plugins/channels/zalo`** — Package zalo is a two-way Zalo channel over the Official Account (OA) API.
 - **`plugins/external/mcpbridge`** — Command mcpbridge bridges an MCP (Model Context Protocol) server into the agezt plugin protocol so any MCP server — written for Claude Desktop, Cursor, Continue, etc.
 - **`plugins/external/mcpbridge/testdata/mockmcp`** — Command mockmcp is a minimal MCP (Model Context Protocol) server used by the mcpbridge test suite.
-- **`plugins/providerboot`** — Package providerboot owns provider bootstrap for the daemon: primary selection, alternate registration, the governor's construction, and the hot-reload path — Boot and Reload share ONE registration path (registerAlternates), retiring the boot-vs-reload drift class (M928/M816 and the 2026-08 survey's live drifts: middleware dropped on reload, the cross-provider down-route eligibility set frozen at boot).
 - **`plugins/providers/anthropic`** — Package anthropic is the in-process Anthropic Messages-API Provider.
 - **`plugins/providers/bedrock`** — Package bedrock is the in-process AWS Bedrock Provider.
 - **`plugins/providers/cohere`** — Package cohere is the in-process Cohere v2 chat Provider.
