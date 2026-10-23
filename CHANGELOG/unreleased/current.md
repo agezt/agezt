@@ -877,6 +877,21 @@ This file holds the active `[Unreleased]` working set.
   field can no longer break the control plane, the Web UI and the persisted
   store silently.
 
+- **The two trigger tools no longer reach into a module.** The schedule tool
+  and the standing tool are plugins, so they may reach the contract and the
+  platform layers and nothing else — yet the schedule tool held the cadence
+  module's concrete store and the standing tool held the standing module's
+  concrete store and the roster module's profile row. The schedule tool now
+  takes the store as a port in the contract layer, the standing tool takes the
+  profile lookup by injection and lists the orders through the kernel's own
+  accessor, and both name the rows where they live. The tools' behaviour, their
+  rows and their wire JSON are unchanged: the same schedules, the same standing
+  orders, the same refusals — a retired, paused or managed agent is still
+  refused with the same message and the same manager named. The three
+  plugin-reach edges this removes are gone from the architecture ratchet, and
+  the wiring is now measured against a live kernel, so a daemon that stops
+  handing the tools what they need fails a test instead of the agent.
+
 - **The council, the conductor and the research tools no longer reach into the
   kernel for a type.** The rows the reasoning module produces — a consensus,
   a transcript, a cited report — move to the contract layer
