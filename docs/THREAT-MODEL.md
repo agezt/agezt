@@ -277,14 +277,14 @@ with callbacks, or smuggles harmful tool definitions past the allowlist.
 
 - **Out-of-process isolation.** External plugins run as separate processes over
   a JSON protocol; a plugin crash does not take down the daemon. The host
-  reaps dead children and supports hot-reload. See `kernel/plugin/host.go`.
+  reaps dead children and supports hot-reload. See `kernel/modules/extensions/plugin/host.go`.
 - **Tool allowlists.** The host applies a tool allowlist at spawn time: only
-  declared tools are exposed to the model. See `kernel/plugin/allowlist*`.
+  declared tools are exposed to the model. See `kernel/modules/extensions/plugin/allowlist*`.
 - **Bounded callbacks.** Host callbacks (`host/invoke`) are dispatched through
   a bounded slot pool so a plugin cannot spawn unbounded host-side goroutines.
-  See `kernel/plugin/callback*`.
+  See `kernel/modules/extensions/plugin/callback*`.
 - **Content-address verification.** Plugin and skill installs from a registry
-  are verified by BLAKE3 hash against a pin. See `kernel/plugin/pin.go`,
+  are verified by BLAKE3 hash against a pin. See `kernel/modules/extensions/plugin/pin.go`,
   `kernel/market/`.
 
 **Limitations.**

@@ -128,7 +128,7 @@ Today → target mapping of the key moves:
 | `journal` + `bus` + `event` + 15 projections | `platform/eventlog` with a **kind registry** and a **sidecar index** | No index (full scans on `why`, channel history, epistemic gate); 8 dead kinds; ad-hoc kinds |
 | 13 `jsonstore` users + `board` single-instance rule | `platform/filestore` (**done W1.3**: 0600/0700 + cross-process `Lock`; path registry not needed, see roadmap) | P5; perms; vault races |
 | `kernel/channel` + `channelwire` + `builtinchannels` | `contract/channelapi` (**done W1.1**) + `modules/channels` (supervisor, conversation store, accounts from config schema) + `plugins/channels/*` transports | Silent dead channels, panics crash daemon, history misses replies |
-| `kernel/plugin` + `plugins/sdk` + dead `contract/gen` | `platform/extension` (one out-of-process protocol, kinds: tool now; channel/provider later) + delete the dead schema halves | Dead architecture |
+| `kernel/modules/extensions/plugin` + `plugins/sdk` + dead `contract/gen` | `platform/extension` (one out-of-process protocol, kinds: tool now; channel/provider later) + delete the dead schema halves | Dead architecture |
 | `kernel/controlplane` → `plugins/tools/overseertool` | overseer logic → `modules/fleet` ops; the tool becomes a thin L6 caller of `app` | Kernel→plugins edge |
 
 ---

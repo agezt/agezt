@@ -1118,6 +1118,22 @@ This file holds the active `[Unreleased]` working set.
   `source:"cron"`, an event fire as `source:"event"` with the matched subject.
   A run nobody triggered is still `"manual"`.
 
+- **The extensions module has a home.** The MCP client and registry, the
+  out-of-process plugin host, the script-tool forge, the host CLI tool
+  inventory and the ACP agent discovery now live in
+  `kernel/modules/extensions`; nothing else about them changes.
+
+  The five packages were already one module, but they sat at the top of
+  `kernel/`, outside the `kernel/modules/` tree the migration establishes as
+  the target home of the bounded contexts. Their names, their exported APIs,
+  their stores, their protocol, their recipes and their wire are unchanged —
+  only their address is.
+
+  The module's name does not change, so every edge keeps its shape and only its
+  path changes: the architecture ratchet stays where it was, and the nine
+  allowlist entries moved with their edges. The five hand-written layer rules
+  are gone — the placement is derived now.
+
 - **The reaper has a home, and the module has a door.** The fleet's read-only
   health scan moved out of `kernel/runtime` into the agents module
   (`kernel/modules/agents/reaper`), and the findings it publishes are declared

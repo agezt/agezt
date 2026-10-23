@@ -8,7 +8,7 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 `providerboot.Boot`/`Reload`, AWS credential chain, daemonconfig) · [04-agent-runtime.md](04-agent-runtime.md)
 (`kernel/agent` loop, middleware, GenerateObject) · [05-governance-routing-security.md](05-governance-routing-security.md)
 (governor routing/chains/budgets, catalog, creds, sigv4, chatgptauth, netguard) ·
-[07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md) (kernel/plugin host, kernel/mcp in-kernel MCP,
+[07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md) (kernel/modules/extensions/plugin host, kernel/modules/extensions/mcp in-kernel MCP,
 voicetool/imagetool/reranktool) · [02-cli-cmd-agt.md](02-cli-cmd-agt.md) (`agt check`, `agt plugin new`) ·
 [12-sdks-and-contract.md](12-sdks-and-contract.md) (client SDKs — not the plugin SDK).
 
@@ -25,7 +25,7 @@ voicetool/imagetool/reranktool) · [02-cli-cmd-agt.md](02-cli-cmd-agt.md) (`agt 
 | **Non-chat modality clients** (`embed`, `image`, `rerank`, `voice`) | OpenAI-compatible (plus native ElevenLabs/Deepgram/Cartesia for voice) clients that satisfy *kernel-side seams structurally* (memory.Embedder, runtime ImageGen/Reranker/Voice) without the kernel importing them. Constructed in `cmd/agezt/main.go` from `AGEZT_EMBED_*`, `AGEZT_IMAGE_*`, `AGEZT_RERANK_*`, `AGEZT_STT_*`/`AGEZT_TTS_*`. |
 | **`mock`** | Scripted/responder offline provider. Used by ~155 test files across the repo and by the explicit `AGEZT_DEMO_ECHO=1` demo path. |
 | **`plugins/sdk`** | Stdlib-only Go kit for out-of-process *tool* plugins speaking the kernel's line-delimited JSON plugin protocol (initialize / tool/invoke / shutdown / host/invoke / progress). |
-| **`plugins/external/mcpbridge`** | Standalone binary: an agezt plugin (plugin protocol on its stdio) that fronts one MCP server (JSON-RPC 2.0 over stdio or legacy HTTP+SSE). Predates and is superseded for most uses by the in-kernel `kernel/mcp`. |
+| **`plugins/external/mcpbridge`** | Standalone binary: an agezt plugin (plugin protocol on its stdio) that fronts one MCP server (JSON-RPC 2.0 over stdio or legacy HTTP+SSE). Predates and is superseded for most uses by the in-kernel `kernel/modules/extensions/mcp`. |
 
 Layering: everything here sits **above** the kernel. `plugins/providers/*` import `kernel/agent` (types),
 `kernel/catalog` (compat only), `kernel/netguard` (embed, voice, openairesponses), `kernel/creds/sigv4` (bedrock).
@@ -596,8 +596,8 @@ Tests: `boot_test.go`, `reconcile_providers_test.go` (boot/reload parity, sentin
 
 ## 5. `plugins/sdk` — writing an out-of-process tool plugin
 
-Stdlib-only (deliberately does not import `kernel/plugin` or `kernel/agent`, DECISIONS B0). Its wire structs are
-independent copies of `kernel/plugin/protocol.go` (host side; see 07).
+Stdlib-only (deliberately does not import `kernel/modules/extensions/plugin` or `kernel/agent`, DECISIONS B0). Its wire structs are
+independent copies of `kernel/modules/extensions/plugin/protocol.go` (host side; see 07).
 
 ### Protocol (newline-delimited JSON over the plugin's stdin/stdout)
 
@@ -669,7 +669,7 @@ speaks the agezt plugin protocol to the daemon and JSON-RPC 2.0 MCP to one serve
     (`buildSSEEndpointPolicy`, `resolveEndpoint`, `classifyHost`, `ipPolicyReason`) — same-origin as the operator's
     URL and netguard IP classification (blocks metadata/link-local, loopback/private unless opted in) — closes
     VULN mcp-sse-ssrf-pivot; POST per request, replies arrive on the stream; event data also capped. Streamable-HTTP
-    (2025-03 spec) is **not** implemented here (it is in `kernel/mcp/http.go`).
+    (2025-03 spec) is **not** implemented here (it is in `kernel/modules/extensions/mcp/http.go`).
 * `mcpClient` (`mcp_wire.go`): `pending map[int64]chan`, `dead atomic.Bool` + `markDead` (unblocks every pending
   caller once), `deathError`.
 
@@ -785,6 +785,6 @@ Tests: `main_test.go`, `mcp_m428_test.go` (panic/wedge regression), `limits_test
     contribute `base_instructions`; the builtin model list must never overwrite a discovered catalog entry.
 16. **Stale doc comments** (verify against code, not prose): `anthropic/doc.go` (non-streaming), `google/doc.go`
     (Vertex unsupported), `bedrock/doc.go` and `compat.go` package doc (bearer/Anthropic-only Bedrock), `vertex/doc.go`
-    (Anthropic/streaming "land later"), `mcpbridge/main.go` ("why not in-kernel MCP" — `kernel/mcp` now exists).
+    (Anthropic/streaming "land later"), `mcpbridge/main.go` ("why not in-kernel MCP" — `kernel/modules/extensions/mcp` now exists).
 17. **mcpbridge serialises calls** (one in flight) and its stdio child inherits the bridge's full environment; prefer
-    `kernel/mcp` (governed `mcp.install`/`mcp.call`, scrubbed env, Streamable HTTP) for new integrations.
+    `kernel/modules/extensions/mcp` (governed `mcp.install`/`mcp.call`, scrubbed env, Streamable HTTP) for new integrations.

@@ -96,7 +96,7 @@ list-endpoint paginations.
   interface, not concrete types. Document the boundary in package doc comments.
 - **B9.** conductor/council/research implemented twice (runtime + controlplane) with the same
   loop→fallback→orchestrator→delegate pattern. Factor a `kernel/loop/orchestrator` skeleton.
-- **B10.** First-party in-process channels bypass `kernel/plugin/host.go` and plug straight into
+- **B10.** First-party in-process channels bypass `kernel/modules/extensions/plugin/host.go` and plug straight into
   `kernel/channel/registry.go`. Either migrate through the host under a `ChannelInProc` flag or
   document the dual model in `docs/PLUGIN-SECURITY.md`.
 - **B11.** Env prefix / binary names sometimes hard-coded (`AGEZT_TUNNEL`, `agt`) instead of

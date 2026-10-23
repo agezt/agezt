@@ -1,8 +1,8 @@
 # 07 — Autonomy & Extensibility
 
 **Scope:** `kernel/roster`, `kernel/cadence` (+ `cadence/systemtasks`), `kernel/scheduler`, `kernel/standing`, `kernel/pulse`,
-`kernel/selfrepair`, `kernel/modules/skills/skill` (+ `kernel/modules/skills/builtins`), `kernel/market`, `kernel/plugin`, `kernel/mcp`, `kernel/acp`, `kernel/acpcatalog`,
-`kernel/workflow`, `kernel/workflowexec`, `kernel/update`, `kernel/toolbox`, `kernel/channel`, `kernel/channelwire`,
+`kernel/selfrepair`, `kernel/modules/skills/skill` (+ `kernel/modules/skills/builtins`), `kernel/market`, `kernel/modules/extensions/plugin`, `kernel/modules/extensions/mcp`, `kernel/acp`, `kernel/modules/extensions/acpcatalog`,
+`kernel/workflow`, `kernel/workflowexec`, `kernel/update`, `kernel/modules/extensions/toolbox`, `kernel/channel`, `kernel/channelwire`,
 `kernel/stt`, `kernel/voicetool`, `kernel/imagetool`, `kernel/reranktool`, `kernel/internal/testfixtures`.
 Also covers the parts of `cmd/agezt` and `kernel/runtime` that turn these packages into running behaviour,
 because most "fire" logic lives in the daemon, not in the packages.
@@ -765,7 +765,7 @@ Capability can be added in six ways, from tightest to loosest coupling:
 2. Skills: procedures injected as prompt text.
 3. Market packs: skills + MCP servers + tool requirements.
 4. MCP servers: a stdio child process or a remote HTTP endpoint.
-5. Out-of-process `kernel/plugin` children.
+5. Out-of-process `kernel/modules/extensions/plugin` children.
 6. ACP external coding agents.
 
 Every resulting tool is governed by Edict. An unmapped tool name becomes a one-off capability. An unknown capability is **default-deny** unless `AGEZT_ALLOW_ALL` is set. See [05](05-governance-routing-security.md).
@@ -1028,7 +1028,7 @@ The `Syncer` uses a netguard-wrapped client: loopback and private addresses are 
 
 Tests: `installguard`, `librarydefensive`, `librarypick`, `libraryversion`, `listupdate`, `market`, `publish`, `sync`, `tool`, `version`, `vet`.
 
-## 11. `kernel/plugin` — out-of-process plugin host
+## 11. `kernel/modules/extensions/plugin` — out-of-process plugin host
 
 **Purpose.** Lets third parties ship tools without compiling against the agezt binary (DECISIONS B0, M1.y).
 
@@ -1121,7 +1121,7 @@ The package has no persistence and publishes no events of its own; calls show up
 
 Tests: 23 files covering allowlist, callbacks and their limit, capability, close, dead tools, death errors, delivery, flood, frames, host, pins, plugin spec, process handling, progress, protocol version, reaping, reload, and tool capabilities. `testdata/` holds `echoplugin` (the reference template), `floodplugin` and `idechoplugin`.
 
-## 12. `kernel/mcp` — MCP client and registry
+## 12. `kernel/modules/extensions/mcp` — MCP client and registry
 
 **Purpose.** Lets the runtime self-install MCP servers under governance (M796). The package provides:
 - a durable registry of servers;
@@ -1244,7 +1244,7 @@ Tests: `client_test`, `http_test`, `store_test`, `coverage_supp_test`.
 
 Tests: `acp_test`, `bound_test`, `client_test`, `coverage_direct_test`, `coverage_extra_test`.
 
-## 14. `kernel/acpcatalog` — ACP agent discovery
+## 14. `kernel/modules/extensions/acpcatalog` — ACP agent discovery
 
 **Purpose.** The discovery layer behind `acp_agent`. It merges three sources:
 
@@ -1287,7 +1287,7 @@ Tests: `acp_test`, `bound_test`, `client_test`, `coverage_direct_test`, `coverag
 
 Tests: `acpcatalog_test`, `clients_test`, `registry_test`, `coverage_supp_test`.
 
-## 15. `kernel/toolbox` — host CLI tool inventory and installer
+## 15. `kernel/modules/extensions/toolbox` — host CLI tool inventory and installer
 
 **Purpose (M956).** Shows which catalog CLI tools are installed, missing or outdated, and installs them through a package manager.
 
@@ -1801,7 +1801,7 @@ Packages that read **no** env themselves: roster, standing, scheduler, market, m
 | **A plan node kind** | 1. Append a `NodeKind` and implement `Node`.<br>2. Decide whether it holds a worker slot (only `KindGate` doesn't).<br>3. Add a case in `controlplane/server_handlers_plan.go`. |
 | **A built-in skill bundle** | Add a dir under `plugins/builtinskills/<name>/` (SKILL.md + resources) plus two list lines and a test ([10](10-tools.md)). The library is considered saturated. |
 | **A market pack** | Built-in: `plugins/builtinmarket`. Remote: author a `pack.json` dir, `agt market publish` (optionally signed with `agt market keygen`), host `marketplace.json`; consumers run `agt market add <url> --pubkey <hex>` then `sync`. |
-| **An out-of-process plugin** | Any executable speaking §11.1 (template `kernel/plugin/testdata/echoplugin` or `agt plugin new`). Set `AGEZT_PLUGINS`, pin with `agt plugin hash` → `AGEZT_PLUGIN_PINS`, optionally `AGEZT_PLUGIN_TOOLS`. **Declare `capability` per tool or it is default-denied.** |
+| **An out-of-process plugin** | Any executable speaking §11.1 (template `kernel/modules/extensions/plugin/testdata/echoplugin` or `agt plugin new`). Set `AGEZT_PLUGINS`, pin with `agt plugin hash` → `AGEZT_PLUGIN_PINS`, optionally `AGEZT_PLUGIN_TOOLS`. **Declare `capability` per tool or it is default-denied.** |
 | **An MCP transport** | 1. Add a dialer type and a `Conn` impl.<br>2. Add a discriminating `Server` field + `Validate` exclusivity.<br>3. Add a branch in `runtime.dialMCP` and a `Config` seam.<br>4. Add a transport label in `AddMCPServer` / `mcpServerView`. |
 | **An ACP catalog agent** | Append to `acpcatalog.Catalog` (valid registry-style slug). Registry-only agents need no code to be listed (but cannot be selected; see Gotchas). |
 | **A toolbox tool / manager** | Tool: add one `Tool{}` to `Catalog` (`BinByOS` / `VersionArgs` as needed). Manager: add a recipe helper + a `managerProbes` entry (+ optional `Outdated` query). |

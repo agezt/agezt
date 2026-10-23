@@ -1,6 +1,6 @@
 # 04 — Agent Runtime (kernel/runtime, kernel/agent, tool execution, delegation, resume, proof)
 
-**Scope:** `kernel/runtime` (81 non-test files) and its sub-packages `kernel/runtime/{accessors,compose,lifecycle,runexec,types}`; the agent loop `kernel/agent`; and the satellite packages `kernel/toolexec`, `kernel/toolreg`, `kernel/toolforge`, `kernel/contextselect`, `kernel/convo`, `kernel/delegation`, `kernel/intent`, `kernel/intervention`, `kernel/planner`, `kernel/reflect`, `kernel/resume`, `kernel/meshctx`, `kernel/modules/work/proof`, `kernel/modules/work/assure`.
+**Scope:** `kernel/runtime` (81 non-test files) and its sub-packages `kernel/runtime/{accessors,compose,lifecycle,runexec,types}`; the agent loop `kernel/agent`; and the satellite packages `kernel/toolexec`, `kernel/toolreg`, `kernel/modules/extensions/toolforge`, `kernel/contextselect`, `kernel/convo`, `kernel/delegation`, `kernel/intent`, `kernel/intervention`, `kernel/planner`, `kernel/reflect`, `kernel/resume`, `kernel/meshctx`, `kernel/modules/work/proof`, `kernel/modules/work/assure`.
 
 Everything below was read from the working tree on disk (2026-10-02), not from `docs/`. Where a code comment contradicts the code, the code wins and the discrepancy is listed under "Gotchas".
 
@@ -24,7 +24,7 @@ Sibling docs: governor, Edict, approvals, warden: [05-governance-routing-securit
 | Completion assurance | `kernel/assure`, `Runner.VerifyCompletion`, `kernel/proof`, `ProveTask` | Verify-and-retry loop; acceptance-criteria proof gate for workboard tasks. |
 | Shared direct/workflow tool path | `toolapi.Invoker` via `(*Kernel).RunTool` (default `toolexec.NewInvoker`) | Operator/CLI/research plus registered-tool, HTTP, pipeline and canvas-node workflow calls: merged lookup, schema, resolved definition → policy, audit, execution. |
 | Tool registry (boot) | `kernel/toolreg` | Spec registry with Build / PreOpen / Configure / Late phases used by `plugins/builtintools`. |
-| Script tools | `kernel/toolforge` + `scripttool.go` | Agent-authored scripts. Lifecycle draft, test, promote, quarantine. Exposed as `forge_<name>`. |
+| Script tools | `kernel/modules/extensions/toolforge` + `scripttool.go` | Agent-authored scripts. Lifecycle draft, test, promote, quarantine. Exposed as `forge_<name>`. |
 | Context selection audit | `kernel/contextselect` + `context_selection.go` | Candidate scoring and `context.selection` manifests for memory/world/skill injection; failure analysis. |
 | Intent framing | `kernel/intent` | Deterministic utterance → `Frame` (ambiguity, harmful reading), action regret axes, confirmation gating. |
 | Aux "multi-model" features | `kernel/modules/reasoning` (council, conductor, research) + `workflow*.go` | Council of Elders, Conductor (thinker/worker/verifier), deep research, workflow graph execution and drafting. The three reasoning features moved to their own module in W3.1; the workflows stay here. All use `completeAux`. |
@@ -53,7 +53,7 @@ kernel/app/tools   -> contract/{toolapi,toolphaseapi}, platform/toolpipeline
 kernel/toolexec     -> contract/toolapi, platform/toolpipeline (legacy forwarding only)
 kernel/platform/toolpipeline -> contract/{llm,policyapi,toolapi,toolphaseapi}, event, platform/{policyctx,schema,toolaudit,toolinvoke,tooloutput}
 kernel/toolreg      -> agent, artifact, board, bus, channel, datalake, journal, runtime, warden
-kernel/toolforge    -> filestore, ulid
+kernel/modules/extensions/toolforge    -> filestore, ulid
 kernel/delegation   -> agent, edict
 kernel/resume       -> internal/atomicfile, agent
 kernel/planner      -> internal/strutil, agent, intent
@@ -67,7 +67,7 @@ Reverse deps (who uses this area):
 
 - `kernel/runtime` is imported by `cmd/agezt`, `kernel/controlplane`, `kernel/selfrepair`, `kernel/cadence/systemtasks`, `kernel/toolreg`, `plugins/builtinguardians`, `plugins/builtintools`, and the tools `conductor`, `config`, `council`, `introspecttool`, `overseertool`, `research`, `workflowtool`.
 - `kernel/agent` is imported by every provider (`plugins/providers/*`), every tool (`plugins/tools/*`), `governor`, `memory`, `skill`, `scheduler`, `pulse`, `market`, `plugin`, `worldmodel`, `controlplane`, `cmd/agt`, `cmd/agezt`.
-- `kernel/convo` is used by `controlplane`, `openaiapi`, `webui`. `kernel/meshctx` by `restapi`, `plugins/tools/peer`, `cmd/agt`. `kernel/planner` by `controlplane`, `cmd/agt`. `kernel/modules/work/proof` by `kernel/modules/work/workboard`. `kernel/toolforge` by `controlplane` and `plugins/tools/forgetool`. `kernel/resume` by `cmd/agezt` (boot resumer).
+- `kernel/convo` is used by `controlplane`, `openaiapi`, `webui`. `kernel/meshctx` by `restapi`, `plugins/tools/peer`, `cmd/agt`. `kernel/planner` by `controlplane`, `cmd/agt`. `kernel/modules/work/proof` by `kernel/modules/work/workboard`. `kernel/modules/extensions/toolforge` by `controlplane` and `plugins/tools/forgetool`. `kernel/resume` by `cmd/agezt` (boot resumer).
 
 Layering notes:
 - `kernel/toolreg` imports `kernel/runtime`. This is an upward edge: a "registry" sits above the composition root because `Spec.PreOpen` mutates `*runtime.Config` and `KernelDeps` carries `*runtime.Kernel`. It is not a cycle (runtime does not import toolreg).
@@ -671,7 +671,7 @@ Tests (59 files), grouped:
 
 ---
 
-## 8. kernel/toolexec, kernel/toolreg, kernel/toolforge
+## 8. kernel/toolexec, kernel/toolreg, kernel/modules/extensions/toolforge
 
 ### kernel/toolexec
 - W2.3f adds `platform/tooloutput.Offload`, moving the agent's existing audit representation unchanged: 8 KiB default, byte threshold, full artifact bytes plus preview/ref, inline fallback on nil store/Put failure/empty ref. Three mutations and original source tests preserve the contract. **Fixed W2.3g:** runtime paths use `RunWithOptions` with the runtime store/effective threshold. Every terminal outcome shares the audit representation while caller/hook output stays complete; legacy `Run` retains its signature and inline behavior. Tests: `toolexec/offload_test.go`, runtime `tool_offload_audit_test.go` (four actual paths, configured threshold); seven mutations cover the boundaries.
@@ -683,7 +683,7 @@ Tests (59 files), grouped:
 - `toolreg_set.go`: `BuildAll`, `add` (collision and YieldOnConflict), `Tools`, `ApplyPreOpen`, `Configure`, `ConfigureLate`, `Descs`, `PluginManifest`, `ToolCapabilities` (skips dropped names), `NetguardGaps` (a registry-driven guard test asserts this is empty).
 - `Names()` exists only for the `plugins/builtintools` ratchet test (deadcodecheck allowlist). Test: `toolreg_test.go`.
 
-### kernel/toolforge
+### kernel/modules/extensions/toolforge
 - `doc.go`: lifecycle draft → test → (operator) promote → active `forge_<name>`; quarantine is the kill switch; any code edit demotes to draft and clears the test record.
 - `toolforge.go`: `ScriptTool{ID, Name, Description, Language, Code, InputSchema, Status, TestedOK, TestedMS, CreatedMS, UpdatedMS}`; `Status` draft/active/quarantined; `Runner.RunScript(ctx, language, code, inputJSON)`; `Validate` (name `^[a-z][a-z0-9_]{0,39}$`, code ≤128 KiB, desc ≤2 KiB, schema ≤16 KiB); `ErrNotFound`, `ErrUntested`; `safeCall`.
 - `toolforge_store.go`: `Store` (single JSON `toolforge/scripttools.json` via `filestore`, mutex) with `Add`, `Update`, `RecordTest`, `Promote` (requires `TestedOK`), `Quarantine`, `Remove`, `Get`, `List`, `Active`, `Count`.
