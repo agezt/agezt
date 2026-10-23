@@ -1,18 +1,23 @@
 // SPDX-License-Identifier: MIT
 
-// Package proof is AGEZT's "PROOF > VIBES" record: the durable, checkable
-// evidence that a workboard task actually satisfied its acceptance criteria
-// before it was allowed to reach done.
+// Package proofapi is the contract layer's home for AGEZT's "PROOF > VIBES"
+// record: the durable, checkable evidence that a workboard task actually
+// satisfied its acceptance criteria before it was allowed to reach done.
 //
-// It is pure data. The kernel builds a Proof by running the assure completion
-// judge over a task's acceptance criteria and gathering the artifacts plus the
-// hash-chained journal range produced under the task's correlation id. A task
-// with no acceptance criteria has no Proof and is never gated — you opt into
-// rigor by declaring criteria (default-allow posture), you are not restricted by
-// default.
-package proof
+// The rows live here because the task row that carries a proof is a row of the
+// contract too (kernel/contract/workboardapi), and the tool that drives the
+// workboard is a plugin — a plugin may reach the contract and nothing else.
+// The chain of rows (task → proof → verdict) crosses into the contract layer
+// as a whole.
+//
+// The rules of the road:
+//
+//   - Rows, constants and pure functions only. No store, no file, no clock.
+//   - Pure. It may import the standard library and other contract packages
+//     only (archcheck's principle P4).
+package proofapi
 
-import "github.com/agezt/agezt/kernel/modules/work/assure"
+import "github.com/agezt/agezt/kernel/contract/assureapi"
 
 // Criterion is one acceptance criterion a task must satisfy. Text is set when
 // the task is created; Met and Note are filled by the judge at prove time.
@@ -37,12 +42,12 @@ type Evidence struct {
 // verifier's verdict, the per-criterion outcomes, the supporting evidence, and
 // provenance (which judge, how many attempts, when).
 type Proof struct {
-	Verdict  assure.Verdict `json:"verdict"`
-	Criteria []Criterion    `json:"criteria,omitempty"`
-	Evidence Evidence       `json:"evidence,omitempty"`
-	Attempts int            `json:"attempts,omitempty"`
-	Judge    string         `json:"judge,omitempty"`
-	ProvedMS int64          `json:"proved_ms"`
+	Verdict  assureapi.Verdict `json:"verdict"`
+	Criteria []Criterion       `json:"criteria,omitempty"`
+	Evidence Evidence          `json:"evidence,omitempty"`
+	Attempts int               `json:"attempts,omitempty"`
+	Judge    string            `json:"judge,omitempty"`
+	ProvedMS int64             `json:"proved_ms"`
 }
 
 // Satisfied reports whether the proof clears the gate: the verifier deemed the

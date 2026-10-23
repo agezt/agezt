@@ -2,7 +2,7 @@ package workboardtool
 
 // Provenance: SPDX-License-Identifier: MIT Workboard tool: the input struct + Invoke
 //             (the dispatched entry) + applyContextDefaults (the input normalizer).
-//             Extracted from workboard.go during the Day-206 god-file split. Public
+//             Extracted from workboardapi.go during the Day-206 god-file split. Public
 //             API unchanged.
 
 import (
@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/modules/work/workboard"
+	"github.com/agezt/agezt/kernel/contract/workboardapi"
 )
 
 type input struct {
@@ -50,7 +50,8 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		return toolapi.Result{}, fmt.Errorf("workboard: parse input: %w", err)
 	}
 	k := t.current()
-	if k == nil || k.Workboard() == nil {
+	store := t.currentStore()
+	if k == nil || store == nil {
 		return errResult("workboard is not available on this daemon"), nil
 	}
 	corr := toolapi.CorrelationFromContext(ctx)
@@ -64,7 +65,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		if strings.TrimSpace(in.ID) == "" {
 			return errResult(`op=show needs "id"`), nil
 		}
-		task, found := k.Workboard().Get(strings.TrimSpace(in.ID))
+		task, found := store.Get(strings.TrimSpace(in.ID))
 		if !found {
 			return errResult("no workboard task " + in.ID), nil
 		}
@@ -99,9 +100,9 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		task, err := k.LinkWorkboardTask(corr, in.ID, in.Type, in.Target)
 		return taskOrError("linked", task, err)
 	case "policy":
-		var policy *workboard.RetryPolicy
+		var policy *workboardapi.RetryPolicy
 		if !in.Clear {
-			policy = &workboard.RetryPolicy{MaxAttempts: in.MaxAttempts, EscalateTo: in.EscalateTo}
+			policy = &workboardapi.RetryPolicy{MaxAttempts: in.MaxAttempts, EscalateTo: in.EscalateTo}
 		}
 		task, err := k.SetWorkboardRetryPolicy(corr, in.ID, in.Owner, policy)
 		return taskOrError("retry_policy", task, err)

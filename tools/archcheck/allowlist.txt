@@ -88,7 +88,6 @@ plugin-reach plugins/builtintools -> kernel/toolreg
 plugin-reach plugins/tools/acpagent -> kernel/acp
 plugin-reach plugins/tools/acpagent -> kernel/modules/extensions/acpcatalog
 plugin-reach plugins/tools/config -> kernel/runtime
-plugin-reach plugins/tools/workboardtool -> kernel/modules/work/workboard
 upward kernel/channel -> kernel/bus
 upward kernel/governor -> kernel/modules/providers/catalog
 upward kernel/runtime -> kernel/agentgw

@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
+	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -212,6 +213,46 @@ func TestToolKernelDepsSuppliesTheWorkflowPort(t *testing.T) {
 // must hand over a NIL port, not a port wrapping a nil implementation.
 func TestWorkflowStoreStaysANilPortWithoutALibrary(t *testing.T) {
 	if got := workflowStore(nil); got != nil {
+		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
+	}
+}
+
+// TestToolKernelDepsSuppliesTheWorkboardPort: the workboard tool reads the
+// task store through the contract's port. The port is supplied HERE — at the
+// composition root — so a daemon that dropped it would leave the tool
+// answering "not available" on every live box, while every test that builds
+// the tool by hand stayed green. This test is the only one that sees that
+// wiring, so it asserts it directly.
+func TestToolKernelDepsSuppliesTheWorkboardPort(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	deps := toolKernelDeps(k, t.TempDir(), io.Discard)
+	if deps.Workboard == nil {
+		t.Fatal("the daemon must supply the workboard port")
+	}
+
+	// The port must answer the LIVE board — a port bound to nothing would
+	// still be non-nil.
+	if got := deps.Workboard.List(workboardapi.Filter{}); len(got) != 0 {
+		t.Fatalf("a freshly opened daemon has no tasks, got %v", got)
+	}
+	if _, _, err := k.CreateWorkboardTask("corr", workboardapi.CreateSpec{Title: "wire me"}); err != nil {
+		t.Fatalf("CreateWorkboardTask: %v", err)
+	}
+	all := deps.Workboard.List(workboardapi.Filter{})
+	if len(all) != 1 || all[0].Title != "wire me" {
+		t.Fatalf("the port must answer the live board, got %v", all)
+	}
+}
+
+// TestWorkboardStoreStaysANilPortWithoutABoard: a daemon with no board must
+// hand over a NIL port, not a port wrapping a nil implementation.
+func TestWorkboardStoreStaysANilPortWithoutABoard(t *testing.T) {
+	if got := workboardStore(nil); got != nil {
 		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
 	}
 }

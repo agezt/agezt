@@ -11,6 +11,7 @@ package workboard
 import (
 	"errors"
 	"fmt"
+	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/modules/work/proof"
 	"github.com/agezt/agezt/kernel/ulid"
 	"sort"
@@ -57,8 +58,8 @@ func (s *Store) List(f Filter) []Task {
 		if out[i].UpdatedMS != out[j].UpdatedMS {
 			return out[i].UpdatedMS > out[j].UpdatedMS
 		}
-		if statusOrder[out[i].Status] != statusOrder[out[j].Status] {
-			return statusOrder[out[i].Status] < statusOrder[out[j].Status]
+		if workboardapi.StatusOrder(out[i].Status) != workboardapi.StatusOrder(out[j].Status) {
+			return workboardapi.StatusOrder(out[i].Status) < workboardapi.StatusOrder(out[j].Status)
 		}
 		return out[i].ID < out[j].ID
 	})

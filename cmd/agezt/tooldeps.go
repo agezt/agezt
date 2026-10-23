@@ -9,6 +9,7 @@ import (
 	"github.com/agezt/agezt/kernel/app/overseer"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
+	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
@@ -54,7 +55,23 @@ func toolKernelDeps(k *runtime.Kernel, baseDir string, stdout io.Writer) toolreg
 		// The workflow tool reads the workflow library through a contract
 		// port; the daemon hands the live store over, for the same reason.
 		Workflows: workflowStore(k),
+		// The workboard tool reads the task store through a contract port;
+		// the daemon hands the live store over, for the same reason.
+		Workboard: workboardStore(k),
 	}
+}
+
+// workboardStore hands the live task store to the tool registry as the
+// contract's port — the same nil-port rule as the forge store.
+func workboardStore(k *runtime.Kernel) workboardapi.Store {
+	if k == nil {
+		return nil
+	}
+	s := k.Workboard()
+	if s == nil {
+		return nil
+	}
+	return s
 }
 
 // lakeStore hands the live data lake to the tool registry as the contract's

@@ -3,39 +3,28 @@
 package workboard
 
 // Retry-policy helpers: FailedAttemptCount + RetryDecisionFor +
-// attemptCountsAsFailure + markFailedAttempt + applyRetryPolicyDecision +
-// retryDecision + reclaimStaleTask + cloneTask. Carved out of
-// workboard.go during the Day 36 god file split #1.
+// markFailedAttempt + applyRetryPolicyDecision + retryDecision +
+// reclaimStaleTask + cloneTask. Carved out of workboard.go during the Day 36
+// god file split #1.
 
 import (
 	"fmt"
+	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/modules/work/proof"
 	"github.com/agezt/agezt/kernel/ulid"
 	"strings"
 	"time"
 )
 
-func FailedAttemptCount(t Task) int {
-	n := 0
-	for _, a := range t.Attempts {
-		if attemptCountsAsFailure(a.Status) {
-			n++
-		}
-	}
-	return n
-}
+// FailedAttemptCount counts the task's failed attempts.
+//
+// The rule lives in the contract layer (kernel/contract/workboardapi) — it
+// reads the row, so it travels with it. This is a delegation, so there is
+// one rule.
+func FailedAttemptCount(t Task) int { return workboardapi.FailedAttemptCount(t) }
 
 func RetryDecisionFor(t Task, reason string) RetryDecision {
 	return retryDecision(t.RetryPolicy, FailedAttemptCount(t), strings.TrimSpace(reason))
-}
-
-func attemptCountsAsFailure(status string) bool {
-	switch strings.ToLower(strings.TrimSpace(status)) {
-	case "failed", "stale":
-		return true
-	default:
-		return false
-	}
 }
 
 func markFailedAttempt(t *Task, reason string, ts int64) {
