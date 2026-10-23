@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-package workflow
+package workflowapi
 
-// Package documentation lives in doc.go.
+// Workflow types + Validate + canonicalDailyAt + Workflow.TriggerSpec.
+//
+// Moved here from kernel/modules/workflows/workflow (W3.29): these are the
+// rows a workflow IS, and the rule that decides whether a graph may run at
+// all. They are pure — stdlib only — and the agent-facing tool is a plugin,
+// so a plugin may name the contract and nothing else.
 
 import (
 	"encoding/json"
@@ -11,9 +16,6 @@ import (
 	"regexp"
 	"strings"
 )
-
-// Workflow types + Validate + canonicalDailyAt + Workflow.TriggerSpec.
-// Code extracted from workflow.go during the Day-46 god-file split. Public API unchanged.
 
 // ErrNotFound is returned for an unknown workflow id/name.
 var ErrNotFound = errors.New("workflow: not found")

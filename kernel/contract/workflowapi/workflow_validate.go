@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: MIT
 
-package workflow
+package workflowapi
 
-// Package documentation lives in doc.go.
+// Workflow validators + Workflow accessors: validateTriggerConfig, validateEdgePort, validateReliability, validateNodeConfig + orEmpty + Workflow.TriggerNode + Workflow.NodeByID.
+//
+// Moved here from kernel/modules/workflows/workflow (W3.29) with the rows: the
+// validators ARE the row's rules, and a rule that stays behind while the row
+// travels would be a second copy that could drift.
 
 import (
 	"encoding/json"
 	"fmt"
 	"strings"
 )
-
-// Workflow validators + Workflow accessors: validateTriggerConfig, validateEdgePort, validateReliability, validateNodeConfig + orEmpty + Workflow.TriggerNode + Workflow.NodeByID.
-// Code extracted from workflow.go during the Day-46 god-file split. Public API unchanged.
 
 func validateTriggerConfig(n *Node) error {
 	var c TriggerConfig
@@ -319,5 +320,3 @@ func orEmpty(raw json.RawMessage) json.RawMessage {
 	}
 	return raw
 }
-
-// OpenStore opens (or creates) the registry under dir.

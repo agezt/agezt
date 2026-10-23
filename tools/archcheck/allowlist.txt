@@ -91,8 +91,6 @@ plugin-reach plugins/tools/acpagent -> kernel/modules/extensions/acpcatalog
 plugin-reach plugins/tools/config -> kernel/runtime
 plugin-reach plugins/tools/db -> kernel/modules/artifacts/datalake
 plugin-reach plugins/tools/workboardtool -> kernel/modules/work/workboard
-plugin-reach plugins/tools/workflowtool -> kernel/runtime
-plugin-reach plugins/tools/workflowtool -> kernel/modules/workflows/workflow
 upward kernel/channel -> kernel/bus
 upward kernel/governor -> kernel/modules/providers/catalog
 upward kernel/runtime -> kernel/agentgw

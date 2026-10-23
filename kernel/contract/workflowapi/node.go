@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: MIT
 
-package workflow
+package workflowapi
 
 // Per-node Config types (ToolConfig..PipelineStepConfig) + the Workflow
-// accessors (TriggerNode, NodeByID) + the persistent Store struct.
-// Carved out of workflow_validate.go during the Day 147 god-file split so
-// the validators file can stay focused on validation logic.
-// Public API unchanged.
+// accessors (TriggerNode, NodeByID).
+//
+// Moved here from kernel/modules/workflows/workflow (W3.29) with the rows: a
+// config type and the accessor that reads it belong to the row, and the
+// engine — which is the implementation — stays in the module.
 
 import (
 	"encoding/json"
-	"sync"
-	"time"
 )
 
 type ToolConfig struct {
@@ -141,13 +140,4 @@ func (w Workflow) NodeByID(id string) *Node {
 		}
 	}
 	return nil
-}
-
-// Store is the persistent workflow registry, a single JSON file rewritten
-// atomically on change. Safe for concurrent use. Mirrors kernel/standing.
-type Store struct {
-	path  string
-	mu    sync.Mutex
-	now   func() time.Time
-	items []*Workflow
 }

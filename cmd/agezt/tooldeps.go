@@ -8,6 +8,7 @@ import (
 	"github.com/agezt/agezt/kernel/app/introspect"
 	"github.com/agezt/agezt/kernel/app/overseer"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
+	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/toolreg"
@@ -48,7 +49,23 @@ func toolKernelDeps(k *runtime.Kernel, baseDir string, stdout io.Writer) toolreg
 		// stay a nil port, or the tool would call into a nil implementation
 		// instead of reporting that the store is unavailable.
 		Forge: forgeStore(k),
+		// The workflow tool reads the workflow library through a contract
+		// port; the daemon hands the live store over, for the same reason.
+		Workflows: workflowStore(k),
 	}
+}
+
+// workflowStore hands the live workflow library to the tool registry as the
+// contract's port — the same nil-port rule as the forge store.
+func workflowStore(k *runtime.Kernel) workflowapi.Store {
+	if k == nil {
+		return nil
+	}
+	s := k.Workflows()
+	if s == nil {
+		return nil
+	}
+	return s
 }
 
 // forgeStore hands the live script-tool store to the tool registry as the

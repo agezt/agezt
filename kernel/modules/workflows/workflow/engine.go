@@ -62,19 +62,10 @@ type Provenance struct {
 	ParentCorrelation string
 }
 
-// RunResult carries one run's outcome: per-node outputs (by node id) and the
-// ordered list of executed node ids.
-type RunResult struct {
-	Outputs  map[string]any
-	Executed []string
-}
-
-// NodeTestResult is one tested node's outcome.
-type NodeTestResult struct {
-	Output   any    `json:"output"`
-	Port     string `json:"port,omitempty"`
-	Attempts int    `json:"attempts"`
-}
+// RunResult and NodeTestResult live in the contract layer
+// (kernel/contract/workflowapi) — the agent-facing tool reports them, and a
+// plugin may only name the contract. The module keeps their names as aliases
+// (see aliases.go).
 
 // Engine owns the workflow lifecycle for one store: the durable CRUD, the
 // graph run, the single-node test and the copilot's draft.
