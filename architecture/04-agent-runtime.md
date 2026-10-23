@@ -67,7 +67,7 @@ Reverse deps (who uses this area):
 
 - `kernel/runtime` is imported by `cmd/agezt`, `kernel/controlplane`, `kernel/selfrepair`, `kernel/cadence/systemtasks`, `kernel/toolreg`, `kernel/app/overseer`, `kernel/app/introspect`, `plugins/builtinguardians`, `plugins/builtintools`, and the tools `conductor`, `config`, `council`, `research`, `workflowtool`.
 - `kernel/agent` is imported by every provider (`plugins/providers/*`), every tool (`plugins/tools/*`), `governor`, `memory`, `skill`, `scheduler`, `pulse`, `market`, `plugin`, `worldmodel`, `controlplane`, `cmd/agt`, `cmd/agezt`.
-- `kernel/convo` is used by `controlplane`, `openaiapi`, `webui`. `kernel/meshctx` by `restapi`, `plugins/tools/peer`, `cmd/agt`. `kernel/planner` by `controlplane`, `cmd/agt`. `kernel/modules/work/proof` by `kernel/modules/work/workboard`. `kernel/modules/extensions/toolforge` by `controlplane` and `plugins/tools/forgetool`. `kernel/resume` by `cmd/agezt` (boot resumer).
+- `kernel/convo` is used by `controlplane`, `openaiapi`, `webui`. `kernel/meshctx` by `restapi`, `plugins/tools/peer`, `cmd/agt`. `kernel/planner` by `controlplane`, `cmd/agt`. `kernel/modules/work/proof` by `kernel/modules/work/workboard`. `kernel/modules/extensions/toolforge` by `cmd/agezt`, `controlplane` and `kernel/runtime` — the forgetool (a plugin) reads it through the contract's port (`contract/toolforgeapi`), so it no longer names the module. `kernel/resume` by `cmd/agezt` (boot resumer).
 
 Layering notes:
 - `kernel/toolreg` imports `kernel/runtime`. This is an upward edge: a "registry" sits above the composition root because `Spec.PreOpen` mutates `*runtime.Config` and `KernelDeps` carries `*runtime.Kernel`. It is not a cycle (runtime does not import toolreg).

@@ -57,6 +57,7 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 | `workflowexec` | — | **nobody** (dead; see §16.5) |
 | `update` | brand, netguard | cmd/agezt, controlplane, restapi |
 | `toolbox` | — | controlplane |
+| `toolforge` | contract/toolforgeapi, filestore, ulid | cmd/agezt, controlplane, runtime (+runexec) |
 | `channel` | strutil, bus, event | cmd/agezt, channelwire, controlplane, toolreg, builtinchannels, every plugins/channels/*, tools/sendmedia |
 | `channelwire` | bus, channel, pulse, settings | cmd/agezt, builtinchannels |
 | `stt` | — | cmd/agezt, cmd/agt |
