@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.23 the catalog's rows move to the contract layer, 2026-10-23
+## Current checkpoint — W3.24 the introspector's rows move to the contract layer, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1873,6 +1873,39 @@ files, five of the seventeen mutations would have escaped.
   20 mutations: 18 caught, 2 build errors recorded separately — and two
   mutations **survived the first round** (the scoped-credential lookup and the
   model's vision helper), so both gaps were closed and they were run again.
+
+- W3.24 (the introspector's rows move to the contract layer, and its
+  implementation to the app layer) is committed on `main` the same way. The
+  **introspector** was the one plugin that reached into the **kernel itself**:
+  it held both the rows it published (`Overview`, `ReaperOverview`, the three
+  agent rows, `ReaperReport`) **and** the adapter that assembled them from the
+  live `*runtime.Kernel`. The rows now live in `kernel/contract/introspectapi`
+  and the adapter in the **app layer** (`kernel/app/introspect`). The tool
+  reads the live state through the contract's **port**
+  (`introspectapi.Source` — the overview, the reaper scan, the schedules, the
+  standing orders), and the **daemon** hands the adapter over; the plugin no
+  longer builds its own.
+  The **ratchet went DOWN**: 100/13 → **99/13** — the plugin-reach edge is
+  gone, and the **stale allowlist entry was deleted**.
+  The tool's **wire is byte-identical** and is now **pinned** (the overview's
+  17 keys, the always-fields, the three agent rows).
+  The interesting gap was the **wiring**: a wiring nobody witnesses is a
+  wiring that can be dropped silently — the tool would answer "not available
+  on this daemon" on every live box, while every test that built the tool by
+  hand still passed. So the composition root's dependency assembly was pulled
+  out of `runDaemon` into a named function (`cmd/agezt/tooldeps.go`) and
+  **measured there**: the daemon must supply the introspect port and the
+  overseer port, and both must answer the **live** kernel.
+  The permanent tests: the **identity assertions**, the **adapter against the
+  live kernel** (the delegation ceilings, the journal head, the tool names, and
+  a schedule and a standing order the operator added), and the **projection
+  measured field for field** (the reaper's row → the contract's row is a
+  hand-written copy; a field left out of it would be silent).
+  23 mutations: 23 caught — and one **survived the first round** (the sorted
+  tool list: the adapter's test registered only one tool, so a reversed list
+  looked sorted), so the test was strengthened and the mutation was run again;
+  six mutations were **first authored as build errors** (a compile error is
+  not a catch) and were re-authored so the code still compiles.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
