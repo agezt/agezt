@@ -50,7 +50,7 @@ From `internal-deps.txt`:
 | `datalake` | atomicfile, contract/datalakeapi, ulid | controlplane, runtime(+accessors, runexec) |
 | `artifact` | atomicfile, ulid | cmd/agezt, controlplane, runtime(+accessors, runexec), toolreg (the browser, the code executor, the fetch tool and the artifacts tool name the contract row, not the module) |
 | `board` | filestore, ulid | cmd/agezt, controlplane, restapi, selfrepair, toolreg, kernel/app/overseer (the board tool takes the store through the contract's port) |
-| `workboard` | filestore, **proof**, ulid | controlplane, runtime, plugins/tools/workboardtool |
+| `workboard` | filestore, contract/workboardapi, ulid | controlplane, runtime |
 | `okr` | filestore, ulid | controlplane, runtime |
 | `taste` | filestore, ulid | controlplane, runtime |
 | `anomaly` | bus, event | cmd/agezt only |
@@ -58,7 +58,7 @@ From `internal-deps.txt`:
 
 Layering notes:
 - `memory` and `worldmodel` import `kernel/agent` (for `agent.Tool`, `agent.Provider`, `agent.GenerateObject`, `agent.AgentFromContext`) and `kernel/edict` (capability names `CapMemory`/`CapWorld`). The "pure store" half of each package is clean; the tool + LLM-distillation half drags the agent loop's types into the data layer.
-- `workboard` → `proof` → `assure`: the task store embeds the verifier's `assure.Verdict` type in its on-disk shape.
+- `workboard` → `contract/workboardapi` → `contract/proofapi` → `contract/assureapi`: the task store embeds the verifier's verdict type in its on-disk shape. The rows live in the contract layer now (W3.31), so the `workboard` tool takes the store through the contract's **port** and no longer reaches the module.
 - `alerter` → `pulse` only for `pulse.BriefSink`, `pulse.Brief`, `pulse.DispAlert`, `pulse.QuietHours`.
 
 ---

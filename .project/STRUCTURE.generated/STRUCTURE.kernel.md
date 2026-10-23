@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-185 package(s):
+188 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -75,6 +75,7 @@
 - **`kernel/configcenter`** — Package configcenter is the typed, audited, environment-aware configuration surface of the daemon.
 - **`kernel/contextselect`** — Package contextselect provides context candidate scoring, selection, and failure analysis for agent runs.
 - **`kernel/contract/agentapi`** — Package agentapi is the contract the agent roster and the tools that steer it agree on.
+- **`kernel/contract/assureapi`** — Package assureapi is the contract layer's home for the "do-it-for-sure" rows: the completion judgement for one attempt, the record of one run+verify cycle, and the outcome of an assured run.
 - **`kernel/contract/boardapi`** — Package boardapi is the contract the message board and the tools that read it agree on.
 - **`kernel/contract/cadenceapi`** — —
 - **`kernel/contract/catalogapi`** — Package catalogapi is the contract layer's home for the provider catalog's rows: the description of one provider and the models it serves.
@@ -87,6 +88,7 @@
 - **`kernel/contract/opapi`** — Package opapi defines transport-independent operation metadata and host ports.
 - **`kernel/contract/overseerapi`** — Package overseerapi is the contract the supervisory surface and the implementations that answer it agree on.
 - **`kernel/contract/policyapi`** — Package policyapi defines the tool-policy verdict and callback contract.
+- **`kernel/contract/proofapi`** — Package proofapi is the contract layer's home for AGEZT's "PROOF > VIBES" record: the durable, checkable evidence that a workboard task actually satisfied its acceptance criteria before it was allowed to reach done.
 - **`kernel/contract/reasoningapi`** — Package reasoningapi is the contract the reasoning module and the agent-facing tools that drive it agree on.
 - **`kernel/contract/remoteapi`** — Package remoteapi is the contract between two AGEZT daemons: the shape of the rows one daemon serves to a peer and the other reads back.
 - **`kernel/contract/skillapi`** — Package skillapi is the contract layer's home for the skill rows: the lifecycle state of a reusable procedure, the record itself, the input that authors one, the rules that govern the lifecycle, and the ports through which the agent-facing tool reads them.
@@ -95,6 +97,7 @@
 - **`kernel/contract/toolforgeapi`** — Package toolforgeapi is the contract layer's home for the script-tool rows: one named, durable script the agent can call as a tool, the lifecycle state it is in, the rule that decides whether it may be drafted, and the port through which the agent-facing tool reads the stored ones.
 - **`kernel/contract/toolphaseapi`** — Package toolphaseapi defines the batch-aware invocation service port.
 - **`kernel/contract/types`** — Package types is the contract-layer home for the value types that cross the boundary between the host (the runtime and its accessors) and the application layer.
+- **`kernel/contract/workboardapi`** — Package workboardapi is the contract layer's home for the workboard's rows: one durable work item (a task), its lifecycle state, the claim, dependency, attempt, comment and link records it carries, the retry policy and decision, and the creation spec an agent hands over.
 - **`kernel/contract/workflowapi`** — Package workflowapi is the contract layer's home for the workflow rows: one durable, named graph, the typed steps it is made of, the edges that wire them, the trigger configuration that starts it, the outcome of a run, and the rule that decides whether a graph may run at all.
 - **`kernel/controlplane`** — Package controlplane is the local control protocol between the agezt daemon and the agt CLI.
 - **`kernel/convo`** — Package convo collapses a multi-turn conversation into a single Agezt intent — the deliberate, lossy-by-design mapping that lets the single-intent governed loop carry conversational context.

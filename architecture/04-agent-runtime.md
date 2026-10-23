@@ -1,6 +1,6 @@
 # 04 — Agent Runtime (kernel/runtime, kernel/agent, tool execution, delegation, resume, proof)
 
-**Scope:** `kernel/runtime` (81 non-test files) and its sub-packages `kernel/runtime/{accessors,compose,lifecycle,runexec,types}`; the agent loop `kernel/agent`; and the satellite packages `kernel/toolexec`, `kernel/toolreg`, `kernel/modules/extensions/toolforge`, `kernel/contextselect`, `kernel/convo`, `kernel/delegation`, `kernel/intent`, `kernel/intervention`, `kernel/planner`, `kernel/reflect`, `kernel/resume`, `kernel/meshctx`, `kernel/modules/work/proof`, `kernel/modules/work/assure`.
+**Scope:** `kernel/runtime` (81 non-test files) and its sub-packages `kernel/runtime/{accessors,compose,lifecycle,runexec,types}`; the agent loop `kernel/agent`; and the satellite packages `kernel/toolexec`, `kernel/toolreg`, `kernel/modules/extensions/toolforge`, `kernel/contextselect`, `kernel/convo`, `kernel/delegation`, `kernel/intent`, `kernel/intervention`, `kernel/planner`, `kernel/reflect`, `kernel/resume`, `kernel/meshctx`, `kernel/modules/work/proof`, `kernel/modules/work/assure` and the contract rows they now hold (`kernel/contract/proofapi`, `kernel/contract/assureapi`).
 
 Everything below was read from the working tree on disk (2026-10-02), not from `docs/`. Where a code comment contradicts the code, the code wins and the discrepancy is listed under "Gotchas".
 
@@ -59,15 +59,18 @@ kernel/resume       -> internal/atomicfile, agent
 kernel/planner      -> internal/strutil, agent, intent
 kernel/reflect      -> bus, event, journal, worldmodel
 kernel/contextselect-> memory, skill, worldmodel
-modules/work/proof  -> modules/work/assure
-modules/work/assure, convo, intent, intervention, meshctx -> (none)
+contract/assureapi   -> (none)
+contract/proofapi    -> contract/assureapi
+modules/work/proof   -> contract/proofapi
+modules/work/assure  -> contract/assureapi
+modules/work/convo, intent, intervention, meshctx -> (none)
 ```
 
 Reverse deps (who uses this area):
 
 - `kernel/runtime` is imported by `cmd/agezt`, `kernel/controlplane`, `kernel/selfrepair`, `kernel/cadence/systemtasks`, `kernel/toolreg`, `kernel/app/overseer`, `kernel/app/introspect`, `plugins/builtinguardians`, `plugins/builtintools`, and the tools `conductor`, `config`, `council`, `research`.
 - `kernel/agent` is imported by every provider (`plugins/providers/*`), every tool (`plugins/tools/*`), `governor`, `memory`, `skill`, `scheduler`, `pulse`, `market`, `plugin`, `worldmodel`, `controlplane`, `cmd/agt`, `cmd/agezt`.
-- `kernel/convo` is used by `controlplane`, `openaiapi`, `webui`. `kernel/meshctx` by `restapi`, `plugins/tools/peer`, `cmd/agt`. `kernel/planner` by `controlplane`, `cmd/agt`. `kernel/modules/work/proof` by `kernel/modules/work/workboard`. `kernel/modules/extensions/toolforge` by `cmd/agezt`, `controlplane` and `kernel/runtime` — the forgetool (a plugin) reads it through the contract's port (`contract/toolforgeapi`), so it no longer names the module. `kernel/resume` by `cmd/agezt` (boot resumer).
+- `kernel/convo` is used by `controlplane`, `openaiapi`, `webui`. `kernel/meshctx` by `restapi`, `plugins/tools/peer`, `cmd/agt`. `kernel/planner` by `controlplane`, `cmd/agt`. The verifier's rows live in the **contract layer** now (`kernel/contract/proofapi` and `kernel/contract/assureapi`, W3.31) — the `proof` and `assure` modules keep their names as aliases, and `kernel/modules/work/workboard` names the contract's rows. `kernel/modules/extensions/toolforge` by `cmd/agezt`, `controlplane` and `kernel/runtime` — the forgetool (a plugin) reads it through the contract's port (`contract/toolforgeapi`), so it no longer names the module. `kernel/resume` by `cmd/agezt` (boot resumer).
 
 Layering notes:
 - `kernel/toolreg` imports `kernel/runtime`. This is an upward edge: a "registry" sits above the composition root because `Spec.PreOpen` mutates `*runtime.Config` and `KernelDeps` carries `*runtime.Kernel`. It is not a cycle (runtime does not import toolreg).
@@ -717,12 +720,13 @@ The planner is used by controlplane/`agt plan` and executes through the schedule
 
 ---
 
-## 10. kernel/modules/work/assure and kernel/modules/work/proof
+## 10. kernel/contract/assureapi, kernel/contract/proofapi and kernel/modules/work/assure
 
-- `assure/assure.go`: `DefaultMaxAttempts=3`, `MaxMaxAttempts=10`, `Verdict{Complete, Gap}`, `RunFn`, `VerifyFn`, `Attempt`, `Result{Answer, Complete, Attempts, Gap, History}`. `Until`: run, then verify against the **original** task; if incomplete, retry with `retryInstruction(task, gap)`. A run or verify error aborts. `ParseVerdict` tolerates fences and prose; the kernel treats unparseable output as incomplete.
-- `proof/proof.go`: `Criterion{Text, Met, Note}`, `Evidence{Corr, Artifacts, JournalFrom, JournalTo}`, `Proof{Verdict, Criteria, Evidence, Attempts, Judge, ProvedMS}`, `Satisfied()` (verdict complete AND all criteria met), `UnmetCount`, `Clone`. Pure data.
+- `contract/assureapi/assureapi.go`: `DefaultMaxAttempts=3`, `MaxMaxAttempts=10`, `Verdict{Complete, Gap}`, `Attempt`, `Result{Answer, Complete, Attempts, Gap, History}`, `ParseVerdict` (tolerates fences and prose; the kernel treats unparseable output as incomplete). The **rows and the parser** live in the contract layer (W3.31) — the verdict travels with the proof that carries it, and the `workboard` tool is a plugin, so a plugin may name the contract and nothing else.
+- `contract/proofapi/proof.go`: `Criterion{Text, Met, Note}`, `Evidence{Corr, Artifacts, JournalFrom, JournalTo}`, `Proof{Verdict, Criteria, Evidence, Attempts, Judge, ProvedMS}`, `Satisfied()` (verdict complete AND all criteria met), `UnmetCount`, `Clone`. Pure data — moved here with `git mv` (W3.31).
+- `modules/work/assure/assure.go`: the **loop** — `RunFn`, `VerifyFn`, `Until`: run, then verify against the **original** task; if incomplete, retry with `retryInstruction(task, gap)`. A run or verify error aborts. The module keeps the rows as aliases and `ParseVerdict` as a delegation, so there is one row and one spelling of it.
 - Flow: `RunAssured` → `assure.Until` → per attempt `RunWith`/`RunWithRetry` (same corr; `CompleteAgentLifecycle` is idempotent per corr) → `VerifyCompletion` (`completeAux` "verify", 400 max tokens) → `assure.verdict`. Workboard: `ProveTask(ctx, corr, id, answer)` → `gatherProofEvidence` → `verifyCriteria` (falls back to `VerifyCompletion` with no criteria) → `workboard.Prove` → `workboard.task.proved|unproven` → `recomputeOKRForTask`. Tasks without criteria are never gated (default-allow posture).
-- Tests: `assure_test.go`, `parse_verdict_test.go`, `proof_test.go`.
+- Tests: `contract/assureapi/assureapi_test.go`, `contract/proofapi/proof_test.go` (moved with the rows), `contract/proofapi/proof_wire_test.go`, `modules/work/assure/contract_type_test.go`.
 
 ---
 

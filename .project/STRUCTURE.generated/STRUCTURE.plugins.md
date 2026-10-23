@@ -83,5 +83,5 @@
 - **`plugins/tools/skilltool`** — Package skilltool is the agent's self-modification primitive: it lets an agent author, inspect, promote, and retire its OWN reusable procedures ("skills") through Forge — the same journaled, reversible skill state machine the `agt skill` CLI drives (M648).
 - **`plugins/tools/standingtool`** — Package standingtool is the in-process standing-order tool: it lets an agent create durable trigger rules — "when event X happens, wake the bound agent with task Z" or "on this cron schedule, do Z" — plus list and remove them (M645).
 - **`plugins/tools/websearch`** — Package websearch is the in-process web-search tool.
-- **`plugins/tools/workboardtool`** — Package workboardtool is the agent-facing wrapper over kernel/modules/work/workboard: durable, typed work items that agents can list, create, claim, block, complete, comment on, and link to artifacts/workflows/runs.
+- **`plugins/tools/workboardtool`** — Package workboardtool is the agent-facing wrapper over AGEZT's durable workboard: typed work items that agents can list, create, claim, block, complete, comment on, and link to artifacts/workflows/runs.
 - **`plugins/tools/workflowtool`** — Package workflowtool is the in-process `workflow` tool (M802): agents author and run durable workflows themselves.
