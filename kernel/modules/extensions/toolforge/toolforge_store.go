@@ -13,9 +13,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/platform/filestore"
 	"github.com/agezt/agezt/kernel/ulid"
 )
+
+// The store satisfies the contract's read port: the agent-facing tool reads
+// the stored script tools through it, and never names this implementation.
+var _ toolforgeapi.Store = (*Store)(nil)
 
 // Store is the persistent script-tool registry, a single JSON file rewritten
 // atomically on change. Safe for concurrent use. Mirrors kernel/roster.Store.

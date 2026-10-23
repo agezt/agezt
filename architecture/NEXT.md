@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.27 the market's rows move to the contract layer, 2026-10-23
+## Current checkpoint — W3.28 the script-tool rows move to the contract layer, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2011,6 +2011,49 @@ files, five of the seventeen mutations would have escaped.
   were run again; three were **first authored as build errors** (a compile
   error is not a catch) and one had a stale anchor, so all four were
   re-authored and run again.
+
+- W3.28 (the script-tool rows move to the contract layer) is committed on
+  `main` the same way. The **tool_forge** tool — the agent's self-tooling
+  primitive — is a plugin, and it reached into the **extensions module** for
+  the rows it speaks (the script-tool record and its lifecycle state) and for
+  the store it reads. Those rows now live in `kernel/contract/toolforgeapi`,
+  and the **rules travel with them** (the draft gate is pure): the name
+  pattern, the language pattern and the three size caps. The module keeps its
+  names as **aliases** and its rule as a one-line **delegation**.
+  The tool's **read path changes shape**: the store used to be reached
+  through the kernel (`k.ToolForge()` — a concrete implementation a plugin
+  should never hold); now it arrives as the contract's **port**
+  (`toolforgeapi.Store`), handed over by the **daemon** as a second argument
+  to `Bind(k, store)`. The store, the lifecycle transitions and the on-disk
+  persistence stay in the module.
+  The **ratchet went DOWN**: 96/13 → **95/13** — the plugin-reach edge is
+  gone, and the **stale allowlist entry was deleted**.
+  This is the row where the **wire matters**: a script tool is **persisted**
+  (`<home>/scripttools.json`) and read by key, so the row's JSON keys are a
+  contract with every tool file already on disk. The wire had never been
+  measured; it is now pinned key for key, with the always-fields and the
+  optional ones pinned too, and the three **lifecycle values** pinned (a
+  renamed state would orphan every stored tool). The rules are measured
+  **rule by rule**, and every **limit** is measured **at its boundary**; the
+  cap **numbers** are pinned separately, because a test that measures a cap
+  against the constant itself passes any value at all.
+  The interesting gap was the **wiring**: a port nobody hands over is
+  silently nil, so the tool would answer "not available on this daemon" on
+  every live box while every test that built the tool by hand stayed green.
+  The daemon's wiring was pulled out into named functions
+  (`cmd/agezt/tooldeps.go`) and **measured there** — the port must answer the
+  **live** store — and the **nil-port rule** is stated once: a nil store must
+  stay a nil *port*, checked on the **concrete** type on purpose.
+  The permanent tests: the **identity assertions**, a test that the module's
+  rule and the contract's agree on every verdict **and message**, a test
+  that the **plugin** names the contract and **not** the module, the tool's
+  **wire** (the view's key set, the test record measured as a value, the
+  list's count) and the **wiring, twice**.
+  41 mutations: 41 caught — four **survived the first round** (the three cap
+  values were measured against the constant itself, and the test record was
+  only ever read on an untested tool), so the tests were strengthened and
+  they were run again; one had a **stale anchor**, so it was re-authored and
+  run again.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

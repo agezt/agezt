@@ -977,6 +977,31 @@ This file holds the active `[Unreleased]` working set.
   daemon's own wiring is now measured: the catalogue the daemon serves must
   not be empty.
 
+- **The script-tool rows move to the contract layer.** The `tool_forge` tool — the
+  agent's self-tooling primitive, which drafts a script, tests it in the
+  code-exec sandbox and, once the operator promotes it, becomes a tool every run
+  can call — is a plugin, so the description of one script tool, its lifecycle
+  state and the rule that decides whether it may be drafted now live in the
+  contract layer (`kernel/contract/toolforgeapi`). The rule travels with the
+  row: the name pattern, the language pattern and the three size limits are
+  pure, and they are the rule the whole daemon enforces. The module keeps its
+  names as aliases and its rule as a delegation, so there is one row and one
+  spelling of it.
+  The tool's read path changes shape: the script-tool store used to be reached
+  through the kernel — a concrete implementation a plugin should never hold —
+  and it now arrives through the contract's port, handed over by the daemon.
+  The store, the lifecycle transitions and the on-disk persistence stay in the
+  extensions module: they are the implementation.
+  The stored file's format is unchanged, and that is now pinned by a test: a
+  script tool is written to `scripttools.json` and read back by key, so a
+  renamed field would have silently dropped it — and a renamed lifecycle state
+  would have orphaned every stored tool.
+  One message did change underneath, and it is worth knowing: the native
+  `toolforge_draft` / `toolforge_edit` operations name the type they failed to
+  decode, and that type is now the contract's row — so the message reads
+  `toolforgeapi.ScriptTool` where it used to read `toolforge.ScriptTool`. The
+  refusal is the same.
+
 - **The marketplace's rows move to the contract layer.** The built-in
   "Official" catalogue is a plugin, so the description of one installable
   pack — the skills and MCP servers it carries, the catalogue row a

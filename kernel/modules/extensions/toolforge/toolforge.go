@@ -22,11 +22,9 @@ package toolforge
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
-	"strings"
+	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 )
 
 // safeCall runs fn under a panic-recovery defer. If fn panics, the panic is caught
@@ -48,43 +46,25 @@ var ErrNotFound = errors.New("toolforge: script tool not found")
 var ErrUntested = errors.New("toolforge: the current code has no passing test — run a test first")
 
 // Status is a script tool's lifecycle state.
-type Status string
+//
+// The row itself lives in the contract layer (kernel/contract/toolforgeapi);
+// the name stays here as an alias, so every existing caller is unchanged.
+type Status = toolforgeapi.Status
 
 const (
 	// StatusDraft: authored but not live — never offered to runs.
-	StatusDraft Status = "draft"
+	StatusDraft = toolforgeapi.StatusDraft
 	// StatusActive: promoted — offered to every run as forge_<name>.
-	StatusActive Status = "active"
+	StatusActive = toolforgeapi.StatusActive
 	// StatusQuarantined: pulled from production (kill switch); re-promotable.
-	StatusQuarantined Status = "quarantined"
+	StatusQuarantined = toolforgeapi.StatusQuarantined
 )
 
 // ScriptTool is one named, durable script the agent can call as a tool.
-type ScriptTool struct {
-	ID string `json:"id"`
-	// Name is the tool's immutable handle; runs see it as `forge_<name>`.
-	Name string `json:"name"`
-	// Description is what the MODEL reads to decide when to call it.
-	Description string `json:"description"`
-	// Language is the sandbox runtime id ("python", "node", "deno").
-	// Availability is judged at test/run time by the sandbox itself.
-	Language string `json:"language"`
-	// Code is the script body. Contract: the invoking call's JSON input is
-	// written to ./stdin.txt in the work dir; stdout becomes the tool result.
-	Code string `json:"code"`
-	// InputSchema is an optional JSON-Schema object describing the call
-	// input; empty means a permissive default schema.
-	InputSchema string `json:"input_schema,omitempty"`
-
-	Status Status `json:"status"`
-	// TestedOK records whether the CURRENT code has a passing sandbox test;
-	// cleared by any code/language edit. Promote requires it.
-	TestedOK bool  `json:"tested_ok"`
-	TestedMS int64 `json:"tested_ms,omitempty"`
-
-	CreatedMS int64 `json:"created_ms"`
-	UpdatedMS int64 `json:"updated_ms"`
-}
+//
+// The row itself lives in the contract layer (kernel/contract/toolforgeapi);
+// the name stays here as an alias, so every existing caller is unchanged.
+type ScriptTool = toolforgeapi.ScriptTool
 
 // Runner executes a script in the code-exec sandbox: the call's raw JSON
 // input rides in as inputJSON (surfaced to the script as ./stdin.txt) and
@@ -95,47 +75,19 @@ type Runner interface {
 	RunScript(ctx context.Context, language, code, inputJSON string) (output string, isError bool, err error)
 }
 
-// nameRe: a tool-name token — lowercase start, then letters/digits/underscore.
-// `forge_` + 40 chars stays well inside provider tool-name limits.
-var nameRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,39}$`)
-
-var langRe = regexp.MustCompile(`^[a-z][a-z0-9]{0,15}$`)
-
+// The caps the rule enforces: the name pattern, the language pattern and the
+// size limits live in the contract layer, with the rule. The module keeps the
+// size caps as aliases, because its own tests measure against them.
 const (
-	maxCodeBytes   = 128 * 1024 // a tool, not a codebase
-	maxDescBytes   = 2 * 1024
-	maxSchemaBytes = 16 * 1024
+	maxCodeBytes   = toolforgeapi.MaxCodeBytes // a tool, not a codebase
+	maxDescBytes   = toolforgeapi.MaxDescBytes
+	maxSchemaBytes = toolforgeapi.MaxSchemaBytes
 )
 
 // Validate checks a script tool's user-supplied fields (identity/lifecycle
 // fields are kernel-assigned and not judged here).
-func Validate(st ScriptTool) error {
-	if !nameRe.MatchString(st.Name) {
-		return fmt.Errorf("toolforge: name must match %s", nameRe)
-	}
-	if strings.TrimSpace(st.Description) == "" {
-		return errors.New("toolforge: description is required (the model reads it to decide when to call the tool)")
-	}
-	if len(st.Description) > maxDescBytes {
-		return fmt.Errorf("toolforge: description exceeds %d bytes", maxDescBytes)
-	}
-	if !langRe.MatchString(st.Language) {
-		return errors.New("toolforge: language is required (a sandbox runtime id, e.g. python/node/deno)")
-	}
-	if strings.TrimSpace(st.Code) == "" {
-		return errors.New("toolforge: code is required")
-	}
-	if len(st.Code) > maxCodeBytes {
-		return fmt.Errorf("toolforge: code exceeds %d bytes", maxCodeBytes)
-	}
-	if s := strings.TrimSpace(st.InputSchema); s != "" {
-		if len(s) > maxSchemaBytes {
-			return fmt.Errorf("toolforge: input_schema exceeds %d bytes", maxSchemaBytes)
-		}
-		var obj map[string]any
-		if err := json.Unmarshal([]byte(s), &obj); err != nil {
-			return fmt.Errorf("toolforge: input_schema must be a JSON object: %w", err)
-		}
-	}
-	return nil
-}
+//
+// The rule lives in the contract layer (kernel/contract/toolforgeapi) — it is
+// pure, and the agent-facing tool (a plugin) drafts through it. This is a
+// delegation, so there is one rule.
+func Validate(st ScriptTool) error { return toolforgeapi.Validate(st) }

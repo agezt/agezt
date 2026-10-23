@@ -7,6 +7,8 @@ import (
 
 	"github.com/agezt/agezt/kernel/app/introspect"
 	"github.com/agezt/agezt/kernel/app/overseer"
+	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
+	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/toolreg"
 )
@@ -40,5 +42,34 @@ func toolKernelDeps(k *runtime.Kernel, baseDir string, stdout io.Writer) toolreg
 		// contract port; the app-layer adapter gathers it from the live
 		// kernel, because the tool is a plugin and may reach neither.
 		Introspect: introspect.NewKernelSource(k),
+		// The tool_forge tool reads the script-tool store through a contract
+		// port; the daemon hands the live store over, because the tool is a
+		// plugin and may not name the module that keeps it. A nil store must
+		// stay a nil port, or the tool would call into a nil implementation
+		// instead of reporting that the store is unavailable.
+		Forge: forgeStore(k),
 	}
+}
+
+// forgeStore hands the live script-tool store to the tool registry as the
+// contract's port. It is a named function so the nil-port rule is stated once
+// and can be tested on its own.
+func forgeStore(k *runtime.Kernel) toolforgeapi.Store {
+	if k == nil {
+		return nil
+	}
+	return forgePort(k.ToolForge())
+}
+
+// forgePort turns the concrete store into the contract's port.
+//
+// A nil store must stay a NIL PORT: a port that wraps a nil implementation is
+// not nil, so the tool would call into nothing instead of reporting that the
+// store is unavailable. The check is on the concrete type on purpose — a
+// nil *Store handed to an interface parameter is already a non-nil interface.
+func forgePort(s *toolforge.Store) toolforgeapi.Store {
+	if s == nil {
+		return nil
+	}
+	return s
 }

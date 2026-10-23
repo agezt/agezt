@@ -28,6 +28,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/introspectapi"
 	"github.com/agezt/agezt/kernel/contract/overseerapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
@@ -74,6 +75,12 @@ type KernelDeps struct {
 	// (kernel/contract/introspectapi). Nil when unwired — the tool then reports
 	// that instead of dereferencing nil.
 	Introspect introspectapi.Source
+	// Forge is the script-tool store port the tool_forge tool reads through
+	// (op=list, op=show). The tool is a plugin, so it may not name the
+	// module that keeps the store; the daemon supplies it through the
+	// contract's port (kernel/contract/toolforgeapi). Nil when unwired — the
+	// tool then reports that instead of dereferencing nil.
+	Forge toolforgeapi.Store
 }
 
 // LateDeps carries the dependencies for the ConfigureLate phase — wiring that
