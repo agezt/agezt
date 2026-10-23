@@ -28,7 +28,7 @@ voicetool/imagetool/reranktool) · [02-cli-cmd-agt.md](02-cli-cmd-agt.md) (`agt 
 | **`plugins/external/mcpbridge`** | Standalone binary: an agezt plugin (plugin protocol on its stdio) that fronts one MCP server (JSON-RPC 2.0 over stdio or legacy HTTP+SSE). Predates and is superseded for most uses by the in-kernel `kernel/modules/extensions/mcp`. |
 
 Layering: everything here sits **above** the kernel. `plugins/providers/*` import `kernel/agent` (types),
-`kernel/catalog` (compat only), `kernel/netguard` (embed, voice, openairesponses), `kernel/creds/sigv4` (bedrock).
+`kernel/modules/providers/catalog` (compat only), `kernel/netguard` (embed, voice, openairesponses), `kernel/creds/sigv4` (bedrock).
 The kernel never imports any of these packages (verified: only `cmd/agezt`, `cmd/agt` and test files import them).
 `plugins/sdk` and `plugins/external/mcpbridge` import nothing from the kernel except `mcpbridge → kernel/netguard`.
 
@@ -245,7 +245,7 @@ streaming + `empty_response_test.go`.
 ### 3.7 `plugins/providers/openairesponses` (ChatGPT subscription — "Sign in with ChatGPT")
 
 Purpose: use a ChatGPT Plus/Pro plan as a provider via the **unofficial** Codex backend
-(`DefaultBaseURL = https://chatgpt.com/backend-api/codex`). Tokens come from `kernel/chatgptauth` (05).
+(`DefaultBaseURL = https://chatgpt.com/backend-api/codex`). Tokens come from `kernel/modules/providers/chatgptauth` (05).
 
 * `Provider{ID, Model, BaseURL, Token TokenFunc, ReasoningEffort, Instructions map[string]string}`;
   `New(id, model, token)` sets `ReasoningEffort="medium"`. `TokenFunc func(ctx, force bool) (access, accountID, err)`.
@@ -449,7 +449,7 @@ builds providers directly to probe them). Tests: `compat_test.go`, `compat_m230/
 
 ## 4. `plugins/providerboot` — catalog + keyring → live registry
 
-Imports: `internal/brand`, `kernel/agent`, `kernel/catalog`, `kernel/chatgptauth`, `kernel/governor`,
+Imports: `internal/brand`, `kernel/agent`, `kernel/modules/providers/catalog`, `kernel/modules/providers/chatgptauth`, `kernel/governor`,
 `plugins/providers/{compat,mock,openairesponses}`. Called only from `cmd/agezt` (`main.go`, `boot_providers.go`).
 Lives under `plugins/` so the kernel never grows a kernel→plugins edge.
 
@@ -546,7 +546,7 @@ Deliberate: governor env knobs (rate limit, task routes, strict flags, cache TTL
 ### ChatGPT subscription path
 
 ```
-Sign-in (control plane / Setup, kernel/chatgptauth — 05): tokens JSON stored in vault key AGEZT_CHATGPT_OAUTH
+Sign-in (control plane / Setup, kernel/modules/providers/chatgptauth — 05): tokens JSON stored in vault key AGEZT_CHATGPT_OAUTH
   (or imported from ~/.codex/auth.json / $CODEX_HOME/auth.json)
      │
 SyncChatGPTCatalog (every sign-in status poll) / SeedChatGPTCatalog (boot)
@@ -710,7 +710,7 @@ Tests: `main_test.go`, `mcp_m428_test.go` (panic/wedge regression), `limits_test
    `data:` URLs); `toolname.RestoreCalls(resp, toolname.Reverse(req.Tools))`.
 4. Optionally implement `CompleteStream` with `retry.DoHTTPStream`; emit chunks per the `agent.Chunk` contract and
    return the same assembled response; synthesise Start/Delta/Stop if tool calls arrive whole.
-5. Add a `catalog.Family` constant + `FamilyFromNPM` case (`kernel/catalog`, 05), and
+5. Add a `catalog.Family` constant + `FamilyFromNPM` case (`kernel/modules/providers/catalog`, 05), and
    `FamilySupportsNativeJSONMode` if applicable.
 6. Wire it in `compat.Build` (new `case`, credentials via `providerEnvLookup` for multi-credential vendors, always
    `return wrapNamed(p.ID, x)`) and add the family to `compat.IsSupportedFamily`; add a `defaultBaseURL` if it has one

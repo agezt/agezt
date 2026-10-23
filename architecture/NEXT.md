@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.10 the extensions module, 2026-10-23
+## Current checkpoint — W3.11 the providers module's first half, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1475,16 +1475,80 @@ files, five of the seventeen mutations would have escaped.
   dated scans and audits) describe the tree as it was and are left alone.
   Nothing else changed: the same packages, the same exported APIs, the same
   stores, the same protocol, the same recipes and the same wire.
+- W3.11 (the providers module's first half) is committed on `main` as a code
+  commit plus a docs commit and published from `arch/w2-dispatch` the same
+  way. `kernel/catalog` (12 files) and `kernel/chatgptauth` (8 files) were
+  already one module — the layer map named them as layer 3 in the module
+  `providers` — but they sat at the top of `kernel/`, outside the
+  `kernel/modules/` tree W3 establishes as the target home of the bounded
+  contexts; they moved to `kernel/modules/providers/{catalog,chatgptauth}`. The
+  package names do not change, so the move is an import-path change and
+  nothing else (77 files repointed). The placement is now *derived*
+  (`kernel/modules/*/...` → module `providers`) and the two hand-written layer
+  rules are gone. The module's name does not change, so every edge keeps its
+  shape and only its path changes: the **ratchet stays at 126/13** and the
+  eight allowlist entries moved with their edges.
+  The moved packages keep their own suites, and **four tests were added** —
+  the mutation run says why, and the gaps were on the critical paths: a
+  provider that needs credentials with a **nil** lookup must be refused (not
+  crash on a nil call); a stored refresh token with **no** access token must
+  fetch one (not return empty); a token near expiry with **no refresh token**
+  must not burn a provider round trip that cannot succeed (the test counts the
+  calls, not just the token); and a logout must remove the secret from the
+  **vault**, not only from the manager's memory — the old test asserted the
+  in-memory state and would have passed with the bytes still on disk.
+  10 mutations, 10 caught — the run found those four honest gaps in the
+  **tests** (all fixed and named) and one mutation's first anchor did not
+  compile (a build failure is not an escape).
+  The move broke one **silent** reference and it is fixed: the CI race job
+  runs `go test -race` over `./kernel/chatgptauth/...`, and a stale path there
+  is not a failure — it is a package that quietly stops being race-checked.
+  The layer map's two rules are gone, and the architecture set, the provider
+  plans and specs, the docs and the code comments that named the old paths are
+  updated — the **dated** reports (`.project/PHASE-*`, `.project/AUDIT-*`,
+  `.project/REVIEW-MAP.md`, `CHANGELOG/unreleased/m*.md`,
+  `docs/ARCHITECTURAL-REPORT.md`) describe the tree as it was and are left
+  alone. Nothing else changed: the same packages, the same exported APIs, the
+  same stores, the same prices and the same wire.
 
-**W3.11 — `modules/providers` (the next slice, to scope).**
-The roadmap's order continues with `modules/providers` (catalog,
-chatgptauth, providerboot) and then `modules/runs` last (what remains of
+**W3.12 — the providerboot half of `modules/providers` (the next slice, to
+scope).**
+The roadmap's order continues with the **providerboot** half of
+`modules/providers`, then `modules/runs` last (what remains of
 `kernel/runtime` + `runexec` + the agent loop + resume + delegation +
 intervention; `kernel/runtime` is deleted when empty).
 The agents module still owes step 8's third item — the **overseer ops** (the
 overseer tool as an L6 caller of `app` ops). The reaper and the module's api
 package are done (W3.9); the overseer ops were the part that needed the api
 door, and that door now exists.
+
+**What the first look at W3.12 already says.** `plugins/providerboot` (14
+files) is **not** a library that happens to sit under `plugins/` — it is a
+library that imports the **concrete** provider packages
+(`plugins/providers/compat`, `mock`, `openairesponses`) precisely so the kernel
+never grows a kernel→plugins edge; its own doc says so. It is also typed
+against them (`chatgptModelSet.Info` is a `map[string]openairesponses.ModelInfo`)
+and it reaches into `kernel/agent` for the middleware stack. Moving it into
+`kernel/modules/providers` (L3) as-is would add **four** edges the ratchet
+refuses to grow: three **upward** ones (module → plugin) and one
+cross-module one (providers → runs, for `kernel/agent`).
+
+So the slice is a **ports rewrite**, the same shape as W3.7's workflow engine
+and W3.9's reaper:
+
+- the module asks for a provider through a **port** (the composition root
+  supplies `compat.Build`, the demo-echo provider and the ChatGPT adapter),
+- the module's own vocabulary replaces the adapter's types (a module-local
+  model-info row instead of `openairesponses.ModelInfo`),
+- the **middleware stack stays the host's** — the module returns the raw
+  provider and the host wraps it, on the boot path and on the reload path
+  alike (the M997 drift fix wrapped both; the wrap must not fall between the
+  two),
+- the daemon's primary selection, the alternate registration and the live
+  down-route eligibility set keep their behaviour exactly.
+
+`kernel/catalog` and `kernel/chatgptauth` are already in the module (W3.11),
+so the module's own vocabulary has a home to grow into.
 
 Three shapes are now proven, and the next slice picks the one that fits:
 **W3.1's** — the feature's logic moves into the module, the module's **api**

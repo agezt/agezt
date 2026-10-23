@@ -132,7 +132,7 @@ DECISIONS B0b says the base contract is **minimal** and grows
 
 1. **Tool** — fully implemented (`kernel/plugin/` host + `agent.Tool`).
 2. **Provider** — fully implemented in-process (`plugins/providers/`,
-   `kernel/catalog/`, `kernel/governor/`).
+   `kernel/modules/providers/catalog/`, `kernel/governor/`).
 3. **Channel** — fully implemented (`kernel/channel/`, `plugins/channels/`,
    `plugins/builtinchannels/`).
 4. **Memory** — in-process only today (`kernel/memory/`); out-of-process

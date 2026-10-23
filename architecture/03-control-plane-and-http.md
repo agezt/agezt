@@ -156,7 +156,7 @@ individual `Set*` setters remain the unit-test surface. Interfaces exist so the 
 | `update.sentinel` | `writeUpdateSentinel` (`update_control.go`) | RFC3339 timestamp, tells the watchdog the exit was intentional |
 | settings store (`settings.NewStore(baseDir)`) | `persistPulseSetting` (`AGEZT_PULSE_DIAL`, `AGEZT_PULSE_QUIET_HOURS`), `config_set`, routing/chains (`AGEZT_TASK_MODEL_CHAINS`), persona | via `kernel/settings` |
 | vault / keyring | `provider_keys.go`, `channels_account_ports.go`, `channel_oauth_ports.go`, `provider_oauth.go` | via `kernel/creds` |
-| catalog `api.json` + meta, `custom.json` | `catalog_sync`, `provider_connect` | via `kernel/catalog` |
+| catalog `api.json` + meta, `custom.json` | `catalog_sync`, `provider_connect` | via `kernel/modules/providers/catalog` |
 
 Everything else is delegated to the owning subsystem (roster, memory, cadence store, workflow store, board, datalake, ...) and
 journaled by that subsystem. Reads of `sandbox/projects/<name>` are confined by `fileworkspace.ConfineUnder` plus link resolution (`app/sandbox`).

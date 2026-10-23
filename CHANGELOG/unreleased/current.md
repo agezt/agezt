@@ -1118,6 +1118,25 @@ This file holds the active `[Unreleased]` working set.
   `source:"cron"`, an event fire as `source:"event"` with the matched subject.
   A run nobody triggered is still `"manual"`.
 
+- **The providers module's first half: the catalog and the ChatGPT auth have
+  a home.** The live provider/model registry and the "Sign in with ChatGPT"
+  OAuth token manager now live in `kernel/modules/providers`; nothing else
+  about them changes.
+
+  Their names, their exported APIs, their stores, their prices and their wire
+  are unchanged — only their address is. The module's name does not change, so
+  every edge keeps its shape and only its path changes: the architecture
+  ratchet stays where it was, and the eight allowlist entries moved with their
+  edges. The two hand-written layer rules are gone — the placement is derived
+  now.
+
+  Four tests were added on the packages' critical paths: a provider that needs
+  credentials with no way to look one up is refused instead of crashing, a
+  stored refresh token with no access token fetches one instead of returning
+  empty, a token near expiry with no refresh token does not burn a provider
+  round trip that cannot succeed, and a sign-out removes the secret from the
+  vault — not only from the manager's memory.
+
 - **The extensions module has a home.** The MCP client and registry, the
   out-of-process plugin host, the script-tool forge, the host CLI tool
   inventory and the ACP agent discovery now live in

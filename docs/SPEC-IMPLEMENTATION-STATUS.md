@@ -142,7 +142,7 @@ The numbers are **approximate**; corrected by manual review. Coverage % alone is
 - **Last M-report:** M907 (OpenAI toolname collision), M877 (Chat timestamp), M825 (Chat Markdown links)
 - **M-report count:** 72
 - **Code sites:** Cross-cutting — `kernel/runtime` (27+53), `kernel/controlplane` (87+103), `kernel/governor` (7+27)
-- **Major gaps:** **The `tools_box` package has src=0** (noted in SPEC-04); `kernel/chatgptauth` already exists (M937, M935). In very good shape.
+- **Major gaps:** **The `tools_box` package has src=0** (noted in SPEC-04); `kernel/modules/providers/chatgptauth` already exists (M937, M935). In very good shape.
 - **Linked items:** —
 - **Commit hint:** `PHASE-M907-PHASE-M7-CHAT-GENRES-REPORT.md` ... various
 
@@ -192,7 +192,7 @@ The numbers are **approximate**; corrected by manual review. Coverage % alone is
 - **Coverage:** ~95%
 - **Last M-report:** M912 (MCP catalog), M897 (MCP catalog), M879 (image tools), M845 (artifact collector)
 - **M-report count:** 77
-- **Code sites:** `plugins/providers/` (15 families), `plugins/providers/openairesponses` (ChatGPT), `kernel/chatgptauth` (M937/M935 OAuth), `plugins/providers/vertex`, `plugins/providers/bedrock`, `plugins/providers/google`, `plugins/providers/openai`, `plugins/providers/anthropic`, `plugins/providers/cohere`, `plugins/providers/ollama`, `plugins/providers/image`, `plugins/providers/voice`, `plugins/providers/rerank`, `plugins/providers/embed`, `plugins/providers/compat`, `plugins/providers/mock`, `plugins/providers/internal`
+- **Code sites:** `plugins/providers/` (15 families), `plugins/providers/openairesponses` (ChatGPT), `kernel/modules/providers/chatgptauth` (M937/M935 OAuth), `plugins/providers/vertex`, `plugins/providers/bedrock`, `plugins/providers/google`, `plugins/providers/openai`, `plugins/providers/anthropic`, `plugins/providers/cohere`, `plugins/providers/ollama`, `plugins/providers/image`, `plugins/providers/voice`, `plugins/providers/rerank`, `plugins/providers/embed`, `plugins/providers/compat`, `plugins/providers/mock`, `plugins/providers/internal`
 - **Major gaps:** **Very few**. ACP server exists (kernel/acp), ACP client (acpagent tool). Ollama auto-discovery shipped.
 - **Linked items:** —
 - **Commit hint:** `PHASE-M912-MCP-CATALOG-LIBRARY-REPORT.md`

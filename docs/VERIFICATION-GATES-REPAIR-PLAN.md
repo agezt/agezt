@@ -184,7 +184,7 @@ cannot display or set them).
 | `AGEZT_AGENTGW_TOKEN_SECRET` | `kernel/agentgw/secret.go` | **security** — gateway token signing secret |
 | `AGEZT_AWS_CREDENTIAL_PROCESS_ALLOWED` | `kernel/creds/aws.go` | **security** — permits `credential_process` execution |
 | `AGEZT_AGENTGW_SOCKET` | `kernel/runtime/runtime.go` | |
-| `AGEZT_CHATGPT_OAUTH` | `kernel/chatgptauth/chatgptauth.go` | |
+| `AGEZT_CHATGPT_OAUTH` | `kernel/modules/providers/chatgptauth/chatgptauth.go` | |
 | `AGEZT_FILE_ROOT` | `kernel/webui/files_route.go` | Files browser root |
 | `AGEZT_FILE_ROOT_MAX_BYTES` | `kernel/webui/files_route.go` | |
 | `AGEZT_FILE_ROOT_MAX_ENTRIES` | `kernel/webui/files_route.go` | |
@@ -207,7 +207,7 @@ not read. The list only under-reports, never over-reports.
 
 `TestConfigEnvVars_CoversCmdAgeztReads` (`kernel/controlplane/config_inventory_test.go:30`)
 scans a hardcoded **inclusion** list of eight directories. None of `kernel/agentgw`,
-`kernel/creds`, `kernel/chatgptauth`, `kernel/webui`, `kernel/runtime`, or
+`kernel/creds`, `kernel/modules/providers/chatgptauth`, `kernel/webui`, `kernel/runtime`, or
 `plugins/providers/compat` is in it, so the guard cannot see these reads.
 
 The list has been extended reactively after each refactor phase — the comments read "Phase 2.5:

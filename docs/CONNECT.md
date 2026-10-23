@@ -82,7 +82,7 @@ over API-key providers. To actually route runs to it:
 - **Auth**: OAuth 2.0 **PKCE** against `auth.openai.com` using the Codex public
   client id. The redirect URI is fixed to `http://localhost:1455/auth/callback`,
   so the **daemon** runs a one-shot listener on `127.0.0.1:1455` during sign-in,
-  captures the code, and exchanges it. (`kernel/chatgptauth`)
+  captures the code, and exchanges it. (`kernel/modules/providers/chatgptauth`)
 - **Storage**: the token set (access + refresh + id token + account id) is stored
   as **one encrypted secret in the vault** (`AGEZT_CHATGPT_OAUTH`, same
   AES-256-GCM at-rest as every other credential). The access token is refreshed
