@@ -977,6 +977,24 @@ This file holds the active `[Unreleased]` working set.
   daemon's own wiring is now measured: the catalogue the daemon serves must
   not be empty.
 
+- **The guardian seeder's two reaches become one port.** The guardians are
+  the daemon's internal fleet — the health responder, the trust-ceiling
+  sweeper and the rest — and the seeder that plants and reconciles them is a
+  plugin. It reached into two places: it carried a `kernelHost` adapter
+  **inside itself**, holding the live `*runtime.Kernel`, and it named the
+  roster module for two rows that are **aliases of the contract's own rows**
+  (`agentapi.Profile` and `agentapi.NoisePolicy`).
+  The seeder's port now lives in the contract layer
+  (`kernel/contract/guardianapi`) with the eleven methods the fleet needs
+  across the roster, the standing orders and the schedules; the adapter that
+  answers it lives in the app layer (`kernel/app/guardians`); and the plugin
+  keeps no implementation at all.
+  A **nil host is refused** rather than called into: a daemon that handed
+  over nothing hears that the fleet was not seeded instead of panicking on
+  the first read.
+  The guardians' quiet defaults — silent on success, no memory writes — are
+  the operator's contract, and they are now asserted.
+
 - **The config tool's reach into the runtime becomes a port.** The `config`
   tool — the agent's window into the Config Center, which reads and writes the
   settings the daemon, the `agt config` CLI and the HTTP routes share, and
