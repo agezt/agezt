@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -346,7 +347,7 @@ func TestApplyPreOpenAndConfigureLate(t *testing.T) {
 	Register(Spec{
 		Name:    "hooked",
 		Build:   func(BuildDeps) (Built, error) { return Built{Tool: &fakeTool{name: "hooked"}}, nil },
-		PreOpen: func(tool toolapi.Tool, cfg *runtime.Config) { calls = append(calls, "preopen") },
+		PreOpen: func(tool toolapi.Tool, cfg toolregapi.Config) { calls = append(calls, "preopen") },
 		Late: func(tool toolapi.Tool, d LateDeps) error {
 			calls = append(calls, "late")
 			return nil
