@@ -114,7 +114,7 @@ func TestMCPLifecycleTypedAdmissionBlocksEveryFactory(t *testing.T) {
 	}
 }
 func TestMCPLifecycleTypedCodecsRetainNativeErrorsAndEnableRules(t *testing.T) {
-	cases := []struct{ name, raw, want string }{{"mcp_add", `{}`, "args.server required"}, {"mcp_add", `{"server":false}`, "args.server: json: cannot unmarshal bool into Go value of type mcp.Server"}, {"mcp_add", `{"server":[]}`, "args.server: json: cannot unmarshal array into Go value of type mcp.Server"}, {"mcp_add", `{"server":{"args":1}}`, "args.server: json: cannot unmarshal number into Go struct field Server.args of type []string"}}
+	cases := []struct{ name, raw, want string }{{"mcp_add", `{}`, "args.server required"}, {"mcp_add", `{"server":false}`, "args.server: json: cannot unmarshal bool into Go value of type mcpapi.Server"}, {"mcp_add", `{"server":[]}`, "args.server: json: cannot unmarshal array into Go value of type mcpapi.Server"}, {"mcp_add", `{"server":{"args":1}}`, "args.server: json: cannot unmarshal number into Go struct field Server.args of type []string"}}
 	for _, name := range []string{"mcp_attach", "mcp_detach", "mcp_set_enabled", "mcp_remove"} {
 		for _, raw := range []string{`{}`, `{"ref":""}`, `{"ref":" \t "}`} {
 			cases = append(cases, struct{ name, raw, want string }{name, raw, "args.ref required"})

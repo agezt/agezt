@@ -42,7 +42,10 @@ func (f *fakeKernel) RemoveMCPServer(_, ref string) (bool, error) {
 	return ok, err
 }
 
-func (f *fakeKernel) MCPStore() *mcp.Store        { return f.store }
+func (f *fakeKernel) MCPServers() []mcp.Server { return f.store.List() }
+func (f *fakeKernel) MCPServer(ref string) (mcp.Server, bool) {
+	return f.store.Get(ref)
+}
 func (f *fakeKernel) MCPAttached() map[string]int { return f.attached }
 
 func newBound(t *testing.T) (*Tool, *fakeKernel) {

@@ -84,7 +84,6 @@ plugin-reach plugins/builtinchannels -> kernel/pulse
 plugin-reach plugins/builtinguardians -> kernel/modules/agents/roster
 plugin-reach plugins/builtinguardians -> kernel/runtime
 plugin-reach plugins/builtinmarket -> kernel/market
-plugin-reach plugins/builtinmarket -> kernel/modules/extensions/mcp
 plugin-reach plugins/builtinmarket -> kernel/modules/skills/skill
 plugin-reach plugins/builtintools -> kernel/modules/extensions/plugin
 plugin-reach plugins/builtintools -> kernel/runtime
@@ -96,7 +95,6 @@ plugin-reach plugins/tools/config -> kernel/runtime
 plugin-reach plugins/tools/db -> kernel/modules/artifacts/datalake
 plugin-reach plugins/tools/forgetool -> kernel/modules/extensions/toolforge
 plugin-reach plugins/tools/introspecttool -> kernel/runtime
-plugin-reach plugins/tools/mcptool -> kernel/modules/extensions/mcp
 plugin-reach plugins/tools/skilltool -> kernel/modules/skills/skill
 plugin-reach plugins/tools/workboardtool -> kernel/modules/work/workboard
 plugin-reach plugins/tools/workflowtool -> kernel/runtime

@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-176 package(s):
+177 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -78,6 +78,7 @@
 - **`kernel/contract/cadenceapi`** — —
 - **`kernel/contract/channelapi`** — Package channelapi is the messaging-channel contract: the platform-neutral inbound message every channel normalises to (UnifiedMessage, SPEC-04 §1.3), what the kernel hands a channel to deliver (Outbound, Attachment, Reply), the Channel interface a duplex surface implements, and the Manifest a channel registers to describe itself.
 - **`kernel/contract/llm`** — Package llm is the model-provider contract: the canonical conversation (Message, Role, ToolCall), one completion round trip (CompletionRequest, CompletionResponse, Usage, StopReason, Params) and the provider interfaces (Provider, StreamingProvider, Chunk).
+- **`kernel/contract/mcpapi`** — Package mcpapi is the contract layer's home for the MCP server row: the description of one registered MCP server — a stdio command or a remote HTTP endpoint the daemon can spawn and speak MCP to.
 - **`kernel/contract/opapi`** — Package opapi defines transport-independent operation metadata and host ports.
 - **`kernel/contract/overseerapi`** — Package overseerapi is the contract the supervisory surface and the implementations that answer it agree on.
 - **`kernel/contract/policyapi`** — Package policyapi defines the tool-policy verdict and callback contract.
