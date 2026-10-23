@@ -15,48 +15,48 @@
 //
 // The tool is created unbound and Bound to the live Forge after the kernel opens
 // (the Forge is the kernel's), mirroring the schedule/standing tool lifecycle.
+//
+// The rows it speaks — the skill record, its lifecycle state, the create input —
+// live in the contract layer (kernel/contract/skillapi), because the tool is a
+// PLUGIN and a plugin may reach the contract and the platform layers and
+// nothing else. So the tool names the contract's PORTS (skillapi.Forge,
+// skillapi.BundleStore) and the daemon hands the implementations over.
 package skilltool
 
 import (
 	"sync"
 
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 )
 
-// forge is the subset of *skill.Forge the tool needs — an interface so tests can
-// inject a fake without a real on-disk store + bus.
-type forge interface {
-	Create(corr string, spec skill.CreateSpec) (skill.Skill, bool, error)
-	Promote(corr, id string) (skill.Status, error)
-	Quarantine(corr, id, reason string) error
-	Get(id string) (skill.Skill, bool, error)
-	List() ([]skill.Skill, error)
-	// Bundles returns the on-disk resource store (reference files + scripts) so
-	// the agent can list and read a skill's bundle (op=files / op=read, M847).
-	// nil when no bundle store is wired.
-	Bundles() *skill.BundleStore
-}
-
-// Tool implements agent.Tool. Created unbound via New(); Bind wires the Forge.
+// Tool implements agent.Tool. Created unbound via New(); Bind wires the Forge
+// and the bundle store.
 type Tool struct {
-	mu    sync.RWMutex
-	forge forge
+	mu      sync.RWMutex
+	forge   skillapi.Forge
+	bundles skillapi.BundleStore
 }
 
 // New returns an unbound skill tool (no Forge until Bind).
 func New() *Tool { return &Tool{} }
 
-// Bind wires the live Forge. Called once after the kernel opens.
-func (t *Tool) Bind(f forge) {
+// Bind wires the live Forge and the bundle store it reads a skill's resources
+// through. Called once after the kernel opens. Either may be nil — a daemon
+// with no bundle store still offers the skill lifecycle.
+func (t *Tool) Bind(f skillapi.Forge, bundles skillapi.BundleStore) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if f != nil {
 		t.forge = f
 	}
+	if bundles != nil {
+		t.bundles = bundles
+	}
 }
 
-func (t *Tool) current() forge {
+// current returns the bound Forge and the bundle store.
+func (t *Tool) current() (skillapi.Forge, skillapi.BundleStore) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	return t.forge
+	return t.forge, t.bundles
 }

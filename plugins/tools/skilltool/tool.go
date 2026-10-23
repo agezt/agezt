@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // Definition implements toolapi.Tool.
@@ -76,7 +76,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 	if err := json.Unmarshal(raw, &in); err != nil {
 		return toolapi.Result{}, fmt.Errorf("skill: parse input: %w", err)
 	}
-	f := t.current()
+	f, bundles := t.current()
 	if f == nil {
 		return errResult("skill learning is not available on this daemon"), nil
 	}
@@ -90,7 +90,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		if strings.TrimSpace(in.Body) == "" {
 			return errResult(`op=learn needs a "body" (the procedure)`), nil
 		}
-		sk, created, err := f.Create(corr, skill.CreateSpec{
+		sk, created, err := f.Create(corr, skillapi.CreateSpec{
 			Name:          in.Name,
 			Description:   in.Description,
 			Triggers:      in.Triggers,
@@ -103,7 +103,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		msg := "learned a new skill (draft)"
 		if !created {
 			msg = "you already knew this skill (refreshed)"
-		} else if sk.Status != skill.StatusDraft {
+		} else if sk.Status != skillapi.StatusDraft {
 			msg = "learned and auto-staged to " + string(sk.Status)
 		}
 		return okEntry(msg, sk), nil
@@ -155,14 +155,13 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		if err := f.Quarantine(corr, sk.ID, reason); err != nil {
 			return errResult(err.Error()), nil
 		}
-		return okJSON(map[string]any{"id": shortID(sk.ID), "name": sk.Name, "status": string(skill.StatusQuarantined), "message": "retired (quarantined)"}), nil
+		return okJSON(map[string]any{"id": shortID(sk.ID), "name": sk.Name, "status": string(skillapi.StatusQuarantined), "message": "retired (quarantined)"}), nil
 
 	case "files":
 		sk, err := t.resolve(f, in.ID)
 		if err != nil {
 			return errResult(err.Error()), nil
 		}
-		bundles := f.Bundles()
 		if bundles == nil {
 			return errResult("skill bundles are not available on this daemon"), nil
 		}
@@ -183,7 +182,6 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		if strings.TrimSpace(in.Path) == "" {
 			return errResult(`op=read needs a "path" (a bundle-relative file from op=files)`), nil
 		}
-		bundles := f.Bundles()
 		if bundles == nil {
 			return errResult("skill bundles are not available on this daemon"), nil
 		}
@@ -205,21 +203,21 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 
 // resolve looks up a skill by exact id or, failing that, a unique id prefix —
 // agents see truncated ids in op=list, so a prefix is the natural handle.
-func (t *Tool) resolve(f forge, id string) (skill.Skill, error) {
+func (t *Tool) resolve(f skillapi.Forge, id string) (skillapi.Skill, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
-		return skill.Skill{}, fmt.Errorf("an %q id is required", "id")
+		return skillapi.Skill{}, fmt.Errorf("an %q id is required", "id")
 	}
 	if sk, ok, err := f.Get(id); err != nil {
-		return skill.Skill{}, err
+		return skillapi.Skill{}, err
 	} else if ok {
 		return sk, nil
 	}
 	all, err := f.List()
 	if err != nil {
-		return skill.Skill{}, err
+		return skillapi.Skill{}, err
 	}
-	var match skill.Skill
+	var match skillapi.Skill
 	n := 0
 	for _, sk := range all {
 		if strings.HasPrefix(sk.ID, id) {
@@ -231,9 +229,9 @@ func (t *Tool) resolve(f forge, id string) (skill.Skill, error) {
 	case 1:
 		return match, nil
 	case 0:
-		return skill.Skill{}, fmt.Errorf("no skill with id %s", id)
+		return skillapi.Skill{}, fmt.Errorf("no skill with id %s", id)
 	default:
-		return skill.Skill{}, fmt.Errorf("id %s is ambiguous (%d skills match — use more characters)", id, n)
+		return skillapi.Skill{}, fmt.Errorf("id %s is ambiguous (%d skills match — use more characters)", id, n)
 	}
 }
 
@@ -244,7 +242,7 @@ func shortID(id string) string {
 	return id
 }
 
-func skillView(s skill.Skill) map[string]any {
+func skillView(s skillapi.Skill) map[string]any {
 	v := map[string]any{
 		"id":      shortID(s.ID),
 		"name":    s.Name,
@@ -261,7 +259,7 @@ func skillView(s skill.Skill) map[string]any {
 	return v
 }
 
-func okEntry(msg string, s skill.Skill) toolapi.Result {
+func okEntry(msg string, s skillapi.Skill) toolapi.Result {
 	v := skillView(s)
 	v["message"] = msg
 	return okJSON(v)

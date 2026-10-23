@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.24 the introspector's rows move to the contract layer, 2026-10-23
+## Current checkpoint — W3.25 the skill's rows move to the contract layer, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -1906,6 +1906,43 @@ files, five of the seventeen mutations would have escaped.
   looked sorted), so the test was strengthened and the mutation was run again;
   six mutations were **first authored as build errors** (a compile error is
   not a catch) and were re-authored so the code still compiles.
+
+- W3.25 (the skill's rows move to the contract layer) is committed on `main`
+  the same way. The **skill tool** — the agent's self-modification primitive
+  — was a plugin that reached into the **skills module**: for the **rows** it
+  speaks (the lifecycle state, the record, the create input) and for the
+  **store** it drives. The rows now live in `kernel/contract/skillapi`, and
+  the **rules travel with them** — the lifecycle state machine is pure, so it
+  belongs where the row is, and it is the rule the whole daemon enforces. The
+  retrieval-pool predicate travels too (a method can only be defined in its
+  type's package). The module keeps its names as **aliases** and its rules as
+  one-line delegations, so there is one row and one spelling of it.
+  The tool now drives the contract's **ports** (`skillapi.Forge`,
+  `skillapi.BundleStore`), and the **daemon hands the bundle port over
+  separately** — so the tool never names an implementation. The Forge, the
+  store, the content-addressing (it hashes with BLAKE3, and a contract
+  package may not import a third-party package) and the on-disk bundle store
+  stay in the module.
+  The **ratchet went DOWN**: 99/13 → **98/13** — the plugin-reach edge is
+  gone, and the **stale allowlist entry was deleted**.
+  This is the row where the **wire matters**: a skill is written to
+  `<home>/skills/skills.json` and read back **by key** — the CLI, the Web UI
+  and the retrieval layer all read that file — so the row's JSON keys are a
+  contract with every skill file already on disk. The wire had never been
+  measured; it is now pinned key for key, and the persisted **values** of the
+  five states are pinned too (a renamed state would orphan every stored
+  skill). The rules are measured **edge by edge**, and the module's
+  delegations against the contract on **every pair of states**.
+  The permanent tests: the **identity assertions** (the module's four rows
+  ARE the contract's, and the module's Forge and bundle store ARE the
+  contract's two ports), the **plugin speaks the contract's rows**, and the
+  **wiring, twice** — a skill the agent learns lands in the **kernel's own
+  Forge**, and the **second** wire (the bundle port) really reaches the tool.
+  24 mutations: 24 caught — one **survived the first round** (the bundle port
+  was never handed over and the wiring test only proved the Forge wire), so
+  the gap was closed and it was run again; and one was an **equivalent
+  mutation** (a rule rewrite that changed nothing for any input),
+  re-authored into a real disagreement and run again.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

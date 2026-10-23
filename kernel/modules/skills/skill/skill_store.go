@@ -15,69 +15,23 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/platform/filestore"
 	"lukechampine.com/blake3"
 )
 
 // Metrics tracks how a skill has performed (SPEC-05 §4.1).
-type Metrics struct {
-	Uses       int   `json:"uses"`
-	Successes  int   `json:"successes"`
-	Failures   int   `json:"failures"`
-	LastUsedMS int64 `json:"last_used_ms,omitempty"`
-	// ShadowEvals / ShadowWins track shadow-evaluation outcomes (M400, SPEC-05
-	// §5.2) — how many times a shadow skill was judged against a completed run,
-	// and how many of those judged it would have helped. Kept separate from
-	// Successes/Failures (which are real production outcomes) so the shadow→active
-	// gate reads only its own evidence.
-	ShadowEvals int `json:"shadow_evals,omitempty"`
-	ShadowWins  int `json:"shadow_wins,omitempty"`
-}
+//
+// The row itself lives in the contract layer (kernel/contract/skillapi); the
+// name stays here as an alias, so every existing caller is unchanged.
+type Metrics = skillapi.Metrics
 
 // Skill is one reusable, named procedure. JSON tags are stable so the on-disk
 // file and the CLI/`--json` shape stay compatible across releases.
-type Skill struct {
-	// ID is content-addressed: hex(BLAKE3("skill" \0 name \0 body)).
-	ID string `json:"id"`
-	// Name identifies the skill ("diagnose-failing-ci").
-	Name string `json:"name"`
-	// Description is the retrieval/activation matching key (§4.2).
-	Description string `json:"description"`
-	// Triggers are tags/conditions hinting when the skill is relevant.
-	Triggers []string `json:"triggers,omitempty"`
-	// Body is the instructions/steps injected into the planning context.
-	Body string `json:"body"`
-	// ToolsRequired lists tools the skill expects to be available.
-	ToolsRequired []string `json:"tools_required,omitempty"`
-	// Resources lists the relative paths of the skill's on-disk bundle —
-	// reference files and scripts that travel with it (agentskills.io shape,
-	// SPEC-13). Empty for a plain body-only skill. The files live under the
-	// BundleStore (kernel/modules/skills/skill/bundle.go); this is the manifest the retrieval
-	// layer, the CLI, and the agent's skill tool use to discover them.
-	Resources []string `json:"resources,omitempty"`
-	// Agent is the owning roster slug (M932): a skill an agent learned in its
-	// own runs belongs to that agent and is retrieved only when IT acts — the
-	// same private-by-default wall per-agent memory draws (M915). Empty means
-	// shared: visible to every agent and the default daemon identity.
-	Agent string `json:"agent,omitempty"`
-	// Version is semver; a new body is a new version (§4.3).
-	Version string `json:"version"`
-	// Lineage is the ids this skill evolved from (parent-first).
-	Lineage []string `json:"lineage,omitempty"`
-	// Status is the lifecycle state.
-	Status Status `json:"status"`
-	// Metrics record usage/outcomes.
-	Metrics Metrics `json:"metrics"`
-	// SourceEvent is the journal event id that produced this record —
-	// provenance for `agt why`.
-	SourceEvent string `json:"source_event,omitempty"`
-	// CreatedMS / LastSeenMS drive recency in ranking and history ordering.
-	CreatedMS  int64 `json:"created_ms"`
-	LastSeenMS int64 `json:"last_seen_ms"`
-}
-
-// Active reports whether the skill is in the retrieval pool.
-func (s Skill) Active() bool { return s.Status == StatusActive }
+//
+// The row itself lives in the contract layer (kernel/contract/skillapi); the
+// name stays here as an alias, so every existing caller is unchanged.
+type Skill = skillapi.Skill
 
 // ContentID computes the content-addressed id for a (name, body) pair. The
 // "skill" domain prefix + NUL separators keep ids disjoint from other content

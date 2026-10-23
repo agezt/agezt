@@ -951,6 +951,19 @@ This file holds the active `[Unreleased]` working set.
   dropped silently, and the symptom would have been the introspect tool
   answering "not available on this daemon" on every live box.
 
+- **The skill's rows move to the contract layer.** The skill tool — the agent's
+  self-modification primitive, which authors, promotes and retires its own
+  reusable procedures — is a plugin, so the description of a skill, its
+  lifecycle state and the input that authors one now live in the contract
+  layer (`kernel/contract/skillapi`), together with the rules that belong to
+  them: which lifecycle transitions are legal, which state a promotion lands
+  on, and whether a skill is in the retrieval pool. The tool drives the
+  contract's ports and the daemon hands the implementations over; the Forge,
+  the store and the on-disk bundles stay in the skills module.
+  The skill file's format is unchanged, and that is now pinned by a test: a
+  skill is written to `skills.json` and read back by key, so a renamed field
+  would have silently dropped it.
+
 - **The council, the conductor and the research tools no longer reach into the
   kernel for a type.** The rows the reasoning module produces — a consensus,
   a transcript, a cited report — move to the contract layer
