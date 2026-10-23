@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.29 the workflow rows move to the contract layer, 2026-10-23
+## Current checkpoint — W3.30 the data-lake rows move to the contract layer, 2026-10-23
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2107,6 +2107,52 @@ files, five of the seventeen mutations would have escaped.
   and recorded as such) and were re-authored as reachable rules; one had a
   **stale anchor**, two were **compile errors** and one was **misclassified**
   by the harness, so the classifier was fixed and it was run again.
+
+- W3.30 (the data-lake rows move to the contract layer) is committed on
+  `main` the same way. The `db` tool — the agent's database: it creates
+  collections, writes records, queries them, and the console and the Web UI
+  read the same lake — is a plugin, so the description of one collection, one
+  record, the query, the listing's summary and the three refusals the lake
+  answers with now live in the contract layer
+  (`kernel/contract/datalakeapi`). The tool's own store interface is
+  replaced by the contract's **port** (`datalakeapi.Lake`) — one port, one
+  spelling — and the module keeps its names as **aliases**; the lake, its
+  persistence, the built-in collection gallery and the collection-name rule
+  stay in the module — they are the implementation.
+  The registry stops holding the lake by its **concrete** type too:
+  `KernelDeps.Lake` is now the contract's port, so the registry names the
+  contract and not the module.
+  The **ratchet went DOWN twice**: 93/13 → **91/13** — two edges are gone
+  (the plugin's and the registry's), and the **stale allowlist entries were
+  deleted**. The second edge closed because the registry held the lake by its
+  concrete type.
+  The **wire matters** here too: a collection and its records are
+  **persisted** and read by the console's tables and the Web UI's views, so
+  the rows' JSON keys are a contract with every collection file already on
+  disk. The wire had never been measured; it is now pinned key for key,
+  with the **optional** fields pinned too — on the schema, on the column and
+  on the record.
+  The **refusals** are the tool's answers: the tool maps the lake's three
+  refusals to three **different** answers, each naming the collection, so
+  the messages are pinned too — not only the refusal but the tool's own
+  phrasing.
+  The **wiring** is measured at the composition root, and the **nil-port
+  rule** is stated once: a nil lake must stay a nil *port*, checked on the
+  **concrete** type on purpose — so the rule is a named function that can be
+  tested on its own.
+  The permanent tests: the **wire shape** (including the **port's** method
+  set — exactly nine methods with their signatures), the **identity
+  assertions** (the module's rows ARE the contract's rows, its errors ARE
+  the contract's by identity and by message, its lake IS the contract's
+  port), a test that the **plugin** names the contract and **not** the
+  module, the tool's **answers** (a create keeps the declared columns, a
+  second create is refused with the tool's own answer that names the
+  collection) and the **wiring**.
+  36 mutations: 36 caught — two **survived the first round** (the column's
+  optional keys were never exercised, and the create op's refusal mapping
+  was masked because the lake's raw message also says "already exists"), so
+  the tests were strengthened and they were run again; one had a **stale
+  anchor** and one was a **compile error**, so both were re-authored.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
