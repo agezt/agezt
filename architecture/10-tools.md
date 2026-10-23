@@ -376,7 +376,7 @@ The implementation that answers the port (app layer, `kernel/app/overseer`):
 | `schedule.go` | `store` interface, `Tool`, `Bind`, `BindAgentLookup`, `Definition`, `applyAssure`, acting-agent binding/validation, `scheduleTarget`. |
 | `schedule_helpers.go` | `validateScheduledJob`, `applyTypedTarget`, `finalizeEntry`, `Invoke`, `parseHHMM`, `entryView`. |
 | **sendmedia** `sendmedia.go` | `Tool` (sender, targets, resolver), `Bind`, `Definition`, `Invoke` (resolve artifact ref → attachment → pinned targets). |
-| **skilltool** `skilltool.go` | Package doc + Forge interface, `Tool`, `Bind`. |
+| **skilltool** `skilltool.go` | Package doc, `Tool`, `Bind` (the contract's two ports: `skillapi.Forge` + `skillapi.BundleStore` — the daemon hands both over). |
 | `tool.go` | `Definition`, `Invoke` (learn/list/show/promote/retire/files/read). |
 | **standingtool** `standing.go` | Standing CRUD interface, `Tool`, `Definition`, `Invoke` (create_event/create_cron/list/remove). |
 | **websearch** `doc.go` | Package doc (keyless, SSRF-guarded, fail-soft). |
