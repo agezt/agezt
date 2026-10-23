@@ -48,7 +48,7 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 | `pulse` | agent, bus, event, state, ulid, warden | cmd/agezt, alerter, channelwire, builtinchannels |
 | `selfrepair` | brand, strutil, board, bus, event, roster, runtime | cmd/agezt only |
 | `skill` | agent, bus, contract/skillapi, event, filestore | cmd/agezt, cmd/agt, contextselect, controlplane, market, runtime (+accessors, runexec), builtinskills |
-| `market` | atomicfile, agent, edict, mcp, netguard, skill | cmd/agezt, cmd/agt, controlplane, runtime (+accessors), builtinmarket |
+| `market` | atomicfile, agent, contract/marketapi, edict, mcp, netguard, skill | cmd/agezt, cmd/agt, controlplane, runtime (+accessors) |
 | `plugin` | agent | cmd/agt, plugins/builtintools |
 | `mcp` | filestore, netguard, ulid | controlplane, market, runtime (+compose) |
 | `acp` | brand | cmd/agt, tools/acpagent |

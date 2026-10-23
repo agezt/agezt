@@ -480,7 +480,7 @@ Tests: `builtinskills_test.go`, `coverage_supp_test.go` (every bundle parses, se
 
 ### builtinmarket
 
-- `MarketplaceName = "official"`; `Library` implements `market.Library` (`Marketplaces()`, `ResolvePack(_, name, version)`). Built by `New()`: one `<bundle>-pack` per builtin bundle (version 1.0.0, author AGEZT, category from `skillCategory`, tags = bundle name + triggers) + combo packs. Composite with the synced store in `cmd/agezt` (`market.NewCompositeLibrary(builtinmarket.New(), marketStore)`), builtin consulted first.
+- `MarketplaceName = "official"`; `Library` implements the contract's `marketapi.Library` port (`Marketplaces()`, `ResolvePack(_, name, version)`). Built by `New()`: one `<bundle>-pack` per builtin bundle (version 1.0.0, author AGEZT, category from `skillCategory`, tags = bundle name + triggers) + combo packs. Composite with the synced store in `cmd/agezt` (`market.NewCompositeLibrary(builtinmarket.New(), marketStore)`), builtin consulted first.
 - `ResolvePack` with an explicit version that differs returns an error (never a silent substitute) so the composite falls through to synced marketplaces.
 
 | Combo pack | Skills | MCP servers (all `Lazy`) | Tool requirements | Featured |

@@ -14,6 +14,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/agezt/agezt/kernel/contract/marketapi"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
@@ -21,12 +22,11 @@ import (
 // Library is a source of packs — the built-in Official marketplace and, later,
 // synced remotes. Kept an interface so the seed (plugins/builtinmarket) and the
 // remote sync layer plug in without market importing them.
-type Library interface {
-	Marketplaces() []Marketplace
-	// ResolvePack returns the full pack. marketplace may be "" to search all;
-	// version may be "" for the catalogued version.
-	ResolvePack(marketplace, name, version string) (Pack, error)
-}
+//
+// The port lives in the contract layer (kernel/contract/marketapi) — the
+// built-in catalogue is a PLUGIN, and it implements the contract's port rather
+// than naming this module. The name stays here as an alias.
+type Library = marketapi.Library
 
 // SkillInstaller materializes a pack's skills (satisfied by *skill.Forge).
 type SkillInstaller interface {

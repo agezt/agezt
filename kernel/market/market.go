@@ -1,109 +1,77 @@
+// SPDX-License-Identifier: MIT
+
 package market
 
-// Provenance: SPDX-License-Identifier: MIT kernel/market public types (PackSkill,
-//             Signature, Pack, MarketplaceEntry, Marketplace, InstalledPack) +
-//             consts/var declarations (FormatVersion, MarketplaceOfficial, nameRe,
-//             semverRe) + top-level functions (SkillSummary, safeRelPath). Extracted
-//             from market.go during Day 211 god-file refactor (#87). Public API
-//             unchanged.
+// Provenance: the marketplace's ROWS — the pack, the skill it carries, the
+//             catalogue entry and the catalogue itself — now live in the
+//             contract layer (kernel/contract/marketapi): the built-in
+//             "Official" catalogue is a PLUGIN, and a plugin may reach the
+//             contract and the platform layers and nothing else. The rules
+//             travel with the rows (what makes a pack valid, its canonical
+//             bytes, its content hash, how versions are ordered), because a
+//             method can only be defined in its type's package.
+//
+//             The names below stay as aliases and one-line delegations, so
+//             every existing caller is unchanged and there is one row and one
+//             spelling of it.
 
 import (
-	"fmt"
 	"regexp"
-	"strings"
 
-	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
+	"github.com/agezt/agezt/kernel/contract/marketapi"
 )
 
 // FormatVersion is the on-disk/wire manifest version. Bump on breaking changes.
-const FormatVersion = 1
+const FormatVersion = marketapi.FormatVersion
 
 // MarketplaceOfficial is the reserved name of the built-in, offline catalogue.
 // Remote sources may not use it, so a remote can never shadow the seed.
-const MarketplaceOfficial = "official"
+const MarketplaceOfficial = marketapi.MarketplaceOfficial
 
-// nameRe validates pack and marketplace names: kebab-case, lowercase, so they're
-// safe as path segments and stable identifiers.
-var nameRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
+// nameRe validates pack and marketplace names. The PATTERN is the contract's;
+// the compiled form is this package's own.
+var nameRe = regexp.MustCompile(marketapi.NamePattern)
 
-// semverRe is a pragmatic semver check (major.minor.patch with optional
-// -prerelease). Versions order installs and gate updates.
-var semverRe = regexp.MustCompile(`^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$`)
+// semverRe validates versions. The PATTERN is the contract's; the compiled
+// form is this package's own.
+var semverRe = regexp.MustCompile(marketapi.SemverPattern)
 
-// PackSkill is one skill carried by a pack: the agentskills.io shape — a SKILL.md
-// body plus optional resource files (reference docs, scripts) keyed by relative
-// path. Materialized via skill.Forge.Create, so the runtime treats it exactly
-// like any other skill (retrieval, injection, lifecycle).
-type PackSkill struct {
-	SkillMD   string            `json:"skill_md"`
-	Resources map[string][]byte `json:"resources,omitempty"`
-}
+// PackSkill is one skill carried by a pack: the agentskills.io shape.
+//
+// The row itself lives in the contract layer (kernel/contract/marketapi); the
+// name stays here as an alias, so every existing caller is unchanged.
+type PackSkill = marketapi.PackSkill
 
-// Signature is an optional Ed25519 attestation over the pack's canonical bytes
-// (UPD-001 primitive). Unsigned packs are allowed but flagged on install
-// (default-allow posture); verification is opt-OUT, not a hard wall.
-type Signature struct {
-	SHA256   string `json:"sha256"`
-	Sig      string `json:"sig"`       // hex Ed25519 signature over the canonical pack bytes
-	PubKey   string `json:"pubkey"`    // hex Ed25519 public key
-	SignedAt int64  `json:"signed_at"` // unix ms
-}
+// Signature is an optional Ed25519 attestation over the pack's canonical bytes.
+//
+// The row itself lives in the contract layer (kernel/contract/marketapi); the
+// name stays here as an alias, so every existing caller is unchanged.
+type Signature = marketapi.Signature
 
 // Pack is one installable artifact: skills + MCP servers + CLI-tool needs.
-type Pack struct {
-	Name             string       `json:"name"`
-	Version          string       `json:"version"`
-	Description      string       `json:"description,omitempty"`
-	Author           string       `json:"author,omitempty"`
-	Category         string       `json:"category,omitempty"`
-	Tags             []string     `json:"tags,omitempty"`
-	Keywords         []string     `json:"keywords,omitempty"`
-	Skills           []PackSkill  `json:"skills,omitempty"`
-	MCPServers       []mcp.Server `json:"mcp_servers,omitempty"`
-	ToolRequirements []string     `json:"tool_requirements,omitempty"`
-	Signature        *Signature   `json:"signature,omitempty"`
-}
+//
+// The row itself lives in the contract layer (kernel/contract/marketapi) —
+// with its methods, because a method can only be defined in its type's
+// package. The name stays here as an alias, so every existing caller is
+// unchanged.
+type Pack = marketapi.Pack
 
-// MarketplaceEntry is one pack's catalogue row in a marketplace index — metadata
-// for browse/search, plus where to fetch the full pack from (a relative path
-// within the marketplace, or empty for a built-in pack carried in-process).
-type MarketplaceEntry struct {
-	Name        string   `json:"name"`
-	Version     string   `json:"version"`
-	Description string   `json:"description,omitempty"`
-	Category    string   `json:"category,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
-	Source      string   `json:"source,omitempty"` // relative pack path within the marketplace
-	SHA256      string   `json:"sha256,omitempty"`
-	Signed      bool     `json:"signed,omitempty"`
-	// Featured marks curated/editor's-pick packs a marketplace wants surfaced
-	// first (the built-in catalogue stars its flagship combos; remotes may set it
-	// in their index). Downloads is a registry-supplied popularity signal —
-	// zero/absent when a registry doesn't track installs.
-	Featured  bool  `json:"featured,omitempty"`
-	Downloads int64 `json:"downloads,omitempty"`
-	// Content counts for at-a-glance gallery cards (no per-pack fetch needed).
-	SkillCount int `json:"skill_count"`
-	MCPCount   int `json:"mcp_count"`
-	ToolCount  int `json:"tool_count"`
-}
+// MarketplaceEntry is one pack's catalogue row in a marketplace index.
+//
+// The row itself lives in the contract layer (kernel/contract/marketapi); the
+// name stays here as an alias, so every existing caller is unchanged.
+type MarketplaceEntry = marketapi.MarketplaceEntry
 
-// Marketplace is a catalogue of packs. The built-in Official marketplace is
-// always present and offline; remote ones are fetched + cached by the Syncer
-// (Phase 2). Builtin marks the in-binary seed (which can't be removed/updated).
-type Marketplace struct {
-	Name            string             `json:"name"`
-	Owner           string             `json:"owner,omitempty"`
-	FormatVersion   int                `json:"format_version"`
-	GeneratedUnixMS int64              `json:"generated_unix_ms,omitempty"`
-	Source          string             `json:"source,omitempty"` // remote URL (empty for built-in)
-	Builtin         bool               `json:"builtin,omitempty"`
-	Packs           []MarketplaceEntry `json:"packs"`
-}
+// Marketplace is a catalogue of packs.
+//
+// The row itself lives in the contract layer (kernel/contract/marketapi); the
+// name stays here as an alias, so every existing caller is unchanged.
+type Marketplace = marketapi.Marketplace
 
 // InstalledPack records what an install materialized, so uninstall can reverse
 // exactly its own footprint (and never touch shared/other-owned resources).
+// It stays here: it is the manager's own bookkeeping, persisted in
+// installed.json — a plugin never names it.
 type InstalledPack struct {
 	Name        string   `json:"name"`
 	Version     string   `json:"version"`
@@ -118,28 +86,15 @@ type InstalledPack struct {
 	VetVerdict string `json:"vet_verdict,omitempty"`
 }
 
-// Counts summarizes a pack's contents for at-a-glance UI ("3 skills · 1 MCP · 2 tools").
-func SkillSummary(ps PackSkill) (string, error) {
-	md, err := skill.ParseSkillMD([]byte(ps.SkillMD))
-	if err != nil {
-		return "", err
-	}
-	if md.Description == "" {
-		return md.Name, nil
-	}
-	return md.Name + " — " + md.Description, nil
-}
-func safeRelPath(rel string) error {
-	if rel == "" {
-		return fmt.Errorf("empty path")
-	}
-	if strings.ContainsAny(rel, "\\") || strings.HasPrefix(rel, "/") {
-		return fmt.Errorf("must be a forward-slash relative path")
-	}
-	for _, seg := range strings.Split(rel, "/") {
-		if seg == ".." || seg == "." || seg == "" {
-			return fmt.Errorf("path traversal not allowed")
-		}
-	}
-	return nil
-}
+// SkillSummary summarizes a pack's skill for an at-a-glance UI.
+//
+// The rule lives in the contract layer (kernel/contract/marketapi); this is a
+// delegation, so there is one summary.
+func SkillSummary(ps PackSkill) (string, error) { return marketapi.SkillSummary(ps) }
+
+// safeRelPath rejects a resource path that would escape the bundle's
+// directory.
+//
+// The rule lives in the contract layer (kernel/contract/marketapi); this is a
+// delegation, so there is one rule.
+func safeRelPath(rel string) error { return marketapi.SafeRelPath(rel) }
