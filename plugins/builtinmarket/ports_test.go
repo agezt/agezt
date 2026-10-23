@@ -6,6 +6,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/marketapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 )
 
@@ -101,7 +102,9 @@ func TestABundleThatDoesNotParseIsSkipped(t *testing.T) {
 
 // TestThePortIsTheContractsPort: the catalogue's constructor takes the
 // CONTRACT's port, so the daemon can hand the implementations over without
-// the plugin naming a module.
+// the plugin naming a module — and the catalogue itself implements the
+// contract's catalogue port.
 func TestThePortIsTheContractsPort(t *testing.T) {
 	var _ skillapi.Builtins = fakeBuiltins{}
+	var _ marketapi.Library = (*Library)(nil)
 }

@@ -3,7 +3,7 @@
 // Package builtinmarket is the marketplace's built-in "Official" catalogue: it
 // wraps the binary's embedded skill bundles (the skills module's built-in bundles) — and a few
 // curated combo packs that add an MCP server + CLI-tool requirements — into
-// installable market.Packs. It is always present and works offline; remote
+// installable packs. It is always present and works offline; remote
 // marketplaces (Phase 2) layer on top. It references the embedded bundle bytes
 // via the contract's built-ins port rather than duplicating them.
 package builtinmarket
@@ -11,9 +11,9 @@ package builtinmarket
 import (
 	"fmt"
 
+	"github.com/agezt/agezt/kernel/contract/marketapi"
 	"github.com/agezt/agezt/kernel/contract/mcpapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
-	"github.com/agezt/agezt/kernel/market"
 )
 
 // MarketplaceName is the built-in catalogue's stable name.
@@ -139,17 +139,17 @@ var combos = []combo{
 	},
 }
 
-// Library is the built-in Official marketplace, implementing market.Library.
+// Library is the built-in Official marketplace, implementing marketapi.Library.
 type Library struct {
-	packs    []market.Pack
-	index    map[string]market.Pack
+	packs    []marketapi.Pack
+	index    map[string]marketapi.Pack
 	featured map[string]bool
 }
 
 // New builds the Official library from the embedded skill bundles + combos.
 // Best-effort per bundle: a bundle that fails to read is skipped, not fatal.
 func New(builtins skillapi.Builtins) *Library {
-	l := &Library{index: map[string]market.Pack{}, featured: map[string]bool{}}
+	l := &Library{index: map[string]marketapi.Pack{}, featured: map[string]bool{}}
 	for _, name := range builtins.Names() {
 		md, res, err := builtins.Bundle(name)
 		if err != nil {
@@ -159,29 +159,29 @@ func New(builtins skillapi.Builtins) *Library {
 		if perr != nil {
 			continue
 		}
-		l.add(market.Pack{
+		l.add(marketapi.Pack{
 			Name:        name + "-pack",
 			Version:     "1.0.0",
 			Description: parsed.Description,
 			Author:      "AGEZT",
 			Category:    categoryFor(name),
 			Tags:        append([]string{name}, parsed.Triggers...),
-			Skills:      []market.PackSkill{{SkillMD: string(md), Resources: res}},
+			Skills:      []marketapi.PackSkill{{SkillMD: string(md), Resources: res}},
 		})
 	}
 	for _, c := range combos {
-		var packSkills []market.PackSkill
+		var packSkills []marketapi.PackSkill
 		for _, name := range c.skills {
 			md, res, err := builtins.Bundle(name)
 			if err != nil {
 				continue
 			}
-			packSkills = append(packSkills, market.PackSkill{SkillMD: string(md), Resources: res})
+			packSkills = append(packSkills, marketapi.PackSkill{SkillMD: string(md), Resources: res})
 		}
 		if len(packSkills) == 0 {
 			continue
 		}
-		l.add(market.Pack{
+		l.add(marketapi.Pack{
 			Name:             c.name,
 			Version:          "1.0.0",
 			Description:      c.desc,
@@ -199,7 +199,7 @@ func New(builtins skillapi.Builtins) *Library {
 	return l
 }
 
-func (l *Library) add(p market.Pack) {
+func (l *Library) add(p marketapi.Pack) {
 	l.packs = append(l.packs, p)
 	l.index[p.Name] = p
 }
@@ -211,37 +211,37 @@ func categoryFor(bundle string) string {
 	return "skills"
 }
 
-// Marketplaces implements market.Library: a single built-in Official catalogue.
-func (l *Library) Marketplaces() []market.Marketplace {
-	entries := make([]market.MarketplaceEntry, 0, len(l.packs))
+// Marketplaces implements the contract's marketapi.Library: a single built-in Official catalogue.
+func (l *Library) Marketplaces() []marketapi.Marketplace {
+	entries := make([]marketapi.MarketplaceEntry, 0, len(l.packs))
 	for _, p := range l.packs {
 		e := p.Entry("")
 		e.Featured = l.featured[p.Name]
 		entries = append(entries, e)
 	}
-	return []market.Marketplace{{
+	return []marketapi.Marketplace{{
 		Name:          MarketplaceName,
 		Owner:         "AGEZT",
-		FormatVersion: market.FormatVersion,
+		FormatVersion: marketapi.FormatVersion,
 		Builtin:       true,
 		Packs:         entries,
 	}}
 }
 
-// ResolvePack implements market.Library. An explicit version is an exact
+// ResolvePack implements the contract's marketapi.Library. An explicit version is an exact
 // request, honored only when the catalogue carries it — anything else is an
 // error naming what Official actually has, never a silent substitute. That
 // matters beyond this package: the composite library consults the builtin
 // FIRST, so a version-mismatch error here falls through to the synced
 // marketplaces (which may genuinely carry the requested version), whereas a
 // silent hit here would shadow them with a version nobody asked for.
-func (l *Library) ResolvePack(_, name, version string) (market.Pack, error) {
+func (l *Library) ResolvePack(_, name, version string) (marketapi.Pack, error) {
 	p, ok := l.index[name]
 	if !ok {
-		return market.Pack{}, fmt.Errorf("builtinmarket: pack %q not found in the Official marketplace", name)
+		return marketapi.Pack{}, fmt.Errorf("builtinmarket: pack %q not found in the Official marketplace", name)
 	}
-	if version != "" && market.CompareVersions(p.Version, version) != 0 {
-		return market.Pack{}, fmt.Errorf("builtinmarket: Official carries %q at %s, not %s", name, p.Version, version)
+	if version != "" && marketapi.CompareVersions(p.Version, version) != 0 {
+		return marketapi.Pack{}, fmt.Errorf("builtinmarket: Official carries %q at %s, not %s", name, p.Version, version)
 	}
 	return p, nil
 }

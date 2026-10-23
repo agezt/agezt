@@ -1,9 +1,6 @@
-package market
+// SPDX-License-Identifier: MIT
 
-// Provenance: SPDX-License-Identifier: MIT kernel/market Pack methods (Counts,
-//             Validate, CanonicalBytes, ContentHash, Entry). Extracted from
-//             market.go during Day 211 god-file refactor (#87). Public API
-//             unchanged.
+package marketapi
 
 import (
 	"crypto/sha256"
@@ -12,13 +9,20 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
+	"github.com/agezt/agezt/kernel/contract/mcpapi"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 )
 
+// Counts returns how many skills, MCP servers and CLI-tool requirements the
+// pack carries — the at-a-glance numbers a gallery card shows.
 func (p Pack) Counts() (skills, mcps, tools int) {
 	return len(p.Skills), len(p.MCPServers), len(p.ToolRequirements)
 }
+
+// Validate reports whether the pack may be installed: its name is a safe
+// identifier, its version is semver, it carries something at all, every skill
+// it carries is a parseable SKILL.md with safe resource paths, and every MCP
+// server it carries passes the contract's own check.
 func (p Pack) Validate() error {
 	if !nameRe.MatchString(p.Name) {
 		return fmt.Errorf("market: pack name must match %s", nameRe)
@@ -33,22 +37,26 @@ func (p Pack) Validate() error {
 		if strings.TrimSpace(ps.SkillMD) == "" {
 			return fmt.Errorf("market: pack %q skill #%d has empty SKILL.md", p.Name, i)
 		}
-		if _, err := skill.ParseSkillMD([]byte(ps.SkillMD)); err != nil {
+		if _, err := skillapi.ParseSkillMD([]byte(ps.SkillMD)); err != nil {
 			return fmt.Errorf("market: pack %q skill #%d: %w", p.Name, i, err)
 		}
 		for rel := range ps.Resources {
-			if err := safeRelPath(rel); err != nil {
+			if err := SafeRelPath(rel); err != nil {
 				return fmt.Errorf("market: pack %q skill #%d resource %q: %w", p.Name, i, rel, err)
 			}
 		}
 	}
 	for i := range p.MCPServers {
-		if err := mcp.Validate(p.MCPServers[i]); err != nil {
+		if err := mcpapi.Validate(p.MCPServers[i]); err != nil {
 			return fmt.Errorf("market: pack %q mcp #%d: %w", p.Name, i, err)
 		}
 	}
 	return nil
 }
+
+// CanonicalBytes returns the pack's canonical bytes — the bytes a signature
+// is over and the content hash is computed from. The signature is stripped:
+// it signs the content, so it cannot be part of it.
 func (p Pack) CanonicalBytes() ([]byte, error) {
 	c := p
 	c.Signature = nil
@@ -56,6 +64,9 @@ func (p Pack) CanonicalBytes() ([]byte, error) {
 	// content hash because packs are built deterministically.
 	return json.Marshal(c)
 }
+
+// ContentHash returns the pack's content hash — the hex SHA-256 of its
+// canonical bytes.
 func (p Pack) ContentHash() (string, error) {
 	b, err := p.CanonicalBytes()
 	if err != nil {
@@ -64,6 +75,9 @@ func (p Pack) ContentHash() (string, error) {
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:]), nil
 }
+
+// Entry returns the pack's catalogue row — the metadata a marketplace index
+// lists it under, plus where to fetch the full pack from.
 func (p Pack) Entry(source string) MarketplaceEntry {
 	hash, _ := p.ContentHash()
 	skills, mcps, tools := p.Counts()
