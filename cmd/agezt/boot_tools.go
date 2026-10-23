@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/app/acpbridge"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/toolreg"
@@ -36,18 +37,7 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine, notifyTarg
 	// Idempotent (Register replaces by name), so tests calling buildTools
 	// repeatedly and the daemon calling it at boot are both fine.
 	builtintools.RegisterAll()
-	set, err := toolreg.BuildAll(toolreg.BuildDeps{
-		BaseDir: baseDir,
-		// Workspace root — both the file tool (scoped to it) and the shell
-		// tool (runs in it, M609) use this so `dir`/`ls` (shell) and `file
-		// read x` (file) agree on what "here" is.
-		WorkspaceRoot: workspaceRoot(baseDir),
-		Warden:        ward,
-		Stderr:        stderr,
-		Get:           os.Getenv,
-		AllowAll:      os.Getenv(brand.EnvPrefix+"ALLOW_ALL") == "1",
-		NotifyTargets: notifyTargets,
-	})
+	set, err := toolreg.BuildAll(toolBuildDeps(baseDir, stderr, ward, notifyTargets))
 	if err != nil {
 		return nil, nil, nil, nil, "", err
 	}
@@ -67,6 +57,36 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine, notifyTarg
 	}
 
 	return set.Tools(), set, set.PluginManifest(), set.ToolCapabilities(), strings.Join(set.Descs(), ", "), nil
+}
+
+// toolBuildDeps assembles the pre-kernel dependencies the registry's Build
+// phase hands to the tools.
+//
+// It is a named function (not an inline literal in buildTools) because the
+// wiring it performs is a CONTRACT with the tools: the daemon hands over the
+// implementations of the ports those tools read through. A port that is
+// silently dropped here would leave a tool answering "not available" on every
+// live daemon — invisible to every test that builds the tool by hand. The
+// composition root's own test therefore asserts that the port this function
+// supplies is present and answers the live catalogue.
+func toolBuildDeps(baseDir string, stderr io.Writer, ward warden.Engine, notifyTargets map[string][]string) toolreg.BuildDeps {
+	return toolreg.BuildDeps{
+		BaseDir: baseDir,
+		// Workspace root — both the file tool (scoped to it) and the shell
+		// tool (runs in it, M609) use this so `dir`/`ls` (shell) and `file
+		// read x` (file) agree on what "here" is.
+		WorkspaceRoot: workspaceRoot(baseDir),
+		Warden:        ward,
+		Stderr:        stderr,
+		Get:           os.Getenv,
+		AllowAll:      os.Getenv(brand.EnvPrefix+"ALLOW_ALL") == "1",
+		NotifyTargets: notifyTargets,
+		// The acp_agent tool asks the ACP catalogue which agents this host
+		// has installed and which command a slug maps to; the tool is a
+		// plugin and may not name the catalogue module, so the daemon hands
+		// the contract's port over.
+		ACP: acpbridge.NewCatalog(),
+	}
 }
 
 // councilSeatName labels the i-th council seat (M837): the first three get

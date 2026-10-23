@@ -12,4 +12,11 @@
 // client, so an ACP prompt runs through the same kernel tool-loop + Edict +
 // journal as `agt run` — an editor driving Agezt does not bypass governance
 // (SPEC-15 §3.3).
+//
+// This package is the SERVER half only. The CLIENT half — the side that
+// drives an *external* ACP agent — lives in the platform layer
+// (kernel/platform/acpclient): it is protocol infrastructure with no domain
+// knowledge, and a plugin may reach the platform layer but not an adapter.
+// The JSON-RPC wire and the message framing are shared between the two
+// halves and live with the protocol, in the platform package.
 package acp

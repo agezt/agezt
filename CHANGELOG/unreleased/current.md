@@ -995,6 +995,22 @@ This file holds the active `[Unreleased]` working set.
   The guardians' quiet defaults — silent on success, no memory writes — are
   the operator's contract, and they are now asserted.
 
+- **The ACP bridge's two reaches become a platform client and a port.** The
+  **acp_agent** tool — the bridge that delegates a task to an *external* agent
+  that speaks the Agent Client Protocol — is a plugin, and it reached into two
+  places that were two different mistakes: it named the **ACP protocol
+  client**, which lived in the daemon's ACP **server** package (the inbound
+  adapter an IDE drives), and it named the **catalogue** of installed ACP
+  agents, which is a module's business.
+  The client is protocol infrastructure with no domain knowledge, so it moved
+  down to the platform layer (`kernel/platform/acpclient`), where a plugin
+  may reach it; the catalogue now answers through the contract's **port**
+  (`kernel/contract/acpapi`), and the daemon hands the port over at the
+  composition root.
+  The catalogue's slug-only resolution rule — the one that keeps a
+  prompt-injected selector from becoming a shell line — travels with the
+  port, and it is now measured at the port and at the tool.
+
 - **The briefing rows move to the contract layer.** The **pulse** engine
   composes the brief — the message the daemon pushes at the operator when
   something is worth saying — and the surfaces that deliver it (the daemon

@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.34 the briefing rows move to the contract layer, 2026-10-24
+## Current checkpoint — W3.35 the ACP bridge's two reaches become a platform client and a port, 2026-10-24
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2350,6 +2350,48 @@ files, five of the seventeen mutations would have escaped.
   an alias of the contract's row, so a plugin (or the channel factory
   layer) that named the module again would compile and pass every test in
   the package.
+
+- W3.35 (the ACP bridge's two reaches become a platform client and a port) is
+  committed on `main` the same way. The **acp_agent** tool — the bridge that
+  delegates a task to an *external* agent that speaks the Agent Client
+  Protocol — is a plugin, and it reached into two places that were two
+  different mistakes: it named the **ACP protocol client**, which lived in
+  `kernel/acp` (the daemon's ACP **server**, the inbound adapter an IDE
+  drives), and it named the **catalogue** of installed ACP agents, which is a
+  module's business.
+  The two halves are handled the two ways the architecture allows: the
+  client is protocol infrastructure with no domain knowledge, so it **moved
+  down** to the platform layer (`kernel/platform/acpclient`, with `git mv`,
+  so the history follows the code) — a plugin may reach the platform — and
+  the shared JSON-RPC wire and message framing moved with it, because the
+  server and the client speak the same wire; the catalogue answers through
+  the contract's **port** (`kernel/contract/acpapi`, three methods), the
+  app-layer adapter (`kernel/app/acpbridge`) answers that port from the
+  module, and the daemon hands the port over at the composition root.
+  The **ratchet went DOWN by TWO**: 85/13 → **83/13** — both `plugin-reach`
+  edges are gone and **both stale allowlist entries were deleted**.
+  The **security rule travels with the port**: the catalogue's resolution is
+  a CWE-78 rule (the selector arrives in agent/LLM tool input, so it is
+  treated strictly as a slug and the resolved command comes from the trusted
+  catalogue, never from the caller's string), and it is now measured **at
+  the port** (an injected selector never resolves to a command) and **at the
+  tool** (it asks the port, and a tool with no port says so instead of
+  calling into nothing).
+  The slice found a **measurement gap of its own**: the adapter's test first
+  compared the adapter's answers against the catalogue's own, which is
+  vacuous on a host where no ACP agent is installed — every CI machine — so
+  an adapter that lied about it passed. The test now pins a **known**
+  catalogue state, and the two mutations that survived the first round were
+  caught.
+  The plugin's **test** no longer reaches the adapter either: the fake
+  external agent now speaks the JSON-RPC wire directly (test imports do not
+  enter archcheck, and a test-only reach is one edit away from a production
+  one), while the client↔server round-trip proof moved to the **server's**
+  package, which may reach the client.
+  13 mutations: 13 caught — two survived the first round (the vacuous
+  comparison) and were caught after the test was strengthened; one produced a
+  **compile error** and was re-authored; and the last two are measured by the
+  **archcheck gate** rather than by a test.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/agezt/agezt/kernel/platform/acpclient"
 )
 
 // TestClientServerRoundTrip drives the real Server with the real Client over a
@@ -25,7 +27,7 @@ func TestClientServerRoundTrip(t *testing.T) {
 	srvDone := make(chan error, 1)
 	go func() { srvDone <- srv.Serve(context.Background()) }()
 
-	client := NewClient(s2cR, c2sW)
+	client := acpclient.NewClient(s2cR, c2sW)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -80,7 +82,7 @@ func TestClientPromptSurfacesAgentError(t *testing.T) {
 	srv := New(runner, c2sR, s2cW)
 	go func() { _ = srv.Serve(context.Background()) }()
 
-	client := NewClient(s2cR, c2sW)
+	client := acpclient.NewClient(s2cR, c2sW)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -107,7 +109,7 @@ func TestNewSession_EmptySessionID(t *testing.T) {
 	srv := New(runner, c2sR, s2cW)
 	go func() { _ = srv.Serve(context.Background()) }()
 
-	client := NewClient(s2cR, c2sW)
+	client := acpclient.NewClient(s2cR, c2sW)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
@@ -136,7 +138,7 @@ func TestNewSession_EmptySessionID(t *testing.T) {
 // Prompt() returned ("", nil); after the fix it returns ("", non-nil error).
 func TestClientPrompt_SurfacesStopReasonParseError(t *testing.T) {
 	pipeR, pipeW := io.Pipe()
-	client := NewClient(pipeR, pipeW)
+	client := acpclient.NewClient(pipeR, pipeW)
 
 	go func() {
 		br := bufio.NewReader(pipeR)
@@ -180,7 +182,7 @@ func TestClientCall_ContextCancel(t *testing.T) {
 	srv := New(runner, c2sR, s2cW)
 	go func() { _ = srv.Serve(context.Background()) }()
 
-	client := NewClient(s2cR, c2sW)
+	client := acpclient.NewClient(s2cR, c2sW)
 	// Use an already-cancelled context so call() sees ctx.Err() immediately.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

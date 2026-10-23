@@ -1,7 +1,7 @@
 # 07 — Autonomy & Extensibility
 
 **Scope:** `kernel/roster`, `kernel/cadence` (+ `cadence/systemtasks`), `kernel/scheduler`, `kernel/standing`, `kernel/pulse`,
-`kernel/selfrepair`, `kernel/modules/skills/skill` (+ `kernel/modules/skills/builtins`), `kernel/market`, `kernel/modules/extensions/plugin`, `kernel/modules/extensions/mcp`, `kernel/acp`, `kernel/modules/extensions/acpcatalog`,
+`kernel/selfrepair`, `kernel/modules/skills/skill` (+ `kernel/modules/skills/builtins`), `kernel/market`, `kernel/modules/extensions/plugin`, `kernel/modules/extensions/mcp`, `kernel/acp`, `kernel/platform/acpclient`, `kernel/modules/extensions/acpcatalog`,
 `kernel/workflow`, `kernel/workflowexec`, `kernel/update`, `kernel/modules/extensions/toolbox`, `kernel/channel`, `kernel/channelwire`,
 `kernel/stt`, `kernel/voicetool`, `kernel/imagetool`, `kernel/reranktool`, `kernel/internal/testfixtures`.
 Also covers the parts of `cmd/agezt` and `kernel/runtime` that turn these packages into running behaviour,
@@ -29,7 +29,7 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 | Capability packs | `market` | Packs = skills + MCP servers + CLI-tool needs; built-in Official catalogue + synced remotes; Ed25519 signing; heuristic vetting. |
 | Out-of-process tools | `plugin` | Child process speaking line-delimited JSON on stdio; BLAKE3 pin, tool allowlist, capability declaration. |
 | MCP client | `mcp` | Registry of MCP servers + stdio and Streamable-HTTP clients; tools bridged as `mcp_<server>_<tool>` or one lazy `mcp_<server>` dispatcher. |
-| IDE / external coding agents | `acp`, `acpcatalog` | ACP server (IDE → agezt via `agt acp`) + ACP client (agezt → Gemini/Claude Code/Codex) + discovery catalog. |
+| IDE / external coding agents | `acp`, `acpcatalog` | ACP server (IDE → agezt via `agt acp`) + ACP client (agezt → Gemini/Claude Code/Codex, in the platform layer) + discovery catalog. |
 | Host CLI tools | `toolbox` | 38-tool inventory, per-OS package-manager install (host level, unsandboxed). |
 | n8n-style automation | `workflow` (+ `kernel/runtime/workflowrun*.go`) | Typed node graph, `{{path}}` templating, cron/event/webhook/manual triggers, per-node retry/timeout, journal-backed run inspection. |
 | Messaging surfaces | `channel`, `channelwire` | `Channel` interface + `UnifiedMessage` vocabulary; factory layer building per-account instances; journal-folded conversation history. |
@@ -51,8 +51,8 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 | `market` | atomicfile, agent, contract/marketapi, edict, mcp, netguard, skill | cmd/agezt, cmd/agt, controlplane, runtime (+accessors) |
 | `plugin` | agent | cmd/agt, plugins/builtintools |
 | `mcp` | filestore, netguard, ulid | controlplane, market, runtime (+compose) |
-| `acp` | brand | cmd/agt, tools/acpagent |
-| `acpcatalog` | — | controlplane, tools/acpagent |
+| `acp` | brand, platform/acpclient | cmd/agt |
+| `acpcatalog` | — | app/acpbridge, controlplane |
 | `workflow` | bus, contract/workflowapi, event, filestore, ulid | cmd/agezt, controlplane, runtime |
 | `workflowexec` | — | **nobody** (dead; see §16.5) |
 | `update` | brand, netguard | cmd/agezt, controlplane, restapi |
@@ -1245,9 +1245,11 @@ A newly attached tool is visible **from the next run**.
 
 Tests: `client_test`, `http_test`, `store_test`, `coverage_supp_test`.
 
-## 13. `kernel/acp` — Agent Client Protocol (server and client)
+## 13. `kernel/acp` — Agent Client Protocol (server)
 
-**Purpose.** Lets IDEs such as Zed drive agezt over ACP: JSON-RPC 2.0, newline-delimited, on stdio (SPEC-15 §3). The work itself is done by a `Runner`. The package also has a `Client`, used by the `acp_agent` tool to drive external ACP agents.
+**Purpose.** Lets IDEs such as Zed drive agezt over ACP: JSON-RPC 2.0, newline-delimited, on stdio (SPEC-15 §3). The work itself is done by a `Runner`.
+
+The **client** half — the side that drives an *external* ACP agent — lives in the platform layer (`kernel/platform/acpclient`): it is protocol infrastructure with no domain knowledge, and the `acp_agent` tool is a plugin, which may reach the contract and the platform layers but not an adapter. The JSON-RPC wire and the message framing are shared by the two halves and live with the protocol, in the platform package (W3.35).
 
 **Server.**
 - `New(runner, in, out)`, `Serve(ctx)`.
@@ -1266,7 +1268,7 @@ Tests: `client_test`, `http_test`, `store_test`, `coverage_supp_test`.
 - Messages are capped at 8 MiB; writes are serialised.
 - **Governance:** `cmd/agt/acp.go controlPlaneRunner` streams `CmdRun` to the daemon, mapping `llm.token` to message chunks and `llm.reasoning` to thought chunks. ACP prompts therefore take the same governed path as `agt run`.
 
-**Client.**
+**Client** (in `kernel/platform/acpclient`).
 - `NewClient`, `Initialize`, `NewSession(ctx, cwd)`, `Prompt(ctx, sid, text, onChunk)`.
 - Relays only message chunks.
 
@@ -1275,16 +1277,15 @@ Tests: `client_test`, `http_test`, `store_test`, `coverage_supp_test`.
 - `Serve` is synchronous, so **cancel cannot interrupt a running prompt**.
 - `controlPlaneRunner` ignores `cwd`.
 - The client never answers requests that the agent sends to the client, such as `session/request_permission` or `fs/*`.
-- Some doc comments are attached to the wrong functions (`acp.go:22,205`, `acp_helpers.go:78`).
 
 **Files**
 
 | File | Contents |
 |---|---|
 | `doc.go` | Package doc. |
-| `acp.go` | `New`, wire types, `Serve`/`dispatch`, handlers, `writeMessage`. |
-| `acp_helpers.go` | Bounded scanner, `ProtocolVersion`, `ChunkKind`, `Runner`, `Server`, `flattenPrompt`. |
-| `client.go` | `Client`. |
+| `acp.go` | `New`, `Serve`/`dispatch`, handlers, `writeMessage`. |
+| `acp_helpers.go` | `ProtocolVersion`, `ChunkKind`, `Runner`, `Server`, `flattenPrompt`. |
+| `roundtrip_test.go` | The client↔server round-trip proof (the server's package may reach the client). |
 
 Tests: `acp_test`, `bound_test`, `client_test`, `coverage_direct_test`, `coverage_extra_test`.
 
@@ -1311,6 +1312,7 @@ Tests: `acp_test`, `bound_test`, `client_test`, `coverage_direct_test`, `coverag
 **Wiring.**
 - `controlplane/acp.go` serves the `acp_agents` command and `/api/acp/agents`.
 - `plugins/tools/acpagent` (capability `acp_agent`) spawns agents with `sandbox.Command` (`IsolatedEnv`) and a 5 m timeout.
+- The bridge tool asks the catalogue through the **contract's port** (`kernel/contract/acpapi`, three methods: `AnyInstalled`, `InstalledSlugs`, `ResolveCommand`); the app-layer adapter `kernel/app/acpbridge` answers it from this module, and the daemon hands the port over at the composition root (W3.35). The tool is a plugin, so it may not name this module.
 - No persistence and no events. The HTTP client is `netout.OperatorClient` (fixed URLs, 6 s timeout, metadata refused).
 
 **Gotchas.**

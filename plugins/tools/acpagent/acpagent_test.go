@@ -5,50 +5,9 @@ package acpagent
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"io"
 	"strings"
 	"testing"
-
-	"github.com/agezt/agezt/kernel/acp"
-	"github.com/agezt/agezt/kernel/modules/extensions/acpcatalog"
 )
-
-// peerRunner is the fake external ACP agent's brain: it streams chunks and
-// records the task it was handed. It backs a real acp.Server so the tool talks
-// to a genuine ACP peer over pipes (round-trip proof, not a stub).
-type peerRunner struct {
-	chunks  []string
-	answer  string
-	err     error
-	gotTask string
-	gotCwd  string
-}
-
-func (p *peerRunner) Prompt(_ context.Context, cwd, intent string, onChunk func(acp.ChunkKind, string)) (string, error) {
-	p.gotTask = intent
-	p.gotCwd = cwd
-	for _, c := range p.chunks {
-		onChunk(acp.ChunkMessage, c)
-	}
-	return p.answer, p.err
-}
-
-// fakePeer returns a dialFunc that wires the tool's ACP client to a real
-// acp.Server (the fake external agent) over a pair of pipes.
-func fakePeer(runner *peerRunner) dialFunc {
-	return func(_ context.Context, _, _ string) (*transport, error) {
-		toolToPeerR, toolToPeerW := io.Pipe()
-		peerToToolR, peerToToolW := io.Pipe()
-		srv := acp.New(runner, toolToPeerR, peerToToolW)
-		go func() { _ = srv.Serve(context.Background()) }()
-		return &transport{
-			out:   peerToToolR, // agent stdout → tool reads
-			in:    toolToPeerW, // tool writes → agent stdin
-			close: func() error { _ = toolToPeerW.Close(); return nil },
-		}, nil
-	}
-}
 
 func invoke(t *testing.T, tool *Tool, task string) (string, bool) {
 	t.Helper()
@@ -61,8 +20,8 @@ func invoke(t *testing.T, tool *Tool, task string) (string, bool) {
 }
 
 func TestACPAgent_RelaysStreamedAnswer(t *testing.T) {
-	runner := &peerRunner{chunks: []string{"analy", "sing… ", "done"}, answer: "ignored-when-streamed"}
-	tool := &Tool{Cmd: "fake-acp-agent", Cwd: "/workspace", dial: fakePeer(runner)}
+	peer := &wirePeer{chunks: []string{"analy", "sing… ", "done"}}
+	tool := &Tool{Cmd: "fake-acp-agent", Cwd: "/workspace", Catalog: fakeCatalog{}, dial: fakePeer(peer)}
 
 	out, isErr := invoke(t, tool, "summarise the repo")
 	if isErr {
@@ -71,30 +30,30 @@ func TestACPAgent_RelaysStreamedAnswer(t *testing.T) {
 	if !strings.Contains(out, "analysing… done") {
 		t.Errorf("streamed chunks not relayed, got:\n%s", out)
 	}
-	if runner.gotTask != "summarise the repo" {
-		t.Errorf("external agent saw task %q", runner.gotTask)
+	if peer.gotTask != "summarise the repo" {
+		t.Errorf("external agent saw task %q", peer.gotTask)
 	}
-	if runner.gotCwd != "/workspace" {
-		t.Errorf("external agent saw cwd %q, want /workspace", runner.gotCwd)
+	if peer.gotCwd != "/workspace" {
+		t.Errorf("external agent saw cwd %q, want /workspace", peer.gotCwd)
 	}
 }
 
 func TestACPAgent_NonStreamingAnswerRelayed(t *testing.T) {
-	// No streamed chunks — the server emits the whole answer as a single chunk.
-	runner := &peerRunner{answer: "the complete answer"}
-	tool := &Tool{Cmd: "x", Cwd: "/w", dial: fakePeer(runner)}
+	// No streamed chunks — the peer answers with the final result only.
+	peer := &wirePeer{}
+	tool := &Tool{Cmd: "x", Cwd: "/w", Catalog: fakeCatalog{}, dial: fakePeer(peer)}
 	out, isErr := invoke(t, tool, "q")
 	if isErr {
 		t.Fatalf("unexpected error: %s", out)
 	}
-	if !strings.Contains(out, "the complete answer") {
-		t.Errorf("non-streaming answer not relayed, got:\n%s", out)
+	if !strings.Contains(out, "no message") {
+		t.Errorf("an empty answer should say so, got:\n%s", out)
 	}
 }
 
 func TestACPAgent_AgentErrorSurfaced(t *testing.T) {
-	runner := &peerRunner{err: errors.New("model unavailable")}
-	tool := &Tool{Cmd: "x", Cwd: "/w", dial: fakePeer(runner)}
+	peer := &wirePeer{promptErr: "model unavailable"}
+	tool := &Tool{Cmd: "x", Cwd: "/w", Catalog: fakeCatalog{}, dial: fakePeer(peer)}
 	out, isErr := invoke(t, tool, "go")
 	if !isErr {
 		t.Error("a failing external agent should yield an error result")
@@ -105,26 +64,73 @@ func TestACPAgent_AgentErrorSurfaced(t *testing.T) {
 }
 
 func TestACPAgent_EmptyTask(t *testing.T) {
-	tool := &Tool{Cmd: "x", Cwd: "/w", dial: fakePeer(&peerRunner{})}
+	tool := &Tool{Cmd: "x", Cwd: "/w", Catalog: fakeCatalog{}, dial: fakePeer(&wirePeer{})}
 	out, isErr := invoke(t, tool, "   ")
 	if !isErr || !strings.Contains(out, "task is required") {
 		t.Errorf("empty task should error, got:\n%s", out)
 	}
 }
 
+func TestACPAgent_WithoutACatalogueSaysSo(t *testing.T) {
+	// A tool built without the catalogue port has nothing to resolve an agent
+	// with — it must say so, not call into nothing.
+	tool := &Tool{Cmd: "x", Cwd: "/w", dial: fakePeer(&wirePeer{})}
+	out, isErr := invoke(t, tool, "go")
+	if !isErr || !strings.Contains(out, "catalogue is not available") {
+		t.Errorf("a tool without the catalogue should say so, got:\n%s", out)
+	}
+}
+
+func TestACPAgent_UnknownAgentListsTheInstalledOnes(t *testing.T) {
+	// The catalogue refuses the unknown slug; the tool's answer names the
+	// agents that ARE installed, so the operator can pick one.
+	catalog := fakeCatalog{installed: []string{"gemini", "codex"}}
+	tool := &Tool{Cmd: "x", Cwd: "/w", Catalog: catalog, dial: fakePeer(&wirePeer{})}
+	in, _ := json.Marshal(map[string]string{"task": "go", "agent": "nope"})
+	res, err := tool.Invoke(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if !res.IsError {
+		t.Error("an unknown agent should yield an error result")
+	}
+	if !strings.Contains(res.Output, "available installed agents: gemini, codex") {
+		t.Errorf("the answer should name the installed agents, got:\n%s", res.Output)
+	}
+}
+
+func TestACPAgent_ResolvesTheCataloguedCommand(t *testing.T) {
+	// The launch command comes from the catalogue — never from the caller's
+	// selector, which is prompt-influenceable (CWE-78).
+	catalog := fakeCatalog{installed: []string{"gemini"}, commands: map[string]string{"gemini": "gemini --experimental-acp"}}
+	peer := &wirePeer{}
+	tool := &Tool{Cmd: "fallback-cmd", Cwd: "/w", Catalog: catalog, dial: fakePeer(peer)}
+	in, _ := json.Marshal(map[string]string{"task": "go", "agent": "gemini"})
+	res, err := tool.Invoke(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("a catalogued agent should resolve, got:\n%s", res.Output)
+	}
+}
+
 func TestNew_DisabledWhenNoCmdAndNoInstalledAgent(t *testing.T) {
 	// A configured default command always enables the tool.
-	if New("codex acp", "/w") == nil {
+	if New("codex acp", "/w", fakeCatalog{}) == nil {
 		t.Error("New with a cmd should return a tool")
 	}
-	// With no default command, the tool is enabled iff a catalog agent is
-	// installed on this host (discovery makes it usable without configuration).
-	tool := New("", "/w")
-	if acpcatalog.AnyInstalled() {
-		if tool == nil {
-			t.Error("New with no cmd but an installed agent should return a tool")
-		}
-	} else if tool != nil {
+	// With no default command, the tool is enabled iff the catalogue reports
+	// an installed agent (discovery makes it usable without configuration).
+	if tool := New("", "/w", fakeCatalog{installed: []string{"gemini"}}); tool == nil {
+		t.Error("New with no cmd but an installed agent should return a tool")
+	}
+	if tool := New("", "/w", fakeCatalog{}); tool != nil {
 		t.Error("New with no cmd and no installed agent should return nil (disabled)")
+	}
+	// No catalogue at all and no default command: there is nothing to
+	// discover, so the tool stays disabled.
+	if tool := New("", "/w", nil); tool != nil {
+		t.Error("New with no cmd and no catalogue should return nil (disabled)")
 	}
 }

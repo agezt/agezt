@@ -9,6 +9,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/platform/acpclient"
 )
 
 // errWriter fails on every Write, exercising the writeMessage error path where
@@ -45,7 +47,7 @@ func runRaw(t *testing.T, runner Runner, raw string) []map[string]any {
 // Serve: an over-cap line surfaces as bufio.ErrTooLong, which Serve wraps and
 // returns (rather than treating as a clean EOF).
 func TestServeDecodeErrorTooLong(t *testing.T) {
-	big := strings.Repeat("a", maxMessageBytes+1) + "\n"
+	big := strings.Repeat("a", acpclient.MaxMessageBytes+1) + "\n"
 	s := New(&fakeRunner{}, strings.NewReader(big), &bytes.Buffer{})
 	err := s.Serve(context.Background())
 	if err == nil {

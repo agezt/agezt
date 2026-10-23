@@ -9,8 +9,6 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-
-	"github.com/agezt/agezt/kernel/acp"
 )
 
 // TestACPPeerProcess is not a real test: when AGEZT_ACP_PEER=1 it acts as a
@@ -18,12 +16,16 @@ import (
 // live test below can spawn it as a genuine subprocess. It exits the process
 // directly so the testing framework never prints a summary onto stdout (which
 // would corrupt the JSON-RPC stream the bridge is reading).
+//
+// The peer speaks the wire directly (see peer_test.go) rather than borrowing
+// the daemon's ACP server: the server is an inbound adapter, and a plugin may
+// not reach one — not even from its test.
 func TestACPPeerProcess(t *testing.T) {
 	if os.Getenv("AGEZT_ACP_PEER") != "1" {
 		return // ordinary run: do nothing
 	}
-	srv := acp.New(&peerRunner{chunks: []string{"live ", "ACP ", "round-trip ok"}}, os.Stdin, os.Stdout)
-	_ = srv.Serve(context.Background())
+	peer := &wirePeer{chunks: []string{"live ", "ACP ", "round-trip ok"}}
+	peer.serve(os.Stdin, os.Stdout)
 	os.Exit(0)
 }
 
@@ -47,7 +49,7 @@ func TestLive_SpawnRealACPPeer(t *testing.T) {
 		cmd = "AGEZT_ACP_PEER=1 " + cmd
 	}
 
-	tool := &Tool{Cmd: cmd, Cwd: ".", dial: spawnAgent} // the REAL dial
+	tool := &Tool{Cmd: cmd, Cwd: ".", Catalog: fakeCatalog{}, dial: spawnAgent} // the REAL dial
 
 	in, _ := json.Marshal(map[string]string{"task": "say something"})
 	res, err := tool.Invoke(context.Background(), in)

@@ -11,50 +11,17 @@ import (
 	"io"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/platform/acpclient"
 )
 
-// maxMessageBytes bounds a single ACP JSON-RPC message. ACP is newline-delimited
-// JSON (both ends write via json.Encoder, which appends a newline), so a bounded
-// line scanner enforces a per-message cap that json.Decoder would not — one
-// oversized message from a misbehaving peer can't balloon memory (M257).
-const maxMessageBytes = 8 << 20
-
-// newBoundedScanner returns a line scanner whose token (one JSON-RPC message)
-// is capped at maxMessageBytes; an over-cap line surfaces as bufio.ErrTooLong.
+// New builds a Server reading JSON-RPC from in and writing to out.
 func New(runner Runner, in io.Reader, out io.Writer) *Server {
 	return &Server{
 		runner:   runner,
-		sc:       newBoundedScanner(in),
+		sc:       acpclient.NewBoundedScanner(in),
 		out:      out,
 		sessions: map[string]string{},
 	}
-}
-
-// --- JSON-RPC wire types ---
-
-type request struct {
-	JSONRPC string          `json:"jsonrpc"`
-	ID      json.RawMessage `json:"id,omitempty"` // absent for notifications
-	Method  string          `json:"method"`
-	Params  json.RawMessage `json:"params,omitempty"`
-}
-
-type response struct {
-	JSONRPC string          `json:"jsonrpc"`
-	ID      json.RawMessage `json:"id"`
-	Result  any             `json:"result,omitempty"`
-	Error   *rpcError       `json:"error,omitempty"`
-}
-
-type notification struct {
-	JSONRPC string `json:"jsonrpc"`
-	Method  string `json:"method"`
-	Params  any    `json:"params"`
-}
-
-type rpcError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
 }
 
 const (
@@ -69,8 +36,8 @@ func (s *Server) Serve(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		var req request
-		if err := scanMessage(s.sc, &req); err != nil {
+		var req acpclient.Request
+		if err := acpclient.ScanMessage(s.sc, &req); err != nil {
 			if err == io.EOF {
 				return nil
 			}
@@ -80,7 +47,7 @@ func (s *Server) Serve(ctx context.Context) error {
 	}
 }
 
-func (s *Server) dispatch(ctx context.Context, req request) {
+func (s *Server) dispatch(ctx context.Context, req acpclient.Request) {
 	switch req.Method {
 	case "initialize":
 		s.reply(req.ID, s.handleInitialize(req.Params))
@@ -102,7 +69,7 @@ func (s *Server) dispatch(ctx context.Context, req request) {
 
 func (s *Server) handleInitialize(_ json.RawMessage) any {
 	return map[string]any{
-		"protocolVersion": ProtocolVersion,
+		"protocolVersion": acpclient.ProtocolVersion,
 		"agentCapabilities": map[string]any{
 			"loadSession": false,
 			"promptCapabilities": map[string]any{
@@ -121,11 +88,11 @@ type newSessionParams struct {
 	Cwd string `json:"cwd"`
 }
 
-func (s *Server) handleNewSession(params json.RawMessage) (any, *rpcError) {
+func (s *Server) handleNewSession(params json.RawMessage) (any, *acpclient.RPCError) {
 	var p newSessionParams
 	if len(params) > 0 {
 		if err := json.Unmarshal(params, &p); err != nil {
-			return nil, &rpcError{codeInvalidParams, "invalid params: " + err.Error()}
+			return nil, &acpclient.RPCError{Code: codeInvalidParams, Message: "invalid params: " + err.Error()}
 		}
 	}
 	s.sessM.Lock()
@@ -146,10 +113,10 @@ type promptParams struct {
 	Prompt    []contentBlock `json:"prompt"`
 }
 
-func (s *Server) handlePrompt(ctx context.Context, params json.RawMessage) (any, *rpcError) {
+func (s *Server) handlePrompt(ctx context.Context, params json.RawMessage) (any, *acpclient.RPCError) {
 	var p promptParams
 	if err := json.Unmarshal(params, &p); err != nil {
-		return nil, &rpcError{codeInvalidParams, "invalid params: " + err.Error()}
+		return nil, &acpclient.RPCError{Code: codeInvalidParams, Message: "invalid params: " + err.Error()}
 	}
 	var cwd string
 	var ok bool
@@ -159,12 +126,12 @@ func (s *Server) handlePrompt(ctx context.Context, params json.RawMessage) (any,
 		cwd, ok = s.sessions[p.SessionID]
 	}()
 	if !ok {
-		return nil, &rpcError{codeInvalidParams, "unknown sessionId: " + p.SessionID}
+		return nil, &acpclient.RPCError{Code: codeInvalidParams, Message: "unknown sessionId: " + p.SessionID}
 	}
 
 	intent := flattenPrompt(p.Prompt)
 	if intent == "" {
-		return nil, &rpcError{codeInvalidParams, "empty prompt"}
+		return nil, &acpclient.RPCError{Code: codeInvalidParams, Message: "empty prompt"}
 	}
 
 	streamed := false
@@ -190,7 +157,7 @@ func (s *Server) handlePrompt(ctx context.Context, params json.RawMessage) (any,
 
 	answer, err := s.runner.Prompt(ctx, cwd, intent, onChunk)
 	if err != nil {
-		return nil, &rpcError{codeInternal, err.Error()}
+		return nil, &acpclient.RPCError{Code: codeInternal, Message: err.Error()}
 	}
 	// Non-streaming providers emit no chunks — deliver the answer as one.
 	if !streamed && answer != "" {
@@ -205,7 +172,7 @@ func (s *Server) handlePrompt(ctx context.Context, params json.RawMessage) (any,
 // flattenPrompt concatenates the text content blocks of a prompt into one
 // intent string (non-text blocks — images/resources — are ignored at v1).
 func (s *Server) sendUpdate(sessionID string, update map[string]any) {
-	s.writeMessage(notification{
+	s.writeMessage(acpclient.Notification{
 		JSONRPC: "2.0",
 		Method:  "session/update",
 		Params:  map[string]any{"sessionId": sessionID, "update": update},
@@ -216,10 +183,10 @@ func (s *Server) reply(id json.RawMessage, result any) {
 	if len(id) == 0 {
 		return
 	}
-	s.writeMessage(response{JSONRPC: "2.0", ID: id, Result: result})
+	s.writeMessage(acpclient.Response{JSONRPC: "2.0", ID: id, Result: result})
 }
 
-func (s *Server) replyOrError(id json.RawMessage, result any, rerr *rpcError) {
+func (s *Server) replyOrError(id json.RawMessage, result any, rerr *acpclient.RPCError) {
 	if rerr != nil {
 		s.replyError(id, rerr.Code, rerr.Message)
 		return
@@ -231,7 +198,7 @@ func (s *Server) replyError(id json.RawMessage, code int, msg string) {
 	if len(id) == 0 {
 		return
 	}
-	s.writeMessage(response{JSONRPC: "2.0", ID: id, Error: &rpcError{Code: code, Message: msg}})
+	s.writeMessage(acpclient.Response{JSONRPC: "2.0", ID: id, Error: &acpclient.RPCError{Code: code, Message: msg}})
 }
 
 // writeMessage serializes one JSON-RPC message as a single newline-terminated
