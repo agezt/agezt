@@ -86,6 +86,14 @@ type KernelDeps struct {
 	// over without naming the live kernel. Nil when unwired: the tools then
 	// report that reasoning is unavailable.
 	Reasoning reasoningapi.Runner
+	// WorkflowRunner is the write-and-run port of the workflow library: the
+	// agent authors and runs durable workflows through it (W3.39c). The read
+	// side is the store (`Workflows`).
+	WorkflowRunner workflowapi.Runner
+	// WorkboardRunner is the move-and-claim port of the workboard: the
+	// durable, journaled path for typed work items (W3.39c). The read side
+	// is the store (`Workboard`).
+	WorkboardRunner workboardapi.Runner
 	// NetguardPublish returns the per-tool OnBlock callback that journals a
 	// netguard.blocked event (M109). Supplied by the daemon; Configure wires it
 	// into every Netguard spec's instances that implement NetguardAware.

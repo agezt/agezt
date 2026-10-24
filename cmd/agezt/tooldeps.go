@@ -47,6 +47,12 @@ func toolKernelDeps(k *runtime.Kernel, baseDir string, stdout io.Writer) toolreg
 		// The council, conductor and research tools drive the daemon's
 		// reasoning surface through the contract's port (W3.39b).
 		Reasoning: reasoningPort(k),
+		// The workflow tool drives the daemon's workflow library through the
+		// contract's write-and-run port (W3.39c).
+		WorkflowRunner: workflowPort(k),
+		// The workboard tool drives the daemon's workboard through the
+		// contract's move-and-claim port (W3.39c).
+		WorkboardRunner: workboardPort(k),
 		// The overseer tool steers the fleet through a contract port; the
 		// implementation that answers it needs the live kernel and the board
 		// store, so the daemon builds it here (the tool is a plugin and may
@@ -174,6 +180,32 @@ func boardPort(st *board.Store) boardapi.Store {
 // bind a runner that is not there instead of reporting that reasoning is
 // unavailable.
 func reasoningPort(k *runtime.Kernel) reasoningapi.Runner {
+	if k == nil {
+		return nil
+	}
+	return k
+}
+
+// workflowPort hands the kernel's workflow library to the tool registry as
+// the contract's write-and-run port (W3.39c) — the workflow tool authors and
+// runs durable workflows through it.
+//
+// The same nil-port rule: a nil kernel handed to an interface parameter is a
+// non-nil interface, and the tool would bind a runner that is not there.
+func workflowPort(k *runtime.Kernel) workflowapi.Runner {
+	if k == nil {
+		return nil
+	}
+	return k
+}
+
+// workboardPort hands the kernel's workboard to the tool registry as the
+// contract's move-and-claim port (W3.39c) — the workboard tool drives the
+// durable, journaled path for typed work items through it.
+//
+// The same nil-port rule: a nil kernel handed to an interface parameter is a
+// non-nil interface, and the tool would bind a runner that is not there.
+func workboardPort(k *runtime.Kernel) workboardapi.Runner {
 	if k == nil {
 		return nil
 	}

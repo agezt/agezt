@@ -36,7 +36,7 @@ func TestTheWorkflowSpecWiresTheLibraryPort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{K: k, Workflows: k.Workflows()}); err != nil {
+	if err := spec.Configure(built.Tool, toolreg.KernelDeps{WorkflowRunner: k, Workflows: k.Workflows()}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
@@ -64,7 +64,7 @@ func TestTheWorkflowSpecWiresTheLibraryPort(t *testing.T) {
 }
 
 // TestTheWorkflowSpecSurvivesAMissingLibraryPort: a daemon that handed over
-// only the kernel must leave the read op reporting that the library is
+// only the runner must leave the read op reporting that the library is
 // unavailable — not dereferencing nil.
 func TestTheWorkflowSpecSurvivesAMissingLibraryPort(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
@@ -78,7 +78,7 @@ func TestTheWorkflowSpecSurvivesAMissingLibraryPort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{K: k}); err != nil {
+	if err := spec.Configure(built.Tool, toolreg.KernelDeps{WorkflowRunner: k}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
