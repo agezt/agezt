@@ -543,3 +543,79 @@ func TestTheMCPAndStandingPortsStayNilWithoutAKernel(t *testing.T) {
 		t.Fatalf("a missing kernel must yield no lookup, got %v", got != nil)
 	}
 }
+
+// TestToolKernelDepsSuppliesTheScheduleAndSkillPorts: the schedule and the
+// skill tools drive the daemon's cadence store and skills forge through the
+// contract's ports (W3.39e). The ports are supplied HERE — at the
+// composition root — so a daemon that dropped them would leave two tools
+// answering "not available" on every live box, while every test that built
+// the tool by hand stayed green. This test is the only one that sees that
+// wiring, so it asserts it directly: the ports must be present AND they
+// must be the live ones.
+func TestToolKernelDepsSuppliesTheScheduleAndSkillPorts(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	deps := toolKernelDeps(k, t.TempDir(), io.Discard)
+	if deps.Schedules == nil {
+		t.Fatal("the daemon must supply the cadence store port")
+	}
+	if deps.Schedules != k.Schedules() {
+		t.Fatal("the cadence port must be the live store")
+	}
+	if deps.SkillForge == nil {
+		t.Fatal("the daemon must supply the skills forge port")
+	}
+	if deps.SkillForge != k.Forge() {
+		t.Fatal("the forge port must be the live forge")
+	}
+	if deps.SkillBundles == nil {
+		t.Fatal("the daemon must supply the bundle store port")
+	}
+	if deps.SkillBundles != k.Forge().Bundles() {
+		t.Fatal("the bundle port must be the live bundle store")
+	}
+}
+
+// TestTheScheduleAndSkillPortsStayNilWithoutAKernel: the same nil-port rule
+// as the other ports — a nil kernel handed to an interface parameter is a
+// non-nil interface, so the tools would bind a store that is not there.
+func TestTheScheduleAndSkillPortsStayNilWithoutAKernel(t *testing.T) {
+	if got := schedulesPort(nil); got != nil {
+		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
+	}
+	if got := skillForgePort(nil); got != nil {
+		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
+	}
+	if got := skillBundlesPort(nil); got != nil {
+		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
+	}
+}
+
+// TestTheBundlePortStaysNilWithoutBundles: the bundle store is OPTIONAL —
+// the forge leaves skills body-only when none is wired — so a daemon without
+// one must hand over a NIL port.
+//
+// The check is on the concrete type on purpose: a nil *skill.BundleStore
+// handed to an interface parameter is already a non-nil interface, so the
+// skill tool would bind a bundle store that is not there and panic on the
+// first resource read instead of reporting that bundles are unavailable.
+func TestTheBundlePortStaysNilWithoutBundles(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	if k.Forge().Bundles() == nil {
+		t.Fatal("the daemon's own forge must have a bundle store to unwire")
+	}
+	k.Forge().SetBundles(nil)
+
+	if got := skillBundlesPort(k); got != nil {
+		t.Fatalf("a forge without bundles must yield a nil port, got %v", got != nil)
+	}
+}

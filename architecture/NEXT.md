@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.39d the MCP and standing hosts become the contract's ports, 2026-10-24
+## Current checkpoint — W3.39e the schedule and skill rows become contract's ports, 2026-10-24
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2724,6 +2724,49 @@ files, five of the seventeen mutations would have escaped.
   field of every row is a contract row or a contract port — and the
   registry's rows can move to the contract layer, which is where the last
   `plugin-reach` edge falls with them.
+
+- W3.39e (the schedule and skill rows become contract's ports) is committed
+  on `main` the same way. Unlike the three slices before it, nothing had to
+  be *designed* here: the ports the two tools need were already in the
+  contract layer — the schedule tool takes the cadence store through
+  `cadenceapi.Store`, the skill tool takes the forge and its bundle store
+  through `skillapi.Forge` and `skillapi.BundleStore` — but the **spec**
+  reached them through the live kernel (`d.K.Schedules()`, `d.K.Forge()`,
+  `d.K.Roster().Get`), so the registry's row had to be the live kernel and
+  the row's type was a module's.
+  So `KernelDeps` gained three rows, all of them **existing** contract ports
+  (`Schedules`, `SkillForge`, `SkillBundles`), the two specs bind them
+  instead of `d.K`, and the daemon supplies them nil-safely. The roster
+  lookup the schedule tool needs is the **same closure** the standing tool
+  already takes (W3.39d) — one row, two readers.
+  **The ratchet did NOT move — 78/13, unchanged — for the fifth time** and
+  for the same reason. This slice removes the **fourth** of the five families.
+  **The slice's own finding is worth more than its number**: the mutation
+  run produced a **survivor** — "the bundle store port stops being
+  nil-safe" changed nothing — and it was not a weak mutation but a **real
+  rule with no measurement**. The bundle store is **optional** (the forge's
+  own doc says "nil leaves skills body-only", and `SetBundles` wires it only
+  when the daemon wants bundles), so a daemon without bundles hands over a
+  nil `*skill.BundleStore`, and without the check that nil pointer becomes a
+  **non-nil interface**: the skill tool would bind a bundle store that is not
+  there and panic on the first resource read. The rule was reachable but **no
+  test walked that path**, because every test ran a daemon that had bundles —
+  the measurement gap this project keeps naming ("a path nobody walks is not
+  a path").
+  The fix was **a test, not a weaker mutation**: the daemon's test now
+  unwires the bundles (`k.Forge().SetBundles(nil)`) and asserts that the
+  port stays a **nil** port, checked on the concrete type because a nil
+  `*skill.BundleStore` handed to an interface parameter is already a non-nil
+  interface.
+  9 mutations: 9 caught — after the gap was closed.
+  **One family and the final move remain**: the forge row and the platform
+  rows. `forgetool.Kernel` names the toolforge rows plus `approval.Decision`,
+  which is a **platform** type — the port can move only after that row moves
+  with it, and moving it means moving the decision row to the contract layer
+  with an alias. The **warden**, the **bus** and the **journal** are platform
+  types too: the bus and the journal carry `event.Event`, which cannot move
+  to the contract layer (it hashes with blake3), so those two need an
+  **adapter** rather than an alias.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

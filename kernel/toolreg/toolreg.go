@@ -29,6 +29,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/configapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/introspectapi"
@@ -36,6 +37,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/overseerapi"
 	"github.com/agezt/agezt/kernel/contract/pluginapi"
 	"github.com/agezt/agezt/kernel/contract/reasoningapi"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
@@ -108,6 +110,16 @@ type KernelDeps struct {
 	// cannot live in a module's implementation package — but a function
 	// value names no type at all.
 	AgentLookup func(ref string) (agentapi.Profile, bool)
+	// Schedules is the daemon's cadence store: the schedule tool writes its
+	// entries through the contract's port (W3.39e).
+	Schedules cadenceapi.Store
+	// SkillForge is the daemon's skills forge: the skill tool authors,
+	// promotes and retires its own procedures through the contract's port
+	// (W3.39e).
+	SkillForge skillapi.Forge
+	// SkillBundles is the forge's bundle store — the contract's port, and a
+	// nil one leaves the tool reporting that bundles are unavailable.
+	SkillBundles skillapi.BundleStore
 	// NetguardPublish returns the per-tool OnBlock callback that journals a
 	// netguard.blocked event (M109). Supplied by the daemon; Configure wires it
 	// into every Netguard spec's instances that implement NetguardAware.

@@ -13,7 +13,6 @@ package builtintools
 // store and stay in main.go until the LateDeps PR.
 
 import (
-	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/plugins/tools/forgetool"
@@ -41,12 +40,11 @@ func specSchedule() toolreg.Spec {
 			return toolreg.Built{Tool: st}, nil
 		},
 		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
-			if d.K == nil {
-				return nil
-			}
-			if sched := d.K.Schedules(); sched != nil {
-				st.Bind(sched)
-				st.BindAgentLookup(d.K.Roster().Get)
+			if d.Schedules != nil {
+				st.Bind(d.Schedules)
+				if d.AgentLookup != nil {
+					st.BindAgentLookup(d.AgentLookup)
+				}
 			}
 			return nil
 		},
@@ -110,19 +108,12 @@ func specSkill() toolreg.Spec {
 			return toolreg.Built{Tool: sk}, nil
 		},
 		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
-			if d.K == nil {
-				return nil
-			}
-			if fg := d.K.Forge(); fg != nil {
+			if d.SkillForge != nil {
 				// The bundle store is handed over through the contract's
 				// port: a nil store must stay a nil port, or the tool would
 				// call into a nil implementation instead of reporting that
 				// bundles are unavailable.
-				var bundles skillapi.BundleStore
-				if b := fg.Bundles(); b != nil {
-					bundles = b
-				}
-				sk.Bind(fg, bundles)
+				sk.Bind(d.SkillForge, d.SkillBundles)
 			}
 			return nil
 		},

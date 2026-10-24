@@ -34,7 +34,7 @@ func TestTheSkillSpecWiresTheLiveForge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{K: k}); err != nil {
+	if err := spec.Configure(built.Tool, toolreg.KernelDeps{SkillForge: k.Forge(), SkillBundles: k.Forge().Bundles()}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
@@ -95,7 +95,7 @@ func TestTheSkillSpecHandsOverTheBundlePort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{K: k}); err != nil {
+	if err := spec.Configure(built.Tool, toolreg.KernelDeps{SkillForge: k.Forge(), SkillBundles: k.Forge().Bundles()}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
