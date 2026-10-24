@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.41 the kernel names the contract's rows and holds the contract's port, 2026-10-24
+## Current checkpoint — W3.42 the data lake is the daemon's file, 2026-10-24
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -3020,6 +3020,42 @@ files, five of the seventeen mutations would have escaped.
   three media tool seams (`imagetool`, `reranktool`, `voicetool`), which are
   blocked behind the artifact store: the voice and image tools need it, so the
   daemon has to own that store before the daemon can own those tools.
+- W3.42 (the data lake is the daemon's file) is committed on `main` the same
+  way. It takes **two** edges at once — the kernel's own and the run engine's
+  — and it is the cheapest of the remaining ones **because the contract side
+  was already done**: `kernel/contract/datalakeapi.Lake` (nine verbs)
+  existed, the module already asserted it
+  (`var _ datalakeapi.Lake = (*Lake)(nil)`), and every row the lake carries
+  was already an alias of the contract's. **Nothing had to move.** What was
+  missing was the kernel's own use: it opened the lake, seeded it, and held
+  the concrete type. Now the kernel holds the **port** and the composition
+  root owns the **file** — the shape W3.41 established for the seat catalog.
+  The **seeding moved with the file**, and it is worth saying why:
+  **seeding is not part of the port.** A port says how to drive a thing; it
+  does not say how the thing is prepared. The daemon seeds the lake while it
+  still holds the concrete one. The posture is unchanged — a lake that cannot
+  be opened is a **startup error**, and a seeding hiccup is still
+  best-effort.
+  The daemon's `lakePort` wrapper — the one place where a missing lake could
+  have become a non-nil port — is **gone with the wrapping**: the kernel
+  holds the port, so there is nothing to wrap, and the nil-port rule moved
+  into the kernel, where the field is an interface and a kernel given no lake
+  holds a **nil** interface rather than a nil pointer in an interface.
+  **The ratchet went DOWN by TWO: 63/13 → 61/13.**
+  **6 mutations, 6 caught**, two of them **gate-measured** by archcheck (the
+  kernel opens the lake again; a stale allowlist entry comes back), because
+  "the kernel's reach is smaller" is not something a test can see.
+  **What remains**: the kernel still reaches **17** modules. Next, in order:
+  **`artifact`** — the only one that unblocks the three media tool seams
+  (`imagetool`, `reranktool`, `voicetool`), because the voice and image tools
+  are bound to the artifact store *inside the kernel*; it needs new contract
+  surface (a blob port, a wider index port, and `artifact.RefGuard`).
+  **`toolforge`** — the rows are aliases, but the kernel calls **eight** store
+  methods the contract's two-verb port does not cover. **`workflow` and
+  `workboard`** — both need wide new ports: the kernel names
+  `workflow.Engine`, `workflow.Ports`, `workflow.Provenance` and
+  `workflow.Trigger` (no contract home), and it calls **seventeen** workboard
+  store methods.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
