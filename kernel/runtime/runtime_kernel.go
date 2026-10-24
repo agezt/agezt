@@ -41,7 +41,6 @@ import (
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/resume"
-	"github.com/agezt/agezt/kernel/runtime/accessors"
 	"github.com/agezt/agezt/kernel/runtime/lifecycle"
 	"github.com/agezt/agezt/kernel/runtime/runexec"
 	"github.com/agezt/agezt/kernel/scheduler"
@@ -122,14 +121,6 @@ type Kernel struct {
 	// to *Kernel. Initialised in Open(); nil before that, so any
 	// method that goes through it is safe to call only post-Open.
 	lifecycle *lifecycle.Manager
-
-	// accessors is the read-side sub-manager extracted as a separate
-	// Go sub-package on Day 13. See kernel/runtime/accessors. As of
-	// this commit only the simple store getters (Journal, Bus,
-	// State, Edict, Warden, Approvals, Scheduler, Provider, Memory,
-	// AgentGateway, Schedules) are routed through it; the rest of
-	// the read surface lands in subsequent commits.
-	accessors *accessors.Accessor
 
 	// runexec is the run-engine sub-manager extracted as a separate
 	// Go sub-package on Day 21. See kernel/runtime/runexec. As of

@@ -46,7 +46,6 @@ import (
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/reranktool"
 	"github.com/agezt/agezt/kernel/resume"
-	"github.com/agezt/agezt/kernel/runtime/accessors"
 	"github.com/agezt/agezt/kernel/runtime/lifecycle"
 	"github.com/agezt/agezt/kernel/runtime/runexec"
 	"github.com/agezt/agezt/kernel/scheduler"
@@ -444,11 +443,6 @@ func Open(cfg Config) (*Kernel, error) {
 	// the fully-built *Kernel. The Manager only holds a KernelAPI
 	// reference; it does not own the kernel's lifecycle state.
 	k.lifecycle = lifecycle.New(k)
-
-	// Wire the accessors sub-manager (Day 13 split). Same pattern:
-	// the Accessor holds a KernelAPI reference; it does not own any
-	// state of its own.
-	k.accessors = accessors.New(k)
 
 	// Wire the runexec sub-manager (Day 22 split). The Runner holds
 	// a KernelAPI reference; Day 23 will move the 260-line RunWith
