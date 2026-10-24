@@ -20,11 +20,14 @@
 package toolforgeapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/agezt/agezt/kernel/contract/approvalapi"
 )
 
 // Status is a script tool's lifecycle state.
@@ -123,4 +126,28 @@ type Store interface {
 	Get(ref string) (ScriptTool, bool)
 	// List returns every stored tool.
 	List() []ScriptTool
+}
+
+// Runner is the port through which a script tool's LIFECYCLE is driven:
+// draft it, edit it, test it in the sandbox, and ask the operator to promote
+// it.
+//
+// It is the contract's port, and the tool that drives it is a plugin — so the
+// row the registry carries cannot be the live kernel. The implementation —
+// the kernel's own forge methods — satisfies it without an adapter: its
+// signatures already speak the contract's rows (`toolforge.ScriptTool` is an
+// alias of `toolforgeapi.ScriptTool`, and `approval.Decision` is an alias of
+// `approvalapi.Decision`).
+type Runner interface {
+	// DraftScriptTool saves a new draft and returns it.
+	DraftScriptTool(corr string, st ScriptTool) (ScriptTool, error)
+	// UpdateScriptTool applies mutate to the tool at ref; the bool is
+	// false when no such tool exists.
+	UpdateScriptTool(corr, ref string, mutate func(*ScriptTool)) (ScriptTool, bool, error)
+	// TestScriptTool runs the tool at ref once in the sandbox with the
+	// given input and returns the tool and the run's output.
+	TestScriptTool(ctx context.Context, corr, ref, input string) (ScriptTool, string, error)
+	// RequestToolPromotion asks the operator to take the tool at ref live.
+	// It answers the operator's verdict, a human reason and an error.
+	RequestToolPromotion(ctx context.Context, corr, ref string) (ScriptTool, approvalapi.Decision, string, error)
 }

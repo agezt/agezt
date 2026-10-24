@@ -53,8 +53,9 @@ func specNotify() toolreg.Spec {
 
 // specSendMedia — the attachment-carrying sibling of notify (same allowlist
 // pinning), so the agent can push an image/voice/file artifact to the
-// operator. The artifact resolver goes through the live kernel's blob store,
-// resolved lazily per call (matching the old closure over k.Artifacts()).
+// operator. The artifact resolver goes through the registry's row — a plain
+// closure the daemon builds over the live blob store (W3.39g) — resolved
+// lazily per call.
 func specSendMedia() toolreg.Spec {
 	var smt *sendmedia.Tool
 	var targets map[string][]string
@@ -72,14 +73,12 @@ func specSendMedia() toolreg.Spec {
 			if d.ChannelSendMedia == nil {
 				return nil
 			}
-			k := d.K
+			resolve := d.ArtifactBytes
 			smt.Bind(d.ChannelSendMedia, targets, func(ref string) ([]byte, error) {
-				if k != nil {
-					if a := k.Artifacts(); a != nil {
-						return a.Get(ref)
-					}
+				if resolve == nil {
+					return nil, fmt.Errorf("artifact store unavailable")
 				}
-				return nil, fmt.Errorf("artifact store unavailable")
+				return resolve(ref)
 			})
 			return nil
 		},

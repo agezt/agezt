@@ -34,7 +34,7 @@ func TestTheToolForgeSpecWiresTheStorePort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{K: k, Forge: k.ToolForge()}); err != nil {
+	if err := spec.Configure(built.Tool, toolreg.KernelDeps{ForgeRunner: k, Forge: k.ToolForge()}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
@@ -76,7 +76,7 @@ func TestTheToolForgeSpecSurvivesAMissingStorePort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{K: k}); err != nil {
+	if err := spec.Configure(built.Tool, toolreg.KernelDeps{ForgeRunner: k}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 

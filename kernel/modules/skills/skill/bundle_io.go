@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"time"
 )
 
 func (b *BundleStore) Write(name string, files map[string][]byte) ([]string, error) {
@@ -61,12 +63,39 @@ func (b *BundleStore) Write(name string, files map[string][]byte) ([]string, err
 		os.RemoveAll(tmp)
 		return nil, fmt.Errorf("skill: replace bundle: %w", err)
 	}
-	if err := os.Rename(tmp, dst); err != nil {
+	if err := renameBundle(tmp, dst); err != nil {
 		os.RemoveAll(tmp)
 		return nil, fmt.Errorf("skill: commit bundle: %w", err)
 	}
 	sort.Strings(rels)
 	return rels, nil
+}
+
+// renameBundle renames the staged bundle over the destination.
+//
+// The rename is RETRIED on Windows. The old bundle is removed first, and
+// while a scanner (or an indexer) still holds a handle on one of its files
+// that delete is only PENDING: the directory is still there, and MoveFileEx
+// refuses to replace it — "Access is denied". The handle is released in
+// milliseconds, so a short bounded retry turns a hard boot failure (the
+// built-in skills are not seeded) into a successful swap.
+//
+// internal/atomicfile carries the same hazard for files and the same
+// remedy; a bundle is a DIRECTORY, so it cannot go through that helper.
+func renameBundle(oldPath, newPath string) error {
+	var err error
+	for attempt := 0; attempt < 5; attempt++ {
+		if attempt > 0 {
+			time.Sleep(time.Duration(attempt) * 20 * time.Millisecond)
+		}
+		if err = os.Rename(oldPath, newPath); err == nil {
+			return nil
+		}
+		if runtime.GOOS != "windows" || !os.IsPermission(err) {
+			return err
+		}
+	}
+	return err
 }
 func (b *BundleStore) List(name string) ([]string, error) {
 	slug := slugify(name)

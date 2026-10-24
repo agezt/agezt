@@ -25,26 +25,23 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/approvalapi"
 )
 
 // Decision is the operator's verdict on a pending Request.
-type Decision string
+//
+// The row is the contract's (kernel/contract/approvalapi): the tool that
+// asks for a promotion is a plugin, and a plugin may not name this package.
+// This package keeps the name as an ALIAS, so a verdict built here and a
+// verdict that crossed the contract's port are the SAME type.
+type Decision = approvalapi.Decision
 
 const (
-	DecisionGrant   Decision = "grant"
-	DecisionDeny    Decision = "deny"
-	DecisionTimeout Decision = "timeout" // synthesised when DefaultTimeout fires
-	DecisionCancel  Decision = "cancel"  // synthesised when caller ctx is cancelled
+	DecisionGrant   = approvalapi.DecisionGrant
+	DecisionDeny    = approvalapi.DecisionDeny
+	DecisionTimeout = approvalapi.DecisionTimeout // synthesised when DefaultTimeout fires
+	DecisionCancel  = approvalapi.DecisionCancel  // synthesised when caller ctx is cancelled
 )
-
-// IsTerminal reports whether d is a final outcome (any of the four).
-func (d Decision) IsTerminal() bool {
-	switch d {
-	case DecisionGrant, DecisionDeny, DecisionTimeout, DecisionCancel:
-		return true
-	}
-	return false
-}
 
 // DefaultTimeout caps how long a Submit blocks waiting for a Resolve.
 // SPEC-06 §3.4: "Time-outs default to deny."

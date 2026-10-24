@@ -26,15 +26,11 @@ import (
 // Kernel is the slice of the runtime kernel this tool drives — satisfied by
 // *runtime.Kernel and easy to fake in tests.
 //
-// The rows it carries are the contract's (kernel/contract/toolforgeapi): a
-// plugin may reach the contract layer and nothing else, so the tool names
-// the row, not the module that keeps it.
-type Kernel interface {
-	DraftScriptTool(corr string, st toolforgeapi.ScriptTool) (toolforgeapi.ScriptTool, error)
-	UpdateScriptTool(corr, ref string, mutate func(*toolforgeapi.ScriptTool)) (toolforgeapi.ScriptTool, bool, error)
-	TestScriptTool(ctx context.Context, corr, ref, input string) (toolforgeapi.ScriptTool, string, error)
-	RequestToolPromotion(ctx context.Context, corr, ref string) (toolforgeapi.ScriptTool, approval.Decision, string, error)
-}
+// The port is the CONTRACT's (kernel/contract/toolforgeapi): the tool is a
+// plugin, and a plugin may not name the module that keeps the forge — so the
+// registry's row has to be a port the contract owns. The alias keeps every
+// caller and every fake in this package's tests unchanged.
+type Kernel = toolforgeapi.Runner
 
 // Tool implements toolapi.Tool. Construct with New, then Bind the live kernel
 // once it opens (the daemon is the single wiring point).

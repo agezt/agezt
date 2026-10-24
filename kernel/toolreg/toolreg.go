@@ -82,7 +82,19 @@ type BuildDeps struct {
 
 // KernelDeps carries the post-Open dependencies for the Configure phase.
 type KernelDeps struct {
-	K *runtime.Kernel
+	// ForgeRunner is the port the tool_forge tool drives the script-tool
+	// lifecycle through — draft, update, test, ask the operator to promote
+	// (W3.39g). It is the CONTRACT's port: the tool is a plugin, and a plugin
+	// may not name the module that keeps the forge — and the live kernel is a
+	// module's type, so the row could not carry it. Nil when unwired — the
+	// tool then reports that the forge is unavailable.
+	ForgeRunner toolforgeapi.Runner
+	// ConductorExec installs the code executor the Verifier drives a worker's
+	// code with (W3.39g). It is a plain CLOSURE on purpose: a function value
+	// names no type, so the row stays in the contract without naming the
+	// kernel. Nil when unwired — the Verifier then always critiques instead
+	// of executing.
+	ConductorExec func(x toolregapi.ScriptRunner)
 	// Bus is the publish port the code_exec tool writes its code.executed
 	// event through. It is the CONTRACT's port: the tool is a plugin and may
 	// not name the platform package that keeps the bus (W3.39f). Nil when
@@ -180,6 +192,12 @@ type LateDeps struct {
 	KernelDeps
 	ChannelSend      func(ctx context.Context, kind, id, text string) error
 	ChannelSendMedia func(ctx context.Context, kind, id, text string, atts []channel.Attachment) error
+	// ArtifactBytes resolves an artifact reference to its bytes — the send_media
+	// tool's way of attaching a file an earlier run produced (W3.39g). It is a
+	// plain CLOSURE on purpose: a function value names no type, so the row
+	// stays in the contract without naming the artifact module. Nil when
+	// unwired — the tool then reports that the artifact store is unavailable.
+	ArtifactBytes func(ref string) ([]byte, error)
 	// Board is the shared message board the board tool posts through. It is
 	// the contract's PORT: the board module's store answers it, and a tool
 	// that could name the module's concrete store would reach into it (the
