@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.40 the kernel's dead accessors sub-manager is deleted, 2026-10-24
+## Current checkpoint — W3.41 the kernel names the contract's rows and holds the contract's port, 2026-10-24
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2972,6 +2972,54 @@ files, five of the seventeen mutations would have escaped.
   returns concrete module types (`Memory() *memory.Manager`,
   `World() *worldmodel.Graph`, `Forge() *skill.Forge`, …). Those rows are the
   next slice — they are the rows that have to become contract ports.
+- W3.41 (the kernel names the contract's rows, and holds the contract's port)
+  is committed on `main` the same way. The kernel still reached 22 modules;
+  three of those edges were three shapes of the same mistake, and all three
+  are gone. The **proof** and **assure** edges were free: every row the kernel
+  named was *already* the contract's row — the modules keep their names as
+  **aliases** of `proofapi` / `assureapi` — so naming the contract instead of
+  the module is a spelling change, not a type change, and no caller moved.
+  The **seat** edge was the real work and is the shape the remaining
+  nineteen edges need: **the kernel holds a port, the composition root owns
+  the file**. `kernel/contract/seatapi` is new — the `Seat` row (pure data)
+  and the `Store` port with the five verbs the host uses; the module keeps
+  `type Seat = seatapi.Seat` and asserts `var _ seatapi.Store = (*Store)(nil)`,
+  so a port change is a compile error in the module rather than a runtime
+  surprise at the composition root. The kernel's field, accessor and `Config`
+  now carry the **port**, `compose.go` opens nothing, and `cmd/agezt`'s
+  `openAppKernel` — which already binds the reasoning module and the reaper
+  over the kernel's own ports, exactly this pattern — opens the store and
+  injects it. A store that cannot be opened is still a **startup error**: it
+  is the daemon that refuses to boot now, not the kernel, so the daemon's
+  behaviour is unchanged.
+  A host given no catalog holds a **nil port**, and **both ends** of that
+  rule are measured: the daemon's catalog is live (the built-ins are there,
+  an unknown seat is refused), and the app side says *"the seat catalog is not
+  available"* instead of calling into nothing — the workboard execution
+  **degrades** to agent defaults (the posture an unknown seat takes), and the
+  seat validity check **mirrors the port's own semantics**: an empty id means
+  "no seat" and stays valid, a named seat cannot be confirmed and is refused.
+  That last one was the slice's one subtlety: the first nil-validator
+  refused *every* id and broke two existing workboard tests, because a task
+  with no seat is not asking for an unknown seat.
+  **The ratchet went DOWN by THREE: 66/13 → 63/13**
+  (`kernel/runtime -> kernel/modules/work/{proof,assure,seat}`).
+  **7 mutations, 7 caught**, two of them **gate-measured** by archcheck (the
+  kernel opens the seat store again; a stale allowlist entry comes back),
+  because "the kernel's reach is smaller" is not something a test can see: a
+  test would happily accept a kernel that opens the store itself, as long as
+  the store works. The new permanent tests pin the row's nine fields and JSON
+  tags, the port's five verbs, that the kernel holds **exactly** the port it
+  was given (not a wrapper of its own), and that a kernel given no catalog
+  holds **nil** — and not a non-nil interface holding a nil pointer, which is
+  the typed-nil trap.
+  **What remains**: the kernel still reaches **19** modules. The next
+  candidates are the ones whose rows are already in the contract and whose
+  kernel-side use is a handful of verbs — `workflow`, `workboard`,
+  `toolforge`, `artifact`, `datalake` all have contract ports today — and the
+  three media tool seams (`imagetool`, `reranktool`, `voicetool`), which are
+  blocked behind the artifact store: the voice and image tools need it, so the
+  daemon has to own that store before the daemon can own those tools.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

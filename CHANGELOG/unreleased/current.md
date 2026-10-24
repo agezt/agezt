@@ -4439,6 +4439,17 @@ This file holds the active `[Unreleased]` working set.
 
 ### Removed
 
+- **Removed: the kernel's reach on three modules it did not need (W3.41).** The
+  kernel named the workboard's proof module and the assurance module for rows
+  that the contract layer already publishes — the modules keep those names as
+  aliases, so the kernel now names the contract's rows and the two module
+  edges are gone. The seat catalog was the third: it is the daemon's file, so
+  the daemon opens it and hands the kernel a port (`kernel/contract/seatapi`),
+  and the kernel no longer opens a module's store. The architecture ratchet
+  went from 66 to 63 edges; no behaviour changed, and a catalog that cannot
+  be opened is still a startup error — now the daemon's to raise, not the
+  kernel's.
+
 - **Removed: the kernel's second, unreachable copy of its own read surface
   (W3.40).** The kernel used to wire a sub-manager that nothing ever called:
   it was built during startup and then read by nobody, because the kernel's
