@@ -7,22 +7,23 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/journalapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
-type fakeJournal struct{ evs []*event.Event }
+type fakeJournal struct{ evs []journalapi.Record }
 
-func (f *fakeJournal) Tail(n int) ([]*event.Event, error) { return f.evs, nil }
+func (f *fakeJournal) Tail(n int) ([]journalapi.Record, error) { return f.evs, nil }
 
-func ev(kind event.Kind, corr string, ts int64, payload any) *event.Event {
+func ev(kind event.Kind, corr string, ts int64, payload any) journalapi.Record {
 	b, _ := json.Marshal(payload)
-	return &event.Event{Kind: kind, CorrelationID: corr, TSUnixMS: ts, Payload: b}
+	return journalapi.Record{Kind: kind, CorrelationID: corr, TSUnixMS: ts, Payload: b}
 }
 
 // sample journal: lead-1 completed ($0.002), lead-2 failed, lead-3 running,
 // plus a sub-agent (child of lead-1) that must be folded OUT.
 func sampleJournal() *fakeJournal {
-	return &fakeJournal{evs: []*event.Event{
+	return &fakeJournal{evs: []journalapi.Record{
 		ev(event.KindTaskReceived, "lead-1", 100, map[string]any{"intent": "research the Go website"}),
 		ev(event.KindSubAgentSpawned, "lead-1", 101, map[string]any{"child_correlation": "sub-1"}),
 		ev(event.KindTaskReceived, "sub-1", 102, map[string]any{"intent": "confirm the URL"}),

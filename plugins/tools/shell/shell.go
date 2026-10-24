@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/wardenapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -32,7 +33,12 @@ type Tool struct {
 	// Warden is the isolation engine commands run through. If nil, a
 	// process-default engine (warden.New(nil)) is used — events go
 	// nowhere in that case, suitable for unit tests.
-	Warden warden.Engine
+	//
+	// The port is the CONTRACT's (kernel/contract/wardenapi): the tool is a
+	// plugin, and a plugin may not name the platform package that keeps the
+	// engine. The rows it names (Spec, Result, Profile) are the same rows —
+	// the platform keeps them as aliases.
+	Warden wardenapi.Engine
 	// Shell overrides the default shell binary (mainly for tests). Empty
 	// means use the platform default.
 	Shell string
@@ -61,7 +67,7 @@ type Tool struct {
 
 // NewWithWarden returns a Tool that routes through the supplied Warden
 // engine — the path the daemon uses.
-func NewWithWarden(w warden.Engine) *Tool {
+func NewWithWarden(w wardenapi.Engine) *Tool {
 	return &Tool{Warden: w, Profile: warden.ProfileNamespace}
 }
 

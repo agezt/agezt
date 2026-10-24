@@ -157,7 +157,7 @@ func (t *Tool) publish(ctx context.Context, lang, projectSlug string, codeBytes 
 	if projectSlug != "" {
 		payload["project"] = projectSlug
 	}
-	_, _ = t.bus.Publish(event.Spec{
+	_ = t.bus.Publish(event.Spec{
 		Subject:       "code.exec",
 		Kind:          event.KindCodeExecuted,
 		Actor:         "tool.code_exec",

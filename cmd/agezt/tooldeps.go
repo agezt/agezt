@@ -8,12 +8,15 @@ import (
 	"github.com/agezt/agezt/kernel/app/configtool"
 	"github.com/agezt/agezt/kernel/app/introspect"
 	"github.com/agezt/agezt/kernel/app/overseer"
+	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/configapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
+	"github.com/agezt/agezt/kernel/contract/eventapi"
+	"github.com/agezt/agezt/kernel/contract/journalapi"
 	"github.com/agezt/agezt/kernel/contract/mcpapi"
 	"github.com/agezt/agezt/kernel/contract/reasoningapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
@@ -21,6 +24,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
+	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 	"github.com/agezt/agezt/kernel/modules/board/board"
@@ -42,10 +46,10 @@ import (
 func toolKernelDeps(k *runtime.Kernel, baseDir string, stdout io.Writer) toolreg.KernelDeps {
 	return toolreg.KernelDeps{
 		K:               k,
-		Bus:             k.Bus(),
+		Bus:             busPort(k.Bus()),
 		Artifacts:       artifactPort(k.ArtifactIndex()),
 		Lake:            lakeStore(k),
-		Journal:         k.Journal(),
+		Journal:         journalPort(k.Journal()),
 		BaseDir:         baseDir,
 		Stdout:          stdout,
 		NetguardPublish: netguardPublish(k.Bus()),
@@ -352,4 +356,78 @@ func forgePort(s *toolforge.Store) toolforgeapi.Store {
 		return nil
 	}
 	return s
+}
+
+// busPort turns the live bus into the contract's publish port (W3.39f).
+//
+// A nil bus must stay a NIL PORT: a port that wraps a nil implementation is
+// not nil, so the tool would publish into nothing instead of skipping the
+// event. The check is on the concrete type on purpose — a nil *bus.Bus handed
+// to an interface parameter is already a non-nil interface.
+func busPort(b *bus.Bus) eventapi.Publisher {
+	if b == nil {
+		return nil
+	}
+	return busPublisher{b: b}
+}
+
+// busPublisher publishes one event on the live bus.
+//
+// NOTHING is translated on the way in: the spec the contract's port takes is
+// the same row the bus takes — the platform's event package keeps it as an
+// alias of the contract's — so what the tool publishes is exactly what the
+// bus writes. The port's shape is narrower on purpose (it answers "did it
+// land?" and not "which event did it write?"), because the durable envelope
+// it would return carries the hash chain, and the contract layer may not
+// name that.
+type busPublisher struct{ b *bus.Bus }
+
+// Publish writes the event durably and fans it out to the live subscribers.
+func (p busPublisher) Publish(spec eventapi.Spec) error {
+	_, err := p.b.Publish(spec)
+	return err
+}
+
+// journalPort turns the live journal into the contract's read port (W3.39f).
+//
+// The same nil-port rule as the bus's: a nil *journal.Journal handed to an
+// interface parameter is a NON-NIL interface, so the runs tool would bind a
+// reader that is not there instead of reporting that the run history is
+// unavailable.
+func journalPort(j *journal.Journal) journalapi.Reader {
+	if j == nil {
+		return nil
+	}
+	return journalReader{j: j}
+}
+
+// journalReader reads recent events from the live journal.
+//
+// It is the ADAPTER the durable envelope needs: the journal hands back the
+// durable event (with its hash chain and its sequence), and the contract's
+// port hands back the read PROJECTION — the kind, the correlation, the
+// timestamp and the payload, which is everything a reader folds. The copy is
+// field by field and it is measured: a reader that saw a different event
+// than the journal holds would fold a different history.
+type journalReader struct{ j *journal.Journal }
+
+// Tail returns the last n events, oldest first.
+func (r journalReader) Tail(n int) ([]journalapi.Record, error) {
+	evs, err := r.j.Tail(n)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]journalapi.Record, 0, len(evs))
+	for _, e := range evs {
+		if e == nil {
+			continue
+		}
+		out = append(out, journalapi.Record{
+			Kind:          e.Kind,
+			CorrelationID: e.CorrelationID,
+			TSUnixMS:      e.TSUnixMS,
+			Payload:       e.Payload,
+		})
+	}
+	return out, nil
 }

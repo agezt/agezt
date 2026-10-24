@@ -9,22 +9,23 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/journalapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
 type fakeHist struct {
-	events []*event.Event
+	events []journalapi.Record
 	err    error
 }
 
-func (f fakeHist) Tail(int) ([]*event.Event, error) { return f.events, f.err }
+func (f fakeHist) Tail(int) ([]journalapi.Record, error) { return f.events, f.err }
 
-func makeEvent(kind, corr string, ts int64, payload any) *event.Event {
+func makeEvent(kind, corr string, ts int64, payload any) journalapi.Record {
 	if payload == nil {
-		return &event.Event{Kind: event.Kind(kind), CorrelationID: corr, TSUnixMS: ts}
+		return journalapi.Record{Kind: event.Kind(kind), CorrelationID: corr, TSUnixMS: ts}
 	}
 	raw, _ := json.Marshal(payload)
-	return &event.Event{Kind: event.Kind(kind), CorrelationID: corr, TSUnixMS: ts, Payload: raw}
+	return journalapi.Record{Kind: event.Kind(kind), CorrelationID: corr, TSUnixMS: ts, Payload: raw}
 }
 
 func TestRunstoolCoverageBindAndLimitHelpers(t *testing.T) {
@@ -130,7 +131,7 @@ func TestRunstoolCoverageInvokeBranches(t *testing.T) {
 	}
 
 	// Bound with a sample event: stats reflects one completed run.
-	tool.Bind(fakeHist{events: []*event.Event{
+	tool.Bind(fakeHist{events: []journalapi.Record{
 		makeEvent("task.received", "", 50, map[string]any{"intent": "ignored"}),
 		makeEvent("task.received", "run-1", 100, map[string]any{"intent": "do x"}),
 		makeEvent("task.completed", "run-1", 200, nil),

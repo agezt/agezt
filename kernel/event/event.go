@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"lukechampine.com/blake3"
+
+	"github.com/agezt/agezt/kernel/contract/eventapi"
 )
 
 // HashSize is the byte length of a BLAKE3-256 digest.
@@ -30,15 +32,13 @@ const GenesisHash = "00000000000000000000000000000000000000000000000000000000000
 
 // Spec is the caller-provided portion of an event. The kernel (specifically
 // the journal) supplies ID, Seq, TSUnixMS, PrevHash and computes Hash.
-type Spec struct {
-	Subject       string            // hierarchical routing key (e.g. "agent.01H...tool")
-	Kind          Kind              // event-kind discriminator
-	Actor         string            // who emitted (agent ID, plugin ID, "kernel", ...)
-	CorrelationID string            // ties a multi-event causal chain (optional)
-	CausationID   string            // the event that caused this one (optional)
-	Payload       any               // JSON-marshalable; nil → omitted
-	Tags          map[string]string // free-form labels (optional)
-}
+//
+// The row is the contract's (kernel/contract/eventapi): it is pure, and the
+// contract's own ports have to be able to name it. This package keeps the
+// name as an ALIAS, so a spec built here and a spec that crossed the
+// contract's publish port are the SAME type — there is no second shape that
+// has to be kept in step by hand.
+type Spec = eventapi.Spec
 
 // Event is the canonical kernel event.
 //

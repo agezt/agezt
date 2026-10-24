@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-200 package(s):
+203 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -87,8 +87,10 @@
 - **`kernel/contract/channelapi`** — Package channelapi is the messaging-channel contract: the platform-neutral inbound message every channel normalises to (UnifiedMessage, SPEC-04 §1.3), what the kernel hands a channel to deliver (Outbound, Attachment, Reply), the Channel interface a duplex surface implements, and the Manifest a channel registers to describe itself.
 - **`kernel/contract/configapi`** — Package configapi is the contract the config tool and the implementation that answers it agree on.
 - **`kernel/contract/datalakeapi`** — Package datalakeapi is the contract layer's home for the Personal Data Lake's rows: one collection's definition (its schema and the columns it carries), one record (a row with a stable id and a free-form field map), the query that narrows a listing, and the summary a listing shows.
+- **`kernel/contract/eventapi`** — Package eventapi is the contract layer's home for the event rows: the kind discriminator, the caller-provided portion of an event, and the port through which a durable kernel event is published.
 - **`kernel/contract/guardianapi`** — Package guardianapi is the contract the guardian seeder and the implementation that answers it agree on.
 - **`kernel/contract/introspectapi`** — Package introspectapi is the contract layer's home for the introspector's rows: the daemon's own at-a-glance health snapshot and the reaper's fleet scan, as the agent-facing tool publishes them.
+- **`kernel/contract/journalapi`** — Package journalapi is the contract layer's home for the journal's READ side: the projection of a durable event a reader gets to see, and the port through which recent events are read.
 - **`kernel/contract/llm`** — Package llm is the model-provider contract: the canonical conversation (Message, Role, ToolCall), one completion round trip (CompletionRequest, CompletionResponse, Usage, StopReason, Params) and the provider interfaces (Provider, StreamingProvider, Chunk).
 - **`kernel/contract/marketapi`** — Package marketapi is the contract layer's home for the marketplace's rows: one installable pack, the skills and MCP servers it carries, the catalogue entry a marketplace lists it under, and the catalogue itself — together with the rules that govern them (what makes a pack valid, what its canonical bytes and content hash are, how versions are ordered) and the port through which a catalogue is read.
 - **`kernel/contract/mcpapi`** — Package mcpapi is the contract layer's home for the MCP server row: the description of one registered MCP server — a stdio command or a remote HTTP endpoint the daemon can spawn and speak MCP to.
@@ -107,6 +109,7 @@
 - **`kernel/contract/toolphaseapi`** — Package toolphaseapi defines the batch-aware invocation service port.
 - **`kernel/contract/toolregapi`** — Package toolregapi is the contract the tool registry's lifecycle hooks agree on.
 - **`kernel/contract/types`** — Package types is the contract-layer home for the value types that cross the boundary between the host (the runtime and its accessors) and the application layer.
+- **`kernel/contract/wardenapi`** — Package wardenapi is the contract layer's home for the sandbox rows: the isolation profile a run asks for, the limits a run is capped by, the request that describes a run, the result a run produced, and the port through which a caller drives an isolated execution.
 - **`kernel/contract/workboardapi`** — Package workboardapi is the contract layer's home for the workboard's rows: one durable work item (a task), its lifecycle state, the claim, dependency, attempt, comment and link records it carries, the retry policy and decision, and the creation spec an agent hands over.
 - **`kernel/contract/workflowapi`** — Package workflowapi is the contract layer's home for the workflow rows: one durable, named graph, the typed steps it is made of, the edges that wire them, the trigger configuration that starts it, the outcome of a run, and the rule that decides whether a graph may run at all.
 - **`kernel/controlplane`** — Package controlplane is the local control protocol between the agezt daemon and the agt CLI.

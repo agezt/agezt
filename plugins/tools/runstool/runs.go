@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/journalapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
@@ -35,8 +36,14 @@ const (
 
 // history is the journal subset the tool needs — an interface so tests inject a
 // fake without a real on-disk journal.
+//
+// It is the CONTRACT's read port (kernel/contract/journalapi): the tool is a
+// plugin, and a plugin may not name the platform package that keeps the
+// journal. The record it reads is the contract's projection of a durable
+// event — the kind, the correlation, the timestamp and the payload, which is
+// everything this tool folds.
 type history interface {
-	Tail(n int) ([]*event.Event, error)
+	Tail(n int) ([]journalapi.Record, error)
 }
 
 // Tool implements toolapi.Tool. Created unbound via New(); Bind wires the journal.
@@ -144,7 +151,7 @@ func (t *Tool) Invoke(_ context.Context, raw json.RawMessage) (toolapi.Result, e
 
 // fold reduces journal events into top-level runs, excluding sub-agent runs (a
 // sub-agent's correlation appears as a subagent.spawned child_correlation).
-func fold(evs []*event.Event) []runRec {
+func fold(evs []journalapi.Record) []runRec {
 	subAgents := map[string]bool{}
 	for _, e := range evs {
 		if e.Kind == event.KindSubAgentSpawned {

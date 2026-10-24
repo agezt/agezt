@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/wardenapi"
 	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -18,7 +19,7 @@ import (
 func (t *Tool) invokeSSH(
 	ctx context.Context,
 	cfg executionprofile.SSHConfig,
-	w warden.Engine,
+	w wardenapi.Engine,
 	lang, interp, entry, dir string,
 	ephemeral bool,
 	projectSlug string,
@@ -94,7 +95,7 @@ func (t *Tool) invokeSSH(
 	return appendArtifactExport(renderRemote(lang, projectSlug, remoteDir, timeout, res), "ssh", artifacts, artifactErr)
 }
 
-func runSSHCommand(ctx context.Context, w warden.Engine, cfg executionprofile.SSHConfig, command string, timeout time.Duration, actor string) (*warden.Result, error) {
+func runSSHCommand(ctx context.Context, w wardenapi.Engine, cfg executionprofile.SSHConfig, command string, timeout time.Duration, actor string) (*warden.Result, error) {
 	return w.Run(ctx, warden.Spec{
 		Profile: warden.ProfileNone,
 		Argv:    cfg.CommandArgv(command),
@@ -111,7 +112,7 @@ func runSSHCommand(ctx context.Context, w warden.Engine, cfg executionprofile.SS
 func (t *Tool) invokeK8s(
 	ctx context.Context,
 	cfg executionprofile.K8sConfig,
-	w warden.Engine,
+	w wardenapi.Engine,
 	lang, interp, entry, dir string,
 	ephemeral bool,
 	projectSlug string,
@@ -187,7 +188,7 @@ func (t *Tool) invokeK8s(
 	return appendArtifactExport(renderRemoteProfile("k8s", lang, projectSlug, remoteDir, timeout, res), "k8s", artifacts, artifactErr)
 }
 
-func runK8sCommand(ctx context.Context, w warden.Engine, cfg executionprofile.K8sConfig, command string, timeout time.Duration, actor string) (*warden.Result, error) {
+func runK8sCommand(ctx context.Context, w wardenapi.Engine, cfg executionprofile.K8sConfig, command string, timeout time.Duration, actor string) (*warden.Result, error) {
 	return w.Run(ctx, warden.Spec{
 		Profile: warden.ProfileNone,
 		Argv:    cfg.CommandArgv(command),
@@ -204,7 +205,7 @@ func runK8sCommand(ctx context.Context, w warden.Engine, cfg executionprofile.K8
 func (t *Tool) invokeModal(
 	ctx context.Context,
 	cfg executionprofile.ModalConfig,
-	w warden.Engine,
+	w wardenapi.Engine,
 	lang, interp, entry, dir string,
 	projectSlug string,
 	packages []string,
