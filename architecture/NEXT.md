@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.39a the registry's two module dependencies become contract's ports, 2026-10-24
+## Current checkpoint — W3.39b the reasoning runners become the contract's ports, 2026-10-24
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2586,6 +2586,52 @@ files, five of the seventeen mutations would have escaped.
   **What is left of the registry's rows**: `KernelDeps.K` (the live kernel —
   the heavy one, eleven specs and nineteen call sites), `KernelDeps.Bus`,
   `KernelDeps.Journal` and `BuildDeps.Warden`. Each is the next sub-slice.
+
+- W3.39b (the reasoning runners become the contract's ports) is committed on
+  `main` the same way. The registry's `KernelDeps` carries the **live
+  kernel** because eight tools need something only the kernel has — and three
+  of them needed it for exactly one reason: their **runner**. The runner
+  interface was already the right shape (a port, one verb, naming only the
+  contract's rows since W3.13) but it lived in the **tool's** package, and
+  the tool's package is a plugin (L6) — so the registry, a module (L3),
+  could not hand the runner over: a module may not name a plugin's type, and
+  the row had to be the live kernel instead. That was the whole leak — a
+  runner the tool already declared as a port, carried by the kernel because
+  the port was in the wrong layer.
+  So the three runners moved to the contract layer
+  (`kernel/contract/reasoningapi`: `CouncilRunner`, `ConductorRunner`,
+  `ResearchRunner` — one verb each — and `Runner`, the three together, which
+  is the row the registry carries), the tools keep their names as **aliases**
+  (so every caller and every fake in every tool's test is unchanged),
+  `KernelDeps` gained `Reasoning reasoningapi.Runner`, the three specs bind
+  `d.Reasoning` instead of `d.K`, and the daemon supplies the port with the
+  same nil-port rule the other ports follow.
+  **The ratchet did NOT move — 78/13, unchanged — and that is the point of
+  the slice, not an omission**: the registry's **rows** are still in the wrong
+  layer. The last `plugin-reach` edge
+  (`plugins/builtintools -> kernel/toolreg`) falls only when the rows (the
+  `Spec`, the `Built`, the `BuildDeps`, the `KernelDeps`, the `LateDeps` and
+  the registry itself) live where a plugin may name them, and that needs
+  **every** field of every row to be a contract row or a contract port. This
+  slice removes the first of the five families that block it; the other four
+  (workflow/workboard, MCP, forge, schedule/standing/skill/journal, and the
+  platform rows — the warden, the bus and the journal) are each the same
+  shape: a row that names a type a plugin may not name, replaced by a port.
+  The ports are **aliases**, so the tool's runner and the contract's port are
+  the *same type*, and the identity is asserted by comparing the **types
+  themselves** (`reflect.TypeOf`), not by an assignment — an assignment would
+  accept a copy with the same method set, while two interface types with
+  identical method sets are still different types.
+  The **plugin's** measurement records the call: "the tool did not complain"
+  is not enough, because a tool could report unavailability for another
+  reason and still look wired.
+  7 mutations: 7 caught — and there is **no gate-measured mutation in this
+  slice**, which is a fact about the slice rather than an omission: the
+  registry's row for the live kernel is a **same-module** edge
+  (`kernel/toolreg` and `kernel/runtime` are both the "runs" module), so
+  archcheck cannot see it — there is no violation for it to see, and the
+  shape is pinned by the **compiler** instead (the kernel must implement the
+  port, or nothing builds) and by the shape test.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

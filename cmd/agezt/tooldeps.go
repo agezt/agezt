@@ -12,6 +12,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/configapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
+	"github.com/agezt/agezt/kernel/contract/reasoningapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
@@ -43,6 +44,9 @@ func toolKernelDeps(k *runtime.Kernel, baseDir string, stdout io.Writer) toolreg
 		BaseDir:         baseDir,
 		Stdout:          stdout,
 		NetguardPublish: netguardPublish(k.Bus()),
+		// The council, conductor and research tools drive the daemon's
+		// reasoning surface through the contract's port (W3.39b).
+		Reasoning: reasoningPort(k),
 		// The overseer tool steers the fleet through a contract port; the
 		// implementation that answers it needs the live kernel and the board
 		// store, so the daemon builds it here (the tool is a plugin and may
@@ -159,6 +163,21 @@ func boardPort(st *board.Store) boardapi.Store {
 		return nil
 	}
 	return st
+}
+
+// reasoningPort hands the kernel's reasoning surface to the tool registry as
+// the contract's port (W3.39b) — the council, conductor and research tools
+// drive it.
+//
+// The same nil-port rule as the other ports: a nil *runtime.Kernel handed to
+// an interface parameter is a NON-NIL interface, and the three tools would
+// bind a runner that is not there instead of reporting that reasoning is
+// unavailable.
+func reasoningPort(k *runtime.Kernel) reasoningapi.Runner {
+	if k == nil {
+		return nil
+	}
+	return k
 }
 
 // forgeStore hands the live script-tool store to the tool registry as the

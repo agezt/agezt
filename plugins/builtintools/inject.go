@@ -106,8 +106,8 @@ func specCouncil() toolreg.Spec {
 			return toolreg.Built{Tool: ct, Desc: "council(consensus panel)"}, nil
 		},
 		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
-			if d.K != nil {
-				ct.SetRunner(d.K)
+			if d.Reasoning != nil {
+				ct.SetRunner(d.Reasoning)
 			}
 			return nil
 		},
@@ -127,8 +127,8 @@ func specConductor() toolreg.Spec {
 			return toolreg.Built{Tool: cond, Desc: "conductor(verify-driven panel)"}, nil
 		},
 		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
-			if d.K != nil {
-				cond.SetRunner(d.K)
+			if d.Reasoning != nil {
+				cond.SetRunner(d.Reasoning)
 			}
 			return nil
 		},
@@ -149,8 +149,8 @@ func specResearch() toolreg.Spec {
 			return toolreg.Built{Tool: rt, Desc: "research(deep-research harness)"}, nil
 		},
 		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
-			if d.K != nil {
-				rt.SetRunner(d.K)
+			if d.Reasoning != nil {
+				rt.SetRunner(d.Reasoning)
 			}
 			return nil
 		},

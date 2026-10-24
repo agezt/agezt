@@ -33,6 +33,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/introspectapi"
 	"github.com/agezt/agezt/kernel/contract/overseerapi"
 	"github.com/agezt/agezt/kernel/contract/pluginapi"
+	"github.com/agezt/agezt/kernel/contract/reasoningapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/toolregapi"
@@ -79,6 +80,12 @@ type KernelDeps struct {
 	Journal   *journal.Journal
 	BaseDir   string
 	Stdout    io.Writer
+	// Reasoning is the reasoning port the council, conductor and research
+	// tools drive (W3.39b). It is the contract's port — the tools' runner
+	// interfaces live in the contract layer, so the registry can hand one
+	// over without naming the live kernel. Nil when unwired: the tools then
+	// report that reasoning is unavailable.
+	Reasoning reasoningapi.Runner
 	// NetguardPublish returns the per-tool OnBlock callback that journals a
 	// netguard.blocked event (M109). Supplied by the daemon; Configure wires it
 	// into every Netguard spec's instances that implement NetguardAware.
