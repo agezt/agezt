@@ -26,6 +26,12 @@ type Store interface {
 	Delete(id string) error
 }
 
+// errNoCatalog is what the service says when the host holds no seat catalog
+// at all. The catalog is the daemon's file and the host holds the contract's
+// port; a host that was given nothing must be told the catalog is
+// unavailable — not left to call into nothing.
+var errNoCatalog = errors.New("the seat catalog is not available")
+
 type Service struct{ store Store }
 
 func New(store Store) *Service { return &Service{store: store} }
@@ -72,6 +78,9 @@ type ListOutput struct {
 }
 
 func (s *Service) List(_ context.Context, _ ListRequest) (ListOutput, error) {
+	if s.store == nil {
+		return ListOutput{}, errNoCatalog
+	}
 	seats := append([]seat.Seat{}, s.store.List()...)
 	return ListOutput{Seats: seats, Count: len(seats)}, nil
 }
@@ -93,6 +102,9 @@ type SeatOutput struct {
 // Create adds a custom seat; the store validates and normalises it.
 // restrict_tools, when present, must be a boolean.
 func (s *Service) Create(_ context.Context, in CreateRequest) (SeatOutput, error) {
+	if s.store == nil {
+		return SeatOutput{}, errNoCatalog
+	}
 	spec := seat.Seat{
 		ID:               text(in.ID),
 		Name:             text(in.Name),
@@ -125,6 +137,9 @@ type DeleteOutput struct {
 
 // Delete removes a custom seat; the store refuses built-ins.
 func (s *Service) Delete(_ context.Context, in DeleteRequest) (DeleteOutput, error) {
+	if s.store == nil {
+		return DeleteOutput{}, errNoCatalog
+	}
 	id := text(in.ID)
 	if id == "" {
 		return DeleteOutput{}, errors.New("seat_delete requires id")

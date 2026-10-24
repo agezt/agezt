@@ -1134,7 +1134,7 @@ var workboardOperations = func() []app.Operation {
 		server := ctx.Value(systemHostKey{}).(*Server)
 		host := ctx.Value(appHostKey{}).(appHost)
 		k := host.kernel
-		return appworkboard.NativeServices{Reads: appworkboard.New(k.Workboard()), Lifecycle: appworkboard.NewLifecycle(k, k.Workboard()), Relations: appworkboard.NewRelations(k), Watch: appworkboard.NewWatch(k.Workboard(), k.Journal()), Dispatch: server.workboardDispatcher(), ValidSeat: k.Seats().Valid}
+		return appworkboard.NativeServices{Reads: appworkboard.New(k.Workboard()), Lifecycle: appworkboard.NewLifecycle(k, k.Workboard()), Relations: appworkboard.NewRelations(k), Watch: appworkboard.NewWatch(k.Workboard(), k.Journal()), Dispatch: server.workboardDispatcher(), ValidSeat: seatValidator(k.Seats())}
 	})
 	if err != nil {
 		panic(err)

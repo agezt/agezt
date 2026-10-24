@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/assureapi"
 	"github.com/agezt/agezt/kernel/event"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
-	"github.com/agezt/agezt/kernel/modules/work/assure"
 )
 
 func (k *Kernel) Halted() bool { return k.halted }
@@ -112,11 +112,11 @@ func (k *Kernel) MaybeShadowEval(ctx context.Context, corr, intent, answer strin
 }
 
 // VerifyCompletion asks the model whether the given ANSWER
-// fully accomplishes TASK. Returns an assure.Verdict with a
+// fully accomplishes TASK. Returns an assureapi.Verdict with a
 // complete/gap judgement. The body lives in the runexec
 // sub-package's Runner (Day 33); this wrapper preserves the
 // legacy *Kernel.VerifyCompletion public surface.
-func (k *Kernel) VerifyCompletion(ctx context.Context, corr, task, answer string) (assure.Verdict, error) {
+func (k *Kernel) VerifyCompletion(ctx context.Context, corr, task, answer string) (assureapi.Verdict, error) {
 	return k.runexec.VerifyCompletion(ctx, corr, task, answer)
 }
 

@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/seatapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"github.com/agezt/agezt/kernel/edict"
@@ -36,7 +37,6 @@ import (
 	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/modules/work/okr"
-	"github.com/agezt/agezt/kernel/modules/work/seat"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/reflect"
@@ -76,7 +76,7 @@ type Kernel struct {
 	workboard    *workboard.Store
 	okr          *okr.Store
 	taste        *taste.Store
-	seat         *seat.Store
+	seat         seatapi.Store
 	artifacts    *artifact.Store
 	artIndex     *artifact.Index // metadata sidecar over artifacts (M822): browsable/deletable entries
 	lake         *datalake.Lake  // Personal Data Lake (M834): agent-built structured collections

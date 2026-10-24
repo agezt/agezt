@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/agezt/agezt/internal/atomicfile"
+	"github.com/agezt/agezt/kernel/contract/seatapi"
 )
 
 const (
@@ -38,6 +39,11 @@ type Store struct {
 	mu     sync.Mutex
 	custom []*Seat
 }
+
+// The store is the contract's port: the host holds the port, the module owns
+// the file. The assertion is here so a port change is a compile error in the
+// module rather than a runtime surprise at the composition root.
+var _ seatapi.Store = (*Store)(nil)
 
 type diskState struct {
 	Version int     `json:"version"`

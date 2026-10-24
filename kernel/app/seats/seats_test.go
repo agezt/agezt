@@ -155,3 +155,23 @@ func TestOperations(t *testing.T) {
 		}
 	}
 }
+
+// TestTheServiceRefusesWhenThereIsNoCatalog pins the missing-port end of the
+// rule at the service.
+//
+// The host holds the contract's port, and the port may be missing: the seat
+// catalog is the daemon's file, and a host that was given nothing must be
+// told the catalog is unavailable — never left to call into nothing. Every
+// seat operation must say so instead of panicking.
+func TestTheServiceRefusesWhenThereIsNoCatalog(t *testing.T) {
+	s := New(nil)
+	if _, err := s.List(context.Background(), ListRequest{}); err == nil || !strings.Contains(err.Error(), "not available") {
+		t.Errorf("List without a catalog: %v, want an unavailable error", err)
+	}
+	if _, err := s.Create(context.Background(), CreateRequest{ID: json.RawMessage(`"ops"`)}); err == nil || !strings.Contains(err.Error(), "not available") {
+		t.Errorf("Create without a catalog: %v, want an unavailable error", err)
+	}
+	if _, err := s.Delete(context.Background(), DeleteRequest{ID: json.RawMessage(`"ops"`)}); err == nil || !strings.Contains(err.Error(), "not available") {
+		t.Errorf("Delete without a catalog: %v, want an unavailable error", err)
+	}
+}

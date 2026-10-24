@@ -4,17 +4,28 @@ package controlplane
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/modules/work/seat"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 // TestSeatsEditThePrimaryStore drives the typed seat operations through the
 // native adapter against the primary kernel's seat store.
+//
+// The store is opened HERE and handed to the kernel as the contract's port:
+// the catalog's file is the composition root's business, so the host speaks
+// the port instead of the kernel opening a module's implementation.
 func TestSeatsEditThePrimaryStore(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	base := t.TempDir()
+	seats, err := seat.OpenStore(filepath.Join(base, "seats"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	k, err := runtime.Open(runtime.Config{BaseDir: base, Provider: mock.New(), Seats: seats})
 	if err != nil {
 		t.Fatal(err)
 	}

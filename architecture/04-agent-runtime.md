@@ -1,6 +1,6 @@
 # 04 — Agent Runtime (kernel/runtime, kernel/agent, tool execution, delegation, resume, proof)
 
-**Scope:** `kernel/runtime` (81 non-test files) and its sub-packages `kernel/runtime/{accessors,compose,lifecycle,runexec,types}`; the agent loop `kernel/agent`; and the satellite packages `kernel/toolexec`, `kernel/modules/extensions/toolforge`, `kernel/contextselect`, `kernel/convo`, `kernel/delegation`, `kernel/intent`, `kernel/intervention`, `kernel/planner`, `kernel/reflect`, `kernel/resume`, `kernel/meshctx`, `kernel/modules/work/proof`, `kernel/modules/work/assure` and the contract rows they now hold (`kernel/contract/proofapi`, `kernel/contract/assureapi`). The tool registry is **no longer among them**: it moved down to the contract layer in W3.39h (`kernel/contract/toolregapi`) and is described in [10-tools.md](10-tools.md).
+**Scope:** `kernel/runtime` (81 non-test files) and its sub-packages `kernel/runtime/{lifecycle,runexec}`; the agent loop `kernel/agent`; and the satellite packages `kernel/toolexec`, `kernel/modules/extensions/toolforge`, `kernel/contextselect`, `kernel/convo`, `kernel/delegation`, `kernel/intent`, `kernel/intervention`, `kernel/planner`, `kernel/reflect`, `kernel/resume`, `kernel/meshctx`, `kernel/modules/work/proof`, `kernel/modules/work/assure` and the contract rows they now hold (`kernel/contract/proofapi`, `kernel/contract/assureapi`). The **seat catalog** (`kernel/modules/work/seat`) is the composition root's file; the kernel holds its port (`kernel/contract/seatapi`, W3.41). The tool registry is **no longer among them**: it moved down to the contract layer in W3.39h (`kernel/contract/toolregapi`) and is described in [10-tools.md](10-tools.md).
 
 Everything below was read from the working tree on disk (2026-10-02), not from `docs/`. Where a code comment contradicts the code, the code wins and the discrepancy is listed under "Gotchas".
 
@@ -37,11 +37,12 @@ From `internal-deps.txt` (`pkg -> deps`):
 
 ```
 kernel/agent        -> kernel/bus kernel/event                 (leaf-ish; imported by ~70 pkgs incl. every provider and tool)
-kernel/runtime      -> brand, agent, agentgw, approval, artifact, assure, bus, cadence, catalog, configcenter,
+kernel/runtime      -> brand, agent, agentgw, approval, artifact, bus, cadence, catalog, configcenter,
                        contextselect, datalake, delegation, edict, event, governor, imagetool, intent, intervention,
-                       journal, market, mcp, memory, okr, proof, reflect, reranktool, resume, roster, runtime/accessors,
-                       runtime/lifecycle, runtime/runexec, scheduler, seat, skill, standing, state,
+                       journal, market, mcp, memory, okr, reflect, reranktool, resume, roster,
+                       runtime/lifecycle, runtime/runexec, scheduler, skill, standing, state,
                        taste, tenantctx, toolexec, toolforge, ulid, voicetool, warden, workboard, workflow, worldmodel
+                       (contract/{assureapi,proofapi,seatapi} — the rows and ports, W3.41)
 kernel/runtime/runexec   -> agent, agentgw, approval, artifact, assure, bus, cadence, catalog, configcenter, datalake,
                             edict, event, intent, journal, memory, reflect, resume, roster, scheduler, skill, standing,
                             state, voicetool, warden, worldmodel           (never imports kernel/runtime; KernelAPI interface)
@@ -284,16 +285,16 @@ Order (each store registers a closer; `fail()` unwinds them in reverse):
 3. `memory.Open(memory/)` + `NewManager` (+ embedder); `worldmodel.Open(worldmodel/)` + `NewGraph`; `skill.Open(skills/)` + `NewForge` + `OpenBundles` (best effort).
 4. `cadence.OpenStore(cadence/)`, `artifact.Open(artifacts/)` + `OpenIndex`, `datalake.Open(BaseDir)` + `SeedBuiltins("system")`, `standing.Open(standing/)`.
 5. `resume.Open(resume/, ResumeSnapshotMaxBytes)`, only when `ResumeEnabled`.
-6. `roster/`, `toolforge/`, `mcp/`, `workflows/`, `workboard/`, `okr/`, `taste/`, `seats/` stores; `reflect.New(journal, world, bus)`.
+6. `roster/`, `toolforge/`, `mcp/`, `workflows/`, `workboard/`, `okr/`, `taste/` stores; `reflect.New(journal, world, bus)`. The **seat catalog is NOT opened here** — it is the composition root's file (W3.41), and the kernel holds `cfg.Seats`, the contract's port.
 7. Effective tools: `cfg.Tools` plus `memory` (MemoryTool), `world` (WorldTool), `delegate` and `delegate_await` (SubAgentTool), `market` (MarketTool), `voice`, `image_generate`, `rerank` (when their implementations are injected).
 8. Catalog: `cfg.Catalog` or `catalog.NewStore(catDir).Load()`, then `governor.SetCatalog(cat)` (global).
 9. Build `*Kernel`, then late-bind the closures: `subTool.run=k.runSubAgent`, `subTool.spawn=k.runSubAgentAsync`, `awaitTool.await=k.awaitSubAgent`, `mktTool.Manager=k.Market`, and `SaveArtifact=k.artifacts.Put` for image and voice.
 10. `configcenter.Open`, then `agentgw.NewGateway` (token secret via `agentgw.ResolveTokenSecret`; `AGEZT_AGENTGW_SOCKET` override read directly with `os.Getenv`). Then `go agentGW.Listen(context.Background())`.
-11. `lifecycle.New(k)`, `accessors.New(k)`, `runexec.New(k)`.
+11. `lifecycle.New(k)`, `runexec.New(k)`.
 
 `Close()` (compose_close.go): `Suspend("close")`, `Halt()`, a bounded wait on `runWG` (`DefaultShutdownDrainTimeout=5s`; on timeout it publishes `anomaly.detected{anomaly:shutdown_drain_timeout}`), `closeMCPConns`, `bus.Close`, then `closeAll(state, memoryDir, worldDir, skillDir, journal, agentGW)` joined with `errors.Join`.
 
-**Persistence under AGEZT_HOME (BaseDir) opened by the runtime:** `journal/`, `state/`, `memory/`, `worldmodel/`, `skills/`, `cadence/`, `artifacts/`, datalake dirs, `standing/`, `resume/` (+ `resume/quarantine/`), `roster/`, `toolforge/scripttools.json`, `mcp/`, `workflows/`, `workboard/`, `okr/`, `taste/`, `seats/`, `catalog/` (or `CatalogDir`), plus the configcenter and agentgw files. Formats belong to the owning packages (see 06/07). This area owns only `resume/<corr>.json` and `toolforge/scripttools.json`.
+**Persistence under AGEZT_HOME (BaseDir) opened by the runtime:** `journal/`, `state/`, `memory/`, `worldmodel/`, `skills/`, `cadence/`, `artifacts/`, datalake dirs, `standing/`, `resume/` (+ `resume/quarantine/`), `roster/`, `toolforge/scripttools.json`, `mcp/`, `workflows/`, `workboard/`, `okr/`, `taste/`, `catalog/` (or `CatalogDir`) — and `seats/`, which the composition root opens (W3.41), plus the configcenter and agentgw files. Formats belong to the owning packages (see 06/07). This area owns only `resume/<corr>.json` and `toolforge/scripttools.json`.
 
 ### 4.3 Run entry points and callers
 

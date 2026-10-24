@@ -14,11 +14,11 @@ import (
 
 	"encoding/json"
 
+	"github.com/agezt/agezt/kernel/contract/assureapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/proofapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
-	"github.com/agezt/agezt/kernel/modules/work/assure"
-	"github.com/agezt/agezt/kernel/modules/work/proof"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
 )
 
@@ -42,7 +42,7 @@ func (k *Kernel) ProveTask(ctx context.Context, corr, id, answer string) (workbo
 	if err != nil {
 		return workboard.Task{}, err
 	}
-	p := proof.Proof{
+	p := proofapi.Proof{
 		Verdict:  verdict,
 		Criteria: judged,
 		Evidence: ev,
@@ -73,7 +73,7 @@ func (k *Kernel) ProveTask(ctx context.Context, corr, id, answer string) (workbo
 // verifyCriteria judges each acceptance criterion against the answer, returning
 // the overall verdict plus per-criterion outcomes. With no criteria it falls
 // back to the plain completion judge (verifyCompletion) and returns no criteria.
-func (k *Kernel) verifyCriteria(ctx context.Context, corr, task, answer string, criteria []proof.Criterion) (assure.Verdict, []proof.Criterion, error) {
+func (k *Kernel) verifyCriteria(ctx context.Context, corr, task, answer string, criteria []proofapi.Criterion) (assureapi.Verdict, []proofapi.Criterion, error) {
 	if len(criteria) == 0 {
 		v, err := k.VerifyCompletion(ctx, corr, task, answer)
 		return v, nil, err
@@ -93,7 +93,7 @@ func (k *Kernel) verifyCriteria(ctx context.Context, corr, task, answer string, 
 		Messages:  []llm.Message{{Role: llm.RoleUser, Content: prompt}},
 	})
 	if err != nil {
-		return assure.Verdict{}, nil, err
+		return assureapi.Verdict{}, nil, err
 	}
 	verdict, judged := parseCriteriaVerdict(resp.Message.Content)
 	// Mirror verifyCompletion: journal the verdict under corr so `agt why` shows
@@ -114,7 +114,7 @@ func (k *Kernel) verifyCriteria(ctx context.Context, corr, task, answer string, 
 // from a model reply, tolerating a ```json fence or surrounding prose. An
 // unparseable reply becomes "not complete" so the gate holds rather than
 // declaring a false success.
-func parseCriteriaVerdict(reply string) (assure.Verdict, []proof.Criterion) {
+func parseCriteriaVerdict(reply string) (assureapi.Verdict, []proofapi.Criterion) {
 	s := strings.TrimSpace(reply)
 	s = strings.TrimPrefix(s, "```json")
 	s = strings.TrimPrefix(s, "```")
@@ -122,7 +122,7 @@ func parseCriteriaVerdict(reply string) (assure.Verdict, []proof.Criterion) {
 	start := strings.IndexByte(s, '{')
 	end := strings.LastIndexByte(s, '}')
 	if start < 0 || end <= start {
-		return assure.Verdict{Complete: false, Gap: "verifier reply was not valid JSON"}, nil
+		return assureapi.Verdict{Complete: false, Gap: "verifier reply was not valid JSON"}, nil
 	}
 	var raw struct {
 		Complete bool   `json:"complete"`
@@ -134,20 +134,20 @@ func parseCriteriaVerdict(reply string) (assure.Verdict, []proof.Criterion) {
 		} `json:"criteria"`
 	}
 	if err := json.Unmarshal([]byte(s[start:end+1]), &raw); err != nil {
-		return assure.Verdict{Complete: false, Gap: "verifier reply was not valid JSON"}, nil
+		return assureapi.Verdict{Complete: false, Gap: "verifier reply was not valid JSON"}, nil
 	}
-	judged := make([]proof.Criterion, 0, len(raw.Criteria))
+	judged := make([]proofapi.Criterion, 0, len(raw.Criteria))
 	for _, c := range raw.Criteria {
-		judged = append(judged, proof.Criterion{Text: c.Text, Met: c.Met, Note: c.Note})
+		judged = append(judged, proofapi.Criterion{Text: c.Text, Met: c.Met, Note: c.Note})
 	}
-	return assure.Verdict{Complete: raw.Complete, Gap: raw.Gap}, judged
+	return assureapi.Verdict{Complete: raw.Complete, Gap: raw.Gap}, judged
 }
 
 // gatherProofEvidence collects the checkable evidence a proof rests on: the
 // artifact index entries and the hash-chained journal sequence range produced
 // under corr. It never fails — missing evidence just yields an emptier record.
-func (k *Kernel) gatherProofEvidence(corr string) proof.Evidence {
-	ev := proof.Evidence{Corr: corr}
+func (k *Kernel) gatherProofEvidence(corr string) proofapi.Evidence {
+	ev := proofapi.Evidence{Corr: corr}
 	if strings.TrimSpace(corr) == "" {
 		return ev
 	}

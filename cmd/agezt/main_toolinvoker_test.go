@@ -78,6 +78,31 @@ func TestOpenAppKernelBindsPrimaryAndTenant(t *testing.T) {
 	}
 }
 
+// TestOpenAppKernelWiresTheSeatCatalog: the daemon IS the composition root —
+// it opens the seat catalog (the file is the daemon's business) and hands the
+// kernel the contract's port, so the daemon's seat operations are a real
+// catalog and not an unavailable one.
+//
+// The other end of the rule is the host's: a kernel that was given no catalog
+// says "not available" instead of calling into nothing.
+func TestOpenAppKernelWiresTheSeatCatalog(t *testing.T) {
+	k, err := openAppKernel(kernelruntime.Config{BaseDir: t.TempDir(), Provider: mock.New(), Tools: map[string]toolapi.Tool{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { k.Close() })
+	store := k.Seats()
+	if store == nil {
+		t.Fatal("the daemon did not wire the seat catalog — the kernel holds no port")
+	}
+	if !store.Valid("reader") {
+		t.Error("the daemon's seat catalog does not know the built-in seats")
+	}
+	if store.Valid("no-such-seat") {
+		t.Error("the daemon's seat catalog accepts a seat that does not exist")
+	}
+}
+
 // TestOpenAppKernelWiresTheReaper: the daemon IS the composition root — it
 // builds the agents module's reaper over the kernel's own ports and injects
 // it, so the daemon's scan is the module's scan and not an empty report.

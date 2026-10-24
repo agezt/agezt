@@ -12,6 +12,7 @@ import (
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/seatapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/edict"
@@ -479,6 +480,16 @@ type Config struct {
 	// the council convenes with only the date; policy refusal/search failure also
 	// preserves this date-only behavior.
 	CouncilWebSearch bool
+
+	// Seats is the execution-seat catalog the host holds — the contract's port,
+	// not a module's store (W3.41). The daemon opens the store and hands it over
+	// (cmd/agezt), because the file is the daemon's business and the kernel is a
+	// module: a module may not name another module's implementation.
+	//
+	// Nil means "no seat catalog": the seat operations report that the catalog
+	// is unavailable, and no dispatch may run under a seat. It never means
+	// "every seat is valid".
+	Seats seatapi.Store
 }
 
 // Kernel is the running Agezt instance.
