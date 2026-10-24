@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.39b the reasoning runners become the contract's ports, 2026-10-24
+## Current checkpoint — W3.39c the workflow and workboard runners become the contract's ports, 2026-10-24
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2632,6 +2632,50 @@ files, five of the seventeen mutations would have escaped.
   archcheck cannot see it — there is no violation for it to see, and the
   shape is pinned by the **compiler** instead (the kernel must implement the
   port, or nothing builds) and by the shape test.
+
+- W3.39c (the workflow and workboard runners become the contract's ports) is
+  committed on `main` the same way. W3.39b moved the reasoning runners; the
+  same shape was sitting in two more places, and this slice takes both. The
+  workflow tool's port (three verbs: save, arm, run) and the workboard
+  tool's port (thirteen verbs) were **already the right shape** — a port
+  naming only the contract's rows — but both lived in the **tool's**
+  package, which is a plugin (L6), and the registry is a module (L3): a
+  module may not name a plugin's type, so the registry's row had to be the
+  **live kernel** instead of the runner. These two were the cleanest of the
+  five families: every row they name is already the contract's.
+  So the two ports moved to the contract layer
+  (`kernel/contract/workflowapi.Runner`, `kernel/contract/workboardapi.Runner`),
+  the tools keep their names as **aliases** (every caller and every fake
+  unchanged), `KernelDeps` gained `WorkflowRunner` and `WorkboardRunner`, the
+  two specs bind the new rows instead of `d.K`, and the daemon supplies both
+  ports under the same nil-port rule the other ports follow. The **read**
+  side was already a port (the W3.39a store) and stays one: the store is the
+  read side, the runner is the write-and-run side, and the tool needs both.
+  **The ratchet did NOT move — 78/13, unchanged — for the same reason as
+  W3.39b**: the registry's **rows** are still in the wrong layer. This slice
+  removes the **second** of the five families that block it.
+  The workboard port is **thirteen verbs wide**, and that is worth naming: it
+  is not a "host" interface that swallows the kernel, it is the board's whole
+  surface — the workboard tool is a first-class actor on it — and every one
+  of the thirteen names a contract row.
+  Two **existing tests** had to be re-pointed at the new row
+  (`workflow_ports_test.go`, `workboard_ports_test.go`): they measured the
+  **store** port's wiring and had been reaching the live kernel through
+  `d.K` to get the runner as well; the runner now arrives through its own
+  port, so the tests supply it there — what they measure and what they
+  assert are unchanged.
+  8 mutations: 8 caught — one was **re-authored** because it produced a
+  *compile error* rather than a measured failure (the mutation declared only
+  one of the thirteen verbs, so the tool's other twelve calls did not
+  compile; the re-written mutation declares the whole port and the identity
+  assertion caught it).
+  **Three families remain**: the MCP row (`mcptool.Kernel` already names
+  only `mcpapi` rows, so it is a clean candidate like these two); the
+  schedule/standing/skill rows; and the platform rows — the warden, the bus
+  and the journal, where the bus and the journal carry `event.Event` and
+  therefore need an **adapter** rather than an alias. The forge row is a
+  fourth: its port names the toolforge rows plus `approval.Decision`, which
+  is a platform type — the port can move only after that row moves with it.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

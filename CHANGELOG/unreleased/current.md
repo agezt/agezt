@@ -995,6 +995,16 @@ This file holds the active `[Unreleased]` working set.
   The guardians' quiet defaults — silent on success, no memory writes — are
   the operator's contract, and they are now asserted.
 
+- **The workflow and workboard runners become the contract's ports.** The
+  workflow and workboard tools each drove the daemon's library and board
+  through a runner interface they declared themselves — the right shape, but
+  in the wrong layer: the tool's package is a plugin, and a module may not
+  name a plugin's type, so the registry had to carry the live kernel instead
+  of the runner. The two ports now live in the contract layer and the tools
+  keep their names as aliases, so every caller and every fake is unchanged.
+  The registry carries one row per port and the daemon supplies both under
+  the same nil-port rule the other ports follow.
+
 - **The reasoning runners become the contract's ports.** The council,
   conductor and research tools each drove the daemon's reasoning surface
   through a runner interface they declared themselves — the right shape, but
