@@ -412,3 +412,38 @@ func TestBoardPortAnswersTheLiveStore(t *testing.T) {
 		t.Fatalf("the port must answer the live store, got %+v", msgs)
 	}
 }
+
+// TestToolKernelDepsSuppliesTheReasoningPort: the council, conductor and
+// research tools drive the daemon's reasoning surface through the contract's
+// port (W3.39b). The port is supplied HERE — at the composition root — so a
+// daemon that dropped it would leave three tools answering "unavailable" on
+// every live box, while every test that built the tool by hand stayed
+// green. This test is the only one that sees that wiring, so it asserts it
+// directly: the port must be present AND it must be the live kernel's
+// reasoning surface.
+func TestToolKernelDepsSuppliesTheReasoningPort(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	deps := toolKernelDeps(k, t.TempDir(), io.Discard)
+	if deps.Reasoning == nil {
+		t.Fatal("the daemon must supply the reasoning port")
+	}
+	if deps.Reasoning != k {
+		t.Fatal("the reasoning port must be the live kernel's reasoning surface")
+	}
+}
+
+// TestReasoningPortStaysANilPortWithoutAKernel: a daemon with no kernel must
+// hand over a NIL port, not a port wrapping a nil implementation — the
+// check is on the concrete type, because a nil *runtime.Kernel handed to an
+// interface parameter is already a non-nil interface, and the three tools
+// would bind a runner that is not there.
+func TestReasoningPortStaysANilPortWithoutAKernel(t *testing.T) {
+	if got := reasoningPort(nil); got != nil {
+		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
+	}
+}

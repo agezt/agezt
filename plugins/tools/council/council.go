@@ -22,10 +22,10 @@ import (
 
 // Runner is the slice of the host the tool needs — an interface so the tool is
 // decoupled and unit-testable with a fake. The rows it names live in the
-// contract layer: a plugin may only reach the contract and the platform.
-type Runner interface {
-	Council(ctx context.Context, corr, question string, members []reasoningapi.CouncilMember, rounds int) (reasoningapi.CouncilResult, error)
-}
+// contract layer: a plugin may only reach the contract and the platform. The
+// port itself lives there too (W3.39b): the registry hands the runner to the
+// tool, so the port it hands must be a contract row.
+type Runner = reasoningapi.CouncilRunner
 
 // Tool is the `council` implementation of toolapi.Tool.
 type Tool struct {

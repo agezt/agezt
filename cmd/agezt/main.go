@@ -1444,6 +1444,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 						Journal:   k.Journal(),
 						BaseDir:   baseDir,
 						Stdout:    stdout,
+						Reasoning: reasoningPort(k),
 					},
 					ChannelSend:      channelSend,
 					ChannelSendMedia: channelSendMedia,
