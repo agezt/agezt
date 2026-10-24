@@ -4439,6 +4439,16 @@ This file holds the active `[Unreleased]` working set.
 
 ### Removed
 
+- **Removed: the kernel's second, unreachable copy of its own read surface
+  (W3.40).** The kernel used to wire a sub-manager that nothing ever called:
+  it was built during startup and then read by nobody, because the kernel's
+  own accessor methods read the fields directly. It was a duplicate of that
+  surface — forty-eight functions with their own tests — and it made the
+  kernel's reach look twice as wide as it was: eleven of the architecture
+  ratchet's allowlisted edges existed only for that package. Nothing
+  observable changed; the kernel answers exactly the same surface it did
+  before, and the ratchet went from 77 to 66 edges.
+
 - **Removed: dead architecture (W0.5).** `kernel/runtime/compose` and `kernel/workflowexec`
   (unimported half-extractions), the unwired duplicate delegate tools in `kernel/delegation`,
   the second definitions of `ErrHalted`/`ErrNoVisionModel` (same text, different identity —

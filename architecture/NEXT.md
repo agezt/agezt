@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.39h the registry itself moves down to the contract layer, 2026-10-24
+## Current checkpoint — W3.40 the kernel's dead accessors sub-manager is deleted, 2026-10-24
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2927,6 +2927,51 @@ files, five of the seventeen mutations would have escaped.
   The registry was the last thing standing between the built-in tools and the
   contract layer; what stands between the daemon and the contract layer now
   is the kernel itself.
+- W3.40 (the kernel's dead accessors sub-manager is deleted) is committed on
+  `main` the same way. The kernel used to wire a sub-manager that **nothing
+  ever called**: `k.accessors = accessors.New(k)` in `compose.go`, and no
+  reader anywhere in the tree. The package was a **second copy of the kernel's
+  own read surface** — 48 production functions, 898 lines, 51 tests of its own
+  — and it was unreachable **by construction**: the `*Kernel` bodies were
+  supposed to become thin delegations to the `Accessor`, but an `Accessor`
+  dispatches back into `*Kernel` through the implicit `KernelAPI` interface,
+  so delegating would have recursed. The `*Kernel` kept the bodies and read
+  the fields directly; the copy sat beside it and was never called. Both
+  copies published the **same nine bus events** (standing created / updated /
+  removed, roster created / updated / removed), so the deletion removes a
+  forward, not a behaviour. The package went with `git rm` (five files),
+  together with the `accessors` field, the import and the construction.
+  `ConfigMu()` went with it — the deleted package was its only caller — while
+  `Scheduler()` and `AgentGateway()` were **kept**, because they are required
+  members of the live `runexec.KernelAPI`. The two comments that claimed the
+  delegation were corrected to describe what was true.
+  **The ratchet went DOWN by ELEVEN: 77/13 → 66/13.** Ten `cross-module`
+  edges and one `upward` edge were deleted from the allowlist, and **every
+  one of them was an edge of the deleted package**: the kernel's module reach
+  was being counted **twice**, once for `kernel/runtime` and once for a copy
+  that never ran. The ratchet counts edges, not whether the edges mean
+  anything — so a dead package priced the allowlist for years. This is the
+  largest single drop of the W3 series and the cheapest: no behaviour changed
+  and the reach got smaller.
+  The **loss of a compile-time check was compensated by name**: the deleted
+  package's `KernelAPI` (≈45 methods) had proved that `*Kernel` answered
+  every one of them, so `kernel/runtime/submanager_test.go` now pins the **42
+  accessor names** by name, pins `ConfigMu`'s **absence** (a getter nobody
+  calls is the same defect as a copy nobody calls), and pins the kernel's
+  **sub-manager set** off the type — so a third sub-manager that is wired but
+  never called is caught at **wiring** time.
+  **6 mutations: 6 caught**, two of them **gate-measured** by archcheck (the
+  package comes back with a module edge; the stale allowlist entry comes
+  back), because "the kernel's reach is smaller" is not something a test can
+  see. The **first harness run was invalid and thrown away**: the created
+  file was saved as if it had an original, so it was written empty and
+  archcheck failed for the wrong reason — the harness was fixed to mark a
+  created file **create-only** and to refuse an empty package, and the run
+  was repeated.
+  **What remains**: the kernel root still reaches **22** modules and still
+  returns concrete module types (`Memory() *memory.Manager`,
+  `World() *worldmodel.Graph`, `Forge() *skill.Forge`, …). Those rows are the
+  next slice — they are the rows that have to become contract ports.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
