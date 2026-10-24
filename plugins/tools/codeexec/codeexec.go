@@ -15,9 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/eventapi"
 	"github.com/agezt/agezt/kernel/contract/remoteapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/wardenapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -40,11 +41,16 @@ const (
 	modalArtifactArchiveBytes = 8 << 20
 )
 
-// Tool implements toolapi.Tool. Construct with New (tests) or NewWithWarden
-// (production); Bind wires the bus so each run journals a code.executed event.
+// Tool implements toolapi.Tool. Construct with NewWithWarden (production) or
+// directly (tests); Bind wires the bus so each run journals a code.executed event.
 type Tool struct {
 	// Warden is the isolation engine code runs through. Nil → a no-bus engine.
-	Warden warden.Engine
+	//
+	// The port is the CONTRACT's (kernel/contract/wardenapi): the tool is a
+	// plugin, and a plugin may not name the platform package that keeps the
+	// engine. The rows it names (Spec, Result, Profile) are the same rows —
+	// the platform keeps them as aliases.
+	Warden wardenapi.Engine
 	// SandboxRoot is <baseDir>/sandbox: ephemeral runs land in run-* tempdirs
 	// here, named projects in <SandboxRoot>/projects/<slug>.
 	SandboxRoot string
@@ -63,7 +69,7 @@ type Tool struct {
 	// Now returns wall-clock millis for exported artifact metadata.
 	Now func() int64
 
-	bus   *bus.Bus
+	bus   eventapi.Publisher
 	index artifactIndexer
 }
 
@@ -75,7 +81,7 @@ type artifactIndexer interface {
 
 // NewWithWarden returns a Tool routed through the supplied warden engine — the
 // path the daemon uses so audit events land on the kernel bus.
-func NewWithWarden(w warden.Engine, sandboxRoot string, runtimes map[string]string, netEnabled bool) *Tool {
+func NewWithWarden(w wardenapi.Engine, sandboxRoot string, runtimes map[string]string, netEnabled bool) *Tool {
 	return &Tool{
 		Warden:      w,
 		SandboxRoot: sandboxRoot,
@@ -88,7 +94,12 @@ func NewWithWarden(w warden.Engine, sandboxRoot string, runtimes map[string]stri
 
 // Bind wires the live bus so each run publishes a code.executed event. Called
 // once after the kernel opens.
-func (t *Tool) Bind(b *bus.Bus) { t.bus = b }
+//
+// The publisher is the CONTRACT's port (kernel/contract/eventapi): the tool is
+// a plugin and may not name the platform package that keeps the bus. The
+// spec it publishes is the same row the platform's bus takes — the platform
+// keeps it as an alias — so nothing is translated on the way in.
+func (t *Tool) Bind(p eventapi.Publisher) { t.bus = p }
 
 // SetIndex injects the artifact index so code can export files by writing them
 // under .agezt-artifacts/ in the workspace.

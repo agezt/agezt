@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/wardenapi"
 	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -26,7 +27,7 @@ const (
 func (t *Tool) invokeDaytona(
 	ctx context.Context,
 	cfg executionprofile.DaytonaConfig,
-	w warden.Engine,
+	w wardenapi.Engine,
 	lang, interp, entry, dir string,
 	ephemeral bool,
 	projectSlug string,
@@ -92,7 +93,7 @@ func (t *Tool) invokeDaytona(
 	return appendArtifactExport(renderRemoteProfile("daytona", lang, projectSlug, remoteDir, timeout, res), "daytona", artifacts, artifactErr)
 }
 
-func (t *Tool) exportDaytonaArtifacts(ctx context.Context, w warden.Engine, cfg executionprofile.DaytonaConfig, remoteDir string) ([]artifactExportRecord, error) {
+func (t *Tool) exportDaytonaArtifacts(ctx context.Context, w wardenapi.Engine, cfg executionprofile.DaytonaConfig, remoteDir string) ([]artifactExportRecord, error) {
 	if t.index == nil {
 		return nil, nil
 	}
@@ -121,7 +122,7 @@ func (t *Tool) exportDaytonaArtifacts(ctx context.Context, w warden.Engine, cfg 
 	return t.exportTarGzBase64Artifacts(ctx, string(res.Stdout), "daytona")
 }
 
-func (t *Tool) materializeDaytonaWorkspace(ctx context.Context, w warden.Engine, cfg executionprofile.DaytonaConfig, localDir, remoteDir string, timeout time.Duration) error {
+func (t *Tool) materializeDaytonaWorkspace(ctx context.Context, w wardenapi.Engine, cfg executionprofile.DaytonaConfig, localDir, remoteDir string, timeout time.Duration) error {
 	var total int64
 	return filepath.WalkDir(localDir, func(p string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -181,7 +182,7 @@ func (t *Tool) materializeDaytonaWorkspace(ctx context.Context, w warden.Engine,
 	})
 }
 
-func writeDaytonaFile(ctx context.Context, w warden.Engine, cfg executionprofile.DaytonaConfig, remotePath string, data []byte, timeout time.Duration) error {
+func writeDaytonaFile(ctx context.Context, w wardenapi.Engine, cfg executionprofile.DaytonaConfig, remotePath string, data []byte, timeout time.Duration) error {
 	parent := path.Dir(remotePath)
 	cmd := "mkdir -p " + executionprofile.ShellQuote(parent) + " && : > " + executionprofile.ShellQuote(remotePath)
 	if r, err := runDaytonaCommand(ctx, w, cfg, cmd, timeout, "tool.code_exec.daytona.write", ""); err != nil {
@@ -209,7 +210,7 @@ func writeDaytonaFile(ctx context.Context, w warden.Engine, cfg executionprofile
 	return nil
 }
 
-func runDaytonaCommand(ctx context.Context, w warden.Engine, cfg executionprofile.DaytonaConfig, command string, timeout time.Duration, actor, workDir string) (*warden.Result, error) {
+func runDaytonaCommand(ctx context.Context, w wardenapi.Engine, cfg executionprofile.DaytonaConfig, command string, timeout time.Duration, actor, workDir string) (*warden.Result, error) {
 	return w.Run(ctx, warden.Spec{
 		Profile: warden.ProfileNone,
 		Argv:    cfg.CommandArgv(command, workDir, durationSeconds(timeout)),

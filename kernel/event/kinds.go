@@ -2,11 +2,19 @@
 
 package event
 
+import "github.com/agezt/agezt/kernel/contract/eventapi"
+
 // Kind is the canonical event-kind discriminator (e.g. "agent.spawned").
 // Kinds are pinned by the wire contract (.project/agezt-contract.jsonc) and
 // grow append-only as new layers land (DECISIONS B0b). Never renumber or
 // rename an existing kind; only add new ones.
-type Kind string
+//
+// The TYPE is the contract's (kernel/contract/eventapi) so the contract's
+// own rows — the publish port, the journal's read projection — can name it
+// without reaching into this package. The VOCABULARY below stays here: it
+// is the registry this package owns, and the guard test over it
+// (registry_guard_test.go) reads this file.
+type Kind = eventapi.Kind
 
 // Base set — Milestone 0.5 ("core-core"). The remainder of the kinds enum
 // is added as their layers come online (Pulse, Memory/Forge, Channels,

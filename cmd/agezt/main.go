@@ -1438,10 +1438,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 				if err := toolSet.ConfigureLate(toolreg.LateDeps{
 					KernelDeps: toolreg.KernelDeps{
 						K:               k,
-						Bus:             k.Bus(),
+						Bus:             busPort(k.Bus()),
 						Artifacts:       artifactPort(k.ArtifactIndex()),
 						Lake:            lakeStore(k),
-						Journal:         k.Journal(),
+						Journal:         journalPort(k.Journal()),
 						BaseDir:         baseDir,
 						Stdout:          stdout,
 						Reasoning:       reasoningPort(k),

@@ -19,6 +19,7 @@ import (
 
 	"encoding/base64"
 	"github.com/agezt/agezt/kernel/contract/remoteapi"
+	"github.com/agezt/agezt/kernel/contract/wardenapi"
 	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/warden"
 	"path/filepath"
@@ -63,7 +64,7 @@ func artifactExportRecordOf(e remoteapi.Artifact) artifactExportRecord {
 
 var errArtifactExportStop = errors.New("artifact export stopped")
 
-func (t *Tool) exportSSHArtifacts(ctx context.Context, w warden.Engine, cfg executionprofile.SSHConfig, remoteDir string) ([]artifactExportRecord, error) {
+func (t *Tool) exportSSHArtifacts(ctx context.Context, w wardenapi.Engine, cfg executionprofile.SSHConfig, remoteDir string) ([]artifactExportRecord, error) {
 	if t.index == nil {
 		return nil, nil
 	}
@@ -100,7 +101,7 @@ func (t *Tool) exportSSHArtifacts(ctx context.Context, w warden.Engine, cfg exec
 	return t.exportArtifactsFromDir(ctx, localDir, "ssh")
 }
 
-func (t *Tool) exportK8sArtifacts(ctx context.Context, w warden.Engine, cfg executionprofile.K8sConfig, remoteDir string) ([]artifactExportRecord, error) {
+func (t *Tool) exportK8sArtifacts(ctx context.Context, w wardenapi.Engine, cfg executionprofile.K8sConfig, remoteDir string) ([]artifactExportRecord, error) {
 	if t.index == nil {
 		return nil, nil
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/wardenapi"
 	"github.com/agezt/agezt/kernel/warden"
 )
 
@@ -45,7 +46,7 @@ func validatePackages(pkgs []string) ([]string, error) {
 // pipInstall installs pkgs into depsDir via `python -m pip install --target`.
 // Network-using, time-bounded, scrubbed env, confined to the work dir — the same
 // isolation envelope as the program run.
-func pipInstall(ctx context.Context, w warden.Engine, interp, dir, depsDir string, pkgs []string, profile warden.Profile, env []string) (*warden.Result, error) {
+func pipInstall(ctx context.Context, w wardenapi.Engine, interp, dir, depsDir string, pkgs []string, profile warden.Profile, env []string) (*warden.Result, error) {
 	argv := append([]string{
 		interp, "-m", "pip", "install",
 		"--target", depsDir,

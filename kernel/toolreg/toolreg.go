@@ -23,7 +23,6 @@ import (
 	"io"
 	"sync"
 
-	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/contract/acpapi"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
@@ -32,7 +31,9 @@ import (
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/configapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
+	"github.com/agezt/agezt/kernel/contract/eventapi"
 	"github.com/agezt/agezt/kernel/contract/introspectapi"
+	"github.com/agezt/agezt/kernel/contract/journalapi"
 	"github.com/agezt/agezt/kernel/contract/mcpapi"
 	"github.com/agezt/agezt/kernel/contract/overseerapi"
 	"github.com/agezt/agezt/kernel/contract/pluginapi"
@@ -42,11 +43,10 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/toolregapi"
+	"github.com/agezt/agezt/kernel/contract/wardenapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
-	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/warden"
 )
 
 // BuildDeps carries everything a tool may need at pre-kernel construction
@@ -55,7 +55,11 @@ import (
 type BuildDeps struct {
 	BaseDir       string
 	WorkspaceRoot string
-	Warden        warden.Engine
+	// Warden is the isolation engine the shell and code_exec tools route
+	// their process launches through. It is the CONTRACT's port: the tools
+	// are plugins, and a plugin may not name the platform package that keeps
+	// the engine (W3.39f).
+	Warden        wardenapi.Engine
 	Stderr        io.Writer
 	Get           func(name string) string
 	AllowAll      bool
@@ -78,13 +82,21 @@ type BuildDeps struct {
 
 // KernelDeps carries the post-Open dependencies for the Configure phase.
 type KernelDeps struct {
-	K         *runtime.Kernel
-	Bus       *bus.Bus
+	K *runtime.Kernel
+	// Bus is the publish port the code_exec tool writes its code.executed
+	// event through. It is the CONTRACT's port: the tool is a plugin and may
+	// not name the platform package that keeps the bus (W3.39f). Nil when
+	// unwired — the tool then simply publishes nothing.
+	Bus       eventapi.Publisher
 	Artifacts artifactapi.Index
 	Lake      datalakeapi.Lake
-	Journal   *journal.Journal
-	BaseDir   string
-	Stdout    io.Writer
+	// Journal is the read port the runs tool recalls the daemon's own past
+	// runs through. It is the CONTRACT's port, for the same reason (W3.39f).
+	// Nil when unwired — the tool then reports that the run history is
+	// unavailable.
+	Journal journalapi.Reader
+	BaseDir string
+	Stdout  io.Writer
 	// Reasoning is the reasoning port the council, conductor and research
 	// tools drive (W3.39b). It is the contract's port — the tools' runner
 	// interfaces live in the contract layer, so the registry can hand one
