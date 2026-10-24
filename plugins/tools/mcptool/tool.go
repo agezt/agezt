@@ -31,15 +31,11 @@ import (
 // a plugin, and a plugin may reach the contract and the platform layers and
 // nothing else — so it may not name the registry, and it asks the kernel for
 // the ROWS instead.
-type Kernel interface {
-	AddMCPServer(corr string, srv mcpapi.Server) (mcpapi.Server, error)
-	AttachMCPServer(ctx context.Context, corr, ref string) (mcpapi.Server, []string, error)
-	DetachMCPServer(corr, ref string) error
-	RemoveMCPServer(corr, ref string) (bool, error)
-	MCPServers() []mcpapi.Server
-	MCPServer(ref string) (mcpapi.Server, bool)
-	MCPAttached() map[string]int
-}
+//
+// The PORT itself is the contract's too (W3.39d): the registry hands the
+// runner to the tool, so the port it hands must be a contract row — and the
+// name stays here as an alias, so every caller and every fake is unchanged.
+type Kernel = mcpapi.Runner
 
 // Tool implements toolapi.Tool. Construct with New, then Bind the live kernel.
 type Tool struct {

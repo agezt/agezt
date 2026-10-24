@@ -8,11 +8,14 @@ import (
 	"github.com/agezt/agezt/kernel/app/configtool"
 	"github.com/agezt/agezt/kernel/app/introspect"
 	"github.com/agezt/agezt/kernel/app/overseer"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/configapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
+	"github.com/agezt/agezt/kernel/contract/mcpapi"
 	"github.com/agezt/agezt/kernel/contract/reasoningapi"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
@@ -53,6 +56,14 @@ func toolKernelDeps(k *runtime.Kernel, baseDir string, stdout io.Writer) toolreg
 		// The workboard tool drives the daemon's workboard through the
 		// contract's move-and-claim port (W3.39c).
 		WorkboardRunner: workboardPort(k),
+		// The MCP tool drives the daemon's MCP registry through the
+		// contract's port (W3.39d).
+		MCP: mcpPort(k),
+		// The standing-orders tool drives the daemon's standing orders
+		// through the contract's port (W3.39d), and checks an agent profile
+		// through a plain closure.
+		Standing:    standingPort(k),
+		AgentLookup: agentLookup(k),
 		// The overseer tool steers the fleet through a contract port; the
 		// implementation that answers it needs the live kernel and the board
 		// store, so the daemon builds it here (the tool is a plugin and may
@@ -210,6 +221,52 @@ func workboardPort(k *runtime.Kernel) workboardapi.Runner {
 		return nil
 	}
 	return k
+}
+
+// mcpPort hands the kernel's MCP registry to the tool registry as the
+// contract's port (W3.39d) — the MCP tool adds, attaches, detaches and
+// removes servers through it.
+//
+// The same nil-port rule: a nil kernel handed to an interface parameter is a
+// non-nil interface, and the tool would bind a runner that is not there.
+func mcpPort(k *runtime.Kernel) mcpapi.Runner {
+	if k == nil {
+		return nil
+	}
+	return k
+}
+
+// standingPort hands the kernel's standing orders to the tool registry as
+// the contract's port (W3.39d) — the standing-orders tool journals, removes
+// and lists them through it.
+//
+// The same nil-port rule: a nil kernel handed to an interface parameter is a
+// non-nil interface, and the tool would bind a host that is not there.
+func standingPort(k *runtime.Kernel) standingapi.Host {
+	if k == nil {
+		return nil
+	}
+	return k
+}
+
+// agentLookup hands the daemon's roster lookup to the tool registry as a
+// plain closure (W3.39d) — the standing-orders tool checks an agent profile
+// through it.
+//
+// A closure on purpose: the roster is a module, and a row a plugin names
+// cannot live in a module's implementation package — but a function value
+// names no type at all. And a daemon with no roster must hand over NOTHING:
+// a closure over a nil roster would panic on the first lookup, where a nil
+// closure leaves the tool without the lookup it can do without.
+func agentLookup(k *runtime.Kernel) func(ref string) (agentapi.Profile, bool) {
+	if k == nil {
+		return nil
+	}
+	r := k.Roster()
+	if r == nil {
+		return nil
+	}
+	return r.Get
 }
 
 // forgeStore hands the live script-tool store to the tool registry as the
