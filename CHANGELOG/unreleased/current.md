@@ -995,6 +995,13 @@ This file holds the active `[Unreleased]` working set.
   The guardians' quiet defaults — silent on success, no memory writes — are
   the operator's contract, and they are now asserted.
 
+- **The live kernel leaves the tool registry.** The registry's last row a
+  plugin could not name — the live kernel itself — is gone. The forge's
+  runner became a contract port, the Verifier's code executor a plain closure
+  over the contract's own runner, and the artifact bytes another closure; the
+  approval verdict the forge's port carries moved to the contract layer as an
+  alias, so every one of its existing callers keeps compiling unchanged.
+
 - **The warden, bus and journal rows become contract's ports.** The last three
   platform rows the registry carried were the ones a plugin could never name:
   the isolation engine, the event bus and the journal. Their rows now live in
@@ -2988,6 +2995,15 @@ This file holds the active `[Unreleased]` working set.
   built-in skills promoted at boot) into one row with a ×N badge.
 
 ### Fixed
+
+- **The built-in skills are seeded again while a scanner holds the old bundle.**
+  Seeding a built-in skill bundle removed the old bundle and renamed the staged
+  one over it in a single step. On Windows, a scanner or indexer that still
+  held a handle on one of the old bundle's files made that delete only
+  PENDING, so the rename was refused with "Access is denied" and the daemon
+  booted without its built-in skills. The swap is now retried over a short
+  bounded window on Windows — the same remedy the atomic file helper already
+  carries for files.
 
 - **Operation audit records name the tenant actually reached.** A primary-token
   write that named a tenant with surrounding spaces was routed to that tenant

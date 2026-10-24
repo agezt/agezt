@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.39f the platform rows become contract's ports, 2026-10-24
+## Current checkpoint — W3.39g the live kernel leaves the registry, 2026-10-24
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2816,6 +2816,62 @@ files, five of the seventeen mutations would have escaped.
   runner, the kernel's code executor, and the artifact bytes the send_media
   tool resolves — and the registry's own functions move down to the contract
   layer, and the last `plugin-reach` edge falls with them.
+- W3.39g (the live kernel leaves the registry) is committed on `main` the same
+  way. After W3.39f, **every field of every row of the registry was a contract
+  row or a contract port with exactly one exception** — `KernelDeps.K`, the
+  live kernel — and that one field was the whole remaining leak: the plugin
+  never imported `kernel/runtime` (the **field's type** was the dependency),
+  so removing it removes the first-party tools' last type-level dependency on
+  the composition root's runtime.
+  The field served three uses, and each got its own shape. The **forge's
+  runner** was four verbs, and the fourth one named a **platform** type
+  (`approval.Decision`) — so the row had to move with the port: the verdict
+  moved to the contract layer (`kernel/contract/approvalapi`) with the
+  platform keeping its name as an **alias** (all 92 usages across 30 files
+  keep compiling unchanged), the port moved to `toolforgeapi.Runner`, and the
+  tool's own `Kernel` became an alias of it. The kernel satisfies the new port
+  **with no adapter at all** — its own methods already speak the contract's
+  rows (the script tool and the verdict are both aliases), so the port is
+  satisfied by identity rather than by a translation. The **Verifier's code
+  executor** was one pure verb, and the contract **already had it**
+  (`toolregapi.ScriptRunner`, from W3.38) with the exact signature — so the
+  runtime's `CodeExecutor` became an alias of it, and the registry's row is a
+  plain closure (a function value names no type). The **artifact bytes** were
+  already a closure, so the row is the closure itself — the daemon builds it
+  over the live blob store, and the store's hash re-verification travelled
+  with it.
+  The code_exec tool hands **itself** to the row, and a nil
+  `*codeexec.Tool` in an interface parameter is a **non-nil interface** — so
+  the hand-over is a named function with the check in it (`installExecutor`).
+  **The ratchet did NOT move — 78/13, unchanged** for the seventh time and for
+  the same reason: the registry's **rows** are still in the wrong layer. What
+  this slice changes is that the registry's rows are now **all**
+  contract-shaped — **with no exception left**.
+  **15 mutations: 14 caught** — one is a **build error** rather than a measured
+  failure, and that is the honest shape of it: the alias's identity is
+  enforced by the **type system**, not by a test (the platform's own methods
+  stop compiling when it stops speaking the contract's row); one was
+  **gate-measured** (the contract naming the platform again — archcheck's
+  principle P4).
+  **Only the final move remains**: the registry's rows and its own functions
+  (`Register`, `Names`, `BuildAll`, `Set`, ...) move down to the contract layer,
+  the plugin imports the contract package instead of `kernel/toolreg`, and the
+  last `plugin-reach` edge falls (**ratchet 78 → 77**). The only thing standing
+  in that move is the registry's own reach for the daemon's configuration
+  (`Set.ApplyPreOpen(cfg *runtime.Config)`), and even that has a home: the
+  adapter moves to the composition root, which may name `*runtime.Config` —
+  and `runtime.Config.ScriptRunner` is **already** the contract's runner.
+  The slice's own full test run also surfaced **two Windows-only flakes**,
+  both fixed in the same slice and both measured locally (no CI job runs on
+  Windows): the skill bundle swap raced a scanner's handle and was refused
+  with "Access is denied" (now a bounded Windows-only retry, the same remedy
+  `internal/atomicfile` carries), and the warden's timeout test measured the
+  machine's process-creation latency instead of the kill path (the deadline
+  also pays for PATH resolution and `os/exec` creation, so the budget could
+  be gone before the process existed — the run is now repeated with a budget
+  that covers the start, and the wall-clock bound is relative to the budget).
+  Both were weakened in no way: the measured run still has to start, run past
+  its deadline, be killed and be flagged.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
