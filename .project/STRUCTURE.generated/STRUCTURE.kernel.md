@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-203 package(s):
+202 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -188,7 +188,6 @@
 - **`kernel/restapi`** — GET /api/v1/update — check for updates (M860) POST /api/v1/update/apply — validate and stage an update (M860) Security (SPEC-06): loopback-bound by the operator, token-authed on every request (Authorization: Bearer <token>).
 - **`kernel/resume`** — Package resume persists a durable "ticket" per in-flight root run so the daemon can pick the work back up after a restart — whether the daemon was stopped/started, self-updated, or hard-killed.
 - **`kernel/runtime`** — Package runtime wires the kernel subsystems (journal + state + bus + agent loop + providers + tools) into a single Kernel that the daemon hosts and the control plane drives.
-- **`kernel/runtime/accessors`** — Package accessors is the kernel's read-mostly surface extracted into a sub-package on Day 13 of the runtime split.
 - **`kernel/runtime/lifecycle`** — Package lifecycle is the kernel's run-lifecycle surface extracted into a sub-package as the first step of the Day 12 sub-package split.
 - **`kernel/runtime/runexec`** — Package runexec owns the kernel's run engine.
 - **`kernel/scheduler`** — Package scheduler is the DAG layer that sits *above* the first-party single-agent tool-loop (DECISIONS B0d, SPEC-02 §4).

@@ -52,16 +52,6 @@ cross-module kernel/runtime -> kernel/modules/extensions/toolforge
 cross-module kernel/runtime -> kernel/voicetool
 cross-module kernel/runtime -> kernel/modules/work/workboard
 cross-module kernel/runtime -> kernel/modules/workflows/workflow
-cross-module kernel/runtime/accessors -> kernel/modules/artifacts/artifact
-cross-module kernel/runtime/accessors -> kernel/cadence
-cross-module kernel/runtime/accessors -> kernel/modules/providers/catalog
-cross-module kernel/runtime/accessors -> kernel/modules/artifacts/datalake
-cross-module kernel/runtime/accessors -> kernel/market
-cross-module kernel/runtime/accessors -> kernel/modules/knowledge/memory
-cross-module kernel/runtime/accessors -> kernel/modules/knowledge/worldmodel
-cross-module kernel/runtime/accessors -> kernel/modules/skills/skill
-cross-module kernel/runtime/accessors -> kernel/modules/agents/roster
-cross-module kernel/runtime/accessors -> kernel/standing
 cross-module kernel/runtime/runexec -> kernel/modules/artifacts/artifact
 cross-module kernel/runtime/runexec -> kernel/modules/work/assure
 cross-module kernel/runtime/runexec -> kernel/cadence
@@ -78,5 +68,4 @@ cross-module kernel/modules/agents/selfrepair -> kernel/runtime
 upward kernel/channel -> kernel/bus
 upward kernel/governor -> kernel/modules/providers/catalog
 upward kernel/runtime -> kernel/agentgw
-upward kernel/runtime/accessors -> kernel/agentgw
 upward kernel/runtime/runexec -> kernel/agentgw

@@ -23,10 +23,23 @@ import (
 //
 // As of Day 13 the eleven "easy" store getters (Journal, Bus, State,
 // Edict, Warden, Approvals, Scheduler, Provider, Memory, AgentGateway,
-// Schedules) live in the kernel/runtime/accessors sub-package; their
-// legacy *Kernel bodies have become thin delegations to the sub-
-// package's Accessor (see runtime.go). The rest of the surface lands
-// in subsequent commits.
+// Schedules) were MOVED to the kernel/runtime/accessors sub-package, and
+// their legacy *Kernel bodies were supposed to become thin delegations to
+// that package's Accessor.
+//
+// That never happened, and the sub-package was never called: it was wired
+// into the kernel (k.accessors = accessors.New(k)) and then read by nobody,
+// while *Kernel kept the bodies — reading the fields directly, because an
+// Accessor dispatching back into *Kernel through the implicit KernelAPI
+// interface would recurse. The two implementations therefore drifted apart
+// and the sub-package became a second, unreachable copy of the read
+// surface — and the reason the kernel's module reach was counted TWICE in
+// the archcheck ratchet.
+//
+// W3.40 deleted the sub-package. The bodies below are the live ones, and
+// they are the only ones; the shape test in submanager_test.go pins the
+// accessor surface by name so a future split cannot quietly leave a second
+// copy behind.
 //
 // The live-mutator set (SetModel, SetSystem, SetCouncilMembers,
 // SetScheduleEngine, SetMarket) all take configMu; readers that go

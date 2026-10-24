@@ -44,13 +44,15 @@ func (k *Kernel) RunWG() *sync.WaitGroup { return &k.runWG }
 // it — only kernel/resume.go's Suspend does that.
 func (k *Kernel) Suspending() *atomic.Bool { return &k.suspending }
 
-// ConfigMu exposes the config-mutex so the Accessor sub-package can
-// honour the same lock order. Day 14.
-func (k *Kernel) ConfigMu() *sync.Mutex { return &k.configMu }
-
 // PublishBusEvent is the Accessor sub-package's chokepoint for
 // Standing / Roster CRUD side-effects. Returns whatever the bus
 // returns; the Accessor ignores the id. Day 15.
+//
+// The Accessor sub-package is gone (W3.40), so this chokepoint has no
+// caller left in the tree — it survives only because the app layer passes
+// the standing / roster CRUD in as closures. It is kept for now: it is the
+// one place the kernel publishes a standing/roster event, and removing it
+// would move that event into the callers.
 func (k *Kernel) PublishBusEvent(spec event.Spec) (*event.Event, error) {
 	return k.bus.Publish(spec)
 }
@@ -252,8 +254,10 @@ func (k *Kernel) SubjectForRun(corr string) string {
 // / etc. public surface. They read the underlying fields directly
 // (rather than going through *accessors.Accessor) to avoid the
 // recursion that would result from the Accessor dispatching back
-// into *Kernel via the implicit KernelAPI interface. The Accessor
-// itself remains in the kernel/runtime/accessors sub-package and
-// is unit-tested independently; it lands its public body once the
-// kernel→sub-package call graph is restructured to break the cycle
-// (planned for the follow-up commits — the rest of the read
+// into *Kernel via the implicit KernelAPI interface.
+//
+// The Accessor itself used to remain in the kernel/runtime/accessors
+// sub-package, unit-tested independently — and wired into the kernel
+// without ever being called. W3.40 deleted it: the bodies below are the
+// only ones, and the sub-package's copy was the reason the kernel's
+// module reach was counted twice in the archcheck ratchet.
