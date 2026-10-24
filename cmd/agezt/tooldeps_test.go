@@ -12,10 +12,12 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
+	"github.com/agezt/agezt/kernel/contract/remoteapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/introspecttool"
@@ -331,5 +333,82 @@ func TestTheIntrospectToolAnswersOnAConfiguredDaemon(t *testing.T) {
 	}
 	if !strings.Contains(res.Output, `"daemon"`) {
 		t.Fatalf("the overview must carry the daemon row: %s", res.Output)
+	}
+}
+
+// TestToolKernelDepsSuppliesTheArtifactPort: the artifact index reaches the
+// tools through the contract's port. The port is supplied HERE — at the
+// composition root — so a daemon that dropped it would leave the artifacts,
+// fetch, browser-action and code_exec tools unable to read or write the
+// index on every live box, while every test that builds the tool by hand
+// stayed green. This test is the only one that sees that wiring, so it
+// asserts it directly.
+func TestToolKernelDepsSuppliesTheArtifactPort(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	deps := toolKernelDeps(k, t.TempDir(), io.Discard)
+	if deps.Artifacts == nil {
+		t.Fatal("the daemon must supply the artifact port")
+	}
+
+	// The port must answer the LIVE index — a port bound to nothing would
+	// still be non-nil.
+	row, err := deps.Artifacts.PutEntry(remoteapi.Artifact{Kind: "image", Name: "cat.png", Mime: "image/png"}, []byte("PNGDATA"), 1)
+	if err != nil {
+		t.Fatalf("PutEntry: %v", err)
+	}
+	if row.Name != "cat.png" {
+		t.Fatalf("the port must answer the live index, got %+v", row)
+	}
+	list := deps.Artifacts.List(remoteapi.Filter{})
+	if len(list) != 1 || list[0].Name != "cat.png" {
+		t.Fatalf("the port must answer the live index, got %v", list)
+	}
+}
+
+// TestArtifactPortStaysANilPortWithoutAnIndex: a daemon with no index must
+// hand over a NIL port, not a port wrapping a nil implementation — the
+// check is on the concrete type, because a nil *artifact.Index handed to an
+// interface parameter is already a non-nil interface. A tool that bound it
+// would crash on the first read instead of reporting that the index is
+// unavailable.
+func TestArtifactPortStaysANilPortWithoutAnIndex(t *testing.T) {
+	if got := artifactPort(nil); got != nil {
+		t.Fatalf("a missing index must yield a nil port, got %v", got)
+	}
+}
+
+// TestBoardPortStaysANilPortWithoutAStore: the board store is opened late,
+// and the daemon leaves it nil when it could not be opened. The same
+// nil-port rule applies: a nil *board.Store handed to an interface parameter
+// is a NON-NIL interface, so the board tool would bind a store that is not
+// there and panic on the first post.
+func TestBoardPortStaysANilPortWithoutAStore(t *testing.T) {
+	if got := boardPort(nil); got != nil {
+		t.Fatalf("a missing store must yield a nil port, got %v", got)
+	}
+}
+
+// TestBoardPortAnswersTheLiveStore: the board port is not an empty shell —
+// it is the daemon's own store, so a message posted through it is the
+// message the daemon's board holds.
+func TestBoardPortAnswersTheLiveStore(t *testing.T) {
+	st, err := board.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("board.Open: %v", err)
+	}
+	port := boardPort(st)
+	if port == nil {
+		t.Fatal("a live store must yield a live port")
+	}
+	if _, err := port.Post("help", "tester", "please look", 1); err != nil {
+		t.Fatalf("Post: %v", err)
+	}
+	if msgs := st.Read("help", 10); len(msgs) != 1 || msgs[0].Text != "please look" {
+		t.Fatalf("the port must answer the live store, got %+v", msgs)
 	}
 }

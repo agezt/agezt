@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/board/board"
@@ -20,6 +21,11 @@ import (
 // store through the port, so the wiring site breaks instead of the tool if the
 // module and the contract ever drift apart.
 var _ boardapi.Store = (*board.Store)(nil)
+
+// The daemon's artifact index IS the contract's port too: the registry hands
+// the tools the index through the port, so the module's concrete index and
+// the contract's port cannot drift apart unnoticed.
+var _ artifactapi.Index = (*artifact.Index)(nil)
 
 // TestBoardSpecBindsTheLiveStore: the board tool may not name the board
 // module, so it takes the store as the contract's port — and the daemon binds
@@ -91,5 +97,56 @@ func TestArtifactsSpecBindsTheLiveIndex(t *testing.T) {
 	}
 	if !strings.Contains(res.Output, "cat.png") {
 		t.Fatalf("the tool did not list the live artifact: %s", res.Output)
+	}
+}
+
+// TestTheBoardPortStaysNilWhenUnwired: a daemon that could not open the board
+// leaves the port NIL, and the board tool must then say the board is not
+// available.
+//
+// The point is the difference between a nil port and a port wrapping a nil
+// implementation: the port is an interface, so a nil *board.Store handed
+// straight to it would be a NON-NIL interface, the tool would bind a store
+// that is not there, and the first post would crash instead of reporting
+// that the board is unavailable.
+func TestTheBoardPortStaysNilWhenUnwired(t *testing.T) {
+	spec := specBoard()
+	built, err := spec.Build(toolreg.BuildDeps{})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if err := spec.Late(built.Tool, toolreg.LateDeps{}); err != nil {
+		t.Fatalf("Late: %v", err)
+	}
+
+	res, err := built.Tool.Invoke(context.Background(), json.RawMessage(
+		`{"op":"post","topic":"help","text":"please look"}`))
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if !res.IsError || !strings.Contains(res.Output, "not available") {
+		t.Fatalf("an unwired board must report that it is unavailable, got %+v", res)
+	}
+}
+
+// TestTheArtifactPortStaysNilWhenUnwired: the same rule for the artifact
+// index — a daemon with no index hands over a nil port, and the artifacts
+// tool must report that the store is unavailable rather than bind nothing.
+func TestTheArtifactPortStaysNilWhenUnwired(t *testing.T) {
+	spec := specArtifacts()
+	built, err := spec.Build(toolreg.BuildDeps{})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if err := spec.Configure(built.Tool, toolreg.KernelDeps{}); err != nil {
+		t.Fatalf("Configure: %v", err)
+	}
+
+	res, err := built.Tool.Invoke(context.Background(), json.RawMessage(`{"op":"list"}`))
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if !res.IsError || !strings.Contains(res.Output, "unavailable") {
+		t.Fatalf("an unwired index must report that it is unavailable, got %+v", res)
 	}
 }

@@ -26,6 +26,8 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/contract/acpapi"
+	"github.com/agezt/agezt/kernel/contract/artifactapi"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/configapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/introspectapi"
@@ -37,8 +39,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/journal"
-	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
-	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -74,7 +74,7 @@ type BuildDeps struct {
 type KernelDeps struct {
 	K         *runtime.Kernel
 	Bus       *bus.Bus
-	Artifacts *artifact.Index
+	Artifacts artifactapi.Index
 	Lake      datalakeapi.Lake
 	Journal   *journal.Journal
 	BaseDir   string
@@ -127,8 +127,15 @@ type LateDeps struct {
 	KernelDeps
 	ChannelSend      func(ctx context.Context, kind, id, text string) error
 	ChannelSendMedia func(ctx context.Context, kind, id, text string, atts []channel.Attachment) error
-	Board            *board.Store
-	BoardNotify      func(m board.Message, corr string)
+	// Board is the shared message board the board tool posts through. It is
+	// the contract's PORT: the board module's store answers it, and a tool
+	// that could name the module's concrete store would reach into it (the
+	// board is a module, and the tools are plugins). Nil when unwired — the
+	// tool then reports that the board is unavailable.
+	Board boardapi.Store
+	// BoardNotify is called after each successful post so the host can
+	// journal a board.posted event (M656).
+	BoardNotify func(m boardapi.Message, corr string)
 }
 
 // Built is the result of one Spec's Build. A zero Built (Tool nil, no Extra)

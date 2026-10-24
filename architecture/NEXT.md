@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.38 the registry's pre-Open phase becomes a contract's port, 2026-10-24
+## Current checkpoint — W3.39a the registry's two module dependencies become contract's ports, 2026-10-24
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2542,6 +2542,50 @@ files, five of the seventeen mutations would have escaped.
   the opposite direction of the one the rule forbids. The registry's rows carry
   the live kernel, so that slice is bigger: the registry's rows have to be
   broken apart first, one port family at a time.
+
+- W3.39a (the registry's two module dependencies become contract's ports) is
+  committed on `main` the same way. The tool registry is a module (L3,
+  "runs"), and its **dependency rows** — the `KernelDeps` and `LateDeps` the
+  daemon hands to the tools — named two OTHER modules' concrete types:
+  `Artifacts *artifact.Index` and `Board *board.Store`. The registry never
+  called a method on either of them: it holds them, hands them to the tools
+  and gets out of the way, so it was carrying a module's **implementation** in
+  a row that is really a row. The tools were never the problem — each one
+  already held its own narrow private interface (`artifacts.Index`,
+  `fetch.Indexer`, `browser.actionArtifactIndexer`,
+  `codeexec.artifactIndexer`) and received the concrete index by assignment;
+  the leak was entirely in the row that carried it. So the artifact index's
+  port is **new** in the contract layer (`kernel/contract/artifactapi`, four
+  verbs — `PutEntry`, `List`, `Bytes`, `Delete` — over the contract's own
+  `remoteapi` rows), and the board store's port **already existed**
+  (`boardapi.Store` — the board tool has been taking the store through it
+  since it was written).
+  The **ratchet went DOWN by TWO**: 80/13 → **78/13** — both `cross-module`
+  edges are gone and **both stale allowlist entries were deleted**.
+  The slice found the trap the change was walking into: the rows were
+  concrete pointers, so `d.Board != nil` meant "there is a board" — they are
+  interfaces now, and a nil pointer handed to an interface parameter is a
+  **non-nil interface**. This is not theoretical: **`lateBoard` really is nil
+  on a live path** (the daemon opens the board late and leaves the store nil
+  when it could not be opened), so a naive change would have made the board
+  tool bind a store that was not there and **panic on the first post** instead
+  of reporting that the board is unavailable. The daemon therefore grew the
+  same nil-port rule the lake and the forge store already follow
+  (`artifactPort`, `boardPort`), and the rule is measured at **both** ends.
+  The **shape of the port is pinned** (exactly four verbs; every type it
+  names is a contract row or a builtin), and the **tools keep their narrow
+  interfaces**: an interface value satisfies a narrower interface when its
+  method set covers it, so the daemon hands over one port and each tool still
+  receives exactly the slice it declares.
+  7 mutations: 7 caught — two measured by the **archcheck gate** (the
+  module's index and store are concrete, so a registry naming them again
+  would compile and pass every test in the package), and two of them the ones
+  that matter most — the nil-safety of the daemon's ports, which is the
+  difference between "the board is unavailable" and "the daemon panics on the
+  first post".
+  **What is left of the registry's rows**: `KernelDeps.K` (the live kernel —
+  the heavy one, eleven specs and nineteen call sites), `KernelDeps.Bus`,
+  `KernelDeps.Journal` and `BuildDeps.Warden`. Each is the next sub-slice.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
