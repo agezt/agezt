@@ -54,8 +54,8 @@ Then `policyHook` calls `edict.Decide` (or `DecideWithCeiling` under an initiati
 |---|---|---|---|
 | `Build(BuildDeps) (Built, error)` | `toolreg.BuildAll` before the kernel exists | `BaseDir, WorkspaceRoot, Warden, Stderr, Get, AllowAll, NotifyTargets` | every spec. Zero `Built` = declined (env-gated off); error = **hard boot failure**. |
 | `PreOpen(tool, toolregapi.Config)` | `Set.ApplyPreOpen` before `runtime.Open` | the contract's pre-Open port (one verb: `SetScriptRunner`) | `code_exec` (sets the script runner for forged tools through the port — it may not name the daemon's config, W3.38) |
-| `Configure(tool, KernelDeps)` | `Set.Configure` after `runtime.Open` (`main.go:839`) | `K, Bus, Artifacts, Lake, Journal, BaseDir, Stdout, NetguardPublish` | Set*-injection + kernel-bound tools |
-| `Late(tool, LateDeps)` | `Set.ConfigureLate` once channels + shared board exist (`main.go:1427`) | `KernelDeps` + `ChannelSend, ChannelSendMedia, Board, BoardNotify` | `notify`, `send_media`, `board` |
+| `Configure(tool, KernelDeps)` | `Set.Configure` after `runtime.Open` (`main.go:839`) | `K, Bus, Artifacts` (the contract's `artifactapi.Index` port), `Lake`, `Journal`, `BaseDir`, `Stdout`, `NetguardPublish` | Set*-injection + kernel-bound tools |
+| `Late(tool, LateDeps)` | `Set.ConfigureLate` once channels + shared board exist (`main.go:1427`) | `KernelDeps` + `ChannelSend, ChannelSendMedia, Board` (the contract's `boardapi.Store` port), `BoardNotify` | `notify`, `send_media`, `board` |
 | `Netguard bool` | Configure wires `NetguardPublish(name)` into every built instance implementing `toolreg.NetguardAware` (`SetOnBlock`) | — | `http`, `browser.read`, `browser.action`, `web_search`, `fetch` |
 | `YieldOnConflict bool` | BuildAll drops a colliding name with a warning instead of erroring | — | `plugins` only |
 

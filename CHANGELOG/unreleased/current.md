@@ -995,6 +995,19 @@ This file holds the active `[Unreleased]` working set.
   The guardians' quiet defaults — silent on success, no memory writes — are
   the operator's contract, and they are now asserted.
 
+- **The registry's two module dependencies become contract's ports.** The tool
+  registry's dependency rows — the ones the daemon hands to the tools — named
+  two other modules' concrete types: the artifact index and the board store.
+  The registry never called a method on either of them; it carried them.
+  A row is not an implementation, so the artifact index now has its port in
+  the contract layer (four verbs over the contract's own rows), and the board
+  store's port — which already existed — is what the registry names.
+  The change had one trap worth naming: the rows were concrete pointers, so
+  "no board" meant a nil pointer; as ports, a nil pointer would have looked
+  present to the tool, which would have crashed on the first post instead of
+  reporting that the board is unavailable. The daemon now hands over a nil
+  port, and both ends of that rule are measured.
+
 - **The registry's pre-Open phase becomes a contract's port.** The tool
   registry's pre-Open hook — the one moment before the kernel opens where a
   tool may still change the daemon's configuration — took the daemon's live
