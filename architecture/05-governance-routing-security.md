@@ -39,7 +39,7 @@ All source read from the working tree (disk), 2026-10-02.
 | `kernel/configcenter` | kernel/approval | cmd/agt, kernel/agentgw, kernel/controlplane, kernel/runtime(+accessors, runexec) |
 | `kernel/executionprofile` | kernel/creds, kernel/warden | kernel/controlplane, plugins/tools/codeexec, plugins/tools/shell |
 | `kernel/edict` | internal/atomicfile | ~45 importers: cmd/agezt, daemonconfig, agentgw, controlplane, delegation, imagetool, market, memory, reranktool, roster, runtime(+accessors, compose, runexec), voicetool, worldmodel, and essentially every `plugins/tools/*` package |
-| `kernel/warden` | kernel/bus, kernel/event | cmd/agezt, kernel/controlplane, kernel/executionprofile, kernel/pulse, kernel/runtime(+accessors, compose, runexec), kernel/toolreg, plugins/tools/codeexec, plugins/tools/shell |
+| `kernel/warden` | kernel/bus, kernel/event | cmd/agezt, kernel/controlplane, kernel/executionprofile, kernel/pulse, kernel/runtime(+accessors, compose, runexec), plugins/tools/codeexec, plugins/tools/shell |
 | `kernel/netguard` | — | cmd/agezt, cmd/agt, catalog, chatgptauth, controlplane, market, mcp, update, plugins/channels/onebot, plugins/external/mcpbridge, plugins/providers/{embed,openairesponses,voice}, plugins/tools/{browser,fetch,http,websearch} |
 | `kernel/envscrub` | — | kernel/creds, plugins/tools/{acpagent,browser,coding} |
 | `kernel/redact` | — | cmd/agezt, kernel/controlplane, kernel/openaiapi, plugins/builtintools |
@@ -484,7 +484,7 @@ Tests: `profile_test.go`, `env_test.go`, `secretfiles_test.go`.
 - `New(opts...)` → `*Guard`; options `AllowLoopback()`, `AllowPrivate()` (RFC1918 + ULA + CGNAT 100.64/10), `OnBlock(fn)`.
 - `Allowed(ip)`: always blocks unspecified, `0.0.0.0/8`, **link-local (169.254/16 incl. cloud metadata, fe80::/10) — no option relaxes it**, multicast, broadcast; blocks loopback/private unless allowed. IPv6 forms embedding IPv4 (NAT64 `64:ff9b::/96`, IPv4-compatible `::/96`) are collapsed first (M171). Non-literal dial address → fail closed.
 - `Dialer(timeout)`, `HTTPClient(timeout)` (fresh transport, **no Proxy func** — proxy env vars are ignored, which also prevents proxy-based bypass).
-- `OnBlock` is wired by `kernel/toolreg` (`SetOnBlock(d.NetguardPublish(tool))`) and mcpbridge to journal `netguard.blocked`.
+- `OnBlock` is wired by `kernel/contract/toolregapi` (`SetOnBlock(d.NetguardPublish(tool))`) and mcpbridge to journal `netguard.blocked`.
 
 Single file `netguard.go`. Tests: `netguard_test.go`, `coverage_test.go`.
 

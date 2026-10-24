@@ -54,7 +54,7 @@ Eight sections, none of which fit in one glance, several of which mixed
 `kernel/controlplane` exposes ~298 flat protocol ops through a single dispatch
 registry. Historically every new kernel package earned a nav item of the same
 name, so the console reads as a *package index* rather than a set of jobs.
-`kernel/modules/extensions/toolbox`, `kernel/modules/extensions/toolforge`, `kernel/toolreg`, `kernel/market` and
+`kernel/modules/extensions/toolbox`, `kernel/modules/extensions/toolforge`, `kernel/contract/toolregapi`, `kernel/market` and
 `kernel/skill` are five packages — and five nav items — for what the operator
 experiences as one question: "what can my agents do?"
 

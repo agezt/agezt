@@ -58,7 +58,7 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 | `update` | brand, netguard | cmd/agezt, controlplane, restapi |
 | `toolbox` | — | controlplane |
 | `toolforge` | contract/toolforgeapi, filestore, ulid | cmd/agezt, controlplane, runtime (+runexec) |
-| `channel` | strutil, bus, event | cmd/agezt, channelwire, controlplane, toolreg, builtinchannels, every plugins/channels/*, tools/sendmedia |
+| `channel` | strutil, bus, event | cmd/agezt, channelwire, controlplane, builtinchannels, every plugins/channels/*, tools/sendmedia |
 | `channelwire` | bus, channel, pulse, settings | cmd/agezt, builtinchannels |
 | `stt` | — | cmd/agezt, cmd/agt |
 | `voicetool` / `imagetool` / `reranktool` | agent, edict | runtime (+compose, runexec) |
@@ -794,7 +794,7 @@ Tests: `correlation_test`, `coverage_test`, `scheduler_test`.
 
 Capability can be added in six ways, from tightest to loosest coupling:
 
-1. Compiled-in tools: `plugins/tools/*`, registered by `plugins/builtintools` toolreg specs. See [10-tools.md](10-tools.md).
+1. Compiled-in tools: `plugins/tools/*`, registered by `plugins/builtintools` toolregapi specs. See [10-tools.md](10-tools.md).
 2. Skills: procedures injected as prompt text.
 3. Market packs: skills + MCP servers + tool requirements.
 4. MCP servers: a stdio child process or a remote HTTP endpoint.
@@ -1081,7 +1081,7 @@ Tests: `installguard`, `librarydefensive`, `librarypick`, `libraryversion`, `lis
 
 **Capability manifest (M900).** `ToolDef.Capability` lets a plugin tool join an **existing** Edict axis such as `http.post`. The value flows as follows:
 
-`ToolCapabilities(prefix)` → `toolreg.Built.Caps` → `runtime.Config.ToolCapabilities` → `validatedToolCaps`
+`ToolCapabilities(prefix)` → `toolregapi.Built.Caps` → `runtime.Config.ToolCapabilities` → `validatedToolCaps`
 
 `validatedToolCaps` keeps only `edict.KnownCapability` values, so a plugin cannot invent new axes. A tool with no declared capability is default-denied. Each `remoteTool` is marked `EffectCompensable` with confidence 0.45.
 

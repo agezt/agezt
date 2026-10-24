@@ -995,6 +995,14 @@ This file holds the active `[Unreleased]` working set.
   The guardians' quiet defaults — silent on success, no memory writes — are
   the operator's contract, and they are now asserted.
 
+- **The tool registry moved to the contract layer.** The registry the built-in
+  tools register into now lives where a plugin may name it: its rows and its
+  own functions are the contract's, and the last plugin-to-module reach is
+  gone. The forge's pre-Open wiring is unchanged in what it does — the daemon
+  still installs the script runner before the kernel opens — but the adapter
+  that carries it moved to the composition root, which is where the daemon's
+  configuration lives.
+
 - **The live kernel leaves the tool registry.** The registry's last row a
   plugin could not name — the live kernel itself — is gone. The forge's
   runner became a contract port, the Verifier's code executor a plain closure
