@@ -4439,6 +4439,15 @@ This file holds the active `[Unreleased]` working set.
 
 ### Removed
 
+- **Removed: the kernel's reach on the data lake module (W3.42).** The kernel
+  opened the personal data lake and held its concrete type; the daemon now
+  opens it, seeds its built-in collections and hands the kernel the contract's
+  port (`kernel/contract/datalakeapi`), so the kernel reaches neither the
+  module nor its implementation. The architecture ratchet went from 63 to 61
+  edges. No behaviour changed: a lake that cannot be opened is still a
+  startup error — now the daemon's to raise — and a seeding hiccup is still
+  best-effort.
+
 - **Removed: the kernel's reach on three modules it did not need (W3.41).** The
   kernel named the workboard's proof module and the assurance module for rows
   that the contract layer already publishes — the modules keep those names as

@@ -11,6 +11,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
@@ -490,6 +491,15 @@ type Config struct {
 	// is unavailable, and no dispatch may run under a seat. It never means
 	// "every seat is valid".
 	Seats seatapi.Store
+
+	// Lake is the personal data lake the host holds — the contract's port, not
+	// a module's lake (W3.42). The daemon opens the lake, seeds its built-in
+	// collections and hands it over (cmd/agezt): the lake's files are the
+	// daemon's business, and the kernel is a module.
+	//
+	// Nil means "no data lake": the data operations report that the lake is
+	// unavailable, and the db tool is handed a nil port.
+	Lake datalakeapi.Lake
 }
 
 // Kernel is the running Agezt instance.

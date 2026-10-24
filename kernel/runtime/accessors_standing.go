@@ -10,9 +10,9 @@ package runtime
 import (
 	"errors"
 
+	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
-	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 	"github.com/agezt/agezt/kernel/standing"
 )
 
@@ -31,7 +31,7 @@ func (k *Kernel) ArtifactIndex() *artifact.Index { return k.artIndex }
 
 // DataLake returns the Personal Data Lake (M834) — the file-based structured
 // collections agents build and share, surfaced by the `db` tool and the Web UI.
-func (k *Kernel) DataLake() *datalake.Lake { return k.lake }
+func (k *Kernel) DataLake() datalakeapi.Lake { return k.lake }
 
 // Standing returns the standing wake-rule store (SPEC-16 §4), backing `agt
 // standing`. Always non-nil after Open.

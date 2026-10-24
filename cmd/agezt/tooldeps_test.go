@@ -131,8 +131,12 @@ func TestForgeStoreStaysANilPortWithoutAStore(t *testing.T) {
 // root — so a daemon that dropped it would leave the tool unable to reach
 // the lake on every live box, while every test that builds the tool by hand
 // stayed green. This test is the only one that sees that wiring.
+//
+// The kernel is opened THROUGH the composition root (W3.42): the daemon opens
+// the lake and seeds its built-in collections, then hands the kernel the
+// contract's port. A kernel opened without the root has no lake at all.
 func TestToolKernelDepsSuppliesTheLakePort(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := openAppKernel(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -168,12 +172,21 @@ func TestToolKernelDepsSuppliesTheLakePort(t *testing.T) {
 
 // TestLakeStoreStaysANilPortWithoutALake: a daemon with no lake must hand
 // over a NIL port, not a port wrapping a nil implementation.
+//
+// Since W3.42 the kernel holds the port itself, so there is no wrapper left
+// to wrap a nil lake: the kernel's port IS the port the tool gets, and a
+// kernel that was given no lake holds a nil port.
 func TestLakeStoreStaysANilPortWithoutALake(t *testing.T) {
 	if got := lakeStore(nil); got != nil {
 		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
 	}
-	if got := lakePort(nil); got != nil {
-		t.Fatalf("a missing lake must yield a nil port, got %v", got)
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+	if got := lakeStore(k); got != nil {
+		t.Fatalf("a kernel with no lake must yield a nil port, got %v", got)
 	}
 }
 

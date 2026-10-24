@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -14,8 +15,16 @@ import (
 
 // TestDataEditsThePrimaryLake drives the typed data lake operations through
 // the native adapter against the primary kernel's lake.
+//
+// The lake is opened HERE and handed to the kernel as the contract's port:
+// the lake's files are the composition root's business (W3.42), so the host
+// speaks the port instead of the kernel opening a module's lake.
 func TestDataEditsThePrimaryLake(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	lake, err := datalake.Open(t.TempDir(), func() int64 { return time.Now().UnixMilli() })
+	if err != nil {
+		t.Fatal(err)
+	}
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New(), Lake: lake})
 	if err != nil {
 		t.Fatal(err)
 	}
