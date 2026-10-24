@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.39c the workflow and workboard runners become the contract's ports, 2026-10-24
+## Current checkpoint — W3.39d the MCP and standing hosts become the contract's ports, 2026-10-24
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2676,6 +2676,54 @@ files, five of the seventeen mutations would have escaped.
   therefore need an **adapter** rather than an alias. The forge row is a
   fourth: its port names the toolforge rows plus `approval.Decision`, which
   is a platform type — the port can move only after that row moves with it.
+
+- W3.39d (the MCP and standing hosts become the contract's ports) is
+  committed on `main` the same way. The same leak, two more times: the MCP
+  tool's port (seven verbs — add, attach, detach, remove, list, look up,
+  report what is attached) and the standing-orders tool's port (three verbs)
+  were **already ports** naming only the contract's rows, but both lived in
+  the **tool's** package — a plugin (L6) — while the registry is a module
+  (L3): a module may not name a plugin's type, so the registry's row had to
+  be the **live kernel**.
+  So the two ports moved to the contract layer
+  (`kernel/contract/mcpapi.Runner`, `kernel/contract/standingapi.Host`), the
+  tools keep their names as **aliases**, `KernelDeps` gained `MCP` and
+  `Standing`, the two specs bind the new rows instead of `d.K`, and the
+  daemon supplies both ports under the same nil-port rule.
+  The standing tool also checks an **agent profile** (it refuses a managed
+  sub-agent's direct self-wake), and that lookup came from the roster
+  module — but the lookup is not a **type**, it is a function value, and a
+  function value names no type at all, so the registry carries it as a plain
+  closure (`AgentLookup func(ref string) (agentapi.Profile, bool)`) and the
+  daemon builds it from the live roster. A daemon with no roster hands over
+  **nothing** — a closure over a nil roster would panic on the first lookup
+  where a nil closure leaves the tool without the lookup it can do without.
+  **The ratchet did NOT move — 78/13, unchanged — for the fourth time** and
+  for the same reason: the registry's **rows** are still in the wrong layer.
+  This slice removes the **third** of the five families that block it.
+  Two **existing tests** had to be re-pointed at the new rows
+  (`mcp_ports_test.go`, `trigger_ports_test.go`): they had been reaching the
+  live kernel through `d.K` to get the runner as well, and the runner now
+  arrives through its own port — what they measure and what they assert are
+  unchanged.
+  10 mutations: 10 caught — two were **re-authored** because they produced
+  *compile errors* rather than measured failures (each declared only part of
+  the port, so the tools' other calls did not compile; the re-written
+  mutations declare the whole port and the identity assertions caught them).
+  There is **no gate-measured mutation**, for the same reason as W3.39b and
+  W3.39c: the registry's row for the live kernel is a **same-module** edge,
+  so archcheck cannot see it — the shape is pinned by the **compiler** (the
+  kernel must implement the ports, or nothing builds) and by the shape tests.
+  **Two families and the final move remain**: the schedule/skill rows (the
+  schedule tool already takes the cadence store through the contract's port
+  `cadenceapi.Store`, but the spec reaches the store and the roster through
+  the live kernel, so the registry needs a store row and a lookup row), and
+  the forge row plus the platform rows (the warden, the bus and the journal,
+  where the bus and the journal carry `event.Event` and therefore need an
+  **adapter** rather than an alias). When the last of them is gone, every
+  field of every row is a contract row or a contract port — and the
+  registry's rows can move to the contract layer, which is where the last
+  `plugin-reach` edge falls with them.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
