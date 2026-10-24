@@ -10,29 +10,22 @@
 // setters (WithModel/WithModelChain/WithTools and the execution-profile →
 // warden override). This package is the seeded catalog of built-in seats; it
 // deliberately does not launch work.
+//
+// The ROW now lives in the contract layer (kernel/contract/seatapi) — W3.41.
+// The module keeps its name as an alias of it, so there is one seat and one
+// spelling of it: the host holds the contract's port, the module owns the
+// file it is read from and written to.
 package seat
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/agezt/agezt/kernel/contract/seatapi"
+)
 
 // Seat is a named execution preset. Empty fields mean "inherit from the assigned
 // agent / defaults" — a seat only overrides the axes it sets.
-type Seat struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	// ExecutionProfile selects the isolation surface (warden-family id:
-	// local|warden|container). "" = inherit tool defaults.
-	ExecutionProfile string `json:"execution_profile,omitempty"`
-	// ModelChain, when set, forces this ordered model fallback chain for the run.
-	ModelChain []string `json:"model_chain,omitempty"`
-	// Tools is the allowlist applied only when RestrictTools is true (an empty
-	// allowlist with RestrictTools = a pure-reasoning run).
-	Tools         []string `json:"tools,omitempty"`
-	RestrictTools bool     `json:"restrict_tools,omitempty"`
-	Icon          string   `json:"icon,omitempty"`
-	// Builtin marks a seeded, non-deletable seat. Custom operator seats are false.
-	Builtin bool `json:"builtin,omitempty"`
-}
+type Seat = seatapi.Seat
 
 // ValidExecutionProfile reports whether id is an isolation surface a seat may
 // pin: empty (tool defaults) or a warden-family profile. Remote backends

@@ -31,7 +31,6 @@ cross-module kernel/modules/knowledge/memory -> kernel/agent
 cross-module kernel/pulse -> kernel/agent
 cross-module kernel/reflect -> kernel/modules/knowledge/worldmodel
 cross-module kernel/runtime -> kernel/modules/artifacts/artifact
-cross-module kernel/runtime -> kernel/modules/work/assure
 cross-module kernel/runtime -> kernel/cadence
 cross-module kernel/runtime -> kernel/modules/providers/catalog
 cross-module kernel/runtime -> kernel/modules/artifacts/datalake
@@ -43,10 +42,8 @@ cross-module kernel/runtime -> kernel/modules/knowledge/taste
 cross-module kernel/runtime -> kernel/modules/knowledge/worldmodel
 cross-module kernel/runtime -> kernel/modules/skills/skill
 cross-module kernel/runtime -> kernel/modules/work/okr
-cross-module kernel/runtime -> kernel/modules/work/proof
 cross-module kernel/runtime -> kernel/reranktool
 cross-module kernel/runtime -> kernel/modules/agents/roster
-cross-module kernel/runtime -> kernel/modules/work/seat
 cross-module kernel/runtime -> kernel/standing
 cross-module kernel/runtime -> kernel/modules/extensions/toolforge
 cross-module kernel/runtime -> kernel/voicetool

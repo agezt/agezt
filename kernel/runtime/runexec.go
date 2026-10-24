@@ -10,8 +10,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/assureapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	"github.com/agezt/agezt/kernel/modules/work/assure"
 )
 
 // This file is the kernel's run engine: the entry points an external
@@ -57,7 +57,7 @@ func (k *Kernel) Run(ctx context.Context, intent string) (string, string, error)
 // final answer and the loop result (attempts, completion, per-attempt history).
 // Day 33: the body lives in runexec.Runner.RunAssured; this wrapper preserves
 // the legacy *Kernel.RunAssured public surface.
-func (k *Kernel) RunAssured(ctx context.Context, corr, intent string, maxAttempts int) (string, assure.Result, error) {
+func (k *Kernel) RunAssured(ctx context.Context, corr, intent string, maxAttempts int) (string, assureapi.Result, error) {
 	return k.runexec.RunAssured(ctx, corr, intent, maxAttempts)
 }
 

@@ -3,9 +3,12 @@
 package main
 
 import (
+	"path/filepath"
+
 	apptools "github.com/agezt/agezt/kernel/app/tools"
 	"github.com/agezt/agezt/kernel/modules/agents/reaper"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
+	"github.com/agezt/agezt/kernel/modules/work/seat"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -18,8 +21,20 @@ import (
 // module may import another module's api package and nothing else — archcheck's
 // principle P5), so the composition root builds them here, over the kernel's own
 // ports, and injects them.
+//
+// The seat catalog is bound the same way: the daemon opens the store (the file
+// is the daemon's business) and hands the kernel the contract's port. A store
+// that cannot be opened is a startup error, exactly as it was when the kernel
+// opened it itself.
 func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 	cfg.NewToolInvoker = apptools.NewInvoker
+	if cfg.Seats == nil {
+		seats, err := seat.OpenStore(filepath.Join(cfg.BaseDir, "seats"))
+		if err != nil {
+			return nil, err
+		}
+		cfg.Seats = seats
+	}
 	k, err := kernelruntime.Open(cfg)
 	if err != nil {
 		return nil, err

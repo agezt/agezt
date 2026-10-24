@@ -77,23 +77,30 @@ func (s *Execution) Run(ctx context.Context, in ExecutionInput) (ExecutionOutput
 	isoProfile := strings.TrimSpace(p.ExecutionProfile)
 	isoSource := "agent"
 	if seatID := strings.TrimSpace(task.Seat); seatID != "" && !strings.EqualFold(seatID, "default") {
-		st, ok := s.seats.Get(seatID)
-		if !ok {
-			// A seat that was removed or mistyped shouldn't vanish silently.
-			_, _ = s.host.CommentWorkboardTask(corr, task.ID, "workboard", fmt.Sprintf("seat %q is unknown — running with agent defaults", seatID))
+		if s.seats == nil {
+			// No seat catalog at all: the seat cannot be resolved, so the run
+			// degrades to the agent's defaults — the same posture an unknown
+			// seat takes. A missing port is never a call into nothing.
+			_, _ = s.host.CommentWorkboardTask(corr, task.ID, "workboard", fmt.Sprintf("seat %q cannot be resolved — no seat catalog — running with agent defaults", seatID))
 		} else {
-			if len(st.ModelChain) > 0 {
-				ctx = s.context.Models(ctx, st.ModelChain)
-			}
-			if st.RestrictTools {
-				ctx = s.context.Tools(ctx, st.Tools)
-			}
-			if st.ExecutionProfile != "" {
-				// A seat names the isolation *surface* ("container"); a run
-				// profile names the implementation that provides it ("docker").
-				// Translate, or the seat's value is not routable at all.
-				isoProfile = executionprofile.SeatProfileID(st.ExecutionProfile)
-				isoSource = "seat " + st.ID
+			st, ok := s.seats.Get(seatID)
+			if !ok {
+				// A seat that was removed or mistyped shouldn't vanish silently.
+				_, _ = s.host.CommentWorkboardTask(corr, task.ID, "workboard", fmt.Sprintf("seat %q is unknown — running with agent defaults", seatID))
+			} else {
+				if len(st.ModelChain) > 0 {
+					ctx = s.context.Models(ctx, st.ModelChain)
+				}
+				if st.RestrictTools {
+					ctx = s.context.Tools(ctx, st.Tools)
+				}
+				if st.ExecutionProfile != "" {
+					// A seat names the isolation *surface* ("container"); a run
+					// profile names the implementation that provides it ("docker").
+					// Translate, or the seat's value is not routable at all.
+					isoProfile = executionprofile.SeatProfileID(st.ExecutionProfile)
+					isoSource = "seat " + st.ID
+				}
 			}
 		}
 	}

@@ -39,7 +39,6 @@ import (
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/modules/work/okr"
-	"github.com/agezt/agezt/kernel/modules/work/seat"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
@@ -242,10 +241,10 @@ func Open(cfg Config) (*Kernel, error) {
 		return fail("runtime: taste", err)
 	}
 
-	seatstore, err := seat.OpenStore(filepath.Join(cfg.BaseDir, "seats"))
-	if err != nil {
-		return fail("runtime: seats", err)
-	}
+	// The seat catalog is NOT opened here: the store is the composition root's
+	// business (the daemon owns the file), and the host holds the contract's
+	// port — cfg.Seats. A host that was given nothing holds a nil port and says
+	// "not available" rather than calling into nothing.
 
 	// Reflection holds no store of its own — it folds the journal and tunes
 	// the world graph, then journals its report (SPEC-05 §6). Default decay
@@ -338,7 +337,7 @@ func Open(cfg Config) (*Kernel, error) {
 		workboard:    wbstore,
 		okr:          okrstore,
 		taste:        tastestore,
-		seat:         seatstore,
+		seat:         cfg.Seats,
 		artifacts:    artStore,
 		artIndex:     artIndex,
 		lake:         lake,
