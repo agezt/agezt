@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.39e the schedule and skill rows become contract's ports, 2026-10-24
+## Current checkpoint — W3.39f the platform rows become contract's ports, 2026-10-24
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2767,6 +2767,55 @@ files, five of the seventeen mutations would have escaped.
   types too: the bus and the journal carry `event.Event`, which cannot move
   to the contract layer (it hashes with blake3), so those two need an
   **adapter** rather than an alias.
+- W3.39f (the platform rows become the contract's ports) is committed on
+  `main` the same way. The **fifth and last** family: the **isolation
+  engine**, the **event bus** and the **journal** — the three rows the
+  registry carried as *platform* types, which a plugin may never name. They
+  were the hard ones because they do not merely name a platform type, they
+  name one that carries rows the contract layer may not name at all: the
+  bus's event carries a BLAKE3 hash chain, and the journal's event carries
+  the durable envelope.
+  So the rows were **split** rather than moved: the sandbox's `Profile`,
+  `Limits`, `Spec` and `Result` moved **verbatim** to
+  `kernel/contract/wardenapi` (the platform keeps them as **aliases**, so
+  there is one row and one spelling of it); the event's `Kind` **type** and
+  `Spec` moved to `kernel/contract/eventapi` (again as aliases — and that is
+  what makes the bus take the contract's row: the daemon's adapter translates
+  **nothing**, so what the code_exec tool publishes is exactly what the bus
+  writes); and the journal's **read projection** — the four fields a reader
+  folds — became `kernel/contract/journalapi.Record` behind a one-verb
+  `Reader` port. The ports are deliberately **narrower** than the platforms
+  they stand for: the warden's port is `Run` + `EffectiveProfile` and **not**
+  `SetBus` (that verb names the bus, and the contract layer may not import
+  it), and the publish port answers one thing — *did it land?* — where the
+  bus answers two (the event it wrote carries the hash chain).
+  **The ratchet did NOT move — 78/13, unchanged — for the sixth time** and for
+  the same reason: the registry's **rows** are still in the wrong layer. What
+  this slice changes is the **shape of the blocker**: after it, **every field
+  of every row of the registry is a contract row or a contract port, with
+  exactly one exception** — `KernelDeps.K`, the live kernel — and the registry
+  imports `kernel/channel` and `kernel/runtime` and **no platform package at
+  all**.
+  The slice's finding is again a **rule nobody measured**: the mutation "the
+  journal read port swallows the read error" survived, because the adapter's
+  error path had no test walking it — every test ran a journal that could be
+  read — and the rule matters: a port that answers "nothing found" for a read
+  that **failed** tells the operator the daemon has no past runs, when the
+  truth is that the history could not be read at all. That is the difference
+  between "there is nothing" and "I could not look".
+  The fix was **a test, not a weaker mutation**: the daemon's test now puts a
+  segment the journal cannot decode into its directory and asserts that the
+  port **reports** the failure.
+  18 mutations: 18 caught — including a **gate-measured** one (a helper in the
+  contract's warden package taking a `*bus.Bus`: archcheck's principle P4
+  caught the contract naming the platform again); one mutation was
+  **re-authored** because it produced a *compile error* rather than a measured
+  failure (it pointed the runs tool's switch at a kind the switch already
+  carried — a duplicate case).
+  **The final move remains**: the live kernel's three uses — the forge tool's
+  runner, the kernel's code executor, and the artifact bytes the send_media
+  tool resolves — and the registry's own functions move down to the contract
+  layer, and the last `plugin-reach` edge falls with them.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

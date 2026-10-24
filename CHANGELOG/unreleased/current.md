@@ -995,6 +995,16 @@ This file holds the active `[Unreleased]` working set.
   The guardians' quiet defaults — silent on success, no memory writes — are
   the operator's contract, and they are now asserted.
 
+- **The warden, bus and journal rows become contract's ports.** The last three
+  platform rows the registry carried were the ones a plugin could never name:
+  the isolation engine, the event bus and the journal. Their rows now live in
+  the contract layer — the sandbox's profile, limits, request and result, the
+  event's kind and spec, and the journal's read projection — and the platform
+  packages keep their own names as aliases, so there is one row and one
+  spelling of it. The daemon hands the tools a publish port and a read port
+  instead of the live objects, and the two ports keep the nil rule: a daemon
+  without a bus or a journal hands over nothing at all.
+
 - **The schedule and skill rows become contract's ports.** The ports the
   schedule and skill tools need were already in the contract layer, but the
   specs reached them through the live kernel — so the registry's row had to
