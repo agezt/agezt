@@ -11,10 +11,12 @@ import (
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/configapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/mcpapi"
 	"github.com/agezt/agezt/kernel/contract/reasoningapi"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
@@ -64,6 +66,13 @@ func toolKernelDeps(k *runtime.Kernel, baseDir string, stdout io.Writer) toolreg
 		// through a plain closure.
 		Standing:    standingPort(k),
 		AgentLookup: agentLookup(k),
+		// The schedule tool writes its entries through the contract's
+		// cadence port (W3.39e).
+		Schedules: schedulesPort(k),
+		// The skill tool authors and retires its own procedures through the
+		// contract's forge port (W3.39e).
+		SkillForge:   skillForgePort(k),
+		SkillBundles: skillBundlesPort(k),
 		// The overseer tool steers the fleet through a contract port; the
 		// implementation that answers it needs the live kernel and the board
 		// store, so the daemon builds it here (the tool is a plugin and may
@@ -267,6 +276,59 @@ func agentLookup(k *runtime.Kernel) func(ref string) (agentapi.Profile, bool) {
 		return nil
 	}
 	return r.Get
+}
+
+// schedulesPort hands the daemon's cadence store to the tool registry as the
+// contract's port (W3.39e) — the schedule tool writes its entries through
+// it.
+//
+// The same nil-port rule: a nil store handed to an interface parameter is a
+// non-nil interface, and the tool would bind a store that is not there.
+func schedulesPort(k *runtime.Kernel) cadenceapi.Store {
+	if k == nil {
+		return nil
+	}
+	s := k.Schedules()
+	if s == nil {
+		return nil
+	}
+	return s
+}
+
+// skillForgePort hands the daemon's skills forge to the tool registry as the
+// contract's port (W3.39e) — the skill tool authors, promotes and retires
+// its own procedures through it.
+//
+// The same nil-port rule: a nil forge handed to an interface parameter is a
+// non-nil interface, and the tool would bind a forge that is not there.
+func skillForgePort(k *runtime.Kernel) skillapi.Forge {
+	if k == nil {
+		return nil
+	}
+	f := k.Forge()
+	if f == nil {
+		return nil
+	}
+	return f
+}
+
+// skillBundlesPort hands the forge's bundle store to the tool registry as
+// the contract's port (W3.39e). A nil store must stay a nil port, or the
+// tool would call into a nil implementation instead of reporting that
+// bundles are unavailable.
+func skillBundlesPort(k *runtime.Kernel) skillapi.BundleStore {
+	if k == nil {
+		return nil
+	}
+	f := k.Forge()
+	if f == nil {
+		return nil
+	}
+	b := f.Bundles()
+	if b == nil {
+		return nil
+	}
+	return b
 }
 
 // forgeStore hands the live script-tool store to the tool registry as the
