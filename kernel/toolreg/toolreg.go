@@ -26,14 +26,17 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/contract/acpapi"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/configapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/introspectapi"
+	"github.com/agezt/agezt/kernel/contract/mcpapi"
 	"github.com/agezt/agezt/kernel/contract/overseerapi"
 	"github.com/agezt/agezt/kernel/contract/pluginapi"
 	"github.com/agezt/agezt/kernel/contract/reasoningapi"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/toolregapi"
@@ -94,6 +97,17 @@ type KernelDeps struct {
 	// durable, journaled path for typed work items (W3.39c). The read side
 	// is the store (`Workboard`).
 	WorkboardRunner workboardapi.Runner
+	// MCP is the port of the daemon's MCP registry: the servers the agent
+	// may add, attach, detach and remove (W3.39d).
+	MCP mcpapi.Runner
+	// Standing is the port of the daemon's standing orders — the recurring
+	// instructions an operator leaves for the fleet (W3.39d).
+	Standing standingapi.Host
+	// AgentLookup resolves an agent profile by reference. It is a plain
+	// closure on purpose: the roster is a module, and a row a plugin names
+	// cannot live in a module's implementation package — but a function
+	// value names no type at all.
+	AgentLookup func(ref string) (agentapi.Profile, bool)
 	// NetguardPublish returns the per-tool OnBlock callback that journals a
 	// netguard.blocked event (M109). Supplied by the daemon; Configure wires it
 	// into every Netguard spec's instances that implement NetguardAware.

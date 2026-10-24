@@ -87,10 +87,10 @@ func specStanding() toolreg.Spec {
 			return toolreg.Built{Tool: st}, nil
 		},
 		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
-			if d.K != nil {
-				st.Bind(d.K)
-				if d.K.Roster() != nil {
-					st.BindAgentLookup(d.K.Roster().Get)
+			if d.Standing != nil {
+				st.Bind(d.Standing)
+				if d.AgentLookup != nil {
+					st.BindAgentLookup(d.AgentLookup)
 				}
 			}
 			return nil
@@ -210,8 +210,8 @@ func specMCP() toolreg.Spec {
 			return toolreg.Built{Tool: mt}, nil
 		},
 		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
-			if d.K != nil {
-				mt.Bind(d.K)
+			if d.MCP != nil {
+				mt.Bind(d.MCP)
 			}
 			return nil
 		},

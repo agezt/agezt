@@ -31,14 +31,11 @@ import (
 // the tool is a plugin, and a plugin may reach the contract and the platform
 // layers and nothing else — so a row a plugin has to name cannot live in a
 // module's implementation package.
-type Host interface {
-	// AddStanding journals a new standing order.
-	AddStanding(o standingapi.Order) (standingapi.Order, error)
-	// RemoveStanding deletes a standing order by id.
-	RemoveStanding(id string) (bool, error)
-	// StandingList returns every standing order.
-	StandingList() []standingapi.Order
-}
+//
+// The PORT itself is the contract's too (W3.39d): the registry hands the host
+// to the tool, so the port it hands must be a contract row — and the name
+// stays here as an alias, so every caller and every fake is unchanged.
+type Host = standingapi.Host
 
 // Tool implements toolapi.Tool. Created unbound via New(); Bind wires the kernel.
 type Tool struct {

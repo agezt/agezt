@@ -995,6 +995,16 @@ This file holds the active `[Unreleased]` working set.
   The guardians' quiet defaults — silent on success, no memory writes — are
   the operator's contract, and they are now asserted.
 
+- **The MCP and standing hosts become the contract's ports.** The MCP tool
+  and the standing-orders tool each drove the daemon's registry and orders
+  through a port they declared themselves — the right shape, but in the wrong
+  layer: the tool's package is a plugin, and a module may not name a
+  plugin's type, so the registry had to carry the live kernel instead of the
+  runner. The two ports now live in the contract layer and the tools keep
+  their names as aliases. The roster lookup the standing tool needs arrives
+  as a plain closure — a function value names no type at all, so it can cross
+  the layer line where a roster type could not.
+
 - **The workflow and workboard runners become the contract's ports.** The
   workflow and workboard tools each drove the daemon's library and board
   through a runner interface they declared themselves — the right shape, but

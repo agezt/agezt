@@ -489,3 +489,57 @@ func TestTheWorkflowAndWorkboardPortsStayNilWithoutAKernel(t *testing.T) {
 		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
 	}
 }
+
+// TestToolKernelDepsSuppliesTheMCPAndStandingPorts: the MCP and the
+// standing-orders tools drive the daemon's registry and orders through the
+// contract's ports (W3.39d). The ports are supplied HERE — at the
+// composition root — so a daemon that dropped them would leave two tools
+// answering "not available" on every live box, while every test that built
+// the tool by hand stayed green. This test is the only one that sees that
+// wiring, so it asserts it directly.
+func TestToolKernelDepsSuppliesTheMCPAndStandingPorts(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	deps := toolKernelDeps(k, t.TempDir(), io.Discard)
+	if deps.MCP == nil {
+		t.Fatal("the daemon must supply the mcp port")
+	}
+	if deps.MCP != k {
+		t.Fatal("the mcp port must be the live kernel's")
+	}
+	if deps.Standing == nil {
+		t.Fatal("the daemon must supply the standing port")
+	}
+	if deps.Standing != k {
+		t.Fatal("the standing port must be the live kernel's")
+	}
+	if deps.AgentLookup == nil {
+		t.Fatal("the daemon must supply the agent lookup")
+	}
+	if _, err := k.AddProfile(agentapi.Profile{Slug: "scout"}); err != nil {
+		t.Fatalf("AddProfile: %v", err)
+	}
+	profile, ok := deps.AgentLookup("scout")
+	if !ok || profile.Slug != "scout" {
+		t.Fatalf("the agent lookup must answer the live roster, got %+v (found=%v)", profile, ok)
+	}
+}
+
+// TestTheMCPAndStandingPortsStayNilWithoutAKernel: the same nil-port rule —
+// a nil kernel handed to an interface parameter is a non-nil interface, so
+// the tools would bind a runner that is not there.
+func TestTheMCPAndStandingPortsStayNilWithoutAKernel(t *testing.T) {
+	if got := mcpPort(nil); got != nil {
+		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
+	}
+	if got := standingPort(nil); got != nil {
+		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
+	}
+	if got := agentLookup(nil); got != nil {
+		t.Fatalf("a missing kernel must yield no lookup, got %v", got != nil)
+	}
+}
