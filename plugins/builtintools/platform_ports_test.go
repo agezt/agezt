@@ -6,8 +6,8 @@ import (
 	"io"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/contract/wardenapi"
-	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/tools/shell"
 )
@@ -24,7 +24,7 @@ import (
 func TestTheShellSpecCarriesTheDaemonsWardenThroughThePort(t *testing.T) {
 	eng := warden.New(nil)
 
-	built, err := specShell().Build(toolreg.BuildDeps{
+	built, err := specShell().Build(toolregapi.BuildDeps{
 		BaseDir:       t.TempDir(),
 		WorkspaceRoot: t.TempDir(),
 		Warden:        eng,

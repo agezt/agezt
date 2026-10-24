@@ -122,11 +122,12 @@ func findingLines(out []byte) []string {
 // prefix would also hide the NEXT dead function in the same package, which is
 // how a gate quietly stops gating.
 var testOnlyCrossPackageSeams = map[string]bool{
-	// toolreg.Names pins the exact ordered boot tool surface for
+	// toolregapi.Names pins the exact ordered boot tool surface for
 	// plugins/builtintools/ratchet_test.go, so the tool list cannot change
-	// silently. toolreg cannot import the package that registers the specs
-	// (that is the dependency direction), so the seam stays exported.
-	"kernel/toolreg/toolreg.go|Names": true,
+	// silently. The contract package cannot import the package that registers
+	// the specs (that is the dependency direction), so the seam stays
+	// exported.
+	"kernel/contract/toolregapi/registry.go|Names": true,
 }
 
 // isAllowedTestOnlySeam reports whether a finding is a pinned cross-package

@@ -11,7 +11,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/toolreg"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/builtintools"
 	"github.com/agezt/agezt/plugins/tools/codeexec"
@@ -20,7 +20,7 @@ import (
 // TestFirstPartyToolDefinitionsDeclareEffects walks the REAL boot registry
 // (Phase 2.2 PR 7 — this used to be a hand-listed constructor slice that
 // drifted from what the daemon actually registers): builtintools.RegisterAll +
-// toolreg.BuildAll under a permissive fake environment that switches every
+// toolregapi.BuildAll under a permissive fake environment that switches every
 // env-gated spec ON, then asserts every built tool's Definition().Effect is
 // fully populated. A new spec added to RegisterAll is covered automatically.
 //
@@ -53,7 +53,7 @@ func TestFirstPartyToolDefinitionsDeclareEffects(t *testing.T) {
 	}
 
 	var stderr bytes.Buffer
-	set, err := toolreg.BuildAll(toolreg.BuildDeps{
+	set, err := toolregapi.BuildAll(toolregapi.BuildDeps{
 		BaseDir:       t.TempDir(),
 		WorkspaceRoot: t.TempDir(),
 		Warden:        warden.New(nil),

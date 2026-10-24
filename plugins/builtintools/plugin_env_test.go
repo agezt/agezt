@@ -12,7 +12,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/pluginapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/toolreg"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/warden"
 )
 
@@ -101,7 +101,7 @@ func TestPlugins_ChildGetsScrubbedEnvPlusGrants(t *testing.T) {
 	}
 	var stderr bytes.Buffer
 	spawner := &fakeSpawner{}
-	built, err := buildPlugins(toolreg.BuildDeps{
+	built, err := buildPlugins(toolregapi.BuildDeps{
 		BaseDir: t.TempDir(), WorkspaceRoot: t.TempDir(), Warden: warden.New(nil), Stderr: &stderr, Get: get,
 		Plugins: spawner,
 	})
@@ -169,7 +169,7 @@ func TestPlugins_ChildGetsScrubbedEnvPlusGrants(t *testing.T) {
 // nothing.
 func TestPlugins_WithoutTheSpawnPortIsABootError(t *testing.T) {
 	var stderr bytes.Buffer
-	_, err := buildPlugins(toolreg.BuildDeps{
+	_, err := buildPlugins(toolregapi.BuildDeps{
 		BaseDir: t.TempDir(), WorkspaceRoot: t.TempDir(), Warden: warden.New(nil), Stderr: &stderr,
 		Get: func(k string) string {
 			if k == "AGEZT_PLUGINS" {
@@ -184,7 +184,7 @@ func TestPlugins_WithoutTheSpawnPortIsABootError(t *testing.T) {
 }
 
 func TestPlugins_MalformedEnvGrantIsABootError(t *testing.T) {
-	_, err := buildPlugins(toolreg.BuildDeps{
+	_, err := buildPlugins(toolregapi.BuildDeps{
 		BaseDir: t.TempDir(), WorkspaceRoot: t.TempDir(), Warden: warden.New(nil), Stderr: &bytes.Buffer{},
 		Plugins: &fakeSpawner{},
 		Get: func(k string) string {

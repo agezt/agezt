@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.39g the live kernel leaves the registry, 2026-10-24
+## Current checkpoint — W3.39h the registry itself moves down to the contract layer, 2026-10-24
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -2872,6 +2872,61 @@ files, five of the seventeen mutations would have escaped.
   that covers the start, and the wall-clock bound is relative to the budget).
   Both were weakened in no way: the measured run still has to start, run past
   its deadline, be killed and be flagged.
+- W3.39h (the registry itself moves down to the contract layer) is committed on
+  `main` the same way. After W3.39g the registry's **rows** were all
+  contract-shaped, with no exception left — but the **registry itself** was
+  still in `kernel/toolreg` (L3, module "runs"), and the built-in tools are a
+  **PLUGIN**: a plugin may name the contract layer and nothing else. So the
+  last `plugin-reach` edge was structural, not a row, and a half-move would
+  have split the package across two layers for no reason — the plugin names
+  **both** halves (it declares a `Spec` and it registers it) — so the rows
+  **and** the registry's own functions (`Register`, `Names`, `BuildAll`,
+  `Set`, ...) moved down together, into the existing
+  `kernel/contract/toolregapi`. The four files went with `git mv`, so the
+  history follows the code, and the 35 importers were rewritten (354
+  references; seven of them imported **both** packages, so their two imports
+  collapsed into one).
+  Three names had to change with it, and two of them were free:
+  `channel.Attachment` → `channelapi.Attachment` and
+  `runtime.PluginInfo` → `types.PluginInfo` are both **aliases** the platform
+  already kept, so the move changed the *spelling*, not the type. The third
+  was the real work: `ApplyPreOpen(cfg *runtime.Config)` became
+  `ApplyPreOpen(cfg Config)`, and the `runtimeConfig` adapter that answers
+  the port over the daemon's configuration **moved to the composition root**
+  (`cmd/agezt`) — because the registry could only wrap the daemon's
+  configuration while it was a module that knew both, and as a contract
+  package it may not name `*runtime.Config` at all. The plugin's own test
+  stopped reaching for the daemon's configuration too: it speaks the **port**
+  with a fake of it, so there is one spelling of the wire.
+  **The ratchet went DOWN: 78/13 → 77/13.** The `plugin-reach` edge is gone
+  (`plugins/builtintools -> kernel/toolreg`) and the **stale allowlist entry
+  was deleted** — the check fails when a listed edge no longer occurs, so it
+  could not stay. The `layers.json` rule for `kernel/toolreg` went with the
+  directory, and the deadcodecheck seam key followed the file
+  (`kernel/contract/toolregapi/registry.go|Names`).
+  **14 mutations: 14 caught**, and **four of them are gate-measured** — the
+  claim "the plugin no longer reaches a module" is not something a test can
+  see, it is what archcheck counts. The slice also found a **gap in itself**:
+  the daemon's pre-Open call sat in the middle of `runDaemon`, where no test
+  reaches it, so "the daemon hands the phase a port built over its own
+  configuration" was true and **unmeasured** — a change to `ApplyPreOpen(nil)`
+  would have compiled, booted, and left the script-tool forge (M794)
+  permanently unavailable with no error anywhere. The fix is the one W3.39g
+  used: a **named function** at the composition root (`applyPreOpen`), so the
+  call site is a thing a test can hold.
+  The **reach was checked before it was built**: all 23 contract packages the
+  registry names import the standard library and other contract packages only,
+  so the move could not buy its edge by pulling a module in through a contract
+  package — the indirect leak archcheck's direct-import rule cannot see was
+  measured, not assumed.
+  The full test run also dropped `tools/deadcodecheck`'s own tests — their
+  fixture strings still named the old path — and the gate and its fixtures
+  now name one path.
+  **What remains**: W3's exit condition is that `kernel/runtime` and
+  `kernel/controlplane` no longer exist and no type has more than 60 methods.
+  The registry was the last thing standing between the built-in tools and the
+  contract layer; what stands between the daemon and the contract layer now
+  is the kernel itself.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

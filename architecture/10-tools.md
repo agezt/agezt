@@ -2,14 +2,14 @@
 
 **Scope:** `plugins/tools/*` (30 tool packages), `plugins/builtintools` (the boot tool registry), `plugins/builtinguardians` (self-healing guardian fleet), `plugins/builtinmarket` (Official marketplace seed). The 16 embedded agentskills.io bundle directories are **not** a plugin any more — they live in the skills module (`kernel/modules/skills/builtins`) since W3.3; the market seed reads them from there.
 
-Related docs: kernel-side contract and registry plumbing (`kernel/agent`, `kernel/toolreg`, `kernel/runtime` tool loop, research/council/conductor orchestration) → [04-agent-runtime.md](04-agent-runtime.md); Edict, warden, netguard, envscrub, executionprofile, settings/creds → [05-governance-routing-security.md](05-governance-routing-security.md); artifact index, board, datalake, workboard → [06-data-memory-state.md](06-data-memory-state.md); cadence, standing, skill Forge, market, mcp, acp/acpcatalog, workflow, plugin host, memory/world/voice/image/rerank tools → [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md); daemon boot order (`cmd/agezt/boot_tools.go`, `main.go`) → [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md); channels used by notify/send_media → [09-channels.md](09-channels.md); console Tools/Market/Skills views → [11-frontend-console.md](11-frontend-console.md).
+Related docs: kernel-side contract and registry plumbing (`kernel/agent`, `kernel/contract/toolregapi`, `kernel/runtime` tool loop, research/council/conductor orchestration) → [04-agent-runtime.md](04-agent-runtime.md); Edict, warden, netguard, envscrub, executionprofile, settings/creds → [05-governance-routing-security.md](05-governance-routing-security.md); artifact index, board, datalake, workboard → [06-data-memory-state.md](06-data-memory-state.md); cadence, standing, skill Forge, market, mcp, acp/acpcatalog, workflow, plugin host, memory/world/voice/image/rerank tools → [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md); daemon boot order (`cmd/agezt/boot_tools.go`, `main.go`) → [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md); channels used by notify/send_media → [09-channels.md](09-channels.md); console Tools/Market/Skills views → [11-frontend-console.md](11-frontend-console.md).
 
 ---
 
 ## Responsibilities at a glance
 
 - **Tool contract.** Every tool implements `agent.Tool` (`kernel/agent/agent.go:205`): `Definition() agent.ToolDef` + `Invoke(ctx, json.RawMessage) (agent.Result, error)`. `ToolDef` carries model-facing `Name/Description/InputSchema` plus two **governance-only** fields that never reach the provider wire: `Effect agent.ToolEffect` (reversibility class + predicted effects, used for HITL decision bundles) and `Capability agent.ToolCapability` (the Edict axis the call is gated on).
-- **Registration.** `builtintools.RegisterAll()` registers 32 ordered `toolreg.Spec`s into the package-level `kernel/toolreg` registry; `cmd/agezt/boot_tools.go:buildTools` calls `toolreg.BuildAll` and drives the resulting `*toolreg.Set` through four lifecycle phases (Build → PreOpen → Configure → ConfigureLate). Kernel-owned tools (`memory`, `world`, `delegate`, `delegate_await`, `market`, `voice`, `image_generate`, `rerank`) are registered by `kernel/runtime`, NOT here.
+- **Registration.** `builtintools.RegisterAll()` registers 32 ordered `toolregapi.Spec`s into the package-level `kernel/contract/toolregapi` registry; `cmd/agezt/boot_tools.go:buildTools` calls `toolregapi.BuildAll` and drives the resulting `*toolregapi.Set` through four lifecycle phases (Build → PreOpen → Configure → ConfigureLate). Kernel-owned tools (`memory`, `world`, `delegate`, `delegate_await`, `market`, `voice`, `image_generate`, `rerank`) are registered by `kernel/runtime`, NOT here.
 - **Governance.** Each tool call is resolved to an Edict capability (declared `ToolDef.Capability` first → plugin manifest caps → `edict.CapabilityForToolCall` name switch) and decided by Edict. An **unknown capability is default-DENIED**; guard tests make that a build-time failure. Every governed capability is **Allow by default** (owner's default-allow posture).
 - **Safety floors that are NOT policy:** netguard SSRF guard on network tools (loopback/RFC1918/metadata refused), host allowlists per redirect hop, file-tool root jail with symlink/TOCTOU defense, secret-scrubbed child environments for shell/code_exec/browser driver/ACP/coding, warden-mediated process execution with output caps and timeouts, notify/send_media recipient pinning, overseer refusal to edit/repair `System` guardians.
 - **Guardians.** 7 System-flagged agents seeded idempotently at boot, each with exactly one trigger (event standing order or cadence schedule), clamped budgets/trust ceiling/noise policy on every boot.
@@ -44,19 +44,21 @@ Then `policyHook` calls `edict.Decide` (or `DecideWithCeiling` under an initiati
 
 ## 2. `plugins/builtintools` — the boot tool registry
 
-**Purpose.** Tool mirror of `builtinchannels`: each first-party tool contributes a `toolreg.Spec` whose `Build` contains the construction logic that used to live inline in `cmd/agezt` (Phase 2.2 of the 2026-08 refactor). Env reads go through `BuildDeps.Get` so tests drive registration with a map-backed env.
+**Purpose.** Tool mirror of `builtinchannels`: each first-party tool contributes a `toolregapi.Spec` whose `Build` contains the construction logic that used to live inline in `cmd/agezt` (Phase 2.2 of the 2026-08 refactor). Env reads go through `BuildDeps.Get` so tests drive registration with a map-backed env.
 
-**Depends on:** `internal/brand`, `kernel/agent`, `kernel/modules/extensions/plugin`, `kernel/redact`, `kernel/runtime`, `kernel/toolreg`, and all 30 `plugins/tools/*` packages. **Used by:** `cmd/agezt` (`boot_tools.go`), `plugins/tools/tool_effects_test.go`.
+**Depends on:** `internal/brand`, `kernel/agent`, `kernel/modules/extensions/plugin`, `kernel/redact`, `kernel/contract/toolregapi`, and all 30 `plugins/tools/*` packages. **Used by:** `cmd/agezt` (`boot_tools.go`), `plugins/tools/tool_effects_test.go`.
 
-### `toolreg.Spec` lifecycle (defined in `kernel/toolreg/toolreg.go`)
+**The reach.** The plugin's **production** code names the contract layer and the platform layer — nothing else. It used to name `kernel/toolreg` (L3), which forced the last `plugin-reach` edge into the allowlist; the registry moved down to the contract layer in W3.39h and the edge fell (**ratchet 78 → 77**). The plugin's **tests** still build a live `*runtime.Kernel` to prove that a port answers the live implementation — a test import, which archcheck does not see, and the reason the production reach and the test reach are counted apart.
+
+### `toolregapi.Spec` lifecycle (defined in `kernel/contract/toolregapi/registry.go`)
 
 | Hook | When | Deps struct | Used by |
 |---|---|---|---|
-| `Build(BuildDeps) (Built, error)` | `toolreg.BuildAll` before the kernel exists | `BaseDir, WorkspaceRoot, Warden` (the contract's `wardenapi.Engine` port), `Stderr, Get, AllowAll, NotifyTargets` | every spec. Zero `Built` = declined (env-gated off); error = **hard boot failure**. |
+| `Build(BuildDeps) (Built, error)` | `toolregapi.BuildAll` before the kernel exists | `BaseDir, WorkspaceRoot, Warden` (the contract's `wardenapi.Engine` port), `Stderr, Get, AllowAll, NotifyTargets` | every spec. Zero `Built` = declined (env-gated off); error = **hard boot failure**. |
 | `PreOpen(tool, toolregapi.Config)` | `Set.ApplyPreOpen` before `runtime.Open` | the contract's pre-Open port (one verb: `SetScriptRunner`) | `code_exec` (sets the script runner for forged tools through the port — it may not name the daemon's config, W3.38) |
 | `Configure(tool, KernelDeps)` | `Set.Configure` after `runtime.Open` (`main.go:839`) | `ForgeRunner` (the contract's `toolforgeapi.Runner` port), `ConductorExec` (a plain closure — a function value names no type), `Bus` (the contract's `eventapi.Publisher` port), `Artifacts` (the contract's `artifactapi.Index` port), `Lake`, `Journal` (the contract's `journalapi.Reader` port), `BaseDir`, `Stdout`, `NetguardPublish`, `Reasoning` (the contract's `reasoningapi.Runner` port), `WorkflowRunner` (the contract's `workflowapi.Runner` port), `WorkboardRunner` (the contract's `workboardapi.Runner` port), `MCP` (the contract's `mcpapi.Runner` port), `Standing` (the contract's `standingapi.Host` port), `AgentLookup` (a plain closure — a function value names no type), `Schedules` (the contract's `cadenceapi.Store` port), `SkillForge` (the contract's `skillapi.Forge` port), `SkillBundles` (the contract's `skillapi.BundleStore` port) | Set*-injection + kernel-bound tools |
 | `Late(tool, LateDeps)` | `Set.ConfigureLate` once channels + shared board exist (`main.go:1427`) | `KernelDeps` + `ChannelSend, ChannelSendMedia, Board` (the contract's `boardapi.Store` port), `BoardNotify` | `notify`, `send_media`, `board` |
-| `Netguard bool` | Configure wires `NetguardPublish(name)` into every built instance implementing `toolreg.NetguardAware` (`SetOnBlock`) | — | `http`, `browser.read`, `browser.action`, `web_search`, `fetch` |
+| `Netguard bool` | Configure wires `NetguardPublish(name)` into every built instance implementing `toolregapi.NetguardAware` (`SetOnBlock`) | — | `http`, `browser.read`, `browser.action`, `web_search`, `fetch` |
 | `YieldOnConflict bool` | BuildAll drops a colliding name with a warning instead of erroring | — | `plugins` only |
 
 `Built{Tool, Extra map[string]agent.Tool, Desc, Caps map[string]string, Infos []runtime.PluginInfo}`. `buildTools` returns `set.Tools()`, the Set, `set.PluginManifest()`, `set.ToolCapabilities()` and the joined banner `Descs()`, and warns (does not fail) if `set.NetguardGaps()` is non-empty.
@@ -97,7 +99,7 @@ Tests: `ratchet_test.go` (ordered spec list), `capability_guard_test.go` (see §
 ```
 cmd/agezt main
  ├─ derive notifyTargets from channel manifests
- ├─ buildTools(): builtintools.RegisterAll(); toolreg.BuildAll(BuildDeps{Get: os.Getenv, AllowAll: AGEZT_ALLOW_ALL=="1"})
+ ├─ buildTools(): builtintools.RegisterAll(); toolregapi.BuildAll(BuildDeps{Get: os.Getenv, AllowAll: AGEZT_ALLOW_ALL=="1"})
  │     └─ warn on Set.NetguardGaps()
  ├─ Set.ApplyPreOpen(&cfg)            # code_exec → cfg.ScriptRunner
  ├─ runtime.Open(cfg with tools map, ToolCapabilities, PluginManifest)
@@ -557,7 +559,7 @@ Adding a **guardian**: append to `guardians` (slug `guardian-*`, exactly one tri
 - ✅ **Fixed (W1.4):** fetch had no host allowlist (any public host, 50 MiB) even when `AGEZT_HTTP_ALLOWED_HOSTS` restricted `http`; both now take one posture (`builtintools.httpEgress`). The http and browser allowlist matchers also disagreed on `*.x.com` depth — one grammar now (`netout.Egress.HostAllowed`, exactly one level).
 - **shell `timeout_ms` is uncapped** (code_exec caps at 600 s, browser.action at 120 s).
 - **Windows**: shell quoting correctness lives in `kernel/warden/cmdline_windows.go`, not in the tool; `scrubEnv` must keep SYSTEMROOT/COMSPEC/PATH or `cmd.exe` fails; code_exec prefers `python` over the Store `python3` shim and sets `PYLAUNCHER_ALLOW_INSTALL=0`.
-- **Registry order is load-bearing** (banner + plugins-last). `toolreg.Names()` exists only for the ratchet and is allowlisted in `tools/deadcodecheck`.
+- **Registry order is load-bearing** (banner + plugins-last). `toolregapi.Names()` exists only for the ratchet and is allowlisted in `tools/deadcodecheck`.
 - **Boot banner drift**: `main.go` prints "seeded N (health, doctor, stuck, budget, routing, code)" — omits `guardian-initiative` (7 guardians ship).
 - **Layering**: `cmd/agezt` imports `plugins/tools/codeexec` directly (display-only `Languages()` banner type assertion); `cmd/agt` imports `plugins/tools/peer` for doctor checks. Kernel never imports plugins — Conductor uses the `runtime.CodeExecutor` interface, council/research/conductor tools import `kernel/runtime` (plugin → kernel only).
 - **browser.action depends on a skill bundle file** (`kernel/modules/skills/builtins/browseruse/scripts/browse.mjs`) located by walking cwd/executable ancestors; packaged installs must set `AGEZT_BROWSER_ACTION_DRIVER`.

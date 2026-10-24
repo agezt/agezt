@@ -10,10 +10,10 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -39,11 +39,11 @@ func TestBoardSpecBindsTheLiveStore(t *testing.T) {
 	}
 
 	spec := specBoard()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Late(built.Tool, toolreg.LateDeps{Board: st}); err != nil {
+	if err := spec.Late(built.Tool, toolregapi.LateDeps{Board: st}); err != nil {
 		t.Fatalf("Late: %v", err)
 	}
 
@@ -80,11 +80,11 @@ func TestArtifactsSpecBindsTheLiveIndex(t *testing.T) {
 	}
 
 	spec := specArtifacts()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{Artifacts: idx}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{Artifacts: idx}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
@@ -111,11 +111,11 @@ func TestArtifactsSpecBindsTheLiveIndex(t *testing.T) {
 // that the board is unavailable.
 func TestTheBoardPortStaysNilWhenUnwired(t *testing.T) {
 	spec := specBoard()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Late(built.Tool, toolreg.LateDeps{}); err != nil {
+	if err := spec.Late(built.Tool, toolregapi.LateDeps{}); err != nil {
 		t.Fatalf("Late: %v", err)
 	}
 
@@ -134,11 +134,11 @@ func TestTheBoardPortStaysNilWhenUnwired(t *testing.T) {
 // tool must report that the store is unavailable rather than bind nothing.
 func TestTheArtifactPortStaysNilWhenUnwired(t *testing.T) {
 	spec := specArtifacts()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 

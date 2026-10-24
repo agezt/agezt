@@ -75,7 +75,6 @@ cross-module kernel/runtime/runexec -> kernel/standing
 cross-module kernel/runtime/runexec -> kernel/voicetool
 cross-module kernel/modules/agents/selfrepair -> kernel/modules/board/board
 cross-module kernel/modules/agents/selfrepair -> kernel/runtime
-plugin-reach plugins/builtintools -> kernel/toolreg
 upward kernel/channel -> kernel/bus
 upward kernel/governor -> kernel/modules/providers/catalog
 upward kernel/runtime -> kernel/agentgw

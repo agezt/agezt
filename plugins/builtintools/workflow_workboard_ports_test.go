@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
-	"github.com/agezt/agezt/kernel/toolreg"
 	workboardtool "github.com/agezt/agezt/plugins/tools/workboardtool"
 	workflowtool "github.com/agezt/agezt/plugins/tools/workflowtool"
 )
@@ -116,11 +116,11 @@ func (fakeStore) List(workboardapi.Filter) []workboardapi.Task { return nil }
 func TestTheWorkflowSpecBindsTheRunnerPort(t *testing.T) {
 	fake := &fakeWorkflowRunner{}
 	spec := specWorkflow()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{WorkflowRunner: fake}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{WorkflowRunner: fake}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
@@ -142,11 +142,11 @@ func TestTheWorkflowSpecBindsTheRunnerPort(t *testing.T) {
 func TestTheWorkboardSpecBindsTheRunnerPort(t *testing.T) {
 	fake := &fakeWorkboardRunner{}
 	spec := specWorkboard()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{
 		WorkboardRunner: fake,
 		Workboard:       fakeStore{},
 	}); err != nil {
@@ -174,11 +174,11 @@ func TestTheWorkboardSpecBindsTheRunnerPort(t *testing.T) {
 // there and fail in a way the operator could not read.
 func TestTheRunnerlessToolsReportUnavailable(t *testing.T) {
 	spec := specWorkflow()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 	res, err := built.Tool.Invoke(context.Background(), json.RawMessage(`{"op":"save","workflow":{"name":"daily"}}`))
@@ -190,11 +190,11 @@ func TestTheRunnerlessToolsReportUnavailable(t *testing.T) {
 	}
 
 	spec = specWorkboard()
-	built, err = spec.Build(toolreg.BuildDeps{})
+	built, err = spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 	res, err = built.Tool.Invoke(context.Background(), json.RawMessage(`{"op":"claim","id":"t1"}`))

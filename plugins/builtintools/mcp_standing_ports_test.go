@@ -12,7 +12,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/mcpapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
-	"github.com/agezt/agezt/kernel/toolreg"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	mcptool "github.com/agezt/agezt/plugins/tools/mcptool"
 	standingtool "github.com/agezt/agezt/plugins/tools/standingtool"
 )
@@ -70,11 +70,11 @@ func (f *fakeStandingHost) StandingList() []standingapi.Order {
 func TestTheMCPSpecBindsTheRunnerPort(t *testing.T) {
 	fake := &fakeMCPRunner{}
 	spec := specMCP()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{MCP: fake}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{MCP: fake}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
@@ -99,11 +99,11 @@ func TestTheStandingSpecBindsTheHostPort(t *testing.T) {
 		return agentapi.Profile{Slug: ref}, true
 	}
 	spec := specStanding()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{Standing: fake, AgentLookup: lookup}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{Standing: fake, AgentLookup: lookup}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
@@ -127,11 +127,11 @@ func TestTheStandingSpecBindsTheHostPort(t *testing.T) {
 // there and fail in a way the operator could not read.
 func TestTheMCPAndStandingRunnerlessToolsReportUnavailable(t *testing.T) {
 	spec := specMCP()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 	res, err := built.Tool.Invoke(context.Background(), json.RawMessage(`{"op":"list"}`))
@@ -143,11 +143,11 @@ func TestTheMCPAndStandingRunnerlessToolsReportUnavailable(t *testing.T) {
 	}
 
 	spec = specStanding()
-	built, err = spec.Build(toolreg.BuildDeps{})
+	built, err = spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 	res, err = built.Tool.Invoke(context.Background(), json.RawMessage(`{"op":"list"}`))

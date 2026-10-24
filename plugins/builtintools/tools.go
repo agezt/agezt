@@ -20,12 +20,12 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/toolreg"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/plugins/tools/browser"
 	"github.com/agezt/agezt/plugins/tools/fetch"
 )
 
-// RegisterAll registers the built-in tool specs. Idempotent — toolreg.Register
+// RegisterAll registers the built-in tool specs. Idempotent — toolregapi.Register
 // replaces by name, so calling it again (daemon boot + tests) is harmless.
 // NOTE: every call re-registers fresh Specs, and the spec* helpers close over
 // the concrete instance their own Build produced — so a Set built from one
@@ -40,48 +40,48 @@ import (
 // (ratchet_test.go) pins the exact ordered list.
 func RegisterAll() {
 	// Workspace pair — first in the boot banner, as always.
-	toolreg.Register(specShell())
-	toolreg.Register(specFile())
+	toolregapi.Register(specShell())
+	toolregapi.Register(specFile())
 	// Netguard slice (Phase 2.2 PR 2): the egress-guarded network tools.
-	toolreg.Register(toolreg.Spec{Name: "http", Netguard: true, Build: buildHTTP})
-	toolreg.Register(toolreg.Spec{Name: "browser.read", Netguard: true, Build: buildBrowserRead})
-	toolreg.Register(specBrowserAction())
-	toolreg.Register(toolreg.Spec{Name: "web_search", Netguard: true, Build: buildWebSearch})
-	toolreg.Register(specFetch())
+	toolregapi.Register(toolregapi.Spec{Name: "http", Netguard: true, Build: buildHTTP})
+	toolregapi.Register(toolregapi.Spec{Name: "browser.read", Netguard: true, Build: buildBrowserRead})
+	toolregapi.Register(specBrowserAction())
+	toolregapi.Register(toolregapi.Spec{Name: "web_search", Netguard: true, Build: buildWebSearch})
+	toolregapi.Register(specFetch())
 	// Set*-injection batch (Phase 2.2 PR 3): tools whose post-Open deps used to
 	// be injected via string-keyed downcasts in cmd/agezt/main.go.
-	toolreg.Register(specConfig())
-	toolreg.Register(specArtifacts())
-	toolreg.Register(specDB())
-	toolreg.Register(specCouncil())
-	toolreg.Register(specConductor())
-	toolreg.Register(specResearch())
-	toolreg.Register(specCodeExec())
+	toolregapi.Register(specConfig())
+	toolregapi.Register(specArtifacts())
+	toolregapi.Register(specDB())
+	toolregapi.Register(specCouncil())
+	toolregapi.Register(specConductor())
+	toolregapi.Register(specResearch())
+	toolregapi.Register(specCodeExec())
 	// Kernel-bound zero-arg tools (Phase 2.2 PR 4): the captured-local Bind
 	// sites that only needed the live kernel (+ baseDir). No banner descs.
-	toolreg.Register(specSchedule())
-	toolreg.Register(specRuns())
-	toolreg.Register(specStanding())
-	toolreg.Register(specSkill())
-	toolreg.Register(specIntrospect())
-	toolreg.Register(specOverseer())
-	toolreg.Register(specToolForge())
-	toolreg.Register(specMCP())
-	toolreg.Register(specWorkflow())
-	toolreg.Register(specWorkboard())
+	toolregapi.Register(specSchedule())
+	toolregapi.Register(specRuns())
+	toolregapi.Register(specStanding())
+	toolregapi.Register(specSkill())
+	toolregapi.Register(specIntrospect())
+	toolregapi.Register(specOverseer())
+	toolregapi.Register(specToolForge())
+	toolregapi.Register(specMCP())
+	toolregapi.Register(specWorkflow())
+	toolregapi.Register(specWorkboard())
 	// Late-bound trio (Phase 2.2 PR 5): wired by Set.ConfigureLate once the
 	// live channels / board store exist. No banner descs — they keep their own
 	// dedicated boot lines in main.go.
-	toolreg.Register(specNotify())
-	toolreg.Register(specSendMedia())
-	toolreg.Register(specBoard())
+	toolregapi.Register(specNotify())
+	toolregapi.Register(specSendMedia())
+	toolregapi.Register(specBoard())
 	// Env-gated externals (Phase 2.2 PR 6) — banner order preserved.
-	toolreg.Register(specCoding())
-	toolreg.Register(specACPAgent())
-	toolreg.Register(specHomeAssistant())
-	toolreg.Register(specRemoteRun())
+	toolregapi.Register(specCoding())
+	toolregapi.Register(specACPAgent())
+	toolregapi.Register(specHomeAssistant())
+	toolregapi.Register(specRemoteRun())
 	// External plugin host — LAST, so in-process names always win conflicts.
-	toolreg.Register(specPlugins())
+	toolregapi.Register(specPlugins())
 }
 
 // splitHosts appends the non-empty comma-separated entries of csv to dst.
@@ -94,17 +94,17 @@ func splitHosts(dst []string, csv string) []string {
 	return dst
 }
 
-func specBrowserAction() toolreg.Spec {
+func specBrowserAction() toolregapi.Spec {
 	var ba *browser.ActionTool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name:     "browser.action",
 		Netguard: true,
-		Build: func(d toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(d toolregapi.BuildDeps) (toolregapi.Built, error) {
 			built, tool, err := buildBrowserAction(d)
 			ba = tool
 			return built, err
 		},
-		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolregapi.KernelDeps) error {
 			if ba != nil && d.Artifacts != nil {
 				ba.SetIndex(d.Artifacts)
 			}
@@ -119,19 +119,19 @@ func specBrowserAction() toolreg.Spec {
 // The ten per-verb tools ride along as Built.Extra, keyed by their names.
 // Also returns the concrete instance (nil when gated off) for the spec's
 // Configure closure.
-func specFetch() toolreg.Spec {
+func specFetch() toolregapi.Spec {
 	var fe *fetch.Tool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name:     "fetch",
 		Netguard: true,
-		Build: func(d toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(d toolregapi.BuildDeps) (toolregapi.Built, error) {
 			fe = fetch.New()
 			e, desc := httpEgress(d)
 			fe.AllowAll, fe.AllowedHosts = e.AnyHost, e.AllowedHosts
 			fe.AllowLoopback, fe.AllowPrivate = e.AllowLoopback, e.AllowPrivate
-			return toolreg.Built{Tool: fe, Desc: "fetch(url→artifact, " + desc + ")"}, nil
+			return toolregapi.Built{Tool: fe, Desc: "fetch(url→artifact, " + desc + ")"}, nil
 		},
-		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolregapi.KernelDeps) error {
 			if d.Artifacts != nil {
 				fe.SetIndex(d.Artifacts)
 			}

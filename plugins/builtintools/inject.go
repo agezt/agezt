@@ -19,7 +19,6 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolregapi"
-	"github.com/agezt/agezt/kernel/toolreg"
 	artifactstool "github.com/agezt/agezt/plugins/tools/artifacts"
 	"github.com/agezt/agezt/plugins/tools/codeexec"
 	conductortool "github.com/agezt/agezt/plugins/tools/conductor"
@@ -35,15 +34,15 @@ import (
 // (provider/model) can rebuild the provider in place via Reload() — and so
 // agent-scoped writes reach the roster. The tool is a plugin, so it takes the
 // contract's port, never the kernel itself.
-func specConfig() toolreg.Spec {
+func specConfig() toolregapi.Spec {
 	var ct *configtool.Tool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "config",
-		Build: func(d toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(d toolregapi.BuildDeps) (toolregapi.Built, error) {
 			ct = configtool.New(d.BaseDir)
-			return toolreg.Built{Tool: ct, Desc: "config()"}, nil
+			return toolregapi.Built{Tool: ct, Desc: "config()"}, nil
 		},
-		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolregapi.KernelDeps) error {
 			if d.Config != nil {
 				ct.SetKernel(d.Config)
 			}
@@ -56,15 +55,15 @@ func specConfig() toolreg.Spec {
 // downloads, offloaded tool outputs, inbound images), so a file from one run is
 // usable in a later one (M832). A read/list/delete view over the artifact index
 // injected after the kernel opens. Always registered.
-func specArtifacts() toolreg.Spec {
+func specArtifacts() toolregapi.Spec {
 	var af *artifactstool.Tool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "artifacts",
-		Build: func(toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(toolregapi.BuildDeps) (toolregapi.Built, error) {
 			af = artifactstool.New()
-			return toolreg.Built{Tool: af, Desc: "artifacts(list/read/delete)"}, nil
+			return toolregapi.Built{Tool: af, Desc: "artifacts(list/read/delete)"}, nil
 		},
-		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolregapi.KernelDeps) error {
 			if d.Artifacts != nil {
 				af.SetIndex(d.Artifacts)
 			}
@@ -77,15 +76,15 @@ func specArtifacts() toolreg.Spec {
 // structured collections (expenses, tasks, notes, contacts, …) the human can
 // also browse in the Data view. The lake is injected after the kernel opens.
 // Always registered.
-func specDB() toolreg.Spec {
+func specDB() toolregapi.Spec {
 	var dbt *dbtool.Tool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "db",
-		Build: func(toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(toolregapi.BuildDeps) (toolregapi.Built, error) {
 			dbt = dbtool.New()
-			return toolreg.Built{Tool: dbt, Desc: "db(data-lake)"}, nil
+			return toolregapi.Built{Tool: dbt, Desc: "db(data-lake)"}, nil
 		},
-		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolregapi.KernelDeps) error {
 			if d.Lake != nil {
 				dbt.SetStore(d.Lake)
 			}
@@ -97,15 +96,15 @@ func specDB() toolreg.Spec {
 // specCouncil — the Council of Elders (M837): convene a multi-model panel for a
 // hard decision and get a reconciled consensus. The kernel is injected after
 // Open as the deliberation runner. Always registered.
-func specCouncil() toolreg.Spec {
+func specCouncil() toolregapi.Spec {
 	var ct *counciltool.Tool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "council",
-		Build: func(toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(toolregapi.BuildDeps) (toolregapi.Built, error) {
 			ct = counciltool.New()
-			return toolreg.Built{Tool: ct, Desc: "council(consensus panel)"}, nil
+			return toolregapi.Built{Tool: ct, Desc: "council(consensus panel)"}, nil
 		},
-		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolregapi.KernelDeps) error {
 			if d.Reasoning != nil {
 				ct.SetRunner(d.Reasoning)
 			}
@@ -118,15 +117,15 @@ func specCouncil() toolreg.Spec {
 // (Thinker/Worker/Verifier) that runs the worker's code and loops until it
 // passes. The kernel is injected after Open as the orchestration runner (the
 // code-exec backend is wired by specCodeExec's Configure). Always registered.
-func specConductor() toolreg.Spec {
+func specConductor() toolregapi.Spec {
 	var cond *conductortool.Tool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "conductor",
-		Build: func(toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(toolregapi.BuildDeps) (toolregapi.Built, error) {
 			cond = conductortool.New()
-			return toolreg.Built{Tool: cond, Desc: "conductor(verify-driven panel)"}, nil
+			return toolregapi.Built{Tool: cond, Desc: "conductor(verify-driven panel)"}, nil
 		},
-		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolregapi.KernelDeps) error {
 			if d.Reasoning != nil {
 				cond.SetRunner(d.Reasoning)
 			}
@@ -140,15 +139,15 @@ func specConductor() toolreg.Spec {
 // a citation-grounded report. The kernel is injected after Open as the harness
 // runner. Always registered; the underlying searches/fetches are each gated by
 // their own capability inside RunTool.
-func specResearch() toolreg.Spec {
+func specResearch() toolregapi.Spec {
 	var rt *research.Tool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "research",
-		Build: func(toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(toolregapi.BuildDeps) (toolregapi.Built, error) {
 			rt = research.New()
-			return toolreg.Built{Tool: rt, Desc: "research(deep-research harness)"}, nil
+			return toolregapi.Built{Tool: rt, Desc: "research(deep-research harness)"}, nil
 		},
-		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolregapi.KernelDeps) error {
 			if d.Reasoning != nil {
 				rt.SetRunner(d.Reasoning)
 			}
@@ -175,17 +174,17 @@ func specResearch() toolreg.Spec {
 //     M683), and the Conductor's Verifier backend (M997) — nil-safe on the
 //     kernel side: when code_exec is absent the Verifier falls back to LLM
 //     critique.
-func specCodeExec() toolreg.Spec {
+func specCodeExec() toolregapi.Spec {
 	var ce *codeexec.Tool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "code_exec",
-		Build: func(d toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(d toolregapi.BuildDeps) (toolregapi.Built, error) {
 			if strings.EqualFold(strings.TrimSpace(d.Get(brand.EnvPrefix+"SANDBOX")), "off") {
-				return toolreg.Built{}, nil
+				return toolregapi.Built{}, nil
 			}
 			rt := codeexec.DetectRuntimes()
 			if len(rt) == 0 {
-				return toolreg.Built{}, nil
+				return toolregapi.Built{}, nil
 			}
 			netOn := d.Get(brand.EnvPrefix+"SANDBOX_NO_NET") != "1"
 			ce = codeexec.NewWithWarden(d.Warden, filepath.Join(d.BaseDir, "sandbox"), rt, netOn)
@@ -194,12 +193,12 @@ func specCodeExec() toolreg.Spec {
 				netTag = "net=off"
 			}
 			desc := fmt.Sprintf("code_exec(langs=%s, %s)", strings.Join(ce.Languages(), "/"), netTag)
-			return toolreg.Built{Tool: ce, Desc: desc}, nil
+			return toolregapi.Built{Tool: ce, Desc: desc}, nil
 		},
 		PreOpen: func(_ toolapi.Tool, cfg toolregapi.Config) {
 			cfg.SetScriptRunner(ce)
 		},
-		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolregapi.KernelDeps) error {
 			if d.Artifacts != nil {
 				ce.SetIndex(d.Artifacts)
 			}
@@ -221,7 +220,7 @@ func specCodeExec() toolreg.Spec {
 // A nil tool is refused on purpose: a nil *codeexec.Tool handed to an
 // interface parameter is a NON-NIL interface, so the Verifier would believe
 // it can execute code and then call into a tool that is not there.
-func installExecutor(ce *codeexec.Tool, d toolreg.KernelDeps) {
+func installExecutor(ce *codeexec.Tool, d toolregapi.KernelDeps) {
 	if ce == nil || d.ConductorExec == nil {
 		return
 	}

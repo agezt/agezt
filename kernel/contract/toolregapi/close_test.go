@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package toolreg
+package toolregapi
 
 import (
 	"errors"

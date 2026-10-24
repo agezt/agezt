@@ -14,7 +14,7 @@ package builtintools
 
 import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/toolreg"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/plugins/tools/forgetool"
 	"github.com/agezt/agezt/plugins/tools/introspecttool"
 	"github.com/agezt/agezt/plugins/tools/mcptool"
@@ -31,15 +31,15 @@ import (
 // future runs in the daemon's cadence store. Configure binds the live store —
 // the same one the schedule engine ticks, so an agent-created schedule fires
 // like any operator-added one — plus the roster lookup for per-agent runs.
-func specSchedule() toolreg.Spec {
+func specSchedule() toolregapi.Spec {
 	var st *scheduletool.Tool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "schedule",
-		Build: func(toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(toolregapi.BuildDeps) (toolregapi.Built, error) {
 			st = scheduletool.New()
-			return toolreg.Built{Tool: st}, nil
+			return toolregapi.Built{Tool: st}, nil
 		},
-		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolregapi.KernelDeps) error {
 			if d.Schedules != nil {
 				st.Bind(d.Schedules)
 				if d.AgentLookup != nil {
@@ -53,15 +53,15 @@ func specSchedule() toolreg.Spec {
 
 // specRuns — run introspection (`runs`, M644): the agent recalls its OWN past
 // runs from the journal. Configure binds the kernel's live journal.
-func specRuns() toolreg.Spec {
+func specRuns() toolregapi.Spec {
 	var rt *runstool.Tool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "runs",
-		Build: func(toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(toolregapi.BuildDeps) (toolregapi.Built, error) {
 			rt = runstool.New()
-			return toolreg.Built{Tool: rt}, nil
+			return toolregapi.Built{Tool: rt}, nil
 		},
-		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolregapi.KernelDeps) error {
 			if d.Journal != nil {
 				rt.Bind(d.Journal)
 			}
@@ -76,15 +76,15 @@ func specRuns() toolreg.Spec {
 // lookup the tool needs to check whether the acting agent may create a direct
 // self-wake order — the lookup comes as a function of the contract's profile
 // row, so the plugin never names the roster module.
-func specStanding() toolreg.Spec {
+func specStanding() toolregapi.Spec {
 	var st *standingtool.Tool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "standing",
-		Build: func(toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(toolregapi.BuildDeps) (toolregapi.Built, error) {
 			st = standingtool.New()
-			return toolreg.Built{Tool: st}, nil
+			return toolregapi.Built{Tool: st}, nil
 		},
-		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolregapi.KernelDeps) error {
 			if d.Standing != nil {
 				st.Bind(d.Standing)
 				if d.AgentLookup != nil {
@@ -99,15 +99,15 @@ func specStanding() toolreg.Spec {
 // specSkill — self-modification (`skill`, M648): the agent authors, promotes,
 // and retires its own reusable procedures through the kernel's Forge — the same
 // journaled, reversible state machine the operator drives.
-func specSkill() toolreg.Spec {
+func specSkill() toolregapi.Spec {
 	var sk *skilltool.Tool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "skill",
-		Build: func(toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(toolregapi.BuildDeps) (toolregapi.Built, error) {
 			sk = skilltool.New()
-			return toolreg.Built{Tool: sk}, nil
+			return toolregapi.Built{Tool: sk}, nil
 		},
-		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolregapi.KernelDeps) error {
 			if d.SkillForge != nil {
 				// The bundle store is handed over through the contract's
 				// port: a nil store must stay a nil port, or the tool would
@@ -124,15 +124,15 @@ func specSkill() toolreg.Spec {
 // the daemon's OWN live state — a real health overview plus schedule/standing
 // detail — in one call, so a "summarise AGEZT's health" task can see everything
 // instead of guessing.
-func specIntrospect() toolreg.Spec {
+func specIntrospect() toolregapi.Spec {
 	var it *introspecttool.Tool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "introspect",
-		Build: func(toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(toolregapi.BuildDeps) (toolregapi.Built, error) {
 			it = introspecttool.New()
-			return toolreg.Built{Tool: it}, nil
+			return toolregapi.Built{Tool: it}, nil
 		},
-		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolregapi.KernelDeps) error {
 			// The tool may not name the kernel: the daemon hands over the
 			// app layer's adapter through the contract's port.
 			if d.Introspect != nil {
@@ -149,15 +149,15 @@ func specIntrospect() toolreg.Spec {
 // through arrives in the deps: the tool is a plugin and may not reach the live
 // kernel or the board store itself, so the daemon supplies the app-layer
 // implementation that answers the contract.
-func specOverseer() toolreg.Spec {
+func specOverseer() toolregapi.Spec {
 	var ot *overseertool.Tool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "overseer",
-		Build: func(toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(toolregapi.BuildDeps) (toolregapi.Built, error) {
 			ot = overseertool.New()
-			return toolreg.Built{Tool: ot}, nil
+			return toolregapi.Built{Tool: ot}, nil
 		},
-		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolregapi.KernelDeps) error {
 			if d.Overseer != nil {
 				ot.Bind(d.Overseer)
 			}
@@ -171,15 +171,15 @@ func specOverseer() toolreg.Spec {
 // every run can call it as forge_<name>. Configure binds the forge's
 // journaled scripttool.* lifecycle through the CONTRACT's port and hands over
 // the store the read ops (op=list, op=show) read through.
-func specToolForge() toolreg.Spec {
+func specToolForge() toolregapi.Spec {
 	var ft *forgetool.Tool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "tool_forge",
-		Build: func(toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(toolregapi.BuildDeps) (toolregapi.Built, error) {
 			ft = forgetool.New()
-			return toolreg.Built{Tool: ft}, nil
+			return toolregapi.Built{Tool: ft}, nil
 		},
-		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolregapi.KernelDeps) error {
 			if d.ForgeRunner != nil {
 				ft.Bind(d.ForgeRunner, d.Forge)
 			}
@@ -192,15 +192,15 @@ func specToolForge() toolreg.Spec {
 // registering and ATTACHING MCP servers at runtime (Edict mcp.install, Ask by
 // default). The boot-time auto-attach of already-enabled servers stays in
 // main.go (it needs the daemon context).
-func specMCP() toolreg.Spec {
+func specMCP() toolregapi.Spec {
 	var mt *mcptool.Tool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "mcp",
-		Build: func(toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(toolregapi.BuildDeps) (toolregapi.Built, error) {
 			mt = mcptool.New()
-			return toolreg.Built{Tool: mt}, nil
+			return toolregapi.Built{Tool: mt}, nil
 		},
-		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolregapi.KernelDeps) error {
 			if d.MCP != nil {
 				mt.Bind(d.MCP)
 			}
@@ -214,15 +214,15 @@ func specMCP() toolreg.Spec {
 // workflow.manage, AskFirst by default; tool nodes inside a run re-gate per
 // call). Configure binds the live kernel and hands over the library the read
 // ops (op=list, op=show) read through the contract's port.
-func specWorkflow() toolreg.Spec {
+func specWorkflow() toolregapi.Spec {
 	var wt *workflowtool.Tool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "workflow",
-		Build: func(toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(toolregapi.BuildDeps) (toolregapi.Built, error) {
 			wt = workflowtool.New()
-			return toolreg.Built{Tool: wt}, nil
+			return toolregapi.Built{Tool: wt}, nil
 		},
-		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolregapi.KernelDeps) error {
 			if d.WorkflowRunner != nil {
 				wt.Bind(d.WorkflowRunner, d.Workflows)
 			}
@@ -234,15 +234,15 @@ func specWorkflow() toolreg.Spec {
 // specWorkboard — durable typed work items (`workboard`): agents create and
 // move tasks through the same journaled runtime path the CLI and control plane
 // use, instead of hiding state in chat.
-func specWorkboard() toolreg.Spec {
+func specWorkboard() toolregapi.Spec {
 	var wb *workboardtool.Tool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "workboard",
-		Build: func(toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(toolregapi.BuildDeps) (toolregapi.Built, error) {
 			wb = workboardtool.New()
-			return toolreg.Built{Tool: wb}, nil
+			return toolregapi.Built{Tool: wb}, nil
 		},
-		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
+		Configure: func(_ toolapi.Tool, d toolregapi.KernelDeps) error {
 			if d.WorkboardRunner != nil {
 				wb.Bind(d.WorkboardRunner, d.Workboard)
 			}

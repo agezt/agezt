@@ -10,7 +10,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/overseerapi"
-	"github.com/agezt/agezt/kernel/toolreg"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 )
 
 // recordingSource is a fake overseer port. It records the calls the tool makes
@@ -101,7 +101,7 @@ func (r *recordingSource) RepairAgent(string, string) (agentapi.RepairResult, er
 // implementation through the contract, and the tool steers THAT one.
 func TestOverseerSpecBindsTheInjectedPort(t *testing.T) {
 	spec := specOverseer()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestOverseerSpecBindsTheInjectedPort(t *testing.T) {
 		t.Fatal("Build returned no tool")
 	}
 	src := &recordingSource{}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{Overseer: src}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{Overseer: src}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 	res, err := built.Tool.Invoke(context.Background(), json.RawMessage(`{"op":"status"}`))
@@ -139,11 +139,11 @@ func TestOverseerSpecBindsTheInjectedPort(t *testing.T) {
 // the implementation has to be told.
 func TestOverseerSpecWithoutAPortIsLoud(t *testing.T) {
 	spec := specOverseer()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 	res, err := built.Tool.Invoke(context.Background(), json.RawMessage(`{"op":"status"}`))

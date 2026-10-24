@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/toolreg"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/plugins/tools/browser"
 )
 
@@ -17,7 +17,7 @@ import (
 func TestBrowserRead_CookiesOptIn(t *testing.T) {
 	build := func(env map[string]string) *browser.Tool {
 		t.Helper()
-		built, err := buildBrowserRead(toolreg.BuildDeps{Stderr: &bytes.Buffer{}, Get: func(k string) string { return env[k] }})
+		built, err := buildBrowserRead(toolregapi.BuildDeps{Stderr: &bytes.Buffer{}, Get: func(k string) string { return env[k] }})
 		if err != nil {
 			t.Fatalf("buildBrowserRead: %v", err)
 		}

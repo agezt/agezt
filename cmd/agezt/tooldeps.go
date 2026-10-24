@@ -32,7 +32,6 @@ import (
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/toolreg"
 )
 
 // toolKernelDeps assembles the post-Open dependencies the registry's
@@ -45,8 +44,8 @@ import (
 // available" on every live daemon — invisible to every test that builds the
 // tool by hand. The composition root's own test therefore asserts that each
 // port this function supplies is present and answers the live kernel.
-func toolKernelDeps(k *runtime.Kernel, baseDir string, stdout io.Writer) toolreg.KernelDeps {
-	return toolreg.KernelDeps{
+func toolKernelDeps(k *runtime.Kernel, baseDir string, stdout io.Writer) toolregapi.KernelDeps {
+	return toolregapi.KernelDeps{
 		// The tool_forge tool drives the forge's lifecycle through the
 		// contract's port (W3.39g).
 		ForgeRunner: forgeRunnerPort(k),
@@ -416,6 +415,35 @@ func artifactBytes(k *runtime.Kernel) func(ref string) ([]byte, error) {
 		}
 		return a.Get(ref)
 	}
+}
+
+// runtimeConfigPort answers the contract's pre-Open port over the daemon's
+// runtime configuration (W3.39h).
+//
+// It lives HERE, at the composition root, because that is the one place that
+// knows both the contract and the daemon. The adapter used to live inside the
+// registry — the registry was the one place that knew both — but the registry
+// now lives in the CONTRACT layer (kernel/contract/toolregapi) and may not
+// name the daemon's runtime at all. Moving the adapter down to the daemon is
+// what made the move possible, and it is also where it belongs: the daemon
+// owns the configuration.
+//
+// The contract's runner and the daemon's runner interface have the same
+// method set, so the value is assigned directly — the port translates
+// nothing.
+type runtimeConfigPort struct{ cfg *runtime.Config }
+
+// SetScriptRunner installs the runner that executes forged script tools
+// (M794) in the daemon's configuration.
+//
+// A missing configuration is refused rather than dereferenced: the port would
+// otherwise install a runner into nothing and report success for a
+// configuration that does not exist.
+func (p runtimeConfigPort) SetScriptRunner(r toolregapi.ScriptRunner) {
+	if p.cfg == nil {
+		return
+	}
+	p.cfg.ScriptRunner = r
 }
 
 // busPort turns the live bus into the contract's publish port (W3.39f).

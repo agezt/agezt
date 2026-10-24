@@ -12,8 +12,8 @@ import (
 	"github.com/agezt/agezt/kernel/app/acpbridge"
 	"github.com/agezt/agezt/kernel/app/pluginhost"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/builtintools"
 )
@@ -25,7 +25,7 @@ import (
 //	tools map + registry Set + plugin manifest + per-tool policy cap map +
 //	human banner description.
 //
-// The *toolreg.Set carries the built specs alongside the map so main.go can
+// The *toolregapi.Set carries the built specs alongside the map so main.go can
 // drive the remaining phases against the SAME instances the map holds:
 // Set.ApplyPreOpen before runtime.Open, Set.Configure after it, and
 // Set.ConfigureLate once the live channels + shared board store exist.
@@ -34,11 +34,11 @@ import (
 // AGEZT_ALLOW_ALL is the master permissive switch (M611): it implies the full
 // open posture for the network tools too — any host, including loopback and
 // the private network.
-func buildTools(baseDir string, stderr io.Writer, ward warden.Engine, notifyTargets map[string][]string) (map[string]toolapi.Tool, *toolreg.Set, []kernelruntime.PluginInfo, map[string]string, string, error) {
+func buildTools(baseDir string, stderr io.Writer, ward warden.Engine, notifyTargets map[string][]string) (map[string]toolapi.Tool, *toolregapi.Set, []kernelruntime.PluginInfo, map[string]string, string, error) {
 	// Idempotent (Register replaces by name), so tests calling buildTools
 	// repeatedly and the daemon calling it at boot are both fine.
 	builtintools.RegisterAll()
-	set, err := toolreg.BuildAll(toolBuildDeps(baseDir, stderr, ward, notifyTargets))
+	set, err := toolregapi.BuildAll(toolBuildDeps(baseDir, stderr, ward, notifyTargets))
 	if err != nil {
 		return nil, nil, nil, nil, "", err
 	}
@@ -70,8 +70,8 @@ func buildTools(baseDir string, stderr io.Writer, ward warden.Engine, notifyTarg
 // live daemon — invisible to every test that builds the tool by hand. The
 // composition root's own test therefore asserts that the port this function
 // supplies is present and answers the live catalogue.
-func toolBuildDeps(baseDir string, stderr io.Writer, ward warden.Engine, notifyTargets map[string][]string) toolreg.BuildDeps {
-	return toolreg.BuildDeps{
+func toolBuildDeps(baseDir string, stderr io.Writer, ward warden.Engine, notifyTargets map[string][]string) toolregapi.BuildDeps {
+	return toolregapi.BuildDeps{
 		BaseDir: baseDir,
 		// Workspace root — both the file tool (scoped to it) and the shell
 		// tool (runs in it, M609) use this so `dir`/`ls` (shell) and `file
@@ -92,6 +92,27 @@ func toolBuildDeps(baseDir string, stderr io.Writer, ward warden.Engine, notifyT
 		// daemon hands the contract's spawn port over.
 		Plugins: pluginhost.NewSpawner(),
 	}
+}
+
+// applyPreOpen runs the registry's pre-Open phase against the daemon's
+// configuration.
+//
+// It is a named function (not an inline call in main.go) because the wiring
+// it performs is a CONTRACT with the tools: the daemon must hand the phase a
+// port built over ITS OWN configuration, or the script-tool forge keeps
+// reporting itself unavailable (M794) — and a call site nobody can reach is a
+// call site nobody measures.
+//
+// The registry used to wrap the configuration itself, because the registry
+// was the one place that knew both the contract and the daemon. The registry
+// now lives in the CONTRACT layer (W3.39h) and may not name the daemon's
+// runtime at all, so the composition root builds the port and hands THAT
+// over — the adapter travels to the place that owns the configuration.
+func applyPreOpen(set *toolregapi.Set, cfg *kernelruntime.Config) {
+	if set == nil {
+		return
+	}
+	set.ApplyPreOpen(runtimeConfigPort{cfg: cfg})
 }
 
 // councilSeatName labels the i-th council seat (M837): the first three get

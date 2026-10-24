@@ -11,8 +11,8 @@ import (
 	"github.com/agezt/agezt/kernel/app/configtool"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -32,11 +32,11 @@ func TestTheConfigSpecWiresTheLivePort(t *testing.T) {
 	}
 
 	spec := specConfig()
-	built, err := spec.Build(toolreg.BuildDeps{BaseDir: t.TempDir()})
+	built, err := spec.Build(toolregapi.BuildDeps{BaseDir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{Config: configtool.NewKernelSource(k)}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{Config: configtool.NewKernelSource(k)}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
@@ -66,11 +66,11 @@ func TestTheConfigSpecSurvivesAMissingPort(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 
 	spec := specConfig()
-	built, err := spec.Build(toolreg.BuildDeps{BaseDir: t.TempDir()})
+	built, err := spec.Build(toolregapi.BuildDeps{BaseDir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 

@@ -14,14 +14,14 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/platform/netout"
-	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/plugins/tools/browser"
 	httptool "github.com/agezt/agezt/plugins/tools/http"
 	websearch "github.com/agezt/agezt/plugins/tools/websearch"
 )
 
-func buildHTTP(d toolreg.BuildDeps) (toolreg.Built, error) {
+func buildHTTP(d toolregapi.BuildDeps) (toolregapi.Built, error) {
 	e, desc := httpEgress(d)
 	ht := httptool.New()
 	ht.AllowAll, ht.AllowedHosts = e.AnyHost, e.AllowedHosts
@@ -29,7 +29,7 @@ func buildHTTP(d toolreg.BuildDeps) (toolreg.Built, error) {
 	if e.AllowPrivate {
 		fmt.Fprintln(d.Stderr, "WARNING: AGEZT_HTTP_ALLOW_PRIVATE=1 lets the http and fetch tools reach the private network.")
 	}
-	return toolreg.Built{Tool: ht, Desc: "http(" + desc + ")"}, nil
+	return toolregapi.Built{Tool: ht, Desc: "http(" + desc + ")"}, nil
 }
 
 // httpEgress is the egress posture of the two tools governed as the http.*
@@ -43,7 +43,7 @@ func buildHTTP(d toolreg.BuildDeps) (toolreg.Built, error) {
 // private / cloud-metadata refused) is the hard floor and stays on regardless —
 // relaxed only by the explicit AGEZT_HTTP_ALLOW_* flags. AGEZT_ALLOW_ALL=1 (and
 // AGEZT_HTTP_ALLOW_ALL=1 for hosts) is the master permissive switch (M611).
-func httpEgress(d toolreg.BuildDeps) (netout.Egress, string) {
+func httpEgress(d toolregapi.BuildDeps) (netout.Egress, string) {
 	var e netout.Egress
 	if hostsCSV := d.Get(brand.EnvPrefix + "HTTP_ALLOWED_HOSTS"); strings.TrimSpace(hostsCSV) != "" {
 		e.AllowedHosts = splitHosts(nil, hostsCSV)
@@ -72,7 +72,7 @@ func httpEgress(d toolreg.BuildDeps) (netout.Egress, string) {
 // browser-read access to a wider domain set than POSTs). Same default-ALLOW
 // posture as http (M818): any public host out of the box; a non-empty
 // AGEZT_BROWSER_ALLOWED_HOSTS is the opt-OUT that restricts it.
-func buildBrowserRead(d toolreg.BuildDeps) (toolreg.Built, error) {
+func buildBrowserRead(d toolregapi.BuildDeps) (toolregapi.Built, error) {
 	br := browser.New()
 	browserRestricted := false
 	if hostsCSV := d.Get(brand.EnvPrefix + "BROWSER_ALLOWED_HOSTS"); strings.TrimSpace(hostsCSV) != "" {
@@ -104,11 +104,11 @@ func buildBrowserRead(d toolreg.BuildDeps) (toolreg.Built, error) {
 	// AGEZT_BROWSER_ACTIONS — so the documented setting silently did nothing.
 	if d.Get(brand.EnvPrefix+"BROWSER_COOKIES") == "1" {
 		if err := br.EnableCookies(); err != nil {
-			return toolreg.Built{}, fmt.Errorf("%sBROWSER_COOKIES: %w", brand.EnvPrefix, err)
+			return toolregapi.Built{}, fmt.Errorf("%sBROWSER_COOKIES: %w", brand.EnvPrefix, err)
 		}
 		desc += "+cookies"
 	}
-	return toolreg.Built{Tool: br, Desc: desc}, nil
+	return toolregapi.Built{Tool: br, Desc: desc}, nil
 }
 
 // specBrowserAction wraps buildBrowserAction with the post-Open Configure hook:
@@ -116,9 +116,9 @@ func buildBrowserRead(d toolreg.BuildDeps) (toolreg.Built, error) {
 // Files-view artifacts instead of temp-file-only paths. The hook closes over
 // the concrete *browser.ActionTool its own Build produced — no string-keyed
 // downcast, and nil when the spec gated itself off.
-func buildBrowserAction(d toolreg.BuildDeps) (toolreg.Built, *browser.ActionTool, error) {
+func buildBrowserAction(d toolregapi.BuildDeps) (toolregapi.Built, *browser.ActionTool, error) {
 	if d.Get(brand.EnvPrefix+"BROWSER_ACTIONS") != "1" {
-		return toolreg.Built{}, nil, nil
+		return toolregapi.Built{}, nil, nil
 	}
 	driver := strings.TrimSpace(d.Get(brand.EnvPrefix + "BROWSER_ACTION_DRIVER"))
 	if driver == "" {
@@ -126,11 +126,11 @@ func buildBrowserAction(d toolreg.BuildDeps) (toolreg.Built, *browser.ActionTool
 	}
 	if driver == "" {
 		fmt.Fprintf(d.Stderr, "WARNING: %sBROWSER_ACTIONS=1 but no browse.mjs driver was found; set %sBROWSER_ACTION_DRIVER.\n", brand.EnvPrefix, brand.EnvPrefix)
-		return toolreg.Built{}, nil, nil
+		return toolregapi.Built{}, nil, nil
 	}
 	ba := browser.NewAction(d.Get(brand.EnvPrefix+"BROWSER_ACTION_NODE"), driver)
 	if ba == nil {
-		return toolreg.Built{}, nil, nil
+		return toolregapi.Built{}, nil, nil
 	}
 	actionRestricted := false
 	if hostsCSV := d.Get(brand.EnvPrefix + "BROWSER_ACTION_ALLOWED_HOSTS"); strings.TrimSpace(hostsCSV) != "" {
@@ -182,7 +182,7 @@ func buildBrowserAction(d toolreg.BuildDeps) (toolreg.Built, *browser.ActionTool
 	if actionRestricted {
 		desc = fmt.Sprintf("browser.action+verbs(hosts=%d)", len(ba.AllowedHosts))
 	}
-	return toolreg.Built{Tool: ba, Extra: extra, Desc: desc}, ba, nil
+	return toolregapi.Built{Tool: ba, Extra: extra, Desc: desc}, ba, nil
 }
 
 // buildWebSearch — keyword search against a public engine, returning result
@@ -191,11 +191,11 @@ func buildBrowserAction(d toolreg.BuildDeps) (toolreg.Built, *browser.ActionTool
 // The engine host is fixed, so there's no host allowlist; the egress guard
 // still refuses internal/metadata addresses (relaxed under ALLOW_ALL for
 // parity with the other network tools). Always registered — no secret needed.
-func buildWebSearch(d toolreg.BuildDeps) (toolreg.Built, error) {
+func buildWebSearch(d toolregapi.BuildDeps) (toolregapi.Built, error) {
 	ws := websearch.New()
 	if d.AllowAll {
 		ws.AllowLoopback = true
 		ws.AllowPrivate = true
 	}
-	return toolreg.Built{Tool: ws, Desc: "web_search(duckduckgo)"}, nil
+	return toolregapi.Built{Tool: ws, Desc: "web_search(duckduckgo)"}, nil
 }

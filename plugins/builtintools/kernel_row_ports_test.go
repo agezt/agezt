@@ -11,7 +11,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/contract/toolregapi"
-	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/plugins/tools/codeexec"
 )
 
@@ -23,7 +22,7 @@ import (
 // critiques, and the agent's code would never actually run.
 func TestTheCodeExecSpecInstallsTheExecutorThroughTheRow(t *testing.T) {
 	var got toolregapi.ScriptRunner
-	installExecutor(&codeexec.Tool{}, toolreg.KernelDeps{
+	installExecutor(&codeexec.Tool{}, toolregapi.KernelDeps{
 		ConductorExec: func(x toolregapi.ScriptRunner) { got = x },
 	})
 	if got == nil {
@@ -39,7 +38,7 @@ func TestTheCodeExecSpecInstallsTheExecutorThroughTheRow(t *testing.T) {
 // into a tool that is not there.
 func TestTheCodeExecSpecRefusesANilExecutor(t *testing.T) {
 	called := false
-	installExecutor(nil, toolreg.KernelDeps{
+	installExecutor(nil, toolregapi.KernelDeps{
 		ConductorExec: func(toolregapi.ScriptRunner) { called = true },
 	})
 	if called {
@@ -56,11 +55,11 @@ func TestTheCodeExecSpecRefusesANilExecutor(t *testing.T) {
 // forge is unavailable — not dereferencing nil.
 func TestTheForgeSpecSurvivesAMissingRunnerPort(t *testing.T) {
 	spec := specToolForge()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
@@ -86,7 +85,7 @@ func TestTheForgeSpecSurvivesAMissingRunnerPort(t *testing.T) {
 // while reporting a success.
 func TestTheSendMediaSpecResolvesArtifactsThroughTheRow(t *testing.T) {
 	spec := specSendMedia()
-	built, err := spec.Build(toolreg.BuildDeps{
+	built, err := spec.Build(toolregapi.BuildDeps{
 		NotifyTargets: map[string][]string{"slack": {"C1"}},
 	})
 	if err != nil {
@@ -94,7 +93,7 @@ func TestTheSendMediaSpecResolvesArtifactsThroughTheRow(t *testing.T) {
 	}
 
 	var sent []channel.Attachment
-	err = spec.Late(built.Tool, toolreg.LateDeps{
+	err = spec.Late(built.Tool, toolregapi.LateDeps{
 		ChannelSendMedia: func(_ context.Context, _, _, _ string, atts []channel.Attachment) error {
 			sent = atts
 			return nil
@@ -130,7 +129,7 @@ func TestTheSendMediaSpecResolvesArtifactsThroughTheRow(t *testing.T) {
 // not attaching an empty file, and not dereferencing nil.
 func TestTheSendMediaSpecSurvivesAMissingArtifactRow(t *testing.T) {
 	spec := specSendMedia()
-	built, err := spec.Build(toolreg.BuildDeps{
+	built, err := spec.Build(toolregapi.BuildDeps{
 		NotifyTargets: map[string][]string{"slack": {"C1"}},
 	})
 	if err != nil {
@@ -138,7 +137,7 @@ func TestTheSendMediaSpecSurvivesAMissingArtifactRow(t *testing.T) {
 	}
 
 	var sent []channel.Attachment
-	err = spec.Late(built.Tool, toolreg.LateDeps{
+	err = spec.Late(built.Tool, toolregapi.LateDeps{
 		ChannelSendMedia: func(_ context.Context, _, _, _ string, atts []channel.Attachment) error {
 			sent = atts
 			return nil

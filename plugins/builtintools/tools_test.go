@@ -11,8 +11,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/toolreg"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/warden"
 	browsertool "github.com/agezt/agezt/plugins/tools/browser"
 	"github.com/agezt/agezt/plugins/tools/codeexec"
@@ -26,9 +25,27 @@ func mapGet(env map[string]string) func(string) string {
 	return func(name string) string { return env[name] }
 }
 
+// fakePreOpenConfig is a FAKE of the contract's pre-Open port: it records the
+// runner the phase installs.
+//
+// It is a fake on purpose (W3.39h). The hook answers the CONTRACT's port, and
+// the plugin may not name the daemon's runtime — so the plugin's own test
+// speaks the port instead of handing over a live configuration. The adapter
+// that answers the port over the daemon's configuration lives in ONE place,
+// the composition root (cmd/agezt); a second copy here would be a second
+// spelling of the same wire.
+type fakePreOpenConfig struct {
+	runner toolregapi.ScriptRunner
+}
+
+// SetScriptRunner records the runner the pre-Open phase installs.
+func (c *fakePreOpenConfig) SetScriptRunner(r toolregapi.ScriptRunner) {
+	c.runner = r
+}
+
 // TestRegistryNetguardWiring_CoversEveryNetguardSpec is the registry-driven
 // replacement for cmd/agezt's old hand-listed netguard type switch: it builds
-// the real specs via toolreg.BuildAll, runs Set.Configure with a recording
+// the real specs via toolregapi.BuildAll, runs Set.Configure with a recording
 // NetguardPublish, and asserts every Netguard spec's instance received a live
 // OnBlock callback — including fetch, whose OnBlock field existed since M831
 // but was never wired by wireNetguardAudit (the LD-2 live bug this PR fixes).
@@ -49,7 +66,7 @@ func TestRegistryNetguardWiring_CoversEveryNetguardSpec(t *testing.T) {
 	}
 
 	var stderr bytes.Buffer
-	set, err := toolreg.BuildAll(toolreg.BuildDeps{
+	set, err := toolregapi.BuildAll(toolregapi.BuildDeps{
 		BaseDir:       t.TempDir(),
 		WorkspaceRoot: t.TempDir(),
 		Warden:        warden.New(nil),
@@ -68,7 +85,7 @@ func TestRegistryNetguardWiring_CoversEveryNetguardSpec(t *testing.T) {
 		mu.Unlock()
 		return func(ip, reason string) {}
 	}
-	if err := set.Configure(toolreg.KernelDeps{NetguardPublish: publish}); err != nil {
+	if err := set.Configure(toolregapi.KernelDeps{NetguardPublish: publish}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
@@ -123,7 +140,7 @@ func TestRegistryAlwaysOnSpecs_BuildAndConfigure(t *testing.T) {
 	RegisterAll()
 
 	var stderr bytes.Buffer
-	set, err := toolreg.BuildAll(toolreg.BuildDeps{
+	set, err := toolregapi.BuildAll(toolregapi.BuildDeps{
 		BaseDir:       t.TempDir(),
 		WorkspaceRoot: t.TempDir(),
 		Warden:        warden.New(nil),
@@ -159,16 +176,18 @@ func TestRegistryAlwaysOnSpecs_BuildAndConfigure(t *testing.T) {
 
 	// Configure with minimal deps (no kernel, no artifact index, no lake, no
 	// bus) must be a safe no-op for every hook: nothing to bind, no error.
-	if err := set.Configure(toolreg.KernelDeps{}); err != nil {
+	if err := set.Configure(toolregapi.KernelDeps{}); err != nil {
 		t.Fatalf("Configure with minimal deps: %v", err)
 	}
 
-	// PreOpen with a zero runtime.Config must also be safe — code_exec was
-	// gated off, so no spec should touch cfg.ScriptRunner here.
-	var cfg runtime.Config
-	set.ApplyPreOpen(&cfg)
-	if cfg.ScriptRunner != nil {
-		t.Error("ApplyPreOpen set ScriptRunner while code_exec is gated off")
+	// PreOpen must also be safe — code_exec was gated off, so no spec should
+	// install a script runner here. The phase answers the CONTRACT's port, so
+	// the plugin hands over a fake of it (a plugin may not name the daemon's
+	// runtime).
+	cfg := &fakePreOpenConfig{}
+	set.ApplyPreOpen(cfg)
+	if cfg.runner != nil {
+		t.Error("ApplyPreOpen installed a script runner while code_exec is gated off")
 	}
 }
 
@@ -179,7 +198,7 @@ func TestRegistryCodeExecGating(t *testing.T) {
 	RegisterAll()
 
 	var stderr bytes.Buffer
-	set, err := toolreg.BuildAll(toolreg.BuildDeps{
+	set, err := toolregapi.BuildAll(toolregapi.BuildDeps{
 		BaseDir:       t.TempDir(),
 		WorkspaceRoot: t.TempDir(),
 		Warden:        warden.New(nil),
@@ -205,10 +224,10 @@ func TestRegistryCodeExecGating(t *testing.T) {
 	if !found {
 		t.Errorf("Descs() missing code_exec banner: %v", set.Descs())
 	}
-	var cfg runtime.Config
-	set.ApplyPreOpen(&cfg)
-	if got, ok := cfg.ScriptRunner.(*codeexec.Tool); !ok || got != ce {
-		t.Errorf("ApplyPreOpen wired cfg.ScriptRunner = %T, want the built code_exec instance", cfg.ScriptRunner)
+	cfg := &fakePreOpenConfig{}
+	set.ApplyPreOpen(cfg)
+	if got, ok := cfg.runner.(*codeexec.Tool); !ok || got != ce {
+		t.Errorf("ApplyPreOpen installed %T, want the built code_exec instance", cfg.runner)
 	}
 }
 
@@ -219,7 +238,7 @@ func TestRegistryBrowserActionGatedOff(t *testing.T) {
 	RegisterAll()
 
 	var stderr bytes.Buffer
-	set, err := toolreg.BuildAll(toolreg.BuildDeps{
+	set, err := toolregapi.BuildAll(toolregapi.BuildDeps{
 		BaseDir:       t.TempDir(),
 		WorkspaceRoot: t.TempDir(),
 		Warden:        warden.New(nil),

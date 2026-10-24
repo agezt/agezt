@@ -8,7 +8,7 @@ package builtintools
 // (Infos) and the M900 declared capabilities (Caps). The spec is
 // registered LAST and marked YieldOnConflict, so a plugin tool whose
 // prefixed name collides with an in-process tool is dropped by
-// toolreg.BuildAll with a warning — in-process wins, never a boot error
+// toolregapi.BuildAll with a warning — in-process wins, never a boot error
 // (the historical semantic, made explicit).
 
 import (
@@ -21,10 +21,10 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/contract/pluginapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/envscrub"
 	"github.com/agezt/agezt/kernel/redact"
-	"github.com/agezt/agezt/kernel/toolreg"
 )
 
 // specPlugins — external plugins via the AGEZT_PLUGINS env var (M1.y). Format:
@@ -38,18 +38,18 @@ import (
 // down the kernel. Malformed AGEZT_PLUGIN_PINS / AGEZT_PLUGIN_TOOLS /
 // AGEZT_PLUGINS specs are hard startup errors (fast operator feedback on a
 // security setting beats a silently-broken pin).
-func specPlugins() toolreg.Spec {
-	return toolreg.Spec{
+func specPlugins() toolregapi.Spec {
+	return toolregapi.Spec{
 		Name:            "plugins",
 		YieldOnConflict: true, // plugin tools always lose to in-process names
 		Build:           buildPlugins,
 	}
 }
 
-func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
+func buildPlugins(d toolregapi.BuildDeps) (toolregapi.Built, error) {
 	spec := strings.TrimSpace(d.Get(brand.EnvPrefix + "PLUGINS"))
 	if spec == "" {
-		return toolreg.Built{}, nil
+		return toolregapi.Built{}, nil
 	}
 	// Parse pin spec first (M1.ff). A syntactically-bad pin is a hard startup
 	// error — operators want fast feedback on a security setting, not a
@@ -60,7 +60,7 @@ func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
 	if pinSpec := strings.TrimSpace(d.Get(brand.EnvPrefix + "PLUGIN_PINS")); pinSpec != "" {
 		parsed, err := pluginapi.ParsePinSpec(pinSpec)
 		if err != nil {
-			return toolreg.Built{}, fmt.Errorf("%sPLUGIN_PINS: %w", brand.EnvPrefix, err)
+			return toolregapi.Built{}, fmt.Errorf("%sPLUGIN_PINS: %w", brand.EnvPrefix, err)
 		}
 		pins = parsed
 	}
@@ -69,7 +69,7 @@ func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
 	if allowSpec := strings.TrimSpace(d.Get(brand.EnvPrefix + "PLUGIN_TOOLS")); allowSpec != "" {
 		parsed, err := pluginapi.ParseToolAllowlistSpec(allowSpec)
 		if err != nil {
-			return toolreg.Built{}, fmt.Errorf("%sPLUGIN_TOOLS: %w", brand.EnvPrefix, err)
+			return toolregapi.Built{}, fmt.Errorf("%sPLUGIN_TOOLS: %w", brand.EnvPrefix, err)
 		}
 		allowedTools = parsed
 	}
@@ -80,7 +80,7 @@ func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
 	if grantSpec := strings.TrimSpace(d.Get(brand.EnvPrefix + "PLUGIN_ENV")); grantSpec != "" {
 		parsed, err := pluginapi.ParseToolAllowlistSpec(grantSpec)
 		if err != nil {
-			return toolreg.Built{}, fmt.Errorf("%sPLUGIN_ENV: %w", brand.EnvPrefix, err)
+			return toolregapi.Built{}, fmt.Errorf("%sPLUGIN_ENV: %w", brand.EnvPrefix, err)
 		}
 		envGrants = parsed
 	}
@@ -91,7 +91,7 @@ func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
 	// version" warning; rejecting it surfaces the typo instead.
 	entries, err := pluginapi.ParsePluginSpec(spec)
 	if err != nil {
-		return toolreg.Built{}, fmt.Errorf("%sPLUGINS: %w", brand.EnvPrefix, err)
+		return toolregapi.Built{}, fmt.Errorf("%sPLUGINS: %w", brand.EnvPrefix, err)
 	}
 	usedPrefixes := make([]string, 0, len(entries))
 	// Scrub secrets of known formats from plugin stderr before it reaches the
@@ -99,7 +99,7 @@ func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
 	// secrets, not the daemon's.
 	pluginRedactor := redact.New()
 
-	var built toolreg.Built
+	var built toolregapi.Built
 	var registered []string
 	var spawned []pluginapi.Spawned
 
@@ -122,7 +122,7 @@ func buildPlugins(d toolreg.BuildDeps) (toolreg.Built, error) {
 		// caps, the callback bridge, the teardown), and this plugin may not
 		// name the host's module: the daemon hands the contract's port over.
 		if d.Plugins == nil {
-			return toolreg.Built{}, fmt.Errorf("%sPLUGINS: the plugin host is not available", brand.EnvPrefix)
+			return toolregapi.Built{}, fmt.Errorf("%sPLUGINS: the plugin host is not available", brand.EnvPrefix)
 		}
 		p, err := d.Plugins.Spawn(ctx, cfg)
 		if err != nil {

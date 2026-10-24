@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -32,11 +32,11 @@ func TestTheWorkflowSpecWiresTheLibraryPort(t *testing.T) {
 	}
 
 	spec := specWorkflow()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{WorkflowRunner: k, Workflows: k.Workflows()}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{WorkflowRunner: k, Workflows: k.Workflows()}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
@@ -74,11 +74,11 @@ func TestTheWorkflowSpecSurvivesAMissingLibraryPort(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 
 	spec := specWorkflow()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{WorkflowRunner: k}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{WorkflowRunner: k}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 

@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-204 package(s):
+203 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -108,7 +108,7 @@
 - **`kernel/contract/toolapi`** — Package toolapi is the tool contract: what a tool is (Tool, ToolDef, Result) and the governance metadata it declares (ToolCapability, ToolEffect, ObservationTrust).
 - **`kernel/contract/toolforgeapi`** — Package toolforgeapi is the contract layer's home for the script-tool rows: one named, durable script the agent can call as a tool, the lifecycle state it is in, the rule that decides whether it may be drafted, and the port through which the agent-facing tool reads the stored ones.
 - **`kernel/contract/toolphaseapi`** — Package toolphaseapi defines the batch-aware invocation service port.
-- **`kernel/contract/toolregapi`** — Package toolregapi is the contract the tool registry's lifecycle hooks agree on.
+- **`kernel/contract/toolregapi`** — Package toolregapi is the tool registry's contract: the rows every first-party tool declares itself with, and the registry that holds them.
 - **`kernel/contract/types`** — Package types is the contract-layer home for the value types that cross the boundary between the host (the runtime and its accessors) and the application layer.
 - **`kernel/contract/wardenapi`** — Package wardenapi is the contract layer's home for the sandbox rows: the isolation profile a run asks for, the limits a run is capped by, the request that describes a run, the result a run produced, and the port through which a caller drives an isolated execution.
 - **`kernel/contract/workboardapi`** — Package workboardapi is the contract layer's home for the workboard's rows: one durable work item (a task), its lifecycle state, the claim, dependency, attempt, comment and link records it carries, the retry policy and decision, and the creation spec an agent hands over.
@@ -200,7 +200,6 @@
 - **`kernel/tenant`** — Package tenant is the multi-tenant isolation foundation (ROADMAP P6-MULTI).
 - **`kernel/tenantctx`** — Package tenantctx carries the identity of the tenant a run belongs to through the run's context.Context, so tools that behave differently per tenant (e.g.
 - **`kernel/toolexec`** — Package toolexec retains the legacy tool execution compatibility entry points.
-- **`kernel/toolreg`** — Package toolreg is the first-party tool registry (Phase 2.2).
 - **`kernel/tunnel`** — Package tunnel exposes a local Agezt HTTP service (the Web UI or REST API) to the public internet by supervising an operator-chosen tunnel binary — cloudflared, ngrok, Tailscale, or any custom command.
 - **`kernel/ulid`** — Package ulid implements ULID generation per DECISIONS B2 — 128-bit lexicographically sortable identifiers with a 48-bit millisecond timestamp prefix and 80-bit cryptographic randomness, encoded as 26 Crockford base32 characters.
 - **`kernel/update`** — Package update implements Agezt's self-update mechanism.
