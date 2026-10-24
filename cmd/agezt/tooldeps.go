@@ -28,7 +28,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
-	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -138,27 +137,18 @@ func workboardStore(k *runtime.Kernel) workboardapi.Store {
 }
 
 // lakeStore hands the live data lake to the tool registry as the contract's
-// port. A nil lake must stay a NIL port, not a port wrapping a nil
+// port. A missing lake must stay a NIL port, not a port wrapping a nil
 // implementation — the check is on the concrete type on purpose, because a nil
 // *Lake handed to an interface parameter is already a non-nil interface.
+//
+// The kernel holds the port itself now (W3.42): the daemon opened the lake
+// and injected the contract's port, so there is nothing left to wrap — and
+// nothing left that could turn a missing lake into a non-nil port.
 func lakeStore(k *runtime.Kernel) datalakeapi.Lake {
 	if k == nil {
 		return nil
 	}
-	return lakePort(k.DataLake())
-}
-
-// lakePort turns the concrete lake into the contract's port.
-//
-// A nil lake must stay a NIL PORT: a port that wraps a nil implementation is
-// not nil, so the tool would call into nothing instead of reporting that the
-// lake is unavailable. The check is on the concrete type on purpose — a nil
-// *Lake handed to an interface parameter is already a non-nil interface.
-func lakePort(l *datalake.Lake) datalakeapi.Lake {
-	if l == nil {
-		return nil
-	}
-	return l
+	return k.DataLake()
 }
 
 // workflowStore hands the live workflow library to the tool registry as the

@@ -30,7 +30,6 @@ import (
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
-	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
@@ -178,17 +177,11 @@ func Open(cfg Config) (*Kernel, error) {
 	artIndex.SetRefGuard(&journalRefGuard{j: j})
 
 	// Personal Data Lake (M834): file-based structured collections agents build
-	// and share. Pure on-disk (no handle to close), so its error path just unwinds
-	// the prior stores like the others.
-	lake, err := datalake.Open(cfg.BaseDir, func() int64 { return time.Now().UnixMilli() })
-	if err != nil {
-		return fail("runtime: data lake", err)
-	}
-	// Seed the built-in Personal Data Lake collections (M835) — expenses, calendar,
-	// tasks, notes, habits, bookmarks, contacts. Idempotent (EnsureCollection skips
-	// existing ones) and best-effort: a seed hiccup must not block boot, and the
-	// next start retries.
-	_, _ = lake.SeedBuiltins("system")
+	// and share. The lake is NOT opened here — it is the composition root's
+	// file (W3.42), and the host holds the contract's port: cfg.Lake. The
+	// daemon opens it, seeds the built-in collections (M835) and hands it
+	// over; a host that was given no lake holds a nil port and says "not
+	// available" rather than calling into nothing.
 
 	ststore, err := standing.Open(filepath.Join(cfg.BaseDir, "standing"))
 	if err != nil {
@@ -340,7 +333,7 @@ func Open(cfg Config) (*Kernel, error) {
 		seat:         cfg.Seats,
 		artifacts:    artStore,
 		artIndex:     artIndex,
-		lake:         lake,
+		lake:         cfg.Lake,
 		reflect:      reflectEng,
 		schedules:    schedStore,
 		tools:        effTools,

@@ -4,9 +4,11 @@ package main
 
 import (
 	"path/filepath"
+	"time"
 
 	apptools "github.com/agezt/agezt/kernel/app/tools"
 	"github.com/agezt/agezt/kernel/modules/agents/reaper"
+	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
 	"github.com/agezt/agezt/kernel/modules/work/seat"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
@@ -34,6 +36,21 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 			return nil, err
 		}
 		cfg.Seats = seats
+	}
+	if cfg.Lake == nil {
+		lake, err := datalake.Open(cfg.BaseDir, func() int64 { return time.Now().UnixMilli() })
+		if err != nil {
+			return nil, err
+		}
+		// Seed the built-in Personal Data Lake collections (M835) — expenses,
+		// calendar, tasks, notes, habits, bookmarks, contacts. Idempotent
+		// (EnsureCollection skips existing ones) and best-effort: a seed hiccup
+		// must not block boot, and the next start retries.
+		//
+		// The seeding happens HERE, while the daemon still holds the concrete
+		// lake: seeding is not part of the port the host is given.
+		_, _ = lake.SeedBuiltins("system")
+		cfg.Lake = lake
 	}
 	k, err := kernelruntime.Open(cfg)
 	if err != nil {

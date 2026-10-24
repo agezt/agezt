@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
@@ -27,7 +28,6 @@ import (
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
-	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
@@ -78,8 +78,8 @@ type Kernel struct {
 	taste        *taste.Store
 	seat         seatapi.Store
 	artifacts    *artifact.Store
-	artIndex     *artifact.Index // metadata sidecar over artifacts (M822): browsable/deletable entries
-	lake         *datalake.Lake  // Personal Data Lake (M834): agent-built structured collections
+	artIndex     *artifact.Index  // metadata sidecar over artifacts (M822): browsable/deletable entries
+	lake         datalakeapi.Lake // Personal Data Lake (M834): agent-built structured collections
 	reflect      *reflect.Engine
 	schedules    *cadence.Store          // persistent typed schedule store (autonomy)
 	schedEngine  *cadence.Engine         // live cadence resident, set by the daemon after Open

@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -100,6 +101,38 @@ func TestOpenAppKernelWiresTheSeatCatalog(t *testing.T) {
 	}
 	if store.Valid("no-such-seat") {
 		t.Error("the daemon's seat catalog accepts a seat that does not exist")
+	}
+}
+
+// TestOpenAppKernelWiresTheDataLake: the daemon IS the composition root —
+// it opens the data lake, seeds its built-in collections and hands the kernel
+// the contract's port.
+//
+// The seeding lives HERE (W3.42): it is not part of the port the host is
+// given, and it is the daemon's file that is seeded. A daemon that stopped
+// seeding would leave every live box without the built-in collections —
+// which is why the assertion is on the composition root's lake.
+func TestOpenAppKernelWiresTheDataLake(t *testing.T) {
+	k, err := openAppKernel(kernelruntime.Config{BaseDir: t.TempDir(), Provider: mock.New(), Tools: map[string]toolapi.Tool{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { k.Close() })
+	lake := k.DataLake()
+	if lake == nil {
+		t.Fatal("the daemon did not wire the data lake — the kernel holds no port")
+	}
+	all := lake.ListCollections()
+	if len(all) == 0 {
+		t.Fatal("the daemon's data lake carries no built-in collections")
+	}
+	names := make([]string, 0, len(all))
+	for _, c := range all {
+		names = append(names, c.Name)
+	}
+	sort.Strings(names)
+	if names[0] != "bookmarks" {
+		t.Fatalf("the daemon did not seed the built-in collections, got %v", names)
 	}
 }
 

@@ -33,7 +33,6 @@ cross-module kernel/reflect -> kernel/modules/knowledge/worldmodel
 cross-module kernel/runtime -> kernel/modules/artifacts/artifact
 cross-module kernel/runtime -> kernel/cadence
 cross-module kernel/runtime -> kernel/modules/providers/catalog
-cross-module kernel/runtime -> kernel/modules/artifacts/datalake
 cross-module kernel/runtime -> kernel/imagetool
 cross-module kernel/runtime -> kernel/market
 cross-module kernel/runtime -> kernel/modules/extensions/mcp
@@ -53,7 +52,6 @@ cross-module kernel/runtime/runexec -> kernel/modules/artifacts/artifact
 cross-module kernel/runtime/runexec -> kernel/modules/work/assure
 cross-module kernel/runtime/runexec -> kernel/cadence
 cross-module kernel/runtime/runexec -> kernel/modules/providers/catalog
-cross-module kernel/runtime/runexec -> kernel/modules/artifacts/datalake
 cross-module kernel/runtime/runexec -> kernel/modules/knowledge/memory
 cross-module kernel/runtime/runexec -> kernel/modules/knowledge/worldmodel
 cross-module kernel/runtime/runexec -> kernel/modules/skills/skill
