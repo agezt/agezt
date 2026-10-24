@@ -29,11 +29,11 @@ import (
 // The rows it carries are the contract's (kernel/contract/workflowapi): a
 // plugin may reach the contract layer and nothing else, so the tool names
 // the row, not the module that keeps it.
-type Kernel interface {
-	SaveWorkflow(corr string, w workflowapi.Workflow) (workflowapi.Workflow, bool, error)
-	SetWorkflowEnabled(corr, ref string, enabled bool) (workflowapi.Workflow, error)
-	RunWorkflow(ctx context.Context, corr, ref string, payload any) (workflowapi.RunResult, error)
-}
+//
+// The PORT itself is the contract's too (W3.39c): the registry hands the
+// runner to the tool, so the port it hands must be a contract row — and the
+// name stays here as an alias, so every caller and every fake is unchanged.
+type Kernel = workflowapi.Runner
 
 // Tool implements toolapi.Tool. Construct with New, then Bind the live kernel
 // once it opens (the daemon is the single wiring point).

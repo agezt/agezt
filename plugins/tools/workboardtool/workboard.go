@@ -10,28 +10,23 @@ package workboardtool
 import (
 	"encoding/json"
 	"sync"
-	"time"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
-type Kernel interface {
-	CreateWorkboardTask(corr string, spec workboardapi.CreateSpec) (workboardapi.Task, bool, error)
-	ClaimWorkboardTask(corr, id, agent, runID string) (workboardapi.Task, error)
-	HeartbeatWorkboardTask(corr, id, agent, runID string) (workboardapi.Task, error)
-	CommentWorkboardTask(corr, id, author, body string) (workboardapi.Task, error)
-	BlockWorkboardTask(corr, id, actor, reason string) (workboardapi.Task, error)
-	FailWorkboardTask(corr, id, actor, reason string) (workboardapi.Task, workboardapi.RetryDecision, error)
-	UnblockWorkboardTask(corr, id, actor string) (workboardapi.Task, error)
-	CompleteWorkboardTask(corr, id, actor string) (workboardapi.Task, error)
-	ArchiveWorkboardTask(corr, id, actor string) (workboardapi.Task, error)
-	LinkWorkboardTask(corr, id, typ, target string) (workboardapi.Task, error)
-	SetWorkboardRetryPolicy(corr, id, actor string, policy *workboardapi.RetryPolicy) (workboardapi.Task, error)
-	AddWorkboardDependency(corr, id, dependsOn string) (workboardapi.Task, error)
-	ReclaimStaleWorkboardTask(corr, id, actor string, staleAfter time.Duration) (workboardapi.Task, error)
-}
+// Kernel is the slice of the runtime kernel this tool drives — the durable,
+// journaled path for typed work items.
+//
+// The rows it carries are the contract's (kernel/contract/workboardapi): a
+// plugin may reach the contract layer and nothing else, so the tool names
+// the row, not the module that keeps it.
+//
+// The PORT itself is the contract's too (W3.39c): the registry hands the
+// runner to the tool, so the port it hands must be a contract row — and the
+// name stays here as an alias, so every caller and every fake is unchanged.
+type Kernel = workboardapi.Runner
 
 type Tool struct {
 	mu sync.RWMutex

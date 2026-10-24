@@ -232,8 +232,8 @@ func specWorkflow() toolreg.Spec {
 			return toolreg.Built{Tool: wt}, nil
 		},
 		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
-			if d.K != nil {
-				wt.Bind(d.K, d.Workflows)
+			if d.WorkflowRunner != nil {
+				wt.Bind(d.WorkflowRunner, d.Workflows)
 			}
 			return nil
 		},
@@ -252,8 +252,8 @@ func specWorkboard() toolreg.Spec {
 			return toolreg.Built{Tool: wb}, nil
 		},
 		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
-			if d.K != nil {
-				wb.Bind(d.K, d.Workboard)
+			if d.WorkboardRunner != nil {
+				wb.Bind(d.WorkboardRunner, d.Workboard)
 			}
 			return nil
 		},

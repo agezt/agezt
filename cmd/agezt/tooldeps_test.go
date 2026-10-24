@@ -447,3 +447,45 @@ func TestReasoningPortStaysANilPortWithoutAKernel(t *testing.T) {
 		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
 	}
 }
+
+// TestToolKernelDepsSuppliesTheWorkflowAndWorkboardPorts: the workflow and
+// workboard tools drive the daemon's library and board through the
+// contract's ports (W3.39c). The ports are supplied HERE — at the
+// composition root — so a daemon that dropped them would leave two tools
+// answering "not available" on every live box, while every test that built
+// the tool by hand stayed green. This test is the only one that sees that
+// wiring, so it asserts it directly: the ports must be present AND they
+// must be the live kernel's.
+func TestToolKernelDepsSuppliesTheWorkflowAndWorkboardPorts(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	deps := toolKernelDeps(k, t.TempDir(), io.Discard)
+	if deps.WorkflowRunner == nil {
+		t.Fatal("the daemon must supply the workflow runner port")
+	}
+	if deps.WorkflowRunner != k {
+		t.Fatal("the workflow runner port must be the live kernel's")
+	}
+	if deps.WorkboardRunner == nil {
+		t.Fatal("the daemon must supply the workboard runner port")
+	}
+	if deps.WorkboardRunner != k {
+		t.Fatal("the workboard runner port must be the live kernel's")
+	}
+}
+
+// TestTheWorkflowAndWorkboardPortsStayNilWithoutAKernel: the same nil-port
+// rule as the other ports — a nil kernel handed to an interface parameter is
+// a non-nil interface, so the tools would bind a runner that is not there.
+func TestTheWorkflowAndWorkboardPortsStayNilWithoutAKernel(t *testing.T) {
+	if got := workflowPort(nil); got != nil {
+		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
+	}
+	if got := workboardPort(nil); got != nil {
+		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
+	}
+}

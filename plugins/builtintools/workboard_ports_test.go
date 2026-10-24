@@ -35,7 +35,7 @@ func TestTheWorkboardSpecWiresTheStorePort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{K: k, Workboard: k.Workboard()}); err != nil {
+	if err := spec.Configure(built.Tool, toolreg.KernelDeps{WorkboardRunner: k, Workboard: k.Workboard()}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
@@ -58,7 +58,7 @@ func TestTheWorkboardSpecWiresTheStorePort(t *testing.T) {
 }
 
 // TestTheWorkboardSpecSurvivesAMissingStorePort: a daemon that handed over
-// only the kernel must leave the read op reporting that the board is
+// only the runner must leave the read op reporting that the board is
 // unavailable — not dereferencing nil.
 func TestTheWorkboardSpecSurvivesAMissingStorePort(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
@@ -72,7 +72,7 @@ func TestTheWorkboardSpecSurvivesAMissingStorePort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{K: k}); err != nil {
+	if err := spec.Configure(built.Tool, toolreg.KernelDeps{WorkboardRunner: k}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
