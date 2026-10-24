@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -15,12 +16,12 @@ import (
 // actually run a worker's code. Satisfied by *codeexec.Tool (its RunScript), but
 // declared here so the kernel never imports the plugin (jarvis-pillars-map: the
 // kernel imports no plugins). Wired by the daemon via SetConductorExec.
-type CodeExecutor interface {
-	// RunScript runs code once in the sandbox and returns its combined output,
-	// an isError verdict (non-zero exit / timeout / unavailable language), and a
-	// transport error. inputJSON is surfaced to the script as ./stdin.txt.
-	RunScript(ctx context.Context, language, code, inputJSON string) (output string, isError bool, err error)
-}
+//
+// The port is the CONTRACT's (kernel/contract/toolregapi) — the same one the
+// pre-Open phase installs the script runner through. The alias keeps the
+// kernel's own signature contract-shaped, so the registry's row can be a
+// contract port without an adapter in between.
+type CodeExecutor = toolregapi.ScriptRunner
 
 // SetConductorExec injects the code-execution backend used by the Conductor's
 // Verifier role. Called once after Open (before any run), mirroring the council

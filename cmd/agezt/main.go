@@ -1437,7 +1437,6 @@ func runDaemon(stdout, stderr io.Writer) int {
 			run: func() (string, error) {
 				if err := toolSet.ConfigureLate(toolreg.LateDeps{
 					KernelDeps: toolreg.KernelDeps{
-						K:               k,
 						Bus:             busPort(k.Bus()),
 						Artifacts:       artifactPort(k.ArtifactIndex()),
 						Lake:            lakeStore(k),
@@ -1456,6 +1455,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 					},
 					ChannelSend:      channelSend,
 					ChannelSendMedia: channelSendMedia,
+					ArtifactBytes:    artifactBytes(k),
 					Board:            boardPort(lateBoard),
 					BoardNotify:      boardNotify,
 				}); err != nil {

@@ -206,10 +206,24 @@ func specCodeExec() toolreg.Spec {
 			if d.Bus != nil {
 				ce.Bind(d.Bus)
 			}
-			if d.K != nil {
-				d.K.SetConductorExec(ce)
-			}
+			installExecutor(ce, d)
 			return nil
 		},
 	}
+}
+
+// installExecutor hands the code_exec tool to the registry's row so the
+// Verifier can run a worker's code (W3.39g).
+//
+// The row is a plain closure — a function value names no type — so the
+// registry can carry it without naming the kernel.
+//
+// A nil tool is refused on purpose: a nil *codeexec.Tool handed to an
+// interface parameter is a NON-NIL interface, so the Verifier would believe
+// it can execute code and then call into a tool that is not there.
+func installExecutor(ce *codeexec.Tool, d toolreg.KernelDeps) {
+	if ce == nil || d.ConductorExec == nil {
+		return
+	}
+	d.ConductorExec(ce)
 }

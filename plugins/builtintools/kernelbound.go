@@ -168,9 +168,9 @@ func specOverseer() toolreg.Spec {
 
 // specToolForge — self-tooling (`tool_forge`, M794): the agent builds its OWN
 // tools — drafts a script, tests it in the code_exec sandbox, and once promoted
-// every run can call it as forge_<name>. Configure binds the live kernel's
-// journaled scripttool.* lifecycle and hands over the store the read ops
-// (op=list, op=show) read through the contract's port.
+// every run can call it as forge_<name>. Configure binds the forge's
+// journaled scripttool.* lifecycle through the CONTRACT's port and hands over
+// the store the read ops (op=list, op=show) read through.
 func specToolForge() toolreg.Spec {
 	var ft *forgetool.Tool
 	return toolreg.Spec{
@@ -180,8 +180,8 @@ func specToolForge() toolreg.Spec {
 			return toolreg.Built{Tool: ft}, nil
 		},
 		Configure: func(_ toolapi.Tool, d toolreg.KernelDeps) error {
-			if d.K != nil {
-				ft.Bind(d.K, d.Forge)
+			if d.ForgeRunner != nil {
+				ft.Bind(d.ForgeRunner, d.Forge)
 			}
 			return nil
 		},

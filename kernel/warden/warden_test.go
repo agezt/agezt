@@ -149,37 +149,75 @@ func TestRun_RejectsBlankArgv0(t *testing.T) {
 
 // ---- timeout ----
 
+// timeoutOutcome is one attempt at the timed-out run: what the engine said,
+// what it cost, and the budget the attempt was given.
+type timeoutOutcome struct {
+	res    *warden.Result
+	err    error
+	dur    time.Duration
+	budget time.Duration
+}
+
+// runUntilStarted repeats the timed-out run while the deadline expires
+// BEFORE the process can be created.
+//
+// The deadline does not only pay for the run: it also pays for PATH
+// resolution and process creation, so on a loaded machine it can expire
+// before the process exists. os/exec then refuses to start anything and the
+// engine reports a start failure ("context deadline exceeded") rather than a
+// timeout — honestly, because nothing ran — but that is the machine's
+// latency, not the kill path this test is about.
+//
+// Repeating the run with a budget that covers the start keeps the assertion
+// strong rather than weakening it: the run that is measured DID start, DID
+// run past its deadline, and WAS killed. A broken kill path fails both
+// attempts.
+func runUntilStarted(t *testing.T, e warden.Engine) timeoutOutcome {
+	t.Helper()
+	var last timeoutOutcome
+	for _, budget := range []time.Duration{200 * time.Millisecond, 2 * time.Second} {
+		start := time.Now()
+		res, err := e.Run(context.Background(), warden.Spec{
+			Profile: warden.ProfileNone,
+			Argv:    busyArgv(),
+			Limits:  warden.Limits{Timeout: budget, WaitDelay: 500 * time.Millisecond},
+		})
+		last = timeoutOutcome{res: res, err: err, dur: time.Since(start), budget: budget}
+		if err == nil || !errors.Is(err, context.DeadlineExceeded) {
+			return last
+		}
+	}
+	return last
+}
+
 func TestRun_TimeoutKillsAndFlagsTimedOut(t *testing.T) {
 	b, j := newBus(t)
 	e := warden.New(b)
 
-	start := time.Now()
-	res, err := e.Run(context.Background(), warden.Spec{
-		Profile: warden.ProfileNone,
-		Argv:    busyArgv(),
-		Limits:  warden.Limits{Timeout: 200 * time.Millisecond, WaitDelay: 500 * time.Millisecond},
-	})
-	dur := time.Since(start)
-	if err != nil {
-		t.Fatalf("Run: %v", err)
+	out := runUntilStarted(t, e)
+	if out.err != nil {
+		t.Fatalf("Run: %v", out.err)
 	}
-	if !res.TimedOut {
+	if !out.res.TimedOut {
 		t.Error("expected TimedOut=true")
 	}
-	// The command is 200ms timeout + 500ms WaitDelay = ~700ms nominal, and this
-	// is a wall-clock measurement of a real process being killed, so it carries
-	// whatever scheduling delay the machine is under. At 2s it reproduced
-	// consistently inside the full `go test ./...` run — 191 packages in
-	// parallel put the box under enough load to take 2.18s — while passing
-	// every time in isolation. A bound that tight measures the scheduler, not
-	// the warden.
+	// The command is `budget` timeout + 500ms WaitDelay, and this is a
+	// wall-clock measurement of a real process being killed, so it carries
+	// whatever scheduling delay the machine is under. The bound is RELATIVE
+	// to the budget for that reason: it measures "the kill landed late", not
+	// "the machine was slow". At 2s it reproduced consistently inside the
+	// full `go test ./...` run — 191 packages in parallel put the box under
+	// enough load to take 2.18s — while passing every time in isolation. A
+	// bound that tight measures the scheduler, not the warden.
 	//
-	// The property worth keeping is "killed, and not after an unbounded wait";
-	// a broken kill path never returns at all and trips the package timeout
-	// instead. 6s still catches a kill that lands many multiples late, while
-	// leaving the measurement enough room to mean something.
-	if dur > 6*time.Second {
-		t.Errorf("Run took %s; expected <6s (timeout + WaitDelay, with headroom for a loaded machine)", dur)
+	// The property worth keeping is "killed, and not after an unbounded
+	// wait"; a broken kill path never returns at all and trips the package
+	// timeout instead. The headroom still catches a kill that lands many
+	// multiples late, while leaving the measurement enough room to mean
+	// something.
+	limit := out.budget + 6*time.Second
+	if out.dur > limit {
+		t.Errorf("Run took %s; expected <%s (timeout + WaitDelay, with headroom for a loaded machine)", out.dur, limit)
 	}
 	// warden.limit_exceeded for the timeout.
 	if got := countEvents(t, j, event.KindWardenLimitExceeded); got < 1 {

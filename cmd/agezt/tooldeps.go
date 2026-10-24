@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/agezt/agezt/kernel/app/configtool"
@@ -22,6 +23,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/journal"
@@ -45,7 +47,13 @@ import (
 // port this function supplies is present and answers the live kernel.
 func toolKernelDeps(k *runtime.Kernel, baseDir string, stdout io.Writer) toolreg.KernelDeps {
 	return toolreg.KernelDeps{
-		K:               k,
+		// The tool_forge tool drives the forge's lifecycle through the
+		// contract's port (W3.39g).
+		ForgeRunner: forgeRunnerPort(k),
+		// The code_exec tool installs itself as the Verifier's executor
+		// through a plain closure (W3.39g): a function value names no type,
+		// so the row stays in the contract without naming the kernel.
+		ConductorExec:   conductorExecPort(k),
 		Bus:             busPort(k.Bus()),
 		Artifacts:       artifactPort(k.ArtifactIndex()),
 		Lake:            lakeStore(k),
@@ -356,6 +364,58 @@ func forgePort(s *toolforge.Store) toolforgeapi.Store {
 		return nil
 	}
 	return s
+}
+
+// forgeRunnerPort turns the live kernel into the contract's forge runner.
+//
+// The kernel's own forge methods already speak the contract's rows (the
+// script tool and the approval verdict are aliases of the contract's), so
+// the kernel satisfies the port DIRECTLY — there is no adapter in between,
+// and the wire is the same row all the way down.
+//
+// A nil kernel must stay a NIL PORT: the tool_forge tool then reports that
+// the forge is unavailable instead of calling into nothing.
+func forgeRunnerPort(k *runtime.Kernel) toolforgeapi.Runner {
+	if k == nil {
+		return nil
+	}
+	return k
+}
+
+// conductorExecPort returns the closure that installs the Verifier's code
+// executor.
+//
+// It is a CLOSURE on purpose: a function value names no type, so the row
+// stays in the contract without the contract naming the kernel. The kernel's
+// own setter takes the contract's runner (the runtime's CodeExecutor is an
+// alias of it), so the value is handed over without a translation.
+func conductorExecPort(k *runtime.Kernel) func(x toolregapi.ScriptRunner) {
+	return func(x toolregapi.ScriptRunner) {
+		if k == nil {
+			return
+		}
+		k.SetConductorExec(x)
+	}
+}
+
+// artifactBytes returns the closure that resolves an artifact reference to
+// its bytes.
+//
+// It is a CLOSURE on purpose: a function value names no type, so the row
+// stays in the contract without the contract naming the artifact module. The
+// blob store re-verifies the hash on the way out, so a tampered blob is
+// refused rather than attached to a message.
+func artifactBytes(k *runtime.Kernel) func(ref string) ([]byte, error) {
+	return func(ref string) ([]byte, error) {
+		if k == nil {
+			return nil, fmt.Errorf("artifact store unavailable")
+		}
+		a := k.Artifacts()
+		if a == nil {
+			return nil, fmt.Errorf("artifact store unavailable")
+		}
+		return a.Get(ref)
+	}
 }
 
 // busPort turns the live bus into the contract's publish port (W3.39f).
