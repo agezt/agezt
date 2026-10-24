@@ -1439,7 +1439,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 					KernelDeps: toolreg.KernelDeps{
 						K:         k,
 						Bus:       k.Bus(),
-						Artifacts: k.ArtifactIndex(),
+						Artifacts: artifactPort(k.ArtifactIndex()),
 						Lake:      lakeStore(k),
 						Journal:   k.Journal(),
 						BaseDir:   baseDir,
@@ -1447,7 +1447,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 					},
 					ChannelSend:      channelSend,
 					ChannelSendMedia: channelSendMedia,
-					Board:            lateBoard,
+					Board:            boardPort(lateBoard),
 					BoardNotify:      boardNotify,
 				}); err != nil {
 					return "", err
