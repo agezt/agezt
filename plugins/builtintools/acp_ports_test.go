@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/acpapi"
-	"github.com/agezt/agezt/kernel/toolreg"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/plugins/tools/acpagent"
 )
 
@@ -43,7 +43,7 @@ func (c fakeACPCatalog) ResolveCommand(ref, fallback string) (string, bool) {
 func TestTheACPSpecWiresTheCataloguePort(t *testing.T) {
 	catalog := fakeACPCatalog{installed: []string{"gemini", "codex"}}
 	spec := specACPAgent()
-	built, err := spec.Build(toolreg.BuildDeps{
+	built, err := spec.Build(toolregapi.BuildDeps{
 		Get: func(string) string { return "" }, // no default command
 		ACP: catalog,
 	})
@@ -72,7 +72,7 @@ func TestTheACPSpecWiresTheCataloguePort(t *testing.T) {
 // is nothing to discover, and the tool must not call into nothing.
 func TestTheACPSpecSurvivesAMissingPort(t *testing.T) {
 	spec := specACPAgent()
-	built, err := spec.Build(toolreg.BuildDeps{
+	built, err := spec.Build(toolregapi.BuildDeps{
 		Get: func(string) string { return "" }, // no default command
 	})
 	if err != nil {
@@ -84,7 +84,7 @@ func TestTheACPSpecSurvivesAMissingPort(t *testing.T) {
 
 	// A configured default command still registers the tool — and the tool
 	// then reports that it has no catalogue rather than calling into nothing.
-	built, err = spec.Build(toolreg.BuildDeps{
+	built, err = spec.Build(toolregapi.BuildDeps{
 		Get: func(string) string { return "claude-code-acp" },
 	})
 	if err != nil {

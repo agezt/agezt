@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/toolreg"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 )
 
 // bootSpecNames is the RATCHET for the boot tool registry (Phase 2.2 of
@@ -69,7 +69,7 @@ var bootSpecNames = []string{
 // banner and the plugins-last conflict rule).
 func TestRegisterAllMatchesPinnedSpecList(t *testing.T) {
 	RegisterAll()
-	got := toolreg.Names()
+	got := toolregapi.Names()
 
 	want := map[string]bool{}
 	for _, name := range bootSpecNames {

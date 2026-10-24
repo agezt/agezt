@@ -19,7 +19,7 @@ import (
 	"fmt"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/toolreg"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	boardtool "github.com/agezt/agezt/plugins/tools/boardtool"
 	"github.com/agezt/agezt/plugins/tools/notify"
 	"github.com/agezt/agezt/plugins/tools/sendmedia"
@@ -29,20 +29,20 @@ import (
 // operator on a configured chat channel. Destinations stay pinned to each
 // channel's operator allowlist (the agent supplies only text); the sender is
 // wired Late, once the live channels exist.
-func specNotify() toolreg.Spec {
+func specNotify() toolregapi.Spec {
 	var nt *notify.Tool
 	var targets map[string][]string
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "notify",
-		Build: func(d toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(d toolregapi.BuildDeps) (toolregapi.Built, error) {
 			if len(d.NotifyTargets) == 0 {
-				return toolreg.Built{}, nil // no configured+allowlisted channel ⇒ not registered
+				return toolregapi.Built{}, nil // no configured+allowlisted channel ⇒ not registered
 			}
 			targets = d.NotifyTargets
 			nt = notify.New() // unbound; Late wires the sender once channels exist
-			return toolreg.Built{Tool: nt}, nil
+			return toolregapi.Built{Tool: nt}, nil
 		},
-		Late: func(_ toolapi.Tool, d toolreg.LateDeps) error {
+		Late: func(_ toolapi.Tool, d toolregapi.LateDeps) error {
 			if d.ChannelSend != nil {
 				nt.Bind(d.ChannelSend, targets)
 			}
@@ -56,20 +56,20 @@ func specNotify() toolreg.Spec {
 // operator. The artifact resolver goes through the registry's row — a plain
 // closure the daemon builds over the live blob store (W3.39g) — resolved
 // lazily per call.
-func specSendMedia() toolreg.Spec {
+func specSendMedia() toolregapi.Spec {
 	var smt *sendmedia.Tool
 	var targets map[string][]string
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "send_media",
-		Build: func(d toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(d toolregapi.BuildDeps) (toolregapi.Built, error) {
 			if len(d.NotifyTargets) == 0 {
-				return toolreg.Built{}, nil
+				return toolregapi.Built{}, nil
 			}
 			targets = d.NotifyTargets
 			smt = sendmedia.New()
-			return toolreg.Built{Tool: smt}, nil
+			return toolregapi.Built{Tool: smt}, nil
 		},
-		Late: func(_ toolapi.Tool, d toolreg.LateDeps) error {
+		Late: func(_ toolapi.Tool, d toolregapi.LateDeps) error {
 			if d.ChannelSendMedia == nil {
 				return nil
 			}
@@ -93,15 +93,15 @@ func specSendMedia() toolreg.Spec {
 // (M656) so a standing order can trigger on a topic. When the store failed to
 // open the daemon passes a nil Board and the tool simply stays unbound,
 // exactly like the old `if boardErr != nil` skip.
-func specBoard() toolreg.Spec {
+func specBoard() toolregapi.Spec {
 	var bt *boardtool.Tool
-	return toolreg.Spec{
+	return toolregapi.Spec{
 		Name: "board",
-		Build: func(toolreg.BuildDeps) (toolreg.Built, error) {
+		Build: func(toolregapi.BuildDeps) (toolregapi.Built, error) {
 			bt = boardtool.New()
-			return toolreg.Built{Tool: bt}, nil
+			return toolregapi.Built{Tool: bt}, nil
 		},
-		Late: func(_ toolapi.Tool, d toolreg.LateDeps) error {
+		Late: func(_ toolapi.Tool, d toolregapi.LateDeps) error {
 			if d.Board != nil {
 				bt.BindStore(d.Board)
 				bt.OnPost(d.BoardNotify)

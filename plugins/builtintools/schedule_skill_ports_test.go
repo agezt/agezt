@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/toolreg"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 )
 
 // TestTheScheduleAndSkillSpecsStayUnwiredWithoutTheirPorts: without the
@@ -24,7 +24,7 @@ import (
 func TestTheScheduleAndSkillSpecsStayUnwiredWithoutTheirPorts(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
-		spec  func() toolreg.Spec
+		spec  func() toolregapi.Spec
 		input string
 		want  string
 	}{
@@ -32,11 +32,11 @@ func TestTheScheduleAndSkillSpecsStayUnwiredWithoutTheirPorts(t *testing.T) {
 		{"skill", specSkill, `{"op":"learn","name":"diagnose-ci","description":"when CI fails","body":"1. read the logs"}`, "not available"},
 	} {
 		spec := tc.spec()
-		built, err := spec.Build(toolreg.BuildDeps{})
+		built, err := spec.Build(toolregapi.BuildDeps{})
 		if err != nil {
 			t.Fatalf("%s Build: %v", tc.name, err)
 		}
-		if err := spec.Configure(built.Tool, toolreg.KernelDeps{}); err != nil {
+		if err := spec.Configure(built.Tool, toolregapi.KernelDeps{}); err != nil {
 			t.Fatalf("%s Configure: %v", tc.name, err)
 		}
 		res, err := built.Tool.Invoke(context.Background(), json.RawMessage(tc.input))

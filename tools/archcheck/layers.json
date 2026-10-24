@@ -46,7 +46,6 @@
     {"pattern": "kernel/planner", "layer": 3, "module": "runs"},
     {"pattern": "kernel/scheduler", "layer": 3, "module": "runs"},
     {"pattern": "kernel/reflect", "layer": 3, "module": "runs"},
-    {"pattern": "kernel/toolreg", "layer": 3, "module": "runs", "note": "-> app/tools registry (W2.3)"},
     {"pattern": "kernel/toolexec", "layer": 3, "module": "runs", "note": "-> app/tools.Invoke (W2.3)"},
 
 

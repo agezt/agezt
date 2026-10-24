@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
-	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/plugins/tools/fetch"
 	httptool "github.com/agezt/agezt/plugins/tools/http"
 )
@@ -23,8 +23,8 @@ func (nopIndex) PutEntry(e artifact.Entry, _ []byte, _ int64) (artifact.Entry, e
 // so AGEZT_HTTP_ALLOWED_HOSTS must restrict it too. It used to be ignored: with
 // http pinned to one host, fetch still downloaded from anywhere.
 func TestFetchHonoursTheHTTPAllowlist(t *testing.T) {
-	deps := func(env map[string]string) toolreg.BuildDeps {
-		return toolreg.BuildDeps{Stderr: &bytes.Buffer{}, Get: func(k string) string { return env[k] }}
+	deps := func(env map[string]string) toolregapi.BuildDeps {
+		return toolregapi.BuildDeps{Stderr: &bytes.Buffer{}, Get: func(k string) string { return env[k] }}
 	}
 	invoke := func(env map[string]string, url string) string {
 		t.Helper()

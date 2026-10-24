@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -30,11 +30,11 @@ func TestTheToolForgeSpecWiresTheStorePort(t *testing.T) {
 	}
 
 	spec := specToolForge()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{ForgeRunner: k, Forge: k.ToolForge()}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{ForgeRunner: k, Forge: k.ToolForge()}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
@@ -72,11 +72,11 @@ func TestTheToolForgeSpecSurvivesAMissingStorePort(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 
 	spec := specToolForge()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{ForgeRunner: k}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{ForgeRunner: k}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 

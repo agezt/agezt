@@ -10,8 +10,8 @@ import (
 
 	"github.com/agezt/agezt/kernel/app/introspect"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -31,11 +31,11 @@ func TestIntrospectSpecReadsTheLiveKernelThroughThePort(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 
 	spec := specIntrospect()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{
 		Introspect: introspect.NewKernelSource(k),
 	}); err != nil {
 		t.Fatalf("Configure: %v", err)
@@ -73,11 +73,11 @@ func TestIntrospectSpecReadsTheLiveKernelThroughThePort(t *testing.T) {
 // the tool must then say so instead of dereferencing nil.
 func TestIntrospectSpecSurvivesAnUnwiredPort(t *testing.T) {
 	spec := specIntrospect()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 

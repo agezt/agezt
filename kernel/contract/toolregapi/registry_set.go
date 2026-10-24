@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-package toolreg
+package toolregapi
 
 // Built-tool set: BuildAll + Set methods + sortedKeys. Carved out
-// of toolreg.go during the Day 201 god-file split so the main
+// of registry.go during the Day 201 god-file split so the main
 // file can stay focused on types + the package-level Register +
 // Names + snapshot.
 // Public API unchanged.
@@ -15,8 +15,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/contract/toolregapi"
-	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/contract/types"
 )
 
 func BuildAll(d BuildDeps) (*Set, error) {
@@ -105,29 +104,16 @@ func (s *Set) Tools() map[string]toolapi.Tool {
 // ApplyPreOpen runs every spec's PreOpen hook against cfg.
 //
 // The hook answers the CONTRACT's port, so the daemon's configuration is
-// wrapped in it here — that is the one place the registry knows both
-// (W3.38). A tool never names the runtime.
-func (s *Set) ApplyPreOpen(cfg *runtime.Config) {
-	port := runtimeConfig{cfg: cfg}
+// wrapped in it by the COMPOSITION ROOT (cmd/agezt) — the one place that
+// knows both (W3.38, W3.39h). A tool never names the runtime, and neither
+// does the registry any more: it lives in the contract layer and takes the
+// port itself.
+func (s *Set) ApplyPreOpen(cfg Config) {
 	for _, p := range s.pairs {
 		if p.spec.PreOpen != nil {
-			p.spec.PreOpen(p.built.Tool, port)
+			p.spec.PreOpen(p.built.Tool, cfg)
 		}
 	}
-}
-
-// runtimeConfig answers the contract's pre-Open port over the daemon's
-// runtime configuration.
-type runtimeConfig struct{ cfg *runtime.Config }
-
-// SetScriptRunner installs the runner that executes forged script tools
-// (M794) in the daemon's configuration.
-//
-// The contract's runner and the daemon's runner interface have the same
-// method set, so the value is assigned directly — the registry does not
-// name the module that declares the daemon's own interface.
-func (c runtimeConfig) SetScriptRunner(r toolregapi.ScriptRunner) {
-	c.cfg.ScriptRunner = r
 }
 
 // Configure runs the post-Open phase: for every Netguard spec it wires
@@ -184,8 +170,8 @@ func (s *Set) Descs() []string {
 // the manifest reports the post-conflict count — what the model actually sees —
 // not the raw plugin advertisement (the operator can spot when a conflict
 // shadowed a tool they expected).
-func (s *Set) PluginManifest() []runtime.PluginInfo {
-	var out []runtime.PluginInfo
+func (s *Set) PluginManifest() []types.PluginInfo {
+	var out []types.PluginInfo
 	for _, p := range s.pairs {
 		for _, info := range p.built.Infos {
 			for name := range s.dropped {

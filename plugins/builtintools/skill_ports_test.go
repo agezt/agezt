@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -30,11 +30,11 @@ func TestTheSkillSpecWiresTheLiveForge(t *testing.T) {
 	}
 
 	spec := specSkill()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{SkillForge: k.Forge(), SkillBundles: k.Forge().Bundles()}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{SkillForge: k.Forge(), SkillBundles: k.Forge().Bundles()}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
@@ -91,11 +91,11 @@ func TestTheSkillSpecHandsOverTheBundlePort(t *testing.T) {
 	}
 
 	spec := specSkill()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{SkillForge: k.Forge(), SkillBundles: k.Forge().Bundles()}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{SkillForge: k.Forge(), SkillBundles: k.Forge().Bundles()}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
@@ -145,12 +145,12 @@ func TestTheSkillSpecHandsOverTheBundlePort(t *testing.T) {
 // dereferencing nil.
 func TestTheSkillSpecSurvivesAKernelWithoutAForge(t *testing.T) {
 	spec := specSkill()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
 	// A kernel with no Forge: the Configure hook must not panic.
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 

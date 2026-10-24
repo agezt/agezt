@@ -12,8 +12,8 @@ import (
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/standingtool"
 )
@@ -45,11 +45,11 @@ func TestStandingSpecWiresTheRosterLookup(t *testing.T) {
 	}
 
 	spec := specStanding()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{Standing: k, AgentLookup: k.Roster().Get}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{Standing: k, AgentLookup: k.Roster().Get}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
@@ -78,11 +78,11 @@ func TestScheduleSpecBindsTheLiveStore(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 
 	spec := specSchedule()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{Schedules: k.Schedules(), AgentLookup: k.Roster().Get}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{Schedules: k.Schedules(), AgentLookup: k.Roster().Get}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 

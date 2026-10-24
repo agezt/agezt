@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/reasoningapi"
-	"github.com/agezt/agezt/kernel/toolreg"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	conductortool "github.com/agezt/agezt/plugins/tools/conductor"
 	counciltool "github.com/agezt/agezt/plugins/tools/council"
 	"github.com/agezt/agezt/plugins/tools/research"
@@ -59,7 +59,7 @@ func (f *fakeReasoning) Research(_ context.Context, _, question string, _ reason
 func TestTheReasoningSpecsBindThePort(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
-		spec   func() toolreg.Spec
+		spec   func() toolregapi.Spec
 		input  string
 		called func(*fakeReasoning) bool
 	}{
@@ -69,11 +69,11 @@ func TestTheReasoningSpecsBindThePort(t *testing.T) {
 	} {
 		fake := &fakeReasoning{}
 		spec := tc.spec()
-		built, err := spec.Build(toolreg.BuildDeps{})
+		built, err := spec.Build(toolregapi.BuildDeps{})
 		if err != nil {
 			t.Fatalf("%s Build: %v", tc.name, err)
 		}
-		if err := spec.Configure(built.Tool, toolreg.KernelDeps{Reasoning: fake}); err != nil {
+		if err := spec.Configure(built.Tool, toolregapi.KernelDeps{Reasoning: fake}); err != nil {
 			t.Fatalf("%s Configure: %v", tc.name, err)
 		}
 		res, err := built.Tool.Invoke(context.Background(), json.RawMessage(tc.input))
@@ -125,7 +125,7 @@ func TestTheToolsRunnersAreTheContractsPorts(t *testing.T) {
 func TestTheReasoningSpecsLeaveTheToolsUnwiredWithoutThePort(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		spec func() toolreg.Spec
+		spec func() toolregapi.Spec
 		want string
 	}{
 		{"council", specCouncil, "council unavailable"},
@@ -133,11 +133,11 @@ func TestTheReasoningSpecsLeaveTheToolsUnwiredWithoutThePort(t *testing.T) {
 		{"research", specResearch, "research unavailable"},
 	} {
 		spec := tc.spec()
-		built, err := spec.Build(toolreg.BuildDeps{})
+		built, err := spec.Build(toolregapi.BuildDeps{})
 		if err != nil {
 			t.Fatalf("%s Build: %v", tc.name, err)
 		}
-		if err := spec.Configure(built.Tool, toolreg.KernelDeps{}); err != nil {
+		if err := spec.Configure(built.Tool, toolregapi.KernelDeps{}); err != nil {
 			t.Fatalf("%s Configure: %v", tc.name, err)
 		}
 		res, err := built.Tool.Invoke(context.Background(), json.RawMessage(`{"question":"should we ship?"}`))

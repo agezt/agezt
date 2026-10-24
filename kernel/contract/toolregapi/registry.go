@@ -1,34 +1,21 @@
 // SPDX-License-Identifier: MIT
 
-// Package toolreg is the first-party tool registry (Phase 2.2). Each built-in
-// tool contributes a Spec — how to build it from boot-time deps, plus optional
-// lifecycle hooks for the phases the daemon used to hand-wire with string-keyed
-// downcasts in cmd/agezt/main.go:
-//
-//   - Build       pre-kernel construction (env-configured, may skip itself)
-//   - PreOpen     mutate the runtime Config before runtime.Open
-//   - Configure   post-Open injection (kernel, bus, artifact index, …)
-//   - Late        wiring that needs live channels / the board
-//
-// Specs register into a package-level registry (mirroring builtinchannels);
-// the daemon calls BuildAll once and drives the resulting Set through the
-// phases. Netguard-capable tools implement NetguardAware and are wired
-// generically by Configure — no hand-listed type switch — and NetguardGaps
-// lets a test enumerate, FROM the registry, any Netguard spec whose built
-// instances cannot receive the audit callback.
-package toolreg
+// The registry's rows and its own functions. The package doc lives in
+// toolregapi.go — one package, one package doc.
+
+package toolregapi
 
 import (
 	"context"
 	"io"
 	"sync"
 
-	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/contract/acpapi"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
+	"github.com/agezt/agezt/kernel/contract/channelapi"
 	"github.com/agezt/agezt/kernel/contract/configapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/eventapi"
@@ -42,11 +29,10 @@ import (
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
-	"github.com/agezt/agezt/kernel/contract/toolregapi"
+	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/contract/wardenapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
 // BuildDeps carries everything a tool may need at pre-kernel construction
@@ -94,7 +80,7 @@ type KernelDeps struct {
 	// names no type, so the row stays in the contract without naming the
 	// kernel. Nil when unwired — the Verifier then always critiques instead
 	// of executing.
-	ConductorExec func(x toolregapi.ScriptRunner)
+	ConductorExec func(x ScriptRunner)
 	// Bus is the publish port the code_exec tool writes its code.executed
 	// event through. It is the CONTRACT's port: the tool is a plugin and may
 	// not name the platform package that keeps the bus (W3.39f). Nil when
@@ -191,7 +177,7 @@ type KernelDeps struct {
 type LateDeps struct {
 	KernelDeps
 	ChannelSend      func(ctx context.Context, kind, id, text string) error
-	ChannelSendMedia func(ctx context.Context, kind, id, text string, atts []channel.Attachment) error
+	ChannelSendMedia func(ctx context.Context, kind, id, text string, atts []channelapi.Attachment) error
 	// ArtifactBytes resolves an artifact reference to its bytes — the send_media
 	// tool's way of attaching a file an earlier run produced (W3.39g). It is a
 	// plain CLOSURE on purpose: a function value names no type, so the row
@@ -223,7 +209,7 @@ type Built struct {
 	Caps map[string]string
 	// Infos are the plugin-manifest entries for external-plugin specs (one per
 	// spawned plugin; the plugin-host spec yields several from a single Build).
-	Infos []runtime.PluginInfo
+	Infos []types.PluginInfo
 	// Close releases what Build started — the plugin host's child processes.
 	// Set.Close calls it once at daemon shutdown (and BuildAll calls it if the
 	// set it belonged to fails to build). Nil when there is nothing to release.
@@ -237,13 +223,13 @@ type Spec struct {
 	// Build constructs the tool from boot deps. An error is a hard boot
 	// failure; returning a zero Built skips registration.
 	Build func(BuildDeps) (Built, error)
-	// PreOpen may mutate the runtime Config before runtime.Open.
+	// PreOpen may mutate the daemon's configuration before the kernel opens.
 	//
 	// The hook answers the CONTRACT's port, not the daemon's config type: a
 	// tool is a plugin and may not name the runtime (which lives in a
-	// module). The registry wraps the daemon's configuration in the port
-	// before calling the hook (W3.38).
-	PreOpen func(tool toolapi.Tool, cfg toolregapi.Config)
+	// module). The composition root wraps the daemon's configuration in the
+	// port before calling the hook (W3.38, W3.39h).
+	PreOpen func(tool toolapi.Tool, cfg Config)
 	// Configure injects post-Open dependencies.
 	Configure func(tool toolapi.Tool, d KernelDeps) error
 	// Late injects live-channel / board dependencies.
@@ -292,7 +278,7 @@ func Register(sp Spec) {
 // change silently. No binary calls it, so deadcodecheck allowlists it by name
 // — see tools/deadcodecheck. A same-package accessor would have moved into a
 // _test.go instead; this one cannot, because the ratchet lives in the package
-// that registers the specs and toolreg cannot import it back.
+// that registers the specs and the contract package cannot import it back.
 func Names() []string {
 	regMu.RLock()
 	defer regMu.RUnlock()

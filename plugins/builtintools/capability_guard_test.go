@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/kernel/warden"
 )
 
@@ -163,7 +163,7 @@ func buildRealBootTools(t *testing.T) map[string]toolapi.Tool {
 	t.Helper()
 	RegisterAll()
 	var stderr bytes.Buffer
-	set, err := toolreg.BuildAll(toolreg.BuildDeps{
+	set, err := toolregapi.BuildAll(toolregapi.BuildDeps{
 		BaseDir:       t.TempDir(),
 		WorkspaceRoot: t.TempDir(),
 		Warden:        warden.New(nil),

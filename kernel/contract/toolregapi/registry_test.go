@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package toolreg
+package toolregapi
 
 import (
 	"context"
@@ -11,8 +11,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/contract/toolregapi"
-	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/contract/types"
 )
 
 // resetRegistryForTest empties the package-level registry so each test builds
@@ -290,7 +289,7 @@ func TestBuildAllYieldOnConflictDropsLaterClaimant(t *testing.T) {
 				"px.other":  &fakeTool{name: "px.other"},  // unique — must load
 			},
 			Caps:  map[string]string{"px.shared": "net.fetch", "px.other": "fs.read"},
-			Infos: []runtime.PluginInfo{{Prefix: "px", ToolCount: 2}},
+			Infos: []types.PluginInfo{{Prefix: "px", ToolCount: 2}},
 		}, nil
 	}})
 
@@ -330,7 +329,7 @@ func TestBuildAllYieldOnConflictDropsLaterClaimant(t *testing.T) {
 func TestBuildAllInfosOnlySpecStillRecorded(t *testing.T) {
 	resetRegistryForTest()
 	Register(Spec{Name: "plugins", YieldOnConflict: true, Build: func(BuildDeps) (Built, error) {
-		return Built{Infos: []runtime.PluginInfo{{Prefix: "empty", ToolCount: 0}}}, nil
+		return Built{Infos: []types.PluginInfo{{Prefix: "empty", ToolCount: 0}}}, nil
 	}})
 	set, err := BuildAll(BuildDeps{})
 	if err != nil {
@@ -347,7 +346,7 @@ func TestApplyPreOpenAndConfigureLate(t *testing.T) {
 	Register(Spec{
 		Name:    "hooked",
 		Build:   func(BuildDeps) (Built, error) { return Built{Tool: &fakeTool{name: "hooked"}}, nil },
-		PreOpen: func(tool toolapi.Tool, cfg toolregapi.Config) { calls = append(calls, "preopen") },
+		PreOpen: func(tool toolapi.Tool, cfg Config) { calls = append(calls, "preopen") },
 		Late: func(tool toolapi.Tool, d LateDeps) error {
 			calls = append(calls, "late")
 			return nil

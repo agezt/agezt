@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -31,11 +31,11 @@ func TestTheWorkboardSpecWiresTheStorePort(t *testing.T) {
 	}
 
 	spec := specWorkboard()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{WorkboardRunner: k, Workboard: k.Workboard()}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{WorkboardRunner: k, Workboard: k.Workboard()}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
@@ -68,11 +68,11 @@ func TestTheWorkboardSpecSurvivesAMissingStorePort(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 
 	spec := specWorkboard()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{WorkboardRunner: k}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{WorkboardRunner: k}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 

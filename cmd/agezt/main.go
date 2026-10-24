@@ -37,6 +37,7 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/app/overseer"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/edict"
@@ -54,7 +55,6 @@ import (
 	"github.com/agezt/agezt/kernel/redact"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
-	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/kernel/update"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/builtinchannels"
@@ -548,7 +548,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// cfg.ScriptRunner (M794) — forged tools execute through the same sandbox
 	// (warden isolation, scrubbed env); without the sandbox the forge reports
 	// itself unavailable.
-	toolSet.ApplyPreOpen(&cfg)
+	//
+	// The hook answers the CONTRACT's port, not the configuration type: the
+	// registry lives in the contract layer (W3.39h) and may not name the
+	// daemon's runtime. The composition root is the one place that knows
+	// both, so the adapter lives HERE (it used to live in the registry).
+	applyPreOpen(toolSet, &cfg)
 	// Per-run wall-clock timeout (M31): AGEZT_RUN_TIMEOUT=<duration> caps how
 	// long a single run may take inside a live session. Off by default (only
 	// MaxIter + explicit halt bound a run); a positive duration arms the cap.
@@ -1435,8 +1440,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 			// into `agt why`.
 			name: "late-configure tools", fatal: true,
 			run: func() (string, error) {
-				if err := toolSet.ConfigureLate(toolreg.LateDeps{
-					KernelDeps: toolreg.KernelDeps{
+				if err := toolSet.ConfigureLate(toolregapi.LateDeps{
+					KernelDeps: toolregapi.KernelDeps{
 						Bus:             busPort(k.Bus()),
 						Artifacts:       artifactPort(k.ArtifactIndex()),
 						Lake:            lakeStore(k),

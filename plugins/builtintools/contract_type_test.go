@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/pluginapi"
-	"github.com/agezt/agezt/kernel/toolreg"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 )
 
 // TestThePluginsNameTheContractNotTheModule: the built-in tools plugin hosts
@@ -35,7 +35,7 @@ func TestThePluginsNameTheContractNotTheModule(t *testing.T) {
 // dependencies carry the contract's spawn port — the plugin is built against
 // the PORT, and the daemon hands the implementation over.
 func TestThePluginToolAsksTheContractForTheSpawn(t *testing.T) {
-	field, ok := reflect.TypeOf(toolreg.BuildDeps{}).FieldByName("Plugins")
+	field, ok := reflect.TypeOf(toolregapi.BuildDeps{}).FieldByName("Plugins")
 	if !ok {
 		t.Fatal("the build deps must carry the spawn port")
 	}

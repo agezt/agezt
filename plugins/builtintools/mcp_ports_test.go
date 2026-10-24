@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/mcpapi"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/toolreg"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -26,11 +26,11 @@ func TestMCPSpecWiresTheLiveKernel(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 
 	spec := specMCP()
-	built, err := spec.Build(toolreg.BuildDeps{})
+	built, err := spec.Build(toolregapi.BuildDeps{})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolreg.KernelDeps{MCP: k}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{MCP: k}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
