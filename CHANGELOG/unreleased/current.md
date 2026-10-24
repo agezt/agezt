@@ -995,6 +995,13 @@ This file holds the active `[Unreleased]` working set.
   The guardians' quiet defaults — silent on success, no memory writes — are
   the operator's contract, and they are now asserted.
 
+- **The schedule and skill rows become contract's ports.** The ports the
+  schedule and skill tools need were already in the contract layer, but the
+  specs reached them through the live kernel — so the registry's row had to
+  be the live kernel, and the row's type was a module's. The registry now
+  carries three rows instead, all of them existing contract ports, and the
+  daemon supplies them nil-safely.
+
 - **The MCP and standing hosts become the contract's ports.** The MCP tool
   and the standing-orders tool each drove the daemon's registry and orders
   through a port they declared themselves — the right shape, but in the wrong
