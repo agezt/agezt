@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.55 the skill library is the daemon's, 2026-10-25
+## Current checkpoint — W3.56 the roster is the daemon's, 2026-10-25
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -3908,6 +3908,125 @@ files, five of the seventeen mutations would have escaped.
   would be the widest of all, and it is the **third** bus-bound module, so
   the builder-plus-publisher pattern applies), then **`mcp`** (two edges, the
   smallest remaining family).
+
+- W3.56 (the roster is the daemon's) is committed on `main` the same way. It
+  takes **four** edges and it takes them **completely**:
+  `cross-module kernel/runtime -> kernel/modules/agents/roster` (the kernel
+  held the module's concrete `*roster.Store` and **opened the file** itself),
+  `cross-module kernel/runtime/runexec -> ...` (the run-executor declared the
+  module's concrete store in its `KernelAPI`),
+  `adapter-bypass kernel/controlplane -> ...` (the control plane named the
+  module's rows) and `adapter-bypass kernel/agentgw -> ...` (the agent gateway
+  named the module's rows).
+  **The ratchet went DOWN by FOUR: 28/13 → 24/13**; the **13** allowlisted call
+  sites are unchanged.
+  This is the **cheapest** slice of the W3.5x series, and it is cheap for a
+  reason worth naming: the roster's **rows were already in the contract**
+  (`agentapi.Profile` moved there in W3.14), so what was missing was only the
+  **port**, the **sentinels** and the **rule** — the three things the layers
+  above the module could not reach.
+  It is also the first slice in the series that is **not bus-bound**: the
+  roster does not journal itself (the **kernel** presses the journal), so there
+  is no publisher port and no builder to inject — the daemon opens
+  `roster/roster.json` and hands over the store, and that is the whole
+  handover; because the roster lives under the **base dir**, a **tenant** keeps
+  **its own** agents.
+  The contract `agentapi` gains the **sentinels** (`ErrNotFound`, `ErrRetired`),
+  the **ports** and the **rule**: an **eight-verb** `Store` (Add, SetEnabled,
+  SetRetired, Update, Remove, Get, List, Count — and **no verb takes a
+  `time.Time`**, P4), a **two-verb** `Reader` and a **one-verb**
+  `RepairSource`. The module keeps every name as an **alias**, so there is one
+  row and one spelling of it and `errors.Is` matches on **both** sides of the
+  module boundary.
+  **The port is SPLIT, not widened**: the gateway only looks agents up, so it
+  takes the two-verb `Reader`; the control plane drives the lifecycle, so it
+  takes the eight-verb `Store`; a repair pass takes the one-verb
+  `RepairSource` — a single wide port would have handed the gateway the whole
+  agent lifecycle.
+  **The rule travels with the row**: `AutonomyRunbook` — the machine-readable
+  wake contract of a profile (trigger / route / recovery / sleep) — moved from
+  the module **with** the profile row it judges into the contract, because the
+  control plane's wake evidence, the run executor's sub-agent prep and the
+  daemon's cadence all build the **same** payload and may not name the module
+  to reach the rule. The **test seam stays out of the port**:
+  `SetNowForTest` is deliberately not on `agentapi.Store`, because a port is
+  what the layers above the module may call and a clock hook is not theirs.
+  The kernel holds the port and **never opens a roster of its own** (the
+  compose root no longer touches `roster.Open`).
+  A daemon with **no** roster answers, on purpose, and **the answers differ by
+  direction**: the **reads** answer **"no agents"** — `RosterGet` finds nothing
+  and `RosterList` is empty, both through the kernel's **nil-safe** helpers, so
+  every reader above the module is covered by **one** decision — while the
+  **writes refuse** with "the roster is not available on this daemon" rather
+  than calling into nothing; the **port itself** is still returned, and a
+  kernel with no roster holds a **nil** port, which is a different thing from a
+  typed nil.
+  That nil port is exactly why the reads had to move: the app layer's overseer
+  source, the guardians' host and the control plane's operation builders took
+  a **method value** from the port, and a method value taken from a nil
+  interface **panics before the first call** — the typed-nil trap the standing
+  and schedule slices already met. All of them now go through the kernel's
+  nil-safe readers (`s.k.RosterGet(ref)` instead of `s.k.Roster().Get(ref)`).
+  Every test that expected a fleet became a **host**: **twelve** test packages
+  (`cmd/agezt`, `cmd/agt`, `kernel/app/configtool`, `kernel/app/guardians`,
+  `kernel/app/overseer`, `kernel/app/runs`, `kernel/cadence/systemtasks`,
+  `kernel/controlplane`, `kernel/modules/agents/reaper`,
+  `kernel/modules/agents/selfrepair`, `kernel/runtime`, `plugins/builtintools`)
+  now open the roster themselves and inject it, the same way the daemon does;
+  the store is opened **once per config**, so a test that reopens the same
+  config — a **restart** — keeps the same store and a profile written before
+  the restart is still there after it, which is the whole point of the file.
+  **11 mutations, 11 caught** in two honest passes, **four** of them
+  **gate-measured** by archcheck (the gateway names the module again; the
+  control plane names the module again; the kernel names the module again; the
+  run engine names the module again), and **three** of them measure a **rule**
+  rather than a shape: the runbook rule decides whether a **managed** agent may
+  be woken from outside (a rule that quietly admitted one would let a
+  delegation-only agent be woken by an operator, and no structural check can
+  see it), and the sentinels are what the layers above the module **compare
+  against** (a module that raised a look-alike error of its own, or that kept
+  a sentinel of its own, would leave every `errors.Is` comparison silently
+  false, and the layer would report "no such agent" as some other failure).
+  The sixth mutation again had to travel with the **run executor's `KernelAPI`
+  declaration**, because drifting the kernel's face alone is a **build error**,
+  not a catch (the same lesson as the catalog, world-model and skill slices,
+  met for the **fourth** time).
+  Three honest corrections are worth naming: the **first pass was invalid** —
+  the second mutation's anchor pointed at the wrong file, so the case reported
+  **SKIP**, and a SKIP is neither a catch nor a pass, so the anchor was
+  corrected and the whole run repeated; the run engine's mutation was a
+  **parse error** (the reference was inserted inside the interface body, where
+  a declaration cannot sit), so it was moved after the interface; and the
+  sentinel mutation was aimed at the **wrong test** — the alias test only
+  compares the two **values**, so it stayed green and the mutation
+  **survived** — and the expectation was moved to the test that actually reads
+  the error the store raises; a **second** sentinel mutation (the module
+  keeping a sentinel of its own) was added afterwards, so the alias half is
+  measured too.
+  The new permanent tests pin that the store port is **exactly eight** verbs
+  and keeps their exact signatures, that the reader is **two** and the repair
+  surface is **one**, that the two sentinels exist and are **distinct**, that
+  the **runbook rule decides right** (the trigger, the route, the recovery and
+  the sleep contract, each in its own case), that the module's rows and
+  sentinels **are** the contract's (by **type identity**), that the store's
+  refusals **are** the contract's sentinels, that the kernel's face is
+  **statically** the contract's port, that the kernel opens **no** roster
+  directory of its own, that a kernel without a roster answers "no agents" on
+  the reads and **refuses** on the writes (never a panic, never a swallowed
+  write), that the injected roster is the live one, and that the daemon's
+  roster is a **directory on disk** and is the **injected** one.
+  **A correction to a carried number**: the previous slices' documents say "the
+  kernel still reaches **7** modules". Recomputing the metric — the distinct
+  `kernel/modules/...` packages the allowlist still names — gives **six**
+  after W3.55, not seven: the number had been carried forward without
+  recomputation since W3.51. This slice takes it to **five**
+  (`agents/roster` is gone; `board/board`, `extensions/mcp`,
+  `extensions/toolbox`, `knowledge/memory` and `work/assure` remain).
+  **What remains**: the ratchet stands at **24/13**. Next, in order:
+  **`memory`** (six edges; the manager is bus-bound AND LLM-bound — distill and
+  embeddings — so its port would be the widest of all, and it is the **third**
+  bus-bound module, so the builder-plus-publisher pattern applies), then
+  **`mcp`** (two edges, the smallest remaining family).
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
