@@ -4439,6 +4439,28 @@ This file holds the active `[Unreleased]` working set.
 
 ### Removed
 
+- **Removed: the kernel's reach on the typed schedule library (W3.49).** The
+  kernel held the cadence module's concrete store, **opened the library's
+  file** itself and held the module's concrete resident; the run-executor
+  interface and the control plane named the module's rows. The kernel now
+  holds the **contract's ports** — `cadenceapi.HostStore` (twenty verbs: the
+  agent-facing tool's eleven plus the nine the host drives) and
+  `cadenceapi.Engine` (four verbs: start it, wait for it, wait until it is
+  idle, ask how many runs are in flight) — and both the library's file and
+  the resident are the **daemon's**: `cmd/agezt` opens
+  `cadence/schedules.json`, and a library that cannot be opened is a startup
+  error. The resident is built by the composition root over that very store
+  and handed over with `SetScheduleEngine`, so the kernel's port and the
+  resident read the same rows.
+  The port's width is the **weakest holder's**: the agent-facing schedule tool
+  keeps the narrow eleven-verb port, and the host's port embeds it, so the two
+  shapes cannot drift. The app layer now refuses on every surface when there
+  is no library ("the schedule library is not available on this daemon")
+  instead of dereferencing nil, and the control plane's roster surfaces read
+  the port defensively. The architecture ratchet went from 49 to 46 edges.
+  No behaviour changed: the library is still the same store, under the same
+  file, with the same lifecycle.
+
 - **Removed: the kernel's reach on the workflow library (W3.48).** The kernel
   held the workflow module's concrete store, **opened the library's file**
   itself and **built the module's engine**; the control plane named the

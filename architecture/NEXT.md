@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.48 the workflow library is the daemon's file, 2026-10-25
+## Current checkpoint — W3.49 the typed schedule library is the daemon's file, 2026-10-25
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -3357,6 +3357,68 @@ files, five of the seventeen mutations would have escaped.
   the kernel holds each module's concrete store; each one is the same slice
   (a contract port, the daemon opening the file, the kernel's accessor
   carrying the port).
+- W3.49 (the typed schedule library is the daemon's file) is committed on
+  `main` the same way. It takes **three** edges — the most of any candidate,
+  for only six call sites in the runtime:
+  `cross-module kernel/runtime -> kernel/cadence` (the kernel held the
+  concrete `*cadence.Store`, **opened the file** itself and held the concrete
+  `*cadence.Engine`), `cross-module kernel/runtime/runexec -> kernel/cadence`
+  (the run-executor interface named the module's store) and
+  `adapter-bypass kernel/controlplane -> kernel/cadence` (the control plane
+  named the module's rows).
+  **The ratchet went DOWN by THREE: 49/13 → 46/13.**
+  The rows were already in the contract (`cadenceapi.Entry`, the
+  `Target*`/`Source*`/`Mode*` vocabularies, the system-task catalog); what
+  was missing was a **port**. The contract now carries `cadenceapi.HostStore`
+  — **twenty** verbs: the tool's eleven plus the nine the host drives on its
+  own (the control plane retires a schedule, the guardians re-arm one, the
+  app layer edits its cadence, the status view counts what is armed).
+  The **width rule** made mechanical: the host's port **embeds** the tool's
+  eleven-verb `cadenceapi.Store`, so the two shapes cannot drift — if the
+  tool's port grows a verb, the host's port grows it too, and the module's
+  implementation is the one that has to answer.
+  The **resident** is a port too (`cadenceapi.Engine`, **four** verbs:
+  `Start`, `Wait`, `WaitIdle`, `RunningCount`): the host only reads the
+  resident's state, and the firing logic belongs to the module.
+  The **library's file is the daemon's** — `cmd/agezt` opens it
+  (`cadence/schedules.json`), and a library that cannot be opened is a
+  **startup error**; the **resident is the daemon's too**, built by the
+  composition root over **that very store** and handed over with
+  `SetScheduleEngine`, so the kernel's port and the resident read the same
+  rows (a second instance over the same file would have been a silent
+  split-brain).
+  The part the slice had to **teach** two layers: before it the kernel opened
+  the library itself, so `k.Schedules()` was **never nil** and nothing had to
+  say what happens without one — now the **app layer** refuses on every
+  surface (creation, editing, lifecycle, read) with "the schedule library is
+  not available on this daemon", the **guardians' host** answers the same
+  way, and the control plane's three roster surfaces read the port
+  defensively.
+  Every test that expected a store became a **host**: it opens the library,
+  injects the port and — where the resident is involved — builds the resident
+  over that very store.
+  **8 mutations, 8 caught** in two honest passes, **three** of them
+  **gate-measured** by archcheck (the runtime names the module again; the
+  control plane names the module's rows again; a stale allowlist entry comes
+  back), because "the kernel's reach is smaller" is not something a test can
+  see; the first attempt at the eighth mutation was a **build error** (the
+  store became an unused variable) and a build error is not a catch — the
+  mutation was wrong, not the test.
+  The new permanent tests pin that the host port is **exactly twenty** verbs
+  wide, that it is a **superset** of the tool's eleven, that the resident's
+  port is **exactly four**, that the module's store and resident answer
+  **both** contract ports, that a kernel without a library hands over a
+  **nil** port, that the kernel's face is **statically** the host port
+  (narrowing it would still compile and still pass every behaviour test),
+  that the port answers the **live** rows, that all **six** app surfaces
+  refuse instead of panicking, and that the daemon's library is a **file on
+  disk** and is the **injected** one.
+  **What remains**: the kernel still reaches **9** modules. Next, in order:
+  **`standing`** (three edges, `standingapi` exists), **`skill`** (three edges
+  plus the market's, `skillapi` exists), **`catalog`** (two edges,
+  `catalogapi` exists), then **`memory`, `worldmodel`, `roster`, `okr`,
+  `taste`** — each one the same slice (a contract port, the daemon opening the
+  file, the kernel's accessor carrying the port).
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
