@@ -24,6 +24,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/marketapi"
 	"github.com/agezt/agezt/kernel/contract/okrapi"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/tasteapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
@@ -39,7 +40,6 @@ import (
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/reasoning/api"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/resume"
 	"github.com/agezt/agezt/kernel/runtime/lifecycle"
@@ -64,8 +64,8 @@ type Kernel struct {
 	memoryDir    *memory.FileStore
 	world        worldmodelapi.Graph // the world-model graph — the contract's port (W3.54)
 	worldStore   worldmodelapi.Store // the world-model file — the contract's store port (W3.54)
-	forge        *skill.Forge
-	skillDir     *skill.FileStore
+	forge        skillapi.Curator    // the skill curator — the contract's port (W3.55)
+	skillStore   skillapi.Store      // the skill library's file — the contract's store port (W3.55)
 	marketMgr    marketapi.Manager
 	standing     standingapi.Store // the standing-order library — the contract's store port (W3.50)
 	resume       *resume.Store     // durable in-flight-run tickets for restart resume (M1002); nil when disabled

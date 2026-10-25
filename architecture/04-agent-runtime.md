@@ -40,11 +40,11 @@ kernel/agent        -> kernel/bus kernel/event                 (leaf-ish; import
 kernel/runtime      -> brand, agent, agentgw, approval, bus, configcenter,
                        contextselect, delegation, edict, event, governor, intent, intervention,
                        journal, mcp, memory, reflect, resume, roster,
-                       runtime/lifecycle, runtime/runexec, scheduler, skill, state,
+                       runtime/lifecycle, runtime/runexec, scheduler, state,
                        tenantctx, toolexec, ulid, warden, worldmodel
-                       (contract/{artifactapi,assureapi,cadenceapi,catalogapi,datalakeapi,marketapi,mediaapi,okrapi,proofapi,seatapi,standingapi,tasteapi,toolforgeapi,toolregapi,workboardapi,workflowapi,worldmodelapi} — the rows and ports, W3.41–W3.54)
+                       (contract/{artifactapi,assureapi,cadenceapi,catalogapi,datalakeapi,marketapi,mediaapi,okrapi,proofapi,seatapi,skillapi,standingapi,tasteapi,toolforgeapi,toolregapi,workboardapi,workflowapi,worldmodelapi} — the rows and ports, W3.41–W3.55)
 kernel/runtime/runexec   -> agent, agentgw, approval, assure, bus, configcenter,
-                            edict, event, intent, journal, memory, reflect, resume, roster, scheduler, skill,
+                            edict, event, intent, journal, memory, reflect, resume, roster, scheduler,
                             state, warden, worldmodel           (never imports kernel/runtime; KernelAPI interface)
 kernel/runtime/lifecycle -> event, ulid
 kernel/runtime/compose   -> agent, edict, imagetool, mcp, reranktool, voicetool, warden    (NO importers: dead)
@@ -58,7 +58,7 @@ kernel/delegation   -> agent, edict
 kernel/resume       -> internal/atomicfile, agent
 kernel/planner      -> internal/strutil, agent, intent
 kernel/reflect      -> bus, event, journal, worldmodel
-kernel/contextselect-> memory, skill, worldmodel
+kernel/contextselect-> memory, worldmodel
 contract/assureapi   -> (none)
 contract/proofapi    -> contract/assureapi
 modules/work/proof   -> contract/proofapi
@@ -257,7 +257,7 @@ Tests (20 files): `agent_test.go` (loop end to end with mock provider), `panic_t
 ## 4. kernel/runtime — the Kernel
 
 ### 4.1 Kernel struct and concurrency (runtime_kernel.go)
-`Kernel` holds `cfg Config`, the stores (journal, state, bus, edict, warden, approvals, scheduler, memory/world/forge/skill stores, resume, roster, toolForge, mcpStore, seat, artifacts + artIndex, lake, reflect, agentGW, configCenter) and the HOST PORTS the daemon injects (`marketapi.Manager` — W3.46, `workboardapi.HostStore` — W3.47, `workflowapi.Store` + the `workflowapi.Engine` port — W3.48, `cadenceapi.HostStore` + the `cadenceapi.Engine` port — W3.49, `standingapi.Store` — W3.50, `catalogapi.Store` + `catalogapi.Syncer` — W3.51, `tasteapi.Store` — W3.52, `okrapi.Store` — W3.53, `worldmodelapi.Graph` + `worldmodelapi.Store` — W3.54), `tools` (the effective in-process map), `conductorExec`, `reasoning` (the reasoning module's service, injected by the composition root), the catalog snapshot, and three sub-managers (`lifecycle`, `accessors`, `runexec`).
+`Kernel` holds `cfg Config`, the stores (journal, state, bus, edict, warden, approvals, scheduler, memory/world/forge stores, resume, roster, toolForge, mcpStore, seat, artifacts + artIndex, lake, reflect, agentGW, configCenter) and the HOST PORTS the daemon injects (`marketapi.Manager` — W3.46, `workboardapi.HostStore` — W3.47, `workflowapi.Store` + the `workflowapi.Engine` port — W3.48, `cadenceapi.HostStore` + the `cadenceapi.Engine` port — W3.49, `standingapi.Store` — W3.50, `catalogapi.Store` + `catalogapi.Syncer` — W3.51, `tasteapi.Store` — W3.52, `okrapi.Store` — W3.53, `worldmodelapi.Graph` + `worldmodelapi.Store` — W3.54, `skillapi.Curator` + `skillapi.Store` — W3.55), `tools` (the effective in-process map), `conductorExec`, `reasoning` (the reasoning module's service, injected by the composition root), the catalog snapshot, and three sub-managers (`lifecycle`, `accessors`, `runexec`).
 
 Mutexes, with a mandatory acquisition order (documented on the struct and in runexec/doc.go):
 ```
@@ -282,19 +282,19 @@ Order (each store registers a closer; `fail()` unwinds them in reverse):
 
 1. `journal.Open(<BaseDir>/journal)` and `state.Open(<BaseDir>/state)`.
 2. Edict (`cfg.Edict` or `edict.New`), `bus.New(journal)`, Warden (`warden.New(bus)` default), Approvals (`approval.New{Bus, Timeout: ApprovalTimeout}`), `scheduler.New{Bus, Monitor: ContextInvariantMonitor}`.
-3. `memory.Open(memory/)` + `NewManager` (+ embedder); `worldmodel.Open(worldmodel/)` + `NewGraph`; `skill.Open(skills/)` + `NewForge` + `OpenBundles` (best effort).
+3. `memory.Open(memory/)` + `NewManager` (+ embedder); `worldmodel.Open(worldmodel/)` + `NewGraph`.
 4. The **standing-order library is NOT opened here** (W3.50) — it is the composition root's file (`standing/standing.json`), and the kernel holds `cfg.Standing`, the contract's store port; the library's **residents** (the event runner and the cron ticker) are the composition root's too, built over that store and handed over after `Open` (they are started by `cmd/agezt`, not by the kernel). The **artifact store and its metadata index are NOT opened here** — they are the composition root's files (W3.43), and the kernel holds `cfg.Artifacts` and `cfg.ArtifactIndex`, the contract's ports. The **typed schedule library is NOT opened here either** (W3.49) — it is the composition root's file (`cadence/schedules.json`), and the kernel holds `cfg.Schedules`, the contract's host port; the **resident** is the composition root's too, built over that store and handed over after `Open` with `SetScheduleEngine`.
 5. `resume.Open(resume/, ResumeSnapshotMaxBytes)`, only when `ResumeEnabled`.
-6. `roster/`, `mcp/`, `workboard/` stores; `reflect.New(journal, world, bus)`. The **seat catalog is NOT opened here** — it is the composition root's file (W3.41), and the kernel holds `cfg.Seats`, the contract's port. The **script-tool store is NOT opened here either** (W3.45) — the kernel holds `cfg.ToolForge`, the contract's host port. The **workflow library is NOT opened here either** (W3.48) — it is the composition root's file, and the kernel holds `cfg.Workflows`, the contract's host port. The **engine** is the composition root's too: it is built over that store and over the kernel's own ports (`k.WorkflowPorts()`) and handed over after `Open` with `SetWorkflowEngine`. The **curated exemplar library is NOT opened here** (W3.52) — it is the composition root's file (`taste/taste.json`), and the kernel holds `cfg.TasteStore`, the contract's store port; a kernel with no library injects **no** exemplars into a run rather than calling into nothing. The **objective library is NOT opened here** (W3.53) — it is the composition root's file (`okr/okr.json`), and the kernel holds `cfg.OKRStore`, the contract's store port; a kernel with no library refuses the objective writes rather than calling into nothing. The **world model is NOT opened here** (W3.54) — it is the composition root's file (`worldmodel/worldmodel.json`), and the kernel holds `cfg.WorldStore` + `cfg.WorldGraph`, the contract's store port and the **builder** the composition root injects; the kernel calls the builder with the store and its own publisher, so the graph journals through the kernel's bus without either side naming the other's implementation.
+6. `roster/`, `mcp/`, `workboard/` stores; `reflect.New(journal, world, bus)`. The **seat catalog is NOT opened here** — it is the composition root's file (W3.41), and the kernel holds `cfg.Seats`, the contract's port. The **script-tool store is NOT opened here either** (W3.45) — the kernel holds `cfg.ToolForge`, the contract's host port. The **workflow library is NOT opened here either** (W3.48) — it is the composition root's file, and the kernel holds `cfg.Workflows`, the contract's host port. The **engine** is the composition root's too: it is built over that store and over the kernel's own ports (`k.WorkflowPorts()`) and handed over after `Open` with `SetWorkflowEngine`. The **curated exemplar library is NOT opened here** (W3.52) — it is the composition root's file (`taste/taste.json`), and the kernel holds `cfg.TasteStore`, the contract's store port; a kernel with no library injects **no** exemplars into a run rather than calling into nothing. The **objective library is NOT opened here** (W3.53) — it is the composition root's file (`okr/okr.json`), and the kernel holds `cfg.OKRStore`, the contract's store port; a kernel with no library refuses the objective writes rather than calling into nothing. The **world model is NOT opened here** (W3.54) — it is the composition root's file (`worldmodel/worldmodel.json`), and the kernel holds `cfg.WorldStore` + `cfg.WorldGraph`, the contract's store port and the **builder** the composition root injects; the kernel calls the builder with the store and its own publisher, so the graph journals through the kernel's bus without either side naming the other's implementation. The **skill library is NOT opened here** (W3.55) — it is the composition root's file (`skills/skills.json`), and the kernel holds `cfg.SkillStore` + `cfg.SkillCurator`, the contract's store port and the **builder** the composition root injects; the kernel calls the builder with the store and its own publisher, so every transition journals through the kernel's bus without either side naming the other's implementation. A kernel with no library holds a **nil** port: the run carries no skill, the run executor proposes nothing and the status reports **zero** rather than calling into nothing.
 7. Effective tools: `cfg.Tools` plus `memory` (MemoryTool), `world` (WorldTool), `delegate` and `delegate_await` (SubAgentTool). The **voice, image_generate and rerank tools are NOT registered here** — they live in their own packages, and the kernel is a module that may not name a module's implementation, so the composition root builds them and hands them over in `cfg.Tools` (W3.44). The **market tool is NOT registered here either** (W3.46) — it lives in the market module and drives the contract's marketplace port, so the composition root builds it and hands it over the same way.
 8. Catalog: `cfg.Catalog`, or `cfg.CatalogStore.Load()` when the daemon handed a store over, else the **empty** catalog — then `governor.SetCatalog(cat)` (global). The **catalog directory is NOT opened here** (W3.51) — it is the composition root's file, and the kernel holds `cfg.CatalogStore` and `cfg.CatalogSyncer`, the contract's ports. The **snapshot is never nil** ("no providers" is an honest answer); the **write** surfaces refuse when the store port is nil.
 9. Build `*Kernel`, then late-bind the closures: `subTool.run=k.runSubAgent`, `subTool.spawn=k.runSubAgentAsync`, `awaitTool.await=k.awaitSubAgent`.
 10. `configcenter.Open`, then `agentgw.NewGateway` (token secret via `agentgw.ResolveTokenSecret`; `AGEZT_AGENTGW_SOCKET` override read directly with `os.Getenv`). Then `go agentGW.Listen(context.Background())`.
 11. `lifecycle.New(k)`, `runexec.New(k)`.
 
-`Close()` (compose_close.go): `Suspend("close")`, `Halt()`, a bounded wait on `runWG` (`DefaultShutdownDrainTimeout=5s`; on timeout it publishes `anomaly.detected{anomaly:shutdown_drain_timeout}`), `closeMCPConns`, `bus.Close`, then `closeAll(state, memoryDir, worldDir, skillDir, journal, agentGW)` joined with `errors.Join`.
+`Close()` (compose_close.go): `Suspend("close")`, `Halt()`, a bounded wait on `runWG` (`DefaultShutdownDrainTimeout=5s`; on timeout it publishes `anomaly.detected{anomaly:shutdown_drain_timeout}`), `closeMCPConns`, `bus.Close`, then `closeAll(state, memoryDir, worldDir, skillStore, journal, agentGW)` joined with `errors.Join`. The world-model and skill stores are the **host's** (W3.54, W3.55): a host that was given none holds a nil port, and there is nothing to close.
 
-**Persistence under AGEZT_HOME (BaseDir) opened by the runtime:** `journal/`, `state/`, `memory/`, `worldmodel/`, `skills/`, `resume/` (+ `resume/quarantine/`), `roster/`, `mcp/`, `workboard/` — and the ten the composition root opens: `seats/` (W3.41), the datalake dirs (W3.42), `artifacts/` (W3.43), `toolforge/` (W3.45), `workflows/` (W3.48), `cadence/` (W3.49), `standing/` (W3.50), `catalog/` (W3.51), `taste/` (W3.52) and `okr/` (W3.53) — plus the configcenter and agentgw files. Formats belong to the owning packages (see 06/07). This area owns only `resume/<corr>.json` and `toolforge/scripttools.json`.
+**Persistence under AGEZT_HOME (BaseDir) opened by the runtime:** `journal/`, `state/`, `memory/`, `worldmodel/`, `resume/` (+ `resume/quarantine/`), `roster/`, `mcp/`, `workboard/` — and the eleven the composition root opens: `seats/` (W3.41), the datalake dirs (W3.42), `artifacts/` (W3.43), `toolforge/` (W3.45), `workflows/` (W3.48), `cadence/` (W3.49), `standing/` (W3.50), `catalog/` (W3.51), `taste/` (W3.52), `okr/` (W3.53) and `skills/` (W3.55) — plus the configcenter and agentgw files. Formats belong to the owning packages (see 06/07). This area owns only `resume/<corr>.json` and `toolforge/scripttools.json`.
 
 ### 4.3 Run entry points and callers
 
@@ -329,8 +329,8 @@ sequenceDiagram
     C->>K: RunWith(ctx, corr, intent) [or RunAssured / RunWithRetry]
     K->>R: Runner.RunWith
     R->>K: SetupRunState(corr) (runsMu: halted? dup corr? → WithTenant, auto-approve, WithTimeout/WithCancel, runs[corr], runWG.Add, steers[corr]=newRunControl)
-    R->>R: WithActorCorrelation("agent-"+corr), memory/world/skill/warden.WithCorrelation
-    R->>R: skill.ParseActivationDirective; intent.Interpret → WithFrame
+    R->>R: WithActorCorrelation("agent-"+corr), memory/world/warden.WithCorrelation
+    R->>R: skillapi.ParseActivationDirective; intent.Interpret → WithFrame
     R->>B: intent.interpreted
     alt deterministicHeuristicBypass (time/date)
         R->>B: task.received, info{bypass}, task.completed{stopped:heuristic_bypass}
@@ -389,7 +389,7 @@ sequenceDiagram
 Numbered narrative with the real function names:
 1. **Intent submission.** The caller mints `corr = k.NewCorrelation()` (`lifecycle.Manager.NewCorrelation`, `"run-"+ulid`). It may subscribe to `k.SubjectForRun(corr)` = `agent.agent-<corr>.>` first, then calls `RunWith`/`RunAssured`/`RunWithRetry`.
 2. **Registration** (`setupRunState`). Under `runsMu` it refuses with `ErrHalted` or on a duplicate corr (M480). It stamps the tenant (`tenantctx.WithTenant`) and the merged auto-approve caps, then derives `runCtx` with `MaxDuration` or the per-run `WithRunTimeout` (DeadlineExceeded) or a plain cancel. It records `k.runs[corr]=cancel`, calls `runWG.Add(1)`, and registers `k.steers[corr]` (taking `steersMu` while still holding `runsMu`, which follows the lock order).
-3. **Context stamping** (`Runner.RunWith`). Actor is `"agent-"+corr`. Correlation is threaded into memory/world/skill/warden contexts. An explicit `/skill` directive is stripped. The `intent.Frame` is computed (`intent.Interpret`) unless the caller supplied one, and `intent.interpreted` is journaled.
+3. **Context stamping** (`Runner.RunWith`). Actor is `"agent-"+corr`. Correlation is threaded into memory/world/warden contexts and passed **explicitly** to the skill curator's verbs (W3.55 — the skill module's own context key was dead plumbing and is gone). An explicit `/skill` directive is stripped. The `intent.Frame` is computed (`intent.Interpret`) unless the caller supplied one, and `intent.interpreted` is journaled.
 4. **Heuristic bypass.** Exact-match time/date questions return without any LLM call. Disable with `DisableHeuristicBypass` or the agent override `AGEZT_DISABLE_HEURISTIC_BYPASS`.
 5. **System prompt** (`buildRunPrompt`). Base is `k.System()` (live) or `WithSystem` (the agent profile soul). Then the operator profile (`ProfileInject`), taste exemplars, memory recall (`RecallScoped`), world entities (`Resolve`), and skills (`ActivateFor`/`ActivateExplicitFor`). Each injection publishes a `context.selection` manifest (chosen vs rejected candidates). System agents (`roster.Profile.System`) skip all injection.
 6. **Model.** `resolveRunModel` uses `WithModel` (explicit) or else the live `k.model`. An explicit pick with no chain becomes `ModelChain=[model]` (M931) so it wins over the task chain.
@@ -587,6 +587,7 @@ Root package, grouped by concern; every non-test file is listed.
 | `toolseams.go` | Aliases `Reranker`, `ImageGen`, `Voice` to the contract's seam rows (`kernel/contract/mediaapi` — W3.44). |
 | `taste.go` | `Taste()` (the contract's `tasteapi.Store` port — W3.52) and `Seats()` getters. |
 | `world_publisher.go` | The adapter that turns the kernel's bus into the contract's publisher port (W3.54) — it answers with the event's id, which is the graph's provenance. |
+| `skill_publisher.go` | The adapter that turns the kernel's bus into the skill contract's publisher port (W3.55) — it answers with the event's id, which is the skill's provenance (`SourceEvent`). |
 
 **Run engine and context**
 
@@ -703,7 +704,7 @@ The tool registry, in the **contract layer** (W3.39h). It used to be `kernel/too
 |---|---|
 | `contextselect/doc.go` | Package doc. |
 | `contextselect/context.go` | `CandidateLimit=12`, `rejectedLimit=5`, `Candidate` (source, id, score, tokens, hard/soft/risk cost, freshness, confidence, chosen, reason, signals), `Manifest`, `SplitCandidates`, `Summary`, `ChosenIDSet`, `CandidateIDs`, `FailureAnalysisSuspects`. |
-| `contextselect/context_adapters.go` | `MemoryCandidates`, `WorldCandidates`, `SkillCandidates`. |
+| `contextselect/context_adapters.go` | `MemoryCandidates`, `WorldCandidates`, `SkillCandidates` — over the contract's rows (`skillapi.Scored`, `skillapi.Skill` — W3.55). |
 | `contextselect/context_scoring.go` | `TokenCost` (~4 chars/token), `Freshness`, `Risk`, skill confidence. |
 | `convo/convo.go` | `Turn{Role, Text}`, `TranscriptIntent(turns)`: a lone user turn passes through verbatim; otherwise system/developer guidance goes first, then a `User:`/`Assistant:` transcript. Used by controlplane, openaiapi and webui to fold multi-turn chat into one intent (the loop is single-intent). |
 | `delegation/doc.go`, `delegation.go` | `DepthKey`, `SystemPrompt` (used), and `SpawnHandle`, `Prep`, `DefaultSubAgentMaxDepth=8`, `SubAgentTool`, `SubAgentAwaitTool` (**unused duplicates** of runtime's live implementations; different schema field `agent_ref` vs `agent`). |

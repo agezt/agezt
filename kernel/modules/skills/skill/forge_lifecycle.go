@@ -66,11 +66,11 @@ func (f *Forge) Create(corr string, spec CreateSpec) (Skill, bool, error) {
 		CreatedMS:     nowMS,
 		LastSeenMS:    nowMS,
 	}
-	ev := f.publish(event.KindSkillCreated, corr, map[string]any{
+	evID := f.publish(event.KindSkillCreated, corr, map[string]any{
 		"action": "create", "id": id, "name": name, "status": string(StatusDraft), "agent": sk.Agent,
 	})
-	if ev != nil {
-		sk.SourceEvent = ev.ID
+	if evID != "" {
+		sk.SourceEvent = evID
 	}
 	if err := f.store.Put(sk); err != nil {
 		return Skill{}, false, err

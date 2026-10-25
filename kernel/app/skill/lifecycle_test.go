@@ -24,7 +24,7 @@ func lifecycleFixture(t *testing.T) (*curated.Forge, *appskill.Lifecycle) {
 	}
 	b := bus.New(j)
 	t.Cleanup(func() { b.Close(); j.Close() })
-	forge := curated.NewForge(store, b)
+	forge := curated.NewForge(store, busPublisher{b})
 	return forge, appskill.NewLifecycle(forge)
 }
 func TestSkillLifecycleRetainsActualTransitionsAndLineage(t *testing.T) {

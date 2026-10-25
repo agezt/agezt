@@ -143,7 +143,7 @@ func TestWithAgentProfile_SystemAgentSkipsAutomaticLearningLayers(t *testing.T) 
 	)
 	var requests []llm.CompletionRequest
 	prov.OnRequest = func(r llm.CompletionRequest) { requests = append(requests, r) }
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withSkill(t, runtime.Config{
 		BaseDir:               t.TempDir(),
 		Provider:              prov,
 		Model:                 "default-model",
@@ -156,7 +156,7 @@ func TestWithAgentProfile_SystemAgentSkipsAutomaticLearningLayers(t *testing.T) 
 		SkillForge:            true,
 		SkillForgeMinTools:    1,
 		ShadowEval:            true,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

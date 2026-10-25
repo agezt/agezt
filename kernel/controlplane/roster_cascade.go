@@ -13,11 +13,11 @@ import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // impactPorts binds the host's stores to the application's impact
@@ -34,7 +34,15 @@ func (s *Server) impactPorts() approster.ImpactPorts {
 			return s.k.Schedules().List()
 		},
 		MemoryRecords: func() ([]memory.Record, error) { return s.k.Memory().Active() },
-		Skills:        func() ([]skill.Skill, error) { return s.k.Forge().List() },
+		// A daemon with NO skill library holds a nil port (W3.55): the cascade
+		// sees no skills rather than calling into nothing.
+		Skills: func() ([]skillapi.Skill, error) {
+			f := s.k.Forge()
+			if f == nil {
+				return nil, nil
+			}
+			return f.List()
+		},
 		ConfigEntries: func() []*configcenter.ConfigEntry {
 			if s.k.ConfigCenter() == nil {
 				return nil

@@ -11,10 +11,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/tasteapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // injectMemory prepends a compact "Relevant memory" block to the system
@@ -91,7 +91,7 @@ func injectWorld(system string, hits []worldmodelapi.ScoredEntity) string {
 
 // injectSkills prepends matching active skills' bodies to the system prompt so
 // the model plans with learned procedures. Each is rendered as a titled block.
-func injectSkills(system string, hits []skill.Scored) string {
+func injectSkills(system string, hits []skillapi.Scored) string {
 	var b strings.Builder
 	b.WriteString("Applicable skills (learned procedures; follow if relevant):\n")
 	for _, h := range hits {

@@ -292,6 +292,16 @@ func restMetrics(k *kernelruntime.Kernel) []restapi.Metric {
 	if ap := k.Approvals(); ap != nil {
 		pending = ap.PendingCount()
 	}
+	// A daemon with NO world model or NO skill library holds a nil port
+	// (W3.54, W3.55): the metric reports zero rather than calling into
+	// nothing.
+	worldEntities, activeSkills := 0, 0
+	if g := k.World(); g != nil {
+		worldEntities = g.Count()
+	}
+	if f := k.Forge(); f != nil {
+		activeSkills = f.Count()
+	}
 	return []restapi.Metric{
 		{Name: "up", Help: "1 if the daemon is serving", Value: 1},
 		{Name: "halted", Help: "1 if the daemon is halted", Value: boolf(k.IsHalted())},
@@ -299,8 +309,8 @@ func restMetrics(k *kernelruntime.Kernel) []restapi.Metric {
 		{Name: "active_runs", Help: "runs currently in flight", Value: float64(k.ActiveRuns())},
 		{Name: "journal_head_seq", Help: "latest journal sequence number", Value: float64(headSeq)},
 		{Name: "memory_records", Help: "live memory records", Value: float64(k.Memory().Count())},
-		{Name: "world_entities", Help: "live world-model entities", Value: float64(k.World().Count())},
-		{Name: "active_skills", Help: "active skills", Value: float64(k.Forge().Count())},
+		{Name: "world_entities", Help: "live world-model entities", Value: float64(worldEntities)},
+		{Name: "active_skills", Help: "active skills", Value: float64(activeSkills)},
 		{Name: "schedules_total", Help: "scheduled intents", Value: float64(schedTotal)},
 		{Name: "schedules_enabled", Help: "enabled scheduled intents", Value: float64(schedEnabled)},
 		{Name: "pending_approvals", Help: "HITL approvals awaiting an operator", Value: float64(pending)},

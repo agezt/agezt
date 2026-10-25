@@ -7,17 +7,19 @@ package skill
 //             split. Public API unchanged.
 
 import (
-	"context"
-	"errors"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/eventapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/event"
 )
+
+// Forge is the module's implementation of the contract's Curator: the whole
+// public surface the layers above the module reach through.
+var _ skillapi.Curator = (*Forge)(nil)
 
 // Forge wraps a Store with the kernel bus so every skill transition is
 // journaled (durable-before-publish) under the originating run's correlation.
@@ -26,7 +28,13 @@ import (
 // (skill.go) is the only thing that makes Forge more than a third copy.
 type Forge struct {
 	store Store
-	bus   *bus.Bus
+	// pub journals the transitions. It is the CONTRACT's publisher port, not
+	// the bus: the bus answers with the durable envelope (which carries the
+	// hash chain the contract layer may not name), while the port answers with
+	// the event's id — exactly what a skill records as its provenance
+	// (SourceEvent). Nil in store-only tests, where a transition is not
+	// journaled at all.
+	pub skillapi.Publisher
 	// bundles holds the on-disk resources (reference files + scripts) that travel
 	// with a skill (agentskills.io shape, SPEC-13). Optional: nil in store-only
 	// tests and on daemons without a bundle store; when nil, Create simply ignores
@@ -76,11 +84,12 @@ const (
 	DefaultAutoPromoteRate    = 0.5
 )
 
-// NewForge wires a Store to a bus. bus may be nil in store-only tests;
-// production callers always pass the kernel bus so transitions are auditable.
-func NewForge(store Store, b *bus.Bus) *Forge {
+// NewForge wires a Store to a publisher. The publisher may be nil in
+// store-only tests; production callers pass the kernel's publisher port so
+// transitions are auditable.
+func NewForge(store Store, pub skillapi.Publisher) *Forge {
 	return &Forge{
-		store: store, bus: b, now: time.Now,
+		store: store, pub: pub, now: time.Now,
 		aqMinFailures: DefaultAutoQuarantineMinFailures,
 		aqFailureRate: DefaultAutoQuarantineRate,
 		apMinWins:     DefaultAutoPromoteMinWins,
@@ -108,7 +117,16 @@ func (f *Forge) SetBundles(b *BundleStore) { f.bundles = b }
 
 // Bundles returns the wired bundle store (nil if none). The control plane uses
 // it to serve a skill's resource list and file reads.
-func (f *Forge) Bundles() *BundleStore { return f.bundles }
+//
+// It answers the CONTRACT's port, so a caller never sees the implementation.
+// The nil is a real nil: a typed nil pointer handed back as an interface would
+// look wired to the caller and panic on first use.
+func (f *Forge) Bundles() skillapi.BundleStore {
+	if f.bundles == nil {
+		return nil
+	}
+	return f.bundles
+}
 
 // SetAutoPromote tunes (or, with minWins <= 0, disables) shadow→active
 // auto-promotion. The daemon calls this from config; tests use it to assert the
@@ -119,10 +137,16 @@ func (f *Forge) SetAutoPromote(minWins int, rate float64) {
 }
 
 // ErrIllegalTransition is returned when a lifecycle edge isn't allowed.
-var ErrIllegalTransition = errors.New("skill: illegal lifecycle transition")
+//
+// The sentinel itself lives in the contract layer (kernel/contract/skillapi);
+// the name stays here as an alias, so `errors.Is` still matches it for every
+// layer that compares against it.
+var ErrIllegalTransition = skillapi.ErrIllegalTransition
 
 // ErrNotFound is returned by operations on an unknown skill id.
-var ErrNotFound = errors.New("skill: not found")
+//
+// The sentinel itself lives in the contract layer (kernel/contract/skillapi).
+var ErrNotFound = skillapi.ErrNotFound
 
 // CreateSpec is the input to Create.
 //
@@ -148,11 +172,10 @@ func (f *Forge) List() ([]Skill, error) { return f.store.All() }
 func (f *Forge) Count() int { return f.store.Count() }
 
 // HygieneReport summarizes skill health for the cleanup view (M858).
-type HygieneReport struct {
-	Total  int     `json:"total"`
-	Active int     `json:"active"`
-	Idle   []Skill `json:"idle"` // active skills that look unused (see Hygiene)
-}
+//
+// The row itself lives in the contract layer (kernel/contract/skillapi); the
+// name stays here as an alias, so every existing caller is unchanged.
+type HygieneReport = skillapi.HygieneReport
 
 // Hygiene reports which ACTIVE skills look idle — never used, or not used since
 // idleCutoffMs — so an operator can prune dead weight from the retrieval pool
@@ -198,19 +221,22 @@ func (f *Forge) get(id string) (Skill, bool, error) {
 	return sk, true, nil
 }
 
-func (f *Forge) publish(kind event.Kind, corr string, payload any) *event.Event {
-	if f.bus == nil {
-		return nil
+// publish writes one event through the publisher and answers the id of the
+// persisted event (empty when no publisher is wired, e.g. store-only tests).
+// The event's id is what a skill records as its provenance.
+func (f *Forge) publish(kind event.Kind, corr string, payload any) string {
+	if f.pub == nil {
+		return ""
 	}
 	suffix := strings.TrimPrefix(string(kind), "skill.")
-	ev, _ := f.bus.Publish(event.Spec{
+	id, _ := f.pub.Publish(eventapi.Spec{
 		Subject:       "skill." + suffix,
 		Kind:          kind,
 		Actor:         "forge",
 		CorrelationID: corr,
 		Payload:       payload,
 	})
-	return ev
+	return id
 }
 
 func normalizeList(in []string) []string {
@@ -238,15 +264,10 @@ func normalizeList(in []string) []string {
 
 // --- run-time context plumbing -------------------------------------------
 
-type ctxKey int
-
-const ctxKeyCorrelation ctxKey = iota
-
-// WithCorrelation returns a child context carrying corr so Forge writes journal
-// under the originating run.
-func WithCorrelation(ctx context.Context, corr string) context.Context {
-	return context.WithValue(ctx, ctxKeyCorrelation, corr)
-}
+// The correlation id travels as an EXPLICIT argument on every Forge verb, so
+// the module never needs a context key of its own; the shared helper in the
+// contract layer (kernel/contract/opapi) is the one the host writes and the
+// layers above read.
 
 // --- Forge proposal (the self-improvement trigger) ------------------------
 

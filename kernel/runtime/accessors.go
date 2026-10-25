@@ -9,8 +9,8 @@ package runtime
 import (
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/marketapi"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // Journal exposes the underlying journal for read-only inspection (used by
@@ -74,8 +74,9 @@ func (k *Kernel) ScheduleEngine() cadenceapi.Engine {
 func (k *Kernel) World() worldmodelapi.Graph { return k.world }
 
 // Forge returns the skill manager backing `agt skill`, run-time skill
-// activation, and post-run skill proposal. Always non-nil after Open.
-func (k *Kernel) Forge() *skill.Forge { return k.forge }
+// activation, and post-run skill proposal. It is the CONTRACT's port (W3.55),
+// and it is nil on a daemon that was given no skill library.
+func (k *Kernel) Forge() skillapi.Curator { return k.forge }
 
 // Market returns the capability marketplace port (skill/MCP/tool packs). It is
 // nil until the daemon wires it via SetMarket (the built-in catalogue is a

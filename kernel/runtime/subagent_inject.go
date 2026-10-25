@@ -11,14 +11,14 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contextselect"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/delegation"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 func (k *Kernel) subAgentInjectedSystem(ctx context.Context, corr, actor, intent, system string) (string, []string, string) {
-	directive := skill.ParseActivationDirective(intent)
+	directive := skillapi.ParseActivationDirective(intent)
 	if directive.Explicit && directive.CleanIntent != "" {
 		intent = directive.CleanIntent
 	}

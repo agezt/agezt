@@ -64,7 +64,10 @@ type Store interface {
 }
 
 // ErrEmptyBody is returned when a skill is written with no body.
-var ErrEmptyBody = errors.New("skill: empty body")
+//
+// The sentinel itself lives in the contract layer (kernel/contract/skillapi);
+// the name stays here as an alias, so `errors.Is` still matches it.
+var ErrEmptyBody = skillapi.ErrEmptyBody
 
 // FileStore is the file-backed Store. All skills live in a single
 // <dir>/skills.json object keyed by id, snapshotted atomically on every

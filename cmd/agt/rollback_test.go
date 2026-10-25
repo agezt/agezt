@@ -199,7 +199,7 @@ func TestCmdRollbackSubcommandHelp(t *testing.T) {
 func TestCmdRollbackApplyRestoresSkillStatus(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("AGEZT_HOME", dir)
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok"))})
+	k, err := runtime.Open(withSkill(t, runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok"))}))
 	if err != nil {
 		t.Fatalf("runtime.Open: %v", err)
 	}
@@ -346,7 +346,7 @@ func TestConfigSetCheckpointAndRollbackRestore(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("AGEZT_HOME", dir)
 	t.Setenv("AGEZT_EMBED_MODEL", "")
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok"))})
+	k, err := runtime.Open(withSkill(t, runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok"))}))
 	if err != nil {
 		t.Fatalf("runtime.Open: %v", err)
 	}

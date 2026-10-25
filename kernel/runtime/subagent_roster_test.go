@@ -528,7 +528,7 @@ func TestDelegate_NamedAgentInjectsMemoryAndSkills(t *testing.T) {
 			childSystem = req.System
 		}
 	}
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withSkill(t, runtime.Config{
 		BaseDir:      t.TempDir(),
 		Provider:     prov,
 		Tools:        map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
@@ -537,7 +537,7 @@ func TestDelegate_NamedAgentInjectsMemoryAndSkills(t *testing.T) {
 		SkillInject:  true,
 		MemoryTopK:   5,
 		SkillTopK:    3,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

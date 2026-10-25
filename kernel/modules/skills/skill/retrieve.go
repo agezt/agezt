@@ -2,17 +2,21 @@
 
 package skill
 
-import (
-	"sort"
-	"strings"
-	"unicode"
-)
+// Provenance: skill retrieval — the Scored row and the ranking rules. The
+//             implementation moved to the contract layer
+//             (kernel/contract/skillapi) during the W3.55 slice: the run-time
+//             and the context selector rank skills too, and they may not name
+//             this module to reach the ranking. The names stay here as
+//             aliases and delegations, so every existing caller is unchanged
+//             and there is one row and one spelling of it.
+
+import "github.com/agezt/agezt/kernel/contract/skillapi"
 
 // Scored is a skill paired with its retrieval score.
-type Scored struct {
-	Skill Skill   `json:"skill"`
-	Score float64 `json:"score"`
-}
+//
+// The row itself lives in the contract layer (kernel/contract/skillapi); the
+// name stays here as an alias, so every existing caller is unchanged.
+type Scored = skillapi.Scored
 
 // Retrieve ranks the ACTIVE skills in sks against an intent and returns the
 // top `limit` by score (SPEC-05 §4.2, §7 step 4). A skill scores on keyword
@@ -24,112 +28,20 @@ type Scored struct {
 // same ordering, ties broken by LastUsedMS (more-used recently first) then id.
 // Mirrors memory.Search / worldmodel.Resolve so retrieval is consistent across
 // the three knowledge layers.
+//
+// The rule itself lives in the contract layer (kernel/contract/skillapi): the
+// layers above the module rank skills too, and they may not name this module
+// to reach the ranking.
 func Retrieve(sks []Skill, intent string, limit int, nowMS int64) []Scored {
-	return retrieveMatching(sks, intent, limit, nowMS, Skill.Active)
+	return skillapi.Retrieve(sks, intent, limit, nowMS)
 }
 
 // RetrieveShadow ranks the SHADOW skills in sks against an intent, using the same
 // scoring as Retrieve. Shadow skills are never injected into runs; this is the
 // candidate set for shadow-evaluation (M400) — the same relevance ranking
 // decides which shadow skills to evaluate against a completed run.
+//
+// The rule itself lives in the contract layer (kernel/contract/skillapi).
 func RetrieveShadow(sks []Skill, intent string, limit int, nowMS int64) []Scored {
-	return retrieveMatching(sks, intent, limit, nowMS, func(s Skill) bool {
-		return s.Status == StatusShadow
-	})
-}
-
-// retrieveMatching is the shared ranking core: it scores every skill the include
-// predicate admits — keyword overlap weighted by recency — and returns the top
-// `limit` deterministically.
-func retrieveMatching(sks []Skill, intent string, limit int, nowMS int64, include func(Skill) bool) []Scored {
-	qTokens := tokenize(intent)
-	out := make([]Scored, 0, len(sks))
-	if len(qTokens) == 0 {
-		return out
-	}
-	for _, sk := range sks {
-		if !include(sk) {
-			continue
-		}
-		overlap := keywordOverlap(qTokens, sk)
-		if overlap == 0 {
-			continue
-		}
-		score := float64(overlap) * recencyFactor(sk.LastSeenMS, nowMS)
-		out = append(out, Scored{Skill: sk, Score: score})
-	}
-	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].Score != out[j].Score {
-			return out[i].Score > out[j].Score
-		}
-		if out[i].Skill.Metrics.LastUsedMS != out[j].Skill.Metrics.LastUsedMS {
-			return out[i].Skill.Metrics.LastUsedMS > out[j].Skill.Metrics.LastUsedMS
-		}
-		return out[i].Skill.ID < out[j].Skill.ID
-	})
-	if limit > 0 && len(out) > limit {
-		out = out[:limit]
-	}
-	return out
-}
-
-// keywordOverlap counts how many distinct intent tokens appear anywhere in the
-// skill's searchable text (name + description + triggers). The body is NOT
-// searched — matching on instruction text would surface skills on incidental
-// word overlap; description+triggers are the curated activation surface (§4.2).
-func keywordOverlap(qTokens []string, sk Skill) int {
-	var b strings.Builder
-	b.WriteString(sk.Name)
-	b.WriteByte(' ')
-	b.WriteString(sk.Description)
-	for _, t := range sk.Triggers {
-		b.WriteByte(' ')
-		b.WriteString(t)
-	}
-	haystack := make(map[string]struct{})
-	for _, t := range tokenize(b.String()) {
-		haystack[t] = struct{}{}
-	}
-	n := 0
-	seen := make(map[string]struct{}, len(qTokens))
-	for _, t := range qTokens {
-		if _, dup := seen[t]; dup {
-			continue
-		}
-		seen[t] = struct{}{}
-		if _, ok := haystack[t]; ok {
-			n++
-		}
-	}
-	return n
-}
-
-// recencyFactor decays with age: 1.0 for "now", asymptoting toward 0 for old
-// skills. A skill never drops out of retrieval on recency alone. Mirrors
-// kernel/modules/knowledge/memory's recency model.
-func recencyFactor(lastSeenMS, nowMS int64) float64 {
-	ageMS := nowMS - lastSeenMS
-	if ageMS <= 0 {
-		return 1.0
-	}
-	const dayMS = 24 * 60 * 60 * 1000
-	ageDays := float64(ageMS) / float64(dayMS)
-	return 1.0 / (1.0 + ageDays)
-}
-
-// tokenize lowercases s and splits on any non-alphanumeric rune, dropping
-// empties and 1-character tokens. Mirrors kernel/modules/knowledge/memory.tokenize so all three
-// knowledge layers rank consistently.
-func tokenize(s string) []string {
-	fields := strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
-		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
-	})
-	out := fields[:0]
-	for _, f := range fields {
-		if len(f) <= 1 {
-			continue
-		}
-		out = append(out, f)
-	}
-	return out
+	return skillapi.RetrieveShadow(sks, intent, limit, nowMS)
 }

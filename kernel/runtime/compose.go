@@ -21,6 +21,7 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
@@ -30,7 +31,6 @@ import (
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/resume"
@@ -131,17 +131,19 @@ func Open(cfg Config) (*Kernel, error) {
 		wgraph = cfg.WorldGraph(cfg.WorldStore, worldPublisher{b: kbus})
 	}
 
-	skstore, err := skill.Open(filepath.Join(cfg.BaseDir, "skills"))
-	if err != nil {
-		return fail("runtime: skills", err)
-	}
-	closers = append(closers, skstore)
-	forge := skill.NewForge(skstore, kbus)
-	// Wire the on-disk bundle store so skills can ship reference files + scripts
-	// (agentskills.io shape, M847). Best-effort: a bundle-store failure leaves
-	// skills body-only rather than failing daemon start.
-	if bundles, berr := skill.OpenBundles(filepath.Join(cfg.BaseDir, "skills")); berr == nil {
-		forge.SetBundles(bundles)
+	// The skill library is NOT opened here (W3.55) — the FILE is the
+	// composition root's, and the kernel holds the contract's ports. The
+	// daemon opens the file (skills/skills.json) and hands over the store;
+	// the daemon also hands over the BUILDER (it names the module), and the
+	// kernel calls it with that store and its own publisher — so every
+	// transition journals through the kernel's bus without either side naming
+	// the other's implementation.
+	//
+	// A host that was given neither holds a nil port, and the skill surfaces
+	// report that the library is unavailable rather than calling into nothing.
+	var forge skillapi.Curator
+	if cfg.SkillStore != nil && cfg.SkillCurator != nil {
+		forge = cfg.SkillCurator(cfg.SkillStore, skillPublisher{b: kbus})
 	}
 
 	// The typed schedule library is NOT opened here (W3.49) — it is the
@@ -312,7 +314,7 @@ func Open(cfg Config) (*Kernel, error) {
 		world:        wgraph,
 		worldStore:   cfg.WorldStore,
 		forge:        forge,
-		skillDir:     skstore,
+		skillStore:   cfg.SkillStore,
 		standing:     cfg.Standing,
 		resume:       rsstore,
 		roster:       rstore,

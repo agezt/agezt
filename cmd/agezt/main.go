@@ -851,7 +851,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	autoQDesc := fmt.Sprintf("on (pull active skill after ≥%d failures at ≥%.0f%% rate; set %sSKILL_AUTOQUARANTINE=off to disable)",
 		skill.DefaultAutoQuarantineMinFailures, skill.DefaultAutoQuarantineRate*100, brand.EnvPrefix)
 	if !dcfg.Knowledge.SkillAutoQuarantine {
-		k.Forge().SetAutoQuarantine(0, 0)
+		setAutoQuarantine(k, 0, 0)
 		autoQDesc = "off (set " + brand.EnvPrefix + "SKILL_AUTOQUARANTINE=on to enable)"
 	}
 	// Skill auto-shadow (SPEC-05 §5.2): off by default — staging a draft toward
@@ -859,7 +859,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// deterministic shadow-test auto-advances to shadow. AGEZT_SKILL_AUTOSHADOW=on.
 	autoShadowDesc := "off (set " + brand.EnvPrefix + "SKILL_AUTOSHADOW=on to auto-stage drafts that pass the shadow-test)"
 	if dcfg.Knowledge.SkillAutoShadow {
-		k.Forge().SetAutoShadow(true)
+		setAutoShadow(k, true)
 		autoShadowDesc = "on (auto-advance a well-formed draft to shadow on creation)"
 	}
 	// Shadow evaluation (SPEC-05 §5.2): off by default — judging shadow skills
@@ -874,7 +874,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	autoPromoteDesc := fmt.Sprintf("on (promote a shadow skill after ≥%d helpful evals at ≥%.0f%% rate; set %sSKILL_AUTOPROMOTE=off to disable)",
 		skill.DefaultAutoPromoteMinWins, skill.DefaultAutoPromoteRate*100, brand.EnvPrefix)
 	if !dcfg.Knowledge.SkillAutoPromote {
-		k.Forge().SetAutoPromote(0, 0)
+		setAutoPromote(k, 0, 0)
 		autoPromoteDesc = "off (set " + brand.EnvPrefix + "SKILL_AUTOPROMOTE=on to enable)"
 	}
 	// Registry-driven post-Open tool wiring (Phase 2.2): Set.Configure walks the
@@ -1209,8 +1209,17 @@ func runDaemon(stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  cancel-on-disc.  : %s\n", cancelOnDisconnectDesc)
 	fmt.Fprintf(stdout, "  tenancy          : %s\n", tenantsDesc)
 	fmt.Fprintf(stdout, "  recovery         : %s\n", recoveryDesc)
+	// A daemon with NO world model or NO skill library holds a nil port
+	// (W3.54, W3.55): the line reports zero rather than calling into nothing.
+	worldEntities, activeSkills := 0, 0
+	if g := k.World(); g != nil {
+		worldEntities = g.Count()
+	}
+	if f := k.Forge(); f != nil {
+		activeSkills = f.Count()
+	}
 	fmt.Fprintf(stdout, "  knowledge        : memory %s · world model %s (%d entities) · skills %s/forge %s (%d active)\n",
-		onOff(memOn), onOff(worldOn), k.World().Count(), onOff(skillOn), onOff(forgeOn), k.Forge().Count())
+		onOff(memOn), onOff(worldOn), worldEntities, onOff(skillOn), onOff(forgeOn), activeSkills)
 	fmt.Fprintf(stdout, "  skill auto-quar. : %s\n", autoQDesc)
 	fmt.Fprintf(stdout, "  skill auto-shadow: %s\n", autoShadowDesc)
 	fmt.Fprintf(stdout, "  skill shadow-eval: %s\n", shadowEvalDesc)

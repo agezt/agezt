@@ -102,7 +102,7 @@ func TestForge_SerializesConcurrentOutcomes(t *testing.T) {
 		t.Fatalf("skill.Open: %v", err)
 	}
 	probe := &skillRMWProbe{Store: base}
-	f := NewForge(probe, b)
+	f := NewForge(probe, busPublisher{b})
 	f.now = func() time.Time { return fixedNow }
 
 	sk, _, _ := f.Create("c", CreateSpec{Name: "s", Body: "b"})

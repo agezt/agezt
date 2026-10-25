@@ -17,7 +17,7 @@ func TestSkillNativeHistoryRejectsCorruptJournalWithoutSuccess(t *testing.T) {
 	for _, partial := range []bool{false, true} {
 		t.Run(map[bool]string{false: "empty", true: "partial"}[partial], func(t *testing.T) {
 			dir := t.TempDir()
-			k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
+			k, err := runtime.Open(withSkill(t, runtime.Config{BaseDir: dir, Provider: mock.New()}))
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/platform/fileworkspace"
 )
 
@@ -27,7 +27,7 @@ type TeardownStatePorts struct {
 	// ForgetMemory forgets a memory record; it reports whether it existed.
 	ForgetMemory func(id string) (bool, error)
 	// Skills lists the agent's skills.
-	Skills func() ([]skill.Skill, error)
+	Skills func() ([]skillapi.Skill, error)
 	// ArchiveSkill archives a skill with the given reason.
 	ArchiveSkill func(id, reason string) error
 	// ConfigEntries lists the config-center entries.
@@ -135,11 +135,11 @@ func ArchiveAgentSkills(ports TeardownStatePorts, slug string, on bool) (int, er
 	}
 	archived := 0
 	for _, sk := range all {
-		if !strings.EqualFold(strings.TrimSpace(sk.Agent), slug) || sk.Status == skill.StatusArchived {
+		if !strings.EqualFold(strings.TrimSpace(sk.Agent), slug) || sk.Status == skillapi.StatusArchived {
 			continue
 		}
 		if err := ports.ArchiveSkill(sk.ID, "agent removed: "+slug); err != nil {
-			if errors.Is(err, skill.ErrIllegalTransition) {
+			if errors.Is(err, skillapi.ErrIllegalTransition) {
 				continue
 			}
 			return archived, err

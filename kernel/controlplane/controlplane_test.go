@@ -16,6 +16,7 @@ import (
 	"github.com/agezt/agezt/kernel/app/overseer"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
@@ -25,6 +26,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/modules/work/okr"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
@@ -96,6 +98,21 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 	// The world-model file is the composition root's too (W3.54): the kernel
 	// holds the contract's ports, and the root opens the file.
 	cfg = withWorld(t, cfg)
+	// The skill library is the composition root's file too (W3.55): the kernel
+	// holds the contract's ports, and the root opens the file and names the
+	// module through the builder.
+	skillStore, err := skill.Open(filepath.Join(dir, "skills"))
+	if err != nil {
+		t.Fatalf("open skill store: %v", err)
+	}
+	cfg.SkillStore = skillStore
+	cfg.SkillCurator = func(s skillapi.Store, pub skillapi.Publisher) skillapi.Curator {
+		f := skill.NewForge(s, pub)
+		if bundles, berr := skill.OpenBundles(filepath.Join(dir, "skills")); berr == nil {
+			f.SetBundles(bundles)
+		}
+		return f
+	}
 	// The script-tool store is the composition root's file too (W3.45): the
 	// kernel holds the contract's port, and the root opens the file.
 	forge, err := toolforge.Open(filepath.Join(dir, "toolforge"))

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -19,7 +20,7 @@ import (
 // skill the agent learns must land in the kernel's own Forge, or the agent
 // would learn procedures the daemon never retrieves.
 func TestTheSkillSpecWiresTheLiveForge(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withSkill(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -79,7 +80,7 @@ func TestTheSkillSpecWiresTheLiveForge(t *testing.T) {
 // not available on this daemon" on every live box while every other test
 // still passed.
 func TestTheSkillSpecHandsOverTheBundlePort(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withSkill(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -103,11 +104,13 @@ func TestTheSkillSpecHandsOverTheBundlePort(t *testing.T) {
 		`{"op":"learn","name":"pdf-fill","body":"fill a pdf"}`)); err != nil {
 		t.Fatalf("Invoke learn: %v", err)
 	}
-	// Attach a bundle the way the daemon does on import.
-	if _, err := bundles.Write("pdf-fill", map[string][]byte{
-		"reference/fields.md": []byte("the fields"),
+	// Attach a bundle the way a skill that ships reference files does: the
+	// resources travel with the skill and the Forge materializes them.
+	if _, _, err := k.Forge().Create("test", skillapi.CreateSpec{
+		Name: "pdf-fill", Body: "fill a pdf",
+		Resources: map[string][]byte{"reference/fields.md": []byte("the fields")},
 	}); err != nil {
-		t.Fatalf("bundle Write: %v", err)
+		t.Fatalf("Create with resources: %v", err)
 	}
 
 	all, err := k.Forge().List()

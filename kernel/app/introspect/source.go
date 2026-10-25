@@ -73,6 +73,17 @@ func (s *kernelSource) Overview() introspectapi.Overview {
 	}
 	sort.Strings(names)
 
+	// A daemon with NO world model or NO skill library holds a nil port
+	// (W3.54, W3.55): the overview reports zero rather than calling into
+	// nothing.
+	worldEntities, activeSkills := 0, 0
+	if g := k.World(); g != nil {
+		worldEntities = g.Count()
+	}
+	if f := k.Forge(); f != nil {
+		activeSkills = f.Count()
+	}
+
 	return introspectapi.Overview{
 		Daemon:                 brand.Version,
 		Protocol:               brand.ProtocolVersion,
@@ -82,8 +93,8 @@ func (s *kernelSource) Overview() introspectapi.Overview {
 		ActiveRuns:             k.ActiveRuns(),
 		Tools:                  names,
 		MemoryRecords:          k.Memory().Count(),
-		WorldEntities:          k.World().Count(),
-		ActiveSkills:           k.Forge().Count(),
+		WorldEntities:          worldEntities,
+		ActiveSkills:           activeSkills,
 		JournalHead:            headSeq,
 		SchedulesTotal:         schedTotal,
 		SchedulesEnabled:       schedEnabled,

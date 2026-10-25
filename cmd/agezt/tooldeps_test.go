@@ -597,7 +597,7 @@ func TestToolKernelDepsSuppliesTheScheduleAndSkillPorts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open the schedule store: %v", err)
 	}
-	k, err := runtime.Open(withArtifacts(t, runtime.Config{BaseDir: dir, Provider: mock.New(), Schedules: sched}))
+	k, err := runtime.Open(withSkill(t, withArtifacts(t, runtime.Config{BaseDir: dir, Provider: mock.New(), Schedules: sched})))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -648,17 +648,15 @@ func TestTheScheduleAndSkillPortsStayNilWithoutAKernel(t *testing.T) {
 // skill tool would bind a bundle store that is not there and panic on the
 // first resource read instead of reporting that bundles are unavailable.
 func TestTheBundlePortStaysNilWithoutBundles(t *testing.T) {
-	k, err := runtime.Open(withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
+	k, err := runtime.Open(withSkillNoBundles(t, withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if k.Forge().Bundles() == nil {
-		t.Fatal("the daemon's own forge must have a bundle store to unwire")
+	if k.Forge().Bundles() != nil {
+		t.Fatal("a curator without bundles must answer a nil bundle store")
 	}
-	k.Forge().SetBundles(nil)
-
 	if got := skillBundlesPort(k); got != nil {
 		t.Fatalf("a forge without bundles must yield a nil port, got %v", got != nil)
 	}

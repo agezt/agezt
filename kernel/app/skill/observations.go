@@ -7,16 +7,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/event"
-	curated "github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/platform/journalview"
 	"time"
 )
 
 type ObservationStore interface {
-	Get(string) (curated.Skill, bool, error)
-	Bundles() *curated.BundleStore
-	Hygiene(int64) (curated.HygieneReport, error)
+	Get(string) (skillapi.Skill, bool, error)
+	Bundles() skillapi.BundleStore
+	Hygiene(int64) (skillapi.HygieneReport, error)
 }
 type Observations struct {
 	forge   ObservationStore
@@ -49,6 +49,9 @@ func isSkillKind(kind event.Kind) bool {
 	return false
 }
 func (s *Observations) History(_ context.Context, in GetInput) (HistoryOutput, error) {
+	// History folds the JOURNAL, not the library: it answers what happened to
+	// a skill even on a daemon that holds no skill library (the rows are in
+	// the journal either way).
 	var events []HistoryEvent
 	// Malformed individual payloads retain best-effort filtering. A failed journal
 	// read must not turn an empty or partial fold into successful history.
@@ -91,6 +94,9 @@ type ReadFileOutput struct {
 }
 
 func (s *Observations) Files(_ context.Context, in GetInput) (FilesOutput, error) {
+	if s.forge == nil {
+		return FilesOutput{}, errNoSkillLibrary
+	}
 	sk, found, err := s.forge.Get(in.ID)
 	if err != nil {
 		return FilesOutput{}, err
@@ -108,6 +114,9 @@ func (s *Observations) Files(_ context.Context, in GetInput) (FilesOutput, error
 	return FilesOutput{ID: sk.ID, Name: sk.Name, Files: files, Dir: dir, Count: len(files)}, nil
 }
 func (s *Observations) ReadFile(_ context.Context, in ReadFileInput) (ReadFileOutput, error) {
+	if s.forge == nil {
+		return ReadFileOutput{}, errNoSkillLibrary
+	}
 	sk, found, err := s.forge.Get(in.ID)
 	if err != nil {
 		return ReadFileOutput{}, err
@@ -143,6 +152,9 @@ type HygieneOutput struct {
 }
 
 func (s *Observations) Hygiene(_ context.Context, in HygieneInput) (HygieneOutput, error) {
+	if s.forge == nil {
+		return HygieneOutput{}, errNoSkillLibrary
+	}
 	days := in.IdleDays
 	if days <= 0 {
 		days = 30

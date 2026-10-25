@@ -5,13 +5,23 @@ package skill
 
 import (
 	"context"
-	curated "github.com/agezt/agezt/kernel/modules/skills/skill"
+	"errors"
+
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 )
+
+// errNoSkillLibrary is the answer the skill app layer gives when it holds no
+// curator.
+//
+// The skill library is the DAEMON's (W3.55): the kernel holds the contract's
+// port, and a host that was given none holds a nil port. The refusal is the
+// answer — not a panic, and not a silent "nothing to do".
+var errNoSkillLibrary = errors.New("skill: the skill library is not available on this daemon")
 
 // Reader is the actual read-only Forge surface, preserving store error causes.
 type Reader interface {
-	List() ([]curated.Skill, error)
-	Get(string) (curated.Skill, bool, error)
+	List() ([]skillapi.Skill, error)
+	Get(string) (skillapi.Skill, bool, error)
 }
 type Service struct{ reader Reader }
 
@@ -32,24 +42,24 @@ type Metrics struct {
 	ShadowWins  int   `json:"shadow_wins"`
 }
 type Record struct {
-	ID            string         `json:"id"`
-	Name          string         `json:"name"`
-	Description   string         `json:"description"`
-	Status        curated.Status `json:"status"`
-	Version       string         `json:"version"`
-	Agent         string         `json:"agent"`
-	CreatedMS     int64          `json:"created_ms"`
-	LastSeenMS    int64          `json:"last_seen_ms"`
-	Metrics       Metrics        `json:"metrics"`
-	Triggers      []string       `json:"triggers,omitempty"`
-	ToolsRequired []string       `json:"tools_required,omitempty"`
-	Resources     []string       `json:"resources,omitempty"`
-	Lineage       []string       `json:"lineage,omitempty"`
-	Body          string         `json:"body,omitempty"`
-	SourceEvent   string         `json:"source_event,omitempty"`
+	ID            string          `json:"id"`
+	Name          string          `json:"name"`
+	Description   string          `json:"description"`
+	Status        skillapi.Status `json:"status"`
+	Version       string          `json:"version"`
+	Agent         string          `json:"agent"`
+	CreatedMS     int64           `json:"created_ms"`
+	LastSeenMS    int64           `json:"last_seen_ms"`
+	Metrics       Metrics         `json:"metrics"`
+	Triggers      []string        `json:"triggers,omitempty"`
+	ToolsRequired []string        `json:"tools_required,omitempty"`
+	Resources     []string        `json:"resources,omitempty"`
+	Lineage       []string        `json:"lineage,omitempty"`
+	Body          string          `json:"body,omitempty"`
+	SourceEvent   string          `json:"source_event,omitempty"`
 }
 
-func project(sk curated.Skill) Record {
+func project(sk skillapi.Skill) Record {
 	return Record{ID: sk.ID, Name: sk.Name, Description: sk.Description, Status: sk.Status, Version: sk.Version, Agent: sk.Agent, CreatedMS: sk.CreatedMS, LastSeenMS: sk.LastSeenMS,
 		Metrics:  Metrics{Uses: sk.Metrics.Uses, Successes: sk.Metrics.Successes, Failures: sk.Metrics.Failures, LastUsedMS: sk.Metrics.LastUsedMS, ShadowEvals: sk.Metrics.ShadowEvals, ShadowWins: sk.Metrics.ShadowWins},
 		Triggers: sk.Triggers, ToolsRequired: sk.ToolsRequired, Resources: sk.Resources, Lineage: sk.Lineage, Body: sk.Body, SourceEvent: sk.SourceEvent}
@@ -66,6 +76,9 @@ type GetOutput struct {
 }
 
 func (s *Service) List(_ context.Context, _ ListInput) (ListOutput, error) {
+	if s.reader == nil {
+		return ListOutput{}, errNoSkillLibrary
+	}
 	skills, err := s.reader.List()
 	if err != nil {
 		return ListOutput{}, err
@@ -80,6 +93,9 @@ func (s *Service) List(_ context.Context, _ ListInput) (ListOutput, error) {
 	return out, nil
 }
 func (s *Service) Get(_ context.Context, in GetInput) (GetOutput, error) {
+	if s.reader == nil {
+		return GetOutput{}, errNoSkillLibrary
+	}
 	sk, found, err := s.reader.Get(in.ID)
 	if err != nil {
 		return GetOutput{}, err
