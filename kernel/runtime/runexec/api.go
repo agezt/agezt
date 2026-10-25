@@ -16,6 +16,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/mediaapi"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/intent"
@@ -28,7 +29,6 @@ import (
 	"github.com/agezt/agezt/kernel/modules/work/assure"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/scheduler"
-	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -97,8 +97,8 @@ type KernelAPI interface {
 	State() *state.FileStore
 	Schedules() cadenceapi.HostStore
 	Roster() *roster.Store
-	Standing() *standing.Store
-	StandingList() []standing.Order
+	Standing() standingapi.Store
+	StandingList() []standingapi.Order
 	ConfigCenter() *configcenter.Center
 	Catalog() *catalog.Catalog
 	CatalogStore() *catalog.Store

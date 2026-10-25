@@ -38,11 +38,18 @@ func openScanner(t *testing.T) (*runtime.Kernel, *Scanner) {
 	if err != nil {
 		t.Fatalf("open the schedule store: %v", err)
 	}
+	// The standing library is the daemon's file too (W3.50): the test opens
+	// it and hands the kernel the contract's store port.
+	standingStore, err := standing.Open(filepath.Join(dir, "standing"))
+	if err != nil {
+		t.Fatalf("open the standing store: %v", err)
+	}
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:   dir,
 		Provider:  mock.New(mock.FinalText("ok")),
 		Tools:     map[string]toolapi.Tool{},
 		Schedules: sched,
+		Standing:  standingStore,
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)

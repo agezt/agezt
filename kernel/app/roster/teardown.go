@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	core "github.com/agezt/agezt/kernel/modules/agents/roster"
-	"github.com/agezt/agezt/kernel/standing"
 )
 
 // TeardownPorts are the host's capabilities the agent teardown needs. The
@@ -19,7 +19,7 @@ type TeardownPorts struct {
 	// RetireChild retires a sub-agent with the given reason.
 	RetireChild func(slug, reason string) error
 	// Standing lists the standing orders.
-	Standing func() []standing.Order
+	Standing func() []standingapi.Order
 	// RemoveStanding removes a standing order; it reports whether it existed.
 	RemoveStanding func(id string) (bool, error)
 	// SetStandingEnabled enables or disables a standing order.

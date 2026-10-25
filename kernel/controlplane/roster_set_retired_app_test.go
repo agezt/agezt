@@ -51,7 +51,13 @@ func TestAgentRetireReviveNativePorts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), Schedules: sched})
+	// The standing library is the daemon's file too (W3.50): the test opens
+	// it and hands the kernel the contract's store port.
+	standingStore, err := standing.Open(filepath.Join(dir, "standing"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), Schedules: sched, Standing: standingStore})
 	if err != nil {
 		t.Fatal(err)
 	}

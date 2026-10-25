@@ -13,13 +13,13 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/scheduler"
-	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
@@ -33,8 +33,16 @@ func (k *Kernel) VisionModel() func() (string, bool) { return k.cfg.VisionModel 
 // StandingList returns the current standing orders (read-only
 // snapshot). Read-only — callers must not mutate the slice. The
 // run engine and the control plane's `agt standing list` both
-// use this; nil is fine when no standing store is configured.
-func (k *Kernel) StandingList() []standing.Order { return k.standing.List() }
+// use this; nil is fine when no standing library is configured.
+//
+// The rows are the CONTRACT's (W3.50): the layers above the kernel
+// name the contract, not the module the library lives in.
+func (k *Kernel) StandingList() []standingapi.Order {
+	if k.standing == nil {
+		return nil
+	}
+	return k.standing.List()
+}
 
 // SkillStore returns the on-disk skill repository. The run
 // engine reads skills from here for injection; the skill forge

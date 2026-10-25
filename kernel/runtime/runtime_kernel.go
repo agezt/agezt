@@ -22,6 +22,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/marketapi"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
@@ -44,7 +45,6 @@ import (
 	"github.com/agezt/agezt/kernel/runtime/lifecycle"
 	"github.com/agezt/agezt/kernel/runtime/runexec"
 	"github.com/agezt/agezt/kernel/scheduler"
-	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -67,8 +67,8 @@ type Kernel struct {
 	forge        *skill.Forge
 	skillDir     *skill.FileStore
 	marketMgr    marketapi.Manager
-	standing     *standing.Store
-	resume       *resume.Store // durable in-flight-run tickets for restart resume (M1002); nil when disabled
+	standing     standingapi.Store // the standing-order library — the contract's store port (W3.50)
+	resume       *resume.Store     // durable in-flight-run tickets for restart resume (M1002); nil when disabled
 	roster       *roster.Store
 	toolForge    toolforgeapi.HostStore
 	mcpStore     *mcp.Store

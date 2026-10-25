@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/types"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -67,11 +68,18 @@ func TestThePortReadsTheLiveKernelSchedulesAndStanding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open the schedule store: %v", err)
 	}
+	// The standing library is the daemon's file too (W3.50): the test opens
+	// it and hands the kernel the contract's store port.
+	standingStore, err := standing.Open(filepath.Join(dir, "standing"))
+	if err != nil {
+		t.Fatalf("open the standing store: %v", err)
+	}
 	k, err := kernelruntime.Open(kernelruntime.Config{
 		BaseDir:   dir,
 		Provider:  mock.New(),
 		Tools:     map[string]toolapi.Tool{},
 		Schedules: sched,
+		Standing:  standingStore,
 	})
 	if err != nil {
 		t.Fatal(err)

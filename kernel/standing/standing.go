@@ -15,7 +15,6 @@ package standing
 // existing caller is unchanged.
 
 import (
-	"errors"
 	"sync"
 	"time"
 
@@ -46,7 +45,11 @@ const (
 func Validate(o Order) error { return standingapi.Validate(o) }
 
 // ErrNotFound is returned for operations on an unknown order id.
-var ErrNotFound = errors.New("standing: order not found")
+//
+// The error itself is the CONTRACT's (W3.50): the kernel and the control
+// plane compare against it, and neither may name this module. The name
+// stays here so every existing caller is unchanged.
+var ErrNotFound = standingapi.ErrNotFound
 
 // Store is the persistent set of standing orders, a single JSON file rewritten
 // atomically on change. Safe for concurrent use. Mirrors kernel/cadence.Store.

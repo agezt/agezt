@@ -9,6 +9,7 @@ import (
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/plugins/providers/mock"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -18,7 +19,14 @@ func standingAppFixture(t *testing.T) (*runtime.Kernel, *Server, string, *mock.P
 	t.Helper()
 	dir := t.TempDir()
 	provider := mock.New()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider})
+	// The standing-order library is the DAEMON's file (W3.50): the kernel
+	// holds the contract's store port, so the host opens the library and
+	// hands the port over.
+	store, err := standing.Open(filepath.Join(dir, "standing"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, Standing: store})
 	if err != nil {
 		t.Fatal(err)
 	}

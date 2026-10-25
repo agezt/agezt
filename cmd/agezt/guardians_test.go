@@ -8,6 +8,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -23,7 +24,13 @@ func TestSeedBuiltInGuardiansSeedsTheLiveFleet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open the schedule store: %v", err)
 	}
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), Schedules: sched})
+	// The standing library is the daemon's file too (W3.50): the test opens
+	// it and hands the kernel the contract's store port.
+	standingStore, err := standing.Open(filepath.Join(dir, "standing"))
+	if err != nil {
+		t.Fatalf("open the standing store: %v", err)
+	}
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), Schedules: sched, Standing: standingStore})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

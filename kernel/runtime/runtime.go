@@ -16,6 +16,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/toolregapi"
@@ -580,6 +581,19 @@ type Config struct {
 	// Nil means "no schedule library": the schedule surfaces report that the
 	// library is unavailable rather than calling into nothing.
 	Schedules cadenceapi.HostStore
+
+	// Standing is the standing-order library the host holds — the contract's
+	// store port, not a module's store (W3.50). The daemon opens the file
+	// (standing/standing.json) and hands it over (cmd/agezt): the library's
+	// file is the daemon's business, and the kernel is a module.
+	//
+	// The daemon's OWN residents (the event runner and the cron ticker) are
+	// built over this very store by the composition root and handed over
+	// afterwards — the kernel holds the port, not the residents.
+	//
+	// Nil means "no standing library": the standing surfaces report that the
+	// library is unavailable rather than calling into nothing.
+	Standing standingapi.Store
 }
 
 // Kernel is the running Agezt instance.

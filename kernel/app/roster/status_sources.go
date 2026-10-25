@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/event"
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
-	"github.com/agezt/agezt/kernel/standing"
 )
 
 // RunRow is one folded run row, as the status collection needs it. The host
@@ -58,7 +58,7 @@ type StatusSources struct {
 	// Schedules lists the cadence entries that can wake an agent.
 	Schedules func() []cadence.Entry
 	// Standing lists the standing orders that can wake an agent.
-	Standing func() []standing.Order
+	Standing func() []standingapi.Order
 	// Board lists the board's open help requests — the escalations.
 	Board func() []board.Message
 	// Reaper runs the reaper scan over the window.

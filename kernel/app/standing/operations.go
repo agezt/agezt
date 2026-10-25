@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	orders "github.com/agezt/agezt/kernel/standing"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"strings"
 )
 
@@ -124,7 +124,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 				if err != nil {
 					return OrderOutput{}, fmt.Errorf("args.order: %w", err)
 				}
-				var order orders.Order
+				var order standingapi.Order
 				if err := json.Unmarshal(raw, &order); err != nil {
 					return OrderOutput{}, fmt.Errorf("args.order: %w", err)
 				}

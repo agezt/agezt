@@ -10,7 +10,6 @@ adapter-bypass kernel/controlplane -> kernel/modules/knowledge/memory
 adapter-bypass kernel/controlplane -> kernel/modules/skills/skill
 adapter-bypass kernel/controlplane -> kernel/modules/agents/roster
 adapter-bypass kernel/controlplane -> kernel/runtime
-adapter-bypass kernel/controlplane -> kernel/standing
 adapter-bypass kernel/controlplane -> kernel/modules/extensions/toolbox
 adapter-bypass kernel/controlplane -> kernel/update
 adapter-bypass kernel/openaiapi -> kernel/convo
@@ -35,14 +34,12 @@ cross-module kernel/runtime -> kernel/modules/knowledge/worldmodel
 cross-module kernel/runtime -> kernel/modules/skills/skill
 cross-module kernel/runtime -> kernel/modules/work/okr
 cross-module kernel/runtime -> kernel/modules/agents/roster
-cross-module kernel/runtime -> kernel/standing
 cross-module kernel/runtime/runexec -> kernel/modules/work/assure
 cross-module kernel/runtime/runexec -> kernel/modules/providers/catalog
 cross-module kernel/runtime/runexec -> kernel/modules/knowledge/memory
 cross-module kernel/runtime/runexec -> kernel/modules/knowledge/worldmodel
 cross-module kernel/runtime/runexec -> kernel/modules/skills/skill
 cross-module kernel/runtime/runexec -> kernel/modules/agents/roster
-cross-module kernel/runtime/runexec -> kernel/standing
 cross-module kernel/modules/agents/selfrepair -> kernel/modules/board/board
 cross-module kernel/modules/agents/selfrepair -> kernel/runtime
 upward kernel/channel -> kernel/bus

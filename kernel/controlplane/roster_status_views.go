@@ -5,10 +5,10 @@ import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/standing"
 )
 
 func (s *Server) agentStatusViews(profiles []roster.Profile) map[string]map[string]any {
@@ -31,9 +31,17 @@ func (s *Server) collectRosterStatusSnapshot(profiles []roster.Profile, reaperCu
 			}
 			return s.k.Schedules().List()
 		},
-		Standing: func() []standing.Order { return s.k.Standing().List() },
-		Board:    s.statusBoardMessages,
-		Reaper:   func(cut int64) runtime.ReaperReport { return s.k.ReaperScan(cut, cut) },
+		Standing: func() []standingapi.Order {
+			// The standing library is the daemon's file (W3.50): a host
+			// without it holds a nil port, and the status view sees no
+			// standing orders rather than calling into nothing.
+			if s.k.Standing() == nil {
+				return nil
+			}
+			return s.k.Standing().List()
+		},
+		Board:  s.statusBoardMessages,
+		Reaper: func(cut int64) runtime.ReaperReport { return s.k.ReaperScan(cut, cut) },
 	}, profiles, reaperCut, routingCut)
 }
 
