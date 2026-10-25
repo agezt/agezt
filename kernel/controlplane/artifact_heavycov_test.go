@@ -6,18 +6,18 @@ import (
 	"context"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/controlplane"
-	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 // putIndexed stores a blob and records an index entry, returning its id.
 func putIndexed(t *testing.T, k interface {
-	Artifacts() *artifact.Store
-	ArtifactIndex() *artifact.Index
-}, name, kind, source, corr string, data []byte, createdMs int64) artifact.Entry {
+	Artifacts() artifactapi.Blob
+	ArtifactIndex() artifactapi.HostIndex
+}, name, kind, source, corr string, data []byte, createdMs int64) artifactapi.Entry {
 	t.Helper()
-	e, err := k.ArtifactIndex().PutEntry(artifact.Entry{
+	e, err := k.ArtifactIndex().PutEntry(artifactapi.Entry{
 		Name: name, Kind: kind, Source: source, Corr: corr,
 	}, data, createdMs)
 	if err != nil {

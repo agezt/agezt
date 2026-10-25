@@ -11,6 +11,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
@@ -500,6 +501,22 @@ type Config struct {
 	// Nil means "no data lake": the data operations report that the lake is
 	// unavailable, and the db tool is handed a nil port.
 	Lake datalakeapi.Lake
+
+	// Artifacts is the content-addressed blob store the host holds, and
+	// ArtifactIndex is the browsable metadata index over it (M822) — the
+	// contract's ports, not a module's store (W3.43). The daemon opens both
+	// and hands them over (cmd/agezt): the files are the daemon's business.
+	//
+	// The index is the HOST-facing port: the kernel counts the stale entries,
+	// reclaims them and installs the journal's ref guard on it. The tool
+	// registry receives the narrower tool-facing port.
+	//
+	// Nil means "no artifact store": the loop cannot offload an oversized
+	// output, the tools cannot list or read artifacts, and the workboard's
+	// proof gathers no artifacts — each of them says so rather than calling
+	// into nothing.
+	Artifacts     artifactapi.Blob
+	ArtifactIndex artifactapi.HostIndex
 }
 
 // Kernel is the running Agezt instance.

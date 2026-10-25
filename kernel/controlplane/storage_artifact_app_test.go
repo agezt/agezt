@@ -8,6 +8,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -17,7 +18,17 @@ func artifactAppFixture(t *testing.T) (*runtime.Kernel, *Server, artifact.Entry,
 	t.Helper()
 	dir := t.TempDir()
 	provider := mock.New()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider})
+	// The artifact store and its index are the composition root's files
+	// (W3.43): the fixture opens them and hands the kernel the ports.
+	store, err := artifact.Open(filepath.Join(dir, "artifacts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	index, err := artifact.OpenIndex(store, filepath.Join(dir, "artifacts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, Artifacts: store, ArtifactIndex: index})
 	if err != nil {
 		t.Fatal(err)
 	}

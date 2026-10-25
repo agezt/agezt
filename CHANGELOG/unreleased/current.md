@@ -4439,6 +4439,21 @@ This file holds the active `[Unreleased]` working set.
 
 ### Removed
 
+- **Removed: the kernel's reach on the artifact module (W3.43).** The kernel
+  opened the content-addressed artifact store and the metadata index over it,
+  and held both concrete types; the daemon now opens both and hands the kernel
+  the contract's ports (`kernel/contract/artifactapi`), so the kernel reaches
+  neither the module nor its implementation. The index port is **split**: the
+  four verbs a tool may use stay on `artifactapi.Index`, and the six verbs the
+  host uses — count, find, record a ref, count the stale entries, collect, and
+  install the ref guard — live on the wider `artifactapi.HostIndex`. A plugin
+  that receives the index therefore still cannot collect entries, and still
+  cannot switch off the journal's protection of the bytes the journal still
+  names. The architecture ratchet went from 61 to 59 edges. No behaviour
+  changed: a store that cannot be opened is still a startup error — now the
+  daemon's to raise — and the journal's ref guard is still installed by the
+  kernel, because the journal is the kernel's.
+
 - **Removed: the kernel's reach on the data lake module (W3.42).** The kernel
   opened the personal data lake and held its concrete type; the daemon now
   opens it, seeds its built-in collections and hands the kernel the contract's

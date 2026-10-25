@@ -25,7 +25,11 @@ var _ boardapi.Store = (*board.Store)(nil)
 // The daemon's artifact index IS the contract's port too: the registry hands
 // the tools the index through the port, so the module's concrete index and
 // the contract's port cannot drift apart unnoticed.
+//
+// The module answers BOTH ports: the four-verb tool-facing one and the
+// wider host-facing one.
 var _ artifactapi.Index = (*artifact.Index)(nil)
+var _ artifactapi.HostIndex = (*artifact.Index)(nil)
 
 // TestBoardSpecBindsTheLiveStore: the board tool may not name the board
 // module, so it takes the store as the contract's port — and the daemon binds
@@ -65,7 +69,24 @@ func TestBoardSpecBindsTheLiveStore(t *testing.T) {
 // artifacts module, so it speaks the contract's rows — and the daemon binds
 // the live index. An artifact the index holds must be listed by the tool.
 func TestArtifactsSpecBindsTheLiveIndex(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	// The artifact index is the HOST's file (W3.43): the kernel holds the
+	// contract's port, and the host opens the store and injects it. This test
+	// is such a host.
+	dir := t.TempDir()
+	store, err := artifact.Open(dir)
+	if err != nil {
+		t.Fatalf("artifact.Open: %v", err)
+	}
+	index, err := artifact.OpenIndex(store, dir)
+	if err != nil {
+		t.Fatalf("artifact.OpenIndex: %v", err)
+	}
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:       t.TempDir(),
+		Provider:      mock.New(),
+		Artifacts:     store,
+		ArtifactIndex: index,
+	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

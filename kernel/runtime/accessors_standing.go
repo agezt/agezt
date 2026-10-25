@@ -10,15 +10,15 @@ package runtime
 import (
 	"errors"
 
+	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/standing"
 )
 
 // Artifacts returns the content-addressed artifact store (SPEC-04 §3.6), where
 // the loop offloads oversized tool outputs. Used by retrieval surfaces.
-func (k *Kernel) Artifacts() *artifact.Store { return k.artifacts }
+func (k *Kernel) Artifacts() artifactapi.Blob { return k.artifacts }
 
 // Voice returns the configured voice adapter (STT/TTS), or nil when unset. The
 // channel inbound path uses it to auto-transcribe inbound voice notes.
@@ -27,7 +27,10 @@ func (k *Kernel) Voice() Voice { return k.cfg.Voice }
 // ArtifactIndex returns the metadata index over the blob store (M822) — the
 // browsable/deletable per-arrival entries (inbound images, tool outputs) the
 // file manager and inbound-image persistence use.
-func (k *Kernel) ArtifactIndex() *artifact.Index { return k.artIndex }
+//
+// It is the HOST-facing port: the kernel counts, reclaims and guards the
+// index, so it needs more than the four verbs a tool gets.
+func (k *Kernel) ArtifactIndex() artifactapi.HostIndex { return k.artIndex }
 
 // DataLake returns the Personal Data Lake (M834) — the file-based structured
 // collections agents build and share, surfaced by the `db` tool and the Web UI.

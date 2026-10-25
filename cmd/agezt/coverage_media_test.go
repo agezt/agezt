@@ -60,10 +60,10 @@ func dataURL(mime string, body string) string {
 // TestPersistInboundAudio drives the real ArtifactIndex path: a nil-audio/no-op
 // guard, a bad clip that's skipped, and a good clip that's stored.
 func TestPersistInboundAudio(t *testing.T) {
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withArtifacts(t, kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("unused")),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -86,10 +86,10 @@ func TestPersistInboundAudio(t *testing.T) {
 
 // TestPersistInboundImages mirrors the audio path for image attachments.
 func TestPersistInboundImages(t *testing.T) {
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withArtifacts(t, kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("unused")),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -117,10 +117,10 @@ func TestPersistInboundImages(t *testing.T) {
 // TestImageAdmission wires the kernel-backed wrapper: no images passes, and an
 // image with an unknown/non-vision model is rejected (mirrors the M255 gate).
 func TestImageAdmission(t *testing.T) {
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withArtifacts(t, kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("unused")),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

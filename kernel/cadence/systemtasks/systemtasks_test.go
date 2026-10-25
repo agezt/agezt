@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -179,9 +180,22 @@ func TestRunScheduledGraveyardScanReportsOnly(t *testing.T) {
 }
 
 func TestRunScheduledArtifactCollectPublishesSummary(t *testing.T) {
+	// The artifact index is the HOST's file (W3.43): the kernel holds the
+	// contract's port and the host opens the store. This test is such a host
+	// — it opens the index and injects it.
+	store, err := artifact.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("artifact.Open: %v", err)
+	}
+	index, err := artifact.OpenIndex(store, t.TempDir())
+	if err != nil {
+		t.Fatalf("artifact.OpenIndex: %v", err)
+	}
 	k, err := kernelruntime.Open(kernelruntime.Config{
-		BaseDir:  t.TempDir(),
-		Provider: mock.New(mock.FinalText("unused")),
+		BaseDir:       t.TempDir(),
+		Provider:      mock.New(mock.FinalText("unused")),
+		Artifacts:     store,
+		ArtifactIndex: index,
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)

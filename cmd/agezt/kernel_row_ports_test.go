@@ -114,7 +114,7 @@ func TestTheDaemonSuppliesTheConductorExecRow(t *testing.T) {
 // wrong file to the operator's chat — and a row that dropped the check would
 // attach a tampered one.
 func TestTheDaemonResolvesArtifactBytes(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

@@ -57,7 +57,7 @@ func TestToolKernelDepsSuppliesTheIntrospectPort(t *testing.T) {
 // TestToolKernelDepsSuppliesTheOverseerPort: the same wiring duty for the
 // overseer port — the daemon supplies it, and it answers the live kernel.
 func TestToolKernelDepsSuppliesTheOverseerPort(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestToolKernelDepsSuppliesTheOverseerPort(t *testing.T) {
 // the tool by hand stayed green. This test is the only one that sees that
 // wiring, so it asserts it directly.
 func TestToolKernelDepsSuppliesTheForgePort(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -180,7 +180,7 @@ func TestLakeStoreStaysANilPortWithoutALake(t *testing.T) {
 	if got := lakeStore(nil); got != nil {
 		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
 	}
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestLakeStoreStaysANilPortWithoutALake(t *testing.T) {
 // the tool by hand stayed green. This test is the only one that sees that
 // wiring, so it asserts it directly.
 func TestToolKernelDepsSuppliesTheWorkflowPort(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -240,7 +240,7 @@ func TestWorkflowStoreStaysANilPortWithoutALibrary(t *testing.T) {
 // the tool by hand stayed green. This test is the only one that sees that
 // wiring, so it asserts it directly.
 func TestToolKernelDepsSuppliesTheWorkboardPort(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -281,7 +281,7 @@ func TestWorkboardStoreStaysANilPortWithoutABoard(t *testing.T) {
 // green. This test is the only one that sees that wiring, so it asserts it
 // directly.
 func TestToolKernelDepsSuppliesTheConfigPort(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -357,7 +357,7 @@ func TestTheIntrospectToolAnswersOnAConfiguredDaemon(t *testing.T) {
 // stayed green. This test is the only one that sees that wiring, so it
 // asserts it directly.
 func TestToolKernelDepsSuppliesTheArtifactPort(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -384,14 +384,25 @@ func TestToolKernelDepsSuppliesTheArtifactPort(t *testing.T) {
 }
 
 // TestArtifactPortStaysANilPortWithoutAnIndex: a daemon with no index must
-// hand over a NIL port, not a port wrapping a nil implementation — the
-// check is on the concrete type, because a nil *artifact.Index handed to an
-// interface parameter is already a non-nil interface. A tool that bound it
-// would crash on the first read instead of reporting that the index is
-// unavailable.
+// hand over a NIL port, not a port wrapping a nil implementation.
+//
+// The kernel holds the port itself now (W3.43), so there is no wrapper left
+// to test: the rule is that the kernel's field IS an interface, and a host
+// that injects nothing leaves it a nil interface — which the tool registry
+// receives as a nil port and reports as "the artifact store is unavailable".
 func TestArtifactPortStaysANilPortWithoutAnIndex(t *testing.T) {
-	if got := artifactPort(nil); got != nil {
-		t.Fatalf("a missing index must yield a nil port, got %v", got)
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	if got := k.ArtifactIndex(); got != nil {
+		t.Fatalf("a kernel without an injected index must hold a nil port, got %v", got)
+	}
+	deps := toolKernelDeps(k, t.TempDir(), io.Discard)
+	if deps.Artifacts != nil {
+		t.Fatalf("a missing index must yield a nil port, got %v", deps.Artifacts)
 	}
 }
 
@@ -435,7 +446,7 @@ func TestBoardPortAnswersTheLiveStore(t *testing.T) {
 // directly: the port must be present AND it must be the live kernel's
 // reasoning surface.
 func TestToolKernelDepsSuppliesTheReasoningPort(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -470,7 +481,7 @@ func TestReasoningPortStaysANilPortWithoutAKernel(t *testing.T) {
 // wiring, so it asserts it directly: the ports must be present AND they
 // must be the live kernel's.
 func TestToolKernelDepsSuppliesTheWorkflowAndWorkboardPorts(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -511,7 +522,7 @@ func TestTheWorkflowAndWorkboardPortsStayNilWithoutAKernel(t *testing.T) {
 // the tool by hand stayed green. This test is the only one that sees that
 // wiring, so it asserts it directly.
 func TestToolKernelDepsSuppliesTheMCPAndStandingPorts(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -566,7 +577,7 @@ func TestTheMCPAndStandingPortsStayNilWithoutAKernel(t *testing.T) {
 // wiring, so it asserts it directly: the ports must be present AND they
 // must be the live ones.
 func TestToolKernelDepsSuppliesTheScheduleAndSkillPorts(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -617,7 +628,7 @@ func TestTheScheduleAndSkillPortsStayNilWithoutAKernel(t *testing.T) {
 // skill tool would bind a bundle store that is not there and panic on the
 // first resource read instead of reporting that bundles are unavailable.
 func TestTheBundlePortStaysNilWithoutBundles(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

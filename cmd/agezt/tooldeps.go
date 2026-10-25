@@ -11,7 +11,6 @@ import (
 	"github.com/agezt/agezt/kernel/app/overseer"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
-	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/configapi"
@@ -27,7 +26,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/journal"
-	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -53,7 +51,7 @@ func toolKernelDeps(k *runtime.Kernel, baseDir string, stdout io.Writer) toolreg
 		// so the row stays in the contract without naming the kernel.
 		ConductorExec:   conductorExecPort(k),
 		Bus:             busPort(k.Bus()),
-		Artifacts:       artifactPort(k.ArtifactIndex()),
+		Artifacts:       k.ArtifactIndex(),
 		Lake:            lakeStore(k),
 		Journal:         journalPort(k.Journal()),
 		BaseDir:         baseDir,
@@ -162,20 +160,6 @@ func workflowStore(k *runtime.Kernel) workflowapi.Store {
 		return nil
 	}
 	return s
-}
-
-// artifactPort turns the concrete artifact index into the contract's port.
-//
-// A nil index must stay a NIL PORT: a port that wraps a nil implementation is
-// not nil, so the tool would call into nothing instead of reporting that the
-// index is unavailable. The check is on the concrete type on purpose — a nil
-// *artifact.Index handed to an interface parameter is already a non-nil
-// interface, and the tools would bind it and crash on the first read.
-func artifactPort(idx *artifact.Index) artifactapi.Index {
-	if idx == nil {
-		return nil
-	}
-	return idx
 }
 
 // boardPort turns the concrete board store into the contract's port.

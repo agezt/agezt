@@ -14,11 +14,11 @@ import (
 
 	"encoding/json"
 
+	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/assureapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/proofapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
 )
 
@@ -152,7 +152,7 @@ func (k *Kernel) gatherProofEvidence(corr string) proofapi.Evidence {
 		return ev
 	}
 	if ix := k.ArtifactIndex(); ix != nil {
-		for _, e := range ix.List(artifact.Filter{Corr: corr}) {
+		for _, e := range ix.List(artifactapi.Filter{Corr: corr}) {
 			ev.Artifacts = append(ev.Artifacts, e.ID)
 		}
 	}

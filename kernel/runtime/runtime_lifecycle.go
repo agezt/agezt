@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/assureapi"
 	"github.com/agezt/agezt/kernel/event"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
-	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 )
 
 func (k *Kernel) Halted() bool { return k.halted }
@@ -62,7 +62,7 @@ func (k *Kernel) PublishBusEvent(spec event.Spec) (*event.Event, error) {
 // outputs. Exposed for the runexec sub-package's KernelAPI
 // (Day 22). The same pointer is reachable via the existing
 // Artifacts() method.
-func (k *Kernel) ArtifactStore() *artifact.Store { return k.artifacts }
+func (k *Kernel) ArtifactStore() artifactapi.Blob { return k.artifacts }
 
 // Runexec sub-package delegations (Day 22 split).
 //
