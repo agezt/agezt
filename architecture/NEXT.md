@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.47 the task board is the daemon's file, 2026-10-25
+## Current checkpoint — W3.48 the workflow library is the daemon's file, 2026-10-25
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -3299,6 +3299,58 @@ files, five of the seventeen mutations would have escaped.
   `workflow.Trigger` — none of which has a contract home. The engine is the
   hard part: its ports are built from the kernel's own state, so the
   composition root cannot build it before the kernel exists.
+  **`cadence`, `standing`, `mcp`** — many callers each; the shape is known (a
+  contract port the host opens), the work is in the port's width.
+  **`memory`, `worldmodel`, `roster`, `skill`, `okr`, `taste`, `catalog`** —
+  the kernel holds each module's concrete store; each one is the same slice
+  (a contract port, the daemon opening the file, the kernel's accessor
+  carrying the port).
+- W3.48 (the workflow library is the daemon's file) is committed on `main` the
+  same way. It takes **two** edges — the same family again (like W3.43 and
+  W3.47): `cross-module kernel/runtime -> kernel/modules/workflows/workflow`
+  (the kernel held the concrete `*workflow.Store`, **opened the file** itself
+  and **built the engine**) and `adapter-bypass kernel/controlplane ->
+  kernel/modules/workflows/workflow` (the control plane named the module's
+  rows).
+  This was the **widest** edge left, and the first slice where a port had to
+  be built around an *implementation* the kernel was not allowed to name: the
+  engine's ports are the kernel's own bus, governor, tool runner and
+  approvals, so the engine could not be built before the kernel existed — and
+  could not be built by the kernel without making the kernel a module. The
+  answer is the one the reasoning module and the reaper scanner already have,
+  one layer up: the kernel holds the **contract's port** —
+  `workflowapi.Engine`, **eight** verbs (`Save`, `Restore`, `SetEnabled`,
+  `Remove`, `Run`, `TestNode`, `Draft`, `Refine`) — and the **composition
+  root** builds the engine over the library it opened and over the kernel's
+  own ports (`k.WorkflowPorts()`), handing it over with `SetWorkflowEngine`
+  **after** `Open`.
+  The **width is the weakest holder's**: the plugin (the agent-facing
+  `workflow` tool) keeps the **read side only** (`workflowapi.Store`, two
+  verbs — `Get`, `List`), because a plugin that could remove or disable a
+  stored workflow would be editing the daemon's library; the host holds
+  `workflowapi.HostStore`, and the kernel's own face is the read side —
+  checked **statically**, because a widened face still compiles and still
+  satisfies the read port, so only the declared return type can tell the two
+  apart.
+  The **rows that travel with the port** moved to the contract: `Ports` (the
+  ten host capabilities), `Provenance`, `Trigger`, `ErrHalted` and the
+  approval rows `approvalapi.SubmitSpec`/`Outcome` (the platform keeps its
+  names as aliases) — one row, one spelling.
+  The part the slice had to **teach** two layers: the engine used to be built
+  by the kernel, so `k.wfEngine` was **never nil** and nothing had to say
+  what happens without one — now the **kernel** refuses all eight lifecycle
+  operations with "the workflow engine is not available on this daemon", and
+  the **app layer** refuses the same way with "the workflow library is not
+  available on this daemon", instead of dereferencing nil.
+  Every test that expected a store became a **host**: it opens the library,
+  injects the port and builds the engine over its own kernel's ports.
+  **The ratchet went DOWN by TWO: 51/13 → 49/13.**
+  **8 mutations, 8 caught** in two honest passes, **three** of them
+  **gate-measured** by archcheck (the control plane names the module's rows
+  again; the runtime names the module's rows again; a stale allowlist entry
+  comes back), because "the kernel's reach is smaller" is not something a test
+  can see.
+  **What remains**: the kernel still reaches **12** modules. Next, in order:
   **`cadence`, `standing`, `mcp`** — many callers each; the shape is known (a
   contract port the host opens), the work is in the port's width.
   **`memory`, `worldmodel`, `roster`, `skill`, `okr`, `taste`, `catalog`** —
