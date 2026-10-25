@@ -12,15 +12,15 @@ import (
 
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 	appworkboard "github.com/agezt/agezt/kernel/app/workboard"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/executionprofile"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
 // The native bridge binds the actual profile/context APIs; business seat,
 // retry settlement and proof/review orchestration live in app/workboard.
-func (s *Server) runWorkboardDispatch(corr string, p roster.Profile, task workboardapi.Task, intent, reason string) {
+func (s *Server) runWorkboardDispatch(corr string, p agentapi.Profile, task workboardapi.Task, intent, reason string) {
 	service := appworkboard.NewExecution(s.k, s.k.Seats(), s.k.Workboard(), workboardExecutionContext{s: s, profile: p},
 		func(ctx context.Context, corr, intent string) (string, error) {
 			if p.RetryPolicy != nil && p.RetryPolicy.MaxAttempts > 1 {
@@ -35,7 +35,7 @@ func (s *Server) runWorkboardDispatch(corr string, p roster.Profile, task workbo
 
 type workboardExecutionContext struct {
 	s       *Server
-	profile roster.Profile
+	profile agentapi.Profile
 }
 
 func (b workboardExecutionContext) Agent(ctx context.Context, reason, taskID string) context.Context {

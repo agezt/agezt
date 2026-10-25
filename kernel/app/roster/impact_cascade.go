@@ -10,8 +10,8 @@ import (
 
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
@@ -31,7 +31,7 @@ type ImpactPorts struct {
 	// ConfigEntries lists the config-center entries.
 	ConfigEntries func() []*configcenter.ConfigEntry
 	// WorkspaceInfo describes the agent's workspace, when it has one.
-	WorkspaceInfo func(p core.Profile) (string, bool)
+	WorkspaceInfo func(p agentapi.Profile) (string, bool)
 	// Workflows lists the workflows.
 	Workflows func() []workflow.Workflow
 	// Mailbox reads the board's messages.
@@ -39,7 +39,7 @@ type ImpactPorts struct {
 }
 
 // ScheduleImpact lists the schedules that wake the agent.
-func ScheduleImpact(ports ImpactPorts, p core.Profile) []string {
+func ScheduleImpact(ports ImpactPorts, p agentapi.Profile) []string {
 	var out []string
 	for _, e := range ports.Schedules() {
 		if strings.EqualFold(strings.TrimSpace(e.Agent), p.Slug) {
@@ -55,7 +55,7 @@ func ScheduleImpact(ports ImpactPorts, p core.Profile) []string {
 }
 
 // MemoryImpact lists the agent's own memory records.
-func MemoryImpact(ports ImpactPorts, p core.Profile) []string {
+func MemoryImpact(ports ImpactPorts, p agentapi.Profile) []string {
 	scope := strings.TrimSpace(p.MemoryScope)
 	if scope == "" {
 		scope = p.Slug
@@ -76,7 +76,7 @@ func MemoryImpact(ports ImpactPorts, p core.Profile) []string {
 
 // AuthoredSharedMemoryImpact lists the shared memory records the agent
 // authored or last updated.
-func AuthoredSharedMemoryImpact(ports ImpactPorts, p core.Profile) []string {
+func AuthoredSharedMemoryImpact(ports ImpactPorts, p agentapi.Profile) []string {
 	records, err := ports.MemoryRecords()
 	if err != nil {
 		return nil
@@ -102,7 +102,7 @@ func MemoryRecordLabel(r memory.Record) string {
 }
 
 // SkillImpact lists the agent's skills that are not archived.
-func SkillImpact(ports ImpactPorts, p core.Profile) []string {
+func SkillImpact(ports ImpactPorts, p agentapi.Profile) []string {
 	all, err := ports.Skills()
 	if err != nil {
 		return nil
@@ -122,7 +122,7 @@ func SkillImpact(ports ImpactPorts, p core.Profile) []string {
 }
 
 // ConfigImpact lists the config-center entries that belong to the agent.
-func ConfigImpact(ports ImpactPorts, p core.Profile) []string {
+func ConfigImpact(ports ImpactPorts, p agentapi.Profile) []string {
 	if ports.ConfigEntries == nil {
 		return nil
 	}
@@ -141,7 +141,7 @@ func ConfigImpact(ports ImpactPorts, p core.Profile) []string {
 }
 
 // WorkspaceImpact lists the agent's workspace, when it has one.
-func WorkspaceImpact(ports ImpactPorts, p core.Profile) []string {
+func WorkspaceImpact(ports ImpactPorts, p agentapi.Profile) []string {
 	info, ok := ports.WorkspaceInfo(p)
 	if !ok {
 		return nil
@@ -150,7 +150,7 @@ func WorkspaceImpact(ports ImpactPorts, p core.Profile) []string {
 }
 
 // WorkflowImpact lists the workflow nodes that reference the agent.
-func WorkflowImpact(ports ImpactPorts, p core.Profile) []string {
+func WorkflowImpact(ports ImpactPorts, p agentapi.Profile) []string {
 	slug := strings.TrimSpace(p.Slug)
 	if slug == "" || ports.Workflows == nil {
 		return nil
@@ -175,7 +175,7 @@ func WorkflowImpact(ports ImpactPorts, p core.Profile) []string {
 
 // MailboxImpact lists the board messages the agent sent, received or
 // acknowledged.
-func MailboxImpact(ports ImpactPorts, p core.Profile) []string {
+func MailboxImpact(ports ImpactPorts, p agentapi.Profile) []string {
 	if ports.Mailbox == nil {
 		return nil
 	}
@@ -196,7 +196,7 @@ func MailboxImpact(ports ImpactPorts, p core.Profile) []string {
 // RemovalMailboxImpact is the removal payload's retained-message list: the
 // agent's own threads plus, when sub-agents are cascaded, theirs — DEDUPED,
 // because a message between a parent and its child appears in both.
-func RemovalMailboxImpact(ports ImpactPorts, slug string, subagents []core.Profile, includeSubagents bool) []string {
+func RemovalMailboxImpact(ports ImpactPorts, slug string, subagents []agentapi.Profile, includeSubagents bool) []string {
 	seen := map[string]bool{}
 	add := func(labels []string) {
 		for _, label := range labels {
@@ -205,7 +205,7 @@ func RemovalMailboxImpact(ports ImpactPorts, slug string, subagents []core.Profi
 			}
 		}
 	}
-	add(MailboxImpact(ports, core.Profile{Slug: slug}))
+	add(MailboxImpact(ports, agentapi.Profile{Slug: slug}))
 	if includeSubagents {
 		for _, child := range subagents {
 			add(MailboxImpact(ports, child))
@@ -299,12 +299,12 @@ func agentReferenceConfigKey(key string) bool {
 
 // Subagents returns the agent's sub-agent tree — the agents whose owner or
 // parent is the agent, and their own sub-agents — sorted by slug.
-func Subagents(profiles []core.Profile, slug string) []core.Profile {
+func Subagents(profiles []agentapi.Profile, slug string) []agentapi.Profile {
 	root := strings.TrimSpace(slug)
 	if root == "" {
 		return nil
 	}
-	byManager := map[string][]core.Profile{}
+	byManager := map[string][]agentapi.Profile{}
 	for _, p := range profiles {
 		childSlug := strings.TrimSpace(p.Slug)
 		if childSlug == "" || strings.EqualFold(childSlug, root) {
@@ -319,7 +319,7 @@ func Subagents(profiles []core.Profile, slug string) []core.Profile {
 			byManager[strings.ToLower(manager)] = append(byManager[strings.ToLower(manager)], p)
 		}
 	}
-	var out []core.Profile
+	var out []agentapi.Profile
 	seen := map[string]bool{strings.ToLower(root): true}
 	var walk func(string)
 	walk = func(parent string) {

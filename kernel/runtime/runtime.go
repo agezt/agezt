@@ -11,6 +11,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
@@ -666,6 +667,15 @@ type Config struct {
 	// transition journals through the kernel's bus without either side naming
 	// the other's implementation (W3.55).
 	SkillCurator func(store skillapi.Store, pub skillapi.Publisher) skillapi.Curator
+
+	// Roster is the roster file the host holds — the contract's store port,
+	// not a module's store (W3.56). The daemon opens the file
+	// (roster/roster.json) and hands it over (cmd/agezt): the roster's file
+	// is the daemon's business, and the kernel is a module.
+	//
+	// Nil means "no roster": the roster reads answer "no agents" and the
+	// roster writes refuse, rather than calling into nothing.
+	Roster agentapi.Store
 }
 
 // Kernel is the running Agezt instance.

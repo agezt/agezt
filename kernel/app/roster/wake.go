@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
@@ -52,7 +52,7 @@ func incidentLineage(incident, root, parent json.RawMessage) IncidentLineage {
 
 // ManagedDirectCallError is the operator-facing refusal for an action sent to a
 // managed sub-agent instead of its manager.
-func ManagedDirectCallError(p core.Profile, action string) string {
+func ManagedDirectCallError(p agentapi.Profile, action string) string {
 	manager := strings.TrimSpace(p.ParentAgent)
 	if manager == "" {
 		manager = strings.TrimSpace(p.OwnerAgent)
@@ -66,23 +66,23 @@ func ManagedDirectCallError(p core.Profile, action string) string {
 
 // directTarget resolves the agent an operator action is sent to, rejecting
 // unknown, retired, paused and managed agents in that order.
-func directTarget(get func(string) (core.Profile, bool), rawRef json.RawMessage, action string) (core.Profile, error) {
+func directTarget(get func(string) (agentapi.Profile, bool), rawRef json.RawMessage, action string) (agentapi.Profile, error) {
 	ref, err := RefPageRequest{Ref: rawRef}.ref()
 	if err != nil {
-		return core.Profile{}, err
+		return agentapi.Profile{}, err
 	}
 	p, ok := get(ref)
 	if !ok {
-		return core.Profile{}, errors.New("unknown agent: " + ref)
+		return agentapi.Profile{}, errors.New("unknown agent: " + ref)
 	}
 	if p.Retired {
-		return core.Profile{}, errors.New("agent " + p.Slug + " is retired — revive it first")
+		return agentapi.Profile{}, errors.New("agent " + p.Slug + " is retired — revive it first")
 	}
 	if !p.Enabled {
-		return core.Profile{}, errors.New("agent " + p.Slug + " is paused")
+		return agentapi.Profile{}, errors.New("agent " + p.Slug + " is paused")
 	}
 	if !p.AllowsDirectCall() {
-		return core.Profile{}, errors.New(ManagedDirectCallError(p, action))
+		return agentapi.Profile{}, errors.New(ManagedDirectCallError(p, action))
 	}
 	return p, nil
 }
@@ -120,13 +120,13 @@ func BuildOperatorWakeIntent(explicit, slug, reason string, lineage IncidentLine
 // WakeService accepts an operator wake: it validates the agent, journals the
 // request and hands the run to launch, which must not block.
 type WakeService struct {
-	get            func(string) (core.Profile, bool)
+	get            func(string) (agentapi.Profile, bool)
 	newCorrelation func() string
 	publish        func(subject, corr string, payload map[string]any)
-	launch         func(corr string, p core.Profile, intent, reason string, lineage IncidentLineage)
+	launch         func(corr string, p agentapi.Profile, intent, reason string, lineage IncidentLineage)
 }
 
-func NewWake(get func(string) (core.Profile, bool), newCorrelation func() string, publish func(subject, corr string, payload map[string]any), launch func(corr string, p core.Profile, intent, reason string, lineage IncidentLineage)) *WakeService {
+func NewWake(get func(string) (agentapi.Profile, bool), newCorrelation func() string, publish func(subject, corr string, payload map[string]any), launch func(corr string, p agentapi.Profile, intent, reason string, lineage IncidentLineage)) *WakeService {
 	return &WakeService{get: get, newCorrelation: newCorrelation, publish: publish, launch: launch}
 }
 
@@ -151,7 +151,7 @@ func (s *WakeService) Wake(_ context.Context, in WakeRequest) (WakeOutput, error
 		"agent":              p.Slug,
 		"reason":             reason,
 		"intent":             truncate(intent, 240),
-		"autonomy_runbook":   core.AutonomyRunbook(p),
+		"autonomy_runbook":   agentapi.AutonomyRunbook(p),
 		"incident_id":        lineage.IncidentID,
 		"root_incident_id":   lineage.RootIncidentID,
 		"parent_incident_id": lineage.ParentIncidentID,

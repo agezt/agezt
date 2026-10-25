@@ -9,8 +9,8 @@ import (
 	"reflect"
 
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
@@ -31,13 +31,13 @@ type RepairOutput = WakeOutput
 // RepairService accepts an operator repair: it validates the agent, journals the
 // request and hands the governed repair run to launch, which must not block.
 type RepairService struct {
-	get            func(string) (core.Profile, bool)
+	get            func(string) (agentapi.Profile, bool)
 	newCorrelation func() string
 	publish        func(subject, corr string, payload map[string]any)
-	launch         func(corr string, p core.Profile, reason string, lineage IncidentLineage)
+	launch         func(corr string, p agentapi.Profile, reason string, lineage IncidentLineage)
 }
 
-func NewRepair(get func(string) (core.Profile, bool), newCorrelation func() string, publish func(subject, corr string, payload map[string]any), launch func(corr string, p core.Profile, reason string, lineage IncidentLineage)) *RepairService {
+func NewRepair(get func(string) (agentapi.Profile, bool), newCorrelation func() string, publish func(subject, corr string, payload map[string]any), launch func(corr string, p agentapi.Profile, reason string, lineage IncidentLineage)) *RepairService {
 	return &RepairService{get: get, newCorrelation: newCorrelation, publish: publish, launch: launch}
 }
 

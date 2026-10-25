@@ -38,7 +38,7 @@ func NewKernelHost(k *kernelruntime.Kernel) guardianapi.Host {
 }
 
 // Agents lists the agents the daemon knows.
-func (h *kernelHost) Agents() []agentapi.Profile { return h.k.Roster().List() }
+func (h *kernelHost) Agents() []agentapi.Profile { return h.k.RosterList() }
 
 // AddAgent creates an agent.
 func (h *kernelHost) AddAgent(p agentapi.Profile) (agentapi.Profile, error) {

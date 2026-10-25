@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 func retryReason(err error) string {
@@ -42,7 +42,7 @@ func agentRetryable(reason string, retryOn []string) bool {
 	return false
 }
 
-func retryDelay(pol roster.RetryPolicy, attempt int) time.Duration {
+func retryDelay(pol agentapi.RetryPolicy, attempt int) time.Duration {
 	base := time.Duration(pol.BaseDelaySec) * time.Second
 	if base <= 0 {
 		return 0

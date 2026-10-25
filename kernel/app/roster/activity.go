@@ -12,9 +12,9 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // RefPageRequest keeps every argument raw so the legacy order holds: ref is
@@ -102,11 +102,11 @@ type ActivityOutput struct {
 // ActivityService folds the selected journal into one agent's timeline: the
 // runs it executed and every event attributable to it, newest first.
 type ActivityService struct {
-	get     func(string) (core.Profile, bool)
+	get     func(string) (agentapi.Profile, bool)
 	journal func(func(*event.Event) error) error
 }
 
-func NewActivity(get func(string) (core.Profile, bool), journal func(func(*event.Event) error) error) *ActivityService {
+func NewActivity(get func(string) (agentapi.Profile, bool), journal func(func(*event.Event) error) error) *ActivityService {
 	return &ActivityService{get: get, journal: journal}
 }
 

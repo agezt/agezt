@@ -2,12 +2,12 @@
 package roster
 
 import (
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"strings"
 	"time"
 )
 
-type StatusProvider func([]core.Profile, int64, int64) StatusSnapshot
+type StatusProvider func([]agentapi.Profile, int64, int64) StatusSnapshot
 type StatusService struct {
 	provider StatusProvider
 	now      func() time.Time
@@ -19,12 +19,12 @@ func NewStatus(provider StatusProvider, now func() time.Time) *StatusService {
 	}
 	return &StatusService{provider: provider, now: now}
 }
-func (s *StatusService) Views(profiles []core.Profile) map[string]map[string]any {
+func (s *StatusService) Views(profiles []agentapi.Profile) map[string]map[string]any {
 	reaperCut := s.now().Add(-30 * 24 * time.Hour).UnixMilli()
 	routingCut := s.now().Add(-24 * time.Hour).UnixMilli()
 	return RenderStatus(profiles, s.provider(profiles, reaperCut, routingCut))
 }
-func RenderStatus(profiles []core.Profile, data StatusSnapshot) map[string]map[string]any {
+func RenderStatus(profiles []agentapi.Profile, data StatusSnapshot) map[string]map[string]any {
 	out := make(map[string]map[string]any, len(profiles))
 	for _, p := range profiles {
 		st := map[string]any{

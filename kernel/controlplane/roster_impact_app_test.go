@@ -49,7 +49,7 @@ func TestAgentImpactTombstoneNativeWire(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), Schedules: sched})
+	k, err := runtime.Open(withRoster(t, runtime.Config{BaseDir: dir, Provider: mock.New(), Schedules: sched}))
 	if err != nil {
 		t.Fatal(err)
 	}

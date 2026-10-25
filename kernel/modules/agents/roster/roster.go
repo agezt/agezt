@@ -9,7 +9,6 @@ package roster
 //             unchanged.
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 
@@ -17,11 +16,17 @@ import (
 )
 
 // ErrNotFound is returned for an unknown profile id/slug.
-var ErrNotFound = errors.New("roster: profile not found")
+//
+// The sentinel itself lives in the contract layer (kernel/contract/agentapi):
+// the layers above the module compare against it, and they may not name this
+// module. The name stays here as an alias, so `errors.Is` still matches it.
+var ErrNotFound = agentapi.ErrNotFound
 
 // ErrRetired is returned when a caller tries to resume a graveyard agent through
 // the pause/resume lifecycle. Graveyard exit is a distinct revive transition.
-var ErrRetired = errors.New("roster: profile is retired")
+//
+// The sentinel itself lives in the contract layer (kernel/contract/agentapi).
+var ErrRetired = agentapi.ErrRetired
 
 // safeCall runs fn under a panic-recovery defer. If fn panics, the panic is caught
 // and returned as an error so callers never receive a raw panic.

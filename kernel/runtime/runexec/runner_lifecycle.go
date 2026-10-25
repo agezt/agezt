@@ -11,9 +11,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/work/assure"
 	"github.com/agezt/agezt/kernel/resume"
 )
@@ -23,7 +23,7 @@ func (r *Runner) CompleteAgentLifecycle(ctx context.Context, corr string) {
 	if slug == "" {
 		return
 	}
-	current, ok := r.k.Roster().Get(slug)
+	current, ok := r.k.RosterGet(slug)
 	if !ok || current.Retired {
 		return
 	}
@@ -32,12 +32,12 @@ func (r *Runner) CompleteAgentLifecycle(ctx context.Context, corr string) {
 		_, _ = r.k.SetProfileRetired(slug, true, "completed run "+corr)
 		return
 	}
-	if strings.TrimSpace(lifecycle.Mode) != roster.LifecycleCycle && lifecycle.MaxCycles <= 0 {
+	if strings.TrimSpace(lifecycle.Mode) != agentapi.LifecycleCycle && lifecycle.MaxCycles <= 0 {
 		return
 	}
 	var completed, max int
 	var advanced bool
-	_, found, err := r.k.UpdateProfile(slug, func(p *roster.Profile) {
+	_, found, err := r.k.UpdateProfile(slug, func(p *agentapi.Profile) {
 		// Idempotency: one logical run (correlation) advances the cycle
 		// exactly once. RunAssured/RunWithRetry re-invoke RunWith
 		// under the SAME corr (re-running until the work verifies
@@ -53,7 +53,7 @@ func (r *Runner) CompleteAgentLifecycle(ctx context.Context, corr string) {
 			return
 		}
 		if strings.TrimSpace(p.Lifecycle.Mode) == "" {
-			p.Lifecycle.Mode = roster.LifecycleCycle
+			p.Lifecycle.Mode = agentapi.LifecycleCycle
 		}
 		p.Lifecycle.CompletedCycles++
 		if corr != "" {

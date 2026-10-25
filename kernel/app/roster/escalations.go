@@ -12,9 +12,9 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
@@ -85,12 +85,12 @@ type EscalationsOutput struct {
 // EscalationService reports the help requests addressed to one agent (or to
 // everyone) with their doctor/delegation wake metadata from the journal.
 type EscalationService struct {
-	get     func(string) (core.Profile, bool)
+	get     func(string) (agentapi.Profile, bool)
 	board   func() (EscalationBoard, error)
 	journal func(func(*event.Event) error) error
 }
 
-func NewEscalations(get func(string) (core.Profile, bool), board func() (EscalationBoard, error), journal func(func(*event.Event) error) error) *EscalationService {
+func NewEscalations(get func(string) (agentapi.Profile, bool), board func() (EscalationBoard, error), journal func(func(*event.Event) error) error) *EscalationService {
 	return &EscalationService{get: get, board: board, journal: journal}
 }
 

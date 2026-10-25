@@ -3,12 +3,12 @@ package controlplane
 
 import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 )
 
 func (s *Server) rosterListService() *approster.ListService {
 	s.rosterListOnce.Do(func() {
-		s.rosterList = approster.NewList(func() []roster.Profile { return s.k.Roster().List() }, s.agentStatusViews, nil)
+		s.rosterList = approster.NewList(func() []agentapi.Profile { return s.k.RosterList() }, s.agentStatusViews, nil)
 	})
 	return s.rosterList
 }

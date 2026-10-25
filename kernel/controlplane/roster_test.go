@@ -3440,7 +3440,16 @@ func TestAgentEscalations_ShowsOpenDoctorResponsibilities(t *testing.T) {
 // same ms still paginate deterministically.
 
 func TestAgentList_CursorPaginatesByCreatedMSSlugDesc(t *testing.T) {
-	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	// The roster is the composition root's file (W3.56): the test opens it and
+	// hands the kernel the contract's port — and it keeps the CONCRETE store,
+	// because the clock hook (SetNowForTest) is a test seam and not on the
+	// port.
+	dir := t.TempDir()
+	store, err := roster.Open(filepath.Join(dir, "roster"))
+	if err != nil {
+		t.Fatalf("open roster store: %v", err)
+	}
+	_, _, c, _ := startPairWithConfig(t, runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok")), Roster: store})
 	ctx := context.Background()
 
 	// Five agents with deterministic CreatedMS values so the cursor
@@ -3451,7 +3460,7 @@ func TestAgentList_CursorPaginatesByCreatedMSSlugDesc(t *testing.T) {
 	for i, s := range slugs {
 		// Set the clock so each Add assigns a unique CreatedMS.
 		ms := baseMS + int64(i)
-		k.Roster().SetNowForTest(func() time.Time {
+		store.SetNowForTest(func() time.Time {
 			return time.UnixMilli(ms)
 		})
 		if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{

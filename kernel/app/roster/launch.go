@@ -5,7 +5,7 @@ package roster
 import (
 	"fmt"
 
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 )
 
 // WakeLaunchPorts are the host's capabilities an operator wake needs. The
@@ -17,7 +17,7 @@ type WakeLaunchPorts struct {
 	// the answer. The retry policy and the cost ceiling are the application's
 	// decisions: a nil policy means a plain run, a zero ceiling means no
 	// ceiling.
-	Run func(corr, intent string, retry *core.RetryPolicy, maxCostMc int64) (string, error)
+	Run func(corr, intent string, retry *agentapi.RetryPolicy, maxCostMc int64) (string, error)
 	// Publish journals the wake's outcome on the bus.
 	Publish func(subject, corr string, payload map[string]any)
 }
@@ -26,11 +26,11 @@ type WakeLaunchPorts struct {
 // outcome: the retry decision, the cost ceiling and the terminal event — the
 // answer or the error with the whole incident lineage — are the
 // application's.
-func LaunchOperatorWake(ports WakeLaunchPorts, p core.Profile, corr, intent, reason string, lineage IncidentLineage) {
-	runbook := core.AutonomyRunbook(p)
+func LaunchOperatorWake(ports WakeLaunchPorts, p agentapi.Profile, corr, intent, reason string, lineage IncidentLineage) {
+	runbook := agentapi.AutonomyRunbook(p)
 	// A profile asks for retries only when it has a policy with more than one
 	// attempt; anything else is a plain run.
-	var retry *core.RetryPolicy
+	var retry *agentapi.RetryPolicy
 	if p.RetryPolicy != nil && p.RetryPolicy.MaxAttempts > 1 {
 		retry = p.RetryPolicy
 	}
@@ -92,7 +92,7 @@ type RepairLaunchPorts struct {
 // subprocesses — on a bare goroutine, with nothing above it able to recover.
 // The panic firewall (WF-001) therefore lives here: a panic is caught, reported
 // and journaled as a failed repair instead of taking the daemon down.
-func LaunchOperatorRepair(ports RepairLaunchPorts, p core.Profile, corr, reason string, lineage IncidentLineage) {
+func LaunchOperatorRepair(ports RepairLaunchPorts, p agentapi.Profile, corr, reason string, lineage IncidentLineage) {
 	defer func() {
 		r := recover()
 		if r == nil {

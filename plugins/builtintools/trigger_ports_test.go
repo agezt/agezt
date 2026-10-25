@@ -34,7 +34,7 @@ var _ cadenceapi.Store = (*cadence.Store)(nil)
 // has to be real. A managed sub-agent must still be refused, with its
 // manager named, when the daemon configures the spec against a live kernel.
 func TestStandingSpecWiresTheRosterLookup(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withRoster(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestScheduleSpecBindsTheLiveStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open the schedule store: %v", err)
 	}
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), Schedules: sched})
+	k, err := runtime.Open(withRoster(t, runtime.Config{BaseDir: dir, Provider: mock.New(), Schedules: sched}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

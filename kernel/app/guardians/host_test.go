@@ -29,10 +29,10 @@ func TestAMissingKernelIsANilPort(t *testing.T) {
 // an agent it adds is really in the roster, and the edit it makes is really
 // stored.
 func TestTheAdapterAnswersTheLiveRoster(t *testing.T) {
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -70,10 +70,10 @@ func TestTheAdapterAnswersTheLiveRoster(t *testing.T) {
 // TestTheAdapterReportsAnUnknownAgent: an unknown ref is answered as "not
 // found" and no error — the standing pattern.
 func TestTheAdapterReportsAnUnknownAgent(t *testing.T) {
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -100,11 +100,11 @@ func TestTheAdapterAnswersTheLiveSchedules(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open the schedule store: %v", err)
 	}
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{
 		BaseDir:   dir,
 		Provider:  mock.New(),
 		Schedules: sched,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

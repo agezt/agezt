@@ -21,11 +21,11 @@ import (
 // that need a kernel without the rest of the agent loop.
 func openCausesKernel(t *testing.T) *Kernel {
 	t.Helper()
-	k, err := Open(Config{
+	k, err := Open(withRoster(t, Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
 		Tools:    map[string]toolapi.Tool{},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

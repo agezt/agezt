@@ -17,9 +17,9 @@ package runtime
 import (
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/api"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // The rows the host and the module both name are declared once, in the
@@ -77,7 +77,7 @@ func (k *Kernel) reaperService() api.ReaperScanner {
 func (k *Kernel) ReaperPorts() api.ReaperPorts {
 	return api.ReaperPorts{
 		Journal: k.reaperJournalRange,
-		Profiles: func() []roster.Profile {
+		Profiles: func() []agentapi.Profile {
 			if k.roster == nil {
 				return nil
 			}

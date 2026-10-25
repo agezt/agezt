@@ -44,13 +44,13 @@ func openScanner(t *testing.T) (*runtime.Kernel, *Scanner) {
 	if err != nil {
 		t.Fatalf("open the standing store: %v", err)
 	}
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:   dir,
 		Provider:  mock.New(mock.FinalText("ok")),
 		Tools:     map[string]toolapi.Tool{},
 		Schedules: sched,
 		Standing:  standingStore,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

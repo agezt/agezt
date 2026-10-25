@@ -13,7 +13,7 @@ import (
 	"sync"
 
 	"github.com/agezt/agezt/kernel/app/providers"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
@@ -138,7 +138,7 @@ type Server struct {
 	// repairSource is the agent-repair surface the operator's incident
 	// resolution drives, injected via SetRepairSource. Nil when unwired; the
 	// repair paths report that rather than dereferencing nil.
-	repairSource roster.RepairSource
+	repairSource agentapi.RepairSource
 
 	// One stable application-owned channel OAuth state/service per Server.
 	channelOAuthOnce    sync.Once
@@ -203,7 +203,7 @@ func (s *Server) SetBoard(st *board.Store, notify func(m board.Message, corr str
 // reaches the module's vocabulary, not a plugin (archcheck's principle P5).
 // Nil when unwired; the repair paths then report that instead of
 // dereferencing nil.
-func (s *Server) SetRepairSource(src roster.RepairSource) { s.repairSource = src }
+func (s *Server) SetRepairSource(src agentapi.RepairSource) { s.repairSource = src }
 
 // SetUpdateService wires the self-update engine (M860). Nil when update is
 // disabled; update commands report that rather than dereferencing nil.

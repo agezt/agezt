@@ -11,11 +11,11 @@ import (
 	"time"
 
 	approster "github.com/agezt/agezt/kernel/app/roster"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 )
 
 type routingChainApplier interface {
-	ApplyRoutingChain(ref, taskType string, targetChain []string, reason string) (roster.RepairResult, error)
+	ApplyRoutingChain(ref, taskType string, targetChain []string, reason string) (agentapi.RepairResult, error)
 }
 
 // postOperatorHelp posts an operator help request to target on the shared board

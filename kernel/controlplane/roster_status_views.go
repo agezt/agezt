@@ -4,21 +4,21 @@ package controlplane
 import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
-func (s *Server) agentStatusViews(profiles []roster.Profile) map[string]map[string]any {
+func (s *Server) agentStatusViews(profiles []agentapi.Profile) map[string]map[string]any {
 	return approster.NewStatus(s.collectRosterStatusSnapshot, nil).Views(profiles)
 }
 
 // collectRosterStatusSnapshot binds the host's sources to the application's
 // status collection: the journal, the folded run rows, the schedules, the
 // standing orders, the board's open help requests and the reaper scan.
-func (s *Server) collectRosterStatusSnapshot(profiles []roster.Profile, reaperCut, routingCut int64) approster.StatusSnapshot {
+func (s *Server) collectRosterStatusSnapshot(profiles []agentapi.Profile, reaperCut, routingCut int64) approster.StatusSnapshot {
 	return approster.CollectStatus(approster.StatusSources{
 		Journal: s.k.Journal().Range,
 		Runs:    s.statusRunRows,

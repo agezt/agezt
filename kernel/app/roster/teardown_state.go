@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/platform/fileworkspace"
 )
@@ -47,7 +47,7 @@ type TeardownStatePorts struct {
 
 // ForgetAgentMemory forgets the agent's own memory records — the ones whose
 // scope tag is the agent's memory scope (the slug when it has none).
-func ForgetAgentMemory(ports TeardownStatePorts, p core.Profile, on bool) (int, error) {
+func ForgetAgentMemory(ports TeardownStatePorts, p agentapi.Profile, on bool) (int, error) {
 	if !on {
 		return 0, nil
 	}
@@ -188,7 +188,7 @@ func DeleteAgentConfigEntries(ports TeardownStatePorts, slug string, on bool) (i
 // DeleteAgentWorkspace deletes the agent's workspace directory. The path must
 // live under the workspace root and must be a directory; anything else is an
 // error, and a path that is already gone is nothing to do.
-func DeleteAgentWorkspace(ports TeardownStatePorts, p core.Profile, on bool) (int, error) {
+func DeleteAgentWorkspace(ports TeardownStatePorts, p agentapi.Profile, on bool) (int, error) {
 	if !on {
 		return 0, nil
 	}

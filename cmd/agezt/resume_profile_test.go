@@ -40,7 +40,7 @@ func TestBuildResumer_QuarantinesUnsafeProfileTickets(t *testing.T) {
 		t.Run(reason, func(t *testing.T) {
 			t.Setenv("AGEZT_RESUME_MAX_ATTEMPTS", "3")
 			prov := mock.New(mock.FinalText("must not run"))
-			k, err := kernelruntime.Open(kernelruntime.Config{BaseDir: t.TempDir(), Provider: prov, ResumeEnabled: true})
+			k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{BaseDir: t.TempDir(), Provider: prov, ResumeEnabled: true}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -94,7 +94,7 @@ func TestBuildResumer_ProfileRunSurvivesRestart(t *testing.T) {
 			cfg := kernelruntime.Config{BaseDir: home, Provider: prov, Model: "default-model", ResumeEnabled: true,
 				Tools: map[string]toolapi.Tool{"probe": &scheduledProbeTool{}},
 				Edict: edict.New(edict.Options{Levels: map[edict.Capability]edict.TrustLevel{edict.CapShell: edict.LevelAllow}, AskPolicy: edict.AskAllow})}
-			k, err := kernelruntime.Open(cfg)
+			k, err := kernelruntime.Open(withRoster(t, cfg))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -153,7 +153,7 @@ func TestBuildResumer_ProfileRunSurvivesRestart(t *testing.T) {
 				return &response, nil
 			})
 			cfg.Provider = finisher
-			restarted, err = kernelruntime.Open(cfg)
+			restarted, err = kernelruntime.Open(withRoster(t, cfg))
 			if err != nil {
 				t.Fatal(err)
 			}

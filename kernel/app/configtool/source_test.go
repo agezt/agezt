@@ -31,10 +31,10 @@ func TestAMissingKernelIsANilPort(t *testing.T) {
 // the LIVE kernel — a profile that was added to the roster is the profile
 // the port edits, and the edit is really stored.
 func TestTheAdapterAnswersTheLiveRoster(t *testing.T) {
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -67,10 +67,10 @@ func TestTheAdapterAnswersTheLiveRoster(t *testing.T) {
 // found" and no error — the standing pattern the tool reads as "unknown
 // agent".
 func TestTheAdapterReportsAnUnknownAgent(t *testing.T) {
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -91,13 +91,13 @@ func TestTheAdapterReportsAnUnknownAgent(t *testing.T) {
 // the plugin may not name it.
 func TestTheAdapterReloadsTheLiveDaemon(t *testing.T) {
 	base := t.TempDir()
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{
 		BaseDir:  base,
 		Provider: mock.New(),
 		// The catalog directory is the DAEMON's file (W3.51): the test opens
 		// it and hands the kernel the contract's store port.
 		CatalogStore: catalog.NewStore(filepath.Join(base, "catalog")),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -111,10 +111,10 @@ func TestTheAdapterReloadsTheLiveDaemon(t *testing.T) {
 // TestTheAdapterReadsTheRunsOverrides: the overrides are the run's own —
 // they arrive through the daemon's context convention, read through the port.
 func TestTheAdapterReadsTheRunsOverrides(t *testing.T) {
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // TeardownPorts are the host's capabilities the agent teardown needs. The
@@ -36,7 +36,7 @@ type TeardownPorts struct {
 // RetireSubagents retires the agent's sub-agents and pauses what they still
 // wake, so a removed agent leaves nothing running behind it. The retired
 // slugs come back sorted.
-func RetireSubagents(ports TeardownPorts, parent string, children []core.Profile, on bool) (int, []string, error) {
+func RetireSubagents(ports TeardownPorts, parent string, children []agentapi.Profile, on bool) (int, []string, error) {
 	if !on {
 		return 0, nil, nil
 	}

@@ -10,8 +10,8 @@ import (
 	"time"
 
 	approster "github.com/agezt/agezt/kernel/app/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/executionprofile"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -22,7 +22,7 @@ type resolvedRun struct {
 	ctx        context.Context
 	intent     string
 	tenant     string
-	agent      *roster.Profile
+	agent      *agentapi.Profile
 	model      string // the model this run will actually use
 	overridden bool   // a per-run model override was given
 	corr       string
@@ -70,7 +70,7 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 	// this run's defaults. An unknown, retired, paused or managed agent is a
 	// usage error — silently running as the default identity would be worse.
 	if ref := strings.TrimSpace(agentRaw); ref != "" {
-		p, found := k.Roster().Get(ref)
+		p, found := k.RosterGet(ref)
 		if !found {
 			return nil, errors.New("unknown agent: " + ref)
 		}

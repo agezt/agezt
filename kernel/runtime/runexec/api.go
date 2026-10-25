@@ -11,6 +11,7 @@ import (
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
@@ -24,7 +25,6 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/journal"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/work/assure"
 	"github.com/agezt/agezt/kernel/reflect"
@@ -53,8 +53,8 @@ type KernelAPI interface {
 	ShadowEval() bool
 	FoldRunTools(corr string) (int, []string)
 	CompleteAux(ctx context.Context, corr, taskType string, req llm.CompletionRequest) (*llm.CompletionResponse, error)
-	UpdateProfile(ref string, mutate func(*roster.Profile)) (roster.Profile, bool, error)
-	SetProfileRetired(ref string, retired bool, reason ...string) (roster.Profile, error)
+	UpdateProfile(ref string, mutate func(*agentapi.Profile)) (agentapi.Profile, bool, error)
+	SetProfileRetired(ref string, retired bool, reason ...string) (agentapi.Profile, error)
 	SetupRunState(corr string, parentCtx context.Context) (context.Context, context.CancelFunc, agent.Steerer, error)
 	CleanupRunState(corr string) []context.CancelFunc
 	DeregisterRunSteer(corr string)
@@ -95,7 +95,11 @@ type KernelAPI interface {
 	DataLake() datalakeapi.Lake
 	State() *state.FileStore
 	Schedules() cadenceapi.HostStore
-	Roster() *roster.Store
+	Roster() agentapi.Store
+	// RosterGet is the NIL-SAFE roster read: a kernel with no roster has no
+	// agents, not a panic.
+	RosterGet(ref string) (agentapi.Profile, bool)
+	RosterList() []agentapi.Profile
 	Standing() standingapi.Store
 	StandingList() []standingapi.Order
 	ConfigCenter() *configcenter.Center
@@ -116,14 +120,14 @@ type KernelAPI interface {
 	// public surface is consistent.
 	RunAssured(ctx context.Context, corr, intent string, maxAttempts int) (string, assure.Result, error)
 	RunWith(ctx context.Context, corr, intent string) (string, error)
-	RunWithRetry(ctx context.Context, corr, intent string, pol roster.RetryPolicy) (string, error)
+	RunWithRetry(ctx context.Context, corr, intent string, pol agentapi.RetryPolicy) (string, error)
 	NewCorrelation() string
 	VerifyCompletion(ctx context.Context, corr, task, answer string) (assure.Verdict, error)
 	ClaimResumeTicket(ctx context.Context, corr, intent, kind string, assureBudget int) (context.Context, bool)
 	FinalizeResumeTicket(corr string, runErr error)
 	AgentSlugFromCtx(ctx context.Context) string
-	AgentRetryPolicyFromCtx(ctx context.Context) (roster.RetryPolicy, bool)
+	AgentRetryPolicyFromCtx(ctx context.Context) (agentapi.RetryPolicy, bool)
 	RetryReason(err error) string
 	AgentRetryable(reason string, retryOn []string) bool
-	RetryDelay(pol roster.RetryPolicy, attempt int) time.Duration
+	RetryDelay(pol agentapi.RetryPolicy, attempt int) time.Duration
 }

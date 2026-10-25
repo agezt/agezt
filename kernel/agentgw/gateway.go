@@ -16,8 +16,8 @@ import (
 	"crypto/rand"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/journal"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"log/slog"
 	"net/http"
@@ -34,7 +34,7 @@ type Gateway struct {
 	// Kernel integrations (set via Attach)
 	bus      *bus.Bus
 	mem      *memory.Manager
-	roster   *roster.Store
+	roster   agentapi.Reader
 	sockPath string
 
 	// srvMu guards httpSrv: Listen runs on a background goroutine (runtime.Open)
@@ -116,7 +116,7 @@ func (g *Gateway) SetAuditJournal(j *journal.Journal) {
 }
 
 // Attach connects the gateway to the kernel subsystems.
-func (g *Gateway) Attach(bus *bus.Bus, mem *memory.Manager, roster *roster.Store) {
+func (g *Gateway) Attach(bus *bus.Bus, mem *memory.Manager, roster agentapi.Reader) {
 	g.bus = bus
 	g.mem = mem
 	g.roster = roster

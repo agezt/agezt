@@ -85,7 +85,7 @@ func runScheduledGraveyardScan(ctx context.Context, k *kernelruntime.Kernel, cor
 	}
 	graveyard := 0
 	eligible := make([]string, 0)
-	for _, p := range k.Roster().List() {
+	for _, p := range k.RosterList() {
 		if !p.Retired {
 			continue
 		}

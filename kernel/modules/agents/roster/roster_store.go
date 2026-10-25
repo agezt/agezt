@@ -13,9 +13,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/platform/filestore"
 	"github.com/agezt/agezt/kernel/ulid"
 )
+
+// Store is the module's implementation of the contract's store port: the
+// module's whole public surface as the layers above it see it.
+var _ agentapi.Store = (*Store)(nil)
 
 type Store struct {
 	path     string

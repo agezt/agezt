@@ -39,12 +39,12 @@ func runKernel(t *testing.T) *runtime.Kernel {
 	t.Helper()
 	prov := mock.New()
 	prov.Responder = runResponder
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
 		Model:    "run-model",
 		Tools:    map[string]toolapi.Tool{},
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func runKernelWithTools(t *testing.T) *runtime.Kernel {
 	t.Helper()
 	prov := mock.New()
 	prov.Responder = runResponder
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
 		Model:    "run-model",
@@ -65,7 +65,7 @@ func runKernelWithTools(t *testing.T) *runtime.Kernel {
 			"shell": fakeTool{name: "shell"},
 			"file":  fakeTool{name: "file"},
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}

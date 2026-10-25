@@ -45,7 +45,7 @@ func TestAgentRepairNativeLaunchCarriesLineage(t *testing.T) {
 	// A synchronous launch would hold the reply until this request returns.
 	release := make(chan struct{})
 	prov.OnRequest = func(llm.CompletionRequest) { <-release }
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: prov})
+	k, err := runtime.Open(withRoster(t, runtime.Config{BaseDir: dir, Provider: prov}))
 	if err != nil {
 		t.Fatal(err)
 	}

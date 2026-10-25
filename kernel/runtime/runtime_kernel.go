@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
@@ -36,7 +37,6 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/journal"
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/reasoning/api"
@@ -69,7 +69,7 @@ type Kernel struct {
 	marketMgr    marketapi.Manager
 	standing     standingapi.Store // the standing-order library — the contract's store port (W3.50)
 	resume       *resume.Store     // durable in-flight-run tickets for restart resume (M1002); nil when disabled
-	roster       *roster.Store
+	roster       agentapi.Store
 	toolForge    toolforgeapi.HostStore
 	mcpStore     *mcp.Store
 	workflows    workflowapi.Store

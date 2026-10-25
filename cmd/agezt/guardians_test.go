@@ -30,7 +30,7 @@ func TestSeedBuiltInGuardiansSeedsTheLiveFleet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open the standing store: %v", err)
 	}
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), Schedules: sched, Standing: standingStore})
+	k, err := runtime.Open(withRoster(t, runtime.Config{BaseDir: dir, Provider: mock.New(), Schedules: sched, Standing: standingStore}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

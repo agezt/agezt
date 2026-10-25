@@ -27,7 +27,7 @@ func workboardAppFixture(t *testing.T) (*runtime.Kernel, *Server, workboard.Task
 	if err != nil {
 		t.Fatal(err)
 	}
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, Workboard: board})
+	k, err := runtime.Open(withRoster(t, runtime.Config{BaseDir: dir, Provider: provider, Workboard: board}))
 	if err != nil {
 		t.Fatal(err)
 	}

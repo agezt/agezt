@@ -9,14 +9,13 @@ package runtime
 //             unchanged.
 
 import (
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"strings"
-
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // AgentProfileSystem renders a profile's system prompt: its soul, standing
 // instructions and task list. Empty when the profile defines none of them.
-func AgentProfileSystem(p roster.Profile) string {
+func AgentProfileSystem(p agentapi.Profile) string {
 	var b strings.Builder
 	if soul := strings.TrimSpace(p.Soul); soul != "" {
 		b.WriteString(soul)
@@ -53,7 +52,7 @@ func AgentProfileSystem(p roster.Profile) string {
 	return strings.TrimSpace(b.String())
 }
 
-func profileTasksByScope(tasks []roster.AgentTask) (cycle, total []roster.AgentTask) {
+func profileTasksByScope(tasks []agentapi.AgentTask) (cycle, total []agentapi.AgentTask) {
 	for _, t := range tasks {
 		status := strings.TrimSpace(t.Status)
 		if status == "done" || status == "retired" {
@@ -68,7 +67,7 @@ func profileTasksByScope(tasks []roster.AgentTask) (cycle, total []roster.AgentT
 	return cycle, total
 }
 
-func writeProfileTasks(b *strings.Builder, tasks []roster.AgentTask) {
+func writeProfileTasks(b *strings.Builder, tasks []agentapi.AgentTask) {
 	for i, t := range tasks {
 		if i >= 20 {
 			b.WriteString("- ...\n")

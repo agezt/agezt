@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 
 	approster "github.com/agezt/agezt/kernel/app/roster"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 )
 
 // workspacePorts binds the host's filesystem to the application's workspace
@@ -34,7 +34,7 @@ func (s *Server) workspacePorts() approster.WorkspacePorts {
 
 // agentWorkspaceInfo describes the agent's workspace — the path and what is
 // in it — when it has one.
-func (s *Server) agentWorkspaceInfo(p core.Profile) (string, bool) {
+func (s *Server) agentWorkspaceInfo(p agentapi.Profile) (string, bool) {
 	return approster.WorkspaceInfo(s.workspacePorts(), p)
 }
 

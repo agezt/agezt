@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
@@ -38,9 +38,9 @@ func (h ImpactHoldings) lists() [][]string {
 
 // ImpactSource reads the agent's sub-agent tree and each subsystem's holdings.
 type ImpactSource interface {
-	Get(ref string) (core.Profile, bool)
-	Subagents(slug string) []core.Profile
-	Holdings(p core.Profile) ImpactHoldings
+	Get(ref string) (agentapi.Profile, bool)
+	Subagents(slug string) []agentapi.Profile
+	Holdings(p agentapi.Profile) ImpactHoldings
 }
 
 // ImpactOutput is the teardown preview: for every subsystem, what the agent holds
@@ -106,7 +106,7 @@ func (o *ImpactOutput) impactFields() [][4]any {
 
 // SubagentImpactLabels names each sub-agent with its relation to slug and its
 // retired state, sorted.
-func SubagentImpactLabels(slug string, children []core.Profile) []string {
+func SubagentImpactLabels(slug string, children []agentapi.Profile) []string {
 	out := make([]string, 0, len(children))
 	for _, child := range children {
 		roles := make([]string, 0, 2)
@@ -136,7 +136,7 @@ func SubagentImpactLabels(slug string, children []core.Profile) []string {
 // AggregateSubagentLabels prefixes each child's labels (lists[i] for
 // children[i]) with its slug and sorts the union; nil when no child holds
 // anything.
-func AggregateSubagentLabels(children []core.Profile, lists [][]string) []string {
+func AggregateSubagentLabels(children []agentapi.Profile, lists [][]string) []string {
 	var out []string
 	for i, child := range children {
 		for _, label := range lists[i] {
@@ -153,7 +153,7 @@ type ImpactService struct{ src ImpactSource }
 func NewImpact(src ImpactSource) *ImpactService { return &ImpactService{src: src} }
 
 // Summary is the teardown preview for a resolved agent.
-func (s *ImpactService) Summary(p core.Profile) ImpactOutput {
+func (s *ImpactService) Summary(p agentapi.Profile) ImpactOutput {
 	children := s.src.Subagents(p.Slug)
 	labels := SubagentImpactLabels(p.Slug, children)
 	out := ImpactOutput{Slug: p.Slug, Subagents: labels, SubagentCount: len(labels)}
@@ -174,14 +174,14 @@ func (s *ImpactService) Summary(p core.Profile) ImpactOutput {
 	return out
 }
 
-func (s *ImpactService) resolve(in RefPageRequest) (core.Profile, error) {
+func (s *ImpactService) resolve(in RefPageRequest) (agentapi.Profile, error) {
 	ref, err := in.ref()
 	if err != nil {
-		return core.Profile{}, err
+		return agentapi.Profile{}, err
 	}
 	p, ok := s.src.Get(ref)
 	if !ok {
-		return core.Profile{}, errors.New("unknown agent: " + ref)
+		return agentapi.Profile{}, errors.New("unknown agent: " + ref)
 	}
 	return p, nil
 }

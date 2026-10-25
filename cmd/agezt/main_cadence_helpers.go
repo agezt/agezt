@@ -12,11 +12,11 @@ import (
 
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/cadence/systemtasks"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
-func scheduledRunContext(runCtx context.Context, model string, prof *roster.Profile) context.Context {
+func scheduledRunContext(runCtx context.Context, model string, prof *agentapi.Profile) context.Context {
 	mctx := runCtx
 	if prof != nil {
 		mctx = kernelruntime.WithAgentProfile(mctx, *prof)
@@ -31,7 +31,7 @@ func scheduledRunContext(runCtx context.Context, model string, prof *roster.Prof
 	}
 	return mctx
 }
-func scheduleFiredEventPayload(id, intent, model string, ent cadence.Entry, profs ...*roster.Profile) map[string]any {
+func scheduleFiredEventPayload(id, intent, model string, ent cadence.Entry, profs ...*agentapi.Profile) map[string]any {
 	payload := map[string]any{
 		"schedule_id": id,
 		"intent":      intent,
@@ -74,6 +74,6 @@ func scheduleFiredEventPayload(id, intent, model string, ent cadence.Entry, prof
 // resolves a concrete agent profile. It delegates to the canonical roster builder
 // so operator, schedule, standing, and delegated wakes all carry an
 // identically-shaped runbook through the journal.
-func agentAutonomyRunbookPayload(p roster.Profile) map[string]any {
-	return roster.AutonomyRunbook(p)
+func agentAutonomyRunbookPayload(p agentapi.Profile) map[string]any {
+	return agentapi.AutonomyRunbook(p)
 }

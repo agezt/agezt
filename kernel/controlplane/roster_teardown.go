@@ -11,9 +11,9 @@ package controlplane
 
 import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // teardownPorts binds the host's stores to the application's teardown.
@@ -60,7 +60,7 @@ func (s *Server) teardownPorts() approster.TeardownPorts {
 
 // retireAgentSubagents retires the agent's sub-agents and pauses what they
 // still wake.
-func (s *Server) retireAgentSubagents(parent string, children []core.Profile, on bool) (int, []string, error) {
+func (s *Server) retireAgentSubagents(parent string, children []agentapi.Profile, on bool) (int, []string, error) {
 	return approster.RetireSubagents(s.teardownPorts(), parent, children, on)
 }
 

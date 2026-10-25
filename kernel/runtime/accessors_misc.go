@@ -14,11 +14,11 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/governor"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -54,7 +54,7 @@ func (k *Kernel) AgentSlugFromCtx(ctx context.Context) string { return agentSlug
 // attached to a run context by WithAgentProfile (or zero + false
 // when unset). Wraps the package-level agentRetryPolicyFromCtx
 // for the same reason as AgentSlugFromCtx (Day 23).
-func (k *Kernel) AgentRetryPolicyFromCtx(ctx context.Context) (roster.RetryPolicy, bool) {
+func (k *Kernel) AgentRetryPolicyFromCtx(ctx context.Context) (agentapi.RetryPolicy, bool) {
 	return agentRetryPolicyFromCtx(ctx)
 }
 

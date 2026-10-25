@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
@@ -43,13 +43,13 @@ type SetEnabledOutput struct {
 // its standing orders and schedules are still paused, since retirement paused
 // them and resuming the agent does not re-enable them.
 type SetEnabledService struct {
-	set             func(string, bool) (core.Profile, error)
+	set             func(string, bool) (agentapi.Profile, error)
 	pausedStanding  func(string) int
 	pausedSchedules func(string) int
 	invalidate      func()
 }
 
-func NewSetEnabled(set func(string, bool) (core.Profile, error), pausedStanding, pausedSchedules func(string) int, invalidate func()) *SetEnabledService {
+func NewSetEnabled(set func(string, bool) (agentapi.Profile, error), pausedStanding, pausedSchedules func(string) int, invalidate func()) *SetEnabledService {
 	return &SetEnabledService{set: set, pausedStanding: pausedStanding, pausedSchedules: pausedSchedules, invalidate: invalidate}
 }
 
@@ -61,10 +61,10 @@ func (s *SetEnabledService) SetEnabled(_ context.Context, in SetEnabledRequest) 
 	enabled := in.enabled()
 	p, err := s.set(ref, enabled)
 	if err != nil {
-		if errors.Is(err, core.ErrNotFound) {
+		if errors.Is(err, agentapi.ErrNotFound) {
 			return SetEnabledOutput{}, errors.New("unknown agent: " + ref)
 		}
-		if errors.Is(err, core.ErrRetired) {
+		if errors.Is(err, agentapi.ErrRetired) {
 			return SetEnabledOutput{}, errors.New("agent " + ref + " is retired — revive it first")
 		}
 		return SetEnabledOutput{}, err
