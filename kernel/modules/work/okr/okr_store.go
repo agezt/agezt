@@ -42,12 +42,12 @@ func OpenStore(dir string) (*Store, error) {
 }
 
 // Create inserts a new Objective.
-func (s *Store) Create(spec CreateSpec, now time.Time) (Objective, error) {
+func (s *Store) Create(spec CreateSpec, nowMS int64) (Objective, error) {
 	spec.Title = strings.TrimSpace(spec.Title)
 	if spec.Title == "" {
 		return Objective{}, errors.New("okr: title required")
 	}
-	ts := now.UnixMilli()
+	ts := nowMS
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(s.objectives) >= maxObjectives {
@@ -113,7 +113,7 @@ func (s *Store) List(f Filter) []Objective {
 }
 
 // AddKeyResult appends a Key Result to an Objective.
-func (s *Store) AddKeyResult(objID, title string, target int, now time.Time) (Objective, error) {
+func (s *Store) AddKeyResult(objID, title string, target int, nowMS int64) (Objective, error) {
 	title = strings.TrimSpace(title)
 	if title == "" {
 		return Objective{}, errors.New("okr: key result title required")
@@ -127,11 +127,11 @@ func (s *Store) AddKeyResult(objID, title string, target int, now time.Time) (Ob
 		}
 		o.KeyResults = append(o.KeyResults, KeyResult{ID: ulid.New(), Title: title, Target: target, CreatedMS: ts})
 		return nil
-	}, now)
+	}, nowMS)
 }
 
 // LinkTask attaches a workboard task id to a Key Result (idempotent).
-func (s *Store) LinkTask(objID, krID, taskID string, now time.Time) (Objective, error) {
+func (s *Store) LinkTask(objID, krID, taskID string, nowMS int64) (Objective, error) {
 	krID = strings.TrimSpace(krID)
 	taskID = strings.TrimSpace(taskID)
 	if krID == "" || taskID == "" {
@@ -152,11 +152,11 @@ func (s *Store) LinkTask(objID, krID, taskID string, now time.Time) (Objective, 
 		}
 		kr.TaskIDs = append(kr.TaskIDs, taskID)
 		return nil
-	}, now)
+	}, nowMS)
 }
 
 // UnlinkTask removes a task id from a Key Result (idempotent).
-func (s *Store) UnlinkTask(objID, krID, taskID string, now time.Time) (Objective, error) {
+func (s *Store) UnlinkTask(objID, krID, taskID string, nowMS int64) (Objective, error) {
 	krID = strings.TrimSpace(krID)
 	taskID = strings.TrimSpace(taskID)
 	return s.mutate(objID, func(o *Objective, _ int64) error {
@@ -172,12 +172,12 @@ func (s *Store) UnlinkTask(objID, krID, taskID string, now time.Time) (Objective
 		}
 		kr.TaskIDs = append([]string(nil), out...)
 		return nil
-	}, now)
+	}, nowMS)
 }
 
 // SetStatus transitions an Objective's status (achieved/active/archived). Setting
 // achieved stamps AchievedMS; leaving achieved clears it.
-func (s *Store) SetStatus(id string, status Status, now time.Time) (Objective, error) {
+func (s *Store) SetStatus(id string, status Status, nowMS int64) (Objective, error) {
 	if !statusValid[status] {
 		return Objective{}, fmt.Errorf("%w: %s", ErrInvalidStatus, status)
 	}
@@ -191,12 +191,12 @@ func (s *Store) SetStatus(id string, status Status, now time.Time) (Objective, e
 			o.AchievedMS = 0
 		}
 		return nil
-	}, now)
+	}, nowMS)
 }
 
 // Archive marks an Objective archived.
-func (s *Store) Archive(id string, now time.Time) (Objective, error) {
-	return s.SetStatus(id, StatusArchived, now)
+func (s *Store) Archive(id string, nowMS int64) (Objective, error) {
+	return s.SetStatus(id, StatusArchived, nowMS)
 }
 
 // ObjectivesForTask returns the ids of objectives that link taskID under any Key

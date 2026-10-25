@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/modules/work/okr"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/runtime"
 )
@@ -23,5 +24,12 @@ func withWorkboard(t *testing.T, cfg runtime.Config) runtime.Config {
 		t.Fatalf("open the workboard store: %v", err)
 	}
 	cfg.Workboard = store
+	// The objective library is the composition root's file too (W3.53): the
+	// kernel holds the contract's store port, and the host opens the file.
+	okrStore, err := okr.OpenStore(filepath.Join(cfg.BaseDir, "okr"))
+	if err != nil {
+		t.Fatalf("open the okr store: %v", err)
+	}
+	cfg.OKRStore = okrStore
 	return cfg
 }

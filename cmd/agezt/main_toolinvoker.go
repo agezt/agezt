@@ -16,6 +16,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
+	"github.com/agezt/agezt/kernel/modules/work/okr"
 	"github.com/agezt/agezt/kernel/modules/work/seat"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
@@ -159,6 +160,23 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 			return nil, err
 		}
 		cfg.TasteStore = store
+	}
+	if cfg.OKRStore == nil {
+		// The objective library (W3.53) — the contract's store port. The daemon
+		// opens the file (okr/okr.json) and hands the kernel the port; the
+		// kernel creates goals, links tasks to key results and flips a goal's
+		// status through it, and never opens a library of its own.
+		//
+		// The library lives under the BASE DIR, so a tenant's kernel — which
+		// has its own base dir — opens its own objectives.
+		//
+		// A library that cannot be opened is a STARTUP ERROR: the objective
+		// library is part of the daemon, not a convenience.
+		store, err := okr.OpenStore(filepath.Join(cfg.BaseDir, "okr"))
+		if err != nil {
+			return nil, err
+		}
+		cfg.OKRStore = store
 	}
 	if cfg.Workboard == nil {
 		// The durable task board (W3.47) — the contract's host port. The

@@ -3,15 +3,15 @@ package okr
 
 import (
 	"context"
-	objectives "github.com/agezt/agezt/kernel/modules/work/okr"
+	"github.com/agezt/agezt/kernel/contract/okrapi"
 )
 
 type MutationHost interface {
-	CreateObjective(string, objectives.CreateSpec) (objectives.Objective, error)
-	AddObjectiveKeyResult(string, string, string, int) (objectives.Objective, error)
-	LinkObjectiveTask(string, string, string, string) (objectives.Objective, error)
-	UnlinkObjectiveTask(string, string, string, string) (objectives.Objective, error)
-	ArchiveObjective(string, string) (objectives.Objective, error)
+	CreateObjective(string, okrapi.CreateSpec) (okrapi.Objective, error)
+	AddObjectiveKeyResult(string, string, string, int) (okrapi.Objective, error)
+	LinkObjectiveTask(string, string, string, string) (okrapi.Objective, error)
+	UnlinkObjectiveTask(string, string, string, string) (okrapi.Objective, error)
+	ArchiveObjective(string, string) (okrapi.Objective, error)
 }
 type Lifecycle struct {
 	host MutationHost
@@ -23,8 +23,8 @@ func NewLifecycle(host MutationHost, view *Service) *Lifecycle {
 }
 
 type CreateInput struct {
-	CorrelationID string                `json:"correlation_id,omitempty"`
-	Spec          objectives.CreateSpec `json:"spec"`
+	CorrelationID string            `json:"correlation_id,omitempty"`
+	Spec          okrapi.CreateSpec `json:"spec"`
 }
 type KeyResultInput struct {
 	CorrelationID string `json:"correlation_id,omitempty"`
@@ -46,7 +46,7 @@ type ObjectiveOutput struct {
 	Objective Record `json:"objective"`
 }
 
-func (s *Lifecycle) result(objective objectives.Objective, err error) (ObjectiveOutput, error) {
+func (s *Lifecycle) result(objective okrapi.Objective, err error) (ObjectiveOutput, error) {
 	if err != nil {
 		return ObjectiveOutput{}, err
 	}

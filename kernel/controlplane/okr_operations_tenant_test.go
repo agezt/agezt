@@ -9,14 +9,13 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestOKROperationsSocketTenantDenialPreservesPrimary(t *testing.T) {
 	primary, server, _, dir := startPair(t, mock.New())
 	registry := withTenants(t, server, dir)
 	token := mustTenant(t, registry, "acme")
-	objective, err := primary.OKR().Create(okr.CreateSpec{Title: "primary-private"}, time.UnixMilli(100))
+	objective, err := primary.OKR().Create(okr.CreateSpec{Title: "primary-private"}, 100)
 	if err != nil {
 		t.Fatal(err)
 	}

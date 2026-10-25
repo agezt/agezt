@@ -31,7 +31,6 @@ import (
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
-	"github.com/agezt/agezt/kernel/modules/work/okr"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/resume"
@@ -206,10 +205,11 @@ func Open(cfg Config) (*Kernel, error) {
 	// contract's host port. A kernel opened without one refuses every board
 	// operation instead of calling into nothing.
 
-	okrstore, err := okr.OpenStore(filepath.Join(cfg.BaseDir, "okr"))
-	if err != nil {
-		return fail("runtime: okr", err)
-	}
+	// The objective library is NOT opened here (W3.53) — it is the composition
+	// root's file, and the kernel holds the contract's store port
+	// (cfg.OKRStore). A host that was given none holds a nil port and the
+	// objective surfaces report that the library is unavailable rather than
+	// calling into nothing.
 
 	// The curated exemplar library is NOT opened here (W3.52) — it is the
 	// composition root's file, and the kernel holds the contract's store port
@@ -310,7 +310,7 @@ func Open(cfg Config) (*Kernel, error) {
 		mcpConns:     make(map[string]mcp.Conn),
 		workflows:    cfg.Workflows,
 		workboard:    cfg.Workboard,
-		okr:          okrstore,
+		okr:          cfg.OKRStore,
 		taste:        cfg.TasteStore,
 		seat:         cfg.Seats,
 		artifacts:    cfg.Artifacts,

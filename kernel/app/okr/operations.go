@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/okrapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	objectives "github.com/agezt/agezt/kernel/modules/work/okr"
 	"strings"
 )
 
@@ -78,7 +78,7 @@ func requestCorrelation(ctx context.Context, raw any) string {
 	return opapi.CorrelationFromContext(ctx)
 }
 func nativeResult(id any, out ObjectiveOutput, err error) (ObjectiveOutput, error) {
-	if errors.Is(err, objectives.ErrNotFound) {
+	if errors.Is(err, okrapi.ErrNotFound) {
 		err = fmt.Errorf("unknown objective: %s", requestText(id))
 	}
 	return out, err
@@ -99,7 +99,7 @@ func Operations(reads func(context.Context) *Service, writes func(context.Contex
 	bindings := []func() error{
 		func() error {
 			return bind(&ops, opapi.Spec{Name: "okr_list", ReadOnly: true}, func(ctx context.Context, in ListRequestInput) (ListOutput, error) {
-				return reads(ctx).List(ctx, ListInput{Status: objectives.Status(requestText(in.Status)), Tenant: requestText(in.Tenant), IncludeArchived: in.IncludeArchived, Limit: requestLimit(in.Limit)})
+				return reads(ctx).List(ctx, ListInput{Status: okrapi.Status(requestText(in.Status)), Tenant: requestText(in.Tenant), IncludeArchived: in.IncludeArchived, Limit: requestLimit(in.Limit)})
 			})
 		},
 		func() error {
@@ -113,7 +113,7 @@ func Operations(reads func(context.Context) *Service, writes func(context.Contex
 				if title == "" {
 					return ObjectiveOutput{}, errors.New("okr_create requires title")
 				}
-				return writes(ctx).Create(ctx, CreateInput{CorrelationID: requestCorrelation(ctx, in.CorrelationID), Spec: objectives.CreateSpec{Title: title, Description: requestText(in.Description), Owner: requestText(in.Owner), Tenant: requestText(in.Tenant)}})
+				return writes(ctx).Create(ctx, CreateInput{CorrelationID: requestCorrelation(ctx, in.CorrelationID), Spec: okrapi.CreateSpec{Title: title, Description: requestText(in.Description), Owner: requestText(in.Owner), Tenant: requestText(in.Tenant)}})
 			})
 		},
 		func() error {

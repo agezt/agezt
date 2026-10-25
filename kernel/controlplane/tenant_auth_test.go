@@ -16,6 +16,7 @@ import (
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
+	"github.com/agezt/agezt/kernel/modules/work/okr"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -32,11 +33,17 @@ func withTenants(t *testing.T, srv *controlplane.Server, dir string) *tenant.Reg
 		if terr != nil {
 			t.Fatalf("open tenant taste store: %v", terr)
 		}
+		// The objective library is the composition root's file too (W3.53).
+		okrStore, oerr := okr.OpenStore(filepath.Join(tdir, "okr"))
+		if oerr != nil {
+			t.Fatalf("open tenant okr store: %v", oerr)
+		}
 		return runtime.Open(runtime.Config{
 			BaseDir:    tdir,
 			Provider:   mock.New(mock.FinalText("tenant-ok")),
 			Tools:      map[string]toolapi.Tool{},
 			TasteStore: tasteStore,
+			OKRStore:   okrStore,
 		})
 	})
 	if err != nil {

@@ -27,16 +27,23 @@ func okrAppFixture(t *testing.T) (*runtime.Kernel, *Server, okr.Objective, strin
 	if err != nil {
 		t.Fatal(err)
 	}
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, Workboard: board})
+	// The objective library is the composition root's file too (W3.53): this
+	// test is such a host — it opens the store and hands the kernel the
+	// contract's port.
+	okrStore, err := okr.OpenStore(filepath.Join(dir, "okr"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, Workboard: board, OKRStore: okrStore})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
-	objective, err := k.OKR().Create(okr.CreateSpec{Title: "owned", Tenant: "team"}, time.UnixMilli(100))
+	objective, err := k.OKR().Create(okr.CreateSpec{Title: "owned", Tenant: "team"}, 100)
 	if err != nil {
 		t.Fatal(err)
 	}
-	objective, err = k.OKR().AddKeyResult(objective.ID, "criterion", 1, time.UnixMilli(100))
+	objective, err = k.OKR().AddKeyResult(objective.ID, "criterion", 1, 100)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/okrapi"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/tasteapi"
@@ -618,6 +619,15 @@ type Config struct {
 	// Nil means "no exemplar library": the kernel injects no exemplars into a
 	// run rather than calling into nothing.
 	TasteStore tasteapi.Store
+
+	// OKRStore is the objective library the host holds — the contract's store
+	// port, not a module's store (W3.53). The daemon opens the file
+	// (okr/okr.json) and hands it over (cmd/agezt): the library's file is the
+	// daemon's business, and the kernel is a module.
+	//
+	// Nil means "no objective library": the objective surfaces report that the
+	// library is unavailable rather than calling into nothing.
+	OKRStore okrapi.Store
 }
 
 // Kernel is the running Agezt instance.
