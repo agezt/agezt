@@ -4439,6 +4439,31 @@ This file holds the active `[Unreleased]` working set.
 
 ### Removed
 
+- **Removed: the kernel's reach on the catalog (W3.51).** The kernel held the
+  catalog module's concrete store, **opened the catalog's directory** itself
+  and handed the module's concrete row to the run executor, to the governor's
+  pricing table and to the scheduled system task. The kernel now holds the
+  **contract's** rows and ports — the `Catalog` aggregate (with the **nine
+  rules** about it: the down-routing that picks a tool-capable sibling, the
+  vision sidecar's choice, the council's seats, the pricing table's lookup),
+  the **store** port (five verbs — what the layers above actually drive) and
+  the **syncer** port (one verb). Both the directory and the syncer are the
+  **daemon's**: `cmd/agezt` opens `catalog/` and hands the kernel the ports;
+  the scheduled system task reaches the syncer through the kernel, because the
+  module that drives a sync may not name the module that fetches.
+  The rules had to travel with the row: a Go type alias cannot carry methods,
+  so a rule that stayed in the module could not be reached by the layers above
+  it. The syncer's URL and timeout are **parameters, not fields** — a port
+  cannot carry mutable state that a caller would have to reach through.
+  A daemon with **no** catalog answers two different ways, on purpose: the
+  **read** surface answers the **empty** catalog ("no providers" is an honest
+  answer, and a nil snapshot would make every reader a potential panic), while
+  the **write** surfaces refuse ("the catalog library is not available on this
+  daemon") — there is nowhere to write. The architecture ratchet went from 43
+  to 39 edges.
+  No behaviour changed: the catalog is still the same store, under the same
+  directory, with the same lifecycle.
+
 - **Removed: the kernel's reach on the standing-order library (W3.50).** The
   kernel held the standing module's concrete store, **opened the library's
   file** itself and handed the module's concrete type to the run executor and
