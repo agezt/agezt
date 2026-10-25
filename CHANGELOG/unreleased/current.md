@@ -4439,6 +4439,35 @@ This file holds the active `[Unreleased]` working set.
 
 ### Removed
 
+- **Removed: the kernel's reach on the standing-order library (W3.50).** The
+  kernel held the standing module's concrete store, **opened the library's
+  file** itself and handed the module's concrete type to the run executor and
+  to the control plane. The kernel now holds the **contract's store port** —
+  `standingapi.Store`, seven verbs (`Add`, `SetEnabled`, `Update`, `Remove`,
+  `Get`, `List`, `Count`) — and both the library's file and the library's
+  **residents** are the **daemon's**: `cmd/agezt` opens
+  `standing/standing.json`, and a library that cannot be opened is a startup
+  error. The residents (the event runner and the cron ticker) are built by the
+  composition root over that very store, so the kernel's port and the
+  residents read the same rows.
+  The port is the module's whole public surface and no more: a wider port
+  would let a caller reach past the library's own rules (the store validates,
+  assigns ids and protects the identity fields the mutator must not touch), and
+  a narrower one would force a second shape to be kept in step with it.
+  **`ErrNotFound` moved to the contract** — the kernel compares against it (the
+  edit path turns "not found" into "the order does not exist") and the kernel
+  may not name a module; the module keeps the name as an alias, so the two are
+  the same error value and every comparison still holds. The layers above the
+  module now name the **contract's** rows (`standingapi.Order`) instead of
+  reaching a module to say so.
+  A host may now open a kernel **without** a library, and the kernel, the app
+  layer (on all five of its surfaces), the guardians' host and the control
+  plane's roster surfaces refuse ("the standing library is not available on
+  this daemon") or read the port defensively instead of dereferencing nothing.
+  The architecture ratchet went from 46 to 43 edges.
+  No behaviour changed: the library is still the same store, under the same
+  file, with the same lifecycle.
+
 - **Removed: the kernel's reach on the typed schedule library (W3.49).** The
   kernel held the cadence module's concrete store, **opened the library's
   file** itself and held the module's concrete resident; the run-executor
