@@ -19,7 +19,6 @@ import (
 	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/bus"
-	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
@@ -144,10 +143,11 @@ func Open(cfg Config) (*Kernel, error) {
 		forge.SetBundles(bundles)
 	}
 
-	schedStore, err := cadence.OpenStore(filepath.Join(cfg.BaseDir, "cadence"))
-	if err != nil {
-		return fail("runtime: cadence", err)
-	}
+	// The typed schedule library is NOT opened here (W3.49) — it is the
+	// composition root's file, and the kernel holds the contract's host port
+	// (cfg.Schedules). A host that was given none holds a nil port: the
+	// schedule surfaces report that the library is unavailable rather than
+	// calling into nothing.
 
 	// Content-addressed artifact store (SPEC-04 §3.6) and the metadata index
 	// over it (M822) are NOT opened here — they are the composition root's
@@ -309,7 +309,7 @@ func Open(cfg Config) (*Kernel, error) {
 		artIndex:     cfg.ArtifactIndex,
 		lake:         cfg.Lake,
 		reflect:      reflectEng,
-		schedules:    schedStore,
+		schedules:    cfg.Schedules,
 		tools:        effTools,
 		system:       cfg.System,
 		model:        cfg.Model,

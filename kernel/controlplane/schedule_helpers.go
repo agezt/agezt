@@ -8,7 +8,7 @@ import (
 	"context"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 	appschedule "github.com/agezt/agezt/kernel/app/schedule"
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"time"
@@ -19,7 +19,7 @@ func (s *Server) scheduleEditing() *appschedule.Editing {
 }
 
 func (s *Server) scheduleLifecycle(ctx context.Context) *appschedule.Lifecycle {
-	return appschedule.NewLifecycle(s.k.Schedules(), s.validateScheduleRunnable, func(id string, enabled bool, action string, current cadence.Entry) {
+	return appschedule.NewLifecycle(s.k.Schedules(), s.validateScheduleRunnable, func(id string, enabled bool, action string, current cadenceapi.Entry) {
 		corr := opapi.CorrelationFromContext(ctx)
 		if corr == "" {
 			corr = s.k.NewCorrelation()

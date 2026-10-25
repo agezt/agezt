@@ -4,7 +4,7 @@ package controlplane
 import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -20,12 +20,20 @@ func (s *Server) agentStatusViews(profiles []roster.Profile) map[string]map[stri
 // standing orders, the board's open help requests and the reaper scan.
 func (s *Server) collectRosterStatusSnapshot(profiles []roster.Profile, reaperCut, routingCut int64) approster.StatusSnapshot {
 	return approster.CollectStatus(approster.StatusSources{
-		Journal:   s.k.Journal().Range,
-		Runs:      s.statusRunRows,
-		Schedules: func() []cadence.Entry { return s.k.Schedules().List() },
-		Standing:  func() []standing.Order { return s.k.Standing().List() },
-		Board:     s.statusBoardMessages,
-		Reaper:    func(cut int64) runtime.ReaperReport { return s.k.ReaperScan(cut, cut) },
+		Journal: s.k.Journal().Range,
+		Runs:    s.statusRunRows,
+		Schedules: func() []cadenceapi.Entry {
+			// The schedule library is the daemon's file (W3.49): a host
+			// without it holds a nil port, and the status view sees no
+			// schedules rather than calling into nothing.
+			if s.k.Schedules() == nil {
+				return nil
+			}
+			return s.k.Schedules().List()
+		},
+		Standing: func() []standing.Order { return s.k.Standing().List() },
+		Board:    s.statusBoardMessages,
+		Reaper:   func(cut int64) runtime.ReaperReport { return s.k.ReaperScan(cut, cut) },
 	}, profiles, reaperCut, routingCut)
 }
 

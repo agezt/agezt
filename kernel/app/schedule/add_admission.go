@@ -5,7 +5,7 @@ package schedule
 import (
 	"encoding/json"
 	"errors"
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"strings"
 )
 
@@ -30,18 +30,18 @@ func (s *Admission) AddTarget(in AddTargetInput) (AddTarget, error) {
 	systemTask := strings.TrimSpace(in.SystemTask)
 	toolName := strings.TrimSpace(in.Tool)
 	if workflowRef != "" {
-		target = cadence.TargetWorkflow
+		target = cadenceapi.TargetWorkflow
 	}
 	if systemTask != "" {
-		target = cadence.TargetSystemTask
+		target = cadenceapi.TargetSystemTask
 	}
 	if toolName != "" {
-		target = cadence.TargetTool
+		target = cadenceapi.TargetTool
 	}
 	var workflowPayload json.RawMessage
 	var toolPayload json.RawMessage
 	switch target {
-	case cadence.TargetWorkflow:
+	case cadenceapi.TargetWorkflow:
 		if systemTask != "" {
 			return AddTarget{}, errors.New("workflow schedules cannot also set args.system_task")
 		}
@@ -63,7 +63,7 @@ func (s *Admission) AddTarget(in AddTargetInput) (AddTarget, error) {
 			}
 			workflowPayload = b
 		}
-	case cadence.TargetSystemTask:
+	case cadenceapi.TargetSystemTask:
 		if agent != "" {
 			return AddTarget{}, errors.New("system task schedules cannot also set args.agent")
 		}
@@ -73,7 +73,7 @@ func (s *Admission) AddTarget(in AddTargetInput) (AddTarget, error) {
 		if toolName != "" {
 			return AddTarget{}, errors.New("system task schedules cannot also set args.tool")
 		}
-		if !cadence.IsSystemTask(systemTask) {
+		if !cadenceapi.IsSystemTask(systemTask) {
 			return AddTarget{}, errors.New("unknown system task: " + systemTask)
 		}
 		if in.PayloadPresent {
@@ -82,7 +82,7 @@ func (s *Admission) AddTarget(in AddTargetInput) (AddTarget, error) {
 		if strings.TrimSpace(intent) == "" {
 			intent = "system task " + systemTask
 		}
-	case cadence.TargetTool:
+	case cadenceapi.TargetTool:
 		if toolName == "" {
 			return AddTarget{}, errors.New("args.tool required for tool schedules")
 		}
@@ -105,7 +105,7 @@ func (s *Admission) AddTarget(in AddTargetInput) (AddTarget, error) {
 			}
 			toolPayload = b
 		}
-	case cadence.TargetIntent:
+	case cadenceapi.TargetIntent:
 		if strings.TrimSpace(intent) == "" {
 			return AddTarget{}, errors.New("agent task text required for target=intent schedules")
 		}
@@ -128,7 +128,7 @@ func (s *Admission) AddTarget(in AddTargetInput) (AddTarget, error) {
 		}
 		agent = p.Slug
 	}
-	if target == cadence.TargetTool && agent != "" {
+	if target == cadenceapi.TargetTool && agent != "" {
 		p, _ := s.host.Agent(agent)
 		if err := ValidateAgentTool(p, toolName); err != nil {
 			return AddTarget{}, err

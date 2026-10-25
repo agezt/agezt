@@ -6,10 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/remoteapi"
@@ -588,7 +590,14 @@ func TestTheMCPAndStandingPortsStayNilWithoutAKernel(t *testing.T) {
 // wiring, so it asserts it directly: the ports must be present AND they
 // must be the live ones.
 func TestToolKernelDepsSuppliesTheScheduleAndSkillPorts(t *testing.T) {
-	k, err := runtime.Open(withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
+	// The schedule library is the daemon's file (W3.49): the test opens it
+	// and hands the kernel the contract's host port.
+	dir := t.TempDir()
+	sched, err := cadence.OpenStore(filepath.Join(dir, "cadence"))
+	if err != nil {
+		t.Fatalf("open the schedule store: %v", err)
+	}
+	k, err := runtime.Open(withArtifacts(t, runtime.Config{BaseDir: dir, Provider: mock.New(), Schedules: sched}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

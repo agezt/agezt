@@ -11,7 +11,7 @@ import (
 	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/bus"
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
@@ -53,8 +53,11 @@ func (k *Kernel) Memory() *memory.Manager { return k.memory }
 // AgentGateway returns the Agent Gateway for subprocess communication.
 func (k *Kernel) AgentGateway() *agentgw.Gateway { return k.agentGW }
 
-// Schedules returns the persistent typed schedule store.
-func (k *Kernel) Schedules() *cadence.Store { return k.schedules }
+// Schedules returns the persistent typed schedule store — the contract's HOST
+// port (W3.49), not the module's concrete store. The library's file is the
+// daemon's; the kernel holds the port and drives the schedule lifecycle
+// through it.
+func (k *Kernel) Schedules() cadenceapi.HostStore { return k.schedules }
 
 // Tools returns the live in-process tool map.
 func (k *Kernel) Tools() map[string]toolapi.Tool { return k.tools }

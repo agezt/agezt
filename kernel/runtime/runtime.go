@@ -12,6 +12,7 @@ import (
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
@@ -566,6 +567,19 @@ type Config struct {
 	// Nil means "no workflow store": the reads answer that there is nothing
 	// stored, and every lifecycle operation refuses.
 	Workflows workflowapi.HostStore
+
+	// Schedules is the typed schedule library the host holds — the contract's
+	// HOST port, not a module's store (W3.49). The daemon opens the file
+	// (cadence/schedules.json) and hands it over (cmd/agezt): the library's
+	// file is the daemon's business, and the kernel is a module.
+	//
+	// The RESIDENT is a separate thing (SetScheduleEngine): the live cadence
+	// engine is built by the composition root over this very store and over
+	// the host's own bus, and it is handed over after Open.
+	//
+	// Nil means "no schedule library": the schedule surfaces report that the
+	// library is unavailable rather than calling into nothing.
+	Schedules cadenceapi.HostStore
 }
 
 // Kernel is the running Agezt instance.

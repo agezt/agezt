@@ -7,10 +7,12 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -41,7 +43,13 @@ func TestAgentImpactTombstoneNativeTypedRegistry(t *testing.T) {
 // keeps nil lists as null and the tombstone counts the same footprint.
 func TestAgentImpactTombstoneNativeWire(t *testing.T) {
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
+	// The schedule library is the daemon's file (W3.49): the test opens it
+	// and hands the kernel the contract's host port.
+	sched, err := cadence.OpenStore(filepath.Join(dir, "cadence"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), Schedules: sched})
 	if err != nil {
 		t.Fatal(err)
 	}

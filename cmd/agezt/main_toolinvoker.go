@@ -7,6 +7,7 @@ import (
 	"time"
 
 	apptools "github.com/agezt/agezt/kernel/app/tools"
+	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/modules/agents/reaper"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
@@ -89,6 +90,20 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 			return nil, err
 		}
 		cfg.Workflows = store
+	}
+	if cfg.Schedules == nil {
+		// The typed schedule library (W3.49) — the contract's host port. The
+		// daemon opens the file (cadence/schedules.json) and hands the kernel
+		// the port; the live resident is built over that same store by the
+		// composition root once the kernel exists.
+		//
+		// A library that cannot be opened is a STARTUP ERROR: the schedule
+		// library is part of the daemon, not a convenience.
+		store, err := cadence.OpenStore(filepath.Join(cfg.BaseDir, "cadence"))
+		if err != nil {
+			return nil, err
+		}
+		cfg.Schedules = store
 	}
 	if cfg.Workboard == nil {
 		// The durable task board (W3.47) — the contract's host port. The

@@ -4,11 +4,13 @@ package controlplane
 
 import (
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/platform/schema"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -19,7 +21,13 @@ func scheduleAppFixture(t *testing.T) (*runtime.Kernel, *Server, string, *mock.P
 	t.Helper()
 	dir := t.TempDir()
 	provider := mock.New()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider})
+	// The schedule library is the daemon's file (W3.49): the test opens it
+	// and hands the kernel the contract's host port.
+	sched, err := cadence.OpenStore(filepath.Join(dir, "cadence"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, Schedules: sched})
 	if err != nil {
 		t.Fatal(err)
 	}

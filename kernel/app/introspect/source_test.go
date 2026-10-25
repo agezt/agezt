@@ -3,9 +3,11 @@
 package introspect
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/introspectapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
@@ -57,10 +59,19 @@ func TestKernelSourceCarriesTheKernelCeilings(t *testing.T) {
 // and a standing order the operator left switched on have to be listed by
 // the tool, or the agent reports a daemon that owns less than it does.
 func TestThePortReadsTheLiveKernelSchedulesAndStanding(t *testing.T) {
+	// The test is the composition root (W3.49): the schedule library is the
+	// daemon's file, so the test opens it and hands the kernel the
+	// contract's host port.
+	dir := t.TempDir()
+	sched, err := cadence.OpenStore(filepath.Join(dir, "cadence"))
+	if err != nil {
+		t.Fatalf("open the schedule store: %v", err)
+	}
 	k, err := kernelruntime.Open(kernelruntime.Config{
-		BaseDir:  t.TempDir(),
-		Provider: mock.New(),
-		Tools:    map[string]toolapi.Tool{},
+		BaseDir:   dir,
+		Provider:  mock.New(),
+		Tools:     map[string]toolapi.Tool{},
+		Schedules: sched,
 	})
 	if err != nil {
 		t.Fatal(err)

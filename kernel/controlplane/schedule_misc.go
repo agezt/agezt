@@ -5,7 +5,7 @@ package controlplane
 import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	appschedule "github.com/agezt/agezt/kernel/app/schedule"
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 )
 
 func (s *Server) scheduleAdmission() *appschedule.Admission {
@@ -17,10 +17,10 @@ func (s *Server) scheduleAdmission() *appschedule.Admission {
 		ManagedDirectError: approster.ManagedDirectCallError,
 	})
 }
-func (s *Server) validateScheduleRunnable(e cadence.Entry) error {
+func (s *Server) validateScheduleRunnable(e cadenceapi.Entry) error {
 	return s.scheduleAdmission().Runnable(e)
 }
 
-func (s *Server) scheduleFrequencyWarning(e cadence.Entry) string {
+func (s *Server) scheduleFrequencyWarning(e cadenceapi.Entry) string {
 	return s.scheduleAdmission().Warning(e)
 }

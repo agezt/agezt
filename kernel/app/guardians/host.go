@@ -9,6 +9,7 @@
 package guardians
 
 import (
+	"errors"
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
@@ -67,16 +68,39 @@ func (h *kernelHost) SetStandingEnabled(id string, enabled bool) (standingapi.Or
 	return h.k.SetStandingEnabled(id, enabled)
 }
 
+// errNoScheduleLibrary is the answer the guardian host gives when the daemon
+// holds no schedule library.
+//
+// The schedule library is the daemon's file (W3.49): the kernel holds the
+// contract's host port, and a host that was given none holds a nil port. The
+// refusal is the answer — not a panic, and not a silent "nothing to do".
+var errNoScheduleLibrary = errors.New("guardians: the schedule library is not available on this daemon")
+
 // Schedules lists the schedules the daemon knows.
-func (h *kernelHost) Schedules() []cadenceapi.Entry { return h.k.Schedules().List() }
+//
+// The schedule library is the daemon's file (W3.49): a host without it holds
+// a nil port, and the guardian sees no schedules rather than calling into
+// nothing.
+func (h *kernelHost) Schedules() []cadenceapi.Entry {
+	if h.k.Schedules() == nil {
+		return nil
+	}
+	return h.k.Schedules().List()
+}
 
 // Reschedule moves a schedule to a new cadence.
 func (h *kernelHost) Reschedule(id string, mode string, interval time.Duration, atMinutes, days int) (bool, error) {
+	if h.k.Schedules() == nil {
+		return false, errNoScheduleLibrary
+	}
 	return h.k.Schedules().Reschedule(id, mode, interval, atMinutes, 0, days, "", time.Time{}, time.Now())
 }
 
 // AddInterval plants a repeating schedule.
 func (h *kernelHost) AddInterval(intent string, interval time.Duration, model, agent string) (cadenceapi.Entry, error) {
+	if h.k.Schedules() == nil {
+		return cadenceapi.Entry{}, errNoScheduleLibrary
+	}
 	e, err := h.k.Schedules().Add(intent, interval, model, "system", time.Now())
 	if err != nil || agent == "" {
 		return e, err
@@ -91,6 +115,9 @@ func (h *kernelHost) AddInterval(intent string, interval time.Duration, model, a
 // AddDaily plants a daily schedule.
 func (h *kernelHost) AddDaily(intent string, atMinutes int, model, agent string) (cadenceapi.Entry, error) {
 	// days=0 → every day; tz="" → daemon local.
+	if h.k.Schedules() == nil {
+		return cadenceapi.Entry{}, errNoScheduleLibrary
+	}
 	e, err := h.k.Schedules().AddDaily(intent, atMinutes, 0, "", model, "system", time.Now())
 	if err != nil || agent == "" {
 		return e, err

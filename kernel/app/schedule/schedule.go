@@ -5,14 +5,14 @@ package schedule
 import (
 	"context"
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"strings"
 	"time"
 )
 
 type Reader interface {
-	List() []cadence.Entry
-	Get(string) (cadence.Entry, bool)
+	List() []cadenceapi.Entry
+	Get(string) (cadenceapi.Entry, bool)
 }
 type LastFiring struct {
 	Status  string
@@ -21,8 +21,8 @@ type LastFiring struct {
 }
 type Host struct {
 	LastFirings func() (map[string]LastFiring, error)
-	Validate    func(cadence.Entry) error
-	Warning     func(cadence.Entry) string
+	Validate    func(cadenceapi.Entry) error
+	Warning     func(cadenceapi.Entry) string
 }
 type Service struct {
 	reader Reader
@@ -76,7 +76,7 @@ type Record struct {
 	FrequencyWarning   string          `json:"frequency_warning,omitempty"`
 }
 
-func Project(e cadence.Entry) Record {
+func Project(e cadenceapi.Entry) Record {
 	meta := ExecutionMetadata(e)
 	return Record{ID: e.ID, Intent: e.Intent, Mode: e.Mode, IntervalSec: e.IntervalSec, AtMinutes: e.AtMinutes, EndMinutes: e.EndMinutes, Days: e.Days, TZ: e.TZ, Cadence: e.Cadence(), Model: e.Model, Agent: e.Agent, Target: e.Target, Workflow: e.Workflow, SystemTask: e.SystemTask, Tool: e.Tool, Payload: e.Payload, Source: e.Source, Enabled: e.Enabled, CreatedUnix: e.CreatedUnix, LastRunUnix: e.LastRunUnix, NextRunUnix: e.NextRunUnix, Fires: e.Fires, Assure: e.Assure, Executor: meta.Executor, UsesLLM: meta.UsesLLM, ExecutionContract: meta.Contract, ExecutionAuthority: meta.Authority, IdentityOwner: meta.IdentityOwner, PayloadContract: meta.PayloadContract, LLMBoundary: meta.LLMBoundary}
 }
@@ -88,6 +88,9 @@ type ListOutput struct {
 }
 
 func (s *Service) List(_ context.Context, _ ListInput) (ListOutput, error) {
+	if s.reader == nil {
+		return ListOutput{}, errNoScheduleLibrary
+	}
 	entries := s.reader.List()
 	latest := map[string]LastFiring{}
 	if s.host.LastFirings != nil {
@@ -118,14 +121,14 @@ func (s *Service) List(_ context.Context, _ ListInput) (ListOutput, error) {
 
 type SystemTasksInput struct{}
 type SystemTasksOutput struct {
-	SystemTasks    []string                 `json:"system_tasks"`
-	SystemTaskInfo []cadence.SystemTaskInfo `json:"system_task_info"`
-	Count          int                      `json:"count"`
+	SystemTasks    []string                    `json:"system_tasks"`
+	SystemTaskInfo []cadenceapi.SystemTaskInfo `json:"system_task_info"`
+	Count          int                         `json:"count"`
 }
 
 func (s *Service) SystemTasks(_ context.Context, _ SystemTasksInput) (SystemTasksOutput, error) {
-	tasks := cadence.SystemTasks()
-	return SystemTasksOutput{SystemTasks: tasks, SystemTaskInfo: cadence.SystemTaskInfos(), Count: len(tasks)}, nil
+	tasks := cadenceapi.SystemTasks()
+	return SystemTasksOutput{SystemTasks: tasks, SystemTaskInfo: cadenceapi.SystemTaskInfos(), Count: len(tasks)}, nil
 }
 
 type TestInput struct {
@@ -169,11 +172,11 @@ type ExecutionMeta struct {
 	LLMBoundary     string
 }
 
-func ExecutionMetadata(e cadence.Entry) ExecutionMeta {
+func ExecutionMetadata(e cadenceapi.Entry) ExecutionMeta {
 	agentSlug := strings.TrimSpace(e.Agent)
 	payloadContract := PayloadContract(e)
 	switch e.Target {
-	case cadence.TargetWorkflow:
+	case cadenceapi.TargetWorkflow:
 		workflowRef := strings.TrimSpace(e.Workflow)
 		if agentSlug != "" {
 			return ExecutionMeta{
@@ -189,14 +192,14 @@ func ExecutionMetadata(e cadence.Entry) ExecutionMeta {
 			Authority: "system identity", IdentityOwner: "none; workflow is a reusable graph",
 			PayloadContract: payloadContract, LLMBoundary: "workflow may use LLM nodes under workflow policy, but no agent identity is woken",
 		}
-	case cadence.TargetSystemTask:
+	case cadenceapi.TargetSystemTask:
 		return ExecutionMeta{
 			Executor: "daemon", UsesLLM: false,
 			Contract:  "cron runs daemon system task " + strings.TrimSpace(e.SystemTask),
 			Authority: "daemon", IdentityOwner: "none; daemon task owns no agent soul",
 			PayloadContract: payloadContract, LLMBoundary: "no LLM",
 		}
-	case cadence.TargetTool:
+	case cadenceapi.TargetTool:
 		toolName := strings.TrimSpace(e.Tool)
 		if agentSlug != "" {
 			return ExecutionMeta{
@@ -230,16 +233,16 @@ func ExecutionMetadata(e cadence.Entry) ExecutionMeta {
 	}
 }
 
-func PayloadContract(e cadence.Entry) string {
+func PayloadContract(e cadenceapi.Entry) string {
 	switch e.Target {
-	case cadence.TargetSystemTask:
+	case cadenceapi.TargetSystemTask:
 		return "payload not accepted"
-	case cadence.TargetTool:
+	case cadenceapi.TargetTool:
 		if len(e.Payload) == 0 || strings.TrimSpace(string(e.Payload)) == "" || strings.TrimSpace(string(e.Payload)) == "null" {
 			return "cron passes no tool payload"
 		}
 		return "cron passes JSON tool payload"
-	case cadence.TargetWorkflow:
+	case cadenceapi.TargetWorkflow:
 		if len(e.Payload) == 0 || strings.TrimSpace(string(e.Payload)) == "" || strings.TrimSpace(string(e.Payload)) == "null" {
 			return "cron passes no workflow payload"
 		}

@@ -22,8 +22,12 @@ import (
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
-func buildCadence(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer, onAnswer func(ctx context.Context, id, answer string)) string {
-	store := k.Schedules()
+// buildCadence starts the typed schedule resident.
+//
+// The store is the DAEMON's (W3.49): the daemon opened the library and handed
+// the kernel the contract's host port; the resident is built over this very
+// store, so the kernel's port and the resident read the same rows.
+func buildCadence(ctx context.Context, k *kernelruntime.Kernel, store *cadence.Store, stdout io.Writer, onAnswer func(ctx context.Context, id, answer string)) string {
 	if store == nil {
 		return ""
 	}

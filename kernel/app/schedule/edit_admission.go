@@ -5,13 +5,13 @@ package schedule
 import (
 	"encoding/json"
 	"errors"
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"strings"
 )
 
 // EditTargetInput retains field presence separately from selected string values.
 type EditTargetInput struct {
-	Current                                     cadence.Entry
+	Current                                     cadenceapi.Entry
 	Target, Workflow, SystemTask, Tool, Agent   string
 	TargetPresent, AgentPresent, PayloadPresent bool
 	Payload                                     any
@@ -30,22 +30,22 @@ func (s *Admission) EditTarget(in EditTargetInput) (EditTarget, error) {
 		targetSet = true
 	}
 	if workflowRef != "" {
-		target = cadence.TargetWorkflow
+		target = cadenceapi.TargetWorkflow
 		targetSet = true
 	}
 	if systemTask != "" {
-		target = cadence.TargetSystemTask
+		target = cadenceapi.TargetSystemTask
 		targetSet = true
 	}
 	if toolName != "" {
-		target = cadence.TargetTool
+		target = cadenceapi.TargetTool
 		targetSet = true
 	}
 	effectiveTarget := in.Current.Target
 	if targetSet {
 		effectiveTarget = target
 	}
-	if effectiveTarget == cadence.TargetSystemTask {
+	if effectiveTarget == cadenceapi.TargetSystemTask {
 		if in.PayloadPresent {
 			return EditTarget{}, errors.New("system task schedules do not accept args.payload")
 		}
@@ -55,7 +55,7 @@ func (s *Admission) EditTarget(in EditTargetInput) (EditTarget, error) {
 	if in.AgentPresent {
 		agent := in.Agent
 		agent = strings.TrimSpace(agent)
-		if agent != "" && effectiveTarget == cadence.TargetSystemTask {
+		if agent != "" && effectiveTarget == cadenceapi.TargetSystemTask {
 			return EditTarget{}, errors.New("system task schedules cannot also set args.agent")
 		}
 		if agent != "" {
@@ -77,7 +77,7 @@ func (s *Admission) EditTarget(in EditTargetInput) (EditTarget, error) {
 		editAgent = agent
 		effectiveAgent = agent
 	}
-	if target == cadence.TargetWorkflow {
+	if target == cadenceapi.TargetWorkflow {
 		if systemTask != "" {
 			return EditTarget{}, errors.New("workflow schedules cannot also set args.system_task")
 		}
@@ -92,9 +92,9 @@ func (s *Admission) EditTarget(in EditTargetInput) (EditTarget, error) {
 				return EditTarget{}, errors.New("payload must be JSON-serializable: " + err.Error())
 			}
 		}
-	} else if target != "" && target != cadence.TargetIntent {
-		if target != cadence.TargetSystemTask {
-			if target != cadence.TargetTool {
+	} else if target != "" && target != cadenceapi.TargetIntent {
+		if target != cadenceapi.TargetSystemTask {
+			if target != cadenceapi.TargetTool {
 				return EditTarget{}, errors.New("unknown schedule target: " + target)
 			}
 			if workflowRef != "" {
@@ -130,7 +130,7 @@ func (s *Admission) EditTarget(in EditTargetInput) (EditTarget, error) {
 			if toolName != "" {
 				return EditTarget{}, errors.New("system task schedules cannot also set args.tool")
 			}
-			if !cadence.IsSystemTask(systemTask) {
+			if !cadenceapi.IsSystemTask(systemTask) {
 				return EditTarget{}, errors.New("unknown system task: " + systemTask)
 			}
 		}
