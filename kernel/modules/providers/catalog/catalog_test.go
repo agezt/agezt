@@ -404,7 +404,7 @@ func TestSyncer_FetchesAndParses(t *testing.T) {
 	syncer := catalog.NewSyncer()
 	syncer.URL = srv.URL
 
-	raw, cat, res, err := syncer.Sync(context.Background())
+	raw, cat, res, err := syncer.Sync(context.Background(), "", 0)
 	if err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
@@ -429,7 +429,7 @@ func TestSyncer_RejectsNon200(t *testing.T) {
 	defer srv.Close()
 	syncer := catalog.NewSyncer()
 	syncer.URL = srv.URL
-	if _, _, _, err := syncer.Sync(context.Background()); err == nil {
+	if _, _, _, err := syncer.Sync(context.Background(), "", 0); err == nil {
 		t.Error("expected error for 502")
 	}
 }
@@ -447,7 +447,7 @@ func TestSyncer_RejectsOversizedBody(t *testing.T) {
 
 	syncer := catalog.NewSyncer()
 	syncer.URL = srv.URL
-	_, _, _, err := syncer.Sync(context.Background())
+	_, _, _, err := syncer.Sync(context.Background(), "", 0)
 	if err == nil {
 		t.Fatal("expected an error for an over-cap body")
 	}

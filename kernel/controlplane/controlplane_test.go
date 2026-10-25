@@ -22,6 +22,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/agents/reaper"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
@@ -89,6 +90,15 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 		t.Fatalf("open the workboard store: %v", err)
 	}
 	cfg.Workboard = board
+	// The catalog directory and its syncer are the composition root's files
+	// too (W3.51): the kernel holds the contract's ports, and the root opens
+	// them.
+	if cfg.CatalogStore == nil {
+		cfg.CatalogStore = catalog.NewStore(filepath.Join(dir, "catalog"))
+	}
+	if cfg.CatalogSyncer == nil {
+		cfg.CatalogSyncer = catalog.NewSyncer()
+	}
 	// The workflow store is the composition root's file too (W3.48), and so
 	// is the ENGINE: it is built over the store and over the host's own
 	// ports, and handed over as the contract's engine port.

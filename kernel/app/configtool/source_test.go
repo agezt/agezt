@@ -4,10 +4,12 @@ package configtool
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/configapi"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -88,9 +90,13 @@ func TestTheAdapterReportsAnUnknownAgent(t *testing.T) {
 // the provider — and the catalogue the reload produced is dropped, because
 // the plugin may not name it.
 func TestTheAdapterReloadsTheLiveDaemon(t *testing.T) {
+	base := t.TempDir()
 	k, err := kernelruntime.Open(kernelruntime.Config{
-		BaseDir:  t.TempDir(),
+		BaseDir:  base,
 		Provider: mock.New(),
+		// The catalog directory is the DAEMON's file (W3.51): the test opens
+		// it and hands the kernel the contract's store port.
+		CatalogStore: catalog.NewStore(filepath.Join(base, "catalog")),
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)

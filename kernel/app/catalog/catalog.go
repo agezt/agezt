@@ -6,6 +6,7 @@ package catalog
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -14,12 +15,21 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/event"
 	providercatalog "github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/runtime"
 )
+
+// errNoCatalogLibrary is the answer the catalog app layer gives when it
+// holds no library.
+//
+// The catalog directory and its syncer are the DAEMON's (W3.51): the kernel
+// holds the contract's ports, and a host that was given none holds nil ports.
+// The refusal is the answer — not a panic, and not a silent "nothing to do".
+var errNoCatalogLibrary = errors.New("catalog: the catalog library is not available on this daemon")
 
 type SyncInput struct {
 	URL            string  `json:"url,omitempty"`
@@ -47,15 +57,22 @@ func envOrDefault(name, fallback string) string {
 func (s *Service) Sync(ctx context.Context, in SyncInput) (SyncOutput, error) {
 	url := in.URL
 	if url == "" {
-		url = envOrDefault(brand.EnvPrefix+"CATALOG_URL", providercatalog.DefaultSyncURL)
+		url = envOrDefault(brand.EnvPrefix+"CATALOG_URL", catalogapi.DefaultSyncURL)
 	}
-	syncer := providercatalog.NewSyncer()
-	syncer.URL = url
+	// The syncer is the DAEMON's (W3.51): the kernel holds the contract's
+	// port, and this layer may not name the catalog module's implementation.
+	// A host with no syncer has nothing to sync from — the refusal is the
+	// answer, not a panic.
+	syncer := s.k.CatalogSyncer()
+	if syncer == nil {
+		return SyncOutput{}, errNoCatalogLibrary
+	}
+	timeout := time.Duration(0)
 	if t := in.TimeoutSeconds; t > 0 {
-		syncer.Timeout = time.Duration(t) * time.Second
+		timeout = time.Duration(t) * time.Second
 	}
 
-	raw, cat, res, err := syncer.Sync(ctx)
+	raw, cat, res, err := syncer.Sync(ctx, url, timeout)
 	if err != nil {
 		s.k.Bus().Publish(event.Spec{
 			Subject:       "catalog.sync",
@@ -67,6 +84,9 @@ func (s *Service) Sync(ctx context.Context, in SyncInput) (SyncOutput, error) {
 		return SyncOutput{}, err
 	}
 
+	if s.k.CatalogStore() == nil {
+		return SyncOutput{}, errNoCatalogLibrary
+	}
 	if err := s.k.CatalogStore().SaveAPI(raw, url); err != nil {
 		return SyncOutput{}, fmt.Errorf("save: %w", err)
 	}
@@ -113,7 +133,7 @@ func (s *Service) List(_ context.Context, _ ListInput) (ListOutput, error) {
 	duplicateEnv := cat.DuplicateCredentialEnvs()
 	credLookup := func(name string) string {
 		name = strings.TrimSpace(name)
-		if providercatalog.IsProviderCredentialName(name) {
+		if catalogapi.IsProviderCredentialName(name) {
 			return vault.Get(name)
 		}
 		if v := os.Getenv(name); v != "" {
@@ -165,6 +185,12 @@ func (s *Service) List(_ context.Context, _ ListInput) (ListOutput, error) {
 }
 
 func (s *Service) Discover(ctx context.Context, in DiscoverInput) (DiscoverOutput, error) {
+	// The catalog library is the DAEMON's (W3.51): without it there is
+	// nowhere to save what a discovery finds, so the refusal comes FIRST —
+	// before the network call, not after it.
+	if s.k.CatalogStore() == nil {
+		return DiscoverOutput{}, errNoCatalogLibrary
+	}
 	endpoint := in.Endpoint
 	if endpoint == "" {
 		endpoint = envOrDefault(brand.EnvPrefix+"OLLAMA_ENDPOINT", providercatalog.DefaultOllamaEndpoint)

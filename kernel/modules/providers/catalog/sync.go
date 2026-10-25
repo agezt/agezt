@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/netguard"
 )
 
@@ -23,7 +24,10 @@ func guardedClient(timeout time.Duration) *http.Client {
 
 // DefaultSyncURL is the community-maintained source the catalog syncs
 // from. Overridable via AGEZT_CATALOG_URL on the daemon side.
-const DefaultSyncURL = "https://models.dev/api.json"
+//
+// The constant lives in the contract layer (W3.51); this package keeps the
+// name.
+const DefaultSyncURL = catalogapi.DefaultSyncURL
 
 // DefaultSyncTimeout caps the HTTP fetch. Tight enough that a wedged
 // remote can't hang `agt catalog sync` for minutes.
@@ -52,32 +56,41 @@ func NewSyncer() *Syncer {
 }
 
 // SyncResult summarises one successful Sync for events + reporting.
-type SyncResult struct {
-	URL           string
-	Bytes         int
-	ProviderCount int
-	ModelCount    int
-	Duration      time.Duration
-	FetchedAt     time.Time
-}
+//
+// The row lives in the contract layer (W3.51); this package keeps the name.
+type SyncResult = catalogapi.SyncResult
+
+// The syncer answers the contract's port.
+var _ catalogapi.Syncer = (*Syncer)(nil)
 
 // Sync fetches the catalog from s.URL, parses + validates it, and
 // returns the raw bytes (for direct writing to api.json) plus a
 // Catalog (for in-memory use) plus a SyncResult summary.
-func (s *Syncer) Sync(ctx context.Context) (raw []byte, cat *Catalog, res SyncResult, err error) {
-	if s.URL == "" {
+//
+// url and timeout are the CALLER's to choose (W3.51): an empty url means
+// the syncer's default source, a timeout of zero or less means the
+// syncer's default cap. The port cannot carry mutable state that a caller
+// would have to reach through, so they are parameters.
+func (s *Syncer) Sync(ctx context.Context, url string, timeout time.Duration) (raw []byte, cat *Catalog, res SyncResult, err error) {
+	if url == "" {
+		url = s.URL
+	}
+	if url == "" {
 		return nil, nil, res, fmt.Errorf("catalog: empty sync URL")
 	}
 	start := time.Now()
 
-	to := s.Timeout
+	to := timeout
+	if to <= 0 {
+		to = s.Timeout
+	}
 	if to <= 0 {
 		to = DefaultSyncTimeout
 	}
 	reqCtx, cancel := context.WithTimeout(ctx, to)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, s.URL, nil)
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, nil, res, fmt.Errorf("catalog: new request: %w", err)
 	}
@@ -86,11 +99,11 @@ func (s *Syncer) Sync(ctx context.Context) (raw []byte, cat *Catalog, res SyncRe
 
 	resp, err := s.HTTP.Do(req)
 	if err != nil {
-		return nil, nil, res, fmt.Errorf("catalog: fetch %s: %w", s.URL, err)
+		return nil, nil, res, fmt.Errorf("catalog: fetch %s: %w", url, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, nil, res, fmt.Errorf("catalog: fetch %s: %s", s.URL, resp.Status)
+		return nil, nil, res, fmt.Errorf("catalog: fetch %s: %s", url, resp.Status)
 	}
 
 	limited := io.LimitReader(resp.Body, MaxSyncBytes+1)
@@ -112,9 +125,9 @@ func (s *Syncer) Sync(ctx context.Context) (raw []byte, cat *Catalog, res SyncRe
 	// which would leave the Governor with no models to route to (a self-inflicted
 	// outage). Fail-safe: the prior catalog is kept (M425).
 	if len(cat.Providers) == 0 {
-		return raw, nil, res, fmt.Errorf("catalog: sync from %s returned no providers; refusing to overwrite the existing catalog", s.URL)
+		return raw, nil, res, fmt.Errorf("catalog: sync from %s returned no providers; refusing to overwrite the existing catalog", url)
 	}
-	res.URL = s.URL
+	res.URL = url
 	res.Bytes = len(raw)
 	res.ProviderCount = len(cat.Providers)
 	for _, p := range cat.Providers {

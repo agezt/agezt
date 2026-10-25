@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -227,9 +229,14 @@ func TestRunScheduledCatalogSyncPublishesSummaryAndReloads(t *testing.T) {
 	t.Setenv("AGEZT_CATALOG_URL", ts.URL)
 
 	var reloads atomic.Int32
+	base := t.TempDir()
 	k, err := kernelruntime.Open(kernelruntime.Config{
-		BaseDir:  t.TempDir(),
+		BaseDir:  base,
 		Provider: mock.New(mock.FinalText("unused")),
+		// The catalog directory and its syncer are the DAEMON's (W3.51): the
+		// test opens them and hands the kernel the contract's ports.
+		CatalogStore:  catalog.NewStore(filepath.Join(base, "catalog")),
+		CatalogSyncer: catalog.NewSyncer(),
 		OnReload: func() error {
 			reloads.Add(1)
 			return nil

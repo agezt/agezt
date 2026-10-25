@@ -15,7 +15,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/agezt/agezt/kernel/modules/providers/catalog"
+	"github.com/agezt/agezt/kernel/contract/catalogapi"
 )
 
 // Pricing tables. All values in USD-microcents per million tokens
@@ -55,13 +55,16 @@ type modelPrice struct {
 // liveCatalog is the swap-in catalog source consulted before the
 // fallback table. Nil → only the fallback table is consulted (M1.b/c/d/e
 // behaviour, preserved for offline tests).
-var liveCatalog atomic.Pointer[catalog.Catalog]
+//
+// The catalog is the CONTRACT's row (W3.51): the governor is a platform
+// package and may not name a module.
+var liveCatalog atomic.Pointer[catalogapi.Catalog]
 
 // SetCatalog installs a live catalog as the primary pricing source.
 // Called by runtime.Open after loading the on-disk catalog, and again
 // by the control plane after `agt catalog sync`. Pass nil to revert
 // to the hardcoded fallback table only.
-func SetCatalog(c *catalog.Catalog) {
+func SetCatalog(c *catalogapi.Catalog) {
 	liveCatalog.Store(c)
 }
 

@@ -20,6 +20,7 @@ import (
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"github.com/agezt/agezt/kernel/edict"
@@ -30,7 +31,6 @@ import (
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
-	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/modules/work/okr"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
@@ -108,10 +108,6 @@ func Open(cfg Config) (*Kernel, error) {
 	}
 	sched := scheduler.New(scheduler.Config{Bus: kbus, Monitor: scheduler.ContextInvariantMonitor})
 
-	catDir := cfg.CatalogDir
-	if catDir == "" {
-		catDir = filepath.Join(cfg.BaseDir, "catalog")
-	}
 	mstore, err := memory.Open(filepath.Join(cfg.BaseDir, "memory"))
 	if err != nil {
 		return fail("runtime: memory", err)
@@ -267,14 +263,24 @@ func Open(cfg Config) (*Kernel, error) {
 	// from the daemon's own adapter seams and hands them over as ordinary
 	// tools in cfg.Tools, which is why the kernel reaches no tool package.
 
-	catStore := catalog.NewStore(catDir)
+	// The catalog's directory is NOT opened here (W3.51) — it is the
+	// composition root's file, and the kernel holds the contract's store
+	// port (cfg.CatalogStore). A host that was given none holds a nil port:
+	// the catalog's write surfaces refuse rather than writing into nothing,
+	// and the snapshot is the empty catalog — which is exactly what a daemon
+	// that has never synced has.
+	catStore := cfg.CatalogStore
 	cat := cfg.Catalog
 	if cat == nil {
-		loaded, err := catStore.Load()
-		if err != nil {
-			return fail("runtime: catalog load", err)
+		if catStore != nil {
+			loaded, err := catStore.Load()
+			if err != nil {
+				return fail("runtime: catalog load", err)
+			}
+			cat = loaded
+		} else {
+			cat = catalogapi.NewEmpty()
 		}
-		cat = loaded
 	}
 	governor.SetCatalog(cat)
 
@@ -289,6 +295,7 @@ func Open(cfg Config) (*Kernel, error) {
 		scheduler:    sched,
 		catalogStore: catStore,
 		catalog:      cat,
+		catalogSync:  cfg.CatalogSyncer,
 		memory:       mgr,
 		memoryDir:    mstore,
 		world:        wgraph,

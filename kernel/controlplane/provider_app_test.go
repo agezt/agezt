@@ -38,11 +38,7 @@ func TestProviderAppSocketKeyringAdmissionPrivacyAndReload(t *testing.T) {
 	t.Setenv(creds.PassphraseEnvVar, "isolated-provider-fixture")
 	var reloads atomic.Int32
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { k.Close() })
+	k := openCatalogKernel(t, runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
 	s := NewServer(k, dir)
 	s.token = "primary"
 	secret := strings.Join([]string{"provider", "fixture", "private", "1234"}, "-")
@@ -130,11 +126,7 @@ func TestProviderAppRejectsBeforeVaultAndReloadEffects(t *testing.T) {
 			t.Setenv(creds.PassphraseEnvVar, "isolated-provider-fixture")
 			var reloads atomic.Int32
 			dir := t.TempDir()
-			k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() { k.Close() })
+			k := openCatalogKernel(t, runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
 			s := NewServer(k, dir)
 			s.token = "primary"
 			args := map[string]any{"env": "PROVIDER_FIXTURE_KEY", "label": "fixture", "value": "synthetic-fixture-value"}

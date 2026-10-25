@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"reflect"
 	"sync/atomic"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/agezt/agezt/kernel/app/catalog"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
+	providercatalog "github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -57,7 +59,12 @@ func TestCatalogAppSocketAdmissionAuditAndWire(t *testing.T) {
 			}))
 			defer ts.Close()
 			dir := t.TempDir()
-			k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
+			k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(),
+				// The catalog directory and its syncer are the DAEMON's (W3.51):
+				// the test opens them and hands the kernel the contract's ports.
+				CatalogStore:  providercatalog.NewStore(filepath.Join(dir, "catalog")),
+				CatalogSyncer: providercatalog.NewSyncer(),
+				OnReload:      func() error { reloads.Add(1); return nil }})
 			if err != nil {
 				t.Fatal(err)
 			}

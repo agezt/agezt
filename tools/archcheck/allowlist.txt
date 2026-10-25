@@ -16,7 +16,6 @@ adapter-bypass kernel/openaiapi -> kernel/convo
 adapter-bypass kernel/restapi -> kernel/modules/board/board
 adapter-bypass kernel/restapi -> kernel/update
 adapter-bypass kernel/webui -> kernel/convo
-cross-module kernel/cadence/systemtasks -> kernel/modules/providers/catalog
 cross-module kernel/cadence/systemtasks -> kernel/runtime
 cross-module kernel/contextselect -> kernel/modules/knowledge/memory
 cross-module kernel/contextselect -> kernel/modules/knowledge/worldmodel
@@ -26,7 +25,6 @@ cross-module kernel/market -> kernel/modules/skills/skill
 cross-module kernel/modules/knowledge/memory -> kernel/agent
 cross-module kernel/pulse -> kernel/agent
 cross-module kernel/reflect -> kernel/modules/knowledge/worldmodel
-cross-module kernel/runtime -> kernel/modules/providers/catalog
 cross-module kernel/runtime -> kernel/modules/extensions/mcp
 cross-module kernel/runtime -> kernel/modules/knowledge/memory
 cross-module kernel/runtime -> kernel/modules/knowledge/taste
@@ -35,7 +33,6 @@ cross-module kernel/runtime -> kernel/modules/skills/skill
 cross-module kernel/runtime -> kernel/modules/work/okr
 cross-module kernel/runtime -> kernel/modules/agents/roster
 cross-module kernel/runtime/runexec -> kernel/modules/work/assure
-cross-module kernel/runtime/runexec -> kernel/modules/providers/catalog
 cross-module kernel/runtime/runexec -> kernel/modules/knowledge/memory
 cross-module kernel/runtime/runexec -> kernel/modules/knowledge/worldmodel
 cross-module kernel/runtime/runexec -> kernel/modules/skills/skill
@@ -43,6 +40,5 @@ cross-module kernel/runtime/runexec -> kernel/modules/agents/roster
 cross-module kernel/modules/agents/selfrepair -> kernel/modules/board/board
 cross-module kernel/modules/agents/selfrepair -> kernel/runtime
 upward kernel/channel -> kernel/bus
-upward kernel/governor -> kernel/modules/providers/catalog
 upward kernel/runtime -> kernel/agentgw
 upward kernel/runtime/runexec -> kernel/agentgw

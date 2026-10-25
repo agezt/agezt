@@ -20,14 +20,32 @@ import (
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
-func TestProviderConnectPreservesCatalogAndUnknownModels(t *testing.T) {
-	var reloads atomic.Int32
-	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
+// openKernel opens a kernel that HOLDS a catalog library.
+//
+// The catalog directory is the DAEMON's file (W3.51): the kernel holds the
+// contract's store port, and a host that was given none holds a nil port —
+// so a test that reloads or saves the catalog must open the library itself
+// and hand the port over.
+func openKernel(t *testing.T, cfg runtime.Config) *runtime.Kernel {
+	t.Helper()
+	if cfg.CatalogStore == nil {
+		cfg.CatalogStore = catalog.NewStore(filepath.Join(cfg.BaseDir, "catalog"))
+	}
+	k, err := runtime.Open(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
+	return k
+}
+
+func TestProviderConnectPreservesCatalogAndUnknownModels(t *testing.T) {
+	var reloads atomic.Int32
+	dir := t.TempDir()
+	// The catalog directory is the DAEMON's file (W3.51): the test opens it
+	// and hands the kernel the contract's store port.
+	store := catalog.NewStore(filepath.Join(dir, "catalog"))
+	k := openKernel(t, runtime.Config{BaseDir: dir, Provider: mock.New(), CatalogStore: store, OnReload: func() error { reloads.Add(1); return nil }})
 	if err := k.CatalogStore().SaveAPI([]byte(`{"known":{"id":"known","models":{"a":{"id":"a"},"b":{"id":"b"}}}}`), "fixture"); err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +60,7 @@ func TestProviderConnectPreservesCatalogAndUnknownModels(t *testing.T) {
 	if result.Exists != true || result.Added != false || len(k.Catalog().Providers["known"].Models) != 2 {
 		t.Fatalf("existing provider clobbered: %v", result)
 	}
-	if _, err := os.Stat(filepath.Join(k.CatalogStore().Dir, catalog.FileCustom)); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(store.Dir, catalog.FileCustom)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("existing id wrote custom catalog: %v", err)
 	}
 	result, err = svc.Connect(context.Background(), providers.ConnectInput{ID: " new ", API: " https://new-fixture.invalid ", Model: "hint-only"})
@@ -69,11 +87,7 @@ func TestProviderKeyringLifecyclePrivacyAndScope(t *testing.T) {
 	t.Setenv(creds.PassphraseEnvVar, "isolated-provider-fixture")
 	var reloads atomic.Int32
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { k.Close() })
+	k := openKernel(t, runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
 	svc := providers.New(k, dir)
 	ctx := context.Background()
 	secret := strings.Join([]string{"fixture", "private", "value", "1234"}, "-")
@@ -152,11 +166,7 @@ func TestProviderKeyringLifecyclePrivacyAndScope(t *testing.T) {
 func TestProviderReloadFailureKeepsSuccessfulChanges(t *testing.T) {
 	t.Setenv(creds.PassphraseEnvVar, "isolated-provider-fixture")
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { return context.DeadlineExceeded }})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { k.Close() })
+	k := openKernel(t, runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { return context.DeadlineExceeded }})
 	svc := providers.New(k, dir)
 	connected, err := svc.Connect(context.Background(), providers.ConnectInput{ID: "new", API: "https://fixture.invalid"})
 	if err != nil || connected.ReloadError == "" {
@@ -177,11 +187,7 @@ func TestProviderReloadFailureKeepsSuccessfulChanges(t *testing.T) {
 
 func TestProviderReloadWithoutRebuildKeepsOperatorNote(t *testing.T) {
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { k.Close() })
+	k := openKernel(t, runtime.Config{BaseDir: dir, Provider: mock.New()})
 	result, err := providers.New(k, dir).Reload(context.Background(), providers.ReloadInput{})
 	if err != nil {
 		t.Fatal(err)

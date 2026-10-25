@@ -15,20 +15,36 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/creds"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/platform/browsercallback"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
-func TestOAuthImportStatusLogoutRemainSocketFreeAndUseLiveModels(t *testing.T) {
-	t.Setenv(creds.PassphraseEnvVar, "isolated-oauth-fixture")
-	dir := t.TempDir()
-	var reloads, syncs atomic.Int32
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
+// openKernel opens a kernel that HOLDS a catalog library.
+//
+// The catalog directory is the DAEMON's file (W3.51): the kernel holds the
+// contract's store port, and a host that was given none holds a nil port —
+// so a test that reloads or saves the catalog must open the library itself
+// and hand the port over.
+func openKernel(t *testing.T, cfg runtime.Config) *runtime.Kernel {
+	t.Helper()
+	if cfg.CatalogStore == nil {
+		cfg.CatalogStore = catalog.NewStore(filepath.Join(cfg.BaseDir, "catalog"))
+	}
+	k, err := runtime.Open(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
+	return k
+}
+
+func TestOAuthImportStatusLogoutRemainSocketFreeAndUseLiveModels(t *testing.T) {
+	t.Setenv(creds.PassphraseEnvVar, "isolated-oauth-fixture")
+	dir := t.TempDir()
+	var reloads, syncs atomic.Int32
+	k := openKernel(t, runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
 	auth := NewOAuth(k, dir, func() ([]string, string) {
 		syncs.Add(1)
 		return []string{"fixture-current-model"}, "fixture-current-model"

@@ -9,8 +9,6 @@ package catalog
 //             (kernel/contract/catalogapi); this file keeps the names.
 
 import (
-	"strings"
-
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
 )
 
@@ -61,38 +59,6 @@ const (
 	FamilyAzure            = catalogapi.FamilyAzure
 	FamilyUnknown          = catalogapi.FamilyUnknown
 )
-
-// DuplicateCredentialEnvs returns env-var names used by more than one provider
-// in this catalog. Callers use it to avoid treating a legacy bare vault entry as
-// credentials for every provider that happens to share the same upstream env
-// name. Real process env vars remain global; this only informs vault fallback.
-func (c *Catalog) DuplicateCredentialEnvs() map[string]bool {
-	out := map[string]bool{}
-	if c == nil {
-		return out
-	}
-	counts := map[string]int{}
-	for _, p := range c.Providers {
-		if p == nil {
-			continue
-		}
-		seen := map[string]bool{}
-		for _, env := range p.Env {
-			env = strings.TrimSpace(env)
-			if env == "" || seen[env] {
-				continue
-			}
-			seen[env] = true
-			counts[env]++
-		}
-	}
-	for env, count := range counts {
-		if count > 1 {
-			out[env] = true
-		}
-	}
-	return out
-}
 
 // The family a provider belongs to is derived from its NPM package name —
 // the rule lives in the contract layer, with the row (catalogapi.FamilyFromNPM).

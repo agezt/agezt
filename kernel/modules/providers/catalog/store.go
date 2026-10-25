@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/atomicfile"
+	"github.com/agezt/agezt/kernel/contract/catalogapi"
 )
 
 // FileNames under <BaseDir>/catalog/.
@@ -25,17 +26,15 @@ const (
 // Meta is the small sidecar describing the most-recent sync. Lives in
 // meta.json next to api.json so operators can see "how fresh is this?"
 // from the filesystem without running a tool.
-type Meta struct {
-	APISyncedAt   time.Time `json:"api_synced_at,omitempty"`
-	APISourceURL  string    `json:"api_source_url,omitempty"`
-	APIBytes      int       `json:"api_bytes,omitempty"`
-	LocalSyncedAt time.Time `json:"local_synced_at,omitempty"`
-	LocalSource   string    `json:"local_source,omitempty"`
-	ProviderCount int       `json:"provider_count,omitempty"`
-	ModelCount    int       `json:"model_count,omitempty"`
-}
+//
+// The row lives in the contract layer (W3.51); this package keeps the name.
+type Meta = catalogapi.Meta
 
 // Store is the on-disk catalog directory.
+//
+// The store answers the contract's STORE port (W3.51): the daemon opens the
+// directory and hands the kernel the port, so the layers above this module
+// never name it.
 type Store struct {
 	Dir string
 	// metaMu serializes the read-modify-write of meta.json. SaveAPI and SaveLocal
@@ -44,6 +43,9 @@ type Store struct {
 	// loses one side's update (last writer wins on the whole struct). (M478)
 	metaMu sync.Mutex
 }
+
+// The store answers the contract's port.
+var _ catalogapi.Store = (*Store)(nil)
 
 // NewStore returns a Store rooted at dir. Creates the directory if
 // needed on the first write; reads succeed against an empty dir

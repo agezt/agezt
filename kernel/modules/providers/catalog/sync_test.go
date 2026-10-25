@@ -19,7 +19,7 @@ func syncFrom(t *testing.T, body string) (*catalog.Catalog, error) {
 	t.Cleanup(srv.Close)
 	s := catalog.NewSyncer()
 	s.URL = srv.URL
-	_, cat, _, err := s.Sync(context.Background())
+	_, cat, _, err := s.Sync(context.Background(), "", 0)
 	return cat, err
 }
 

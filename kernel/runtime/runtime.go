@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
+	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
@@ -26,7 +27,6 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -249,17 +249,31 @@ type Config struct {
 	// untested or failed draft is refused before promotion.
 	AutoPromoteScriptTools bool
 
-	// CatalogDir is where catalog/{api,local,custom}.json live. Empty
-	// means <BaseDir>/catalog. The kernel loads whatever is on disk on
-	// Open (empty catalog if nothing) and installs it into the Governor
-	// so pricing reflects the most recent `agt catalog sync`.
-	CatalogDir string
-
-	// Catalog, if set, is used instead of loading from CatalogDir.
+	// Catalog, if set, is used instead of loading from CatalogStore.
 	// The daemon pre-loads the catalog so it can pick the primary
 	// provider; passing it through here avoids a redundant disk read
 	// and makes sure runtime and daemon see the same snapshot.
-	Catalog *catalog.Catalog
+	//
+	// The row is the contract's (W3.51): the kernel may not name a module.
+	Catalog *catalogapi.Catalog
+
+	// CatalogStore is the port for the daemon's catalog directory — the
+	// contract's store port (W3.51). The daemon opens the directory and
+	// hands it over; the kernel reloads the snapshot through it.
+	//
+	// Nil means "no catalog library": the write surfaces (sync, discovery,
+	// a custom provider) refuse with "the catalog library is not available on
+	// this daemon" instead of writing into nothing.
+	CatalogStore catalogapi.Store
+
+	// CatalogSyncer is the port that fetches a remote catalog — the
+	// contract's syncer port (W3.51). The daemon builds it over the
+	// netguard-screened client and hands it over; the kernel never fetches
+	// anything itself.
+	//
+	// Nil means "no catalog syncer": the sync surfaces refuse with "the
+	// catalog library is not available on this daemon".
+	CatalogSyncer catalogapi.Syncer
 
 	// Plugins is a manifest of external plugins the daemon spawned
 	// at startup. The kernel itself doesn't spawn plugins (that
