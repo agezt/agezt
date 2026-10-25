@@ -23,7 +23,7 @@ func TestTasteOperationsSocketRetainPrimaryOnlyStore(t *testing.T) {
 	}
 	tenant := handle.Kernel.(*runtime.Kernel)
 	for label, k := range map[string]*runtime.Kernel{"primary-private": primary, "tenant-private": tenant} {
-		if _, err := k.Taste().Create(taste.CreateSpec{Title: label, Body: "body"}, time.Now()); err != nil {
+		if _, err := k.Taste().Create(taste.CreateSpec{Title: label, Body: "body"}, time.Now().UnixMilli()); err != nil {
 			t.Fatal(err)
 		}
 	}

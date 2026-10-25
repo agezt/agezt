@@ -24,6 +24,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/marketapi"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
+	"github.com/agezt/agezt/kernel/contract/tasteapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
@@ -35,7 +36,6 @@ import (
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
@@ -76,7 +76,7 @@ type Kernel struct {
 	wfEngine     workflowapi.Engine
 	workboard    workboardapi.HostStore
 	okr          *okr.Store
-	taste        *taste.Store
+	taste        tasteapi.Store // the curated exemplar library — the contract's store port (W3.52)
 	seat         seatapi.Store
 	artifacts    artifactapi.Blob
 	artIndex     artifactapi.HostIndex // metadata sidecar over artifacts (M822): browsable/deletable entries

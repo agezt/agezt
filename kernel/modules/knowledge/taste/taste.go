@@ -9,6 +9,13 @@
 // (procedures it follows): an exemplar is a taste anchor — a sample answer, a
 // well-formed artifact, a house-style snippet. The store is pure data; the
 // runtime selects the exemplars relevant to a run's scope and prepends them.
+//
+// The lifecycle ROWS — the exemplar, the create input, the filter — and the
+// port through which the library is read now live in the contract layer
+// (kernel/contract/tasteapi): the kernel selects exemplars for a run, the app
+// layer curates them, and the daemon owns the file — none of them may name
+// this module. The names below stay as aliases, so every existing caller is
+// unchanged and there is one row and one spelling of it.
 package taste
 
 import (
@@ -17,8 +24,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
+	"github.com/agezt/agezt/kernel/contract/tasteapi"
 	"github.com/agezt/agezt/kernel/platform/filestore"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -29,34 +36,34 @@ const (
 	maxBodyBytes = 8000
 )
 
-var ErrNotFound = errors.New("taste: not found")
+// ErrNotFound is returned when an operation names an exemplar that does not
+// exist.
+//
+// The sentinel itself lives in the contract layer (kernel/contract/tasteapi);
+// the name stays here as an alias, so every existing caller is unchanged.
+var ErrNotFound = tasteapi.ErrNotFound
 
-// Exemplar is one "what good looks like" anchor. Body is the example itself
-// (a sample answer, snippet, or artifact); Scope narrows where it applies: an
-// empty Scope means every run, otherwise it matches a run's agent slug (or a
-// free-form tag the operator dispatches under).
-type Exemplar struct {
-	ID        string   `json:"id"`
-	Title     string   `json:"title"`
-	Body      string   `json:"body"`
-	Scope     string   `json:"scope,omitempty"`
-	Tags      []string `json:"tags,omitempty"`
-	CreatedMS int64    `json:"created_ms"`
-	UpdatedMS int64    `json:"updated_ms"`
-}
+// Exemplar is one "what good looks like" anchor.
+//
+// The row itself lives in the contract layer (kernel/contract/tasteapi); the
+// name stays here as an alias, so every existing caller is unchanged.
+type Exemplar = tasteapi.Exemplar
 
-type CreateSpec struct {
-	Title string
-	Body  string
-	Scope string
-	Tags  []string
-}
+// CreateSpec is the input to Create.
+//
+// The row itself lives in the contract layer (kernel/contract/tasteapi); the
+// name stays here as an alias, so every existing caller is unchanged.
+type CreateSpec = tasteapi.CreateSpec
 
-type Filter struct {
-	Scope string
-	Tag   string
-	Limit int
-}
+// Filter narrows a listing.
+//
+// The row itself lives in the contract layer (kernel/contract/tasteapi); the
+// name stays here as an alias, so every existing caller is unchanged.
+type Filter = tasteapi.Filter
+
+// Store is the file-backed exemplar library. It satisfies the contract's
+// port, so the layers above it never name this module.
+var _ tasteapi.Store = (*Store)(nil)
 
 type Store struct {
 	path      string
@@ -89,7 +96,10 @@ func OpenStore(dir string) (*Store, error) {
 }
 
 // Create inserts an exemplar.
-func (s *Store) Create(spec CreateSpec, now time.Time) (Exemplar, error) {
+//
+// The clock is the CALLER's: the port takes nowMS so the contract layer never
+// names one (W3.52).
+func (s *Store) Create(spec CreateSpec, nowMS int64) (Exemplar, error) {
 	spec.Title = strings.TrimSpace(spec.Title)
 	spec.Body = strings.TrimSpace(spec.Body)
 	spec.Scope = strings.TrimSpace(spec.Scope)
@@ -99,7 +109,7 @@ func (s *Store) Create(spec CreateSpec, now time.Time) (Exemplar, error) {
 	if len(spec.Body) > maxBodyBytes {
 		return Exemplar{}, fmt.Errorf("taste: body exceeds %d bytes", maxBodyBytes)
 	}
-	ts := now.UnixMilli()
+	ts := nowMS
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(s.exemplars) >= maxExemplars {

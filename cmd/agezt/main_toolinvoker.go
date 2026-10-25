@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
+	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
 	"github.com/agezt/agezt/kernel/modules/work/seat"
@@ -141,6 +142,23 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 		// builds it over the netguard-screened client and hands the kernel the
 		// port; the kernel never fetches anything itself.
 		cfg.CatalogSyncer = catalog.NewSyncer()
+	}
+	if cfg.TasteStore == nil {
+		// The curated exemplar library (W3.52) — the contract's store port. The
+		// daemon opens the file (taste/taste.json) and hands the kernel the
+		// port; the kernel selects the exemplars that apply to a run through
+		// that port and never opens a library of its own.
+		//
+		// The library lives under the BASE DIR, so a tenant's kernel — which
+		// has its own base dir — opens its own exemplars.
+		//
+		// A library that cannot be opened is a STARTUP ERROR: the exemplar
+		// library is part of the daemon, not a convenience.
+		store, err := taste.OpenStore(filepath.Join(cfg.BaseDir, "taste"))
+		if err != nil {
+			return nil, err
+		}
+		cfg.TasteStore = store
 	}
 	if cfg.Workboard == nil {
 		// The durable task board (W3.47) — the contract's host port. The

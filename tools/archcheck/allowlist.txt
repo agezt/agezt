@@ -27,7 +27,6 @@ cross-module kernel/pulse -> kernel/agent
 cross-module kernel/reflect -> kernel/modules/knowledge/worldmodel
 cross-module kernel/runtime -> kernel/modules/extensions/mcp
 cross-module kernel/runtime -> kernel/modules/knowledge/memory
-cross-module kernel/runtime -> kernel/modules/knowledge/taste
 cross-module kernel/runtime -> kernel/modules/knowledge/worldmodel
 cross-module kernel/runtime -> kernel/modules/skills/skill
 cross-module kernel/runtime -> kernel/modules/work/okr

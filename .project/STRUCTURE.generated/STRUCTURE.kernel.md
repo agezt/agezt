@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-204 package(s):
+205 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -107,6 +107,7 @@
 - **`kernel/contract/seatapi`** — Package seatapi is the execution-seat catalog's contract: the row a seat is, and the port the host reads and edits it through.
 - **`kernel/contract/skillapi`** — Package skillapi is the contract layer's home for the skill rows: the lifecycle state of a reusable procedure, the record itself, the input that authors one, the rules that govern the lifecycle, and the ports through which the agent-facing tool reads them.
 - **`kernel/contract/standingapi`** — Package standingapi is the contract the standing-order model and the surfaces that read it agree on.
+- **`kernel/contract/tasteapi`** — Package tasteapi is the contract layer's home for the taste rows: the curated "what good looks like" exemplar, the input that authors one, the filter that reads them back, and the port through which the exemplar library is read and curated.
 - **`kernel/contract/toolapi`** — Package toolapi is the tool contract: what a tool is (Tool, ToolDef, Result) and the governance metadata it declares (ToolCapability, ToolEffect, ObservationTrust).
 - **`kernel/contract/toolforgeapi`** — Package toolforgeapi is the contract layer's home for the script-tool rows: one named, durable script the agent can call as a tool, the lifecycle state it is in, the rule that decides whether it may be drafted, and the port through which the agent-facing tool reads the stored ones.
 - **`kernel/contract/toolphaseapi`** — Package toolphaseapi defines the batch-aware invocation service port.

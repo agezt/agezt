@@ -6,10 +6,27 @@ import (
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+// openTasteKernel opens a kernel with the exemplar library the host owns
+// (W3.52): the library's file is the composition root's, and the kernel holds
+// the contract's port.
+func openTasteKernel(t *testing.T, dir string) *runtime.Kernel {
+	t.Helper()
+	store, err := taste.OpenStore(filepath.Join(dir, "taste"))
+	if err != nil {
+		t.Fatalf("open taste store: %v", err)
+	}
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), TasteStore: store})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return k
+}
 
 func TestTasteCommandMetadataComesFromCompleteAppRegistry(t *testing.T) {
 	if len(tasteOperations) != 3 {
@@ -27,12 +44,9 @@ func TestTasteAppSocketRequiresAuditBeforeMutations(t *testing.T) {
 	for _, cmd := range []string{CmdTasteCreate, CmdTasteDelete} {
 		t.Run(cmd, func(t *testing.T) {
 			dir := t.TempDir()
-			k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
-			if err != nil {
-				t.Fatal(err)
-			}
+			k := openTasteKernel(t, dir)
 			defer k.Close()
-			e, err := k.Taste().Create(taste.CreateSpec{Title: "seed", Body: "body"}, time.Now())
+			e, err := k.Taste().Create(taste.CreateSpec{Title: "seed", Body: "body"}, time.Now().UnixMilli())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -55,10 +69,7 @@ func TestTasteAppSocketRequiresAuditBeforeMutations(t *testing.T) {
 }
 func TestTasteNativeMutationHasOneOwnedAuditArc(t *testing.T) {
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
-	if err != nil {
-		t.Fatal(err)
-	}
+	k := openTasteKernel(t, dir)
 	defer k.Close()
 	s := NewServer(k, dir)
 	s.token = "primary"

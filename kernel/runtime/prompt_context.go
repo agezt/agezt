@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/tasteapi"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
@@ -51,7 +51,7 @@ func injectUserProfile(system, profileText string) string {
 // the system prompt so the model anchors its output to concrete examples of good
 // work. Each exemplar renders as a titled block; scoped ones are already ordered
 // first by the store.
-func injectTaste(system string, exemplars []taste.Exemplar) string {
+func injectTaste(system string, exemplars []tasteapi.Exemplar) string {
 	var b strings.Builder
 	b.WriteString("What good looks like (curated exemplars — match this quality and style, don't copy verbatim):\n")
 	for _, e := range exemplars {
