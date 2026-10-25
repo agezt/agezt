@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // GraveyardRequest keeps older_than_days raw: legacy callers send a number or a
@@ -57,11 +57,11 @@ type GraveyardOutput struct {
 // GraveyardService reports retired agents with their retirement age. It only
 // reads: archiving or hard removal stays an explicit operator action.
 type GraveyardService struct {
-	profiles func() []core.Profile
+	profiles func() []agentapi.Profile
 	now      func() time.Time
 }
 
-func NewGraveyard(profiles func() []core.Profile, now func() time.Time) *GraveyardService {
+func NewGraveyard(profiles func() []agentapi.Profile, now func() time.Time) *GraveyardService {
 	if now == nil {
 		now = time.Now
 	}

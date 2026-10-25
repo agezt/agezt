@@ -10,9 +10,9 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/event"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
@@ -24,7 +24,7 @@ import (
 // health picture).
 //
 // The journal is walked ONCE for everything the journal carries.
-func CollectStatus(src StatusSources, profiles []core.Profile, reaperCut, routingCut int64) StatusSnapshot {
+func CollectStatus(src StatusSources, profiles []agentapi.Profile, reaperCut, routingCut int64) StatusSnapshot {
 	snap := StatusSnapshot{
 		Degraded: map[string]DegradedStatus{}, Misconfigured: map[string]MisconfigurationStatus{}, Routing: map[string]RoutingStatus{},
 		Forced: map[string]ForcedStatus{}, ForcedFailed: map[string]ForcedStatus{}, ForcedExhausted: map[string]ForcedStatus{},
@@ -41,7 +41,7 @@ func CollectStatus(src StatusSources, profiles []core.Profile, reaperCut, routin
 // per agent, how many wake it, when it next wakes and which event subjects it
 // listens to. An agent with neither a schedule nor a standing order has no
 // wake status at all.
-func CollectWakeStatus(src StatusSources, profiles []core.Profile) map[string]WakeStatus {
+func CollectWakeStatus(src StatusSources, profiles []agentapi.Profile) map[string]WakeStatus {
 	if len(profiles) == 0 {
 		return nil
 	}
@@ -101,7 +101,7 @@ func CollectWakeStatus(src StatusSources, profiles []core.Profile) map[string]Wa
 
 // CollectEscalationStatus reads the board's open help requests and reports,
 // per agent, how many are open and how many the agent already acknowledged.
-func CollectEscalationStatus(src StatusSources, profiles []core.Profile) map[string]EscalationLoad {
+func CollectEscalationStatus(src StatusSources, profiles []agentapi.Profile) map[string]EscalationLoad {
 	if len(profiles) == 0 {
 		return nil
 	}

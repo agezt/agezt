@@ -11,7 +11,7 @@ package runtime
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"strings"
 )
 
@@ -46,10 +46,10 @@ func agentToolPolicyFromCtx(ctx context.Context) agentToolPolicy {
 	return v
 }
 
-func agentRetryPolicyFromCtx(ctx context.Context) (roster.RetryPolicy, bool) {
-	v, ok := ctx.Value(ctxKeyAgentRetryPolicy).(roster.RetryPolicy)
+func agentRetryPolicyFromCtx(ctx context.Context) (agentapi.RetryPolicy, bool) {
+	v, ok := ctx.Value(ctxKeyAgentRetryPolicy).(agentapi.RetryPolicy)
 	if !ok {
-		return roster.RetryPolicy{}, false
+		return agentapi.RetryPolicy{}, false
 	}
 	v.RetryOn = append([]string(nil), v.RetryOn...)
 	return v, true

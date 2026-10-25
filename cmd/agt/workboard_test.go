@@ -38,7 +38,7 @@ func withWorkboard(t *testing.T, cfg runtime.Config) runtime.Config {
 func TestCmdWorkboardRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("AGEZT_HOME", dir)
-	k, err := runtime.Open(withWorkboard(t, runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok"))}))
+	k, err := runtime.Open(withRoster(t, withWorkboard(t, runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok"))})))
 	if err != nil {
 		t.Fatalf("runtime.Open: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestCmdWorkboardRejectsMissingTitle(t *testing.T) {
 func TestCmdWorkboardPolicyAndFail(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("AGEZT_HOME", dir)
-	k, err := runtime.Open(withWorkboard(t, runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok"))}))
+	k, err := runtime.Open(withRoster(t, withWorkboard(t, runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok"))})))
 	if err != nil {
 		t.Fatalf("runtime.Open: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestCmdWorkboardPolicyAndFail(t *testing.T) {
 func TestCmdWorkboardDispatchAndWatch(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("AGEZT_HOME", dir)
-	k, err := runtime.Open(withWorkboard(t, runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ready for review"))}))
+	k, err := runtime.Open(withRoster(t, withWorkboard(t, runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ready for review"))})))
 	if err != nil {
 		t.Fatalf("runtime.Open: %v", err)
 	}
@@ -322,7 +322,7 @@ func TestCmdWorkboardDispatchRetriesAndEscalates(t *testing.T) {
 	prov := mock.New()
 	calls := 0
 	prov.OnRequest = func(llm.CompletionRequest) { calls++ }
-	k, err := runtime.Open(withWorkboard(t, runtime.Config{BaseDir: dir, Provider: prov}))
+	k, err := runtime.Open(withRoster(t, withWorkboard(t, runtime.Config{BaseDir: dir, Provider: prov})))
 	if err != nil {
 		t.Fatalf("runtime.Open: %v", err)
 	}
@@ -373,7 +373,7 @@ func TestCmdWorkboardDispatchRetriesAndEscalates(t *testing.T) {
 func TestCmdWorkboardSweepReclaimsStaleClaims(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("AGEZT_HOME", dir)
-	k, err := runtime.Open(withWorkboard(t, runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok"))}))
+	k, err := runtime.Open(withRoster(t, withWorkboard(t, runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok"))})))
 	if err != nil {
 		t.Fatalf("runtime.Open: %v", err)
 	}

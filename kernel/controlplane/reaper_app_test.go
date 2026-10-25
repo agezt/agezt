@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/agents/reaper"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
@@ -43,7 +44,16 @@ func TestReaperNativeTypedRegistry(t *testing.T) {
 // named; a tenant token is refused.
 func TestReaperNativeScan(t *testing.T) {
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
+	// The roster's file is the composition root's (W3.56): the test opens it
+	// and hands the kernel the contract's port — and it keeps the concrete
+	// store, because the clock hook (SetNowForTest) is a test seam and not on
+	// the port.
+	store, err := roster.Open(filepath.Join(dir, "roster"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.SetNowForTest(func() time.Time { return time.Now().Add(-10 * 24 * time.Hour) })
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), Roster: store})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +62,14 @@ func TestReaperNativeScan(t *testing.T) {
 	// principle P5), so the composition root builds it and injects it.
 	k.SetReaperScanner(reaper.New(k.ReaperPorts()))
 	reg, err := tenant.New(filepath.Join(dir, "tenants"), func(_ string, baseDir string) (io.Closer, error) {
-		return runtime.Open(runtime.Config{BaseDir: baseDir, Provider: mock.New()})
+		// The tenant's roster is the tenant's file (W3.56): its own base dir,
+		// its own store — and the same clock the scan judges it on.
+		tstore, terr := roster.Open(filepath.Join(baseDir, "roster"))
+		if terr != nil {
+			return nil, terr
+		}
+		tstore.SetNowForTest(func() time.Time { return time.Now().Add(-10 * 24 * time.Hour) })
+		return runtime.Open(runtime.Config{BaseDir: baseDir, Provider: mock.New(), Roster: tstore})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -63,13 +80,11 @@ func TestReaperNativeScan(t *testing.T) {
 		t.Fatal(err)
 	}
 	tenantToken, _ := reg.Token("acme")
-	k.Roster().SetNowForTest(func() time.Time { return time.Now().Add(-10 * 24 * time.Hour) })
-	if _, err := k.Roster().Add(roster.Profile{Slug: "dormant"}); err != nil {
+	if _, err := store.Add(agentapi.Profile{Slug: "dormant"}); err != nil {
 		t.Fatal(err)
 	}
 	tk := entry.Kernel.(*runtime.Kernel)
-	tk.Roster().SetNowForTest(func() time.Time { return time.Now().Add(-10 * 24 * time.Hour) })
-	if _, err := tk.Roster().Add(roster.Profile{Slug: "tenant-dormant"}); err != nil {
+	if _, err := tk.Roster().Add(agentapi.Profile{Slug: "tenant-dormant"}); err != nil {
 		t.Fatal(err)
 	}
 	s := NewServer(k, dir)

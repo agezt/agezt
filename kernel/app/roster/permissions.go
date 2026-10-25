@@ -14,18 +14,18 @@ import (
 	"github.com/agezt/agezt/kernel/app"
 	apptools "github.com/agezt/agezt/kernel/app/tools"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
 // PermissionPorts binds the permission picture to the primary kernel: the
 // roster, the registered tools, the policy engine and the config center.
 type PermissionPorts struct {
-	Get    func(string) (core.Profile, bool)
-	Update func(string, func(*core.Profile)) (core.Profile, bool, error)
+	Get    func(string) (agentapi.Profile, bool)
+	Update func(string, func(*agentapi.Profile)) (agentapi.Profile, bool, error)
 	Tools  func() map[string]toolapi.Tool
 	Decide func(edict.Capability, edict.TrustLevel) edict.Outcome
 	// Config lists the config center's entries; false when there is none.
@@ -207,7 +207,7 @@ func (s *PermissionService) Capabilities(_ context.Context, in CapabilitiesReque
 	return CapabilitiesOutput{Profile: profileWriteOutput(updated).Profile, PermissionsOutput: s.picture(updated)}, nil
 }
 
-func (s *PermissionService) picture(p core.Profile) PermissionsOutput {
+func (s *PermissionService) picture(p agentapi.Profile) PermissionsOutput {
 	rows := s.permissionRows(p)
 	configRows := s.configRows(p)
 	allowed := 0
@@ -234,7 +234,7 @@ type capabilityPatch struct {
 	trustCeiling    *string
 	toolAllow       *[]string
 	toolDeny        *[]string
-	noisePolicy     *core.NoisePolicy
+	noisePolicy     *agentapi.NoisePolicy
 	configOverrides *map[string]string
 	memoryScope     *string
 	workdir         *string
@@ -278,7 +278,7 @@ func decodeCapabilityPatch(in CapabilitiesRequest) (capabilityPatch, bool, error
 	return patch, touched, nil
 }
 
-func (patch capabilityPatch) apply(dst *core.Profile) {
+func (patch capabilityPatch) apply(dst *agentapi.Profile) {
 	if patch.trustCeiling != nil {
 		dst.TrustCeiling = *patch.trustCeiling
 	}
@@ -320,7 +320,7 @@ func (patch capabilityPatch) apply(dst *core.Profile) {
 // denylist wins, then a non-empty allowlist hides the rest, then the policy
 // engine decides under the agent's trust ceiling (an unparsable ceiling is
 // ignored).
-func (s *PermissionService) permissionRows(p core.Profile) []PermissionRow {
+func (s *PermissionService) permissionRows(p agentapi.Profile) []PermissionRow {
 	tools := s.ports.Tools()
 	names := make([]string, 0, len(tools))
 	for name := range tools {
@@ -374,7 +374,7 @@ func permissionStatus(out edict.Outcome) string {
 
 // configRows lists config entries by key with the agent's visibility; nil when
 // the daemon has no config center.
-func (s *PermissionService) configRows(p core.Profile) []ConfigPermissionRow {
+func (s *PermissionService) configRows(p agentapi.Profile) []ConfigPermissionRow {
 	entries, ok := s.ports.Config()
 	if !ok {
 		return nil
@@ -469,7 +469,7 @@ func lowerSet(items []string) map[string]bool {
 	return out
 }
 
-func wakeAccess(p core.Profile) WakeAccess {
+func wakeAccess(p agentapi.Profile) WakeAccess {
 	manager := strings.TrimSpace(p.ParentAgent)
 	if manager == "" {
 		manager = strings.TrimSpace(p.OwnerAgent)
@@ -523,7 +523,7 @@ func wakeAccess(p core.Profile) WakeAccess {
 	}
 }
 
-func governance(p core.Profile, permissions []PermissionRow, configRows []ConfigPermissionRow) Governance {
+func governance(p agentapi.Profile, permissions []PermissionRow, configRows []ConfigPermissionRow) Governance {
 	allowed, ask, blocked := 0, 0, 0
 	directTools, askTools, blockedTools := []string{}, []string{}, []string{}
 	for _, row := range permissions {
@@ -660,8 +660,8 @@ func governance(p core.Profile, permissions []PermissionRow, configRows []Config
 // effectiveNoisePolicy is the profile's noise policy; a system guardian is held
 // quiet regardless: silent on success, no memory writes, at least warning
 // severity and at most one notification per eight hours.
-func effectiveNoisePolicy(p core.Profile) core.NoisePolicy {
-	var policy core.NoisePolicy
+func effectiveNoisePolicy(p agentapi.Profile) agentapi.NoisePolicy {
+	var policy agentapi.NoisePolicy
 	if p.NoisePolicy != nil {
 		policy = *p.NoisePolicy
 	}

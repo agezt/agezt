@@ -12,6 +12,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/modules/agents/reaper"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
@@ -164,6 +165,23 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 			return nil, err
 		}
 		cfg.TasteStore = store
+	}
+	if cfg.Roster == nil {
+		// The roster (W3.56) — the contract's store port. The daemon opens the
+		// file (roster/roster.json) and hands the kernel the port; the kernel
+		// drives the agent lifecycle through it, and never opens a roster of
+		// its own.
+		//
+		// The roster lives under the BASE DIR, so a tenant's kernel — which has
+		// its own base dir — keeps its own agents.
+		//
+		// A roster that cannot be opened is a STARTUP ERROR: the agents are
+		// part of the daemon, not a convenience.
+		store, err := roster.Open(filepath.Join(cfg.BaseDir, "roster"))
+		if err != nil {
+			return nil, err
+		}
+		cfg.Roster = store
 	}
 	if cfg.OKRStore == nil {
 		// The objective library (W3.53) — the contract's store port. The daemon

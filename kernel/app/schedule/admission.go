@@ -4,18 +4,18 @@ package schedule
 
 import (
 	"errors"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"strings"
 )
 
 // AdmissionHost supplies selected live target and agent views.
 type AdmissionHost struct {
-	Agent              func(string) (roster.Profile, bool)
+	Agent              func(string) (agentapi.Profile, bool)
 	Workflow           func(string) bool
 	WorkflowName       func(string) (string, bool)
 	Tool               func(string) bool
-	ManagedDirectError func(roster.Profile, string) string
+	ManagedDirectError func(agentapi.Profile, string) string
 }
 type Admission struct{ host AdmissionHost }
 
@@ -73,7 +73,7 @@ func (s *Admission) Runnable(e cadenceapi.Entry) error {
 	return nil
 }
 
-func ValidateAgentTool(p roster.Profile, toolName string) error {
+func ValidateAgentTool(p agentapi.Profile, toolName string) error {
 	name := strings.ToLower(strings.TrimSpace(toolName))
 	if name == "" {
 		return nil

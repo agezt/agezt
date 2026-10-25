@@ -12,11 +12,11 @@ import (
 	"sync"
 	"time"
 
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 )
 
 // ProfileView preserves the legacy JSON round trip and kind/managed augmentation.
-func ProfileView(p core.Profile) map[string]any {
+func ProfileView(p agentapi.Profile) map[string]any {
 	raw, _ := json.Marshal(p)
 	var out map[string]any
 	_ = json.Unmarshal(raw, &out)
@@ -31,8 +31,8 @@ type ListInput struct {
 	DecodeError error
 }
 type ListService struct {
-	profiles       func() []core.Profile
-	statuses       func([]core.Profile) map[string]map[string]any
+	profiles       func() []agentapi.Profile
+	statuses       func([]agentapi.Profile) map[string]map[string]any
 	now            func() time.Time
 	mu             sync.RWMutex
 	valid          bool
@@ -42,7 +42,7 @@ type ListService struct {
 	at             time.Time
 }
 
-func NewList(profiles func() []core.Profile, statuses func([]core.Profile) map[string]map[string]any, now func() time.Time) *ListService {
+func NewList(profiles func() []agentapi.Profile, statuses func([]agentapi.Profile) map[string]map[string]any, now func() time.Time) *ListService {
 	if now == nil {
 		now = time.Now
 	}
@@ -51,7 +51,7 @@ func NewList(profiles func() []core.Profile, statuses func([]core.Profile) map[s
 
 const ListCacheTTL = 1500 * time.Millisecond
 
-func contentHash(profiles []core.Profile) uint64 {
+func contentHash(profiles []agentapi.Profile) uint64 {
 	if len(profiles) == 0 {
 		return 0
 	}
@@ -77,7 +77,7 @@ func contentHash(profiles []core.Profile) uint64 {
 	}
 	return h.Sum64()
 }
-func (s *ListService) cached(key uint64, profiles []core.Profile) ([]ProfileOutput, int, int, bool) {
+func (s *ListService) cached(key uint64, profiles []agentapi.Profile) ([]ProfileOutput, int, int, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if !s.valid || s.key != key || s.now().Sub(s.at) > ListCacheTTL || contentHash(profiles) != s.key {

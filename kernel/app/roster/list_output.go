@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/platform/schema"
 	"reflect"
 	"strings"
@@ -98,7 +98,7 @@ type StatusOutput struct {
 	WakeStandingCount          *int            `json:"wake_standing_count,omitempty"`
 }
 type ProfileOutput struct {
-	core.Profile
+	agentapi.Profile
 	Kind          string        `json:"kind"`
 	Managed       bool          `json:"managed"`
 	Status        *StatusOutput `json:"status,omitempty"`
@@ -182,7 +182,7 @@ type ListOutput struct {
 
 // The schema view has the same complete public fields but no custom marshaler.
 type profileSchema struct {
-	core.Profile
+	agentapi.Profile
 	Kind    string        `json:"kind"`
 	Managed bool          `json:"managed"`
 	Status  *StatusOutput `json:"status,omitempty"`

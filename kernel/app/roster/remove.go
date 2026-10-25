@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
@@ -112,18 +112,18 @@ type RemoveOutput struct {
 // RemovePorts are the native effects of an agent removal. Each cascade port
 // does nothing and reports zero when its flag is off.
 type RemovePorts struct {
-	Get        func(string) (core.Profile, bool)
-	Subagents  func(slug string) []core.Profile
-	Retained   func(slug string, subagents []core.Profile, includeSubagents bool) []string
-	Workflows  func(core.Profile) []string
-	Retire     func(parent string, children []core.Profile, on bool) (int, []string, error)
+	Get        func(string) (agentapi.Profile, bool)
+	Subagents  func(slug string) []agentapi.Profile
+	Retained   func(slug string, subagents []agentapi.Profile, includeSubagents bool) []string
+	Workflows  func(agentapi.Profile) []string
+	Retire     func(parent string, children []agentapi.Profile, on bool) (int, []string, error)
 	Standing   func(slug string, on bool) (int, error)
 	Schedules  func(slug string, on bool) (int, error)
-	Memory     func(p core.Profile, on bool) (int, error)
+	Memory     func(p agentapi.Profile, on bool) (int, error)
 	Authored   func(slug string, on bool) (int, error)
 	Skills     func(slug string, on bool) (int, error)
 	Config     func(slug string, on bool) (int, int, error)
-	Workspace  func(p core.Profile, on bool) (int, error)
+	Workspace  func(p agentapi.Profile, on bool) (int, error)
 	Remove     func(ref string) (bool, error)
 	NewCorr    func() string
 	Publish    func(subject, corr string, payload map[string]any)

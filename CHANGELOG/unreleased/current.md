@@ -4507,6 +4507,44 @@ This file holds the active `[Unreleased]` working set.
     No behaviour changed: the library is still the same store, under the same
     directory, journaling the same events.
 
+- **Removed: the kernel's reach on the roster (W3.56).** The kernel held the
+  agents module's concrete store and **opened the roster's file** itself; the
+  run executor, the control plane and the agent gateway named the module's
+  concrete type or rows as well. The kernel now holds the **contract's ports**
+  — `agentapi.Store` (**eight** verbs: `Add`, `SetEnabled`, `SetRetired`,
+  `Update`, `Remove`, `Get`, `List`, `Count`), `agentapi.Reader` (**two**
+  verbs) and a one-verb `agentapi.RepairSource` — and the module keeps the
+  profile row, the repair result and the two sentinels (`ErrNotFound`,
+  `ErrRetired`) as **aliases**, so `errors.Is` matches on both sides of the
+  module boundary.
+  The **port is split, not widened**: the gateway only looks agents up, so it
+  takes the two-verb reader; the control plane drives the lifecycle, so it
+  takes the eight-verb store; a repair pass takes the one-verb repair source.
+  A single wide port would have handed the gateway the whole agent lifecycle.
+  The **rule travels with the row**: the autonomy runbook — a profile's
+  trigger/route/recovery/sleep contract — moved with the profile it judges into
+  the contract, because the control plane's wake evidence, the run executor's
+  sub-agent prep and the daemon's cadence all build the same payload and may
+  not name the module to reach the rule. The clock seam (`SetNowForTest`)
+  deliberately stays **off** the port: a port is what the layers above the
+  module may call, and a clock hook is not theirs.
+  The roster's file is the **daemon's**: `cmd/agezt`'s composition root opens
+  `roster/roster.json` and hands the kernel the port, and the kernel never
+  opens a roster of its own — so a **tenant** keeps **its own** agents, because
+  the roster lives under the base dir. This roster is **not** bus-bound: the
+  kernel presses the journal, so there is no publisher port and no builder to
+  inject.
+  A daemon with **no** roster answers instead of panicking, and the answers
+  differ by direction: the reads answer **"no agents"** (through the kernel's
+  nil-safe helpers), and the writes refuse with "the roster is not available on
+  this daemon". The architecture ratchet went from 28 to 24 edges.
+  The nil port is why the reads had to move: the app layer's overseer source,
+  the guardians' host and the control plane's operation builders took a method
+  value from the port, and a method value taken from a nil interface panics
+  before the first call — they now go through the kernel's nil-safe readers.
+  No behaviour changed: the roster is still the same store, under the same
+  directory, journaling the same events.
+
 - **Removed: the kernel's reach on the objective library (W3.53).** The kernel
   held the OKR module's concrete store and **opened the library's file** itself.
   The kernel now holds the **contract's store port** — `okrapi.Store`, nine

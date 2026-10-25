@@ -5,8 +5,8 @@ package standing
 import (
 	"context"
 	"fmt"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"strings"
 )
 
@@ -21,8 +21,8 @@ type Writer interface {
 	RemoveStanding(string) (bool, error)
 }
 type Host struct {
-	Agent              func(string) (roster.Profile, bool)
-	ManagedDirectError func(roster.Profile, string) string
+	Agent              func(string) (agentapi.Profile, bool)
+	ManagedDirectError func(agentapi.Profile, string) string
 }
 type Service struct {
 	reader Reader

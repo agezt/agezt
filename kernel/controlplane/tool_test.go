@@ -65,11 +65,11 @@ func TestToolList_ReturnsRegisteredTools(t *testing.T) {
 // JSON array, not null, so downstream jq pipelines don't break.
 func TestToolList_EmptyWhenNoToolsRegistered(t *testing.T) {
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  dir,
 		Provider: mock.New(mock.FinalText("ok")),
 		// Tools omitted — kernel runs with no in-process tools.
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -111,14 +111,14 @@ func TestToolList_EmptyWhenNoToolsRegistered(t *testing.T) {
 // chance to surface in non-sorted output.
 func TestToolList_SortsByName(t *testing.T) {
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  dir,
 		Provider: mock.New(mock.FinalText("ok")),
 		Tools: map[string]toolapi.Tool{
 			"zeta":  shell.NewWithWarden(warden.New(nil)),
 			"alpha": shell.NewWithWarden(warden.New(nil)),
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestToolList_SortsByName(t *testing.T) {
 
 func TestAgentPermissions_ReturnsEffectiveToolPolicy(t *testing.T) {
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  dir,
 		Provider: mock.New(mock.FinalText("ok")),
 		Tools: map[string]toolapi.Tool{
@@ -170,7 +170,7 @@ func TestAgentPermissions_ReturnsEffectiveToolPolicy(t *testing.T) {
 			"beta":  testTool{name: "beta"},
 			"gamma": testTool{name: "gamma"},
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -329,10 +329,10 @@ func TestAgentPermissions_ReturnsEffectiveToolPolicy(t *testing.T) {
 
 func TestAgentCapabilities_PatchesResourceAuthority(t *testing.T) {
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  dir,
 		Provider: mock.New(mock.FinalText("ok")),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

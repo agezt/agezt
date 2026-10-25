@@ -11,9 +11,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 func newSubAgentTool() *subAgentTool { return &subAgentTool{} }
@@ -192,7 +192,7 @@ type subAgentPrep struct {
 	maxRunCost   int64
 	agentSlug    string
 	agentDailyMc int64
-	retryPolicy  *roster.RetryPolicy
+	retryPolicy  *agentapi.RetryPolicy
 	rc           *runControl
 }
 

@@ -45,13 +45,13 @@ func TestAgentPermissionsNativeTypedRegistry(t *testing.T) {
 // a patch is audited, a tenant token reaches neither.
 func TestAgentPermissionsNativeRouting(t *testing.T) {
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
+	k, err := runtime.Open(withRoster(t, runtime.Config{BaseDir: dir, Provider: mock.New()}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer k.Close()
 	reg, err := tenant.New(filepath.Join(dir, "tenants"), func(_ string, baseDir string) (io.Closer, error) {
-		return runtime.Open(runtime.Config{BaseDir: baseDir, Provider: mock.New()})
+		return runtime.Open(withRoster(t, runtime.Config{BaseDir: baseDir, Provider: mock.New()}))
 	})
 	if err != nil {
 		t.Fatal(err)

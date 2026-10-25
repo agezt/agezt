@@ -45,7 +45,7 @@ func TestAgentWakeNativeLaunchCarriesLineage(t *testing.T) {
 	// hold the reply until this request returns and the read times out.
 	release := make(chan struct{})
 	prov.OnRequest = func(llm.CompletionRequest) { <-release }
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: prov})
+	k, err := runtime.Open(withRoster(t, runtime.Config{BaseDir: dir, Provider: prov}))
 	if err != nil {
 		t.Fatal(err)
 	}

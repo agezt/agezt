@@ -3,9 +3,7 @@
 # Format: <kind> <importer> -> <imported>   (module-relative package paths)
 # Every entry is an edge architecture/21-migration-roadmap.md removes. Entries
 # may only be DELETED (the check fails when a listed edge no longer occurs).
-adapter-bypass kernel/agentgw -> kernel/modules/agents/roster
 adapter-bypass kernel/agentgw -> kernel/modules/knowledge/memory
-adapter-bypass kernel/controlplane -> kernel/modules/agents/roster
 adapter-bypass kernel/controlplane -> kernel/modules/board/board
 adapter-bypass kernel/controlplane -> kernel/modules/extensions/toolbox
 adapter-bypass kernel/controlplane -> kernel/modules/knowledge/memory
@@ -22,10 +20,8 @@ cross-module kernel/modules/agents/selfrepair -> kernel/modules/board/board
 cross-module kernel/modules/agents/selfrepair -> kernel/runtime
 cross-module kernel/modules/knowledge/memory -> kernel/agent
 cross-module kernel/pulse -> kernel/agent
-cross-module kernel/runtime -> kernel/modules/agents/roster
 cross-module kernel/runtime -> kernel/modules/extensions/mcp
 cross-module kernel/runtime -> kernel/modules/knowledge/memory
-cross-module kernel/runtime/runexec -> kernel/modules/agents/roster
 cross-module kernel/runtime/runexec -> kernel/modules/knowledge/memory
 cross-module kernel/runtime/runexec -> kernel/modules/work/assure
 upward kernel/channel -> kernel/bus

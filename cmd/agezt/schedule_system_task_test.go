@@ -135,10 +135,10 @@ func TestScheduledRunContextModelOverrideWinsOverAgentProfile(t *testing.T) {
 }
 
 func TestRunScheduledTrackedTargetPublishesTaskLifecycle(t *testing.T) {
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("unused")),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -187,10 +187,10 @@ func TestRunScheduledTrackedTargetPublishesTaskLifecycle(t *testing.T) {
 }
 
 func TestRunScheduledTrackedTargetPublishesTaskFailure(t *testing.T) {
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("unused")),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -227,10 +227,10 @@ func TestRunScheduledTrackedTargetPublishesTaskFailure(t *testing.T) {
 }
 
 func TestRunScheduledTrackedTargetCompletesAgentLifecycle(t *testing.T) {
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("unused")),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -267,10 +267,10 @@ func TestRunScheduledTrackedTargetCompletesAgentLifecycle(t *testing.T) {
 }
 
 func TestRunScheduledTrackedTargetDoesNotCompleteLifecycleOnFailure(t *testing.T) {
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("unused")),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -304,12 +304,12 @@ func TestRunScheduledTrackedTargetDoesNotCompleteLifecycleOnFailure(t *testing.T
 
 func TestRunScheduledTrackedTargetHonorsAgentToolPolicy(t *testing.T) {
 	probe := &scheduledProbeTool{}
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("unused")),
 		Tools:    map[string]toolapi.Tool{"probe": probe},
 		Edict:    edict.New(edict.Options{UnknownAllow: true}),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

@@ -28,7 +28,6 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/journal"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
@@ -194,10 +193,14 @@ func Open(cfg Config) (*Kernel, error) {
 		}
 	}
 
-	rstore, err := roster.Open(filepath.Join(cfg.BaseDir, "roster"))
-	if err != nil {
-		return fail("runtime: roster", err)
-	}
+	// The roster's file is the COMPOSITION ROOT's (W3.56) — it is the daemon's
+	// business, and the kernel is a module that may not name one. The kernel
+	// holds `cfg.Roster`, the contract's store port, and the daemon opens
+	// roster/roster.json and hands it over.
+	//
+	// A host that was given none holds a nil port: the roster reads answer
+	// "no agents" and the roster writes refuse, rather than calling into
+	// nothing.
 
 	mcpstore, err := mcp.OpenStore(filepath.Join(cfg.BaseDir, "mcp"))
 	if err != nil {
@@ -317,7 +320,7 @@ func Open(cfg Config) (*Kernel, error) {
 		skillStore:   cfg.SkillStore,
 		standing:     cfg.Standing,
 		resume:       rsstore,
-		roster:       rstore,
+		roster:       cfg.Roster,
 		toolForge:    cfg.ToolForge,
 		mcpStore:     mcpstore,
 		mcpConns:     make(map[string]mcp.Conn),
@@ -405,7 +408,7 @@ func Open(cfg Config) (*Kernel, error) {
 		gwCfg.SocketPath = sockPath
 	}
 	agentGW := agentgw.NewGateway(gwCfg)
-	agentGW.Attach(kbus, mgr, rstore)
+	agentGW.Attach(kbus, mgr, cfg.Roster)
 	agentGW.SetConfigCenter(configCenter)
 	agentGW.SetAuditJournal(j) // wire the audit trail (was a nil no-op)
 	k.agentGW = agentGW

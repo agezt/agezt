@@ -9,8 +9,8 @@ import (
 	"reflect"
 
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
@@ -45,9 +45,9 @@ type ReviveOutput struct {
 
 // SetRetiredPorts are the native effects of retiring and reviving an agent.
 type SetRetiredPorts struct {
-	Get        func(string) (core.Profile, bool)
-	Impact     func(core.Profile) ImpactOutput
-	SetRetired func(ref string, retired bool, reason string) (core.Profile, error)
+	Get        func(string) (agentapi.Profile, bool)
+	Impact     func(agentapi.Profile) ImpactOutput
+	SetRetired func(ref string, retired bool, reason string) (agentapi.Profile, error)
 	// PauseStanding/PauseSchedules pause the agent's triggers on retire and
 	// report how many; the counts report what a revive leaves paused.
 	PauseStanding        func(slug string) (int, error)
@@ -66,14 +66,14 @@ type SetRetiredService struct{ ports SetRetiredPorts }
 
 func NewSetRetired(ports SetRetiredPorts) *SetRetiredService { return &SetRetiredService{ports: ports} }
 
-func (s *SetRetiredService) setRetired(in SetRetiredRequest, retired bool) (core.Profile, string, error) {
+func (s *SetRetiredService) setRetired(in SetRetiredRequest, retired bool) (agentapi.Profile, string, error) {
 	ref, err := RefPageRequest{Ref: in.Ref}.ref()
 	if err != nil {
-		return core.Profile{}, "", err
+		return agentapi.Profile{}, "", err
 	}
 	p, err := s.ports.SetRetired(ref, retired, lenientString(in.Reason))
-	if errors.Is(err, core.ErrNotFound) {
-		return core.Profile{}, ref, errors.New("unknown agent: " + ref)
+	if errors.Is(err, agentapi.ErrNotFound) {
+		return agentapi.Profile{}, ref, errors.New("unknown agent: " + ref)
 	}
 	return p, ref, err
 }

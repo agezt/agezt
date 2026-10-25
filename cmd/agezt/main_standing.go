@@ -11,9 +11,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/standing"
 )
@@ -51,9 +51,9 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, store *st
 		// Run AS a named agent (M790): resolve the order's roster profile up
 		// front — an unknown or paused agent journals a standing.error instead
 		// of silently running as the default identity (mirrors `agt run --agent`).
-		var prof *roster.Profile
+		var prof *agentapi.Profile
 		if slug := strings.TrimSpace(o.Agent); slug != "" {
-			p, ok := k.Roster().Get(slug)
+			p, ok := k.RosterGet(slug)
 			if !ok || p.Retired || !p.Enabled {
 				reason := "unknown agent " + slug
 				if ok {

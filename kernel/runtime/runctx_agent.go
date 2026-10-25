@@ -12,9 +12,9 @@ import (
 	"context"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
@@ -26,7 +26,7 @@ import (
 // profile does. The per-run cost ceiling is NOT applied here — callers layer
 // it so their own explicit budget wins; callers likewise layer explicit
 // per-run model/system overrides on top.
-func WithAgentProfile(ctx context.Context, p roster.Profile) context.Context {
+func WithAgentProfile(ctx context.Context, p agentapi.Profile) context.Context {
 	noise := effectiveAgentNoisePolicy(p)
 	if p.System {
 		ctx = context.WithValue(ctx, ctxKeySystemAgent, true)
@@ -87,7 +87,7 @@ func WithAgentProfile(ctx context.Context, p roster.Profile) context.Context {
 	return WithAgentIdent(ctx, p.Slug, p.MaxDailyMc)
 }
 
-func effectiveAgentNoisePolicy(p roster.Profile) agentNoisePolicy {
+func effectiveAgentNoisePolicy(p agentapi.Profile) agentNoisePolicy {
 	var out agentNoisePolicy
 	if p.NoisePolicy != nil {
 		out.silentOnSuccess = p.NoisePolicy.SilentOnSuccess

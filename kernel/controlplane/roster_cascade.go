@@ -12,10 +12,10 @@ package controlplane
 import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
@@ -70,13 +70,13 @@ func (s *Server) impactPorts() approster.ImpactPorts {
 // preview's shape and the sub-agent aggregation live in approster.ImpactService.
 type nativeImpactSource struct{ s *Server }
 
-func (n nativeImpactSource) Get(ref string) (core.Profile, bool) { return n.s.k.Roster().Get(ref) }
+func (n nativeImpactSource) Get(ref string) (agentapi.Profile, bool) { return n.s.k.RosterGet(ref) }
 
-func (n nativeImpactSource) Subagents(slug string) []core.Profile {
-	return approster.Subagents(n.s.k.Roster().List(), slug)
+func (n nativeImpactSource) Subagents(slug string) []agentapi.Profile {
+	return approster.Subagents(n.s.k.RosterList(), slug)
 }
 
-func (n nativeImpactSource) Holdings(p core.Profile) approster.ImpactHoldings {
+func (n nativeImpactSource) Holdings(p agentapi.Profile) approster.ImpactHoldings {
 	ports := n.s.impactPorts()
 	return approster.ImpactHoldings{
 		StandingOrders:         n.s.k.AgentImpact(p.Slug),
@@ -98,17 +98,17 @@ func (s *Server) impactService() *approster.ImpactService {
 }
 
 // agentSubagents returns the agent's sub-agent tree.
-func (s *Server) agentSubagents(slug string) []core.Profile {
-	return approster.Subagents(s.k.Roster().List(), slug)
+func (s *Server) agentSubagents(slug string) []agentapi.Profile {
+	return approster.Subagents(s.k.RosterList(), slug)
 }
 
 // agentRemovalMailboxImpact is the removal payload's retained-message list:
 // the agent's own threads plus, when sub-agents are cascaded, theirs.
-func (s *Server) agentRemovalMailboxImpact(slug string, subagents []core.Profile, includeSubagents bool) []string {
+func (s *Server) agentRemovalMailboxImpact(slug string, subagents []agentapi.Profile, includeSubagents bool) []string {
 	return approster.RemovalMailboxImpact(s.impactPorts(), slug, subagents, includeSubagents)
 }
 
 // agentWorkflowImpact lists the workflow nodes that reference the agent.
-func (s *Server) agentWorkflowImpact(p core.Profile) []string {
+func (s *Server) agentWorkflowImpact(p agentapi.Profile) []string {
 	return approster.WorkflowImpact(s.impactPorts(), p)
 }

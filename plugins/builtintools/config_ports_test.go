@@ -21,7 +21,7 @@ import (
 // agent-scoped write through the tool must land in the live roster, or the
 // agent would be told its override was saved while it was not.
 func TestTheConfigSpecWiresTheLivePort(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withRoster(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestTheConfigSpecWiresTheLivePort(t *testing.T) {
 // kernel must leave the agent-scoped write reporting that it needs a live
 // daemon — not dereferencing nil.
 func TestTheConfigSpecSurvivesAMissingPort(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withRoster(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

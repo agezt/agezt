@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/platform/fileworkspace"
 )
 
@@ -29,7 +29,7 @@ type WorkspacePorts struct {
 // — when the agent has one and the path is safe to look at. A path outside
 // the workspace root, the root itself and a path that is not a directory all
 // have no description.
-func WorkspaceInfo(ports WorkspacePorts, p core.Profile) (string, bool) {
+func WorkspaceInfo(ports WorkspacePorts, p agentapi.Profile) (string, bool) {
 	workdir := strings.TrimSpace(p.Workdir)
 	if workdir == "" {
 		return "", false

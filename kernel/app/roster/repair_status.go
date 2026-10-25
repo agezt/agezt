@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 type RepairRowOutput struct {
@@ -88,7 +88,7 @@ type RepairContract struct {
 	AuthorityBoundary  string   `json:"authority_boundary"`
 }
 
-func repairContract(p core.Profile, cooldown time.Duration) RepairContract {
+func repairContract(p agentapi.Profile, cooldown time.Duration) RepairContract {
 	retryAttempts := 1
 	retryBackoff := "none"
 	retryOn := []string{"error", "timeout"}
@@ -138,7 +138,7 @@ type RepairNextAction struct {
 	DelegateTo     *string `json:"delegate_to,omitempty"`
 }
 
-func repairNextAction(p core.Profile, rows, inflight []RepairRow, nowMS int64) RepairNextAction {
+func repairNextAction(p agentapi.Profile, rows, inflight []RepairRow, nowMS int64) RepairNextAction {
 	action := "manual_repair"
 	label := "manual repair"
 	detail := "no autonomous repair is currently queued"
@@ -197,7 +197,7 @@ func repairNextAction(p core.Profile, rows, inflight []RepairRow, nowMS int64) R
 	return RepairNextAction{Action: action, Label: label, Detail: detail, Tone: tone}
 }
 
-func repairEscalationOwner(p core.Profile) string {
+func repairEscalationOwner(p agentapi.Profile) string {
 	if p.SelfRepairPolicy != nil && strings.TrimSpace(p.SelfRepairPolicy.EscalateTo) != "" {
 		return strings.TrimSpace(p.SelfRepairPolicy.EscalateTo)
 	}
@@ -245,13 +245,13 @@ type RepairStatusOutput struct {
 // self-repair history: newest-first rows, inflight fingerprints, the effective
 // cooldown and the next decision.
 type RepairStatusService struct {
-	get      func(string) (core.Profile, bool)
+	get      func(string) (agentapi.Profile, bool)
 	journal  func(func(*event.Event) error) error
 	cooldown func() time.Duration
 	now      func() time.Time
 }
 
-func NewRepairStatus(get func(string) (core.Profile, bool), journal func(func(*event.Event) error) error, cooldown func() time.Duration, now func() time.Time) *RepairStatusService {
+func NewRepairStatus(get func(string) (agentapi.Profile, bool), journal func(func(*event.Event) error) error, cooldown func() time.Duration, now func() time.Time) *RepairStatusService {
 	if now == nil {
 		now = time.Now
 	}

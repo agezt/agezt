@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
@@ -52,18 +52,18 @@ func taskFieldPresent(raw json.RawMessage, key string) bool {
 }
 
 type TaskUpdateOutput struct {
-	Updated bool           `json:"updated"`
-	Profile ProfileOutput  `json:"profile"`
-	Task    core.AgentTask `json:"task"`
+	Updated bool               `json:"updated"`
+	Profile ProfileOutput      `json:"profile"`
+	Task    agentapi.AgentTask `json:"task"`
 }
 
 // TaskUpdateService adds, updates or removes one entry of an agent's durable
 // tasklist through the kernel's journaled profile update.
 type TaskUpdateService struct {
-	update func(string, func(*core.Profile)) (core.Profile, bool, error)
+	update func(string, func(*agentapi.Profile)) (agentapi.Profile, bool, error)
 }
 
-func NewTaskUpdate(update func(string, func(*core.Profile)) (core.Profile, bool, error)) *TaskUpdateService {
+func NewTaskUpdate(update func(string, func(*agentapi.Profile)) (agentapi.Profile, bool, error)) *TaskUpdateService {
 	return &TaskUpdateService{update: update}
 }
 
@@ -83,7 +83,7 @@ func (s *TaskUpdateService) TaskUpdate(_ context.Context, in TaskUpdateRequest) 
 	if op != "add" && op != "update" && op != "remove" && op != "delete" {
 		return TaskUpdateOutput{}, errors.New("args.op must be add, update, or remove")
 	}
-	var task core.AgentTask
+	var task agentapi.AgentTask
 	if len(in.Task) > 0 {
 		if err := json.Unmarshal(in.Task, &task); err != nil {
 			return TaskUpdateOutput{}, errors.New("args.task: " + err.Error())
@@ -130,9 +130,9 @@ func (s *TaskUpdateService) TaskUpdate(_ context.Context, in TaskUpdateRequest) 
 			return TaskUpdateOutput{}, errors.New("args.status must be todo, doing, done, blocked, or retired")
 		}
 	}
-	var result core.AgentTask
+	var result agentapi.AgentTask
 	found := false
-	p, exists, err := s.update(ref, func(dst *core.Profile) {
+	p, exists, err := s.update(ref, func(dst *agentapi.Profile) {
 		switch op {
 		case "add":
 			result = task
@@ -173,7 +173,7 @@ func (s *TaskUpdateService) TaskUpdate(_ context.Context, in TaskUpdateRequest) 
 					continue
 				}
 				result = dst.TaskList[i]
-				dst.TaskList = append(append([]core.AgentTask{}, dst.TaskList[:i]...), dst.TaskList[i+1:]...)
+				dst.TaskList = append(append([]agentapi.AgentTask{}, dst.TaskList[:i]...), dst.TaskList[i+1:]...)
 				found = true
 				return
 			}
@@ -206,9 +206,9 @@ func (s *TaskUpdateService) TaskUpdate(_ context.Context, in TaskUpdateRequest) 
 }
 
 type taskUpdateSchema struct {
-	Updated bool           `json:"updated"`
-	Profile profileSchema  `json:"profile"`
-	Task    core.AgentTask `json:"task"`
+	Updated bool               `json:"updated"`
+	Profile profileSchema      `json:"profile"`
+	Task    agentapi.AgentTask `json:"task"`
 }
 
 func TaskUpdateOperations(provider func(context.Context) *TaskUpdateService) ([]app.Operation, error) {

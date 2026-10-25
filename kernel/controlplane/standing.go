@@ -8,5 +8,5 @@ import (
 )
 
 func (s *Server) standingService() *appstanding.Service {
-	return appstanding.New(s.k.Standing(), s.k, appstanding.Host{Agent: s.k.Roster().Get, ManagedDirectError: approster.ManagedDirectCallError})
+	return appstanding.New(s.k.Standing(), s.k, appstanding.Host{Agent: s.k.RosterGet, ManagedDirectError: approster.ManagedDirectCallError})
 }

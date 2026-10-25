@@ -91,7 +91,7 @@ func resolveCall(t *testing.T, s *Server, args map[string]any) string {
 func TestAgentResolveNativePorts(t *testing.T) {
 	dir := t.TempDir()
 	prov := &resolveRoutingProvider{Provider: mock.New(), chains: map[string][]string{"code": {"gpt-5", "gpt-4.1"}}}
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: prov})
+	k, err := runtime.Open(withRoster(t, runtime.Config{BaseDir: dir, Provider: prov}))
 	if err != nil {
 		t.Fatal(err)
 	}

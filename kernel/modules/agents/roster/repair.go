@@ -25,9 +25,8 @@ type RepairResult = agentapi.RepairResult
 // RepairSource is the module's view of the agent-control surface a repair
 // pass drives. The daemon injects the implementation; the module never
 // imports the tool that provides it.
-type RepairSource interface {
-	// RepairAgent runs a governed self-repair pass AS the target agent,
-	// optionally auto-applying a closing profile proposal from the run's
-	// final answer.
-	RepairAgent(ref, reason string) (RepairResult, error)
-}
+//
+// The port itself lives in the contract layer (kernel/contract/agentapi): the
+// control plane holds it and may not name this module. The name stays here as
+// an alias, so every existing caller is unchanged.
+type RepairSource = agentapi.RepairSource

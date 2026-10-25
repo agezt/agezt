@@ -21,6 +21,7 @@ import (
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/reaper"
+	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
@@ -95,6 +96,15 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 		t.Fatalf("open okr store: %v", err)
 	}
 	cfg.OKRStore = okrStore
+	// The roster is the composition root's file too (W3.56): the kernel holds
+	// the contract's store port, and the root opens the file.
+	if cfg.Roster == nil {
+		rosterStore, rerr := roster.Open(filepath.Join(dir, "roster"))
+		if rerr != nil {
+			t.Fatalf("open roster store: %v", rerr)
+		}
+		cfg.Roster = rosterStore
+	}
 	// The world-model file is the composition root's too (W3.54): the kernel
 	// holds the contract's ports, and the root opens the file.
 	cfg = withWorld(t, cfg)

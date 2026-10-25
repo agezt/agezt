@@ -16,8 +16,8 @@ import (
 
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
@@ -78,7 +78,7 @@ func (s *Server) teardownStatePorts() approster.TeardownStatePorts {
 }
 
 // forgetAgentMemory forgets the agent's own memory records.
-func (s *Server) forgetAgentMemory(p core.Profile, on bool) (int, error) {
+func (s *Server) forgetAgentMemory(p agentapi.Profile, on bool) (int, error) {
 	return approster.ForgetAgentMemory(s.teardownStatePorts(), p, on)
 }
 
@@ -100,6 +100,6 @@ func (s *Server) deleteAgentConfigEntries(slug string, on bool) (int, int, error
 }
 
 // deleteAgentWorkspace deletes the agent's workspace directory.
-func (s *Server) deleteAgentWorkspace(p core.Profile, on bool) (int, error) {
+func (s *Server) deleteAgentWorkspace(p agentapi.Profile, on bool) (int, error) {
 	return approster.DeleteAgentWorkspace(s.teardownStatePorts(), p, on)
 }

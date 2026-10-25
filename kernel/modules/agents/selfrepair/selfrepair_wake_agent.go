@@ -27,7 +27,7 @@ func autoRepairWakeAgent(ctx context.Context, k *kernelruntime.Kernel, cand auto
 	if target == "" {
 		return autoRepairWakeResult{}, nil
 	}
-	p, ok := k.Roster().Get(target)
+	p, ok := k.RosterGet(target)
 	if !ok {
 		return autoRepairWakeResult{Target: target, Skipped: "unknown target agent " + target}, nil
 	}

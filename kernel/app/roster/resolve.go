@@ -12,8 +12,8 @@ import (
 
 	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
@@ -47,7 +47,7 @@ type RoutingChainResult struct {
 
 // ResolvePorts are the native effects an incident resolution may use.
 type ResolvePorts struct {
-	Get            func(string) (core.Profile, bool)
+	Get            func(string) (agentapi.Profile, bool)
 	NewCorrelation func() string
 	Publish        func(subject, corr string, payload map[string]any)
 	Pause          func(slug string) error
@@ -141,7 +141,7 @@ func equalChains(a, b []string) bool {
 
 // validateDelegateTarget refuses a delegation back to the agent or its owner,
 // or to a missing, retired or managed agent.
-func validateDelegateTarget(p core.Profile, target string, get func(string) (core.Profile, bool)) error {
+func validateDelegateTarget(p agentapi.Profile, target string, get func(string) (agentapi.Profile, bool)) error {
 	target = strings.TrimSpace(target)
 	if target == "" {
 		return fmt.Errorf("delegated resolution requires delegate_to")
@@ -165,7 +165,7 @@ func validateDelegateTarget(p core.Profile, target string, get func(string) (cor
 	return nil
 }
 
-func (s *ResolveService) apply(p core.Profile, resolution, summary string, in ResolveRequest, lineage IncidentLineage) (appliedResolution, error) {
+func (s *ResolveService) apply(p agentapi.Profile, resolution, summary string, in ResolveRequest, lineage IncidentLineage) (appliedResolution, error) {
 	switch resolution {
 	case "paused":
 		if p.Retired {

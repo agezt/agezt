@@ -29,7 +29,7 @@ func TestRoutingBindsTheKernel(t *testing.T) {
 		t.Fatal(err)
 	}
 	cat := &catalog.Catalog{Providers: map[string]*catalog.Provider{"mock": {ID: "mock", Models: map[string]*catalog.Model{"known": {ID: "known"}}}}}
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: gov, Catalog: cat})
+	k, err := runtime.Open(withRoster(t, runtime.Config{BaseDir: t.TempDir(), Provider: gov, Catalog: cat}))
 	if err != nil {
 		t.Fatal(err)
 	}

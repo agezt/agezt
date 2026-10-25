@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/event"
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
@@ -108,7 +108,7 @@ type statusAccums struct {
 // final maps the previous 11-Range implementation produced; only the number of
 // journal walks is reduced (11 -> 1), and the doctor's repair events now
 // share that walk instead of taking one of their own.
-func CollectJournalStatus(src StatusSources, profiles []core.Profile, routingCut int64, snap *StatusSnapshot) {
+func CollectJournalStatus(src StatusSources, profiles []agentapi.Profile, routingCut int64, snap *StatusSnapshot) {
 	acc := fillStatusAccums(src, profiles, routingCut)
 	snap.Live = acc.liveStatuses
 	snap.LastActivities = acc.lastActivities
@@ -122,7 +122,7 @@ func CollectJournalStatus(src StatusSources, profiles []core.Profile, routingCut
 
 // fillStatusAccums walks the journal ONCE, dispatching every event into every
 // relevant per-agent accumulator.
-func fillStatusAccums(src StatusSources, profiles []core.Profile, routingCut int64) statusAccums {
+func fillStatusAccums(src StatusSources, profiles []agentapi.Profile, routingCut int64) statusAccums {
 	var acc statusAccums
 	acc.routingCut = routingCut
 	acc.liveStatuses = make(map[string]LiveStatus)
@@ -533,7 +533,7 @@ func liveEventSummary(kind event.Kind, pl map[string]any) (phase, detail, tool s
 
 // routingMatchesProfile reports whether a model-chain fallback belongs to the
 // profile: by its task type, or by one of the models in its chain.
-func routingMatchesProfile(p core.Profile, taskType, failedModel, nextModel string) bool {
+func routingMatchesProfile(p agentapi.Profile, taskType, failedModel, nextModel string) bool {
 	taskType = strings.TrimSpace(taskType)
 	failedModel = strings.TrimSpace(failedModel)
 	nextModel = strings.TrimSpace(nextModel)

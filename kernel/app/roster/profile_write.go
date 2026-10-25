@@ -11,14 +11,14 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
 // ApplyMutableProfilePatch copies only the fields the caller explicitly
 // provided, so a partial edit keeps everything it did not mention.
-func ApplyMutableProfilePatch(dst *core.Profile, in core.Profile, provided map[string]bool) {
+func ApplyMutableProfilePatch(dst *agentapi.Profile, in agentapi.Profile, provided map[string]bool) {
 	if provided["name"] {
 		dst.Name = in.Name
 	}
@@ -98,7 +98,7 @@ func ApplyMutableProfilePatch(dst *core.Profile, in core.Profile, provided map[s
 
 // NormalizeProfileKind maps the client-facing kind "subagent" onto the
 // managed (not directly callable) flag.
-func NormalizeProfileKind(raw []byte, p *core.Profile) {
+func NormalizeProfileKind(raw []byte, p *agentapi.Profile) {
 	var meta struct {
 		Kind string `json:"kind"`
 	}
@@ -114,7 +114,7 @@ func NormalizeProfileKind(raw []byte, p *core.Profile) {
 // ValidateHierarchyRefs rejects owner/parent references to the agent itself,
 // to unknown agents or to retired agents. Owner is checked before parent so a
 // profile with two bad references always reports the same one.
-func ValidateHierarchyRefs(p core.Profile, get func(string) (core.Profile, bool)) error {
+func ValidateHierarchyRefs(p agentapi.Profile, get func(string) (agentapi.Profile, bool)) error {
 	for _, ref := range []struct{ label, value string }{{"owner_agent", p.OwnerAgent}, {"parent_agent", p.ParentAgent}} {
 		value := strings.TrimSpace(ref.value)
 		if value == "" {
@@ -150,17 +150,17 @@ type ProfileWriteOutput struct {
 // ProfileWriteService creates and edits roster profiles through the kernel's
 // journaled store, validating hierarchy references against the live roster.
 type ProfileWriteService struct {
-	get        func(string) (core.Profile, bool)
-	add        func(core.Profile) (core.Profile, error)
-	update     func(string, func(*core.Profile)) (core.Profile, bool, error)
+	get        func(string) (agentapi.Profile, bool)
+	add        func(agentapi.Profile) (agentapi.Profile, error)
+	update     func(string, func(*agentapi.Profile)) (agentapi.Profile, bool, error)
 	invalidate func()
 }
 
-func NewProfileWrite(get func(string) (core.Profile, bool), add func(core.Profile) (core.Profile, error), update func(string, func(*core.Profile)) (core.Profile, bool, error), invalidate func()) *ProfileWriteService {
+func NewProfileWrite(get func(string) (agentapi.Profile, bool), add func(agentapi.Profile) (agentapi.Profile, error), update func(string, func(*agentapi.Profile)) (agentapi.Profile, bool, error), invalidate func()) *ProfileWriteService {
 	return &ProfileWriteService{get: get, add: add, update: update, invalidate: invalidate}
 }
 
-func profileWriteOutput(p core.Profile) ProfileWriteOutput {
+func profileWriteOutput(p agentapi.Profile) ProfileWriteOutput {
 	return ProfileWriteOutput{Profile: ProfileOutput{Profile: p, Kind: p.Kind(), Managed: !p.AllowsDirectCall()}}
 }
 
@@ -168,7 +168,7 @@ func (s *ProfileWriteService) Add(_ context.Context, in AddRequest) (ProfileWrit
 	if len(in.Profile) == 0 {
 		return ProfileWriteOutput{}, errors.New("args.profile required")
 	}
-	var p core.Profile
+	var p agentapi.Profile
 	if err := json.Unmarshal(in.Profile, &p); err != nil {
 		return ProfileWriteOutput{}, errors.New("args.profile: " + err.Error())
 	}
@@ -202,7 +202,7 @@ func (s *ProfileWriteService) Edit(_ context.Context, in EditRequest) (ProfileWr
 			provided[k] = true
 		}
 	}
-	var patch core.Profile
+	var patch agentapi.Profile
 	if err := json.Unmarshal(in.Profile, &patch); err != nil {
 		return ProfileWriteOutput{}, errors.New("args.profile: " + err.Error())
 	}
@@ -220,7 +220,7 @@ func (s *ProfileWriteService) Edit(_ context.Context, in EditRequest) (ProfileWr
 	if err := ValidateHierarchyRefs(candidate, s.get); err != nil {
 		return ProfileWriteOutput{}, err
 	}
-	p, found, err := s.update(ref, func(dst *core.Profile) { ApplyMutableProfilePatch(dst, patch, provided) })
+	p, found, err := s.update(ref, func(dst *agentapi.Profile) { ApplyMutableProfilePatch(dst, patch, provided) })
 	if err != nil {
 		return ProfileWriteOutput{}, err
 	}

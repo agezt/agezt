@@ -173,7 +173,7 @@ func (c *autoRepairCoordinator) handleTick(ctx context.Context, k *kernelruntime
 
 	cut := c.now().Add(-autoRepairReaperWindow).UnixMilli()
 	rep := k.ReaperScan(cut, cut)
-	pending = c.claim(k, rep, k.Roster().List())
+	pending = c.claim(k, rep, k.RosterList())
 	for _, cand := range pending {
 		publishAutoRepair(k.Bus(), "", map[string]any{
 			"phase":                             autoRepairQueuedPhase(cand),

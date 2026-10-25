@@ -49,13 +49,13 @@ func TestWithAgentProfile_AppliesIdentityToRun(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
 	var req llm.CompletionRequest
 	prov.OnRequest = func(r llm.CompletionRequest) { req = r }
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:      t.TempDir(),
 		Provider:     prov,
 		Model:        "default-model",
 		Tools:        map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		MemoryInject: true,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -106,11 +106,11 @@ func TestWithAgentProfile_WorkdirConfinesFileTool(t *testing.T) {
 		testToolUse("c1", "file", map[string]any{"op": "write", "path": "notes.txt", "content": "from researcher"}),
 		mock.FinalText("done"),
 	)
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
 		Tools:    map[string]toolapi.Tool{"file": ft},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestWithAgentProfile_SystemAgentSkipsAutomaticLearningLayers(t *testing.T) 
 	)
 	var requests []llm.CompletionRequest
 	prov.OnRequest = func(r llm.CompletionRequest) { requests = append(requests, r) }
-	k, err := runtime.Open(withSkill(t, runtime.Config{
+	k, err := runtime.Open(withRoster(t, withSkill(t, runtime.Config{
 		BaseDir:               t.TempDir(),
 		Provider:              prov,
 		Model:                 "default-model",
@@ -156,7 +156,7 @@ func TestWithAgentProfile_SystemAgentSkipsAutomaticLearningLayers(t *testing.T) 
 		SkillForge:            true,
 		SkillForgeMinTools:    1,
 		ShadowEval:            true,
-	}))
+	})))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -209,11 +209,11 @@ func TestWithAgentProfile_IncludesInstructionsAndTasks(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
 	var req llm.CompletionRequest
 	prov.OnRequest = func(r llm.CompletionRequest) { req = r }
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
 		System:   "base",
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -243,10 +243,10 @@ func TestWithAgentProfile_IncludesInstructionsAndTasks(t *testing.T) {
 }
 
 func TestWithAgentProfile_RetireOnCompleteMovesAgentToGraveyard(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("done")),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -272,10 +272,10 @@ func TestWithAgentProfile_RetireOnCompleteMovesAgentToGraveyard(t *testing.T) {
 }
 
 func TestWithAgentProfile_CycleLifecycleIncrementsAndRetiresAtMax(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("done"), mock.FinalText("done")),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -355,10 +355,10 @@ func TestCompleteAgentLifecycle_IdempotentPerCorrelation(t *testing.T) {
 	// agent under ONE correlation until the work verifies complete, and each inner
 	// success calls completeAgentLifecycle. The cycle must advance once per logical
 	// run (correlation), not once per inner attempt.
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("done")),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -420,10 +420,10 @@ func taskStatus(tasks []roster.AgentTask, title string) string {
 }
 
 func TestWithAgentProfile_LifecycleDoesNotCompleteOnFailedRun(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -473,12 +473,12 @@ func TestWithAgentProfile_ToolPermissionsApply(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
 	var req llm.CompletionRequest
 	prov.OnRequest = func(r llm.CompletionRequest) { req = r }
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:    t.TempDir(),
 		Provider:   prov,
 		Tools:      map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		MemoryTool: true,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -505,11 +505,11 @@ func TestWithAgentProfile_NoisePolicyDisablesMemoryTool(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
 	var req llm.CompletionRequest
 	prov.OnRequest = func(r llm.CompletionRequest) { req = r }
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:    t.TempDir(),
 		Provider:   prov,
 		MemoryTool: true,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -532,12 +532,12 @@ func TestWithAgentProfile_NoisePolicyDisablesMemoryTool(t *testing.T) {
 }
 
 func TestWithAgentProfile_NoisePolicyBlocksDirectMemoryWrites(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:    t.TempDir(),
 		Provider:   mock.New(mock.FinalText("ok")),
 		MemoryTool: true,
 		Edict:      edict.New(edict.Options{UnknownAllow: true}),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -558,7 +558,7 @@ func TestWithAgentProfile_NoisePolicyBlocksDirectMemoryWrites(t *testing.T) {
 }
 
 func TestWithAgentProfile_ToolPermissionsGateDirectToolRuns(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
 		Tools: map[string]toolapi.Tool{
@@ -566,7 +566,7 @@ func TestWithAgentProfile_ToolPermissionsGateDirectToolRuns(t *testing.T) {
 			"beta":  quietTool{name: "beta"},
 		},
 		Edict: edict.New(edict.Options{UnknownAllow: true}),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -586,14 +586,14 @@ func TestWithAgentProfile_ToolPermissionsGateDirectToolRuns(t *testing.T) {
 }
 
 func TestWithAgentProfile_NoisePolicyGatesNotifySeverityAndCooldown(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
 		Tools: map[string]toolapi.Tool{
 			"notify": quietTool{name: "notify"},
 		},
 		Edict: edict.New(edict.Options{UnknownAllow: true}),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -620,14 +620,14 @@ func TestWithAgentProfile_NoisePolicyGatesNotifySeverityAndCooldown(t *testing.T
 func TestWithAgentProfile_NoisePolicyDoesNotCooldownFailedNotify(t *testing.T) {
 	notify := &toggledNotifyTool{}
 	notify.fail.Store(true)
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
 		Tools: map[string]toolapi.Tool{
 			"notify": notify,
 		},
 		Edict: edict.New(edict.Options{UnknownAllow: true}),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -653,14 +653,14 @@ func TestWithAgentProfile_NoisePolicyDoesNotCooldownFailedNotify(t *testing.T) {
 }
 
 func TestWithAgentProfile_SilentOnSuccessBlocksRoutineNotify(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
 		Tools: map[string]toolapi.Tool{
 			"notify": quietTool{name: "notify"},
 		},
 		Edict: edict.New(edict.Options{UnknownAllow: true}),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -684,11 +684,11 @@ func TestWithAgentProfile_ConfigOverrideChangesModel(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
 	var req llm.CompletionRequest
 	prov.OnRequest = func(r llm.CompletionRequest) { req = r }
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
 		Model:    "default-model",
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -710,10 +710,10 @@ func TestWithAgentProfile_ConfigOverrideChangesModel(t *testing.T) {
 
 func TestWithAgentProfile_ConfigOverrideCanDisableHeuristicBypass(t *testing.T) {
 	prov := mock.New(mock.FinalText("provider-answer"))
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

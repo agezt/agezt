@@ -14,14 +14,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/work/assure"
 	"github.com/agezt/agezt/kernel/resume"
 )
 
-func (r *Runner) RunWithRetry(ctx context.Context, corr, intent string, pol roster.RetryPolicy) (string, error) {
+func (r *Runner) RunWithRetry(ctx context.Context, corr, intent string, pol agentapi.RetryPolicy) (string, error) {
 	max := pol.MaxAttempts
 	if max <= 1 {
 		return r.k.RunWith(ctx, corr, intent)

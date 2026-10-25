@@ -41,10 +41,10 @@ const scheduleCatalogSyncFixture = `{
 }`
 
 func TestRunScheduledMemoryCleanPublishesSummary(t *testing.T) {
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("unused")),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -67,10 +67,10 @@ func TestRunScheduledMemoryCleanPublishesSummary(t *testing.T) {
 }
 
 func TestRunScheduledMemoryTidyPublishesSummary(t *testing.T) {
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("unused")),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -93,10 +93,10 @@ func TestRunScheduledMemoryTidyPublishesSummary(t *testing.T) {
 }
 
 func TestRunScheduledLogCleanPublishesSummary(t *testing.T) {
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("unused")),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -130,10 +130,10 @@ func TestRunScheduledLogCleanPublishesSummary(t *testing.T) {
 }
 
 func TestRunScheduledGraveyardScanReportsOnly(t *testing.T) {
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("unused")),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -193,12 +193,12 @@ func TestRunScheduledArtifactCollectPublishesSummary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("artifact.OpenIndex: %v", err)
 	}
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{
 		BaseDir:       t.TempDir(),
 		Provider:      mock.New(mock.FinalText("unused")),
 		Artifacts:     store,
 		ArtifactIndex: index,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -230,7 +230,7 @@ func TestRunScheduledCatalogSyncPublishesSummaryAndReloads(t *testing.T) {
 
 	var reloads atomic.Int32
 	base := t.TempDir()
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{
 		BaseDir:  base,
 		Provider: mock.New(mock.FinalText("unused")),
 		// The catalog directory and its syncer are the DAEMON's (W3.51): the
@@ -241,7 +241,7 @@ func TestRunScheduledCatalogSyncPublishesSummaryAndReloads(t *testing.T) {
 			reloads.Add(1)
 			return nil
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

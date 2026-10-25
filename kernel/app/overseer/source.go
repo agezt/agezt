@@ -70,7 +70,7 @@ func fleetLockEnabled() bool {
 func (s *kernelSource) IsHalted() bool         { return s.k.IsHalted() }
 func (s *kernelSource) ActiveRunIDs() []string { return s.k.ActiveRunIDs() }
 func (s *kernelSource) Agents() []agentapi.Profile {
-	return s.k.Roster().List()
+	return s.k.RosterList()
 }
 func (s *kernelSource) AgentImpact(slug string) []string { return s.k.AgentImpact(slug) }
 func (s *kernelSource) CancelRun(corr string) bool       { return s.k.CancelRun(corr) }
@@ -108,7 +108,7 @@ func (s *kernelSource) EditAgent(ref string, in agentapi.Profile) (agentapi.Prof
 	if s.fleetLock {
 		return agentapi.Profile{}, errors.New("fleet administration via the overseer tool is locked (AGEZT_OVERSEER_FLEET_LOCK): an operator must make agent edits through the console/CLI")
 	}
-	cur, ok := s.k.Roster().Get(ref)
+	cur, ok := s.k.RosterGet(ref)
 	if !ok {
 		return agentapi.Profile{}, fmt.Errorf("unknown agent: %s", ref)
 	}
@@ -223,7 +223,7 @@ func (s *kernelSource) DeleteAgent(ref string) (bool, error) {
 
 // GetAgent returns the full profile for a single agent by slug or id.
 func (s *kernelSource) GetAgent(ref string) (agentapi.Profile, bool, error) {
-	p, ok := s.k.Roster().Get(ref)
+	p, ok := s.k.RosterGet(ref)
 	if !ok {
 		return agentapi.Profile{}, false, nil
 	}
@@ -239,7 +239,7 @@ func (s *kernelSource) CloneAgent(source string, overrides agentapi.Profile) (ag
 	if s.fleetLock {
 		return agentapi.Profile{}, errors.New("fleet administration via the overseer tool is locked (AGEZT_OVERSEER_FLEET_LOCK): an operator must create agents through the console/CLI")
 	}
-	src, ok := s.k.Roster().Get(source)
+	src, ok := s.k.RosterGet(source)
 	if !ok {
 		return agentapi.Profile{}, fmt.Errorf("unknown source agent: %s", source)
 	}

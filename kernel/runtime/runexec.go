@@ -10,8 +10,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/assureapi"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // This file is the kernel's run engine: the entry points an external
@@ -71,7 +71,7 @@ func (k *Kernel) RunAssured(ctx context.Context, corr, intent string, maxAttempt
 // file's lock-ordering invariant documentation; the *Kernel
 // surface delegates to the Runner for callers that already
 // hold a *Kernel.
-func (k *Kernel) RunWithRetry(ctx context.Context, corr, intent string, pol roster.RetryPolicy) (string, error) {
+func (k *Kernel) RunWithRetry(ctx context.Context, corr, intent string, pol agentapi.RetryPolicy) (string, error) {
 	return k.runexec.RunWithRetry(ctx, corr, intent, pol)
 }
 
@@ -109,6 +109,6 @@ func (k *Kernel) AgentRetryable(reason string, retryOn []string) bool {
 // RetryDelay computes the wait between attempts. Exponential
 // backoff doubles each attempt; MaxDelaySec caps the result.
 // Zero base delay = no wait (try immediately).
-func (k *Kernel) RetryDelay(pol roster.RetryPolicy, attempt int) time.Duration {
+func (k *Kernel) RetryDelay(pol agentapi.RetryPolicy, attempt int) time.Duration {
 	return retryDelay(pol, attempt)
 }

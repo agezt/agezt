@@ -73,7 +73,7 @@ func (s *kernelSource) BulkDelete(slugs []string) []overseerapi.BulkResult {
 // intent or reason. Validates the agent is enabled and allows direct calls
 // before creating the run correlation.
 func (s *kernelSource) WakeAgent(ref, intent, reason string) (string, error) {
-	p, ok := s.k.Roster().Get(ref)
+	p, ok := s.k.RosterGet(ref)
 	if !ok {
 		return "", fmt.Errorf("unknown agent: %s", ref)
 	}
@@ -104,7 +104,7 @@ func (s *kernelSource) WakeAgent(ref, intent, reason string) (string, error) {
 }
 
 func (s *kernelSource) SearchAgents(filter overseerapi.SearchFilter) []agentapi.Profile {
-	all := s.k.Roster().List()
+	all := s.k.RosterList()
 	if len(all) == 0 {
 		return nil
 	}
@@ -190,7 +190,7 @@ func (s *kernelSource) SearchAgents(filter overseerapi.SearchFilter) []agentapi.
 }
 
 func (s *kernelSource) RepairAgent(ref, reason string) (agentapi.RepairResult, error) {
-	p, ok := s.k.Roster().Get(ref)
+	p, ok := s.k.RosterGet(ref)
 	if !ok {
 		return agentapi.RepairResult{}, fmt.Errorf("unknown agent: %s", ref)
 	}
@@ -262,7 +262,7 @@ func (s *kernelSource) RollbackRouting(ref, taskType string, targetChain []strin
 }
 
 func (s *kernelSource) ApplyRoutingChain(ref, taskType string, targetChain []string, reason string) (agentapi.RepairResult, error) {
-	p, ok := s.k.Roster().Get(ref)
+	p, ok := s.k.RosterGet(ref)
 	if !ok {
 		return agentapi.RepairResult{}, fmt.Errorf("unknown agent: %s", ref)
 	}

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 )
 
 // ErrHalted is the sentinel returned when a run hits a halted kernel.
@@ -64,8 +64,8 @@ func truncateHeuristicAnswer(s string) string {
 // lifecycle settings retire the profile on a successful run
 // (RetireOnComplete flag or LifecycleRetireOnComplete mode).
 // Moved from kernel/runtime/runexec.go on Day 33.
-func shouldRetireAgentAfterComplete(l roster.AgentLifecycle) bool {
-	return l.RetireOnComplete || strings.TrimSpace(l.Mode) == roster.LifecycleRetireOnComplete
+func shouldRetireAgentAfterComplete(l agentapi.AgentLifecycle) bool {
+	return l.RetireOnComplete || strings.TrimSpace(l.Mode) == agentapi.LifecycleRetireOnComplete
 }
 
 // deterministicHeuristicBypass fast-paths obvious lookups
@@ -89,7 +89,7 @@ func deterministicHeuristicBypass(intent string, now time.Time) (string, bool) {
 // after a successful cycle, so the next iteration starts clean.
 // Idempotent: a non-cycle task or a task that is not "done" is
 // left alone. Moved from kernel/runtime/runexec.go on Day 33.
-func resetCompletedCycleTasks(tasks []roster.AgentTask) {
+func resetCompletedCycleTasks(tasks []agentapi.AgentTask) {
 	for i := range tasks {
 		if strings.TrimSpace(tasks[i].Scope) == "cycle" && strings.TrimSpace(tasks[i].Status) == "done" {
 			tasks[i].Status = "todo"

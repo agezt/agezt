@@ -13,10 +13,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/delegation"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, agentRef string, async bool) (*subAgentPrep, error) {
@@ -28,9 +28,9 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 	// an unknown or paused agent is a clear tool error the lead adapts to, not
 	// a sub-agent silently running as the default identity. The profile's
 	// model/task type/cost ceiling apply as DEFAULTS; explicit call args win.
-	var prof *roster.Profile
+	var prof *agentapi.Profile
 	if agentRef = strings.TrimSpace(agentRef); agentRef != "" {
-		p, ok := k.roster.Get(agentRef)
+		p, ok := k.RosterGet(agentRef)
 		if !ok {
 			return nil, fmt.Errorf("unknown agent %q (agt agent list)", agentRef)
 		}
@@ -210,7 +210,7 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 		// Delegated-wake evidence (mirrors schedule.fired / standing.fired): the
 		// sub-agent's wake contract plus who delegated it and the parent run, so the
 		// child run is attributable to its leader through status -> detail -> activity.
-		spawnPayload["autonomy_runbook"] = roster.AutonomyRunbook(*prof)
+		spawnPayload["autonomy_runbook"] = agentapi.AutonomyRunbook(*prof)
 		spawnPayload["wake_source"] = "delegated"
 		if caller := strings.TrimSpace(toolapi.AgentFromContext(ctx)); caller != "" {
 			spawnPayload["delegated_by"] = caller
@@ -270,7 +270,7 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 	// in order by the Governor; duplicates of the primary are skipped.
 	var maxRunCost, agentDailyMc int64
 	var agentSlug string
-	var retryPolicy *roster.RetryPolicy
+	var retryPolicy *agentapi.RetryPolicy
 	if prof != nil {
 		maxRunCost = prof.MaxCostMc
 		agentSlug, agentDailyMc = prof.Slug, prof.MaxDailyMc // M793: identity ledger
@@ -299,12 +299,12 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 	}, nil
 }
 
-func (k *Kernel) validateDelegationManager(p roster.Profile, caller string) error {
+func (k *Kernel) validateDelegationManager(p agentapi.Profile, caller string) error {
 	caller = strings.TrimSpace(caller)
 	if caller == "" {
 		return fmt.Errorf("agent %q is managed and requires a live parent/owner to delegate it", p.Slug)
 	}
-	manager, ok := k.roster.Get(caller)
+	manager, ok := k.RosterGet(caller)
 	if !ok {
 		return fmt.Errorf("agent %q manager %q is missing from the roster", p.Slug, caller)
 	}

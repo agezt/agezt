@@ -24,7 +24,7 @@ var _ overseerapi.Source = (*kernelSource)(nil)
 // covers, and it is the behaviour the move had to preserve.
 func TestKernelSourceAnswersThePortFromTheLiveKernel(t *testing.T) {
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
+	k, err := runtime.Open(withRoster(t, runtime.Config{BaseDir: dir, Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestKernelSourceAnswersThePortFromTheLiveKernel(t *testing.T) {
 // they were never covered, because the tool's own suite drives a fake.
 func TestKernelSourceProtectsSystemGuardians(t *testing.T) {
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
+	k, err := runtime.Open(withRoster(t, runtime.Config{BaseDir: dir, Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestKernelSourceProtectsSystemGuardians(t *testing.T) {
 // mention.
 func TestKernelSourceEditAppliesOnlyProvidedFields(t *testing.T) {
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
+	k, err := runtime.Open(withRoster(t, runtime.Config{BaseDir: dir, Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

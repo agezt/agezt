@@ -17,8 +17,8 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/cadence/systemtasks"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -52,9 +52,9 @@ func buildCadence(ctx context.Context, k *kernelruntime.Kernel, store *cadence.S
 		if !ok {
 			return fmt.Errorf("schedule %s: not found", id)
 		}
-		var prof *roster.Profile
+		var prof *agentapi.Profile
 		if slug := strings.TrimSpace(ent.Agent); slug != "" {
-			p, ok := k.Roster().Get(slug)
+			p, ok := k.RosterGet(slug)
 			if !ok {
 				return fmt.Errorf("schedule %s: unknown agent %s", id, slug)
 			}

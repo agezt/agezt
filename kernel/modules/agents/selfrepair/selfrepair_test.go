@@ -1051,7 +1051,7 @@ func TestApplyAutoRepairResolution_DelegationFailureIsJournaled(t *testing.T) {
 
 func newAutoRepairKernel(t *testing.T, prov llm.Provider) *kernelruntime.Kernel {
 	t.Helper()
-	k, err := kernelruntime.Open(kernelruntime.Config{BaseDir: t.TempDir(), Provider: prov})
+	k, err := kernelruntime.Open(withRoster(t, kernelruntime.Config{BaseDir: t.TempDir(), Provider: prov}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

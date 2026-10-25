@@ -38,7 +38,7 @@ func TestAgentTaskUpdateNativeTypedRegistry(t *testing.T) {
 
 func TestAgentTaskUpdateNativeWire(t *testing.T) {
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
+	k, err := runtime.Open(withRoster(t, runtime.Config{BaseDir: dir, Provider: mock.New()}))
 	if err != nil {
 		t.Fatal(err)
 	}

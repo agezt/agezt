@@ -16,8 +16,8 @@ import (
 	"os"
 
 	approster "github.com/agezt/agezt/kernel/app/roster"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -38,9 +38,9 @@ func publishOperatorAction(k *runtime.Kernel, subject, corr string, payload map[
 // launcher over the host's run and publish ports. The application decides
 // whether the run retries and what cost ceiling it runs under; the host
 // decorates the run context and executes it.
-func (s *Server) launchOperatorWake(corr string, p roster.Profile, intent, reason string, lineage approster.IncidentLineage) {
+func (s *Server) launchOperatorWake(corr string, p agentapi.Profile, intent, reason string, lineage approster.IncidentLineage) {
 	approster.LaunchOperatorWake(approster.WakeLaunchPorts{
-		Run: func(corr, intent string, retry *roster.RetryPolicy, maxCostMc int64) (string, error) {
+		Run: func(corr, intent string, retry *agentapi.RetryPolicy, maxCostMc int64) (string, error) {
 			ctx := runtime.WithAgentProfile(context.Background(), p)
 			ctx = runtime.WithWakeContext(ctx, runtime.WakeContext{Source: "operator", Reason: reason})
 			if maxCostMc > 0 {
@@ -61,7 +61,7 @@ func (s *Server) launchOperatorWake(corr string, p roster.Profile, intent, reaso
 // launcher over the host's governed-repair and publish ports. The launcher's
 // panic firewall is the application's; the host only reports the panic it
 // caught.
-func (s *Server) launchOperatorRepair(corr string, p roster.Profile, reason string, lineage approster.IncidentLineage) {
+func (s *Server) launchOperatorRepair(corr string, p agentapi.Profile, reason string, lineage approster.IncidentLineage) {
 	approster.LaunchOperatorRepair(approster.RepairLaunchPorts{
 		Repair: func(slug, reason string) (approster.RepairOutcome, error) {
 			if s.repairSource == nil {

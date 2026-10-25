@@ -36,7 +36,7 @@ func openSpendKernel(t *testing.T, prov llm.Provider, spendCapMC int64) *runtime
 	if err != nil {
 		t.Fatalf("governor.New: %v", err)
 	}
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:                    t.TempDir(),
 		Provider:                   g,
 		Tools:                      map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
@@ -44,7 +44,7 @@ func openSpendKernel(t *testing.T, prov llm.Provider, spendCapMC int64) *runtime
 		SubAgentTool:               true,
 		SubAgentMaxDepth:           1,
 		SubAgentMaxSpendMicrocents: spendCapMC,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -151,13 +151,13 @@ func (c *collector) ofKind(k event.Kind) []*event.Event {
 
 func openSubAgentKernel(t *testing.T, prov llm.Provider, depth int) *runtime.Kernel {
 	t.Helper()
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
 		Tools:            map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: depth,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -282,14 +282,14 @@ func TestSubAgent_FanoutGuard(t *testing.T) {
 		testToolUse("c3", "delegate", map[string]any{"task": "t3"}), // lead round 3 — refused, no child runs
 		mock.FinalText("lead done"),                                 // lead final after the refusal
 	)
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:           t.TempDir(),
 		Provider:          prov,
 		Tools:             map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:      true,
 		SubAgentMaxDepth:  1,
 		SubAgentMaxFanout: 2,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -354,14 +354,14 @@ func TestSubAgent_TotalGuard_BoundsWholeTreeAcrossDepths(t *testing.T) {
 		mock.FinalText("child A done"),                              // child A final after the refusal
 		mock.FinalText("lead done"),                                 // lead final
 	)
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
 		Tools:            map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 3, // deep nesting allowed; the TOTAL cap is what bounds the tree
 		SubAgentMaxTotal: 2,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -414,13 +414,13 @@ func TestSubAgent_TotalUnboundedByDefault(t *testing.T) {
 		mock.FinalText("child A done"),                              // child A final
 		mock.FinalText("lead done"),                                 // lead final
 	)
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
 		Tools:            map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 3, // no total cap
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -446,12 +446,12 @@ func TestWithModel_OverridesPerRun(t *testing.T) {
 	var sawModel string
 	prov.OnRequest = func(req llm.CompletionRequest) { sawModel = req.Model }
 
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
 		Model:    "default-model",
 		Tools:    map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -469,10 +469,10 @@ func TestWithModel_OverridesPerRun(t *testing.T) {
 	sawModel = ""
 	prov2 := mock.New(mock.FinalText("ok"))
 	prov2.OnRequest = func(req llm.CompletionRequest) { sawModel = req.Model }
-	k2, _ := runtime.Open(runtime.Config{
+	k2, _ := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir: t.TempDir(), Provider: prov2, Model: "default-model",
 		Tools: map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
-	})
+	}))
 	t.Cleanup(func() { k2.Close() })
 	if _, err := k2.RunWith(context.Background(), k2.NewCorrelation(), "hi"); err != nil {
 		t.Fatalf("RunWith: %v", err)
@@ -498,14 +498,14 @@ func TestSubAgent_ModelOverride(t *testing.T) {
 		models = append(models, req.Model)
 		mu.Unlock()
 	}
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
 		Model:            "lead-default",
 		Tools:            map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 1,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -578,14 +578,14 @@ func TestSubAgent_ModelDefaults(t *testing.T) {
 		models = append(models, req.Model)
 		mu.Unlock()
 	}
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
 		Model:            "lead-default",
 		Tools:            map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 1,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -643,14 +643,14 @@ func TestSubAgent_ModelFollowsLiveDefault(t *testing.T) {
 		models = append(models, req.Model)
 		mu.Unlock()
 	}
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
 		Model:            "boot-model",
 		Tools:            map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 1,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -704,7 +704,7 @@ func TestSubAgent_SystemFollowsLivePersona(t *testing.T) {
 		systems = append(systems, req.System)
 		mu.Unlock()
 	}
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
 		Model:            "m",
@@ -712,7 +712,7 @@ func TestSubAgent_SystemFollowsLivePersona(t *testing.T) {
 		Tools:            map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 1,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -747,11 +747,11 @@ func TestSubAgent_SystemFollowsLivePersona(t *testing.T) {
 
 func TestSubAgent_DisabledByDefault(t *testing.T) {
 	// Without SubAgentTool, the delegate tool is absent.
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
 		Tools:    map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -776,7 +776,7 @@ func openSpendKernelDepth(t *testing.T, prov llm.Provider, spendCapMC int64, dep
 	if err != nil {
 		t.Fatalf("governor.New: %v", err)
 	}
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withRoster(t, runtime.Config{
 		BaseDir:                    t.TempDir(),
 		Provider:                   g,
 		Tools:                      map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
@@ -784,7 +784,7 @@ func openSpendKernelDepth(t *testing.T, prov llm.Provider, spendCapMC int64, dep
 		SubAgentTool:               true,
 		SubAgentMaxDepth:           depth,
 		SubAgentMaxSpendMicrocents: spendCapMC,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

@@ -15,9 +15,9 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/strutil"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/resume"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
@@ -80,9 +80,9 @@ func buildResumer(ctx context.Context, k *kernelruntime.Kernel) string {
 		// Resolve the agent this run ran AS. If it named an agent that is now gone
 		// or disabled, quarantine rather than silently resume under the default
 		// identity (which would run with the wrong persona/tools/ceilings).
-		var prof *roster.Profile
+		var prof *agentapi.Profile
 		if slug := strings.TrimSpace(t.AgentSlug); slug != "" {
-			p, ok := k.Roster().Get(slug)
+			p, ok := k.RosterGet(slug)
 			if !ok || p.Retired || !p.Enabled {
 				quarantine(t, "agent "+slug+" is gone, retired, or disabled")
 				continue
