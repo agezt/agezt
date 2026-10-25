@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.42 the data lake is the daemon's file, 2026-10-24
+## Current checkpoint — W3.43 the artifact store is the daemon's file, 2026-10-25
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -3054,6 +3054,57 @@ files, five of the seventeen mutations would have escaped.
   methods the contract's two-verb port does not cover. **`workflow` and
   `workboard`** — both need wide new ports: the kernel names
   `workflow.Engine`, `workflow.Ports`, `workflow.Provenance` and
+  `workflow.Trigger` (no contract home), and it calls **seventeen** workboard
+  store methods.
+- W3.43 (the artifact store is the daemon's file) is committed on `main` the
+  same way. It takes **two** edges at once — the kernel's own and the run
+  engine's — and it is the one that unblocks the three media tool seams
+  (`imagetool`, `reranktool`, `voicetool`). Unlike W3.42 the contract side did
+  **not** exist, so the slice had to write it: `kernel/contract/artifactapi`
+  gains the **Blob** port (four verbs), the **RefGuard** port (one verb) and
+  the **index** ports. The index needed **two**, not one, and the first attempt
+  was **wrong**: widening the existing four-verb `Index` to ten broke
+  `TestTheIndexPortHasExactlyFourMethods`, a guard that is not a style rule — a
+  plugin holds every method of the port it is given, and two of the host's
+  verbs are dangerous (`Collect` deletes entries; `SetRefGuard` switches off
+  the journal's protection of the bytes the journal still names). So the port
+  is **split**: `Index` keeps exactly the four tool verbs, `HostIndex` carries
+  those four plus the six host verbs, and the module answers both with two
+  assertions. The kernel's fields, its accessors and the run engine's
+  `KernelAPI` carry the ports; `compose.go` opens nothing; `cmd/agezt`'s
+  `openAppKernel` opens the store and the index and injects both. The **ref
+  guard did not move to the daemon**: it answers from the **journal**, and the
+  journal is the kernel's, so the kernel installs its own guard on the index it
+  was given — only the *port* moved, because the host has to install a guard
+  on an index it does not own. The daemon's `artifactPort` wrapper is **gone
+  with the wrapping**, exactly like the lake's in W3.42.
+  The slice's real cost is the tests: a kernel opened without the store has no
+  artifact store at all, so every test that expected artifacts had to
+  **become a host** (open the store, inject the ports). Two suites failed the
+  first run for exactly that reason — `plugins/builtintools` and
+  `kernel/cadence/systemtasks` — and were fixed the same way: the test became
+  the host, not a weaker assertion.
+  **The ratchet went DOWN by TWO: 61/13 → 59/13.**
+  **8 mutations, 8 caught**, three of them **gate-measured** by archcheck (the
+  kernel opens the store again; the run engine names the concrete index; a
+  stale allowlist entry comes back).
+  The mutation run was **honest about itself**: the first pass passed
+  `go test <pkg> -run <name>` as one argument, so `go test` read the whole
+  string as a directory name and **five mutations were "caught" by a malformed
+  command** whose output happened to contain the expected test name — a catch
+  for the wrong reason is not a catch, so the run was discarded; the second
+  pass found one **build error** (removing the daemon's block left the
+  `artifact` import unused, and a compile error is not a catch either), so the
+  run was repeated a third time: **8 caught, 0 survived, 0 skipped, 0 build
+  errors**.
+  **What remains**: the kernel still reaches **17** modules. Next, in order:
+  **the three media tool seams** (`voicetool`, `imagetool`, `reranktool`) —
+  the voice and image tools are bound to the artifact store *inside the
+  kernel*, and with the store now a port the daemon can build the tools and
+  inject the closure itself. **`toolforge`** — the rows are aliases, but the
+  kernel calls **eight** store methods the contract's two-verb port does not
+  cover. **`workflow` and `workboard`** — both need wide new ports: the kernel
+  names `workflow.Engine`, `workflow.Ports`, `workflow.Provenance` and
   `workflow.Trigger` (no contract home), and it calls **seventeen** workboard
   store methods.
 
