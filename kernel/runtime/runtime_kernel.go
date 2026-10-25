@@ -19,6 +19,7 @@ import (
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
+	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/marketapi"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
@@ -36,7 +37,6 @@ import (
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
-	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/modules/work/okr"
@@ -113,8 +113,12 @@ type Kernel struct {
 	// wired.
 	reaperScanner agentsapi.ReaperScanner
 
-	catalogStore *catalog.Store
-	catalog      *catalog.Catalog // snapshot — refreshable via ReloadCatalog
+	// The catalog's library is the DAEMON's file (W3.51): the kernel holds
+	// the contract's ports, and the daemon opens the directory and hands
+	// them over.
+	catalogStore catalogapi.Store    // the on-disk catalog — the contract's store port
+	catalog      *catalogapi.Catalog // snapshot — refreshable via ReloadCatalog
+	catalogSync  catalogapi.Syncer   // the remote fetcher — the contract's syncer port
 
 	// lifecycle is the run-lifecycle sub-manager extracted as a
 	// separate Go sub-package on Day 12. See kernel/runtime/lifecycle

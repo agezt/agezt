@@ -18,6 +18,18 @@ var _ func(catalogapi.Family) = func(Family) {}
 var _ func(catalogapi.Modalities) = func(Modalities) {}
 var _ func(catalogapi.Limit) = func(Limit) {}
 var _ func(catalogapi.Cost) = func(Cost) {}
+var _ func(catalogapi.Catalog) = func(Catalog) {}
+var _ func(catalogapi.Meta) = func(Meta) {}
+var _ func(catalogapi.SyncResult) = func(SyncResult) {}
+
+// The module's store and syncer answer the CONTRACT's ports (W3.51): the
+// daemon opens the catalog directory and hands the kernel the ports, and the
+// kernel may not name this module.
+//
+// The compile-time assertions are the point: a port that grew a verb would
+// break HERE, in the module that implements it — not in the daemon.
+var _ catalogapi.Store = (*Store)(nil)
+var _ catalogapi.Syncer = (*Syncer)(nil)
 
 // TestTheRulesAreTheContractsRules: the module's names are one-line
 // delegations to the contract's rules, and they must agree — a second copy

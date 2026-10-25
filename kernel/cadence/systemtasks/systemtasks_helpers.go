@@ -8,6 +8,7 @@ package systemtasks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -17,10 +18,18 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
+
+// errNoCatalogLibrary is the answer the scheduled sync gives when the daemon
+// holds no catalog library.
+//
+// The catalog directory and its syncer are the DAEMON's (W3.51): the kernel
+// holds the contract's ports, and a host that was given none holds nil ports.
+// The refusal is the answer — not a panic, and not a silent "nothing to do".
+var errNoCatalogLibrary = errors.New("systemtasks: the catalog library is not available on this daemon")
 
 // runScheduledProfileDistill synthesizes the operator profile from accumulated
 // memory (M1000). LLM-backed (unlike the maintenance tasks), so it runs at a low
@@ -222,10 +231,15 @@ func runScheduledLogClean(ctx context.Context, k *kernelruntime.Kernel, corr, sc
 }
 
 func runScheduledCatalogSync(ctx context.Context, k *kernelruntime.Kernel, corr, scheduleID string) error {
-	url := envOrDefaultLocal(brand.EnvPrefix+"CATALOG_URL", catalog.DefaultSyncURL)
-	syncer := catalog.NewSyncer()
-	syncer.URL = url
-	raw, cat, res, err := syncer.Sync(ctx)
+	url := envOrDefaultLocal(brand.EnvPrefix+"CATALOG_URL", catalogapi.DefaultSyncURL)
+	// The syncer is the DAEMON's (W3.51): the kernel holds the contract's
+	// port, and this module may not name the catalog module. A host with no
+	// syncer has nothing to sync from — the refusal is the answer.
+	syncer := k.CatalogSyncer()
+	if syncer == nil {
+		return errNoCatalogLibrary
+	}
+	raw, cat, res, err := syncer.Sync(ctx, url, 0)
 	if err != nil {
 		_, _ = k.Bus().Publish(event.Spec{
 			Subject:       "catalog.sync",
@@ -235,6 +249,9 @@ func runScheduledCatalogSync(ctx context.Context, k *kernelruntime.Kernel, corr,
 			Payload:       map[string]any{"url": url, "schedule_id": scheduleID, "system_task": cadence.SystemTaskCatalogSync, "error": err.Error()},
 		})
 		return err
+	}
+	if k.CatalogStore() == nil {
+		return errNoCatalogLibrary
 	}
 	if err := k.CatalogStore().SaveAPI(raw, url); err != nil {
 		_, _ = k.Bus().Publish(event.Spec{

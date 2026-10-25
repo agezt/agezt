@@ -505,6 +505,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 		AutoApproveCapabilities:    autoApproveCaps,
 		AutoPromoteScriptTools:     autoPromoteScriptTools,
 		Catalog:                    cat,
+		CatalogStore:               catStore,
+		CatalogSyncer:              catalog.NewSyncer(),
 		MemoryInject:               memOn,
 		MemoryTool:                 memOn,
 		MemoryDistill:              memOn,

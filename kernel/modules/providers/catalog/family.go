@@ -8,8 +8,6 @@ package catalog
 //             there with the provider row; this file keeps the names.
 
 import (
-	"time"
-
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
 )
 
@@ -45,14 +43,9 @@ type Cost = catalogapi.Cost
 // Catalog is the in-memory union of every loaded source (api.json +
 // local.json + custom.json), with custom > local > api precedence
 // already applied. Safe to read concurrently; rebuild with Reload.
-type Catalog struct {
-	// Providers indexed by ID. Concurrent reads are safe; do not
-	// mutate after construction.
-	Providers map[string]*Provider
-	// SyncedAt is when the most-recent successful sync wrote
-	// api.json. Zero value if never synced.
-	SyncedAt time.Time
-	// Sources is the list of files that contributed to this catalog,
-	// in the order they were merged (api, local, custom).
-	Sources []string
-}
+//
+// The row and its rules live in the contract layer (W3.51): the layers above
+// this module — the kernel, the run executor, the governor — may not name it,
+// and a rule that only exists inside the module cannot be reached by them.
+// This package keeps the name, so every existing caller is unchanged.
+type Catalog = catalogapi.Catalog

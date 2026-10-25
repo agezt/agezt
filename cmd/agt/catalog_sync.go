@@ -90,11 +90,10 @@ func cmdCatalogSync(args []string, stdout, stderr io.Writer) int {
 	if url == "" {
 		url = envOr(brand.EnvPrefix+"CATALOG_URL", catalog.DefaultSyncURL)
 	}
-	syncer.URL = url
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	raw, _, res, serr := syncer.Sync(ctx)
+	raw, _, res, serr := syncer.Sync(ctx, url, 0)
 	if serr != nil {
 		fmt.Fprintf(stderr, "%s catalog sync: %v\n", brand.CLI, serr)
 		return 1

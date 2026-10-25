@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.50 the standing-order library is the daemon's file, 2026-10-25
+## Current checkpoint — W3.51 the catalog directory and its syncer are the daemon's, 2026-10-25
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -3494,6 +3494,85 @@ files, five of the seventeen mutations would have escaped.
   `worldmodel`, `roster`, `okr`, `taste`** — each one the same slice (a
   contract port, the daemon opening the file, the kernel's accessor carrying the
   port).
+
+- W3.51 (the catalog directory and its syncer are the daemon's) is committed on
+  `main` the same way. It takes **four** edges — the most of any slice so far,
+  and the best ratio the measurement had (four edges for ten call sites):
+  `cross-module kernel/runtime -> kernel/modules/providers/catalog` (the kernel
+  held the module's `*catalog.Store` and the `*catalog.Catalog` row),
+  `cross-module kernel/runtime/runexec -> kernel/modules/providers/catalog` (the
+  run-executor interface named the module's store and row),
+  `cross-module kernel/cadence/systemtasks -> kernel/modules/providers/catalog`
+  (the scheduled sync built the module's syncer itself) and
+  `upward kernel/governor -> kernel/modules/providers/catalog` (the governor's
+  pricing table held a `*catalog.Catalog`).
+  **The ratchet went DOWN by FOUR: 43/13 → 39/13.**
+  The catalog's rows were **already** in the contract and the module already
+  kept them as aliases — so this slice was mostly about the two things that
+  were missing: **the aggregate row** and **the ports**. The contract now
+  carries the `Catalog` aggregate AND its **nine rules**
+  (`ProviderList`, `FindModel`, `StrictToolArgsNative`,
+  `ToolCapableAlternative`, `ToolCapableAlternativeAmong`, `VisionCapableAmong`,
+  `BestModelsAcross`, `DuplicateCredentialEnvs`, `Merge`), with the four
+  helpers they lean on and `MarshalAPI`.
+  **The rules had to travel, and that is the point**: a Go type alias cannot
+  carry methods, so a rule that stayed in the module could not be reached by
+  the layers above it — and the rules decide **which model a run routes to**
+  (the down-routing that picks a tool-capable sibling, the vision sidecar's
+  choice, the council's seats, the pricing table's lookup). Keeping them in the
+  module would have left the governor reaching into a module for the price of
+  a model.
+  The **store** port is **exactly five** verbs — what the layers above actually
+  drive; the module's own store has more (`SaveCustom`, `SaveMeta`) and those
+  stay on the module's type, because no layer above the module drives them.
+  The **syncer** port is **one** verb, and its URL and timeout are
+  **parameters, not fields**: a port cannot carry mutable state that a caller
+  would have to reach through.
+  The **directory is the daemon's** and the **syncer is the daemon's too** — the
+  scheduled system task reaches it **through the kernel** (`k.CatalogSyncer()`),
+  which is what closed the `systemtasks -> catalog` edge.
+  The slice had to answer a question the earlier ones did not: what does a
+  daemon with **no** catalog say? The **read** surface answers with the
+  **EMPTY** catalog ("no providers" is an honest answer, and a nil snapshot
+  would make every reader a potential panic — `k.Catalog()` is never nil),
+  while the **write** surfaces (a sync, a discovery, a custom provider)
+  **refuse** with "the catalog library is not available on this daemon" —
+  there is nowhere to write, so the refusal is the answer. The app layer
+  learned the same rule, and the discovery refuses **before** the network
+  call: a daemon with no library should not go and ask Ollama what it finds
+  when it has nowhere to put the answer.
+  Every test that expected a store became a **host**: it opens the directory
+  and injects the ports.
+  **8 mutations, 8 caught** in two honest passes, **three** of them
+  **gate-measured** by archcheck (the kernel names the module again; the
+  governor names the module again; a stale allowlist entry comes back), because
+  "the kernel's reach is smaller" is not something a test can see. The run
+  earned two honest corrections: the first attempt at the fifth mutation
+  narrowed the kernel's face to a one-verb interface, which **broke the
+  callers** and was a **build error** (a build error is not a catch — the
+  mutation was wrong, not the test), and the second drifts the face to an
+  **anonymous** interface with the **same five verbs** — that still compiles
+  and no runtime behaviour would notice, so only a **static** check on the
+  declared return type catches it; the sixth mutation first landed on the
+  kernel's **Open** path, where the empty catalog is *correct*, so the test
+  never saw it — it now lands on the **reload**, which is where the live rows
+  actually come from.
+  The new permanent tests pin that the store port is **exactly five** verbs
+  wide and keeps its exact signatures, that the syncer port is **one** verb
+  and takes the caller's URL, that the module's store and syncer answer
+  **both** contract ports and that its rows are the contract's, that the
+  kernel's face is **statically** the contract's ports, that a kernel without
+  a library hands over **nil** ports, that the snapshot is **never nil**, that
+  the reload refuses instead of panicking, that the ports answer the **live**
+  rows, that both app surfaces refuse instead of panicking, and that the
+  daemon's catalog is a **directory on disk** and is the **injected** one.
+  **What remains**: the kernel still reaches **7** modules. Next, in order:
+  **`skill`** (five edges, `skillapi` exists — the `Forge` and `BundleStore`
+  ports are already there), **`roster`** (four edges and 73 importer files by
+  far the largest fan-in; the rows are already in `agentapi`, only the store
+  port and the sentinels are missing), then **`memory`, `worldmodel`, `taste`,
+  `okr`** — each one the same slice (a contract port, the daemon opening the
+  file, the kernel's accessor carrying the port).
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
+	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/mediaapi"
@@ -24,7 +25,6 @@ import (
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
-	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/modules/work/assure"
 	"github.com/agezt/agezt/kernel/reflect"
@@ -100,8 +100,8 @@ type KernelAPI interface {
 	Standing() standingapi.Store
 	StandingList() []standingapi.Order
 	ConfigCenter() *configcenter.Center
-	Catalog() *catalog.Catalog
-	CatalogStore() *catalog.Store
+	Catalog() *catalogapi.Catalog
+	CatalogStore() catalogapi.Store
 	AgentGateway() *agentgw.Gateway
 	PublishIntentInterpreted(corr, actor string, frame intent.Frame)
 	PublishContextFailureAnalysis(corr, actor string, err error)

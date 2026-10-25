@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -436,10 +438,14 @@ func (a *alwaysFinalProvider) Complete(_ context.Context, _ llm.CompletionReques
 func TestKernel_Reload_InvokesOnReloadAndRefreshesCatalog(t *testing.T) {
 	called := 0
 	var onReloadErr error
+	base := t.TempDir()
 	k, err := runtime.Open(runtime.Config{
-		BaseDir:  t.TempDir(),
+		BaseDir:  base,
 		Provider: mock.New(mock.FinalText("ok")),
 		Tools:    map[string]toolapi.Tool{},
+		// The catalog directory is the DAEMON's file (W3.51): the test opens
+		// it and hands the kernel the contract's store port.
+		CatalogStore: catalog.NewStore(filepath.Join(base, "catalog")),
 		OnReload: func() error {
 			called++
 			return onReloadErr
@@ -598,10 +604,14 @@ func TestKernel_DescribeImages_NoVisionModel(t *testing.T) {
 }
 
 func TestKernel_Reload_NilOnReloadIsCatalogOnly(t *testing.T) {
+	base := t.TempDir()
 	k, err := runtime.Open(runtime.Config{
-		BaseDir:  t.TempDir(),
+		BaseDir:  base,
 		Provider: mock.New(mock.FinalText("ok")),
 		Tools:    map[string]toolapi.Tool{},
+		// The catalog directory is the DAEMON's file (W3.51): the test opens
+		// it and hands the kernel the contract's store port.
+		CatalogStore: catalog.NewStore(filepath.Join(base, "catalog")),
 		// OnReload deliberately nil — the "no daemon-supplied rebuild"
 		// path. Must succeed and report providersReloaded=false.
 	})

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -35,13 +36,16 @@ func TestCatalogHandlersWorkWithoutSocketAndRetainWire(t *testing.T) {
 			defer ts.Close()
 			dir := t.TempDir()
 			var reloads atomic.Int32
-			k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error {
-				reloads.Add(1)
-				if reloadFails {
-					return context.DeadlineExceeded
-				}
-				return nil
-			}})
+			k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(),
+				CatalogStore:  catalog.NewStore(filepath.Join(dir, "catalog")),
+				CatalogSyncer: catalog.NewSyncer(),
+				OnReload: func() error {
+					reloads.Add(1)
+					if reloadFails {
+						return context.DeadlineExceeded
+					}
+					return nil
+				}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -137,7 +141,10 @@ func TestCatalogFailedFetchRetainsEventsAndSkipsPersistenceReload(t *testing.T) 
 	defer ts.Close()
 	var reloads atomic.Int32
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(),
+		CatalogStore:  catalog.NewStore(filepath.Join(dir, "catalog")),
+		CatalogSyncer: catalog.NewSyncer(),
+		OnReload:      func() error { reloads.Add(1); return nil }})
 	if err != nil {
 		t.Fatal(err)
 	}

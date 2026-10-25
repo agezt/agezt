@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
+	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
 	"github.com/agezt/agezt/kernel/modules/work/seat"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
@@ -120,6 +121,26 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 			return nil, err
 		}
 		cfg.Standing = store
+	}
+	if cfg.CatalogStore == nil {
+		// The catalog directory (W3.51) — the contract's store port. The
+		// daemon opens the file (catalog/api.json + local.json + custom.json)
+		// and hands the kernel the port; the kernel reloads the snapshot
+		// through it and never opens a directory of its own.
+		//
+		// A catalog that cannot be read is a STARTUP ERROR: the catalog is
+		// part of the daemon, not a convenience.
+		store := catalog.NewStore(filepath.Join(cfg.BaseDir, "catalog"))
+		if _, err := store.Load(); err != nil {
+			return nil, err
+		}
+		cfg.CatalogStore = store
+	}
+	if cfg.CatalogSyncer == nil {
+		// The catalog syncer (W3.51) — the contract's syncer port. The daemon
+		// builds it over the netguard-screened client and hands the kernel the
+		// port; the kernel never fetches anything itself.
+		cfg.CatalogSyncer = catalog.NewSyncer()
 	}
 	if cfg.Workboard == nil {
 		// The durable task board (W3.47) — the contract's host port. The

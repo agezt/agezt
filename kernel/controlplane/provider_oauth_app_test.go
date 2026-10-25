@@ -52,11 +52,7 @@ func TestProviderOAuthAppSocketAuditAndAuthoritativeEmptyModels(t *testing.T) {
 	var reloads, syncs atomic.Int32
 	var empty atomic.Bool
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { k.Close() })
+	k := openCatalogKernel(t, runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
 	s := NewServer(k, dir)
 	s.token = "primary"
 	s.SetChatGPTSync(func() ([]string, string) {
@@ -127,11 +123,7 @@ func TestProviderOAuthAppAdmissionPreventsStateAndVaultEffects(t *testing.T) {
 			t.Setenv(creds.PassphraseEnvVar, "isolated-oauth-fixture")
 			dir := t.TempDir()
 			var reloads atomic.Int32
-			k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() { k.Close() })
+			k := openCatalogKernel(t, runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
 			s := NewServer(k, dir)
 			s.token = "primary"
 			args := map[string]any{"provider": "chatgpt", "path": oauthFixtureFile(t)}

@@ -12,10 +12,18 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/creds"
-	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/runtime"
 )
+
+// errNoCatalogLibrary is the answer the providers app layer gives when it
+// holds no catalog library.
+//
+// The catalog directory is the DAEMON's (W3.51): the kernel holds the
+// contract's store port, and a host that was given none holds a nil port.
+// The refusal is the answer — not a panic, and not a silent "nothing to do".
+var errNoCatalogLibrary = errors.New("providers: the catalog library is not available on this daemon")
 
 type ConnectInput struct {
 	ID    string `json:"id,omitempty"`
@@ -57,7 +65,7 @@ func keyTarget(in KeyInput) (provider, env, target string, ok bool) {
 		if !providerIDPattern.MatchString(provider) {
 			return "", "", "", false
 		}
-		target = catalog.ProviderCredentialName(provider, env)
+		target = catalogapi.ProviderCredentialName(provider, env)
 	} else {
 		target = env
 	}
@@ -120,13 +128,16 @@ func (s *Service) Connect(_ context.Context, in ConnectInput) (ConnectOutput, er
 
 	// New id: minimal partial entry. No synthetic model list — see the
 	// type-level doc above for why.
-	p := &catalog.Provider{
+	p := &catalogapi.Provider{
 		ID:     id,
 		Name:   strings.TrimSpace(name),
 		NPM:    strings.TrimSpace(npm),
 		API:    api,
 		Env:    envs,
 		Models: nil, // unknown coverage — see kernel/governor/modelchain_skip_test.go
+	}
+	if s.k.CatalogStore() == nil {
+		return ConnectOutput{}, errNoCatalogLibrary
 	}
 	added, err := s.k.CatalogStore().UpsertCustomProvider(p)
 	if err != nil {

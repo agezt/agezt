@@ -9,15 +9,16 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/ulid"
@@ -157,10 +158,22 @@ func (k *Kernel) SetSystem(s string) {
 	k.configMu.Unlock()
 }
 
+// errNoCatalogLibrary is the answer the kernel gives when the host holds no
+// catalog library.
+//
+// The catalog directory is the DAEMON's file (W3.51): the kernel holds the
+// contract's store port, and a host that was given none holds a nil port. The
+// refusal is the answer — not a panic, and not a silent "nothing to do".
+var errNoCatalogLibrary = errors.New("runtime: the catalog library is not available on this daemon")
+
 // Catalog returns the currently-loaded provider/model catalog. The
 // returned pointer is the live snapshot; callers should treat it as
 // read-only and re-call after ReloadCatalog if they need fresh data.
-func (k *Kernel) Catalog() *catalog.Catalog {
+//
+// The row is the CONTRACT's (W3.51): the kernel may not name the catalog
+// module. It is never nil — a daemon that has no catalog (or has never
+// synced) holds the EMPTY catalog, which is exactly what it knows.
+func (k *Kernel) Catalog() *catalogapi.Catalog {
 	k.configMu.Lock()
 	defer k.configMu.Unlock()
 	return k.catalog
@@ -168,7 +181,19 @@ func (k *Kernel) Catalog() *catalog.Catalog {
 
 // CatalogStore returns the on-disk store backing the catalog, so the
 // control plane can drive `agt catalog sync` writes.
-func (k *Kernel) CatalogStore() *catalog.Store { return k.catalogStore }
+//
+// It is the contract's STORE port (W3.51) and it MAY be nil: the catalog
+// directory is the daemon's file, and a host that was given no store holds
+// a nil port. The surfaces that write into it refuse instead of writing
+// into nothing.
+func (k *Kernel) CatalogStore() catalogapi.Store { return k.catalogStore }
+
+// CatalogSyncer returns the port that fetches a remote catalog.
+//
+// It is the contract's SYNCER port (W3.51) and it MAY be nil: the daemon
+// builds the syncer and hands it over. The sync surfaces refuse instead of
+// fetching nothing.
+func (k *Kernel) CatalogSyncer() catalogapi.Syncer { return k.catalogSync }
 
 // Reload refreshes both the catalog snapshot AND the live provider
 // registry. Catalog reload is always performed; provider rebuild runs
@@ -179,7 +204,7 @@ func (k *Kernel) CatalogStore() *catalog.Store { return k.catalogStore }
 // Returns (catalog, providersReloaded, err). providersReloaded is
 // true when OnReload ran successfully; false when OnReload was nil
 // (catalog-only reload) or returned an error.
-func (k *Kernel) Reload() (*catalog.Catalog, bool, error) {
+func (k *Kernel) Reload() (*catalogapi.Catalog, bool, error) {
 	cat, err := k.ReloadCatalog()
 	if err != nil {
 		return nil, false, err
@@ -197,7 +222,14 @@ func (k *Kernel) Reload() (*catalog.Catalog, bool, error) {
 // snapshot into the Governor. Called after `agt catalog sync` and
 // after Ollama discovery completes so live pricing reflects the new
 // data immediately.
-func (k *Kernel) ReloadCatalog() (*catalog.Catalog, error) {
+//
+// The catalog directory is the DAEMON's file (W3.51): the kernel holds the
+// contract's store port, and a host that was given none has nothing to
+// reload from — the refusal is the answer, not a panic.
+func (k *Kernel) ReloadCatalog() (*catalogapi.Catalog, error) {
+	if k.catalogStore == nil {
+		return nil, errNoCatalogLibrary
+	}
 	cat, err := k.catalogStore.Load()
 	if err != nil {
 		return nil, err

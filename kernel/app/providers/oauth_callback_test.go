@@ -43,17 +43,13 @@ func TestOAuthCallbackBusinessSuccessPreservesIdentityBudgetAndEffectOrder(t *te
 	login := &providerLogin{state: "expected", verifier: "fixture-verifier", status: "pending"}
 	var order []string
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error {
+	k := openKernel(t, runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error {
 		if login.status != "done" || login.errMsg != "" {
 			t.Error("reload entered before terminal login state")
 		}
 		order = append(order, "reload")
 		return errors.New("legacy ignored reload failure")
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer k.Close()
 	auth := NewOAuth(k, dir, func() ([]string, string) {
 		order = append(order, "models")
 		return []string{}, ""
