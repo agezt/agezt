@@ -12,12 +12,7 @@ package workflow
 // P5).
 
 import (
-	"context"
-	"encoding/json"
-
-	"github.com/agezt/agezt/kernel/approval"
-	"github.com/agezt/agezt/kernel/contract/llm"
-	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -25,42 +20,17 @@ import (
 // the capability is unavailable: the engine then refuses the node that needs
 // it (a code node without a sandbox, an llm node without a provider) instead
 // of failing the whole daemon.
-type Ports struct {
-	// Publish journals one event (workflow.started, workflow.node, …).
-	Publish func(event.Spec)
-	// Complete runs one attributed completion through the host's Governor.
-	Complete func(ctx context.Context, corr, taskType string, req llm.CompletionRequest) (*llm.CompletionResponse, error)
-	// InvokeTool runs one governed tool call.
-	InvokeTool func(ctx context.Context, corr, callID, toolName string, args json.RawMessage) (toolapi.Result, error)
-	// RunCode runs one sandboxed script.
-	RunCode func(ctx context.Context, corr, callPrefix, language, code, input string) (toolapi.Result, error)
-	// ScriptRunnerReady reports whether the code sandbox exists.
-	ScriptRunnerReady func() bool
-	// Approve submits one operator gate and returns the decision.
-	Approve func(ctx context.Context, spec approval.SubmitSpec) approval.Outcome
-	// Model resolves the model a run should ask for (the live default plus
-	// the run's own chain).
-	Model func(ctx context.Context) string
-	// DefaultModel is the daemon's live default model — what a draft follows
-	// after the default is hot-swapped.
-	DefaultModel func(ctx context.Context) string
-	// HasProvider reports whether a provider is configured at all.
-	HasProvider func() bool
-	// Halted reports whether the host has stopped the kernel.
-	Halted func() bool
-}
+//
+// The struct lives in the contract layer (kernel/contract/workflowapi) — it is
+// the HOST's own surface handed to the engine, and a module's ports are the
+// contract's. The name stays here as an alias, so every existing caller is
+// unchanged.
 
 // Provenance is why a run exists. The host fills it in from its own wake
 // context — the module never reads another package's context keys.
-type Provenance struct {
-	Source            string
-	Reason            string
-	ScheduleID        string
-	StandingID        string
-	StandingName      string
-	TriggerSubject    string
-	ParentCorrelation string
-}
+//
+// The row lives in the contract layer (kernel/contract/workflowapi). The name
+// stays here as an alias.
 
 // RunResult and NodeTestResult live in the contract layer
 // (kernel/contract/workflowapi) — the agent-facing tool reports them, and a
@@ -69,13 +39,17 @@ type Provenance struct {
 
 // Engine owns the workflow lifecycle for one store: the durable CRUD, the
 // graph run, the single-node test and the copilot's draft.
+//
+// The store is the CONTRACT's host port (workflowapi.HostStore), not this
+// module's concrete type: the engine is built by the composition root, and
+// the root builds it over whatever store it holds.
 type Engine struct {
-	store *Store
+	store workflowapi.HostStore
 	ports Ports
 }
 
 // NewEngine binds the engine to its store and the host's ports.
-func NewEngine(store *Store, ports Ports) *Engine {
+func NewEngine(store workflowapi.HostStore, ports Ports) *Engine {
 	return &Engine{store: store, ports: ports}
 }
 

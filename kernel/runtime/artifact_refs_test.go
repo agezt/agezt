@@ -29,7 +29,7 @@ func openWithArtifacts(t *testing.T, cfg runtime.Config) *runtime.Kernel {
 	}
 	cfg.Artifacts = store
 	cfg.ArtifactIndex = index
-	k, err := runtime.Open(cfg)
+	k, err := openKernelWithWorkflows(t, cfg)
 	if err != nil {
 		t.Fatalf("open kernel: %v", err)
 	}

@@ -22,7 +22,10 @@ import (
 
 // ErrHalted is returned when the host reports that the kernel is halted. The
 // host translates it into its own sentinel, so the caller sees one error.
-var ErrHalted = errors.New("workflow: kernel is halted")
+//
+// The sentinel lives in the contract layer (kernel/contract/workflowapi) — the
+// HOST reports it, and the host may not name a module's error. The name stays
+// here as an alias.
 
 // workflowStepCap is a defense-in-depth bound on executed steps per run —
 // validation already rejects cycles, so this can only fire on an engine bug.

@@ -107,10 +107,7 @@ func TestWorkflowLifecyclePreservesCausesAndZeroFailureOutputs(t *testing.T) {
 }
 func TestWorkflowLifecycleUsesActualRuntimeIdentityAndEvents(t *testing.T) {
 	provider := mock.New()
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: provider})
-	if err != nil {
-		t.Fatal(err)
-	}
+	k := openWorkflowKernel(t, runtime.Config{BaseDir: t.TempDir(), Provider: provider})
 	defer k.Close()
 	s := NewLifecycle(k)
 	ctx := context.Background()

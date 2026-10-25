@@ -22,20 +22,19 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
 // Trigger says why a workflow fired. The host turns it into the run's
 // provenance, so a cron-triggered run is never labelled "manual".
-type Trigger struct {
-	// Source is the trigger kind: "cron" or "event".
-	Source string
-	// Subject is the matched event subject (event triggers only).
-	Subject string
-	// Reason is a short human label ("cron interval", "event task.failed")
-	// for the daemon's logging.
-	Reason string
-}
+// Trigger says what fired a workflow: the trigger kind ("cron" or "event"),
+// the matched event subject (event triggers only) and a short human label
+// for the daemon's logging.
+//
+// The row lives in the contract layer (kernel/contract/workflowapi) — the
+// HOST's trigger runner carries it, and the host may not name a module's row.
+// The name stays here as an alias.
 
 // FireFunc executes one triggered workflow. payload becomes
 // {{trigger.payload}}; t says what fired it.
@@ -56,7 +55,7 @@ type RunnerConfig struct {
 // store, firing through fire. It returns after spawning its goroutines;
 // ctx cancellation stops both. The store is consulted live on every tick /
 // event, so saves, enables, and removes take effect without a restart.
-func StartTriggers(ctx context.Context, b *bus.Bus, store *Store, cfg RunnerConfig, fire FireFunc) error {
+func StartTriggers(ctx context.Context, b *bus.Bus, store workflowapi.Store, cfg RunnerConfig, fire FireFunc) error {
 	if cfg.EventCooldown <= 0 {
 		cfg.EventCooldown = 30 * time.Second
 	}
@@ -108,7 +107,7 @@ func StartTriggers(ctx context.Context, b *bus.Bus, store *Store, cfg RunnerConf
 }
 
 type triggerRunner struct {
-	store *Store
+	store workflowapi.Store
 	cfg   RunnerConfig
 	fire  FireFunc
 	bus   *bus.Bus // may be nil; used only to journal a contained panic

@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 	appworkflow "github.com/agezt/agezt/kernel/app/workflow"
+	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"os"
 )
@@ -28,7 +28,7 @@ func (s *Server) workflowExecution() *appworkflow.Execution {
 			res, err := s.k.RunWorkflow(ctx, corr, ref, payload)
 			return appworkflow.RunResult{Executed: res.Executed, Outputs: res.Outputs}, err
 		},
-		TestNode: func(ctx context.Context, corr string, w workflow.Workflow, node string, data map[string]any, payload any) (appworkflow.NodeResult, error) {
+		TestNode: func(ctx context.Context, corr string, w workflowapi.Workflow, node string, data map[string]any, payload any) (appworkflow.NodeResult, error) {
 			res, err := s.k.TestWorkflowNode(ctx, corr, w, node, data, payload)
 			return appworkflow.NodeResult{Output: res.Output, Port: res.Port, Attempts: res.Attempts}, err
 		},

@@ -5,15 +5,39 @@ package builtintools
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/toolregapi"
+	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 const workflowGraph = `{"name":"greeter","description":"says hi","nodes":[{"id":"start","type":"trigger"},{"id":"greet","type":"transform","config":{"template":"hello"}}],"edges":[{"from":"start","to":"greet"}]}`
+
+// withWorkflows opens the workflow library the composition root would open
+// (W3.48) and hands the kernel the contract's host port — and the ENGINE,
+// because the engine is the daemon's too: it is built over that store and over
+// the host's own ports (the kernel's governed paths).
+//
+// This test is such a host: the library's file is the daemon's business, and
+// the kernel holds the ports.
+func withWorkflows(t *testing.T, cfg runtime.Config) *runtime.Kernel {
+	t.Helper()
+	store, err := workflow.OpenStore(filepath.Join(cfg.BaseDir, "workflows"))
+	if err != nil {
+		t.Fatalf("open the workflow store: %v", err)
+	}
+	cfg.Workflows = store
+	k, err := runtime.Open(cfg)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	k.SetWorkflowEngine(workflow.NewEngine(store, k.WorkflowPorts()))
+	return k
+}
 
 // TestTheWorkflowSpecWiresTheLibraryPort: the workflow tool is a plugin, so
 // it may not name the workflows module — it asks for the CONTRACT's port and
@@ -21,10 +45,7 @@ const workflowGraph = `{"name":"greeter","description":"says hi","nodes":[{"id":
 // workflow the agent saved must show up in the tool's own op=list, or the
 // agent would author workflows it cannot see.
 func TestTheWorkflowSpecWiresTheLibraryPort(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
+	k := withWorkflows(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
 	t.Cleanup(func() { k.Close() })
 
 	if k.Workflows() == nil {

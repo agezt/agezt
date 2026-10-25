@@ -23,6 +23,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
+	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -72,6 +73,14 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 		t.Fatalf("open the workboard store: %v", err)
 	}
 	cfg.Workboard = board
+	// The workflow store is the composition root's file too (W3.48), and so
+	// is the ENGINE: it is built over the store and over the host's own
+	// ports, and handed over as the contract's engine port.
+	wfstore, err := workflow.OpenStore(filepath.Join(dir, "workflows"))
+	if err != nil {
+		t.Fatalf("open the workflow store: %v", err)
+	}
+	cfg.Workflows = wfstore
 	k, err := runtime.Open(cfg)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -83,6 +92,10 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 	// a module's implementation, so the composition root builds the scanner
 	// over the kernel's own ports and injects it.
 	k.SetReaperScanner(reaper.New(k.ReaperPorts()))
+	// The workflow ENGINE is the composition root's too (W3.48): it is a
+	// module's implementation, and the kernel may not name one. It is built
+	// over the store the root just opened and over the host's own ports.
+	k.SetWorkflowEngine(workflow.NewEngine(wfstore, k.WorkflowPorts()))
 	t.Cleanup(func() { k.Close() })
 
 	srv := controlplane.NewServer(k, dir)

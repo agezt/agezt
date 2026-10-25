@@ -4439,6 +4439,33 @@ This file holds the active `[Unreleased]` working set.
 
 ### Removed
 
+- **Removed: the kernel's reach on the workflow library (W3.48).** The kernel
+  held the workflow module's concrete store, **opened the library's file**
+  itself and **built the module's engine**; the control plane named the
+  module's rows. The kernel now holds the **contract's engine port** —
+  `workflowapi.Engine`, eight verbs (`Save`, `Restore`, `SetEnabled`,
+  `Remove`, `Run`, `TestNode`, `Draft`, `Refine`) — and both the library's
+  file and the engine are the **daemon's**: `cmd/agezt` opens the library,
+  and after `Open` it builds the engine over that library and over the
+  kernel's own ports (`k.WorkflowPorts()`) and hands it over with
+  `SetWorkflowEngine`. The engine's ports are the host's governed paths (its
+  bus, its governor, its tool runner, its approvals), so a workflow run keeps
+  the host's policy checks, its audit arc and its spend attribution.
+  The port's width is the **weakest holder's**: the agent-facing plugin keeps
+  the **read side only** (`Get`, `List`), because a plugin that could remove
+  or disable a stored workflow would be editing the daemon's library; the
+  host's port (`workflowapi.HostStore`) carries the lifecycle verbs, and the
+  kernel's own face stays the read side. The rows that travel with the port
+  moved to the contract — the host capabilities (`Ports`), the run's
+  `Provenance`, the `Trigger` that fired it, the halt sentinel, and the
+  approval rows — so there is one copy of each.
+  A host may now open a kernel **without** an engine, and both the kernel and
+  the app layer refuse ("the workflow engine is not available on this daemon",
+  "the workflow library is not available on this daemon") instead of
+  dereferencing nothing. The architecture ratchet went from 51 to 49 edges.
+  No behaviour changed: the library is still the same store, under the same
+  file, with the same lifecycle.
+
 - **Removed: the kernel's reach on the task board (W3.47).** The kernel held
   the workboard module's concrete store, drove seventeen of its methods
   through it and opened the board's file itself; the control plane named the

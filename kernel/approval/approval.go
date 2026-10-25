@@ -100,13 +100,11 @@ type Request struct {
 }
 
 // Outcome carries the decision plus a human reason for the journal.
-type Outcome struct {
-	Decision Decision
-	Reason   string
-	// ResolvedBy is "operator" (Resolve called) or "system" (timeout /
-	// cancel). Future channel sources will set their own identity.
-	ResolvedBy string
-}
+//
+// The row lives in the contract layer (kernel/contract/approvalapi) — the
+// workflow engine's port carries it, and a module's port is the contract's.
+// The name stays here as an alias, so every existing caller is unchanged.
+type Outcome = approvalapi.Outcome
 
 // pending is the internal in-memory entry awaiting a decision.
 type pending struct {
@@ -163,25 +161,8 @@ var ErrUnknownApproval = errors.New("approval: unknown or already-resolved reque
 
 // SubmitSpec is the call-site data Submit needs; ID/CreatedAt/Timeout
 // are filled in by the Registry so callers can't fabricate them.
-type SubmitSpec struct {
-	Capability    string
-	ToolName      string
-	Input         string
-	Reason        string
-	Actor         string
-	CorrelationID string
-	// AutoRec is the auto-recommendation for the operator (e.g., "allow" or "deny").
-	AutoRec string
-	// ValuePreview is a masked preview of the value being accessed.
-	ValuePreview          string
-	EffectClass           string
-	PredictedEffects      []string
-	AffectedResources     []string
-	RollbackNotes         string
-	Confidence            float64
-	CanonicalIntent       string
-	HarmfulInterpretation string
-	AmbiguityScore        float64
-	RegretAxes            map[string]float64
-	ConfirmationPrompt    string
-}
+//
+// The row lives in the contract layer (kernel/contract/approvalapi) — the
+// workflow engine's port carries it, and a module's port is the contract's.
+// The name stays here as an alias, so every existing caller is unchanged.
+type SubmitSpec = approvalapi.SubmitSpec

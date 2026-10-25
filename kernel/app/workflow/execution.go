@@ -80,6 +80,9 @@ func (s *Execution) Run(parent context.Context, in RunInput) (RunOutput, error) 
 	if err := parent.Err(); err != nil {
 		return RunOutput{}, err
 	}
+	if s.reader == nil {
+		return RunOutput{}, errNoWorkflows
+	}
 	corr := operationCorrelation(parent, "", s.host.Correlation)
 	if in.Async {
 		w, found := s.reader.Get(strings.TrimSpace(in.Ref))
@@ -159,6 +162,9 @@ type WebhookOutput struct {
 func (s *Execution) Webhook(parent context.Context, in WebhookInput) (WebhookOutput, error) {
 	if err := parent.Err(); err != nil {
 		return WebhookOutput{}, err
+	}
+	if s.reader == nil {
+		return WebhookOutput{}, errNoWorkflows
 	}
 	ref := strings.TrimSpace(in.Ref)
 	if in.Invalid || ref == "" || in.Secret == "" {

@@ -1730,7 +1730,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 				hook++
 			}
 		}
-		fmt.Fprintf(stdout, "  workflows        : %d defined (%d cron + %d event + %d webhook trigger(s) armed)\n", k.Workflows().Count(), cron, evt, hook)
+		fmt.Fprintf(stdout, "  workflows        : %d defined (%d cron + %d event + %d webhook trigger(s) armed)\n", len(k.Workflows().List()), cron, evt, hook)
 	}
 
 	fmt.Fprintf(stdout, "  client commands  : %s run | halt | resume | why <id> | journal verify\n", brand.CLI)

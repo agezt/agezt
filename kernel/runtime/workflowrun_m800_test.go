@@ -126,7 +126,7 @@ func TestRunWorkflow_ErrorPortBranches(t *testing.T) {
 func TestRunWorkflow_CodeNode(t *testing.T) {
 	runner := &stubRunner{out: `{"doubled": 84}`}
 	prov := mock.New()
-	k, err := runtime.Open(runtime.Config{
+	k, err := openKernelWithWorkflows(t, runtime.Config{
 		BaseDir:      t.TempDir(),
 		Provider:     prov,
 		ScriptRunner: runner,
@@ -164,7 +164,7 @@ func TestRunWorkflow_CodeNode(t *testing.T) {
 func TestRunWorkflow_HTTPNodeBridgesTool(t *testing.T) {
 	tool := &echoTool{out: `{"ok":true}`}
 	prov := mock.New()
-	k, err := runtime.Open(runtime.Config{
+	k, err := openKernelWithWorkflows(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
 		Tools:    map[string]toolapi.Tool{"http": tool}, // stands in for the real guarded tool

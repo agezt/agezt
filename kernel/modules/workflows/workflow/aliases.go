@@ -47,7 +47,24 @@ type (
 	RunResult = workflowapi.RunResult
 	// NodeTestResult is one tested node's outcome.
 	NodeTestResult = workflowapi.NodeTestResult
+
+	// Ports are the host capabilities the engine calls out to.
+	Ports = workflowapi.Ports
+	// Provenance is why a run exists.
+	Provenance = workflowapi.Provenance
+	// Trigger says what fired a workflow.
+	Trigger = workflowapi.Trigger
 )
+
+// ErrHalted is returned when the host reports that the kernel is halted.
+//
+// The sentinel lives in the contract layer (kernel/contract/workflowapi) — the
+// HOST reports it, and the host may not name a module's error.
+var ErrHalted = workflowapi.ErrHalted
+
+// The engine answers the contract's port, so the host can drive the workflow
+// lifecycle without ever naming this module (W3.48).
+var _ workflowapi.Engine = (*Engine)(nil)
 
 // The node types the engine executes.
 const (

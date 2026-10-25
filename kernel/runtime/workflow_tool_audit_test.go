@@ -85,7 +85,7 @@ func TestRunTool_UsesDeclaredCapabilityAxis(t *testing.T) {
 		t.Run(path, func(t *testing.T) {
 			tool := &workflowAuditTool{name: "axis", definition: &toolapi.ToolDef{Name: "axis", InputSchema: json.RawMessage(`{"type":"object"}`),
 				Capability: toolapi.ToolCapability{Name: "file.read", Field: "op", ByValue: map[string]string{"write": "file.write"}}}}
-			k, err := runtime.Open(runtime.Config{NewToolInvoker: apptools.NewInvoker, BaseDir: t.TempDir(), Provider: mock.New(), Tools: map[string]toolapi.Tool{"axis": tool}, ToolCapabilities: map[string]string{"axis": "file.read"}})
+			k, err := openKernelWithWorkflows(t, runtime.Config{NewToolInvoker: apptools.NewInvoker, BaseDir: t.TempDir(), Provider: mock.New(), Tools: map[string]toolapi.Tool{"axis": tool}, ToolCapabilities: map[string]string{"axis": "file.read"}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -188,7 +188,7 @@ func (p *workflowAuditTool) Invoke(ctx context.Context, _ json.RawMessage) (tool
 
 func TestWorkflowToolAudit_RetryHasDistinctCallIDs(t *testing.T) {
 	tool := &workflowAuditTool{name: "audit", mode: "retry"}
-	k, err := runtime.Open(runtime.Config{NewToolInvoker: apptools.NewInvoker, BaseDir: t.TempDir(), Provider: mock.New(), Tools: map[string]toolapi.Tool{"audit": tool}, ToolCapabilities: map[string]string{"audit": "introspect"}})
+	k, err := openKernelWithWorkflows(t, runtime.Config{NewToolInvoker: apptools.NewInvoker, BaseDir: t.TempDir(), Provider: mock.New(), Tools: map[string]toolapi.Tool{"audit": tool}, ToolCapabilities: map[string]string{"audit": "introspect"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +236,7 @@ func TestWorkflowToolAudit(t *testing.T) {
 				if path == "http" {
 					tool.name = "http"
 				}
-				k, err := runtime.Open(runtime.Config{NewToolInvoker: apptools.NewInvoker, BaseDir: t.TempDir(), Provider: mock.New(),
+				k, err := openKernelWithWorkflows(t, runtime.Config{NewToolInvoker: apptools.NewInvoker, BaseDir: t.TempDir(), Provider: mock.New(),
 					Tools: map[string]toolapi.Tool{tool.name: tool}, ToolCapabilities: map[string]string{tool.name: "introspect"}})
 				if err != nil {
 					t.Fatal(err)

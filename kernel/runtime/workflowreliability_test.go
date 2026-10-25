@@ -54,7 +54,7 @@ func (t *flakyTool) callCount() int {
 
 func openReliabilityKernel(t *testing.T, tool toolapi.Tool) *runtime.Kernel {
 	t.Helper()
-	k, err := runtime.Open(runtime.Config{
+	k, err := openKernelWithWorkflows(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("unused")),
 		Tools:    map[string]toolapi.Tool{"flaky": tool},

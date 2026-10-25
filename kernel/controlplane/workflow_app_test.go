@@ -3,6 +3,8 @@ package controlplane
 
 import (
 	"encoding/json"
+	"path/filepath"
+
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
@@ -18,10 +20,18 @@ func workflowAppFixture(t *testing.T) (*runtime.Kernel, *Server, workflow.Workfl
 	t.Helper()
 	dir := t.TempDir()
 	provider := mock.New(mock.FinalText(`{"name":"designed","nodes":[{"id":"start","type":"trigger"}]}`), mock.FinalText("owned"))
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider})
+	// The workflow store is the composition root's file (W3.48), and so is
+	// the ENGINE: this test is such a host — it opens the store and hands the
+	// kernel the contract's engine port.
+	wfstore, err := workflow.OpenStore(filepath.Join(dir, "workflows"))
 	if err != nil {
 		t.Fatal(err)
 	}
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, Workflows: wfstore})
+	if err != nil {
+		t.Fatal(err)
+	}
+	k.SetWorkflowEngine(workflow.NewEngine(wfstore, k.WorkflowPorts()))
 	t.Cleanup(func() { k.Close() })
 	graph, _, err := k.SaveWorkflow("", workflow.Workflow{Name: "owned", Nodes: []workflow.Node{{ID: "start", Type: workflow.NodeTrigger}, {ID: "work", Type: workflow.NodeLLM, Config: json.RawMessage(`{"prompt":"owned"}`)}}, Edges: []workflow.Edge{{From: "start", To: "work"}}})
 	if err != nil {

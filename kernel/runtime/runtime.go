@@ -20,6 +20,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
+	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
@@ -549,6 +550,22 @@ type Config struct {
 	// Nil means "no task board": the board operations report that the board is
 	// unavailable, and the OKR rollup counts no linked task as done.
 	Workboard workboardapi.HostStore
+
+	// Workflows is the durable workflow store the host holds — the contract's
+	// HOST port, not a module's store (W3.48). The daemon opens the store file
+	// and hands it over (cmd/agezt): the store's file is the daemon's
+	// business, and the kernel is a module.
+	//
+	// It is the host port and not the read side because the composition root
+	// builds the ENGINE over this very store (SetWorkflowEngine): the engine
+	// needs the host's capabilities and only the host has them. The kernel's
+	// own face stays narrow — `Workflows()` hands out the read side only
+	// (Get, List), so the agent-facing tool can never remove or disable a
+	// stored workflow.
+	//
+	// Nil means "no workflow store": the reads answer that there is nothing
+	// stored, and every lifecycle operation refuses.
+	Workflows workflowapi.HostStore
 }
 
 // Kernel is the running Agezt instance.

@@ -102,13 +102,10 @@ func TestScheduledRunContextModelOverrideWinsOverAgentProfile(t *testing.T) {
 	prov := mock.New(mock.FinalText("done"))
 	var llmReq llm.CompletionRequest
 	prov.OnRequest = func(r llm.CompletionRequest) { llmReq = r }
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k := openWorkflowKernel(t, kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
 	})
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
 	t.Cleanup(func() { k.Close() })
 
 	if _, _, err := k.SaveWorkflow("", workflow.Workflow{

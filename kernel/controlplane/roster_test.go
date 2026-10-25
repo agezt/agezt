@@ -1159,7 +1159,7 @@ func TestAgentRemove_CascadeDeletesPrivateOwnedResourcesOnly(t *testing.T) {
 	if got := len(k.Schedules().List()); got != 0 {
 		t.Fatalf("schedule count = %d, want 0", got)
 	}
-	if got := k.Workflows().Count(); got != 2 {
+	if got := len(k.Workflows().List()); got != 2 {
 		t.Fatalf("workflow references should remain as operator-owned chains, count=%d want 2", got)
 	}
 	if _, err := os.Stat(filepath.Join(workspaceRoot, "researcher")); !os.IsNotExist(err) {
