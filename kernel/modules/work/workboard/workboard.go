@@ -22,7 +22,6 @@ const (
 )
 
 var (
-	ErrNotFound      = errors.New("workboard: not found")
 	ErrClaimConflict = errors.New("workboard: claim conflict")
 	ErrNotClaimed    = errors.New("workboard: not claimed")
 	ErrClaimFresh    = errors.New("workboard: claim heartbeat is not stale")

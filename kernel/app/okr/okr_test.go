@@ -100,7 +100,7 @@ func TestOKRReadsPreserveEmptyArraysRequiredZeroFieldsAndErrors(t *testing.T) {
 }
 func TestOKRReadsUseActualStoreAndLiveWorkboardRollup(t *testing.T) {
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
+	k, err := runtime.Open(withWorkboard(t, runtime.Config{BaseDir: dir, Provider: mock.New()}))
 	if err != nil {
 		t.Fatal(err)
 	}

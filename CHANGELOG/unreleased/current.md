@@ -4439,6 +4439,24 @@ This file holds the active `[Unreleased]` working set.
 
 ### Removed
 
+- **Removed: the kernel's reach on the task board (W3.47).** The kernel held
+  the workboard module's concrete store, drove seventeen of its methods
+  through it and opened the board's file itself; the control plane named the
+  module's rows. The kernel now holds the **contract's host port** —
+  `workboardapi.HostStore`, twenty verbs — and the store file is the
+  **daemon's**: `cmd/agezt` opens it and hands it over. The port's width is
+  the host's, not a copy of the store's method list: the agent-facing plugin
+  keeps the **read side only** (`Get`, `List`), because a plugin that could
+  claim, complete or archive a task would be driving another agent's work
+  item. Two rules moved with the port — the not-found error and the retry
+  rule — so there is one copy of each.
+  A host may now open a kernel **without** a board, and both the kernel and
+  the app layer refuse ("the task board is not available on this daemon")
+  instead of dereferencing nothing; the proof path distinguishes "no board"
+  from "no such task" again. The architecture ratchet went from 53 to 51
+  edges. No behaviour changed: the board is still the same store, under the
+  same file, with the same lifecycle.
+
 - **Removed: the kernel's reach on the marketplace (W3.46).** The kernel held
   the market module's concrete `*market.Manager`, built the `market` agent tool
   itself and named the module's rows. It now holds the **contract's port** —

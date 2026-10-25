@@ -5,9 +5,9 @@ package runtime
 import (
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/work/okr"
-	"github.com/agezt/agezt/kernel/modules/work/workboard"
 )
 
 // OKR returns the durable objectives-and-key-results store.
@@ -23,7 +23,7 @@ func (k *Kernel) taskDone(taskID string) bool {
 		return false
 	}
 	t, ok := k.workboard.Get(taskID)
-	return ok && t.Status == workboard.StatusDone
+	return ok && t.Status == workboardapi.StatusDone
 }
 
 // Rollup computes an objective's progress from the live done-status of its

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -14,14 +15,30 @@ import (
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
+// withWorkboard opens the task board the composition root would open (W3.47)
+// and hands the kernel the contract's host port.
+//
+// The board's file is the DAEMON's: the kernel holds the port and drives the
+// lifecycle through it. This test is such a host.
+func withWorkboard(t *testing.T, cfg runtime.Config) runtime.Config {
+	t.Helper()
+	store, err := workboard.OpenStore(filepath.Join(cfg.BaseDir, "workboard"))
+	if err != nil {
+		t.Fatalf("open the workboard store: %v", err)
+	}
+	cfg.Workboard = store
+	return cfg
+}
+
 func TestCmdWorkboardRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("AGEZT_HOME", dir)
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok"))})
+	k, err := runtime.Open(withWorkboard(t, runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok"))}))
 	if err != nil {
 		t.Fatalf("runtime.Open: %v", err)
 	}
@@ -130,7 +147,7 @@ func TestCmdWorkboardRejectsMissingTitle(t *testing.T) {
 func TestCmdWorkboardPolicyAndFail(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("AGEZT_HOME", dir)
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok"))})
+	k, err := runtime.Open(withWorkboard(t, runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok"))}))
 	if err != nil {
 		t.Fatalf("runtime.Open: %v", err)
 	}
@@ -188,7 +205,7 @@ func TestCmdWorkboardPolicyAndFail(t *testing.T) {
 func TestCmdWorkboardDispatchAndWatch(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("AGEZT_HOME", dir)
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ready for review"))})
+	k, err := runtime.Open(withWorkboard(t, runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ready for review"))}))
 	if err != nil {
 		t.Fatalf("runtime.Open: %v", err)
 	}
@@ -305,7 +322,7 @@ func TestCmdWorkboardDispatchRetriesAndEscalates(t *testing.T) {
 	prov := mock.New()
 	calls := 0
 	prov.OnRequest = func(llm.CompletionRequest) { calls++ }
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: prov})
+	k, err := runtime.Open(withWorkboard(t, runtime.Config{BaseDir: dir, Provider: prov}))
 	if err != nil {
 		t.Fatalf("runtime.Open: %v", err)
 	}
@@ -356,7 +373,7 @@ func TestCmdWorkboardDispatchRetriesAndEscalates(t *testing.T) {
 func TestCmdWorkboardSweepReclaimsStaleClaims(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("AGEZT_HOME", dir)
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok"))})
+	k, err := runtime.Open(withWorkboard(t, runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok"))}))
 	if err != nil {
 		t.Fatalf("runtime.Open: %v", err)
 	}

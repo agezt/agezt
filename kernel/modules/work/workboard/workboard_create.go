@@ -120,16 +120,13 @@ func criteriaFromText(texts []string) []proof.Criterion {
 	return out
 }
 
+// normalizeRetryPolicy drops a policy that carries no budget.
+//
+// The rule lives in the contract layer (kernel/contract/workboardapi) — it is
+// pure, and the retry rule reads it. This is a delegation, so there is one
+// rule.
 func normalizeRetryPolicy(policy *RetryPolicy) *RetryPolicy {
-	if policy == nil {
-		return nil
-	}
-	cp := *policy
-	cp.EscalateTo = strings.TrimSpace(cp.EscalateTo)
-	if cp.MaxAttempts <= 0 && cp.EscalateTo == "" {
-		return nil
-	}
-	return &cp
+	return workboardapi.NormalizeRetryPolicy(policy)
 }
 
 func cleanStrings(in []string) []string {

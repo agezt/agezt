@@ -22,6 +22,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
+	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -64,6 +65,13 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 		t.Fatalf("open the forge store: %v", err)
 	}
 	cfg.ToolForge = forge
+	// The task board is the composition root's file too (W3.47): the kernel
+	// holds the contract's host port, and the root opens the file.
+	board, err := workboard.OpenStore(filepath.Join(dir, "workboard"))
+	if err != nil {
+		t.Fatalf("open the workboard store: %v", err)
+	}
+	cfg.Workboard = board
 	k, err := runtime.Open(cfg)
 	if err != nil {
 		t.Fatalf("Open: %v", err)

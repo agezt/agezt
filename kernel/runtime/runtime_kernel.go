@@ -25,6 +25,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
+	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/journal"
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
@@ -37,7 +38,6 @@ import (
 	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/modules/work/okr"
-	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/resume"
@@ -73,7 +73,7 @@ type Kernel struct {
 	toolForge    toolforgeapi.HostStore
 	mcpStore     *mcp.Store
 	workflows    *workflow.Store
-	workboard    *workboard.Store
+	workboard    workboardapi.HostStore
 	okr          *okr.Store
 	taste        *taste.Store
 	seat         seatapi.Store

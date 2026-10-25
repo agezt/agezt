@@ -15,7 +15,6 @@ adapter-bypass kernel/controlplane -> kernel/runtime
 adapter-bypass kernel/controlplane -> kernel/standing
 adapter-bypass kernel/controlplane -> kernel/modules/extensions/toolbox
 adapter-bypass kernel/controlplane -> kernel/update
-adapter-bypass kernel/controlplane -> kernel/modules/work/workboard
 adapter-bypass kernel/openaiapi -> kernel/convo
 adapter-bypass kernel/restapi -> kernel/modules/board/board
 adapter-bypass kernel/restapi -> kernel/update
@@ -40,7 +39,6 @@ cross-module kernel/runtime -> kernel/modules/skills/skill
 cross-module kernel/runtime -> kernel/modules/work/okr
 cross-module kernel/runtime -> kernel/modules/agents/roster
 cross-module kernel/runtime -> kernel/standing
-cross-module kernel/runtime -> kernel/modules/work/workboard
 cross-module kernel/runtime -> kernel/modules/workflows/workflow
 cross-module kernel/runtime/runexec -> kernel/modules/work/assure
 cross-module kernel/runtime/runexec -> kernel/cadence

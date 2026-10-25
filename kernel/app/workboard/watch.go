@@ -123,6 +123,9 @@ func (s *Watch) events(taskID, runID string, limit int) ([]EventRow, error) {
 	return rows, nil
 }
 func (s *Watch) Watch(_ context.Context, in WatchInput) (WatchOutput, error) {
+	if s.store == nil {
+		return WatchOutput{}, errNoBoard
+	}
 	if in.ID == "" {
 		return WatchOutput{}, errors.New("workboard_watch requires id")
 	}

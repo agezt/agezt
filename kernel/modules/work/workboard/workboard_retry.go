@@ -23,10 +23,6 @@ import (
 // one rule.
 func FailedAttemptCount(t Task) int { return workboardapi.FailedAttemptCount(t) }
 
-func RetryDecisionFor(t Task, reason string) RetryDecision {
-	return retryDecision(t.RetryPolicy, FailedAttemptCount(t), strings.TrimSpace(reason))
-}
-
 func markFailedAttempt(t *Task, reason string, ts int64) {
 	for i := len(t.Attempts) - 1; i >= 0; i-- {
 		if t.Attempts[i].Status == "running" {
@@ -77,27 +73,6 @@ func applyRetryPolicyDecision(t *Task, actor, reason string, ts int64) RetryDeci
 		t.BlockReason = reason
 		t.Comments = append(t.Comments, Comment{ID: ulid.New(), Author: actor, Body: "failed: " + reason, CreatedMS: ts})
 	}
-	return decision
-}
-
-func retryDecision(policy *RetryPolicy, failureCount int, reason string) RetryDecision {
-	decision := RetryDecision{FailureCount: failureCount, Reason: reason, Action: "block"}
-	policy = normalizeRetryPolicy(policy)
-	if policy == nil || policy.MaxAttempts <= 0 {
-		return decision
-	}
-	cp := *policy
-	decision.Policy = &cp
-	decision.MaxAttempts = cp.MaxAttempts
-	decision.EscalateTo = cp.EscalateTo
-	if failureCount < cp.MaxAttempts {
-		decision.Retry = true
-		decision.NextAttempt = failureCount + 1
-		decision.Action = "retry"
-		return decision
-	}
-	decision.Exhausted = true
-	decision.Action = "escalate"
 	return decision
 }
 

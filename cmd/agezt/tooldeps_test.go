@@ -254,7 +254,7 @@ func TestWorkflowStoreStaysANilPortWithoutALibrary(t *testing.T) {
 // the tool by hand stayed green. This test is the only one that sees that
 // wiring, so it asserts it directly.
 func TestToolKernelDepsSuppliesTheWorkboardPort(t *testing.T) {
-	k, err := runtime.Open(withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
+	k, err := runtime.Open(withWorkboard(t, withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

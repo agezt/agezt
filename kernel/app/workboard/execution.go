@@ -67,6 +67,9 @@ func executionSummary(s string, n int) string {
 }
 
 func (s *Execution) Run(ctx context.Context, in ExecutionInput) (ExecutionOutput, error) {
+	if s.tasks == nil {
+		return ExecutionOutput{}, errNoBoard
+	}
 	corr, p, task, intent, reason := in.CorrelationID, in.Agent, in.Task, in.Intent, in.Reason
 	ctx = s.context.Agent(ctx, reason, task.ID)
 	// Execution seat: refine HOW this task runs (model tier, tool tier, isolation

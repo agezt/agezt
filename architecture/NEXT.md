@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.46 the marketplace is the daemon's, the kernel holds the port, 2026-10-25
+## Current checkpoint — W3.47 the task board is the daemon's file, 2026-10-25
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -3247,6 +3247,64 @@ files, five of the seventeen mutations would have escaped.
   `catalog`** — the kernel holds each module's concrete store; each one is the
   same slice (a contract port, the daemon opening the file, the kernel's
   accessor carrying the port).
+- W3.47 (the task board is the daemon's file) is committed on `main` the same
+  way. It takes **two** edges — the same family, and the first slice in a
+  while that takes two at once (like W3.43): `cross-module kernel/runtime ->
+  kernel/modules/work/workboard` (the kernel held the concrete
+  `*workboard.Store`, drove **seventeen** of its methods through it and
+  **opened the file** itself) and `adapter-bypass kernel/controlplane ->
+  kernel/modules/work/workboard` (the control plane named the module's rows).
+  The kernel now holds the **contract's HOST port** — `workboardapi.HostStore`,
+  **twenty** verbs — and the port's width is **not** a copy of the store's
+  method list: it is the **host's** width, and the **plugin** (the agent-facing
+  `workboard` tool) keeps the **read side only** (`Store`, two verbs: `Get`,
+  `List`), because a plugin that could claim, complete or archive a task would
+  be driving another agent's work item. That is the same shape W3.45 gave the
+  script-tool store (`Store` for the plugin, `HostStore` for the host) and the
+  same rule: **a port's width is decided by the weakest holder of it.**
+  Two **rules** moved with the port: **`ErrNotFound`** (the host reports it,
+  and the host may not name a module's error) and the **retry rule**
+  (`RetryDecisionFor`, `NormalizeRetryPolicy` — pure, and it reads the task,
+  so it travels with the task; the module delegates, so there is one rule: a
+  second copy would drift, and the drift would show up as one task retrying
+  forever next to another that gives up after a single failure).
+  The store file is the **daemon's**: `cmd/agezt` opens it and hands over
+  `cfg.Workboard`; a store that cannot be opened is a **startup error** — the
+  board is part of the daemon, not a convenience.
+  The part the slice had to **teach** two layers: the board used to be opened
+  by the kernel, so the field was **never nil** and nothing had to say what
+  happens without one — now the **kernel** refuses every one of its sixteen
+  board operations with "the task board is not available on this daemon", and
+  the **app layer** refuses the same way on all four surfaces (service, watch,
+  dispatch, execution) instead of dereferencing nil. One detail worth naming:
+  `ProveTask` used to answer **"not found"** when the board was missing,
+  because the missing board and the missing task looked the same from the
+  inside — now they are different: no board → "not available"; a board without
+  that task → `workboard: not found`.
+  **The ratchet went DOWN by TWO: 53/13 → 51/13.**
+  **8 mutations, 8 caught**, **four** of them **gate-measured** by archcheck
+  (the kernel's field names the module's store again; the kernel opens the
+  board again; the control plane names the module's rows again; a stale
+  allowlist entry comes back), because "the kernel's reach is smaller" is not
+  something a test can see.
+  The mutation run needed **two** passes: the first pass's third mutation was
+  caught for the **wrong reason** (the harness replaces whole LINES, so the
+  mutation had replaced a function signature with a bare expression —
+  archcheck failed with a **parse error**, and a parse error is not a catch of
+  anything).
+  **What remains**: the kernel still reaches **14** modules. Next, in order:
+  **`workflow`** — the widest remaining edge: the kernel holds the store AND
+  builds the engine (`workflow.NewEngine(k.workflows, k.workflowPorts())`),
+  and it names `workflow.Engine`, `workflow.Ports`, `workflow.Provenance` and
+  `workflow.Trigger` — none of which has a contract home. The engine is the
+  hard part: its ports are built from the kernel's own state, so the
+  composition root cannot build it before the kernel exists.
+  **`cadence`, `standing`, `mcp`** — many callers each; the shape is known (a
+  contract port the host opens), the work is in the port's width.
+  **`memory`, `worldmodel`, `roster`, `skill`, `okr`, `taste`, `catalog`** —
+  the kernel holds each module's concrete store; each one is the same slice
+  (a contract port, the daemon opening the file, the kernel's accessor
+  carrying the port).
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
