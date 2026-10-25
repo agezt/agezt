@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -19,7 +19,7 @@ import (
 )
 
 // promoteToActive walks a freshly created draft up to active.
-func promoteToActive(t *testing.T, f *skill.Forge, id string) {
+func promoteToActive(t *testing.T, f skillapi.Curator, id string) {
 	t.Helper()
 	if _, err := f.Promote("seed", id); err != nil {
 		t.Fatal(err)
@@ -34,19 +34,19 @@ func TestActiveSkillInjectedIntoSystemPrompt(t *testing.T) {
 	var gotSystem string
 	prov.OnRequest = func(req llm.CompletionRequest) { gotSystem = req.System }
 
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withSkill(t, runtime.Config{
 		BaseDir:     t.TempDir(),
 		Provider:    prov,
 		System:      "base prompt",
 		SkillInject: true,
 		SkillTopK:   3,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
 
-	sk, _, err := k.Forge().Create("seed", skill.CreateSpec{
+	sk, _, err := k.Forge().Create("seed", skillapi.CreateSpec{
 		Name: "diagnose-ci", Description: "diagnose failing CI", Triggers: []string{"ci"},
 		Body: "1. read the logs 2. find the first error",
 	})
@@ -74,16 +74,16 @@ func TestDraftSkillNotInjected(t *testing.T) {
 	var gotSystem string
 	prov.OnRequest = func(req llm.CompletionRequest) { gotSystem = req.System }
 
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withSkill(t, runtime.Config{
 		BaseDir: t.TempDir(), Provider: prov, System: "base", SkillInject: true,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
 
 	// A draft (never promoted) must not reach a run.
-	_, _, _ = k.Forge().Create("seed", skill.CreateSpec{Name: "x", Description: "deploy app", Body: "secret steps"})
+	_, _, _ = k.Forge().Create("seed", skillapi.CreateSpec{Name: "x", Description: "deploy app", Body: "secret steps"})
 	if _, _, err := k.Run(context.Background(), "deploy the app"); err != nil {
 		t.Fatal(err)
 	}
@@ -102,19 +102,19 @@ func TestExplicitSkillDirectiveActivatesNamedSkill(t *testing.T) {
 		}
 	}
 
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withSkill(t, runtime.Config{
 		BaseDir:     t.TempDir(),
 		Provider:    prov,
 		System:      "base prompt",
 		SkillInject: true,
 		SkillTopK:   3,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
 
-	sk, _, err := k.Forge().Create("seed", skill.CreateSpec{
+	sk, _, err := k.Forge().Create("seed", skillapi.CreateSpec{
 		Name:        "diagnose-ci",
 		Description: "only activates by explicit name in this test",
 		Body:        "always inspect the CI log artifact first",
@@ -155,13 +155,13 @@ func TestForgeProposesAfterMultiToolRun(t *testing.T) {
 		mock.FinalText("done the multi-step thing"),
 		mock.FinalText(`{"skill":{"name":"do-the-thing","description":"a reusable procedure","triggers":["ops"],"body":"step one then step two","tools":["shell"]}}`),
 	)
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withSkill(t, runtime.Config{
 		BaseDir:            t.TempDir(),
 		Provider:           prov,
 		Tools:              map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SkillForge:         true,
 		SkillForgeMinTools: 1,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestForgeProposesAfterMultiToolRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	all, _ := k.Forge().List()
-	if len(all) != 1 || all[0].Status != skill.StatusDraft || all[0].Name != "do-the-thing" {
+	if len(all) != 1 || all[0].Status != skillapi.StatusDraft || all[0].Name != "do-the-thing" {
 		t.Fatalf("expected one proposed draft skill, got %+v", all)
 	}
 }
@@ -180,13 +180,13 @@ func TestForgeAndSkillOffByDefault(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"))
 	var gotSystem string
 	prov.OnRequest = func(req llm.CompletionRequest) { gotSystem = req.System }
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: prov, System: "base"})
+	k, err := runtime.Open(withSkill(t, runtime.Config{BaseDir: t.TempDir(), Provider: prov, System: "base"}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
 
-	sk, _, _ := k.Forge().Create("seed", skill.CreateSpec{Name: "x", Description: "y", Body: "b"})
+	sk, _, _ := k.Forge().Create("seed", skillapi.CreateSpec{Name: "x", Description: "y", Body: "b"})
 	promoteToActive(t, k.Forge(), sk.ID)
 	if _, _, err := k.Run(context.Background(), "x y"); err != nil {
 		t.Fatal(err)

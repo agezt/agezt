@@ -12,12 +12,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/modules/work/okr"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
@@ -46,6 +48,12 @@ func withTenants(t *testing.T, srv *controlplane.Server, dir string) *tenant.Reg
 		if werr != nil {
 			t.Fatalf("open tenant world model store: %v", werr)
 		}
+		// The skill library is the composition root's file too (W3.55): each
+		// tenant curates its own, under its own base dir.
+		skillStore, serr := skill.Open(filepath.Join(tdir, "skills"))
+		if serr != nil {
+			t.Fatalf("open tenant skill store: %v", serr)
+		}
 		return runtime.Open(runtime.Config{
 			BaseDir:    tdir,
 			Provider:   mock.New(mock.FinalText("tenant-ok")),
@@ -55,6 +63,10 @@ func withTenants(t *testing.T, srv *controlplane.Server, dir string) *tenant.Reg
 			WorldStore: worldStore,
 			WorldGraph: func(s worldmodelapi.Store, pub worldmodelapi.Publisher) worldmodelapi.Graph {
 				return worldmodel.NewGraph(s, pub)
+			},
+			SkillStore: skillStore,
+			SkillCurator: func(s skillapi.Store, pub skillapi.Publisher) skillapi.Curator {
+				return skill.NewForge(s, pub)
 			},
 		})
 	})

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	kskill "github.com/agezt/agezt/kernel/modules/skills/skill"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 )
 
 func TokenCost(text string) int {
@@ -49,7 +49,7 @@ func Risk(confidence, freshness float64, source string) float64 {
 	}
 	return risk
 }
-func skillConfidence(s kskill.Skill) float64 {
+func skillConfidence(s skillapi.Skill) float64 {
 	total := s.Metrics.Successes + s.Metrics.Failures
 	if total == 0 {
 		return 0.65

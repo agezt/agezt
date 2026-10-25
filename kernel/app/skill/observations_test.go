@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	appskill "github.com/agezt/agezt/kernel/app/skill"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/event"
 	curated "github.com/agezt/agezt/kernel/modules/skills/skill"
 	"reflect"
@@ -32,7 +33,7 @@ type observationStore struct {
 	skill   curated.Skill
 	found   bool
 	cause   error
-	bundles *curated.BundleStore
+	bundles skillapi.BundleStore
 	report  curated.HygieneReport
 	cutoff  int64
 	id      string
@@ -42,7 +43,7 @@ func (s *observationStore) Get(id string) (curated.Skill, bool, error) {
 	s.id = id
 	return s.skill, s.found, s.cause
 }
-func (s *observationStore) Bundles() *curated.BundleStore { return s.bundles }
+func (s *observationStore) Bundles() skillapi.BundleStore { return s.bundles }
 func (s *observationStore) Hygiene(cutoff int64) (curated.HygieneReport, error) {
 	s.cutoff = cutoff
 	return s.report, s.cause

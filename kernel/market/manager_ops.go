@@ -11,7 +11,7 @@ import (
 	"fmt"
 
 	"github.com/agezt/agezt/kernel/contract/marketapi"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 )
 
 // Listing is a catalogue row joined with install state, for the UI/CLI.
@@ -148,7 +148,7 @@ func (m *Manager) InstallContext(ctx context.Context, corr, marketplace, name, v
 
 	// Skills → Forge.Create + promote to active (reuses the seed path's logic).
 	for _, ps := range p.Skills {
-		md, perr := skill.ParseSkillMD([]byte(ps.SkillMD))
+		md, perr := skillapi.ParseSkillMD([]byte(ps.SkillMD))
 		if perr != nil {
 			if err := send(Event{Stage: "skill", OK: false, Detail: perr.Error()}); err != nil {
 				return rec, errors.Join(fmt.Errorf("market: parse skill in %q: %w", p.Name, perr), err)
@@ -158,7 +158,7 @@ func (m *Manager) InstallContext(ctx context.Context, corr, marketplace, name, v
 		if err := ctx.Err(); err != nil {
 			return rec, err
 		}
-		sk, _, cerr := m.skills.Create(corr, skill.CreateSpec{
+		sk, _, cerr := m.skills.Create(corr, skillapi.CreateSpec{
 			Name:          md.Name,
 			Description:   md.Description,
 			Triggers:      md.Triggers,
@@ -223,9 +223,9 @@ func (m *Manager) InstallContext(ctx context.Context, corr, marketplace, name, v
 	return rec, nil
 }
 
-func (m *Manager) promoteToActiveContext(ctx context.Context, corr string, sk skill.Skill) error {
+func (m *Manager) promoteToActiveContext(ctx context.Context, corr string, sk skillapi.Skill) error {
 	status := sk.Status
-	for i := 0; i < 3 && status != skill.StatusActive; i++ {
+	for i := 0; i < 3 && status != skillapi.StatusActive; i++ {
 		if err := ctx.Err(); err != nil {
 			return err
 		}

@@ -8,6 +8,7 @@ import (
 
 	apptools "github.com/agezt/agezt/kernel/app/tools"
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/modules/agents/reaper"
@@ -18,6 +19,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
+	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/modules/work/okr"
 	"github.com/agezt/agezt/kernel/modules/work/seat"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
@@ -203,6 +205,40 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 		// kernel's bus without either side naming the other's implementation.
 		cfg.WorldGraph = func(store worldmodelapi.Store, pub worldmodelapi.Publisher) worldmodelapi.Graph {
 			return worldmodel.NewGraph(store, pub)
+		}
+	}
+	if cfg.SkillStore == nil {
+		// The skill library's file (W3.55) — the contract's store port. The
+		// daemon opens the file (skills/skills.json) and hands the kernel the
+		// port; the kernel never opens a library of its own.
+		//
+		// The file lives under the BASE DIR, so a tenant's kernel — which has
+		// its own base dir — curates its own skills.
+		//
+		// A library that cannot be opened is a STARTUP ERROR: the skill
+		// library is part of the daemon, not a convenience.
+		store, err := skill.Open(filepath.Join(cfg.BaseDir, "skills"))
+		if err != nil {
+			return nil, err
+		}
+		cfg.SkillStore = store
+	}
+	if cfg.SkillCurator == nil {
+		// The skill curator's BUILDER (W3.55) — the daemon names the module,
+		// the kernel does not. The kernel calls the builder with the store it
+		// was given and its own publisher, so every transition journals
+		// through the kernel's bus without either side naming the other's
+		// implementation.
+		cfg.SkillCurator = func(store skillapi.Store, pub skillapi.Publisher) skillapi.Curator {
+			f := skill.NewForge(store, pub)
+			// Wire the on-disk bundle store so skills can ship reference files
+			// + scripts (agentskills.io shape, M847). Best-effort: a
+			// bundle-store failure leaves skills body-only rather than failing
+			// daemon start.
+			if bundles, berr := skill.OpenBundles(filepath.Join(cfg.BaseDir, "skills")); berr == nil {
+				f.SetBundles(bundles)
+			}
+			return f
 		}
 	}
 	if cfg.Workboard == nil {

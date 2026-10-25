@@ -151,7 +151,14 @@ func (r *Runner) MaybeForge(ctx context.Context, corr, intent, answer string) {
 		return
 	}
 	transcript := buildTranscript(names, answer)
-	if _, err := r.k.Forge().Propose(ctx, corr, r.k.Provider(), r.k.Model(), intent, transcript); err != nil {
+	// A daemon with NO skill library holds a nil port (W3.55): there is
+	// nothing to propose into, and a port that calls into nothing would
+	// answer with a panic.
+	forge := r.k.Forge()
+	if forge == nil {
+		return
+	}
+	if _, err := forge.Propose(ctx, corr, r.k.Provider(), r.k.Model(), intent, transcript); err != nil {
 		_, _ = r.k.Bus().Publish(event.Spec{
 			Subject:       "skill.propose_failed",
 			Kind:          event.KindSkillCreated,
@@ -167,7 +174,12 @@ func (r *Runner) MaybeForge(ctx context.Context, corr, intent, answer string) {
 // failure is journaled but never affects the run, which has
 // already returned its answer.
 func (r *Runner) MaybeShadowEval(ctx context.Context, corr, intent, answer string) {
-	if err := r.k.Forge().ShadowEvaluate(ctx, corr, r.k.Provider(), r.k.Model(), intent, answer, shadowEvalLimit); err != nil {
+	// A daemon with NO skill library holds a nil port (W3.55).
+	forge := r.k.Forge()
+	if forge == nil {
+		return
+	}
+	if err := forge.ShadowEvaluate(ctx, corr, r.k.Provider(), r.k.Model(), intent, answer, shadowEvalLimit); err != nil {
 		_, _ = r.k.Bus().Publish(event.Spec{
 			Subject:       "skill.shadow_eval_failed",
 			Kind:          event.KindSkillShadowEval,

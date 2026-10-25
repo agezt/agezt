@@ -10,10 +10,10 @@ import (
 
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 )
 
@@ -27,7 +27,7 @@ type ImpactPorts struct {
 	// MemoryRecords lists the active memory records.
 	MemoryRecords func() ([]memory.Record, error)
 	// Skills lists the agent's skills.
-	Skills func() ([]skill.Skill, error)
+	Skills func() ([]skillapi.Skill, error)
 	// ConfigEntries lists the config-center entries.
 	ConfigEntries func() []*configcenter.ConfigEntry
 	// WorkspaceInfo describes the agent's workspace, when it has one.
@@ -109,7 +109,7 @@ func SkillImpact(ports ImpactPorts, p core.Profile) []string {
 	}
 	var out []string
 	for _, sk := range all {
-		if strings.EqualFold(strings.TrimSpace(sk.Agent), p.Slug) && sk.Status != skill.StatusArchived {
+		if strings.EqualFold(strings.TrimSpace(sk.Agent), p.Slug) && sk.Status != skillapi.StatusArchived {
 			name := strings.TrimSpace(sk.Name)
 			if name == "" {
 				name = sk.ID

@@ -19,7 +19,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -44,11 +43,6 @@ func (k *Kernel) StandingList() []standingapi.Order {
 	}
 	return k.standing.List()
 }
-
-// SkillStore returns the on-disk skill repository. The run
-// engine reads skills from here for injection; the skill forge
-// writes DRAFT skills here. Nil when skills are not enabled.
-func (k *Kernel) SkillStore() *skill.FileStore { return k.skillDir }
 
 // AgentSlugFromCtx returns the named agent's slug attached to a
 // run context by WithAgentProfile (or "" when unset). Wraps the

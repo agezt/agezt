@@ -6,11 +6,18 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
+// TestParseActivationDirective: the PARSER lives in the contract layer
+// (kernel/contract/skillapi) since W3.55 — the run-time and the run executor
+// parse the directive too, and they may not name this module. The rule itself
+// is pinned by the contract's own test; this test pins that the module's ROW
+// is the contract's row, so a caller that reaches for the module's name gets
+// the contract's behaviour.
 func TestParseActivationDirective(t *testing.T) {
-	got := ParseActivationDirective("  \n/skills diagnose-ci, webresearch\nfix the failing build")
+	var got ActivationDirective = skillapi.ParseActivationDirective("  \n/skills diagnose-ci, webresearch\nfix the failing build")
 	if !got.Explicit {
 		t.Fatal("expected explicit directive")
 	}
@@ -23,7 +30,7 @@ func TestParseActivationDirective(t *testing.T) {
 }
 
 func TestParseActivationDirective_BareKeepsIntent(t *testing.T) {
-	got := ParseActivationDirective("/skill diagnose-ci")
+	got := skillapi.ParseActivationDirective("/skill diagnose-ci")
 	if !got.Explicit || len(got.Refs) != 1 {
 		t.Fatalf("directive parse failed: %+v", got)
 	}

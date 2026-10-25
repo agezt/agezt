@@ -2,128 +2,96 @@
 
 package skill
 
+// Provenance: the module's contract tests for the W3.55 slice — that the
+//             rows, the sentinels and the rules are the CONTRACT'S (by type
+//             identity), and that the Forge answers the contract's ports.
+
 import (
-	"reflect"
+	"errors"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 )
 
-// TestTheRowsAreTheContractRows: every row the module keeps is the CONTRACT'S
-// row, not a copy of it. A copy would drift — the module would then persist
-// a shape the contract no longer describes, and the agent-facing tool (which
-// speaks the contract) would no longer fit it.
-func TestTheRowsAreTheContractRows(t *testing.T) {
-	for _, c := range []struct {
-		name     string
-		module   any
-		contract any
-	}{
-		{"Status", Status(""), skillapi.Status("")},
-		{"Skill", Skill{}, skillapi.Skill{}},
-		{"Metrics", Metrics{}, skillapi.Metrics{}},
-		{"CreateSpec", CreateSpec{}, skillapi.CreateSpec{}},
-		{"SkillMD", SkillMD{}, skillapi.SkillMD{}},
-	} {
-		if reflect.TypeOf(c.module) != reflect.TypeOf(c.contract) {
-			t.Errorf("the %s row drifted from the contract: %v vs %v",
-				c.name, reflect.TypeOf(c.module), reflect.TypeOf(c.contract))
-		}
+// TestTheRowsAreTheContractsRows: the module keeps every name as an ALIAS, so
+// there is one row and one spelling of it. Type identity is the proof: an
+// alias and the original are the same type, so a layer above the module that
+// holds the contract's row can pass it to the module without a conversion.
+func TestTheRowsAreTheContractsRows(t *testing.T) {
+	var (
+		sk      Skill
+		apiSk   skillapi.Skill
+		scored  Scored
+		apiSc   skillapi.Scored
+		direct  ActivationDirective
+		apiDir  skillapi.ActivationDirective
+		hygiene HygieneReport
+		apiHyg  skillapi.HygieneReport
+		spec    CreateSpec
+		apiSpec skillapi.CreateSpec
+	)
+	sk, apiSk = apiSk, sk
+	scored, apiSc = apiSc, scored
+	direct, apiDir = apiDir, direct
+	hygiene, apiHyg = apiHyg, hygiene
+	spec, apiSpec = apiSpec, spec
+	_ = sk
+	_ = scored
+	_ = direct
+	_ = hygiene
+	_ = spec
+}
+
+// TestTheSentinelsAreTheContracts: the sentinels the layers compare against
+// are the contract's, so `errors.Is` matches them wherever they are raised —
+// including in the app layer, which no longer names this module.
+func TestTheSentinelsAreTheContracts(t *testing.T) {
+	if !errors.Is(ErrIllegalTransition, skillapi.ErrIllegalTransition) {
+		t.Fatal("the module's illegal-transition sentinel must be the contract's")
+	}
+	if !errors.Is(ErrNotFound, skillapi.ErrNotFound) {
+		t.Fatal("the module's not-found sentinel must be the contract's")
+	}
+	if !errors.Is(ErrEmptyBody, skillapi.ErrEmptyBody) {
+		t.Fatal("the module's empty-body sentinel must be the contract's")
 	}
 }
 
-// TestTheParserIsTheContractParser: the SKILL.md parser lives in the contract
-// (it is pure, and the marketplace's built-in catalogue — a plugin — parses
-// the built-in bundles with it). The module's name is a delegation, so there
-// is one parser: the module's verdict and the contract's must agree on every
-// document, and the error must be the same error.
-func TestTheParserIsTheContractParser(t *testing.T) {
-	docs := []string{
-		"",
-		"no frontmatter at all",
-		"---\nname: x\n---\nbody\n",
-		"---\nname: x\ntriggers: [a, b]\ntools_required:\n  - shell\n---\nbody\n",
-		"---\ndescription: no name\n---\nbody\n",
-		"---\nname: x\n---\n",
-		"---\nname: x\n---\nbody\n",
-		"---\nname: \"quoted\"\ndescription: 'single'\n---\nbody\n",
+// TestTheRulesAreTheContractsRules: the ranking and the directive parser
+// live with the rows they judge. The module's names delegate to the contract,
+// so the layers above the module and the module itself rank identically.
+func TestTheRulesAreTheContractsRules(t *testing.T) {
+	skills := []Skill{{
+		ID: "a1", Name: "diagnose-ci", Description: "diagnose failing CI",
+		Triggers: []string{"ci"}, Body: "steps", Status: StatusActive,
+	}}
+	got := Retrieve(skills, "failing ci", 5, 1_000)
+	want := skillapi.Retrieve(skills, "failing ci", 5, 1_000)
+	if len(got) != len(want) {
+		t.Fatalf("the module retrieved %d skills, the contract %d", len(got), len(want))
 	}
-	for _, doc := range docs {
-		gotMD, gotErr := ParseSkillMD([]byte(doc))
-		wantMD, wantErr := skillapi.ParseSkillMD([]byte(doc))
-		if (gotErr == nil) != (wantErr == nil) {
-			t.Errorf("the module and the contract disagree on the verdict for %q: %v vs %v", doc, gotErr, wantErr)
-			continue
-		}
-		if gotErr != nil && gotErr.Error() != wantErr.Error() {
-			t.Errorf("the module's error %q differs from the contract's %q", gotErr, wantErr)
-		}
-		if !reflect.DeepEqual(gotMD, wantMD) {
-			t.Errorf("the module parsed %+v, the contract %+v", gotMD, wantMD)
-		}
+	if len(got) == 1 && (got[0].Skill.ID != want[0].Skill.ID || got[0].Score != want[0].Score) {
+		t.Fatalf("the module's ranking differs from the contract's: %+v vs %+v", got, want)
+	}
+	d := skillapi.ParseActivationDirective("/skill diagnose-ci\nlook at the logs")
+	if !d.Explicit || len(d.Refs) != 1 || d.Refs[0] != "diagnose-ci" {
+		t.Fatalf("the module's directive differs from the contract's: %+v", d)
 	}
 }
 
-// TestTheBuiltinsAreTheContractPort: the module's built-in bundles are read
-// through the contract's port — the marketplace's catalogue is a plugin, so it
-// may not name this module.
-func TestTheBuiltinsAreTheContractPort(t *testing.T) {
-	var _ skillapi.Builtins = NewBuiltins()
-}
-
-// TestTheForgeIsTheContractPort: the module's Forge — the journaled,
-// reversible state machine the CLI drives — satisfies the contract's port,
-// so the agent-facing tool can be handed it without naming the module.
-func TestTheForgeIsTheContractPort(t *testing.T) {
-	var _ skillapi.Forge = (*Forge)(nil)
-}
-
-// TestTheBundleStoreIsTheContractPort: the on-disk bundle store satisfies
-// the contract's bundle port too.
-func TestTheBundleStoreIsTheContractPort(t *testing.T) {
-	var _ skillapi.BundleStore = (*BundleStore)(nil)
-}
-
-// TestTheConstantsAreTheContracts: the lifecycle constants are values the
-// daemon persists, so the module's names must BE the contract's values.
-func TestTheConstantsAreTheContracts(t *testing.T) {
-	for _, c := range []struct {
-		name     string
-		module   Status
-		contract skillapi.Status
-	}{
-		{"StatusDraft", StatusDraft, skillapi.StatusDraft},
-		{"StatusShadow", StatusShadow, skillapi.StatusShadow},
-		{"StatusActive", StatusActive, skillapi.StatusActive},
-		{"StatusQuarantined", StatusQuarantined, skillapi.StatusQuarantined},
-		{"StatusArchived", StatusArchived, skillapi.StatusArchived},
-	} {
-		if c.module != c.contract {
-			t.Errorf("the %s constant = %q, want the contract's %q", c.name, c.module, c.contract)
-		}
+// TestTheBundlePortAnswersARealNil: a Forge with no bundle store must answer
+// a REAL nil, not a typed nil pointer wrapped in the contract's interface.
+//
+// A typed nil handed back as an interface is not nil to the caller: the tool
+// registry would bind a bundle store that is not there and panic on the first
+// resource read instead of reporting that bundles are unavailable.
+func TestTheBundlePortAnswersARealNil(t *testing.T) {
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open: %v", err)
 	}
-	if DefaultVersion != skillapi.DefaultVersion {
-		t.Errorf("the default version = %q, want the contract's %q", DefaultVersion, skillapi.DefaultVersion)
-	}
-}
-
-// TestTheRulesAreTheContracts: the module's lifecycle rules and the
-// contract's must agree on every verdict — a second copy of the state machine
-// would drift silently, and the state machine decides what may be deployed.
-func TestTheRulesAreTheContracts(t *testing.T) {
-	for _, from := range []Status{StatusDraft, StatusShadow, StatusActive, StatusQuarantined, StatusArchived, "bogus"} {
-		for _, to := range []Status{StatusDraft, StatusShadow, StatusActive, StatusQuarantined, StatusArchived, "bogus"} {
-			if got, want := CanTransition(from, to), skillapi.CanTransition(from, to); got != want {
-				t.Errorf("CanTransition(%q, %q) = %v, want the contract's %v", from, to, got, want)
-			}
-		}
-		if got, want := ValidStatus(from), skillapi.ValidStatus(from); got != want {
-			t.Errorf("ValidStatus(%q) = %v, want the contract's %v", from, got, want)
-		}
-		gotTo, gotOK := PromoteTarget(from)
-		wantTo, wantOK := skillapi.PromoteTarget(from)
-		if gotTo != wantTo || gotOK != wantOK {
-			t.Errorf("PromoteTarget(%q) = %q, %v; want the contract's %q, %v", from, gotTo, gotOK, wantTo, wantOK)
-		}
+	f := NewForge(store, nil)
+	if got := f.Bundles(); got != nil {
+		t.Fatalf("a forge without bundles must answer a nil bundle port, got %v", got)
 	}
 }

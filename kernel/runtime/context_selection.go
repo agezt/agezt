@@ -7,10 +7,10 @@ import (
 	"fmt"
 
 	"github.com/agezt/agezt/kernel/contextselect"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/event"
 	kmemory "github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	kskill "github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // publishContextSelection publishes a context.selection event when there is
@@ -83,6 +83,6 @@ func worldContextCandidates(hits []worldmodelapi.ScoredEntity, nowMS int64) []co
 }
 
 // skillContextCandidates converts skill search hits to context candidates.
-func skillContextCandidates(hits []kskill.Scored, nowMS int64) []contextselect.Candidate {
+func skillContextCandidates(hits []skillapi.Scored, nowMS int64) []contextselect.Candidate {
 	return contextselect.SkillCandidates(hits, nowMS)
 }

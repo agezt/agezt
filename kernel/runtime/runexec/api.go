@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/mediaapi"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
@@ -25,7 +26,6 @@ import (
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/modules/work/assure"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/scheduler"
@@ -75,7 +75,7 @@ type KernelAPI interface {
 	ResumeOwnedKindFromCtx(ctx context.Context) (string, bool)
 	ResumeSeedFromCtx(ctx context.Context) ([]llm.Message, int, bool)
 	DisableHeuristicBypass(ctx context.Context) bool
-	BuildRunPrompt(runCtx context.Context, corr, actor, intent string, systemAgent bool, skillDirective skill.ActivationDirective) (string, []string)
+	BuildRunPrompt(runCtx context.Context, corr, actor, intent string, systemAgent bool, skillDirective skillapi.ActivationDirective) (string, []string)
 	InjectHostEnvironment(system string, tools map[string]toolapi.Tool) string
 	ResumeCheckpointFn(corr string) func(int, []llm.Message)
 	ResolveRunModel(ctx context.Context) (string, bool)
@@ -89,8 +89,7 @@ type KernelAPI interface {
 	Memory() *memory.Manager
 	World() worldmodelapi.Graph
 	Reflect() *reflect.Engine
-	SkillStore() *skill.FileStore
-	Forge() *skill.Forge
+	Forge() skillapi.Curator
 	ArtifactStore() artifactapi.Blob
 	ArtifactIndex() artifactapi.HostIndex
 	DataLake() datalakeapi.Lake

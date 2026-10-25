@@ -6,12 +6,12 @@ import (
 	"context"
 	"fmt"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	curated "github.com/agezt/agezt/kernel/modules/skills/skill"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 )
 
 type CurationStore interface {
-	Reassign(string, string, string) (curated.Skill, bool, error)
-	Create(string, curated.CreateSpec) (curated.Skill, bool, error)
+	Reassign(string, string, string) (skillapi.Skill, bool, error)
+	Create(string, skillapi.CreateSpec) (skillapi.Skill, bool, error)
 }
 type Curation struct {
 	forge       CurationStore
@@ -47,14 +47,17 @@ type ImportInput struct {
 	Agent         string            `json:"agent,omitempty"`
 }
 type ImportOutput struct {
-	ID        string         `json:"id"`
-	Name      string         `json:"name"`
-	Status    curated.Status `json:"status"`
-	Created   bool           `json:"created"`
-	Resources []string       `json:"resources"`
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	Status    skillapi.Status `json:"status"`
+	Created   bool            `json:"created"`
+	Resources []string        `json:"resources"`
 }
 
 func (s *Curation) Share(ctx context.Context, in GetInput) (ShareOutput, error) {
+	if s.forge == nil {
+		return ShareOutput{}, errNoSkillLibrary
+	}
 	sk, found, err := s.forge.Reassign(opapi.CorrelationFromContext(ctx), in.ID, "")
 	if err != nil {
 		return ShareOutput{}, err
@@ -66,6 +69,9 @@ func (s *Curation) Share(ctx context.Context, in GetInput) (ShareOutput, error) 
 	return out, nil
 }
 func (s *Curation) Reassign(ctx context.Context, in ReassignInput) (ReassignOutput, error) {
+	if s.forge == nil {
+		return ReassignOutput{}, errNoSkillLibrary
+	}
 	if in.Agent != "" && (s.agentExists == nil || !s.agentExists(in.Agent)) {
 		return ReassignOutput{}, fmt.Errorf("no such agent: %s", in.Agent)
 	}
@@ -80,7 +86,10 @@ func (s *Curation) Reassign(ctx context.Context, in ReassignInput) (ReassignOutp
 	return out, nil
 }
 func (s *Curation) Import(ctx context.Context, in ImportInput) (ImportOutput, error) {
-	sk, created, err := s.forge.Create(opapi.CorrelationFromContext(ctx), curated.CreateSpec{Name: in.Name, Description: in.Description, Triggers: in.Triggers, Body: in.Body, ToolsRequired: in.ToolsRequired, Resources: in.Resources, Agent: in.Agent})
+	if s.forge == nil {
+		return ImportOutput{}, errNoSkillLibrary
+	}
+	sk, created, err := s.forge.Create(opapi.CorrelationFromContext(ctx), skillapi.CreateSpec{Name: in.Name, Description: in.Description, Triggers: in.Triggers, Body: in.Body, ToolsRequired: in.ToolsRequired, Resources: in.Resources, Agent: in.Agent})
 	if err != nil {
 		return ImportOutput{}, err
 	}

@@ -154,11 +154,22 @@ func (s *Service) Status(_ context.Context, _ StatusInput) (StatusOutput, error)
 	// than conflating them into the provider count.
 	fb := s.fallbackCounts()
 
+	// A daemon with NO world model or NO skill library holds a nil port
+	// (W3.54, W3.55): the status reports zero rather than calling into
+	// nothing.
+	worldEntities, activeSkills := 0, 0
+	if g := s.k.World(); g != nil {
+		worldEntities = g.Count()
+	}
+	if f := s.k.Forge(); f != nil {
+		activeSkills = f.Count()
+	}
+
 	result := StatusOutput{
 		Daemon: brand.Version, Protocol: brand.ProtocolVersion, Model: s.k.Model(),
 		UptimeSeconds: uptimeSecs, Halted: s.k.IsHalted(), ActiveRuns: s.k.ActiveRuns(),
 		Tools: len(s.k.Tools()), MemoryRecords: s.k.Memory().Count(),
-		WorldEntities: s.k.World().Count(), ActiveSkills: s.k.Forge().Count(), JournalHead: headSeq,
+		WorldEntities: worldEntities, ActiveSkills: activeSkills, JournalHead: headSeq,
 		Schedules:         ScheduleStatus{Total: schedTotal, Enabled: schedEnabled, Running: schedRunning, Resident: schedResident},
 		PendingApprovals:  pendingApprovals,
 		ProviderFallbacks: FallbackStatus{Count: fb.providerCount, LastReason: fb.providerLast, LastMS: fb.providerLastMS},

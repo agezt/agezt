@@ -15,8 +15,8 @@ import (
 	"fmt"
 
 	"github.com/agezt/agezt/kernel/contract/marketapi"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // Library is a source of packs — the built-in Official marketplace and, later,
@@ -30,8 +30,8 @@ type Library = marketapi.Library
 
 // SkillInstaller materializes a pack's skills (satisfied by *skill.Forge).
 type SkillInstaller interface {
-	Create(corr string, spec skill.CreateSpec) (skill.Skill, bool, error)
-	Promote(corr, id string) (skill.Status, error)
+	Create(corr string, spec skillapi.CreateSpec) (skillapi.Skill, bool, error)
+	Promote(corr, id string) (skillapi.Status, error)
 }
 
 // MCPInstaller registers a pack's MCP servers (satisfied by *runtime.Kernel).

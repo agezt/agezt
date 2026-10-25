@@ -9,14 +9,14 @@ package runtime
 import (
 	"context"
 	"github.com/agezt/agezt/kernel/contextselect"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"time"
 )
 
 // world / skill injection below still layer on top.
-func (k *Kernel) buildRunPrompt(runCtx context.Context, corr, actor, intent string, systemAgent bool, skillDirective skill.ActivationDirective) (string, []string) {
+func (k *Kernel) buildRunPrompt(runCtx context.Context, corr, actor, intent string, systemAgent bool, skillDirective skillapi.ActivationDirective) (string, []string) {
 	system := k.System() // live daemon default identity (M710), editable at runtime
 	if s := systemFromCtx(runCtx); s != "" {
 		system = s
@@ -119,8 +119,12 @@ func (k *Kernel) buildRunPrompt(runCtx context.Context, corr, actor, intent stri
 	// step 4). The pool is scoped to the acting agent (M932): shared skills
 	// plus its own private ones. Activate journals skill.activated under corr
 	// for `agt why`.
+	//
+	// A daemon with NO skill library holds a nil port (W3.55): the run simply
+	// carries no skill, because a port that calls into nothing would answer
+	// the agent with a panic.
 	var activatedSkillIDs []string
-	if k.cfg.SkillInject && !systemAgent {
+	if k.cfg.SkillInject && !systemAgent && k.forge != nil {
 		topK := k.cfg.SkillTopK
 		if topK <= 0 {
 			topK = 3
@@ -162,7 +166,7 @@ func (k *Kernel) buildRunPrompt(runCtx context.Context, corr, actor, intent stri
 						pool = append(pool, sk)
 					}
 				}
-				candidates = skillContextCandidates(skill.Retrieve(pool, intent, contextselect.CandidateLimit, time.Now().UnixMilli()), time.Now().UnixMilli())
+				candidates = skillContextCandidates(skillapi.Retrieve(pool, intent, contextselect.CandidateLimit, time.Now().UnixMilli()), time.Now().UnixMilli())
 			}
 			if hits, err := k.forge.ActivateFor(corr, agentSlug, intent, topK); err == nil && len(hits) > 0 {
 				system = injectSkills(system, hits)

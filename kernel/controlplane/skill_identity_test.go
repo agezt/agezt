@@ -15,7 +15,7 @@ import (
 func skillIdentityFixture(t *testing.T) (*runtime.Kernel, *Server, string) {
 	t.Helper()
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
+	k, err := runtime.Open(withSkill(t, runtime.Config{BaseDir: dir, Provider: mock.New()}))
 	if err != nil {
 		t.Fatal(err)
 	}

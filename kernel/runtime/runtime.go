@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/okrapi"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/tasteapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
@@ -647,6 +648,24 @@ type Config struct {
 	// journals through the kernel's bus without either side naming the
 	// other's implementation (W3.54).
 	WorldGraph func(store worldmodelapi.Store, pub worldmodelapi.Publisher) worldmodelapi.Graph
+
+	// SkillStore is the skill library's file the host holds — the contract's
+	// store port, not a module's store (W3.55). The daemon opens the file
+	// (skills/skills.json) and hands it over (cmd/agezt): the library's file
+	// is the daemon's business, and the kernel is a module.
+	//
+	// Nil means "no skill library": the skill surfaces report that the library
+	// is unavailable rather than calling into nothing.
+	SkillStore skillapi.Store
+
+	// SkillCurator builds the skill curator over the store and the kernel's
+	// publisher.
+	//
+	// The DAEMON supplies the builder — it names the module — and the kernel
+	// hands over the store it was given and its own publisher, so every
+	// transition journals through the kernel's bus without either side naming
+	// the other's implementation (W3.55).
+	SkillCurator func(store skillapi.Store, pub skillapi.Publisher) skillapi.Curator
 }
 
 // Kernel is the running Agezt instance.

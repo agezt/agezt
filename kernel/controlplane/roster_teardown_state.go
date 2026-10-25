@@ -11,13 +11,14 @@ package controlplane
 // here is the host's data access.
 
 import (
+	"errors"
 	"os"
 
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // teardownStatePorts binds the host's stores to the application's state
@@ -26,8 +27,23 @@ func (s *Server) teardownStatePorts() approster.TeardownStatePorts {
 	return approster.TeardownStatePorts{
 		MemoryRecords: func() ([]memory.Record, error) { return s.k.Memory().Active() },
 		ForgetMemory:  func(id string) (bool, error) { return s.k.Memory().Forget("", id) },
-		Skills:        func() ([]skill.Skill, error) { return s.k.Forge().List() },
-		ArchiveSkill:  func(id, reason string) error { return s.k.Forge().Archive("", id, reason) },
+		// A daemon with NO skill library holds a nil port (W3.55): the teardown
+		// sees no skills, and archiving refuses rather than calling into
+		// nothing.
+		Skills: func() ([]skillapi.Skill, error) {
+			f := s.k.Forge()
+			if f == nil {
+				return nil, nil
+			}
+			return f.List()
+		},
+		ArchiveSkill: func(id, reason string) error {
+			f := s.k.Forge()
+			if f == nil {
+				return errors.New("skill: the skill library is not available on this daemon")
+			}
+			return f.Archive("", id, reason)
+		},
 		ConfigEntries: func() []*configcenter.ConfigEntry {
 			if s.k.ConfigCenter() == nil {
 				return nil

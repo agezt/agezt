@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/reflect"
 )
 
@@ -166,7 +166,7 @@ func (k *Kernel) DisableHeuristicBypass(ctx context.Context) bool {
 // BuildRunPrompt assembles the system prompt (live default +
 // profile/taste/memory/world/skill injection) for a run. Day 34
 // wrapper for the runexec sub-package.
-func (k *Kernel) BuildRunPrompt(runCtx context.Context, corr, actor, intent string, systemAgent bool, skillDirective skill.ActivationDirective) (string, []string) {
+func (k *Kernel) BuildRunPrompt(runCtx context.Context, corr, actor, intent string, systemAgent bool, skillDirective skillapi.ActivationDirective) (string, []string) {
 	return k.buildRunPrompt(runCtx, corr, actor, intent, systemAgent, skillDirective)
 }
 

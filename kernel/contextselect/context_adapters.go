@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	kmemory "github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	kskill "github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 func MemoryCandidates(hits []kmemory.Scored, nowMS int64) []Candidate {
@@ -70,7 +70,7 @@ func WorldCandidates(hits []worldmodelapi.ScoredEntity, nowMS int64) []Candidate
 	}
 	return out
 }
-func SkillCandidates(hits []kskill.Scored, nowMS int64) []Candidate {
+func SkillCandidates(hits []skillapi.Scored, nowMS int64) []Candidate {
 	out := make([]Candidate, 0, len(hits))
 	for _, h := range hits {
 		s := h.Skill

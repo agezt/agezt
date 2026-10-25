@@ -69,7 +69,14 @@ func (k *Kernel) Close() error {
 			}
 			return k.worldStore.Close()
 		},
-		k.skillDir.Close,
+		// The skill library's file is the host's (W3.55): a host that was
+		// given none holds a nil port, and there is nothing to close.
+		func() error {
+			if k.skillStore == nil {
+				return nil
+			}
+			return k.skillStore.Close()
+		},
 		k.journal.Close,
 		func() error { return k.agentGW.Close() },
 	)

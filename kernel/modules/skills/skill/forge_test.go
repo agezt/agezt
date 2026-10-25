@@ -26,7 +26,7 @@ func newTestForge(t *testing.T) (*Forge, *journal.Journal) {
 	if err != nil {
 		t.Fatalf("skill.Open: %v", err)
 	}
-	f := NewForge(s, b)
+	f := NewForge(s, busPublisher{b})
 	f.now = func() time.Time { return fixedNow }
 	t.Cleanup(func() { b.Close(); j.Close() })
 	return f, j

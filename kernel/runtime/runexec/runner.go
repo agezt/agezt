@@ -13,9 +13,9 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/resume"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -100,9 +100,8 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	runCtx = r.k.WithActorCorrelation(runCtx, actor, corr)
 	runCtx = memory.WithCorrelation(runCtx, corr)
 	runCtx = opapi.WithCorrelation(runCtx, corr)
-	runCtx = skill.WithCorrelation(runCtx, corr)
 	systemAgent := r.k.SystemAgentFromCtx(runCtx)
-	skillDirective := skill.ParseActivationDirective(intent)
+	skillDirective := skillapi.ParseActivationDirective(intent)
 	if skillDirective.Explicit && skillDirective.CleanIntent != "" {
 		intent = skillDirective.CleanIntent
 	}
