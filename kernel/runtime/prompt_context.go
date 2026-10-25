@@ -12,8 +12,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/contract/tasteapi"
+	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
@@ -71,7 +71,7 @@ func injectTaste(system string, exemplars []tasteapi.Exemplar) string {
 // injectWorld prepends a compact "Known entities" block to the system prompt.
 // Entities are rendered one per line as "- [kind] name (aliases: ...)" so the
 // model can ground references like "the portfolio" to concrete things.
-func injectWorld(system string, hits []worldmodel.ScoredEntity) string {
+func injectWorld(system string, hits []worldmodelapi.ScoredEntity) string {
 	var b strings.Builder
 	b.WriteString("Known entities (from the world model; use to ground references):\n")
 	for _, h := range hits {

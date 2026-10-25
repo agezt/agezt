@@ -31,13 +31,13 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
+	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/journal"
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/reflect"
@@ -62,8 +62,8 @@ type Kernel struct {
 
 	memory       *memory.Manager
 	memoryDir    *memory.FileStore
-	world        *worldmodel.Graph
-	worldDir     *worldmodel.FileStore
+	world        worldmodelapi.Graph // the world-model graph — the contract's port (W3.54)
+	worldStore   worldmodelapi.Store // the world-model file — the contract's store port (W3.54)
 	forge        *skill.Forge
 	skillDir     *skill.FileStore
 	marketMgr    marketapi.Manager

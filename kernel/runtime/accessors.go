@@ -9,7 +9,7 @@ package runtime
 import (
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/marketapi"
-	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
+	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
@@ -71,7 +71,7 @@ func (k *Kernel) ScheduleEngine() cadenceapi.Engine {
 // World returns the world-model graph backing `agt world`, run-time entity
 // injection, and the Pulse salience relevance signal. Always non-nil after
 // Open.
-func (k *Kernel) World() *worldmodel.Graph { return k.world }
+func (k *Kernel) World() worldmodelapi.Graph { return k.world }
 
 // Forge returns the skill manager backing `agt skill`, run-time skill
 // activation, and post-run skill proposal. Always non-nil after Open.

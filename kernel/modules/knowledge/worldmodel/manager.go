@@ -7,21 +7,27 @@ package worldmodel
 //             Public API unchanged.
 
 import (
-	"github.com/agezt/agezt/kernel/bus"
-	"github.com/agezt/agezt/kernel/event"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
+	"github.com/agezt/agezt/kernel/event"
 )
 
-// Graph wraps a Store with the kernel bus so every node/edge mutation is
-// journaled (durable-before-publish) under the originating run's
+// Graph wraps a Store with the kernel's event publisher so every node/edge
+// mutation is journaled (durable-before-publish) under the originating run's
 // correlation_id. This is the journaling boundary — the Store stays pure. It
 // mirrors kernel/modules/knowledge/memory.Manager exactly, for the same reason: `agt why` must
 // be able to explain why the graph believes what it believes (SPEC-05 §3.3).
+//
+// The publisher is the CONTRACT's port (kernel/contract/worldmodelapi): the
+// kernel holds the port and hands it over, and the daemon builds the adapter
+// over the kernel's bus. The graph itself never names the bus — the envelope
+// is hashed into the event chain, and the contract layer may not name it.
 type Graph struct {
 	store Store
-	bus   *bus.Bus
+	pub   worldmodelapi.Publisher
 	// now is the clock, injectable for deterministic tests. Defaults to
 	// time.Now when constructed via NewGraph.
 	now func() time.Time
@@ -32,21 +38,22 @@ type Graph struct {
 	mu sync.Mutex
 }
 
-// NewGraph wires a Store to a bus. bus may be nil in tests that only exercise
-// store-facing behaviour; production callers always pass the kernel bus so
-// mutations are auditable.
-func NewGraph(store Store, b *bus.Bus) *Graph {
-	return &Graph{store: store, bus: b, now: time.Now}
+// The graph satisfies the contract's port, so the layers above it never name
+// this module.
+var _ worldmodelapi.Graph = (*Graph)(nil)
+
+// NewGraph wires a Store to a publisher. The publisher may be nil in tests
+// that only exercise store-facing behaviour; production callers always pass
+// the kernel's publisher so mutations are auditable.
+func NewGraph(store Store, pub worldmodelapi.Publisher) *Graph {
+	return &Graph{store: store, pub: pub, now: time.Now}
 }
 
 // UpsertSpec is the input to Upsert.
-type UpsertSpec struct {
-	Kind    Kind
-	Name    string
-	Aliases []string
-	Attrs   map[string]string
-	Weight  float64
-}
+//
+// The row itself lives in the contract layer (kernel/contract/worldmodelapi);
+// the name stays here as an alias, so every existing caller is unchanged.
+type UpsertSpec = worldmodelapi.UpsertSpec
 
 // Upsert creates (or reinforces) an entity and journals the write.
 // Content-addressing by (kind, name) means re-adding the same entity dedupes
@@ -102,15 +109,15 @@ func (g *Graph) Upsert(corr string, spec UpsertSpec) (Entity, bool, error) {
 		}
 	}
 
-	ev := g.publish(event.KindWorldEntityUpserted, corr, map[string]any{
+	evID := g.publish(event.KindWorldEntityUpserted, corr, map[string]any{
 		"action": action,
 		"id":     id,
 		"kind":   string(kind),
 		"name":   name,
 		"weight": e.Weight,
 	})
-	if ev != nil && e.SourceEvent == "" {
-		e.SourceEvent = ev.ID
+	if evID != "" && e.SourceEvent == "" {
+		e.SourceEvent = evID
 	}
 	if err := g.store.PutEntity(e); err != nil {
 		return Entity{}, false, err
@@ -188,11 +195,11 @@ func (g *Graph) Relate(corr, fromName string, verb Verb, toName string) (Relatio
 			action = "revive"
 		}
 	}
-	ev := g.publish(event.KindWorldRelationUpserted, corr, map[string]any{
+	evID := g.publish(event.KindWorldRelationUpserted, corr, map[string]any{
 		"action": action, "id": id, "from": from, "verb": string(v), "to": to,
 	})
-	if ev != nil && r.SourceEvent == "" {
-		r.SourceEvent = ev.ID
+	if evID != "" && r.SourceEvent == "" {
+		r.SourceEvent = evID
 	}
 	if err := g.store.PutRelation(r); err != nil {
 		return Relation{}, err

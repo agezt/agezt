@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-206 package(s):
+207 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -117,6 +117,7 @@
 - **`kernel/contract/wardenapi`** — Package wardenapi is the contract layer's home for the sandbox rows: the isolation profile a run asks for, the limits a run is capped by, the request that describes a run, the result a run produced, and the port through which a caller drives an isolated execution.
 - **`kernel/contract/workboardapi`** — Package workboardapi is the contract layer's home for the workboard's rows: one durable work item (a task), its lifecycle state, the claim, dependency, attempt, comment and link records it carries, the retry policy and decision, and the creation spec an agent hands over.
 - **`kernel/contract/workflowapi`** — Package workflowapi is the contract layer's home for the workflow rows: one durable, named graph, the typed steps it is made of, the edges that wire them, the trigger configuration that starts it, the outcome of a run, and the rule that decides whether a graph may run at all.
+- **`kernel/contract/worldmodelapi`** — Package worldmodelapi is the contract layer's home for the world-model rows: the entity, the relation, the scored hit, the neighbour, the input that writes one, and the options the reflection loop decays with.
 - **`kernel/controlplane`** — Package controlplane is the local control protocol between the agezt daemon and the agt CLI.
 - **`kernel/convo`** — Package convo collapses a multi-turn conversation into a single Agezt intent — the deliberate, lossy-by-design mapping that lets the single-intent governed loop carry conversational context.
 - **`kernel/creds`** — Package creds is the local credentials vault for provider env vars.

@@ -6,9 +6,10 @@ package world
 
 import (
 	"context"
+	"errors"
 
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	graph "github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
+	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 )
 
 type AddInput struct {
@@ -111,23 +112,37 @@ type ForgetOutput struct {
 	Forgotten bool `json:"forgotten"`
 }
 
-type Service struct{ graph *graph.Graph }
+// errNoWorldModel is the answer the world app layer gives when it holds no
+// graph.
+//
+// The world model is the DAEMON's (W3.54): the kernel holds the
+// contract's port, and a host that was given none holds a nil port. The
+// refusal is the answer — not a panic, and not a silent "nothing to do".
+var errNoWorldModel = errors.New("world: the world model is not available on this daemon")
 
-func New(g *graph.Graph) *Service { return &Service{graph: g} }
+type Service struct{ graph worldmodelapi.Graph }
 
-func entityView(e graph.Entity) Entity {
+func New(g worldmodelapi.Graph) *Service { return &Service{graph: g} }
+
+func entityView(e worldmodelapi.Entity) Entity {
 	return Entity{ID: e.ID, Kind: string(e.Kind), Name: e.Name, Weight: e.Weight, CreatedMS: e.CreatedMS, LastSeenMS: e.LastSeenMS,
 		Aliases: e.Aliases, Attrs: e.Attrs, SourceEvent: e.SourceEvent, SupersededBy: e.SupersededBy, Tombstoned: e.Tombstoned}
 }
 
 func (s *Service) Add(ctx context.Context, in AddInput) (AddOutput, error) {
-	e, created, err := s.graph.Upsert(opapi.CorrelationFromContext(ctx), graph.UpsertSpec{Kind: graph.Kind(in.Kind), Name: in.Name, Aliases: in.Aliases, Attrs: in.Attrs})
+	if s.graph == nil {
+		return AddOutput{}, errNoWorldModel
+	}
+	e, created, err := s.graph.Upsert(opapi.CorrelationFromContext(ctx), worldmodelapi.UpsertSpec{Kind: worldmodelapi.Kind(in.Kind), Name: in.Name, Aliases: in.Aliases, Attrs: in.Attrs})
 	if err != nil {
 		return AddOutput{}, err
 	}
 	return AddOutput{ID: e.ID, Created: created, Kind: string(e.Kind), Name: e.Name}, nil
 }
 func (s *Service) Edit(ctx context.Context, in EditInput) (EditOutput, error) {
+	if s.graph == nil {
+		return EditOutput{}, errNoWorldModel
+	}
 	e, ok, err := s.graph.EditEntity(opapi.CorrelationFromContext(ctx), in.ID, in.Aliases, in.Attrs)
 	if err != nil {
 		return EditOutput{}, err
@@ -142,13 +157,19 @@ func (s *Service) Edit(ctx context.Context, in EditInput) (EditOutput, error) {
 	return out, nil
 }
 func (s *Service) Relate(ctx context.Context, in RelateInput) (RelateOutput, error) {
-	r, err := s.graph.Relate(opapi.CorrelationFromContext(ctx), in.From, graph.Verb(in.Verb), in.To)
+	if s.graph == nil {
+		return RelateOutput{}, errNoWorldModel
+	}
+	r, err := s.graph.Relate(opapi.CorrelationFromContext(ctx), in.From, worldmodelapi.Verb(in.Verb), in.To)
 	if err != nil {
 		return RelateOutput{}, err
 	}
 	return RelateOutput{ID: r.ID, From: r.From, Verb: string(r.Verb), To: r.To}, nil
 }
 func (s *Service) Resolve(_ context.Context, in ResolveInput) (ResolveOutput, error) {
+	if s.graph == nil {
+		return ResolveOutput{}, errNoWorldModel
+	}
 	hits, err := s.graph.ResolveQuiet(in.Query, in.Limit)
 	if err != nil {
 		return ResolveOutput{}, err
@@ -160,6 +181,9 @@ func (s *Service) Resolve(_ context.Context, in ResolveInput) (ResolveOutput, er
 	return ResolveOutput{Results: out, Count: len(out)}, nil
 }
 func (s *Service) Neighbors(_ context.Context, in QueryInput) (NeighborsOutput, error) {
+	if s.graph == nil {
+		return NeighborsOutput{}, errNoWorldModel
+	}
 	hits, err := s.graph.ResolveQuiet(in.Query, 1)
 	if err != nil {
 		return NeighborsOutput{}, err
@@ -180,6 +204,9 @@ func (s *Service) Neighbors(_ context.Context, in QueryInput) (NeighborsOutput, 
 	return NeighborsOutput{Found: true, Entity: &view, Neighbors: out, Count: len(out)}, nil
 }
 func (s *Service) List(_ context.Context, _ ListInput) (ListOutput, error) {
+	if s.graph == nil {
+		return ListOutput{}, errNoWorldModel
+	}
 	ents, err := s.graph.Entities()
 	if err != nil {
 		return ListOutput{}, err
@@ -199,6 +226,9 @@ func (s *Service) List(_ context.Context, _ ListInput) (ListOutput, error) {
 	return ListOutput{Entities: out, Count: len(out), Edges: edges, RelationCount: len(rels)}, nil
 }
 func (s *Service) Get(_ context.Context, in GetInput) (GetOutput, error) {
+	if s.graph == nil {
+		return GetOutput{}, errNoWorldModel
+	}
 	e, found, err := s.graph.Get(in.ID)
 	if err != nil {
 		return GetOutput{}, err
@@ -211,6 +241,9 @@ func (s *Service) Get(_ context.Context, in GetInput) (GetOutput, error) {
 	return out, nil
 }
 func (s *Service) Forget(ctx context.Context, in GetInput) (ForgetOutput, error) {
+	if s.graph == nil {
+		return ForgetOutput{}, errNoWorldModel
+	}
 	ok, err := s.graph.Forget(opapi.CorrelationFromContext(ctx), in.ID)
 	if err != nil {
 		return ForgetOutput{}, err

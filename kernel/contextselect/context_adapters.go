@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	kmemory "github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	kworld "github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	kskill "github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
@@ -41,7 +41,7 @@ func MemoryCandidates(hits []kmemory.Scored, nowMS int64) []Candidate {
 	}
 	return out
 }
-func WorldCandidates(hits []kworld.ScoredEntity, nowMS int64) []Candidate {
+func WorldCandidates(hits []worldmodelapi.ScoredEntity, nowMS int64) []Candidate {
 	out := make([]Candidate, 0, len(hits))
 	for _, h := range hits {
 		e := h.Entity

@@ -21,7 +21,7 @@ type tenantCount int
 func (n tenantCount) Count() int { return int(n) }
 
 func TestTypedHandlersWorkWithoutTransportAndRemainReadOnly(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withWorld(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestTypedHandlersWorkWithoutTransportAndRemainReadOnly(t *testing.T) {
 }
 
 func TestStatusRetainsMetadataAndFallbackDimensions(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withWorld(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func wireMap(t *testing.T, value any) map[string]any {
 }
 
 func TestStatusZeroTenantsAndMetadataWireContract(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withWorld(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatal(err)
 	}

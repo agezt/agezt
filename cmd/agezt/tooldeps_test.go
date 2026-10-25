@@ -31,11 +31,11 @@ import (
 // would leave the tool answering "not available" on every live box. This
 // test is the only one that sees that wiring, so it asserts it directly.
 func TestToolKernelDepsSuppliesTheIntrospectPort(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withWorld(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(),
 		Tools:    map[string]toolapi.Tool{"probe": nil},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -336,11 +336,11 @@ func TestConfigSourceStaysANilPortWithoutAKernel(t *testing.T) {
 // composition root's port, the plugin's Bind, the tool's Invoke — has to
 // work together, or the agent gets a daemon that cannot describe itself.
 func TestTheIntrospectToolAnswersOnAConfiguredDaemon(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withWorld(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(),
 		Tools:    map[string]toolapi.Tool{"probe": nil},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

@@ -46,7 +46,7 @@ func newTestEngine(t *testing.T, cfg Config) (*Engine, *bus.Bus, *worldmodel.Gra
 	if err != nil {
 		t.Fatalf("worldmodel.Open: %v", err)
 	}
-	w := worldmodel.NewGraph(ws, b)
+	w := worldmodel.NewGraph(ws, busPublisher{b})
 	e := New(j, w, b, cfg)
 	e.now = func() time.Time { return fixedNow }
 	t.Cleanup(func() { b.Close(); j.Close() })
@@ -90,7 +90,7 @@ func TestReflect_DecayErrorFromStore(t *testing.T) {
 		t.Fatalf("journal.Open: %v", err)
 	}
 	b := bus.New(j)
-	w := worldmodel.NewGraph(errStore{}, b)
+	w := worldmodel.NewGraph(errStore{}, busPublisher{b})
 	e := New(j, w, b, Config{Decay: worldmodel.DecayOptions{StaleAfterMS: -1, Factor: 0}})
 	e.now = func() time.Time { return fixedNow }
 	t.Cleanup(func() { b.Close(); j.Close() })

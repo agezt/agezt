@@ -13,9 +13,11 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
+	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/modules/work/okr"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
@@ -38,12 +40,22 @@ func withTenants(t *testing.T, srv *controlplane.Server, dir string) *tenant.Reg
 		if oerr != nil {
 			t.Fatalf("open tenant okr store: %v", oerr)
 		}
+		// The world-model file is the composition root's file too (W3.54): each
+		// tenant opens its own, under its own base dir.
+		worldStore, werr := worldmodel.Open(filepath.Join(tdir, "worldmodel"))
+		if werr != nil {
+			t.Fatalf("open tenant world model store: %v", werr)
+		}
 		return runtime.Open(runtime.Config{
 			BaseDir:    tdir,
 			Provider:   mock.New(mock.FinalText("tenant-ok")),
 			Tools:      map[string]toolapi.Tool{},
 			TasteStore: tasteStore,
 			OKRStore:   okrStore,
+			WorldStore: worldStore,
+			WorldGraph: func(s worldmodelapi.Store, pub worldmodelapi.Publisher) worldmodelapi.Graph {
+				return worldmodel.NewGraph(s, pub)
+			},
 		})
 	})
 	if err != nil {

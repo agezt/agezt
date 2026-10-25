@@ -30,7 +30,7 @@ func TestEveryGraphMutationRetainsAdmittedCorrelation(t *testing.T) {
 			if err := s.PutEntity(graph.Entity{ID: "seed", Name: "Seed", Kind: graph.KindTopic, Weight: 1}); err != nil {
 				t.Fatal(err)
 			}
-			service := appworld.New(graph.NewGraph(s, b))
+			service := appworld.New(graph.NewGraph(s, busPublisher{b}))
 			ctx := opapi.WithCorrelation(context.Background(), "owned-operation")
 			expected := event.KindWorldEntityUpserted
 			switch name {

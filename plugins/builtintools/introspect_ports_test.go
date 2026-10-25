@@ -20,11 +20,11 @@ import (
 // app-layer adapter through the contract's port. The wiring has to be real:
 // the tool must publish the LIVE kernel's state, not a stale copy.
 func TestIntrospectSpecReadsTheLiveKernelThroughThePort(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withWorld(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(),
 		Tools:    map[string]toolapi.Tool{"probe": nil},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

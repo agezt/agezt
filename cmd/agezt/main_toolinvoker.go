@@ -8,12 +8,14 @@ import (
 
 	apptools "github.com/agezt/agezt/kernel/app/tools"
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/modules/agents/reaper"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
+	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
 	"github.com/agezt/agezt/kernel/modules/work/okr"
@@ -177,6 +179,31 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 			return nil, err
 		}
 		cfg.OKRStore = store
+	}
+	if cfg.WorldStore == nil {
+		// The world-model file (W3.54) — the contract's store port. The daemon
+		// opens the file (worldmodel/worldmodel.json) and hands the kernel the
+		// port; the kernel never opens a graph of its own.
+		//
+		// The file lives under the BASE DIR, so a tenant's kernel — which has
+		// its own base dir — opens its own world model.
+		//
+		// A file that cannot be opened is a STARTUP ERROR: the world model is
+		// part of the daemon, not a convenience.
+		store, err := worldmodel.Open(filepath.Join(cfg.BaseDir, "worldmodel"))
+		if err != nil {
+			return nil, err
+		}
+		cfg.WorldStore = store
+	}
+	if cfg.WorldGraph == nil {
+		// The world-model BUILDER (W3.54) — the daemon names the module, the
+		// kernel does not. The kernel calls the builder with the store it was
+		// given and its own publisher, so the graph journals through the
+		// kernel's bus without either side naming the other's implementation.
+		cfg.WorldGraph = func(store worldmodelapi.Store, pub worldmodelapi.Publisher) worldmodelapi.Graph {
+			return worldmodel.NewGraph(store, pub)
+		}
 	}
 	if cfg.Workboard == nil {
 		// The durable task board (W3.47) — the contract's host port. The

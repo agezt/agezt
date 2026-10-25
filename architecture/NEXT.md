@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.53 the objective library is the daemon's, 2026-10-25
+## Current checkpoint — W3.54 the world model is the daemon's, 2026-10-25
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -3722,6 +3722,86 @@ files, five of the seventeen mutations would have escaped.
   `worldmodel`** — each one the same slice this one was (a contract port, the
   daemon opening the file, the kernel's accessor carrying the port), with the
   memory manager's bus-bound journal as the extra work.
+
+- W3.54 (the world model is the daemon's) is committed on `main` the same way.
+  It takes **four** edges — the first multi-edge slice since the catalog — and
+  it takes them **completely**:
+  `cross-module kernel/runtime -> kernel/modules/knowledge/worldmodel` (the
+  kernel held the module's concrete `*worldmodel.Graph` and **opened the file**
+  itself), `cross-module kernel/runtime/runexec -> ...` (the run-executor
+  declared the module's concrete graph in its `KernelAPI`),
+  `cross-module kernel/contextselect -> ...` (the context selector named the
+  module's rows) and `cross-module kernel/reflect -> ...` (the reflection
+  engine held the module's concrete graph).
+  **The ratchet went DOWN by FOUR: 37/13 → 33/13.** The kernel still reaches
+  **7** modules.
+  This slice is the **pilot for the bus-bound modules**: the graph journals
+  every mutation through the kernel's bus, so the graph cannot be built by the
+  layer that holds the bus without that layer naming the module. The pattern
+  it establishes — a **builder injected by the daemon**, a **publisher port**
+  the kernel hands over — is what the remaining bus-bound modules (the skill
+  forge, the memory manager) will reuse.
+  The contract now carries `worldmodelapi` — the `Kind` and `Verb` rows with
+  their open vocabularies, the `Entity`, `Relation`, `ScoredEntity`,
+  `Neighbor`, `UpsertSpec` and `DecayOptions` rows, the **`Store` port
+  (eight verbs)**, the **`Graph` port (fourteen verbs** — exactly what the
+  layers above drive, no more**) and a **`Publisher` port of one verb**. The
+  module keeps every name as an **alias**, so there is one row and one spelling
+  of it.
+  **The RULES travel with the ROWS**: `Entity.Active()` and
+  `Relation.Active()` decide whether a node still counts, and a Go type alias
+  cannot carry methods — had the rules stayed in the module, the aliases would
+  have lost them and the layers above would have had to reach back into the
+  module to ask. The content-addressing helpers (`EntityID`, `RelationID`)
+  **stay in the module**: they hash with BLAKE3 and the contract layer may not
+  reach for a third-party module, and nothing above the module needs them.
+  The **publisher is a port, not the bus**: the bus answers with the durable
+  envelope, which carries the hash chain and which the contract layer may not
+  name; the port answers with the event's **id**, which is exactly what the
+  graph records as the entity's provenance (`SourceEvent`) and what `agt why`
+  reads.
+  **The daemon names the module; the kernel does not**: the daemon opens
+  `worldmodel/worldmodel.json` and hands over the **builder**, and the kernel
+  calls that builder with the store it was given and its own publisher, so the
+  graph journals through the kernel's bus without either side naming the
+  other's implementation.
+  A kernel with **no** graph registers **no world tool** (a tool that calls into
+  nothing would answer the agent with a panic), the reflection engine with no
+  graph decays nothing and reports what it could see, and the app layer
+  **refuses** every surface with "the world model is not available on this
+  daemon".
+  Every test that expected a store became a **host**: it opens the file and
+  injects the ports.
+  **9 mutations, 9 caught** in two honest passes, **three** of them
+  **gate-measured** by archcheck (the kernel names the module again; the
+  context selector names the module again; a stale allowlist entry comes back),
+  and the **ninth** measures a **rule**: an active rule that quietly forgets the
+  tombstone lets a forgotten entity back into resolve, and no structural check
+  can see it. One correction is worth naming: the fifth mutation — the
+  kernel's face drifting to an anonymous shape — had to travel with the **run
+  executor's `KernelAPI` declaration**, because drifting the kernel's face
+  alone is a **build error**, not a catch (the same lesson as the catalog
+  slice, met again: a face that the run executor declares cannot drift
+  alone).
+  The new permanent tests pin that the store port is **exactly eight** verbs
+  and the graph port **exactly fourteen**, that the publisher is **one** verb
+  answering the event's id, that the verbs keep their exact signatures, that
+  the active rules are **on the contract's rows** and decide right, that the
+  normalizers keep their permissive rules, that the module's rows and constants
+  are the contract's (by **type identity**), that the **aliased rows keep the
+  contract's rules**, that the graph's core **does not import the kernel bus**,
+  that the kernel's face is **statically** the contract's port, that a kernel
+  without a world model hands over a **nil** port, that the world tool is
+  registered **only** with a graph, that the port answers the **live** rows,
+  that every app surface refuses instead of panicking, and that the daemon's
+  model is a **file on disk** and is the **injected** one.
+  **What remains**: the kernel still reaches **7** modules. Next, in order:
+  **`skill`** (five edges — the forge is bus-bound too, so it needs the same
+  builder-plus-publisher pattern this slice established; the **width** is the
+  work: 15+ verbs), **`roster`** (four edges, 73 importer files, the largest
+  fan-in, and a 28-file app layer), then **`memory`** (six edges; the manager
+  is bus-bound AND LLM-bound — distill and embeddings — so its port is the
+  widest of all).
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

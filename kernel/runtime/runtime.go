@@ -26,6 +26,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
+	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
@@ -628,6 +629,24 @@ type Config struct {
 	// Nil means "no objective library": the objective surfaces report that the
 	// library is unavailable rather than calling into nothing.
 	OKRStore okrapi.Store
+
+	// WorldStore is the world-model file the host holds — the contract's
+	// store port, not a module's store (W3.54). The daemon opens the file
+	// (worldmodel/worldmodel.json) and hands it over (cmd/agezt): the
+	// library's file is the daemon's business, and the kernel is a module.
+	//
+	// Nil means "no world model": the world surfaces report that the graph is
+	// unavailable rather than calling into nothing.
+	WorldStore worldmodelapi.Store
+
+	// WorldGraph builds the world-model graph over the store and the kernel's
+	// publisher.
+	//
+	// The DAEMON supplies the builder — it names the module — and the kernel
+	// hands over the store it was given and its own publisher, so the graph
+	// journals through the kernel's bus without either side naming the
+	// other's implementation (W3.54).
+	WorldGraph func(store worldmodelapi.Store, pub worldmodelapi.Publisher) worldmodelapi.Graph
 }
 
 // Kernel is the running Agezt instance.

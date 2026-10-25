@@ -19,12 +19,12 @@ import (
 	"github.com/agezt/agezt/kernel/contract/mediaapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/modules/work/assure"
 	"github.com/agezt/agezt/kernel/reflect"
@@ -87,7 +87,7 @@ type KernelAPI interface {
 	Approvals() *approval.Registry
 	Scheduler() *scheduler.Executor
 	Memory() *memory.Manager
-	World() *worldmodel.Graph
+	World() worldmodelapi.Graph
 	Reflect() *reflect.Engine
 	SkillStore() *skill.FileStore
 	Forge() *skill.Forge

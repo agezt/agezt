@@ -33,7 +33,7 @@ func TestWorldCommandMetadataComesFromCompleteAppRegistry(t *testing.T) {
 
 func TestWorldNativeMutationSharesOperationCorrelation(t *testing.T) {
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
+	k, err := runtime.Open(withWorld(t, runtime.Config{BaseDir: dir, Provider: mock.New()}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestWorldAppSocketRequiresAuditBeforeMutations(t *testing.T) {
 	for _, command := range []string{CmdWorldAdd, CmdWorldEdit, CmdWorldRelate, CmdWorldForget} {
 		t.Run(command, func(t *testing.T) {
 			dir := t.TempDir()
-			k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
+			k, err := runtime.Open(withWorld(t, runtime.Config{BaseDir: dir, Provider: mock.New()}))
 			if err != nil {
 				t.Fatal(err)
 			}

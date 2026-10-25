@@ -13,12 +13,12 @@ package worldmodel
 
 import (
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
 	"sync"
 
+	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/platform/filestore"
 	"lukechampine.com/blake3"
 )
@@ -27,115 +27,71 @@ import (
 // below is the validated, well-known vocabulary, but an unknown kind is
 // accepted (NormalizeKind keeps it verbatim) so the graph never refuses to
 // learn something just because it is a new category.
-type Kind string
+//
+// The row itself lives in the contract layer (kernel/contract/worldmodelapi);
+// the name stays here as an alias, so every existing caller is unchanged.
+type Kind = worldmodelapi.Kind
 
 const (
-	KindProject Kind = "project"
-	KindRepo    Kind = "repo"
-	KindPerson  Kind = "person"
-	KindOrg     Kind = "org"
-	KindAccount Kind = "account"
-	KindDevice  Kind = "device"
-	KindChannel Kind = "channel"
-	KindTopic   Kind = "topic"
-	KindTask    Kind = "task"
+	KindProject = worldmodelapi.KindProject
+	KindRepo    = worldmodelapi.KindRepo
+	KindPerson  = worldmodelapi.KindPerson
+	KindOrg     = worldmodelapi.KindOrg
+	KindAccount = worldmodelapi.KindAccount
+	KindDevice  = worldmodelapi.KindDevice
+	KindChannel = worldmodelapi.KindChannel
+	KindTopic   = worldmodelapi.KindTopic
+	KindTask    = worldmodelapi.KindTask
 )
 
 // DefaultKind is used when an entity is written with no kind.
-const DefaultKind = KindTopic
+const DefaultKind = worldmodelapi.DefaultKind
 
 // NormalizeKind lowercases/trims a kind and falls back to DefaultKind when the
 // input is empty. Unknown-but-non-empty kinds are kept verbatim (permissive):
 // the graph records the operator's vocabulary rather than rejecting it.
-func NormalizeKind(k Kind) Kind {
-	s := Kind(strings.ToLower(strings.TrimSpace(string(k))))
-	if s == "" {
-		return DefaultKind
-	}
-	return s
-}
+func NormalizeKind(k Kind) Kind { return worldmodelapi.NormalizeKind(k) }
 
 // Verb classifies a relation (SPEC-05 §3.2). Like Kind it is an open string
 // with a well-known set; NormalizeVerb defaults the empty verb to VerbRelatesTo.
-type Verb string
+//
+// The row itself lives in the contract layer (kernel/contract/worldmodelapi);
+// the name stays here as an alias, so every existing caller is unchanged.
+type Verb = worldmodelapi.Verb
 
 const (
-	VerbOwns        Verb = "owns"
-	VerbDependsOn   Verb = "depends_on"
-	VerbMemberOf    Verb = "member_of"
-	VerbPrefers     Verb = "prefers"
-	VerbRelatesTo   Verb = "relates_to"
-	VerbAssignedTo  Verb = "assigned_to"
-	VerbDerivedFrom Verb = "derived_from"
+	VerbOwns        = worldmodelapi.VerbOwns
+	VerbDependsOn   = worldmodelapi.VerbDependsOn
+	VerbMemberOf    = worldmodelapi.VerbMemberOf
+	VerbPrefers     = worldmodelapi.VerbPrefers
+	VerbRelatesTo   = worldmodelapi.VerbRelatesTo
+	VerbAssignedTo  = worldmodelapi.VerbAssignedTo
+	VerbDerivedFrom = worldmodelapi.VerbDerivedFrom
 )
 
 // DefaultVerb is used when a relation is written with no verb.
-const DefaultVerb = VerbRelatesTo
+const DefaultVerb = worldmodelapi.DefaultVerb
 
 // NormalizeVerb lowercases/trims a verb and falls back to DefaultVerb when
 // empty. Unknown-but-non-empty verbs are kept verbatim.
-func NormalizeVerb(v Verb) Verb {
-	s := Verb(strings.ToLower(strings.TrimSpace(string(v))))
-	if s == "" {
-		return DefaultVerb
-	}
-	return s
-}
+func NormalizeVerb(v Verb) Verb { return worldmodelapi.NormalizeVerb(v) }
 
 // Entity is a node in the world model. The JSON tags are stable so the
 // on-disk file and the CLI/`--json` shape stay compatible across releases;
 // field order is not load-bearing (entities are not part of the event hash
 // chain — their provenance events are).
-type Entity struct {
-	// ID is content-addressed: hex(BLAKE3("entity" \0 kind \0 name)).
-	ID string `json:"id"`
-	// Kind classifies the entity (project, repo, person, ...).
-	Kind Kind `json:"kind"`
-	// Name is the canonical display name (also the primary resolve key).
-	Name string `json:"name"`
-	// Aliases are alternative phrases that resolve to this entity
-	// ("the portfolio", "the repos"). Lower-cased and deduped on write.
-	Aliases []string `json:"aliases,omitempty"`
-	// Attrs hold preferences/habits/constraints ("brief":"morning,terse").
-	Attrs map[string]string `json:"attrs,omitempty"`
-	// Weight is an "active-ness" score; reinforced on reference, decayed by
-	// the reflection loop later. Drives resolve ranking and salience.
-	Weight float64 `json:"weight"`
-	// SourceEvent is the journal event id that produced this entity —
-	// provenance for `agt why`.
-	SourceEvent string `json:"source_event,omitempty"`
-	// CreatedMS / LastSeenMS drive recency in ranking and decay.
-	CreatedMS  int64 `json:"created_ms"`
-	LastSeenMS int64 `json:"last_seen_ms"`
-	// SupersededBy points at a newer entity when this one was replaced.
-	SupersededBy string `json:"superseded_by,omitempty"`
-	// Tombstoned marks a soft-forgotten entity: excluded from resolve but
-	// retained on disk and in the journal (reversibility).
-	Tombstoned bool `json:"tombstoned,omitempty"`
-}
-
-// Active reports whether the entity participates in resolve/neighbors:
-// neither forgotten nor superseded.
-func (e Entity) Active() bool { return !e.Tombstoned && e.SupersededBy == "" }
+//
+// The row itself — with its Active RULE — lives in the contract layer
+// (kernel/contract/worldmodelapi); the name stays here as an alias, so every
+// existing caller is unchanged.
+type Entity = worldmodelapi.Entity
 
 // Relation is a directed, weighted edge between two entity ids.
-type Relation struct {
-	// ID is content-addressed: hex(BLAKE3("rel" \0 from \0 verb \0 to)).
-	ID   string `json:"id"`
-	From string `json:"from"` // source entity id
-	Verb Verb   `json:"verb"` // owns, depends_on, ...
-	To   string `json:"to"`   // target entity id
-	// Weight strengthens on re-assertion; decayed by reflection later.
-	Weight       float64 `json:"weight"`
-	SourceEvent  string  `json:"source_event,omitempty"`
-	CreatedMS    int64   `json:"created_ms"`
-	LastSeenMS   int64   `json:"last_seen_ms"`
-	SupersededBy string  `json:"superseded_by,omitempty"`
-	Tombstoned   bool    `json:"tombstoned,omitempty"`
-}
-
-// Active reports whether the relation participates in neighbors.
-func (r Relation) Active() bool { return !r.Tombstoned && r.SupersededBy == "" }
+//
+// The row itself — with its Active RULE — lives in the contract layer
+// (kernel/contract/worldmodelapi); the name stays here as an alias, so every
+// existing caller is unchanged.
+type Relation = worldmodelapi.Relation
 
 // EntityID computes the content-addressed id for a (kind, name) pair. The
 // "entity" domain prefix and NUL separators keep it disjoint from relation
@@ -166,20 +122,17 @@ func RelationID(from string, verb Verb, to string) string {
 
 // Store is the pure graph store. Implementations persist entities and
 // relations by id and must be safe for concurrent use.
-type Store interface {
-	PutEntity(e Entity) error
-	GetEntity(id string) (Entity, bool, error)
-	AllEntities() ([]Entity, error)
-	PutRelation(r Relation) error
-	GetRelation(id string) (Relation, bool, error)
-	AllRelations() ([]Relation, error)
-	// Count returns the number of entities currently stored (all states).
-	Count() int
-	Close() error
-}
+//
+// The port lives in the contract layer (kernel/contract/worldmodelapi); the
+// name stays here as an alias, so every existing caller is unchanged.
+type Store = worldmodelapi.Store
 
 // ErrEmptyName is returned when an entity is written with no name.
-var ErrEmptyName = errors.New("worldmodel: empty entity name")
+//
+// The sentinel itself lives in the contract layer
+// (kernel/contract/worldmodelapi); the name stays here as an alias, so every
+// existing caller is unchanged.
+var ErrEmptyName = worldmodelapi.ErrEmptyName
 
 // graphData is the on-disk shape: a single object holding both maps so the
 // whole graph snapshots atomically in one file.
@@ -192,6 +145,11 @@ type graphData struct {
 // <dir>/worldmodel.json object, snapshotted atomically on every mutation
 // (write-temp + rename). Simple and crash-safe; adequate for v1 (DECISIONS D2
 // names a CobaltDB adjacency backend for scale later).
+//
+// It satisfies the contract's store port, so the layers above it never name
+// this module.
+var _ worldmodelapi.Store = (*FileStore)(nil)
+
 type FileStore struct {
 	path string
 

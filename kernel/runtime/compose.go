@@ -23,13 +23,13 @@ import (
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
+	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/reflect"
@@ -116,12 +116,20 @@ func Open(cfg Config) (*Kernel, error) {
 		mgr.SetEmbedder(cfg.MemoryEmbedder) // M884: provider embeddings opt-in
 	}
 
-	wstore, err := worldmodel.Open(filepath.Join(cfg.BaseDir, "worldmodel"))
-	if err != nil {
-		return fail("runtime: worldmodel", err)
+	// The world-model graph is NOT opened here (W3.54) — the FILE is the
+	// composition root's, and the kernel holds the contract's ports. The
+	// daemon opens the file (worldmodel/worldmodel.json) and hands over the
+	// store; the daemon also hands over the BUILDER (it names the module),
+	// and the kernel calls it with that store and its own publisher — so the
+	// graph journals through the kernel's bus without either side naming the
+	// other's implementation.
+	//
+	// A host that was given neither holds a nil port, and the world surfaces
+	// report that the graph is unavailable rather than calling into nothing.
+	var wgraph worldmodelapi.Graph
+	if cfg.WorldStore != nil && cfg.WorldGraph != nil {
+		wgraph = cfg.WorldGraph(cfg.WorldStore, worldPublisher{b: kbus})
 	}
-	closers = append(closers, wstore)
-	wgraph := worldmodel.NewGraph(wstore, kbus)
 
 	skstore, err := skill.Open(filepath.Join(cfg.BaseDir, "skills"))
 	if err != nil {
@@ -235,7 +243,10 @@ func Open(cfg Config) (*Kernel, error) {
 	if cfg.MemoryTool {
 		effTools["memory"] = mgr.Tool()
 	}
-	if cfg.WorldTool {
+	// The world tool is registered only when the host gave a graph: a nil
+	// port means no world model on this daemon, and a tool that calls into
+	// nothing would answer the agent with a panic (W3.54).
+	if cfg.WorldTool && wgraph != nil {
 		effTools["world"] = wgraph.Tool()
 	}
 	// The sub-agent tool's runner needs the finished *Kernel, which doesn't
@@ -299,7 +310,7 @@ func Open(cfg Config) (*Kernel, error) {
 		memory:       mgr,
 		memoryDir:    mstore,
 		world:        wgraph,
-		worldDir:     wstore,
+		worldStore:   cfg.WorldStore,
 		forge:        forge,
 		skillDir:     skstore,
 		standing:     cfg.Standing,
