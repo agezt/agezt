@@ -4,7 +4,7 @@ package workflowapi
 
 // Store is the port through which the stored workflows are read.
 //
-// The implementation — the on-disk registry in the extensions module —
+// The implementation — the on-disk registry in the workflows module —
 // satisfies it; the agent-facing tool never names the implementation, because
 // it is a plugin.
 type Store interface {
