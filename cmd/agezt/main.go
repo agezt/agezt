@@ -55,6 +55,7 @@ import (
 	"github.com/agezt/agezt/kernel/pulse"
 	"github.com/agezt/agezt/kernel/redact"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/kernel/update"
 	"github.com/agezt/agezt/kernel/warden"
@@ -802,6 +803,21 @@ func runDaemon(stdout, stderr io.Writer) int {
 		return 1
 	}
 	cfg.Schedules = schedStore
+
+	// The standing-order library (W3.50) — the DAEMON's file. The daemon
+	// opens it (standing/standing.json) and hands the kernel the contract's
+	// store port; the daemon's own residents (the event runner and the cron
+	// ticker) are built over this very store afterwards, once the kernel
+	// exists (buildStandingRunner).
+	//
+	// A library that cannot be opened is a STARTUP ERROR: the standing
+	// library is part of the daemon, not a convenience.
+	standingStore, err := standing.Open(filepath.Join(baseDir, "standing"))
+	if err != nil {
+		fmt.Fprintf(stderr, "%s: open runtime: %v\n", brand.Binary, err)
+		return 1
+	}
+	cfg.Standing = standingStore
 
 	var openErr error
 	k, openErr = openAppKernel(cfg)
@@ -1709,7 +1725,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 			_ = channelSend(bctx, kind, recip, text)
 		}
 	}
-	standingDesc, fireStandingNow := buildStandingRunner(ctx, k, standingBrief)
+	standingDesc, fireStandingNow := buildStandingRunner(ctx, k, standingStore, standingBrief)
 	srv.Bind(controlplane.LateDeps{StandingFire: fireStandingNow})
 	fmt.Fprintf(stdout, "  standing orders  : %s\n", standingDesc)
 	// Resume interrupted runs (M1002): re-dispatch any run that a prior restart —

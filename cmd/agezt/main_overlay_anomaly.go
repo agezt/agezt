@@ -20,10 +20,10 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/alerter"
 	"github.com/agezt/agezt/kernel/anomaly"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/pulse"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
-	"github.com/agezt/agezt/kernel/standing"
 )
 
 func buildAnomaly(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer) string {
@@ -94,7 +94,7 @@ func buildAlertNotify(ctx context.Context, k *kernelruntime.Kernel, sink pulse.B
 	}
 	return fmt.Sprintf("on (level≥%s → channels; repeats suppressed; flood-capped%s)", cfg.MinLevel, extra)
 }
-func standingTrustCeiling(in standing.Initiative) (edict.TrustLevel, bool) {
+func standingTrustCeiling(in standingapi.Initiative) (edict.TrustLevel, bool) {
 	ceil := edict.LevelAllow
 	have := false
 	if lvl, err := edict.ParseTrustLevel(in.MaxTrust); err == nil {
@@ -108,7 +108,7 @@ func standingTrustCeiling(in standing.Initiative) (edict.TrustLevel, bool) {
 			have = true
 		}
 	}
-	if !have && in.Mode == standing.InitiativeActOrAsk {
+	if !have && in.Mode == standingapi.InitiativeActOrAsk {
 		ceil, have = edict.LevelAskFirst, true
 	}
 	return ceil, have

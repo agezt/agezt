@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.49 the typed schedule library is the daemon's file, 2026-10-25
+## Current checkpoint — W3.50 the standing-order library is the daemon's file, 2026-10-25
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -3419,6 +3419,81 @@ files, five of the seventeen mutations would have escaped.
   `catalogapi` exists), then **`memory`, `worldmodel`, `roster`, `okr`,
   `taste`** — each one the same slice (a contract port, the daemon opening the
   file, the kernel's accessor carrying the port).
+
+- W3.50 (the standing-order library is the daemon's file) is committed on
+  `main` the same way. It takes **three** edges — the same family again, and
+  the **widest** edge the measurement had left, for only eight call sites in
+  the runtime:
+  `cross-module kernel/runtime -> kernel/standing` (the kernel held the
+  concrete `*standing.Store` and **opened the file** itself),
+  `cross-module kernel/runtime/runexec -> kernel/standing` (the run-executor
+  interface named the module's store) and
+  `adapter-bypass kernel/controlplane -> kernel/standing` (the control plane
+  named the module's rows).
+  **The ratchet went DOWN by THREE: 46/13 → 43/13.**
+  The rows were already in the contract (`standingapi.Order`, `Trigger`,
+  `Initiative`, `Validate`, the `TriggerCron`/`TriggerEvent` and
+  `Initiative*` vocabularies); what was missing was a **port**. The contract now
+  carries `standingapi.Store` — **seven** verbs (`Add`, `SetEnabled`, `Update`,
+  `Remove`, `Get`, `List`, `Count`), the module's whole public surface and no
+  more: a wider port would let a caller reach past the library's own rules (the
+  store validates, assigns ids and protects the identity fields the mutator
+  must not touch), and a narrower one would force a second shape to be kept in
+  step with this one.
+  **`ErrNotFound` moved to the contract**: the kernel compares against it (the
+  edit path turns "not found" into "the order does not exist") and the kernel
+  may not name a module. The module keeps the name as an **alias**, so the two
+  are the same error value and every `errors.Is` still holds.
+  The **library's file is the daemon's** — `cmd/agezt` opens it
+  (`standing/standing.json`), and a library that cannot be opened is a
+  **startup error**; the **residents are the daemon's too** — the event runner
+  and the cron ticker are built by the composition root over **that very
+  store**, so the kernel's port and the residents read the same rows (a second
+  instance over the same file would have been a silent split-brain).
+  The part the slice had to **teach** four layers: before it the kernel opened
+  the library itself, so `k.Standing()` was **never nil** and nothing had to
+  say what happens without one — now the **kernel** refuses all **five** of its
+  standing operations with "the standing library is not available on this
+  daemon", the **app layer** refuses the same way on its **five** surfaces
+  (read, creation, editing, lifecycle), the **guardians' host** answers the
+  same way, and the control plane's two roster surfaces read the port
+  defensively. The layers above the module also name the **contract's** rows
+  now (`standingapi.Order` in the app layer, the app's roster surfaces and the
+  control plane) — the two are the same type, so this is one row with one
+  spelling, not a copy.
+  Every test that expected a store became a **host**: it opens the library and
+  injects the port.
+  **8 mutations, 8 caught** in two honest passes, **three** of them
+  **gate-measured** by archcheck (the runtime names the module again; the
+  control plane names the module's rows again; a stale allowlist entry comes
+  back), because "the kernel's reach is smaller" is not something a test can
+  see. The run earned two honest corrections: the first attempt at the fifth
+  mutation was a **build error** (a whole function signature replaced with a
+  bare expression — a build error is not a catch, the mutation was wrong) and
+  the second **survived**, because the harness replaces the **first** matching
+  line and `for _, o := range s.orders` sits in **three** functions — the anchor
+  was narrowed to the sort inside `List()`; the harness itself was corrected so
+  a missed anchor reports SKIP and can never look like a pass.
+  The sixth mutation is the one worth naming: it replaces the kernel's face with
+  an **anonymous** interface carrying the same seven verbs — that still
+  compiles (the run engine's own declaration moves with it) and no runtime
+  behaviour would notice, so only a **static** check on the declared return type
+  catches it.
+  The new permanent tests pin that the store port is **exactly seven** verbs
+  wide and keeps its exact signatures, that the module's store answers the
+  contract's port and that its rows and its error **are** the contract's, that
+  a kernel without a library hands over a **nil** port, that the kernel's face
+  is **statically** the store port (a narrowed face would still compile and
+  still pass every behaviour test), that the port answers the **live** rows,
+  that all **five** kernel operations and all **five** app surfaces refuse
+  instead of panicking, and that the daemon's library is a **file on disk** and
+  is the **injected** one.
+  **What remains**: the kernel still reaches **8** modules. Next, in order:
+  **`skill`** (three edges plus the market's, `skillapi` exists),
+  **`catalog`** (two edges, `catalogapi` exists), then **`memory`,
+  `worldmodel`, `roster`, `okr`, `taste`** — each one the same slice (a
+  contract port, the daemon opening the file, the kernel's accessor carrying the
+  port).
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

@@ -5,19 +5,19 @@ package standing
 import (
 	"context"
 	"fmt"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	orders "github.com/agezt/agezt/kernel/standing"
 	"strings"
 )
 
 type Reader interface {
-	List() []orders.Order
-	Get(string) (orders.Order, bool)
+	List() []standingapi.Order
+	Get(string) (standingapi.Order, bool)
 }
 type Writer interface {
-	AddStanding(orders.Order) (orders.Order, error)
-	UpdateStanding(string, func(*orders.Order)) (orders.Order, bool, error)
-	SetStandingEnabled(string, bool) (orders.Order, error)
+	AddStanding(standingapi.Order) (standingapi.Order, error)
+	UpdateStanding(string, func(*standingapi.Order)) (standingapi.Order, bool, error)
+	SetStandingEnabled(string, bool) (standingapi.Order, error)
 	RemoveStanding(string) (bool, error)
 }
 type Host struct {
@@ -35,22 +35,22 @@ func New(reader Reader, writer Writer, host Host) *Service {
 }
 
 type Record struct {
-	orders.Order
+	standingapi.Order
 	FrequencyWarning string `json:"frequency_warning,omitempty"`
 	TargetStatus     string `json:"target_status,omitempty"`
 	TargetError      string `json:"target_error,omitempty"`
 }
 
-func Project(order orders.Order) Record {
+func Project(order standingapi.Order) Record {
 	return Record{Order: order, FrequencyWarning: FrequencyWarning(order)}
 }
-func FrequencyWarning(o orders.Order) string {
+func FrequencyWarning(o standingapi.Order) string {
 	hasEvent := false
 	for _, t := range o.Triggers {
-		if t.Type == orders.TriggerEvent {
+		if t.Type == standingapi.TriggerEvent {
 			hasEvent = true
 		}
-		if t.Type == orders.TriggerCron {
+		if t.Type == standingapi.TriggerCron {
 			first := ""
 			if fields := strings.Fields(strings.TrimSpace(t.Schedule)); len(fields) > 0 {
 				first = fields[0]
@@ -94,6 +94,9 @@ type ListOutput struct {
 }
 
 func (s *Service) List(_ context.Context, _ ListInput) (ListOutput, error) {
+	if s.reader == nil {
+		return ListOutput{}, errNoStandingLibrary
+	}
 	rows := s.reader.List()
 	out := make([]Record, 0, len(rows))
 	enabled := 0
@@ -113,12 +116,15 @@ func (s *Service) List(_ context.Context, _ ListInput) (ListOutput, error) {
 	return ListOutput{Orders: out, Count: len(out), EnabledCount: enabled}, nil
 }
 
-type AddInput struct{ Order orders.Order }
+type AddInput struct{ Order standingapi.Order }
 type OrderOutput struct {
 	Order Record `json:"order"`
 }
 
 func (s *Service) Add(_ context.Context, in AddInput) (OrderOutput, error) {
+	if s.writer == nil {
+		return OrderOutput{}, errNoStandingLibrary
+	}
 	if err := s.ValidateAgent(in.Order.Agent); err != nil {
 		return OrderOutput{}, err
 	}
@@ -148,12 +154,15 @@ type EditOutput struct {
 }
 
 func (s *Service) Edit(_ context.Context, in EditInput) (EditOutput, error) {
+	if s.writer == nil {
+		return EditOutput{}, errNoStandingLibrary
+	}
 	if in.Agent.Present {
 		if err := s.ValidateAgent(in.Agent.Value); err != nil {
 			return EditOutput{}, err
 		}
 	}
-	order, found, err := s.writer.UpdateStanding(in.ID, func(o *orders.Order) {
+	order, found, err := s.writer.UpdateStanding(in.ID, func(o *standingapi.Order) {
 		if in.Name.Present {
 			o.Name = in.Name.Value
 		}
@@ -164,7 +173,7 @@ func (s *Service) Edit(_ context.Context, in EditInput) (EditOutput, error) {
 			o.Agent = strings.TrimSpace(in.Agent.Value)
 		}
 		if in.Mode.Present {
-			o.Initiative.Mode = orders.InitiativeMode(in.Mode.Value)
+			o.Initiative.Mode = standingapi.InitiativeMode(in.Mode.Value)
 		}
 		if in.MaxTrust.Present {
 			o.Initiative.MaxTrust = in.MaxTrust.Value
@@ -195,6 +204,9 @@ type EnableInput struct {
 }
 
 func (s *Service) SetEnabled(_ context.Context, in EnableInput) (OrderOutput, error) {
+	if s.writer == nil || s.reader == nil {
+		return OrderOutput{}, errNoStandingLibrary
+	}
 	if in.Enabled {
 		order, found := s.reader.Get(in.ID)
 		if !found {
@@ -218,6 +230,9 @@ type RemoveOutput struct {
 }
 
 func (s *Service) Remove(_ context.Context, in RemoveInput) (RemoveOutput, error) {
+	if s.writer == nil {
+		return RemoveOutput{}, errNoStandingLibrary
+	}
 	removed, err := s.writer.RemoveStanding(in.ID)
 	if err != nil {
 		return RemoveOutput{}, err

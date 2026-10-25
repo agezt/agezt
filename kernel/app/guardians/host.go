@@ -50,8 +50,25 @@ func (h *kernelHost) UpdateAgent(ref string, mutate func(*agentapi.Profile)) (ag
 	return h.k.UpdateProfile(ref, mutate)
 }
 
+// errNoStandingLibrary is the answer the guardian host gives when the daemon
+// holds no standing library.
+//
+// The standing library is the daemon's file (W3.50): the kernel holds the
+// contract's store port, and a host that was given none holds a nil port.
+// The refusal is the answer — not a panic, and not a silent "nothing to do".
+var errNoStandingLibrary = errors.New("guardians: the standing library is not available on this daemon")
+
 // StandingOrders lists the standing orders the daemon knows.
-func (h *kernelHost) StandingOrders() []standingapi.Order { return h.k.Standing().List() }
+//
+// The standing library is the daemon's file (W3.50): a host without it holds
+// a nil port, and the guardian sees no standing orders rather than calling
+// into nothing.
+func (h *kernelHost) StandingOrders() []standingapi.Order {
+	if h.k.Standing() == nil {
+		return nil
+	}
+	return h.k.Standing().List()
+}
 
 // UpdateStanding edits the order named by id.
 func (h *kernelHost) UpdateStanding(id string, mutate func(*standingapi.Order)) (standingapi.Order, bool, error) {
@@ -60,6 +77,9 @@ func (h *kernelHost) UpdateStanding(id string, mutate func(*standingapi.Order)) 
 
 // AddStanding creates a standing order.
 func (h *kernelHost) AddStanding(o standingapi.Order) (standingapi.Order, error) {
+	if h.k.Standing() == nil {
+		return standingapi.Order{}, errNoStandingLibrary
+	}
 	return h.k.Standing().Add(o)
 }
 

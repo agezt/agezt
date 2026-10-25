@@ -26,6 +26,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/shell"
@@ -106,6 +107,17 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 			t.Fatalf("open the schedule store: %v", err)
 		}
 		cfg.Schedules = schedstore
+	}
+	// The standing-order library is the composition root's file too (W3.50):
+	// the kernel holds the contract's store port, and the root opens the file.
+	// A caller that brought its own library (cfg.Standing) keeps it — the
+	// root only opens one when it was given none.
+	if cfg.Standing == nil {
+		standingstore, err := standing.Open(filepath.Join(dir, "standing"))
+		if err != nil {
+			t.Fatalf("open the standing store: %v", err)
+		}
+		cfg.Standing = standingstore
 	}
 	k, err := runtime.Open(cfg)
 	if err != nil {

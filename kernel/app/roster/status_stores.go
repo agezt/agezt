@@ -10,10 +10,10 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/event"
 	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
-	"github.com/agezt/agezt/kernel/standing"
 )
 
 // CollectStatus assembles the whole roster status snapshot from the host's
@@ -81,7 +81,7 @@ func CollectWakeStatus(src StatusSources, profiles []core.Profile) map[string]Wa
 				row := out[p.Slug]
 				row.StandingCount++
 				for _, t := range o.Triggers {
-					if t.Type == standing.TriggerEvent && strings.TrimSpace(t.Subject) != "" {
+					if t.Type == standingapi.TriggerEvent && strings.TrimSpace(t.Subject) != "" {
 						row.EventSubjects = append(row.EventSubjects, strings.TrimSpace(t.Subject))
 					}
 				}

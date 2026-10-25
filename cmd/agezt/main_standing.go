@@ -11,14 +11,21 @@ import (
 	"os"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/standing"
 )
 
-func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief func(ctx context.Context, kind, text string)) (string, func(id string) bool) {
-	fire := func(fctx context.Context, o standing.Order, subject string, triggerPayload map[string]any) {
+// buildStandingRunner starts the standing-order residents.
+//
+// The library is the DAEMON's file (W3.50): the daemon opened it and handed
+// the kernel the contract's store port; the residents (the event runner and
+// the cron ticker) are built over this very store, so the kernel's port and
+// the residents read the same rows.
+func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, store *standing.Store, brief func(ctx context.Context, kind, text string)) (string, func(id string) bool) {
+	fire := func(fctx context.Context, o standingapi.Order, subject string, triggerPayload map[string]any) {
 		// A fired order launches a full governed run (provider/tool/plugin code) and
 		// then briefs over the network — any of which can panic. This goroutine is
 		// dispatched with a bare `go fire(...)` by the runner/cron loop, so its own
@@ -157,7 +164,7 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief fun
 	// the triggers use — so "run now" from the console/CLI behaves exactly like a real
 	// firing. Returns false for an unknown id. Works even if auto-triggers are off.
 	fireNow := func(id string) bool {
-		o, ok := k.Standing().Get(id)
+		o, ok := store.Get(id)
 		if !ok {
 			return false
 		}
@@ -165,10 +172,10 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, brief fun
 		return true
 	}
 
-	evOK := standing.StartRunner(ctx, k.Bus(), k.Standing(), standing.RunnerConfig{}, fire)
-	cronOK := standing.StartCron(ctx, k.Standing(), nil, fire)
+	evOK := standing.StartRunner(ctx, k.Bus(), store, standing.RunnerConfig{}, fire)
+	cronOK := standing.StartCron(ctx, store, nil, fire)
 	if !evOK && !cronOK {
 		return "disabled", fireNow
 	}
-	return fmt.Sprintf("on (event + cron triggers; %d order(s) defined)", k.Standing().Count()), fireNow
+	return fmt.Sprintf("on (event + cron triggers; %d order(s) defined)", store.Count()), fireNow
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/standing"
 )
 
 // openAppKernel is shared by primary and tenant composition. Every Open binds
@@ -104,6 +105,21 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 			return nil, err
 		}
 		cfg.Schedules = store
+	}
+	if cfg.Standing == nil {
+		// The standing-order library (W3.50) — the contract's store port. The
+		// daemon opens the file (standing/standing.json) and hands the kernel
+		// the port; the daemon's residents (the event runner and the cron
+		// ticker) are built over that same store by the composition root once
+		// the kernel exists.
+		//
+		// A library that cannot be opened is a STARTUP ERROR: the standing
+		// library is part of the daemon, not a convenience.
+		store, err := standing.Open(filepath.Join(cfg.BaseDir, "standing"))
+		if err != nil {
+			return nil, err
+		}
+		cfg.Standing = store
 	}
 	if cfg.Workboard == nil {
 		// The durable task board (W3.47) — the contract's host port. The

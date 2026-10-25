@@ -12,8 +12,8 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/standing"
 )
 
 // Artifacts returns the content-addressed artifact store (SPEC-04 §3.6), where
@@ -36,16 +36,33 @@ func (k *Kernel) ArtifactIndex() artifactapi.HostIndex { return k.artIndex }
 // collections agents build and share, surfaced by the `db` tool and the Web UI.
 func (k *Kernel) DataLake() datalakeapi.Lake { return k.lake }
 
-// Standing returns the standing wake-rule store (SPEC-16 §4), backing `agt
-// standing`. Always non-nil after Open.
-func (k *Kernel) Standing() *standing.Store { return k.standing }
+// errNoStandingLibrary is the answer the kernel gives when the host holds no
+// standing-order library.
+//
+// The library is the DAEMON's file (W3.50): the kernel holds the contract's
+// store port, and a host that was given none holds a nil port. The refusal
+// is the answer — not a panic, and not a silent "nothing to do".
+var errNoStandingLibrary = errors.New("runtime: the standing library is not available on this daemon")
+
+// Standing returns the standing-order library (SPEC-16 §4), backing `agt
+// standing`.
+//
+// It is the contract's STORE port (W3.50): the daemon opens the file and
+// hands the port over, so the kernel names the contract and not the
+// module's implementation. Nil when the host gave no library — callers must
+// check, and the surfaces that do answer "not available" instead of calling
+// into nothing.
+func (k *Kernel) Standing() standingapi.Store { return k.standing }
 
 // AddStanding validates and persists a standing order, journaling
 // standing.created so the lifecycle is auditable (SPEC-16 §4).
-func (k *Kernel) AddStanding(o standing.Order) (standing.Order, error) {
+func (k *Kernel) AddStanding(o standingapi.Order) (standingapi.Order, error) {
+	if k.standing == nil {
+		return standingapi.Order{}, errNoStandingLibrary
+	}
 	saved, err := k.standing.Add(o)
 	if err != nil {
-		return standing.Order{}, err
+		return standingapi.Order{}, err
 	}
 	_, _ = k.bus.Publish(event.Spec{
 		Subject: "standing." + saved.ID, Kind: event.KindStandingCreated, Actor: "standing",
@@ -55,10 +72,13 @@ func (k *Kernel) AddStanding(o standing.Order) (standing.Order, error) {
 }
 
 // SetStandingEnabled pauses/resumes a standing order, journaling standing.updated.
-func (k *Kernel) SetStandingEnabled(id string, enabled bool) (standing.Order, error) {
+func (k *Kernel) SetStandingEnabled(id string, enabled bool) (standingapi.Order, error) {
+	if k.standing == nil {
+		return standingapi.Order{}, errNoStandingLibrary
+	}
 	o, err := k.standing.SetEnabled(id, enabled)
 	if err != nil {
-		return standing.Order{}, err
+		return standingapi.Order{}, err
 	}
 	state := "paused"
 	if enabled {
@@ -75,13 +95,16 @@ func (k *Kernel) SetStandingEnabled(id string, enabled bool) (standing.Order, er
 // standing.updated (action "edited") on success. Identity/lifecycle fields are
 // protected by the store. Returns the updated order and whether the id existed
 // (false + nil error for an unknown id, mirroring the schedule-edit path).
-func (k *Kernel) UpdateStanding(id string, mutate func(*standing.Order)) (standing.Order, bool, error) {
+func (k *Kernel) UpdateStanding(id string, mutate func(*standingapi.Order)) (standingapi.Order, bool, error) {
+	if k.standing == nil {
+		return standingapi.Order{}, false, errNoStandingLibrary
+	}
 	o, err := k.standing.Update(id, mutate)
-	if errors.Is(err, standing.ErrNotFound) {
-		return standing.Order{}, false, nil
+	if errors.Is(err, standingapi.ErrNotFound) {
+		return standingapi.Order{}, false, nil
 	}
 	if err != nil {
-		return standing.Order{}, false, err
+		return standingapi.Order{}, false, err
 	}
 	_, _ = k.bus.Publish(event.Spec{
 		Subject: "standing." + id, Kind: event.KindStandingUpdated, Actor: "standing",
@@ -93,6 +116,9 @@ func (k *Kernel) UpdateStanding(id string, mutate func(*standing.Order)) (standi
 // RemoveStanding deletes a standing order, journaling standing.removed when it
 // existed. Returns whether it existed.
 func (k *Kernel) RemoveStanding(id string) (bool, error) {
+	if k.standing == nil {
+		return false, errNoStandingLibrary
+	}
 	o, _ := k.standing.Get(id)
 	ok, err := k.standing.Remove(id)
 	if err != nil {

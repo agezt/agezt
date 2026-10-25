@@ -39,7 +39,6 @@ import (
 	"github.com/agezt/agezt/kernel/runtime/lifecycle"
 	"github.com/agezt/agezt/kernel/runtime/runexec"
 	"github.com/agezt/agezt/kernel/scheduler"
-	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/toolexec"
 	"github.com/agezt/agezt/kernel/warden"
@@ -173,10 +172,12 @@ func Open(cfg Config) (*Kernel, error) {
 	// over; a host that was given no lake holds a nil port and says "not
 	// available" rather than calling into nothing.
 
-	ststore, err := standing.Open(filepath.Join(cfg.BaseDir, "standing"))
-	if err != nil {
-		return fail("runtime: standing", err)
-	}
+	// The standing-order library is NOT opened here (W3.50) — it is the
+	// composition root's file, and the kernel holds the contract's store port
+	// (cfg.Standing). A host that was given none holds a nil port: the
+	// standing surfaces report that the library is unavailable rather than
+	// calling into nothing. The daemon's own residents (the event runner and
+	// the cron ticker) are built over that very store after Open.
 
 	// Durable in-flight-run tickets (M1002): opened only when resume is enabled so
 	// a disabled daemon writes nothing. The store just prepares a directory, so a
@@ -294,7 +295,7 @@ func Open(cfg Config) (*Kernel, error) {
 		worldDir:     wstore,
 		forge:        forge,
 		skillDir:     skstore,
-		standing:     ststore,
+		standing:     cfg.Standing,
 		resume:       rsstore,
 		roster:       rstore,
 		toolForge:    cfg.ToolForge,

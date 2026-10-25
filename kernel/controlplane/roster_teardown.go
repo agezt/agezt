@@ -12,8 +12,8 @@ package controlplane
 import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	core "github.com/agezt/agezt/kernel/modules/agents/roster"
-	"github.com/agezt/agezt/kernel/standing"
 )
 
 // teardownPorts binds the host's stores to the application's teardown.
@@ -23,7 +23,15 @@ func (s *Server) teardownPorts() approster.TeardownPorts {
 			_, err := s.k.SetProfileRetired(slug, true, reason)
 			return err
 		},
-		Standing:           func() []standing.Order { return s.k.Standing().List() },
+		Standing: func() []standingapi.Order {
+			// The standing library is the daemon's file (W3.50): a host
+			// without it holds a nil port, and the teardown sees no standing
+			// orders rather than calling into nothing.
+			if s.k.Standing() == nil {
+				return nil
+			}
+			return s.k.Standing().List()
+		},
 		RemoveStanding:     func(id string) (bool, error) { return s.k.RemoveStanding(id) },
 		SetStandingEnabled: func(id string, enabled bool) error { _, err := s.k.SetStandingEnabled(id, enabled); return err },
 		Schedules: func() []cadenceapi.Entry {
