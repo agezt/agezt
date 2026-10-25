@@ -4467,6 +4467,46 @@ This file holds the active `[Unreleased]` working set.
   No behaviour changed: the graph is still the same store, under the same
   directory, journaling the same events.
 
+  - **Removed: the kernel's reach on the skill library (W3.55).** The kernel
+    held the skills module's concrete forge and **opened the library's file**
+    itself; the run executor, the context selector, the marketplace and the
+    control plane named the module's concrete type or rows as well. The kernel
+    now holds the **contract's ports** — `skillapi.Curator` (**twenty**
+    verbs), `skillapi.Store` (**five** verbs) and a one-verb
+    `skillapi.Publisher` — and the module keeps the scored, activation-directive
+    and hygiene-report rows, the three sentinels and the retrieval/directive
+    rules as **aliases**.
+    The **rules travel with the rows**: the retrieval ranking decides which
+    skill is offered to a run and the directive parser decides what the run's
+    intent really says once the control line is stripped — both are pure
+    functions over the contract's rows, so they moved with the rows into the
+    contract.
+    The **port is split, not widened**: `skillapi.Forge` stays at its five
+    verbs (the seam the agent-facing tool drives, and the one every plugin's
+    fake implements), and the wider surface the kernel, the control plane and
+    the app layer need is the `Curator`, composed of narrow ports so each
+    keeps a single meaning.
+    The **publisher is a port, not the bus**: the forge journals through a
+    one-verb port that answers with the event's id (the skill's provenance),
+    because the durable envelope carries the hash chain and the contract layer
+    may not name it.
+    The forge is built by a **builder the daemon injects** and the file is the
+    daemon's: `cmd/agezt`'s composition root opens `skills/skills.json` and
+    hands over the builder, and the kernel calls it with the store it was
+    given and its own publisher — so every transition journals through the
+    kernel's bus without either side naming the other's implementation. A
+    **tenant** curates its own skills, because the library lives under the base
+    dir.
+    A daemon with **no** library answers instead of panicking: the kernel
+    holds a nil port (the status and the metrics report zero), and the app
+    layer refuses every surface ("the skill library is not available on this
+    daemon"). The architecture ratchet went from 33 to 28 edges.
+    Also removed as dead: the module's `WithCorrelation` (a context key
+    nothing ever read) and the kernel's `SkillStore()` accessor (called from
+    nowhere, and the only reason the kernel needed the file store's type).
+    No behaviour changed: the library is still the same store, under the same
+    directory, journaling the same events.
+
 - **Removed: the kernel's reach on the objective library (W3.53).** The kernel
   held the OKR module's concrete store and **opened the library's file** itself.
   The kernel now holds the **contract's store port** — `okrapi.Store`, nine

@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.54 the world model is the daemon's, 2026-10-25
+## Current checkpoint — W3.55 the skill library is the daemon's, 2026-10-25
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -3802,6 +3802,112 @@ files, five of the seventeen mutations would have escaped.
   fan-in, and a 28-file app layer), then **`memory`** (six edges; the manager
   is bus-bound AND LLM-bound — distill and embeddings — so its port is the
   widest of all).
+
+- W3.55 (the skill library is the daemon's) is committed on `main` the same
+  way. It takes **five** edges — the **widest** slice since the standing-order
+  library — and it takes them **completely**:
+  `cross-module kernel/runtime -> kernel/modules/skills/skill` (the kernel
+  held the module's concrete `*skill.Forge` and **opened the file** itself),
+  `cross-module kernel/runtime/runexec -> ...` (the run-executor declared the
+  module's concrete forge in its `KernelAPI`),
+  `cross-module kernel/contextselect -> ...` (the context selector named the
+  module's rows), `cross-module kernel/market -> ...` (the marketplace named
+  the module's rows) and `adapter-bypass kernel/controlplane -> ...` (the
+  control plane named the module's rows).
+  **The ratchet went DOWN by FIVE: 33/13 → 28/13.** The kernel still reaches
+  **7** modules.
+  This is the **second bus-bound module** — the first was the world model
+  (W3.54) — and it reuses that slice's pattern: a **builder injected by the
+  daemon**, a **publisher port** the kernel hands over.
+  The contract `skillapi` already existed (the agent-facing skill tool is a
+  PLUGIN and may reach the contract and nothing else); this slice **widens**
+  it with the rows the layers above the module share (`Scored`,
+  `ActivationDirective`, `HygieneReport`), the sentinels they compare against
+  (`ErrIllegalTransition`, `ErrNotFound`, `ErrEmptyBody`), the **pure rules**
+  (the retrieval ranking and the directive parser) and the **ports**: a
+  five-verb `Store`, a one-verb `Publisher`, and the **`Curator` — exactly
+  twenty verbs**, the module's whole public surface as the kernel, the control
+  plane and the app layer see it. The module keeps every name as an
+  **alias**, so there is one row and one spelling of it.
+  **The RULES travel with the ROWS**: the ranking decides which skill is
+  offered to a run and the parser decides what the run's intent really says
+  once the control line is stripped; both are pure functions over the
+  contract's rows, so they moved **with** the rows into the contract, because
+  the layers above the module rank skills and parse directives too and they
+  may not name the module to reach either.
+  **The port is SPLIT, not widened**: `skillapi.Forge` stays at its **five**
+  verbs — it is the seam the agent-facing tool drives and every plugin's fake
+  implements it — and the wider surface is the `Curator`, composed of narrow
+  ports (`Lifecycle` 4, `Activator` 2, `Outcome` 1, `Proposer` 2, `Observer`
+  2, `Bundler` 1, `Tuner` 3) so each keeps a single meaning; widening the
+  five-verb seam would have broken every plugin's fake for no benefit.
+  The **publisher is a port, not the bus**: the bus answers with the durable
+  envelope, which carries the hash chain and which the contract layer may not
+  name; the port answers with the event's **id**, which is exactly what a
+  skill records as its provenance (`SourceEvent`) and what `agt why` reads.
+  **The daemon names the module; the kernel does not**: the daemon opens
+  `skills/skills.json` and hands over the **builder**, and the kernel calls
+  that builder with the store it was given and its own publisher, so every
+  transition journals through the kernel's bus without either side naming the
+  other's implementation; because the library lives under the **base dir**, a
+  **tenant** curates **its own** skills.
+  A daemon with **no** library answers, on purpose: the **kernel** holds a
+  **nil** port (the run carries no skill, the run executor proposes nothing,
+  the status and the metrics report **zero**), the **app layer REFUSES** every
+  surface that needs the library with "the skill library is not available on
+  this daemon", and the observations' **history** still answers because it
+  folds the **journal** — the rows are there whether or not this daemon has a
+  library.
+  Two things the slice had to **fix on the way**: the module's
+  `WithCorrelation` wrote a context key **nothing ever read**, and the
+  kernel's `SkillStore()` accessor was **called from nowhere** while being
+  the only reason the kernel needed the file store's *type* — both are gone;
+  and `k.World().Count()` / `k.Forge().Count()` were called **without a
+  guard** in the status, the introspect overview and the metrics — the world
+  one was a latent hole from W3.54 and the skill one would have been the
+  same — so both now report **zero** when the port is absent.
+  Every test that expected a library became a **host**: it opens the file and
+  injects the ports.
+  **9 mutations, 9 caught** in two honest passes, **three** of them
+  **gate-measured** by archcheck (the kernel names the module again; the
+  control plane names the module again; a stale allowlist entry comes back),
+  and the **ninth** measures a **rule**: a ranking rule that quietly admits a
+  DRAFT would put a skill that was never promoted in front of the agent, and
+  no structural check can see it.
+  Two honest corrections are worth naming: the first attempt at the fourth
+  mutation **survived** because the harness replaces the **first** matching
+  line and `Count() int` sits in **two** ports — the mutation landed on the
+  store port, which the curator does not embed — so the anchor was narrowed
+  to the unique hygiene verb; and the third run hit a **file lock** (a
+  `go run` from the previous pass still had the file mapped), so the
+  harness's write now retries like its restore already did — a locked file is
+  a harness failure, never a silent pass. The fifth mutation again had to
+  travel with the **run executor's `KernelAPI` declaration**, because
+  drifting the kernel's face alone is a **build error**, not a catch (the
+  same lesson as the catalog and world-model slices, met for the third time).
+  The new permanent tests pin that the curator port is **exactly twenty**
+  verbs and each narrow port keeps its own width, that the verbs keep their
+  exact signatures, that the publisher is **one** verb answering the event's
+  id, that the **ranking rule decides right** (only the active pool is
+  offered, a non-matching intent retrieves nothing, the shadow pool is ranked
+  but never injected), that the **directive rule decides right** (the control
+  line is stripped, a bare directive keeps its intent, a plain intent stays
+  plain), that the three sentinels are the contract's and **distinct**, that
+  the module's rows and sentinels **are** the contract's (by **type
+  identity**), that a forge without bundles answers a **real nil** (a typed
+  nil in an interface would look wired to the caller and panic on first use),
+  that the kernel's face is **statically** the contract's port, that a kernel
+  without a library hands over a **nil** port, that the port answers the
+  **live** rows, that every app surface refuses instead of panicking, and that
+  the daemon's library is a **directory on disk** and is the **injected** one.
+  **What remains**: the kernel still reaches **7** modules. Next, in order:
+  **`roster`** (four edges, 73 importer files, the largest fan-in, and a
+  28-file app layer; the rows are already in `agentapi` — the store port and
+  the sentinels are what is missing), then **`memory`** (six edges; the
+  manager is bus-bound AND LLM-bound — distill and embeddings — so its port
+  would be the widest of all, and it is the **third** bus-bound module, so
+  the builder-plus-publisher pattern applies), then **`mcp`** (two edges, the
+  smallest remaining family).
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
