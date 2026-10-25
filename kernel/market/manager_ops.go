@@ -10,21 +10,16 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/agezt/agezt/kernel/contract/marketapi"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
 // Listing is a catalogue row joined with install state, for the UI/CLI.
-type Listing struct {
-	MarketplaceEntry
-	Marketplace string `json:"marketplace"`
-	Builtin     bool   `json:"builtin"`
-	Installed   bool   `json:"installed"`
-	// UpdateAvailable is true only when the catalogued version is strictly
-	// NEWER than the installed one (semver precedence, see CompareVersions) —
-	// a rolled-back catalogue or a prerelease of an installed release must not
-	// offer a downgrade as an update.
-	UpdateAvailable bool `json:"update_available,omitempty"`
-}
+//
+// The row itself lives in the contract layer (kernel/contract/marketapi) —
+// the manager's port carries it. The name stays here as an alias, so every
+// existing caller is unchanged.
+type Listing = marketapi.Listing
 
 // List returns every catalogued pack across marketplaces, joined with install
 // state. Optional query filters by name/description/category/tags.

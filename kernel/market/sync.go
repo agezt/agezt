@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/marketapi"
 	"github.com/agezt/agezt/kernel/netguard"
 )
 
@@ -41,13 +42,11 @@ func NewSyncer() *Syncer {
 }
 
 // SyncResult summarizes one successful sync.
-type SyncResult struct {
-	Source    string `json:"source"`
-	URL       string `json:"url"`
-	Packs     int    `json:"packs"`
-	Bytes     int    `json:"bytes"`
-	FetchedMS int64  `json:"fetched_ms"`
-}
+//
+// The row itself lives in the contract layer (kernel/contract/marketapi) —
+// the manager's port carries it. The name stays here as an alias, so every
+// existing caller is unchanged.
+type SyncResult = marketapi.SyncResult
 
 // Sync fetches src's marketplace index + every pack, validates and verifies them,
 // and caches the result. It is keep-last-good: nothing is written to the cache

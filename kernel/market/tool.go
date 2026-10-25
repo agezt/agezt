@@ -17,16 +17,21 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/marketapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
 // Tool implements toolapi.Tool. It holds a lazy getter for the marketplace
-// manager because the daemon wires the manager (SetMarket) AFTER runtime.Open —
-// Manager is bound to Kernel.Market once the Kernel exists, and resolves at
+// port because the daemon wires the manager (SetMarket) AFTER runtime.Open —
+// the port is bound to Kernel.Market once the Kernel exists, and resolves at
 // Invoke.
+//
+// The port is the CONTRACT's (marketapi.Manager), not this module's manager:
+// the tool is the DAEMON's, and a daemon that holds a port never has to name
+// the module that implements it.
 type Tool struct {
-	Manager func() *Manager
+	Manager func() marketapi.Manager
 }
 
 // NewTool returns the `market` agent tool; bind Manager before first Invoke.
@@ -85,14 +90,14 @@ func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Resul
 	}
 }
 
-func (t *Tool) resolve() *Manager {
+func (t *Tool) resolve() marketapi.Manager {
 	if t.Manager == nil {
 		return nil
 	}
 	return t.Manager()
 }
 
-func (t *Tool) search(mgr *Manager, query string) (toolapi.Result, error) {
+func (t *Tool) search(mgr marketapi.Manager, query string) (toolapi.Result, error) {
 	listings, err := mgr.List(query)
 	if err != nil {
 		return toolapi.Result{Output: "search failed: " + err.Error(), IsError: true}, nil
@@ -122,7 +127,7 @@ func (t *Tool) search(mgr *Manager, query string) (toolapi.Result, error) {
 	return toolapi.Result{Output: b.String()}, nil
 }
 
-func (t *Tool) show(mgr *Manager, marketplace, pack string) (toolapi.Result, error) {
+func (t *Tool) show(mgr marketapi.Manager, marketplace, pack string) (toolapi.Result, error) {
 	if strings.TrimSpace(pack) == "" {
 		return toolapi.Result{Output: "op=show needs a pack name", IsError: true}, nil
 	}
@@ -149,12 +154,12 @@ func (t *Tool) show(mgr *Manager, marketplace, pack string) (toolapi.Result, err
 	return toolapi.Result{Output: b.String()}, nil
 }
 
-func (t *Tool) install(ctx context.Context, mgr *Manager, marketplace, pack string) (toolapi.Result, error) {
+func (t *Tool) install(ctx context.Context, mgr marketapi.Manager, marketplace, pack string) (toolapi.Result, error) {
 	if strings.TrimSpace(pack) == "" {
 		return toolapi.Result{Output: "op=install needs a pack name", IsError: true}, nil
 	}
 	corr := toolapi.CorrelationFromContext(ctx)
-	rec, err := mgr.Install(corr, marketplace, pack, "", nil)
+	rec, err := mgr.InstallContext(ctx, corr, marketplace, pack, "", nil)
 	if err != nil {
 		return toolapi.Result{Output: "install failed: " + err.Error(), IsError: true}, nil
 	}

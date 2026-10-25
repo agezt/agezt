@@ -537,7 +537,6 @@ func runDaemon(stdout, stderr io.Writer) int {
 		SubAgentTool:               subAgentOn,
 		ResumeEnabled:              resumeOn,               // M1002: durable in-flight-run resume across restarts
 		ResumeSnapshotMaxBytes:     resumeSnapshotMaxBytes, // M1002
-		MarketTool:                 true,                   // agents can discover + install capability packs mid-task
 		SubAgentMaxDepth:           subAgentDepth,
 		SubAgentMaxFanout:          subAgentFanout,
 		SubAgentMaxSpendMicrocents: subAgentSpendCap,

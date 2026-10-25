@@ -20,13 +20,13 @@ import (
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
+	"github.com/agezt/agezt/kernel/contract/marketapi"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/journal"
-	"github.com/agezt/agezt/kernel/market"
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
@@ -66,7 +66,7 @@ type Kernel struct {
 	worldDir     *worldmodel.FileStore
 	forge        *skill.Forge
 	skillDir     *skill.FileStore
-	marketMgr    *market.Manager
+	marketMgr    marketapi.Manager
 	standing     *standing.Store
 	resume       *resume.Store // durable in-flight-run tickets for restart resume (M1002); nil when disabled
 	roster       *roster.Store

@@ -8,7 +8,7 @@ package runtime
 
 import (
 	"github.com/agezt/agezt/kernel/cadence"
-	"github.com/agezt/agezt/kernel/market"
+	"github.com/agezt/agezt/kernel/contract/marketapi"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 )
@@ -74,11 +74,14 @@ func (k *Kernel) World() *worldmodel.Graph { return k.world }
 // activation, and post-run skill proposal. Always non-nil after Open.
 func (k *Kernel) Forge() *skill.Forge { return k.forge }
 
-// Market returns the capability marketplace manager (skill/MCP/tool packs). It is
-// nil until the daemon wires it via SetMarket (the built-in catalogue is a plugin
-// the kernel must not import, so it is injected from cmd/agezt).
-func (k *Kernel) Market() *market.Manager { return k.marketMgr }
+// Market returns the capability marketplace port (skill/MCP/tool packs). It is
+// nil until the daemon wires it via SetMarket (the built-in catalogue is a
+// plugin the kernel must not import, so it is injected from cmd/agezt).
+//
+// The port is the CONTRACT's (marketapi.Manager): the kernel holds a port, not
+// a module's concrete manager.
+func (k *Kernel) Market() marketapi.Manager { return k.marketMgr }
 
-// SetMarket injects the marketplace manager (from cmd/agezt, with the built-in
+// SetMarket injects the marketplace port (from cmd/agezt, with the built-in
 // Official library + this kernel's Forge/MCP as the install targets).
-func (k *Kernel) SetMarket(m *market.Manager) { k.marketMgr = m }
+func (k *Kernel) SetMarket(m marketapi.Manager) { k.marketMgr = m }

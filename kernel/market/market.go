@@ -70,21 +70,19 @@ type Marketplace = marketapi.Marketplace
 
 // InstalledPack records what an install materialized, so uninstall can reverse
 // exactly its own footprint (and never touch shared/other-owned resources).
-// It stays here: it is the manager's own bookkeeping, persisted in
-// installed.json — a plugin never names it.
-type InstalledPack struct {
-	Name        string   `json:"name"`
-	Version     string   `json:"version"`
-	Marketplace string   `json:"marketplace"`
-	InstalledMS int64    `json:"installed_ms"`
-	SkillIDs    []string `json:"skill_ids,omitempty"`
-	MCPServers  []string `json:"mcp_servers,omitempty"` // server names this pack added
-	ToolReqs    []string `json:"tool_reqs,omitempty"`
-	Unsigned    bool     `json:"unsigned,omitempty"`
-	// VetVerdict records the security review's verdict at install time
-	// (clean|caution|danger) — provenance for "what did I let in, knowing what?".
-	VetVerdict string `json:"vet_verdict,omitempty"`
-}
+//
+// The row itself lives in the contract layer (kernel/contract/marketapi) —
+// the manager's port carries it, so a host may hold the port without naming
+// this module. The name stays here as an alias, so every existing caller is
+// unchanged.
+type InstalledPack = marketapi.InstalledPack
+
+// Event is a progress frame emitted during install/uninstall (streamed to the UI
+// and journaled), mirroring the toolbox install stream.
+//
+// The row itself lives in the contract layer (kernel/contract/marketapi) —
+// the manager's port carries it. The name stays here as an alias.
+type Event = marketapi.Event
 
 // SkillSummary summarizes a pack's skill for an at-a-glance UI.
 //

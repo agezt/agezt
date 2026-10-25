@@ -7,6 +7,7 @@ import (
 	"time"
 
 	apptools "github.com/agezt/agezt/kernel/app/tools"
+	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/modules/agents/reaper"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
@@ -92,10 +93,20 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 	// adapter seams and hands them over as ordinary tools. They are built HERE,
 	// after the store is open, because the two that persist bytes bind it.
 	cfg.Tools = mediaTools(cfg.Tools, cfg)
+	// The market tool (W3.46): the same rule — the kernel may not name the
+	// market module, so the composition root builds the tool over the
+	// contract's marketplace port and hands it over as an ordinary tool.
+	mktTool := market.NewTool()
+	cfg.Tools = withMarketTool(cfg.Tools, mktTool)
 	k, err := kernelruntime.Open(cfg)
 	if err != nil {
 		return nil, err
 	}
+	// The tool resolves the KERNEL's marketplace port lazily: the daemon wires
+	// the manager (SetMarket) after Open, and a tenant's kernel never gets one
+	// — so a tenant's market tool reports the marketplace as unavailable
+	// instead of borrowing the primary's manager.
+	mktTool.Manager = k.Market
 	k.SetReasoning(reasoning.New(k.ReasoningDependencies()))
 	k.SetReaperScanner(reaper.New(k.ReaperPorts()))
 	return k, nil
