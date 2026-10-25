@@ -102,13 +102,10 @@ func TestInjectedToolInvokerPreservesPaths(t *testing.T) {
 		t.Run(path, func(t *testing.T) {
 			var factoryCalls, portCalls atomic.Int32
 			full := strings.Repeat("DATA", 5000)
-			k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New(), Tools: map[string]toolapi.Tool{"dump": offloadAuditTool{full}}, ScriptRunner: &stubRunner{out: full}, NewToolInvoker: func(deps toolexec.Dependencies) toolapi.Invoker {
+			k := openWithArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New(), Tools: map[string]toolapi.Tool{"dump": offloadAuditTool{full}}, ScriptRunner: &stubRunner{out: full}, NewToolInvoker: func(deps toolexec.Dependencies) toolapi.Invoker {
 				factoryCalls.Add(1)
 				return &observedInvoker{delegate: apptools.NewInvoker(deps), calls: &portCalls}
 			}})
-			if err != nil {
-				t.Fatal(err)
-			}
 			t.Cleanup(func() { k.Close() })
 			ctx := context.Background()
 			const corr = "offload-run"

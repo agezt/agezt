@@ -86,3 +86,47 @@ func TestTheIndexPortNamesOnlyContractRows(t *testing.T) {
 	// Delete(id string) error
 	check("Delete", m, []reflect.Type{str}, []reflect.Type{errType})
 }
+
+// TestTheHostPortAddsTheHostsVerbs: the host-facing port is the tool port
+// plus the six verbs the daemon and the kernel use to RUN the index — count
+// it, find one entry, record an entry for bytes that are already in the blob
+// store, count the stale ones, reclaim them, and install the ref guard.
+//
+// The count is six because each of them is a verb the host asked for by name:
+// the control plane counts and reads, the pulse path records a ref, the reaper
+// counts stale entries, the collector reclaims them, and the kernel installs
+// the journal's guard.
+func TestTheHostPortAddsTheHostsVerbs(t *testing.T) {
+	typ := reflect.TypeOf((*HostIndex)(nil)).Elem()
+	if typ.Kind() != reflect.Interface {
+		t.Fatalf("HostIndex must be an interface, got %v", typ.Kind())
+	}
+	if typ.NumMethod() != 10 {
+		t.Fatalf("the host port has %d methods, want 10", typ.NumMethod())
+	}
+	for _, name := range []string{"Get", "Count", "IndexRef", "StaleEntries", "Collect", "SetRefGuard"} {
+		if _, ok := typ.MethodByName(name); !ok {
+			t.Errorf("the host port must have a %s method", name)
+		}
+	}
+}
+
+// TestTheToolPortCannotReachTheHostsVerbs: the four-verb port is what a
+// PLUGIN holds, so the host's verbs must stay off it.
+//
+// Two of them are not merely unnecessary for a tool but dangerous: Collect
+// deletes entries, and SetRefGuard switches off the journal's protection of
+// the bytes the journal still names — a plugin that could clear the guard
+// would make the collector delete bytes a run's output still points at.
+//
+// This is the rule the split exists for: the tool port stays exactly as
+// narrow as the guard test above says, and the wider verbs live on a port
+// only the host holds.
+func TestTheToolPortCannotReachTheHostsVerbs(t *testing.T) {
+	typ := reflect.TypeOf((*Index)(nil)).Elem()
+	for _, name := range []string{"Get", "Count", "IndexRef", "StaleEntries", "Collect", "SetRefGuard"} {
+		if _, ok := typ.MethodByName(name); ok {
+			t.Errorf("the tool-facing port must not have a %s method", name)
+		}
+	}
+}

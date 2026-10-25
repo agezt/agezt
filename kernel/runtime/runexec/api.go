@@ -12,6 +12,7 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
@@ -19,7 +20,6 @@ import (
 	"github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
@@ -91,8 +91,8 @@ type KernelAPI interface {
 	Reflect() *reflect.Engine
 	SkillStore() *skill.FileStore
 	Forge() *skill.Forge
-	ArtifactStore() *artifact.Store
-	ArtifactIndex() *artifact.Index
+	ArtifactStore() artifactapi.Blob
+	ArtifactIndex() artifactapi.HostIndex
 	DataLake() datalakeapi.Lake
 	State() *state.FileStore
 	Schedules() *cadence.Store

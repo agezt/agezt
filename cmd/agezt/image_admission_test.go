@@ -49,7 +49,7 @@ func TestImageIngress(t *testing.T) {
 						}},
 					}}
 				}
-				k, err := kernelruntime.Open(cfg)
+				k, err := kernelruntime.Open(withArtifacts(t, cfg))
 				if err != nil {
 					t.Fatal(err)
 				}

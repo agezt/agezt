@@ -1443,7 +1443,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 				if err := toolSet.ConfigureLate(toolregapi.LateDeps{
 					KernelDeps: toolregapi.KernelDeps{
 						Bus:             busPort(k.Bus()),
-						Artifacts:       artifactPort(k.ArtifactIndex()),
+						Artifacts:       k.ArtifactIndex(),
 						Lake:            lakeStore(k),
 						Journal:         journalPort(k.Journal()),
 						BaseDir:         baseDir,

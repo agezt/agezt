@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/agezt/agezt/internal/atomicfile"
+	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/remoteapi"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -47,9 +48,18 @@ type Filter = remoteapi.Filter
 // The guard is asked ONCE per operation, with the candidate refs, so the host
 // can answer from a single pass over its event log instead of one pass per
 // ref. A nil guard protects nothing (the collector then behaves as before).
-type RefGuard interface {
-	ReferencedRefs(candidates []string) map[string]bool
-}
+//
+// The PORT now lives in the contract layer (kernel/contract/artifactapi —
+// W3.43): the host installs its guard on an index it does not own, so the
+// guard has to be nameable from the contract. The name stays here as an
+// alias.
+type RefGuard = artifactapi.RefGuard
+
+// The index answers the contract's ports: the host holds them, and the
+// module owns the file. The tool-facing port and the host-facing one are
+// separate on purpose — the module answers both.
+var _ artifactapi.Index = (*Index)(nil)
+var _ artifactapi.HostIndex = (*Index)(nil)
 
 // Index is a metadata sidecar over a blob Store. Entries persist as one JSON file
 // each under <baseDir>/index/<id>.json; the blob shards (<aa>/<ref>) are

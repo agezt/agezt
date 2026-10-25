@@ -8,6 +8,7 @@ import (
 
 	apptools "github.com/agezt/agezt/kernel/app/tools"
 	"github.com/agezt/agezt/kernel/modules/agents/reaper"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
 	"github.com/agezt/agezt/kernel/modules/work/seat"
@@ -51,6 +52,25 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 		// lake: seeding is not part of the port the host is given.
 		_, _ = lake.SeedBuiltins("system")
 		cfg.Lake = lake
+	}
+	if cfg.Artifacts == nil {
+		// Content-addressed artifact store (SPEC-04 §3.6) and the metadata
+		// index over it (M822). The daemon opens both and hands the kernel the
+		// contract's ports (W3.43): the files are the daemon's business.
+		//
+		// The journal's ref guard is NOT installed here — the journal is the
+		// kernel's, so the kernel installs its own guard on the index it was
+		// given.
+		store, err := artifact.Open(filepath.Join(cfg.BaseDir, "artifacts"))
+		if err != nil {
+			return nil, err
+		}
+		index, err := artifact.OpenIndex(store, filepath.Join(cfg.BaseDir, "artifacts"))
+		if err != nil {
+			return nil, err
+		}
+		cfg.Artifacts = store
+		cfg.ArtifactIndex = index
 	}
 	k, err := kernelruntime.Open(cfg)
 	if err != nil {

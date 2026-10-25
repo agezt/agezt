@@ -29,7 +29,6 @@ import (
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
@@ -157,24 +156,22 @@ func Open(cfg Config) (*Kernel, error) {
 		return fail("runtime: cadence", err)
 	}
 
-	// Content-addressed artifact store (SPEC-04 §3.6): the agent loop offloads
-	// oversized tool outputs here so the journal stays small. Store-only — no bus.
-	artStore, err := artifact.Open(filepath.Join(cfg.BaseDir, "artifacts"))
-	if err != nil {
-		return fail("runtime: artifacts", err)
+	// Content-addressed artifact store (SPEC-04 §3.6) and the metadata index
+	// over it (M822) are NOT opened here — they are the composition root's
+	// files (W3.43), and the host holds the contract's ports: cfg.Artifacts
+	// (the blob store) and cfg.ArtifactIndex (the browsable, deletable
+	// entries). A host that was given neither holds nil ports and says "not
+	// available" rather than calling into nothing.
+	//
+	// The journal owns the bytes it names: a tool.result's raw_ref points at
+	// an offloaded output, and the journal keeps that name forever. The
+	// collector must not remove a blob the journal still references, so the
+	// index asks the journal (through the guard) before it collects anything.
+	// The guard is installed HERE because the guard is the kernel's — the
+	// journal is the kernel's — and the port is what the index is.
+	if cfg.ArtifactIndex != nil {
+		cfg.ArtifactIndex.SetRefGuard(&journalRefGuard{j: j})
 	}
-	// Metadata index over the blob store (M822) — browsable/deletable entries
-	// (inbound images, tool outputs). Failure here is non-fatal to the blob store
-	// but we surface it so the operator knows the file-manager won't populate.
-	artIndex, err := artifact.OpenIndex(artStore, filepath.Join(cfg.BaseDir, "artifacts"))
-	if err != nil {
-		return fail("runtime: artifact index", err)
-	}
-	// The journal owns the bytes it names: a tool.result's raw_ref points at an
-	// offloaded output, and the journal keeps that name forever. The collector
-	// must not remove a blob the journal still references, so the index asks
-	// the journal (through the guard) before it collects anything.
-	artIndex.SetRefGuard(&journalRefGuard{j: j})
 
 	// Personal Data Lake (M834): file-based structured collections agents build
 	// and share. The lake is NOT opened here — it is the composition root's
@@ -331,8 +328,8 @@ func Open(cfg Config) (*Kernel, error) {
 		okr:          okrstore,
 		taste:        tastestore,
 		seat:         cfg.Seats,
-		artifacts:    artStore,
-		artIndex:     artIndex,
+		artifacts:    cfg.Artifacts,
+		artIndex:     cfg.ArtifactIndex,
 		lake:         cfg.Lake,
 		reflect:      reflectEng,
 		schedules:    schedStore,
@@ -357,10 +354,10 @@ func Open(cfg Config) (*Kernel, error) {
 	if mktTool != nil {
 		mktTool.Manager = k.Market
 	}
-	if imgTool != nil {
+	if imgTool != nil && k.artifacts != nil {
 		imgTool.SaveArtifact = k.artifacts.Put
 	}
-	if vTool != nil {
+	if vTool != nil && k.artifacts != nil {
 		vTool.SaveArtifact = k.artifacts.Put
 	}
 

@@ -19,6 +19,7 @@ import (
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/reaper"
+	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
@@ -42,6 +43,19 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 	t.Helper()
 	dir := t.TempDir()
 	cfg.BaseDir = dir
+	// The artifact store and its metadata index are the composition root's
+	// files (W3.43): the kernel holds the contract's ports, and the root
+	// opens the files.
+	store, err := artifact.Open(filepath.Join(dir, "artifacts"))
+	if err != nil {
+		t.Fatalf("open artifact store: %v", err)
+	}
+	index, err := artifact.OpenIndex(store, filepath.Join(dir, "artifacts"))
+	if err != nil {
+		t.Fatalf("open artifact index: %v", err)
+	}
+	cfg.Artifacts = store
+	cfg.ArtifactIndex = index
 	k, err := runtime.Open(cfg)
 	if err != nil {
 		t.Fatalf("Open: %v", err)

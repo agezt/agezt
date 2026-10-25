@@ -3,6 +3,7 @@
 package runtime_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
@@ -11,6 +12,30 @@ import (
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
+
+// openWithArtifacts opens a kernel whose artifact store and index are the
+// ones the composition root would open (W3.43): the host holds the
+// contract's ports, and a kernel opened without them has no artifact store
+// at all.
+func openWithArtifacts(t *testing.T, cfg runtime.Config) *runtime.Kernel {
+	t.Helper()
+	store, err := artifact.Open(filepath.Join(cfg.BaseDir, "artifacts"))
+	if err != nil {
+		t.Fatalf("open artifact store: %v", err)
+	}
+	index, err := artifact.OpenIndex(store, filepath.Join(cfg.BaseDir, "artifacts"))
+	if err != nil {
+		t.Fatalf("open artifact index: %v", err)
+	}
+	cfg.Artifacts = store
+	cfg.ArtifactIndex = index
+	k, err := runtime.Open(cfg)
+	if err != nil {
+		t.Fatalf("open kernel: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+	return k
+}
 
 // journalRawRefEvent journals a tool.result that names an offloaded blob —
 // the shape the agent loop writes when a tool output is too large to inline
@@ -33,15 +58,7 @@ func journalRawRefEvent(t *testing.T, k *runtime.Kernel, corr, ref string) {
 // tool output the journal named must survive the collector, and the journal's
 // raw_ref must keep working after it.
 func TestArtifactCollect_KeepsTheBlobTheJournalNames(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
-		BaseDir:  t.TempDir(),
-		Provider: mock.New(mock.FinalText("ok")),
-		Tools:    map[string]toolapi.Tool{},
-	})
-	if err != nil {
-		t.Fatalf("open kernel: %v", err)
-	}
-	defer k.Close()
+	k := openWithArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New(mock.FinalText("ok")), Tools: map[string]toolapi.Tool{}})
 
 	idx := k.ArtifactIndex()
 	if idx == nil {
@@ -83,15 +100,7 @@ func TestArtifactCollect_KeepsTheBlobTheJournalNames(t *testing.T) {
 // TestArtifactCollect_StillReapsWhatTheJournalDoesNotName: the protection is
 // narrow — an artifact the journal never named is still collected.
 func TestArtifactCollect_StillReapsWhatTheJournalDoesNotName(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
-		BaseDir:  t.TempDir(),
-		Provider: mock.New(mock.FinalText("ok")),
-		Tools:    map[string]toolapi.Tool{},
-	})
-	if err != nil {
-		t.Fatalf("open kernel: %v", err)
-	}
-	defer k.Close()
+	k := openWithArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New(mock.FinalText("ok")), Tools: map[string]toolapi.Tool{}})
 
 	idx := k.ArtifactIndex()
 	entry, err := idx.PutEntry(artifact.Entry{Kind: "image", Source: "inbound", Name: "in.png"}, []byte("png-bytes"), 1)
@@ -111,15 +120,7 @@ func TestArtifactCollect_StillReapsWhatTheJournalDoesNotName(t *testing.T) {
 // whole batch at once, so it must find EVERY candidate the journal names — not
 // just the first one it walks past.
 func TestArtifactCollect_ProtectsEveryJournalNamedBlob(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
-		BaseDir:  t.TempDir(),
-		Provider: mock.New(mock.FinalText("ok")),
-		Tools:    map[string]toolapi.Tool{},
-	})
-	if err != nil {
-		t.Fatalf("open kernel: %v", err)
-	}
-	defer k.Close()
+	k := openWithArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New(mock.FinalText("ok")), Tools: map[string]toolapi.Tool{}})
 
 	idx := k.ArtifactIndex()
 	var refs []string

@@ -29,10 +29,7 @@ func TestSharedToolAuditOffloadsLargeOutput(t *testing.T) {
 	for _, path := range []string{"direct", "workflow", "canvas", "code"} {
 		t.Run(path, func(t *testing.T) {
 			full := strings.Repeat("DATA", 5000)
-			k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New(), Tools: map[string]toolapi.Tool{"dump": offloadAuditTool{full}}, ScriptRunner: &stubRunner{out: full}})
-			if err != nil {
-				t.Fatal(err)
-			}
+			k := openWithArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New(), Tools: map[string]toolapi.Tool{"dump": offloadAuditTool{full}}, ScriptRunner: &stubRunner{out: full}})
 			t.Cleanup(func() { k.Close() })
 			ctx := context.Background()
 			const corr = "offload-run"
@@ -98,10 +95,7 @@ func TestSharedToolAuditUsesConfiguredThreshold(t *testing.T) {
 	for _, threshold := range []int{0, 16, 4096} {
 		t.Run(strconv.Itoa(threshold), func(t *testing.T) {
 			full := strings.Repeat("x", 4096)
-			k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New(), Tools: map[string]toolapi.Tool{"dump": offloadAuditTool{full}}, ArtifactThreshold: threshold})
-			if err != nil {
-				t.Fatal(err)
-			}
+			k := openWithArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New(), Tools: map[string]toolapi.Tool{"dump": offloadAuditTool{full}}, ArtifactThreshold: threshold})
 			t.Cleanup(func() { k.Close() })
 			res, err := k.RunTool(context.Background(), "threshold", "call", "dump", json.RawMessage(`{}`))
 			if err != nil || res.Output != full {

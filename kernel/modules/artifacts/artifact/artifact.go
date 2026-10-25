@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 
 	"github.com/agezt/agezt/internal/atomicfile"
+	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"lukechampine.com/blake3"
 )
 
@@ -53,6 +54,10 @@ var ErrStillReferenced = errors.New("artifact: still referenced by the journal")
 type Store struct {
 	dir string
 }
+
+// The store answers the contract's blob port: the host holds the port, and
+// the module owns the file.
+var _ artifactapi.Blob = (*Store)(nil)
 
 // Open creates (if needed) and returns a Store rooted at dir.
 func Open(dir string) (*Store, error) {

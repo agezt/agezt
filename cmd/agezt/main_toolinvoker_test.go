@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
@@ -133,6 +134,44 @@ func TestOpenAppKernelWiresTheDataLake(t *testing.T) {
 	sort.Strings(names)
 	if names[0] != "bookmarks" {
 		t.Fatalf("the daemon did not seed the built-in collections, got %v", names)
+	}
+}
+
+// TestOpenAppKernelWiresTheArtifactStore: the daemon IS the composition root
+// — it opens the content-addressed artifact store and the metadata index over
+// it, and hands the kernel the contract's ports (W3.43).
+//
+// The two are a PAIR, and the assertion is on the pair: an entry the index
+// holds must point at bytes the blob store holds. A daemon that wired two
+// unrelated stores would pass a "both ports are non-nil" check and still lose
+// every artifact it recorded.
+func TestOpenAppKernelWiresTheArtifactStore(t *testing.T) {
+	k, err := openAppKernel(kernelruntime.Config{BaseDir: t.TempDir(), Provider: mock.New(), Tools: map[string]toolapi.Tool{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	store := k.Artifacts()
+	if store == nil {
+		t.Fatal("the daemon did not wire the artifact store — the kernel holds no port")
+	}
+	idx := k.ArtifactIndex()
+	if idx == nil {
+		t.Fatal("the daemon did not wire the artifact index — the kernel holds no port")
+	}
+
+	data := []byte("the daemon's own artifact")
+	entry, err := idx.PutEntry(artifactapi.Entry{Kind: "file", Source: "run", Name: "note.txt"}, data, 1)
+	if err != nil {
+		t.Fatalf("PutEntry: %v", err)
+	}
+	got, err := store.Get(entry.Ref)
+	if err != nil {
+		t.Fatalf("the index and the blob store are not a pair: %v", err)
+	}
+	if string(got) != string(data) {
+		t.Fatalf("the blob came back as %q, want %q", got, data)
 	}
 }
 
