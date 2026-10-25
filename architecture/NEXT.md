@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.43 the artifact store is the daemon's file, 2026-10-25
+## Current checkpoint — W3.44 the media tools are the daemon's, 2026-10-25
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -3056,6 +3056,44 @@ files, five of the seventeen mutations would have escaped.
   `workflow.Engine`, `workflow.Ports`, `workflow.Provenance` and
   `workflow.Trigger` (no contract home), and it calls **seventeen** workboard
   store methods.
+- W3.44 (the media tools are the daemon's) is committed on `main` the same
+  way. It takes **four** edges at once, and they are one thing: the **voice,
+  image and rerank tools** (`kernel/runtime -> kernel/voicetool`, `->
+  kernel/imagetool`, `-> kernel/reranktool` and `kernel/runtime/runexec ->
+  kernel/voicetool`). The kernel built the three tools because the tools live
+  in their own packages and the kernel held the adapters they were built over
+  — and naming the tool package meant naming the **seam** with it. The way out
+  is not a narrower import but a different owner: **the composition root
+  builds the three tools** (`cmd/agezt/media_tools.go`) and hands them over as
+  ordinary tools in `cfg.Tools`, the way the daemon already hands over its
+  reasoning module and its reaper. The **seams became contract rows**:
+  `kernel/contract/mediaapi` is new (`Voice`, `ImageGen`, `Reranker`), the
+  tool packages keep their names as aliases, and the kernel names the
+  contract's row. The seams stay **structural** — every method set speaks only
+  in standard library types — which is what lets a provider plugin satisfy
+  them without importing the kernel, and the contract now pins that with a
+  test. The kernel keeps the **one** accessor it needs: `k.Voice()` answers
+  "is speech configured?" for the daemon's channel paths and the web UI. The
+  two tools that persist bytes bind **the daemon's own artifact store** — the
+  same store the kernel holds (W3.43) — so the bytes land exactly where they
+  did before. The tool map is **copied, never mutated**: the primary kernel
+  and every tenant share one map, and each kernel must see its own tools bound
+  to its own store.
+  **The ratchet went DOWN by FOUR: 59/13 → 55/13.**
+  **8 mutations, 8 caught**, four of them **gate-measured** by archcheck (the
+  kernel names the voice package again; the run engine names the concrete
+  voice type; the kernel builds the voice tool again; a stale allowlist entry
+  comes back).
+  **What remains**: the kernel still reaches **17** modules. Next, in order:
+  **`toolforge`** — the rows are aliases, but the kernel calls **eight** store
+  methods the contract's two-verb port does not cover. **`workflow` and
+  `workboard`** — both need wide new ports: the kernel names
+  `workflow.Engine`, `workflow.Ports`, `workflow.Provenance` and
+  `workflow.Trigger` (no contract home), and it calls **seventeen** workboard
+  store methods. **`market`** — the manager's contract port does not exist
+  yet; the tool has to move to the daemon with it. **`cadence`, `standing`,
+  `mcp`** — many callers each; the shape is known (a contract port the host
+  opens), the work is in the port's width.
 - W3.43 (the artifact store is the daemon's file) is committed on `main` the
   same way. It takes **two** edges at once — the kernel's own and the run
   engine's — and it is the one that unblocks the three media tool seams

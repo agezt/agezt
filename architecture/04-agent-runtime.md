@@ -14,7 +14,7 @@ Sibling docs: governor, Edict, approvals, warden: [05-governance-routing-securit
 |---|---|---|
 | Single-agent tool loop | `kernel/agent.Run` | model request, then tool gate/execute/finalize, then repeat. Panic firewall, iteration and cost caps, auto-continue, compaction, steering, checkpoint. |
 | Provider and Tool contracts | `kernel/agent` (`Provider`, `StreamingProvider`, `Tool`, `ToolDef`, `Result`) | Every LLM adapter and every tool in the repo implements these. |
-| Composition root | `runtime.Open` (`compose.go`) | Opens ~20 stores under `AGEZT_HOME`, builds `*Kernel`, registers in-process tools (memory/world/delegate/market/voice/image/rerank), starts the agentgw listener. |
+| Composition root | `runtime.Open` (`compose.go`) | Opens ~20 stores under `AGEZT_HOME`, builds `*Kernel`, registers in-process tools (memory/world/delegate/market), starts the agentgw listener. The daemon's own composition root (`cmd/agezt`'s `openAppKernel`) adds the voice/image/rerank tools and the seats, lake and artifact ports on top (W3.41–W3.44). |
 | Run engine | `runexec.Runner.RunWith` (+ `RunAssured`, `RunWithRetry`) | Run registration, ctx stamping, intent framing, heuristic bypass, system-prompt assembly, model resolution, LoopConfig, resume ticket, post-run hooks (distill/forge/shadow-eval/lifecycle). |
 | Tool-call policy | `(*Kernel).policyHook` (`policy.go`) | Adapts Edict to `agent.Policy`: capability resolution, trust ceiling, per-agent tool policy, epistemic gate, intent/regret gate, prompt-injection guard, auto-approve grant, live HITL via `approval.Registry.Submit`. |
 | Halt / cancel / drain | `runtime/lifecycle.Manager` | `Halt`, `HaltWith`, `CancelRun`, `DrainAndHalt`, `Resume`, `NewCorrelation` (`run-<ulid>`). |
@@ -38,14 +38,14 @@ From `internal-deps.txt` (`pkg -> deps`):
 ```
 kernel/agent        -> kernel/bus kernel/event                 (leaf-ish; imported by ~70 pkgs incl. every provider and tool)
 kernel/runtime      -> brand, agent, agentgw, approval, bus, cadence, catalog, configcenter,
-                       contextselect, delegation, edict, event, governor, imagetool, intent, intervention,
-                       journal, market, mcp, memory, okr, reflect, reranktool, resume, roster,
+                       contextselect, delegation, edict, event, governor, intent, intervention,
+                       journal, market, mcp, memory, okr, reflect, resume, roster,
                        runtime/lifecycle, runtime/runexec, scheduler, skill, standing, state,
-                       taste, tenantctx, toolexec, toolforge, ulid, voicetool, warden, workboard, workflow, worldmodel
-                       (contract/{artifactapi,assureapi,datalakeapi,proofapi,seatapi} — the rows and ports, W3.41–W3.43)
+                       taste, tenantctx, toolexec, toolforge, ulid, warden, workboard, workflow, worldmodel
+                       (contract/{artifactapi,assureapi,datalakeapi,mediaapi,proofapi,seatapi} — the rows and ports, W3.41–W3.44)
 kernel/runtime/runexec   -> agent, agentgw, approval, assure, bus, cadence, catalog, configcenter,
                             edict, event, intent, journal, memory, reflect, resume, roster, scheduler, skill, standing,
-                            state, voicetool, warden, worldmodel           (never imports kernel/runtime; KernelAPI interface)
+                            state, warden, worldmodel           (never imports kernel/runtime; KernelAPI interface)
 kernel/runtime/lifecycle -> event, ulid
 kernel/runtime/compose   -> agent, edict, imagetool, mcp, reranktool, voicetool, warden    (NO importers: dead)
 kernel/contract/types    -> (none)   (the shared value types; L1 contract, W2.58)
@@ -286,9 +286,9 @@ Order (each store registers a closer; `fail()` unwinds them in reverse):
 4. `cadence.OpenStore(cadence/)`, `standing.Open(standing/)`. The **artifact store and its metadata index are NOT opened here** — they are the composition root's files (W3.43), and the kernel holds `cfg.Artifacts` and `cfg.ArtifactIndex`, the contract's ports.
 5. `resume.Open(resume/, ResumeSnapshotMaxBytes)`, only when `ResumeEnabled`.
 6. `roster/`, `toolforge/`, `mcp/`, `workflows/`, `workboard/`, `okr/`, `taste/` stores; `reflect.New(journal, world, bus)`. The **seat catalog is NOT opened here** — it is the composition root's file (W3.41), and the kernel holds `cfg.Seats`, the contract's port.
-7. Effective tools: `cfg.Tools` plus `memory` (MemoryTool), `world` (WorldTool), `delegate` and `delegate_await` (SubAgentTool), `market` (MarketTool), `voice`, `image_generate`, `rerank` (when their implementations are injected).
+7. Effective tools: `cfg.Tools` plus `memory` (MemoryTool), `world` (WorldTool), `delegate` and `delegate_await` (SubAgentTool), `market` (MarketTool). The **voice, image_generate and rerank tools are NOT registered here** — they live in their own packages, and the kernel is a module that may not name a module's implementation, so the composition root builds them and hands them over in `cfg.Tools` (W3.44).
 8. Catalog: `cfg.Catalog` or `catalog.NewStore(catDir).Load()`, then `governor.SetCatalog(cat)` (global).
-9. Build `*Kernel`, then late-bind the closures: `subTool.run=k.runSubAgent`, `subTool.spawn=k.runSubAgentAsync`, `awaitTool.await=k.awaitSubAgent`, `mktTool.Manager=k.Market`, and `SaveArtifact=k.artifacts.Put` for image and voice.
+9. Build `*Kernel`, then late-bind the closures: `subTool.run=k.runSubAgent`, `subTool.spawn=k.runSubAgentAsync`, `awaitTool.await=k.awaitSubAgent`, `mktTool.Manager=k.Market`.
 10. `configcenter.Open`, then `agentgw.NewGateway` (token secret via `agentgw.ResolveTokenSecret`; `AGEZT_AGENTGW_SOCKET` override read directly with `os.Getenv`). Then `go agentGW.Listen(context.Background())`.
 11. `lifecycle.New(k)`, `runexec.New(k)`.
 
@@ -455,7 +455,7 @@ Numbered narrative with the real function names:
 ### 4.10 The Tool interface: registration, description to models, execution
 1. **Contract**: `agent.Tool{Definition() ToolDef; Invoke(ctx, json.RawMessage) (Result, error)}`. Declare `ToolDef.Capability` (a missing or unknown capability means DEFAULT-DENY via the Edict fallback). Declare `ToolDef.Effect` for HITL bundles, memo eligibility (read-only) and the injection guard (non-read-only).
 2. **Boot registration** (`kernel/contract/toolregapi`): each first-party tool package calls `toolregapi.Register(Spec{Name, Build, PreOpen, Configure, Late, Netguard, YieldOnConflict})` (from `plugins/builtintools`). The daemon calls `BuildAll(BuildDeps)`, which aborts on a name collision unless the later spec is `YieldOnConflict` (the plugin host loses to in-process). Then `Set.Tools()` → `runtime.Config.Tools`, `Set.ApplyPreOpen(port)` — the daemon's configuration wrapped in the contract's port by the composition root (`cmd/agezt`'s `applyPreOpen`) —, `Set.ToolCapabilities()` → `Config.ToolCapabilities`, `Set.PluginManifest()` → `Config.Plugins`; after `Open`, `Set.Configure(KernelDeps)` (wires `NetguardAware.SetOnBlock`) and `Set.ConfigureLate(LateDeps)` (channels, board).
-3. **Kernel-registered tools** at `Open`: `memory`, `world`, `delegate`, `delegate_await`, `market`, `voice`, `image_generate`, `rerank`.
+3. **Kernel-registered tools** at `Open`: `memory`, `world`, `delegate`, `delegate_await`, `market`. The **voice, image_generate and rerank tools are the host's** (W3.44): the daemon's composition root builds them over its own adapter seams and hands them over in `cfg.Tools`, so they arrive like any other tool.
 4. **Per-run dynamic tools** (`buildLoopConfig`): `mergeScriptTools` adds every ACTIVE toolforge script as `forge_<name>` (`forgedTool`, executed through `cfg.ScriptRunner`, capability `code.exec`). `mergeMCPTools` adds live MCP attachments as `mcp_<server>_<tool>` (`bridgedMCPTool`, name sanitized and capped at 64 chars), or one `mcp_<server>` `lazyMCPDispatch` when the server is `Lazy`, honouring per-server `ToolAllow`. Then the agent tool policy, noise policy and allowlist filters apply, then `tool_search` injection.
 5. **Description to model**: `buildToolDefs` lints the schemas. Each iteration offers `offeredTools` (minus repeatedly-denied ones), optionally narrowed by the `ToolSelector` (lexical; deferred mode pins `tool_search`). `ToolDef` travels in `CompletionRequest.Tools`, and each provider adapter translates it (`plugins/providers/internal/toolname` sanitizes names). The host-environment preamble also lists the tools in prose (`capabilityBriefing`, `forgeBias`).
 6. **Execution**: inside the loop (section 3.5), or shared direct/workflow `RunTool` → `toolexec.Run`. Workflow tool/HTTP/pipeline/canvas calls reach it through `invokeWorkflowTool(ctx, corr, ...)`; parsed outputs and workflow error ports are preserved. Each physical workflow tool attempt appends a ULID to its node/step hint so retries/nested runs cannot reuse an audit identity. Workflow code nodes still call `ScriptRunner` after a separate policy check and await convergence.
@@ -584,7 +584,7 @@ Root package, grouped by concern; every non-test file is listed.
 | `runtime_accessors.go` | Simple getters (Journal, Bus, State, Edict, Warden, Approvals, Scheduler, Provider, Memory, AgentGateway, Schedules, Tools), `ErrHalted`. |
 | `runtime_lifecycle.go` | KernelAPI wrappers for lifecycle/runexec (`Halted`, `RunsMu`, `RunWG`, `SetupRunState`, `CleanupRunState`, `DeregisterRunSteer`, `PublishBus`, …) and the public lifecycle API (`Halt`, `HaltWith`, `DrainAndHalt`, `CancelRun`, `Resume`, `ActiveRuns`, `NewCorrelation`, `SubjectForRun`). |
 | `accessors.go`, `accessors_ctx.go`, `accessors_misc.go`, `accessors_roster.go`, `accessors_standing.go` | Read/mutate surface: schedule engine, world/forge/market, ctx-derived getters for runexec (`WakeContext*`, `ImagesFromCtx`, `ResumeSeedFromCtx`, …), `Model/SetModel`, `System/SetSystem` (live, configMu), `Catalog/ReloadCatalog/Reload` (calls `OnReload`), `LoopRunner`, `RunPlan`, `SubAgentLimits`, roster CRUD (`AddProfile`, `UpdateProfile`, `SetProfileRetired`, `AgentImpact`), standing CRUD (`AddStanding`, …) with `standing.*`/`roster.*` events. |
-| `toolseams.go` | Aliases `Reranker`, `ImageGen`, `Voice` to the seam interfaces in reranktool/imagetool/voicetool. |
+| `toolseams.go` | Aliases `Reranker`, `ImageGen`, `Voice` to the contract's seam rows (`kernel/contract/mediaapi` — W3.44). |
 | `taste.go` | `Taste()` and `Seats()` getters. |
 
 **Run engine and context**

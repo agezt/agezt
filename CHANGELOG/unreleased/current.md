@@ -4439,6 +4439,20 @@ This file holds the active `[Unreleased]` working set.
 
 ### Removed
 
+- **Removed: the kernel's reach on the three media tool packages (W3.44).** The
+  kernel built the voice, image and rerank tools itself, which meant it named
+  the packages they live in — and the adapter seams they are built over. The
+  daemon now builds the three tools over its own seams and hands them to the
+  kernel as ordinary tools, and the seams themselves became contract rows
+  (`kernel/contract/mediaapi`), so the kernel names the contract instead of the
+  tool package. The kernel keeps the one accessor it needs — `k.Voice()`,
+  which answers "is speech configured?" for the daemon's channel paths and the
+  web UI — now with the contract's row. The two tools that persist bytes write
+  into the daemon's own artifact store, the same store the kernel holds. The
+  architecture ratchet went from 59 to 55 edges. No behaviour changed: the
+  tools are still registered under the same names, they are still governed by
+  the same capability guard, and their bytes still land in the same place.
+
 - **Removed: the kernel's reach on the artifact module (W3.43).** The kernel
   opened the content-addressed artifact store and the metadata index over it,
   and held both concrete types; the daemon now opens both and hands the kernel
