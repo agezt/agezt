@@ -9,20 +9,26 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/imagetool"
+	"github.com/agezt/agezt/kernel/reranktool"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/voicetool"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 // The mirror of plugins/builtintools' capability guard, for the tools the
 // RUNTIME registers rather than the boot registry: memory, world, delegate,
-// delegate_await, market, voice, image_generate, rerank. That package cannot see
-// these (they are wired inside Open), and these are precisely the ones that had
-// drifted — market, voice, image_generate and rerank all resolved to a
+// delegate_await and market — and for the three the HOST hands over: voice,
+// image_generate and rerank.
+//
+// That package cannot see the runtime's own (they are wired inside Open), and
+// these are precisely the ones that had drifted — market, voice,
+// image_generate and rerank all resolved to a
 // capability Edict does not govern, which is default-DENIED, so every call was
 // refused with "no trust level configured for <tool>".
 
-// stubVoice/stubImageGen/stubReranker exist only so Open registers the tools
-// their presence gates; the guard never invokes them.
+// stubVoice/stubImageGen/stubReranker exist only so the tools built over them
+// can be handed to the kernel; the guard never invokes them.
 type stubVoice struct{}
 
 func (stubVoice) Transcribe(context.Context, []byte, string) (string, error) { return "", nil }
@@ -49,16 +55,23 @@ func (stubReranker) HasRerank() bool { return true }
 // test's defaults happen to be.
 func openFullToolKernel(t *testing.T) map[string]toolapi.Tool {
 	t.Helper()
+	// The voice, image and rerank tools are the HOST's now (W3.44): the kernel
+	// is a module and may not name a tool package, so the composition root
+	// builds them and hands them over as tools. This test is such a host —
+	// and the guard below is exactly what the daemon's tools must satisfy.
+	hostTools := map[string]toolapi.Tool{
+		"voice":          voicetool.New(stubVoice{}),
+		"image_generate": imagetool.New(stubImageGen{}),
+		"rerank":         reranktool.New(stubReranker{}),
+	}
 	k, err := runtime.Open(runtime.Config{
-		BaseDir:        t.TempDir(),
-		Provider:       mock.New(mock.FinalText("ok")),
-		MemoryTool:     true,
-		WorldTool:      true,
-		SubAgentTool:   true,
-		MarketTool:     true,
-		Voice:          stubVoice{},
-		ImageGenerator: stubImageGen{},
-		Reranker:       stubReranker{},
+		BaseDir:      t.TempDir(),
+		Provider:     mock.New(mock.FinalText("ok")),
+		MemoryTool:   true,
+		WorldTool:    true,
+		SubAgentTool: true,
+		MarketTool:   true,
+		Tools:        hostTools,
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)

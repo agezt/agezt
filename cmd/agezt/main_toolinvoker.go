@@ -72,6 +72,11 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 		cfg.Artifacts = store
 		cfg.ArtifactIndex = index
 	}
+	// The voice, image and rerank tools (W3.44): the kernel may not name a tool
+	// package, so the composition root builds them over the daemon's own
+	// adapter seams and hands them over as ordinary tools. They are built HERE,
+	// after the store is open, because the two that persist bytes bind it.
+	cfg.Tools = mediaTools(cfg.Tools, cfg)
 	k, err := kernelruntime.Open(cfg)
 	if err != nil {
 		return nil, err

@@ -32,7 +32,6 @@ cross-module kernel/pulse -> kernel/agent
 cross-module kernel/reflect -> kernel/modules/knowledge/worldmodel
 cross-module kernel/runtime -> kernel/cadence
 cross-module kernel/runtime -> kernel/modules/providers/catalog
-cross-module kernel/runtime -> kernel/imagetool
 cross-module kernel/runtime -> kernel/market
 cross-module kernel/runtime -> kernel/modules/extensions/mcp
 cross-module kernel/runtime -> kernel/modules/knowledge/memory
@@ -40,11 +39,9 @@ cross-module kernel/runtime -> kernel/modules/knowledge/taste
 cross-module kernel/runtime -> kernel/modules/knowledge/worldmodel
 cross-module kernel/runtime -> kernel/modules/skills/skill
 cross-module kernel/runtime -> kernel/modules/work/okr
-cross-module kernel/runtime -> kernel/reranktool
 cross-module kernel/runtime -> kernel/modules/agents/roster
 cross-module kernel/runtime -> kernel/standing
 cross-module kernel/runtime -> kernel/modules/extensions/toolforge
-cross-module kernel/runtime -> kernel/voicetool
 cross-module kernel/runtime -> kernel/modules/work/workboard
 cross-module kernel/runtime -> kernel/modules/workflows/workflow
 cross-module kernel/runtime/runexec -> kernel/modules/work/assure
@@ -55,7 +52,6 @@ cross-module kernel/runtime/runexec -> kernel/modules/knowledge/worldmodel
 cross-module kernel/runtime/runexec -> kernel/modules/skills/skill
 cross-module kernel/runtime/runexec -> kernel/modules/agents/roster
 cross-module kernel/runtime/runexec -> kernel/standing
-cross-module kernel/runtime/runexec -> kernel/voicetool
 cross-module kernel/modules/agents/selfrepair -> kernel/modules/board/board
 cross-module kernel/modules/agents/selfrepair -> kernel/runtime
 upward kernel/channel -> kernel/bus

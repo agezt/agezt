@@ -312,22 +312,26 @@ type Config struct {
 	// tool reports the marketplace is unavailable. Off by default.
 	MarketTool bool
 
-	// Voice, when non-nil, registers the in-process `voice` tool so an agent can
-	// transcribe inbound audio (speech-to-text) and synthesize spoken replies
-	// (text-to-speech). The kernel never picks an implementation — the daemon
-	// injects one (typically the OpenAI-compatible voice adapter plugin) built
-	// from AGEZT_STT_* / AGEZT_TTS_*. Unset → no voice tool.
+	// Voice, when non-nil, is the daemon's speech adapter (typically the
+	// OpenAI-compatible voice adapter plugin) built from AGEZT_STT_* /
+	// AGEZT_TTS_*. The kernel never picks an implementation.
+	//
+	// It reaches the kernel two ways: the daemon's composition root builds the
+	// `voice` TOOL over it (the tool lives in its own package, and the kernel
+	// may not name a module's implementation — W3.44), and the kernel answers
+	// "is speech configured?" on the daemon's behalf through Voice(). Unset →
+	// no voice tool.
 	Voice Voice
 
-	// ImageGenerator, when non-nil, registers the in-process `image_generate`
-	// tool so an agent can generate images from a prompt (M997). The daemon
-	// injects one (the OpenAI-compatible image plugin) built from AGEZT_IMAGE_*.
+	// ImageGenerator, when non-nil, is the daemon's image adapter (the
+	// OpenAI-compatible image plugin) built from AGEZT_IMAGE_*. The daemon's
+	// composition root builds the `image_generate` TOOL over it (W3.44).
 	// Unset → no image tool. Generated images are saved as artifacts.
 	ImageGenerator ImageGen
-	// Reranker, when non-nil, registers the in-process `rerank` tool so an agent
-	// can reorder candidate documents by relevance with a dedicated reranking
-	// model (M997). The daemon injects one (the Cohere/Jina-style rerank plugin)
-	// built from AGEZT_RERANK_*. Unset → no rerank tool.
+	// Reranker, when non-nil, is the daemon's rerank adapter (the
+	// Cohere/Jina-style rerank plugin) built from AGEZT_RERANK_*. The daemon's
+	// composition root builds the `rerank` TOOL over it (W3.44). Unset → no
+	// rerank tool.
 	Reranker Reranker
 
 	// Forge / skill knobs (SPEC-05 §4–5; Phase 2 slice 2). The skill store

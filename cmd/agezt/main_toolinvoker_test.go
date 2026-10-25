@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"sort"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -174,6 +175,93 @@ func TestOpenAppKernelWiresTheArtifactStore(t *testing.T) {
 		t.Fatalf("the blob came back as %q, want %q", got, data)
 	}
 }
+
+// TestOpenAppKernelWiresTheMediaTools: the voice, image and rerank tools are
+// the DAEMON's (W3.44) — the kernel is a module and may not name a tool
+// package, so the composition root builds them over the daemon's own adapter
+// seams and hands them over as ordinary tools.
+//
+// The daemon end: the three tools are live in the kernel's tool set, and the
+// one that persists bytes writes into the DAEMON's artifact store — the same
+// store the kernel holds, so a synthesized reply lands where the kernel's own
+// offload path would put it.
+func TestOpenAppKernelWiresTheMediaTools(t *testing.T) {
+	callerTools := map[string]toolapi.Tool{}
+	k, err := openAppKernel(kernelruntime.Config{
+		BaseDir:        t.TempDir(),
+		Provider:       mock.New(),
+		Tools:          callerTools,
+		Voice:          daemonStubVoice{},
+		ImageGenerator: daemonStubImageGen{},
+		Reranker:       daemonStubReranker{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	// The caller's map must come back UNTOUCHED: the primary kernel and every
+	// tenant share one map, and each kernel must see its own tools bound to its
+	// own artifact store. A map written in place would hand the last kernel's
+	// tools to all of them.
+	if _, ok := callerTools["voice"]; ok {
+		t.Fatal("the daemon wrote into the caller's tool map")
+	}
+
+	tools := k.Tools()
+	for _, name := range []string{"voice", "image_generate", "rerank"} {
+		if _, ok := tools[name]; !ok {
+			t.Fatalf("the daemon did not wire the %q tool", name)
+		}
+	}
+
+	// The voice tool's artifact sink is the daemon's store: the ref it reports
+	// must resolve through the kernel's own blob port.
+	res, err := tools["voice"].Invoke(context.Background(), json.RawMessage(`{"op":"speak","text":"hello"}`))
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("the voice tool errored: %s", res.Output)
+	}
+	fields := strings.Fields(res.Output)
+	ref := fields[len(fields)-1]
+	got, err := k.Artifacts().Get(ref)
+	if err != nil {
+		t.Fatalf("the voice tool wrote somewhere else than the daemon's store: %v", err)
+	}
+	if string(got) != "AUDIO" {
+		t.Fatalf("the artifact holds %q, want %q", got, "AUDIO")
+	}
+}
+
+// daemonStubVoice / daemonStubImageGen / daemonStubReranker are the daemon's
+// adapter seams, stubbed: the tools are what the daemon builds over them, and
+// the stubs answer enough for the tools to be real.
+type daemonStubVoice struct{}
+
+func (daemonStubVoice) Transcribe(context.Context, []byte, string) (string, error) {
+	return "transcribed", nil
+}
+func (daemonStubVoice) Speak(context.Context, string) ([]byte, string, error) {
+	return []byte("AUDIO"), "audio/ogg", nil
+}
+func (daemonStubVoice) HasSTT() bool { return true }
+func (daemonStubVoice) HasTTS() bool { return true }
+
+type daemonStubImageGen struct{}
+
+func (daemonStubImageGen) GenerateImage(context.Context, string, string, string, int) ([][]byte, string, error) {
+	return [][]byte{[]byte("PNG")}, "image/png", nil
+}
+func (daemonStubImageGen) HasImage() bool { return true }
+
+type daemonStubReranker struct{}
+
+func (daemonStubReranker) Rerank(context.Context, string, []string, int) ([]int, []float64, error) {
+	return []int{0}, []float64{1}, nil
+}
+func (daemonStubReranker) HasRerank() bool { return true }
 
 // TestOpenAppKernelWiresTheReaper: the daemon IS the composition root — it
 // builds the agents module's reaper over the kernel's own ports and injects

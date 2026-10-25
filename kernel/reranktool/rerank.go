@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/mediaapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
@@ -21,14 +22,11 @@ import (
 // Reranker is the seam the `rerank` tool drives. Its method set uses only stdlib
 // types so a provider plugin satisfies it structurally without importing the
 // kernel.
-type Reranker interface {
-	// Rerank returns, in descending relevance order, the original index of each
-	// document and its relevance score (parallel slices). topN > 0 caps the
-	// number returned.
-	Rerank(ctx context.Context, query string, documents []string, topN int) ([]int, []float64, error)
-	// HasRerank reports whether reranking is configured.
-	HasRerank() bool
-}
+//
+// The PORT lives in the contract layer (kernel/contract/mediaapi — W3.44):
+// the daemon injects the seam, so it has to be nameable from the contract.
+// The name stays here as an alias.
+type Reranker = mediaapi.Reranker
 
 // rerankTool implements toolapi.Tool over a Reranker adapter.
 type rerankTool struct {

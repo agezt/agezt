@@ -25,7 +25,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/governor"
-	"github.com/agezt/agezt/kernel/imagetool"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
@@ -41,7 +40,6 @@ import (
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/reflect"
-	"github.com/agezt/agezt/kernel/reranktool"
 	"github.com/agezt/agezt/kernel/resume"
 	"github.com/agezt/agezt/kernel/runtime/lifecycle"
 	"github.com/agezt/agezt/kernel/runtime/runexec"
@@ -49,7 +47,6 @@ import (
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/toolexec"
-	"github.com/agezt/agezt/kernel/voicetool"
 	"github.com/agezt/agezt/kernel/warden"
 )
 
@@ -272,22 +269,11 @@ func Open(cfg Config) (*Kernel, error) {
 		mktTool = market.NewTool()
 		effTools["market"] = mktTool
 	}
-	// The voice tool needs the kernel's artifact store (bound just after k is
-	// built) to persist synthesized audio.
-	var vTool *voicetool.Tool
-	if cfg.Voice != nil {
-		vTool = voicetool.New(cfg.Voice)
-		effTools["voice"] = vTool
-	}
-	// image_generate needs the artifact store too (bound just after k is built).
-	var imgTool *imagetool.Tool
-	if cfg.ImageGenerator != nil {
-		imgTool = imagetool.New(cfg.ImageGenerator)
-		effTools["image_generate"] = imgTool
-	}
-	if cfg.Reranker != nil {
-		effTools["rerank"] = reranktool.New(cfg.Reranker)
-	}
+	// The voice, image and rerank tools are NOT built here (W3.44): they live
+	// in their own packages, and the kernel is a module — it may not name a
+	// module's implementation. The composition root (cmd/agezt) builds them
+	// from the daemon's own adapter seams and hands them over as ordinary
+	// tools in cfg.Tools, which is why the kernel reaches no tool package.
 
 	catStore := catalog.NewStore(catDir)
 	cat := cfg.Catalog
@@ -353,12 +339,6 @@ func Open(cfg Config) (*Kernel, error) {
 	}
 	if mktTool != nil {
 		mktTool.Manager = k.Market
-	}
-	if imgTool != nil && k.artifacts != nil {
-		imgTool.SaveArtifact = k.artifacts.Put
-	}
-	if vTool != nil && k.artifacts != nil {
-		vTool.SaveArtifact = k.artifacts.Put
 	}
 
 	// Config Center for agent SDK config access (M???)
