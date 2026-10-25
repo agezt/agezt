@@ -16,9 +16,9 @@ import (
 	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/bus"
-	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/marketapi"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
@@ -82,8 +82,8 @@ type Kernel struct {
 	artIndex     artifactapi.HostIndex // metadata sidecar over artifacts (M822): browsable/deletable entries
 	lake         datalakeapi.Lake      // Personal Data Lake (M834): agent-built structured collections
 	reflect      *reflect.Engine
-	schedules    *cadence.Store          // persistent typed schedule store (autonomy)
-	schedEngine  *cadence.Engine         // live cadence resident, set by the daemon after Open
+	schedules    cadenceapi.HostStore    // persistent typed schedule store (autonomy) — the contract's host port (W3.49)
+	schedEngine  cadenceapi.Engine       // live cadence resident, set by the daemon after Open
 	agentGW      *agentgw.Gateway        // agent subprocess gateway (agent SDK)
 	configCenter *configcenter.Center    // config center for agent SDK config access
 	toolInvoker  toolapi.Invoker         // immutable invocation port, constructed per Open

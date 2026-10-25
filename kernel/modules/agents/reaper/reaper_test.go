@@ -11,10 +11,12 @@ package reaper
 // (kernel.ReaperPorts) and to publish the events the scan reads.
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/api"
@@ -26,12 +28,21 @@ import (
 
 // openScanner spins a real kernel over a temp journal and returns it with the
 // module built over the host's ports.
+//
+// The schedule library is the daemon's file (W3.49), so the test opens it and
+// hands the kernel the contract's host port.
 func openScanner(t *testing.T) (*runtime.Kernel, *Scanner) {
 	t.Helper()
+	dir := t.TempDir()
+	sched, err := cadence.OpenStore(filepath.Join(dir, "cadence"))
+	if err != nil {
+		t.Fatalf("open the schedule store: %v", err)
+	}
 	k, err := runtime.Open(runtime.Config{
-		BaseDir:  t.TempDir(),
-		Provider: mock.New(mock.FinalText("ok")),
-		Tools:    map[string]toolapi.Tool{},
+		BaseDir:   dir,
+		Provider:  mock.New(mock.FinalText("ok")),
+		Tools:     map[string]toolapi.Tool{},
+		Schedules: sched,
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)

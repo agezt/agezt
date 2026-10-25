@@ -4,6 +4,7 @@ package controlplane_test
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -127,7 +128,14 @@ func TestStatus_SchedulesAndTenants(t *testing.T) {
 }
 
 func TestStatus_SchedulesReportsRunningFirings(t *testing.T) {
-	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	// The test is the composition root (W3.49): it opens the schedule
+	// library, hands the kernel the contract's host port and builds the
+	// resident over that very store.
+	schedStore, err := cadence.OpenStore(filepath.Join(t.TempDir(), "cadence"))
+	if err != nil {
+		t.Fatalf("open the schedule store: %v", err)
+	}
+	k, _, c, _ := startPairWithLibrary(t, mock.New(mock.FinalText("ok")), schedStore)
 	now := time.Now()
 	e, err := k.Schedules().Add("blocked schedule", time.Hour, "", "operator", now)
 	if err != nil {
@@ -137,7 +145,7 @@ func TestStatus_SchedulesReportsRunningFirings(t *testing.T) {
 		t.Fatalf("RunNow: %v", err)
 	}
 	block := make(chan struct{})
-	eng := cadence.NewEngine(k.Schedules(), func(ctx context.Context, id, intent, model string) error {
+	eng := cadence.NewEngine(schedStore, func(ctx context.Context, id, intent, model string) error {
 		<-block
 		return nil
 	}, 5*time.Millisecond, nil)

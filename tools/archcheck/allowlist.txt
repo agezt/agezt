@@ -6,7 +6,6 @@
 adapter-bypass kernel/agentgw -> kernel/modules/knowledge/memory
 adapter-bypass kernel/agentgw -> kernel/modules/agents/roster
 adapter-bypass kernel/controlplane -> kernel/modules/board/board
-adapter-bypass kernel/controlplane -> kernel/cadence
 adapter-bypass kernel/controlplane -> kernel/modules/knowledge/memory
 adapter-bypass kernel/controlplane -> kernel/modules/skills/skill
 adapter-bypass kernel/controlplane -> kernel/modules/agents/roster
@@ -28,7 +27,6 @@ cross-module kernel/market -> kernel/modules/skills/skill
 cross-module kernel/modules/knowledge/memory -> kernel/agent
 cross-module kernel/pulse -> kernel/agent
 cross-module kernel/reflect -> kernel/modules/knowledge/worldmodel
-cross-module kernel/runtime -> kernel/cadence
 cross-module kernel/runtime -> kernel/modules/providers/catalog
 cross-module kernel/runtime -> kernel/modules/extensions/mcp
 cross-module kernel/runtime -> kernel/modules/knowledge/memory
@@ -39,7 +37,6 @@ cross-module kernel/runtime -> kernel/modules/work/okr
 cross-module kernel/runtime -> kernel/modules/agents/roster
 cross-module kernel/runtime -> kernel/standing
 cross-module kernel/runtime/runexec -> kernel/modules/work/assure
-cross-module kernel/runtime/runexec -> kernel/cadence
 cross-module kernel/runtime/runexec -> kernel/modules/providers/catalog
 cross-module kernel/runtime/runexec -> kernel/modules/knowledge/memory
 cross-module kernel/runtime/runexec -> kernel/modules/knowledge/worldmodel

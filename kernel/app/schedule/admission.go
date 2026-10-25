@@ -4,7 +4,7 @@ package schedule
 
 import (
 	"errors"
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"strings"
 )
@@ -21,7 +21,7 @@ type Admission struct{ host AdmissionHost }
 
 func NewAdmission(host AdmissionHost) *Admission { return &Admission{host: host} }
 
-func (s *Admission) Runnable(e cadence.Entry) error {
+func (s *Admission) Runnable(e cadenceapi.Entry) error {
 	if strings.TrimSpace(e.Agent) != "" {
 		p, found := s.host.Agent(e.Agent)
 		if !found {
@@ -38,20 +38,20 @@ func (s *Admission) Runnable(e cadence.Entry) error {
 		}
 	}
 	switch e.Target {
-	case cadence.TargetIntent:
+	case cadenceapi.TargetIntent:
 		return nil
-	case cadence.TargetWorkflow:
+	case cadenceapi.TargetWorkflow:
 		if strings.TrimSpace(e.Workflow) == "" {
 			return errors.New("workflow schedule missing workflow target")
 		}
 		if !s.host.Workflow(e.Workflow) {
 			return errors.New("unknown workflow: " + e.Workflow)
 		}
-	case cadence.TargetSystemTask:
-		if !cadence.IsSystemTask(e.SystemTask) {
+	case cadenceapi.TargetSystemTask:
+		if !cadenceapi.IsSystemTask(e.SystemTask) {
 			return errors.New("unknown system task: " + e.SystemTask)
 		}
-	case cadence.TargetTool:
+	case cadenceapi.TargetTool:
 		if strings.TrimSpace(e.Tool) == "" {
 			return errors.New("tool schedule missing tool target")
 		}
@@ -88,12 +88,12 @@ func ValidateAgentTool(p roster.Profile, toolName string) error {
 	return nil
 }
 
-func (s *Admission) Warning(e cadence.Entry) string {
-	if e.IntervalSec <= 0 || (e.Mode != "" && e.Mode != cadence.ModeInterval && e.Mode != cadence.ModeWindow && e.Mode != cadence.ModeContinuous) {
+func (s *Admission) Warning(e cadenceapi.Entry) string {
+	if e.IntervalSec <= 0 || (e.Mode != "" && e.Mode != cadenceapi.ModeInterval && e.Mode != cadenceapi.ModeWindow && e.Mode != cadenceapi.ModeContinuous) {
 		return ""
 	}
-	if e.Target == cadence.TargetSystemTask {
-		for _, info := range cadence.SystemTaskInfos() {
+	if e.Target == cadenceapi.TargetSystemTask {
+		for _, info := range cadenceapi.SystemTaskInfos() {
 			if info.Name == e.SystemTask && info.RecommendedIntervalSec > 0 && e.IntervalSec < info.RecommendedIntervalSec {
 				return "system task runs more frequently than its recommended cadence"
 			}
@@ -105,7 +105,7 @@ func (s *Admission) Warning(e cadence.Entry) string {
 			return "system agent schedule is more frequent than the guardian quiet window"
 		}
 	}
-	if e.Target == cadence.TargetIntent && e.IntervalSec < 15*60 {
+	if e.Target == cadenceapi.TargetIntent && e.IntervalSec < 15*60 {
 		return "agent wake schedule is very frequent"
 	}
 	return ""

@@ -11,8 +11,8 @@ package controlplane
 
 import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
-	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
@@ -24,7 +24,15 @@ import (
 // derivation.
 func (s *Server) impactPorts() approster.ImpactPorts {
 	return approster.ImpactPorts{
-		Schedules:     func() []cadence.Entry { return s.k.Schedules().List() },
+		Schedules: func() []cadenceapi.Entry {
+			// The schedule library is the daemon's file (W3.49): a host
+			// without it holds a nil port, and the impact derivation sees no
+			// schedules rather than calling into nothing.
+			if s.k.Schedules() == nil {
+				return nil
+			}
+			return s.k.Schedules().List()
+		},
 		MemoryRecords: func() ([]memory.Record, error) { return s.k.Memory().Active() },
 		Skills:        func() ([]skill.Skill, error) { return s.k.Forge().List() },
 		ConfigEntries: func() []*configcenter.ConfigEntry {

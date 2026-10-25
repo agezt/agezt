@@ -36,6 +36,7 @@ import (
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/app/overseer"
+	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/controlplane"
@@ -787,6 +788,20 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Default on; AGEZT_COUNCIL_WEBSEARCH=off convenes the panel with the date only.
 	cfg.CouncilWebSearch = dcfg.Misc.CouncilWebSearch
 	cfg.ConfigVault = credStore // config-center secrets live in the vault
+
+	// The typed schedule library (W3.49) — the DAEMON's file. The daemon
+	// opens it (cadence/schedules.json) and hands the kernel the contract's
+	// host port; the live cadence resident is built over this very store
+	// afterwards, once the kernel exists (buildCadence).
+	//
+	// A library that cannot be opened is a STARTUP ERROR: the schedule
+	// library is part of the daemon, not a convenience.
+	schedStore, err := cadence.OpenStore(filepath.Join(baseDir, "cadence"))
+	if err != nil {
+		fmt.Fprintf(stderr, "%s: open runtime: %v\n", brand.Binary, err)
+		return 1
+	}
+	cfg.Schedules = schedStore
 
 	var openErr error
 	k, openErr = openAppKernel(cfg)
@@ -1654,7 +1669,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 			deliverScheduled(dctx, channelSend, notifyTargets, id, answer)
 		}
 	}
-	if schedDesc := buildCadence(ctx, k, stdout, onScheduledAnswer); schedDesc != "" {
+	if schedDesc := buildCadence(ctx, k, schedStore, stdout, onScheduledAnswer); schedDesc != "" {
 		fmt.Fprintf(stdout, "  schedule         : %s\n", schedDesc)
 	} else {
 		fmt.Fprintf(stdout, "  schedule         : disabled (set AGEZT_SCHEDULE, e.g. \"1h=summarise new commits\")\n")

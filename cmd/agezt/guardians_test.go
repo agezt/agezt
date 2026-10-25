@@ -3,8 +3,10 @@
 package main
 
 import (
+	"path/filepath"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -14,7 +16,14 @@ import (
 // holds the guardians afterwards. A daemon that handed the seeder nothing
 // would report a fleet it never created.
 func TestSeedBuiltInGuardiansSeedsTheLiveFleet(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	// The schedule library is the daemon's file (W3.49): the test opens it
+	// and hands the kernel the contract's host port.
+	dir := t.TempDir()
+	sched, err := cadence.OpenStore(filepath.Join(dir, "cadence"))
+	if err != nil {
+		t.Fatalf("open the schedule store: %v", err)
+	}
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), Schedules: sched})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

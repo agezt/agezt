@@ -6,12 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"time"
 )
 
 type EditingStore interface {
-	Get(string) (cadence.Entry, bool)
+	Get(string) (cadenceapi.Entry, bool)
 	SetIntent(string, string) (bool, error)
 	SetModel(string, string) (bool, error)
 	SetAgent(string, string) (bool, error)
@@ -39,11 +39,14 @@ func NewEditing(store EditingStore, host EditingHost) *Editing {
 }
 
 type EditState struct {
-	Current cadence.Entry
+	Current cadenceapi.Entry
 	Now     time.Time
 }
 
 func (s *Editing) Begin(_ context.Context, in IDInput) (EditState, bool) {
+	if s.store == nil {
+		return EditState{}, false
+	}
 	entry, found := s.store.Get(in.ID)
 	if !found {
 		return EditState{}, false
@@ -72,6 +75,9 @@ type EditOutput struct {
 }
 
 func (s *Editing) Apply(_ context.Context, in EditInput) (EditOutput, error) {
+	if s.store == nil {
+		return EditOutput{}, errNoScheduleLibrary
+	}
 	if err := ValidateEditCadence(in.Cadence, in.State.Now); err != nil {
 		return EditOutput{}, err
 	}
@@ -91,7 +97,7 @@ func (s *Editing) Apply(_ context.Context, in EditInput) (EditOutput, error) {
 	if in.AgentPresent {
 		_, _ = store.SetAgent(id, editAgent)
 	}
-	if target == cadence.TargetWorkflow {
+	if target == cadenceapi.TargetWorkflow {
 		if systemTask != "" {
 			return EditOutput{}, errors.New("workflow schedules cannot also set args.system_task")
 		}
@@ -113,9 +119,9 @@ func (s *Editing) Apply(_ context.Context, in EditInput) (EditOutput, error) {
 		if _, err := store.SetWorkflowTarget(id, w, payload); err != nil {
 			return EditOutput{}, err
 		}
-	} else if target != "" && target != cadence.TargetIntent {
-		if target != cadence.TargetSystemTask {
-			if target != cadence.TargetTool {
+	} else if target != "" && target != cadenceapi.TargetIntent {
+		if target != cadenceapi.TargetSystemTask {
+			if target != cadenceapi.TargetTool {
 				return EditOutput{}, errors.New("unknown schedule target: " + target)
 			}
 			if workflowRef != "" {
@@ -151,14 +157,14 @@ func (s *Editing) Apply(_ context.Context, in EditInput) (EditOutput, error) {
 			if in.PayloadPresent {
 				return EditOutput{}, errors.New("system task schedules do not accept args.payload")
 			}
-			if !cadence.IsSystemTask(systemTask) {
+			if !cadenceapi.IsSystemTask(systemTask) {
 				return EditOutput{}, errors.New("unknown system task: " + systemTask)
 			}
 			if _, err := store.SetSystemTaskTarget(id, systemTask); err != nil {
 				return EditOutput{}, err
 			}
 		}
-	} else if in.TargetPresent && target == cadence.TargetIntent {
+	} else if in.TargetPresent && target == cadenceapi.TargetIntent {
 		if _, err := store.SetIntentTarget(id); err != nil {
 			return EditOutput{}, err
 		}
@@ -174,13 +180,13 @@ func (s *Editing) Apply(_ context.Context, in EditInput) (EditOutput, error) {
 		if parseErr != nil {
 			return EditOutput{}, errors.New(parseErr.Error())
 		}
-		_, err = store.Reschedule(id, cadence.ModeOnce, 0, 0, 0, 0, "", time.Unix(int64(at), 0), now)
+		_, err = store.Reschedule(id, cadenceapi.ModeOnce, 0, 0, 0, 0, "", time.Unix(int64(at), 0), now)
 	} else if in.Cadence.Cooldown.Present {
 		sec, _, parseErr := in.Cadence.Cooldown.values()
 		if parseErr != nil {
 			return EditOutput{}, errors.New(parseErr.Error())
 		}
-		_, err = store.Reschedule(id, cadence.ModeContinuous, time.Duration(sec)*time.Second, 0, 0, 0, "", time.Time{}, now)
+		_, err = store.Reschedule(id, cadenceapi.ModeContinuous, time.Duration(sec)*time.Second, 0, 0, 0, "", time.Time{}, now)
 	} else if in.Cadence.WindowStart.Present {
 		start, _, parseErr := in.Cadence.WindowStart.values()
 		if parseErr != nil {
@@ -198,7 +204,7 @@ func (s *Editing) Apply(_ context.Context, in EditInput) (EditOutput, error) {
 		if parseErr != nil {
 			return EditOutput{}, errors.New(parseErr.Error())
 		}
-		_, err = store.Reschedule(id, cadence.ModeWindow, time.Duration(sec)*time.Second, int(start), int(end), int(days), tz, time.Time{}, now)
+		_, err = store.Reschedule(id, cadenceapi.ModeWindow, time.Duration(sec)*time.Second, int(start), int(end), int(days), tz, time.Time{}, now)
 	} else if in.Cadence.AtMinutes.Present {
 		at, _, parseErr := in.Cadence.AtMinutes.values()
 		if parseErr != nil {
@@ -208,13 +214,13 @@ func (s *Editing) Apply(_ context.Context, in EditInput) (EditOutput, error) {
 		if parseErr != nil {
 			return EditOutput{}, errors.New(parseErr.Error())
 		}
-		_, err = store.Reschedule(id, cadence.ModeDaily, 0, int(at), 0, int(days), tz, time.Time{}, now)
+		_, err = store.Reschedule(id, cadenceapi.ModeDaily, 0, int(at), 0, int(days), tz, time.Time{}, now)
 	} else if in.Cadence.Interval.Present {
 		sec, _, parseErr := in.Cadence.Interval.values()
 		if parseErr != nil {
 			return EditOutput{}, errors.New(parseErr.Error())
 		}
-		_, err = store.Reschedule(id, cadence.ModeInterval, time.Duration(sec)*time.Second, 0, 0, 0, "", time.Time{}, now)
+		_, err = store.Reschedule(id, cadenceapi.ModeInterval, time.Duration(sec)*time.Second, 0, 0, 0, "", time.Time{}, now)
 	}
 	if err != nil {
 		return EditOutput{}, err

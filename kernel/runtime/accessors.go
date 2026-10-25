@@ -7,7 +7,7 @@ package runtime
 //             god-file split. Public API unchanged.
 
 import (
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/marketapi"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
@@ -50,7 +50,10 @@ import (
 // SetScheduleEngine records the live cadence resident so status/doctor/UI
 // surfaces can observe whether scheduled work is currently running. It is set by
 // the daemon, not Open, because cmd/agezt owns the schedule target dispatcher.
-func (k *Kernel) SetScheduleEngine(e *cadence.Engine) {
+//
+// The port is the CONTRACT's (W3.49): the resident is the daemon's
+// implementation, and the kernel holds the shape of it, never the thing.
+func (k *Kernel) SetScheduleEngine(e cadenceapi.Engine) {
 	k.configMu.Lock()
 	k.schedEngine = e
 	k.configMu.Unlock()
@@ -59,7 +62,7 @@ func (k *Kernel) SetScheduleEngine(e *cadence.Engine) {
 // ScheduleEngine returns the live cadence resident when the daemon has started
 // it. Nil means schedules can still be managed in the store but no resident is
 // currently attached in this process.
-func (k *Kernel) ScheduleEngine() *cadence.Engine {
+func (k *Kernel) ScheduleEngine() cadenceapi.Engine {
 	k.configMu.Lock()
 	defer k.configMu.Unlock()
 	return k.schedEngine

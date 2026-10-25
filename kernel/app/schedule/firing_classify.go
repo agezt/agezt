@@ -5,33 +5,33 @@ package schedule
 import (
 	"strings"
 
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 )
 
-func scheduleFiredSystemTaskInfo(name string) (cadence.SystemTaskInfo, bool) {
+func scheduleFiredSystemTaskInfo(name string) (cadenceapi.SystemTaskInfo, bool) {
 	name = strings.TrimSpace(name)
-	for _, info := range cadence.SystemTaskInfos() {
+	for _, info := range cadenceapi.SystemTaskInfos() {
 		if info.Name == name {
 			return info, true
 		}
 	}
-	return cadence.SystemTaskInfo{}, false
+	return cadenceapi.SystemTaskInfo{}, false
 }
 
 func scheduleFiredExecutor(p scheduleFiredPayload) string {
 	if strings.TrimSpace(p.Executor) != "" {
 		return strings.TrimSpace(p.Executor)
 	}
-	if p.Target == cadence.TargetSystemTask {
+	if p.Target == cadenceapi.TargetSystemTask {
 		if info, ok := scheduleFiredSystemTaskInfo(p.SystemTask); ok && strings.TrimSpace(info.Executor) != "" {
 			return info.Executor
 		}
 		return "daemon"
 	}
-	if p.Target == cadence.TargetWorkflow {
+	if p.Target == cadenceapi.TargetWorkflow {
 		return "workflow"
 	}
-	if p.Target == cadence.TargetTool {
+	if p.Target == cadenceapi.TargetTool {
 		return "tool"
 	}
 	return "agent"
@@ -41,7 +41,7 @@ func scheduleFiredCategory(p scheduleFiredPayload) string {
 	if strings.TrimSpace(p.Category) != "" {
 		return strings.TrimSpace(p.Category)
 	}
-	if p.Target == cadence.TargetSystemTask {
+	if p.Target == cadenceapi.TargetSystemTask {
 		if info, ok := scheduleFiredSystemTaskInfo(p.SystemTask); ok {
 			return strings.TrimSpace(info.Category)
 		}
@@ -53,7 +53,7 @@ func scheduleFiredEffectClass(p scheduleFiredPayload) string {
 	if strings.TrimSpace(p.EffectClass) != "" {
 		return strings.TrimSpace(p.EffectClass)
 	}
-	if p.Target == cadence.TargetSystemTask {
+	if p.Target == cadenceapi.TargetSystemTask {
 		if info, ok := scheduleFiredSystemTaskInfo(p.SystemTask); ok {
 			return strings.TrimSpace(info.EffectClass)
 		}
@@ -65,20 +65,20 @@ func scheduleFiredUsesLLM(p scheduleFiredPayload) bool {
 	if p.UsesLLM != nil {
 		return *p.UsesLLM
 	}
-	return p.Target == "" || p.Target == cadence.TargetWorkflow
+	return p.Target == "" || p.Target == cadenceapi.TargetWorkflow
 }
 
 func scheduleFiredAction(p scheduleFiredPayload) string {
 	switch p.Target {
-	case cadence.TargetWorkflow:
+	case cadenceapi.TargetWorkflow:
 		if p.Workflow != "" {
 			return "run workflow " + p.Workflow
 		}
-	case cadence.TargetSystemTask:
+	case cadenceapi.TargetSystemTask:
 		if p.SystemTask != "" {
 			return "run system task " + p.SystemTask
 		}
-	case cadence.TargetTool:
+	case cadenceapi.TargetTool:
 		if p.Tool != "" {
 			return "run tool " + p.Tool
 		}

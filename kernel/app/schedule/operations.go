@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/agezt/agezt/kernel/app"
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/journal"
 	"strings"
@@ -116,11 +116,11 @@ func requestCreateCadence(in RequestInput) (CreateCadence, error) {
 	}
 	if len(in.OnceAt) > 0 {
 		at, err := number(in.OnceAt, "once_at_unix")
-		return CreateCadence{Mode: cadence.ModeOnce, OnceAt: at}, err
+		return CreateCadence{Mode: cadenceapi.ModeOnce, OnceAt: at}, err
 	}
 	if len(in.Cooldown) > 0 {
 		sec, err := number(in.Cooldown, "cooldown_sec")
-		return CreateCadence{Mode: cadence.ModeContinuous, Seconds: sec}, err
+		return CreateCadence{Mode: cadenceapi.ModeContinuous, Seconds: sec}, err
 	}
 	if len(in.WindowStart) > 0 {
 		start, err := number(in.WindowStart, "window_start")
@@ -140,7 +140,7 @@ func requestCreateCadence(in RequestInput) (CreateCadence, error) {
 			return CreateCadence{}, err
 		}
 		tz, err := requestString(in.TZ, "tz")
-		return CreateCadence{Mode: cadence.ModeWindow, At: start, End: end, Seconds: sec, Days: days, TZ: tz}, err
+		return CreateCadence{Mode: cadenceapi.ModeWindow, At: start, End: end, Seconds: sec, Days: days, TZ: tz}, err
 	}
 	if len(in.AtMinutes) > 0 {
 		at, err := number(in.AtMinutes, "at_minutes")
@@ -152,10 +152,10 @@ func requestCreateCadence(in RequestInput) (CreateCadence, error) {
 			return CreateCadence{}, err
 		}
 		tz, err := requestString(in.TZ, "tz")
-		return CreateCadence{Mode: cadence.ModeDaily, At: at, Days: days, TZ: tz}, err
+		return CreateCadence{Mode: cadenceapi.ModeDaily, At: at, Days: days, TZ: tz}, err
 	}
 	sec, err := number(in.Interval, "interval_sec")
-	return CreateCadence{Mode: cadence.ModeInterval, Seconds: sec}, err
+	return CreateCadence{Mode: cadenceapi.ModeInterval, Seconds: sec}, err
 }
 func bindSchedule[I, O any](ops *[]app.Operation, spec opapi.Spec, handler func(context.Context, I) (O, error)) error {
 	spec.AllowUnknownInput = true

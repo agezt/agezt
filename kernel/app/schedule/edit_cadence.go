@@ -4,7 +4,7 @@ package schedule
 
 import (
 	"fmt"
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"strings"
 	"time"
 )
@@ -42,8 +42,8 @@ func ValidateEditCadence(in EditCadence, now time.Time) error {
 	if sec, ok, err := in.Cooldown.values(); err != nil {
 		return err
 	} else if ok {
-		if time.Duration(sec)*time.Second < cadence.MinInterval {
-			return fmt.Errorf("cadence: cooldown %s is below the %s minimum", time.Duration(sec)*time.Second, cadence.MinInterval)
+		if time.Duration(sec)*time.Second < cadenceapi.MinInterval {
+			return fmt.Errorf("cadence: cooldown %s is below the %s minimum", time.Duration(sec)*time.Second, cadenceapi.MinInterval)
 		}
 		return nil
 	}
@@ -63,8 +63,8 @@ func ValidateEditCadence(in EditCadence, now time.Time) error {
 			return err
 		}
 		interval := time.Duration(sec) * time.Second
-		if interval < cadence.MinInterval {
-			return fmt.Errorf("cadence: interval %s is below the %s minimum", interval, cadence.MinInterval)
+		if interval < cadenceapi.MinInterval {
+			return fmt.Errorf("cadence: interval %s is below the %s minimum", interval, cadenceapi.MinInterval)
 		}
 		if int(start) < 0 || int(start) > 1439 || int(end) < 0 || int(end) > 1439 {
 			return fmt.Errorf("cadence: window bounds must be 00:00..23:59")
@@ -72,8 +72,8 @@ func ValidateEditCadence(in EditCadence, now time.Time) error {
 		if int(end) <= int(start) {
 			return fmt.Errorf("cadence: window end must be after its start")
 		}
-		if int(days) < 0 || int(days) > cadence.AllDays {
-			return fmt.Errorf("cadence: day-mask must be 0..%d", cadence.AllDays)
+		if int(days) < 0 || int(days) > cadenceapi.AllDays {
+			return fmt.Errorf("cadence: day-mask must be 0..%d", cadenceapi.AllDays)
 		}
 		return nil
 	}
@@ -87,15 +87,15 @@ func ValidateEditCadence(in EditCadence, now time.Time) error {
 		if int(at) < 0 || int(at) > 1439 {
 			return fmt.Errorf("cadence: time-of-day must be 00:00..23:59")
 		}
-		if int(days) < 0 || int(days) > cadence.AllDays {
-			return fmt.Errorf("cadence: day-mask must be 0..%d", cadence.AllDays)
+		if int(days) < 0 || int(days) > cadenceapi.AllDays {
+			return fmt.Errorf("cadence: day-mask must be 0..%d", cadenceapi.AllDays)
 		}
 		return nil
 	}
 	if sec, ok, err := in.Interval.values(); err != nil {
 		return err
-	} else if ok && time.Duration(sec)*time.Second < cadence.MinInterval {
-		return fmt.Errorf("cadence: interval %s is below the %s minimum", time.Duration(sec)*time.Second, cadence.MinInterval)
+	} else if ok && time.Duration(sec)*time.Second < cadenceapi.MinInterval {
+		return fmt.Errorf("cadence: interval %s is below the %s minimum", time.Duration(sec)*time.Second, cadenceapi.MinInterval)
 	}
 	return nil
 }

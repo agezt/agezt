@@ -4,22 +4,22 @@ package schedule
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 )
 
 type LifecycleStore interface {
-	Get(string) (cadence.Entry, bool)
+	Get(string) (cadenceapi.Entry, bool)
 	Remove(string) (bool, error)
 	RunNow(string) (bool, error)
 	SetEnabled(string, bool) (bool, error)
 }
 type Lifecycle struct {
 	store    LifecycleStore
-	validate func(cadence.Entry) error
-	publish  func(string, bool, string, cadence.Entry)
+	validate func(cadenceapi.Entry) error
+	publish  func(string, bool, string, cadenceapi.Entry)
 }
 
-func NewLifecycle(store LifecycleStore, validate func(cadence.Entry) error, publish func(string, bool, string, cadence.Entry)) *Lifecycle {
+func NewLifecycle(store LifecycleStore, validate func(cadenceapi.Entry) error, publish func(string, bool, string, cadenceapi.Entry)) *Lifecycle {
 	return &Lifecycle{store: store, validate: validate, publish: publish}
 }
 
@@ -44,6 +44,9 @@ type EnableOutput struct {
 }
 
 func (s *Lifecycle) Remove(_ context.Context, in IDInput) (RemoveOutput, error) {
+	if s.store == nil {
+		return RemoveOutput{}, errNoScheduleLibrary
+	}
 	removed, err := s.store.Remove(in.ID)
 	if err != nil {
 		return RemoveOutput{}, err
@@ -51,6 +54,9 @@ func (s *Lifecycle) Remove(_ context.Context, in IDInput) (RemoveOutput, error) 
 	return RemoveOutput{Removed: removed}, nil
 }
 func (s *Lifecycle) Run(_ context.Context, in IDInput) (RunOutput, error) {
+	if s.store == nil {
+		return RunOutput{}, errNoScheduleLibrary
+	}
 	if current, found := s.store.Get(in.ID); found && s.validate != nil {
 		if err := s.validate(current); err != nil {
 			return RunOutput{}, err
@@ -63,6 +69,9 @@ func (s *Lifecycle) Run(_ context.Context, in IDInput) (RunOutput, error) {
 	return RunOutput{Triggered: triggered}, nil
 }
 func (s *Lifecycle) Enable(_ context.Context, in EnableInput) (EnableOutput, error) {
+	if s.store == nil {
+		return EnableOutput{}, errNoScheduleLibrary
+	}
 	current, found := s.store.Get(in.ID)
 	if in.Enabled && found && s.validate != nil {
 		if err := s.validate(current); err != nil {

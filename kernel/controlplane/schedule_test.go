@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -30,7 +30,7 @@ func TestScheduleFires_JoinsRunOutcome(t *testing.T) {
 			"schedule_id": "sched-A",
 			"intent":      "Nightly label",
 			"model":       "m1",
-			"target":      cadence.TargetWorkflow,
+			"target":      cadenceapi.TargetWorkflow,
 			"workflow":    "nightly-sync",
 			"agent":       "ops",
 			"autonomy_runbook": map[string]any{
@@ -85,7 +85,7 @@ func TestScheduleFires_JoinsRunOutcome(t *testing.T) {
 	if got, _ := row["intent"].(string); got != "Nightly label" {
 		t.Errorf("intent = %q want Nightly label", got)
 	}
-	if got, _ := row["target"].(string); got != cadence.TargetWorkflow {
+	if got, _ := row["target"].(string); got != cadenceapi.TargetWorkflow {
 		t.Errorf("target = %q want workflow", got)
 	}
 	if got, _ := row["workflow"].(string); got != "nightly-sync" {
@@ -119,8 +119,8 @@ func TestScheduleFires_SystemTaskExecutionMetadata(t *testing.T) {
 		Payload: map[string]any{
 			"schedule_id": "sched-system",
 			"intent":      "system task catalog_sync",
-			"target":      cadence.TargetSystemTask,
-			"system_task": cadence.SystemTaskCatalogSync,
+			"target":      cadenceapi.TargetSystemTask,
+			"system_task": cadenceapi.SystemTaskCatalogSync,
 		},
 	})
 	_, _ = k.Bus().Publish(event.Spec{
@@ -128,14 +128,14 @@ func TestScheduleFires_SystemTaskExecutionMetadata(t *testing.T) {
 		Kind:          event.KindTaskReceived,
 		Actor:         "schedule",
 		CorrelationID: "sys-1",
-		Payload:       map[string]any{"schedule_id": "sched-system", "target": cadence.TargetSystemTask},
+		Payload:       map[string]any{"schedule_id": "sched-system", "target": cadenceapi.TargetSystemTask},
 	})
 	_, _ = k.Bus().Publish(event.Spec{
 		Subject:       "schedule.task",
 		Kind:          event.KindTaskCompleted,
 		Actor:         "schedule",
 		CorrelationID: "sys-1",
-		Payload:       map[string]any{"schedule_id": "sched-system", "target": cadence.TargetSystemTask, "answer": "system task catalog_sync completed"},
+		Payload:       map[string]any{"schedule_id": "sched-system", "target": cadenceapi.TargetSystemTask, "answer": "system task catalog_sync completed"},
 	})
 
 	res, err := c.Call(context.Background(), controlplane.CmdScheduleFires, nil)
@@ -147,7 +147,7 @@ func TestScheduleFires_SystemTaskExecutionMetadata(t *testing.T) {
 		t.Fatalf("fires = %d want 1", len(fires))
 	}
 	row, _ := fires[0].(map[string]any)
-	if row["target"] != cadence.TargetSystemTask || row["system_task"] != cadence.SystemTaskCatalogSync {
+	if row["target"] != cadenceapi.TargetSystemTask || row["system_task"] != cadenceapi.SystemTaskCatalogSync {
 		t.Fatalf("system task firing row wrong: %+v", row)
 	}
 	if row["executor"] != "daemon" || row["category"] != "catalog" || row["effect_class"] != "config_update" || row["uses_llm"] != false {
@@ -655,18 +655,18 @@ func TestScheduleSystemTasksMetadata(t *testing.T) {
 	for _, v := range raw {
 		got = append(got, v.(string))
 	}
-	if want := cadence.SystemTasks(); !reflect.DeepEqual(got, want) {
+	if want := cadenceapi.SystemTasks(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("system_tasks = %v want %v", got, want)
 	}
-	if intOf(res["count"]) != len(cadence.SystemTasks()) {
-		t.Fatalf("count = %v want %d", res["count"], len(cadence.SystemTasks()))
+	if intOf(res["count"]) != len(cadenceapi.SystemTasks()) {
+		t.Fatalf("count = %v want %d", res["count"], len(cadenceapi.SystemTasks()))
 	}
 	infoRaw, _ := res["system_task_info"].([]any)
-	if len(infoRaw) != len(cadence.SystemTasks()) {
-		t.Fatalf("system_task_info len = %d want %d", len(infoRaw), len(cadence.SystemTasks()))
+	if len(infoRaw) != len(cadenceapi.SystemTasks()) {
+		t.Fatalf("system_task_info len = %d want %d", len(infoRaw), len(cadenceapi.SystemTasks()))
 	}
 	first, _ := infoRaw[0].(map[string]any)
-	if first["name"] != cadence.SystemTaskCatalogSync || first["label"] == "" || first["description"] == "" {
+	if first["name"] != cadenceapi.SystemTaskCatalogSync || first["label"] == "" || first["description"] == "" {
 		t.Fatalf("first system_task_info missing metadata: %+v", first)
 	}
 	if first["category"] != "catalog" || first["executor"] != "daemon" || first["effect_class"] != "config_update" || first["uses_llm"] != false {

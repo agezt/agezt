@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/app/overseer"
+	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
@@ -35,6 +36,20 @@ func startPair(t *testing.T, prov llm.Provider) (*runtime.Kernel, *controlplane.
 	return startPairWithConfig(t, runtime.Config{
 		Provider: prov,
 		Tools:    map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+	})
+}
+
+// startPairWithLibrary is startPair with a schedule library the CALLER
+// opened (W3.49): the typed schedule library is the daemon's file, so a test
+// that needs the live resident opens the library itself, hands the kernel the
+// contract's host port and builds the resident over that very store — the
+// kernel's port and the resident must read the same rows.
+func startPairWithLibrary(t *testing.T, prov llm.Provider, sched *cadence.Store) (*runtime.Kernel, *controlplane.Server, *controlplane.Client, string) {
+	t.Helper()
+	return startPairWithConfig(t, runtime.Config{
+		Provider:  prov,
+		Tools:     map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Schedules: sched,
 	})
 }
 
@@ -81,6 +96,17 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 		t.Fatalf("open the workflow store: %v", err)
 	}
 	cfg.Workflows = wfstore
+	// The typed schedule library is the composition root's file too (W3.49):
+	// the kernel holds the contract's host port, and the root opens the file.
+	// A caller that brought its own library (cfg.Schedules) keeps it — the
+	// root only opens one when it was given none.
+	if cfg.Schedules == nil {
+		schedstore, err := cadence.OpenStore(filepath.Join(dir, "cadence"))
+		if err != nil {
+			t.Fatalf("open the schedule store: %v", err)
+		}
+		cfg.Schedules = schedstore
+	}
 	k, err := runtime.Open(cfg)
 	if err != nil {
 		t.Fatalf("Open: %v", err)

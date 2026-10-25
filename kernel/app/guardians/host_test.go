@@ -3,9 +3,11 @@
 package guardians
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/guardianapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
@@ -88,10 +90,20 @@ func TestTheAdapterReportsAnUnknownAgent(t *testing.T) {
 
 // TestTheAdapterAnswersTheLiveSchedules: the schedule half of the port is
 // live too — a schedule the seeder plants is really in the daemon's store.
+//
+// The test is the composition root (W3.49): the schedule library is the
+// daemon's file, so the test opens it and hands the kernel the contract's
+// host port.
 func TestTheAdapterAnswersTheLiveSchedules(t *testing.T) {
+	dir := t.TempDir()
+	sched, err := cadence.OpenStore(filepath.Join(dir, "cadence"))
+	if err != nil {
+		t.Fatalf("open the schedule store: %v", err)
+	}
 	k, err := kernelruntime.Open(kernelruntime.Config{
-		BaseDir:  t.TempDir(),
-		Provider: mock.New(),
+		BaseDir:   dir,
+		Provider:  mock.New(),
+		Schedules: sched,
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)

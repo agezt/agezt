@@ -11,7 +11,7 @@ package controlplane
 
 import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
-	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/standing"
 )
@@ -26,9 +26,27 @@ func (s *Server) teardownPorts() approster.TeardownPorts {
 		Standing:           func() []standing.Order { return s.k.Standing().List() },
 		RemoveStanding:     func(id string) (bool, error) { return s.k.RemoveStanding(id) },
 		SetStandingEnabled: func(id string, enabled bool) error { _, err := s.k.SetStandingEnabled(id, enabled); return err },
-		Schedules:          func() []cadence.Entry { return s.k.Schedules().List() },
-		RemoveSchedule:     func(id string) (bool, error) { return s.k.Schedules().Remove(id) },
-		SetScheduleEnabled: func(id string, enabled bool) (bool, error) { return s.k.Schedules().SetEnabled(id, enabled) },
+		Schedules: func() []cadenceapi.Entry {
+			// The schedule library is the daemon's file (W3.49): a host
+			// without it holds a nil port, and the teardown sees no schedules
+			// rather than calling into nothing.
+			if s.k.Schedules() == nil {
+				return nil
+			}
+			return s.k.Schedules().List()
+		},
+		RemoveSchedule: func(id string) (bool, error) {
+			if s.k.Schedules() == nil {
+				return false, nil
+			}
+			return s.k.Schedules().Remove(id)
+		},
+		SetScheduleEnabled: func(id string, enabled bool) (bool, error) {
+			if s.k.Schedules() == nil {
+				return false, nil
+			}
+			return s.k.Schedules().SetEnabled(id, enabled)
+		},
 	}
 }
 

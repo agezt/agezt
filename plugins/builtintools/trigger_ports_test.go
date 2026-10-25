@@ -5,6 +5,7 @@ package builtintools
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -71,7 +72,14 @@ func TestStandingSpecWiresTheRosterLookup(t *testing.T) {
 // daemon binds the live one. An entry the tool creates must land in the
 // kernel's own schedule store, not in a store of its own.
 func TestScheduleSpecBindsTheLiveStore(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	// The schedule library is the daemon's file (W3.49): the test opens it
+	// and hands the kernel the contract's host port.
+	dir := t.TempDir()
+	sched, err := cadence.OpenStore(filepath.Join(dir, "cadence"))
+	if err != nil {
+		t.Fatalf("open the schedule store: %v", err)
+	}
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), Schedules: sched})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
