@@ -15,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -25,10 +26,17 @@ import (
 func withTenants(t *testing.T, srv *controlplane.Server, dir string) *tenant.Registry {
 	t.Helper()
 	reg, err := tenant.New(filepath.Join(dir, "tenants"), func(id, tdir string) (io.Closer, error) {
+		// The exemplar library is the composition root's file (W3.52): each
+		// tenant opens its own, under its own base dir.
+		tasteStore, terr := taste.OpenStore(filepath.Join(tdir, "taste"))
+		if terr != nil {
+			t.Fatalf("open tenant taste store: %v", terr)
+		}
 		return runtime.Open(runtime.Config{
-			BaseDir:  tdir,
-			Provider: mock.New(mock.FinalText("tenant-ok")),
-			Tools:    map[string]toolapi.Tool{},
+			BaseDir:    tdir,
+			Provider:   mock.New(mock.FinalText("tenant-ok")),
+			Tools:      map[string]toolapi.Tool{},
+			TasteStore: tasteStore,
 		})
 	})
 	if err != nil {

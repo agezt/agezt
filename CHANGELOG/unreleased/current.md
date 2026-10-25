@@ -4439,6 +4439,29 @@ This file holds the active `[Unreleased]` working set.
 
 ### Removed
 
+- **Removed: the kernel's reach on the curated exemplar library (W3.52).** The
+  kernel held the taste module's concrete store and **opened the library's
+  file** itself. The kernel now holds the **contract's store port** —
+  `tasteapi.Store`, five verbs (`Create`, `Get`, `List`, `ForScope`, `Delete`) —
+  and the module keeps every row (`Exemplar`, `CreateSpec`, `Filter`) and the
+  `ErrNotFound` sentinel as **aliases**, so there is one row and one spelling of
+  it. The **library's file is the daemon's**: `cmd/agezt`'s composition root
+  opens `taste/taste.json` and hands the kernel the port, and a library that
+  cannot be opened is a startup error. Because the library lives under the
+  **base dir**, each **tenant** curates its own exemplars — a tenant can never
+  curate the primary's taste anchors.
+  The port is the module's whole public surface and no more, and it **carries no
+  clock**: `Create` takes `nowMS int64`, because the contract layer may not
+  name a clock and a port that reads one cannot be tested deterministically.
+  A daemon with **no** library answers two different ways, on purpose: the
+  **read** surface answers the **empty** list ("no exemplars" is an honest
+  answer, and a nil list would make every reader a potential panic), while the
+  **write** surfaces refuse ("the exemplar library is not available on this
+  daemon") — there is nowhere to write. The architecture ratchet went from 39
+  to 38 edges.
+  No behaviour changed: the exemplars are still the same store, under the same
+  directory, injected into the same runs.
+
 - **Removed: the kernel's reach on the catalog (W3.51).** The kernel held the
   catalog module's concrete store, **opened the catalog's directory** itself
   and handed the module's concrete row to the run executor, to the governor's

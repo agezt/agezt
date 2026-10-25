@@ -22,6 +22,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/agents/reaper"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
+	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
@@ -76,6 +77,14 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 	}
 	cfg.Artifacts = store
 	cfg.ArtifactIndex = index
+	// The curated exemplar library is the composition root's file too
+	// (W3.52): the kernel holds the contract's port, and the root opens the
+	// file.
+	tasteStore, err := taste.OpenStore(filepath.Join(dir, "taste"))
+	if err != nil {
+		t.Fatalf("open taste store: %v", err)
+	}
+	cfg.TasteStore = tasteStore
 	// The script-tool store is the composition root's file too (W3.45): the
 	// kernel holds the contract's port, and the root opens the file.
 	forge, err := toolforge.Open(filepath.Join(dir, "toolforge"))

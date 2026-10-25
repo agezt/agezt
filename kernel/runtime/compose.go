@@ -29,7 +29,6 @@ import (
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/modules/work/okr"
@@ -212,10 +211,11 @@ func Open(cfg Config) (*Kernel, error) {
 		return fail("runtime: okr", err)
 	}
 
-	tastestore, err := taste.OpenStore(filepath.Join(cfg.BaseDir, "taste"))
-	if err != nil {
-		return fail("runtime: taste", err)
-	}
+	// The curated exemplar library is NOT opened here (W3.52) — it is the
+	// composition root's file, and the kernel holds the contract's store port
+	// (cfg.TasteStore). A host that was given none holds a nil port and
+	// injects no exemplars into a run rather than calling into nothing. The
+	// daemon opens the file (taste/taste.json) and hands it over.
 
 	// The seat catalog is NOT opened here: the store is the composition root's
 	// business (the daemon owns the file), and the host holds the contract's
@@ -311,7 +311,7 @@ func Open(cfg Config) (*Kernel, error) {
 		workflows:    cfg.Workflows,
 		workboard:    cfg.Workboard,
 		okr:          okrstore,
-		taste:        tastestore,
+		taste:        cfg.TasteStore,
 		seat:         cfg.Seats,
 		artifacts:    cfg.Artifacts,
 		artIndex:     cfg.ArtifactIndex,

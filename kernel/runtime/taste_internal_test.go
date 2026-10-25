@@ -6,12 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
+	"github.com/agezt/agezt/kernel/contract/tasteapi"
 )
 
 func TestInjectTastePrependsExemplars(t *testing.T) {
 	system := "You are a helpful agent."
-	got := injectTaste(system, []taste.Exemplar{
+	got := injectTaste(system, []tasteapi.Exemplar{
 		{Title: "Good PR summary", Body: "One line what, one line why."},
 		{Title: "House voice", Body: "Terse, concrete, no hedging."},
 	})

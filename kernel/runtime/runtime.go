@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
+	"github.com/agezt/agezt/kernel/contract/tasteapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/toolregapi"
@@ -608,6 +609,15 @@ type Config struct {
 	// Nil means "no standing library": the standing surfaces report that the
 	// library is unavailable rather than calling into nothing.
 	Standing standingapi.Store
+
+	// TasteStore is the curated exemplar library the host holds — the
+	// contract's store port, not a module's store (W3.52). The daemon opens
+	// the file (taste/taste.json) and hands it over (cmd/agezt): the
+	// library's file is the daemon's business, and the kernel is a module.
+	//
+	// Nil means "no exemplar library": the kernel injects no exemplars into a
+	// run rather than calling into nothing.
+	TasteStore tasteapi.Store
 }
 
 // Kernel is the running Agezt instance.

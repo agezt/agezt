@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.51 the catalog directory and its syncer are the daemon's, 2026-10-25
+## Current checkpoint — W3.52 the curated exemplar library is the daemon's, 2026-10-25
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -3573,6 +3573,81 @@ files, five of the seventeen mutations would have escaped.
   port and the sentinels are missing), then **`memory`, `worldmodel`, `taste`,
   `okr`** — each one the same slice (a contract port, the daemon opening the
   file, the kernel's accessor carrying the port).
+
+- W3.52 (the curated exemplar library is the daemon's) is committed on `main`
+  the same way. It takes **one** edge — the smallest slice so far — and it
+  takes it **completely**:
+  `cross-module kernel/runtime -> kernel/modules/knowledge/taste` (the kernel
+  held the module's concrete `*taste.Store` and **opened the file** itself).
+  **The ratchet went DOWN by ONE: 39/13 → 38/13.** The kernel still reaches
+  **7** modules.
+  The slice is small **on purpose**: the measurement had six candidates left
+  (`skill`, `roster`, `memory`, `worldmodel`, `taste`, `okr`), and the first
+  thing measured was the **width** of each port, not the number of edges.
+  `skill` would have to carry the **Forge** — 15+ verbs, including `Propose`,
+  `ShadowEvaluate`, `RecordOutcome`, `ActivateFor`, `SetAutoQuarantine` and
+  `Bundles()` — and it is journaled through the bus, so the port and the
+  publisher would have to travel together; `roster` spans **73 importer
+  files**; `memory` is 6 edges wide and bus-bound; `worldmodel` is the graph
+  engine. **`taste`** is the same shape as the slices that came before it
+  (`standing`, the catalog) at a **fifth** of the width: a contract port, the
+  daemon opening the file, the kernel's accessor carrying the port. A pattern
+  proven on a one-edge slice is cheaper than a pattern proven on a fifteen-verb
+  port.
+  The contract now carries `tasteapi` — the `Exemplar`, `CreateSpec` and
+  `Filter` rows, the `ErrNotFound` sentinel, and the **`Store` port: exactly
+  five verbs** (`Create`, `Get`, `List`, `ForScope`, `Delete`), the module's
+  whole public surface and no more. The module keeps every name as an
+  **alias**, so there is one row and one spelling of it.
+  **The port carries no clock**: `Create` takes `nowMS int64`, not a
+  `time.Time` — the contract layer may not name a clock (principle P4), and a
+  port that reads one cannot be tested deterministically. The module's own
+  `Create` changed shape with it: the caller supplies the time, the store
+  records it.
+  **The library's file is the daemon's**: the composition root
+  (`cmd/agezt`'s `openAppKernel` — the same place that opens the workboard and
+  the tool-forge stores) opens `taste/taste.json` and hands the kernel the
+  port; a library that cannot be opened is a **startup error**. Because the
+  library lives under the **base dir**, a **tenant** opens **its own**
+  exemplars — the config copy in the tenant closure carries the primary's
+  port, and the composition root drops it, so a tenant can never curate the
+  primary's taste anchors. That leak would have been invisible to every test
+  on the primary.
+  A daemon with **no** library gets two different answers, on purpose: the
+  **read** surface answers the **EMPTY** list ("no exemplars" is an honest
+  answer, and a nil list would make every reader a potential panic), while the
+  **write** surfaces (create, delete) **refuse** with "the exemplar library is
+  not available on this daemon" — there is nowhere to write, so the refusal is
+  the answer. The kernel injects **no** exemplars into a run rather than
+  calling into nothing.
+  Every test that expected a store became a **host**: it opens the library and
+  injects the port.
+  **8 mutations, 8 caught** in two honest passes, **three** of them
+  **gate-measured** by archcheck (the kernel names the module again; the
+  control plane names the module again; a stale allowlist entry comes back),
+  because "the kernel's reach is smaller" is not something a test can see.
+  One correction is worth naming: the obvious version of the fourth mutation
+  — **removing** a verb from the port — **breaks the app layer that calls
+  it**, which is a **build error**, not a catch. The mutation therefore
+  **grows** the port by a sixth verb and implements it in the module too: the
+  code still compiles, and only a **static** width test can tell the two
+  apart.
+  The new permanent tests pin that the store port is **exactly five** verbs
+  wide and keeps its exact signatures, that no verb takes a `time.Time`, that
+  the sentinel the layers compare against is the contract's, that the module's
+  rows and sentinel **are** the contract's (by **type identity**), that the
+  kernel's face is **statically** the contract's port, that a kernel without
+  a library hands over a **nil** port, that the port answers the **live**
+  rows, that both app write surfaces refuse instead of panicking, that the
+  read surface answers the empty list, and that the daemon's library is a
+  **file on disk** and is the **injected** one.
+  **What remains**: the kernel still reaches **7** modules. Next, in order:
+  **`skill`** (five edges — the **width** is the work: the Forge's 15+ verbs
+  and its bus-bound publisher have to travel together), **`roster`** (four
+  edges, 73 importer files, the largest fan-in), then **`memory`,
+  `worldmodel`, `okr`** — each one the same slice this one was (a contract
+  port, the daemon opening the file, the kernel's accessor carrying the
+  port).
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

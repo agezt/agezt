@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestGet(t *testing.T) {
@@ -15,7 +14,7 @@ func TestGet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ex, err := st.Create(CreateSpec{Title: "t", Body: "b"}, time.UnixMilli(1000))
+	ex, err := st.Create(CreateSpec{Title: "t", Body: "b"}, 1000)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -35,9 +34,9 @@ func TestList_TagFilterAndLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _ = st.Create(CreateSpec{Title: "a", Body: "b", Tags: []string{"x"}}, time.UnixMilli(1000))
-	_, _ = st.Create(CreateSpec{Title: "b", Body: "b", Tags: []string{"y"}}, time.UnixMilli(2000))
-	_, _ = st.Create(CreateSpec{Title: "c", Body: "b", Tags: []string{"x"}}, time.UnixMilli(3000))
+	_, _ = st.Create(CreateSpec{Title: "a", Body: "b", Tags: []string{"x"}}, 1000)
+	_, _ = st.Create(CreateSpec{Title: "b", Body: "b", Tags: []string{"y"}}, 2000)
+	_, _ = st.Create(CreateSpec{Title: "c", Body: "b", Tags: []string{"x"}}, 3000)
 
 	// Tag filter narrows to the two "x"-tagged exemplars.
 	if got := st.List(Filter{Tag: "x"}); len(got) != 2 {
@@ -62,9 +61,9 @@ func TestForScope_Limit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _ = st.Create(CreateSpec{Title: "g1", Body: "b"}, time.UnixMilli(1000))
-	_, _ = st.Create(CreateSpec{Title: "g2", Body: "b"}, time.UnixMilli(2000))
-	_, _ = st.Create(CreateSpec{Title: "s1", Body: "b", Scope: "builder"}, time.UnixMilli(3000))
+	_, _ = st.Create(CreateSpec{Title: "g1", Body: "b"}, 1000)
+	_, _ = st.Create(CreateSpec{Title: "g2", Body: "b"}, 2000)
+	_, _ = st.Create(CreateSpec{Title: "s1", Body: "b", Scope: "builder"}, 3000)
 
 	// Limit caps ForScope results; scoped exemplar sorts first.
 	got := st.ForScope("builder", 2)
@@ -82,7 +81,7 @@ func TestCreate_BodyTooLarge(t *testing.T) {
 		t.Fatal(err)
 	}
 	big := strings.Repeat("x", maxBodyBytes+1)
-	if _, err := st.Create(CreateSpec{Title: "t", Body: big}, time.UnixMilli(1000)); err == nil {
+	if _, err := st.Create(CreateSpec{Title: "t", Body: big}, 1000); err == nil {
 		t.Fatal("Create with an over-long body should error")
 	}
 }
@@ -93,7 +92,7 @@ func TestCreate_TitleOnlyWhitespace(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Whitespace-only title trims to empty → validation error.
-	if _, err := st.Create(CreateSpec{Title: "   ", Body: "b"}, time.UnixMilli(1000)); err == nil {
+	if _, err := st.Create(CreateSpec{Title: "   ", Body: "b"}, 1000); err == nil {
 		t.Fatal("Create with a whitespace-only title should error")
 	}
 }
@@ -152,7 +151,7 @@ func TestSaveLocked_WriteError(t *testing.T) {
 	st := &Store{path: storePath}
 	// Create calls saveLocked; the write failure must propagate and roll back the
 	// in-memory append.
-	if _, err := st.Create(CreateSpec{Title: "t", Body: "b"}, time.UnixMilli(1000)); err == nil {
+	if _, err := st.Create(CreateSpec{Title: "t", Body: "b"}, 1000); err == nil {
 		t.Fatal("Create should fail when the temp file cannot be written")
 	}
 	if got := st.List(Filter{}); len(got) != 0 {
