@@ -54,7 +54,7 @@ func TestCreate_EmptyTitleSupp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.Create(CreateSpec{Title: "  "}, time.Now())
+	_, err = s.Create(CreateSpec{Title: "  "}, time.Now().UnixMilli())
 	if err == nil {
 		t.Fatal("Create with empty title should error")
 	}
@@ -65,7 +65,7 @@ func TestMutate_EmptyID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.AddKeyResult("", "kr1", 1, time.Now())
+	_, err = s.AddKeyResult("", "kr1", 1, time.Now().UnixMilli())
 	if err == nil {
 		t.Fatal("mutate with empty ID should error")
 	}

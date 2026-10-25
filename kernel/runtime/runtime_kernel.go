@@ -22,6 +22,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/marketapi"
+	"github.com/agezt/agezt/kernel/contract/okrapi"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/tasteapi"
@@ -39,7 +40,6 @@ import (
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
-	"github.com/agezt/agezt/kernel/modules/work/okr"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/resume"
 	"github.com/agezt/agezt/kernel/runtime/lifecycle"
@@ -75,7 +75,7 @@ type Kernel struct {
 	workflows    workflowapi.Store
 	wfEngine     workflowapi.Engine
 	workboard    workboardapi.HostStore
-	okr          *okr.Store
+	okr          okrapi.Store   // the objective library — the contract's store port (W3.53)
 	taste        tasteapi.Store // the curated exemplar library — the contract's store port (W3.52)
 	seat         seatapi.Store
 	artifacts    artifactapi.Blob

@@ -10,12 +10,11 @@ package okr
 
 import (
 	"strings"
-	"time"
 
 	"github.com/agezt/agezt/kernel/platform/filestore"
 )
 
-func (s *Store) mutate(id string, fn func(*Objective, int64) error, now time.Time) (Objective, error) {
+func (s *Store) mutate(id string, fn func(*Objective, int64) error, nowMS int64) (Objective, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return Objective{}, ErrNotFound
@@ -27,7 +26,7 @@ func (s *Store) mutate(id string, fn func(*Objective, int64) error, now time.Tim
 		return Objective{}, ErrNotFound
 	}
 	prev := cloneObjective(*o)
-	ts := now.UnixMilli()
+	ts := nowMS
 	if err := fn(o, ts); err != nil {
 		*o = prev
 		return Objective{}, err

@@ -8,9 +8,10 @@ package okr
 //             unchanged.
 
 import (
-	"errors"
 	"sync"
 	"time"
+
+	"github.com/agezt/agezt/kernel/contract/okrapi"
 )
 
 const (
@@ -20,19 +21,29 @@ const (
 	maxLinkedTasks = 500
 )
 
+// The sentinels the store and the layers above it answer with.
+//
+// They live in the contract layer (kernel/contract/okrapi); the names stay
+// here as aliases, so every existing caller is unchanged.
 var (
-	ErrNotFound      = errors.New("okr: not found")
-	ErrKRNotFound    = errors.New("okr: key result not found")
-	ErrInvalidStatus = errors.New("okr: invalid status")
+	ErrNotFound      = okrapi.ErrNotFound
+	ErrKRNotFound    = okrapi.ErrKRNotFound
+	ErrInvalidStatus = okrapi.ErrInvalidStatus
 )
 
 // Status is the lifecycle state of an Objective.
-type Status string
+//
+// The row itself lives in the contract layer (kernel/contract/okrapi); the
+// name stays here as an alias, so every existing caller is unchanged.
+type Status = okrapi.Status
 
 const (
-	StatusActive   Status = "active"
-	StatusAchieved Status = "achieved"
-	StatusArchived Status = "archived"
+	// StatusActive is a goal in flight.
+	StatusActive = okrapi.StatusActive
+	// StatusAchieved is a goal whose key results are all met.
+	StatusAchieved = okrapi.StatusAchieved
+	// StatusArchived is a retired goal, retained for lineage/audit.
+	StatusArchived = okrapi.StatusArchived
 )
 
 var statusValid = map[Status]bool{StatusActive: true, StatusAchieved: true, StatusArchived: true}
@@ -40,109 +51,45 @@ var statusValid = map[Status]bool{StatusActive: true, StatusAchieved: true, Stat
 // KeyResult is one measurable outcome under an Objective. Target is the number of
 // linked tasks that must be done for the KR to be met; Target == 0 means "all
 // linked tasks" (and an empty KR with no tasks is not yet met).
-type KeyResult struct {
-	ID        string   `json:"id"`
-	Title     string   `json:"title"`
-	Target    int      `json:"target,omitempty"`
-	TaskIDs   []string `json:"task_ids,omitempty"`
-	CreatedMS int64    `json:"created_ms"`
-}
+//
+// The row itself lives in the contract layer (kernel/contract/okrapi); the
+// name stays here as an alias, so every existing caller is unchanged.
+type KeyResult = okrapi.KeyResult
 
 // Objective is a durable goal owning Key Results.
-type Objective struct {
-	ID          string      `json:"id"`
-	Title       string      `json:"title"`
-	Description string      `json:"description,omitempty"`
-	Owner       string      `json:"owner,omitempty"`
-	Tenant      string      `json:"tenant,omitempty"`
-	Status      Status      `json:"status"`
-	KeyResults  []KeyResult `json:"key_results,omitempty"`
-	CreatedMS   int64       `json:"created_ms"`
-	UpdatedMS   int64       `json:"updated_ms"`
-	AchievedMS  int64       `json:"achieved_ms,omitempty"`
-}
+//
+// The row itself lives in the contract layer (kernel/contract/okrapi) — with
+// its rollup RULE (Progress) — and the name stays here as an alias, so every
+// existing caller is unchanged.
+type Objective = okrapi.Objective
 
 // KeyResultProgress is the computed rollup for one Key Result.
-type KeyResultProgress struct {
-	ID       string `json:"id"`
-	Title    string `json:"title"`
-	Done     int    `json:"done"`
-	Total    int    `json:"total"`
-	Target   int    `json:"target"`
-	Percent  int    `json:"percent"`
-	Achieved bool   `json:"achieved"`
-}
+//
+// The row itself lives in the contract layer (kernel/contract/okrapi); the
+// name stays here as an alias, so every existing caller is unchanged.
+type KeyResultProgress = okrapi.KeyResultProgress
 
 // ObjectiveProgress is the computed rollup for an Objective and its Key Results.
-type ObjectiveProgress struct {
-	ObjectiveID string              `json:"objective_id"`
-	KeyResults  []KeyResultProgress `json:"key_results"`
-	Percent     int                 `json:"percent"`
-	Achieved    bool                `json:"achieved"`
-}
+//
+// The row itself lives in the contract layer (kernel/contract/okrapi); the
+// name stays here as an alias, so every existing caller is unchanged.
+type ObjectiveProgress = okrapi.ObjectiveProgress
 
-// Progress computes the rollup for the Objective. doneOf reports whether a linked
-// task counts as complete (done/proven); the runtime supplies it by consulting
-// the workboard. A KR's effective target is Target, or its linked-task count when
-// Target is 0. An Objective is achieved when it has at least one Key Result and
-// every Key Result is achieved.
-func (o Objective) Progress(doneOf func(taskID string) bool) ObjectiveProgress {
-	out := ObjectiveProgress{ObjectiveID: o.ID, KeyResults: make([]KeyResultProgress, 0, len(o.KeyResults))}
-	allAchieved := len(o.KeyResults) > 0
-	sumPct := 0
-	for _, kr := range o.KeyResults {
-		done := 0
-		for _, id := range kr.TaskIDs {
-			if doneOf != nil && doneOf(id) {
-				done++
-			}
-		}
-		target := kr.Target
-		if target <= 0 {
-			target = len(kr.TaskIDs)
-		}
-		pct := 0
-		achieved := false
-		switch {
-		case target <= 0:
-			// No tasks and no explicit target: nothing to measure, not achieved.
-			pct = 0
-		default:
-			pct = done * 100 / target
-			if pct > 100 {
-				pct = 100
-			}
-			achieved = done >= target
-		}
-		if !achieved {
-			allAchieved = false
-		}
-		sumPct += pct
-		out.KeyResults = append(out.KeyResults, KeyResultProgress{
-			ID: kr.ID, Title: kr.Title, Done: done, Total: len(kr.TaskIDs),
-			Target: target, Percent: pct, Achieved: achieved,
-		})
-	}
-	if len(out.KeyResults) > 0 {
-		out.Percent = sumPct / len(out.KeyResults)
-	}
-	out.Achieved = allAchieved
-	return out
-}
+// CreateSpec is the input to Create.
+//
+// The row itself lives in the contract layer (kernel/contract/okrapi); the
+// name stays here as an alias, so every existing caller is unchanged.
+type CreateSpec = okrapi.CreateSpec
 
-type CreateSpec struct {
-	Title       string
-	Description string
-	Owner       string
-	Tenant      string
-}
+// Filter narrows a listing.
+//
+// The row itself lives in the contract layer (kernel/contract/okrapi); the
+// name stays here as an alias, so every existing caller is unchanged.
+type Filter = okrapi.Filter
 
-type Filter struct {
-	Status          Status
-	Tenant          string
-	IncludeArchived bool
-	Limit           int
-}
+// Store is the file-backed objective library. It satisfies the contract's
+// port, so the layers above it never name this module.
+var _ okrapi.Store = (*Store)(nil)
 
 type Store struct {
 	path       string

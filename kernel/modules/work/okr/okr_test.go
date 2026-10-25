@@ -13,14 +13,14 @@ func TestCreateAddKeyResultLinkAndPersist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	obj, err := st.Create(CreateSpec{Title: "Ship proof loop", Owner: "founder"}, time.UnixMilli(1000))
+	obj, err := st.Create(CreateSpec{Title: "Ship proof loop", Owner: "founder"}, 1000)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 	if obj.Status != StatusActive || obj.Title != "Ship proof loop" {
 		t.Fatalf("objective = %+v", obj)
 	}
-	obj, err = st.AddKeyResult(obj.ID, "2 gated tasks proven", 2, time.UnixMilli(2000))
+	obj, err = st.AddKeyResult(obj.ID, "2 gated tasks proven", 2, 2000)
 	if err != nil {
 		t.Fatalf("AddKeyResult: %v", err)
 	}
@@ -28,16 +28,16 @@ func TestCreateAddKeyResultLinkAndPersist(t *testing.T) {
 		t.Fatalf("key results = %+v", obj.KeyResults)
 	}
 	krID := obj.KeyResults[0].ID
-	obj, err = st.LinkTask(obj.ID, krID, "task-a", time.UnixMilli(3000))
+	obj, err = st.LinkTask(obj.ID, krID, "task-a", 3000)
 	if err != nil {
 		t.Fatalf("LinkTask: %v", err)
 	}
 	// Idempotent re-link.
-	obj, err = st.LinkTask(obj.ID, krID, "task-a", time.UnixMilli(3100))
+	obj, err = st.LinkTask(obj.ID, krID, "task-a", 3100)
 	if err != nil {
 		t.Fatalf("LinkTask idempotent: %v", err)
 	}
-	obj, err = st.LinkTask(obj.ID, krID, "task-b", time.UnixMilli(3200))
+	obj, err = st.LinkTask(obj.ID, krID, "task-b", 3200)
 	if err != nil {
 		t.Fatalf("LinkTask b: %v", err)
 	}
@@ -61,13 +61,13 @@ func TestProgressRollupFromDoneTasks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	obj, _ := st.Create(CreateSpec{Title: "Q3"}, time.UnixMilli(1000))
-	obj, _ = st.AddKeyResult(obj.ID, "KR1 target=2", 2, time.UnixMilli(1100))
-	obj, _ = st.AddKeyResult(obj.ID, "KR2 all-linked", 0, time.UnixMilli(1200))
+	obj, _ := st.Create(CreateSpec{Title: "Q3"}, 1000)
+	obj, _ = st.AddKeyResult(obj.ID, "KR1 target=2", 2, 1100)
+	obj, _ = st.AddKeyResult(obj.ID, "KR2 all-linked", 0, 1200)
 	kr1, kr2 := obj.KeyResults[0].ID, obj.KeyResults[1].ID
-	obj, _ = st.LinkTask(obj.ID, kr1, "a", time.UnixMilli(1300))
-	obj, _ = st.LinkTask(obj.ID, kr1, "b", time.UnixMilli(1310))
-	obj, _ = st.LinkTask(obj.ID, kr2, "c", time.UnixMilli(1320))
+	obj, _ = st.LinkTask(obj.ID, kr1, "a", 1300)
+	obj, _ = st.LinkTask(obj.ID, kr1, "b", 1310)
+	obj, _ = st.LinkTask(obj.ID, kr2, "c", 1320)
 
 	// Only "a" and "c" are done.
 	done := map[string]bool{"a": true, "c": true}
@@ -102,19 +102,19 @@ func TestObjectivesForTaskAndSetStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	o1, _ := st.Create(CreateSpec{Title: "O1"}, time.UnixMilli(1000))
-	o1, _ = st.AddKeyResult(o1.ID, "kr", 0, time.UnixMilli(1100))
-	o1, _ = st.LinkTask(o1.ID, o1.KeyResults[0].ID, "shared", time.UnixMilli(1200))
-	o2, _ := st.Create(CreateSpec{Title: "O2"}, time.UnixMilli(1300))
-	o2, _ = st.AddKeyResult(o2.ID, "kr", 0, time.UnixMilli(1400))
-	o2, _ = st.LinkTask(o2.ID, o2.KeyResults[0].ID, "shared", time.UnixMilli(1500))
+	o1, _ := st.Create(CreateSpec{Title: "O1"}, 1000)
+	o1, _ = st.AddKeyResult(o1.ID, "kr", 0, 1100)
+	o1, _ = st.LinkTask(o1.ID, o1.KeyResults[0].ID, "shared", 1200)
+	o2, _ := st.Create(CreateSpec{Title: "O2"}, 1300)
+	o2, _ = st.AddKeyResult(o2.ID, "kr", 0, 1400)
+	o2, _ = st.LinkTask(o2.ID, o2.KeyResults[0].ID, "shared", 1500)
 
 	ids := st.ObjectivesForTask("shared")
 	if len(ids) != 2 {
 		t.Fatalf("ObjectivesForTask = %v, want 2", ids)
 	}
 
-	got, err := st.SetStatus(o1.ID, StatusAchieved, time.UnixMilli(2000))
+	got, err := st.SetStatus(o1.ID, StatusAchieved, 2000)
 	if err != nil {
 		t.Fatalf("SetStatus: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestObjectivesForTaskAndSetStatus(t *testing.T) {
 		t.Fatalf("achieved = %+v", got)
 	}
 	// Archived objectives drop out of ObjectivesForTask.
-	if _, err := st.Archive(o2.ID, time.UnixMilli(2100)); err != nil {
+	if _, err := st.Archive(o2.ID, 2100); err != nil {
 		t.Fatalf("Archive: %v", err)
 	}
 	if ids := st.ObjectivesForTask("shared"); len(ids) != 1 || ids[0] != o1.ID {
@@ -142,7 +142,7 @@ func TestCreate_EmptyTitle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = st.Create(CreateSpec{Title: ""}, time.Now())
+	_, err = st.Create(CreateSpec{Title: ""}, time.Now().UnixMilli())
 	if err == nil {
 		t.Error("Create with empty title should error")
 	}
@@ -164,7 +164,7 @@ func TestList_Filters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	now := time.UnixMilli(1000)
+	now := int64(1000)
 	o1, _ := st.Create(CreateSpec{Title: "Active", Tenant: "team-a"}, now)
 	st.AddKeyResult(o1.ID, "KR 1", 1, now)
 	st.Create(CreateSpec{Title: "Archived", Tenant: "team-b"}, now)
@@ -197,14 +197,14 @@ func TestAddKeyResult_Validation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	obj, _ := st.Create(CreateSpec{Title: "Test"}, time.UnixMilli(1000))
+	obj, _ := st.Create(CreateSpec{Title: "Test"}, 1000)
 
 	// Empty title.
-	if _, err := st.AddKeyResult(obj.ID, "", 1, time.Now()); err == nil {
+	if _, err := st.AddKeyResult(obj.ID, "", 1, time.Now().UnixMilli()); err == nil {
 		t.Error("AddKeyResult with empty title should error")
 	}
 	// Negative target.
-	if _, err := st.AddKeyResult(obj.ID, "KR", -1, time.Now()); err == nil {
+	if _, err := st.AddKeyResult(obj.ID, "KR", -1, time.Now().UnixMilli()); err == nil {
 		t.Error("AddKeyResult with negative target should error")
 	}
 }
@@ -214,20 +214,20 @@ func TestLinkTask_Validation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	obj, _ := st.Create(CreateSpec{Title: "Test"}, time.UnixMilli(1000))
-	obj, _ = st.AddKeyResult(obj.ID, "KR 1", 1, time.UnixMilli(2000))
+	obj, _ := st.Create(CreateSpec{Title: "Test"}, 1000)
+	obj, _ = st.AddKeyResult(obj.ID, "KR 1", 1, 2000)
 	krID := obj.KeyResults[0].ID
 
 	// Empty kr id.
-	if _, err := st.LinkTask(obj.ID, "", "t-1", time.Now()); err == nil {
+	if _, err := st.LinkTask(obj.ID, "", "t-1", time.Now().UnixMilli()); err == nil {
 		t.Error("LinkTask with empty krID should error")
 	}
 	// Non-existent kr.
-	if _, err := st.LinkTask(obj.ID, "no-such-kr", "t-1", time.Now()); err != ErrKRNotFound {
+	if _, err := st.LinkTask(obj.ID, "no-such-kr", "t-1", time.Now().UnixMilli()); err != ErrKRNotFound {
 		t.Errorf("LinkTask unknown kr: err=%v, want ErrKRNotFound", err)
 	}
 	// Non-existent obj.
-	if _, err := st.LinkTask("no-such-obj", krID, "t-1", time.Now()); err == nil {
+	if _, err := st.LinkTask("no-such-obj", krID, "t-1", time.Now().UnixMilli()); err == nil {
 		t.Error("LinkTask unknown obj should error")
 	}
 }
@@ -237,24 +237,24 @@ func TestUnlinkTask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	obj, _ := st.Create(CreateSpec{Title: "Test"}, time.UnixMilli(1000))
-	st.AddKeyResult(obj.ID, "KR 1", 1, time.UnixMilli(2000))
+	obj, _ := st.Create(CreateSpec{Title: "Test"}, 1000)
+	st.AddKeyResult(obj.ID, "KR 1", 1, 2000)
 	obj, _ = st.Get(obj.ID)
 	krID := obj.KeyResults[0].ID
 
 	// Link then unlink.
-	st.LinkTask(obj.ID, krID, "t-1", time.Now())
-	obj, _ = st.UnlinkTask(obj.ID, krID, "t-1", time.Now())
+	st.LinkTask(obj.ID, krID, "t-1", time.Now().UnixMilli())
+	obj, _ = st.UnlinkTask(obj.ID, krID, "t-1", time.Now().UnixMilli())
 	kr := obj.KeyResults[0]
 	if len(kr.TaskIDs) != 0 {
 		t.Errorf("after unlink TaskIDs = %v, want empty", kr.TaskIDs)
 	}
 	// Unlink non-existent kr.
-	if _, err := st.UnlinkTask(obj.ID, "no-such-kr", "t-1", time.Now()); err != ErrKRNotFound {
+	if _, err := st.UnlinkTask(obj.ID, "no-such-kr", "t-1", time.Now().UnixMilli()); err != ErrKRNotFound {
 		t.Errorf("UnlinkTask unknown kr: err=%v, want ErrKRNotFound", err)
 	}
 	// Unlink non-existent obj.
-	if _, err := st.UnlinkTask("no-such-obj", krID, "t-1", time.Now()); err == nil {
+	if _, err := st.UnlinkTask("no-such-obj", krID, "t-1", time.Now().UnixMilli()); err == nil {
 		t.Error("UnlinkTask unknown obj should error")
 	}
 }
@@ -275,7 +275,7 @@ func TestSetStatus_Errors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.SetStatus("nonexistent", StatusAchieved, time.Now()); err == nil {
+	if _, err := st.SetStatus("nonexistent", StatusAchieved, time.Now().UnixMilli()); err == nil {
 		t.Error("SetStatus nonexistent should error")
 	}
 }
@@ -288,7 +288,7 @@ func TestFindKR_NotFound(t *testing.T) {
 }
 
 func TestMutate_NotFound(t *testing.T) {
-	_, err := (&Store{}).mutate("nonexistent", func(o *Objective, _ int64) error { return nil }, time.Now())
+	_, err := (&Store{}).mutate("nonexistent", func(o *Objective, _ int64) error { return nil }, time.Now().UnixMilli())
 	if err == nil {
 		t.Error("mutate nonexistent should error")
 	}

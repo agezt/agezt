@@ -25,6 +25,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
+	"github.com/agezt/agezt/kernel/modules/work/okr"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -85,6 +86,13 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 		t.Fatalf("open taste store: %v", err)
 	}
 	cfg.TasteStore = tasteStore
+	// The objective library is the composition root's file too (W3.53): the
+	// kernel holds the contract's port, and the root opens the file.
+	okrStore, err := okr.OpenStore(filepath.Join(dir, "okr"))
+	if err != nil {
+		t.Fatalf("open okr store: %v", err)
+	}
+	cfg.OKRStore = okrStore
 	// The script-tool store is the composition root's file too (W3.45): the
 	// kernel holds the contract's port, and the root opens the file.
 	forge, err := toolforge.Open(filepath.Join(dir, "toolforge"))

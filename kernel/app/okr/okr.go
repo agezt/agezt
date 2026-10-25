@@ -6,15 +6,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	objectives "github.com/agezt/agezt/kernel/modules/work/okr"
+	"github.com/agezt/agezt/kernel/contract/okrapi"
 )
 
+// errNoObjectiveLibrary is the answer the objective app layer gives when it
+// holds no library.
+//
+// The objective library is the DAEMON's (W3.53): the kernel holds the
+// contract's port, and a host that was given none holds a nil port. The
+// refusal is the answer — not a panic, and not a silent "nothing to do".
+var errNoObjectiveLibrary = errors.New("okr: the objective library is not available on this daemon")
+
 type Reader interface {
-	List(objectives.Filter) []objectives.Objective
-	Get(string) (objectives.Objective, bool)
+	List(okrapi.Filter) []okrapi.Objective
+	Get(string) (okrapi.Objective, bool)
 }
 type Rollupper interface {
-	Rollup(objectives.Objective) objectives.ObjectiveProgress
+	Rollup(okrapi.Objective) okrapi.ObjectiveProgress
 }
 type Service struct {
 	reader Reader
@@ -24,23 +32,23 @@ type Service struct {
 func New(reader Reader, rollup Rollupper) *Service { return &Service{reader: reader, rollup: rollup} }
 
 type Record struct {
-	objectives.Objective
-	Progress       objectives.ObjectiveProgress `json:"progress"`
-	Percent        int                          `json:"percent"`
-	Achieved       bool                         `json:"achieved"`
-	KeyResultCount int                          `json:"key_result_count"`
+	okrapi.Objective
+	Progress       okrapi.ObjectiveProgress `json:"progress"`
+	Percent        int                      `json:"percent"`
+	Achieved       bool                     `json:"achieved"`
+	KeyResultCount int                      `json:"key_result_count"`
 }
 
-func (s *Service) Project(objective objectives.Objective) Record {
+func (s *Service) Project(objective okrapi.Objective) Record {
 	progress := s.rollup.Rollup(objective)
 	return Record{Objective: objective, Progress: progress, Percent: progress.Percent, Achieved: progress.Achieved, KeyResultCount: len(objective.KeyResults)}
 }
 
 type ListInput struct {
-	Status          objectives.Status `json:"status,omitempty"`
-	Tenant          string            `json:"tenant,omitempty"`
-	IncludeArchived bool              `json:"include_archived,omitempty"`
-	Limit           int               `json:"limit,omitempty"`
+	Status          okrapi.Status `json:"status,omitempty"`
+	Tenant          string        `json:"tenant,omitempty"`
+	IncludeArchived bool          `json:"include_archived,omitempty"`
+	Limit           int           `json:"limit,omitempty"`
 }
 type ListOutput struct {
 	Objectives []Record `json:"objectives"`
@@ -54,7 +62,12 @@ type ShowOutput struct {
 }
 
 func (s *Service) List(_ context.Context, in ListInput) (ListOutput, error) {
-	found := s.reader.List(objectives.Filter{Status: in.Status, Tenant: in.Tenant, IncludeArchived: in.IncludeArchived, Limit: in.Limit})
+	// A host with no library has no objectives — the empty list is the honest
+	// answer, not a panic (W3.53).
+	if s.reader == nil {
+		return ListOutput{Objectives: []Record{}}, nil
+	}
+	found := s.reader.List(okrapi.Filter{Status: in.Status, Tenant: in.Tenant, IncludeArchived: in.IncludeArchived, Limit: in.Limit})
 	out := make([]Record, 0, len(found))
 	for _, objective := range found {
 		out = append(out, s.Project(objective))
@@ -64,6 +77,11 @@ func (s *Service) List(_ context.Context, in ListInput) (ListOutput, error) {
 func (s *Service) Show(_ context.Context, in ShowInput) (ShowOutput, error) {
 	if in.ID == "" {
 		return ShowOutput{}, errors.New("okr_show requires id")
+	}
+	// A named objective cannot be answered from an empty library: "unknown
+	// objective" would blame the id for a library that is not there (W3.53).
+	if s.reader == nil {
+		return ShowOutput{}, errNoObjectiveLibrary
 	}
 	objective, found := s.reader.Get(in.ID)
 	if !found {

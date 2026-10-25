@@ -3,6 +3,7 @@
 package runtime_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/modules/work/okr"
@@ -11,11 +12,20 @@ import (
 )
 
 // openOKRKernel opens a fresh kernel for OKR tests.
+//
+// The objective library is the composition root's file (W3.53): the kernel
+// holds the contract's store port, and the host opens the file.
 func openOKRKernel(t *testing.T) *runtime.Kernel {
 	t.Helper()
+	dir := t.TempDir()
+	store, err := okr.OpenStore(filepath.Join(dir, "okr"))
+	if err != nil {
+		t.Fatalf("open the okr store: %v", err)
+	}
 	k, err := runtime.Open(runtime.Config{
-		BaseDir:  t.TempDir(),
+		BaseDir:  dir,
 		Provider: mock.New(mock.FinalText("ok")),
+		OKRStore: store,
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
