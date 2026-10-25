@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
@@ -67,7 +68,7 @@ func TestGraph_SerializesConcurrentUpserts(t *testing.T) {
 		t.Fatalf("worldmodel.Open: %v", err)
 	}
 	probe := &entityRMWProbe{Store: base}
-	g := NewGraph(probe, b)
+	g := NewGraph(probe, busPublisher{b})
 
 	const N = 8
 	var wg sync.WaitGroup
@@ -98,7 +99,7 @@ func newTestGraph(t *testing.T) (*Graph, *journal.Journal) {
 	if err != nil {
 		t.Fatalf("worldmodel.Open: %v", err)
 	}
-	g := NewGraph(s, b)
+	g := NewGraph(s, busPublisher{b})
 	g.now = func() time.Time { return fixedNow }
 	t.Cleanup(func() { b.Close(); j.Close() })
 	return g, j
@@ -357,7 +358,7 @@ func TestWorldToolRoundTrip(t *testing.T) {
 	if tool.Definition().Name != "world" {
 		t.Fatalf("tool name = %q", tool.Definition().Name)
 	}
-	ctx := WithCorrelation(context.Background(), "tool-corr")
+	ctx := opapi.WithCorrelation(context.Background(), "tool-corr")
 
 	add, _ := json.Marshal(map[string]any{"action": "add", "kind": "project", "name": "Lictor", "aliases": []string{"portfolio"}})
 	if res, _ := tool.Invoke(ctx, add); res.IsError {

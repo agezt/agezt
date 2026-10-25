@@ -26,7 +26,7 @@ func TestDelegationStatusIsTheContractType(t *testing.T) {
 // TestStatusCarriesTheKernelCeilingsUnchanged: the status operation publishes
 // the kernel's effective ceilings as they are, under the row's wire names.
 func TestStatusCarriesTheKernelCeilingsUnchanged(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withWorld(t, runtime.Config{
 		BaseDir:                    t.TempDir(),
 		Provider:                   mock.New(),
 		Tools:                      map[string]toolapi.Tool{},
@@ -35,7 +35,7 @@ func TestStatusCarriesTheKernelCeilingsUnchanged(t *testing.T) {
 		SubAgentMaxFanout:          3,
 		SubAgentMaxSpendMicrocents: 500,
 		SubAgentMaxTotal:           7,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}

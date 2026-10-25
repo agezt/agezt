@@ -12,9 +12,9 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/resume"
 	"github.com/agezt/agezt/kernel/warden"
@@ -99,7 +99,7 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// can journal its writes under this run.
 	runCtx = r.k.WithActorCorrelation(runCtx, actor, corr)
 	runCtx = memory.WithCorrelation(runCtx, corr)
-	runCtx = worldmodel.WithCorrelation(runCtx, corr)
+	runCtx = opapi.WithCorrelation(runCtx, corr)
 	runCtx = skill.WithCorrelation(runCtx, corr)
 	systemAgent := r.k.SystemAgentFromCtx(runCtx)
 	skillDirective := skill.ParseActivationDirective(intent)

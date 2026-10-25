@@ -23,15 +23,15 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
-	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 )
 
 // Config tunes a reflection pass.
 type Config struct {
 	// Decay parameters for the world-model weight adjustment.
-	Decay worldmodel.DecayOptions
+	Decay worldmodelapi.DecayOptions
 	// BriefVolume: at or above this many briefs in the window, propose
 	// reviewing the Pulse dial. Default 8.
 	BriefVolume int
@@ -80,7 +80,7 @@ type Report struct {
 // over the bus + state — here it's the journal + world.
 type Engine struct {
 	journal *journal.Journal
-	world   *worldmodel.Graph
+	world   worldmodelapi.Graph
 	bus     *bus.Bus
 	cfg     Config
 	now     func() time.Time
@@ -88,7 +88,7 @@ type Engine struct {
 
 // New builds an Engine. journal and world are required; bus may be nil in
 // tests that don't assert on the published report.
-func New(j *journal.Journal, w *worldmodel.Graph, b *bus.Bus, cfg Config) *Engine {
+func New(j *journal.Journal, w worldmodelapi.Graph, b *bus.Bus, cfg Config) *Engine {
 	return &Engine{journal: j, world: w, bus: b, cfg: cfg, now: time.Now}
 }
 
@@ -100,9 +100,16 @@ func (e *Engine) Reflect(ctx context.Context, corr string) (Report, error) {
 	_ = ctx
 	obs := e.observe()
 
-	decayed, err := e.world.Decay(corr, e.cfg.Decay)
-	if err != nil {
-		return Report{}, err
+	// A host with no world model (W3.54) holds a nil port: the reflection
+	// pass reports what it could see and decays nothing, rather than calling
+	// into nothing.
+	var decayed int
+	if e.world != nil {
+		var err error
+		decayed, err = e.world.Decay(corr, e.cfg.Decay)
+		if err != nil {
+			return Report{}, err
+		}
 	}
 
 	rep := Report{
@@ -141,7 +148,9 @@ func (e *Engine) observe() Observations {
 	if o.TasksStarted > o.TasksCompleted {
 		o.TasksFailed = o.TasksStarted - o.TasksCompleted
 	}
-	o.EntitiesTotal = e.world.Count()
+	if e.world != nil {
+		o.EntitiesTotal = e.world.Count()
+	}
 	return o
 }
 

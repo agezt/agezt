@@ -2,20 +2,16 @@
 
 package worldmodel
 
-import "github.com/agezt/agezt/kernel/event"
+import (
+	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
+	"github.com/agezt/agezt/kernel/event"
+)
 
 // DecayOptions tune Decay. Zero values fall back to sane defaults in Decay.
-type DecayOptions struct {
-	// StaleAfterMS: an entity not referenced (LastSeenMS) within this window
-	// is considered stale and decayed. Default 14 days.
-	StaleAfterMS int64
-	// Factor multiplies a stale entity's weight (0<Factor<1). Default 0.8.
-	Factor float64
-	// Floor is the minimum weight decay will drive toward; weight never goes
-	// below it (so a decayed entity still resolves, just ranks lower).
-	// Default 0.1.
-	Floor float64
-}
+//
+// The row itself lives in the contract layer (kernel/contract/worldmodelapi);
+// the name stays here as an alias, so every existing caller is unchanged.
+type DecayOptions = worldmodelapi.DecayOptions
 
 const (
 	defaultStaleAfterMS = int64(14 * 24 * 60 * 60 * 1000)

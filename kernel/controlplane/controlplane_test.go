@@ -93,6 +93,9 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 		t.Fatalf("open okr store: %v", err)
 	}
 	cfg.OKRStore = okrStore
+	// The world-model file is the composition root's too (W3.54): the kernel
+	// holds the contract's ports, and the root opens the file.
+	cfg = withWorld(t, cfg)
 	// The script-tool store is the composition root's file too (W3.45): the
 	// kernel holds the contract's port, and the root opens the file.
 	forge, err := toolforge.Open(filepath.Join(dir, "toolforge"))

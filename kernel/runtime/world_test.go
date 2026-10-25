@@ -22,13 +22,13 @@ func TestWorldEntitiesInjectedIntoSystemPrompt(t *testing.T) {
 	var gotSystem string
 	prov.OnRequest = func(req llm.CompletionRequest) { gotSystem = req.System }
 
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withWorld(t, runtime.Config{
 		BaseDir:     t.TempDir(),
 		Provider:    prov,
 		System:      "base prompt",
 		WorldInject: true,
 		WorldTopK:   5,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,11 +60,11 @@ func TestWorldInjectionOffByDefault(t *testing.T) {
 	var gotSystem string
 	prov.OnRequest = func(req llm.CompletionRequest) { gotSystem = req.System }
 
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withWorld(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
 		System:   "base",
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,12 +80,12 @@ func TestWorldInjectionOffByDefault(t *testing.T) {
 }
 
 func TestWorldToolRegisteredWhenEnabled(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withWorld(t, runtime.Config{
 		BaseDir:   t.TempDir(),
 		Provider:  mock.New(mock.FinalText("ok")),
 		Tools:     map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		WorldTool: true,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,10 +100,10 @@ func TestWorldToolRegisteredWhenEnabled(t *testing.T) {
 }
 
 func TestWorldToolAbsentByDefault(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withWorld(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}

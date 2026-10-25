@@ -61,7 +61,14 @@ func (k *Kernel) Close() error {
 	return closeAll(
 		k.state.Close,
 		k.memoryDir.Close,
-		k.worldDir.Close,
+		// The world-model file is the host's (W3.54): a host that was given
+		// none holds a nil port, and there is nothing to close.
+		func() error {
+			if k.worldStore == nil {
+				return nil
+			}
+			return k.worldStore.Close()
+		},
 		k.skillDir.Close,
 		k.journal.Close,
 		func() error { return k.agentGW.Close() },

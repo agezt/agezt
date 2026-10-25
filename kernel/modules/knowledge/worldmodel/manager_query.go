@@ -8,6 +8,7 @@ package worldmodel
 //             during the Day-65 god-file split. Public API unchanged.
 
 import (
+	"github.com/agezt/agezt/kernel/contract/eventapi"
 	"github.com/agezt/agezt/kernel/event"
 	"maps"
 	"sort"
@@ -181,22 +182,23 @@ func (g *Graph) Relations() ([]Relation, error) {
 // Count returns the number of stored entities (all states). Used by `agt status`.
 func (g *Graph) Count() int { return g.store.Count() }
 
-// publish writes one event through the bus, returning the persisted event (or
-// nil when no bus is wired, e.g. store-only tests). Subject groups events
-// under "worldmodel.<suffix>" so subscribers can scope-filter.
-func (g *Graph) publish(kind event.Kind, corr string, payload any) *event.Event {
-	if g.bus == nil {
-		return nil
+// publish writes one event through the publisher, returning the id of the
+// persisted event (empty when no publisher is wired, e.g. store-only tests).
+// Subject groups events under "worldmodel.<suffix>" so subscribers can
+// scope-filter.
+func (g *Graph) publish(kind event.Kind, corr string, payload any) string {
+	if g.pub == nil {
+		return ""
 	}
 	suffix := strings.TrimPrefix(string(kind), "worldmodel.")
-	ev, _ := g.bus.Publish(event.Spec{
+	id, _ := g.pub.Publish(eventapi.Spec{
 		Subject:       "worldmodel." + suffix,
 		Kind:          kind,
 		Actor:         "worldmodel",
 		CorrelationID: corr,
 		Payload:       payload,
 	})
-	return ev
+	return id
 }
 
 func clampWeight(w float64) float64 {
@@ -268,11 +270,3 @@ func mergeAttrs(existing, incoming map[string]string) map[string]string {
 	maps.Copy(out, incoming)
 	return out
 }
-
-// --- run-time context plumbing -------------------------------------------
-
-type ctxKey int
-
-const ctxKeyCorrelation ctxKey = iota
-
-// WithCorrelation returns a child context carrying corr so the in-process

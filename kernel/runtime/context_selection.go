@@ -7,9 +7,9 @@ import (
 	"fmt"
 
 	"github.com/agezt/agezt/kernel/contextselect"
+	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/event"
 	kmemory "github.com/agezt/agezt/kernel/modules/knowledge/memory"
-	kworld "github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	kskill "github.com/agezt/agezt/kernel/modules/skills/skill"
 )
 
@@ -78,7 +78,7 @@ func memoryContextCandidates(hits []kmemory.Scored, nowMS int64) []contextselect
 }
 
 // worldContextCandidates converts world-model search hits to context candidates.
-func worldContextCandidates(hits []kworld.ScoredEntity, nowMS int64) []contextselect.Candidate {
+func worldContextCandidates(hits []worldmodelapi.ScoredEntity, nowMS int64) []contextselect.Candidate {
 	return contextselect.WorldCandidates(hits, nowMS)
 }
 

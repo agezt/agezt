@@ -6,13 +6,15 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+
+	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 )
 
 // ScoredEntity is an entity paired with its resolve score.
-type ScoredEntity struct {
-	Entity Entity  `json:"entity"`
-	Score  float64 `json:"score"`
-}
+//
+// The row itself lives in the contract layer (kernel/contract/worldmodelapi);
+// the name stays here as an alias, so every existing caller is unchanged.
+type ScoredEntity = worldmodelapi.ScoredEntity
 
 // Resolve ranks the active entities in es against a phrase and returns the top
 // `limit` by score (descending). This is what answers "what does 'the
@@ -117,12 +119,10 @@ func keywordOverlapEntity(qTokens []string, e Entity) int {
 // Neighbor is one edge incident to a queried entity together with the entity
 // on the other end (nil-safe: Other is the zero Entity if the adjacent node is
 // missing/forgotten).
-type Neighbor struct {
-	Relation Relation `json:"relation"`
-	// Outgoing is true when the queried entity is the edge's From.
-	Outgoing bool   `json:"outgoing"`
-	Other    Entity `json:"other"`
-}
+//
+// The row itself lives in the contract layer (kernel/contract/worldmodelapi);
+// the name stays here as an alias, so every existing caller is unchanged.
+type Neighbor = worldmodelapi.Neighbor
 
 // Neighbors returns the active edges incident to entityID together with the
 // adjacent entity for each, ordered deterministically (by relation CreatedMS

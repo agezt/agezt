@@ -2,7 +2,7 @@
 
 package worldmodel
 
-// Provenance: World model tool + correlation: WithCorrelation + CorrelationFrom +
+// Provenance: World model tool + correlation: CorrelationFrom +
 //             Tool/Definition/Invoke + renderResolve + renderNeighbors. Code
 //             extracted from manager.go during the Day-65 god-file split. Public API
 //             unchanged.
@@ -13,20 +13,19 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
-func WithCorrelation(ctx context.Context, corr string) context.Context {
-	return context.WithValue(ctx, ctxKeyCorrelation, corr)
-}
-
-// CorrelationFrom extracts the correlation id set by WithCorrelation.
+// CorrelationFrom extracts the correlation id set by opapi.WithCorrelation.
+//
+// The binder itself lives in the CONTRACT's shared helper
+// (kernel/contract/opapi): the correlation id is the host's operation
+// identity, and it must be the SAME key the layers above the module write
+// and the tool reads. The module only reads it.
 func CorrelationFrom(ctx context.Context) string {
-	if v, ok := ctx.Value(ctxKeyCorrelation).(string); ok {
-		return v
-	}
-	return ""
+	return opapi.CorrelationFromContext(ctx)
 }
 
 // --- agent tool -----------------------------------------------------------

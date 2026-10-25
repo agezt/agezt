@@ -34,7 +34,7 @@ func TestNewKernelSource(t *testing.T) {
 // the overview as they are — the adapter hands the kernel's own row over, so
 // the agent reads the same numbers the status operation publishes.
 func TestKernelSourceCarriesTheKernelCeilings(t *testing.T) {
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withWorld(t, kernelruntime.Config{
 		BaseDir:                    t.TempDir(),
 		Provider:                   mock.New(),
 		Tools:                      map[string]toolapi.Tool{},
@@ -43,7 +43,7 @@ func TestKernelSourceCarriesTheKernelCeilings(t *testing.T) {
 		SubAgentMaxFanout:          3,
 		SubAgentMaxSpendMicrocents: 500,
 		SubAgentMaxTotal:           7,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,13 +74,13 @@ func TestThePortReadsTheLiveKernelSchedulesAndStanding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open the standing store: %v", err)
 	}
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withWorld(t, kernelruntime.Config{
 		BaseDir:   dir,
 		Provider:  mock.New(),
 		Tools:     map[string]toolapi.Tool{},
 		Schedules: sched,
 		Standing:  standingStore,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,11 +201,11 @@ func TestTheReaperOverviewProjectionCarriesEveryField(t *testing.T) {
 // kernel's own slices — the journal head, the tool names, the schedule counts
 // — so the overview is the daemon's state and not a copy of it.
 func TestTheOverviewIsAssembledFromTheLiveKernel(t *testing.T) {
-	k, err := kernelruntime.Open(kernelruntime.Config{
+	k, err := kernelruntime.Open(withWorld(t, kernelruntime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(),
 		Tools:    map[string]toolapi.Tool{"zebra": nil, "alpha": nil},
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
