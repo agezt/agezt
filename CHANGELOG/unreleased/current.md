@@ -4439,6 +4439,34 @@ This file holds the active `[Unreleased]` working set.
 
 ### Removed
 
+- **Removed: the kernel's reach on the world model (W3.54).** The kernel held
+  the world-model module's concrete graph and **opened the graph's file**
+  itself; the reflection engine and the run executor named the module's
+  concrete type as well. The kernel now holds the **contract's ports** —
+  `worldmodelapi.Graph` (**fourteen** verbs) and `worldmodelapi.Store`
+  (**eight** verbs) — and the module keeps the entity, relation, scored,
+  neighbour, upsert and decay-options rows, the kind and verb vocabularies and
+  the empty-name sentinel as **aliases**.
+  The **active rules travel with the rows**: `Entity.Active()` and
+  `Relation.Active()` decide whether a node still counts, and a Go type alias
+  cannot carry methods — so the rules moved with the rows into the contract.
+  The **publisher is a port, not the bus**: the graph journals through a
+  one-verb port that answers with the event's id (the entity's provenance),
+  because the durable envelope carries the hash chain and the contract layer
+  may not name it.
+  The graph is built by a **builder the daemon injects** and the file is the
+  daemon's: `cmd/agezt`'s composition root opens `worldmodel/worldmodel.json`
+  and hands over the builder, and the kernel calls it with the store it was
+  given and its own publisher — so the graph journals through the kernel's bus
+  without either side naming the other's implementation.
+  A kernel with **no** graph registers **no world tool** (a tool that calls
+  into nothing would answer the agent with a panic), the reflection engine
+  decays nothing, and the app layer refuses every surface ("the world model is
+  not available on this daemon"). The architecture ratchet went from 37 to 33
+  edges.
+  No behaviour changed: the graph is still the same store, under the same
+  directory, journaling the same events.
+
 - **Removed: the kernel's reach on the objective library (W3.53).** The kernel
   held the OKR module's concrete store and **opened the library's file** itself.
   The kernel now holds the **contract's store port** — `okrapi.Store`, nine
