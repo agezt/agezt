@@ -3,7 +3,9 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
 	"github.com/agezt/agezt/kernel/event"
 	graphs "github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"strings"
@@ -74,7 +76,23 @@ type Listing struct {
 	items   []graphs.Workflow
 }
 
-func (s *Reads) PrepareList() Listing { return Listing{service: s, items: s.reader.List()} }
+// errNoWorkflows is the answer the app layer gives when it holds no workflow
+// store.
+//
+// The store used to be opened by the kernel, so the port was never nil and
+// the app never had to say what happens without one. Now the store file is
+// the host's (W3.48) and a host may open a kernel without a library — and the
+// answer is a plain refusal, not a panic.
+var errNoWorkflows = errors.New("the workflow library is not available on this daemon")
+
+// PrepareList reads the library. A host with no library has no workflows —
+// the list is empty, and the show refuses.
+func (s *Reads) PrepareList() Listing {
+	if s.reader == nil {
+		return Listing{service: s}
+	}
+	return Listing{service: s, items: s.reader.List()}
+}
 
 type ListInput struct{ WithRuns bool }
 type ListOutput struct {
@@ -113,6 +131,9 @@ type ShowOutput struct {
 }
 
 func (s *Reads) Show(_ context.Context, in ShowInput) (ShowOutput, error) {
+	if s.reader == nil {
+		return ShowOutput{}, errNoWorkflows
+	}
 	w, found := s.reader.Get(strings.TrimSpace(in.Ref))
 	if !found {
 		return ShowOutput{}, fmt.Errorf("unknown workflow: %s", in.Ref)

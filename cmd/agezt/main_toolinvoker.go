@@ -15,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/reasoning"
 	"github.com/agezt/agezt/kernel/modules/work/seat"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
+	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -75,6 +76,20 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 		cfg.Artifacts = store
 		cfg.ArtifactIndex = index
 	}
+	if cfg.Workflows == nil {
+		// The workflow store (W3.48) — the contract's host port. The daemon
+		// opens the file (workflows/workflows.json) and hands the kernel the
+		// port; the agent-facing tool reads the same rows through the
+		// narrower read side.
+		//
+		// A store that cannot be opened is a STARTUP ERROR: the workflow
+		// library is part of the daemon, not a convenience.
+		store, err := workflow.OpenStore(filepath.Join(cfg.BaseDir, "workflows"))
+		if err != nil {
+			return nil, err
+		}
+		cfg.Workflows = store
+	}
 	if cfg.Workboard == nil {
 		// The durable task board (W3.47) — the contract's host port. The
 		// daemon opens the file (workboard/workboard.json) and hands the
@@ -122,6 +137,16 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 	// — so a tenant's market tool reports the marketplace as unavailable
 	// instead of borrowing the primary's manager.
 	mktTool.Manager = k.Market
+	// The workflow ENGINE is the daemon's too (W3.48): it is a module's
+	// implementation, and the kernel is not allowed to name one. It is built
+	// HERE — over the store the daemon holds and over the host's own ports
+	// (the kernel's governed paths) — and handed over as the contract's
+	// engine port.
+	//
+	// The engine is built AFTER Open, because the ports are the kernel's own:
+	// a workflow run must keep the host's policy checks, its audit arc and
+	// its spend attribution.
+	k.SetWorkflowEngine(workflow.NewEngine(cfg.Workflows, k.WorkflowPorts()))
 	k.SetReasoning(reasoning.New(k.ReasoningDependencies()))
 	k.SetReaperScanner(reaper.New(k.ReaperPorts()))
 	return k, nil

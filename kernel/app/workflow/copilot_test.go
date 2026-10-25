@@ -148,10 +148,7 @@ func TestWorkflowCopilotPreservesDesignerCauseAndZeroOutput(t *testing.T) {
 func TestWorkflowCopilotUsesActualRuntimeMockAndReturnsUnsavedGraphs(t *testing.T) {
 	raw := `{"name":"model-pick","description":"designed","nodes":[{"id":"start","type":"trigger"}]}`
 	provider := mock.New(mock.FinalText(raw), mock.FinalText(raw))
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: provider})
-	if err != nil {
-		t.Fatal(err)
-	}
+	k := openWorkflowKernel(t, runtime.Config{BaseDir: t.TempDir(), Provider: provider})
 	defer k.Close()
 	base, _, err := k.SaveWorkflow("", graphs.Workflow{Name: "stored", Nodes: []graphs.Node{{ID: "start", Type: graphs.NodeTrigger}}})
 	if err != nil {

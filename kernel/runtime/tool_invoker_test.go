@@ -30,14 +30,14 @@ func TestToolInvokerFactoryIsBoundPerKernel(t *testing.T) {
 		factories.Add(1)
 		return &observedInvoker{delegate: apptools.NewInvoker(deps), calls: &calls}
 	}}
-	primary, err := runtime.Open(cfg)
+	primary, err := openKernelWithWorkflows(t, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { primary.Close() })
 	cfg.BaseDir = t.TempDir()
 	cfg.TenantID = "tenant"
-	tenant, err := runtime.Open(cfg)
+	tenant, err := openKernelWithWorkflows(t, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,14 +78,14 @@ func TestToolInvokerFactoryIsBoundPerKernel(t *testing.T) {
 
 func TestOpenRejectsNilToolInvokerAndReleasesStores(t *testing.T) {
 	cfg := runtime.Config{BaseDir: t.TempDir(), Provider: mock.New(), NewToolInvoker: func(toolexec.Dependencies) toolapi.Invoker { return nil }}
-	if k, err := runtime.Open(cfg); k != nil || err == nil || !strings.Contains(err.Error(), "factory returned nil") {
+	if k, err := openKernelWithWorkflows(t, cfg); k != nil || err == nil || !strings.Contains(err.Error(), "factory returned nil") {
 		if k != nil {
 			k.Close()
 		}
 		t.Fatalf("kernel=%v error=%v", k, err)
 	}
 	cfg.NewToolInvoker = nil
-	k, err := runtime.Open(cfg)
+	k, err := openKernelWithWorkflows(t, cfg)
 	if err != nil {
 		t.Fatalf("standalone reopen: %v", err)
 	}

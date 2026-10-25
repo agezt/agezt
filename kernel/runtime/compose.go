@@ -34,7 +34,6 @@ import (
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/modules/work/okr"
-	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/resume"
@@ -200,10 +199,11 @@ func Open(cfg Config) (*Kernel, error) {
 		return fail("runtime: mcp", err)
 	}
 
-	wfstore, err := workflow.OpenStore(filepath.Join(cfg.BaseDir, "workflows"))
-	if err != nil {
-		return fail("runtime: workflows", err)
-	}
+	// The workflow store is NOT opened here (W3.48): the store file is the
+	// composition root's business (cmd/agezt), and the kernel holds the
+	// contract's read port. The ENGINE is the host's too — it is built over
+	// the store and over the host's own ports, so the daemon hands it over
+	// after Open.
 
 	// The task board is NOT opened here (W3.47): the store file is the
 	// composition root's business (cmd/agezt), and the kernel holds the
@@ -300,7 +300,7 @@ func Open(cfg Config) (*Kernel, error) {
 		toolForge:    cfg.ToolForge,
 		mcpStore:     mcpstore,
 		mcpConns:     make(map[string]mcp.Conn),
-		workflows:    wfstore,
+		workflows:    cfg.Workflows,
 		workboard:    cfg.Workboard,
 		okr:          okrstore,
 		taste:        tastestore,

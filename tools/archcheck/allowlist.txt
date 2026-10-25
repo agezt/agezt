@@ -9,7 +9,6 @@ adapter-bypass kernel/controlplane -> kernel/modules/board/board
 adapter-bypass kernel/controlplane -> kernel/cadence
 adapter-bypass kernel/controlplane -> kernel/modules/knowledge/memory
 adapter-bypass kernel/controlplane -> kernel/modules/skills/skill
-adapter-bypass kernel/controlplane -> kernel/modules/workflows/workflow
 adapter-bypass kernel/controlplane -> kernel/modules/agents/roster
 adapter-bypass kernel/controlplane -> kernel/runtime
 adapter-bypass kernel/controlplane -> kernel/standing
@@ -39,7 +38,6 @@ cross-module kernel/runtime -> kernel/modules/skills/skill
 cross-module kernel/runtime -> kernel/modules/work/okr
 cross-module kernel/runtime -> kernel/modules/agents/roster
 cross-module kernel/runtime -> kernel/standing
-cross-module kernel/runtime -> kernel/modules/workflows/workflow
 cross-module kernel/runtime/runexec -> kernel/modules/work/assure
 cross-module kernel/runtime/runexec -> kernel/cadence
 cross-module kernel/runtime/runexec -> kernel/modules/providers/catalog

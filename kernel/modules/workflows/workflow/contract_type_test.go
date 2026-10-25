@@ -120,6 +120,62 @@ func TestTheStoreIsTheContractsPort(t *testing.T) {
 	var _ workflowapi.Store = (*Store)(nil)
 }
 
+// TestTheStoreIsTheContractsHostPort: the module's store is also the HOST's
+// port — the read side plus the four lifecycle verbs. The composition root
+// builds the engine over this very port, so the engine is the module's
+// implementation and the host's drive of it.
+func TestTheStoreIsTheContractsHostPort(t *testing.T) {
+	var _ workflowapi.HostStore = (*Store)(nil)
+}
+
+// TestTheEngineIsTheContractsPort: the engine answers the contract's EIGHT
+// verbs, so the host can drive the whole workflow lifecycle without naming
+// this module (W3.48).
+//
+// The engine holds the contract's store, not this module's concrete type —
+// that is what makes it portable to any composition root.
+func TestTheEngineIsTheContractsPort(t *testing.T) {
+	var _ workflowapi.Engine = (*Engine)(nil)
+
+	engine := NewEngine(&Store{}, Ports{})
+	if engine == nil {
+		t.Fatal("the engine did not bind")
+	}
+}
+
+// TestThePortsRowsAreTheContractRows: the rows that travel with the engine's
+// port — the host capabilities (Ports), the run's provenance and the trigger
+// that fired it — are the CONTRACT'S rows, not copies.
+//
+// A copy would drift: the module would then fill a shape the host no longer
+// reads, and a run's provenance would silently stop matching what the host
+// journals.
+func TestThePortsRowsAreTheContractRows(t *testing.T) {
+	for _, c := range []struct {
+		name     string
+		module   any
+		contract any
+	}{
+		{"Ports", Ports{}, workflowapi.Ports{}},
+		{"Provenance", Provenance{}, workflowapi.Provenance{}},
+		{"Trigger", Trigger{}, workflowapi.Trigger{}},
+	} {
+		if reflect.TypeOf(c.module) != reflect.TypeOf(c.contract) {
+			t.Errorf("the %s row drifted from the contract: %v vs %v",
+				c.name, reflect.TypeOf(c.module), reflect.TypeOf(c.contract))
+		}
+	}
+}
+
+// TestTheHaltErrorIsTheContracts: the halt is the HOST's report, so the
+// sentinel lives in the contract layer and the module keeps it as an alias —
+// one error, one spelling.
+func TestTheHaltErrorIsTheContracts(t *testing.T) {
+	if !errors.Is(ErrHalted, workflowapi.ErrHalted) {
+		t.Errorf("the module's ErrHalted %v is not the contract's %v", ErrHalted, workflowapi.ErrHalted)
+	}
+}
+
 // TestTheNotFoundErrorIsTheContracts: the error the store returns for an
 // unknown workflow is the contract's — one error, one spelling.
 func TestTheNotFoundErrorIsTheContracts(t *testing.T) {

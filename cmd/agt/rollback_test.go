@@ -270,7 +270,7 @@ func TestCmdRollbackApplyRestoresSkillStatus(t *testing.T) {
 func TestWorkflowSaveCheckpointAndRollbackRestore(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("AGEZT_HOME", dir)
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok"))})
+	k, err := withWorkflows(t, runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok"))})
 	if err != nil {
 		t.Fatalf("runtime.Open: %v", err)
 	}

@@ -13,11 +13,11 @@ import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
-	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 )
 
 // impactPorts binds the host's stores to the application's impact
@@ -34,7 +34,7 @@ func (s *Server) impactPorts() approster.ImpactPorts {
 			return s.k.ConfigCenter().ListEntries()
 		},
 		WorkspaceInfo: s.agentWorkspaceInfo,
-		Workflows: func() []workflow.Workflow {
+		Workflows: func() []workflowapi.Workflow {
 			if s.k.Workflows() == nil {
 				return nil
 			}

@@ -41,7 +41,7 @@ func (t *echoTool) Invoke(_ context.Context, raw json.RawMessage) (toolapi.Resul
 
 func openWorkflowKernel(t *testing.T, prov llm.Provider, tool *echoTool) *runtime.Kernel {
 	t.Helper()
-	k, err := runtime.Open(runtime.Config{
+	k, err := openKernelWithWorkflows(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
 		Tools:    map[string]toolapi.Tool{"echo": tool},

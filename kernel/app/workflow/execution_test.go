@@ -251,10 +251,7 @@ func TestWorkflowExecutionDetachedPanicRetainsWakeAndCleanup(t *testing.T) {
 }
 func TestWorkflowExecutionUsesOwnedActualRuntimeTransformAndProbe(t *testing.T) {
 	provider := mock.New()
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: provider})
-	if err != nil {
-		t.Fatal(err)
-	}
+	k := openWorkflowKernel(t, runtime.Config{BaseDir: t.TempDir(), Provider: provider})
 	defer k.Close()
 	graph, _, err := k.SaveWorkflow("", graphs.Workflow{Name: "owned", Nodes: []graphs.Node{{ID: "start", Type: graphs.NodeTrigger}, {ID: "format", Type: graphs.NodeTransform, Config: json.RawMessage(`{"template":"{{trigger.payload}}"}`)}}, Edges: []graphs.Edge{{From: "start", To: "format"}}})
 	if err != nil {

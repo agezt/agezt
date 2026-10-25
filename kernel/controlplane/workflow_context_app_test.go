@@ -21,10 +21,7 @@ func TestWorkflowAllNineAppMutationsJoinOwnedAuditAndDomainIdentity(t *testing.T
 		t.Run(cmd, func(t *testing.T) {
 			dir := t.TempDir()
 			provider := mock.New(mock.FinalText(`{"name":"designed","nodes":[{"id":"start","type":"trigger"}]}`))
-			k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider})
-			if err != nil {
-				t.Fatal(err)
-			}
+			k := openWorkflowKernel(t, runtime.Config{BaseDir: dir, Provider: provider})
 			defer k.Close()
 			config := json.RawMessage(`{}`)
 			if cmd == CmdWorkflowWebhook {
@@ -84,10 +81,7 @@ func TestWorkflowAllNineAppMutationsJoinOwnedAuditAndDomainIdentity(t *testing.T
 func TestWorkflowDispatcherInflightCancellationSettlesJoinedAuditWithoutProviderSuccess(t *testing.T) {
 	dir := t.TempDir()
 	provider := mock.New()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider})
-	if err != nil {
-		t.Fatal(err)
-	}
+	k := openWorkflowKernel(t, runtime.Config{BaseDir: dir, Provider: provider})
 	defer k.Close()
 	graph, _, err := k.SaveWorkflow("", workflow.Workflow{Name: "owned", Nodes: []workflow.Node{{ID: "start", Type: workflow.NodeTrigger}, {ID: "wait", Type: workflow.NodeDelay, Config: json.RawMessage(`{"seconds":60}`)}}, Edges: []workflow.Edge{{From: "start", To: "wait"}}})
 	if err != nil {

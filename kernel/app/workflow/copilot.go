@@ -66,6 +66,9 @@ func (s *Copilot) PrepareRefine(in RefineInput) (Refinement, error) {
 	if in.Posted != nil {
 		base = *in.Posted
 	} else {
+		if s.reader == nil {
+			return Refinement{}, errNoWorkflows
+		}
 		ref := strings.TrimSpace(in.Ref)
 		if ref == "" {
 			return Refinement{}, ErrRefineBaseRequired

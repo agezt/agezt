@@ -27,7 +27,7 @@ func TestSharedToolPolicyAuditRetainsDetails(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				tool := &workflowAuditTool{name: "policyprobe", definition: &toolapi.ToolDef{Name: "policyprobe", InputSchema: json.RawMessage(`{"type":"object","properties":{"target":{"type":"string"}}}`), Capability: toolapi.ToolCapability{Name: "introspect"}, Effect: toolapi.ToolEffect{Class: toolapi.EffectReadOnly, Confidence: 0.75, AffectedResources: []string{"resource:one"}}}}
 				runner := &stubRunner{out: "ok"}
-				k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New(), Tools: map[string]toolapi.Tool{"policyprobe": tool}, ScriptRunner: runner, PromptInjectionGuard: runtime.PromptInjectionOff, NewToolInvoker: apptools.NewInvoker})
+				k, err := openKernelWithWorkflows(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New(), Tools: map[string]toolapi.Tool{"policyprobe": tool}, ScriptRunner: runner, PromptInjectionGuard: runtime.PromptInjectionOff, NewToolInvoker: apptools.NewInvoker})
 				if err != nil {
 					t.Fatal(err)
 				}

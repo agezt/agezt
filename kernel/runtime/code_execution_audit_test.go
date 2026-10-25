@@ -57,7 +57,7 @@ func newCodeAuditKernel(t *testing.T, r *codeAuditRunner, engine *edict.Engine) 
 		}
 		return mock.FinalText("PASS: correct")
 	}
-	k, err := runtime.Open(runtime.Config{NewToolInvoker: apptools.NewInvoker, BaseDir: t.TempDir(), Provider: p, ScriptRunner: r, Edict: engine, ApprovalTimeout: 5 * time.Second,
+	k, err := openKernelWithWorkflows(t, runtime.Config{NewToolInvoker: apptools.NewInvoker, BaseDir: t.TempDir(), Provider: p, ScriptRunner: r, Edict: engine, ApprovalTimeout: 5 * time.Second,
 		ToolCapabilities: map[string]string{"code_exec": "introspect"}})
 	if err != nil {
 		t.Fatal(err)

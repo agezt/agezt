@@ -58,7 +58,7 @@ func newApprovalKernel(t *testing.T, prov llm.Provider, invoked *int32, timeout 
 		AskPolicy: edict.AskPrompt,
 	})
 	reg := approval.New(approval.Config{Timeout: timeout})
-	k, err := runtime.Open(runtime.Config{NewToolInvoker: apptools.NewInvoker,
+	k, err := openKernelWithWorkflows(t, runtime.Config{NewToolInvoker: apptools.NewInvoker,
 		BaseDir:   t.TempDir(),
 		Provider:  prov,
 		Tools:     map[string]toolapi.Tool{"approvalprobe": probeTool{invoked: invoked}},
