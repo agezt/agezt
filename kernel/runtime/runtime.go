@@ -16,10 +16,11 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
-	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
@@ -72,7 +73,21 @@ type Config struct {
 	// the offering (drafting/testing then reports the forge unavailable).
 	// The daemon wires the code_exec tool here — same warden isolation,
 	// scrubbed env, and `code.exec` Edict gate as direct code execution.
-	ScriptRunner toolforge.Runner
+	//
+	// The PORT lives in the contract layer (kernel/contract/toolregapi — the
+	// registry's script runner, W3.45): the host injects the executor and may
+	// not name a module's type.
+	ScriptRunner toolregapi.ScriptRunner
+
+	// ToolForge is the script-tool store the host holds (W3.45) — the
+	// contract's port, not a module's store. The daemon opens the file
+	// (toolforge/scripttools.json) and hands it over; the kernel drives the
+	// lifecycle through it and the tool registry receives the narrower read
+	// port.
+	//
+	// Nil means "no forge": drafting, testing and promoting report that the
+	// forge is unavailable rather than calling into nothing.
+	ToolForge toolforgeapi.HostStore
 
 	// MCPDialer spawns + handshakes one MCP server on attach (M796). Nil
 	// means the production stdio dialer (mcp.Dial); tests inject fakes.

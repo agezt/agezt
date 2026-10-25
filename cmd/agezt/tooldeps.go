@@ -27,7 +27,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/modules/board/board"
-	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -317,26 +316,16 @@ func skillBundlesPort(k *runtime.Kernel) skillapi.BundleStore {
 }
 
 // forgeStore hands the live script-tool store to the tool registry as the
-// contract's port. It is a named function so the nil-port rule is stated once
-// and can be tested on its own.
+// contract's port.
+//
+// The kernel holds the port itself now (W3.45): the daemon opened the store
+// and injected the contract's port, so there is nothing left to wrap — and
+// nothing left that could turn a missing store into a non-nil port.
 func forgeStore(k *runtime.Kernel) toolforgeapi.Store {
 	if k == nil {
 		return nil
 	}
-	return forgePort(k.ToolForge())
-}
-
-// forgePort turns the concrete store into the contract's port.
-//
-// A nil store must stay a NIL PORT: a port that wraps a nil implementation is
-// not nil, so the tool would call into nothing instead of reporting that the
-// store is unavailable. The check is on the concrete type on purpose — a
-// nil *Store handed to an interface parameter is already a non-nil interface.
-func forgePort(s *toolforge.Store) toolforgeapi.Store {
-	if s == nil {
-		return nil
-	}
-	return s
+	return k.ToolForge()
 }
 
 // forgeRunnerPort turns the live kernel into the contract's forge runner.

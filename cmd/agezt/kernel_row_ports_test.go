@@ -40,7 +40,7 @@ func TestForgeRunnerPortStaysANilPortWithoutAKernel(t *testing.T) {
 // a copy — or nothing — would leave the agent authoring tools into a void,
 // and every test that built the tool by hand would stay green.
 func TestTheDaemonSuppliesTheForgeRunner(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withForge(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

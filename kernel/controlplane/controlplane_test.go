@@ -20,6 +20,7 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/reaper"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
+	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
@@ -56,6 +57,13 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 	}
 	cfg.Artifacts = store
 	cfg.ArtifactIndex = index
+	// The script-tool store is the composition root's file too (W3.45): the
+	// kernel holds the contract's port, and the root opens the file.
+	forge, err := toolforge.Open(filepath.Join(dir, "toolforge"))
+	if err != nil {
+		t.Fatalf("open the forge store: %v", err)
+	}
+	cfg.ToolForge = forge
 	k, err := runtime.Open(cfg)
 	if err != nil {
 		t.Fatalf("Open: %v", err)

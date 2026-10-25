@@ -20,20 +20,43 @@ import (
 
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 )
 
-// ToolForge returns the durable script-tool store (M794). Always non-nil
-// after Open.
-func (k *Kernel) ToolForge() *toolforge.Store { return k.toolForge }
+// ToolForge returns the durable script-tool store (M794) — the contract's
+// port (W3.45), which the host opened and injected.
+//
+// Nil when the host wired no forge: every operation below then reports that
+// the forge is unavailable rather than calling into nothing.
+func (k *Kernel) ToolForge() toolforgeapi.HostStore { return k.toolForge }
+
+// errNoForge is what a kernel without a forge answers.
+//
+// The store is the HOST's file (W3.45): a host that wired none must get a
+// plain refusal — never a panic, and never a call into nothing.
+var errNoForge = errors.New("runtime: the script-tool forge is not available on this daemon (no forge store)")
+
+// forge returns the script-tool store, or the refusal a kernel without one
+// gives.
+func (k *Kernel) scriptForge() (toolforgeapi.HostStore, error) {
+	if k.toolForge == nil {
+		return nil, errNoForge
+	}
+	return k.toolForge, nil
+}
 
 // DraftScriptTool validates and persists a new DRAFT script tool, journaling
 // scripttool.created so the tool's birth is auditable.
-func (k *Kernel) DraftScriptTool(corr string, st toolforge.ScriptTool) (toolforge.ScriptTool, error) {
-	saved, err := k.toolForge.Add(st)
+func (k *Kernel) DraftScriptTool(corr string, st toolforgeapi.ScriptTool) (toolforgeapi.ScriptTool, error) {
+	store, ferr := k.scriptForge()
+	if ferr != nil {
+		return toolforgeapi.ScriptTool{}, ferr
+	}
+	saved, err := store.Add(st)
 	if err != nil {
-		return toolforge.ScriptTool{}, err
+		return toolforgeapi.ScriptTool{}, err
 	}
 	_, _ = k.bus.Publish(event.Spec{
 		Subject: "toolforge." + saved.Name, Kind: event.KindScriptToolCreated, Actor: "toolforge",
@@ -48,13 +71,17 @@ func (k *Kernel) DraftScriptTool(corr string, st toolforge.ScriptTool) (toolforg
 // clears its test record when the code/language changed — the payload says
 // so, so `agt why` can explain why a live tool went dark. Returns false +
 // nil error for an unknown ref (standing pattern).
-func (k *Kernel) UpdateScriptTool(corr, ref string, mutate func(*toolforge.ScriptTool)) (toolforge.ScriptTool, bool, error) {
-	st, err := k.toolForge.Update(ref, mutate)
-	if errors.Is(err, toolforge.ErrNotFound) {
-		return toolforge.ScriptTool{}, false, nil
+func (k *Kernel) UpdateScriptTool(corr, ref string, mutate func(*toolforgeapi.ScriptTool)) (toolforgeapi.ScriptTool, bool, error) {
+	store, ferr := k.scriptForge()
+	if ferr != nil {
+		return toolforgeapi.ScriptTool{}, false, ferr
+	}
+	st, err := store.Update(ref, mutate)
+	if errors.Is(err, toolforgeapi.ErrNotFound) {
+		return toolforgeapi.ScriptTool{}, false, nil
 	}
 	if err != nil {
-		return toolforge.ScriptTool{}, false, err
+		return toolforgeapi.ScriptTool{}, false, err
 	}
 	_, _ = k.bus.Publish(event.Spec{
 		Subject: "toolforge." + st.Name, Kind: event.KindScriptToolUpdated, Actor: "toolforge",
@@ -69,25 +96,29 @@ func (k *Kernel) UpdateScriptTool(corr, ref string, mutate func(*toolforge.Scrip
 // ./stdin.txt), records the verdict on the tool (Promote requires a pass),
 // and journals scripttool.tested. The sandbox output comes back verbatim so
 // the author can iterate.
-func (k *Kernel) TestScriptTool(ctx context.Context, corr, ref, input string) (toolforge.ScriptTool, string, error) {
+func (k *Kernel) TestScriptTool(ctx context.Context, corr, ref, input string) (toolforgeapi.ScriptTool, string, error) {
 	if k.cfg.ScriptRunner == nil {
-		return toolforge.ScriptTool{}, "", errors.New("runtime: script tools are not available on this daemon (no sandbox runner)")
+		return toolforgeapi.ScriptTool{}, "", errors.New("runtime: script tools are not available on this daemon (no sandbox runner)")
 	}
-	st, found := k.toolForge.Get(ref)
+	store, ferr := k.scriptForge()
+	if ferr != nil {
+		return toolforgeapi.ScriptTool{}, "", ferr
+	}
+	st, found := store.Get(ref)
 	if !found {
-		return toolforge.ScriptTool{}, "", toolforge.ErrNotFound
+		return toolforgeapi.ScriptTool{}, "", toolforgeapi.ErrNotFound
 	}
 	if strings.TrimSpace(input) == "" {
 		input = "{}"
 	}
 	out, isErr, err := k.cfg.ScriptRunner.RunScript(ctx, st.Language, st.Code, input)
 	if err != nil {
-		return toolforge.ScriptTool{}, "", err
+		return toolforgeapi.ScriptTool{}, "", err
 	}
 	ok := !isErr
-	rec, rerr := k.toolForge.RecordTest(st.ID, ok)
+	rec, rerr := store.RecordTest(st.ID, ok)
 	if rerr != nil {
-		return toolforge.ScriptTool{}, "", rerr
+		return toolforgeapi.ScriptTool{}, "", rerr
 	}
 	_, _ = k.bus.Publish(event.Spec{
 		Subject: "toolforge." + st.Name, Kind: event.KindScriptToolTested, Actor: "toolforge",
@@ -100,10 +131,14 @@ func (k *Kernel) TestScriptTool(ctx context.Context, corr, ref, input string) (t
 // PromoteScriptTool moves a tested draft/quarantined tool to ACTIVE — from
 // the next run on, every agent is offered it as forge_<name>. Journals
 // scripttool.promoted.
-func (k *Kernel) PromoteScriptTool(corr, ref string) (toolforge.ScriptTool, error) {
-	st, err := k.toolForge.Promote(ref)
+func (k *Kernel) PromoteScriptTool(corr, ref string) (toolforgeapi.ScriptTool, error) {
+	store, ferr := k.scriptForge()
+	if ferr != nil {
+		return toolforgeapi.ScriptTool{}, ferr
+	}
+	st, err := store.Promote(ref)
 	if err != nil {
-		return toolforge.ScriptTool{}, err
+		return toolforgeapi.ScriptTool{}, err
 	}
 	_, _ = k.bus.Publish(event.Spec{
 		Subject: "toolforge." + st.Name, Kind: event.KindScriptToolPromoted, Actor: "toolforge",
@@ -120,16 +155,20 @@ func (k *Kernel) PromoteScriptTool(corr, ref string) (toolforge.ScriptTool, erro
 // comes back as the decision, not an error. The "only tested code goes
 // live" invariant is checked up front so an untested draft never even
 // reaches the operator's queue.
-func (k *Kernel) RequestToolPromotion(ctx context.Context, corr, ref string) (toolforge.ScriptTool, approval.Decision, string, error) {
-	st, found := k.toolForge.Get(strings.TrimSpace(ref))
-	if !found {
-		return toolforge.ScriptTool{}, "", "", fmt.Errorf("toolforge: no script tool %q", ref)
+func (k *Kernel) RequestToolPromotion(ctx context.Context, corr, ref string) (toolforgeapi.ScriptTool, approval.Decision, string, error) {
+	store, ferr := k.scriptForge()
+	if ferr != nil {
+		return toolforgeapi.ScriptTool{}, "", "", ferr
 	}
-	if st.Status == toolforge.StatusActive {
+	st, found := store.Get(strings.TrimSpace(ref))
+	if !found {
+		return toolforgeapi.ScriptTool{}, "", "", fmt.Errorf("toolforge: no script tool %q", ref)
+	}
+	if st.Status == toolforgeapi.StatusActive {
 		return st, "", "", fmt.Errorf("toolforge: %s is already active", st.Name)
 	}
 	if !st.TestedOK {
-		return toolforge.ScriptTool{}, "", "", toolforge.ErrUntested
+		return toolforgeapi.ScriptTool{}, "", "", toolforgeapi.ErrUntested
 	}
 	if k.cfg.AutoPromoteScriptTools {
 		promoted, err := k.PromoteScriptTool(corr, st.Name)
@@ -158,10 +197,14 @@ func (k *Kernel) RequestToolPromotion(ctx context.Context, corr, ref string) (to
 
 // QuarantineScriptTool pulls an active tool from production — the kill
 // switch. Journals scripttool.quarantined with the operator's reason.
-func (k *Kernel) QuarantineScriptTool(corr, ref, reason string) (toolforge.ScriptTool, error) {
-	st, err := k.toolForge.Quarantine(ref)
+func (k *Kernel) QuarantineScriptTool(corr, ref, reason string) (toolforgeapi.ScriptTool, error) {
+	store, ferr := k.scriptForge()
+	if ferr != nil {
+		return toolforgeapi.ScriptTool{}, ferr
+	}
+	st, err := store.Quarantine(ref)
 	if err != nil {
-		return toolforge.ScriptTool{}, err
+		return toolforgeapi.ScriptTool{}, err
 	}
 	payload := map[string]any{"id": st.ID, "name": st.Name}
 	if reason = strings.TrimSpace(reason); reason != "" {
@@ -178,7 +221,11 @@ func (k *Kernel) QuarantineScriptTool(corr, ref, reason string) (toolforge.Scrip
 // RemoveScriptTool deletes a script tool, journaling scripttool.removed when
 // it existed. Returns whether it existed.
 func (k *Kernel) RemoveScriptTool(corr, ref string) (bool, error) {
-	gone, ok, err := k.toolForge.Remove(ref)
+	store, ferr := k.scriptForge()
+	if ferr != nil {
+		return false, ferr
+	}
+	gone, ok, err := store.Remove(ref)
 	if err != nil {
 		return false, err
 	}
@@ -236,8 +283,8 @@ const defaultForgedSchema = `{
 // raw JSON input rides into the sandbox (the script reads it from
 // ./stdin.txt) and combined stdout+stderr comes back as the result.
 type forgedTool struct {
-	st     toolforge.ScriptTool
-	runner toolforge.Runner
+	st     toolforgeapi.ScriptTool
+	runner toolregapi.ScriptRunner
 }
 
 func (t forgedTool) Definition() toolapi.ToolDef {

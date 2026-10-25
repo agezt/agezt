@@ -239,3 +239,30 @@ func TestTheStorePortShape(t *testing.T) {
 		t.Fatalf("List must return []ScriptTool, got %v", list.Type)
 	}
 }
+
+// TestTheHostPortCarriesTheLifecycleVerbs: the HOST-facing port is the
+// tool-facing port plus the verbs the host drives — draft, edit, record a
+// test, promote, quarantine, remove — and the two it reads with.
+//
+// The split is the point: a plugin holds every method of the port it is
+// given, so a plugin that could Promote would be able to put its own code in
+// front of the operator's agent. The read port stays two verbs wide (the
+// guard above), and the lifecycle verbs live here.
+func TestTheHostPortCarriesTheLifecycleVerbs(t *testing.T) {
+	typ := reflect.TypeOf((*HostStore)(nil)).Elem()
+	if typ.Kind() != reflect.Interface {
+		t.Fatalf("HostStore must be an interface, got %v", typ.Kind())
+	}
+	for _, name := range []string{"Get", "List", "Add", "Update", "RecordTest", "Promote", "Quarantine", "Remove", "Active", "Count"} {
+		if _, ok := typ.MethodByName(name); !ok {
+			t.Errorf("the host port must have a %s method", name)
+		}
+	}
+	if typ.NumMethod() != 10 {
+		var names []string
+		for i := 0; i < typ.NumMethod(); i++ {
+			names = append(names, typ.Method(i).Name)
+		}
+		t.Fatalf("the host port must have exactly the ten verbs it uses, got %v", names)
+	}
+}

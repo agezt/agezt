@@ -59,7 +59,13 @@ func forgeMutationFixture(t *testing.T, cmd string) (*runtime.Kernel, *Server, *
 	}
 	runner := &forgeBindingRunner{}
 	provider := mock.New()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, ScriptRunner: runner})
+	// The store is the HOST's file (W3.45): the kernel holds the contract's
+	// port, and the host opens the store and injects it.
+	store, err := toolforge.Open(forgeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, ScriptRunner: runner, ToolForge: store})
 	if err != nil {
 		t.Fatal(err)
 	}

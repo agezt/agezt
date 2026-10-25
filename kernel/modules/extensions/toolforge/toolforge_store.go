@@ -20,7 +20,12 @@ import (
 
 // The store satisfies the contract's read port: the agent-facing tool reads
 // the stored script tools through it, and never names this implementation.
+//
+// It also satisfies the HOST-facing port (W3.45): the host drives the
+// lifecycle — draft, edit, test, promote, quarantine, remove — and the
+// daemon opens this file and hands the kernel that port.
 var _ toolforgeapi.Store = (*Store)(nil)
+var _ toolforgeapi.HostStore = (*Store)(nil)
 
 // Store is the persistent script-tool registry, a single JSON file rewritten
 // atomically on change. Safe for concurrent use. Mirrors kernel/roster.Store.
