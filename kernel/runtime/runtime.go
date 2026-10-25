@@ -320,12 +320,11 @@ type Config struct {
 	WorldTopK   int
 	WorldTool   bool
 
-	// MarketTool registers the in-process `market` tool so an agent can discover
-	// and install capability packs (skills + MCP servers + tools) from the
-	// marketplace mid-task. The tool resolves the kernel's market manager lazily
-	// (the daemon wires it via SetMarket after Open); when no manager is wired the
-	// tool reports the marketplace is unavailable. Off by default.
-	MarketTool bool
+	// The `market` tool is NOT a kernel knob (W3.46): the tool lives in the
+	// market module and the kernel is a module — it may not name a module's
+	// implementation. The composition root (cmd/agezt) builds the tool over the
+	// contract's marketplace port and hands it over in Tools like any other
+	// tool, so the kernel reaches no market package.
 
 	// Voice, when non-nil, is the daemon's speech adapter (typically the
 	// OpenAI-compatible voice adapter plugin) built from AGEZT_STT_* /

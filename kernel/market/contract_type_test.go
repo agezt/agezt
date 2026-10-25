@@ -24,6 +24,11 @@ func TestTheRowsAreTheContractRows(t *testing.T) {
 		{"Signature", Signature{}, marketapi.Signature{}},
 		{"Marketplace", Marketplace{}, marketapi.Marketplace{}},
 		{"MarketplaceEntry", MarketplaceEntry{}, marketapi.MarketplaceEntry{}},
+		{"Listing", Listing{}, marketapi.Listing{}},
+		{"InstalledPack", InstalledPack{}, marketapi.InstalledPack{}},
+		{"Event", Event{}, marketapi.Event{}},
+		{"Source", Source{}, marketapi.Source{}},
+		{"SyncResult", SyncResult{}, marketapi.SyncResult{}},
 	} {
 		if reflect.TypeOf(c.module) != reflect.TypeOf(c.contract) {
 			t.Errorf("the %s row drifted from the contract: %v vs %v",
@@ -37,6 +42,14 @@ func TestTheRowsAreTheContractRows(t *testing.T) {
 // contract rather than naming this module.
 func TestTheLibraryIsTheContractPort(t *testing.T) {
 	var _ marketapi.Library = (Library)(nil)
+}
+
+// TestTheManagerIsTheContractPort: the manager IS the contract's marketplace
+// port (W3.46). The kernel holds the port and never names this module, so
+// this line is what makes a port change a compile error HERE — in the module
+// that implements it — instead of a silent drift between two shapes.
+func TestTheManagerIsTheContractPort(t *testing.T) {
+	var _ marketapi.Manager = (*Manager)(nil)
 }
 
 // TestTheRulesAreTheContracts: the module's delegations and the contract's

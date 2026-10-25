@@ -10,6 +10,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/imagetool"
+	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/reranktool"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/voicetool"
@@ -17,9 +18,9 @@ import (
 )
 
 // The mirror of plugins/builtintools' capability guard, for the tools the
-// RUNTIME registers rather than the boot registry: memory, world, delegate,
-// delegate_await and market — and for the three the HOST hands over: voice,
-// image_generate and rerank.
+// RUNTIME registers rather than the boot registry: memory, world, delegate and
+// delegate_await — and for the four the HOST hands over: voice, image_generate,
+// rerank and market.
 //
 // That package cannot see the runtime's own (they are wired inside Open), and
 // these are precisely the ones that had drifted — market, voice,
@@ -59,10 +60,15 @@ func openFullToolKernel(t *testing.T) map[string]toolapi.Tool {
 	// is a module and may not name a tool package, so the composition root
 	// builds them and hands them over as tools. This test is such a host —
 	// and the guard below is exactly what the daemon's tools must satisfy.
+	//
+	// The market tool joined them (W3.46): it lives in the market module, and
+	// the kernel may not name a module's implementation — so the daemon builds
+	// it over the contract's marketplace port and hands it over here too.
 	hostTools := map[string]toolapi.Tool{
 		"voice":          voicetool.New(stubVoice{}),
 		"image_generate": imagetool.New(stubImageGen{}),
 		"rerank":         reranktool.New(stubReranker{}),
+		"market":         market.NewTool(),
 	}
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:      t.TempDir(),
@@ -70,7 +76,6 @@ func openFullToolKernel(t *testing.T) map[string]toolapi.Tool {
 		MemoryTool:   true,
 		WorldTool:    true,
 		SubAgentTool: true,
-		MarketTool:   true,
 		Tools:        hostTools,
 	})
 	if err != nil {

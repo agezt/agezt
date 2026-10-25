@@ -9,18 +9,19 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/agezt/agezt/kernel/contract/marketapi"
 )
 
 // Source is a configured remote marketplace: a URL to its marketplace.json and
 // an optional Ed25519 public key (hex) to verify the packs it serves. Sources
 // live in <base>/market/sources.json; their fetched catalogues are cached under
 // <base>/market/marketplaces/<name>/.
-type Source struct {
-	Name    string `json:"name"`             // local handle (kebab); also the cache dir name
-	URL     string `json:"url"`              // marketplace.json URL
-	PubKey  string `json:"pubkey,omitempty"` // optional hex Ed25519 key to verify this source's packs
-	AddedMS int64  `json:"added_ms,omitempty"`
-}
+//
+// The row itself lives in the contract layer (kernel/contract/marketapi) —
+// the manager's port carries it. The name stays here as an alias, so every
+// existing caller is unchanged.
+type Source = marketapi.Source
 
 func (s *Store) sourcesPath() string     { return filepath.Join(s.dir, "sources.json") }
 func (s *Store) marketplacesDir() string { return filepath.Join(s.dir, "marketplaces") }

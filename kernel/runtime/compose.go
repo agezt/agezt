@@ -26,7 +26,6 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/journal"
-	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
@@ -256,13 +255,12 @@ func Open(cfg Config) (*Kernel, error) {
 		awaitTool = newSubAgentAwaitTool()
 		effTools["delegate_await"] = awaitTool
 	}
-	// The market tool needs k.Market (wired by the daemon after Open); register
-	// it now and bind its lazy getter just after k is built (same map k holds).
-	var mktTool *market.Tool
-	if cfg.MarketTool {
-		mktTool = market.NewTool()
-		effTools["market"] = mktTool
-	}
+	// The market tool is NOT built here (W3.46): it lives in the market
+	// module, and the kernel is a module — it may not name a module's
+	// implementation. The composition root (cmd/agezt) builds it over the
+	// contract's marketplace port and hands it over as an ordinary tool in
+	// cfg.Tools, which is why the kernel reaches no market package.
+	//
 	// The voice, image and rerank tools are NOT built here (W3.44): they live
 	// in their own packages, and the kernel is a module — it may not name a
 	// module's implementation. The composition root (cmd/agezt) builds them
@@ -330,9 +328,6 @@ func Open(cfg Config) (*Kernel, error) {
 	}
 	if awaitTool != nil {
 		awaitTool.await = k.awaitSubAgent
-	}
-	if mktTool != nil {
-		mktTool.Manager = k.Market
 	}
 
 	// Config Center for agent SDK config access (M???)

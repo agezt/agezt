@@ -48,15 +48,6 @@ type mcpRemover interface {
 	RemoveMCPServer(corr, ref string) (bool, error)
 }
 
-// Event is a progress frame emitted during install/uninstall (streamed to the UI
-// and journaled), mirroring the toolbox install stream.
-type Event struct {
-	Stage  string `json:"stage"` // vet | skill | mcp | tool | done
-	Name   string `json:"name,omitempty"`
-	OK     bool   `json:"ok"`
-	Detail string `json:"detail,omitempty"`
-}
-
 // Manager ties a Library (catalogue) to the Store (provenance) and the live
 // subsystems that execute capabilities (Forge, MCP). It is the single entry the
 // control plane and CLI drive.
