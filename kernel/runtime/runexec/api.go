@@ -15,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/mediaapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/intent"
@@ -29,7 +30,6 @@ import (
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/kernel/state"
-	"github.com/agezt/agezt/kernel/voicetool"
 	"github.com/agezt/agezt/kernel/warden"
 )
 
@@ -44,7 +44,7 @@ type KernelAPI interface {
 	Tools() map[string]toolapi.Tool
 	MaxDuration() time.Duration
 	Model() string
-	Voice() voicetool.Voice
+	Voice() mediaapi.Voice
 	VisionModel() func() (string, bool)
 	MemoryDistill() bool
 	MemoryDistillMinTools() int

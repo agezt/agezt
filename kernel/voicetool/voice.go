@@ -17,21 +17,20 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/mediaapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
 
 // Voice is the seam the `voice` tool drives. Implemented by the daemon's voice
 // adapter; either half may be unconfigured (reported via HasSTT/HasTTS).
-type Voice interface {
-	// Transcribe turns audio bytes into text (speech-to-text).
-	Transcribe(ctx context.Context, audio []byte, filename string) (string, error)
-	// Speak turns text into audio bytes + their MIME type (text-to-speech).
-	Speak(ctx context.Context, text string) (audio []byte, mime string, err error)
-	// HasSTT / HasTTS report which halves are configured.
-	HasSTT() bool
-	HasTTS() bool
-}
+//
+// The PORT lives in the contract layer (kernel/contract/mediaapi — W3.44):
+// the daemon injects the seam and the kernel answers "is speech configured?"
+// on its behalf, so the seam has to be nameable from the contract. The name
+// stays here as an alias, so every existing importer keeps compiling
+// unchanged.
+type Voice = mediaapi.Voice
 
 // Tool implements toolapi.Tool over a Voice adapter. SaveArtifact is bound to the
 // kernel's artifact store after runtime.Open (the audio bytes are persisted

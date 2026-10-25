@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/mediaapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 )
@@ -22,14 +23,11 @@ import (
 // ImageGen is the seam the `image_generate` tool drives. Its method set uses
 // only stdlib types so a provider plugin satisfies it structurally without
 // importing the kernel.
-type ImageGen interface {
-	// GenerateImage returns the raw bytes of each generated image plus their
-	// shared MIME type. size/quality are passed through when non-empty; n<=0
-	// means one image.
-	GenerateImage(ctx context.Context, prompt, size, quality string, n int) ([][]byte, string, error)
-	// HasImage reports whether image generation is configured.
-	HasImage() bool
-}
+//
+// The PORT lives in the contract layer (kernel/contract/mediaapi — W3.44):
+// the daemon injects the seam, so it has to be nameable from the contract.
+// The name stays here as an alias.
+type ImageGen = mediaapi.ImageGen
 
 // Tool implements toolapi.Tool over an ImageGen adapter. SaveArtifact is bound to
 // the kernel's artifact store after runtime.Open.
