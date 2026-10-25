@@ -4,13 +4,15 @@ package controlplane
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
+	"testing"
+
 	apptools "github.com/agezt/agezt/kernel/app/tools"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
-	"testing"
 )
 
 type forgeServiceRunner struct {
@@ -28,7 +30,14 @@ func (r *forgeServiceRunner) RunScript(ctx context.Context, _, _, input string) 
 func TestForgeLifecycleServiceOwnStoreJournalAndContext(t *testing.T) {
 	runner := &forgeServiceRunner{}
 	provider := mock.New()
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: provider, ScriptRunner: runner})
+	// The store is the HOST's file (W3.45): the kernel holds the contract's
+	// port, and the host opens the store and injects it.
+	base := t.TempDir()
+	store, err := toolforge.Open(filepath.Join(base, "toolforge"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	k, err := runtime.Open(runtime.Config{BaseDir: base, Provider: provider, ScriptRunner: runner, ToolForge: store})
 	if err != nil {
 		t.Fatal(err)
 	}

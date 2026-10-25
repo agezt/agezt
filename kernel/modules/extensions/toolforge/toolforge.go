@@ -21,10 +21,10 @@ package toolforge
 //             god-file split. Public API unchanged.
 
 import (
-	"context"
-	"errors"
 	"fmt"
+
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
+	"github.com/agezt/agezt/kernel/contract/toolregapi"
 )
 
 // safeCall runs fn under a panic-recovery defer. If fn panics, the panic is caught
@@ -39,11 +39,18 @@ func safeCall(fn func() error) (err error) {
 }
 
 // ErrNotFound is returned for an unknown script-tool id/name.
-var ErrNotFound = errors.New("toolforge: script tool not found")
+//
+// The row lives in the contract layer (kernel/contract/toolforgeapi — W3.45):
+// the host answers with it, and the host may not name a module's sentinel.
+// The name stays here as an alias.
+var ErrNotFound = toolforgeapi.ErrNotFound
 
 // ErrUntested is returned by Promote when the CURRENT code has no passing
 // test on record — the forge's core invariant: only tested code goes live.
-var ErrUntested = errors.New("toolforge: the current code has no passing test — run a test first")
+//
+// The row lives in the contract layer (kernel/contract/toolforgeapi — W3.45),
+// for the same reason as ErrNotFound.
+var ErrUntested = toolforgeapi.ErrUntested
 
 // Status is a script tool's lifecycle state.
 //
@@ -71,9 +78,11 @@ type ScriptTool = toolforgeapi.ScriptTool
 // combined stdout+stderr comes back. isError mirrors the sandbox's own
 // verdict (non-zero exit, timeout, unavailable language...). Implemented by
 // the code_exec tool; the daemon is the single wiring point.
-type Runner interface {
-	RunScript(ctx context.Context, language, code, inputJSON string) (output string, isError bool, err error)
-}
+//
+// The PORT lives in the contract layer (kernel/contract/toolregapi — the
+// registry's script runner, W3.45): the host injects the executor and may not
+// name a module's type. The name stays here as an alias.
+type Runner = toolregapi.ScriptRunner
 
 // The caps the rule enforces: the name pattern, the language pattern and the
 // size limits live in the contract layer, with the rule. The module keeps the

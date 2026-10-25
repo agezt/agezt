@@ -5,6 +5,7 @@ package runtime_test
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -33,18 +34,68 @@ func (r *stubRunner) RunScript(_ context.Context, language, code, inputJSON stri
 	return r.out, r.isErr, nil
 }
 
+// openForgeKernel opens a kernel WITH a script-tool store.
+//
+// The store is the HOST's file (W3.45): the kernel holds the contract's port
+// and the host opens the store and injects it. This test is such a host.
 func openForgeKernel(t *testing.T, prov llm.Provider, runner toolforge.Runner) *runtime.Kernel {
 	t.Helper()
+	store, err := toolforge.Open(filepath.Join(t.TempDir(), "toolforge"))
+	if err != nil {
+		t.Fatalf("open the forge store: %v", err)
+	}
 	k, err := runtime.Open(runtime.Config{NewToolInvoker: apptools.NewInvoker,
 		BaseDir:      t.TempDir(),
 		Provider:     prov,
 		ScriptRunner: runner,
+		ToolForge:    store,
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { k.Close() })
 	return k
+}
+
+// TestTheForgeRefusesWithoutAStore: the store is the HOST's file (W3.45), so
+// a kernel CAN be opened without one.
+//
+// Every forge operation must then say so. A panic would take the daemon down
+// over a missing file — and the panic is what the first version of this
+// kernel did, until the slice taught it to refuse.
+func TestTheForgeRefusesWithoutAStore(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	if k.ToolForge() != nil {
+		t.Fatal("a kernel opened without a store must hold a nil port")
+	}
+	ctx := context.Background()
+	tool := toolforge.ScriptTool{Name: "echo", Description: "echoes", Language: "python", Code: "print(1)"}
+	if _, err := k.DraftScriptTool("", tool); err == nil {
+		t.Error("drafting without a store must refuse")
+	}
+	if _, _, err := k.UpdateScriptTool("", "echo", func(*toolforge.ScriptTool) {}); err == nil {
+		t.Error("editing without a store must refuse")
+	}
+	if _, _, err := k.TestScriptTool(ctx, "", "echo", "{}"); err == nil {
+		t.Error("testing without a store must refuse")
+	}
+	if _, err := k.PromoteScriptTool("", "echo"); err == nil {
+		t.Error("promoting without a store must refuse")
+	}
+	if _, _, _, err := k.RequestToolPromotion(ctx, "", "echo"); err == nil {
+		t.Error("requesting a promotion without a store must refuse")
+	}
+	if _, err := k.QuarantineScriptTool("", "echo", ""); err == nil {
+		t.Error("quarantining without a store must refuse")
+	}
+	if _, err := k.RemoveScriptTool("", "echo"); err == nil {
+		t.Error("removing without a store must refuse")
+	}
 }
 
 // promoteEcho drafts + test-passes + promotes one script tool named "echo".
@@ -305,11 +356,18 @@ func TestRequestToolPromotion(t *testing.T) {
 
 func TestRequestToolPromotion_AutoPromote(t *testing.T) {
 	runner := &stubRunner{out: "ok"}
+	// The store is the HOST's file (W3.45): the kernel holds the contract's
+	// port, and the host opens the store and injects it.
+	store, err := toolforge.Open(filepath.Join(t.TempDir(), "toolforge"))
+	if err != nil {
+		t.Fatalf("open the forge store: %v", err)
+	}
 	k, err := runtime.Open(runtime.Config{NewToolInvoker: apptools.NewInvoker,
 		BaseDir:                t.TempDir(),
 		Provider:               mock.New(mock.FinalText("unused")),
 		ScriptRunner:           runner,
 		AutoPromoteScriptTools: true,
+		ToolForge:              store,
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)

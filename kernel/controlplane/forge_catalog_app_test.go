@@ -32,7 +32,13 @@ func forgeReadFixture(t *testing.T) (*runtime.Kernel, *Server, *mock.Provider) {
 		t.Fatal(err)
 	}
 	provider := mock.New()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider})
+	// The store is the HOST's file (W3.45): the kernel holds the contract's
+	// port, and the host opens the store and injects it.
+	store, err := toolforge.Open(tfdir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, ToolForge: store})
 	if err != nil {
 		t.Fatal(err)
 	}

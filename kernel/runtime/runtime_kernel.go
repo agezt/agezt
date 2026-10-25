@@ -22,6 +22,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/journal"
@@ -29,7 +30,6 @@ import (
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
-	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
@@ -70,7 +70,7 @@ type Kernel struct {
 	standing     *standing.Store
 	resume       *resume.Store // durable in-flight-run tickets for restart resume (M1002); nil when disabled
 	roster       *roster.Store
-	toolForge    *toolforge.Store
+	toolForge    toolforgeapi.HostStore
 	mcpStore     *mcp.Store
 	workflows    *workflow.Store
 	workboard    *workboard.Store

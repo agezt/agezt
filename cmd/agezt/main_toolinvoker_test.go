@@ -13,6 +13,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
@@ -173,6 +174,39 @@ func TestOpenAppKernelWiresTheArtifactStore(t *testing.T) {
 	}
 	if string(got) != string(data) {
 		t.Fatalf("the blob came back as %q, want %q", got, data)
+	}
+}
+
+// TestOpenAppKernelWiresTheForge: the script-tool store is the DAEMON's file
+// (W3.45) — the kernel holds the contract's port and drives the lifecycle
+// through it, and the daemon opens the file and injects it.
+//
+// The daemon end: the port is live, and it is the LIVE store — a tool drafted
+// through the kernel has to show up in the catalogue the daemon opened.
+func TestOpenAppKernelWiresTheForge(t *testing.T) {
+	k, err := openAppKernel(kernelruntime.Config{BaseDir: t.TempDir(), Provider: mock.New(), Tools: map[string]toolapi.Tool{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	forge := k.ToolForge()
+	if forge == nil {
+		t.Fatal("the daemon did not wire the forge store — the kernel holds no port")
+	}
+
+	drafted, err := k.DraftScriptTool("corr-1", toolforgeapi.ScriptTool{
+		Name:        "echo",
+		Description: "echoes its input",
+		Language:    "python",
+		Code:        "print(1)",
+	})
+	if err != nil {
+		t.Fatalf("DraftScriptTool: %v", err)
+	}
+	all := forge.List()
+	if len(all) != 1 || all[0].ID != drafted.ID {
+		t.Fatalf("the port must reach the daemon's own store, got %v", all)
 	}
 }
 

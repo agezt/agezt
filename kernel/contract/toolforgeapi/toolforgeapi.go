@@ -121,12 +121,62 @@ func Validate(st ScriptTool) error {
 // The implementation — the on-disk store in the extensions module — satisfies
 // it; the agent-facing tool never names the implementation, because it is a
 // plugin.
+//
+// It stays TWO verbs wide on purpose: a plugin holds every method of the port
+// it is given, and a plugin that could Promote a tool would be able to put
+// its own code in front of the operator's agent. The host's verbs live on
+// HostStore.
 type Store interface {
 	// Get returns the tool at ref; the bool is false if absent.
 	Get(ref string) (ScriptTool, bool)
 	// List returns every stored tool.
 	List() []ScriptTool
 }
+
+// HostStore is the HOST-facing port: the two read verbs a plugin holds, plus
+// the lifecycle verbs the host drives — draft, edit, record a test, promote,
+// quarantine, remove, and list what is active.
+//
+// The split exists because the two audiences are not the same. A plugin reads
+// the catalogue. The host runs the lifecycle, and it is the host that asks
+// the operator before a tool goes live.
+//
+// One store, two views of it: the daemon opens the file and hands the kernel
+// this port; the tool registry receives the narrower Store.
+type HostStore interface {
+	Store
+	// Add saves a new tool and returns it.
+	Add(st ScriptTool) (ScriptTool, error)
+	// Update applies mutate to the tool at ref.
+	Update(ref string, mutate func(*ScriptTool)) (ScriptTool, error)
+	// RecordTest writes the outcome of a sandbox run against the tool at ref.
+	RecordTest(ref string, ok bool) (ScriptTool, error)
+	// Promote makes the tool at ref live.
+	Promote(ref string) (ScriptTool, error)
+	// Quarantine takes the tool at ref out of circulation.
+	Quarantine(ref string) (ScriptTool, error)
+	// Remove deletes the tool at ref; the bool is false if it was already
+	// gone.
+	Remove(ref string) (ScriptTool, bool, error)
+	// Active returns the tools that are live.
+	Active() []ScriptTool
+	// Count returns how many tools the store holds.
+	Count() int
+}
+
+// ErrNotFound is returned when the store holds no tool at the given ref.
+//
+// It is the CONTRACT's row because the host answers with it: a caller that
+// asks for a tool that is not there must be able to tell "no such tool" from
+// "the store failed", and the host may not name the module's sentinel.
+var ErrNotFound = errors.New("toolforge: script tool not found")
+
+// ErrUntested is returned when a tool is asked to go live without a passing
+// test behind it.
+//
+// It is the CONTRACT's row for the same reason as ErrNotFound: the promotion
+// flow answers with it, and the flow lives in the host.
+var ErrUntested = errors.New("toolforge: the current code has no passing test — run a test first")
 
 // Runner is the port through which a script tool's LIFECYCLE is driven:
 // draft it, edit it, test it in the sandbox, and ask the operator to promote

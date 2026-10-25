@@ -29,7 +29,6 @@ import (
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
-	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
@@ -198,11 +197,6 @@ func Open(cfg Config) (*Kernel, error) {
 		return fail("runtime: roster", err)
 	}
 
-	tfstore, err := toolforge.Open(filepath.Join(cfg.BaseDir, "toolforge"))
-	if err != nil {
-		return fail("runtime: toolforge", err)
-	}
-
 	mcpstore, err := mcp.OpenStore(filepath.Join(cfg.BaseDir, "mcp"))
 	if err != nil {
 		return fail("runtime: mcp", err)
@@ -306,7 +300,7 @@ func Open(cfg Config) (*Kernel, error) {
 		standing:     ststore,
 		resume:       rsstore,
 		roster:       rstore,
-		toolForge:    tfstore,
+		toolForge:    cfg.ToolForge,
 		mcpStore:     mcpstore,
 		mcpConns:     make(map[string]mcp.Conn),
 		workflows:    wfstore,

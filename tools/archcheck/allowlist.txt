@@ -41,7 +41,6 @@ cross-module kernel/runtime -> kernel/modules/skills/skill
 cross-module kernel/runtime -> kernel/modules/work/okr
 cross-module kernel/runtime -> kernel/modules/agents/roster
 cross-module kernel/runtime -> kernel/standing
-cross-module kernel/runtime -> kernel/modules/extensions/toolforge
 cross-module kernel/runtime -> kernel/modules/work/workboard
 cross-module kernel/runtime -> kernel/modules/workflows/workflow
 cross-module kernel/runtime/runexec -> kernel/modules/work/assure

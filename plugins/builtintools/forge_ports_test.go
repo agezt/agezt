@@ -5,10 +5,12 @@ package builtintools
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/toolregapi"
+	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -19,7 +21,15 @@ import (
 // has to be real: a tool the agent drafted must show up in the tool's own
 // op=list, or the agent would author tools it cannot see.
 func TestTheToolForgeSpecWiresTheStorePort(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	// The store is the HOST's file (W3.45): the kernel holds the contract's
+	// port and the host opens the store and injects it. This test is such a
+	// host.
+	dir := t.TempDir()
+	store, err := toolforge.Open(filepath.Join(dir, "toolforge"))
+	if err != nil {
+		t.Fatalf("open the forge store: %v", err)
+	}
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), ToolForge: store})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

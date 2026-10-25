@@ -84,7 +84,7 @@ func TestToolKernelDepsSuppliesTheOverseerPort(t *testing.T) {
 // the tool by hand stayed green. This test is the only one that sees that
 // wiring, so it asserts it directly.
 func TestToolKernelDepsSuppliesTheForgePort(t *testing.T) {
-	k, err := runtime.Open(withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
+	k, err := runtime.Open(withForge(t, withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -117,12 +117,26 @@ func TestToolKernelDepsSuppliesTheForgePort(t *testing.T) {
 // TestForgeStoreStaysANilPortWithoutAStore: a daemon with no store must hand
 // over a NIL port, not a port wrapping a nil implementation — otherwise the
 // tool would call into nil instead of reporting that the store is missing.
+//
+// The kernel holds the port itself now (W3.45): the daemon opened the store
+// and injected the contract's port, so there is no wrapper left to test. The
+// rule is that the kernel's field IS an interface, and a host that injects
+// nothing leaves it a nil interface — which the tool registry receives as a
+// nil port and reports as "the forge is unavailable".
 func TestForgeStoreStaysANilPortWithoutAStore(t *testing.T) {
 	if got := forgeStore(nil); got != nil {
 		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
 	}
-	if got := forgePort(nil); got != nil {
-		t.Fatalf("a missing store must yield a nil port, got %v", got)
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+	if got := k.ToolForge(); got != nil {
+		t.Fatalf("a kernel without an injected forge must hold a nil port, got %v", got)
+	}
+	if got := forgeStore(k); got != nil {
+		t.Fatalf("a missing forge must yield a nil port, got %v", got)
 	}
 }
 

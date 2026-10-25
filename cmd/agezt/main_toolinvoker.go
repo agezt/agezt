@@ -10,6 +10,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/agents/reaper"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
+	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
 	"github.com/agezt/agezt/kernel/modules/work/seat"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
@@ -71,6 +72,20 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 		}
 		cfg.Artifacts = store
 		cfg.ArtifactIndex = index
+	}
+	if cfg.ToolForge == nil {
+		// The script-tool store (M794) — the contract's port (W3.45). The
+		// daemon opens the file (toolforge/scripttools.json) and hands the
+		// kernel the port; the kernel drives the lifecycle through it, and the
+		// tool registry receives the narrower read port.
+		//
+		// A store that cannot be opened is a STARTUP ERROR: the forge is part
+		// of the daemon, not a convenience.
+		store, err := toolforge.Open(filepath.Join(cfg.BaseDir, "toolforge"))
+		if err != nil {
+			return nil, err
+		}
+		cfg.ToolForge = store
 	}
 	// The voice, image and rerank tools (W3.44): the kernel may not name a tool
 	// package, so the composition root builds them over the daemon's own
