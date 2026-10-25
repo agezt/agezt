@@ -4439,6 +4439,30 @@ This file holds the active `[Unreleased]` working set.
 
 ### Removed
 
+- **Removed: the kernel's reach on the marketplace (W3.46).** The kernel held
+  the market module's concrete `*market.Manager`, built the `market` agent tool
+  itself and named the module's rows. It now holds the **contract's port** —
+  `marketapi.Manager`, eight verbs, the width the control plane actually
+  drives — and the five rows that port carries moved to the contract with the
+  module keeping every name as an alias. The **tool is the daemon's** now: it
+  drives the contract's port, so the composition root builds it and hands it
+  over like any other tool, and the `MarketTool` knob is gone from
+  `runtime.Config` — the kernel no longer builds a tool, so a knob that said
+  "build it" would be a lie.
+  The wiring had to preserve **tenant isolation**: the primary kernel and every
+  tenant share one tool map, so each kernel now gets its **own** tool, bound
+  to its **own** kernel's port. A tenant's kernel never gets a manager, so its
+  tool reports the marketplace as unavailable — exactly as before — instead of
+  borrowing the primary's manager and installing packs into the primary's
+  Forge and MCP registry.
+  The kernel also learned to live without a marketplace: the port is nil until
+  the daemon wires one, and the tool answers "marketplace is not available on
+  this daemon" instead of reaching for a manager the kernel does not have. The
+  architecture ratchet went from 54 to 53 edges. No behaviour changed: the
+  tool is still registered under the same name, it is still governed by the
+  same capability guard, and an install still materializes into the same
+  subsystems.
+
 - **Removed: the kernel's reach on the script-tool store (W3.45).** The kernel
   opened the toolforge store, held the module's concrete type and called eight
   methods on it. The daemon now opens the file and hands the kernel the

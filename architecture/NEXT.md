@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.45 the script-tool store is the daemon's file, 2026-10-25
+## Current checkpoint — W3.46 the marketplace is the daemon's, the kernel holds the port, 2026-10-25
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -3190,6 +3190,55 @@ files, five of the seventeen mutations would have escaped.
   narrow interfaces (a three-verb reader and a six-verb writer), so a
   host-facing contract port is a small piece of work. **`workflow` and
   `workboard`** — both need wide new ports: the kernel names
+  `workflow.Engine`, `workflow.Ports`, `workflow.Provenance` and
+  `workflow.Trigger` (no contract home), and it calls **seventeen** workboard
+  store methods. **`cadence`, `standing`, `mcp`** — many callers each; the
+  shape is known (a contract port the host opens), the work is in the port's
+  width. **`memory`, `worldmodel`, `roster`, `skill`, `okr`, `taste`,
+  `catalog`** — the kernel holds each module's concrete store; each one is the
+  same slice (a contract port, the daemon opening the file, the kernel's
+  accessor carrying the port).
+- W3.46 (the marketplace is the daemon's, the kernel holds the port) is
+  committed on `main` the same way. It takes **one** edge — the last of the
+  *market* family (`kernel/runtime -> kernel/market`) — and it closes that
+  family: the kernel used to hold the concrete `*market.Manager`, build the
+  `market` agent tool itself and name the module's rows. The kernel now holds
+  the **contract's port** — `marketapi.Manager`, **eight** verbs (`List`,
+  `Show`, `Sources`, `InstallContext`, `UninstallContext`, `AddSource`,
+  `RemoveSource`, `Sync`), the width the control plane actually drives — and
+  the **five rows** the port carries (`Listing`, `InstalledPack`, `Event`,
+  `Source`, `SyncResult`) moved to the contract, with the module keeping every
+  name as an **alias** (one row, one spelling).
+  The **tool is the daemon's** now: it drives the contract's port, so the
+  composition root builds it and hands it over in `cfg.Tools` like the media
+  tools (W3.44), and the `MarketTool` knob is **gone** from `runtime.Config` —
+  the kernel no longer builds a tool, so a knob that said "build it" would be
+  a lie.
+  The part the slice had to be **careful** about: the primary kernel and every
+  tenant share **one** tool map, so a tool written in place — or one instance
+  handed to both — would give the tenant the **primary's** manager, and with
+  it the primary's Forge and MCP registry to install packs into. The rule:
+  **every kernel gets its own tool, bound to its own kernel's port**; the tool
+  resolves the port lazily, which is also why it can be bound *after* `Open`
+  (the built-in catalogue installs into the kernel's own Forge and MCP). A
+  tenant's kernel never gets a manager, so its tool reports the marketplace as
+  unavailable — exactly as before.
+  The part the slice had to **teach** the kernel: the manager used to be
+  reachable, so `k.marketMgr` was never nil and the code never had to say
+  what happens without one — now the port is **nil** and the tool answers
+  "marketplace is not available on this daemon" instead of reaching for a
+  manager the kernel does not have.
+  **The ratchet went DOWN by ONE: 54/13 → 53/13.**
+  **8 mutations, 8 caught**, three of them **gate-measured** by archcheck (the
+  kernel's field names the module's manager again; the kernel builds the
+  market tool again; a stale allowlist entry comes back).
+  The mutation run needed **two** passes, and the first was not honest in
+  either direction: the "caller's map" mutation **survived** (the daemon
+  copies the tool map twice, so removing one copy is not observable) and the
+  "one tool instance for every kernel" mutation was a BUILDERR (it orphaned an
+  import — a compile error is not a catch).
+  **What remains**: the kernel still reaches **16** modules. Next, in order:
+  **`workflow` and `workboard`** — both need wide new ports: the kernel names
   `workflow.Engine`, `workflow.Ports`, `workflow.Provenance` and
   `workflow.Trigger` (no contract home), and it calls **seventeen** workboard
   store methods. **`cadence`, `standing`, `mcp`** — many callers each; the
