@@ -97,7 +97,7 @@ func TestOKRLifecycleRetainsActualPortInputsReturnedObjectAndErrorCause(t *testi
 	}
 }
 func TestOKRLifecycleUsesActualKernelJournalingAndPreservesReturnedSnapshot(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withWorkboard(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatal(err)
 	}

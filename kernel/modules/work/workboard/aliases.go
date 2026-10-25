@@ -57,6 +57,24 @@ const (
 // not know.
 var ErrInvalidStatus = workboardapi.ErrInvalidStatus
 
+// ErrNotFound is the answer the board gives when a task is not there.
+//
+// The sentinel lives in the contract layer (kernel/contract/workboardapi) —
+// the host is the one who reports it, and the host may not name a module's
+// error. The name stays here as an alias, so every existing caller is
+// unchanged.
+var ErrNotFound = workboardapi.ErrNotFound
+
+// RetryDecisionFor is the retry rule: given a task and the reason it failed,
+// what happens next.
+//
+// The rule lives in the contract layer (kernel/contract/workboardapi) — it is
+// pure, and it reads the task, so it travels with it. This is a delegation,
+// so there is one rule.
+func RetryDecisionFor(t Task, reason string) RetryDecision {
+	return workboardapi.RetryDecisionFor(t, reason)
+}
+
 // ParseStatus normalizes and validates a status string.
 //
 // The rule lives in the contract layer (kernel/contract/workboardapi) — it is
@@ -67,3 +85,8 @@ func ParseStatus(s string) (Status, error) { return workboardapi.ParseStatus(s) 
 // The store answers the contract's port, so the agent-facing tool can be
 // handed the tasks without ever naming this module.
 var _ workboardapi.Store = (*Store)(nil)
+
+// The store also answers the contract's HOST port (W3.47) — the twenty verbs
+// the host drives the board with. A port change is a compile error here, in
+// the module that implements it.
+var _ workboardapi.HostStore = (*Store)(nil)

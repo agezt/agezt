@@ -5,14 +5,29 @@ package builtintools
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
+	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
+
+// withWorkboard opens the task board the composition root would open (W3.47)
+// and hands the kernel the contract's host port. This test is such a host:
+// the board's file is the daemon's business, and the kernel holds the port.
+func withWorkboard(t *testing.T, cfg runtime.Config) runtime.Config {
+	t.Helper()
+	store, err := workboard.OpenStore(filepath.Join(cfg.BaseDir, "workboard"))
+	if err != nil {
+		t.Fatalf("open the workboard store: %v", err)
+	}
+	cfg.Workboard = store
+	return cfg
+}
 
 // TestTheWorkboardSpecWiresTheStorePort: the workboard tool is a plugin, so
 // it may not name the module that keeps the task store — it asks for the
@@ -20,7 +35,7 @@ import (
 // be real: a task created through the kernel must show up in the tool's own
 // op=list, or the agent would work on a board it cannot see.
 func TestTheWorkboardSpecWiresTheStorePort(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withWorkboard(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

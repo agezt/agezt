@@ -14,6 +14,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
 	"github.com/agezt/agezt/kernel/modules/work/seat"
+	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -73,6 +74,20 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 		}
 		cfg.Artifacts = store
 		cfg.ArtifactIndex = index
+	}
+	if cfg.Workboard == nil {
+		// The durable task board (W3.47) — the contract's host port. The
+		// daemon opens the file (workboard/workboard.json) and hands the
+		// kernel the port; the kernel drives the lifecycle through it, and the
+		// agent-facing tool keeps the narrower read port.
+		//
+		// A store that cannot be opened is a STARTUP ERROR: the board is part
+		// of the daemon, not a convenience.
+		store, err := workboard.OpenStore(filepath.Join(cfg.BaseDir, "workboard"))
+		if err != nil {
+			return nil, err
+		}
+		cfg.Workboard = store
 	}
 	if cfg.ToolForge == nil {
 		// The script-tool store (M794) — the contract's port (W3.45). The

@@ -34,7 +34,6 @@ import (
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/modules/work/okr"
-	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/reflect"
@@ -206,10 +205,10 @@ func Open(cfg Config) (*Kernel, error) {
 		return fail("runtime: workflows", err)
 	}
 
-	wbstore, err := workboard.OpenStore(filepath.Join(cfg.BaseDir, "workboard"))
-	if err != nil {
-		return fail("runtime: workboard", err)
-	}
+	// The task board is NOT opened here (W3.47): the store file is the
+	// composition root's business (cmd/agezt), and the kernel holds the
+	// contract's host port. A kernel opened without one refuses every board
+	// operation instead of calling into nothing.
 
 	okrstore, err := okr.OpenStore(filepath.Join(cfg.BaseDir, "okr"))
 	if err != nil {
@@ -302,7 +301,7 @@ func Open(cfg Config) (*Kernel, error) {
 		mcpStore:     mcpstore,
 		mcpConns:     make(map[string]mcp.Conn),
 		workflows:    wfstore,
-		workboard:    wbstore,
+		workboard:    cfg.Workboard,
 		okr:          okrstore,
 		taste:        tastestore,
 		seat:         cfg.Seats,

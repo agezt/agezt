@@ -3,6 +3,8 @@
 package controlplane
 
 import (
+	"path/filepath"
+
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
@@ -19,7 +21,13 @@ func workboardAppFixture(t *testing.T) (*runtime.Kernel, *Server, workboard.Task
 	t.Helper()
 	dir := t.TempDir()
 	provider := mock.New(mock.FinalText("owned completion"))
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider})
+	// The task board is the composition root's file (W3.47): this test is such
+	// a host — it opens the store and hands the kernel the contract's port.
+	board, err := workboard.OpenStore(filepath.Join(dir, "workboard"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, Workboard: board})
 	if err != nil {
 		t.Fatal(err)
 	}

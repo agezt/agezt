@@ -51,6 +51,9 @@ type DispatchOutput struct {
 }
 
 func (s *Dispatch) Dispatch(_ context.Context, in DispatchInput) (DispatchOutput, error) {
+	if s.store == nil {
+		return DispatchOutput{}, errNoBoard
+	}
 	if in.ID == "" {
 		return DispatchOutput{}, errors.New("workboard_dispatch requires id")
 	}

@@ -19,6 +19,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/contract/types"
+	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
@@ -535,6 +536,19 @@ type Config struct {
 	// into nothing.
 	Artifacts     artifactapi.Blob
 	ArtifactIndex artifactapi.HostIndex
+
+	// Workboard is the durable task board the host holds — the contract's host
+	// port, not a module's store (W3.47). The daemon opens the store file and
+	// hands it over (cmd/agezt): the board's file is the daemon's business,
+	// and the kernel is a module.
+	//
+	// The port is the HOST-facing one: the read side (Get, List) plus the
+	// eighteen lifecycle verbs the host drives. The agent-facing tool keeps
+	// the narrower read port.
+	//
+	// Nil means "no task board": the board operations report that the board is
+	// unavailable, and the OKR rollup counts no linked task as done.
+	Workboard workboardapi.HostStore
 }
 
 // Kernel is the running Agezt instance.

@@ -137,3 +137,47 @@ func TestTheFailedAttemptCountDelegatesToTheContract(t *testing.T) {
 func TestTheStoreIsTheContractsPort(t *testing.T) {
 	var _ workboardapi.Store = (*Store)(nil)
 }
+
+// TestTheStoreIsTheContractsHostPort: the store also answers the contract's
+// HOST port (W3.47) — the twenty verbs the host drives the board with. A port
+// change is a compile error here, in the module that implements it.
+func TestTheStoreIsTheContractsHostPort(t *testing.T) {
+	var _ workboardapi.HostStore = (*Store)(nil)
+}
+
+// TestTheNotFoundErrorIsTheContracts: the "no such task" answer is the
+// CONTRACT's — the host is the one who reports it, and the host may not name a
+// module's error.
+func TestTheNotFoundErrorIsTheContracts(t *testing.T) {
+	if !errors.Is(ErrNotFound, workboardapi.ErrNotFound) {
+		t.Errorf("the module's not-found error is not the contract's: %v vs %v",
+			ErrNotFound, workboardapi.ErrNotFound)
+	}
+	if ErrNotFound.Error() != workboardapi.ErrNotFound.Error() {
+		t.Errorf("the message differs: %q vs %q",
+			ErrNotFound.Error(), workboardapi.ErrNotFound.Error())
+	}
+}
+
+// TestTheRetryDecisionDelegatesToTheContract: the retry rule is a delegation,
+// so the two must agree on EVERY task and reason — the decision is what
+// decides whether a failed task retries, escalates or blocks.
+func TestTheRetryDecisionDelegatesToTheContract(t *testing.T) {
+	for _, task := range []Task{
+		{},
+		{RetryPolicy: &RetryPolicy{MaxAttempts: 3}},
+		{RetryPolicy: &RetryPolicy{MaxAttempts: 3}, Attempts: []Attempt{{Status: "failed"}}},
+		{RetryPolicy: &RetryPolicy{MaxAttempts: 3}, Attempts: []Attempt{{Status: "failed"}, {Status: "failed"}, {Status: "failed"}}},
+		{RetryPolicy: &RetryPolicy{EscalateTo: "lead"}, Attempts: []Attempt{{Status: "failed"}}},
+	} {
+		for _, reason := range []string{"", "boom", "  stale heartbeat  "} {
+			got := RetryDecisionFor(task, reason)
+			want := workboardapi.RetryDecisionFor(task, reason)
+			// The decision carries a policy POINTER, so the two are compared by
+			// what they hold, not by identity.
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("RetryDecisionFor(%+v, %q) = %+v, want %+v", task.Attempts, reason, got, want)
+			}
+		}
+	}
+}

@@ -18,17 +18,18 @@ import (
 	"github.com/agezt/agezt/kernel/contract/assureapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/proofapi"
+	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/work/workboard"
 )
 
-func (k *Kernel) ProveTask(ctx context.Context, corr, id, answer string) (workboard.Task, error) {
-	if k.workboard == nil {
-		return workboard.Task{}, workboard.ErrNotFound
+func (k *Kernel) ProveTask(ctx context.Context, corr, id, answer string) (workboardapi.Task, error) {
+	store, err := k.workboardStore()
+	if err != nil {
+		return workboardapi.Task{}, err
 	}
-	t, ok := k.workboard.Get(id)
+	t, ok := store.Get(id)
 	if !ok {
-		return workboard.Task{}, workboard.ErrNotFound
+		return workboardapi.Task{}, workboardapi.ErrNotFound
 	}
 	if strings.TrimSpace(answer) == "" {
 		answer = taskAnswerProxy(t)
@@ -40,7 +41,7 @@ func (k *Kernel) ProveTask(ctx context.Context, corr, id, answer string) (workbo
 	}
 	verdict, judged, err := k.verifyCriteria(ctx, ev.Corr, taskText, answer, t.Criteria)
 	if err != nil {
-		return workboard.Task{}, err
+		return workboardapi.Task{}, err
 	}
 	p := proofapi.Proof{
 		Verdict:  verdict,
@@ -52,7 +53,7 @@ func (k *Kernel) ProveTask(ctx context.Context, corr, id, answer string) (workbo
 	}
 	proved, err := k.workboard.Prove(id, "assure", p, time.Now())
 	if err != nil {
-		return workboard.Task{}, err
+		return workboardapi.Task{}, err
 	}
 	kind, action := event.KindWorkboardTaskProved, "proved"
 	if proved.Proof == nil || !proved.Proof.Satisfied() {
@@ -179,7 +180,7 @@ func (k *Kernel) gatherProofEvidence(corr string) proofapi.Evidence {
 // corrOrClaim resolves the correlation id the task's work ran under: the caller
 // hint if given, else the task's claim run id, else the most recent attempt's
 // run id.
-func corrOrClaim(t workboard.Task, corr string) string {
+func corrOrClaim(t workboardapi.Task, corr string) string {
 	if c := strings.TrimSpace(corr); c != "" {
 		return c
 	}
@@ -197,7 +198,7 @@ func corrOrClaim(t workboard.Task, corr string) string {
 // taskAnswerProxy synthesizes an "answer" to judge when no run output is in hand
 // (the manual prove path), drawing on the latest attempt summary and the most
 // recent comments.
-func taskAnswerProxy(t workboard.Task) string {
+func taskAnswerProxy(t workboardapi.Task) string {
 	var b strings.Builder
 	for i := len(t.Attempts) - 1; i >= 0; i-- {
 		if s := strings.TrimSpace(t.Attempts[i].Summary); s != "" {

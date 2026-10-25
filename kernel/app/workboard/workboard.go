@@ -18,6 +18,14 @@ type Reader interface {
 }
 type Service struct{ reader Reader }
 
+// errNoBoard is the answer the app layer gives when it holds no task board.
+//
+// The board used to be opened by the kernel, so the port was never nil and the
+// app never had to say what happens without one. Now the store file is the
+// host's (W3.47) and a host may open a kernel without a board — and the
+// answer is a plain refusal, not a panic.
+var errNoBoard = errors.New("the task board is not available on this daemon")
+
 func New(reader Reader) *Service { return &Service{reader: reader} }
 
 // Record preserves actual task JSON fields plus the native computed projection.
@@ -72,6 +80,9 @@ type ListOutput struct {
 }
 
 func (s *Service) List(_ context.Context, in ListInput) (ListOutput, error) {
+	if s.reader == nil {
+		return ListOutput{}, errNoBoard
+	}
 	found := s.reader.List(tasks.Filter{Status: in.Status, Tenant: in.Tenant, Assignee: in.Assignee, IncludeArchived: in.IncludeArchived, Limit: in.Limit})
 	out := make([]Record, 0, len(found))
 	for _, task := range found {
@@ -94,6 +105,9 @@ type LanesOutput struct {
 }
 
 func (s *Service) Lanes(_ context.Context, in ListInput) (LanesOutput, error) {
+	if s.reader == nil {
+		return LanesOutput{}, errNoBoard
+	}
 	found := s.reader.List(tasks.Filter{Status: in.Status, Tenant: in.Tenant, IncludeArchived: in.IncludeArchived, Limit: in.Limit})
 	byAssignee := map[string]*Lane{}
 	for _, task := range found {
@@ -139,6 +153,9 @@ type ShowOutput struct {
 }
 
 func (s *Service) Show(_ context.Context, in ShowInput) (ShowOutput, error) {
+	if s.reader == nil {
+		return ShowOutput{}, errNoBoard
+	}
 	if in.ID == "" {
 		return ShowOutput{}, errors.New("workboard_show requires id")
 	}
