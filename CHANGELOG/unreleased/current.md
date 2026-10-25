@@ -4439,6 +4439,34 @@ This file holds the active `[Unreleased]` working set.
 
 ### Removed
 
+- **Removed: the kernel's reach on the objective library (W3.53).** The kernel
+  held the OKR module's concrete store and **opened the library's file** itself.
+  The kernel now holds the **contract's store port** — `okrapi.Store`, nine
+  verbs (`Create`, `Get`, `List`, `AddKeyResult`, `LinkTask`, `UnlinkTask`,
+  `SetStatus`, `Archive`, `ObjectivesForTask`) — and the module keeps the
+  objective, key-result, progress, create and filter rows, the status constants
+  and the three sentinels as **aliases**, so there is one row and one spelling
+  of it.
+  The **rollup rule travels with the row**: "does this goal count as met?" was
+  a method on the objective, and a Go type alias cannot carry methods — so the
+  rule moved with the row into the contract, and the module's objective is an
+  alias that keeps it.
+  The port carries **no clock**: the six verbs that stamp a row take
+  `nowMS int64`, because the contract layer may not name a clock and a port
+  that reads one cannot be tested deterministically.
+  The **library's file is the daemon's**: `cmd/agezt`'s composition root opens
+  `okr/okr.json` and hands the kernel the port, and a library that cannot be
+  opened is a startup error. Because the library lives under the **base dir**,
+  each **tenant** curates its own objectives.
+  A daemon with **no** library answers three ways, on purpose: the list answers
+  the **empty** list; the named read **refuses** (a named thing cannot be
+  answered from an empty library — "unknown objective" would blame the id);
+  and the write surfaces refuse ("the objective library is not available on
+  this daemon") — there is nowhere to write. The architecture ratchet went from
+  38 to 37 edges.
+  No behaviour changed: the objectives are still the same store, under the same
+  directory, rolled up the same way.
+
 - **Removed: the kernel's reach on the curated exemplar library (W3.52).** The
   kernel held the taste module's concrete store and **opened the library's
   file** itself. The kernel now holds the **contract's store port** —

@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.52 the curated exemplar library is the daemon's, 2026-10-25
+## Current checkpoint — W3.53 the objective library is the daemon's, 2026-10-25
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -3648,6 +3648,80 @@ files, five of the seventeen mutations would have escaped.
   `worldmodel`, `okr`** — each one the same slice this one was (a contract
   port, the daemon opening the file, the kernel's accessor carrying the
   port).
+
+- W3.53 (the objective library is the daemon's) is committed on `main` the
+  same way. It takes **one** edge — the smallest slice shape there is — and it
+  takes it **completely**:
+  `cross-module kernel/runtime -> kernel/modules/work/okr` (the kernel held the
+  module's concrete `*okr.Store` and **opened the file** itself).
+  **The ratchet went DOWN by ONE: 38/13 → 37/13.** The kernel still reaches
+  **7** modules.
+  It is the same slice as W3.52 (`taste`), one step wider: the objective
+  library carries **nine** verbs instead of five, and — unlike the exemplar
+  library — it carries a **rule**.
+  The contract now carries `okrapi` — the `Objective`, `KeyResult`,
+  `ObjectiveProgress`, `KeyResultProgress`, `CreateSpec` and `Filter` rows,
+  the `Status` row with its three constants, the three sentinels
+  (`ErrNotFound`, `ErrKRNotFound`, `ErrInvalidStatus`), and the **`Store`
+  port: exactly nine verbs** (`Create`, `Get`, `List`, `AddKeyResult`,
+  `LinkTask`, `UnlinkTask`, `SetStatus`, `Archive`, `ObjectivesForTask`), the
+  module's whole public surface and no more. The module keeps every name as an
+  **alias**, so there is one row and one spelling of it.
+  **The RULE travels with the ROW** — that is the part this slice adds. The
+  objective's rollup ("does this goal count as met?") was a **method** on the
+  objective, and a Go type alias **cannot carry methods**: had the rule stayed
+  in the module, the alias would have lost it and the layers above would have
+  had to reach back into the module to compute a rollup. So the rule moved
+  **with the row** into the contract, and the module's `Objective` is an alias
+  that keeps it. The rule is not decoration — it decides whether a goal counts
+  as met, and a mutation that halves the percentage (`done * 50 / target`)
+  still compiles, still passes every structural check, and still answers "a
+  percentage" — just a wrong one.
+  **The port carries NO CLOCK**: six of the nine verbs stamp a row, and all
+  six take `nowMS int64`, not a `time.Time` — the contract layer may not name
+  a clock, and a port that reads one cannot be tested deterministically. The
+  module's own verbs changed shape with it.
+  **The library's file is the daemon's**: the composition root
+  (`cmd/agezt`'s `openAppKernel`) opens `okr/okr.json` and hands the kernel the
+  port, and a library that cannot be opened is a **startup error**. Because the
+  library lives under the **base dir**, a **tenant** opens **its own**
+  objectives.
+  A daemon with **no** library answers three ways, on purpose: the **list**
+  answers the **empty** list ("no objectives" is an honest answer); the
+  **named** read **refuses** — "unknown objective" would blame the id for a
+  library that is not there, and a named thing cannot be answered from an empty
+  library; and the **write** surfaces (create, add key result, link, unlink,
+  archive) refuse with "the objective library is not available on this
+  daemon" — there is nowhere to write.
+  Every test that expected a store became a **host**: it opens the library and
+  injects the port.
+  **9 mutations, 9 caught** in two honest passes, **three** of them
+  **gate-measured** by archcheck (the kernel names the module again; the
+  control plane names the module again; a stale allowlist entry comes back),
+  and the **ninth** is the one this slice added: **the rollup rule is wrong** —
+  the percentage is halved. A static width test cannot see a rule, and a wrong
+  rule still answers "a percentage".
+  The new permanent tests pin that the store port is **exactly nine** verbs
+  wide and keeps its exact signatures, that no verb takes a `time.Time`, that
+  the three sentinels the layers compare against are the contract's, that the
+  **rollup rule is on the contract's row and computes the right answer** (the
+  per-key-result percentages, the effective target when none is given, the
+  objective's percentage and its achieved flag — and that an objective with no
+  key results is never "achieved"), that the module's rows, status constants
+  and sentinels **are** the contract's (by **type identity**), that the
+  aliased objective **keeps** the contract's rule, that the kernel's face is
+  **statically** the contract's port, that a kernel without a library hands
+  over a **nil** port, that all four write surfaces refuse instead of
+  panicking, that the port answers the **live** rows, that the read surface
+  answers the empty list and the named read refuses, and that the daemon's
+  library is a **file on disk** and is the **injected** one.
+  **What remains**: the kernel still reaches **7** modules. Next, in order:
+  **`skill`** (five edges — the **width** is the work: the Forge's 15+ verbs
+  and its bus-bound publisher have to travel together), **`roster`** (four
+  edges, 73 importer files, the largest fan-in), then **`memory`,
+  `worldmodel`** — each one the same slice this one was (a contract port, the
+  daemon opening the file, the kernel's accessor carrying the port), with the
+  memory manager's bus-bound journal as the extra work.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
