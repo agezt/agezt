@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.44 the media tools are the daemon's, 2026-10-25
+## Current checkpoint — W3.45 the script-tool store is the daemon's file, 2026-10-25
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -3056,44 +3056,6 @@ files, five of the seventeen mutations would have escaped.
   `workflow.Engine`, `workflow.Ports`, `workflow.Provenance` and
   `workflow.Trigger` (no contract home), and it calls **seventeen** workboard
   store methods.
-- W3.44 (the media tools are the daemon's) is committed on `main` the same
-  way. It takes **four** edges at once, and they are one thing: the **voice,
-  image and rerank tools** (`kernel/runtime -> kernel/voicetool`, `->
-  kernel/imagetool`, `-> kernel/reranktool` and `kernel/runtime/runexec ->
-  kernel/voicetool`). The kernel built the three tools because the tools live
-  in their own packages and the kernel held the adapters they were built over
-  — and naming the tool package meant naming the **seam** with it. The way out
-  is not a narrower import but a different owner: **the composition root
-  builds the three tools** (`cmd/agezt/media_tools.go`) and hands them over as
-  ordinary tools in `cfg.Tools`, the way the daemon already hands over its
-  reasoning module and its reaper. The **seams became contract rows**:
-  `kernel/contract/mediaapi` is new (`Voice`, `ImageGen`, `Reranker`), the
-  tool packages keep their names as aliases, and the kernel names the
-  contract's row. The seams stay **structural** — every method set speaks only
-  in standard library types — which is what lets a provider plugin satisfy
-  them without importing the kernel, and the contract now pins that with a
-  test. The kernel keeps the **one** accessor it needs: `k.Voice()` answers
-  "is speech configured?" for the daemon's channel paths and the web UI. The
-  two tools that persist bytes bind **the daemon's own artifact store** — the
-  same store the kernel holds (W3.43) — so the bytes land exactly where they
-  did before. The tool map is **copied, never mutated**: the primary kernel
-  and every tenant share one map, and each kernel must see its own tools bound
-  to its own store.
-  **The ratchet went DOWN by FOUR: 59/13 → 55/13.**
-  **8 mutations, 8 caught**, four of them **gate-measured** by archcheck (the
-  kernel names the voice package again; the run engine names the concrete
-  voice type; the kernel builds the voice tool again; a stale allowlist entry
-  comes back).
-  **What remains**: the kernel still reaches **17** modules. Next, in order:
-  **`toolforge`** — the rows are aliases, but the kernel calls **eight** store
-  methods the contract's two-verb port does not cover. **`workflow` and
-  `workboard`** — both need wide new ports: the kernel names
-  `workflow.Engine`, `workflow.Ports`, `workflow.Provenance` and
-  `workflow.Trigger` (no contract home), and it calls **seventeen** workboard
-  store methods. **`market`** — the manager's contract port does not exist
-  yet; the tool has to move to the daemon with it. **`cadence`, `standing`,
-  `mcp`** — many callers each; the shape is known (a contract port the host
-  opens), the work is in the port's width.
 - W3.43 (the artifact store is the daemon's file) is committed on `main` the
   same way. It takes **two** edges at once — the kernel's own and the run
   engine's — and it is the one that unblocks the three media tool seams
@@ -3145,6 +3107,97 @@ files, five of the seventeen mutations would have escaped.
   names `workflow.Engine`, `workflow.Ports`, `workflow.Provenance` and
   `workflow.Trigger` (no contract home), and it calls **seventeen** workboard
   store methods.
+
+- W3.44 (the media tools are the daemon's) is committed on `main` the same
+  way. It takes **four** edges at once, and they are one thing: the **voice,
+  image and rerank tools** (`kernel/runtime -> kernel/voicetool`, `->
+  kernel/imagetool`, `-> kernel/reranktool` and `kernel/runtime/runexec ->
+  kernel/voicetool`). The kernel built the three tools because the tools live
+  in their own packages and the kernel held the adapters they were built over
+  — and naming the tool package meant naming the **seam** with it. The way out
+  is not a narrower import but a different owner: **the composition root
+  builds the three tools** (`cmd/agezt/media_tools.go`) and hands them over as
+  ordinary tools in `cfg.Tools`, the way the daemon already hands over its
+  reasoning module and its reaper. The **seams became contract rows**:
+  `kernel/contract/mediaapi` is new (`Voice`, `ImageGen`, `Reranker`), the
+  tool packages keep their names as aliases, and the kernel names the
+  contract's row. The seams stay **structural** — every method set speaks only
+  in standard library types — which is what lets a provider plugin satisfy
+  them without importing the kernel, and the contract now pins that with a
+  test. The kernel keeps the **one** accessor it needs: `k.Voice()` answers
+  "is speech configured?" for the daemon's channel paths and the web UI. The
+  two tools that persist bytes bind **the daemon's own artifact store** — the
+  same store the kernel holds (W3.43) — so the bytes land exactly where they
+  did before. The tool map is **copied, never mutated**: the primary kernel
+  and every tenant share one map, and each kernel must see its own tools bound
+  to its own store.
+  **The ratchet went DOWN by FOUR: 59/13 → 55/13.**
+  **8 mutations, 8 caught**, four of them **gate-measured** by archcheck (the
+  kernel names the voice package again; the run engine names the concrete
+  voice type; the kernel builds the voice tool again; a stale allowlist entry
+  comes back).
+  **What remains**: the kernel still reaches **17** modules. Next, in order:
+  **`toolforge`** — the rows are aliases, but the kernel calls **eight** store
+  methods the contract's two-verb port does not cover. **`workflow` and
+  `workboard`** — both need wide new ports: the kernel names
+  `workflow.Engine`, `workflow.Ports`, `workflow.Provenance` and
+  `workflow.Trigger` (no contract home), and it calls **seventeen** workboard
+  store methods. **`market`** — the manager's contract port does not exist
+  yet; the tool has to move to the daemon with it. **`cadence`, `standing`,
+  `mcp`** — many callers each; the shape is known (a contract port the host
+  opens), the work is in the port's width.
+- W3.45 (the script-tool store is the daemon's file) is committed on `main`
+  the same way. It takes **one** edge — the last of the *toolforge* family —
+  and it closes the family: the kernel used to open the store, hold the
+  module's concrete type and call **eight** methods on it. The kernel now
+  holds the **port** and the composition root owns the **file** (the fourth
+  store to move, after the seats, the lake and the artifacts): `cmd/agezt`'s
+  `openAppKernel` opens `toolforge/scripttools.json` and injects it, and a
+  store that cannot be opened is the daemon's **startup error**.
+  The port had to be **split**, and the contract already said so:
+  `toolforgeapi.Store` had **two** verbs (`Get`, `List`) and a guard test
+  that said why — *a plugin holds every method of the port it is given*, and
+  one of the host's verbs is `Promote`, so a plugin that could promote would
+  be able to put its own code in front of the operator's agent. So
+  `toolforgeapi.HostStore` (new) carries the ten verbs the host uses, and the
+  module answers **both** ports with two assertions.
+  The **sentinels became rows**: `ErrNotFound` and `ErrUntested` are the
+  answers the host gives, so they moved to the contract (the module keeps its
+  names as aliases), and the kernel's config now names `toolregapi.ScriptRunner`
+  — the registry's own row — instead of the module's `toolforge.Runner` (now
+  an alias of it). The app layer speaks the contract too:
+  `kernel/app/tools`'s forge catalogue names the contract's row and no longer
+  imports the module at all.
+  The part the slice had to **teach** the kernel: the store used to be
+  guaranteed, so the code never had to say what happens without one — and the
+  first version of the kernel **panicked** on `k.toolForge.Add(st)`. The tests
+  caught it, and every forge operation now **refuses** with a plain message;
+  the app layer learned the same rule ("the forge is not available on this
+  daemon" instead of a nil dereference). As in W3.43, moving the file out of
+  the kernel made every test that expected a store **become a host**: open the
+  store, inject the port.
+  **The ratchet went DOWN by ONE: 55/13 → 54/13.**
+  **8 mutations, 8 caught**, four of them **gate-measured** by archcheck (the
+  kernel opens the store again; the kernel names the concrete store; the
+  kernel names the module's runner seam; a stale allowlist entry comes back).
+  The mutation run was honest on the first pass — the harness had already
+  been fixed after W3.43's two false starts (the package and the `-run`
+  filter are separate arguments, and a build error is not a catch).
+  **What remains**: the kernel still reaches **17** modules. Next, in order:
+  **`market`** — the manager is already the daemon's (the daemon creates it and
+  injects it with `SetMarket`), but the kernel builds the **market tool** and
+  holds the concrete `*market.Manager`; the app layer already speaks two
+  narrow interfaces (a three-verb reader and a six-verb writer), so a
+  host-facing contract port is a small piece of work. **`workflow` and
+  `workboard`** — both need wide new ports: the kernel names
+  `workflow.Engine`, `workflow.Ports`, `workflow.Provenance` and
+  `workflow.Trigger` (no contract home), and it calls **seventeen** workboard
+  store methods. **`cadence`, `standing`, `mcp`** — many callers each; the
+  shape is known (a contract port the host opens), the work is in the port's
+  width. **`memory`, `worldmodel`, `roster`, `skill`, `okr`, `taste`,
+  `catalog`** — the kernel holds each module's concrete store; each one is the
+  same slice (a contract port, the daemon opening the file, the kernel's
+  accessor carrying the port).
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

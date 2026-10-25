@@ -4439,6 +4439,17 @@ This file holds the active `[Unreleased]` working set.
 
 ### Removed
 
+- **Removed: the kernel's reach on the script-tool store (W3.45).** The kernel
+  opened the toolforge store, held the module's concrete type and called eight
+  methods on it. The daemon now opens the file and hands the kernel the
+  contract's port, so the kernel reaches the module no more: the two-verb
+  read port the tool registry holds stays exactly as narrow as it was, and a
+  wider host port carries the lifecycle verbs the host drives. The module's
+  "no such tool" and "not tested" answers became contract rows, because they
+  are the answers the host gives. A store that cannot be opened is still a
+  startup error — now the daemon's to raise — and a kernel with no store
+  refuses every forge operation instead of crashing.
+
 - **Removed: the kernel's reach on the three media tool packages (W3.44).** The
   kernel built the voice, image and rerank tools itself, which meant it named
   the packages they live in — and the adapter seams they are built over. The
