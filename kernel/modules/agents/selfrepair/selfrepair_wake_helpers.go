@@ -14,8 +14,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 func autoRepairWakeSkipReason(p roster.Profile) string {
@@ -31,7 +31,7 @@ func autoRepairWakeSkipReason(p roster.Profile) string {
 	return ""
 }
 
-func autoRepairWakeIntent(cand autoRepairCandidate, msg *board.Message) string {
+func autoRepairWakeIntent(cand autoRepairCandidate, msg *boardapi.Message) string {
 	var b strings.Builder
 	b.WriteString("Escalation wake-up.\n")
 	b.WriteString("A doctor/self-repair attempt failed for agent ")
@@ -120,7 +120,7 @@ func autoRepairWakeIntent(cand autoRepairCandidate, msg *board.Message) string {
 	return b.String()
 }
 
-func autoRepairMessageID(msg *board.Message) string {
+func autoRepairMessageID(msg *boardapi.Message) string {
 	if msg == nil {
 		return ""
 	}
@@ -134,7 +134,7 @@ func autoRepairErrString(err error) string {
 	return err.Error()
 }
 
-func (c *autoRepairCoordinator) autoReplyEscalation(mailbox Mailbox, postNotify func(board.Message, string), wake autoRepairWakeResult, msg *board.Message) (*board.Message, error) {
+func (c *autoRepairCoordinator) autoReplyEscalation(mailbox Mailbox, postNotify func(boardapi.Message, string), wake autoRepairWakeResult, msg *boardapi.Message) (*boardapi.Message, error) {
 	if mailbox == nil || msg == nil || strings.TrimSpace(msg.ID) == "" || strings.TrimSpace(wake.Target) == "" {
 		return nil, nil
 	}
@@ -142,7 +142,7 @@ func (c *autoRepairCoordinator) autoReplyEscalation(mailbox Mailbox, postNotify 
 	if !ok {
 		return nil, nil
 	}
-	reply, err := mailbox.Send(board.Message{
+	reply, err := mailbox.Send(boardapi.Message{
 		Topic:   orig.Topic,
 		From:    wake.Target,
 		To:      orig.From,

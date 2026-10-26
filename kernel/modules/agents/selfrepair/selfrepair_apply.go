@@ -12,13 +12,13 @@ import (
 	"context"
 	"fmt"
 	"github.com/agezt/agezt/kernel/bus"
-	"github.com/agezt/agezt/kernel/modules/board/board"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"strings"
 	"time"
 )
 
-func (c *autoRepairCoordinator) applyDelegatedResolution(ctx context.Context, k *kernelruntime.Kernel, b *bus.Bus, mailbox Mailbox, postNotify func(board.Message, string), cand autoRepairCandidate, wake autoRepairWakeResult) error {
+func (c *autoRepairCoordinator) applyDelegatedResolution(ctx context.Context, k *kernelruntime.Kernel, b *bus.Bus, mailbox Mailbox, postNotify func(boardapi.Message, string), cand autoRepairCandidate, wake autoRepairWakeResult) error {
 	target := strings.TrimSpace(wake.Resolution.DelegateTo)
 	if target == "" {
 		return fmt.Errorf("delegated resolution is missing delegate_to")

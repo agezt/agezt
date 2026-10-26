@@ -12,8 +12,8 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/board/board"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -114,7 +114,7 @@ func autoRepairRoutingRollbackProbation() time.Duration {
 	}
 	return d
 }
-func (c *autoRepairCoordinator) run(ctx context.Context, sub *bus.Subscription, k *kernelruntime.Kernel, src autoRepairSource, mailbox Mailbox, postNotify func(board.Message, string)) {
+func (c *autoRepairCoordinator) run(ctx context.Context, sub *bus.Subscription, k *kernelruntime.Kernel, src autoRepairSource, mailbox Mailbox, postNotify func(boardapi.Message, string)) {
 	defer sub.Cancel()
 	for {
 		select {
@@ -139,7 +139,7 @@ func (c *autoRepairCoordinator) run(ctx context.Context, sub *bus.Subscription, 
 // per tick rather than around the whole loop also keeps auto-repair ARMED after a
 // bad event â€” disarming the fleet's healer on one malformed pulse would be a
 // silent, permanent degradation.
-func (c *autoRepairCoordinator) handleTick(ctx context.Context, k *kernelruntime.Kernel, src autoRepairSource, mailbox Mailbox, postNotify func(board.Message, string)) {
+func (c *autoRepairCoordinator) handleTick(ctx context.Context, k *kernelruntime.Kernel, src autoRepairSource, mailbox Mailbox, postNotify func(boardapi.Message, string)) {
 	// claim() marks candidates in-flight and dispatch() is what releases them, so
 	// a panic between the two would leak the claim and wedge every future repair
 	// of that agent. Track the hand-off point and release whatever never made it.

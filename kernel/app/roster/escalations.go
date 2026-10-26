@@ -13,16 +13,16 @@ import (
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 // EscalationBoard is the read view of the shared board the escalation fold
 // needs: the help topic and one message's replies, both under the host's cap.
 type EscalationBoard interface {
-	Help() []board.Message
-	Replies(id string) []board.Message
+	Help() []boardapi.Message
+	Replies(id string) []boardapi.Message
 }
 
 type EscalationRequest = RefPageRequest
@@ -172,7 +172,7 @@ func (s *EscalationService) rows(st EscalationBoard, slug string, limit int, cur
 		if !msg.Help {
 			continue
 		}
-		if msg.To != slug && msg.To != board.Everyone {
+		if msg.To != slug && msg.To != boardapi.Everyone {
 			continue
 		}
 		replies := st.Replies(msg.ID)
@@ -247,7 +247,7 @@ func (s *EscalationService) rows(st EscalationBoard, slug string, limit int, cur
 }
 
 // BoardMessageAckedBy reports whether slug explicitly acknowledged m.
-func BoardMessageAckedBy(m board.Message, slug string) bool {
+func BoardMessageAckedBy(m boardapi.Message, slug string) bool {
 	slug = strings.ToLower(strings.TrimSpace(slug))
 	for _, by := range m.AckedBy {
 		if strings.ToLower(strings.TrimSpace(by)) == slug {

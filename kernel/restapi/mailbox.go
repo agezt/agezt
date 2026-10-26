@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/agezt/agezt/kernel/modules/board/board"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 )
 
 // mailboxDefaultLimit / mailboxMaxLimit bound the list endpoints (mirrors the
@@ -22,13 +22,13 @@ const (
 // memory and saves it whole). notify publishes board.posted (nil-safe); corr is
 // optional per request so channel/webhook bridges can keep a wake causally
 // attached to the inbound event that posted the mailbox message.
-func (s *Server) SetMailbox(st *board.Store, notify func(m board.Message, corr string)) {
+func (s *Server) SetMailbox(st boardapi.Store, notify func(m boardapi.Message, corr string)) {
 	s.board = st
 	s.boardNotify = notify
 }
 
 // mailbox returns the wired store or writes a 503 and reports false.
-func (s *Server) mailbox(w http.ResponseWriter) (*board.Store, bool) {
+func (s *Server) mailbox(w http.ResponseWriter) (boardapi.Store, bool) {
 	if s.board == nil {
 		writeErr(w, http.StatusServiceUnavailable, "mailbox_unavailable",
 			"the mailbox is not available on this daemon")
@@ -52,7 +52,7 @@ func mailboxLimit(r *http.Request) int {
 }
 
 // mailMsgView renders one message for a REST response.
-func mailMsgView(m board.Message) map[string]any {
+func mailMsgView(m boardapi.Message) map[string]any {
 	v := map[string]any{"topic": m.Topic, "text": m.Text, "ts_unix_ms": m.TSMS}
 	if m.ID != "" {
 		v["id"] = m.ID

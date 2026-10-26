@@ -9,10 +9,10 @@ import (
 
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/event"
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
-	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 // RunRow is one folded run row, as the status collection needs it. The host
@@ -60,7 +60,7 @@ type StatusSources struct {
 	// Standing lists the standing orders that can wake an agent.
 	Standing func() []standingapi.Order
 	// Board lists the board's open help requests — the escalations.
-	Board func() []board.Message
+	Board func() []boardapi.Message
 	// Reaper runs the reaper scan over the window.
 	Reaper func(reaperCut int64) agentsapi.ReaperReport
 	// RepairCooldown is how long a repair stays ineligible. Nil reads the

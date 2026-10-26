@@ -14,7 +14,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/app/providers"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
-	"github.com/agezt/agezt/kernel/modules/board/board"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/kernel/update"
@@ -119,17 +119,22 @@ type Server struct {
 	// grepping the boot banner. Empty when AWS credentials aren't in play.
 	credChain string
 
-	// boardStore is the daemon's ONE shared kernel/board instance, injected via
-	// SetBoard (M937 mailbox). Board WRITES must go through this instance — the
+	// boardStore is the daemon's ONE shared message board, injected via
+	// SetBoard (M937 mailbox) — the CONTRACT's port (W3.59), not the module's
+	// concrete store. Board WRITES must go through this instance — the
 	// `board` tool holds the same one, and a second instance would clobber its
-	// last write (each holds the whole message list and saves it whole). Reads
-	// fall back to a fresh read-only Open when nil (tests, older daemons).
-	boardStore *board.Store
+	// last write (each holds the whole message list and saves it whole).
+	//
+	// Nil when the daemon had no board: the board's FILE is the daemon's
+	// business, so the control plane never opens one of its own — the reads
+	// answer "the board is not available on this daemon" and the writes
+	// refuse.
+	boardStore boardapi.Store
 
 	// boardNotify publishes the board.posted event for a board write (same
 	// closure the `board` tool's OnPost uses), so a control-plane or SDK send
 	// wakes standing orders exactly like an agent's send. Nil-safe.
-	boardNotify func(m board.Message, corr string)
+	boardNotify func(m boardapi.Message, corr string)
 
 	// updateSvc is the self-update engine (M860), injected via SetUpdateService.
 	// Nil when update is disabled; the update handlers report that.
@@ -192,7 +197,10 @@ func (s *Server) SetCredChain(desc string) { s.credChain = desc }
 // notifier (M937 mailbox). Board write commands (board_send/board_ack) require
 // it — a fresh per-request Open would clobber the `board` tool's writes; notify
 // publishes board.posted so SDK sends wake standing orders like agent sends.
-func (s *Server) SetBoard(st *board.Store, notify func(m board.Message, corr string)) {
+//
+// The store is the CONTRACT's port (W3.59): the control plane may not name the
+// module, and a host that hands over no store holds no board at all.
+func (s *Server) SetBoard(st boardapi.Store, notify func(m boardapi.Message, corr string)) {
 	s.boardStore = st
 	s.boardNotify = notify
 }

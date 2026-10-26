@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
@@ -47,6 +48,21 @@ import (
 // is the daemon's business) and hands the kernel the contract's port. A store
 // that cannot be opened is a startup error, exactly as it was when the kernel
 // opened it itself.
+// openBoard opens the daemon's ONE shared message board — the composition
+// root's file (W3.59).
+//
+// The control plane, the REST mailbox, self-repair and the board tool all hold
+// the CONTRACT's port; none of them opens a board of its own, so the file is
+// the daemon's business.
+//
+// ONE instance serves every writer: the store holds the whole message list in
+// memory and saves it whole, so a second writer would silently clobber the
+// other's last write. The READERS may open a fresh read-only view (the
+// overseer's source does), but never a second writer.
+func openBoard(baseDir string) (*board.Store, error) {
+	return board.Open(filepath.Join(baseDir, "board"))
+}
+
 func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 	cfg.NewToolInvoker = apptools.NewInvoker
 	if cfg.Seats == nil {

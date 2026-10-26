@@ -15,7 +15,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/strutil"
-	"github.com/agezt/agezt/kernel/modules/board/board"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -94,7 +94,7 @@ func cleanAutoRepairResolution(out *autoRepairResolution) {
 	}
 }
 
-func (c *autoRepairCoordinator) applyAutoRepairResolution(ctx context.Context, k *kernelruntime.Kernel, src autoRepairSource, mailbox Mailbox, postNotify func(board.Message, string), cand autoRepairCandidate, wake autoRepairWakeResult) (*autoRepairResolutionOutcome, error) {
+func (c *autoRepairCoordinator) applyAutoRepairResolution(ctx context.Context, k *kernelruntime.Kernel, src autoRepairSource, mailbox Mailbox, postNotify func(boardapi.Message, string), cand autoRepairCandidate, wake autoRepairWakeResult) (*autoRepairResolutionOutcome, error) {
 	if wake.Resolution == nil || wake.Resolution.Resolution == "" {
 		return nil, nil
 	}

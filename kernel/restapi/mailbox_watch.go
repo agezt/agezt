@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/httpserver"
-	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 type boardPostedPayload struct {
@@ -36,7 +36,7 @@ func mailWatchMatch(name, topic string, p boardPostedPayload) bool {
 	if name != "" {
 		to := strings.ToLower(strings.TrimSpace(p.To))
 		directed := to != "" && to == name
-		broadcast := p.To == board.Everyone && strings.ToLower(strings.TrimSpace(p.From)) != name
+		broadcast := p.To == boardapi.Everyone && strings.ToLower(strings.TrimSpace(p.From)) != name
 		if !directed && !broadcast {
 			return false
 		}

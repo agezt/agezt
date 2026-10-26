@@ -3,16 +3,13 @@
 # Format: <kind> <importer> -> <imported>   (module-relative package paths)
 # Every entry is an edge architecture/21-migration-roadmap.md removes. Entries
 # may only be DELETED (the check fails when a listed edge no longer occurs).
-adapter-bypass kernel/controlplane -> kernel/modules/board/board
 adapter-bypass kernel/controlplane -> kernel/modules/extensions/toolbox
 adapter-bypass kernel/controlplane -> kernel/runtime
 adapter-bypass kernel/controlplane -> kernel/update
 adapter-bypass kernel/openaiapi -> kernel/convo
-adapter-bypass kernel/restapi -> kernel/modules/board/board
 adapter-bypass kernel/restapi -> kernel/update
 adapter-bypass kernel/webui -> kernel/convo
 cross-module kernel/cadence/systemtasks -> kernel/runtime
-cross-module kernel/modules/agents/selfrepair -> kernel/modules/board/board
 cross-module kernel/modules/agents/selfrepair -> kernel/runtime
 cross-module kernel/pulse -> kernel/agent
 cross-module kernel/runtime/runexec -> kernel/modules/work/assure

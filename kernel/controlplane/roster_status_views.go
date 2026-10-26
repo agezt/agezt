@@ -5,9 +5,9 @@ import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
-	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -58,7 +58,7 @@ func (s *Server) statusRunRows() ([]approster.RunRow, error) {
 
 // statusBoardMessages lists the board's open help requests — the escalations
 // the roster status counts.
-func (s *Server) statusBoardMessages() []board.Message {
+func (s *Server) statusBoardMessages() []boardapi.Message {
 	st, err := s.boardReader()
 	if err != nil || st == nil {
 		return nil

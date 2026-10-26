@@ -7,7 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/agezt/agezt/kernel/modules/board/board"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"net"
 	"os"
 	"path/filepath"
@@ -822,10 +822,10 @@ var rosterSetEnabledOperations = func() []app.Operation {
 
 // nativeEscalationBoard reads the help topic and replies under the native
 // board read cap for the application escalation fold.
-type nativeEscalationBoard struct{ st *board.Store }
+type nativeEscalationBoard struct{ st boardapi.Store }
 
-func (b nativeEscalationBoard) Help() []board.Message { return b.st.Read("help", boardReadMaxLimit) }
-func (b nativeEscalationBoard) Replies(id string) []board.Message {
+func (b nativeEscalationBoard) Help() []boardapi.Message { return b.st.Read("help", boardReadMaxLimit) }
+func (b nativeEscalationBoard) Replies(id string) []boardapi.Message {
 	return b.st.Replies(id, boardReadMaxLimit)
 }
 

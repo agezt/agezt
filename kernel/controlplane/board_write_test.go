@@ -157,13 +157,18 @@ func TestBoardWrite_Validation(t *testing.T) {
 	_, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	// Not wired → writes refuse (reads still work via the fresh-Open fallback).
+	// Not wired → the board is not available, and the READS say so too: the
+	// control plane does not open the board's file behind the daemon's back
+	// (W3.59) — the daemon owns that file and hands over the port. A board
+	// that could not be opened must not look like a board with no messages.
+	srv.SetBoard(nil, nil)
 	if _, err := c.Call(ctx, controlplane.CmdBoardSend, map[string]any{"topic": "x", "text": "y"}); err == nil ||
 		!strings.Contains(err.Error(), "not available") {
 		t.Fatalf("unwired send: err = %v, want board-unavailable", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdBoardInbox, map[string]any{"to": "a"}); err != nil {
-		t.Fatalf("unwired inbox should fall back to a read-only open: %v", err)
+	if _, err := c.Call(ctx, controlplane.CmdBoardInbox, map[string]any{"to": "a"}); err == nil ||
+		!strings.Contains(err.Error(), "not available") {
+		t.Fatalf("unwired inbox: err = %v, want board-unavailable", err)
 	}
 
 	st, err := board.Open(filepath.Join(dir, "board"))
