@@ -12,7 +12,6 @@ adapter-bypass kernel/webui -> kernel/convo
 cross-module kernel/cadence/systemtasks -> kernel/runtime
 cross-module kernel/modules/agents/selfrepair -> kernel/runtime
 cross-module kernel/pulse -> kernel/agent
-cross-module kernel/runtime/runexec -> kernel/modules/work/assure
 upward kernel/channel -> kernel/bus
 upward kernel/runtime -> kernel/agentgw
 upward kernel/runtime/runexec -> kernel/agentgw

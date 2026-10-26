@@ -12,9 +12,9 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/assureapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/work/assure"
 	"github.com/agezt/agezt/kernel/resume"
 )
 
@@ -91,16 +91,16 @@ func (r *Runner) CompleteAgentLifecycle(ctx context.Context, corr string) {
 // calls already route through the Runner (or *Kernel for
 // RunWith, which still lives on the host — Day 23+ documented
 // gap).
-func (r *Runner) RunAssured(ctx context.Context, corr, intent string, maxAttempts int) (string, assure.Result, error) {
+func (r *Runner) RunAssured(ctx context.Context, corr, intent string, maxAttempts int) (string, assureapi.Result, error) {
 	ctx, owns := r.k.ClaimResumeTicket(ctx, corr, intent, resume.KindAssured, maxAttempts)
-	res, err := assure.Until(ctx, intent, maxAttempts,
+	res, err := assureapi.Until(ctx, intent, maxAttempts,
 		func(ctx context.Context, _ int, task string) (string, error) {
 			if pol, ok := r.k.AgentRetryPolicyFromCtx(ctx); ok && pol.MaxAttempts > 1 {
 				return r.k.RunWithRetry(ctx, corr, task, pol)
 			}
 			return r.k.RunWith(ctx, corr, task)
 		},
-		func(ctx context.Context, task, answer string) (assure.Verdict, error) {
+		func(ctx context.Context, task, answer string) (assureapi.Verdict, error) {
 			return r.VerifyCompletion(ctx, corr, task, answer)
 		},
 	)
@@ -208,5 +208,5 @@ func (r *Runner) MaybeShadowEval(ctx context.Context, corr, intent, answer strin
 // would force a churn round for the next refactor slice.
 var (
 	_ = llm.RoleUser
-	_ = assure.Result{}
+	_ = assureapi.Result{}
 )

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-package assure
+package assureapi
 
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -133,30 +134,50 @@ func TestVerifyAgainstOriginalTask(t *testing.T) {
 	}
 }
 
-func TestParseVerdict(t *testing.T) {
-	cases := []struct {
-		name     string
-		in       string
-		wantOK   bool
-		wantDone bool
-		wantGap  string
-	}{
-		{"strict", `{"complete":true}`, true, true, ""},
-		{"with gap", `{"complete":false,"gap":"no tests"}`, true, false, "no tests"},
-		{"fenced", "```json\n{\"complete\": true, \"gap\": \"\"}\n```", true, true, ""},
-		{"prose wrapped", `Sure! Here is my verdict: {"complete": false, "gap": "x"} hope that helps`, true, false, "x"},
-		{"garbage", `I think it is done.`, false, false, ""},
-		{"empty", ``, false, false, ""},
+// TestTheAttemptNumberIsOneBased: the run closure is told which attempt it
+// is, and the count starts at ONE — a loop that numbers its attempts from
+// zero would report attempt 0 to the agent and to the journal.
+func TestTheAttemptNumberIsOneBased(t *testing.T) {
+	var seen []int
+	Until(context.Background(), "x", 3,
+		func(_ context.Context, attempt int, _ string) (string, error) {
+			seen = append(seen, attempt)
+			return "a", nil
+		},
+		func(_ context.Context, _, _ string) (Verdict, error) { return Verdict{Complete: false, Gap: "g"}, nil })
+	if len(seen) != 3 {
+		t.Fatalf("the run closure was called %d times, want 3", len(seen))
 	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			v, ok := ParseVerdict(c.in)
-			if ok != c.wantOK {
-				t.Fatalf("ok = %v, want %v", ok, c.wantOK)
-			}
-			if ok && (v.Complete != c.wantDone || v.Gap != c.wantGap) {
-				t.Errorf("verdict = %+v, want complete=%v gap=%q", v, c.wantDone, c.wantGap)
-			}
-		})
+	for i, got := range seen {
+		if want := i + 1; got != want {
+			t.Errorf("attempt %d was numbered %d, want %d", i, got, want)
+		}
+	}
+}
+
+// TestTheHistoryCarriesEachAttempt: the trail is the evidence of what the
+// loop tried — the answer and the verdict of every attempt, in order.
+func TestTheHistoryCarriesEachAttempt(t *testing.T) {
+	res, err := Until(context.Background(), "x", 3,
+		func(_ context.Context, attempt int, _ string) (string, error) {
+			return "answer-" + strconv.Itoa(attempt), nil
+		},
+		func(_ context.Context, _, _ string) (Verdict, error) { return Verdict{Complete: false, Gap: "g"}, nil })
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(res.History) != 3 {
+		t.Fatalf("history has %d attempts, want 3", len(res.History))
+	}
+	for i, a := range res.History {
+		if want := i + 1; a.N != want {
+			t.Errorf("history[%d].N = %d, want %d", i, a.N, want)
+		}
+		if a.Answer == "" {
+			t.Errorf("history[%d] carries no answer", i)
+		}
+		if a.Verdict.Complete {
+			t.Errorf("history[%d] claims completion, want incomplete", i)
+		}
 	}
 }
