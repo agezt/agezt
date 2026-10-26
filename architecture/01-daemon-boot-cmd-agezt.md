@@ -209,6 +209,7 @@ Legend: **F** = fatal (exit 1), **W** = warn and degrade, **B** = best-effort.
 | Skills | step 41.4 | `skill.SeedBuiltins(forge, "")` — idempotent, content-addressed; a quarantined built-in stays quarantined. |
 | Market | step 41.4 | `k.SetMarket(market.NewManager{Library: NewCompositeLibrary(builtinmarket.New(), Store), Store: market.NewStore(base), Skills: forge, MCP: k, Verify: market.VerifyPack, Syncer: market.NewSyncer()})`. |
 | Guardians | step 41.7 | `builtinguardians.SeedAll(guardians.NewKernelHost(k), "")` — System-marked agents, idempotent by slug, operator removals respected. The seeder takes the **contract's** port; the adapter that answers it lives in the app layer (`kernel/app/guardians`). |
+| MCP registry | the composition root (`openAppKernel`) | the **file is the daemon's** (W3.58): it opens `mcp/servers.json` and hands the kernel the contract's `mcpapi.Registry` port, and injects the `mcpapi.Dialer` / `mcpapi.HTTPDialer` seams so the kernel never names the module's clients. A registry that cannot be opened is a **startup error**. Because the file lives under the base dir, a **tenant** keeps its own registry. |
 | MCP servers | step 41.12 | `k.AttachEnabledMCPServers(ctx)`; per-server failures printed, never fatal. |
 | Standing orders | step 44 | `standing.StartRunner` (bus) + `standing.StartCron`; `fire` = governed run AS roster agent with cost + trust ceilings. |
 | Schedules | step 42 | `cadence.NewEngine(store, run, 0, stdout)` with `Bus` (injection tripwire) and `RunTimeout`. |

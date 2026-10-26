@@ -1231,7 +1231,8 @@ A newly attached tool is visible **from the next run**.
 
 | Aspect | Details |
 |---|---|
-| Persistence | `<home>/mcp/servers.json` (atomic). Live connections are held only in `k.mcpConns`. |
+| Persistence | `<home>/mcp/servers.json` (atomic). Live connections are held only in `k.mcpConns`. The **file is the daemon's** (W3.58): the composition root opens it and hands the kernel the contract's `mcpapi.Registry` port — the kernel opens no registry of its own, and a kernel with no registry answers **"no servers"** on the reads and **refuses** the writes. |
+| Ports | The registry's port is the contract's `mcpapi.Registry` (**six** verbs: `Add`, `SetEnabled`, `Remove`, `Get`, `List`, `Count`); the catalog reads through the kernel's nil-safe `mcpapi.RegistrationReader` (**one** verb), because the raw port is a **nil-able** thing. The **clients** are the host's **seams**: the daemon injects `mcpapi.Dialer` / `mcpapi.HTTPDialer`, so the kernel never names the module's `mcp.Dial` / `mcp.DialHTTP`; a kernel with no dialer refuses the attach with a readable error instead of calling a nil func value. |
 | Concurrency | stdio: one `readLoop` goroutine per connection; it gives up after 60 s of frames nobody reads. `Close` sends stdin EOF, waits 2 s, then kills. HTTP: `httpConn.mu` serialises requests. Attach dials outside `k.mcpMu`, then re-checks. |
 | Events | `mcp.added`, `mcp.updated`, `mcp.attached`, `mcp.detached`, `mcp.removed`. Subject `mcp.<name>`, actor `mcp`. |
 | Wiring | `main.go:1598` calls `AttachEnabledMCPServers`. The `mcp` agent tool supports stdio only for `op=add`. Other entry points: control-plane `mcp_*`, Web UI `/api/mcp*`, `agt mcp add`, and market packs. `builtinmarket` seeds lazy `fetch`, `playwright`, `duckduckgo`, `excel` and `time` servers. The legacy bridge lives in `plugins/external/mcpbridge` ([08](08-providers.md)). |
