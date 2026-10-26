@@ -6,4 +6,3 @@
 # count reaches 0 is removed. Where each rule is legitimate: layers.json "calls".
 raw-write kernel/market 2
 raw-write kernel/modules/skills/skill 1
-raw-write plugins/tools/browser 1
