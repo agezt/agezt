@@ -13,6 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/agezt/agezt/internal/atomicfile"
 )
 
 func (s *Server) signalShutdown() {
@@ -51,10 +53,17 @@ func (s *Server) writeRuntimeFiles(addr string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("controlplane: mkdir runtime: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, addrFile), []byte(addr+"\n"), 0o600); err != nil {
+	// The runtime files are the daemon's IDENTITY on disk: the address a client
+	// dials and the token it authenticates with. They are written through the
+	// platform's atomic writer (internal/atomicfile), so a reader never sees a
+	// half-written file — a torn token would be read as a valid-looking token
+	// that fails authentication, and a torn address as an address that cannot
+	// be dialled. The writer also re-asserts the mode on every write, so a
+	// leftover file from an earlier run cannot keep a wider mode.
+	if err := atomicfile.WriteFile(filepath.Join(dir, addrFile), []byte(addr+"\n"), 0o600); err != nil {
 		return fmt.Errorf("controlplane: write addr file: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, tokenFile), []byte(s.token+"\n"), 0o600); err != nil {
+	if err := atomicfile.WriteFile(filepath.Join(dir, tokenFile), []byte(s.token+"\n"), 0o600); err != nil {
 		return fmt.Errorf("controlplane: write token file: %w", err)
 	}
 	return nil
