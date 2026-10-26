@@ -38,6 +38,7 @@ import (
 	"github.com/agezt/agezt/kernel/app/overseer"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/controlplane"
@@ -46,7 +47,6 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/modules/agents/selfrepair"
-	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/modules/providers/boot"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
@@ -947,17 +947,22 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// boardNotify publishes the board.posted event for ANY door's write: subject
 	// routing (board.dm.<slug> / board.help[.<slug>] / board.broadcast /
 	// board.<topic>) is what lets a standing order wake the addressed agent.
-	boardStore, boardErr := board.Open(filepath.Join(baseDir, "board"))
-	boardNotify := func(m board.Message, corr string) {
+	//
+	// The daemon is the composition root: it opens the board's FILE and hands
+	// every holder the CONTRACT's port (boardapi.Store) — the control plane,
+	// the REST mailbox, self-repair and the board tool all speak the contract,
+	// and none of them may name the module (W3.59).
+	boardStore, boardErr := openBoard(baseDir)
+	boardNotify := func(m boardapi.Message, corr string) {
 		// Help takes precedence so a help-flagged message wakes responders
 		// watching board.help.
 		subject := "board." + boardSubjectSlug(m.Topic)
 		switch {
-		case m.Help && m.To != "" && m.To != board.Everyone:
+		case m.Help && m.To != "" && m.To != boardapi.Everyone:
 			subject = "board.help." + boardSubjectSlug(m.To)
 		case m.Help:
 			subject = "board.help"
-		case m.To == board.Everyone:
+		case m.To == boardapi.Everyone:
 			subject = "board.broadcast"
 		case m.To != "":
 			subject = "board.dm." + boardSubjectSlug(m.To)
@@ -995,7 +1000,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// board_ack go through the shared instance and fire the same notifier. Only
 	// when the shared store opened — a failed open leaves board commands
 	// unavailable (boardErr is surfaced in the banner phase below).
-	srvBoard, srvBoardNotify := boardStore, boardNotify
+	//
+	// The holder gets the CONTRACT's port, and the conversion happens HERE —
+	// while the value is still the concrete store. A nil *board.Store handed
+	// to an interface parameter is a NON-NIL interface, and the control plane
+	// would then hold a board that is not there.
+	srvBoard, srvBoardNotify := boardPort(boardStore), boardNotify
 	if boardErr != nil {
 		srvBoard, srvBoardNotify = nil, nil
 	}
@@ -1372,9 +1382,13 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// Native REST API (P7-API-02) — first-party /api/v1 surface: submit runs
 	// (sync or SSE), inspect a run's journaled arc, health/models. Same governed
 	// loop as `agt run`. Off unless AGEZT_REST_ADDR is set; loopback + token.
-	var restBoard *board.Store
+	// The REST mailbox holds the CONTRACT's port too (W3.59). A daemon with no
+	// board hands the REST API a nil PORT (not a nil concrete store): the
+	// mailbox answers 503, which is what a daemon without a board owes its
+	// SDK clients.
+	var restBoard boardapi.Store
 	if boardErr == nil {
-		restBoard = boardStore
+		restBoard = boardPort(boardStore)
 	}
 	if restDesc := buildRESTAPI(ctx, k, tenantReg, baseDir, &draining, restBoard, boardNotify, updateSvc, stdout); restDesc != "" {
 		fmt.Fprintf(stdout, "  rest api         : %s\n", restDesc)
@@ -1454,7 +1468,10 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// or board.dm.<recipient> for an addressed message (M788) — and one
 	// agent's post wakes another. The posting run's correlation ties into
 	// `agt why`.
-	lateBoard := boardStore
+	// The tool takes the CONTRACT's port (W3.59) — the conversion happens here,
+	// while the value is still the concrete store, so a board that could not be
+	// opened stays a nil PORT and leaves the tool unbound.
+	lateBoard := boardPort(boardStore)
 	if boardErr != nil {
 		lateBoard = nil // spec leaves the tool unbound; error surfaced below
 	}
@@ -1502,7 +1519,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 					ChannelSend:      channelSend,
 					ChannelSendMedia: channelSendMedia,
 					ArtifactBytes:    artifactBytes(k),
-					Board:            boardPort(lateBoard),
+					Board:            lateBoard,
 					BoardNotify:      boardNotify,
 				}); err != nil {
 					return "", err
@@ -1743,7 +1760,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// stop/start, self-update, or hard kill — left mid-flight, so ongoing work
 	// survives the interruption. Runs the roster + run infra armed just above.
 	fmt.Fprintf(stdout, "  run resume       : %s\n", buildResumer(ctx, k))
-	fmt.Fprintf(stdout, "  auto repair      : %s\n", selfrepair.WireAutoRepair(ctx, k, repairSource, boardStore, boardNotify))
+	// Self-repair posts to the board when it escalates. It takes the
+	// CONTRACT's port (W3.59), and the conversion happens HERE: a nil
+	// *board.Store handed to the Mailbox interface would be a NON-NIL
+	// interface, the callee's nil check would not fire, and the first
+	// escalation would dereference a board that is not there.
+	fmt.Fprintf(stdout, "  auto repair      : %s\n", selfrepair.WireAutoRepair(ctx, k, repairSource, boardPort(boardStore), boardNotify))
 
 	// Workflow triggers (M799): arm cron/event triggers for ENABLED workflows.
 	// The runner consults the store live, so canvas/CLI saves take effect

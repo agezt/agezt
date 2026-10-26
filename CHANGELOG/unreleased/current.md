@@ -4561,6 +4561,36 @@ This file holds the active `[Unreleased]` working set.
   directory, journaling the same events, and the same notes reach the same
   runs.
 
+- **Removed: the adapters' reach on the message board (W3.59).** The control
+  plane held the board module's concrete `*board.Store` — and **opened the
+  board's file itself** as a read fallback — the REST mailbox held the
+  concrete store, and the self-repair module named the module for **one row**
+  (the message). The board's surface had **three shapes** — the contract's
+  port, the module's concrete store and the app layer's own copy of the same
+  **eleven** methods — and the last two are what the layers above the module
+  had to name. The contract `boardapi` needed **nothing new**: the store's
+  port was already there (the board **tool**, a plugin, has taken the store
+  through it since W3.21, and the tool registry has held it since W3.39a), so
+  what was left were the **adapters** and the **module** naming the module
+  anyway. The control plane, the REST mailbox and self-repair now speak
+  `boardapi.Store` / `boardapi.Message`, and the app layer's own interface is
+  an **alias** of the contract's port — one shape instead of three.
+  The daemon converts the concrete store to the port **where the value is
+  still concrete**. That is not academic: the board store is opened **late**
+  and the daemon leaves it nil when it could not be opened, so a nil
+  `*board.Store` handed to self-repair's `Mailbox` interface would have been a
+  **non-nil** interface — the callee's nil guard would not have fired and the
+  first escalation would have dereferenced a board that was not there.
+  **Behaviour change**: the control plane's **read fallback** is gone. It used
+  to open a fresh read-only view of the board's file when nothing was wired,
+  so a board that **could not be opened** looked like a board with **no
+  messages** — a silent lie, while the writes were already honest about it.
+  A control plane with no board now answers **"the board is not available on
+  this daemon"** on the reads **and** the writes, and the REST mailbox keeps
+  its **503**. In the daemon's real topology nothing changes: the daemon
+  opens the board and wires it.
+  The architecture ratchet went from 16 to 13 edges.
+
 - **Removed: the kernel's reach on the MCP registry (W3.58).** The kernel held
   the extensions module's concrete MCP store and **opened the registry's file**
   itself; the marketplace named the module's rows as well. The kernel now holds

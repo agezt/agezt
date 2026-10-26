@@ -14,12 +14,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	"github.com/agezt/agezt/kernel/modules/board/board"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
-func autoRepairWakeAgent(ctx context.Context, k *kernelruntime.Kernel, cand autoRepairCandidate, msg *board.Message) (autoRepairWakeResult, error) {
+func autoRepairWakeAgent(ctx context.Context, k *kernelruntime.Kernel, cand autoRepairCandidate, msg *boardapi.Message) (autoRepairWakeResult, error) {
 	if k == nil {
 		return autoRepairWakeResult{}, fmt.Errorf("auto-repair wake requires kernel")
 	}

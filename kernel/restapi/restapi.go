@@ -11,8 +11,8 @@ import (
 	"context"
 	kernelauth "github.com/agezt/agezt/kernel/auth"
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/update"
 	"net/http"
 	"strings"
@@ -79,12 +79,12 @@ type Server struct {
 	// /api/v1/mailbox surface (M937), injected via SetMailbox. It must be the
 	// same instance the `board` tool writes — see SetMailbox. Nil → the mailbox
 	// endpoints answer 503.
-	board *board.Store
+	board boardapi.Store
 
 	// boardNotify publishes board.posted for a mailbox write (the same closure
 	// the `board` tool's OnPost uses), so an SDK send wakes standing orders
 	// exactly like an agent's send. Nil-safe.
-	boardNotify func(m board.Message, corr string)
+	boardNotify func(m boardapi.Message, corr string)
 
 	// updateSvc, when set, powers the /api/v1/update endpoints. Nil when update
 	// is disabled; the handlers report that rather than dereferencing nil.

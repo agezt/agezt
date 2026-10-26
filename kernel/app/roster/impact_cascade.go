@@ -11,8 +11,8 @@ import (
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
-	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 )
@@ -35,7 +35,7 @@ type ImpactPorts struct {
 	// Workflows lists the workflows.
 	Workflows func() []workflow.Workflow
 	// Mailbox reads the board's messages.
-	Mailbox func() []board.Message
+	Mailbox func() []boardapi.Message
 }
 
 // ScheduleImpact lists the schedules that wake the agent.
@@ -221,7 +221,7 @@ func RemovalMailboxImpact(ports ImpactPorts, slug string, subagents []agentapi.P
 
 // MailboxImpactLabel names a board message from the agent's point of view:
 // the topic and the direction, with the message id.
-func MailboxImpactLabel(msg board.Message, slug string) (string, bool) {
+func MailboxImpactLabel(msg boardapi.Message, slug string) (string, bool) {
 	from := strings.ToLower(strings.TrimSpace(msg.From))
 	to := strings.ToLower(strings.TrimSpace(msg.To))
 	acked := BoardMessageAckedBy(msg, slug)
@@ -231,7 +231,7 @@ func MailboxImpactLabel(msg board.Message, slug string) (string, bool) {
 		direction = "sent"
 	case to == slug:
 		direction = "received"
-	case msg.To == board.Everyone && from != slug:
+	case msg.To == boardapi.Everyone && from != slug:
 		direction = "broadcast"
 	case acked:
 		direction = "acked"

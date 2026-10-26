@@ -23,9 +23,9 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	kernelauth "github.com/agezt/agezt/kernel/auth"
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/httpserver"
-	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/netguard"
 	"github.com/agezt/agezt/kernel/openaiapi"
 	"github.com/agezt/agezt/kernel/pulse"
@@ -108,7 +108,7 @@ func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Re
 // and only a short prefix is shown in the banner — the FULL token must NEVER
 // appear on stdout/stderr where a log-shipper or `journalctl` would scrape it
 // (VULN banner-token-leak fix).
-func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Registry, baseDir string, draining *atomic.Bool, boardStore *board.Store, boardNotify func(board.Message, string), updateSvc *update.Service, stdout io.Writer) string {
+func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Registry, baseDir string, draining *atomic.Bool, boardStore boardapi.Store, boardNotify func(boardapi.Message, string), updateSvc *update.Service, stdout io.Writer) string {
 	addr := os.Getenv(brand.EnvPrefix + "REST_ADDR")
 	if addr == "" {
 		return ""

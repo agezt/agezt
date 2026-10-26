@@ -8,11 +8,11 @@ import (
 
 	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/bus"
-	"github.com/agezt/agezt/kernel/modules/board/board"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
-func (c *autoRepairCoordinator) autoWakeManager(ctx context.Context, k *kernelruntime.Kernel, b *bus.Bus, src autoRepairSource, mailbox Mailbox, postNotify func(board.Message, string), cand autoRepairCandidate, msg *board.Message, mailboxErr error) {
+func (c *autoRepairCoordinator) autoWakeManager(ctx context.Context, k *kernelruntime.Kernel, b *bus.Bus, src autoRepairSource, mailbox Mailbox, postNotify func(boardapi.Message, string), cand autoRepairCandidate, msg *boardapi.Message, mailboxErr error) {
 	res, err := autoRepairWakeAgent(ctx, k, cand, msg)
 	if err != nil {
 		publishAutoRepair(b, res.Correlation, map[string]any{

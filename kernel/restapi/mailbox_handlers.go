@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/modules/board/board"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 )
 
 func (s *Server) handleMailboxMessages(w http.ResponseWriter, r *http.Request) {
@@ -50,7 +50,7 @@ func (s *Server) handleMailboxMessages(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		now := time.Now().UnixMilli()
-		var m board.Message
+		var m boardapi.Message
 		var err error
 		switch {
 		case strings.TrimSpace(req.ReplyTo) != "":
@@ -61,19 +61,19 @@ func (s *Server) handleMailboxMessages(w http.ResponseWriter, r *http.Request) {
 				writeErr(w, http.StatusNotFound, "not_found", "no message with id "+req.ReplyTo)
 				return
 			}
-			m, err = st.Send(board.Message{
+			m, err = st.Send(boardapi.Message{
 				Topic: orig.Topic, From: req.From, To: orig.From, ReplyTo: orig.ID, Text: req.Text,
 			}, now)
 		case req.Help:
 			m, err = st.HelpRequest(req.From, req.To, req.Text, now)
-		case strings.TrimSpace(req.To) == board.Everyone:
+		case strings.TrimSpace(req.To) == boardapi.Everyone:
 			m, err = st.Broadcast(req.From, req.Text, now)
 		case strings.TrimSpace(req.To) != "":
 			topic := strings.TrimSpace(req.Topic)
 			if topic == "" {
 				topic = "dm"
 			}
-			m, err = st.Send(board.Message{Topic: topic, From: req.From, To: req.To, Text: req.Text}, now)
+			m, err = st.Send(boardapi.Message{Topic: topic, From: req.From, To: req.To, Text: req.Text}, now)
 		default:
 			if strings.TrimSpace(req.Topic) == "" {
 				writeErr(w, http.StatusBadRequest, "invalid_request",

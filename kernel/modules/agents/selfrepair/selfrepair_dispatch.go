@@ -14,9 +14,9 @@ import (
 	"fmt"
 	"github.com/agezt/agezt/internal/strutil"
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	"github.com/agezt/agezt/kernel/modules/board/board"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"os"
 	"strings"
@@ -66,7 +66,7 @@ func autoRepairFailedPhase(cand autoRepairCandidate) string {
 	return "failed"
 }
 
-func (c *autoRepairCoordinator) dispatch(ctx context.Context, k *kernelruntime.Kernel, b *bus.Bus, src autoRepairSource, mailbox Mailbox, postNotify func(board.Message, string), cand autoRepairCandidate) {
+func (c *autoRepairCoordinator) dispatch(ctx context.Context, k *kernelruntime.Kernel, b *bus.Bus, src autoRepairSource, mailbox Mailbox, postNotify func(boardapi.Message, string), cand autoRepairCandidate) {
 	// Panic firewall (WF-001). dispatch is launched with a bare `go` from the
 	// coordinator loop, so nothing above can recover it — and it drives a full
 	// governed run: provider calls, tools, plugin subprocesses, MCP servers, then
@@ -165,7 +165,7 @@ func (c *autoRepairCoordinator) dispatch(ctx context.Context, k *kernelruntime.K
 	})
 }
 
-func (c *autoRepairCoordinator) autoEscalate(mailbox Mailbox, postNotify func(board.Message, string), cand autoRepairCandidate, repairErr error) (*board.Message, error) {
+func (c *autoRepairCoordinator) autoEscalate(mailbox Mailbox, postNotify func(boardapi.Message, string), cand autoRepairCandidate, repairErr error) (*boardapi.Message, error) {
 	if mailbox == nil {
 		return nil, nil
 	}

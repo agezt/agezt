@@ -59,7 +59,12 @@ func TestBoardCommandMetadataComesFromCompleteAppRegistry(t *testing.T) {
 		}
 	}
 }
-func TestBoardAppHostRetainsReadFallbackAndSharedWriter(t *testing.T) {
+
+// TestBoardAppHostRefusesWithoutABoardAndWritesThroughTheSharedOne: the
+// control plane's board surface answers the same way in both directions when
+// no board is wired — "the board is not available on this daemon" — and the
+// shared instance is what makes the writes work.
+func TestBoardAppHostRefusesWithoutABoardAndWritesThroughTheSharedOne(t *testing.T) {
 	dir := t.TempDir()
 	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
 	if err != nil {
@@ -76,10 +81,14 @@ func TestBoardAppHostRetainsReadFallbackAndSharedWriter(t *testing.T) {
 	}
 	s := NewServer(k, dir)
 	s.token = "primary"
+	// Unwired: the board is not available — for the reads AND the writes. The
+	// control plane does not open the board's file itself (W3.59): the daemon
+	// owns that file and hands over the port, so a board that is not there
+	// says so instead of answering an empty board.
 	for _, cmd := range []string{CmdBoardRead, CmdBoardHelp, CmdBoardInbox, CmdBoardGet, CmdBoardReplies} {
 		r := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"id": m.ID, "to": "reviewer"}})[0]
-		if r.Type != RespResult {
-			t.Fatalf("fresh fallback %s=%+v", cmd, r)
+		if r.Type != RespError || !strings.Contains(r.Error, "not available") {
+			t.Fatalf("unwired read %s=%+v", cmd, r)
 		}
 	}
 	for _, cmd := range []string{CmdBoardSend, CmdBoardAck} {

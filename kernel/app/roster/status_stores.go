@@ -11,9 +11,9 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/board/board"
 )
 
 // CollectStatus assembles the whole roster status snapshot from the host's
@@ -122,7 +122,7 @@ func CollectEscalationStatus(src StatusSources, profiles []agentapi.Profile) map
 		if to == "" {
 			continue
 		}
-		if to == board.Everyone {
+		if to == boardapi.Everyone {
 			for slug := range known {
 				if strings.EqualFold(strings.TrimSpace(msg.From), slug) {
 					continue

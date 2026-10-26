@@ -23,6 +23,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/agents/reaper"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
+	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
@@ -132,11 +133,11 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 	cfg.ToolForge = forge
 	// The task board is the composition root's file too (W3.47): the kernel
 	// holds the contract's host port, and the root opens the file.
-	board, err := workboard.OpenStore(filepath.Join(dir, "workboard"))
+	taskBoard, err := workboard.OpenStore(filepath.Join(dir, "workboard"))
 	if err != nil {
 		t.Fatalf("open the workboard store: %v", err)
 	}
-	cfg.Workboard = board
+	cfg.Workboard = taskBoard
 	// The catalog directory and its syncer are the composition root's files
 	// too (W3.51): the kernel holds the contract's ports, and the root opens
 	// them.
@@ -184,6 +185,13 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 	// kernel holds the contract's store port and never opens a registry of
 	// its own, so the root opens the file and hands the port over.
 	cfg = withMCP(t, cfg)
+	// The message board is the composition root's file too (W3.59): the
+	// control plane holds the contract's port and never opens a board of its
+	// own, so the root opens the file and hands the port over.
+	messageBoard, err := board.Open(filepath.Join(dir, "board"))
+	if err != nil {
+		t.Fatalf("open the board store: %v", err)
+	}
 	k, err := runtime.Open(cfg)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -202,6 +210,10 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 	t.Cleanup(func() { k.Close() })
 
 	srv := controlplane.NewServer(k, dir)
+	// The message board is the daemon's file (W3.59): the root opens it and
+	// hands the control plane the contract's port. A test that wants the
+	// unwired surface un-wires it again.
+	srv.SetBoard(messageBoard, nil)
 	// The operator's repair surface is injected (the daemon owns the wiring: the
 	// control plane asks for a repair, it does not import the tool that provides
 	// it).

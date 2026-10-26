@@ -128,7 +128,7 @@ Flags semantics (from `dispatch.go` comments, enforced by `dispatch_registry_tes
 (closed by `shutdown` op; daemon main loop selects on `Shutdown()`), `pulse PulseController`, agent-list TTL cache
 (`rosterListOnce`/`rosterList` → app/roster ListService, which owns RWMutex/validity/key/1.5s cache), `standingFire func(id) bool`,
 `observers PulseObservers`, `tenants *tenant.Registry`, `configEnvPinned`, `cancelOnDisconnect`, `diskFree DiskFreeFunc`,
-`httpBindings []HTTPBinding`, `channels []ChannelInfo`, `channelSend ChannelSender`, `credChain string`, `boardStore *board.Store`
+`httpBindings []HTTPBinding`, `channels []ChannelInfo`, `channelSend ChannelSender`, `credChain string`, `boardStore boardapi.Store`
 + `boardNotify` (the ONE shared board instance — M937), `updateSvc app/update.Backend` (public concrete setter retained; nil canonicalized), channel-OAuth `channelOAuthState *app/channels.OAuthMemory` and service (sync.Once),
 ChatGPT login `chatgpt *chatgptauth.Manager` (chatgptOnce) + `provLogin` (provLoginMu) + `chatgptSync`.
 
@@ -1136,7 +1136,7 @@ Route table (deliverable c, part 2) — `admin` = rest.token only; `user` = rest
 | GET | `/api/v1/runs/{corr}` | user | events of a run | `Engine.EventsForCorrelation` |
 | GET | `/api/v1/artifacts` | user | artifact metadata | `ArtifactLister` |
 | GET | `/api/v1/artifacts/{id}` | user | artifact bytes (policy-gated) | `ArtifactReader` |
-| GET,POST | `/api/v1/mailbox/messages` | admin | list / send | shared `board.Store` |
+| GET,POST | `/api/v1/mailbox/messages` | admin | list / send | shared `boardapi.Store` |
 | GET,POST | `/api/v1/mailbox/messages/{id}/replies`, `/{id}/ack` | admin | replies / ack | board |
 | GET | `/api/v1/mailbox/inbox` | admin | inbox for a name | board |
 | GET | `/api/v1/mailbox/watch` | admin | SSE of new mail | bus `board.posted` |
@@ -1303,7 +1303,7 @@ and warns when no console password is set.
 - Never add `StreamLive` to an op that reads the conn itself (`run`, `pulse_subscribe`): two readers race and 500 ms deadlines would cancel idle streams.
 - Every TenantAllowed op must be TenantRouted (except `whoami`), or a tenant reads the primary kernel.
 - Tenant probes get `forbidden` for unknown commands too (no command-existence oracle); authentication precedes lookup.
-- Board writes must use the injected shared `boardStore`; a second `board.Store` would clobber the `board` tool's whole-file writes.
+- Board writes must use the injected shared `boardStore`; a second `board.Store` would clobber the `board` tool's whole-file writes. The store is the **contract's port** (`boardapi.Store`, W3.59): the control plane may not name the module, and it never opens the board's file — a control plane with no board answers "the board is not available on this daemon" on the reads **and** the writes.
 - `agent_list` is cached 1.5 s; mutating handlers must call `invalidateAgentListCache()`.
 - `config_set` mutates the daemon process env (`os.Setenv`) as well as the store; only `AGEZT_PROVIDER/AGEZT_MODEL` trigger a reload.
 - Query-string proxy args are strings; numeric keys absent from `numericQueryArgs` reach the handler as text and fail "must be a number" (502).

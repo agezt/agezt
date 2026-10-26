@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
-	"github.com/agezt/agezt/kernel/modules/board/board"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -44,12 +44,12 @@ type autoRepairRoutingChainApplier interface {
 }
 
 // Mailbox is the message-board surface auto-repair escalations post through.
-// *board.Store satisfies it; a nil-tolerant caller may pass nil to disable
+// *boardapi.Store satisfies it; a nil-tolerant caller may pass nil to disable
 // mailbox escalation.
 type Mailbox interface {
-	HelpRequest(from, to, text string, nowMS int64) (board.Message, error)
-	Get(id string) (board.Message, bool)
-	Send(m board.Message, nowMS int64) (board.Message, error)
+	HelpRequest(from, to, text string, nowMS int64) (boardapi.Message, error)
+	Get(id string) (boardapi.Message, bool)
+	Send(m boardapi.Message, nowMS int64) (boardapi.Message, error)
 }
 
 // WireAutoRepair subscribes the auto-repair coordinator to the reaper pulse
@@ -59,7 +59,7 @@ type Mailbox interface {
 // src is the agent-control surface the coordinator repairs through. The
 // daemon injects it: the module asks for the repair it needs, it does not
 // reach into the tool that provides it.
-func WireAutoRepair(ctx context.Context, k *kernelruntime.Kernel, src RepairSource, mailbox Mailbox, postNotify func(board.Message, string)) string {
+func WireAutoRepair(ctx context.Context, k *kernelruntime.Kernel, src RepairSource, mailbox Mailbox, postNotify func(boardapi.Message, string)) string {
 	if k == nil || k.Bus() == nil {
 		return "disabled"
 	}

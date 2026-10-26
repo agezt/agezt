@@ -17,7 +17,7 @@ package controlplane
 // the internal application path.
 
 import (
-	"github.com/agezt/agezt/kernel/modules/board/board"
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/kernel/update"
@@ -36,8 +36,13 @@ type Deps struct {
 	// Board is the daemon's ONE shared message-board instance (M937) and
 	// BoardNotify its board.posted publisher. Leave both nil when the board
 	// failed to open.
-	Board       *board.Store
-	BoardNotify func(m board.Message, corr string)
+	//
+	// The store is the CONTRACT's port (W3.59): the control plane may not
+	// name the board module, and a nil port is a daemon with no board — the
+	// reads answer "the board is not available on this daemon" and the writes
+	// refuse.
+	Board       boardapi.Store
+	BoardNotify func(m boardapi.Message, corr string)
 	// DiskFree probes free/total bytes for the disk health check (M131).
 	DiskFree DiskFreeFunc
 	// UpdateSvc is the self-update engine (M860); nil = update disabled.

@@ -7,33 +7,30 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	shared "github.com/agezt/agezt/kernel/modules/board/board"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/agezt/agezt/kernel/contract/boardapi"
 )
 
-type Store interface {
-	Read(string, int) []shared.Message
-	Topics() map[string]int
-	OpenHelp(int) []shared.Message
-	Get(string) (shared.Message, bool)
-	Inbox(string, int, bool) []shared.Message
-	Replies(string, int) []shared.Message
-	Post(string, string, string, int64) (shared.Message, error)
-	Send(shared.Message, int64) (shared.Message, error)
-	HelpRequest(string, string, string, int64) (shared.Message, error)
-	Broadcast(string, string, int64) (shared.Message, error)
-	Ack(string, string) (shared.Message, bool, error)
-}
+// Store is the board's read/write port — the CONTRACT's (W3.59).
+//
+// The app used to declare its own interface with the same eleven methods: the
+// board's surface had three shapes (the contract's port, the module's
+// concrete store and this one) and the app was the only one that did not need
+// to exist. A port is a promise about what a reader may do — a third copy of
+// it is a second answer to the same question.
+type Store = boardapi.Store
+
 type Service struct {
 	store  Store
-	notify func(shared.Message, string)
+	notify func(boardapi.Message, string)
 }
 
 // The host selects its shared writer or read-only fallback before construction.
-func New(store Store, notify func(shared.Message, string)) *Service {
+func New(store Store, notify func(boardapi.Message, string)) *Service {
 	return &Service{store: store, notify: notify}
 }
 
@@ -49,10 +46,10 @@ type Message struct {
 	AckedBy  []string `json:"acked_by,omitempty"`
 }
 
-func project(m shared.Message) Message {
+func project(m boardapi.Message) Message {
 	return Message{Topic: m.Topic, Text: m.Text, TSUnixMS: m.TSMS, ID: m.ID, From: m.From, To: m.To, ReplyTo: m.ReplyTo, Help: m.Help, AckedBy: append([]string(nil), m.AckedBy...)}
 }
-func projectAll(messages []shared.Message) []Message {
+func projectAll(messages []boardapi.Message) []Message {
 	out := make([]Message, 0, len(messages))
 	for _, m := range messages {
 		out = append(out, project(m))
@@ -225,7 +222,7 @@ func (s *Service) Send(_ context.Context, in SendInput) (SendOutput, error) {
 		return SendOutput{}, errors.New("board_send requires text")
 	}
 	now := time.Now().UnixMilli()
-	var m shared.Message
+	var m boardapi.Message
 	var err error
 	switch {
 	case in.ReplyTo != "":
@@ -233,17 +230,17 @@ func (s *Service) Send(_ context.Context, in SendInput) (SendOutput, error) {
 		if !found {
 			return SendOutput{}, fmt.Errorf("no message with id %s", in.ReplyTo)
 		}
-		m, err = s.store.Send(shared.Message{Topic: orig.Topic, From: in.From, To: orig.From, ReplyTo: orig.ID, Text: in.Text}, now)
+		m, err = s.store.Send(boardapi.Message{Topic: orig.Topic, From: in.From, To: orig.From, ReplyTo: orig.ID, Text: in.Text}, now)
 	case in.Help:
 		m, err = s.store.HelpRequest(in.From, in.To, in.Text, now)
-	case in.To == shared.Everyone:
+	case in.To == boardapi.Everyone:
 		m, err = s.store.Broadcast(in.From, in.Text, now)
 	case in.To != "":
 		topic := in.Topic
 		if topic == "" {
 			topic = "dm"
 		}
-		m, err = s.store.Send(shared.Message{Topic: topic, From: in.From, To: in.To, Text: in.Text}, now)
+		m, err = s.store.Send(boardapi.Message{Topic: topic, From: in.From, To: in.To, Text: in.Text}, now)
 	default:
 		if in.Topic == "" {
 			return SendOutput{}, errors.New("board_send requires a topic (for a post) or a to (for a DM / \"*\" broadcast)")
