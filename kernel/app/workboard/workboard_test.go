@@ -6,7 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	appwork "github.com/agezt/agezt/kernel/app/workboard"
-	"github.com/agezt/agezt/kernel/modules/work/assure"
+	"github.com/agezt/agezt/kernel/contract/assureapi"
 	"github.com/agezt/agezt/kernel/modules/work/proof"
 	tasks "github.com/agezt/agezt/kernel/modules/work/workboard"
 	"reflect"
@@ -31,7 +31,7 @@ func TestTaskProjectionRetainsComputedCountsProofAndRetryPresence(t *testing.T) 
 	if fields["id"] != "owned" || fields["created_ms"] != float64(100) || fields["updated_ms"] != float64(200) || fields["proven"] != false {
 		t.Fatalf("actual task/false proof fields=%s", raw)
 	}
-	task.Proof = &proof.Proof{Verdict: assure.Verdict{Complete: true}, Criteria: []proof.Criterion{{Text: "one", Met: true}, {Text: "two", Met: true}}}
+	task.Proof = &proof.Proof{Verdict: assureapi.Verdict{Complete: true}, Criteria: []proof.Criterion{{Text: "one", Met: true}, {Text: "two", Met: true}}}
 	out = appwork.Project(task)
 	if out.Proven == nil || !*out.Proven {
 		t.Fatalf("satisfied proof=%+v", out)

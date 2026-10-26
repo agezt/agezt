@@ -4499,6 +4499,51 @@ This file holds the active `[Unreleased]` working set.
   gates, `go vet`, `staticcheck`, gofmt, and a full `go test ./...` run are
   green.
 
+- **The kernel reached into a module for a pure function (W3.64).** The
+  "do-it-for-sure" loop — run a task, verify it was actually accomplished,
+  retry with the verifier's gap fed back, up to a bounded budget — lived in
+  `kernel/modules/work/assure`, and the run engine reached across a module
+  boundary to call it. The package was **measured before it was touched**, and
+  the measurement said it **was never a module**: no store, no file, no bus,
+  no model, no clock — it held two closures (`RunFn`, `VerifyFn`), a budget and
+  a loop. The rows (`Verdict`, `Attempt`, `Result`) and the verdict parser had
+  been in the contract layer since W3.31, so what was left in the module was
+  the loop and a set of **aliases and delegations** — a pass-through package
+  whose only production reason to exist was a name for something else.
+
+  The loop now lives in the contract layer, in
+  `kernel/contract/assureapi/loop.go`, beside the rows it produces: the
+  contract's own rule is "rows, constants and pure functions only", and the
+  loop is a pure function — the same shape as `contract/reasoningapi`'s
+  runner and `contract/workflowapi`'s runner. The module package is
+  **deleted**, and with it the kernel's last edge into a module's
+  implementation: after this slice the kernel reaches **no module
+  implementation at all** (the only module imports left in `kernel/runtime`
+  are `agents/api` and `reasoning/api`, and an `api` package is the one
+  import a module may make across boundaries).
+
+  **Nothing an operator can observe changed.** `KernelAPI.RunAssured` returned
+  `(string, assure.Result, error)` where `assure.Result` was a type alias for
+  the contract's `Result`, so the interface, the callers and the wire are
+  identical; the module's `ParseVerdict` was a delegation to the contract's
+  parser. The loop's body is unchanged line for line.
+
+  Proof: twelve permanent tests in the contract package — the seven loop
+  tests moved with the loop, the three malformed-verdict cases moved with the
+  parser, and two **new** ones (the attempt number is **one-based**, and the
+  history carries every attempt) because the mutation run found the attempt
+  number was never asserted. Ten mutations, ten caught, in two independent
+  passes with byte-identical logs — including the two that name the loop's
+  real contract: the verifier must judge the **ORIGINAL** task (a
+  gap-augmented task is a different task, so "complete" would mean something
+  else), and the gap must reach the next attempt (a retry that does not know
+  what was missing is a blind retry). The architecture ratchet went from 13 to
+  **12** import edges; the forbidden-call ratchet is unchanged at 3, and those
+  three sites are already atomic by another means. Gates: archcheck (314
+  packages, 12 import and 3 call sites), the dead-code, dependency,
+  SDK-parity, structure, changelog and doc-claims gates, `go vet`,
+  `staticcheck`, gofmt, and a full `go test ./...` run are green.
+
 ### Removed
 
 - **Removed: the kernel's reach on the world model (W3.54).** The kernel held

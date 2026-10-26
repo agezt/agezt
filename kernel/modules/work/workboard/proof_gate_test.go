@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/modules/work/assure"
+	"github.com/agezt/agezt/kernel/contract/assureapi"
 	"github.com/agezt/agezt/kernel/modules/work/proof"
 )
 
@@ -71,7 +71,7 @@ func TestProveGateReviewThenDone(t *testing.T) {
 
 	// First proof: verifier not convinced, one criterion unmet → review.
 	unmet := proof.Proof{
-		Verdict:  assure.Verdict{Complete: false, Gap: "doc still stale"},
+		Verdict:  assureapi.Verdict{Complete: false, Gap: "doc still stale"},
 		Criteria: []proof.Criterion{{Text: "tests pass", Met: true}, {Text: "doc updated", Met: false}},
 	}
 	rev, err := st.Prove(task.ID, "judge", unmet, time.UnixMilli(2000))
@@ -94,7 +94,7 @@ func TestProveGateReviewThenDone(t *testing.T) {
 
 	// Second proof: complete + all met → done directly via Prove.
 	met := proof.Proof{
-		Verdict:  assure.Verdict{Complete: true},
+		Verdict:  assureapi.Verdict{Complete: true},
 		Criteria: []proof.Criterion{{Text: "tests pass", Met: true}, {Text: "doc updated", Met: true}},
 		Evidence: proof.Evidence{Corr: "run-1", Artifacts: []string{"art-1"}, JournalFrom: 10, JournalTo: 42},
 		Judge:    "verify",
@@ -129,13 +129,13 @@ func TestReproveClearsCompletedMS(t *testing.T) {
 		t.Fatal(err)
 	}
 	// First proof satisfies → done with a completion time.
-	ok := proof.Proof{Verdict: assure.Verdict{Complete: true}, Criteria: []proof.Criterion{{Text: "tests pass", Met: true}}}
+	ok := proof.Proof{Verdict: assureapi.Verdict{Complete: true}, Criteria: []proof.Criterion{{Text: "tests pass", Met: true}}}
 	done, err := st.Prove(task.ID, "judge", ok, time.UnixMilli(2000))
 	if err != nil || done.Status != StatusDone || done.CompletedMS != 2000 {
 		t.Fatalf("first prove: status=%s completed=%d err=%v", done.Status, done.CompletedMS, err)
 	}
 	// Re-prove, now failing → review, and CompletedMS must be cleared.
-	bad := proof.Proof{Verdict: assure.Verdict{Complete: false, Gap: "regressed"}, Criteria: []proof.Criterion{{Text: "tests pass", Met: false}}}
+	bad := proof.Proof{Verdict: assureapi.Verdict{Complete: false, Gap: "regressed"}, Criteria: []proof.Criterion{{Text: "tests pass", Met: false}}}
 	rev, err := st.Prove(task.ID, "judge", bad, time.UnixMilli(3000))
 	if err != nil {
 		t.Fatalf("re-prove: %v", err)
@@ -165,7 +165,7 @@ func TestProveReconcilesCriteriaByText(t *testing.T) {
 	// Judged list is out of order, only addresses one criterion, and carries a
 	// stray entry that must be ignored.
 	p := proof.Proof{
-		Verdict: assure.Verdict{Complete: true},
+		Verdict: assureapi.Verdict{Complete: true},
 		Criteria: []proof.Criterion{
 			{Text: "unrelated", Met: true},
 			{Text: "tests pass", Met: true, Note: "green"},

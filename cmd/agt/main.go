@@ -26,9 +26,9 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/assureapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/work/assure"
 )
 
 func main() {
@@ -187,7 +187,7 @@ func cmdRun(args []string, stdout, stderr io.Writer) int {
 		case a == "--dry-run":
 			dryRun = true
 		case a == "--assure":
-			assureAttempts = int64(assure.DefaultMaxAttempts)
+			assureAttempts = int64(assureapi.DefaultMaxAttempts)
 		case strings.HasPrefix(a, "--assure="):
 			v := strings.TrimPrefix(a, "--assure=")
 			n, perr := strconv.Atoi(v)

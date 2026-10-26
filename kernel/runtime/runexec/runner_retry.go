@@ -15,9 +15,9 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/assureapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/work/assure"
 	"github.com/agezt/agezt/kernel/resume"
 )
 
@@ -121,12 +121,12 @@ func (r *Runner) Verify() error {
 }
 
 // VerifyCompletion asks the model whether the given ANSWER
-// fully accomplishes TASK. Returns an assure.Verdict with a
+// fully accomplishes TASK. Returns an assureapi.Verdict with a
 // complete/gap judgement (Day 33). The body was moved from
 // kernel/runtime/runexec.go's private verifyCompletion. The
 // bounded RunAssured loop and the workboard criteria check
 // both consume this through *Kernel.VerifyCompletion.
-func (r *Runner) VerifyCompletion(ctx context.Context, corr, task, answer string) (assure.Verdict, error) {
+func (r *Runner) VerifyCompletion(ctx context.Context, corr, task, answer string) (assureapi.Verdict, error) {
 	prompt := "You are a strict completion checker. Given a TASK and the ANSWER an agent produced, decide whether the answer FULLY accomplishes the task with nothing important left undone. Be skeptical: a plan or a promise to do it is NOT completion.\n\n" +
 		"Reply with ONLY a JSON object and no other text: {\"complete\": true|false, \"gap\": \"<concise description of what is still missing; empty string if complete>\"}.\n\n" +
 		"TASK:\n" + task + "\n\nANSWER:\n" + answer
@@ -136,11 +136,11 @@ func (r *Runner) VerifyCompletion(ctx context.Context, corr, task, answer string
 		Messages:  []llm.Message{{Role: llm.RoleUser, Content: prompt}},
 	})
 	if err != nil {
-		return assure.Verdict{}, err
+		return assureapi.Verdict{}, err
 	}
-	v, ok := assure.ParseVerdict(resp.Message.Content)
+	v, ok := assureapi.ParseVerdict(resp.Message.Content)
 	if !ok {
-		v = assure.Verdict{Complete: false, Gap: "verifier reply was not valid JSON"}
+		v = assureapi.Verdict{Complete: false, Gap: "verifier reply was not valid JSON"}
 	}
 	_, _ = r.k.Bus().Publish(event.Spec{
 		Subject:       "agent.agent-" + corr + ".assure",

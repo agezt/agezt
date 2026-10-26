@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-package assure
+package assureapi
 
 import "testing"
 
+// TestParseVerdict_MalformedJSON: a half-written or broken object is not a
+// verdict. The kernel treats an unreadable reply as "not complete", so the
+// parser must refuse rather than hand back a zero verdict that looks like a
+// judgement.
 func TestParseVerdict_MalformedJSON(t *testing.T) {
 	tests := []struct {
 		name string
@@ -24,8 +28,9 @@ func TestParseVerdict_MalformedJSON(t *testing.T) {
 	}
 }
 
+// TestParseVerdict_FencedOnly: a reply that is ONLY a fenced block (no
+// surrounding prose) still carries a verdict.
 func TestParseVerdict_FencedOnly(t *testing.T) {
-	// Input that is ONLY a fenced block (no surrounding prose)
 	v, ok := ParseVerdict("```\n{\"complete\": true}\n```")
 	if !ok {
 		t.Fatal("ParseVerdict should parse fenced JSON")
@@ -35,6 +40,8 @@ func TestParseVerdict_FencedOnly(t *testing.T) {
 	}
 }
 
+// TestParseVerdict_OnlyFenceNoJSON: a fence with no JSON inside is a fence,
+// not a verdict.
 func TestParseVerdict_OnlyFenceNoJSON(t *testing.T) {
 	v, ok := ParseVerdict("```")
 	if ok {

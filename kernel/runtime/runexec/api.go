@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
+	"github.com/agezt/agezt/kernel/contract/assureapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
@@ -26,7 +27,6 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/journal"
-	"github.com/agezt/agezt/kernel/modules/work/assure"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/state"
@@ -118,11 +118,11 @@ type KernelAPI interface {
 	// Day 22 entry points. Day 23 will move the body of RunWith
 	// into Runner; for now the Runner just delegates back so the
 	// public surface is consistent.
-	RunAssured(ctx context.Context, corr, intent string, maxAttempts int) (string, assure.Result, error)
+	RunAssured(ctx context.Context, corr, intent string, maxAttempts int) (string, assureapi.Result, error)
 	RunWith(ctx context.Context, corr, intent string) (string, error)
 	RunWithRetry(ctx context.Context, corr, intent string, pol agentapi.RetryPolicy) (string, error)
 	NewCorrelation() string
-	VerifyCompletion(ctx context.Context, corr, task, answer string) (assure.Verdict, error)
+	VerifyCompletion(ctx context.Context, corr, task, answer string) (assureapi.Verdict, error)
 	ClaimResumeTicket(ctx context.Context, corr, intent, kind string, assureBudget int) (context.Context, bool)
 	FinalizeResumeTicket(corr string, runErr error)
 	AgentSlugFromCtx(ctx context.Context) string

@@ -1,47 +1,31 @@
 // SPDX-License-Identifier: MIT
 
-// Package assure is the "do-it-for-sure" loop: run a task, verify it was
-// actually accomplished, and retry with the verifier's gap fed back — up to a
-// bounded number of attempts, stopping the moment a verdict reports the task
-// complete (M651).
-//
-// This is the reliability primitive the owner asked for: "when I write something,
-// definitely do it, and repeat as many times as needed until it's done." The loop
-// itself is pure and side-effect-free — it takes a run closure and a verify
-// closure — so it is trivially testable; the kernel supplies the real closures
-// (a governed run + a provider-backed completion judge).
-package assure
+package assureapi
 
 import (
 	"context"
 	"strings"
-
-	"github.com/agezt/agezt/kernel/contract/assureapi"
 )
 
-// The rows and the verdict parser now live in the contract layer
-// (kernel/contract/assureapi) — W3.31. The module keeps their names as
-// ALIASES, so there is one row and one spelling of it: the loop here, the
-// workboard's task row there, and the agent-facing tool on top.
+// The "do-it-for-sure" loop: run a task, verify it was actually
+// accomplished, and retry with the verifier's gap fed back — up to a
+// bounded number of attempts, stopping the moment a verdict reports the
+// task complete (M651).
 //
-// The LOOP stays here: it is the implementation (it runs a task and feeds the
-// verifier's gap back), not a row.
-
-// The rows.
-type (
-	// Verdict is the completion judgement for one attempt.
-	Verdict = assureapi.Verdict
-	// Attempt records one run+verify cycle.
-	Attempt = assureapi.Attempt
-	// Result is the outcome of an assured run.
-	Result = assureapi.Result
-)
-
-// The attempt budget bounds.
-const (
-	DefaultMaxAttempts = assureapi.DefaultMaxAttempts
-	MaxMaxAttempts     = assureapi.MaxMaxAttempts
-)
+// This is the reliability primitive the owner asked for: "when I write
+// something, definitely do it, and repeat as many times as needed until
+// it's done." The loop is pure and side-effect-free — it takes a run
+// closure and a verify closure — so it is trivially testable; the kernel
+// supplies the real closures (a governed run + a provider-backed
+// completion judge).
+//
+// The loop lives here (W3.64) because it was never a module: it holds no
+// store, no file, no bus and no clock — only two closures and a budget.
+// It was the kernel's LAST edge into a module, and a kernel that reaches
+// into a module for a pure function is a kernel that cannot be reused.
+// The rows and the parser already lived here (W3.31); now the loop that
+// produces them lives here too, so there is ONE place that knows how a
+// task is assured.
 
 // RunFn executes one attempt of the task and returns the answer. attempt is
 // 1-based; task is the (possibly gap-augmented) instruction for this attempt.
@@ -49,14 +33,6 @@ type RunFn func(ctx context.Context, attempt int, task string) (string, error)
 
 // VerifyFn judges whether answer fully accomplishes the ORIGINAL task.
 type VerifyFn func(ctx context.Context, task, answer string) (Verdict, error)
-
-// ParseVerdict extracts a Verdict from a model reply that SHOULD be strict JSON
-// {"complete":bool,"gap":"..."} but in practice may arrive wrapped in prose or a
-// ```json fence. It isolates the first balanced-looking {...} span and unmarshals
-// it. The bool is false when no JSON object could be parsed — the caller decides
-// how to treat an unparseable verdict (the kernel treats it as "not complete" so
-// the bounded loop tries again rather than declaring a false success).
-func ParseVerdict(reply string) (Verdict, bool) { return assureapi.ParseVerdict(reply) }
 
 // clampAttempts normalizes the requested attempt budget into [1, MaxMaxAttempts],
 // defaulting a non-positive request to DefaultMaxAttempts.
@@ -117,6 +93,3 @@ func retryInstruction(task, gap string) string {
 	b.WriteString("\nFinish the task completely this time.")
 	return b.String()
 }
-
-// ParseVerdict lives in the contract layer (kernel/contract/assureapi) — it
-// parses into the row, so it travels with it. This file keeps the loop.
