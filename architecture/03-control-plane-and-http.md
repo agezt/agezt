@@ -67,7 +67,7 @@ Imported by: `cmd/agezt`, `cmd/agt`, `cmd/agt/{dial,haltresume,keys,whoami}`, `k
 | Aspect | Value (source) |
 |---|---|
 | Transport | TCP, `net.Listen("tcp", "127.0.0.1:0")` — loopback, ephemeral port (`server_lifecycle.go` `Start`). Not a unix socket / named pipe. |
-| Discovery | `<baseDir>/runtime/control.addr` (`"127.0.0.1:NNNNN\n"`) and `<baseDir>/runtime/control.token` (hex), both written 0600 by `writeRuntimeFiles`; dir created 0755. Removed on `initiateShutdown`. |
+| Discovery | `<baseDir>/runtime/control.addr` (`"127.0.0.1:NNNNN\n"`) and `<baseDir>/runtime/control.token` (hex), both written 0600 by `writeRuntimeFiles` through `internal/atomicfile` (temp file, fsync, chmod, rename — a reader never sees a torn address or token, and the mode is re-asserted on every write); dir created 0755. Removed on `initiateShutdown`. |
 | Token | 32 random bytes → 64 hex chars, minted per daemon start (`crypto/rand`). Client reads `AGEZT_TOKEN` (`brand.EnvPrefix+"TOKEN"`) first, else the token file (`client.go NewClient`). |
 | Framing | One JSON object per line (`\n`). Request line bounded to `maxRequestBytes = 16 MiB` by `readBoundedLine` (pre-auth DoS guard, M188). |
 | Request | `Request{ID, Cmd, Token, Args map[string]any}` → `{"id":"q-150405.000","cmd":"run","token":"…","args":{…}}` (`protocol.go`). Client ids are `"q-"+time.Now().Format("150405.000")`. |
@@ -151,8 +151,8 @@ individual `Set*` setters remain the unit-test surface. Interfaces exist so the 
 
 | Path under `<baseDir>` | Writer | Format |
 |---|---|---|
-| `runtime/control.addr`, `runtime/control.token` | `writeRuntimeFiles` | text, 0600 |
-| `chat_prompts.json` | `app/persona.Service.SetPrompts` (written by the control-plane binding) | JSON list of `Prompt`, 0600 |
+| `runtime/control.addr`, `runtime/control.token` | `writeRuntimeFiles` (via `internal/atomicfile`) | text, 0600, **replaced** by a rename |
+| `chat_prompts.json` | `app/persona.Service.SetPrompts` (written by the control-plane binding via `internal/atomicfile`) | JSON list of `Prompt`, 0600, **replaced** by a rename |
 | `update.sentinel` | `writeUpdateSentinel` (`update_control.go`) | RFC3339 timestamp, tells the watchdog the exit was intentional |
 | settings store (`settings.NewStore(baseDir)`) | `persistPulseSetting` (`AGEZT_PULSE_DIAL`, `AGEZT_PULSE_QUIET_HOURS`), `config_set`, routing/chains (`AGEZT_TASK_MODEL_CHAINS`), persona | via `kernel/settings` |
 | vault / keyring | `provider_keys.go`, `channels_account_ports.go`, `channel_oauth_ports.go`, `provider_oauth.go` | via `kernel/creds` |
