@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.62 the published marketplace is never half-written, 2026-10-26
+## Current checkpoint — W3.63 the browser's tab state is replaced, not rewritten, 2026-10-26
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -4496,6 +4496,59 @@ files, five of the seventeen mutations would have escaped.
   biggest remaining item, and it needs a different kind of slice:
   `cmd/agt/market_publish.go` writes an **Ed25519 private key** in place,
   `cmd/...` is layer **L7** (root) which is **exempt** from the
+  forbidden-call rules, and `cmd/agt` has **no test** that calls
+  `cmdMarketKeygen` or `cmdMarketPublish` at all — closing it needs the
+  **rule** to change before the site can be fixed.
+
+- W3.63 (the browser's tab state is replaced, not rewritten) takes **one** of
+  the four sites that were left — `plugins/tools/browser/action_tabs.go`, the
+  browser action's **tab state** — and the ratchet goes **4 → 3** call sites.
+  The import ratchet stays at **13** (`internal/atomicfile` is a foundation
+  package, so the downward import costs no edge). The three that remain are
+  the ones the measurement already explained: the market's **sync** cache and
+  the skill bundle are written into a **staging directory** that is swapped in
+  as a whole.
+  The tab state is the browser session's **memory**: one JSON file per session
+  and tab, holding the tab's **final URL** and the **snapshot refs** a later
+  call can reuse. It is read back by `resolveTabURL` (to fill in the URL of a
+  `tab_id` the caller passed) and by `ResolveTabRef` (to turn a `ref` into a
+  selector), it **survives daemon restarts**, and there is **no mutex**
+  around the save and the read — so two concurrent `browser.action`
+  invocations can interleave. A write that truncates in place leaves a window
+  in which the state file is short: a state that does **not** parse fails the
+  next call loudly, but a state that **does** parse can carry a **truncated
+  URL** — and the driver would then navigate to it. That is the silent kind of
+  failure. The mode had the same problem as everywhere else in this series:
+  `os.WriteFile` applies its mode only on **CREATE**, the state file survives
+  across calls and restarts, and a leftover **read-only** state made the next
+  save **fail outright** (`EACCES` on POSIX, "Access is denied" on Windows) —
+  the browser stopped recording the tab at all. The state is now written
+  through the platform's canonical writer: a unique temp file, `fsync`,
+  `chmod`, then a rename over the target — so it is **replaced**, the mode is
+  **re-asserted** on every write, and a reader always sees a whole state.
+  **5 permanent tests** (the state is **replaced** and holds the new URL and
+  refs, a reader holding it open sees a **whole** file, a leftover
+  **read-only** state cannot stop the next save, the state is not readable by
+  others, and it stays inside the session root) and **6 mutations, 6 caught**
+  in two independent passes with identical logs — including one that
+  **truncates the saved URL** (the hazard itself) and one **gate-measured** by
+  archcheck.
+  The **first** pass reported one BUILDERR, and it was the **harness's**
+  fault: the mutation that reverted the tab state left the `atomicfile`
+  import **unused**, and the harness was supposed to remove that import as
+  part of the mutation — its `extra` edit block was **missing from the
+  script**. The verdict was honest (there *was* a build error), the cause was
+  not: the harness had not applied the second half of its own mutation. That
+  is the fourth time this series has run into this shape, and the rule is
+  mechanical: a mutation that reverts a package's **last** atomic write must
+  also remove the import it made unused.
+  **What remains**: the ratchet stands at **13/3**, and **all three** remaining
+  call sites are **already atomic by another means** — so the call-site debt
+  is down to three writes the measurement already showed to be protected, and
+  the allowlist is emptied of everything that was **not** already protected.
+  The ratchet's **blind spot** is now the whole of the remaining raw-write
+  work: `cmd/agt/market_publish.go` writes an **Ed25519 private key** in
+  place, `cmd/...` is layer **L7** (root) which is **exempt** from the
   forbidden-call rules, and `cmd/agt` has **no test** that calls
   `cmdMarketKeygen` or `cmdMarketPublish` at all — closing it needs the
   **rule** to change before the site can be fixed.

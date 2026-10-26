@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
@@ -149,7 +150,16 @@ func (t *ActionTool) saveTabState(sessionID, tabID, finalURL string, refs []acti
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(p, append(data, '\n'), 0o600); err != nil {
+	// The tab state is READ BACK by later browser.action calls — to reuse a
+	// tab_id's URL and its snapshot refs — and it survives daemon restarts.
+	// There is no mutex around the save and the read, so two concurrent
+	// browser.action invocations can interleave. The platform's atomic writer
+	// (internal/atomicfile) REPLACES the state file instead of truncating it
+	// in place, so a reader never sees a half-written state — and a state
+	// that still parses can never carry a truncated URL, which the driver
+	// would then navigate to. The mode is re-asserted on every write, so a
+	// file left behind by an earlier run cannot keep a wider mode.
+	if err := atomicfile.WriteFile(p, append(data, '\n'), 0o600); err != nil {
 		return fmt.Errorf("write browser tab state %q: %w", strings.TrimSpace(tabID), err)
 	}
 	return nil

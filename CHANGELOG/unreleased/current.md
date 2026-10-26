@@ -4459,6 +4459,46 @@ This file holds the active `[Unreleased]` working set.
 
   Proof: five permanent tests — the pack and the index are **replaced** (measured through an **open handle**, because a Windows path stat does not carry the file index) and hold the new content, the index keeps **every** published pack, a corrupt index is **refused** with the file left untouched and the earlier pack intact, a leftover **read-only** file cannot stop the next publish, and the published files stay **readable by others** because the directory is served. Ten mutations, ten caught, in two independent passes with identical logs; one of them is measured by the archcheck call-site gate rather than by a test. The **first** pass reported two build errors, and both were the **mutation's** defect rather than the code's: skipping the index write left a variable **declared and not used**, and writing the pack empty did the same — a build error says nothing about the behaviour, so both mutations now write an empty slice of the same variable and the **test** does the catching. Gates: archcheck (315 packages, 13 import and 4 call sites), the dead-code, dependency, SDK-parity, structure, changelog and doc-claims gates, `go vet`, `staticcheck`, gofmt, and a full `go test ./...` run are green.
 
+- **The browser wrote its tab state in place (W3.63).** The tab state is the
+  browser session's **memory**: one JSON file per session and tab, holding
+  the tab's final URL and the snapshot refs a later call can reuse. It is
+  read back by `resolveTabURL` (to fill in the URL of a `tab_id` the caller
+  passed) and by `ResolveTabRef` (to turn a `ref` into a selector), it
+  **survives daemon restarts**, and there is **no mutex** around the save and
+  the read — so two concurrent `browser.action` invocations can interleave.
+  It was written with plain `os.WriteFile`, so a reader could observe a
+  **torn** state: a state that does not parse fails the next call loudly,
+  but a state that **does** parse can carry a **truncated URL** — and the
+  driver would then navigate to it. The mode had the same problem as
+  everywhere else: `os.WriteFile` applies its mode only when it **creates**
+  the file, the state file survives across calls and restarts, and a leftover
+  **read-only** state made the next save **fail outright** (`EACCES` on
+  POSIX, "Access is denied" on Windows) — the browser stopped recording the
+  tab at all.
+
+  The state is now written through the platform's canonical writer
+  (`internal/atomicfile`): a unique temp file, `fsync`, `chmod`, then a
+  rename over the target. It is **replaced** rather than rewritten, the mode
+  is **re-asserted** on every write, and a reader always sees a whole state.
+  The architecture ratchet went from 4 to **3** raw-write call sites (the
+  import ratchet is unchanged at 13 — `internal/...` is a foundation layer).
+
+  Proof: five permanent tests — the state is **replaced** (measured through an
+  **open handle**, because a Windows path stat does not carry the file index)
+  and holds the new URL and refs, a reader holding it open sees a **whole**
+  file, a leftover **read-only** state cannot stop the next save, the state
+  is not readable by others, and it stays inside the session root. Six
+  mutations, six caught, in two independent passes with identical logs —
+  including one that **truncates the saved URL** (the hazard itself) and one
+  measured by the archcheck call-site gate. The **first** pass reported one
+  build error, and it was the **harness's** fault rather than the code's:
+  the mutation that reverted the tab state left the `atomicfile` import
+  unused, and the harness was supposed to remove that import as part of the
+  mutation. Gates: archcheck (315 packages, 13 import and 3 call sites), the
+  dead-code, dependency, SDK-parity, structure, changelog and doc-claims
+  gates, `go vet`, `staticcheck`, gofmt, and a full `go test ./...` run are
+  green.
+
 ### Removed
 
 - **Removed: the kernel's reach on the world model (W3.54).** The kernel held
