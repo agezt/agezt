@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -30,7 +30,10 @@ import (
 // not hold — the record was deleted concurrently, or the caller's view of the
 // store is stale. Callers that treat "already gone" as a benign outcome test
 // for it with errors.Is.
-var ErrRecordNotFound = errors.New("memory: record not found")
+//
+// The sentinel lives in the CONTRACT (W3.57): the layers above the module
+// compare against it, and they may not name this module. (The alias itself
+// lives in memory.go, with the other rows.)
 
 // Clustering / pass bounds. Threshold 0.55 under hashed-n-gram cosine means
 // "clearly about the same thing" (near-duplicates and re-extractions land
@@ -132,15 +135,10 @@ type consolidateResult struct {
 }
 
 // BrainDistillReport summarizes one consolidation pass.
-type BrainDistillReport struct {
-	ClustersFound     int      `json:"clusters_found"`
-	ClustersMerged    int      `json:"clusters_merged"`
-	RecordsSuperseded int      `json:"records_superseded"`
-	ConsolidatedIDs   []string `json:"consolidated_ids,omitempty"`
-	SkippedNonJSON    int      `json:"skipped_non_json,omitempty"`
-	ActiveBefore      int      `json:"active_before"`
-	ActiveAfterApprox int      `json:"active_after_approx"`
-}
+//
+// The row lives in the CONTRACT (W3.57): the distillation surfaces hand it
+// back, and they may not name this module.
+type BrainDistillReport = memoryapi.BrainDistillReport
 
 // DistillBrain runs one consolidation pass: cluster the active records,
 // merge up to maxClustersPerPass clusters through the provider, supersede
@@ -214,13 +212,13 @@ func (m *Manager) consolidateCluster(ctx context.Context, corr string, provider 
 	// an unusable answer (no schema-valid object after repair) is a skip, not a
 	// failure — the same disposition the hand-rolled parse had.
 	var parsed consolidateResult
-	if _, err := agent.GenerateObject(ctx, provider, llm.CompletionRequest{
+	if _, err := m.generate(ctx, provider, llm.CompletionRequest{
 		Model:    model,
 		System:   consolidateSystem,
 		Messages: []llm.Message{{Role: llm.RoleUser, Content: "Related memory records:\n" + b.String()}},
 		TaskType: "distill", // same budgeting/routing class as per-run distillation
 	}, nil, &parsed); err != nil {
-		if errors.Is(err, agent.ErrNoObjectGenerated) {
+		if errors.Is(err, llm.ErrNoObjectGenerated) {
 			return Record{}, false, nil
 		}
 		return Record{}, false, fmt.Errorf("memory: consolidate completion: %w", err)

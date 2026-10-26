@@ -23,6 +23,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/marketapi"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/okrapi"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
@@ -38,7 +39,6 @@ import (
 	"github.com/agezt/agezt/kernel/journal"
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
-	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/resume"
@@ -60,8 +60,8 @@ type Kernel struct {
 	approvals *approval.Registry
 	scheduler *scheduler.Executor
 
-	memory       *memory.Manager
-	memoryDir    *memory.FileStore
+	memory       memoryapi.Manager   // the memory manager — the contract's port (W3.57)
+	memoryStore  memoryapi.Store     // the memory's file — the contract's store port (W3.57)
 	world        worldmodelapi.Graph // the world-model graph — the contract's port (W3.54)
 	worldStore   worldmodelapi.Store // the world-model file — the contract's store port (W3.54)
 	forge        skillapi.Curator    // the skill curator — the contract's port (W3.55)

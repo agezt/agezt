@@ -16,12 +16,12 @@ import (
 )
 
 func TestRunWith_ContextSelectionJournalsChosenAndRejectedMemory(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withMemory(t, runtime.Config{
 		BaseDir:      t.TempDir(),
 		Provider:     mock.New(mock.FinalText("done")),
 		MemoryInject: true,
 		MemoryTopK:   1,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -69,12 +69,12 @@ func TestRunWith_ContextSelectionJournalsChosenAndRejectedMemory(t *testing.T) {
 }
 
 func TestRunWith_ContextFailureAnalysisUsesRejectedSet(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withMemory(t, runtime.Config{
 		BaseDir:      t.TempDir(),
 		Provider:     failingProvider{},
 		MemoryInject: true,
 		MemoryTopK:   1,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

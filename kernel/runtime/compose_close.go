@@ -60,7 +60,14 @@ func (k *Kernel) Close() error {
 	// Windows). errors.Join reports all failures. (M477)
 	return closeAll(
 		k.state.Close,
-		k.memoryDir.Close,
+		// The memory's file is the host's (W3.57): a host that was given
+		// none holds a nil port, and there is nothing to close.
+		func() error {
+			if k.memoryStore == nil {
+				return nil
+			}
+			return k.memoryStore.Close()
+		},
 		// The world-model file is the host's (W3.54): a host that was given
 		// none holds a nil port, and there is nothing to close.
 		func() error {

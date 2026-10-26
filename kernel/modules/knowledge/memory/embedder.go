@@ -24,15 +24,18 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 )
 
 // Embedder turns texts into semantic vectors. Implementations MUST return
 // exactly one L2-normalized vector per input text, all of one consistent
 // dimensionality, in input order. Batch + ctx + error fit a remote API's
 // reality (one round trip per recall, cancellable, fallible).
-type Embedder interface {
-	EmbedBatch(ctx context.Context, texts []string) ([][]float32, error)
-}
+//
+// The port lives in the CONTRACT (W3.57): the daemon injects the embedder and
+// the kernel holds it, and neither may name this module to do so.
+type Embedder = memoryapi.Embedder
 
 // embedTimeout bounds one recall's embedding round trip: long enough for a
 // cold remote call over a few hundred uncached records, short enough that a

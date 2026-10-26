@@ -11,6 +11,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
 )
@@ -67,7 +68,7 @@ func TestManager_SerializesConcurrentWrites(t *testing.T) {
 		t.Fatalf("memory.Open: %v", err)
 	}
 	probe := &rmwProbe{Store: base}
-	m := NewManager(probe, b)
+	m := NewManager(memoryapi.Deps{Store: probe, Publisher: testPublisher{b: b}})
 
 	const N = 8
 	var wg sync.WaitGroup
@@ -100,7 +101,7 @@ func newTestManager(t *testing.T) (*Manager, *journal.Journal) {
 	if err != nil {
 		t.Fatalf("memory.Open: %v", err)
 	}
-	m := NewManager(s, b)
+	m := NewManager(memoryapi.Deps{Store: s, Publisher: testPublisher{b: b}})
 	// Pin the clock for deterministic recency/ids-by-time behaviour.
 	m.now = func() time.Time { return fixedNow }
 	t.Cleanup(func() { b.Close(); j.Close() })
@@ -258,7 +259,7 @@ func TestMemoryToolRememberRecallForget(t *testing.T) {
 	if tool.Definition().Name != "memory" {
 		t.Fatalf("tool name = %q", tool.Definition().Name)
 	}
-	ctx := WithCorrelation(context.Background(), "run-9")
+	ctx := memoryapi.WithCorrelation(context.Background(), "run-9")
 
 	in, _ := json.Marshal(map[string]any{"action": "remember", "subject": "proj", "content": "agezt remembers facts"})
 	res, _ := tool.Invoke(ctx, in)

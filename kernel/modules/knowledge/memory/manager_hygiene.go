@@ -9,21 +9,15 @@ package memory
 // out. The read + write surface lives in manager_recall.go.
 
 import (
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
 // HygieneStats summarizes the store's health for the maintenance view (M857).
-type HygieneStats struct {
-	Total      int `json:"total"`
-	Active     int `json:"active"`
-	Tombstoned int `json:"tombstoned"`
-	Superseded int `json:"superseded"`
-	Suspended  int `json:"suspended"`
-	Expired    int `json:"expired"`
-	// Prunable is how many soft-deleted (tombstoned or superseded) records are
-	// older than the given cutoff — the dead weight a Prune would reclaim.
-	Prunable int `json:"prunable"`
-}
+//
+// The row lives in the CONTRACT (W3.57): the maintenance surfaces hand it
+// back, and they may not name this module.
+type HygieneStats = memoryapi.HygieneStats
 
 // Hygiene reports store health, counting how many soft-deleted records are older
 // than olderThanMs (the prune candidates). olderThanMs <= 0 counts all

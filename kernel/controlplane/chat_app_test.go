@@ -21,7 +21,7 @@ import (
 // primary kernel's active memory, fill from the tool context and keep the
 // session id check.
 func TestChatSuggestionsReadThePrimaryMemory(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withMemory(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestChatSummarizeBindsTheKernel(t *testing.T) {
 	prov := mock.New(mock.FinalText(" the briefing "))
 	var model string
 	prov.OnRequest = func(r llm.CompletionRequest) { model = r.Model }
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: prov, Model: "kernel-model"})
+	k, err := runtime.Open(withMemory(t, runtime.Config{BaseDir: t.TempDir(), Provider: prov, Model: "kernel-model"}))
 	if err != nil {
 		t.Fatal(err)
 	}

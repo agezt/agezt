@@ -168,7 +168,7 @@ func (s *Service) Status(_ context.Context, _ StatusInput) (StatusOutput, error)
 	result := StatusOutput{
 		Daemon: brand.Version, Protocol: brand.ProtocolVersion, Model: s.k.Model(),
 		UptimeSeconds: uptimeSecs, Halted: s.k.IsHalted(), ActiveRuns: s.k.ActiveRuns(),
-		Tools: len(s.k.Tools()), MemoryRecords: s.k.Memory().Count(),
+		Tools: len(s.k.Tools()), MemoryRecords: s.k.MemoryCount(),
 		WorldEntities: worldEntities, ActiveSkills: activeSkills, JournalHead: headSeq,
 		Schedules:         ScheduleStatus{Total: schedTotal, Enabled: schedEnabled, Running: schedRunning, Resident: schedResident},
 		PendingApprovals:  pendingApprovals,

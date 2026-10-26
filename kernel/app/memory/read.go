@@ -9,7 +9,7 @@ import (
 	"errors"
 	"time"
 
-	store "github.com/agezt/agezt/kernel/modules/knowledge/memory"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 )
 
 type GetInput struct {
@@ -59,11 +59,11 @@ type SearchOutput struct {
 	Count   int   `json:"count"`
 }
 
-type Service struct{ manager *store.Manager }
+type Service struct{ manager memoryapi.Manager }
 
-func New(manager *store.Manager) *Service { return &Service{manager: manager} }
+func New(manager memoryapi.Manager) *Service { return &Service{manager: manager} }
 
-func recordView(r store.Record) Record {
+func recordView(r memoryapi.Record) Record {
 	v := Record{ID: r.ID, Type: string(r.Type), Subject: r.Subject, Content: r.Content,
 		Confidence: r.Confidence, CreatedMS: r.CreatedMS, LastSeenMS: r.LastSeenMS,
 		Tags: r.Tags, SourceEvent: r.SourceEvent, Evidence: string(r.Evidence),

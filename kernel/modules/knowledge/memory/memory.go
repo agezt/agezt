@@ -8,117 +8,73 @@ import (
 	"encoding/hex"
 
 	"lukechampine.com/blake3"
+
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 )
 
 // Type is the canonical memory-record discriminator. The set mirrors
 // SPEC-05 §2 MemoryType, minus SKILL_REF (skills land with Forge).
-type Type string
+//
+// The row lives in the CONTRACT (W3.57): the layers above the module compare
+// against these names, and they may not name this module.
+type Type = memoryapi.Type
 
 const (
-	TypeFact        Type = "FACT"        // a durable fact worth recalling
-	TypeSummary     Type = "SUMMARY"     // a distilled summary of work done
-	TypeRelation    Type = "RELATION"    // a relation between entities
-	TypePreference  Type = "PREFERENCE"  // a stated/learned user preference
-	TypeObservation Type = "OBSERVATION" // something noticed, lower confidence
+	TypeFact        = memoryapi.TypeFact        // a durable fact worth recalling
+	TypeSummary     = memoryapi.TypeSummary     // a distilled summary of work done
+	TypeRelation    = memoryapi.TypeRelation    // a relation between entities
+	TypePreference  = memoryapi.TypePreference  // a stated/learned user preference
+	TypeObservation = memoryapi.TypeObservation // something noticed, lower confidence
 )
 
 // DefaultType is used when a writer leaves the type unset.
-const DefaultType = TypeFact
+const DefaultType = memoryapi.DefaultType
 
 // Evidence records how a memory entered the store. It is deliberately
 // orthogonal to Type: "OBSERVATION" as a Type means the content is a note;
 // EvidenceObserved means the note was grounded in a direct observation.
-type Evidence string
+type Evidence = memoryapi.Evidence
 
 const (
-	EvidenceUnknown    Evidence = ""
-	EvidenceObserved   Evidence = "observed"
-	EvidenceInferred   Evidence = "inferred"
-	EvidenceCurated    Evidence = "curated"
-	EvidenceConstraint Evidence = "constraint"
+	EvidenceUnknown    = memoryapi.EvidenceUnknown
+	EvidenceObserved   = memoryapi.EvidenceObserved
+	EvidenceInferred   = memoryapi.EvidenceInferred
+	EvidenceCurated    = memoryapi.EvidenceCurated
+	EvidenceConstraint = memoryapi.EvidenceConstraint
 )
 
-// validTypes is the membership set for ValidType.
-var validTypes = map[Type]struct{}{
-	TypeFact: {}, TypeSummary: {}, TypeRelation: {},
-	TypePreference: {}, TypeObservation: {},
-}
-
 // ValidType reports whether t is one of the known memory types.
-func ValidType(t Type) bool {
-	_, ok := validTypes[t]
-	return ok
-}
+//
+// The RULE travels with the row: the membership set is part of the type's
+// meaning, and a rule left in the implementation could not be reached by the
+// layers above.
+func ValidType(t Type) bool { return memoryapi.ValidType(t) }
 
-// Record is one unit of memory. Field order is not load-bearing (records are
-// not part of the event hash chain), but the JSON tags are stable so the
-// on-disk file and the CLI/`--json` shape stay compatible across releases.
-type Record struct {
-	// ID is content-addressed: hex(BLAKE3(type \0 subject \0 content)).
-	ID string `json:"id"`
-	// Type classifies the knowledge (FACT, SUMMARY, ...).
-	Type Type `json:"type"`
-	// Subject is the entity/topic this is about (used for retrieval).
-	Subject string `json:"subject"`
-	// Content is the text the model sees when this record is injected.
-	Content string `json:"content"`
-	// Tags are free-form labels (e.g. source=distill, project=lictor).
-	Tags map[string]string `json:"tags,omitempty"`
-	// SourceEvent is the journal event id that produced this record —
-	// provenance for `agt why`.
-	SourceEvent string `json:"source_event,omitempty"`
-	// AddedBy / UpdatedBy record WHO wrote this (M851): the acting agent's slug,
-	// or "operator" for a direct console/CLI write, or "distill" for an
-	// auto-distilled summary. AddedBy is first-writer-wins (preserved on
-	// reinforce, like SourceEvent); UpdatedBy is the most recent writer. Empty on
-	// legacy records written before provenance.
-	AddedBy   string `json:"added_by,omitempty"`
-	UpdatedBy string `json:"updated_by,omitempty"`
-	// Confidence is 0..1; ranking weights it and it can strengthen on
-	// re-observation. Defaults to 1.0 for explicit writes.
-	Confidence float64 `json:"confidence"`
-	// Evidence distinguishes observed, inferred, curated, and constraint-like
-	// memories. Retrieval treats this as metadata, not as truth authority.
-	Evidence Evidence `json:"evidence,omitempty"`
-	// CreatedMS / LastSeenMS drive recency in ranking and decay.
-	CreatedMS  int64 `json:"created_ms"`
-	LastSeenMS int64 `json:"last_seen_ms"`
-	// HalfLifeMS is the mechanical expiration budget. Once LastSeenMS+HalfLifeMS
-	// is in the past, the record is retained but barred from active use until it
-	// is reconstructed/reinforced.
-	HalfLifeMS int64 `json:"half_life_ms,omitempty"`
-	// SuspendedMS marks a record that failed an epistemic hygiene check. It is
-	// retained and gettable, but excluded from recall/search.
-	SuspendedMS     int64  `json:"suspended_ms,omitempty"`
-	SuspendedReason string `json:"suspended_reason,omitempty"`
-	// SupersededBy points at a newer record when this one was replaced
-	// (soft update — the old record is retained, not edited away).
-	SupersededBy string `json:"superseded_by,omitempty"`
-	// Tombstoned marks a soft-forgotten record: excluded from recall but
-	// retained on disk and in the journal (reversibility).
-	Tombstoned bool `json:"tombstoned,omitempty"`
-}
+// Record is one unit of memory.
+//
+// The row lives in the CONTRACT (W3.57) — with the rules that judge it
+// (Active, Suspended, Expired, Usable), because a Go type alias cannot carry
+// methods: a rule that stayed here could not be reached by the layers above.
+type Record = memoryapi.Record
 
-// Active reports whether the record should participate in retrieval:
-// neither forgotten nor superseded.
-func (r Record) Active() bool { return !r.Tombstoned && r.SupersededBy == "" }
+// Scored is a record paired with its retrieval score.
+type Scored = memoryapi.Scored
 
-// Suspended reports whether the record is explicitly barred from active use.
-func (r Record) Suspended() bool { return r.SuspendedMS > 0 }
+// RememberSpec is the input to Remember.
+type RememberSpec = memoryapi.RememberSpec
 
-// Expired reports whether the record's reconstruction budget has elapsed.
-// A zero HalfLifeMS means legacy/no-expiry records remain usable.
-func (r Record) Expired(nowMS int64) bool {
-	return r.HalfLifeMS > 0 && nowMS > r.LastSeenMS+r.HalfLifeMS
-}
-
-// Usable reports whether the record may participate in retrieval at nowMS.
-func (r Record) Usable(nowMS int64) bool {
-	return r.Active() && !r.Suspended() && !r.Expired(nowMS)
-}
+// ErrRecordNotFound is returned when a record id names nothing in the store.
+//
+// The sentinel lives in the contract (W3.57): the layers above the module
+// compare against it, and they may not name this module.
+var ErrRecordNotFound = memoryapi.ErrRecordNotFound
 
 // ContentID computes the content-addressed id for a (type, subject, content)
 // triple. NUL separators avoid ("ab","c") colliding with ("a","bc").
+//
+// It stays HERE, in the module: it hashes with BLAKE3, and the contract layer
+// may not name a third-party package (principle P4). No layer above the
+// module computes an id — the module does, and stores it on the row.
 func ContentID(t Type, subject, content string) string {
 	h := blake3.New(32, nil)
 	h.Write([]byte(string(t)))

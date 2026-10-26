@@ -6,8 +6,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	store "github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
 type RememberInput struct {
@@ -53,7 +53,7 @@ type BulkForgetOutput struct {
 	NotFound  int `json:"not_found"`
 }
 
-func rememberSpec(in RememberInput) store.RememberSpec {
+func rememberSpec(in RememberInput) memoryapi.RememberSpec {
 	tags := map[string]string{"source": "operator"}
 	for key, value := range in.Tags {
 		tags[key] = value
@@ -62,8 +62,8 @@ func rememberSpec(in RememberInput) store.RememberSpec {
 	if in.HalfLifeMS > 0 {
 		halfLife = int64(in.HalfLifeMS)
 	}
-	return store.RememberSpec{Type: store.Type(in.Type), Subject: in.Subject, Content: in.Content,
-		Tags: tags, Confidence: in.Confidence, Evidence: store.Evidence(in.Evidence), HalfLifeMS: halfLife,
+	return memoryapi.RememberSpec{Type: memoryapi.Type(in.Type), Subject: in.Subject, Content: in.Content,
+		Tags: tags, Confidence: in.Confidence, Evidence: memoryapi.Evidence(in.Evidence), HalfLifeMS: halfLife,
 		Actor: "operator", Force: true}
 }
 

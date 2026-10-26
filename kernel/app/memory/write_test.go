@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	appmemory "github.com/agezt/agezt/kernel/app/memory"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	store "github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
@@ -161,7 +162,7 @@ func TestCurationErrorsRetainCauseAndPartialBatchOrder(t *testing.T) {
 		}
 		ids = append(ids, out.ID)
 	}
-	fail := appmemory.New(store.NewManager(writeFailStore{Store: s, cause: cause}, nil))
+	fail := appmemory.New(store.NewManager(memoryapi.Deps{Store: writeFailStore{Store: s, cause: cause}}))
 	_, err := fail.Remember(ctx, appmemory.RememberInput{Content: "new record"})
 	if !errors.Is(err, cause) {
 		t.Errorf("remember cause=%v", err)
@@ -178,7 +179,7 @@ func TestCurationErrorsRetainCauseAndPartialBatchOrder(t *testing.T) {
 	if !errors.Is(err, cause) {
 		t.Errorf("promote cause=%v", err)
 	}
-	fail = appmemory.New(store.NewManager(writeFailStore{Store: s, cause: cause, failID: ids[1]}, nil))
+	fail = appmemory.New(store.NewManager(memoryapi.Deps{Store: writeFailStore{Store: s, cause: cause, failID: ids[1]}}))
 	_, err = fail.BulkForget(ctx, appmemory.BulkForgetInput{IDs: ids})
 	if !errors.Is(err, cause) {
 		t.Fatalf("batch cause=%v", err)

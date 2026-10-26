@@ -12,10 +12,10 @@ import (
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
-	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/resume"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -98,7 +98,7 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// doesn't expose them directly), and so the in-process memory tool
 	// can journal its writes under this run.
 	runCtx = r.k.WithActorCorrelation(runCtx, actor, corr)
-	runCtx = memory.WithCorrelation(runCtx, corr)
+	runCtx = memoryapi.WithCorrelation(runCtx, corr)
 	runCtx = opapi.WithCorrelation(runCtx, corr)
 	systemAgent := r.k.SystemAgentFromCtx(runCtx)
 	skillDirective := skillapi.ParseActivationDirective(intent)

@@ -126,7 +126,13 @@ func (r *Runner) MaybeDistill(ctx context.Context, corr, intent, answer string) 
 		return
 	}
 	transcript := buildTranscript(names, answer)
-	if _, err := r.k.Memory().Distill(ctx, corr, r.k.Provider(), r.k.Model(), intent, transcript); err != nil {
+	// A daemon that gave no memory has nothing to distil into — that is not a
+	// failure, so the run does not journal a failure either (W3.57).
+	mem := r.k.Memory()
+	if mem == nil {
+		return
+	}
+	if _, err := mem.Distill(ctx, corr, r.k.Provider(), r.k.Model(), intent, transcript); err != nil {
 		_, _ = r.k.Bus().Publish(event.Spec{
 			Subject:       "memory.distill_failed",
 			Kind:          event.KindMemoryWritten,

@@ -38,6 +38,7 @@ import (
 	"github.com/agezt/agezt/kernel/app/overseer"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/channel"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/toolregapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/creds"
@@ -46,7 +47,6 @@ import (
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/modules/agents/selfrepair"
 	"github.com/agezt/agezt/kernel/modules/board/board"
-	kernelmemory "github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/providers/boot"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
@@ -438,7 +438,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// AGEZT_EMBED_KEY). Unset (default) keeps the local feature-hash embedder.
 	// Recall falls back to local on any embedder failure, so a wrong URL
 	// degrades quality, never availability.
-	var memEmbedder kernelmemory.Embedder
+	var memEmbedder memoryapi.Embedder
 	if ec := dcfg.Sidecars.Embed; ec.Enabled() {
 		memEmbedder = embed.New(ec.URL, ec.Model, ec.Key)
 	}

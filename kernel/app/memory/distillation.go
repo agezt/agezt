@@ -6,8 +6,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	store "github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
 const distillationTimeout = 5 * time.Minute
@@ -32,8 +32,8 @@ type ProfileOutput struct {
 
 type Distiller interface {
 	NewCorrelation() string
-	DistillBrain(context.Context, string) (store.BrainDistillReport, error)
-	DistillProfile(context.Context, string) (store.ProfileReport, error)
+	DistillBrain(context.Context, string) (memoryapi.BrainDistillReport, error)
+	DistillProfile(context.Context, string) (memoryapi.ProfileReport, error)
 }
 type Distillation struct{ target Distiller }
 

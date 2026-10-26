@@ -9,8 +9,10 @@ import (
 
 	appmemory "github.com/agezt/agezt/kernel/app/memory"
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/internal/testfixtures"
 	"github.com/agezt/agezt/kernel/journal"
 	store "github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
@@ -52,7 +54,7 @@ func TestEveryMemoryStoreMutationRetainsAdmittedCorrelation(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			service := appmemory.New(store.NewManager(s, b))
+			service := appmemory.New(store.NewManager(memoryapi.Deps{Store: s, Publisher: testfixtures.BusPublisher{B: b}}))
 			ctx := opapi.WithCorrelation(context.Background(), "owned-operation")
 			expected := event.KindMemoryWritten
 			switch name {

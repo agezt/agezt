@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/mediaapi"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
@@ -25,7 +26,6 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/journal"
-	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/work/assure"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/scheduler"
@@ -86,7 +86,7 @@ type KernelAPI interface {
 	Warden() warden.Engine
 	Approvals() *approval.Registry
 	Scheduler() *scheduler.Executor
-	Memory() *memory.Manager
+	Memory() memoryapi.Manager
 	World() worldmodelapi.Graph
 	Reflect() *reflect.Engine
 	Forge() skillapi.Curator

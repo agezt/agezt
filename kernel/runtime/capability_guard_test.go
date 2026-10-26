@@ -70,14 +70,14 @@ func openFullToolKernel(t *testing.T) map[string]toolapi.Tool {
 		"rerank":         reranktool.New(stubReranker{}),
 		"market":         market.NewTool(),
 	}
-	k, err := runtime.Open(withWorld(t, runtime.Config{
+	k, err := runtime.Open(withMemory(t, withWorld(t, runtime.Config{
 		BaseDir:      t.TempDir(),
 		Provider:     mock.New(mock.FinalText("ok")),
 		MemoryTool:   true,
 		WorldTool:    true,
 		SubAgentTool: true,
 		Tools:        hostTools,
-	}))
+	})))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

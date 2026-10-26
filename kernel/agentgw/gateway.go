@@ -17,8 +17,8 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/journal"
-	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"log/slog"
 	"net/http"
 )
@@ -33,7 +33,7 @@ type Gateway struct {
 
 	// Kernel integrations (set via Attach)
 	bus      *bus.Bus
-	mem      *memory.Manager
+	mem      memoryapi.ReaderWriter // the memory — the contract's read+write port (W3.57)
 	roster   agentapi.Reader
 	sockPath string
 
@@ -116,7 +116,7 @@ func (g *Gateway) SetAuditJournal(j *journal.Journal) {
 }
 
 // Attach connects the gateway to the kernel subsystems.
-func (g *Gateway) Attach(bus *bus.Bus, mem *memory.Manager, roster agentapi.Reader) {
+func (g *Gateway) Attach(bus *bus.Bus, mem memoryapi.ReaderWriter, roster agentapi.Reader) {
 	g.bus = bus
 	g.mem = mem
 	g.roster = roster

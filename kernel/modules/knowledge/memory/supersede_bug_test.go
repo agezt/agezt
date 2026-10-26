@@ -26,6 +26,7 @@ package memory
 
 import (
 	"errors"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"testing"
 	"time"
 )
@@ -68,7 +69,7 @@ func TestSupersedeExisting_SilentNoopOnAbsentRecord(t *testing.T) {
 	}
 	store := &absentStore{real: realStore, absentID: "k2", absentGet: false}
 
-	m := NewManager(store, nil)
+	m := NewManager(memoryapi.Deps{Store: store})
 	m.now = func() time.Time { return time.UnixMilli(1000) }
 
 	// Seed two records with predictable IDs (bypassing content-addressing by

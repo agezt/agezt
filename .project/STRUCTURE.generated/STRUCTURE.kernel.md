@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-207 package(s):
+208 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -96,6 +96,7 @@
 - **`kernel/contract/marketapi`** — Package marketapi is the contract layer's home for the marketplace's rows: one installable pack, the skills and MCP servers it carries, the catalogue entry a marketplace lists it under, and the catalogue itself — together with the rules that govern them (what makes a pack valid, what its canonical bytes and content hash are, how versions are ordered) and the port through which a catalogue is read.
 - **`kernel/contract/mcpapi`** — Package mcpapi is the contract layer's home for the MCP server row: the description of one registered MCP server — a stdio command or a remote HTTP endpoint the daemon can spawn and speak MCP to.
 - **`kernel/contract/mediaapi`** — Package mediaapi is the contract layer's home for the adapter seams the daemon injects for the agent's own media and relevance tools: speech (STT/TTS), image generation and reranking.
+- **`kernel/contract/memoryapi`** — —
 - **`kernel/contract/okrapi`** — Package okrapi is the contract layer's home for the OKR rows: the durable goal and its key results, the lifecycle state of a goal, the computed rollup, the input that authors one, and the filter that reads them back.
 - **`kernel/contract/opapi`** — Package opapi defines transport-independent operation metadata and host ports.
 - **`kernel/contract/overseerapi`** — Package overseerapi is the contract the supervisory surface and the implementations that answer it agree on.

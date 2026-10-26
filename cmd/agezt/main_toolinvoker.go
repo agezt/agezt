@@ -6,8 +6,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/agezt/agezt/kernel/agent"
 	apptools "github.com/agezt/agezt/kernel/app/tools"
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/market"
@@ -16,6 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
+	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
@@ -258,6 +261,38 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 			}
 			return f
 		}
+	}
+	if cfg.MemoryStore == nil {
+		// The memory's FILE (W3.57) — the contract's store port. The daemon
+		// opens the file (memory/memory.json) and hands the kernel the port;
+		// the kernel never opens a memory of its own.
+		//
+		// The file lives under the BASE DIR, so a tenant's kernel — which has
+		// its own base dir — keeps its own memory.
+		//
+		// A store that cannot be opened is a STARTUP ERROR: the memory is
+		// part of the daemon, not a convenience.
+		store, err := memory.Open(filepath.Join(cfg.BaseDir, "memory"))
+		if err != nil {
+			return nil, err
+		}
+		cfg.MemoryStore = store
+	}
+	if cfg.MemoryBuilder == nil {
+		// The memory manager's BUILDER (W3.57) — the daemon names the module,
+		// the kernel does not. The kernel calls the builder with the store it
+		// was given, its own publisher, the embedder and the structured-output
+		// path, so every mutation journals through the kernel's bus without
+		// either side naming the other's implementation.
+		cfg.MemoryBuilder = func(deps memoryapi.Deps) memoryapi.Manager {
+			return memory.NewManager(deps)
+		}
+	}
+	if cfg.MemoryGenerator == nil {
+		// The structured-output path (W3.57) — it lives in another module,
+		// so it is INJECTED rather than named: the knowledge module may not
+		// reach into the runs module.
+		cfg.MemoryGenerator = agent.GenerateObject
 	}
 	if cfg.Workboard == nil {
 		// The durable task board (W3.47) — the contract's host port. The

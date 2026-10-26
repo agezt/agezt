@@ -10,12 +10,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
-	kmemory "github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
-func MemoryCandidates(hits []kmemory.Scored, nowMS int64) []Candidate {
+func MemoryCandidates(hits []memoryapi.Scored, nowMS int64) []Candidate {
 	out := make([]Candidate, 0, len(hits))
 	for _, h := range hits {
 		r := h.Record

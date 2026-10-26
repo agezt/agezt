@@ -11,6 +11,7 @@ import (
 	"time"
 
 	appmemory "github.com/agezt/agezt/kernel/app/memory"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	store "github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
@@ -21,7 +22,7 @@ func readFixture(t *testing.T) (*store.FileStore, *appmemory.Service) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = s.Close() })
-	return s, appmemory.New(store.NewManager(s, nil))
+	return s, appmemory.New(store.NewManager(memoryapi.Deps{Store: s}))
 }
 
 func TestGetRetainsLifecycleAndWirePresence(t *testing.T) {
@@ -161,7 +162,7 @@ func TestReadErrorsRetainStoreCause(t *testing.T) {
 	}
 	cause := errors.New("fixture store unavailable")
 	for _, failGet := range []bool{true, false} {
-		service := appmemory.New(store.NewManager(failingStore{Store: s, cause: cause, failGet: failGet}, nil))
+		service := appmemory.New(store.NewManager(memoryapi.Deps{Store: failingStore{Store: s, cause: cause, failGet: failGet}}))
 		_, err := service.FindRelated(context.Background(), appmemory.RelatedInput{ID: "seed"})
 		if !errors.Is(err, cause) {
 			t.Errorf("related failGet=%v cause=%v", failGet, err)

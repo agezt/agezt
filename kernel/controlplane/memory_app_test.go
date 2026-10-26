@@ -33,7 +33,7 @@ func TestMemoryCommandMetadataComesFromCompleteAppRegistry(t *testing.T) {
 
 func TestMemoryNativeMutationSharesOperationCorrelation(t *testing.T) {
 	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
+	k, err := runtime.Open(withMemory(t, runtime.Config{BaseDir: dir, Provider: mock.New()}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestMemoryAppSocketRequiresAuditBeforeMutations(t *testing.T) {
 	for _, command := range []string{CmdMemoryAdd, CmdMemorySupersede, CmdMemoryForget, CmdMemoryPromote, CmdMemoryBulkForget, CmdMemoryPrune, CmdMemoryTidy, CmdMemoryClean, CmdMemoryConsolidate, CmdProfileRebuild} {
 		t.Run(command, func(t *testing.T) {
 			dir := t.TempDir()
-			k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
+			k, err := runtime.Open(withMemory(t, runtime.Config{BaseDir: dir, Provider: mock.New()}))
 			if err != nil {
 				t.Fatal(err)
 			}
