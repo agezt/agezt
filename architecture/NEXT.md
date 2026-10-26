@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.64 the assurance loop lives in the contract, and the module is gone, 2026-10-26
+## Current checkpoint — W3.65 the conversation collapse is the contract's, 2026-10-26
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -4605,6 +4605,66 @@ files, five of the seventeen mutations would have escaped.
   the forbidden-call rules, and `cmd/agt` has **no test** that calls
   `cmdMarketKeygen` or `cmdMarketPublish` at all — closing it needs the
   **rule** to change before the site can be fixed.
+
+- W3.65 (the conversation collapse is the contract's) takes **two** import
+  edges at once and the ratchet goes **12 → 10**:
+  `adapter-bypass kernel/openaiapi -> kernel/convo` and
+  `adapter-bypass kernel/webui -> kernel/convo`. The twelve remaining edges
+  were **measured first, against each other**, and the measurement picked
+  this one: it is the only candidate that removes **two** ratchet lines with
+  the smallest possible port — **one row and one pure function**, no
+  publisher, no clock seam, no file, no rule change.
+  `kernel/convo` was two symbols in one file (`Turn{Role, Text}` and
+  `TranscriptIntent(turns)`) whose only import was `strings` — no store, no
+  file, no bus, no model, no clock. The same measurement that closed
+  `kernel/modules/work/assure` in W3.64 applies here: **a package that holds
+  no state is not a module**. And the two adapters that needed it are
+  exactly the case the contract layer exists for: an adapter may reach the
+  contract and the platform layers and nothing else, and the OpenAI-compatible
+  API and the Web UI Chat view were reaching *into a layer-3 package* to
+  render a conversation.
+  The row and the rule moved to `kernel/contract/convoapi` (the body
+  unchanged, line for line), the **package is deleted** (two files, plus its
+  hand-written layer rule in `layers.json`), and the OpenAI-compatible API,
+  the Web UI Chat view and the app layer's summarizer (`kernel/app/chat`, a
+  legal edge that now names the contract too) all name the contract. The
+  package count stays at **314** (one deleted, one added).
+  **No behaviour changed**: the rule's body is byte-identical, no exported
+  signature names the row, and `Turn` has no JSON tags — it is not a wire
+  row.
+  **9 permanent tests** — the six that travelled with the rule and **three
+  new** ones the mutation run demanded: the rule's **doc comment** promised
+  three things no test asserted ("Role is case-insensitive", "system and
+  developer are leading guidance", "a lone user turn"), and a rule whose
+  contract is only a comment is a contract that can drift.
+  **10 mutations, 10 caught** in two independent passes with **byte-identical**
+  logs; the eleventh thing this slice moved is **gate-measured** (an adapter
+  reaching a module again is not something a test can see — the ratchet is
+  the measurement).
+  The **first** pass reported 8 caught and 2 skipped, and both skips were the
+  **harness's** fault: one anchor did not exist (the rule builds the dialogue
+  in a slice, not with a `WriteString` — the SKIP class reported it and never
+  counted it as a catch), and the other was the sharp one: the harness
+  compared the mutated file with the original using PowerShell's `-eq`, and
+  **`-eq` is case-insensitive** — so the mutation that lowercases the "User:"
+  label looked like no change at all, and the harness was blind to exactly
+  the mutation it was built to see. The fix is one operator (`-ceq`).
+  **What remains**: the ratchet stands at **10/3** — four `adapter-bypass`
+  edges, three `cross-module`, three `upward`. The measurement also named the
+  **trapped** ones: `controlplane → runtime` (the control plane calls **37**
+  verbs on the kernel's god-object — a redesign, not a slice),
+  `selfrepair → runtime` (the six agent rows could move to the reaper's
+  `api` package, but `RunWith`/`RunWithRetry`/`ReaperScan`/`NewCorrelation`
+  need a **runs port that does not exist** yet), and `channel → bus` (26
+  plugin `Config`s hold `*bus.Bus` and nil-check it — an interface parameter
+  turns a nil pointer into a **non-nil** interface, the guard stops firing,
+  and the publish panics inside the deferred recover). The smallest **ready**
+  edge is `pulse → agent`: one call site, one verb, and the project has
+  already written the exact port (`memoryapi.Generator` is
+  `agent.GenerateObject`'s signature). The two `agentgw` edges are **free
+  riders** — `k.AgentGateway()` has no caller outside its own declaration —
+  so their fix is a **move** (the daemon builds the gateway) and the price is
+  that the gateway's wiring is untested today.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

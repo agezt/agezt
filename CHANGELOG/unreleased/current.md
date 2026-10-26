@@ -4544,6 +4544,38 @@ This file holds the active `[Unreleased]` working set.
   SDK-parity, structure, changelog and doc-claims gates, `go vet`,
   `staticcheck`, gofmt, and a full `go test ./...` run are green.
 
+- **The adapters reached into a layer-3 package to render a conversation
+  (W3.65).** The OpenAI-compatible API and the Web UI Chat view both fold a
+  multi-turn conversation into a single Agezt intent (the governed loop is
+  single-intent by design), and both reached into `kernel/convo` — a
+  **layer-3** package — to do it. An adapter may reach the contract and the
+  platform layers and nothing else, so both edges were architecture debt the
+  ratchet was counting. The package was two symbols in one file
+  (`Turn{Role, Text}` and `TranscriptIntent(turns)`) whose only import was
+  `strings`: no store, no file, no bus, no model, no clock — a package that
+  holds no state is not a module. The row and the rule moved to
+  `kernel/contract/convoapi`, the package is **deleted**, and the
+  OpenAI-compatible API, the Web UI Chat view and the app layer's summarizer
+  all name the contract. **No behaviour changed**: the rule's body is
+  identical, no exported signature names the row, and the row is not a wire
+  row.
+
+  Proof: nine permanent tests — the six that travelled with the rule and
+  three new ones the mutation run demanded, because the rule's **doc
+  comment** promised three things no test asserted ("Role is
+  case-insensitive", "system and developer are leading guidance", "a lone user
+  turn"). Ten mutations, ten caught, in two independent passes with
+  byte-identical logs; the eleventh thing this slice moved is measured by the
+  architecture ratchet, which went from 12 to **10** import edges. The
+  **first** pass reported two skips, and both were the **harness's** fault —
+  one anchor did not exist, and the other was the sharp one: the harness
+  compared the mutated file with the original using PowerShell's `-eq`, which
+  is case-insensitive, so the mutation that lowercases the "User:" label
+  looked like no change at all. Gates: archcheck (314 packages, 10 import
+  and 3 call sites), the dead-code, dependency, SDK-parity, structure,
+  changelog and doc-claims gates, `go vet`, `staticcheck`, gofmt, and a full
+  `go test ./...` run are green.
+
 ### Removed
 
 - **Removed: the kernel's reach on the world model (W3.54).** The kernel held
