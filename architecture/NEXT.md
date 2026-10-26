@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.60 the control plane's files are written atomically, 2026-10-26
+## Current checkpoint — W3.61 the sandbox's workspace files are written atomically, 2026-10-26
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -4381,6 +4381,61 @@ files, five of the seventeen mutations would have escaped.
   `os.WriteFile`, and `cmd/...` is layer `L7` (root), which is **exempt** from
   the forbidden-call rules — the most valuable raw write in the tree is one the
   ratchet cannot see. That is the next slice to measure.
+
+- W3.61 (the sandbox's workspace files are written atomically) is the
+  **second call-site slice**, and it takes **four** of the ten sites that were
+  left, in **two** packages: the code_exec tool's three writes (the **entry
+  script** the interpreter runs, the **extra files** the program reads, the
+  **stdin file** the program reads) and the execution profile's **secret
+  mount** (the **vault's value**, handed to the child process by path). The
+  ratchet went **10 → 6** call sites; the **import** ratchet stayed at **13**,
+  because `internal/atomicfile` is a **foundation** package and a downward
+  import costs no edge.
+  The ten sites that were left after W3.60 were **measured first**, and the
+  measurement decided the slice: six of them are **already atomic by another
+  means** (`kernel/market/sources.go` and
+  `kernel/modules/skills/skill/bundle_io.go` write into a **staging
+  directory** that is swapped in as a whole), and the four that remained have
+  the **widest reader distance** — their files are read by a **child
+  process**, or (for the SSH/K8s/Modal/Daytona backends) by **another
+  machine** that receives them. A write that truncates in place leaves a
+  window in which the file is short, and a short script is not an error the
+  interpreter can report: it may be a **valid prefix that runs and stops
+  early**. A torn secret mount is a **partial API key** in the child, which
+  reads as an authentication failure rather than as a broken file. And the
+  **mode** was never the file's — `os.WriteFile` applies its mode only on
+  **CREATE**, a **project** workspace keeps its files across calls, and a
+  leftover **read-only** file made the write **fail outright** (`EACCES` on
+  POSIX, "Access is denied" on Windows).
+  The slice also makes one **deliberate behaviour change**: the stdin write's
+  error used to be **swallowed** (`_ = os.WriteFile(...)`), and it is now
+  reported like every other write in the same function — because the program
+  **reads** that file, and a silently missing stdin reads as EOF and looks
+  like an operator who typed nothing.
+  **10 permanent tests** over the writer's **guarantee** — the file's
+  **identity** changes when it is rewritten (measured through an **open
+  handle**, because a Windows path stat does not carry the file index), the
+  file is writable by its owner, the content is whole, and a failed stdin
+  write is reported. **12 mutations, 12 caught** in two independent passes
+  with identical logs; **two** of them are **gate-measured** by archcheck.
+  The **first** pass reported two survivors, and both were a **test gap**
+  rather than a code gap: a test that asserts the **content** cannot tell a
+  rename from a truncate, because the bytes a reader sees are whole either
+  way — so the guarantee was re-measured where it lives, in the file's
+  **identity** (`TestTheWorkspaceExtraFilesAndStdinAreReplacedNotRewritten`).
+  **What remains**: the ratchet stands at **13/6**; the six remaining sites
+  are `kernel/market` 4 (two of them already staged),
+  `kernel/modules/skills/skill` 1 (already staged) and
+  `plugins/tools/browser` 1. The interesting one is the market's **publish**
+  path: the **sync** path already stages and swaps, but the **publish** path
+  writes the pack and the index **in place** into a directory meant to be
+  **served statically** to remote clients — and the writer reads the index
+  back while **ignoring the parse error**, so a torn index does not fail the
+  publish, it **resets** the catalogue and silently drops every previously
+  published pack. That is the next slice to measure. The ratchet's **blind
+  spot** is still there: `cmd/agt/market_publish.go` writes an **Ed25519
+  private key** in place, and `cmd/...` is layer **L7** (root), which is
+  exempt from the forbidden-call rules.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

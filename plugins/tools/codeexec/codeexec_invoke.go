@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/warden"
@@ -60,8 +61,19 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 	}
 
 	// Write the entrypoint, any extra files, and optional stdin.
+	//
+	// These files are READ BY THE CHILD PROCESS — the interpreter that runs
+	// them, or (for the SSH/K8s/Modal/Daytona backends) the machine that
+	// receives them. A write that truncates in place leaves a window in
+	// which the file is short, and a short script is not an error the
+	// interpreter can report: it may be a valid prefix that runs and stops
+	// early. The platform's atomic writer (internal/atomicfile) replaces the
+	// file instead, so the child always reads a WHOLE file — the old one or
+	// the new one — and the mode is re-asserted on every write, so a file
+	// left behind by an earlier run (a project directory keeps its files)
+	// cannot keep a wider mode or stop the write outright.
 	entry := entryName(lang)
-	if err := os.WriteFile(filepath.Join(dir, entry), []byte(in.Code), 0o600); err != nil {
+	if err := atomicfile.WriteFile(filepath.Join(dir, entry), []byte(in.Code), 0o600); err != nil {
 		return errResult("write entrypoint: " + err.Error()), nil
 	}
 	for name, content := range in.Files {
@@ -73,12 +85,17 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		if err := os.MkdirAll(filepath.Dir(full), 0o700); err != nil {
 			return errResult("create dir for " + rel + ": " + err.Error()), nil
 		}
-		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
+		if err := atomicfile.WriteFile(full, []byte(content), 0o600); err != nil {
 			return errResult("write " + rel + ": " + err.Error()), nil
 		}
 	}
 	if in.Stdin != "" {
-		_ = os.WriteFile(filepath.Join(dir, "stdin.txt"), []byte(in.Stdin), 0o600)
+		// The program reads this file, so a failed write is reported: a
+		// program that silently receives no stdin reads EOF and behaves as
+		// if the operator had typed nothing.
+		if err := atomicfile.WriteFile(filepath.Join(dir, "stdin.txt"), []byte(in.Stdin), 0o600); err != nil {
+			return errResult("write stdin: " + err.Error()), nil
+		}
 	}
 
 	profile := t.Profile

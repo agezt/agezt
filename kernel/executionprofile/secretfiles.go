@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/kernel/creds"
 )
 
@@ -64,7 +65,16 @@ func PrepareSecretFileMounts(baseDir, profile, workDir string) ([]string, func()
 			return nil, func() {}, nil, fmt.Errorf("vault secret %q is configured for %s secret file mount but is not set", mount.Key, envProfileID(profile))
 		}
 		hostPath := filepath.Join(root, mount.FileName)
-		if err := os.WriteFile(hostPath, []byte(value), 0o600); err != nil {
+		// The secret is written into a file the CHILD PROCESS reads (and, for
+		// the container profile, a file that is mounted into the container).
+		// A write that truncates in place leaves a window in which the child
+		// can read a PARTIAL credential — an API key cut in half reads as an
+		// authentication failure, not as a broken file. The platform's atomic
+		// writer (internal/atomicfile) replaces the file instead, so the
+		// child always reads a whole secret, and the mode is re-asserted on
+		// every write, so a file left behind by a crashed run cannot keep a
+		// wider mode.
+		if err := atomicfile.WriteFile(hostPath, []byte(value), 0o600); err != nil {
 			cleanup()
 			return nil, func() {}, nil, fmt.Errorf("write secret file mount %q: %w", mount.Key, err)
 		}
