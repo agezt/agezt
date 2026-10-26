@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-208 package(s):
+207 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -81,7 +81,7 @@
 - **`kernel/contract/agentapi`** — Package agentapi is the contract the agent roster and the tools that steer it agree on.
 - **`kernel/contract/approvalapi`** — Package approvalapi is the contract layer's home for the approval verdict: the operator's answer to a pending request.
 - **`kernel/contract/artifactapi`** — Package artifactapi is the contract the artifact index and the tools that read and write it agree on.
-- **`kernel/contract/assureapi`** — Package assureapi is the contract layer's home for the "do-it-for-sure" rows: the completion judgement for one attempt, the record of one run+verify cycle, and the outcome of an assured run.
+- **`kernel/contract/assureapi`** — Package assureapi is the contract layer's home for the "do-it-for-sure" rows — the completion judgement for one attempt, the record of one run+verify cycle, and the outcome of an assured run — and for the bounded loop that produces them.
 - **`kernel/contract/boardapi`** — Package boardapi is the contract the message board and the tools that read it agree on.
 - **`kernel/contract/cadenceapi`** — —
 - **`kernel/contract/catalogapi`** — Package catalogapi is the contract layer's home for the provider catalog's rows: the description of one provider and the models it serves.
@@ -163,7 +163,6 @@
 - **`kernel/modules/reasoning/api`** — Package api is the reasoning module's public vocabulary: the rows and results the council, the conductor and the research harness produce, and the pure helpers both sides share.
 - **`kernel/modules/skills/builtins`** — Package builtins ships the skill bundles baked into the binary — the agentskills.io shape (M847): a SKILL.md plus reference files and scripts, embedded here and materialized into the skill store by the skills module.
 - **`kernel/modules/skills/skill`** — Package skill implements "Forge v1" (SPEC-05 §4–5): the agent learns reusable, named procedures ("skills") from what it does, and those skills are governed through a journaled, reversible state machine instead of straight-to-active markdown.
-- **`kernel/modules/work/assure`** — Package assure is the "do-it-for-sure" loop: run a task, verify it was actually accomplished, and retry with the verifier's gap fed back — up to a bounded number of attempts, stopping the moment a verdict reports the task complete (M651).
 - **`kernel/modules/work/okr`** — Package okr is AGEZT's durable objectives-and-key-results spine: the layer that makes fleet work legible as progress toward goals rather than a flat task queue.
 - **`kernel/modules/work/proof`** — Package proof is AGEZT's "PROOF > VIBES" record: the durable, checkable evidence that a workboard task actually satisfied its acceptance criteria before it was allowed to reach done.
 - **`kernel/modules/work/seat`** — Package seat names the execution "seats" a workboard task can be dispatched under — the AGEZT answer to Matrix's "choose the right execution seat for the job".

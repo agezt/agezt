@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.63 the browser's tab state is replaced, not rewritten, 2026-10-26
+## Current checkpoint — W3.64 the assurance loop lives in the contract, and the module is gone, 2026-10-26
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -4550,6 +4550,59 @@ files, five of the seventeen mutations would have escaped.
   work: `cmd/agt/market_publish.go` writes an **Ed25519 private key** in
   place, `cmd/...` is layer **L7** (root) which is **exempt** from the
   forbidden-call rules, and `cmd/agt` has **no test** that calls
+  `cmdMarketKeygen` or `cmdMarketPublish` at all — closing it needs the
+  **rule** to change before the site can be fixed.
+
+- W3.64 (the assurance loop lives in the contract, and the module is gone)
+  takes the **last** import edge that pointed *into* a module from the kernel:
+  `cross-module kernel/runtime/runexec -> kernel/modules/work/assure`. The
+  ratchet went **13 → 12** import edges; the forbidden-call ratchet is
+  unchanged at **3** (the market's sync cache and the skill bundle, both
+  written into a **staging directory** that is swapped in as a whole).
+  The edge was **measured before it was touched**, and the measurement said the
+  package **was never a module**: no store, no file, no bus, no model, no
+  clock — it held **two closures** (`RunFn`, `VerifyFn`), a budget and a loop,
+  and the contract layer's own rule ("rows, constants and pure functions only")
+  already covered it. The **rows and the parser** had been in the contract
+  since W3.31; what was left in `kernel/modules/work/assure` was the loop and
+  a set of **aliases and delegations** — a pass-through package whose only
+  production reason to exist was a name for something else. So the loop
+  **moved** into `kernel/contract/assureapi/loop.go` (`Until`,
+  `clampAttempts`, `retryInstruction` — unchanged line for line) and the
+  **module package was deleted** (four files; the package count drops 315 →
+  **314**). Keeping the module as an alias house was **rejected**: it reverses
+  W3.31's documented decision without the loop's nature changing, it keeps the
+  edge in the ratchet forever, and a delegation that exists only to be
+  delegated to is a shape the dead-code gate has to be taught to forgive.
+  **No signature changed** — `KernelAPI.RunAssured` returned
+  `(string, assure.Result, error)` where `assure.Result` was a **type alias**
+  for `assureapi.Result`, so the interface, the callers and the wire are
+  identical; the module's `ParseVerdict` was a delegation to the contract's.
+  **12 permanent tests** in the contract package (the seven loop tests moved
+  with the loop, the three parse cases moved with the parser, and **two new**
+  ones — the attempt number is **one-based**, and the history carries every
+  attempt — because the mutation run found the attempt number was never
+  asserted) and **10 mutations, 10 caught** in two independent passes with
+  **byte-identical** logs, including the two that name the loop's real
+  contract: the verifier must judge the **ORIGINAL** task (a gap-augmented
+  task is a different task), and the gap must reach the next attempt (a retry
+  that does not know what was missing is a blind retry).
+  **The milestone**: after this slice the kernel reaches **no module
+  implementation at all** — measured over every non-test file in
+  `kernel/runtime`, the only module imports left are `agents/api` and
+  `reasoning/api`, and an `api` package is the one import a module may make
+  across boundaries (P5). The kernel is the **host**, and a host that reaches
+  into a guest's internals is a host that cannot be reused.
+  **What remains**: the ratchet stands at **12/3** — six `adapter-bypass`
+  edges, three `cross-module` edges (module → module) and three `upward`
+  edges, none of them a kernel reaching into a module's implementation. The
+  three forbidden-call sites are the market's **sync** cache (2) and the
+  **skill bundle** (1), both already staged and swapped in as a whole; the
+  roadmap's **W5.4** wants the allowlist at **zero**, so they will be taken in
+  a slice that makes the swap visible to the gate. The ratchet's **blind
+  spot** is untouched: `cmd/agt/market_publish.go` writes an **Ed25519 private
+  key** in place, `cmd/...` is layer **L7** (root) which is **exempt** from
+  the forbidden-call rules, and `cmd/agt` has **no test** that calls
   `cmdMarketKeygen` or `cmdMarketPublish` at all — closing it needs the
   **rule** to change before the site can be fixed.
 
