@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.59 the board's port is the contract's, 2026-10-26
+## Current checkpoint — W3.60 the control plane's files are written atomically, 2026-10-26
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -4334,6 +4334,53 @@ files, five of the seventeen mutations would have escaped.
   **What remains**: the ratchet stands at **13/13** — and the **13** call
   sites are now the whole of the remaining debt. The next slice is a
   **call-site** slice rather than an import slice.
+
+- W3.60 (the control plane's files are written atomically) is the **first
+  **call-site** slice, and it takes the **three** control-plane sites:
+  `runtime/control.addr`, `runtime/control.token` (the **primary admin
+  token**) and `chat_prompts.json`. The ratchet went **13 → 10** call sites;
+  the **import** ratchet stayed at **13**, because `internal/atomicfile` is a
+  **foundation** package (layer `L0`) and a downward import costs no edge —
+  the control plane names the platform's writer **directly**, not through
+  `kernel/platform/filestore`.
+  `os.WriteFile` opens the target with `O_TRUNC`, so a reader in another
+  process (the CLI, the SDK, the Web UI — none of them under the daemon's
+  lock) can see a **torn** file, and it applies its mode only on **CREATE**, so
+  the mode on disk was a property of *whoever wrote last* — a leftover
+  **read-only** file even made the daemon's own write fail outright
+  (measured: "Access is denied"). The prompt library is the sharp end:
+  `kernel/app/persona` **drops an unparseable** library instead of failing the
+  read, so a torn file does not surface as an error — it surfaces as an
+  **empty library**, with no reason given.
+  The platform's behaviour was **measured, not assumed** (Windows: a rename
+  over a file another handle holds open is **refused**; a path stat does
+  **not** carry the file index, so the identity has to come from an **open
+  handle**), so the tests assert the **guarantee** — the identity changes, the
+  file is writable by its owner, the content is whole — and hold on both
+  platforms. The permission-bit checks are POSIX-only; the **owner-writable**
+  guarantee is checked on both, because Windows carries the read-only
+  attribute.
+  **12 mutations, 12 caught** in two independent passes with identical logs;
+  **one** of them is **gate-measured** by archcheck (a raw write reappearing
+  in the control plane), and the rest measure a **behaviour**: the reader that
+  must not see a torn token, the leftover read-only file that must not stop the
+  daemon's own write, the mode that must not survive from an earlier run, the
+  path that must be the same after a restart, the content that must be whole.
+  The harness had to learn two things first: a **wrong test name** is not a
+  survival (`go test -run` answers `no tests to run` and exits **0** — the
+  harness now classifies that as its own verdict), and a **build error** is not
+  a catch (the mutation that reverted the prompt library left the `atomicfile`
+  import unused, so the mutation now removes the import too and the **test**
+  does the catching).
+  **What remains**: the ratchet stands at **13/10** and the **10** remaining
+  call sites are the whole of the raw-write debt — `kernel/market` 4 (two of
+  them already staged and swapped in), `plugins/tools/codeexec` 3,
+  `kernel/executionprofile` 1, `kernel/modules/skills/skill` 1 (already
+  staged), `plugins/tools/browser` 1. The counter has one **blind spot**:
+  `cmd/agt/market_publish.go` writes an **Ed25519 private key** with
+  `os.WriteFile`, and `cmd/...` is layer `L7` (root), which is **exempt** from
+  the forbidden-call rules — the most valuable raw write in the tree is one the
+  ratchet cannot see. That is the next slice to measure.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/kernel/app"
 	appapprovals "github.com/agezt/agezt/kernel/app/approvals"
 	appartifacts "github.com/agezt/agezt/kernel/app/artifacts"
@@ -274,7 +275,12 @@ var personaOperations = func() []app.Operation {
 			SetSystem:   s.k.SetSystem,
 			Store:       func() apppersona.Store { return settings.NewStore(s.baseDir) },
 			ReadPrompts: func() ([]byte, error) { return os.ReadFile(prompts) },
-			SavePrompts: func(data []byte) error { return os.WriteFile(prompts, data, 0o600) },
+			// The prompt library is written through the platform's atomic
+			// writer, so a reader never sees a half-written library. The
+			// library is read back on every Chat view, and a torn file
+			// would read as an EMPTY library rather than as an error — the
+			// operator would see their prompts gone and no reason why.
+			SavePrompts: func(data []byte) error { return atomicfile.WriteFile(prompts, data, 0o600) },
 		})
 	})
 	if err != nil {
