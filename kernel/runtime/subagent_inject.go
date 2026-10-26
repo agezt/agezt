@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contextselect"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/delegation"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
 func (k *Kernel) subAgentInjectedSystem(ctx context.Context, corr, actor, intent, system string) (string, []string, string) {
@@ -30,7 +30,7 @@ func (k *Kernel) subAgentInjectedSystem(ctx context.Context, corr, actor, intent
 		if topK <= 0 {
 			topK = 5
 		}
-		if hits, err := k.memory.RecallScoped(corr, intent, topK, memory.ScopeFrom(ctx)); err == nil && len(hits) > 0 {
+		if hits, err := k.MemoryRecallScoped(corr, intent, topK, memoryapi.ScopeFrom(ctx)); err == nil && len(hits) > 0 {
 			system = injectMemory(system, hits)
 			ids := make([]string, 0, len(hits))
 			for _, h := range hits {

@@ -164,14 +164,14 @@ func TestDelegate_NamedAgentNoiseNotifyCompletesCooldown(t *testing.T) {
 		mock.FinalText("child done"),
 		mock.FinalText("lead done"),
 	)
-	k, err := runtime.Open(withRoster(t, runtime.Config{
+	k, err := runtime.Open(withMemory(t, withRoster(t, runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
 		Tools:            map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil)), "notify": quietTool{name: "notify"}},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 1,
 		Edict:            edict.New(edict.Options{UnknownAllow: true}),
-	}))
+	})))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -473,14 +473,14 @@ func TestDelegate_AgentMemoryScopeFollowsChild(t *testing.T) {
 		mock.FinalText("child done"), // child turn 2
 		mock.FinalText("lead done"),  // lead final
 	)
-	k, err := runtime.Open(withRoster(t, runtime.Config{
+	k, err := runtime.Open(withMemory(t, withRoster(t, runtime.Config{
 		BaseDir:          t.TempDir(),
 		Provider:         prov,
 		Tools:            map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		SubAgentTool:     true,
 		SubAgentMaxDepth: 1,
 		MemoryTool:       true,
-	}))
+	})))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -528,7 +528,7 @@ func TestDelegate_NamedAgentInjectsMemoryAndSkills(t *testing.T) {
 			childSystem = req.System
 		}
 	}
-	k, err := runtime.Open(withRoster(t, withSkill(t, runtime.Config{
+	k, err := runtime.Open(withMemory(t, withRoster(t, withSkill(t, runtime.Config{
 		BaseDir:      t.TempDir(),
 		Provider:     prov,
 		Tools:        map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
@@ -537,7 +537,7 @@ func TestDelegate_NamedAgentInjectsMemoryAndSkills(t *testing.T) {
 		SkillInject:  true,
 		MemoryTopK:   5,
 		SkillTopK:    3,
-	})))
+	}))))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

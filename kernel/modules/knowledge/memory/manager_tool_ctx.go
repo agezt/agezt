@@ -2,49 +2,34 @@
 
 package memory
 
-// Provenance: Package memory: context.Context helpers for the memory tool's
-//             correlation + scope threading (WithCorrelation + CorrelationFrom +
-//             WithScope + ScopeFrom). Extracted from manager_tool.go during the
-//             Day-211 god-file split. Public API unchanged.
+// Provenance: Package memory: context.Context readers for the memory tool's
+//             correlation + scope threading (CorrelationFrom + ScopeFrom).
+//             Extracted from manager_tool.go during the Day-211 god-file split.
+//
+// The SEAM moved to the CONTRACT (W3.57): the runtime sets the correlation and
+// the scope on a run's context, and the module's tool reads them — so the
+// layers above the module would have to name this module to set them. The
+// keys live in the contract with the helpers: a context key is an identity,
+// and two packages that each define one would not see each other's values.
+//
+// The SETTERS are the contract's alone now: the layers above the module write
+// the seam, and they may not name the module to do it. The module only READS
+// it — so it keeps the readers and no longer re-exports the writers.
 
 import (
 	"context"
-)
 
-func WithCorrelation(ctx context.Context, corr string) context.Context {
-	return context.WithValue(ctx, ctxKeyCorrelation, corr)
-}
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
+)
 
 // CorrelationFrom extracts the correlation id set by WithCorrelation.
 func CorrelationFrom(ctx context.Context) string {
-	if v, ok := ctx.Value(ctxKeyCorrelation).(string); ok {
-		return v
-	}
-	return ""
-}
-
-const ctxKeyScope ctxKey = iota + 1
-
-// WithScope returns a child context carrying the run's per-agent memory scope
-// (M786): when a run executes AS a named agent (M783), its recalls — the
-// context injection and the memory tool — default to this scope, so the agent
-// sees its own private notes on top of shared memory without having to name
-// itself. Writes default to this scope too (M915 — each agent keeps its own
-// memory; the shared brain is opt-in via the tool's shared=true and kept
-// selective). The explicit tool scope param always wins over this default.
-func WithScope(ctx context.Context, scope string) context.Context {
-	if scope == "" {
-		return ctx
-	}
-	return context.WithValue(ctx, ctxKeyScope, scope)
+	return memoryapi.CorrelationFrom(ctx)
 }
 
 // ScopeFrom extracts the per-agent memory scope set by WithScope ("" = none).
 func ScopeFrom(ctx context.Context) string {
-	if v, ok := ctx.Value(ctxKeyScope).(string); ok {
-		return v
-	}
-	return ""
+	return memoryapi.ScopeFrom(ctx)
 }
 
 // --- agent tool -----------------------------------------------------------

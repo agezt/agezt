@@ -8,11 +8,17 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // ErrNoObjectGenerated is the sentinel returned (wrapped in *ObjectError) when
 // GenerateObject cannot obtain schema-valid JSON within its repair budget.
-var ErrNoObjectGenerated = errors.New("no schema-valid object generated")
+//
+// The sentinel itself lives in the contract layer (kernel/contract/llm): the
+// modules that are handed the structured-output path compare against it, and
+// they may not name this module.
+var ErrNoObjectGenerated = llm.ErrNoObjectGenerated
 
 // ObjectError carries the diagnostic context of a failed GenerateObject call:
 // the last raw model text, the cumulative token usage spent across attempts,

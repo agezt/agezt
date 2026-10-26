@@ -21,6 +21,7 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
@@ -29,7 +30,6 @@ import (
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
-	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/resume"
@@ -105,14 +105,24 @@ func Open(cfg Config) (*Kernel, error) {
 	}
 	sched := scheduler.New(scheduler.Config{Bus: kbus, Monitor: scheduler.ContextInvariantMonitor})
 
-	mstore, err := memory.Open(filepath.Join(cfg.BaseDir, "memory"))
-	if err != nil {
-		return fail("runtime: memory", err)
-	}
-	closers = append(closers, mstore)
-	mgr := memory.NewManager(mstore, kbus)
-	if cfg.MemoryEmbedder != nil {
-		mgr.SetEmbedder(cfg.MemoryEmbedder) // M884: provider embeddings opt-in
+	// The memory store is NOT opened here (W3.57) — the FILE is the
+	// composition root's, and the kernel holds the contract's ports. The
+	// daemon opens the file (memory/memory.json) and hands over the store;
+	// the daemon also hands over the BUILDER (it names the module), and the
+	// kernel calls it with that store and its own publisher — so every
+	// mutation journals through the kernel's bus without either side naming
+	// the other's implementation.
+	//
+	// A host that was given neither holds a nil port: the reads answer "no
+	// memory" and the writes refuse, rather than calling into nothing.
+	var mgr memoryapi.Manager
+	if cfg.MemoryStore != nil && cfg.MemoryBuilder != nil {
+		mgr = cfg.MemoryBuilder(memoryapi.Deps{
+			Store:     cfg.MemoryStore,
+			Publisher: memoryPublisher{b: kbus},
+			Embedder:  cfg.MemoryEmbedder,  // M884: provider embeddings opt-in
+			Generator: cfg.MemoryGenerator, // the structured-output path (W3.57)
+		})
 	}
 
 	// The world-model graph is NOT opened here (W3.54) — the FILE is the
@@ -245,7 +255,7 @@ func Open(cfg Config) (*Kernel, error) {
 	// Tools() so `agt tool list` reflects what the loop actually sees.
 	effTools := make(map[string]toolapi.Tool, len(cfg.Tools)+2)
 	maps.Copy(effTools, cfg.Tools)
-	if cfg.MemoryTool {
+	if cfg.MemoryTool && mgr != nil {
 		effTools["memory"] = mgr.Tool()
 	}
 	// The world tool is registered only when the host gave a graph: a nil
@@ -313,7 +323,7 @@ func Open(cfg Config) (*Kernel, error) {
 		catalog:      cat,
 		catalogSync:  cfg.CatalogSyncer,
 		memory:       mgr,
-		memoryDir:    mstore,
+		memoryStore:  cfg.MemoryStore,
 		world:        wgraph,
 		worldStore:   cfg.WorldStore,
 		forge:        forge,

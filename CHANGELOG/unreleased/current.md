@@ -4507,6 +4507,60 @@ This file holds the active `[Unreleased]` working set.
     No behaviour changed: the library is still the same store, under the same
     directory, journaling the same events.
 
+- **Removed: the kernel's reach on the memory (W3.57).** The kernel held the
+  memory module's concrete manager and **opened the memory's file** itself; the
+  run executor, the control plane, the agent gateway and the context selector
+  named the module's concrete type or rows as well, and the module itself
+  reached into the **runs** module for the structured-output path. The kernel
+  now holds the **contract's ports** — and the contract `memoryapi` is **new**:
+  the memory had no contract before, and that was the whole reason the layers
+  above it had to name the module. It carries the rows (`Record`,
+  `RememberSpec`, `Scored`, the type and evidence vocabularies, the profile,
+  brain, hygiene, audit and clean reports), the **sentinels**
+  (`ErrRecordNotFound`, `ErrEmptyContent`), the **rules** (`ValidType`) and the
+  **ports**: a six-verb `Store`, a one-verb `Publisher`, a **nine-verb**
+  `Reader`, a **five-verb** `Writer`, a **five-verb** `Maintainer`, a
+  **three-verb** `Distiller`, a one-verb `Tooler`, a `ReaderWriter` and the
+  `Manager` — the composition of the halves. The module keeps every name as an
+  **alias**, so there is one row and one spelling of it and `errors.Is` matches
+  on both sides of the module boundary.
+  The **port is split six ways, not widened**: the gateway only looks notes up
+  and writes them, so it takes the `ReaderWriter`; the context selector only
+  reads, so it takes the `Reader`. A single wide port would have handed the
+  gateway the whole memory lifecycle (audit, prune, distil).
+  The **rules travel with the rows**: `Record.Active()`, `Record.Suspended()`,
+  `Record.Expired()` and `Record.Usable()` decide whether a note still counts,
+  and a Go type alias cannot carry methods — so the rules moved with the rows
+  into the contract. `ValidType` is the same story: the membership set is part
+  of the type's meaning.
+  The **structured-output sentinel moved too**: `llm.ErrNoObjectGenerated` is
+  the contract's and `kernel/agent` keeps the name as an alias — that is what
+  lets the `memory -> kernel/agent` edge go at all, because the path became a
+  **port** (`memoryapi.Generator`) the **daemon injects** and the module never
+  names the runs module. The **publisher answers with the event's id**, not the
+  envelope: the durable envelope carries the hash chain and the contract layer
+  may not name it, and what the manager needs is the id — the record's
+  `SourceEvent` provenance. The **context seam lives in the contract**
+  (`WithCorrelation`/`CorrelationFrom`/`WithScope`/`ScopeFrom`): a context key
+  is an identity, and two packages that each define one would not see each
+  other's values. The **test seam stays off the port**: `SetEmbedder` is
+  deliberately not a port verb — the embedder is a live-configuration seam
+  given at construction time.
+  The memory's file is the **daemon's**: `cmd/agezt`'s composition root opens
+  `memory/memory.json`, hands over the store, names the module through the
+  **builder** and injects the generator; the kernel calls the builder with the
+  store and its own publisher, so the manager journals through the kernel's bus
+  without either side naming the other's implementation.
+  A daemon with **no** memory answers instead of panicking, and the answers
+  differ by direction: the **reads** answer **"no memory"** (through the
+  kernel's nil-safe surface), and the **writes refuse** with `ErrNoMemory`
+  rather than calling into nothing — the refusal is deliberately not a silent
+  no-op, because "nothing was forgotten" and "there is nothing to forget" are
+  different answers. The architecture ratchet went from 24 to 18 edges.
+  No behaviour changed: the memory is still the same store, under the same
+  directory, journaling the same events, and the same notes reach the same
+  runs.
+
 - **Removed: the kernel's reach on the roster (W3.56).** The kernel held the
   agents module's concrete store and **opened the roster's file** itself; the
   run executor, the control plane and the agent gateway named the module's

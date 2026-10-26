@@ -13,10 +13,10 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/journal"
-	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/runtime/runexec"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/state"
@@ -47,8 +47,9 @@ func (k *Kernel) Scheduler() *scheduler.Executor { return k.scheduler }
 // Provider exposes the live llm.Provider.
 func (k *Kernel) Provider() llm.Provider { return k.cfg.Provider }
 
-// Memory returns the memory-lite manager.
-func (k *Kernel) Memory() *memory.Manager { return k.memory }
+// Memory returns the memory-lite manager — the contract's port (W3.57), not the
+// module's concrete manager. A host that was given no memory holds a NIL port.
+func (k *Kernel) Memory() memoryapi.Manager { return k.memory }
 
 // AgentGateway returns the Agent Gateway for subprocess communication.
 func (k *Kernel) AgentGateway() *agentgw.Gateway { return k.agentGW }

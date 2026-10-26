@@ -92,7 +92,7 @@ func (s *kernelSource) Overview() introspectapi.Overview {
 		Halted:                 k.IsHalted(),
 		ActiveRuns:             k.ActiveRuns(),
 		Tools:                  names,
-		MemoryRecords:          k.Memory().Count(),
+		MemoryRecords:          k.MemoryCount(),
 		WorldEntities:          worldEntities,
 		ActiveSkills:           activeSkills,
 		JournalHead:            headSeq,

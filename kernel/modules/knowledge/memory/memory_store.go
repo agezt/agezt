@@ -17,33 +17,22 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/platform/filestore"
 )
 
 // Store is the pure record store. Implementations persist records by id and
 // must be safe for concurrent use.
-type Store interface {
-	// Put upserts r by its ID (overwrites any existing record with that id).
-	Put(r Record) error
-	// Get returns the record at id; the bool is false if absent.
-	Get(id string) (Record, bool, error)
-	// Delete hard-removes the record at id (returns false if absent). Unlike
-	// Forget (which tombstones), this reclaims the row — used only by the prune
-	// pass on already-soft-deleted records (M857).
-	Delete(id string) (bool, error)
-	// All returns every record (including tombstoned/superseded ones),
-	// sorted deterministically by CreatedMS then ID.
-	All() ([]Record, error)
-	// Count returns the number of records currently stored (all states).
-	Count() int
-	// Close releases any held resources.
-	Close() error
-}
+//
+// The port lives in the CONTRACT (W3.57): the daemon opens the store (the
+// FILE is the host's) and the kernel holds it — and neither may name this
+// module to do so.
+type Store = memoryapi.Store
 
 // ErrEmptyContent is returned by callers that try to store a record with no
 // content; the Manager validates before reaching the store, but the store
 // guards too.
-var ErrEmptyContent = errors.New("memory: empty content")
+var ErrEmptyContent = memoryapi.ErrEmptyContent
 
 // FileStore is the file-backed Store. All records live in a single
 // <dir>/memory.json object keyed by id, snapshotted atomically on every

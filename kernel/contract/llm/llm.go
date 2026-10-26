@@ -16,9 +16,20 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
+
+// ErrNoObjectGenerated is the sentinel returned (wrapped in a diagnostic
+// error) when a structured-output call cannot obtain schema-valid JSON
+// within its repair budget.
+//
+// The sentinel lives in the contract because the structured-output path is
+// injected into the modules that need it: a module may not name the module
+// that owns the path, but it may name the contract's sentinel — and the
+// comparison has to hold on both sides of that boundary.
+var ErrNoObjectGenerated = errors.New("no schema-valid object generated")
 
 // Role is the canonical conversation role.
 type Role string

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 )
 
 func consolidationCorpus() []Record {
@@ -87,7 +88,7 @@ func newConsolidationManager(t *testing.T) *Manager {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	m := NewManager(store, nil)
+	m := NewManager(memoryapi.Deps{Store: store, Generator: testGenerator})
 	m.now = func() time.Time { return time.UnixMilli(1000) }
 	return m
 }

@@ -17,16 +17,16 @@ import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
-	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
 // teardownStatePorts binds the host's stores to the application's state
 // cleanup.
 func (s *Server) teardownStatePorts() approster.TeardownStatePorts {
 	return approster.TeardownStatePorts{
-		MemoryRecords: func() ([]memory.Record, error) { return s.k.Memory().Active() },
-		ForgetMemory:  func(id string) (bool, error) { return s.k.Memory().Forget("", id) },
+		MemoryRecords: func() ([]memoryapi.Record, error) { return s.k.MemoryActive() },
+		ForgetMemory:  func(id string) (bool, error) { return s.k.MemoryForget("", id) },
 		// A daemon with NO skill library holds a nil port (W3.55): the teardown
 		// sees no skills, and archiving refuses rather than calling into
 		// nothing.

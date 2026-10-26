@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
+	"github.com/agezt/agezt/kernel/internal/testfixtures"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
@@ -50,7 +52,7 @@ func newTestServer(t *testing.T) *testServer {
 	if err != nil {
 		t.Fatalf("memory.Open: %v", err)
 	}
-	mem := memory.NewManager(memStore, b)
+	mem := memory.NewManager(memoryapi.Deps{Store: memStore, Publisher: testfixtures.BusPublisher{B: b}})
 
 	ros, err := roster.Open(dir)
 	if err != nil {

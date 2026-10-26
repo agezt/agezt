@@ -9,6 +9,7 @@ package memory
 import (
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -39,42 +40,21 @@ func (m *Manager) Suspend(corr, id, reason string) (bool, error) {
 
 // AuditReport is the memory hygiene view used to detect stale or competing
 // memories before they contaminate retrieval.
-type AuditReport struct {
-	Total             int                  `json:"total"`
-	Usable            int                  `json:"usable"`
-	Suspended         int                  `json:"suspended"`
-	Expired           int                  `json:"expired"`
-	ContradictionLoad int                  `json:"contradiction_load"`
-	ExpiredIDs        []string             `json:"expired_ids,omitempty"`
-	SuspendedIDs      []string             `json:"suspended_ids,omitempty"`
-	Contradictions    []ContradictionGroup `json:"contradictions,omitempty"`
-}
+//
+// The rows live in the CONTRACT (W3.57): the audit surfaces hand them back,
+// and they may not name this module.
+type AuditReport = memoryapi.AuditReport
 
 // CleanReport summarizes low-value retention cleanup. Removed means hard-deleted:
 // clean targets records that never belonged in memory, not records worth a
 // reversible tombstone.
-type CleanReport struct {
-	DryRun      bool               `json:"dry_run"`
-	HardDeleted bool               `json:"hard_deleted"`
-	Scanned     int                `json:"scanned"`
-	Rejected    int                `json:"rejected"`
-	Removed     int                `json:"removed"`
-	Decisions   []CleanDecisionRow `json:"decisions,omitempty"`
-}
+type CleanReport = memoryapi.CleanReport
 
-type CleanDecisionRow struct {
-	ID      string `json:"id"`
-	Subject string `json:"subject,omitempty"`
-	Reason  string `json:"reason"`
-}
+// CleanDecisionRow is one record's fate in a cleanup pass.
+type CleanDecisionRow = memoryapi.CleanDecisionRow
 
-type ContradictionGroup struct {
-	Key     string   `json:"key"`
-	IDs     []string `json:"ids"`
-	Subject string   `json:"subject,omitempty"`
-	Type    Type     `json:"type,omitempty"`
-	Scope   string   `json:"scope,omitempty"`
-}
+// ContradictionGroup is a set of records that compete with one another.
+type ContradictionGroup = memoryapi.ContradictionGroup
 
 // Audit finds records that are barred by expiration/suspension and same-topic
 // active records that compete with different content. It does not claim which
@@ -181,22 +161,28 @@ func (m *Manager) CleanLowValue(corr string, dryRun bool) (CleanReport, error) {
 	return report, nil
 }
 
-// publish writes one event through the bus, returning the persisted event (or
-// nil when no bus is wired, e.g. store-only tests). Subject groups memory
-// events under "memory.<suffix>" so subscribers can scope-filter.
-func (m *Manager) publish(kind event.Kind, corr string, payload any) *event.Event {
-	if m.bus == nil {
-		return nil
+// publish writes one event through the publisher, answering the id of the
+// event it wrote ("" when no publisher is wired, e.g. store-only tests).
+// Subject groups memory events under "memory.<suffix>" so subscribers can
+// scope-filter.
+//
+// The publisher is the CONTRACT's port (W3.57): the bus answers with the
+// durable envelope, and the envelope carries the hash chain the contract
+// layer may not name. What the manager needs is the id — that is the record's
+// provenance (SourceEvent).
+func (m *Manager) publish(kind event.Kind, corr string, payload any) string {
+	if m.pub == nil {
+		return ""
 	}
 	suffix := strings.TrimPrefix(string(kind), "memory.")
-	ev, _ := m.bus.Publish(event.Spec{
+	id, _ := m.pub.Publish(event.Spec{
 		Subject:       "memory." + suffix,
 		Kind:          kind,
 		Actor:         "memory",
 		CorrelationID: corr,
 		Payload:       payload,
 	})
-	return ev
+	return id
 }
 
 func clampConf(c float64) float64 {
@@ -208,14 +194,3 @@ func clampConf(c float64) float64 {
 	}
 	return c
 }
-
-// --- run-time context plumbing -------------------------------------------
-
-type ctxKey int
-
-const ctxKeyCorrelation ctxKey = iota
-
-// WithCorrelation returns a child context carrying corr so the in-process
-// memory Tool can journal its writes under the originating run. The runtime
-// sets this on every run's context; without it the tool falls back to an
-// empty correlation (still journaled, just not linked).

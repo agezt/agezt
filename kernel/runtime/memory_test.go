@@ -34,13 +34,13 @@ func TestMemoryInjectedIntoSystemPrompt(t *testing.T) {
 	var gotSystem string
 	prov.OnRequest = func(req llm.CompletionRequest) { gotSystem = req.System }
 
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withMemory(t, runtime.Config{
 		BaseDir:      t.TempDir(),
 		Provider:     prov,
 		System:       "base prompt",
 		MemoryInject: true,
 		MemoryTopK:   5,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,11 +72,11 @@ func TestMemoryInjectionOffByDefault(t *testing.T) {
 	var gotSystem string
 	prov.OnRequest = func(req llm.CompletionRequest) { gotSystem = req.System }
 
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withMemory(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: prov,
 		System:   "base",
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,12 +92,12 @@ func TestMemoryInjectionOffByDefault(t *testing.T) {
 }
 
 func TestMemoryToolRegisteredWhenEnabled(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withMemory(t, runtime.Config{
 		BaseDir:    t.TempDir(),
 		Provider:   mock.New(mock.FinalText("ok")),
 		Tools:      map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		MemoryTool: true,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,11 +112,11 @@ func TestMemoryToolRegisteredWhenEnabled(t *testing.T) {
 }
 
 func TestMemoryToolAbsentByDefault(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withMemory(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("ok")),
 		Tools:    map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,13 +134,13 @@ func TestAutoDistillAfterMultiToolRun(t *testing.T) {
 		mock.FinalText("the project is a go monorepo"),
 		mock.FinalText(`{"facts":[{"subject":"lictor","content":"lictor is the agezt monorepo","type":"FACT"}]}`),
 	)
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withMemory(t, runtime.Config{
 		BaseDir:               t.TempDir(),
 		Provider:              prov,
 		Tools:                 map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 		MemoryDistill:         true,
 		MemoryDistillMinTools: 1,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,12 +158,12 @@ func TestAutoDistillAfterMultiToolRun(t *testing.T) {
 
 func TestNoDistillBelowThreshold(t *testing.T) {
 	prov := mock.New(mock.FinalText("quick answer"))
-	k, err := runtime.Open(runtime.Config{
+	k, err := runtime.Open(withMemory(t, runtime.Config{
 		BaseDir:               t.TempDir(),
 		Provider:              prov,
 		MemoryDistill:         true,
 		MemoryDistillMinTools: 2,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}

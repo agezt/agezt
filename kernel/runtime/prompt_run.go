@@ -9,9 +9,9 @@ package runtime
 import (
 	"context"
 	"github.com/agezt/agezt/kernel/contextselect"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"time"
 )
 
@@ -27,7 +27,7 @@ func (k *Kernel) buildRunPrompt(runCtx context.Context, corr, actor, intent stri
 	// below, so it sits adjacent to the persona. Always-on (not intent-driven);
 	// a no-op until DistillProfile has synthesized a profile.
 	if k.cfg.ProfileInject && !systemAgent {
-		if p := k.memory.ProfileText(); p != "" {
+		if p := k.MemoryProfileText(); p != "" {
 			system = injectUserProfile(system, p)
 		}
 	}
@@ -61,13 +61,13 @@ func (k *Kernel) buildRunPrompt(runCtx context.Context, corr, actor, intent stri
 			topK = 5
 		}
 		var candidates []contextselect.Candidate
-		if scored, err := k.memory.SearchScoped(intent, contextselect.CandidateLimit, memory.ScopeFrom(runCtx)); err == nil {
+		if scored, err := k.MemorySearchScoped(intent, contextselect.CandidateLimit, memoryapi.ScopeFrom(runCtx)); err == nil {
 			candidates = memoryContextCandidates(scored, time.Now().UnixMilli())
 		}
 		// Scoped to the run's agent identity (M786): a named agent's private
 		// notes surface in its injected context; an unscoped run sees shared
 		// memory only (RecallScoped with "" ≡ the previous Recall behaviour).
-		if hits, err := k.memory.RecallScoped(corr, intent, topK, memory.ScopeFrom(runCtx)); err == nil && len(hits) > 0 {
+		if hits, err := k.MemoryRecallScoped(corr, intent, topK, memoryapi.ScopeFrom(runCtx)); err == nil && len(hits) > 0 {
 			system = injectMemory(system, hits)
 			ids := make([]string, 0, len(hits))
 			for _, h := range hits {

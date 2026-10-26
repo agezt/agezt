@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/okrapi"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
@@ -31,7 +32,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
-	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -325,7 +325,20 @@ type Config struct {
 	// opt-in). The kernel never picks an implementation — the daemon injects
 	// one (typically backed by a provider plugin). Recall falls back to the
 	// local hybrid on any embedder failure.
-	MemoryEmbedder memory.Embedder
+	MemoryEmbedder memoryapi.Embedder
+
+	// MemoryStore is the memory's FILE — the contract's store port (W3.57).
+	// The daemon opens it (memory/memory.json) and hands it over; the kernel
+	// never opens a memory file of its own.
+	MemoryStore memoryapi.Store
+	// MemoryBuilder builds the memory manager over the dependencies the host
+	// collected. The daemon hands it over (it names the module); the kernel
+	// calls it with the store, its own publisher, the embedder and the
+	// structured-output path.
+	MemoryBuilder memoryapi.Builder
+	// MemoryGenerator is the structured-output path the distillers use. It
+	// lives in another module, so it is injected rather than named (W3.57).
+	MemoryGenerator memoryapi.Generator
 
 	// World-model knobs (SPEC-05 §3; Phase 2 slice 1). Like the memory
 	// knobs the graph store and `agt world` CLI always work; these flags

@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 )
 
 func (g *Gateway) handleMemoryWrite(w http.ResponseWriter, r *http.Request) {
@@ -46,12 +46,12 @@ func (g *Gateway) handleMemoryWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	recType := memory.Type(req.Type)
+	recType := memoryapi.Type(req.Type)
 	if req.Type == "" {
-		recType = memory.TypeFact
+		recType = memoryapi.TypeFact
 	}
 
-	spec := memory.RememberSpec{
+	spec := memoryapi.RememberSpec{
 		Type:    recType,
 		Subject: req.Subject,
 		Content: req.Content,

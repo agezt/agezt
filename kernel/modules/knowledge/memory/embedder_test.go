@@ -5,6 +5,7 @@ package memory
 import (
 	"context"
 	"errors"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"strings"
 	"testing"
 )
@@ -41,7 +42,7 @@ func newEmbedTestManager(t *testing.T) *Manager {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { st.Close() })
-	return NewManager(st, nil)
+	return NewManager(memoryapi.Deps{Store: st})
 }
 
 // TestRecall_ProviderEmbedderFindsSynonyms (M884): with a provider embedder

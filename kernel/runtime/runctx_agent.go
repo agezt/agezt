@@ -13,9 +13,9 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
 // WithAgentProfile binds a run to a roster profile (M790): its system prompt
@@ -79,7 +79,7 @@ func WithAgentProfile(ctx context.Context, p agentapi.Profile) context.Context {
 	if scope == "" {
 		scope = p.Slug
 	}
-	ctx = memory.WithScope(ctx, scope)
+	ctx = memoryapi.WithScope(ctx, scope)
 	// The agent's working directory (M792): file/shell tools operate inside
 	// this workspace subdirectory. Escape-proofed by the setter.
 	ctx = toolapi.WithWorkdir(ctx, p.Workdir)

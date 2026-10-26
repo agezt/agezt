@@ -15,8 +15,8 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
@@ -37,7 +37,7 @@ type Suggestion struct {
 // Ports reads the agent's active memory. A nil port, like a read error, means
 // no memory-derived suggestions.
 type Ports struct {
-	ActiveMemory func() ([]memory.Record, error)
+	ActiveMemory func() ([]memoryapi.Record, error)
 }
 
 type Service struct{ ports Ports }
@@ -244,19 +244,19 @@ const (
 // suggested prompts. It is pure (takes records, not a live kernel) so it can be
 // unit-tested directly. High-signal records lead, deduped by subject; at most
 // max are returned.
-func memorySuggestions(recs []memory.Record, max int) []Suggestion {
+func memorySuggestions(recs []memoryapi.Record, max int) []Suggestion {
 	if max <= 0 {
 		return nil
 	}
 	// Keep only high-signal, subject-bearing records. OBSERVATION is noisy and
 	// low-confidence, so it's excluded.
-	var pick []memory.Record
+	var pick []memoryapi.Record
 	for _, r := range recs {
 		if strings.TrimSpace(r.Subject) == "" {
 			continue
 		}
 		switch r.Type {
-		case memory.TypePreference, memory.TypeSummary, memory.TypeFact, memory.TypeRelation:
+		case memoryapi.TypePreference, memoryapi.TypeSummary, memoryapi.TypeFact, memoryapi.TypeRelation:
 			pick = append(pick, r)
 		}
 	}
@@ -287,19 +287,19 @@ func memorySuggestions(recs []memory.Record, max int) []Suggestion {
 // memorySuggestion phrases one record as a clickable prompt, varying the wording
 // by record type. The ID is subject-derived so it dedupes against itself across
 // requests.
-func memorySuggestion(r memory.Record) Suggestion {
+func memorySuggestion(r memoryapi.Record) Suggestion {
 	subject := strings.TrimSpace(r.Subject)
 	snippet := snip(r.Content, memorySnippetLen)
 	id := "mem-" + strings.ToLower(strings.ReplaceAll(subject, " ", "-"))
 	switch r.Type {
-	case memory.TypePreference:
+	case memoryapi.TypePreference:
 		prompt := "Keep my preference about " + subject + " in mind"
 		if snippet != "" {
 			prompt += " (" + snippet + ")"
 		}
 		prompt += " and apply it now."
 		return Suggestion{ID: id, Label: "Apply: " + subject, Prompt: prompt, Category: "memory", Icon: "brain"}
-	case memory.TypeSummary:
+	case memoryapi.TypeSummary:
 		prompt := "Continue the work on " + subject + "."
 		if snippet != "" {
 			prompt += " So far: " + snippet

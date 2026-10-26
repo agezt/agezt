@@ -7,12 +7,16 @@ package memory
 //             during the Day-44 god-file split. Public API unchanged.
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -21,9 +25,20 @@ import (
 // This is the journaling boundary — the Store itself stays pure. It mirrors
 // how kernel/runtime publishes kernel.halt/resume rather than the state store
 // doing its own journaling.
+//
+// The manager holds PORTS, not implementations (W3.57): the store is the
+// host's file, the publisher is the kernel's, and the structured-output
+// generator is the host's seam. The module names none of them.
 type Manager struct {
-	store Store
-	bus   *bus.Bus
+	store memoryapi.Store
+	// pub journals every mutation (durable-before-publish). It is the
+	// contract's publisher port: the module never names the bus, because the
+	// bus answers with the durable envelope and the envelope carries the hash
+	// chain the contract layer may not name.
+	pub memoryapi.Publisher
+	// gen is the structured-output path the distillers use. It is injected:
+	// the module that owns it is not the memory module's to name.
+	gen memoryapi.Generator
 	// now is the clock, injectable for deterministic tests. Defaults to
 	// time.Now when constructed via NewManager.
 	now func() time.Time
@@ -36,35 +51,45 @@ type Manager struct {
 	// embMu guards the optional provider embedder + its vector cache (M884).
 	// Separate from mu: embedding work must not block writers.
 	embMu    sync.Mutex
-	embedder Embedder
+	embedder memoryapi.Embedder
 	embCache map[string][]float32 // record ID → vector; content-addressing makes it immutable
 }
 
-// NewManager wires a Store to a bus. bus may be nil in tests that only
-// exercise the store-facing behaviour, but production callers always pass the
-// kernel bus so mutations are auditable.
-func NewManager(store Store, b *bus.Bus) *Manager {
-	return &Manager{store: store, bus: b, now: time.Now}
+// NewManager wires a Store to a publisher and a structured-output generator.
+// The publisher may be nil in tests that only exercise the store-facing
+// behaviour, but production callers always pass the kernel's publisher so
+// mutations are auditable. The generator may be nil too: the distillers then
+// report that structured output is unavailable rather than pretending they
+// distilled something.
+func NewManager(deps memoryapi.Deps) *Manager {
+	return &Manager{store: deps.Store, pub: deps.Publisher, gen: deps.Generator, now: time.Now}
+}
+
+// The manager answers the CONTRACT's ports (W3.57): the compile-time
+// assertion is the proof that the module's face and the contract's port are
+// the same shape — a second shape would mean a second set of fakes.
+var (
+	_ memoryapi.Manager = (*Manager)(nil)
+	_ memoryapi.Reader  = (*Manager)(nil)
+	_ memoryapi.Writer  = (*Manager)(nil)
+)
+
+// generate drives the injected structured-output path.
+//
+// The path lives in another module, so it is INJECTED (W3.57): a module may
+// not name another module. A host that injected none gets a clear refusal —
+// not a panic, and not a silent no-op.
+func (m *Manager) generate(ctx context.Context, provider llm.Provider, req llm.CompletionRequest, schema json.RawMessage, out any) (llm.Usage, error) {
+	if m.gen == nil {
+		return llm.Usage{}, errors.New("memory: no structured-output generator was injected")
+	}
+	return m.gen(ctx, provider, req, schema, out)
 }
 
 // RememberSpec is the input to Remember.
-type RememberSpec struct {
-	Type       Type
-	Subject    string
-	Content    string
-	Tags       map[string]string
-	Confidence float64
-	Evidence   Evidence
-	HalfLifeMS int64
-	// Actor records WHO is writing (M851): the acting agent's slug, or
-	// "operator"/"distill" for non-agent writes. Stored as AddedBy (first writer)
-	// and UpdatedBy (latest writer) on the record. Empty leaves provenance unset.
-	Actor string
-	// Force bypasses long-term retention filtering. Operator/control-plane writes
-	// set this because they are explicit curation; automatic and agent writes do
-	// not.
-	Force bool
-}
+//
+// The row lives in the CONTRACT (W3.57) — the alias itself lives in
+// memory.go, with the other rows.
 
 // Remember stores (or reinforces) a memory record and journals the write.
 // Content-addressing means an identical (type, subject, content) triple
@@ -191,9 +216,9 @@ func (m *Manager) Remember(corr string, spec RememberSpec) (Record, bool, error)
 	if rec.UpdatedBy != "" {
 		payload["actor"] = rec.UpdatedBy // who wrote this (M851)
 	}
-	ev := m.publish(event.KindMemoryWritten, corr, payload)
-	if ev != nil && rec.SourceEvent == "" {
-		rec.SourceEvent = ev.ID
+	eventID := m.publish(event.KindMemoryWritten, corr, payload)
+	if eventID != "" && rec.SourceEvent == "" {
+		rec.SourceEvent = eventID
 	}
 	if err := m.store.Put(rec); err != nil {
 		return Record{}, false, err

@@ -7,8 +7,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	store "github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
 type PruneInput struct {
@@ -19,12 +19,12 @@ type HygieneInput struct {
 	DryRun bool `json:"dry_run"`
 }
 type PruneOutput struct {
-	DryRun        bool               `json:"dry_run"`
-	OlderThanDays int                `json:"older_than_days"`
-	CutoffMS      int64              `json:"cutoff_ms"`
-	Prunable      *int               `json:"prunable,omitempty"`
-	Pruned        *int               `json:"pruned,omitempty"`
-	Stats         store.HygieneStats `json:"stats"`
+	DryRun        bool                   `json:"dry_run"`
+	OlderThanDays int                    `json:"older_than_days"`
+	CutoffMS      int64                  `json:"cutoff_ms"`
+	Prunable      *int                   `json:"prunable,omitempty"`
+	Pruned        *int                   `json:"pruned,omitempty"`
+	Stats         memoryapi.HygieneStats `json:"stats"`
 }
 type TidyOutput struct {
 	DryRun    bool `json:"dry_run"`
@@ -68,10 +68,10 @@ func (s *Service) Tidy(ctx context.Context, in HygieneInput) (TidyOutput, error)
 	return TidyOutput{DryRun: in.DryRun, Collapsed: n}, nil
 }
 
-func (s *Service) Audit(_ context.Context, _ struct{}) (store.AuditReport, error) {
+func (s *Service) Audit(_ context.Context, _ struct{}) (memoryapi.AuditReport, error) {
 	return s.manager.Audit()
 }
 
-func (s *Service) Clean(ctx context.Context, in HygieneInput) (store.CleanReport, error) {
+func (s *Service) Clean(ctx context.Context, in HygieneInput) (memoryapi.CleanReport, error) {
 	return s.manager.CleanLowValue(opapi.CorrelationFromContext(ctx), in.DryRun)
 }

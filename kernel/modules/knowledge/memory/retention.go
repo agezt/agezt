@@ -2,14 +2,18 @@
 
 package memory
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
+)
 
 // RetentionDecision explains whether a record belongs in long-term memory.
 // Journal/log output belongs in the journal, not here.
-type RetentionDecision struct {
-	Keep   bool   `json:"keep"`
-	Reason string `json:"reason,omitempty"`
-}
+//
+// The row lives in the CONTRACT (W3.57): the cleanup surfaces hand it back,
+// and they may not name this module.
+type RetentionDecision = memoryapi.RetentionDecision
 
 func assessSpec(spec RememberSpec) RetentionDecision {
 	return assessRetentionForActor(Record{

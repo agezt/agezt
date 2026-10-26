@@ -10,6 +10,7 @@ import (
 	"time"
 
 	appmemory "github.com/agezt/agezt/kernel/app/memory"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	store "github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
@@ -168,7 +169,7 @@ func TestHygieneUnavailableAndStoreCauses(t *testing.T) {
 	}
 	s, _ := readFixture(t)
 	cause := errors.New("fixture hygiene unavailable")
-	service := appmemory.New(store.NewManager(failingStore{Store: s, cause: cause}, nil))
+	service := appmemory.New(store.NewManager(memoryapi.Deps{Store: failingStore{Store: s, cause: cause}}))
 	_, err := service.Prune(ctx, appmemory.PruneInput{DryRun: true})
 	if !errors.Is(err, cause) {
 		t.Errorf("prune cause=%v", err)

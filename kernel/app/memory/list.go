@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	store "github.com/agezt/agezt/kernel/modules/knowledge/memory"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 )
 
 type ListInput struct {
@@ -24,7 +24,7 @@ type ListOutput struct {
 
 // PreparedList retains the active read that precedes native argument admission.
 // Each page works on a copy so the prepared read can be paged repeatedly.
-type PreparedList struct{ records []store.Record }
+type PreparedList struct{ records []memoryapi.Record }
 
 func (s *Service) PrepareList(_ context.Context) (*PreparedList, error) {
 	recs, err := s.manager.Active()
@@ -35,7 +35,7 @@ func (s *Service) PrepareList(_ context.Context) (*PreparedList, error) {
 }
 
 func (s *PreparedList) Page(_ context.Context, in ListInput) (ListOutput, error) {
-	recs := append([]store.Record(nil), s.records...)
+	recs := append([]memoryapi.Record(nil), s.records...)
 	limit := 100
 	if in.Limit > 0 {
 		limit = int(in.Limit)

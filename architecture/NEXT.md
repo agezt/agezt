@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.56 the roster is the daemon's, 2026-10-25
+## Current checkpoint — W3.57 the memory is the daemon's, 2026-10-26
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -4027,6 +4027,146 @@ files, five of the seventeen mutations would have escaped.
   embeddings — so its port would be the widest of all, and it is the **third**
   bus-bound module, so the builder-plus-publisher pattern applies), then
   **`mcp`** (two edges, the smallest remaining family).
+
+- W3.57 (the memory is the daemon's) is committed on `main` the same way. It
+  takes **six** edges and it takes them **completely**:
+  `cross-module kernel/runtime -> kernel/modules/knowledge/memory` (the kernel
+  held the module's concrete `*memory.Manager` and **opened the file** itself),
+  `cross-module kernel/runtime/runexec -> ...` (the run-executor declared the
+  module's concrete manager in its `KernelAPI`),
+  `adapter-bypass kernel/controlplane -> ...` (the control plane named the
+  module's rows), `adapter-bypass kernel/agentgw -> ...` (the agent gateway
+  named the module's rows), `cross-module kernel/contextselect -> ...` (the
+  context selector named the module's rows) and `cross-module
+  kernel/modules/knowledge/memory -> kernel/agent` (**the module reached into
+  the runs module for the structured-output path**).
+  **The ratchet went DOWN by SIX: 24/13 → 18/13**; the **13** allowlisted call
+  sites are unchanged.
+  This is the **third bus-bound module** (after the world model and the skill
+  forge) and the **first one that is also LLM-bound**: the manager distils
+  facts, brains and profiles through a model and embeds text through an
+  embedder, so both seams had to become **ports**.
+  The contract `memoryapi` is **new** — the memory had no contract before, and
+  that was the whole reason the layers above it had to name the module. It
+  carries the rows (`Record`, `RememberSpec`, `Scored`, the type and evidence
+  vocabularies, the profile, brain, hygiene, audit and clean reports), the
+  **sentinels** (`ErrRecordNotFound`, `ErrEmptyContent`), the **rules**
+  (`ValidType`) and the **ports**: a six-verb `Store`, a one-verb `Publisher`,
+  a **nine-verb** `Reader`, a **five-verb** `Writer`, a **five-verb**
+  `Maintainer`, a **three-verb** `Distiller`, a one-verb `Tooler`, a
+  `ReaderWriter` and the `Manager` — the composition of the halves. The module
+  keeps every name as an **alias**, so there is one row and one spelling of it
+  and `errors.Is` matches on **both** sides of the module boundary.
+  **The port is SPLIT six ways, not widened**: the gateway only looks notes up
+  and writes them, so it takes the `ReaderWriter`; the context selector only
+  reads, so it takes the `Reader`; a single wide port would have handed the
+  gateway the whole memory lifecycle (audit, prune, distil).
+  **The rules travel with the rows**: `Record.Active()`, `Record.Suspended()`,
+  `Record.Expired()` and `Record.Usable()` decide whether a note still counts,
+  and a Go type alias **cannot carry methods** — had the rules stayed in the
+  module, the alias would have lost them and the layers above would have had
+  to reach back into the implementation to judge a record. `ValidType` is the
+  same story: the membership set is part of the type's meaning.
+  The **structured-output sentinel moved too**: `llm.ErrNoObjectGenerated` is
+  the contract's, and `kernel/agent` keeps the name as an alias — that is what
+  lets the `memory -> kernel/agent` edge go at all: the path became a **port**
+  (`memoryapi.Generator`) the **daemon injects**, and the module never names
+  the runs module.
+  The **publisher answers with the event's id**, not the envelope: the durable
+  envelope carries the hash chain and the contract layer may not name it, and
+  what the manager needs is the id — the record's `SourceEvent` provenance.
+  The **context seam lives in the contract** (`WithCorrelation` /
+  `CorrelationFrom` / `WithScope` / `ScopeFrom`): a context key is an
+  **identity**, and two packages that each define one would not see each
+  other's values; the module keeps the two **readers** and the **writers** are
+  the contract's alone.
+  The **test seam stays off the port**: `SetEmbedder` is deliberately not a
+  port verb — the embedder is a live-configuration seam given at construction
+  time (`Deps.Embedder`).
+  The **file is the daemon's**: `cmd/agezt`'s composition root opens
+  `memory/memory.json`, hands over the store, names the module through the
+  **builder** and injects the generator; the kernel calls the builder with the
+  store and its own publisher, so the manager journals through the kernel's bus
+  without either side naming the other's implementation.
+  A daemon with **no** memory answers, on purpose, and **the answers differ by
+  direction**: the **reads** answer **"no memory"** — `MemoryCount` is 0,
+  `MemoryActive` is empty, `MemoryProfileText` is empty, the searches find
+  nothing — while the **writes refuse** with `ErrNoMemory` rather than calling
+  into nothing; the refusal is deliberately **not** a silent no-op, because
+  "nothing was forgotten" and "there is nothing to forget" are different
+  answers.
+  Every test that expected a memory became a **host**: **nine** test packages
+  (`cmd/agezt`, `kernel/app/introspect`, `kernel/app/system`,
+  `kernel/cadence/systemtasks`, `kernel/controlplane`, `kernel/runtime`,
+  `plugins/builtintools` and the shared `kernel/internal/testfixtures`) now
+  open the memory themselves and inject it, the same way the daemon does; the
+  store is opened **once per config**, so a test that reopens the same config
+  — a **restart** — keeps the same store and a note written before the restart
+  is still there after it, which is the whole point of the file.
+  **13 mutations, 13 caught** in two honest passes, **five** of them
+  **gate-measured** by archcheck (the gateway names the module again; the
+  control plane names the module again; the kernel names the module again; the
+  run engine names the module again; and **the module names the runs module
+  again** — a reach no test can see, because the distillation still works), and
+  **four** of them measure a **rule** rather than a shape: the record's
+  **usable rule** decides whether a note may enter a run's context (a rule that
+  quietly admitted a forgotten or an expired record would put deleted knowledge
+  back in front of the agent, and no structural check can see it); the
+  **sentinels** are what the layers above the module **compare against** (a
+  module that kept a look-alike error of its own would leave every `errors.Is`
+  comparison silently false, and the layer would report "no such note" as some
+  other failure); the **validity rule** is part of the type's meaning (a module
+  that kept a set of its own could drift from the contract's, and the layers
+  above would accept a type the contract rejects); and the
+  **structured-output path** is the only way a distillation pass can turn a
+  model's answer into a typed value (a kernel that dropped it would leave every
+  distillation **refusing** — the agent would silently stop learning, with no
+  error anywhere).
+  The seventh mutation again had to travel with the **run executor's
+  `KernelAPI` declaration**, because drifting the kernel's face alone is a
+  **build error**, not a catch (the same lesson as the catalog, world-model,
+  skill and roster slices, met for the **fifth** time).
+  Three honest corrections are worth naming: the **first pass had a broken
+  mutation** — the contract-port mutation inserted the reference **inside** a
+  `var` block, where a declaration cannot sit, so the file stopped parsing and
+  the case reported **BUILDERR**, and a compile error is not a catch; the
+  reference was moved **after** the block. The **row mutation could not compile
+  at all**: replacing the module's `Record` **alias** with a look-alike struct
+  broke the module's own code everywhere, so it measured nothing — it was
+  replaced with a mutation that **compiles** (the module keeps a validity set
+  of its own instead of the contract's), which is the same promise in a form
+  that can be observed. And the **generator mutation was aimed at the wrong
+  side**: removing the daemon's `cfg.MemoryGenerator = agent.GenerateObject`
+  also **unused** the `agent` import, so the package stopped compiling; the
+  mutation was moved to the **kernel's** side (`Generator: nil` in the
+  composition root), where it compiles and where the daemon's end-to-end
+  distillation test sees it.
+  The new permanent tests pin that the store port is **exactly six** verbs, the
+  publisher **one**, the reader **nine**, the writer **five**, the maintainer
+  **five**, the distiller **three**, the tooler **one**, that the manager is
+  **exactly** the union of its halves (no verb of its own), that the
+  reader-writer carries neither maintenance nor distillation, that the
+  sentinels exist and are **distinct**, that the **record rules decide right**
+  (plain, forgotten, superseded, suspended and expired records, each in its own
+  case), that the **validity rule** is the contract's over the whole domain,
+  that the **context seam is shared** and orthogonal, that the module's rows
+  and sentinels **are** the contract's (by **type identity**), that the
+  kernel's face is **statically** the contract's port, that the kernel opens
+  **no** memory directory of its own, that a kernel without a memory answers
+  "no memory" on the reads and **refuses** on the writes (never a panic, never a
+  swallowed write), that the injected memory is the live one, and that the
+  daemon's memory is a **directory on disk**, is the **injected** one, and that
+  its generator really drives a distillation.
+  **The module count, recomputed**: the distinct `kernel/modules/...` packages
+  the allowlist still names went from **five** to **four** (`board/board`,
+  `extensions/mcp`, `extensions/toolbox` and `work/assure` remain). The
+  allowlist also names `kernel/agent` and `kernel/runtime` — the runs module
+  and the kernel itself — but those are not `kernel/modules/...` packages, so
+  they do not count toward the metric the previous slices carried.
+  **What remains**: the ratchet stands at **18/13**. Next, in order:
+  **`mcp`** (two edges, the smallest remaining family), then
+  **`kernel/modules/board/board`** (named by three places — the control plane,
+  the REST API and the self-repair module).
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

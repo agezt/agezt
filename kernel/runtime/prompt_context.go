@@ -11,15 +11,15 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/tasteapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
-	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
 // injectMemory prepends a compact "Relevant memory" block to the system
 // prompt. Records are rendered one per line as "- [TYPE] subject: content".
-func injectMemory(system string, hits []memory.Scored) string {
+func injectMemory(system string, hits []memoryapi.Scored) string {
 	var b strings.Builder
 	b.WriteString("Relevant memory (recalled from prior tasks; use if helpful):\n")
 	for _, h := range hits {

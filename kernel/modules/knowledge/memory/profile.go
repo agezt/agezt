@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -73,11 +73,10 @@ type profileResult struct {
 }
 
 // ProfileReport summarizes one profile-distillation pass.
-type ProfileReport struct {
-	InputRecords  int      `json:"input_records"`
-	FacetsWritten int      `json:"facets_written"`
-	Facets        []string `json:"facets,omitempty"`
-}
+//
+// The row lives in the CONTRACT (W3.57): the distillation surfaces hand it
+// back, and they may not name this module.
+type ProfileReport = memoryapi.ProfileReport
 
 // DistillProfile synthesizes the operator profile from accumulated shared-scope
 // memory and writes each facet as a reinforced TypePreference record. Best-effort
@@ -131,13 +130,13 @@ func (m *Manager) DistillProfile(ctx context.Context, corr string, provider llm.
 	}
 
 	var parsed profileResult
-	if _, err := agent.GenerateObject(ctx, provider, llm.CompletionRequest{
+	if _, err := m.generate(ctx, provider, llm.CompletionRequest{
 		Model:    model,
 		System:   profileSystem,
 		Messages: []llm.Message{{Role: llm.RoleUser, Content: user}},
 		TaskType: "distill", // same budgeting/routing class as the other distillers
 	}, nil, &parsed); err != nil {
-		if errors.Is(err, agent.ErrNoObjectGenerated) {
+		if errors.Is(err, llm.ErrNoObjectGenerated) {
 			return report, nil
 		}
 		return report, fmt.Errorf("memory: profile completion: %w", err)

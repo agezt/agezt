@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	store "github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
 type EmptyInput struct{}
@@ -228,15 +228,15 @@ func Operations(service func(context.Context) *Service, distillation func(contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "memory_audit", ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, HTTP: opapi.HTTP{Method: "GET", Path: "/api/memory/audit"}}, func(ctx context.Context, _ EmptyInput) (store.AuditReport, error) {
+			return bind(&operations, opapi.Spec{Name: "memory_audit", ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, HTTP: opapi.HTTP{Method: "GET", Path: "/api/memory/audit"}}, func(ctx context.Context, _ EmptyInput) (memoryapi.AuditReport, error) {
 				return service(ctx).Audit(ctx, struct{}{})
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "memory_clean", Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, InputSchema: maintenanceSchema(false), HTTP: opapi.HTTP{Method: "POST", Path: "/api/memory/clean"}}, func(ctx context.Context, in MaintenanceInput) (store.CleanReport, error) {
+			return bind(&operations, opapi.Spec{Name: "memory_clean", Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, InputSchema: maintenanceSchema(false), HTTP: opapi.HTTP{Method: "POST", Path: "/api/memory/clean"}}, func(ctx context.Context, in MaintenanceInput) (memoryapi.CleanReport, error) {
 				dry, err := admittedDryRun(in.DryRun)
 				if err != nil {
-					return store.CleanReport{}, err
+					return memoryapi.CleanReport{}, err
 				}
 				return service(ctx).Clean(ctx, HygieneInput{DryRun: dry})
 			})

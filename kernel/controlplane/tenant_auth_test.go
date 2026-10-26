@@ -12,11 +12,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/modules/knowledge/worldmodel"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
@@ -54,6 +56,12 @@ func withTenants(t *testing.T, srv *controlplane.Server, dir string) *tenant.Reg
 		if serr != nil {
 			t.Fatalf("open tenant skill store: %v", serr)
 		}
+		// The memory's file is the composition root's file too (W3.57): each
+		// tenant opens its own, under its own base dir.
+		memoryStore, merr := memory.Open(filepath.Join(tdir, "memory"))
+		if merr != nil {
+			t.Fatalf("open tenant memory store: %v", merr)
+		}
 		return runtime.Open(runtime.Config{
 			BaseDir:    tdir,
 			Provider:   mock.New(mock.FinalText("tenant-ok")),
@@ -67,6 +75,10 @@ func withTenants(t *testing.T, srv *controlplane.Server, dir string) *tenant.Reg
 			SkillStore: skillStore,
 			SkillCurator: func(s skillapi.Store, pub skillapi.Publisher) skillapi.Curator {
 				return skill.NewForge(s, pub)
+			},
+			MemoryStore: memoryStore,
+			MemoryBuilder: func(deps memoryapi.Deps) memoryapi.Manager {
+				return memory.NewManager(deps)
 			},
 		})
 	})

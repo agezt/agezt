@@ -176,6 +176,10 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 		}
 		cfg.Standing = standingstore
 	}
+	// The memory's file is the composition root's too (W3.57): the kernel
+	// holds the contract's ports, and the root opens the file and names the
+	// module through the builder.
+	cfg = withMemory(t, cfg)
 	k, err := runtime.Open(cfg)
 	if err != nil {
 		t.Fatalf("Open: %v", err)

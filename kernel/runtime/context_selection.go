@@ -7,10 +7,10 @@ import (
 	"fmt"
 
 	"github.com/agezt/agezt/kernel/contextselect"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/event"
-	kmemory "github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
 // publishContextSelection publishes a context.selection event when there is
@@ -73,7 +73,7 @@ func (k *Kernel) publishContextFailureAnalysis(corr, actor string, runErr error)
 // helpers internally.
 
 // memoryContextCandidates converts memory search hits to context candidates.
-func memoryContextCandidates(hits []kmemory.Scored, nowMS int64) []contextselect.Candidate {
+func memoryContextCandidates(hits []memoryapi.Scored, nowMS int64) []contextselect.Candidate {
 	return contextselect.MemoryCandidates(hits, nowMS)
 }
 

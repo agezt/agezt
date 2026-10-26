@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -43,7 +44,7 @@ func TestTool_RecallDefaultsToCtxScope(t *testing.T) {
 	}
 
 	// ctx scope = researcher → shared + researcher, never ops.
-	out := recall(WithScope(context.Background(), "researcher"),
+	out := recall(memoryapi.WithScope(context.Background(), "researcher"),
 		`{"action":"recall","query":"target"}`)
 	if !strings.Contains(out, "shared-fact") || !strings.Contains(out, "researcher-private-fact") {
 		t.Errorf("scoped ctx recall missing shared/private: %q", out)
@@ -53,7 +54,7 @@ func TestTool_RecallDefaultsToCtxScope(t *testing.T) {
 	}
 
 	// Explicit param wins over the ctx default.
-	out = recall(WithScope(context.Background(), "researcher"),
+	out = recall(memoryapi.WithScope(context.Background(), "researcher"),
 		`{"action":"recall","query":"target","scope":"ops"}`)
 	if !strings.Contains(out, "ops-private-fact") || strings.Contains(out, "researcher-private-fact") {
 		t.Errorf("explicit scope param should win: %q", out)
@@ -74,7 +75,7 @@ func TestTool_RecallDefaultsToCtxScope(t *testing.T) {
 func TestTool_RememberDefaultsToCtxScope(t *testing.T) {
 	m, _ := newTestManager(t)
 	tool := m.Tool()
-	ctx := WithScope(context.Background(), "researcher")
+	ctx := memoryapi.WithScope(context.Background(), "researcher")
 	if _, err := tool.Invoke(ctx, json.RawMessage(
 		`{"action":"remember","subject":"finding","content":"researcher-only-note"}`)); err != nil {
 		t.Fatalf("remember: %v", err)
@@ -89,7 +90,7 @@ func TestTool_RememberDefaultsToCtxScope(t *testing.T) {
 		t.Errorf("agent write must default to its own scope, not shared: %q", res.Output)
 	}
 	// Invisible to another agent's recall.
-	res, _ = tool.Invoke(WithScope(context.Background(), "ops"), json.RawMessage(`{"action":"recall","query":"finding"}`))
+	res, _ = tool.Invoke(memoryapi.WithScope(context.Background(), "ops"), json.RawMessage(`{"action":"recall","query":"finding"}`))
 	if strings.Contains(res.Output, "researcher-only-note") {
 		t.Errorf("another agent must not see the private note: %q", res.Output)
 	}
@@ -124,7 +125,7 @@ func TestTool_RememberDefaultsToCtxScope(t *testing.T) {
 		`{"action":"remember","subject":"handoff","content":"note-for-ops","scope":"ops"}`)); err != nil {
 		t.Fatalf("remember explicit scope: %v", err)
 	}
-	res, _ = tool.Invoke(WithScope(context.Background(), "ops"), json.RawMessage(`{"action":"recall","query":"handoff"}`))
+	res, _ = tool.Invoke(memoryapi.WithScope(context.Background(), "ops"), json.RawMessage(`{"action":"recall","query":"handoff"}`))
 	if !strings.Contains(res.Output, "note-for-ops") {
 		t.Errorf("explicit scope param should win over ctx scope: %q", res.Output)
 	}
@@ -147,10 +148,10 @@ func TestScopedID_NoCrossAgentFlip(t *testing.T) {
 	m, _ := newTestManager(t)
 	tool := m.Tool()
 	body := `{"action":"remember","subject":"build","content":"the build needs Go 1.22"}`
-	if _, err := tool.Invoke(WithScope(context.Background(), "researcher"), json.RawMessage(body)); err != nil {
+	if _, err := tool.Invoke(memoryapi.WithScope(context.Background(), "researcher"), json.RawMessage(body)); err != nil {
 		t.Fatalf("researcher remember: %v", err)
 	}
-	if _, err := tool.Invoke(WithScope(context.Background(), "ops"), json.RawMessage(body)); err != nil {
+	if _, err := tool.Invoke(memoryapi.WithScope(context.Background(), "ops"), json.RawMessage(body)); err != nil {
 		t.Fatalf("ops remember: %v", err)
 	}
 	all, _ := m.All()
@@ -158,12 +159,12 @@ func TestScopedID_NoCrossAgentFlip(t *testing.T) {
 		t.Fatalf("same content in two scopes should make two records, got %d", len(all))
 	}
 	// The first author still recalls its own copy.
-	res, _ := tool.Invoke(WithScope(context.Background(), "researcher"), json.RawMessage(`{"action":"recall","query":"build"}`))
+	res, _ := tool.Invoke(memoryapi.WithScope(context.Background(), "researcher"), json.RawMessage(`{"action":"recall","query":"build"}`))
 	if !strings.Contains(res.Output, "Go 1.22") {
 		t.Errorf("researcher lost its note to the ops write: %q", res.Output)
 	}
 	// Same agent re-stating the same fact still dedupes (reinforce, not duplicate).
-	if _, err := tool.Invoke(WithScope(context.Background(), "ops"), json.RawMessage(body)); err != nil {
+	if _, err := tool.Invoke(memoryapi.WithScope(context.Background(), "ops"), json.RawMessage(body)); err != nil {
 		t.Fatalf("ops re-remember: %v", err)
 	}
 	if all, _ = m.All(); len(all) != 2 {
@@ -219,7 +220,7 @@ func TestPromote(t *testing.T) {
 func TestDistillTagsRunScope(t *testing.T) {
 	m, _ := newTestManager(t)
 	prov := fakeDistiller{body: `{"facts":[{"subject":"repo","content":"it is a go monorepo","type":"FACT"}]}`}
-	ctx := WithScope(context.Background(), "researcher")
+	ctx := memoryapi.WithScope(context.Background(), "researcher")
 	ids, err := m.Distill(ctx, "run-s", prov, "model", "intent", "transcript")
 	if err != nil || len(ids) != 1 {
 		t.Fatalf("distill: ids=%d err=%v", len(ids), err)

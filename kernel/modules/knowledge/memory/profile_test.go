@@ -4,6 +4,7 @@ package memory
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"strings"
 	"testing"
 	"time"
@@ -239,7 +240,7 @@ func TestDistillProfile_ToleratesARecordThatVanishedConcurrently(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	m := NewManager(realStore, nil)
+	m := NewManager(memoryapi.Deps{Store: realStore, Generator: testGenerator})
 	m.now = func() time.Time { return time.UnixMilli(1000) }
 	seedProfileCorpus(t, m)
 	first := scriptedProvider{answers: []string{
@@ -255,7 +256,7 @@ func TestDistillProfile_ToleratesARecordThatVanishedConcurrently(t *testing.T) {
 	// The facet record vanishes from the store's point of view, but the pass
 	// still sees it in the snapshot it read.
 	store := &absentStore{real: realStore, absentID: recs[0].ID, absentGet: true}
-	m2 := NewManager(store, nil)
+	m2 := NewManager(memoryapi.Deps{Store: store, Generator: testGenerator})
 	m2.now = func() time.Time { return time.UnixMilli(1000) }
 	second := scriptedProvider{answers: []string{
 		`{"facets":[{"facet":"communication style","content":"Prefers long, detailed replies."}]}`,

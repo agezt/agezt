@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	appmemory "github.com/agezt/agezt/kernel/app/memory"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	store "github.com/agezt/agezt/kernel/modules/knowledge/memory"
 )
 
@@ -30,7 +31,7 @@ func TestPreparedListRetainsCursorOrderingTotalAndIndependentPages(t *testing.T)
 		{ID: "y", Content: "y", CreatedMS: 99}, {ID: "z", Content: "z", CreatedMS: 99}, {ID: "x", Content: "x", CreatedMS: 98},
 		{ID: "hidden", Content: "hidden", CreatedMS: 101, Tombstoned: true},
 	}
-	service := appmemory.New(store.NewManager(snapshotStore{records: rs}, nil))
+	service := appmemory.New(store.NewManager(memoryapi.Deps{Store: snapshotStore{records: rs}}))
 	ctx := context.Background()
 	prepared, err := service.PrepareList(ctx)
 	if err != nil {
@@ -72,7 +73,7 @@ func TestPreparedListRetainsLegacyLimitAndEmptyWire(t *testing.T) {
 	for i := range rs {
 		rs[i] = store.Record{ID: fmt.Sprintf("%04d", i), Content: "fixture", CreatedMS: int64(i)}
 	}
-	service := appmemory.New(store.NewManager(snapshotStore{records: rs}, nil))
+	service := appmemory.New(store.NewManager(memoryapi.Deps{Store: snapshotStore{records: rs}}))
 	ctx := context.Background()
 	prepared, err := service.PrepareList(ctx)
 	if err != nil {
@@ -90,7 +91,7 @@ func TestPreparedListRetainsLegacyLimitAndEmptyWire(t *testing.T) {
 			t.Errorf("limit=%v count=%d/%d total=%d", tc.raw, out.Count, len(out.Records), out.Total)
 		}
 	}
-	empty, err := appmemory.New(store.NewManager(snapshotStore{}, nil)).PrepareList(ctx)
+	empty, err := appmemory.New(store.NewManager(memoryapi.Deps{Store: snapshotStore{}})).PrepareList(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +107,7 @@ func TestPreparedListRetainsLegacyLimitAndEmptyWire(t *testing.T) {
 		t.Fatalf("empty wire=%s", raw)
 	}
 	cause := errors.New("fixture active read failed")
-	if _, err := appmemory.New(store.NewManager(snapshotStore{cause: cause}, nil)).PrepareList(ctx); !errors.Is(err, cause) {
+	if _, err := appmemory.New(store.NewManager(memoryapi.Deps{Store: snapshotStore{cause: cause}})).PrepareList(ctx); !errors.Is(err, cause) {
 		t.Fatalf("prepare cause=%v", err)
 	}
 }

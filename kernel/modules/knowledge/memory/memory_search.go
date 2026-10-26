@@ -15,10 +15,10 @@ import (
 )
 
 // Scored is a record paired with its retrieval score.
-type Scored struct {
-	Record Record  `json:"record"`
-	Score  float64 `json:"score"`
-}
+//
+// The row lives in the CONTRACT (W3.57): the context selector and the
+// kernel's prompt builder rank the hits, and they may not name this module.
+// (The alias itself lives in memory.go, with the other rows.)
 
 // Search ranks the usable records in rs against query and returns the top
 // `limit` by score (descending). A record scores on keyword overlap between

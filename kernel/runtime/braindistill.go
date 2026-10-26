@@ -14,21 +14,20 @@ package runtime
 import (
 	"context"
 
-	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
+	"github.com/agezt/agezt/kernel/contract/memoryapi"
 )
 
 // DistillBrain runs one consolidation pass over the memory store under
 // corr, using the kernel's configured provider/model (TaskType "distill" —
 // the same budgeting class as per-run distillation). Halted kernels refuse.
-func (k *Kernel) DistillBrain(ctx context.Context, corr string) (memory.BrainDistillReport, error) {
+func (k *Kernel) DistillBrain(ctx context.Context, corr string) (memoryapi.BrainDistillReport, error) {
 	k.runsMu.Lock()
 	halted := k.halted
 	k.runsMu.Unlock()
 	if halted {
-		return memory.BrainDistillReport{}, ErrHalted
+		return memoryapi.BrainDistillReport{}, ErrHalted
 	}
-	cfg := k.effectiveConfig(ctx) // the LIVE model, not the boot seed (M816)
-	return k.memory.DistillBrain(ctx, corr, cfg.Provider, cfg.Model)
+	return k.MemoryDistillBrain(ctx, corr)
 }
 
 // DistillProfile runs one operator-profile distillation pass (M1000): synthesize
@@ -36,13 +35,12 @@ func (k *Kernel) DistillBrain(ctx context.Context, corr string) (memory.BrainDis
 // each as a reinforced PREFERENCE record, so every subsequent run knows who it
 // works for. Same provider/model + "distill" budgeting class as DistillBrain.
 // Halted kernels refuse.
-func (k *Kernel) DistillProfile(ctx context.Context, corr string) (memory.ProfileReport, error) {
+func (k *Kernel) DistillProfile(ctx context.Context, corr string) (memoryapi.ProfileReport, error) {
 	k.runsMu.Lock()
 	halted := k.halted
 	k.runsMu.Unlock()
 	if halted {
-		return memory.ProfileReport{}, ErrHalted
+		return memoryapi.ProfileReport{}, ErrHalted
 	}
-	cfg := k.effectiveConfig(ctx) // the LIVE model, not the boot seed (M816)
-	return k.memory.DistillProfile(ctx, corr, cfg.Provider, cfg.Model)
+	return k.MemoryDistillProfile(ctx, corr)
 }
