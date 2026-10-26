@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.58 the MCP registry is the daemon's, 2026-10-26
+## Current checkpoint — W3.59 the board's port is the contract's, 2026-10-26
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -4264,6 +4264,76 @@ files, five of the seventeen mutations would have escaped.
   **What remains**: the ratchet stands at **16/13**. Next, in order:
   **`kernel/modules/board/board`** (named by three places — the control plane,
   the REST API and the self-repair module).
+
+- W3.59 (the board's port is the contract's) is committed on `main` the same
+  way. It takes **three** edges — the **last** board edges — and it takes them
+  **completely**: `adapter-bypass kernel/controlplane -> kernel/modules/board/board`
+  (the control plane held the module's concrete `*board.Store` **and opened the
+  board's file itself** as a read fallback), `adapter-bypass kernel/restapi -> ...`
+  (the REST mailbox held the concrete store) and
+  `cross-module kernel/modules/agents/selfrepair -> ...` (the self-repair module
+  named the module for **one row** — the message). **The ratchet went DOWN by
+  THREE: 16/13 → 13/13**; the **13** allowlisted call sites are unchanged.
+  This slice is **not** "the file is the daemon's" — the board's file was
+  **already** the daemon's (`cmd/agezt` opened it and every holder shared that
+  one instance); it is about the **port**, because the board's surface had
+  **three shapes** — the contract's port, the module's concrete store and the
+  app's own copy of the same **eleven** methods, and the last two are what the
+  layers above the module had to name.
+  The contract `boardapi` needed **nothing new**: the store's port was already
+  there (the board **tool**, a PLUGIN, has taken the store through it since
+  W3.21, and the tool registry has held it since W3.39a) — what was left were
+  the **adapters** and the **module** naming the module anyway. The one shape
+  the slice closed is the **duplicate**: `kernel/app/board`'s own interface is
+  now an **alias** of the contract's port, so the board's surface has ONE
+  shape instead of three.
+  The daemon converts the concrete store to the port **where the value is
+  still concrete** (`boardPort`), and that is not academic: the board store is
+  opened **late** and the daemon leaves it nil when it could not be opened, so
+  a nil `*board.Store` handed to self-repair's `Mailbox` interface would have
+  been a **NON-NIL** interface — the callee's nil guard would not have fired
+  and the first escalation would have dereferenced a board that was not there.
+  The same rule was already in place for the board **tool** (`lateBoard`),
+  which is why the tool had never crashed on a board that could not be opened.
+  **The control plane's read fallback is GONE, and that is a behaviour
+  change**: the control plane used to open a fresh read-only `Open` of the
+  board's file when nothing was wired (three tests pinned it, one was named
+  for it), so a board that **could not be opened** used to look like a board
+  with **no messages** — a silent lie, while the writes were already honest.
+  The reads now answer **"the board is not available on this daemon"**,
+  exactly like the writes did; in the daemon's real topology nothing changes,
+  because the daemon opens the board and wires it. The one fresh read-only
+  open that remains is the **overseer app's** `OpenHelp`: the app layer is the
+  layer that may see the module, and it opens the same file read-only.
+  **10 mutations, 10 caught** in two honest passes, **three** of them
+  **gate-measured** by archcheck (a reach no test can see — the board's
+  answers would be exactly the same, because the module and the contract carry
+  the same row and the same rules), and **four** of them measuring a
+  **behaviour** rather than a shape: the **nil-port rule** (the difference
+  between a daemon that says "the board is not available" and one that binds a
+  board that is not there — and a nil value does not fail when it is called);
+  the **refusal answer** (what the operator reads: "nothing was sent" and
+  "there is no board" are different answers, and only the second is true); the
+  **503** (what an SDK client sees: a successful empty mailbox is not "the
+  board is unavailable"); and the **file's path** (the contract with the
+  operator: the same file has to be there after a restart).
+  The harness needed **one new capability**: the control plane has **two**
+  guards with the same shape (the reads and the writes), and the daemon's
+  `boardPort` has a nil check that another function also has — so the harness
+  replaces the first line matching a pattern *after* an anchor. Replacing the
+  first occurrence alone would have measured the wrong guard.
+  The new permanent tests pin that the board's port is **exactly eleven**
+  verbs, that the wildcard recipient is pinned by **value**, that the app's
+  store port **IS** the contract's port, that the control plane's face is
+  **statically** the contract's port, that a control plane with **no** board
+  refuses on the reads **and** the writes, that an unwired REST mailbox
+  answers **503**, that the daemon's board is a **file on disk** and that the
+  port it hands over is live, that a board that could not be opened stays a
+  **nil PORT**, and that the self-repair mailbox port is served by the
+  contract's store surface and carries the contract's row.
+  **What remains**: the ratchet stands at **13/13** — and the **13** call
+  sites are now the whole of the remaining debt. The next slice is a
+  **call-site** slice rather than an import slice.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
