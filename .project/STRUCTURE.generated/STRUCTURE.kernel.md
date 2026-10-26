@@ -87,6 +87,7 @@
 - **`kernel/contract/catalogapi`** — Package catalogapi is the contract layer's home for the provider catalog's rows: the description of one provider and the models it serves.
 - **`kernel/contract/channelapi`** — Package channelapi is the messaging-channel contract: the platform-neutral inbound message every channel normalises to (UnifiedMessage, SPEC-04 §1.3), what the kernel hands a channel to deliver (Outbound, Attachment, Reply), the Channel interface a duplex surface implements, and the Manifest a channel registers to describe itself.
 - **`kernel/contract/configapi`** — Package configapi is the contract the config tool and the implementation that answers it agree on.
+- **`kernel/contract/convoapi`** — Package convoapi is the contract layer's home for the conversation collapse: the one conversational turn, and the rule that folds a multi-turn conversation into a single Agezt intent.
 - **`kernel/contract/datalakeapi`** — Package datalakeapi is the contract layer's home for the Personal Data Lake's rows: one collection's definition (its schema and the columns it carries), one record (a row with a stable id and a free-form field map), the query that narrows a listing, and the summary a listing shows.
 - **`kernel/contract/eventapi`** — Package eventapi is the contract layer's home for the event rows: the kind discriminator, the caller-provided portion of an event, and the port through which a durable kernel event is published.
 - **`kernel/contract/guardianapi`** — Package guardianapi is the contract the guardian seeder and the implementation that answers it agree on.
@@ -120,7 +121,6 @@
 - **`kernel/contract/workflowapi`** — Package workflowapi is the contract layer's home for the workflow rows: one durable, named graph, the typed steps it is made of, the edges that wire them, the trigger configuration that starts it, the outcome of a run, and the rule that decides whether a graph may run at all.
 - **`kernel/contract/worldmodelapi`** — Package worldmodelapi is the contract layer's home for the world-model rows: the entity, the relation, the scored hit, the neighbour, the input that writes one, and the options the reflection loop decays with.
 - **`kernel/controlplane`** — Package controlplane is the local control protocol between the agezt daemon and the agt CLI.
-- **`kernel/convo`** — Package convo collapses a multi-turn conversation into a single Agezt intent — the deliberate, lossy-by-design mapping that lets the single-intent governed loop carry conversational context.
 - **`kernel/creds`** — Package creds is the local credentials vault for provider env vars.
 - **`kernel/creds/sigv4`** — Package sigv4 implements the AWS Signature Version 4 algorithm.
 - **`kernel/delegation`** — Package delegation provides sub-agent orchestration for the agent loop: sync/async delegate tools, spawn bookkeeping, depth tracking, and ancestry helpers.

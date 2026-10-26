@@ -1,14 +1,23 @@
 // SPDX-License-Identifier: MIT
 
-// Package convo collapses a multi-turn conversation into a single Agezt intent —
-// the deliberate, lossy-by-design mapping that lets the single-intent governed
-// loop carry conversational context. It is the one place that mapping lives, so
-// every multi-turn surface (the OpenAI-compatible API, the Web UI Chat view)
-// renders prior turns identically: a single user turn passes through verbatim;
-// a real conversation becomes a labelled transcript ("User: …" / "Assistant: …")
-// with any system/developer guidance hoisted to the front (the kernel still
-// applies its own system prompt around this).
-package convo
+// Package convoapi is the contract layer's home for the conversation
+// collapse: the one conversational turn, and the rule that folds a
+// multi-turn conversation into a single Agezt intent.
+//
+// The rule lives here because the surfaces that need it are ADAPTERS: the
+// OpenAI-compatible API and the Web UI Chat view both render prior turns
+// the same way, and an adapter may reach the contract layer and the
+// platform layer and nothing else. The rule used to live in kernel/convo —
+// a layer-3 package — so both adapters had to name it, which is the
+// adapter-bypass the ratchet was counting (W3.65). The row and the rule
+// are pure, so they belong in the layer that every layer may depend on.
+//
+// The rules of the road:
+//
+//   - Rows, constants and pure functions only. No store, no file, no clock.
+//   - Pure. It may import the standard library and other contract packages
+//     only (archcheck's principle P4).
+package convoapi
 
 import "strings"
 

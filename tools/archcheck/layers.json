@@ -42,7 +42,6 @@
     {"pattern": "kernel/resume", "layer": 3, "module": "runs"},
     {"pattern": "kernel/delegation", "layer": 3, "module": "runs"},
     {"pattern": "kernel/contextselect", "layer": 3, "module": "runs"},
-    {"pattern": "kernel/convo", "layer": 3, "module": "runs"},
     {"pattern": "kernel/planner", "layer": 3, "module": "runs"},
     {"pattern": "kernel/scheduler", "layer": 3, "module": "runs"},
     {"pattern": "kernel/reflect", "layer": 3, "module": "runs"},

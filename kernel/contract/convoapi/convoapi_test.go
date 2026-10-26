@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package convo
+package convoapi
 
 import "testing"
 
@@ -62,5 +62,51 @@ func TestTranscriptIntent_UnknownRoleVerbatimLine(t *testing.T) {
 func TestTranscriptIntent_Empty(t *testing.T) {
 	if got := TranscriptIntent(nil); got != "" {
 		t.Errorf("nil turns = %q, want empty", got)
+	}
+}
+
+// TestTranscriptIntent_HoistsTheDeveloperRole: "developer" is leading
+// guidance, exactly like "system" — it is hoisted to the front, not
+// rendered as a line of the dialogue.
+func TestTranscriptIntent_HoistsTheDeveloperRole(t *testing.T) {
+	got := TranscriptIntent([]Turn{
+		{Role: "developer", Text: "be terse"},
+		{Role: "user", Text: "hi"},
+		{Role: "assistant", Text: "hello"},
+	})
+	want := "be terse\n\nUser: hi\nAssistant: hello"
+	if got != want {
+		t.Errorf("developer-hoisted transcript =\n%q\nwant\n%q", got, want)
+	}
+}
+
+// TestTranscriptIntent_OneUserAndOneAssistantIsATranscript: the verbatim
+// shortcut is for a LONE user turn — a conversation that also has an
+// assistant turn is a transcript, even when only one of the turns is the
+// user's.
+func TestTranscriptIntent_OneUserAndOneAssistantIsATranscript(t *testing.T) {
+	got := TranscriptIntent([]Turn{
+		{Role: "user", Text: "what is the weather"},
+		{Role: "assistant", Text: "it is fine"},
+	})
+	want := "User: what is the weather\nAssistant: it is fine"
+	if got != want {
+		t.Errorf("transcript =\n%q\nwant\n%q", got, want)
+	}
+}
+
+// TestTranscriptIntent_TheRoleIsCaseInsensitive: the role vocabulary is
+// matched case-insensitively, because the surfaces that carry a history
+// (the OpenAI-compatible API, the Web UI) spell roles however their client
+// spells them.
+func TestTranscriptIntent_TheRoleIsCaseInsensitive(t *testing.T) {
+	got := TranscriptIntent([]Turn{
+		{Role: "User", Text: "remember the number 7"},
+		{Role: "ASSISTANT", Text: "Got it, 7."},
+		{Role: "User", Text: "what was it?"},
+	})
+	want := "User: remember the number 7\nAssistant: Got it, 7.\nUser: what was it?"
+	if got != want {
+		t.Errorf("transcript =\n%q\nwant\n%q", got, want)
 	}
 }

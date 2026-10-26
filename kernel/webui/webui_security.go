@@ -10,8 +10,8 @@ package webui
 import (
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/contract/convoapi"
 	"github.com/agezt/agezt/kernel/controlplane"
-	"github.com/agezt/agezt/kernel/convo"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/httpserver"
 	"io"
@@ -169,8 +169,8 @@ func (s *Server) runStreamProxy() http.HandlerFunc {
 		turns := historyTurns(args["history"])
 		delete(args, "history")
 		if len(turns) > 0 {
-			turns = append(turns, convo.Turn{Role: "user", Text: intent})
-			args["intent"] = convo.TranscriptIntent(turns)
+			turns = append(turns, convoapi.Turn{Role: "user", Text: intent})
+			args["intent"] = convoapi.TranscriptIntent(turns)
 		}
 
 		sse, ok := httpserver.StartSSE(w, r)
