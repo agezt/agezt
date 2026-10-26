@@ -1807,6 +1807,7 @@ It is excluded from the env-var inventory guard (`controlplane/config_inventory_
 | `skills/bundles/<slug>/…` | skill | Raw resource files (staged swap) |
 | `market/installed.json`, `market/sources.json` | market | JSON, atomic |
 | `market/marketplaces/<name>/{index.json, packs/*.json}` | market | Staged dir + rename |
+| *`<publish-out>/{marketplace.json, packs/*.json}`* | market (publish) | JSON, **atomic** (temp + rename); the index is **refused** when it is not readable JSON, never silently reset |
 | `mcp/servers.json` | mcp | JSON array of `Server`, atomic |
 | `workflows/workflows.json` | workflow | JSON array of `Workflow`, atomic |
 | `update.lock`, `update.sentinel`, `bin/agezt*` | update | Lockfile, RFC3339, binary |

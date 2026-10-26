@@ -157,7 +157,12 @@ func Publish(p Pack, outDir, marketplaceName string, priv ed25519.PrivateKey, no
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(packsDir, p.Name+".json"), packBytes, 0o644); err != nil {
+	// The published directory is SERVED to remote clients, so a client must
+	// never fetch a half-written pack. The platform's atomic writer (via this
+	// package's atomicWrite) replaces the file instead of truncating it in
+	// place, and it re-asserts the mode, so a pack left behind by an earlier
+	// publish cannot keep a wider mode.
+	if err := atomicWrite(filepath.Join(packsDir, p.Name+".json"), packBytes, 0o644); err != nil {
 		return err
 	}
 
@@ -165,7 +170,14 @@ func Publish(p Pack, outDir, marketplaceName string, priv ed25519.PrivateKey, no
 	idxPath := filepath.Join(outDir, "marketplace.json")
 	mp := Marketplace{Name: marketplaceName, FormatVersion: FormatVersion}
 	if existing, rerr := os.ReadFile(idxPath); rerr == nil {
-		_ = json.Unmarshal(existing, &mp) // a corrupt index is overwritten fresh
+		// A corrupt index must NOT be treated as an empty one. The index IS
+		// the catalogue: overwriting it would silently drop every pack
+		// published before it, and the operator would not know. The publish
+		// refuses and names the file, so the operator can move it aside (to
+		// start a new catalogue) or repair it.
+		if err := json.Unmarshal(existing, &mp); err != nil {
+			return fmt.Errorf("market: the marketplace index %s is not readable JSON; move it aside to start a new catalogue: %w", idxPath, err)
+		}
 	}
 	if mp.Name == "" {
 		mp.Name = marketplaceName
@@ -190,7 +202,11 @@ func Publish(p Pack, outDir, marketplaceName string, priv ed25519.PrivateKey, no
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(idxPath, idxBytes, 0o644)
+	// The index is what a client fetches first, and the writer reads it back
+	// on the next publish — so it is written through the atomic writer too: a
+	// client never sees a half-written index, and the next publish never reads
+	// one.
+	return atomicWrite(idxPath, idxBytes, 0o644)
 }
 
 // GenerateKeypair returns a fresh Ed25519 keypair as lowercase hex strings
