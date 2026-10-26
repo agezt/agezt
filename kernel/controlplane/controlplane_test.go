@@ -180,6 +180,10 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 	// holds the contract's ports, and the root opens the file and names the
 	// module through the builder.
 	cfg = withMemory(t, cfg)
+	// The MCP registry's file is the composition root's too (W3.58): the
+	// kernel holds the contract's store port and never opens a registry of
+	// its own, so the root opens the file and hands the port over.
+	cfg = withMCP(t, cfg)
 	k, err := runtime.Open(cfg)
 	if err != nil {
 		t.Fatalf("Open: %v", err)

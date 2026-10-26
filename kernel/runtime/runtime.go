@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/mcpapi"
 	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/okrapi"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
@@ -31,7 +32,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -98,14 +98,30 @@ type Config struct {
 	// forge is unavailable rather than calling into nothing.
 	ToolForge toolforgeapi.HostStore
 
-	// MCPDialer spawns + handshakes one MCP server on attach (M796). Nil
-	// means the production stdio dialer (mcp.Dial); tests inject fakes.
-	MCPDialer mcp.Dialer
+	// MCPDialer spawns + handshakes one MCP server on attach (M796).
+	//
+	// It is a SEAM (W3.58): the implementation lives in the MCP module and
+	// the kernel may not name it, so the composition root injects it. Nil
+	// means NO dialer — the attach then refuses with a readable error rather
+	// than calling into nothing, because a nil func value would panic at the
+	// call. Tests inject fakes.
+	MCPDialer mcpapi.Dialer
 
 	// MCPHTTPDialer handshakes one REMOTE MCP server over Streamable HTTP on
 	// attach (M904, #39) — used when a registration carries a URL instead of a
-	// command. Nil means the production dialer (mcp.DialHTTP); tests inject fakes.
-	MCPHTTPDialer mcp.HTTPDialer
+	// command. It is a SEAM like its stdio twin (W3.58): the composition root
+	// injects it, and nil means no http dialer.
+	MCPHTTPDialer mcpapi.HTTPDialer
+
+	// MCPStore is the durable MCP-server registry — the contract's store port
+	// (W3.58). The registry's FILE is the composition root's business
+	// (`cmd/agezt` opens `mcp/servers.json` and hands the port over), and the
+	// kernel never opens a registry of its own.
+	//
+	// A host that was given none holds a nil port: the registry reads answer
+	// "no servers" and the registry writes refuse, rather than calling into
+	// nothing.
+	MCPStore mcpapi.Registry
 
 	// Model is the default model name passed to the provider.
 	Model string

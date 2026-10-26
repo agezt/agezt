@@ -1657,7 +1657,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 			// — one broken server must not take the daemon down.
 			name: "mcp servers",
 			run: func() (string, error) {
-				registered := k.MCPStore().Count()
+				registered := k.MCPRegistrationCount()
 				if registered == 0 {
 					return "  mcp self-install : enabled (the agent can attach MCP servers at runtime; Edict mcp.install gates it)", nil
 				}

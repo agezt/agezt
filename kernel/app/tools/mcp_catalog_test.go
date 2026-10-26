@@ -115,6 +115,13 @@ func TestMCPCatalogListKeepsStoreOrderFreshRowStatusAndInitialAttachedCount(t *t
 		t.Fatal(m)
 	}
 }
+func TestMCPCatalogWithNoReaderAnswersNoServers(t *testing.T) {
+	host := &mcpAttachmentProbe{snapshots: []map[string]int{{"orphan": 1}}}
+	out, err := NewMCPCatalog(nil, host).List(context.Background(), MCPListInput{})
+	if err != nil || len(out.Servers) != 0 || out.Count != 0 || out.AttachedCount != 1 {
+		t.Fatal(out, err)
+	}
+}
 func TestMCPCatalogTypedViewKeepsExactNumbersAndCollectionOwnership(t *testing.T) {
 	srv := mcp.Server{Name: "owned", Args: []string{"argument"}, ToolAllow: []string{"allowed"}, Env: map[string]string{"OWNED": "owned-value"}, Headers: map[string]string{"Owned": "owned-header"}, CreatedMS: 9007199254740993, UpdatedMS: 9223372036854775807}
 	host := &mcpAttachmentProbe{snapshots: []map[string]int{{"owned": 0}}}

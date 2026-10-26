@@ -23,6 +23,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/marketapi"
+	"github.com/agezt/agezt/kernel/contract/mcpapi"
 	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/okrapi"
 	"github.com/agezt/agezt/kernel/contract/seatapi"
@@ -38,7 +39,6 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/journal"
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
-	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/resume"
@@ -71,7 +71,7 @@ type Kernel struct {
 	resume       *resume.Store     // durable in-flight-run tickets for restart resume (M1002); nil when disabled
 	roster       agentapi.Store
 	toolForge    toolforgeapi.HostStore
-	mcpStore     *mcp.Store
+	mcpStore     mcpapi.Registry
 	workflows    workflowapi.Store
 	wfEngine     workflowapi.Engine
 	workboard    workboardapi.HostStore
@@ -167,7 +167,7 @@ type Kernel struct {
 	toolCaps map[string]edict.Capability
 	// mcpConns are the LIVE MCP attachments (M796): server name → connection.
 	// Merged into every run's tool map (mergeMCPTools); detach removes.
-	mcpConns map[string]mcp.Conn
+	mcpConns map[string]mcpapi.Conn
 
 	startTime time.Time // wall-clock at Open() — powers `agt status` uptime
 }

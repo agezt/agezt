@@ -5,16 +5,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/agezt/agezt/kernel/contract/mcpapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 )
 
 // MCPLifecycleWriter retains the runtime's durable registration and peer lifecycle.
 type MCPLifecycleWriter interface {
-	AddMCPServer(string, mcp.Server) (mcp.Server, error)
-	AttachMCPServer(context.Context, string, string) (mcp.Server, []string, error)
+	AddMCPServer(string, mcpapi.Server) (mcpapi.Server, error)
+	AttachMCPServer(context.Context, string, string) (mcpapi.Server, []string, error)
 	DetachMCPServer(string, string) error
-	SetMCPServerEnabled(string, string, bool) (mcp.Server, error)
+	SetMCPServerEnabled(string, string, bool) (mcpapi.Server, error)
 	RemoveMCPServer(string, string) (bool, error)
 }
 type MCPLifecycle struct {
@@ -27,7 +27,7 @@ func NewMCPLifecycle(writer MCPLifecycleWriter, attached MCPAttachmentReader) *M
 }
 
 type MCPAddInput struct {
-	Server        mcp.Server
+	Server        mcpapi.Server
 	CorrelationID string
 }
 type MCPRefInput struct{ Ref, CorrelationID string }
@@ -56,7 +56,7 @@ func mcpLifecycleCorrelation(ctx context.Context, explicit string) string {
 	return explicit
 }
 func mcpLifecycleError(err error, ref string) error {
-	if errors.Is(err, mcp.ErrNotFound) {
+	if errors.Is(err, mcpapi.ErrNotFound) {
 		return fmt.Errorf("unknown mcp server: %s", ref)
 	}
 	return err

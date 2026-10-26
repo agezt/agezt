@@ -5,7 +5,6 @@ package mcp
 // Package documentation lives in doc.go.
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -18,7 +17,13 @@ import (
 )
 
 // ErrNotFound is returned for an unknown server id/name.
-var ErrNotFound = errors.New("mcp: server not found")
+//
+// The sentinel lives in the contract layer (kernel/contract/mcpapi) (W3.58):
+// the layers above the module compare against it — the app layer turns it
+// into "unknown mcp server" — and a module that raised a look-alike error of
+// its own would leave every errors.Is comparison silently false. This package
+// keeps the name, so every existing caller is unchanged.
+var ErrNotFound = mcpapi.ErrNotFound
 
 // Server is one registered MCP server.
 //
@@ -43,12 +48,20 @@ func Validate(s Server) error { return mcpapi.Validate(s) }
 
 // Store is the persistent MCP-server registry, a single JSON file rewritten
 // atomically on change. Safe for concurrent use. Mirrors kernel/roster.Store.
+//
+// The registry's PORT lives in the contract layer (kernel/contract/mcpapi)
+// (W3.58) — the kernel holds the port and may not name the module — so the
+// daemon opens the FILE and hands the port over. This struct is the
+// implementation behind it.
 type Store struct {
 	path    string
 	mu      sync.Mutex
 	now     func() time.Time
 	servers []*Server
 }
+
+// The compile-time assertion: the store IS the contract's registry port.
+var _ mcpapi.Registry = (*Store)(nil)
 
 // OpenStore opens (or creates) the registry under dir.
 func OpenStore(dir string) (*Store, error) {

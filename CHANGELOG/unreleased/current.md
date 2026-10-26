@@ -4561,6 +4561,43 @@ This file holds the active `[Unreleased]` working set.
   directory, journaling the same events, and the same notes reach the same
   runs.
 
+- **Removed: the kernel's reach on the MCP registry (W3.58).** The kernel held
+  the extensions module's concrete MCP store and **opened the registry's file**
+  itself; the marketplace named the module's rows as well. The kernel now holds
+  the **contract's ports** — the contract `mcpapi` already existed (the
+  agent-facing MCP tool is a plugin and may reach the contract and nothing
+  else), and it gains the `ToolDef` row, the `Conn` port (**three** verbs:
+  `Tools`, `Call`, `Close`), the `Dialer` and `HTTPDialer` **seams**, the
+  `ErrNotFound` sentinel and the `Registry` store port (**six** verbs: `Add`,
+  `SetEnabled`, `Remove`, `Get`, `List`, `Count`) — and the module keeps every
+  name as an **alias**, so there is one row and one spelling of it and
+  `errors.Is` matches on both sides of the module boundary.
+  The **port is split, not widened**: the catalog layer only lists, so it takes
+  the **one-verb** `RegistrationReader` instead of the whole registry; the
+  lifecycle drives the six verbs through the kernel.
+  The **dialers became the host's seams**: the clients live in the module and
+  the kernel may not name them, so the daemon injects `mcp.Dial` and
+  `mcp.DialHTTP`. The old **fallback** — the kernel calling `mcp.Dial` itself
+  when no dialer was configured — was exactly what kept the edge alive, and it
+  is gone: a kernel with no dialer now **refuses** the attach with a readable
+  error, because a nil func value would panic at the call.
+  The registry's file is the **daemon's**: `cmd/agezt`'s composition root opens
+  `mcp/servers.json` and hands over the port; a registry that cannot be opened
+  is a **startup error**, and because the file lives under the base dir a
+  tenant keeps its own registry. The module is **not bus-bound** — the
+  lifecycle journaling lives one layer up, so there is no publisher port and no
+  builder to inject.
+  A daemon with **no** registry answers instead of panicking, and the answers
+  differ by direction: the **reads** answer **"no servers"** and the **writes
+  refuse** with `ErrNoMCPRegistry` rather than calling into nothing. The
+  **nil-port surface lives in the kernel and only there** — the catalog now
+  reads through the kernel's nil-safe reader instead of the raw port, which is
+  a nil-able thing the control plane used to call `List()` on. The architecture
+  ratchet went from 18 to 16 edges.
+  No behaviour changed: the registry is still the same store, under the same
+  directory, journaling the same events, and the same servers are still offered
+  to the same runs.
+
 - **Removed: the kernel's reach on the roster (W3.56).** The kernel held the
   agents module's concrete store and **opened the roster's file** itself; the
   run executor, the control plane and the agent gateway named the module's

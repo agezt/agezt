@@ -19,7 +19,7 @@ import (
 // real: a server registered in the kernel's own registry must be listed by
 // the tool, and a server the tool adds must land in that same registry.
 func TestMCPSpecWiresTheLiveKernel(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	k, err := runtime.Open(withMCP(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

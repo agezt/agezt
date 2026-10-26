@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.57 the memory is the daemon's, 2026-10-26
+## Current checkpoint — W3.58 the MCP registry is the daemon's, 2026-10-26
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -4165,6 +4165,103 @@ files, five of the seventeen mutations would have escaped.
   they do not count toward the metric the previous slices carried.
   **What remains**: the ratchet stands at **18/13**. Next, in order:
   **`mcp`** (two edges, the smallest remaining family), then
+  **`kernel/modules/board/board`** (named by three places — the control plane,
+  the REST API and the self-repair module).
+
+- W3.58 (the MCP registry is the daemon's) is committed on `main` the same way.
+  It takes **two** edges and it takes them **completely**:
+  `cross-module kernel/runtime -> kernel/modules/extensions/mcp` (the kernel held
+  the module's concrete `*mcp.Store` and **opened the file** itself) and
+  `cross-module kernel/market -> ...` (the marketplace named the module's rows).
+  **The ratchet went DOWN by TWO: 18/13 → 16/13**; the **13** allowlisted call
+  sites are unchanged.
+  The contract `mcpapi` **already existed** — the agent-facing MCP tool is a
+  PLUGIN and may reach the contract and nothing else — and it carried the
+  `Server` row, its `Validate` rule and the `Runner` port. What was missing was
+  everything the **registry** and the **client** needed: the `ToolDef` row, the
+  `Conn` port (**three** verbs: `Tools`, `Call`, `Close`), the `Dialer` and
+  `HTTPDialer` **seams** (how an attachment is made), the `ErrNotFound` sentinel
+  and the `Registry` store port (**six** verbs: `Add`, `SetEnabled`, `Remove`,
+  `Get`, `List`, `Count`). The module keeps every name as an **alias**, so there
+  is one row and one spelling of it and `errors.Is` matches on **both** sides of
+  the module boundary.
+  **The port is SPLIT, not widened**: the catalog layer only lists, so it takes
+  the **one-verb** `RegistrationReader`; the lifecycle drives the six verbs
+  through the kernel. Handing the catalog the whole registry would have given
+  it the lifecycle it has no business driving — and the catalog is the layer
+  that renders the operator's list.
+  **The dialers became the host's seams**: the clients live in the module and
+  the kernel may not name them, so the daemon injects `mcp.Dial` and
+  `mcp.DialHTTP`. The old **fallback** — the kernel calling `mcp.Dial` itself
+  when no dialer was configured — was exactly what kept the edge alive, and it
+  is gone: a kernel with no dialer now **refuses** the attach with a readable
+  error, because a nil func value would panic at the call.
+  The **file is the daemon's**: `cmd/agezt`'s composition root opens
+  `mcp/servers.json` and hands over the port; a registry that cannot be opened
+  is a **startup error**, and because the file lives under the base dir a
+  **tenant** keeps its own registry. The module is **not bus-bound** — the
+  lifecycle journaling lives one layer up (the kernel presses the journal), so
+  there is **no publisher port and no builder** to inject: the same shape as the
+  roster (W3.56).
+  A daemon with **no** registry answers, and **the answers differ by
+  direction**: the **reads** answer **"no servers"** (`MCPRegistrations`,
+  `MCPRegistrationCount`, `MCPRegistration`, `MCPReader`), while the **writes
+  refuse** with `ErrNoMCPRegistry` rather than calling into nothing. The
+  **nil-port surface lives in the kernel and only there**: the raw port is a
+  **nil-able** thing, and the control plane used to hand it to the catalog and
+  call `List()` on it — the catalog now reads through the kernel's nil-safe
+  reader, so the one place that knows about the absence is the kernel.
+  Every test that expected a registry became a **host**: **four** test packages
+  (`cmd/agezt`, `kernel/controlplane`, `kernel/runtime` and
+  `plugins/builtintools`) now open the registry themselves and inject it, the
+  same way the daemon does; the store is opened **once per config**, so a test
+  that reopens the same config — a **restart** — keeps the same registry and a
+  server registered before the restart is still there after it, which is the
+  whole point of the file.
+  **13 mutations, 13 caught** in two honest passes, **two** of them
+  **gate-measured** by archcheck (the kernel names the module again; the
+  marketplace names the module again — a reach no test can see, because the
+  servers still show up), and **four** of them measure a **behaviour** rather
+  than a shape: the **sentinel** is what the layers above the module **compare
+  against** (a module that kept a look-alike error of its own would leave every
+  `errors.Is` comparison silently false, and the app would report "unknown mcp
+  server" as some other failure); the **shapes** are what the layers above the
+  module **hold** (a copy with the same fields satisfies every assignment and
+  still is a second shape — and a second shape drifts on its own); the
+  **dialer refusal** is the difference between a readable error and a panic (a
+  nil func value does not fail when it is called; it crashes the daemon); and
+  the **write refusal** is the difference between an honest answer and a panic
+  ("there is no registry" and "the write did nothing" are different answers,
+  and only the first is true).
+  Two harness lessons are worth naming. The **shape mutation had to be
+  re-aimed**: the first attempt replaced the module's `ToolDef` **alias** with
+  a look-alike struct, but the module's own client returns that row, so the
+  package stopped compiling — a mutation that breaks the build measures
+  nothing. It was replaced with one on the `Dialer` **seam**, which carries the
+  same promise in a form that compiles and can be observed (a named func type
+  with the same underlying shape is still a **different type**). And the
+  **dialer mutation needed the guard to be found, not just changed**: the
+  kernel has **two** dialer guards with the same text — the http one and the
+  stdio one — so the harness had to learn to replace the first line matching a
+  pattern *after* an anchor; replacing the first occurrence alone would have
+  measured the http seam and said nothing about the stdio one.
+  The new permanent tests pin that the registry port is **exactly six** verbs,
+  the catalog's reader is **one**, a live attachment is **exactly three**, that
+  the two dialer seams carry their **transport** signatures, that the sentinel
+  lives in the contract and a look-alike with the same message does **not**
+  match it, that the advertised tool's shape and wire form are right, that the
+  module's shapes and sentinel **are** the contract's (by **type identity**),
+  that the kernel's face is **statically** the contract's port, that the kernel
+  opens **no** registry of its own, that a kernel without a registry answers
+  "no servers" on the reads and **refuses** on the writes, that the injected
+  registry is the kernel's registry, that a kernel with no dialer **refuses**
+  the attach instead of panicking, that a catalog with no reader answers "no
+  servers", and that the daemon's registry is a **file on disk**, is the
+  **injected** one, and that its dialers really reach the spawn.
+  **The module count, recomputed**: the distinct `kernel/modules/...` packages
+  the allowlist still names went from **four** to **three**
+  (`board/board`, `extensions/toolbox` and `work/assure` remain).
+  **What remains**: the ratchet stands at **16/13**. Next, in order:
   **`kernel/modules/board/board`** (named by three places — the control plane,
   the REST API and the self-repair module).
 

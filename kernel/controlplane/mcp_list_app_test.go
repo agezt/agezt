@@ -32,7 +32,7 @@ func mcpListFixture(t *testing.T) (*runtime.Kernel, *Server, *mock.Provider) {
 		t.Fatal(err)
 	}
 	p := mock.New()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: p})
+	k, err := runtime.Open(withMCP(t, runtime.Config{BaseDir: dir, Provider: p}))
 	if err != nil {
 		t.Fatal(err)
 	}

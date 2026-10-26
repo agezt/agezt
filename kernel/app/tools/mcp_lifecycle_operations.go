@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/mcpapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"strings"
 )
 
@@ -25,13 +25,13 @@ type MCPSetEnabledRequest struct {
 
 var mcpLifecycleInputSchema = json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"server":{},"ref":{},"enabled":{}}}`)
 
-func mcpDecodeServer(raw json.RawMessage) (mcp.Server, error) {
+func mcpDecodeServer(raw json.RawMessage) (mcpapi.Server, error) {
 	if len(raw) == 0 {
-		return mcp.Server{}, errors.New("args.server required")
+		return mcpapi.Server{}, errors.New("args.server required")
 	}
-	var srv mcp.Server
+	var srv mcpapi.Server
 	if err := json.Unmarshal(raw, &srv); err != nil {
-		return mcp.Server{}, fmt.Errorf("args.server: %w", err)
+		return mcpapi.Server{}, fmt.Errorf("args.server: %w", err)
 	}
 	return srv, nil
 }
