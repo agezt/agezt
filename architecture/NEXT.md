@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.61 the sandbox's workspace files are written atomically, 2026-10-26
+## Current checkpoint — W3.62 the published marketplace is never half-written, 2026-10-26
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -4436,6 +4436,69 @@ files, five of the seventeen mutations would have escaped.
   spot** is still there: `cmd/agt/market_publish.go` writes an **Ed25519
   private key** in place, and `cmd/...` is layer **L7** (root), which is
   exempt from the forbidden-call rules.
+
+- W3.62 (the published marketplace is never half-written) is the **third
+  call-site slice**, and it takes **two** of the six sites that were left,
+  both in `kernel/market`: the **published pack body** and the **marketplace
+  index**. The ratchet went **6 → 4** call sites; the **import** ratchet
+  stayed at **13** — this package already imports the platform's writer (its
+  own `atomicWrite` is a thin wrapper over `internal/atomicfile`), so the
+  slice adds **no** import at all.
+  The reason this path is different from the package's other one is that the
+  published directory is **meant to be served statically**: two parties read
+  what it writes — **remote clients** (`kernel/market/sync.go` fetches a
+  remote `marketplace.json` and every pack it lists) and **the publisher
+  itself**, which reads the index back on the next publish to merge the new
+  pack in. A write that truncates in place leaves a window in which the file
+  is short: a client fetches invalid JSON, or a pack it cannot verify.
+  And the publisher's read-back was the sharp end, because of what it did
+  with a file it could not parse — the parse error was **ignored**
+  (`_ = json.Unmarshal(existing, &mp) // a corrupt index is overwritten
+  fresh`), so a half-written index did not fail the publish: it was treated
+  as "there is no catalogue here" and the index was written fresh with
+  **only the pack being published**. Every pack published before it was
+  **silently dropped from the catalogue** — the pack files stayed on disk,
+  nothing listed them any more, and the operator was never told. The same
+  thing happened to an index corrupted by anything else. That is the "silent
+  lie" class this series has been closing: a **failure that looks like
+  success**.
+  Both writes now go through the package's own `atomicWrite`, and the
+  read-back **refuses** instead of resetting: a corrupt index fails the
+  publish and **names the file**, so the operator can move it aside or repair
+  it — the corrupt file is left exactly as it was, because it is their
+  evidence and their decision. **A behaviour change, deliberately**: before, a
+  corrupt catalogue was emptied and the publish reported success. A
+  marketplace directory with **no** index yet still publishes a fresh one —
+  "no index" is a first publish, not corruption. **What this does NOT fix**
+  is named rather than claimed away: the merge is a read-modify-write with
+  no lock, so two **concurrent** publishes can still lose an entry — an
+  atomic write prevents a torn file, not a lost update.
+  **5 permanent tests** (the pack and the index are **replaced**, the index
+  keeps **every** published pack, a corrupt index is **refused** with the
+  file left untouched, a leftover **read-only** file cannot stop the next
+  publish, and the published files are **readable by others** because the
+  directory is served) and **10 mutations, 10 caught** in two independent
+  passes with identical logs, **one** of them **gate-measured** by archcheck.
+  The **first** pass reported two BUILDERRs, and both were the **mutation's**
+  defect rather than the code's: skipping the index write left `idxBytes`
+  **declared and not used**, and writing the pack empty left `packBytes`
+  unused — a build error says nothing about the behaviour, so both mutations
+  now write an empty slice of the same variable and the **test** does the
+  catching.
+  **What remains**: the ratchet stands at **13/4**, and three of the four are
+  **already atomic by another means** (the market's **sync** cache and the
+  skill bundle are written into a **staging directory** that is swapped in as
+  a whole); the fourth is the browser action's **tab state** — a JSON file
+  that survives daemon restarts, is read back by later `browser.action` calls
+  to reuse a `tab_id`, and has **no mutex** around its save and read, so a
+  truncated state that still parses would carry a **wrong URL** and the
+  driver would navigate to it. The ratchet's **blind spot** is now the
+  biggest remaining item, and it needs a different kind of slice:
+  `cmd/agt/market_publish.go` writes an **Ed25519 private key** in place,
+  `cmd/...` is layer **L7** (root) which is **exempt** from the
+  forbidden-call rules, and `cmd/agt` has **no test** that calls
+  `cmdMarketKeygen` or `cmdMarketPublish` at all — closing it needs the
+  **rule** to change before the site can be fixed.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
