@@ -15,8 +15,8 @@ import (
 	"fmt"
 
 	"github.com/agezt/agezt/kernel/contract/marketapi"
+	"github.com/agezt/agezt/kernel/contract/mcpapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
-	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 )
 
 // Library is a source of packs — the built-in Official marketplace and, later,
@@ -35,8 +35,11 @@ type SkillInstaller interface {
 }
 
 // MCPInstaller registers a pack's MCP servers (satisfied by *runtime.Kernel).
+//
+// The row it names is the CONTRACT's (W3.58): the marketplace must not name
+// the MCP module to register a server.
 type MCPInstaller interface {
-	AddMCPServer(corr string, srv mcp.Server) (mcp.Server, error)
+	AddMCPServer(corr string, srv mcpapi.Server) (mcpapi.Server, error)
 }
 
 // skillQuarantiner / mcpRemover are OPTIONAL reverse operations used by Uninstall.

@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
+	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
@@ -293,6 +294,32 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 		// so it is INJECTED rather than named: the knowledge module may not
 		// reach into the runs module.
 		cfg.MemoryGenerator = agent.GenerateObject
+	}
+	if cfg.MCPStore == nil {
+		// The MCP registry's FILE (W3.58) — the contract's store port. The
+		// daemon opens the file (mcp/servers.json) and hands the kernel the
+		// port; the kernel never opens a registry of its own.
+		//
+		// The file lives under the BASE DIR, so a tenant's kernel — which has
+		// its own base dir — keeps its own registry.
+		//
+		// A store that cannot be opened is a STARTUP ERROR: the registry is
+		// part of the daemon, not a convenience.
+		store, err := mcp.OpenStore(filepath.Join(cfg.BaseDir, "mcp"))
+		if err != nil {
+			return nil, err
+		}
+		cfg.MCPStore = store
+	}
+	if cfg.MCPDialer == nil {
+		// The MCP DIALERS (W3.58) — the implementations live in the module and
+		// the kernel may not name them, so the daemon injects them. The kernel
+		// refuses an attach when no dialer is configured rather than calling
+		// into nothing.
+		cfg.MCPDialer = mcp.Dial
+	}
+	if cfg.MCPHTTPDialer == nil {
+		cfg.MCPHTTPDialer = mcp.DialHTTP
 	}
 	if cfg.Workboard == nil {
 		// The durable task board (W3.47) — the contract's host port. The

@@ -15,8 +15,8 @@ import (
 
 	"encoding/json"
 
+	"github.com/agezt/agezt/kernel/contract/mcpapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 )
 
 func mcpToolName(server, tool string) string {
@@ -43,7 +43,7 @@ func (k *Kernel) mergeMCPTools(tools map[string]toolapi.Tool) map[string]toolapi
 	k.mcpMu.Lock()
 	type liveConn struct {
 		name string
-		conn mcp.Conn
+		conn mcpapi.Conn
 	}
 	live := make([]liveConn, 0, len(k.mcpConns))
 	for name, conn := range k.mcpConns {
@@ -65,7 +65,9 @@ func (k *Kernel) mergeMCPTools(tools map[string]toolapi.Tool) map[string]toolapi
 		// allowlist means "expose all"; lazy defaults off (eager injection).
 		var filter map[string]bool
 		lazy := false
-		if srv, ok := k.mcpStore.Get(lc.name); ok {
+		// The nil-safe read: this is the HOT PATH (every run merges its tool
+		// map), so it must never panic on a kernel with no registry.
+		if srv, ok := k.MCPRegistration(lc.name); ok {
 			if len(srv.ToolAllow) > 0 {
 				filter = make(map[string]bool, len(srv.ToolAllow))
 				for _, t := range srv.ToolAllow {
@@ -76,7 +78,7 @@ func (k *Kernel) mergeMCPTools(tools map[string]toolapi.Tool) map[string]toolapi
 		}
 
 		// The exposed subset (after the allowlist).
-		exposed := make([]mcp.ToolDef, 0, len(lc.conn.Tools()))
+		exposed := make([]mcpapi.ToolDef, 0, len(lc.conn.Tools()))
 		for _, def := range lc.conn.Tools() {
 			if filter != nil && !filter[def.Name] {
 				continue
@@ -112,8 +114,8 @@ func (k *Kernel) mergeMCPTools(tools map[string]toolapi.Tool) map[string]toolapi
 type bridgedMCPTool struct {
 	name   string
 	server string
-	def    mcp.ToolDef
-	conn   mcp.Conn
+	def    mcpapi.ToolDef
+	conn   mcpapi.Conn
 }
 
 func (t bridgedMCPTool) Definition() toolapi.ToolDef {
@@ -164,8 +166,8 @@ func (t bridgedMCPTool) Invoke(ctx context.Context, raw json.RawMessage) (toolap
 type lazyMCPDispatch struct {
 	name   string // mcp_<server>
 	server string
-	conn   mcp.Conn
-	tools  []mcp.ToolDef // the exposed (allowlisted) subset
+	conn   mcpapi.Conn
+	tools  []mcpapi.ToolDef // the exposed (allowlisted) subset
 }
 
 func (t lazyMCPDispatch) Definition() toolapi.ToolDef {

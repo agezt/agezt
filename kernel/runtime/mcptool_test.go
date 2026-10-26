@@ -36,14 +36,14 @@ func (c *fakeMCPConn) Close() error { c.closed = true; return nil }
 func openMCPKernel(t *testing.T, prov llm.Provider, conn *fakeMCPConn) (*runtime.Kernel, *int) {
 	t.Helper()
 	dials := 0
-	k, err := runtime.Open(runtime.Config{NewToolInvoker: apptools.NewInvoker,
+	k, err := runtime.Open(withMCP(t, runtime.Config{NewToolInvoker: apptools.NewInvoker,
 		BaseDir:  t.TempDir(),
 		Provider: prov,
 		MCPDialer: func(_ context.Context, command string, args []string, _ map[string]string) (mcp.Conn, error) {
 			dials++
 			return conn, nil
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestAttach_RemoteRoutesThroughHTTPDialer(t *testing.T) {
 	stdioDials, httpDials := 0, 0
 	var gotURL string
 	var gotHeaders map[string]string
-	k, err := runtime.Open(runtime.Config{NewToolInvoker: apptools.NewInvoker,
+	k, err := runtime.Open(withMCP(t, runtime.Config{NewToolInvoker: apptools.NewInvoker,
 		BaseDir:  t.TempDir(),
 		Provider: prov,
 		MCPDialer: func(_ context.Context, _ string, _ []string, _ map[string]string) (mcp.Conn, error) {
@@ -129,7 +129,7 @@ func TestAttach_RemoteRoutesThroughHTTPDialer(t *testing.T) {
 			gotURL, gotHeaders = url, headers
 			return conn, nil
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

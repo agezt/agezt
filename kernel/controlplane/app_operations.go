@@ -1326,7 +1326,7 @@ var toolboxInstallOperations = func() []app.Operation {
 var mcpCatalogOperations = func() []app.Operation {
 	operations, err := apptools.MCPCatalogOperations(func(ctx context.Context) *apptools.MCPCatalog {
 		host := ctx.Value(appHostKey{}).(appHost)
-		return apptools.NewMCPCatalog(host.kernel.MCPStore(), host.kernel)
+		return apptools.NewMCPCatalog(host.kernel.MCPReader(), host.kernel)
 	})
 	if err != nil {
 		panic(err)

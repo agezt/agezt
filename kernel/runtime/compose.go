@@ -21,6 +21,7 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
+	"github.com/agezt/agezt/kernel/contract/mcpapi"
 	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
@@ -29,7 +30,6 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/journal"
-	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/resume"
@@ -212,10 +212,11 @@ func Open(cfg Config) (*Kernel, error) {
 	// "no agents" and the roster writes refuse, rather than calling into
 	// nothing.
 
-	mcpstore, err := mcp.OpenStore(filepath.Join(cfg.BaseDir, "mcp"))
-	if err != nil {
-		return fail("runtime: mcp", err)
-	}
+	// The MCP registry is NOT opened here (W3.58): the registry's FILE is the
+	// composition root's business (cmd/agezt), and the kernel holds the
+	// contract's store port (cfg.MCPStore). A host that was given none holds a
+	// nil port: the registry reads answer "no servers" and the registry
+	// writes refuse, rather than calling into nothing.
 
 	// The workflow store is NOT opened here (W3.48): the store file is the
 	// composition root's business (cmd/agezt), and the kernel holds the
@@ -332,8 +333,8 @@ func Open(cfg Config) (*Kernel, error) {
 		resume:       rsstore,
 		roster:       cfg.Roster,
 		toolForge:    cfg.ToolForge,
-		mcpStore:     mcpstore,
-		mcpConns:     make(map[string]mcp.Conn),
+		mcpStore:     cfg.MCPStore,
+		mcpConns:     make(map[string]mcpapi.Conn),
 		workflows:    cfg.Workflows,
 		workboard:    cfg.Workboard,
 		okr:          cfg.OKRStore,

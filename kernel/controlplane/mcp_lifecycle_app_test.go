@@ -73,9 +73,9 @@ func mcpLifecycleNativeFixture(t *testing.T, cmd string) (*runtime.Kernel, *Serv
 	}
 	d := &mcpLifecycleNativeDial{peer: &mcpLifecycleNativePeer{}}
 	p := mock.New()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: p, MCPDialer: func(ctx context.Context, _ string, _ []string, _ map[string]string) (mcp.Conn, error) {
+	k, err := runtime.Open(withMCP(t, runtime.Config{BaseDir: dir, Provider: p, MCPDialer: func(ctx context.Context, _ string, _ []string, _ map[string]string) (mcp.Conn, error) {
 		return d.dial(ctx)
-	}, MCPHTTPDialer: func(ctx context.Context, _ string, _ map[string]string) (mcp.Conn, error) { return d.dial(ctx) }})
+	}, MCPHTTPDialer: func(ctx context.Context, _ string, _ map[string]string) (mcp.Conn, error) { return d.dial(ctx) }}))
 	if err != nil {
 		t.Fatal(err)
 	}

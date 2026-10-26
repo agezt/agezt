@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
+	"github.com/agezt/agezt/kernel/contract/mcpapi"
 )
 
 // PackManifest is the AUTHORING shape of a pack on disk: skills are referenced
@@ -27,16 +27,16 @@ import (
 //	  pack.json                 # this manifest
 //	  skills/<name>/SKILL.md     # one dir per referenced skill (+ reference/ scripts/)
 type PackManifest struct {
-	Name             string       `json:"name"`
-	Version          string       `json:"version"`
-	Description      string       `json:"description,omitempty"`
-	Author           string       `json:"author,omitempty"`
-	Category         string       `json:"category,omitempty"`
-	Tags             []string     `json:"tags,omitempty"`
-	Keywords         []string     `json:"keywords,omitempty"`
-	SkillDirs        []string     `json:"skills,omitempty"` // relative dirs each holding a SKILL.md
-	MCPServers       []mcp.Server `json:"mcp_servers,omitempty"`
-	ToolRequirements []string     `json:"tool_requirements,omitempty"`
+	Name             string          `json:"name"`
+	Version          string          `json:"version"`
+	Description      string          `json:"description,omitempty"`
+	Author           string          `json:"author,omitempty"`
+	Category         string          `json:"category,omitempty"`
+	Tags             []string        `json:"tags,omitempty"`
+	Keywords         []string        `json:"keywords,omitempty"`
+	SkillDirs        []string        `json:"skills,omitempty"` // relative dirs each holding a SKILL.md
+	MCPServers       []mcpapi.Server `json:"mcp_servers,omitempty"`
+	ToolRequirements []string        `json:"tool_requirements,omitempty"`
 }
 
 // maxResourceBytes caps a single bundled resource file (mirrors the skill

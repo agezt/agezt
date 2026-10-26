@@ -10,9 +10,10 @@ package mcp
 //             god-file split. Public API unchanged.
 
 import (
-	"context"
 	"encoding/json"
 	"time"
+
+	"github.com/agezt/agezt/kernel/contract/mcpapi"
 )
 
 const (
@@ -30,35 +31,30 @@ const (
 )
 
 // ToolDef is one tool an attached server advertises.
-type ToolDef struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	InputSchema json.RawMessage `json:"inputSchema,omitempty"`
-}
+//
+// The row lives in the contract layer (kernel/contract/mcpapi) (W3.58): the
+// layers above the module — the kernel's bridge, the app layer — speak it, and
+// they may not name the module. This package keeps the name, so every
+// existing caller is unchanged.
+type ToolDef = mcpapi.ToolDef
 
-// Conn is a live attachment to one MCP server. Implemented by the stdio
-// client here; an interface so the runtime (and tests) never depend on a
-// real child process.
-type Conn interface {
-	// Tools returns the tool list discovered at attach time.
-	Tools() []ToolDef
-	// Call forwards one tools/call and returns the flattened text content
-	// plus the server's own isError verdict.
-	Call(ctx context.Context, tool string, args json.RawMessage) (string, bool, error)
-	// Close detaches: asks the child to exit, then kills it. Idempotent.
-	Close() error
-}
+// Conn is a live attachment to one MCP server.
+//
+// The port lives in the contract layer (kernel/contract/mcpapi) (W3.58) — the
+// kernel's bridge holds live attachments and may not name the module. It is an
+// interface so the runtime (and tests) never depend on a real child process.
+type Conn = mcpapi.Conn
 
 // Dialer spawns + handshakes one server. The runtime takes it as a seam so
 // tests can attach fakes; Dial is the production implementation. env is the
 // server's opt-in extra environment (M898), injected on top of the scrubbed base.
-type Dialer func(ctx context.Context, command string, args []string, env map[string]string) (Conn, error)
+type Dialer = mcpapi.Dialer
 
 // HTTPDialer handshakes one REMOTE server over Streamable HTTP (M904). The
 // runtime takes it as a seam so tests can attach fakes; DialHTTP is the
 // production implementation. headers are the operator's opt-in request headers
 // (e.g. an Authorization bearer token), applied to every request.
-type HTTPDialer func(ctx context.Context, url string, headers map[string]string) (Conn, error)
+type HTTPDialer = mcpapi.HTTPDialer
 
 // jsonrpc wire shapes (only what this client speaks).
 type rpcRequest struct {
