@@ -12,21 +12,21 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/convo"
+	"github.com/agezt/agezt/kernel/contract/convoapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
 // intentFromMessages collapses an OpenAI message list into one Agezt intent via
-// the shared convo mapping, so this API and the Web UI Chat view render prior
+// the contract's convo mapping, so this API and the Web UI Chat view render prior
 // turns identically. A single user turn becomes that text verbatim; multi-turn
 // conversations are rendered as a labelled transcript with system guidance
 // hoisted to the front (the kernel still applies its own system prompt around it).
 func intentFromMessages(msgs []chatMessage) string {
-	turns := make([]convo.Turn, 0, len(msgs))
+	turns := make([]convoapi.Turn, 0, len(msgs))
 	for _, m := range msgs {
-		turns = append(turns, convo.Turn{Role: m.Role, Text: m.text()})
+		turns = append(turns, convoapi.Turn{Role: m.Role, Text: m.text()})
 	}
-	return convo.TranscriptIntent(turns)
+	return convoapi.TranscriptIntent(turns)
 }
 
 // estimateUsage gives a rough whitespace-token count so clients that read the

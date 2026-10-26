@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/contract/convoapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	"github.com/agezt/agezt/kernel/convo"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
@@ -83,7 +83,7 @@ func (s *Summarizer) Summarize(ctx context.Context, in SummarizeRequest) (Summar
 	if model == "" {
 		model = s.ports.Model()
 	}
-	transcript := convo.TranscriptIntent(turns)
+	transcript := convoapi.TranscriptIntent(turns)
 	if len(transcript) > summaryInputCap {
 		transcript = transcript[len(transcript)-summaryInputCap:]
 	}
@@ -112,12 +112,12 @@ func (s *Summarizer) Summarize(ctx context.Context, in SummarizeRequest) (Summar
 // []any of map[string]any) into convo turns, skipping malformed/blank entries —
 // the same tolerant shape as the webui's run `history` field. A prior summary
 // rides in as a "system" turn, which TranscriptIntent hoists to the front.
-func summaryTurns(raw any) []convo.Turn {
+func summaryTurns(raw any) []convoapi.Turn {
 	list, ok := raw.([]any)
 	if !ok || len(list) == 0 {
 		return nil
 	}
-	turns := make([]convo.Turn, 0, len(list))
+	turns := make([]convoapi.Turn, 0, len(list))
 	for _, item := range list {
 		m, ok := item.(map[string]any)
 		if !ok {
@@ -128,7 +128,7 @@ func summaryTurns(raw any) []convo.Turn {
 		if strings.TrimSpace(role) == "" || strings.TrimSpace(text) == "" {
 			continue
 		}
-		turns = append(turns, convo.Turn{Role: role, Text: text})
+		turns = append(turns, convoapi.Turn{Role: role, Text: text})
 	}
 	return turns
 }

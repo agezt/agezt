@@ -7,7 +7,7 @@ package webui
 //             Public API unchanged.
 
 import (
-	"github.com/agezt/agezt/kernel/convo"
+	"github.com/agezt/agezt/kernel/contract/convoapi"
 	"strings"
 )
 
@@ -41,12 +41,12 @@ const maxHistoryTurns = 40
 // turns, skipping malformed/blank entries and keeping only the most recent
 // maxHistoryTurns. Returns nil when there is no usable history (the single-shot
 // path, unchanged).
-func historyTurns(raw any) []convo.Turn {
+func historyTurns(raw any) []convoapi.Turn {
 	list, ok := raw.([]any)
 	if !ok || len(list) == 0 {
 		return nil
 	}
-	turns := make([]convo.Turn, 0, len(list))
+	turns := make([]convoapi.Turn, 0, len(list))
 	for _, item := range list {
 		m, ok := item.(map[string]any)
 		if !ok {
@@ -57,7 +57,7 @@ func historyTurns(raw any) []convo.Turn {
 		if strings.TrimSpace(role) == "" || strings.TrimSpace(text) == "" {
 			continue
 		}
-		turns = append(turns, convo.Turn{Role: role, Text: text})
+		turns = append(turns, convoapi.Turn{Role: role, Text: text})
 	}
 	if len(turns) > maxHistoryTurns {
 		turns = turns[len(turns)-maxHistoryTurns:]
