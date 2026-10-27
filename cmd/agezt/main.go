@@ -35,6 +35,7 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/app/overseer"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/channel"
@@ -827,12 +828,34 @@ func runDaemon(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s: open runtime: %v\n", brand.Binary, openErr)
 		return 1
 	}
-	defer k.Close()
+	// The agent gateway is the DAEMON's transport (W3.67) — the capability-
+	// scoped HTTP surface the agent SDK's subprocesses talk to. It is an
+	// ADAPTER, so the kernel may not hold one: the daemon builds it over the
+	// kernel's own ports (bus, memory, roster, config center, journal) and
+	// owns its lifecycle.
+	//
+	// The shutdown is ONE deferred call, not two: the gateway must close
+	// BEFORE the kernel, because its audit flush appends to the kernel's
+	// journal. The order is stated in shutdownAgentGateway instead of being
+	// left to the order two `defer`s happen to be registered in.
+	var agentGW *agentgw.Gateway
+	defer func() { shutdownAgentGateway(agentGW, k) }()
+
 	if rec := k.Journal().Recovery(); rec != nil {
 		// Owner decision 5.6: a corrupt record mid-journal no longer stops the
 		// daemon, but it must never pass unnoticed.
 		fmt.Fprintf(stderr, "WARNING: journal: corrupt record at seq %d — everything from there was quarantined (%d bytes kept in %s) and the chain resumed; a journal.recovered event records it. Inspect the quarantined files before deleting them. Cause: %s\n",
 			rec.BreakSeq, rec.Bytes, strings.Join(rec.Quarantined, ", "), rec.Reason)
+	}
+
+	// Start the gateway over the kernel's ports. A token secret that cannot be
+	// resolved is a STARTUP ERROR (the SDK path would fail closed with a 401
+	// that reads like a bug); a listener that cannot bind is logged and the
+	// daemon carries on.
+	agentGW, agentGWErr := startAgentGateway(k, baseDir)
+	if agentGWErr != nil {
+		fmt.Fprintf(stderr, "%s: agent gateway: %v\n", brand.Binary, agentGWErr)
+		return 1
 	}
 
 	// Post-Open dependency injection (config's kernel, the artifact index for

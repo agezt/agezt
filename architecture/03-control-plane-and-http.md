@@ -1177,37 +1177,46 @@ Usage from `UsageReporter` (real tokens) or `estimateUsage`. Errors pass through
 
 ## 8. `kernel/agentgw`
 
-Purpose: HTTP gateway for agent-subprocess code (Agent SDK) with HS256-JWT capability tokens. Built in `kernel/runtime/compose.go`
-(`DefaultGatewayConfig(baseDir)`, `ResolveTokenSecret`, `NewGateway`, `Attach(bus, memory, roster)`, `SetConfigCenter`,
-`SetAuditJournal(journal)`, `go Listen(context.Background())`) and exposed via `Kernel.AgentGateway()`. Imports `bus`, `configcenter`,
+Purpose: HTTP gateway for agent-subprocess code (Agent SDK) with HS256-JWT capability tokens. Built by the **composition root**
+(`cmd/agezt/main_agentgw.go` — `DefaultGatewayConfig(baseDir)`, `ResolveTokenSecret`, `NewGateway`, `Attach(bus, memory, roster)`,
+`SetConfigCenter`, `SetAuditJournal(journal)`, `Listen(context.Background())`) and closed by it (`shutdownAgentGateway`: the gateway
+**before** the kernel, because the audit flush appends to the kernel's journal). It used to be built inside `kernel/runtime/compose.go`
+and exposed via `Kernel.AgentGateway()` — an **upward** edge (the kernel is a module, L3; the gateway is an adapter, L5) — and that is
+**gone** (W3.67): the kernel names no gateway, and the accessor that had no caller at all is deleted. Imports `bus`, `configcenter`,
 `edict`, `event`, `httpserver`, `journal`, `memory`, `roster`, `ulid`. Imported by `cmd/agt` (`agt token` mints tokens with the same
-secret), `kernel/runtime`, `runtime/accessors`, `runtime/runexec`.
+secret) and `cmd/agezt` (the composition root).
 
 Persistence: `<baseDir>/agentgw.secret` (hex 32 bytes, 0600) unless `AGEZT_AGENTGW_TOKEN_SECRET`; audit entries appended to the journal
-as subject `agentgw.audit`, kind `info` (batched; `Flush` on Close). Env: `AGEZT_AGENTGW_TOKEN_SECRET`, `AGEZT_AGENTGW_SOCKET` (read in
-`runtime/compose.go`). Concurrency: net/http server; `rlMu` guards per-token `RateLimit` map (4096 entries, idle eviction 5 min);
-`srvMu` guards the server.
+as subject `agentgw.audit`, kind `info` (batched; `Flush` on Close). The audit record's **actor** is the token the access is charged to: a
+subprocess token is charged to its parent, a **top-level** token (the only kind `agt token create` mints) to itself — an empty actor is
+rejected by the journal, so an empty actor means the access is **not recorded at all** (W3.67). The record carries the **operation** and
+the **path** (and the run, the subprocess id and the client address), but its `cap` **tag is empty**: the access is audited *before* the
+handler runs, and the handler is what checks the capability — closing that needs the route table to carry the required capability, which
+is a change to the auth architecture, not to a move. Env: `AGEZT_AGENTGW_TOKEN_SECRET`,
+`AGEZT_AGENTGW_SOCKET` (read in `cmd/agezt/main_agentgw.go`). Concurrency: net/http server; `rlMu` guards per-token `RateLimit` map
+(4096 entries, idle eviction 5 min); `srvMu` guards the server.
 
 Token (`token.go`): header `{"alg":"HS256","typ":"JWT"}`, claims `TokenClaims` (`RunID` required, `Caps` ≥1, `ExpiresAt` default 1 h,
 `MaxRate` default 60 rpm, `MaxBurst` 10, `Issuer`=`Audience`=`agezt-agentgw`, `TokenID` ULID, `SubprocessID`, `ParentTokenID`);
-`CreateSubprocessToken` derives narrower child tokens. `/v1/token/create` refuses capability escalation (`CapsSubset` → 403
-`CAP_ESCALATION`). Capabilities (`types.go`): `eventbus.publish|subscribe`, `channel.send|read|list`, `memory.read|write|delete|search|list`,
+`/v1/token/create` refuses capability escalation (`CapsSubset` → 403
+`CAP_ESCALATION`). A **test-only** copy of the subprocess-token rule (`CreateSubprocessToken`, `CapsIntersect`, `CapabilityChecker.CheckAny/CheckAll`, `AuditLogger.LogSync`) lives in `testonly_test.go`: it has **no production caller** — the HTTP mint path implements the rule itself — and it is kept as the baseline the HTTP path is compared against (W3.67). Capabilities (`types.go`): `eventbus.publish|subscribe`, `channel.send|read|list`, `memory.read|write|delete|search|list`,
 `log.read|write`, `agent.list|query`, `db.query|read|write`, `config.access|list|search|write`.
 
 | File | What it does |
 |---|---|
 | `doc.go` | Package doc + capability namespaces. |
 | `types.go` | `TokenClaims`, `AgentCapability` consts, `AuditEntry`, `RateLimit` (`NewRateLimit`, `Allow`, `LastSeen`), `HasCap/HasAnyCap`. |
-| `token.go` | `TokenManager` (secret < 32 bytes is SHA-256 stretched), `CreateToken`, `ValidateToken` (alg/typ/iss/aud/exp checks, constant-time sig), `CreateSubprocessToken`. |
+| `token.go` | `TokenManager` (secret < 32 bytes is SHA-256 stretched), `CreateToken`, `ValidateToken` (alg/typ/iss/aud/exp checks, constant-time sig). |
 | `secret.go` | `TokenSecretEnv`, `ResolveTokenSecret` (env → file → mint+persist, retrying read for concurrent first boot), `randomSecret`. |
-| `capabilities.go` | `CapabilityChecker` (`Check/CheckAny/CheckAll`), `ParseCapability`, `CapsSubset`, `CapsIntersect`, `NormalizeCaps`. |
+| `capabilities.go` | `CapabilityChecker.Check`, `ParseCapability`, `CapsSubset`, `NormalizeCaps`. |
+| `testonly_test.go` | The symbols with **no production caller**: `CreateSubprocessToken`, `CapsIntersect`, `CapabilityChecker.CheckAny/CheckAll`, `AuditLogger.LogSync` — the baseline the HTTP mint path is compared against (W3.67). |
 | `gateway.go` | `Gateway`, `GatewayConfig`, `DefaultGatewayConfig` (random abstract socket `@agezt/agentgw-<8hex>.sock`, 30 s read/write timeouts), `NewGateway`, `Attach`, `SetConfigCenter`, `SetAuditJournal`, `listenTarget` (`@`/`unix://`/absolute path → unix, else TCP), `Listen` (route table), `Close`. |
 | `gateway_auth.go` | `withAuth` (Bearer → validate → per-token rate limit → audit → claims in ctx), `allowRate`, `extractBearerToken`, response helpers, `handleHealth`, `handleTokenCreate`. |
 | `handlers.go` | `handleEventbusSubscribe` (SSE, any `pattern`, default `>`), `handleEventbusPublish` (any subject, kind `info`, actor = RunID). |
 | `handlers_log.go` | `handleLogWrite`, `handleLogRead`, `handleAgentList`, `handleAgentQuery`. |
-| `handlers_memory.go` | `handleMemoryWrite`, `handleMemorySearch`, `handleMemoryDelete`. |
+| `handlers_memory.go` | `handleMemoryWrite`, `handleMemorySearch`, `handleMemoryDelete`. The record's **type** is canonicalised (`memoryRecordType`): the vocabulary is upper-case and validates strictly, so `"fact"` was refused with a write error for a type that **exists** (W3.67). |
 | `config_handler.go` | `ConfigHandler`: config-center get/list/search/set/audit with rating + agent allow/deny. |
-| `audit.go` | `AuditLogger` (`Log`, `LogSync`, `Flush`) → journal. |
+| `audit.go` | `AuditLogger` (`Log`, `Flush`) → journal. |
 | `sockopt_unix.go` / `sockopt_other.go` | `setSockOpt` listen control hook (unix-specific options / no-op). |
 
 | Method | Path | Capability |
@@ -1521,10 +1530,13 @@ and warns when no console password is set.
 - **File snapshot governance (W2.xe):** `/api/rollback/apply` sends only the file checkpoint ID to primary-only file_restore. The daemon resolves its own catalog, invokes a private snapshot adapter through the kernel's service, checks file.write/file.delete and journals the correlated op/tool arc. Snapshot content never enters audit input; AppliedMS and catalog persistence follow successful restore inside the op. Already-applied IDs remain no-ops; denial/unavailable audit preserves file/catalog. Actual HTTP/socket, daemon authority/privacy tests and eight mutations guard the binding. Legacy skill/workflow/config catalog compatibility remains until domain migration. `rollbackCatalogPath` uses
   `internal/paths.BaseDir()` rather than the daemon's injected base dir.
 - **agentgw reachability**: the default socket is a random abstract unix name that nothing publishes (no accessor/env export), so
-  subprocesses can only reach it when `AGEZT_AGENTGW_SOCKET` is set; abstract `@` sockets are Linux-specific. `channel.*` and `db.*`
+  subprocesses can only reach it when `AGEZT_AGENTGW_SOCKET` is set; abstract `@` sockets are Linux-specific. **One gateway per daemon**
+  (W3.67) — the gateway used to be built per **kernel**, so the primary and every tenant each bound a socket of their own (at most one
+  could win the same path, and the losers were only logged) over a path nobody could discover. `channel.*` and `db.*`
   capabilities are declared but have no routes. Subscribe accepts any bus pattern and publish any subject (kind `info`) — capability
   scoping is per-namespace, not per-subject.
 - **Hardcoded env names**: `platform/fileworkspace` and `webui/files_route*.go` read `"AGEZT_FILE_ROOT*"` literally instead of `brand.EnvPrefix`, and
-  `runtime/compose.go` reads `"AGEZT_AGENTGW_SOCKET"` literally.
+  `cmd/agezt/main_agentgw.go` reads `"AGEZT_AGENTGW_SOCKET"` literally (the name is pinned by the settings schema, the control plane's
+  known-env list and the SDK — a different spelling would silently bind the default path).
 - **Stale doc**: `kernel/restapi/doc.go` lost its package comment head (only the two update routes remain).
 - Several ops are reachable only from the CLI by design (Web UI audit noted un-wired: `why`, `journal_export`, `pulse_asks`, `skill_read_file`, `toolbox_detect/outdated`).

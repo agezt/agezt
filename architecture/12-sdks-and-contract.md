@@ -91,10 +91,11 @@ Server: `kernel/agentgw/gateway.go: Gateway.Listen`. Routes: `GET /v1/eventbus/s
 `AGEZT_AGENTGW_TOKEN_SECRET` or a per-install file (`agentgw.ResolveTokenSecret`); minted by `agt token` (`cmd/agt/token.go`).
 
 **Reachability gap (verified):** both SDKs default to `"@agezt/agentgw.sock"`, but `agentgw.DefaultGatewayConfig` listens on
-`uniqueSocketPath()` = `"@agezt/agentgw-<random 8 hex>.sock"` and `kernel/runtime/compose.go` only overrides it from `AGEZT_AGENTGW_SOCKET`.
-The chosen path is never written to disk or exported to child processes, and nothing in Go sets `AGEZT_AGENT_TOKEN`. So the Agent SDK's
-default constructor cannot reach a production daemon unless the operator sets `AGEZT_AGENTGW_SOCKET=@agezt/agentgw.sock` (or passes a
-matching `socket_path`). The TS test `"the shipped default still uses the @ form the daemon binds"` pins this stale assumption.
+`uniqueSocketPath()` = `"@agezt/agentgw-<random 8 hex>.sock"` and `cmd/agezt/main_agentgw.go` (the **daemon's** gateway, since W3.67) only
+overrides it from `AGEZT_AGENTGW_SOCKET`. The chosen path is never written to disk or exported to child processes, and nothing in Go sets
+`AGEZT_AGENT_TOKEN`. So the Agent SDK's default constructor cannot reach a production daemon unless the operator sets
+`AGEZT_AGENTGW_SOCKET=@agezt/agentgw.sock` (or passes a matching `socket_path`). The TS test `"the shipped default still uses the @ form the
+daemon binds"` pins this stale assumption.
 
 ---
 

@@ -39,20 +39,6 @@ func (a *AuditLogger) Log(entry AuditEntry) {
 	}
 }
 
-// LogSync records an entry and flushes immediately.
-func (a *AuditLogger) LogSync(entry AuditEntry) {
-	a.mu.Lock()
-	a.buf = append(a.buf, entry)
-	entries := a.buf
-	// Hand the backing array off to writeEntries and start a fresh buffer.
-	// Reusing it via a.buf[:0] would let a concurrent Log append into the same
-	// array elements that writeEntries is reading unlocked — a data race.
-	a.buf = make([]AuditEntry, 0, 64)
-	a.mu.Unlock()
-
-	a.writeEntries(entries)
-}
-
 // Flush writes all buffered entries to the journal.
 func (a *AuditLogger) Flush() {
 	a.mu.Lock()

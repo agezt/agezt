@@ -12,11 +12,9 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/configcenter"
@@ -404,32 +402,13 @@ func Open(cfg Config) (*Kernel, error) {
 		k.toolPhases = toolpipeline.NewInvoker(toolpipeline.Dependencies{Tools: k, Policy: k, Events: k, Noise: k}).(toolphaseapi.Phases)
 	}
 
-	// Agent Gateway for subprocess communication (Agent SDK)
-	gwCfg := agentgw.DefaultGatewayConfig(cfg.BaseDir)
-	// Token signing key: a per-install secret persisted under the base dir (or
-	// $AGEZT_AGENTGW_TOKEN_SECRET), shared with the `agt` CLI. Never the old
-	// hardcoded "change-me-in-production" constant.
-	secret, err := agentgw.ResolveTokenSecret(cfg.BaseDir)
-	if err != nil {
-		return fail("runtime: resolve agentgw token secret", err)
-	}
-	gwCfg.TokenSecret = secret
-	// Override socket path from environment if set (useful for Windows TCP testing)
-	if sockPath := os.Getenv("AGEZT_AGENTGW_SOCKET"); sockPath != "" {
-		gwCfg.SocketPath = sockPath
-	}
-	agentGW := agentgw.NewGateway(gwCfg)
-	agentGW.Attach(kbus, mgr, cfg.Roster)
-	agentGW.SetConfigCenter(configCenter)
-	agentGW.SetAuditJournal(j) // wire the audit trail (was a nil no-op)
-	k.agentGW = agentGW
-
-	// Start the gateway listener in background
-	go func() {
-		if err := agentGW.Listen(context.Background()); err != nil {
-			slog.Error("runtime: agentgw listen", "error", err)
-		}
-	}()
+	// The agent gateway is NOT built here (W3.67): it is an ADAPTER (L5) — the
+	// transport the agent SDK's subprocesses talk to — and the kernel is a
+	// module (L3) that may not hold one. The composition root (cmd/agezt)
+	// builds it over the kernel's own ports (bus, memory, roster, config
+	// center, journal) and hands it over as nothing at all: the daemon owns
+	// the gateway, starts it and closes it. A kernel opened without a daemon
+	// has no gateway, and the SDK subprocess path is simply not served.
 
 	// Wire the lifecycle sub-manager (Day 12 split) last so it sees
 	// the fully-built *Kernel. The Manager only holds a KernelAPI

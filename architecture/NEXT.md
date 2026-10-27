@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.66 the pulse's structured-output path is a port, 2026-10-27
+## Current checkpoint — W3.67 the agent gateway is the daemon's transport, 2026-10-27
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -4732,6 +4732,81 @@ files, five of the seventeen mutations would have escaped.
   **fsynced** (a swapped-in tree can hold a half-written file) and the swap
   **removes the old copy before** the new one is in place (a failure there
   loses the content; a partial removal leaves a half-deleted tree).
+
+- W3.67 (the agent gateway is the daemon's transport) takes **two** import edges
+  at once — `upward kernel/runtime -> kernel/agentgw` and
+  `upward kernel/runtime/runexec -> kernel/agentgw` — and the ratchet goes
+  **9 → 7**. The two edges were **free riders**: `k.AgentGateway()` had **no
+  caller** outside its own declaration, so the fix could not be a port — it
+  had to be a **move**. The gateway is an **ADAPTER** (L5): the capability-
+  scoped HTTP transport the agent SDK's subprocesses talk to (bus publish and
+  subscribe, memory read/write/search, logs, the roster, the config center).
+  The kernel is a **module** (L3) and may not hold one — that was the upward
+  edge, and it was a layering lie besides: a kernel that owns an inbound
+  transport serves something it does not own.
+  The **composition root** now builds it over the kernel's own ports
+  (`k.Bus()`, `k.Memory()`, `k.Roster()`, `k.ConfigCenter()`, `k.Journal()`),
+  starts it, and closes it — **one gateway per daemon, not per kernel**.
+  The kernel's `agentGW` field, its `AgentGateway()` accessor and the
+  `AgentGateway()` verb on `runexec.KernelAPI` are **gone**, and the
+  accessor's **absence** is now pinned by name (like `ConfigMu`'s), because an
+  accessor that comes back comes back with the edge this slice closed.
+  The **close order** became a guarantee rather than an accident: the gateway's
+  audit trail is buffered and flushed on Close, and the flush appends to the
+  kernel's journal, so the daemon closes the gateway **first**
+  (`shutdownAgentGateway`) — inside the kernel it was the other way round, and
+  the flush was lost.
+  **The daemon-level proof found two real defects**, and they are why this
+  slice is more than a move:
+  (1) the audit record's actor was the token's **parent** id, which is empty
+  for a **top-level** token — the only kind `agt token create` mints — and an
+  event without an actor is **rejected by the journal**, so every access made
+  with a CLI-minted token was recorded **nowhere**. The trail that answers
+  "who asked for what" was empty. A top-level token is now charged to
+  itself;
+  (2) the memory's type vocabulary is upper-case and validates strictly, so a
+  client that wrote `"fact"` was refused with a write error for a type that
+  **exists**. The gateway now canonicalises the spelling it accepts.
+  **9 permanent tests**: five **daemon-level** end-to-end ones (the gateway
+  really listens and answers `/health`; a token minted from the **install
+  secret** — the same file the `agt` CLI mints from — is accepted and a memory
+  round-trip works through it; an event published through the gateway lands in
+  the daemon's **journal**; the config-center and roster routes answer instead
+  of 404/503; and after the shutdown the audit trail is **on disk**), plus four
+  **unit** ones over the two fixes (the actor is charged to the parent or to
+  the token itself; the audit record reaches the journal for a top-level
+  token; the type is canonicalised; the record carries its run and payload).
+  **12 mutations, 12 caught** in two independent passes with **byte-identical**
+  logs — nine aimed at the **wiring** (the socket override, the install
+  secret, the memory, the bus, the roster, the config center, the audit
+  journal, the listener itself, and the close order) that only the daemon's
+  end-to-end test sees, two at the two fixes, and one at the kernel's accessor
+  pin. Every mutation keeps its file's imports used, so a mutation that
+  broke the build would have been a BUILDERR and never counted as a catch.
+  **The dead-code gate found five more things while the tree moved**: once
+  the daemon imports the gateway package, the analyzer (which runs **without**
+  `-test`) reports the symbols that have no production caller — and
+  `CreateSubprocessToken`, `CapsIntersect`,
+  `CapabilityChecker.CheckAny/CheckAll` and `AuditLogger.LogSync` are exactly
+  that: only the package's own tests use them. They were dead before the
+  slice; the gate simply had not been asked about them. The gate's own rule
+  (a same-package test-only symbol belongs in a **`_test.go`**, not in an
+  allowlist) moved them to `kernel/agentgw/testonly_test.go`, where the file
+  says what they are — and where the comparison between the library's copy of
+  the subprocess-token rule and the HTTP path's (stricter about escalation,
+  laxer about the burst) stays alive.
+  **What remains**: the ratchet stands at **7/3** — four `adapter-bypass`
+  edges, two `cross-module`, one `upward` (`channel → bus`). The traps are
+  unchanged: `controlplane → runtime` (the control plane calls **37** verbs on
+  the kernel's god-object — a redesign, not a slice), `selfrepair → runtime`
+  (the six agent rows could move to the reaper's `api` package, but
+  `RunWith`/`RunWithRetry`/`ReaperScan`/`NewCorrelation` need a **runs port
+  that does not exist** yet), and `channel → bus` (26 plugin `Config`s hold
+  `*bus.Bus` and nil-check it — an interface parameter turns a nil pointer
+  into a **non-nil** interface, the guard stops firing, and the publish panics
+  inside the deferred recover). The forbidden-call ratchet is still **3** with
+  the same two holes: the staged writes are not **fsynced**, and the swap
+  **removes the old copy before** the new one is in place.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
