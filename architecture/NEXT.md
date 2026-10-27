@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4h the CLI writes the daemon's stores through the daemon's writers, 2026-10-27
+## Current checkpoint — W5.4i the CLI's exports and scaffolds go through the platform's atomic writer, 2026-10-27
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5221,6 +5221,68 @@ files, five of the seventeen mutations would have escaped.
   (`controlplane → runtime` is a redesign, `selfrepair → runtime` needs a runs
   port that does not exist yet). Evidence:
   `architecture/213-w54h-cli-store-writes-evidence.md`
+
+- W5.4i (the CLI's exports and scaffolds go through the platform's atomic
+  writer) takes the last seven "output" write sites. The measurement
+  **changed the plan**: the gate's exemption is a **package** allow list, and
+  `cmd/agt` is one package — so "exempt the generator" (the one site whose
+  reasoning matches the `tools/...` exemption verbatim: `plugin new` writes
+  the scaffold, and nothing in the platform depends on those bytes) would
+  have meant **"exempt all of `cmd/agt`"** and put the gate back to the
+  blind zero W5.4g exposed. **There is no per-site exemption.** The honest
+  route is to move the write, or to change the gate — and a per-site
+  `//archcheck:allow raw-write <reason>` marker is a separate, small
+  archcheck slice. So the scaffold moved too: not because it needed it, but
+  because **the exemption unit is the package**, and a package-level
+  exemption would have hidden the other six with it. The seven sites: the
+  exported skill bundle, the registry index, the single-skill bundle, the
+  exported artifact, the journal bundle, the fetched peer artifact and the
+  scaffold — of which **two are silent**: nothing verifies an exported
+  artifact or a fetched peer artifact, so a truncated file looked fine and
+  was wrong. The behaviour changes are named in the evidence: **the mode is
+  re-asserted on every write** (`os.WriteFile` applies its `perm` only at
+  CREATION, so an export written world-readable once stayed that way — and
+  `agt skill export --agent` can lift an agent's **private** skills, so
+  `0600` is now a fact rather than a hope), the target is **replaced**
+  rather than rewritten, a transient scratch file appears in the target's
+  directory during the write, and a symlink at the target path is replaced
+  rather than written through. The forbidden-call ratchet goes **9 → 2**.
+  **3 permanent tests** and **9 mutations, 9 caught** in two independent
+  passes with **byte-identical** logs. The instrument for the seven is a
+  **file-grained** test (`TestTheCLIRawWritesAreOnlyTheTwoKnownSites`): the
+  GATE counts a *package*, the test counts *files* — so a package that stays
+  under the count cannot hide a new raw write in a file the count no longer
+  names — and the table says which two sites are left and why. Three
+  findings from the calibration are worth naming, all of them the
+  **mutation's** fault: a reverted write **breaks the build** (the
+  `atomicfile` import becomes unused, the `os` import goes missing), and a
+  compile error is **not a caught mutation** — it is a mutation that never
+  ran, so the harness now carries the import fix-ups a reverted write needs
+  and checks that a fix-up does not remove an import the file still uses; a
+  **backtick escape inside a nested quote** (the import anchor was built
+  with ``"`t`"io`"`n…"``) matched **zero** times, and a missed anchor reads
+  as "the mutation does not compile", which sends you looking in the wrong
+  place — the anchors are now built from `[char]9` and `[char]10`; and
+  **cancelling a harness mid-run leaves the tree mutated**, because the
+  `finally` block that restores the files does not run when the process is
+  killed, and the next run then measures an already-broken tree (two runs
+  were lost this way before it was noticed). **What remains in the
+  ratchet**: the **1 streaming** `os.Create` in `backup.go` (the platform
+  has no streaming atomic write — `WriteStream(path, mode,
+  func(io.Writer) error)` — and its Windows last-resort must **copy the temp
+  onto the target** instead of re-writing from memory, because a stream's
+  bytes are not in memory; and `backup.go`'s `os.Remove(outPath)` cleanup
+  must **go**, because under an atomic API a failed write leaves the
+  previous, good archive intact) and the **1 probe** in
+  `doctor_ops_env.go` (transient; `os.CreateTemp` is its right shape — but
+  the rule counts only `os.WriteFile` and `os.Create`, so `os.CreateTemp` is
+  **invisible to the gate** and the count drops without a new guarantee
+  being enforced; the honest fix is a follow-up slice that **extends the
+  rule** to `os.CreateTemp` and `os.OpenFile(O_CREATE)`, so that a zero
+  means "no raw writes" rather than "no raw writes the counter can see").
+  The **import** ratchet stands at **2** (`controlplane → runtime` is a
+  redesign, `selfrepair → runtime` needs a runs port that does not exist
+  yet). Evidence: `architecture/214-w54i-atomic-exports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

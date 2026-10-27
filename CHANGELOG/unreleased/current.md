@@ -3185,6 +3185,20 @@ This file holds the active `[Unreleased]` working set.
   write that needs a platform addition first, one transient probe, and seven
   exports.
 
+- **The CLI's exports are no longer half-written files (W5.4i).** The skill
+  bundles, the registry index, the artifact, the journal bundle, the fetched
+  peer artifact and the plugin scaffold were written with a plain
+  `os.WriteFile`, which truncates the target in place. Two of them were
+  **silent**: nothing verifies an exported artifact or a fetched peer
+  artifact, so a truncated file looked fine and was wrong. They now go
+  through the platform's atomic writer, so the file on disk is either the
+  whole thing or not there — and the `0600` mode is re-asserted on every
+  write, not only when the file is first created.
+
+- **The forbidden-call ratchet for the CLI is down to two (W5.4i).** What
+  remains is named in the evidence: the backup archive (a stream, which
+  needs a streaming atomic write first) and the doctor's writability probe.
+
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still
