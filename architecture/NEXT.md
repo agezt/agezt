@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4b the toolbox reaches the control plane through the contract's port, 2026-10-27
+## Current checkpoint — W5.4c the update engine reaches the adapters through the contract's port, 2026-10-27
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -4895,6 +4895,60 @@ files, five of the seventeen mutations would have escaped.
   the contract may not name), `selfrepair → runtime` (a runs port that does
   not exist yet) and `channel → bus` (the nil-interface trap). W5.4's
   remaining part is the **`docs/`** archiving.
+
+- W5.4c (the update engine reaches the adapters through the contract's port)
+  takes **two** of the six import edges at once — `adapter-bypass
+  kernel/controlplane -> kernel/update` and `adapter-bypass kernel/restapi ->
+  kernel/update` — and the ratchet goes **6 → 4**. The control plane and the
+  REST surface are **adapters** (L5) and the update engine is a **module**
+  (L3): an adapter reaches the app layer's typed operations, never a module
+  (P2). The REST surface's own comment claimed it was *"decoupled from
+  kernel/update"* **while importing it** — a claim about the code, not about
+  the code's wishes. The measured map had called this pair *"the update
+  service's port (`kernel/app/update` already exists)"* and that was right
+  about the shape but wrong about the work: the app's `Backend` was built
+  from the **module's rows**, so moving the adapters to the app layer would
+  not have closed the edge — the port's *shape* was the module's, and an
+  adapter holding it had to name the module's types. So the rows went down to
+  a new contract `kernel/contract/updateapi` (the rows, the errors that cross
+  the module's boundary and the port `Backend`), the module **aliases** the
+  rows and its service satisfies the port, the app's `Backend` became an
+  **alias** of the contract's port, and both adapters hold the contract's
+  port. The daemon — the composition root — converts the concrete engine to
+  the port **where the value is still concrete**: a nil `*update.Service`
+  handed to an interface parameter is a **non-nil** interface, so the holder
+  would hold an engine that is not there and the "update is disabled" answer
+  could never fire (the board's rule, W3.59, applied a second time).
+  The slice also found a real **crash**: `ErrChecksumMismatch.Error()` sliced
+  the two hexes (`e.Want[:8]`) and the **wanted** hash comes from a manifest,
+  which may carry a hash shorter than eight characters — so reporting a
+  failed checksum **panicked**, in the error path, and
+  `POST /api/v1/update/apply` with `"sha256":"abc"` reached it directly. The
+  message truncates now. And there is **one** current version in the tree:
+  the update module's second copy (`var CurrentVersion = brand.Version`) is
+  gone, and the brand's — which the build stamps — is the only one.
+  **16 permanent tests** (the checksum message survives a short hash and
+  truncates a long one; the module's rows are the contract's rows and not
+  copies; the drain timeout is one sentinel and not two; the module's service
+  is the contract's port and its row carries the running version; the app's
+  port is the contract's port; the app still reports the check error and the
+  disabled status; both adapters' setters take the **contract's** port,
+  asserted **statically**; the operations answer with the port's rows; a
+  daemon with no engine answers "update is disabled" and names the running
+  version; the REST surface answers a short-hash mismatch instead of
+  crashing; the daemon's conversion turns a nil engine into a nil port) and
+  **13 mutations, 13 caught** in two independent passes with
+  **byte-identical** logs. The first calibration pass reported one SURVIVED
+  and two BUILDERRs, and all three were the **mutation's** defects (the
+  truncation assertion was a *prefix* of the untruncated hash, so the
+  mutation slipped through; the other two broke the build before the
+  behaviour could be measured).
+  **What remains**: the **import** ratchet stands at **4** —
+  `controlplane → runtime` (a redesign), `cadence/systemtasks → runtime`
+  (nine accessors, two of them platform types the contract may not name),
+  `selfrepair → runtime` (a runs port that does not exist yet) and
+  `channel → bus` (the nil-interface trap). W5.4's remaining part is the
+  **`docs/`** archiving.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

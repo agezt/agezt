@@ -3065,6 +3065,26 @@ This file holds the active `[Unreleased]` working set.
   the toolbox is not available, and the install refuses before it publishes
   anything.
 
+- **The control plane and the REST surface no longer reach the update module
+  (W5.4c).** Both are adapters, and an adapter reaches the app layer's typed
+  operations, never a module. The REST surface's comment even said it was
+  "decoupled from kernel/update" while importing it. The update engine now
+  has a contract's port (`kernel/contract/updateapi`), the module implements
+  it, and the daemon — the composition root — hands it over. The import
+  ratchet goes **6 → 4**.
+
+- **A failed checksum no longer crashes the daemon (W5.4c).** The mismatch
+  message sliced the two hexes (`want[:8]`), and the *wanted* hash comes from
+  a manifest, which may carry a hash shorter than eight characters — so
+  reporting a failed checksum panicked, in the error path. A POST to
+  `/api/v1/update/apply` with a short `sha256` reached it directly. The
+  message now truncates the hashes instead of slicing them.
+
+- **There is one current version in the tree (W5.4c).** The update module kept
+  a second copy of the running version next to the brand's, and the two could
+  drift. The brand's version — the one the build stamps — is now the only
+  one.
+
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still
