@@ -72,7 +72,6 @@ import (
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	"github.com/agezt/agezt/kernel/contract/reasoningapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/executionprofile"
@@ -302,24 +301,7 @@ var seatOperations = func() []app.Operation {
 var councilOperations = func() []app.Operation {
 	ops, err := appcouncil.Operations(func(ctx context.Context) *appcouncil.Service {
 		s := ctx.Value(systemHostKey{}).(*Server)
-		return appcouncil.New(appcouncil.Ports{
-			Members: func() []appcouncil.Member {
-				return s.k.CouncilDefaultMembers()
-			},
-			SetMembers: func(members []appcouncil.Member) {
-				s.k.SetCouncilMembers(func() []reasoningapi.CouncilMember {
-					return members
-				})
-			},
-			Store: func() appcouncil.Store { return settings.NewStore(s.baseDir) },
-			Models: func() func(string) bool {
-				cat := s.k.Catalog()
-				return func(model string) bool {
-					_, m := cat.FindModel(model)
-					return m != nil
-				}
-			},
-		})
+		return appcouncil.New(appcouncil.PortsFromKernel(s.k, s.baseDir))
 	})
 	if err != nil {
 		panic(err)
@@ -330,13 +312,7 @@ var councilOperations = func() []app.Operation {
 var councilAskOperations = func() []app.Operation {
 	ops, err := appcouncil.AskOperations(func(ctx context.Context) appcouncil.Engines {
 		k := ctx.Value(systemHostKey{}).(*Server).k
-		return appcouncil.Engines{
-			Convene: func(ctx context.Context, corr, question string, rounds int) (reasoningapi.CouncilResult, error) {
-				return k.Council(ctx, corr, question, nil, rounds)
-			},
-			RunConductor:   k.Conduct,
-			NewCorrelation: k.NewCorrelation,
-		}
+		return appcouncil.EnginesFromKernel(k)
 	})
 	if err != nil {
 		panic(err)

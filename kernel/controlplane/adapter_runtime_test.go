@@ -9,6 +9,38 @@ import (
 	"testing"
 )
 
+// The verbs the APPLICATION owns. The council's panel, its seating, its
+// convening and its conductor are the application's business: the host hands
+// over the kernel handle, and the application decides what the council reads
+// and how it answers.
+//
+// The gate cannot hold this — it counts packages, not verbs — so the test
+// does: the host must not call these on the handle itself.
+var applicationOwnedVerbs = []string{"Council", "CouncilDefaultMembers", "SetCouncilMembers", "Conduct"}
+
+func TestTheAdapterCallsNoApplicationOwnedVerbOnTheKernel(t *testing.T) {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		raw, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		src := string(raw)
+		for _, verb := range applicationOwnedVerbs {
+			if strings.Contains(src, "."+verb+"(") {
+				t.Errorf("%s calls the kernel's %s — that verb belongs to the application layer", name, verb)
+			}
+		}
+	}
+}
+
 // The control plane is an ADAPTER: it speaks the protocol and hands the work
 // to the application layer.
 //
