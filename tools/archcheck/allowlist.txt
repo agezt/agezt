@@ -6,4 +6,3 @@
 adapter-bypass kernel/controlplane -> kernel/runtime
 cross-module kernel/cadence/systemtasks -> kernel/runtime
 cross-module kernel/modules/agents/selfrepair -> kernel/runtime
-upward kernel/channel -> kernel/bus
