@@ -3250,6 +3250,17 @@ This file holds the active `[Unreleased]` working set.
   itself; closing the edge needs a port in the application layer, and the
   adapter now knows no module row at all, so that work is mechanical.
 
+- **The council's wiring moved into the application (W5.4n).** The control
+  plane was not deciding anything with the kernel — it was *wiring* the
+  council's panel, its seating, its convening and its conductor, and wiring is
+  the application's business. The council's ports now live in
+  `kernel/app/council`, the shape `app/catalog`, `app/providers` and
+  `app/runs` already use, and **six** kernel verbs left the adapter: the host
+  now says one sentence about the council — *here is the handle*. A
+  verb-grained guard holds the wiring where it belongs, because no
+  behavioural test could: the wiring would work exactly as well in the wrong
+  layer.
+
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still

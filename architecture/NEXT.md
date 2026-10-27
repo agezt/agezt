@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4m the adapter names the runtime only as a handle, 2026-10-27
+## Current checkpoint — W5.4n the application fills the council's own ports, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5437,6 +5437,22 @@ files, five of the seventeen mutations would have escaped.
   slice did is make that work **mechanical** — the adapter no longer knows a
   single module row. Evidence:
   `architecture/218-w54m-adapter-names-the-runtime-only-as-a-handle-evidence.md`
+
+- W5.4n (the application fills the council's own ports) is the **first**
+  family of the port programme the family map described. The adapter's kernel
+  use is almost entirely **port filling** — it passes kernel methods into the
+  application's port structs — and wiring is the application's business: it
+  knows which capabilities the council needs and how each of them answers. The
+  council's ports moved into `kernel/app/council` (`PortsFromKernel`,
+  `EnginesFromKernel`), the shape `app/catalog`, `app/providers` and
+  `app/runs` already use. **Six** kernel verbs left the adapter, and the
+  host now says one sentence about the council: *here is the handle*. A
+  verb-grained guard holds the wiring where it belongs — the gate counts
+  packages and cannot see it, and **no behavioural test could**: the wiring
+  would work exactly as well in the wrong layer. The ratchet does not move
+  yet, but the pattern is proven end to end.
+  Evidence:
+  `architecture/219-w54n-the-application-fills-the-councils-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
