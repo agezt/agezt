@@ -1807,9 +1807,9 @@ It is excluded from the env-var inventory guard (`controlplane/config_inventory_
 | `standing/standing.json` | standing | JSON array of `Order`, atomic |
 | `state/pulse_probe.json`, `state/pulse_seen.json` | pulse (via `state.FileStore`) | Namespace map, atomic |
 | `skills/skills.json` | skill | `map[id]Skill`, atomic |
-| `skills/bundles/<slug>/…` | skill | Raw resource files (staged swap) |
+| `skills/bundles/<slug>/…` | skill | Raw resource files, published as a **whole tree** (`internal/dirswap`: staged, moved aside, renamed into place — a failed write leaves the published bundle intact) |
 | `market/installed.json`, `market/sources.json` | market | JSON, atomic |
-| `market/marketplaces/<name>/{index.json, packs/*.json}` | market | Staged dir + rename |
+| `market/marketplaces/<name>/{index.json, packs/*.json}` | market | A **whole tree** published by `internal/dirswap` (W5.4): staged, the old tree moved aside, the new one renamed into place, the old one removed afterwards — a failed publish leaves the previous cache intact |
 | *`<publish-out>/{marketplace.json, packs/*.json}`* | market (publish) | JSON, **atomic** (temp + rename); the index is **refused** when it is not readable JSON, never silently reset |
 | `mcp/servers.json` | mcp | JSON array of `Server`, atomic |
 | `workflows/workflows.json` | workflow | JSON array of `Workflow`, atomic |

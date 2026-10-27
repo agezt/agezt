@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/agezt/agezt/internal/dirswap"
 	"github.com/agezt/agezt/kernel/contract/marketapi"
 )
 
@@ -126,6 +127,11 @@ func (s *Store) saveSources(list []Source) error {
 // SaveMarketplace caches a synced marketplace's index plus every pack bundle,
 // keep-last-good: it stages into a sibling temp dir and swaps it over the live
 // one only after all writes succeed, so a failed sync never corrupts the cache.
+//
+// The swap is the shared directory policy (internal/dirswap): the old tree is
+// MOVED ASIDE, the new one renamed into place, and the old one removed
+// afterwards — so a swap that fails leaves the cache exactly as it was,
+// instead of deleting it and then failing to publish the new one.
 func (s *Store) SaveMarketplace(name string, mp Marketplace, packs []Pack) error {
 	if !nameRe.MatchString(name) {
 		return fmt.Errorf("market: marketplace name must match %s", nameRe)
@@ -136,10 +142,13 @@ func (s *Store) SaveMarketplace(name string, mp Marketplace, packs []Pack) error
 		return err
 	}
 	final := s.marketplaceDir(name)
-	staging := final + ".staging"
-	if err := os.RemoveAll(staging); err != nil {
+	staging, err := dirswap.Stage(final)
+	if err != nil {
 		return err
 	}
+	// The staging tree is removed unless the swap consumed it (a successful
+	// swap renames it away, so this is a no-op then).
+	defer os.RemoveAll(staging)
 	if err := os.MkdirAll(filepath.Join(staging, "packs"), 0o755); err != nil {
 		return err
 	}
@@ -148,7 +157,7 @@ func (s *Store) SaveMarketplace(name string, mp Marketplace, packs []Pack) error
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(staging, "packs", p.Name+".json"), data, 0o644); err != nil {
+		if err := dirswap.WriteFile(filepath.Join(staging, "packs", p.Name+".json"), data, 0o644); err != nil {
 			return err
 		}
 	}
@@ -156,15 +165,10 @@ func (s *Store) SaveMarketplace(name string, mp Marketplace, packs []Pack) error
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(staging, "index.json"), idx, 0o644); err != nil {
+	if err := dirswap.WriteFile(filepath.Join(staging, "index.json"), idx, 0o644); err != nil {
 		return err
 	}
-	// Swap: remove the old live dir then rename staging over it. The window is
-	// tiny and local; far safer than overwriting files in place during a fetch.
-	if err := os.RemoveAll(final); err != nil {
-		return err
-	}
-	return os.Rename(staging, final)
+	return dirswap.Swap(staging, final)
 }
 
 // CachedMarketplaces reads every synced marketplace index from the cache.
@@ -180,7 +184,7 @@ func (s *Store) CachedMarketplaces() ([]Marketplace, error) {
 	}
 	var out []Marketplace
 	for _, e := range entries {
-		if !e.IsDir() || strings.HasSuffix(e.Name(), ".staging") {
+		if !e.IsDir() || dirswap.IsTransient(e.Name()) {
 			continue
 		}
 		data, rerr := os.ReadFile(filepath.Join(s.marketplaceDir(e.Name()), "index.json"))
