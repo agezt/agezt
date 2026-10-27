@@ -5,37 +5,38 @@ package api
 // The module's own vocabulary: the rows it publishes and the shape they keep.
 
 import (
-	"encoding/json"
 	"reflect"
-	"strings"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 )
 
-// TestFindingRowsCarryEveryField: the reaper's findings are published as they
-// are — every field is present, the empty optional fields included. The
-// operator's scan publishes these rows, so a row must never lose a key.
-func TestFindingRowsCarryEveryField(t *testing.T) {
-	for _, row := range []struct {
-		name string
-		raw  any
-		want []string
+// TestTheReaperRowsAreTheContractRows: the rows live in the CONTRACT layer
+// and this package re-exports them as aliases — one row, one spelling.
+//
+// The identity matters: a row the ADAPTER can only name by naming this
+// module is a row the adapter is not supposed to know, and the reaper's
+// findings are read by the operator's scan in the application layer and
+// handed on by the adapter. If this package declared its own copy, the two
+// would drift the moment one of them changed.
+func TestTheReaperRowsAreTheContractRows(t *testing.T) {
+	pairs := []struct {
+		name     string
+		module   any
+		contract any
 	}{
-		{"dead", ReaperAgent{Slug: "d"}, []string{`"slug":"d"`, `"name":""`, `"last_active_ms":0`}},
-		{"degraded", DegradedAgent{Slug: "g"}, []string{`"name":""`, `"failures":0`, `"window":0`, `"threshold":0`, `"doctor_agent":""`, `"self_repair_enabled":false`, `"escalate_to":""`, `"last_failure_ms":0`, `"last_reason":""`}},
-		{"misconfigured", MisconfiguredAgent{Slug: "m"}, []string{`"name":""`, `"issues":null`, `"doctor_agent":""`, `"self_repair_enabled":false`, `"escalate_to":""`}},
-		{"retry pressure", RetryPressureAgent{Slug: "r"}, []string{`"count":0`, `"threshold":0`, `"window_sec":0`, `"last_retry_ms":0`, `"next_attempt":0`, `"max_attempts":0`}},
-		{"routing pressure", RoutingPressureAgent{Slug: "p"}, []string{`"count":0`, `"last_fallback_ms":0`, `"last_failed_model":""`, `"last_next_model":""`, `"task_type":""`}},
-		{"forced", RoutingForcedAgent{Slug: "f"}, []string{`"count":0`, `"last_forced_ms":0`, `"forced_chain":null`, `"routing_force_generation":0`, `"task_type":""`}},
-		{"unstable", RoutingUnstableAgent{Slug: "u"}, []string{`"count":0`, `"last_rollback_ms":0`, `"current_chain":null`, `"previous_chain":null`, `"last_reason":""`}},
-	} {
-		raw, err := json.Marshal(row.raw)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, want := range row.want {
-			if !strings.Contains(string(raw), want) {
-				t.Errorf("the %s row lost a field: %s not in %s", row.name, want, string(raw))
-			}
+		{"reaper agent", ReaperAgent{}, agentapi.ReaperAgent{}},
+		{"degraded agent", DegradedAgent{}, agentapi.DegradedAgent{}},
+		{"misconfigured agent", MisconfiguredAgent{}, agentapi.MisconfiguredAgent{}},
+		{"routing pressure agent", RoutingPressureAgent{}, agentapi.RoutingPressureAgent{}},
+		{"retry pressure agent", RetryPressureAgent{}, agentapi.RetryPressureAgent{}},
+		{"forced agent", RoutingForcedAgent{}, agentapi.RoutingForcedAgent{}},
+		{"unstable agent", RoutingUnstableAgent{}, agentapi.RoutingUnstableAgent{}},
+		{"reaper report", ReaperReport{}, agentapi.ReaperReport{}},
+	}
+	for _, p := range pairs {
+		if reflect.TypeOf(p.module) != reflect.TypeOf(p.contract) {
+			t.Errorf("the module's %s is not the contract's %s", p.name, p.name)
 		}
 	}
 }

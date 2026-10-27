@@ -72,13 +72,13 @@ import (
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/contract/reasoningapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/platform/rollbackstore"
 	"github.com/agezt/agezt/kernel/redact"
-	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/settings"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -307,7 +307,7 @@ var councilOperations = func() []app.Operation {
 				return s.k.CouncilDefaultMembers()
 			},
 			SetMembers: func(members []appcouncil.Member) {
-				s.k.SetCouncilMembers(func() []runtime.CouncilMember {
+				s.k.SetCouncilMembers(func() []reasoningapi.CouncilMember {
 					return members
 				})
 			},
@@ -331,7 +331,7 @@ var councilAskOperations = func() []app.Operation {
 	ops, err := appcouncil.AskOperations(func(ctx context.Context) appcouncil.Engines {
 		k := ctx.Value(systemHostKey{}).(*Server).k
 		return appcouncil.Engines{
-			Convene: func(ctx context.Context, corr, question string, rounds int) (runtime.CouncilResult, error) {
+			Convene: func(ctx context.Context, corr, question string, rounds int) (reasoningapi.CouncilResult, error) {
 				return k.Council(ctx, corr, question, nil, rounds)
 			},
 			RunConductor:   k.Conduct,

@@ -10,33 +10,27 @@ import (
 )
 
 // The control plane is an ADAPTER: it speaks the protocol and hands the work
-// to the application layer. It must not reach into the runtime's module for
-// the run's own DECORATION — the agent's profile, the wake provenance, the
-// cost ceiling, the model chain, the tool allowlist.
+// to the application layer.
 //
-// Those are decisions the APPLICATION makes (`kernel/app/runs.Decorate` and
-// its siblings): the host states WHY a run exists and WHICH agent runs it,
-// and it says so without naming the module that will execute the run.
+// It may hold the kernel HANDLE — the runtime is what actually executes the
+// runs — but every ROW it touches and every MECHANISM it uses must come from
+// the contract layer or the application layer. A row the adapter can only
+// name by naming the module is a row the adapter is not supposed to know,
+// and a mechanism the adapter applies itself is a mechanism that can drift
+// from the one the direct path uses.
 //
 // The GATE holds the adapter→module edge at PACKAGE granularity: as long as
-// the adapter names the kernel handle at all, the edge is allowed and the gate
-// says nothing about WHICH symbols the adapter names beside it. This test
-// holds the same edge at SYMBOL granularity — the decoration symbols are the
-// ones that turn "the adapter holds a kernel" into "the adapter knows how the
-// runtime builds a run".
-var runtimeSelector = regexp.MustCompile(`\b(?:kernel)?runtime\.([A-Za-z_][A-Za-z0-9_]*)`)
+// the adapter holds the kernel handle, the edge is allowed and the gate says
+// nothing about WHICH symbols the adapter names beside it. This test holds
+// the same edge at SYMBOL granularity — and it allows exactly one symbol:
+// the handle itself.
+//
+// The file's own import says which name the runtime has in it, so the check
+// is precise: a file that imports the kernel runtime may only use its
+// `Kernel` type.
+var kernelRuntimeImport = regexp.MustCompile(`(?:^|\n)\s*(?:(\w+)\s+)?"github\.com/agezt/agezt/kernel/runtime"`)
 
-func TestTheAdapterNamesNoRunDecorationFromTheRuntime(t *testing.T) {
-	forbidden := map[string]bool{
-		"WithAgentProfile": true,
-		"WithWakeContext":  true,
-		"WithMaxCost":      true,
-		"WithModel":        true,
-		"WithModelChain":   true,
-		"WithTools":        true,
-		"WakeContext":      true,
-	}
-
+func TestTheAdapterNamesTheRuntimeOnlyAsAHandle(t *testing.T) {
 	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatal(err)
@@ -50,10 +44,22 @@ func TestTheAdapterNamesNoRunDecorationFromTheRuntime(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, m := range runtimeSelector.FindAllStringSubmatch(string(raw), -1) {
-			if forbidden[m[1]] {
-				t.Errorf("%s names runtime.%s — the run's decoration belongs to the application layer (kernel/app/runs)", name, m[1])
+		src := string(raw)
+
+		m := kernelRuntimeImport.FindStringSubmatch(src)
+		if m == nil {
+			continue // the file does not name the runtime at all
+		}
+		alias := m[1]
+		if alias == "" {
+			alias = "runtime"
+		}
+		selector := regexp.MustCompile(`\b` + regexp.QuoteMeta(alias) + `\.([A-Za-z_][A-Za-z0-9_]*)`)
+		for _, hit := range selector.FindAllStringSubmatch(src, -1) {
+			if hit[1] == "Kernel" {
+				continue
 			}
+			t.Errorf("%s names %s.%s — the adapter may hold the kernel handle, but every row and mechanism it touches must come from the contract or the application layer", name, alias, hit[1])
 		}
 	}
 }
