@@ -21,11 +21,19 @@ import (
 //     env scrubbing (secrets leak into children), no isolation, no limits.
 //   - http-client: a hand-built or default HTTP client means no SSRF guard,
 //     no uniform retry/Retry-After, no body cap.
-//   - raw-write: os.WriteFile/os.Create skip the atomic writer (fsync +
-//     unique temp + rename) and the store framework's permissions.
+//   - raw-write: os.WriteFile/os.Create/os.CreateTemp skip the atomic writer
+//     (fsync + unique temp + rename) and the store framework's permissions.
 //
 // The rule SET is fixed here; layers.json only says WHERE each rule's calls
 // are legitimate (the platform package that owns the guarantee).
+//
+// os.CreateTemp belongs in the raw-write set because a package that creates
+// its OWN temp file is hand-rolling that writer: temp + fsync + chmod +
+// rename is exactly the mechanism the rule exists to have in one place. The
+// one implementation is internal/atomicfile (layer 0, exempt as the
+// foundation it is). Before CreateTemp was in the set, a package could move
+// its write to a temp file and the count would DROP without any new
+// guarantee being enforced — the count was measuring less than it claimed.
 const (
 	CallExec       = "exec"
 	CallHTTPClient = "http-client"
@@ -36,7 +44,7 @@ const (
 var callRules = map[string]map[string][]string{
 	CallExec:       {"os/exec": {"Command", "CommandContext"}},
 	CallHTTPClient: {"net/http": {"DefaultClient", "Get", "Post", "Head", "PostForm"}},
-	CallRawWrite:   {"os": {"WriteFile", "Create"}},
+	CallRawWrite:   {"os": {"WriteFile", "Create", "CreateTemp"}},
 }
 
 // constructRules are TYPES whose construction (T{...} or new(T)) violates a
