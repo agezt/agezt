@@ -15,7 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/executionprofile"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
 // The native bridge binds the actual profile/context APIs; business seat,
@@ -39,19 +38,13 @@ type workboardExecutionContext struct {
 }
 
 func (b workboardExecutionContext) Agent(ctx context.Context, reason, taskID string) context.Context {
-	ctx = kernelruntime.WithAgentProfile(ctx, b.profile)
-	ctx = kernelruntime.WithWakeContext(ctx, kernelruntime.WakeContext{Source: "workboard", Reason: reason, TriggerSubject: "workboard." + taskID})
-	if b.profile.MaxCostMc > 0 {
-		ctx = kernelruntime.WithMaxCost(ctx, b.profile.MaxCostMc)
-	}
-	return ctx
+	return appruns.Decorate(ctx, b.profile, agentapi.WakeContext{Source: "workboard", Reason: reason, TriggerSubject: "workboard." + taskID}, b.profile.MaxCostMc)
 }
 func (b workboardExecutionContext) Models(ctx context.Context, chain []string) context.Context {
-	ctx = kernelruntime.WithModel(ctx, chain[0])
-	return kernelruntime.WithModelChain(ctx, chain)
+	return appruns.DecorateModels(ctx, chain)
 }
 func (b workboardExecutionContext) Tools(ctx context.Context, tools []string) context.Context {
-	return kernelruntime.WithTools(ctx, tools)
+	return appruns.DecorateTools(ctx, tools)
 }
 func (b workboardExecutionContext) Isolation(ctx context.Context, id string) (context.Context, string, error) {
 	return b.s.applyWardenExecutionProfile(ctx, id)

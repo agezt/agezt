@@ -16,6 +16,7 @@ import (
 	"os"
 
 	approster "github.com/agezt/agezt/kernel/app/roster"
+	appruns "github.com/agezt/agezt/kernel/app/runs"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -41,11 +42,7 @@ func publishOperatorAction(k *runtime.Kernel, subject, corr string, payload map[
 func (s *Server) launchOperatorWake(corr string, p agentapi.Profile, intent, reason string, lineage approster.IncidentLineage) {
 	approster.LaunchOperatorWake(approster.WakeLaunchPorts{
 		Run: func(corr, intent string, retry *agentapi.RetryPolicy, maxCostMc int64) (string, error) {
-			ctx := runtime.WithAgentProfile(context.Background(), p)
-			ctx = runtime.WithWakeContext(ctx, runtime.WakeContext{Source: "operator", Reason: reason})
-			if maxCostMc > 0 {
-				ctx = runtime.WithMaxCost(ctx, maxCostMc)
-			}
+			ctx := appruns.Decorate(context.Background(), p, agentapi.WakeContext{Source: "operator", Reason: reason}, maxCostMc)
 			if retry != nil {
 				return s.k.RunWithRetry(ctx, corr, intent, *retry)
 			}

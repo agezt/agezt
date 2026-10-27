@@ -5,9 +5,9 @@ import (
 	"context"
 	"fmt"
 	appworkflow "github.com/agezt/agezt/kernel/app/workflow"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/event"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"os"
 )
 
@@ -33,7 +33,7 @@ func (s *Server) workflowExecution() *appworkflow.Execution {
 			return appworkflow.NodeResult{Output: res.Output, Port: res.Port, Attempts: res.Attempts}, err
 		},
 		WithWake: func(ctx context.Context, wake appworkflow.Wake) context.Context {
-			return kernelruntime.WithWakeContext(ctx, kernelruntime.WakeContext{Source: wake.Source, Reason: wake.Reason, ScheduleID: wake.ScheduleID, StandingID: wake.StandingID, StandingName: wake.StandingName, TriggerSubject: wake.TriggerSubject, ParentCorrelation: wake.ParentCorrelation})
+			return agentapi.WithWakeContext(ctx, agentapi.WakeContext{Source: wake.Source, Reason: wake.Reason, ScheduleID: wake.ScheduleID, StandingID: wake.StandingID, StandingName: wake.StandingName, TriggerSubject: wake.TriggerSubject, ParentCorrelation: wake.ParentCorrelation})
 		},
 		Panic: func(wake appworkflow.Wake, corr, name string, value any) {
 			fmt.Fprintf(os.Stderr, "workflow %q (%s) panicked: %v\n", name, wake.Source, value)
