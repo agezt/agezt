@@ -98,6 +98,30 @@ type CallCount struct {
 // Key is the allowlist identity (without the count).
 func (c CallCount) Key() string { return c.Rule + " " + c.Pkg }
 
+// layerExempt reports whether a layer is exempt from a rule.
+//
+// Layer 0 is the foundation: those packages ARE the implementations of the
+// guarantees the rules protect (the atomic writer itself writes), so they
+// are exempt from every rule.
+//
+// Layer 7 is the binaries and the repo tooling. It stays exempt from the
+// rules that are about the DAEMON's guarantees — a binary legitimately
+// spawns a process and calls an API, that is its job — but NOT from
+// raw-write: a file a CLI writes is a file the daemon may read back (the
+// doctor's memory.json repair, the market signing key), and a plain
+// os.WriteFile skips the atomic writer and the store framework's
+// permissions. The CLI's own writes are counted, so the ratchet can bring
+// them down.
+func layerExempt(rule string, layer int) bool {
+	switch layer {
+	case LayerFoundation:
+		return true
+	case LayerRoot:
+		return rule == CallExec || rule == CallHTTPClient
+	}
+	return false
+}
+
 // scanCalls counts forbidden call sites in every in-scope package. Only
 // non-test files are parsed (Pkg.GoFiles excludes _test.go).
 func scanCalls(cfg *Config, pkgs []Pkg) ([]CallCount, error) {
@@ -108,7 +132,7 @@ func scanCalls(cfg *Config, pkgs []Pkg) ([]CallCount, error) {
 			continue
 		}
 		cl, ok := cfg.classify(rel)
-		if !ok || cl.Layer == LayerFoundation || cl.Layer == LayerRoot {
+		if !ok {
 			continue
 		}
 		counts := map[string]int{}
@@ -118,7 +142,7 @@ func scanCalls(cfg *Config, pkgs []Pkg) ([]CallCount, error) {
 			}
 		}
 		for rule, n := range counts {
-			if n > 0 && !cfg.callAllowed(rule, rel) {
+			if n > 0 && !cfg.callAllowed(rule, rel) && !layerExempt(rule, cl.Layer) {
 				out = append(out, CallCount{Rule: rule, Pkg: rel, N: n})
 			}
 		}
