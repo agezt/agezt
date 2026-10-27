@@ -42,7 +42,7 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 |---|---|---|
 | `roster` | edict, filestore, ulid | cmd/agezt, agentgw, app/{roster, routing, runs, schedule, standing}, controlplane, modules/agents/{api, reaper, selfrepair}, runtime (+accessors, runexec) |
 | `cadence` | bus, event, filestore, ulid | cmd/agezt, cmd/agt, app/{roster, schedule}, cadence/systemtasks, controlplane, runtime (+accessors, runexec) |
-| `cadence/systemtasks` | brand, cadence, catalog, event, runtime | cmd/agezt only |
+| `cadence/systemtasks` | brand, cadence, event, contract/{cadenceapi,catalogapi,journalapi} | cmd/agezt only |
 | `scheduler` | agent, approval, bus, event, intent, ulid | controlplane, runtime (+accessors, runexec) |
 | `standing` | bus, filestore, ulid | cmd/agezt, app/{roster, standing}, controlplane, runtime (+accessors, runexec) |
 | `pulse` | agent, bus, event, state, ulid, warden | cmd/agezt, alerter, channelwire, builtinchannels |
@@ -379,28 +379,33 @@ Tests (clock-controlled): `cadence_test`, `continuous_test`, `dst_test`, `inject
 
 ## 4. `kernel/cadence/systemtasks` — daemon maintenance executors
 
-**Purpose.** Executors for the seven typed system tasks. They were extracted from `cmd/agezt` in Phase 2.6. Each runs
-directly against `*runtime.Kernel`, never wakes an agent, and publishes a compact summary event.
+**Purpose.** Executors for the seven typed system tasks. They were extracted from `cmd/agezt` in Phase 2.6. Each never wakes an agent, and publishes a compact summary event.
 
-**Import rule** (`doc.go:9-13`): nothing in `kernel/cadence` or `kernel/runtime` may import `systemtasks`.
+**Ports (W5.4e).** The executors used to run directly against `*runtime.Kernel`, which made the cadence module depend on the runs module. They now run against the **contract's** port set — `cadenceapi.SystemTaskPorts` — which the kernel hands over (`kernel.SystemTaskPorts()`). The module names the contract and never the kernel.
+
+A capability the daemon does not have is a **nil field**, and a nil field is a refusal, not an empty answer: "this daemon has no memory" and "the memory is empty" are different facts, so the task that needs the memory says so instead of reporting a clean store it never looked at. The set is narrow on purpose: the artifact index is a ten-verb host port (two of its verbs delete bytes, one switches off the journal's ref guard) and the collect task gets **one** of them; the memory port is the contract's **maintainer** half, not the whole manager.
+
+**Import rule** (`doc.go`): nothing in `kernel/cadence` or `kernel/runtime` may import `systemtasks`.
 The daemon wires them together.
 
 **API:**
 - `Info(name) (cadence.SystemTaskInfo, bool)`: decorates `schedule.fired`.
-- `Run(ctx, k, corr, scheduleID, task) error`: switch dispatch; an unknown name is an error.
+- `Run(ctx, ports cadenceapi.SystemTaskPorts, corr, scheduleID, task) error`: switch dispatch; an unknown name is an error.
 
 | Task | Executor | Effect / event (`schedule.system_task.<name>`, kind `info`, actor `schedule`) |
 |---|---|---|
-| `catalog_sync` | `runScheduledCatalogSync` | `catalog.NewSyncer().Sync` → `k.CatalogStore().SaveAPI` → `k.Reload()`. Emits `catalog.synced` / `catalog.sync_failed`. URL from `AGEZT_CATALOG_URL`. |
-| `artifact_collect` | `runScheduledArtifactCollect` | `k.ArtifactIndex().Collect(cutoff)`. 30-day cutoff, hard-coded. |
-| `memory_clean` | `runScheduledMemoryClean` | `k.Memory().CleanLowValue(corr, false)`. |
-| `memory_tidy` | `runScheduledMemoryTidy` | `k.Memory().DedupeDistilled(corr, false)`. |
-| `log_clean` | `runScheduledLogClean` | Journal `Range` stats + `Head()`. Payload says `physical_deletion:false`: the hash chain is never pruned. |
+| `catalog_sync` | `runScheduledCatalogSync` | `ports.CatalogSyncer.Sync` → `ports.CatalogStore.SaveAPI` → `ports.Reload()`. Emits `catalog.synced` / `catalog.sync_failed`. URL from `AGEZT_CATALOG_URL`. |
+| `artifact_collect` | `runScheduledArtifactCollect` | `ports.CollectArtifacts(cutoff)`. 30-day cutoff, hard-coded. |
+| `memory_clean` | `runScheduledMemoryClean` | `ports.Memory.CleanLowValue(corr, false)`. |
+| `memory_tidy` | `runScheduledMemoryTidy` | `ports.Memory.DedupeDistilled(corr, false)`. |
+| `log_clean` | `runScheduledLogClean` | `ports.ScanJournal.Scan` stats + `Head()`. Payload says `physical_deletion:false`: the hash chain is never pruned. |
 | `graveyard_scan` | `runScheduledGraveyardScan` | Notify-only list of retired profiles older than `AGEZT_GRAVEYARD_RETENTION_DAYS` (0 = keep forever). Payload says `action:"report_only"`. |
-| `profile_distill` | `runScheduledProfileDistill` | `k.DistillProfile(ctx, corr)`: one LLM pass that writes operator-profile facets. |
+| `profile_distill` | `runScheduledProfileDistill` | `ports.DistillProfile(ctx, corr)`: one LLM pass that writes operator-profile facets. |
 
 Files: `doc.go` (import rule), `systemtasks.go` (`Info`, `Run`), `systemtasks_helpers.go` (the seven executors,
-`graveyardRetentionDays`, `envOrDefaultLocal`). Tests: one per executor in `systemtasks_test.go`.
+`publishSummary`, `graveyardRetentionDays`, `envOrDefaultLocal`). Tests: one per executor plus the refusal table in
+`systemtasks_test.go`; the port set's shape in `kernel/contract/cadenceapi/ports_test.go`, the kernel's side in
+`kernel/runtime/systemtask_ports_test.go`.
 
 ## 5. `kernel/standing` — standing orders
 

@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4d the channel guard reaches the bus through a port, 2026-10-27
+## Current checkpoint — W5.4e the system tasks reach the daemon's capabilities through the contract's ports, 2026-10-27
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -4997,6 +4997,65 @@ files, five of the seventeen mutations would have escaped.
   (nine accessors, two of them platform types the contract may not name) and
   `selfrepair → runtime` (a runs port that does not exist yet). W5.4's
   remaining part is the **`docs/`** archiving.
+
+- W5.4e (the system tasks reach the daemon's capabilities through the
+  contract's ports) takes the **system-task** edge — `cross-module
+  kernel/cadence/systemtasks -> kernel/runtime` — and the ratchet goes
+  **3 → 2**. The cadence module reached the runs module and did not even name
+  a *type*: the seven executors took the whole kernel
+  (`func Run(ctx, k *kernelruntime.Kernel, corr, scheduleID, task string)`)
+  and asked it nine questions — **the kernel was the API**. The edge was
+  **measured first**, and the measurement said **seven of the nine accessors
+  were ALREADY contract rows**, so the port could carry them verbatim. The
+  **hard** two were the platform types a contract may not name (P4) —
+  `Bus() *bus.Bus` and `Journal() *journal.Journal` — and the answer was
+  already in the tree twice: `eventapi.Publisher` (the platform's event
+  package keeps `Spec` and `Kind` as **aliases** of the contract's, so a
+  spec built with `event.KindInfo` crosses the port unchanged — the same
+  row, not a translation) and `journalapi.Reader` (the journal's own read
+  port over its own `Record` projection; the log task needed the **whole**
+  history and the chain's head, so the journal's contract grew a **second
+  read port** over the **same** record — one vocabulary, two ports). The
+  port set lives in the cadence module's **own** contract
+  (`cadenceapi.SystemTaskPorts`) and the **kernel hands it over**
+  (`k.SystemTaskPorts()`), the way the kernel hands over the memory publisher
+  and the reaper's ports: the capability is the kernel's own, and the module
+  that consumes it must not name the kernel. The conversion happens **where
+  the values are still concrete** — the board's rule, applied for the fourth
+  time: a nil `*bus.Bus` or a nil `*journal.Journal` handed to an interface
+  parameter is a **non-nil interface**, so a capability the daemon does not
+  have is a **nil port**, checked on the concrete value. **The ports are
+  NARROW, and that is the point**: the artifact index is a **ten-verb** host
+  port and two of its verbs **delete bytes** while a third (`SetRefGuard`)
+  switches off the journal's protection of the bytes the journal still names
+  — so the collect task gets **one** verb and not the index; and the memory
+  port is the contract's **maintainer** half (five verbs), not the whole
+  manager. **A missing capability is a REFUSAL, not an empty answer**: nine
+  refusals, each naming what is missing — "this daemon has no memory" and
+  "the memory is empty" are different facts, and a maintenance job that
+  reports the second one is reporting a store it never looked at. The
+  publish error is still **discarded** — a summary that could not be written
+  must not fail the task it summarises — but a daemon with **no publisher at
+  all** refuses. The slice also found a real **crash in the error path**:
+  the catalog sync built its failure message from the reload's error
+  **without checking it** (`provErr.Error()`), so a reload that answered no
+  catalog and no error would have taken the daemon down — the same class as
+  the checksum slice's `want[:8]` panic; the message is now built from what
+  the port actually answered. **26 permanent tests** (the port set's shape,
+  the journal's scan port, one per executor, the **refusal table**, the
+  reload that answers no error, the kernel's side — the nil ports, the
+  artifact index, the scanner's projection, the publisher — and the daemon's
+  dispatch, asserted **statically**) and **27 mutations, 27 caught** in two
+  independent passes with **byte-identical** logs. The calibration found
+  **three test gaps** and one mutation defect, and all four are fixed and
+  named: the memory **tidy's** refusal was never tested; the graveyard test
+  could not tell the retired agents from the living ones; the catalog sync's
+  **saved bytes** were never asserted; and one mutation orphaned the fetched
+  bytes and broke the build before the behaviour could be measured.
+  **What remains**: the **import** ratchet stands at **2** —
+  `controlplane → runtime` (a redesign) and `selfrepair → runtime` (a runs
+  port that does not exist yet). W5.4's remaining part is the **`docs/`**
+  archiving.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
