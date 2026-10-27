@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/internal/brand"
 )
 
@@ -93,7 +94,7 @@ func cmdPluginNew(args []string, stdout, stderr io.Writer) int {
 		".gitignore": "/" + tool + "\n/" + tool + ".exe\n",
 	}
 	for fname, content := range files {
-		if err := os.WriteFile(filepath.Join(dir, fname), []byte(content), 0o644); err != nil {
+		if err := atomicfile.WriteFile(filepath.Join(dir, fname), []byte(content), 0o644); err != nil {
 			fmt.Fprintf(stderr, "%s plugin new: write %s: %v\n", brand.CLI, fname, err)
 			return 1
 		}
