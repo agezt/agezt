@@ -106,3 +106,33 @@ func TestCatalogRetainsWireDataVersionAndFind(t *testing.T) {
 		t.Fatal("corrupt catalog silently accepted")
 	}
 }
+
+// TestWriteSnapshotFileRestoresContentAndMode: the exported snapshot writer
+// is the one the CLI restores files with, so it must behave like the
+// platform's other atomic writes — content intact, parent directory created,
+// no scratch file left behind.
+func TestWriteSnapshotFileRestoresContentAndMode(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "nested", "restored.txt")
+	data := []byte("restored\x00bytes\n")
+
+	if err := rollbackstore.WriteSnapshotFile(path, data, 0o600); err != nil {
+		t.Fatalf("write snapshot: %v", err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil || !reflect.DeepEqual(got, data) {
+		t.Fatalf("restored bytes=%q error=%v", got, err)
+	}
+
+	entries, err := os.ReadDir(filepath.Dir(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "restored.txt" {
+		names := make([]string, 0, len(entries))
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		t.Fatalf("the directory holds %v, want exactly [restored.txt]", names)
+	}
+}

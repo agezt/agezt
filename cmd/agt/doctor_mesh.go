@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/meshctx"
+	"github.com/agezt/agezt/kernel/platform/filestore"
 	"github.com/agezt/agezt/plugins/tools/peer"
 )
 
@@ -28,10 +29,10 @@ func checkMemoryStoreFile(base string, repair bool) doctorCheck {
 		if !repair {
 			return warn(name, "memory.json is missing", "run `agt doctor --repair` to recreate an empty memory store")
 		}
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		if err := filestore.EnsureDir(filepath.Dir(path)); err != nil {
 			return fail(name, "cannot create memory dir: "+err.Error(), "check filesystem permissions")
 		}
-		if err := os.WriteFile(path, []byte("{}\n"), 0o600); err != nil {
+		if err := filestore.Save(path, map[string]json.RawMessage{}); err != nil {
 			return fail(name, "cannot recreate memory.json: "+err.Error(), "check filesystem permissions")
 		}
 		return ok(name, "recreated missing memory.json as empty store")
@@ -44,7 +45,7 @@ func checkMemoryStoreFile(base string, repair bool) doctorCheck {
 		if !repair {
 			return warn(name, "memory.json is empty", "run `agt doctor --repair` to reset it to an empty JSON object")
 		}
-		if err := os.WriteFile(path, []byte("{}\n"), 0o600); err != nil {
+		if err := filestore.Save(path, map[string]json.RawMessage{}); err != nil {
 			return fail(name, "cannot repair empty memory.json: "+err.Error(), "check filesystem permissions")
 		}
 		return ok(name, "repaired empty memory.json as empty store")
@@ -59,7 +60,7 @@ func checkMemoryStoreFile(base string, repair bool) doctorCheck {
 		if err := os.Rename(path, backup); err != nil {
 			return fail(name, "cannot back up corrupt memory.json: "+err.Error(), "check filesystem permissions")
 		}
-		if err := os.WriteFile(path, []byte("{}\n"), 0o600); err != nil {
+		if err := filestore.Save(path, map[string]json.RawMessage{}); err != nil {
 			return fail(name, "backed up corrupt memory.json but could not recreate it: "+err.Error(), "restore from "+backup+" after fixing permissions")
 		}
 		return ok(name, "backed up corrupt memory.json to "+filepath.Base(backup)+" and recreated empty store")
@@ -68,7 +69,7 @@ func checkMemoryStoreFile(base string, repair bool) doctorCheck {
 		if !repair {
 			return warn(name, "memory.json has a UTF-8 BOM", "daemon tolerates it, but `agt doctor --repair` will normalize the file")
 		}
-		if err := os.WriteFile(path, append(clean, '\n'), 0o600); err != nil {
+		if err := filestore.Save(path, decoded); err != nil {
 			return fail(name, "cannot rewrite memory.json without BOM: "+err.Error(), "check filesystem permissions")
 		}
 		return ok(name, fmt.Sprintf("normalized memory.json (%d record(s), BOM removed)", len(decoded)))

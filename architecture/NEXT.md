@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4f the stale docs are archived, and the index keeps them archived, 2026-10-27
+## Current checkpoint — W5.4h the CLI writes the daemon's stores through the daemon's writers, 2026-10-27
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5165,6 +5165,62 @@ files, five of the seventeen mutations would have escaped.
   artifact/report** exports. The **import** ratchet stands at **2**
   (`controlplane → runtime` is a redesign, `selfrepair → runtime` needs a runs
   port that does not exist yet).
+
+- W5.4h (the CLI writes the daemon's stores through the daemon's writers)
+  pays down the six of the fifteen counted CLI write sites that are **not "a
+  file the operator asked for"** — the ones that land on a file **the daemon
+  reads back**. The rule that made them visible says it plainly: *"The CLI is
+  NOT exempt: a file it writes is a file the daemon may read back."* All
+  fifteen were **classified before a line was changed**: **six are real
+  violations** (the doctor's four `memory.json` repairs, the rollback
+  catalog, the installed plugin binary), **one is a stream** the platform
+  cannot write yet, and **eight are outputs**. The eight outputs are not in
+  this slice — deciding between *moving* them and *exempting* them by name is
+  the next slice's measurement, not this one's guess, and only `plugin new`
+  (a **generator writing its own output**) matches the `tools/...` exemption's
+  reasoning verbatim. **The doctor** now writes the memory store through the
+  **store framework** (`filestore.Save` → the platform's atomic writer), so
+  the CLI's bytes are now **byte-identical** to the daemon's (it wrote
+  `"{}\n"`, the daemon writes `{}` — two writers, one file, two formats, and
+  the daemon rewrites the file on its next mutation), and the store directory
+  is created with the framework's `0700` instead of the doctor's `0755`. The
+  BOM repair now **re-serializes** the records it read, which is a real
+  behaviour change with a real risk — a repair that empties the store is a
+  data loss wearing a repair's clothes — so a permanent test holds the round
+  trip. **The rollback catalog** now has **one writer**: `cmd/agt` carried its
+  own copy of the format *and* its own writer, one with the **fixed-name
+  temp** (`path + ".tmp"`) that two concurrent writers race on, and the
+  platform has had the right answer in `kernel/platform/rollbackstore` all
+  along — the web UI was already using it. The CLI now **aliases** the
+  platform's types and calls the platform's writer, and its second, duplicated
+  atomic writer is gone (the platform's is now exported as
+  `rollbackstore.WriteSnapshotFile`, without the CLI's missing Windows
+  fallback). **The plugin binary** the daemon *executes* now goes through the
+  atomic writer too: `os.WriteFile` truncates the target in place and **does
+  not change the mode of an existing file**, so a re-install over a file
+  whose mode had drifted left the binary non-executable. The forbidden-call
+  ratchet goes **15 → 9**. **10 permanent tests** and **11 mutations, 11
+  caught** in two independent passes with **byte-identical** logs, and the
+  proofs are **two different instruments** because the slice changed two
+  kinds of thing: the **writer** (which the gate sees — six mutations) and
+  the **bytes** (which only a test can see — five). Two findings from the
+  calibration are worth naming: **M08 was first caught by the gate alone**,
+  because the stale-temp test used a **read-only file** as the stale scratch
+  name and on Windows that does not block a writer — `CREATE_ALWAYS`
+  *replaces* the file and drops its read-only attribute — so the test was
+  passing against the broken writer, and **a test that cannot fail is not a
+  test**; the stale name is now a **directory**, which blocks a fixed-name
+  writer on both platforms. And the harness itself had a lesson: it derived
+  the test's package from the *mutated file*, so a mutation in the platform
+  was judged by a test in the CLI — the package now comes from the mutation,
+  not from the file it edits. **What remains in the ratchet**: the **1
+  streaming** `os.Create` in `backup.go` (needs `atomicfile.WriteStream` first
+  — the platform has no streaming API), the **1 probe** in
+  `doctor_ops_env.go` (transient; `os.CreateTemp` is its right shape), and
+  the **7 exports**. The **import** ratchet stands at **2**
+  (`controlplane → runtime` is a redesign, `selfrepair → runtime` needs a runs
+  port that does not exist yet). Evidence:
+  `architecture/213-w54h-cli-store-writes-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

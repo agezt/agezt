@@ -3155,6 +3155,36 @@ This file holds the active `[Unreleased]` working set.
   is counted. The fifteen remaining CLI write sites are listed in the gate's
   ratchet and can only go down.
 
+- **`agt doctor --repair` now writes the memory store the way the daemon
+  writes it (W5.4h).** The doctor repaired the daemon's own `memory.json`
+  with a plain `os.WriteFile` — its own format, its own permissions, and a
+  truncate-in-place write, so a crash mid-repair could leave an empty store
+  where a record set had been. It now goes through the store framework
+  (`filestore.Save`), which is the platform's atomic writer: the file on disk
+  is either the whole store or the previous one, and the CLI's bytes are now
+  byte-identical to the daemon's.
+
+- **The CLI and the daemon share one rollback catalog (W5.4h).** `agt
+  rollback` carried its own copy of the catalog format *and* its own writer —
+  one with the fixed `"<path>.tmp"` scratch name that two concurrent writers
+  race on. It now uses the platform's catalog writer and aliases the
+  platform's types, exactly as the web UI already did, so the two sides
+  cannot drift apart. The CLI's second, duplicated atomic writer is gone; the
+  platform's is now exported and shared.
+
+- **An installed plugin binary appears complete and executable, or not at all
+  (W5.4h).** `agt plugin registry --install` wrote the binary the daemon
+  *executes* with a plain `os.WriteFile`, which truncates the target in place
+  and does not change the mode of an existing file — so a re-install over a
+  file whose mode had drifted left the binary non-executable. It now goes
+  through the atomic writer, which chmods before the rename.
+
+- **The forbidden-call ratchet for the CLI is down to nine (W5.4h).** Six of
+  the fifteen counted CLI write sites were writes to files the daemon reads
+  back; they are gone. What remains is named in the evidence: one streaming
+  write that needs a platform addition first, one transient probe, and seven
+  exports.
+
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still

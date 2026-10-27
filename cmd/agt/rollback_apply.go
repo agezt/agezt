@@ -23,6 +23,7 @@ import (
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/platform/rollbackstore"
 )
 
 func cmdRollbackApply(args []string, stdout, stderr io.Writer) int {
@@ -175,7 +176,7 @@ func applyFileSnapshotCheckpoint(cp rollbackCheckpoint) (map[string]any, error) 
 	if n := intNumber(before["mode_perm"]); n > 0 {
 		perm = os.FileMode(n)
 	}
-	if err := writeRollbackFile(path, data, perm); err != nil {
+	if err := rollbackstore.WriteSnapshotFile(path, data, perm); err != nil {
 		return nil, err
 	}
 	return map[string]any{"path": path, "restored": "content", "bytes": len(data)}, nil

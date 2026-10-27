@@ -15,37 +15,26 @@ import (
 
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/platform/rollbackstore"
 )
 
 const (
-	rollbackCatalogVersion       = 1
-	rollbackCheckpointKindSkill  = "skill.status"
-	rollbackCheckpointKindFlow   = "workflow.snapshot"
-	rollbackCheckpointKindFile   = "file.snapshot"
-	rollbackCheckpointKindConfig = "config.setting"
-	rollbackCatalogRelativePath  = "rollback/checkpoints.json"
+	rollbackCatalogVersion       = rollbackstore.CatalogVersion
+	rollbackCheckpointKindSkill  = rollbackstore.KindSkill
+	rollbackCheckpointKindFlow   = rollbackstore.KindFlow
+	rollbackCheckpointKindFile   = rollbackstore.KindFile
+	rollbackCheckpointKindConfig = rollbackstore.KindConfig
+	rollbackCatalogRelativePath  = rollbackstore.RelativePath
 	rollbackDefaultApplyTimeout  = 5 * time.Second
 	rollbackDefaultRenderTimeFmt = time.RFC3339
 )
 
-type rollbackCatalog struct {
-	Version     int                  `json:"version"`
-	Checkpoints []rollbackCheckpoint `json:"checkpoints"`
-}
+// The CLI and the daemon read and write the SAME catalog file. The types
+// live in the platform package (the owner of that file), and both sides
+// alias them — one format, one writer, one reader.
+type rollbackCatalog = rollbackstore.Catalog
 
-type rollbackCheckpoint struct {
-	ID           string         `json:"id"`
-	Kind         string         `json:"kind"`
-	Action       string         `json:"action"`
-	RunID        string         `json:"run_id,omitempty"`
-	SubjectID    string         `json:"subject_id"`
-	SubjectName  string         `json:"subject_name,omitempty"`
-	BeforeStatus string         `json:"before_status,omitempty"`
-	Reason       string         `json:"reason,omitempty"`
-	Before       map[string]any `json:"before,omitempty"`
-	CreatedMS    int64          `json:"created_ms"`
-	AppliedMS    int64          `json:"applied_ms,omitempty"`
-}
+type rollbackCheckpoint = rollbackstore.Checkpoint
 
 func cmdRollback(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
