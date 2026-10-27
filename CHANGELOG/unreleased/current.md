@@ -3085,6 +3085,24 @@ This file holds the active `[Unreleased]` working set.
   drift. The brand's version — the one the build stamps — is now the only
   one.
 
+- **The channel guard no longer names the bus (W5.4d).** The channel package is
+  a contract and the bus is the platform, and the guard — the function that
+  keeps one malformed inbound message from crashing the daemon — reached the
+  platform to journal the panic it recovered. It now takes a one-verb port
+  (`Publisher`) that the bus satisfies, and the import ratchet goes **4 → 3**.
+
+- **A broken publisher can no longer crash the daemon (W5.4d).** The guard
+  journals the recovered panic from inside the very `recover` that contains
+  the damage, so a publisher that was broken in its own right — a nil bus
+  behind a non-nil interface, or one that panicked — ended the process the
+  guard exists to protect. The publish is panic-safe on its own now.
+
+- **A daemon with no publisher says the failure was not recorded (W5.4d).**
+  The guard reports whether it attempted to journal a recovered panic. With no
+  publisher configured there is nowhere to publish to, and the guard does not
+  pretend otherwise: it recovers the panic and reports that nothing was
+  recorded, instead of raising a panic of its own on every error event.
+
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still
