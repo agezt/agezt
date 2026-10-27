@@ -5111,6 +5111,61 @@ files, five of the seventeen mutations would have escaped.
   `os.WriteFile` calls (including the one that writes an Ed25519 **private
   key** in place) are invisible to the gate.
 
+- W5.4g (the CLI's file writes are visible, and the signing key is written
+  atomically) takes the **last blind spot** in the forbidden-call gate: the
+  scan skipped **layer 7 outright** (*"Packages in layers 0 and 7 are always
+  exempt: foundation helpers ARE the implementations, and binaries/tooling
+  compose"*), so every `os.WriteFile` in `cmd/` was invisible. **Layer 0 is
+  right** — the foundation packages ARE the implementations, the atomic writer
+  itself writes. **Layer 7 was not**: a binary legitimately spawns a process
+  and calls an API (that is its job), but a **file** a CLI writes is a file
+  the daemon may read back, and a plain `os.WriteFile` skips the atomic writer
+  and the store framework's permissions. The blind spot hid **seventeen** call
+  sites in `cmd/agt`, and **two of them mattered more than the other fifteen**:
+  `cmd/agt/market_publish.go:103` wrote the operator's **Ed25519 signing
+  key** — the marketplace publishing identity — with a plain `os.WriteFile`, so
+  a crash mid-write leaves a **truncated key file** and a truncated signing
+  key is an **unrecoverable loss** (the whole publishing identity is gone,
+  with no error to show for it), and the `0600` mode is meaningless on Windows
+  where the POSIX bits do not exist; and `cmd/agt/doctor_mesh.go:34,47,62,71`
+  wrote the daemon's own **`memory.json`** — a real store the daemon reads
+  back — with the same plain writer, bypassing the store framework that owns
+  it. The exemption became **rule-aware** instead of blanket (the root keeps
+  `exec` and `http-client`; it loses `raw-write`), and the rule change alone
+  was not enough — it made every layer-7 package visible, and most of them
+  should not be: `tools/archcheck` writes its own allowlists, `tools/sdkparity`
+  writes `docs/SDK-PARITY.md`, `tools/structure-md` writes the generated
+  structure files — **a generator IS the implementation of its own output**,
+  which is exactly why layer 0 is exempt — so `layers.json`'s "calls" array
+  gained them explicitly and **the CLI is not in that list**. The
+  forbidden-call ratchet was **zero** after W5.4a and is now **one entry**
+  (`raw-write cmd/agt 15`), and that is the honest reading: **the zero was a
+  zero because the rule was not looking**. The import-edge ratchet has the
+  same shape — it started at seven and is at two — and a ratchet that starts
+  at fifteen may only go down. The signing key and its public half now go
+  through the platform's one canonical writer (`internal/atomicfile.WriteFile`
+  → **unique** temp, fsync, chmod, rename), so the file on disk is either the
+  whole key or not there. **5 permanent tests** — the rule itself, and four
+  for `agt market keygen`, which had **no test at all** (the written key is a
+  key `market.PrivateKeyFromHex` accepts; no temp is left behind; the key
+  file is `0600` — **POSIX only**, and the test says so instead of pretending
+  on Windows; an unknown argument is an error that writes nothing). **6
+  mutations, 6 caught** in two independent passes with **byte-identical**
+  logs, and the proof is the **gate itself**: each mutation must make
+  `tools/archcheck` fail **and name the site that regressed**. The
+  calibration reported **one FAILED-OTHER** and it was the mutation's fault:
+  its anchor also matched the **layer pattern**
+  `{"pattern": "tools/...", "layer": 7}`, so the mutation produced a malformed
+  `layers.json` and the gate failed with a JSON parse error instead of the
+  expected finding. **What remains in the ratchet**: the **4 doctor store
+  repairs** (a daemon store — the sharpest of the fifteen, and the one to take
+  next), the **1 fixed-name temp** in `rollback_catalog.go` (the pattern
+  `internal/atomicfile` replaced in M478), the **1 streaming** `os.Create` in
+  `backup.go` (which needs a platform addition first), and the **9
+  artifact/report** exports. The **import** ratchet stands at **2**
+  (`controlplane → runtime` is a redesign, `selfrepair → runtime` needs a runs
+  port that does not exist yet).
+
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
 grew a gate, `kernel/modules/providers/api`. The slice was a **ports rewrite**:

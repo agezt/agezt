@@ -3140,6 +3140,21 @@ This file holds the active `[Unreleased]` working set.
   listed, and that an archived document is listed only under the archive
   section. Run it with `make docs-index`.
 
+- **A crash can no longer truncate the marketplace signing key (W5.4g).**
+  `agt market keygen` wrote the operator's signing key with a plain
+  `os.WriteFile`, so a crash mid-write left a truncated key file — and a
+  truncated signing key is an unrecoverable loss, with no error to show for
+  it. The key and its public half now go through the platform's atomic
+  writer: the file on disk is either the whole key or not there.
+
+- **The CLI's file writes are no longer invisible to the architecture gate
+  (W5.4g).** The forbidden-call rules exempted the whole root layer, so every
+  `os.WriteFile` in `cmd/` escaped the gate — including the signing key's.
+  The exemption is now rule-aware: a binary may still spawn a process and
+  call an API, but a file it writes is a file the daemon may read back, so it
+  is counted. The fifteen remaining CLI write sites are listed in the gate's
+  ratchet and can only go down.
+
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still
