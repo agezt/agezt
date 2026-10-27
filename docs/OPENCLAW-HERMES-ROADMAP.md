@@ -2,6 +2,11 @@
 
 Date: 2026-07-01
 
+> **Status (2026-10-27): the AGEZT-side half of this roadmap is superseded** — the phase ordering it planned for
+> AGEZT's own tree is now the W0–W5 migration, tracked in
+> [`../architecture/21-migration-roadmap.md`](../architecture/21-migration-roadmap.md). The external half (what
+> OpenClaw and Hermes offer, checked against their official docs on 2026-07-01) is kept as the snapshot it is.
+
 This roadmap is for making AGEZT clearly stronger than OpenClaw and Hermes Agent
 while also covering the capabilities users reasonably expect from both products.
 It is based on official project docs and the current AGEZT repository shape, not

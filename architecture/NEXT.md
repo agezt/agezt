@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4e the system tasks reach the daemon's capabilities through the contract's ports, 2026-10-27
+## Current checkpoint — W5.4f the stale docs are archived, and the index keeps them archived, 2026-10-27
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5056,6 +5056,60 @@ files, five of the seventeen mutations would have escaped.
   `controlplane → runtime` (a redesign) and `selfrepair → runtime` (a runs
   port that does not exist yet). W5.4's remaining part is the **`docs/`**
   archiving.
+
+- W5.4f (the stale docs are archived, and the index keeps them archived) takes
+  W5.4's **last** part — the `docs/` archive — and it is **not only a
+  documentation edit**: the tree carried four documents that were bannered
+  `ARCHIVED` and were still listed in the index as current. **A banner
+  archives nothing**, and an index does not remember it. Every `.md` in
+  `docs/` was **measured** first (**42 files: 13 KEEP · 23 ARCHIVE · 5 UPDATE
+  · 1 UNCLEAR**), and the `UNCLEAR` one was settled by running the thing it
+  documents — `agt compare audit --json` answers *19 total, 12 supported, 6
+  partial, 1 missing, 0 evidence missing* and `docs/COMPETITOR-PARITY.md:26-29`
+  says exactly that, so the ledger is current and stays. The two that mattered
+  most were `docs/ARCHITECTURE.md` (the most-cited architecture document in
+  `docs/`, naming **six package paths that no longer exist** — `kernel/board`,
+  `kernel/memory`, `kernel/skill`, `frontend/src/views/*`) and `docs/NEXT.md`
+  (the June 2026 handoff — not a duplicate of `architecture/NEXT.md` but its
+  **stale predecessor**). The **convention was chosen explicitly**, because the
+  repo has three precedents that disagree: the in-place banner
+  (`f86e56a2`), the `PHASE-ARCHIVE` README (*"PHASE files are NOT moved —
+  keeping in place maintains git history"*, *"Files moved ❌ Not needed"*) and
+  one deletion (`0dbc778f`, whose two documents were re-added a week later
+  **with a banner**). Two of the three say **do not move**, and the roadmap's
+  word is "archived", not "moved" — so **the archived documents stay where they
+  are, carry an ARCHIVED banner that names their canonical successor, and are
+  catalogued in one heading**. The decisive cost of the alternative is
+  measured: moving them breaks **every inbound link**, and `README.md:23`
+  points at `docs/SYSTEM-AUDIT-REPORT.md` while `kernel/journal/cursor.go:28-29`
+  cites two of the refactor plans **in a live source comment**. **Nineteen
+  banners** were added, the **index was rebuilt** with a live map and one new
+  *Archived documents* section, and **five stale-but-wanted documents were
+  fixed** (the marker that moved to the contract layer, the link to a plan file
+  that was **never written**, two status banners that stopped in July, and the
+  AGEZT half of the competitive roadmap). And because **a banner archives
+  nothing**, the slice ships the gate that keeps the banner and the index in
+  step: `tools/docsindex` checks that every local link points at a file that
+  exists, that every document in `docs/` is listed, and that an ARCHIVED
+  document is listed **only** under the archive section — and it runs from the
+  `Makefile` (`make docs-index`, part of `make check`) and as a test the CI's
+  `test (linux)` job picks up. **The gate found real problems on its first
+  run**: `CONSOLE-IA.md` was in `docs/` and in **nobody's index** (a live
+  document, pinned by `frontend/src/nav-docs.test.ts:100`, invisible to a
+  reader since 2026-10-24); the four banner-archived documents were listed as
+  current; and a link in the rebuilt index pointed at a file that did not
+  exist. **7 permanent tests** and **9 mutations, 9 caught** in two
+  independent passes with **byte-identical** logs — the gate *is* the product
+  here, so the mutations target the **gate's own rules**. The first
+  calibration pass reported **two BUILDERRs** and both were **the mutation's
+  fault**: removing a check block left its variable unused and Go refused to
+  compile — a compile error is not a caught mutation, it is a mutation that
+  never ran. **What remains**: the **import** ratchet stands at **2**
+  (`controlplane → runtime` is a redesign, `selfrepair → runtime` needs a runs
+  port that does not exist yet). W5.4's other half is the **`cmd/agt` L7 blind
+  spot** — the forbidden-call rules exempt layer 7, so the CLI's own
+  `os.WriteFile` calls (including the one that writes an Ed25519 **private
+  key** in place) are invisible to the gate.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

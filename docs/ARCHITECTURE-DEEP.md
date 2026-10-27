@@ -1,5 +1,8 @@
 # AGEZT — Deep Architecture Analysis
 
+> **Status:** ARCHIVED — a measured package map from 2026-08-04; the tree has moved since. The content is retained for historical reference; architecture/00-README.md (the size table) with the numbered documents 01-12 is the canonical source.
+> **Archived:** 2026-10-27 (W5.4f)
+
 > **Scope:** This document is a measurement-based architectural map of the
 > entire AGEZT repository. `docs/ARCHITECTURE.md` describes the product
 > direction and the target architecture; this document describes **the actual

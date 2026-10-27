@@ -3127,6 +3127,19 @@ This file holds the active `[Unreleased]` working set.
   nil error in the error path. The message is now built from what the port
   actually answered.
 
+- **The stale documentation is archived, and it says where the live answer is
+  (W5.4f).** Nineteen documents in `docs/` described the tree as it was —
+  package paths that no longer exist, a handoff plan the living one replaced,
+  plans that shipped. Each now carries an `ARCHIVED` banner naming its
+  canonical successor, and the index catalogues them in one section.
+
+- **A document nobody lists is now a gate failure (W5.4f).** `CONSOLE-IA.md`
+  sat in `docs/` and in nobody's index: a live document, pinned by a frontend
+  test, invisible to a reader. `tools/docsindex` now checks that every link in
+  the index points at a file that exists, that every document in `docs/` is
+  listed, and that an archived document is listed only under the archive
+  section. Run it with `make docs-index`.
+
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still

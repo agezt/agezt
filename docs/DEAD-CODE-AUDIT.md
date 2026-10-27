@@ -1,5 +1,8 @@
 # Dead Code Audit
 
+> **Status:** ARCHIVED — the 2026-06-28 cleanup snapshot; the live gate is the tool itself. The content is retained for historical reference; tools/deadcodecheck and architecture/00-README.md is the canonical source.
+> **Archived:** 2026-10-27 (W5.4f)
+
 Generated during the 2026-06-28 surgical dead-code cleanup.
 
 ## 1. Findings Table
@@ -16,7 +19,6 @@ Generated during the 2026-06-28 surgical dead-code cleanup.
 | 8 | `frontend/src/**` | multiple | unused exports and imported symbols | PHANTOM_DEP | HIGH | 100% | COVERED by knip CI gate; clean |
 | 9 | `kernel/netguard/netguard.go` | option block | `AllowLinkLocal` | UNREACHABLE_DECL | HIGH | 95% | DELETED — VERIFIED |
 | 10 | `sdk/approvals.go`, `sdk/events.go`, `sdk/mailbox.go`, `sdk/sdk.go` | multiple | public SDK methods reported by `deadcode` | UNREACHABLE_DECL | LOW | 55% | ALLOWLISTED in CI gate |
-
 
 ## 2. Cleanup Roadmap
 

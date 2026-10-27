@@ -1,5 +1,9 @@
 # Frontend Refactor Sprint — Day 1 Discovery (2026-09-10)
 
+> **Status (2026-10-27): the sprint is DONE** — §3 says so ("SPRINT TAMAMLANDI: 25/25 feature"). This file is kept
+> for the carve-out template the shipped console followed (§3) and for the Day-0 tree it measured. The console as it
+> stands is described in [`../architecture/11-frontend-console.md`](../architecture/11-frontend-console.md).
+>
 > 30-day plan (Yol B tarzı, Go kernel/runtime sprint'inin analogu).
 > Wire contract (HTTP surface, `agezt-contract.jsonc`) değişmez;
 > görsel/etkileşim davranışı sıfır regresyon. Saf internal refactor.

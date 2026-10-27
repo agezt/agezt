@@ -6,7 +6,7 @@
 # Requires: Go 1.26.4+ (see go.mod), Make, git (for version stamping)
 # Note: This project does NOT use CGO - pure Go build
 
-.PHONY: all build test race clean vet install gen deps-check sdk-parity deadcode-check arch-check doc-claims frontend-build frontend-test frontend-deadcode e2e check webui-e2e webui-e2e-ps structure-md structure-md-check
+.PHONY: all build test race clean vet install gen deps-check sdk-parity deadcode-check arch-check doc-claims docs-index frontend-build frontend-test frontend-deadcode e2e check webui-e2e webui-e2e-ps structure-md structure-md-check
 
 # Explicitly disable CGO - this is a PURE GO build
 export CGO_ENABLED := 0
@@ -176,7 +176,14 @@ doc-claims:
 	@echo "Checking the audit documents' numbers against the branch..."
 	go run ./tools/docclaimscheck -base origin/main
 
-check: gen fmt vet test deps-check sdk-parity deadcode-check arch-check structure-md-check doc-claims frontend-deadcode frontend-test
+# The documentation index is the public map of docs/; every row has to point
+# at a file that exists, every document has to be listed, and an ARCHIVED
+# document may only be listed under the archive section.
+docs-index:
+	@echo "Checking the documentation index against the docs/ tree..."
+	go run ./tools/docsindex
+
+check: gen fmt vet test deps-check sdk-parity deadcode-check arch-check structure-md-check doc-claims docs-index frontend-deadcode frontend-test
 
 install:
 	@echo "Installing AGEZT (version=$(VERSION), commit=$(COMMIT))..."

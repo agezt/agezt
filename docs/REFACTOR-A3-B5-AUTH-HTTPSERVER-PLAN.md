@@ -1,5 +1,8 @@
 # Refactor A3 + B5 (reconciled) — `kernel/auth` (domain) + `kernel/httpserver` (transport)
 
+> **Status:** ARCHIVED — delivered; its remainder was superseded by the W program. The content is retained for historical reference; architecture/03-control-plane-and-http.md is the canonical source.
+> **Archived:** 2026-10-27 (W5.4f)
+
 > Reconciles `docs/REFACTORING-SCAN.md` findings **A3** (six overlapping HTTP surfaces) and
 > **B5** (no dedicated auth package). **Supersedes** the standalone
 > `docs/REFACTOR-A3-HTTPSERVER-PLAN.md` for the auth-related phases.

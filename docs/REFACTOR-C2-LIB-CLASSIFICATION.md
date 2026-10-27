@@ -1,5 +1,8 @@
 # Refactor C2 — `frontend/src/lib/` keep-vs-colocate classification
 
+> **Status:** ARCHIVED — classifies a flat frontend/src/lib/ that no longer exists. The content is retained for historical reference; architecture/11-frontend-console.md is the canonical source.
+> **Archived:** 2026-10-27 (W5.4f)
+
 > Companion to `docs/REFACTORING-SCAN.md` finding **C2**.
 > **Generated:** 2026-07-03. Importer counts are **measured** (scan of every `frontend/src/**`
 > non-test file for `/lib/<module>` imports), not estimated.

@@ -1,5 +1,8 @@
 # AGEZT Autonomous Agent Architecture
 
+> **Status:** ARCHIVED — names six package paths that no longer exist (kernel/board, kernel/memory, kernel/skill, frontend/src/views/*). The content is retained for historical reference; architecture/00-README.md (the package index) with architecture/04-agent-runtime.md and architecture/11-frontend-console.md is the canonical source.
+> **Archived:** 2026-10-27 (W5.4f)
+
 This document is a handoff-grade architecture map for the current AGEZT direction: durable autonomous agents, schedule/workflow/tool execution as infrastructure, and a Web UI that exposes real agent identity and runtime state instead of prompt-shaped automation.
 
 It is intentionally detailed. The next agent should treat this as operational context, not as a finished-state claim.

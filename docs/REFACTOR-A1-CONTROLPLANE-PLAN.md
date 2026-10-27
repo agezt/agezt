@@ -1,5 +1,8 @@
 # Refactor A1 — `kernel/controlplane` → domain packages (file-by-file plan)
 
+> **Status:** ARCHIVED — delivered — kernel/journal/cursor.go is its artifact. The content is retained for historical reference; architecture/21-migration-roadmap.md is the canonical source.
+> **Archived:** 2026-10-27 (W5.4f)
+
 > Companion to `docs/REFACTORING-SCAN.md` finding **A1**.
 > **Generated:** 2026-07-03 · **Branch analyzed at generation time:** `feat/cursor-pagination-agents` (historical snapshot; not the current branch).
 > Grounded in a live inventory of `kernel/controlplane/*.go` (not from memory).

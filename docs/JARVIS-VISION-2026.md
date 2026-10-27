@@ -1,5 +1,8 @@
 # AGEZT → Jarvis: Strategic Status and Roadmap Report
 
+> **Status:** ARCHIVED — the 2026-07-02 strategy snapshot. The content is retained for historical reference; architecture/21-migration-roadmap.md is the canonical source.
+> **Archived:** 2026-10-27 (W5.4f)
+
 > Date: 2026-07-02
 > Scope: The entire project (Go core + CLI + embedded React web console) against
 > OpenClaw and Hermes Agent; guided by the goal "do what both can do, and be a
