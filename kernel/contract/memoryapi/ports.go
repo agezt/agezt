@@ -22,7 +22,6 @@ package memoryapi
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/agezt/agezt/kernel/contract/eventapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
@@ -68,7 +67,13 @@ type Publisher interface {
 //
 // A nil generator means "no structured output available" — the distillers
 // then report that, rather than pretending they distilled something.
-type Generator func(ctx context.Context, p llm.Provider, req llm.CompletionRequest, schema json.RawMessage, out any) (llm.Usage, error)
+//
+// The path is not the memory module's: it is the provider contract's
+// (`llm.Generator`), and this name is an ALIAS of it, so there is one
+// spelling of the structured-output path in the tree (W3.66 — the pulse
+// module needed the same path, and a second identical type would have been
+// a second name for one thing).
+type Generator = llm.Generator
 
 // Reader is the read-only half of the memory: what an agent may look up, and
 // what a health view may count.

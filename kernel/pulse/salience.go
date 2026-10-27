@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/state"
 )
@@ -41,7 +40,8 @@ type Salience struct {
 	state      *state.FileStore
 	provider   llm.Provider // optional; only used when useLLM
 	model      string
-	relevance  Relevance // optional world-model relevance signal
+	generator  llm.Generator // optional; the structured-output path (W3.66)
+	relevance  Relevance     // optional world-model relevance signal
 	dial       Dial
 	useLLM     bool
 	noveltyTTL time.Duration
@@ -61,7 +61,7 @@ func (s *Salience) Score(ctx context.Context, d Delta) Score {
 	value, disp := scoreFromSeverity(d.Severity())
 	reason := "severity=" + string(d.Severity())
 
-	if s.useLLM && s.provider != nil {
+	if s.useLLM && s.provider != nil && s.generator != nil {
 		if v, r, ok := s.refineWithLLM(ctx, d); ok {
 			value = v
 			disp = dispositionForValue(v)
@@ -221,14 +221,19 @@ func (s *Salience) refineWithLLM(ctx context.Context, d Delta) (float64, string,
 	if d.Before != "" || d.After != "" {
 		user += " (was: " + d.Before + " → now: " + d.After + ")"
 	}
-	// Structured output via the unified GenerateObject path (M997): robust JSON
-	// extraction + bounded repair. Any failure (transport or unusable answer) is
-	// a skip — the same all-or-nothing disposition the hand-rolled parse had.
+	// Structured output via the injected path (M997): robust JSON extraction +
+	// bounded repair. Any failure (transport or unusable answer) is a skip —
+	// the same all-or-nothing disposition the hand-rolled parse had.
+	//
+	// The path is INJECTED, not named (W3.66): it lives in the runs module, and
+	// this module may not reach into another module. A host that wires no
+	// generator gets no refine — the severity score stands, and nothing
+	// pretends a model was asked.
 	var out struct {
 		Score  float64 `json:"score"`
 		Reason string  `json:"reason"`
 	}
-	if _, err := agent.GenerateObject(ctx, s.provider, llm.CompletionRequest{
+	if _, err := s.generator(ctx, s.provider, llm.CompletionRequest{
 		Model:    s.model,
 		System:   salienceSystem,
 		Messages: []llm.Message{{Role: llm.RoleUser, Content: user}},
