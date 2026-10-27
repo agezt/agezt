@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4i the CLI's exports and scaffolds go through the platform's atomic writer, 2026-10-27
+## Current checkpoint — W5.4j the platform gains a streaming atomic writer, and the backup uses it, 2026-10-27
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5283,6 +5283,58 @@ files, five of the seventeen mutations would have escaped.
   The **import** ratchet stands at **2** (`controlplane → runtime` is a
   redesign, `selfrepair → runtime` needs a runs port that does not exist
   yet). Evidence: `architecture/214-w54i-atomic-exports-evidence.md`
+
+- W5.4j (the platform gains a streaming atomic writer, and the backup uses
+  it) takes the last two sites but one in the CLI's raw-write ratchet, and
+  the **platform addition** one of them needs. `internal/atomicfile` could
+  write a file whose bytes were **already in memory**; the backup archive is
+  a **tar+gzip stream** — produced as it is written, and potentially large —
+  so it could not use that API at all and used `os.Create`, which truncates
+  the target in place: a crash mid-stream left a **torn archive**, and
+  `agt restore` reading it would write **half a home** into the destination
+  before failing on the truncated gzip stream. The new API is
+  `WriteStream(path, mode, fn func(w io.Writer) error)` with the same
+  guarantees as `WriteFile` (unique temp, fsync, chmod, rename) and two
+  decisions worth naming: the **callback shape makes the commit atomic by
+  construction** (no "forgot to close" state; the error path cannot leak a
+  temp file; `fn` gets an `io.Writer`, not the `*os.File`, so it cannot
+  close or sync a handle the platform owns), and the **Windows last resort
+  is different, and deliberately so** — `WriteFile`'s last resort re-writes
+  the bytes because they are **in memory**, while a stream's bytes are not
+  but they are **on disk**, one rename away in the temp file, so the
+  fallback **copies the temp onto the target** instead. The API lives in
+  `internal/atomicfile` (L0), not in `filestore` (L2): it is the *same
+  mechanism* with the *same* guarantees, and a second atomic writer in
+  another package would recreate the divergence this package exists to kill.
+  **The `os.Remove(outPath)` cleanup is gone — and that is the point, not a
+  detail**: under a plain `os.Create` the target had already been truncated,
+  so removing it was the only way to avoid leaving a half-written archive;
+  under an atomic write the target still holds the operator's **previous
+  good archive**, and removing it would destroy exactly what they need. The
+  cleanup was not merely redundant; it became actively **harmful**, and the
+  atomic writer is what made it so. The mode also changed (`os.Create` ≈
+  `0644` → `0600`): the archive is secret-free by construction (the include
+  subtrees are `journal` and `catalog`, the secrets live outside them), but
+  a backup is the operator's whole activity history. **7 permanent tests**
+  and **5 mutations, 5 caught** in two independent passes with
+  **byte-identical** logs. The backup test's failure injection is a
+  **symlink to a path that does not exist** — the archive walk Lstats it,
+  sees it is not a directory, and fails to READ it, mid-stream; a permission
+  trick would not work, because the mode bits do not exist on Windows. The
+  calibration reported **one SKIP** and it was the mutation's fault: the
+  anchor for M02 matched **two** places in `backup.go` (the `resolveHome`
+  error block and the write's error block are textually identical), so the
+  harness refused to guess. The forbidden-call ratchet goes **2 → 1**. What
+  remains is **one** site — the doctor's writability probe, where
+  `os.CreateTemp` is the right shape — but the honest note matters more
+  than the number: **the rule counts only `os.WriteFile` and `os.Create`,
+  so `os.CreateTemp` is invisible to the gate**, and the count would drop
+  without a new guarantee being enforced; a zero would then mean "no raw
+  writes **the counter can see**" rather than "no raw writes", and the fix
+  is a follow-up slice that **extends the rule** to `os.CreateTemp` and
+  `os.OpenFile(O_CREATE)` — which will surface an honest count elsewhere in
+  the tree. The **import** ratchet stands at **2**. Evidence:
+  `architecture/215-w54j-streaming-atomic-write-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

@@ -35,7 +35,6 @@ import (
 func TestTheCLIRawWritesAreOnlyTheTwoKnownSites(t *testing.T) {
 	known := map[string]string{
 		"doctor_ops_env.go": "the writability PROBE — a transient file nobody reads; it becomes a unique CreateTemp",
-		"backup.go":         "the backup archive is a STREAM; the platform has no streaming atomic write yet",
 	}
 
 	entries, err := os.ReadDir(".")

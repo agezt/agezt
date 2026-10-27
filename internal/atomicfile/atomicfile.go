@@ -13,6 +13,7 @@ package atomicfile
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -71,4 +72,92 @@ func WriteFile(path string, data []byte, mode os.FileMode) error {
 		return fmt.Errorf("atomicfile: rename: %w", err)
 	}
 	return nil
+}
+
+// WriteStream writes what fn produces to path atomically, with the same
+// guarantees as WriteFile: a UNIQUE temp file in the target's directory,
+// fsynced, chmodded, then renamed over the target. The parent directory must
+// already exist.
+//
+// The callback shape makes the commit atomic BY CONSTRUCTION — there is no
+// "forgot to close" state, and the error path cannot leak a temp file. fn
+// receives an io.Writer rather than the *os.File so it cannot close or sync
+// a handle the platform owns.
+//
+// On any error the temp file is removed and the target is left untouched —
+// including a target that already existed. That last part is the point: a
+// failed write must not destroy the previous good file.
+//
+// The Windows last resort differs from WriteFile's on purpose. WriteFile can
+// re-write the bytes because they are in memory; a stream's bytes are not,
+// but they are on disk — one rename away in the temp file. So the fallback
+// copies the temp onto the target instead of re-writing from memory.
+func WriteStream(path string, mode os.FileMode, fn func(w io.Writer) error) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return fmt.Errorf("atomicfile: create temp: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName) // no-op once the rename has moved it
+	if err := fn(tmp); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("atomicfile: stream: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("atomicfile: sync temp: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("atomicfile: close temp: %w", err)
+	}
+	if err := os.Chmod(tmpName, mode); err != nil {
+		return fmt.Errorf("atomicfile: chmod temp: %w", err)
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		if runtime.GOOS == "windows" {
+			if removeErr := os.Remove(path); removeErr == nil || os.IsNotExist(removeErr) {
+				if retryErr := os.Rename(tmpName, path); retryErr == nil {
+					return nil
+				}
+				// The target is gone and the retry rename also failed. The
+				// bytes are still in the TEMP FILE — a stream's data is not
+				// in memory, but it is on disk — so copy it across rather
+				// than lose the write.
+				if cerr := copyOver(path, tmpName, mode); cerr == nil {
+					return nil
+				}
+			}
+		}
+		return fmt.Errorf("atomicfile: rename: %w", err)
+	}
+	return nil
+}
+
+// copyOver copies src onto dst and gives dst the given mode. It is the
+// streaming counterpart of WriteFile's in-memory last resort: the bytes are
+// on disk, so they can be copied rather than regenerated.
+func copyOver(dst, src string, mode os.FileMode) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		return err
+	}
+	if err := out.Sync(); err != nil {
+		_ = out.Close()
+		return err
+	}
+	if err := out.Close(); err != nil {
+		return err
+	}
+	// OpenFile applies the mode only at creation and the umask may have
+	// stripped bits from it; the caller's mode is the promise.
+	return os.Chmod(dst, mode)
 }
