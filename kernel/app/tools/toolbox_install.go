@@ -5,12 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/agezt/agezt/kernel/contract/toolboxapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/extensions/toolbox"
 )
 
 type ToolboxInstaller interface {
-	Install(context.Context, string) toolbox.InstallResult
+	Install(context.Context, string) toolboxapi.InstallResult
 }
 type ToolboxInstall struct {
 	installer ToolboxInstaller
@@ -38,9 +38,16 @@ func (s *ToolboxInstall) publication(kind event.Kind, payload map[string]any) er
 // Install preserves ordering and the requested-name summary axis. Publication or
 // emission errors stop later installs; native compatibility callbacks may remain
 // best effort until their typed transport binding.
+//
+// A daemon with no toolbox port refuses the whole batch BEFORE it publishes
+// "install requested" — nothing will be installed, so nothing may be journaled
+// as requested (W5.4b).
 func (s *ToolboxInstall) Install(ctx context.Context, in ToolboxInstallInput, emit func(event.Event) error) (ToolboxInstallOutput, error) {
 	if len(in.Names) == 0 {
 		return ToolboxInstallOutput{}, errors.New("args.names (non-empty list) required")
+	}
+	if s.installer == nil {
+		return ToolboxInstallOutput{}, toolboxapi.ErrUnavailable
 	}
 	if err := s.publication(event.KindToolboxInstallRequested, map[string]any{"tools": in.Names}); err != nil {
 		return ToolboxInstallOutput{}, err

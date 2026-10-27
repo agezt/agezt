@@ -19,7 +19,7 @@ func TestToolboxInstallNativeUnknownNamesKeepProgressSummaryAndJournalOrder(t *t
 			t.Fatal("fixture would run a real installer")
 		}
 	}
-	k, s, _, p := pulseAppFixture(t)
+	k, s, _, p := toolboxAppFixture(t)
 	head, _ := k.Journal().Head()
 	client, conn := net.Pipe()
 	defer client.Close()

@@ -5,21 +5,21 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/agezt/agezt/kernel/contract/toolboxapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/extensions/toolbox"
 	"reflect"
 	"testing"
 )
 
 type toolboxInstallProbe struct {
-	results  map[string]toolbox.InstallResult
+	results  map[string]toolboxapi.InstallResult
 	names    []string
 	contexts []context.Context
 	trace    *[]string
 	after    func(string)
 }
 
-func (p *toolboxInstallProbe) Install(ctx context.Context, name string) toolbox.InstallResult {
+func (p *toolboxInstallProbe) Install(ctx context.Context, name string) toolboxapi.InstallResult {
 	p.names = append(p.names, name)
 	p.contexts = append(p.contexts, ctx)
 	if p.trace != nil {
@@ -32,7 +32,7 @@ func (p *toolboxInstallProbe) Install(ctx context.Context, name string) toolbox.
 }
 func TestToolboxInstallOrderRequestedNamesProgressAndSummary(t *testing.T) {
 	trace := []string{}
-	p := &toolboxInstallProbe{trace: &trace, results: map[string]toolbox.InstallResult{" requested ": {Tool: "reported", OK: true, Skipped: true, Manager: " raw manager ", Command: " raw command ", Version: " raw version ", OutputTail: " output ö ", Error: " raw error "}, "skip": {Tool: "reported-skip", Skipped: true, Error: "unavailable"}, "fail": {Tool: "reported-fail", Error: "failure"}}}
+	p := &toolboxInstallProbe{trace: &trace, results: map[string]toolboxapi.InstallResult{" requested ": {Tool: "reported", OK: true, Skipped: true, Manager: " raw manager ", Command: " raw command ", Version: " raw version ", OutputTail: " output ö ", Error: " raw error "}, "skip": {Tool: "reported-skip", Skipped: true, Error: "unavailable"}, "fail": {Tool: "reported-fail", Error: "failure"}}}
 	var specs []struct {
 		kind    event.Kind
 		payload map[string]any
@@ -69,7 +69,7 @@ func TestToolboxInstallOrderRequestedNamesProgressAndSummary(t *testing.T) {
 		if p.contexts[i] != ctx || e.Kind != event.KindToolboxProgress || e.Subject != "toolbox.install" || e.Actor != "toolbox" || e.Seq != 0 || e.ID != "" || e.CorrelationID != "" || e.TSUnixMS != 0 {
 			t.Fatal(i, e, p.contexts[i])
 		}
-		var res toolbox.InstallResult
+		var res toolboxapi.InstallResult
 		if err := json.Unmarshal(e.Payload, &res); err != nil || res != p.results[p.names[i]] {
 			t.Fatal(res, err)
 		}
@@ -81,7 +81,7 @@ func TestToolboxInstallOrderRequestedNamesProgressAndSummary(t *testing.T) {
 	}
 }
 func TestToolboxInstallEmptyInputAndRequiredEmptySummaryArrays(t *testing.T) {
-	p := &toolboxInstallProbe{results: map[string]toolbox.InstallResult{"owned": {Tool: "owned", OK: true}}}
+	p := &toolboxInstallProbe{results: map[string]toolboxapi.InstallResult{"owned": {Tool: "owned", OK: true}}}
 	published := 0
 	s := NewToolboxInstall(p, func(event.Kind, map[string]any) error { published++; return nil })
 	for _, names := range [][]string{nil, {}} {
@@ -101,7 +101,7 @@ func TestToolboxInstallEmptyInputAndRequiredEmptySummaryArrays(t *testing.T) {
 	if len(m) != 3 || !reflect.DeepEqual(m["failed"], []any{}) || !reflect.DeepEqual(m["skipped"], []any{}) || !reflect.DeepEqual(m["installed"], []any{"owned"}) {
 		t.Fatal(m)
 	}
-	for _, result := range []toolbox.InstallResult{{Tool: "owned", Skipped: true}, {Tool: "owned"}} {
+	for _, result := range []toolboxapi.InstallResult{{Tool: "owned", Skipped: true}, {Tool: "owned"}} {
 		p.results["owned"] = result
 		out, err = s.Install(context.Background(), ToolboxInstallInput{Names: []string{"owned"}}, nil)
 		if err != nil || out.Installed == nil || out.Failed == nil || out.Skipped == nil {
@@ -112,7 +112,7 @@ func TestToolboxInstallEmptyInputAndRequiredEmptySummaryArrays(t *testing.T) {
 func TestToolboxInstallErrorsStopLaterEffectsWithOriginalCause(t *testing.T) {
 	cause := errors.New("owned boundary failure")
 	for _, mode := range []string{"requested", "outcome", "emit"} {
-		p := &toolboxInstallProbe{results: map[string]toolbox.InstallResult{"one": {OK: true}, "two": {OK: true}}}
+		p := &toolboxInstallProbe{results: map[string]toolboxapi.InstallResult{"one": {OK: true}, "two": {OK: true}}}
 		published, emitted := 0, 0
 		s := NewToolboxInstall(p, func(event.Kind, map[string]any) error {
 			published++
@@ -143,7 +143,7 @@ func TestToolboxInstallErrorsStopLaterEffectsWithOriginalCause(t *testing.T) {
 func TestToolboxInstallCancellationRetainsRequestedAndCompletedAttemptOrder(t *testing.T) {
 	for _, mode := range []string{"before", "during"} {
 		ctx, cancel := context.WithCancel(context.Background())
-		p := &toolboxInstallProbe{results: map[string]toolbox.InstallResult{"one": {OK: true}, "two": {OK: true}}}
+		p := &toolboxInstallProbe{results: map[string]toolboxapi.InstallResult{"one": {OK: true}, "two": {OK: true}}}
 		published, emitted := 0, 0
 		if mode == "before" {
 			cancel()

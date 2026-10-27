@@ -3,7 +3,7 @@ package tools
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/modules/extensions/toolbox"
+	"github.com/agezt/agezt/kernel/contract/toolboxapi"
 	"reflect"
 	"sort"
 	"testing"
@@ -11,13 +11,13 @@ import (
 )
 
 type toolboxReadProbe struct {
-	inventory                  toolbox.Inventory
+	inventory                  toolboxapi.Inventory
 	outdated                   map[string]bool
 	detectCtx, outdatedCtx     context.Context
 	detectCalls, outdatedCalls int
 }
 
-func (p *toolboxReadProbe) Detect(ctx context.Context) toolbox.Inventory {
+func (p *toolboxReadProbe) Detect(ctx context.Context) toolboxapi.Inventory {
 	p.detectCtx = ctx
 	p.detectCalls++
 	return p.inventory
@@ -28,7 +28,7 @@ func (p *toolboxReadProbe) Outdated(ctx context.Context) map[string]bool {
 	return p.outdated
 }
 func TestToolboxReadsDetectPreservesHostSnapshotAndContext(t *testing.T) {
-	inv := toolbox.Inventory{OS: "windows", Managers: []string{"winget", "cargo"}, Tools: []toolbox.ToolStatus{{Name: "owned", Category: "raw category", Description: " raw description ö ", Installed: true, Version: " raw version ", Path: " raw path ", Installable: true, Manager: "winget", Command: " raw command "}, {Name: "missing", Installed: false, Installable: false}}, InstalledCount: 1, MissingCount: 1}
+	inv := toolboxapi.Inventory{OS: "windows", Managers: []string{"winget", "cargo"}, Tools: []toolboxapi.ToolStatus{{Name: "owned", Category: "raw category", Description: " raw description ö ", Installed: true, Version: " raw version ", Path: " raw path ", Installable: true, Manager: "winget", Command: " raw command "}, {Name: "missing", Installed: false, Installable: false}}, InstalledCount: 1, MissingCount: 1}
 	p := &toolboxReadProbe{inventory: inv}
 	s := NewToolboxReads(p)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -45,7 +45,7 @@ func TestToolboxReadsDetectPreservesHostSnapshotAndContext(t *testing.T) {
 	if len(row) != 5 || row["installed"] != false || row["installable"] != false || row["category"] != "" || row["description"] != "" {
 		t.Fatal(row)
 	}
-	p.inventory = toolbox.Inventory{}
+	p.inventory = toolboxapi.Inventory{}
 	fresh, err := s.Detect(ctx, ToolboxDetectInput{})
 	if err != nil || fresh.OS != "" || fresh.Managers != nil || fresh.Tools != nil || fresh.InstalledCount != 0 || fresh.MissingCount != 0 || p.detectCalls != 2 {
 		t.Fatal(fresh, err, p)
@@ -89,7 +89,7 @@ func TestToolboxReadsOutdatedKeepsAllKeysAndFreshEmptyArray(t *testing.T) {
 	}
 }
 func TestToolboxReadsDirectCanceledContextStillReachesBestEffortHost(t *testing.T) {
-	p := &toolboxReadProbe{inventory: toolbox.Inventory{OS: "owned"}, outdated: map[string]bool{"owned": true}}
+	p := &toolboxReadProbe{inventory: toolboxapi.Inventory{OS: "owned"}, outdated: map[string]bool{"owned": true}}
 	s := NewToolboxReads(p)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

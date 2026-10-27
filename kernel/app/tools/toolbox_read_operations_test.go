@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	"github.com/agezt/agezt/kernel/modules/extensions/toolbox"
+	"github.com/agezt/agezt/kernel/contract/toolboxapi"
 	"github.com/agezt/agezt/kernel/platform/schema"
 	"reflect"
 	"testing"
@@ -17,7 +17,7 @@ func TestToolboxReadTypedPoliciesContextAndNoAudit(t *testing.T) {
 	if _, err := ToolboxReadOperations(nil); err == nil {
 		t.Fatal("missing provider")
 	}
-	p := &toolboxReadProbe{inventory: toolbox.Inventory{OS: "owned", Managers: []string{}, Tools: []toolbox.ToolStatus{{}}, MissingCount: 1}, outdated: map[string]bool{" raw ": false}}
+	p := &toolboxReadProbe{inventory: toolboxapi.Inventory{OS: "owned", Managers: []string{}, Tools: []toolboxapi.ToolStatus{{}}, MissingCount: 1}, outdated: map[string]bool{" raw ": false}}
 	factories := 0
 	var factoryCtx context.Context
 	ops, err := ToolboxReadOperations(func(ctx context.Context) *ToolboxReads { factories++; factoryCtx = ctx; return NewToolboxReads(p) })
@@ -33,7 +33,7 @@ func TestToolboxReadTypedPoliciesContextAndNoAudit(t *testing.T) {
 	defer cancel()
 	for i, op := range ops {
 		spec := op.Spec()
-		input, output := reflect.TypeFor[ToolboxDetectInput](), reflect.TypeFor[toolbox.Inventory]()
+		input, output := reflect.TypeFor[ToolboxDetectInput](), reflect.TypeFor[toolboxapi.Inventory]()
 		name := "toolbox_detect"
 		if i == 1 {
 			input, output = reflect.TypeFor[ToolboxOutdatedInput](), reflect.TypeFor[ToolboxOutdatedOutput]()
@@ -71,7 +71,7 @@ func TestToolboxReadSchemasRequireInventoryRowAndOutdatedRoots(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inventory := forgeJSON(t, toolbox.Inventory{Tools: []toolbox.ToolStatus{{}}})
+	inventory := forgeJSON(t, toolboxapi.Inventory{Tools: []toolboxapi.ToolStatus{{}}})
 	outdated := forgeJSON(t, ToolboxOutdatedOutput{Outdated: []string{}})
 	for i, op := range ops {
 		value := inventory
@@ -111,7 +111,7 @@ func TestToolboxReadSchemasRequireInventoryRowAndOutdatedRoots(t *testing.T) {
 			t.Fatal("missing required row accepted", field)
 		}
 	}
-	for _, value := range []toolbox.Inventory{{}, {OS: "owned", Managers: []string{}, Tools: []toolbox.ToolStatus{{Version: " ", Path: "raw", Manager: "manager", Command: "command"}}}} {
+	for _, value := range []toolboxapi.Inventory{{}, {OS: "owned", Managers: []string{}, Tools: []toolboxapi.ToolStatus{{Version: " ", Path: "raw", Manager: "manager", Command: "command"}}}} {
 		raw, _ := json.Marshal(value)
 		if err := schema.ValidateJSON(ops[0].Spec().OutputSchema, raw); err != nil {
 			t.Fatal(string(raw), err)

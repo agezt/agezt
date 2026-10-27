@@ -7,8 +7,8 @@ import (
 	"errors"
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/contract/toolboxapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/extensions/toolbox"
 	"github.com/agezt/agezt/kernel/platform/schema"
 	"reflect"
 	"testing"
@@ -45,7 +45,7 @@ func TestToolboxInstallTypedStreamPolicySchemaPayloadAndAudit(t *testing.T) {
 	if _, err := ToolboxInstallOperations(nil); err == nil {
 		t.Fatal("missing provider")
 	}
-	p := &toolboxInstallProbe{results: map[string]toolbox.InstallResult{" raw ": {Tool: "reported", OK: true, OutputTail: "owned"}}}
+	p := &toolboxInstallProbe{results: map[string]toolboxapi.InstallResult{" raw ": {Tool: "reported", OK: true, OutputTail: "owned"}}}
 	a := &forgeAuditProbe{}
 	factory := 0
 	var factoryCtx context.Context
@@ -149,7 +149,7 @@ func TestToolboxInstallNativeNamesCodecAndEmptyInputBeforeFactory(t *testing.T) 
 func TestToolboxInstallStreamEmitterFailureStopsNextItemAndJoinsSettlement(t *testing.T) {
 	failure := errors.New("owned emitter failure")
 	endFailure := errors.New("owned settlement failure")
-	p := &toolboxInstallProbe{results: map[string]toolbox.InstallResult{"one": {OK: true}, "two": {OK: true}}}
+	p := &toolboxInstallProbe{results: map[string]toolboxapi.InstallResult{"one": {OK: true}, "two": {OK: true}}}
 	a := &forgeAuditProbe{endErr: endFailure}
 	factory := 0
 	var factoryCtx context.Context
