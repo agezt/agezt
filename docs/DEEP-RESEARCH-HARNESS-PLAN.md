@@ -1,5 +1,8 @@
 # AGEZT Deep Research Harness — Implementation Plan
 
+> **Status:** ARCHIVED — its proposed kernel/research/ never existed; the work shipped as plugins/tools/research and kernel/modules/reasoning. The content is retained for historical reference; architecture/07-autonomy-and-extensibility.md is the canonical source.
+> **Archived:** 2026-10-27 (W5.4f)
+
 > Date: 2026-07-02
 > Related: [`JARVIS-VISION-2026.md`](JARVIS-VISION-2026.md) §6 P2-8 (the biggest "beyond parity" opportunity)
 > Location: `kernel/research/` (new) + `plugins/tools/research/` (new) + workflow template + view

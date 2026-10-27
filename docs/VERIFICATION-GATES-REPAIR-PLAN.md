@@ -1,5 +1,8 @@
 # Verification-layer repair plan
 
+> **Status:** ARCHIVED — it counts seven make-check gates; the Makefile runs more than that now. The content is retained for historical reference; the Makefile itself with architecture/01-daemon-boot-cmd-agezt.md is the canonical source.
+> **Archived:** 2026-10-27 (W5.4f)
+
 > **Generated:** 2026-08-12, from a full-tree scan at `8f577e1e`.
 > **Scope:** the checks that guard the tree — not the tree itself.
 > **Companion to:** [`REFACTORING-SCAN-2026-08.md`](REFACTORING-SCAN-2026-08.md) (the Phase 0–4 arc whose

@@ -1,5 +1,8 @@
 # AGEZT Autonomous System Refactor Plan
 
+> **Status:** ARCHIVED — the prior program, replaced by the W program. The content is retained for historical reference; architecture/21-migration-roadmap.md is the canonical source.
+> **Archived:** 2026-10-27 (W5.4f)
+
 > Baseline: `main` at 2026-07-26. This is an implementation plan, not a feature
 > wish list. Every phase preserves the agent-loop invariants in
 > `AGENT-LOOP-INVARIANTS.md` and ends at an executable validation gate.

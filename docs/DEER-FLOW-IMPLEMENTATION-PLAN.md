@@ -1,5 +1,8 @@
 # DeerFlow Borrowing Implementation Plan
 
+> **Status:** ARCHIVED — a completed plan naming a marker that has since moved to the contract layer. The content is retained for historical reference; architecture/07-autonomy-and-extensibility.md is the canonical source.
+> **Archived:** 2026-10-27 (W5.4f)
+
 This is the AGEZT implementation plan for the DeerFlow review in
 `DEER-FLOW-AGEZT-REPORT.md`. The goal is to borrow harness discipline without
 copying DeerFlow's Python/LangGraph runtime.

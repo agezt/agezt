@@ -1,5 +1,8 @@
 # DeerFlow -> AGEZT Adoptable Ideas Report
 
+> **Status:** ARCHIVED — an external review citing kernel/skill and frontend/src/views/FlowStudio.tsx, both gone. The content is retained for historical reference; architecture/07-autonomy-and-extensibility.md with architecture/11-frontend-console.md is the canonical source.
+> **Archived:** 2026-10-27 (W5.4f)
+
 > Review date: 2026-06-26
 > DeerFlow source: https://github.com/bytedance/deer-flow
 > Reviewed commit: `7a6c4a994a86583d2a3c056ee9d0f157d4f030c2` (`fix(channels): serialize per-chat thread creation to avoid duplicate threads (#3799)`)

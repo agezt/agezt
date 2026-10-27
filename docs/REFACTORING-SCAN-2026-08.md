@@ -1,5 +1,10 @@
 # Refactoring Scan 2026-08 — Deep System Scan + Master Action Plan
 
+> **Status (2026-10-27): the program this scan started has been superseded by the W0–W5 migration**
+> (`../architecture/21-migration-roadmap.md`). The scan's findings and its per-phase record below are kept as the
+> historical evidence of what was found and what shipped; the live program, the current ratchet and the current
+> handoff live in [`../architecture/NEXT.md`](../architecture/NEXT.md).
+>
 > **EXECUTION STATUS (2026-08-09): Phases 0–3 COMPLETE and merged; Phase 4 started (4.1 in progress).**
 >
 > | Phase | PR | Highlights |

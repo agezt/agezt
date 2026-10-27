@@ -1,5 +1,8 @@
 # Refactor A3 — `kernel/httpserver` extraction (shared HTTP substrate)
 
+> **Status:** ARCHIVED — superseded by the A3+B5 plan. The content is retained for historical reference; architecture/03-control-plane-and-http.md is the canonical source.
+> **Archived:** 2026-10-27 (W5.4f)
+
 > Companion to `docs/REFACTORING-SCAN.md` finding **A3**.
 > **Generated:** 2026-07-03. Grounded in a measured signal-count across the surfaces.
 

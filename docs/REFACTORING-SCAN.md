@@ -1,5 +1,8 @@
 # Refactoring Scan — AGEZT
 
+> **Status:** ARCHIVED — the July scan; its sequencing was superseded by the 2026-08 scan and then by the W program. The content is retained for historical reference; architecture/21-migration-roadmap.md is the canonical source.
+> **Archived:** 2026-10-27 (W5.4f)
+
 > **Generated:** 2026-07-03 · **Branch at generation time:** `feat/cursor-pagination-agents` (clean tree then; historical snapshot, not the current branch)
 > **Method:** cross-referenced `docs/ARCHITECTURE.md`, `docs/ARCHITECTURAL-REPORT.md`,
 > `docs/DEAD-CODE-AUDIT.md`, the live file listing of every `kernel/`, `frontend/src/`,

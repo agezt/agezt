@@ -49,14 +49,14 @@ and put per-file provenance notes **below** the package clause.
 
 | Doc | Finding(s) | Scope | Risk |
 |---|---|---|---|
-| [REFACTORING-SCAN-2026-08.md](REFACTORING-SCAN-2026-08.md) | **current master plan** | 5-track deep scan: 8 live defects (LD-1..8) + 4-phase program; supersedes the July sequencing | staged |
+| [REFACTORING-SCAN-2026-08.md](REFACTORING-SCAN-2026-08.md) | the scan that preceded the W program | 5-track deep scan: 8 live defects (LD-1..8) + 4-phase program; supersedes the July sequencing. **The program it started has since been superseded by the W0–W5 migration** (`../architecture/21-migration-roadmap.md`) | staged |
 | [AUTONOMOUS-SYSTEM-REFACTOR-PLAN.md](AUTONOMOUS-SYSTEM-REFACTOR-PLAN.md) | prior program | governed autonomy + WebUI + delivery gates | staged |
 | [REFACTORING-SCAN.md](REFACTORING-SCAN.md) | all 30 (2026-07) | master scan + 15-step sequencing — **sequencing superseded by the 2026-08 scan**; per-finding detail still valid | — |
 | [REFACTOR-A1-CONTROLPLANE-PLAN.md](REFACTOR-A1-CONTROLPLANE-PLAN.md) | A1 | 190-file controlplane → domain packages | med |
 | [REFACTOR-A2-LOG-PAGINATION-PLAN.md](REFACTOR-A2-LOG-PAGINATION-PLAN.md) | A2 | c​ursor pagination for 11 log endpoints | low |
 | [REFACTOR-A3-B5-AUTH-HTTPSERVER-PLAN.md](REFACTOR-A3-B5-AUTH-HTTPSERVER-PLAN.md) | A3+B5 | `kernel/auth` (domain) + `kernel/httpserver` (transport) | high |
 | [REFACTOR-A3-HTTPSERVER-PLAN.md](REFACTOR-A3-HTTPSERVER-PLAN.md) | A3 | *superseded by A3+B5 for auth phases*; transport detail still valid | — |
-| [REFACTOR-B1-RUNTIME-API-PLAN.md](REFACTOR-B1-RUNTIME-API-PLAN.md) | B1+D2+E1 | `kernel/runtime` decomposition + daemon boot split + stable SDK client boundary | high |
+| B1+D2+E1 | `kernel/runtime` decomposition + daemon boot split + stable SDK client boundary — **the plan file was never written**; the runtime decomposition shipped inside the W program | high |
 | [REFACTOR-C2-LIB-CLASSIFICATION.md](REFACTOR-C2-LIB-CLASSIFICATION.md) | C2 | 68-module `lib/` keep/colocate/merge | low |
 | [REFACTOR-C4-CHAT-DECOMPOSITION.md](REFACTOR-C4-CHAT-DECOMPOSITION.md) | C4 | 1,973-line `Chat.tsx` decomposition | med |
 

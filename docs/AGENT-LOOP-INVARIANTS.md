@@ -18,7 +18,7 @@ discipline from DeerFlow. They are deliberately small and testable.
 1. Compaction happens between completed observations and the next provider call.
 2. A compaction event reports before/after size, elided tool-output count, and
    reclaimed characters.
-3. Outputs marked with `agent.DefaultContextRescueMarker` remain available until
+3. Outputs marked with `toolapi.DefaultContextRescueMarker` remain available until
    the next prompt assembly needs them.
 4. Skill rescue metrics are advisory counters; they must never hide that normal
    tool output was elided.

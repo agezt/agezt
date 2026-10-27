@@ -1,5 +1,8 @@
 # Refactor C4 — `views/Chat.tsx` decomposition (named sub-files)
 
+> **Status:** ARCHIVED — its implementation lived in frontend/src/views/Chat/, which is gone. The content is retained for historical reference; architecture/11-frontend-console.md is the canonical source.
+> **Archived:** 2026-10-27 (W5.4f)
+
 > Companion to `docs/REFACTORING-SCAN.md` finding **C4**.
 > **Generated:** 2026-07-03. Grounded in a live read of the **pre-extraction monolith** `Chat.tsx` + its 10 sibling Chat test files.
 >

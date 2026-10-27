@@ -1,5 +1,8 @@
 # AGEZT — System Audit Report (Missing Items, Incompletes, To-Dos)
 
+> **Status:** ARCHIVED — the 2026-07-04 audit. The content is retained for historical reference; architecture/00-README.md (the findings register) is the canonical source.
+> **Archived:** 2026-10-27 (W5.4f)
+
 > **Date:** 2026-07-04 (last updated: 2026-07-06)
 > **Branch:** `main` (HEAD: `ef7b412d`)
 > **Checkout:** Main repository (`D:\Codebox\PROJECTS\AGEZT`); `.worktrees/` and `.claude/worktrees/` **excluded**.

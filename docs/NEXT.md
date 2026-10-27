@@ -1,5 +1,8 @@
 # AGEZT Next Plan And Handoff Notes
 
+> **Status:** ARCHIVED — the June 2026 handoff plan; the living handoff is the architecture tree's. The content is retained for historical reference; architecture/NEXT.md is the canonical source.
+> **Archived:** 2026-10-27 (W5.4f)
+
 This is the continuation plan for the next agent working on AGEZT. For the current missing-parts audit and execution plan, see `docs/MISSING-PARTS-REPORT.md` and `docs/MISSING-PARTS-PLAN.md`.
 
 The user goal is not "make a nicer UI". The goal is a real autonomous multi-agent system: durable agents with identity, memory, skills, authority, lifecycle, mailbox, self-repair, schedules, workflows, and visible runtime behavior.

@@ -1,5 +1,8 @@
 # Refactor A2 — per-endpoint pagination for the log endpoints
 
+> **Status:** ARCHIVED — delivered — kernel/journal/cursor.go is its artifact. The content is retained for historical reference; architecture/21-migration-roadmap.md is the canonical source.
+> **Archived:** 2026-10-27 (W5.4f)
+
 > Companion to `docs/REFACTORING-SCAN.md` finding **A2**.
 > **Generated:** 2026-07-03 (post-merge of PR #467). Grounded in a live handler + route-map scan.
 
