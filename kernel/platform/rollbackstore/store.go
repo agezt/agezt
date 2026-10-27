@@ -79,7 +79,7 @@ func RestoreFile(cp Checkpoint) (map[string]any, error) {
 	if n := intNumber(before["mode_perm"]); n > 0 {
 		perm = os.FileMode(n)
 	}
-	if err := writeRollbackFile(path, data, perm); err != nil {
+	if err := WriteSnapshotFile(path, data, perm); err != nil {
 		return nil, err
 	}
 	return map[string]any{"path": path, "restored": "content", "bytes": len(data)}, nil
@@ -146,7 +146,13 @@ func Find(cat Catalog, id string) (int, *Checkpoint) {
 	return -1, nil
 }
 
-func writeRollbackFile(path string, data []byte, perm os.FileMode) error {
+// WriteSnapshotFile writes a restored file snapshot to path atomically with
+// the given permissions, creating the parent directory when it is absent.
+//
+// It is exported because the CLI restores the same snapshots the daemon wrote:
+// a second, hand-rolled atomic writer in the CLI was a second answer to the
+// same question, and the two could drift (the CLI's had no Windows fallback).
+func WriteSnapshotFile(path string, data []byte, perm os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}

@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/modules/extensions/plugin"
@@ -136,7 +137,7 @@ func installPluginFromRegistry(source string, idx pluginIndex, name, installDir 
 		fmt.Fprintf(stderr, "  expected: %s\n  got:      %s\n", strings.ToLower(bin.BLAKE3), got)
 		return 1
 	}
-	if err := os.WriteFile(dest, data, 0o755); err != nil {
+	if err := atomicfile.WriteFile(dest, data, 0o755); err != nil {
 		fmt.Fprintf(stderr, "%s plugin registry: write %s: %v\n", brand.CLI, dest, err)
 		return 1
 	}
