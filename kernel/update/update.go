@@ -12,12 +12,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/updateapi"
 	"github.com/agezt/agezt/kernel/platform/netout"
 )
 
 // Source specifies where to fetch update metadata.
-type Source int
+//
+// The row lives in the contract (W5.4c): the REST adapter and the control
+// plane are adapters, and an adapter may not name this module.
+type Source = updateapi.Source
 
 const (
 	SourceGitHub   Source = iota // GitHub Releases API
@@ -41,7 +44,9 @@ const (
 // iota 0, so a hand-built struct would have inherited the trusted origin by
 // default — exactly the bug. A caller-assembled manifest now earns no trust it
 // did not come by honestly.
-type Provenance int
+//
+// The row itself lives in the contract (W5.4c).
+type Provenance = updateapi.Provenance
 
 const (
 	// ProvenanceUnverified is the zero value: a manifest assembled by a caller
@@ -57,29 +62,15 @@ const (
 )
 
 // UpdateInfo describes a available update.
-type UpdateInfo struct {
-	Version string // semver, e.g. "1.2.3"
-	SHA256  string // lowercase hex SHA256 of the binary archive
-	URL     string // direct download URL
-	Notes   string // release notes (optional)
-	// Provenance is where this manifest came from. Set by Check; left at the
-	// zero value (ProvenanceUnverified) by anything that builds one by hand.
-	Provenance Provenance
-	// Signature is the hex Ed25519 signature over "<version>\n<sha256>",
-	// attesting the release under the trusted public key (UPD-001). Empty
-	// when the endpoint does not sign releases; Apply rejects an unsigned
-	// release when a public key is configured.
-	Signature string
-}
+//
+// The row itself lives in the contract (W5.4c) — this is an ALIAS, so there
+// is one row and one spelling of it.
+type UpdateInfo = updateapi.UpdateInfo
 
 // Manifest is the JSON shape returned by a custom update endpoint.
-type Manifest struct {
-	Version   string `json:"version"`
-	SHA256    string `json:"sha256"`
-	URL       string `json:"url"`
-	Notes     string `json:"notes,omitempty"`
-	Signature string `json:"signature,omitempty"` // hex Ed25519 over "<version>\n<sha256>"
-}
+//
+// The row itself lives in the contract (W5.4c).
+type Manifest = updateapi.Manifest
 
 // Config tunes the update mechanism.
 type Config struct {
@@ -113,16 +104,21 @@ type Config struct {
 }
 
 // CheckResult is the outcome of a version check.
-type CheckResult struct {
-	Update  *UpdateInfo // nil if current version is up-to-date
-	Current string      // brand.Version at time of check
-	Err     error
-}
+//
+// The row itself lives in the contract (W5.4c).
+type CheckResult = updateapi.CheckResult
 
-// CurrentVersion returns brand.Version, factored out so this package has
-// no import cycle with the brand package at runtime (the value is injected
-// during Open).
-var CurrentVersion = brand.Version
+// The running binary's version is the brand's (`internal/brand.Version`, the
+// value the build stamps). This package used to keep a second copy of it — a
+// var set to brand.Version at init and changed only by tests — and the
+// adapters read that copy while the module compared against it, so the truth
+// existed twice and could drift.
+//
+// There is now ONE current version in the tree. The brand's version is a var,
+// so a test that needs determinism pins brand.Version (and restores it) —
+// exactly as it pinned the old copy.
+//
+// The rows that carry the version (CheckResult.Current) are the contract's.
 
 // Service is the update engine. A single instance lives in the daemon;
 // it is safe for concurrent use after Open.

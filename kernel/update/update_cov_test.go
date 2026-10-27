@@ -15,6 +15,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/agezt/agezt/internal/brand"
 )
 
 // ghRoundTripper serves canned responses for GitHub-API requests so checkGitHub
@@ -78,9 +80,9 @@ func TestCheckGitHub_MissingOwnerRepo(t *testing.T) {
 }
 
 func TestCheckGitHub_UpdateAvailable(t *testing.T) {
-	orig := CurrentVersion
-	CurrentVersion = "1.0.0"
-	defer func() { CurrentVersion = orig }()
+	orig := brand.Version
+	brand.Version = "1.0.0"
+	defer func() { brand.Version = orig }()
 
 	// The asset name must contain "<os>_<arch>" (darwin normalised to macos) so
 	// the platform matcher picks it regardless of the host running the test.

@@ -12,13 +12,16 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/agezt/agezt/internal/brand"
 )
 
 func TestService_checkEndpoint(t *testing.T) {
-	// Set CurrentVersion so the test is deterministic.
-	orig := CurrentVersion
-	CurrentVersion = "1.0.0"
-	defer func() { CurrentVersion = orig }()
+	// Pin the running version so the test is deterministic. There is ONE
+	// current version in the tree — the brand's (W5.4c).
+	orig := brand.Version
+	brand.Version = "1.0.0"
+	defer func() { brand.Version = orig }()
 
 	t.Run("up to date", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

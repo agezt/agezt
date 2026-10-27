@@ -22,6 +22,8 @@ import (
 	"os"
 	"runtime"
 	"strings"
+
+	"github.com/agezt/agezt/internal/brand"
 )
 
 func (s *Service) verifySignature(info *UpdateInfo) error {
@@ -80,7 +82,7 @@ func (s *Service) checkGitHub(ctx context.Context) (*CheckResult, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotModified {
-		return &CheckResult{Current: CurrentVersion, Update: nil}, nil
+		return &CheckResult{Current: brand.Version, Update: nil}, nil
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("update: GitHub API returned status %d", resp.StatusCode)
@@ -99,8 +101,8 @@ func (s *Service) checkGitHub(ctx context.Context) (*CheckResult, error) {
 	}
 
 	version := strings.TrimPrefix(gh.TagName, "v")
-	if version == CurrentVersion {
-		return &CheckResult{Current: CurrentVersion, Update: nil}, nil
+	if version == brand.Version {
+		return &CheckResult{Current: brand.Version, Update: nil}, nil
 	}
 
 	// Find the binary asset for the current GOOS/GOARCH.
@@ -123,7 +125,7 @@ func (s *Service) checkGitHub(ctx context.Context) (*CheckResult, error) {
 	}
 
 	return &CheckResult{
-		Current: CurrentVersion,
+		Current: brand.Version,
 		Update: &UpdateInfo{
 			Version:    version,
 			URL:        downloadURL,
@@ -163,12 +165,12 @@ func (s *Service) checkEndpoint(ctx context.Context) (*CheckResult, error) {
 	if m.Version == "" {
 		return nil, errors.New("update: endpoint returned empty version")
 	}
-	if m.Version == CurrentVersion {
-		return &CheckResult{Current: CurrentVersion, Update: nil}, nil
+	if m.Version == brand.Version {
+		return &CheckResult{Current: brand.Version, Update: nil}, nil
 	}
 
 	return &CheckResult{
-		Current: CurrentVersion,
+		Current: brand.Version,
 		Update: &UpdateInfo{
 			Version:    m.Version,
 			SHA256:     m.SHA256,

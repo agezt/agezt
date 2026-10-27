@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/update"
 )
 
@@ -38,9 +39,9 @@ func wireUpdate(s *Server, rt http.RoundTripper) {
 }
 
 func TestUpdateCheck_ServiceWired_UpToDate(t *testing.T) {
-	orig := update.CurrentVersion
-	update.CurrentVersion = "9.9.9"
-	defer func() { update.CurrentVersion = orig }()
+	orig := brand.Version
+	brand.Version = "9.9.9"
+	defer func() { brand.Version = orig }()
 
 	s := newServer(t, &fakeEngine{model: "m"}, "secret")
 	// tag matches current version → up to date.
@@ -56,9 +57,9 @@ func TestUpdateCheck_ServiceWired_UpToDate(t *testing.T) {
 }
 
 func TestUpdateCheck_ServiceWired_UpdateAvailable(t *testing.T) {
-	orig := update.CurrentVersion
-	update.CurrentVersion = "1.0.0"
-	defer func() { update.CurrentVersion = orig }()
+	orig := brand.Version
+	brand.Version = "1.0.0"
+	defer func() { brand.Version = orig }()
 
 	osName := runtime.GOOS
 	if osName == "darwin" {

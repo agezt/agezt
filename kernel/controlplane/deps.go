@@ -19,9 +19,9 @@ package controlplane
 import (
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/toolboxapi"
+	"github.com/agezt/agezt/kernel/contract/updateapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
-	"github.com/agezt/agezt/kernel/update"
 )
 
 // Deps bundles the early injected dependencies of a Server — everything the
@@ -49,10 +49,12 @@ type Deps struct {
 	// the toolbox commands then answer "the toolbox is not available on this
 	// daemon" instead of inspecting a machine they cannot inspect.
 	Toolbox toolboxapi.Host
+	// UpdateSvc is the self-update engine (M860) — the CONTRACT's port
+	// (W5.4c). Nil when update is disabled: the update commands then answer
+	// "update is disabled" instead of dereferencing nil.
+	UpdateSvc updateapi.Backend
 	// DiskFree probes free/total bytes for the disk health check (M131).
 	DiskFree DiskFreeFunc
-	// UpdateSvc is the self-update engine (M860); nil = update disabled.
-	UpdateSvc *update.Service
 	// Tenants is the multi-tenant registry (P6-MULTI); nil = single-tenant.
 	// Supplying it here (rather than via SetTenants after Start) means tenant
 	// tokens authorize from the very first accepted connection.

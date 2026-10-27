@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	core "github.com/agezt/agezt/kernel/update"
+	"github.com/agezt/agezt/kernel/contract/updateapi"
 )
 
 type ApplyInput struct {
@@ -40,12 +40,12 @@ type ApplyOutput struct {
 type Service struct {
 	backend  Backend
 	current  string
-	drain    func(context.Context, time.Duration) core.DrainResult
+	drain    func(context.Context, time.Duration) updateapi.DrainResult
 	sentinel func()
 	restart  func(time.Duration)
 }
 
-func New(backend Backend, current string, drain func(context.Context, time.Duration) core.DrainResult, sentinel func(), restart func(time.Duration)) *Service {
+func New(backend Backend, current string, drain func(context.Context, time.Duration) updateapi.DrainResult, sentinel func(), restart func(time.Duration)) *Service {
 	return &Service{backend: backend, current: current, drain: drain, sentinel: sentinel, restart: restart}
 }
 
@@ -103,7 +103,7 @@ func (s *Service) Apply(parent context.Context, in ApplyInput, reply func(ApplyO
 		return
 	}
 	// Caller-provided fields never earn release-source provenance or a signature.
-	info := &core.UpdateInfo{Version: in.Version, SHA256: in.SHA256, URL: in.URL, Notes: in.Notes}
+	info := &updateapi.UpdateInfo{Version: in.Version, SHA256: in.SHA256, URL: in.URL, Notes: in.Notes}
 	ctx, cancel := context.WithCancel(context.Background())
 	retained := false
 	defer func() {
@@ -114,7 +114,7 @@ func (s *Service) Apply(parent context.Context, in ApplyInput, reply func(ApplyO
 	err := s.backend.Apply(ctx, info, s.drain)
 	if err != nil {
 		message := fmt.Sprintf("update failed: %v", err)
-		if errors.Is(err, core.ErrDrainTimeout) {
+		if errors.Is(err, updateapi.ErrDrainTimeout) {
 			message = "drain timed out: in-flight runs did not complete within the configured timeout"
 		}
 		retained = opapi.DeferTerminalCleanup(parent, cancel)

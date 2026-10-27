@@ -11,8 +11,8 @@ import (
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	core "github.com/agezt/agezt/kernel/contract/updateapi"
 	"github.com/agezt/agezt/kernel/platform/schema"
-	core "github.com/agezt/agezt/kernel/update"
 )
 
 type updateAuth struct{ principal opapi.Principal }

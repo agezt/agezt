@@ -16,9 +16,9 @@ import (
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/toolboxapi"
+	"github.com/agezt/agezt/kernel/contract/updateapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
-	"github.com/agezt/agezt/kernel/update"
 )
 
 // Server hosts the control plane for a running Kernel.
@@ -231,7 +231,13 @@ func (s *Server) SetRepairSource(src agentapi.RepairSource) { s.repairSource = s
 
 // SetUpdateService wires the self-update engine (M860). Nil when update is
 // disabled; update commands report that rather than dereferencing nil.
-func (s *Server) SetUpdateService(svc *update.Service) {
+//
+// The port is the CONTRACT's (W5.4c): the control plane may not name the
+// update module. The daemon converts the concrete engine to the port where
+// the value is still concrete — a nil *update.Service handed to an interface
+// parameter is a NON-nil interface, and the holder would hold an engine that
+// is not there.
+func (s *Server) SetUpdateService(svc updateapi.Backend) {
 	if svc == nil {
 		s.updateSvc = nil
 		return

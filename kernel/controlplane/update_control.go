@@ -4,8 +4,9 @@ package controlplane
 import (
 	"context"
 	"fmt"
+	"github.com/agezt/agezt/internal/brand"
 	appupdate "github.com/agezt/agezt/kernel/app/update"
-	core "github.com/agezt/agezt/kernel/update"
+	"github.com/agezt/agezt/kernel/contract/updateapi"
 	"os"
 	"path/filepath"
 	"time"
@@ -25,9 +26,15 @@ func (s *Server) writeUpdateSentinel() {
 	f.Close()
 }
 
+// operatorUpdate builds the app's update service over the daemon's update
+// port.
+//
+// The rows are the CONTRACT's (W5.4c) and the current version is the
+// BRAND's: there is one current version in the tree, and the update module
+// used to keep a second copy of it.
 func (s *Server) operatorUpdate() *appupdate.Service {
-	return appupdate.New(s.updateSvc, core.CurrentVersion, func(_ context.Context, timeout time.Duration) core.DrainResult {
+	return appupdate.New(s.updateSvc, brand.Version, func(_ context.Context, timeout time.Duration) updateapi.DrainResult {
 		timedOut, active := s.k.DrainAndHalt(timeout)
-		return core.DrainResult{Timeout: timedOut, ActiveRuns: active}
+		return updateapi.DrainResult{Timeout: timedOut, ActiveRuns: active}
 	}, s.writeUpdateSentinel, func(delay time.Duration) { go func() { time.Sleep(delay); s.signalShutdown() }() })
 }

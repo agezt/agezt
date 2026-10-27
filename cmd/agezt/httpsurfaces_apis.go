@@ -24,6 +24,7 @@ import (
 	kernelauth "github.com/agezt/agezt/kernel/auth"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
+	"github.com/agezt/agezt/kernel/contract/updateapi"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/netguard"
@@ -32,7 +33,6 @@ import (
 	"github.com/agezt/agezt/kernel/restapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
-	"github.com/agezt/agezt/kernel/update"
 	"github.com/agezt/agezt/kernel/webhook"
 )
 
@@ -108,7 +108,7 @@ func buildOpenAIAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Re
 // and only a short prefix is shown in the banner — the FULL token must NEVER
 // appear on stdout/stderr where a log-shipper or `journalctl` would scrape it
 // (VULN banner-token-leak fix).
-func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Registry, baseDir string, draining *atomic.Bool, boardStore boardapi.Store, boardNotify func(boardapi.Message, string), updateSvc *update.Service, stdout io.Writer) string {
+func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Registry, baseDir string, draining *atomic.Bool, boardStore boardapi.Store, boardNotify func(boardapi.Message, string), updateSvc updateapi.Backend, stdout io.Writer) string {
 	addr := os.Getenv(brand.EnvPrefix + "REST_ADDR")
 	if addr == "" {
 		return ""
