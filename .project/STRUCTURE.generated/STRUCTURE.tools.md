@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-9 package(s):
+10 package(s):
 
 - **`tools/archcheck`** — Command archcheck enforces the layer architecture described in architecture/20-target-architecture.md: every package is placed in a layer (and, for L3, a module) by tools/archcheck/layers.json, and every in-module import edge must respect four rules — no upward dependency, no module reaching into another module's internals, no adapter bypassing the app layer, no plugin reaching past contracts and platform (see rules.go).
 - **`tools/changelog-lint`** — Command changelog-lint validates the split changelog layout produced by tools/changelog-split.
@@ -10,6 +10,7 @@
 - **`tools/deadcodecheck`** — Command deadcodecheck runs the Go deadcode analyzer and fails on new repository-local unreachable code.
 - **`tools/depscheck`** — Command depscheck verifies that every Go module pulled into the build is listed in tools/depscheck/allowlist.txt.
 - **`tools/docclaimscheck`** — Command docclaimscheck verifies the quantitative claims in the audit's own deliverables against the branch they describe.
+- **`tools/docsindex`** — Command docsindex checks the documentation index's own invariants.
 - **`tools/jsonschemagen`** — Command jsonschemagen reads the Agezt wire contract (a JSONC file with embedded JSON Schema definitions) and emits Go types for the SDK.
 - **`tools/sdkparity`** — Command sdkparity generates a conservative SDK coverage report for the native AGEZT REST API (/api/v1).
 - **`tools/structure-md`** — Command structure-md regenerates `.project/STRUCTURE.md` (and its per-section sidecars) from the actual filesystem.
