@@ -7,11 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"time"
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
@@ -210,7 +210,7 @@ func cmdJournalExport(args []string, stdout, stderr io.Writer) int {
 		_, _ = stdout.Write([]byte("\n"))
 		return 0
 	}
-	if err := os.WriteFile(outPath, data, 0o600); err != nil {
+	if err := atomicfile.WriteFile(outPath, data, 0o600); err != nil {
 		fmt.Fprintf(stderr, "%s journal export: write %s: %v\n", brand.CLI, outPath, err)
 		return 1
 	}

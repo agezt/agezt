@@ -18,6 +18,7 @@ import (
 	"time"
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
+	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
@@ -84,7 +85,7 @@ func exportAllSkills(dir, agentFilter string, stdout, stderr io.Writer) int {
 			continue
 		}
 		file := safeSkillFilename(bundle.Skill.Name, bundle.Skill.ID)
-		if werr := os.WriteFile(filepath.Join(dir, file), data, 0o600); werr != nil {
+		if werr := atomicfile.WriteFile(filepath.Join(dir, file), data, 0o600); werr != nil {
 			fmt.Fprintf(stderr, "%s skill export: write %s: %v\n", brand.CLI, filepath.Join(dir, file), werr)
 			failed++
 			continue
@@ -103,7 +104,7 @@ func exportAllSkills(dir, agentFilter string, stdout, stderr io.Writer) int {
 		GeneratedUnixMS: time.Now().UnixMilli(), Skills: index,
 	}
 	idxData, _ := json.MarshalIndent(idx, "", "  ")
-	if werr := os.WriteFile(filepath.Join(dir, registryIndexName), idxData, 0o600); werr != nil {
+	if werr := atomicfile.WriteFile(filepath.Join(dir, registryIndexName), idxData, 0o600); werr != nil {
 		fmt.Fprintf(stderr, "%s skill export: write index: %v\n", brand.CLI, werr)
 		failed++
 	}
@@ -240,7 +241,7 @@ func cmdSkillExport(args []string, stdout, stderr io.Writer) int {
 		_, _ = stdout.Write([]byte("\n"))
 		return 0
 	}
-	if err := os.WriteFile(outPath, data, 0o600); err != nil {
+	if err := atomicfile.WriteFile(outPath, data, 0o600); err != nil {
 		fmt.Fprintf(stderr, "%s skill export: write %s: %v\n", brand.CLI, outPath, err)
 		return 1
 	}

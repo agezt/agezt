@@ -59,6 +59,37 @@ func TestWriteFile_Mode(t *testing.T) {
 	}
 }
 
+// TestWriteFile_ReassertsTheModeOfAnExistingFile: the mode is the writer's
+// promise on EVERY write, not only at creation.
+//
+// os.WriteFile applies its perm argument only when it CREATES the file — an
+// existing file keeps whatever mode it had. So an export written
+// world-readable once stayed world-readable forever, and a re-export could
+// not tighten it. The atomic writer chmods the temp before the rename, so
+// the target's mode is the one the caller asked for on every write.
+//
+// The mode bits do not exist on Windows (Go maps only the read-only bit), so
+// the assertion is POSIX-only.
+func TestWriteFile_ReassertsTheModeOfAnExistingFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file modes are not meaningful on Windows")
+	}
+	path := filepath.Join(t.TempDir(), "export")
+	if err := os.WriteFile(path, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteFile(path, []byte("new"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("mode = %o, want 600 — the writer must re-assert the mode on every write", perm)
+	}
+}
+
 func TestWriteFile_MissingDir(t *testing.T) {
 	err := WriteFile(filepath.Join(t.TempDir(), "no", "such", "dir", "f"), []byte("x"), 0o644)
 	if err == nil {

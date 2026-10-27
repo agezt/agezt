@@ -12,9 +12,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
+	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/plugins/tools/peer"
 )
@@ -80,7 +80,7 @@ func peersArtifactGet(peers map[string]peer.Peer, name, id, outPath string, asJS
 	}
 	meta, data := fetchPeerArtifactBytes(p, id)
 	if meta.Error == "" {
-		if err := os.WriteFile(outPath, data, 0o600); err != nil {
+		if err := atomicfile.WriteFile(outPath, data, 0o600); err != nil {
 			meta.Error = "write " + outPath + ": " + err.Error()
 		}
 	}
