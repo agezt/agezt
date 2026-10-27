@@ -2,9 +2,10 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-4 package(s):
+5 package(s):
 
 - **`internal/atomicfile`** — Package atomicfile writes files crash- and concurrency-safely.
 - **`internal/brand`** — Package brand centralizes all user-visible name, path, and string constants in one place so the project name can be changed in a single edit (DECISIONS A1).
+- **`internal/dirswap`** — Package dirswap replaces a DIRECTORY with a staged one, and never leaves the destination missing.
 - **`internal/paths`** — Package paths resolves the Agezt runtime base directory.
 - **`internal/strutil`** — Package strutil holds small, dependency-free string helpers shared across the daemon and CLI.

@@ -3033,6 +3033,19 @@ This file holds the active `[Unreleased]` working set.
   `kernel/agentgw/testonly_test.go`, where the dead-code gate can see that
   they are test-only instead of the tree carrying them as live API.
 
+- **A published tree is never half-written and never lost (W5.4a).** The
+  marketplace cache and the skill bundles were written into a staging
+  directory and swapped in — but the staged files were never fsynced, and the
+  swap deleted the old tree *before* renaming the new one over it, so a
+  rename that failed (Windows refuses a rename while a scanner holds a handle
+  on a file in the tree) left the caller with nothing: the content was
+  deleted, not moved. Both now go through one shared policy
+  (`internal/dirswap`): the new tree is written through the platform's atomic
+  writer, the old tree is **moved aside**, the new one renamed into place,
+  and the old one removed afterwards — and a publish that fails moves the old
+  tree back, so the destination is never left missing. The
+  forbidden-call allowlist is now **empty**.
+
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still

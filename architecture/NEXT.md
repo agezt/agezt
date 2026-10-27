@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.67 the agent gateway is the daemon's transport, 2026-10-27
+## Current checkpoint — W5.4a the forbidden-call ratchet is zero, 2026-10-27
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -4807,6 +4807,46 @@ files, five of the seventeen mutations would have escaped.
   inside the deferred recover). The forbidden-call ratchet is still **3** with
   the same two holes: the staged writes are not **fsynced**, and the swap
   **removes the old copy before** the new one is in place.
+
+- W5.4a (the forbidden-call ratchet is zero) takes the **call-site** half of
+  W5.4 — the last **three** `raw-write` call sites — and the ratchet goes
+  **3 → 0**. The three were the marketplace cache's two staged writes and the
+  skill bundle's staged write, and the measurement that had called them
+  "already atomic by another means" was **half right**: they were staged, but
+  the staging tree was written with a plain `os.WriteFile` (**not fsynced** —
+  a swapped-in tree could hold a half-written file), and the swap **deleted
+  the old tree before** renaming the new one over it, so a rename that failed
+  left the caller with **nothing**: the content was deleted, not moved, and
+  could not be recovered. On Windows a rename is refused while a scanner still
+  holds a handle on a file in the tree — and by then the old tree was already
+  gone.
+  The fix is **one shared policy** (`internal/dirswap`, a **foundation**
+  package, so it costs no import edge): the new tree is written into a
+  **staging sibling** (every file through the platform's atomic writer, so a
+  reader never sees a half-written file and the content is fsynced before it
+  is published), the old tree is **moved aside** (renamed, not deleted), the
+  staged tree is renamed into place, and only then is the old tree removed.
+  A publish that fails **moves the old tree back** — the destination is never
+  left missing — and the leftover of a failed cleanup is bounded to **one**
+  path per destination, which the next swap removes. The Windows retry that
+  the skill package had grown on its own moved into the policy with it, so
+  there is one implementation of it rather than two.
+  **14 permanent tests** (11 over the policy, 3 over the two callers) and
+  **12 mutations, 12 caught** in two independent passes with **byte-identical**
+  logs. The **first** pass reported one BUILDERR, and it was the **mutation's**
+  defect: skipping the index write left `idx` **declared and not used** — a
+  build error says nothing about the behaviour, so the mutation now writes the
+  index under the wrong name, which is a real defect the test can catch. Two
+  tests are **measurements** rather than shapes: the mode is asserted as
+  "writable" everywhere and as exactly `0600` only where POSIX permission bits
+  exist (Windows has none), and the skill's failure is a file and a directory
+  with the same name — whichever is written first, the other cannot be, so the
+  test fails on every platform and in every map order.
+  **What remains**: the forbidden-call allowlist is **empty**; the **import**
+  ratchet stands at **7** with the same traps (`controlplane → runtime` is a
+  redesign, `selfrepair → runtime` needs a runs port that does not exist yet,
+  `channel → bus` is a nil-interface trap). W5.4's other two parts are still
+  open: the **import** allowlist at zero and the **`docs/`** archiving.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
