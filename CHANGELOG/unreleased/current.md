@@ -4576,6 +4576,36 @@ This file holds the active `[Unreleased]` working set.
   changelog and doc-claims gates, `go vet`, `staticcheck`, gofmt, and a full
   `go test ./...` run are green.
 
+- **The pulse module reached into the runs module for one function (W3.66).**
+  The pulse's optional LLM salience refine asks a model to score a delta, and
+  the model's answer has to become a **typed value** — the structured-output
+  path, `agent.GenerateObject` — and `kernel/pulse` reached **into the runs
+  module** to call it. A module may not name another module; the host injects
+  the path. The memory module got that treatment in W3.57; the pulse module
+  had not. The path is not the memory module's and not the pulse module's — it
+  is the way a model answer becomes a typed value — so it now lives in the
+  provider's own contract, `kernel/contract/llm` (`llm.Generator`), and
+  `memoryapi.Generator` is an **alias** of it: one spelling for one thing.
+  The daemon injects it (`Generator: agent.GenerateObject`); a host that wires
+  no path gets **no** refine — the severity score stands and nothing pretends
+  a model was asked.
+
+  Proof: six permanent tests over a path that was **entirely untested** before
+  this slice — the refine asks the injected path and the model is asked about
+  *this* change, the refine is opt-in (`PULSE_LLM=on`), no path means no
+  refine and no panic, an unusable answer is a skip rather than a zero score,
+  and the model's score is bounded to [0,1] — plus the daemon's own end-to-end
+  test: with a mock provider the journal must carry a `pulse.salience` event
+  whose reason and score are the model's. Without that test a daemon that
+  forgot to inject the path would look exactly like a daemon with the refine
+  switched off: the pulse keeps working, it just gets quieter, and nothing
+  reports that the refine is dead. Ten mutations, ten caught, in two
+  independent passes with byte-identical logs, two of them aimed at the
+  wiring. The architecture ratchet went from 10 to **9** import edges. Gates:
+  archcheck (314 packages, 9 import and 3 call sites), the dead-code,
+  dependency, SDK-parity, structure, changelog and doc-claims gates, `go
+  vet`, `staticcheck`, gofmt, and a full `go test ./...` run are green.
+
 ### Removed
 
 - **Removed: the kernel's reach on the world model (W3.54).** The kernel held
