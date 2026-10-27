@@ -3199,6 +3199,16 @@ This file holds the active `[Unreleased]` working set.
   remains is named in the evidence: the backup archive (a stream, which
   needs a streaming atomic write first) and the doctor's writability probe.
 
+- **A failed backup no longer destroys the operator's last good archive
+  (W5.4j).** `agt backup` wrote its tar+gzip archive with a plain
+  `os.Create`, which truncates the target in place: a crash mid-stream left
+  a torn archive, and a failed backup then **removed** the output — so the
+  operator ended up with neither the new archive nor the old one. The
+  platform gained a streaming atomic writer, the backup uses it, and the
+  cleanup is gone: under an atomic write the previous good archive is still
+  there, and deleting it was destroying exactly what the operator needed.
+  The archive is now also written `0600` instead of the umask's `0644`.
+
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still
