@@ -1602,7 +1602,7 @@ Recommendation: delete it, or finish the extraction. Do not wire new code to it.
 - `InstanceKey(kind, label)` returns `kind` or `kind#label`
 
 **Helpers:**
-- `Guard(bus, name, fn)` recovers a per-message panic and journals `channel.error` on subject `channel.<name>.error`.
+- `Guard(publisher, name, fn)` recovers a per-message panic and journals `channel.error` on subject `channel.<name>.error`. The publisher is a **port** (`Publisher`, one verb: `Publish`) and not the bus itself: `kernel/channel` is a **contract** (layer 1) and the bus is the **platform** (layer 2), so a contract may not import the platform (W5.4d). The bus satisfies the port structurally, so every call site passes its `*bus.Bus` unchanged. The guard reports whether it **attempted** to journal the panic, and the publish carries its own recover — a broken publisher cannot take the daemon down.
 - `ConversationHistory(journal, kind, channelID, threadID, sender, limit)` folds the journal's `channel.inbound` and `channel.outbound` events into a transcript:
   - scoped to the thread;
   - **isolated per sender**: only that sender's inbound messages, plus replies whose correlation matches one of their messages;
@@ -1615,7 +1615,7 @@ Recommendation: delete it, or finish the extraction. Do not wire new code to it.
 | File | Contents |
 |---|---|
 | `channel.go` | Core types, `Channel` interface, `Allowlist`. |
-| `guard.go` | `Guard`. |
+| `guard.go` | `Publisher`, `Guard`. |
 | `registry.go` | Manifest and live registries. |
 | `history.go` | `EventRanger`, `ConversationHistory`. |
 | `split.go` | `SplitText`. |

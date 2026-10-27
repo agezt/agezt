@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4c the update engine reaches the adapters through the contract's port, 2026-10-27
+## Current checkpoint — W5.4d the channel guard reaches the bus through a port, 2026-10-27
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -4949,6 +4949,54 @@ files, five of the seventeen mutations would have escaped.
   `selfrepair → runtime` (a runs port that does not exist yet) and
   `channel → bus` (the nil-interface trap). W5.4's remaining part is the
   **`docs/`** archiving.
+
+- W5.4d (the channel guard reaches the bus through a port) takes the
+  **channel** edge — the last one that was a single function — and the ratchet
+  goes **4 → 3**. The edge was `upward kernel/channel -> kernel/bus`: the
+  channel package is a **contract** (layer 1) and the bus is **platform**
+  (layer 2), and a contract may not import the platform. The whole edge was
+  **one function** — `Guard(b *bus.Bus, channelName string, fn func())` — and
+  it existed so that one malformed inbound message could not take the daemon
+  down: it recovers a channel handler's panic and journals it as a
+  `channel.error` event **through the bus**. The measured map had called this
+  edge *"the nil-interface trap"*, and the trap is real but it was **not**
+  where the map put it: the trap is the **typed nil** — a plugin's config
+  holds `*bus.Bus`, a plugin with no bus wired holds a nil pointer, and a nil
+  pointer handed to an interface parameter becomes a **non-nil interface**; the
+  old code checked the concrete pointer, so the moment the parameter became an
+  interface the same value would have sailed past every nil check and the
+  publish inside the recover would have panicked on a nil receiver. That is the
+  same trap the update port walked into two slices ago (W5.4c) and the board
+  port before that (W3.59). So the guard takes a **one-verb port**
+  (`Publisher.Publish(event.Spec) (*event.Event, error)`) that the bus
+  satisfies **structurally**, and the **eleven call sites**
+  (`plugins/channels/*` and `cmd/agezt`) pass their `*bus.Bus` unchanged — the
+  change is one file. The **error path is panic-safe on its own**: the publish
+  happens inside the very `recover` that is supposed to contain the damage, so
+  a publisher broken in its own right would have ended the process the guard
+  exists to protect — the publish carries its own `recover`. And the guard
+  **reports whether it attempted** to journal the panic, which is what makes
+  the nil check load-bearing rather than decorative: a daemon with no publisher
+  says so (false) instead of raising a panic of its own on every error event,
+  and a publisher that refuses is still an attempt — the guard tried, and the
+  publisher said no. **7 permanent tests** (the panic is recovered and a
+  `channel.error` event is journalled; the handler runs and the quiet path
+  journals nothing; **no publisher** still recovers; the **typed-nil**
+  publisher is contained; a publisher that panics cannot take the daemon
+  down; the journalled event names the channel and the actor and carries the
+  panic value in its payload; the guard reports the attempt) and **11
+  mutations, 11 caught** in two independent passes with **byte-identical**
+  logs. The first calibration pass reported **one SURVIVED**, and the fix was
+  in the **code**, not in the test: with the nil check and the panic-safe
+  publish both in place, removing the check changed nothing observable — the
+  two protections **overlapped**, and an overlapping protection cannot be
+  observed from outside — so the guard was made to **report** its attempt, and
+  the check became part of the contract instead of a decoration.
+  **What remains**: the **import** ratchet stands at **3** —
+  `controlplane → runtime` (a redesign), `cadence/systemtasks → runtime`
+  (nine accessors, two of them platform types the contract may not name) and
+  `selfrepair → runtime` (a runs port that does not exist yet). W5.4's
+  remaining part is the **`docs/`** archiving.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
