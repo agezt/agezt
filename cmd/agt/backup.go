@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/internal/brand"
 )
 
@@ -97,20 +98,21 @@ func cmdBackup(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	f, err := os.Create(outPath)
+	// The archive is a STREAM (tar + gzip), so it cannot go through
+	// atomicfile.WriteFile's []byte. The streaming writer gives it the same
+	// guarantees: a unique temp, fsynced, renamed into place — so a failed
+	// backup leaves the PREVIOUS good archive intact. That is why the old
+	// "os.Remove(outPath) on error" cleanup is gone: under an atomic write
+	// the target still holds the last good archive, and removing it would
+	// destroy exactly what the operator needs.
+	var man backupManifest
+	err = atomicfile.WriteStream(outPath, 0o600, func(w io.Writer) error {
+		var werr error
+		man, werr = createBackup(home, w, headSeq, headHash, time.Now())
+		return werr
+	})
 	if err != nil {
-		fmt.Fprintf(stderr, "%s backup: create %s: %v\n", brand.CLI, outPath, err)
-		return 1
-	}
-	man, werr := createBackup(home, f, headSeq, headHash, time.Now())
-	closeErr := f.Close()
-	if werr != nil {
-		os.Remove(outPath)
-		fmt.Fprintf(stderr, "%s backup: %v\n", brand.CLI, werr)
-		return 1
-	}
-	if closeErr != nil {
-		fmt.Fprintf(stderr, "%s backup: close %s: %v\n", brand.CLI, outPath, closeErr)
+		fmt.Fprintf(stderr, "%s backup: %v\n", brand.CLI, err)
 		return 1
 	}
 	fmt.Fprintf(stdout, "backed up %s → %s\n", strings.Join(man.Includes, " + "), outPath)
