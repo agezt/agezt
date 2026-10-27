@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/updateapi"
 )
 
 func (s *Service) Apply(ctx context.Context, info *UpdateInfo, drainFunc func(context.Context, time.Duration) DrainResult) error {
@@ -104,10 +105,9 @@ func (s *Service) Apply(ctx context.Context, info *UpdateInfo, drainFunc func(co
 }
 
 // DrainResult describes the outcome of the drain phase.
-type DrainResult struct {
-	Timeout    bool // true if drain timed out
-	ActiveRuns int  // runs still in-flight when drain ended
-}
+//
+// The row itself lives in the contract (W5.4c).
+type DrainResult = updateapi.DrainResult
 
 // ErrUpdateInProgress is returned when Apply is called while an update
 // is already in progress.
@@ -115,21 +115,24 @@ var ErrUpdateInProgress = errors.New("update: another update is already in progr
 
 // ErrDrainTimeout is returned when in-flight runs do not complete within
 // the configured DrainTimeout.
-var ErrDrainTimeout = errors.New("update: drain timed out — in-flight runs did not complete")
+//
+// The sentinel lives in the contract (W5.4c): the adapters report it.
+var ErrDrainTimeout = updateapi.ErrDrainTimeout
 
 // ErrChecksumMismatch is returned when the downloaded binary's SHA256
 // does not match the manifest.
-type ErrChecksumMismatch struct {
-	Have string // hex of what was downloaded
-	Want string // hex from the manifest
-}
-
-func (e *ErrChecksumMismatch) Error() string {
-	return fmt.Sprintf("update: SHA256 mismatch (have=%s, want=%s)", e.Have[:8], e.Want[:8])
-}
+//
+// The error type lives in the contract (W5.4c) — and it TRUNCATES the two
+// hexes instead of slicing them: the wanted hash comes from a manifest, and a
+// manifest may carry a short one. The old `e.Want[:8]` panicked while
+// reporting a failed checksum, which is a crash in the error path.
+type ErrChecksumMismatch = updateapi.ErrChecksumMismatch
 
 // ErrSignatureMissing is returned when a public key is configured but the
 // manifest carries no signature.
+//
+// This one stays in the module: it is the engine's own refusal, and no
+// adapter reports it.
 var ErrSignatureMissing = errors.New("update: release is not signed but a public key is configured")
 
 // ErrSignatureKeyNotConfigured is returned when Apply is invoked with a
@@ -144,11 +147,9 @@ var ErrSignatureKeyNotConfigured = errors.New("update: no release-signing public
 // ErrSignatureInvalid is returned when the manifest's signature does not verify
 // under the configured public key (wrong key, tampered version/hash, or a
 // malformed signature).
-type ErrSignatureInvalid struct{ Reason string }
-
-func (e *ErrSignatureInvalid) Error() string {
-	return "update: release signature is invalid: " + e.Reason
-}
+//
+// The error type lives in the contract (W5.4c).
+type ErrSignatureInvalid = updateapi.ErrSignatureInvalid
 
 // DefaultPublicKeyHex is the Ed25519 public key (lowercase hex, 64 chars) the
 // daemon trusts for release signatures. Inject it at build time, e.g.:

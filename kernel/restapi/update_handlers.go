@@ -4,8 +4,10 @@ package restapi
 
 // Update REST handlers (M860). Token-authed, under /api/v1/update.
 // The update service is injected via SetUpdateService so this package stays
-// decoupled from kernel/update. When updateSvc is nil the handlers report
-// "update is disabled" rather than dereferencing nil.
+// decoupled from kernel/update — and that is now TRUE of the code, not only
+// of the comment: the port is the CONTRACT's (W5.4c), so this package names
+// no update module. When updateSvc is nil the handlers report "update is
+// disabled" rather than dereferencing nil.
 
 import (
 	"context"
@@ -15,7 +17,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/agezt/agezt/kernel/update"
+	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/updateapi"
 )
 
 // handleUpdateCheck handles GET /api/v1/update.
@@ -27,7 +30,7 @@ func (s *Server) handleUpdateCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.updateSvc == nil {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"current":    update.CurrentVersion,
+			"current":    brand.Version,
 			"up_to_date": true,
 			"status":     "update is disabled",
 		})
@@ -102,7 +105,7 @@ func (s *Server) handleUpdateApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	info := &update.UpdateInfo{
+	info := &updateapi.UpdateInfo{
 		Version: args.Version,
 		SHA256:  args.SHA256,
 		URL:     args.URL,
@@ -119,22 +122,22 @@ func (s *Server) handleUpdateApply(w http.ResponseWriter, r *http.Request) {
 
 	// Use a no-op drain: don't drain via REST (we're mid-HTTP request).
 	// The operator triggers the actual drain via `agezt update --apply`.
-	drainFn := func(ctx context.Context, timeout time.Duration) update.DrainResult {
+	drainFn := func(ctx context.Context, timeout time.Duration) updateapi.DrainResult {
 		// Best-effort: just report no active runs. The actual drain happens
 		// when the operator calls `agezt update --apply`.
-		return update.DrainResult{Timeout: false}
+		return updateapi.DrainResult{Timeout: false}
 	}
 
 	err = s.updateSvc.Apply(ctx, info, drainFn)
 	if err != nil {
-		if errors.Is(err, update.ErrDrainTimeout) {
+		if errors.Is(err, updateapi.ErrDrainTimeout) {
 			writeJSON(w, http.StatusConflict, map[string]any{
 				"applied": false,
 				"error":   "drain timed out: in-flight runs did not complete",
 			})
 			return
 		}
-		var mismatch *update.ErrChecksumMismatch
+		var mismatch *updateapi.ErrChecksumMismatch
 		if errors.As(err, &mismatch) {
 			writeErr(w, http.StatusBadRequest, "checksum_mismatch", mismatch.Error())
 			return

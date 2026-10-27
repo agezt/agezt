@@ -55,7 +55,7 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 | `acpcatalog` | — | app/acpbridge, controlplane |
 | `workflow` | bus, contract/workflowapi, event, filestore, ulid | cmd/agezt, controlplane, runtime |
 | `workflowexec` | — | **nobody** (dead; see §16.5) |
-| `update` | brand, netguard | cmd/agezt, controlplane, restapi |
+| `update` | brand, contract/updateapi, netguard | cmd/agezt (the daemon hands over the port) |
 | `toolbox` | contract/toolboxapi | cmd/agezt (the daemon hands over the port) |
 | `toolforge` | contract/toolforgeapi, filestore, ulid | cmd/agezt, controlplane, runtime (+runexec) |
 | `channel` | strutil, bus, event | cmd/agezt, channelwire, controlplane, builtinchannels, every plugins/channels/*, tools/sendmedia |
@@ -1736,6 +1736,29 @@ Tests: `stt_test`, `voice_test`, `image_heavycov_test`, `rerank_test`.
   7. `chmod 0755`
 - Errors: `ErrUpdateInProgress`, `ErrDrainTimeout`, `ErrChecksumMismatch`, `ErrSignatureMissing`, `ErrSignatureKeyNotConfigured`, `ErrSignatureInvalid`.
 
+**The port is the contract's (W5.4c).** The control plane and the REST surface
+are **adapters**, and an adapter reaches the app layer's typed operations,
+never a module — so neither of them may name this package. The rows
+(`UpdateInfo`, `CheckResult`, `DrainResult`, `Manifest`, `Source`,
+`Provenance`), the errors that cross the module's boundary
+(`ErrDrainTimeout`, `ErrChecksumMismatch`, `ErrSignatureInvalid`) and the port
+(`Backend`) live in `kernel/contract/updateapi`; this package **aliases** them
+(`type UpdateInfo = updateapi.UpdateInfo`), so there is one row and one
+spelling of it. The errors that do **not** cross (the engine's own refusals:
+`ErrUpdateInProgress`, `ErrSignatureMissing`, `ErrSignatureKeyNotConfigured`)
+stay here.
+
+Two things the slice fixed while it was here:
+
+- **`ErrChecksumMismatch.Error()` used to panic.** It sliced the two hexes
+  (`e.Want[:8]`), and the wanted hash comes from a manifest, which may carry a
+  hash shorter than eight characters — so reporting a failed checksum crashed
+  the daemon, in the error path. The message truncates now.
+- **There is one current version, not two.** This package used to keep
+  `var CurrentVersion = brand.Version` — a second copy of the running version,
+  read by the module and by both adapters. The brand's version — which the
+  build stamps — is now the only one.
+
 ### 19.2 Signature verification (UPD-001)
 
 - Signed message: `version + "\n" + sha256hex`. The algorithm is `ed25519.Verify`.
@@ -1782,11 +1805,11 @@ Tests: `stt_test`, `voice_test`, `image_heavycov_test`, `rerank_test`.
 | File | Contents |
 |---|---|
 | `doc.go` | Design principles. |
-| `update.go` | Enums with UPD-001 rationale, types, `New`, `Check`, accessors. |
+| `update.go` | Enums with UPD-001 rationale, types (the contract's rows, aliased), `New`, `Check`, accessors. |
 | `update_apply.go` | `Apply`, error types, `DefaultPublicKeyHex`, key store, `resolvePublicKey`, `signedMessage`. |
 | `update_verify.go` | `verifySignature`, `checkGitHub`, `checkEndpoint`, `requireHTTPS`, `downloadBinary`, `validateSHA256`, `acquireLock`. |
 
-Tests: `update_test`, `update_cov_test`, `signature_test` (defines the test-only `SetPublicKey`), `https_test`.
+Tests: `update_test`, `update_cov_test`, `signature_test` (defines the test-only `SetPublicKey`), `https_test`, `port_test` (the contract's port).
 
 ### 19.4 The update path is effectively inert today
 

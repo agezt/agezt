@@ -1060,6 +1060,9 @@ func runDaemon(stdout, stderr io.Writer) int {
 			CheckInterval: 0,
 		})
 	}
+	// The daemon is the composition root: it converts the concrete engine to
+	// the CONTRACT's port (W5.4c) here, where the value is still concrete.
+	updatePort := updatePort(updateSvc)
 	// Record the network-exposed HTTP servers (M137) so `agt status` and the
 	// doctor exposure check can flag a non-loopback bind — the agent reachable
 	// beyond localhost, gated only by a token. Built from the configured addrs
@@ -1174,7 +1177,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		// (W5.4b), and the control plane never names the toolbox module.
 		Toolbox:            toolbox.NewHost(),
 		DiskFree:           pulse.DiskUsage,    // M131: cross-platform probe keeps controlplane pulse-free
-		UpdateSvc:          updateSvc,          // M860: nil = update disabled
+		UpdateSvc:          updatePort,         // M860: nil = update disabled
 		Tenants:            tenantReg,          // P6-MULTI: nil = single-tenant
 		CancelOnDisconnect: cancelOnDisconnect, // M35
 		HTTPBindings:       httpBindings,       // M137: exposure check + `agt status`

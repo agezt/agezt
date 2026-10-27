@@ -4,14 +4,13 @@
 package update
 
 import (
-	"context"
-	"time"
-
-	core "github.com/agezt/agezt/kernel/update"
+	"github.com/agezt/agezt/kernel/contract/updateapi"
 )
 
 // Backend retains the existing update engine's verification and drain contract.
-type Backend interface {
-	Check(context.Context) (*core.CheckResult, error)
-	Apply(context.Context, *core.UpdateInfo, func(context.Context, time.Duration) core.DrainResult) error
-}
+//
+// The port is the CONTRACT's (W5.4c): the control plane and the REST surface
+// are adapters, and an adapter may not name the update module. This is an
+// ALIAS of the contract's port, not a second shape of it — two interfaces
+// with the same verbs would drift apart on their own.
+type Backend = updateapi.Backend

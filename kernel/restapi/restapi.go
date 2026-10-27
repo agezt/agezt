@@ -12,8 +12,8 @@ import (
 	kernelauth "github.com/agezt/agezt/kernel/auth"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
+	"github.com/agezt/agezt/kernel/contract/updateapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/update"
 	"net/http"
 	"strings"
 )
@@ -88,7 +88,10 @@ type Server struct {
 
 	// updateSvc, when set, powers the /api/v1/update endpoints. Nil when update
 	// is disabled; the handlers report that rather than dereferencing nil.
-	updateSvc *update.Service
+	//
+	// The port is the CONTRACT's (W5.4c): the REST surface is an adapter, and
+	// an adapter may not name the update module.
+	updateSvc updateapi.Backend
 }
 
 // Metric is one Prometheus sample exposed at /metrics. Name is the suffix after
@@ -130,7 +133,12 @@ func (s *Server) SetMetrics(fn func() []Metric) { s.metrics = fn }
 
 // SetUpdateService wires the self-update engine. Nil when update is disabled;
 // the update handlers report that rather than dereferencing nil.
-func (s *Server) SetUpdateService(svc *update.Service) { s.updateSvc = svc }
+//
+// The port is the CONTRACT's (W5.4c). The daemon converts the concrete engine
+// to the port where the value is still concrete — a nil *update.Service handed
+// to an interface parameter is a NON-nil interface, and the holder would hold
+// an engine that is not there.
+func (s *Server) SetUpdateService(svc updateapi.Backend) { s.updateSvc = svc }
 
 // bind resolves the Engine + bus for a request: the per-tenant pair when an
 // X-Agezt-Tenant header is present and a resolver is configured, else the

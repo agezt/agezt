@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/app"
-	core "github.com/agezt/agezt/kernel/update"
+	core "github.com/agezt/agezt/kernel/contract/updateapi"
 )
 
 type ownedUpdateBackend struct {
@@ -249,7 +250,11 @@ func TestUpdateNativeSuccessfulRestartWaitsForWriteReturn(t *testing.T) {
 
 func TestUpdateNativeNilSetterReportsDisabledBeforeCodec(t *testing.T) {
 	s := &Server{}
-	var backend *core.Service
+	// A nil PORT (W5.4c). A nil *update.Service handed to an interface
+	// parameter would be a NON-nil interface, and the holder would hold an
+	// engine that is not there — the daemon converts the concrete engine to
+	// the port where the value is still concrete.
+	var backend core.Backend
 	s.SetUpdateService(backend)
 	for _, cmd := range []string{CmdUpdateCheck, CmdUpdateApply} {
 		a, b := net.Pipe()
@@ -271,7 +276,7 @@ func TestUpdateNativeNilSetterReportsDisabledBeforeCodec(t *testing.T) {
 		var reply Response
 		json.Unmarshal(line, &reply)
 		if cmd == CmdUpdateCheck {
-			if reply.Type != RespResult || reply.Result["status"] != "update is disabled" || reply.Result["current"] != core.CurrentVersion || reply.Result["up_to_date"] != true || reply.Result["update"] != nil || len(reply.Result) != 4 {
+			if reply.Type != RespResult || reply.Result["status"] != "update is disabled" || reply.Result["current"] != brand.Version || reply.Result["up_to_date"] != true || reply.Result["update"] != nil || len(reply.Result) != 4 {
 				t.Fatal(reply)
 			}
 		} else if reply.Type != RespError || reply.Error != "update is disabled" {

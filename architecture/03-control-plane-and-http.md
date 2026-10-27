@@ -59,10 +59,11 @@ and the board, W3.59, reach it through their contract's port).
 
 Imports (production, from `go list`): `internal/atomicfile internal/brand`, the `kernel/app/*` typed operation packages
 (approvals … world), `kernel/approval kernel/channel kernel/configcenter kernel/creds kernel/edict kernel/event
-kernel/executionprofile kernel/governor kernel/netguard kernel/redact kernel/runtime kernel/settings kernel/tenant kernel/ulid
-kernel/update`, the platform ports `kernel/platform/netout kernel/platform/rollbackstore`, and the contracts
-`kernel/contract/{agentapi,boardapi,cadenceapi,memoryapi,opapi,seatapi,skillapi,standingapi,toolboxapi,workboardapi,workflowapi}`.
-The control plane names **no module** any more: the toolbox (W5.4b) and the board (W3.59) reach it through their contract's port.
+kernel/executionprofile kernel/governor kernel/netguard kernel/redact kernel/runtime kernel/settings kernel/tenant kernel/ulid`,
+the platform ports `kernel/platform/netout kernel/platform/rollbackstore`, and the contracts
+`kernel/contract/{agentapi,boardapi,cadenceapi,memoryapi,opapi,seatapi,skillapi,standingapi,toolboxapi,updateapi,workboardapi,workflowapi}`.
+The control plane names **no module** any more: the toolbox (W5.4b), the update engine (W5.4c) and the board
+(W3.59) reach it through their contract's port.
 Imported by: `cmd/agezt`, `cmd/agt`, `cmd/agt/{dial,haltresume,keys,whoami}`, `kernel/webui`, `sdk`.
 
 ### 1.2 Protocol (deliverable a)

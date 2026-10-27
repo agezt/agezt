@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-208 package(s):
+209 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -117,6 +117,7 @@
 - **`kernel/contract/toolphaseapi`** — Package toolphaseapi defines the batch-aware invocation service port.
 - **`kernel/contract/toolregapi`** — Package toolregapi is the tool registry's contract: the rows every first-party tool declares itself with, and the registry that holds them.
 - **`kernel/contract/types`** — Package types is the contract-layer home for the value types that cross the boundary between the host (the runtime and its accessors) and the application layer.
+- **`kernel/contract/updateapi`** — Package updateapi is the contract the self-update engine and everyone who asks "is there a newer binary?" agree on.
 - **`kernel/contract/wardenapi`** — Package wardenapi is the contract layer's home for the sandbox rows: the isolation profile a run asks for, the limits a run is capped by, the request that describes a run, the result a run produced, and the port through which a caller drives an isolated execution.
 - **`kernel/contract/workboardapi`** — Package workboardapi is the contract layer's home for the workboard's rows: one durable work item (a task), its lifecycle state, the claim, dependency, attempt, comment and link records it carries, the retry policy and decision, and the creation spec an agent hands over.
 - **`kernel/contract/workflowapi`** — Package workflowapi is the contract layer's home for the workflow rows: one durable, named graph, the typed steps it is made of, the edges that wire them, the trigger configuration that starts it, the outcome of a run, and the rule that decides whether a graph may run at all.

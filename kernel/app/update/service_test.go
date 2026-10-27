@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	core "github.com/agezt/agezt/kernel/update"
+	core "github.com/agezt/agezt/kernel/contract/updateapi"
 )
 
 type fixtureBackend struct {
