@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
-	"time"
+
+	"github.com/agezt/agezt/internal/dirswap"
 )
 
 func (b *BundleStore) Write(name string, files map[string][]byte) ([]string, error) {
@@ -41,62 +41,36 @@ func (b *BundleStore) Write(name string, files map[string][]byte) ([]string, err
 	}
 
 	dst := filepath.Join(b.root, slug)
-	tmp := dst + ".tmp"
-	if err := os.RemoveAll(tmp); err != nil {
-		return nil, fmt.Errorf("skill: clear bundle temp: %w", err)
+	staging, err := dirswap.Stage(dst)
+	if err != nil {
+		return nil, err
 	}
+	// The staging tree is removed unless the swap consumed it (a successful
+	// swap renames it away, so this is a no-op then).
+	defer os.RemoveAll(staging)
 	rels := make([]string, 0, len(staged))
 	for cleaned, data := range staged {
-		full := filepath.Join(tmp, cleaned)
+		full := filepath.Join(staging, cleaned)
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-			os.RemoveAll(tmp)
 			return nil, fmt.Errorf("skill: mkdir bundle dir: %w", err)
 		}
-		if err := os.WriteFile(full, data, 0o644); err != nil {
-			os.RemoveAll(tmp)
+		if err := dirswap.WriteFile(full, data, 0o644); err != nil {
 			return nil, fmt.Errorf("skill: write bundle file %q: %w", cleaned, err)
 		}
 		rels = append(rels, filepath.ToSlash(cleaned))
 	}
-	// Swap: remove the old bundle, then rename the staged one over it.
-	if err := os.RemoveAll(dst); err != nil {
-		os.RemoveAll(tmp)
-		return nil, fmt.Errorf("skill: replace bundle: %w", err)
-	}
-	if err := renameBundle(tmp, dst); err != nil {
-		os.RemoveAll(tmp)
+	// Publish: the shared directory policy (internal/dirswap) moves the old
+	// bundle ASIDE, renames the staged one into place, and removes the old one
+	// afterwards. The old code deleted the bundle FIRST and then renamed —
+	// so a rename that failed left the skill with no bundle at all, and the
+	// deleted content was not recoverable.
+	if err := dirswap.Swap(staging, dst); err != nil {
 		return nil, fmt.Errorf("skill: commit bundle: %w", err)
 	}
 	sort.Strings(rels)
 	return rels, nil
 }
 
-// renameBundle renames the staged bundle over the destination.
-//
-// The rename is RETRIED on Windows. The old bundle is removed first, and
-// while a scanner (or an indexer) still holds a handle on one of its files
-// that delete is only PENDING: the directory is still there, and MoveFileEx
-// refuses to replace it — "Access is denied". The handle is released in
-// milliseconds, so a short bounded retry turns a hard boot failure (the
-// built-in skills are not seeded) into a successful swap.
-//
-// internal/atomicfile carries the same hazard for files and the same
-// remedy; a bundle is a DIRECTORY, so it cannot go through that helper.
-func renameBundle(oldPath, newPath string) error {
-	var err error
-	for attempt := 0; attempt < 5; attempt++ {
-		if attempt > 0 {
-			time.Sleep(time.Duration(attempt) * 20 * time.Millisecond)
-		}
-		if err = os.Rename(oldPath, newPath); err == nil {
-			return nil
-		}
-		if runtime.GOOS != "windows" || !os.IsPermission(err) {
-			return err
-		}
-	}
-	return err
-}
 func (b *BundleStore) List(name string) ([]string, error) {
 	slug := slugify(name)
 	if slug == "" {
