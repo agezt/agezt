@@ -58,6 +58,36 @@ func f(ctx context.Context) {
 	}
 }
 
+// TestTheRootLayerIsNotExemptFromRawWrite: the binaries' blind spot.
+//
+// Layer 7 (cmd/..., tools/...) used to be exempt from every forbidden-call
+// rule, so a CLI's own os.WriteFile was invisible to the gate — including the
+// one that writes the marketplace SIGNING KEY. A binary legitimately spawns a
+// process and calls an API, so those two rules stay exempt; a FILE it writes
+// is a file the daemon may read back, so raw-write does not.
+func TestTheRootLayerIsNotExemptFromRawWrite(t *testing.T) {
+	cases := []struct {
+		rule  string
+		layer int
+		want  bool
+	}{
+		{CallRawWrite, LayerRoot, false},
+		{CallExec, LayerRoot, true},
+		{CallHTTPClient, LayerRoot, true},
+		{CallRawWrite, LayerFoundation, true},
+		{CallExec, LayerFoundation, true},
+		{CallHTTPClient, LayerFoundation, true},
+		{CallRawWrite, LayerModule, false},
+		{CallExec, LayerModule, false},
+		{CallHTTPClient, LayerModule, false},
+	}
+	for _, tc := range cases {
+		if got := layerExempt(tc.rule, tc.layer); got != tc.want {
+			t.Errorf("layerExempt(%q, %d) = %v, want %v", tc.rule, tc.layer, got, tc.want)
+		}
+	}
+}
+
 func TestCountFileCallsIgnoresUnwatchedNames(t *testing.T) {
 	dir := t.TempDir()
 	// A local package that happens to be called "exec" must not count: only

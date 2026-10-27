@@ -86,6 +86,6 @@
   "calls": [
     {"rule": "exec", "allow": ["kernel/warden", "kernel/platform/sandbox/..."]},
     {"rule": "http-client", "allow": ["kernel/netguard", "kernel/platform/netout/..."]},
-    {"rule": "raw-write", "allow": ["kernel/platform/filestore/..."]}
+    {"rule": "raw-write", "allow": ["kernel/platform/filestore/...", "tools/...", "kernel/internal/testfixtures"], "note": "the tools ARE the implementation of their own output (a generator writes the file it generates), and the test fixtures are a test helper. The CLI is NOT exempt: a file it writes is a file the daemon may read back."}
   ]
 }

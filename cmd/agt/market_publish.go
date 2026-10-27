@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/market"
 )
@@ -100,11 +101,22 @@ func cmdMarketKeygen(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s market keygen: %v\n", brand.CLI, err)
 		return 1
 	}
-	if err := os.WriteFile(prefix+".key", []byte(priv+"\n"), 0o600); err != nil {
+	// The signing key is written through the platform's atomic writer: a crash
+	// mid-write would leave a TRUNCATED key file, and a truncated signing key
+	// is an unrecoverable loss — the operator's whole publishing identity is
+	// gone, with no error to show for it. The atomic writer writes to a
+	// unique temp, fsyncs it and renames it into place, so the file on disk
+	// is either the whole key or not there.
+	//
+	// 0600 is the store framework's posture for a file that holds material
+	// the journal records. On Windows the mode bits do not apply (the file is
+	// as private as the directory holding it), and the repo's own answer to
+	// that is the ENCRYPTED vault — not a mode bit.
+	if err := atomicfile.WriteFile(prefix+".key", []byte(priv+"\n"), 0o600); err != nil {
 		fmt.Fprintf(stderr, "%s market keygen: write key: %v\n", brand.CLI, err)
 		return 1
 	}
-	if err := os.WriteFile(prefix+".pub", []byte(pub+"\n"), 0o644); err != nil {
+	if err := atomicfile.WriteFile(prefix+".pub", []byte(pub+"\n"), 0o644); err != nil {
 		fmt.Fprintf(stderr, "%s market keygen: write pub: %v\n", brand.CLI, err)
 		return 1
 	}
