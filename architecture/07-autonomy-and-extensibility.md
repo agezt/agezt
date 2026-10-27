@@ -520,8 +520,11 @@ runs, through the governed path.
   - `Delivery`: now | digest | drop.
   - `InitiativeLevel`: `off` | `ask` | `act`. `ParseInitiative` defaults unknown values to **act**.
 - `Engine`:
-  - `New(Config{Bus, State, Warden, Provider, Model, Relevance, Observers, Dial, Initiative, Cadence, QuietHours, UseLLM,
+  - `New(Config{Bus, State, Warden, Provider, Generator, Model, Relevance, Observers, Dial, Initiative, Cadence, QuietHours, UseLLM,
     NoveltyTTL, Sink, DigestEvery, Now})`. Defaults: cadence 60 s, novelty TTL 30 m, digest every 30 beats.
+    `Generator` is the **structured-output path** (`llm.Generator`, W3.66) the optional LLM salience refine asks
+    for a typed score; the daemon injects it, because the path lives in another module and a module may not name
+    another module. A host that wires no path gets no refine — the severity score stands.
   - Control: `Start`, `Beat`, `SetCadence` (clamped 5 s–24 h), `SetDial`, `SetInitiative`, `SetQuietHours`, `Pause`,
     `Resume`, `IsPaused`, `Status`, `StatusMap`.
   - Observers: `AddObserver`, `RemoveObserver` (runtime-added only).

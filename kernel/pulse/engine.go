@@ -31,6 +31,7 @@ type Config struct {
 	State       *state.FileStore // for novelty cache + observer state; optional
 	Warden      warden.Engine    // for the probe observer; optional
 	Provider    llm.Provider     // for the optional LLM salience refine
+	Generator   llm.Generator    // the structured-output path for that refine; optional
 	Model       string
 	Relevance   Relevance // world-model relevance signal; optional
 	Observers   []Observer
@@ -157,6 +158,7 @@ func New(cfg Config) *Engine {
 		sal: &Salience{
 			state:      cfg.State,
 			provider:   cfg.Provider,
+			generator:  cfg.Generator,
 			model:      cfg.Model,
 			relevance:  cfg.Relevance,
 			dial:       dial,

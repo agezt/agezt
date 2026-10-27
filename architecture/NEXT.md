@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.65 the conversation collapse is the contract's, 2026-10-26
+## Current checkpoint — W3.66 the pulse's structured-output path is a port, 2026-10-27
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -4665,6 +4665,73 @@ files, five of the seventeen mutations would have escaped.
   riders** — `k.AgentGateway()` has no caller outside its own declaration —
   so their fix is a **move** (the daemon builds the gateway) and the price is
   that the gateway's wiring is untested today.
+
+- W3.66 (the pulse's structured-output path is a port) takes one import edge —
+  `cross-module kernel/pulse -> kernel/agent` — and the ratchet goes **10 → 9**.
+  It is the smallest ready edge in the tree: **one import line, one call site,
+  one verb**. The pulse module's optional LLM salience refine asks a model to
+  score a delta, and the model's answer has to become a **typed value** — the
+  structured-output path, `agent.GenerateObject` — and the module reached
+  **into the runs module** to call it. The rule the architecture already has
+  for this is the memory module's (W3.57): a module may not name another
+  module; the host injects the path. The memory module got that treatment; the
+  pulse module had not.
+  **The path is not the memory module's and not the pulse module's** — it is
+  everybody's, it is the way a model answer becomes a typed value — so it
+  lives in the provider's own contract (`kernel/contract/llm`:
+  `llm.Generator`), and `memoryapi.Generator` is now an **alias** of it. One
+  spelling: two named func types with the same shape are **not** assignable
+  to each other in Go, so a per-module port would have been a second name for
+  one thing and a conversion at every call site.
+  The salience carries the port, `pulse.Config` gained the field, the engine
+  carries it in — and the **daemon injects** it (`Generator:
+  agent.GenerateObject`), because the daemon is the composition root and the
+  pulse module never names it. **The nil semantics are written down**: a host
+  that wires no path gets **no** refine — the severity score stands and
+  nothing pretends a model was asked — which is why the refine cannot panic
+  on a nil path.
+  **6 permanent tests** over a path that was **entirely untested** before
+  this slice (nothing in the twelve pulse test files covered the refine): the
+  refine asks the **injected** path and the model is asked **about this
+  change**; the refine is **opt-in** (`PULSE_LLM=on`) so the path is never
+  asked when the switch is off; no path means no refine and **no panic**; an
+  unusable answer is a **skip**, not a zero score; the model's score is
+  bounded to **[0,1]**. Plus the **daemon's** own end-to-end test: with a
+  mock provider the journal must carry a `pulse.salience` event whose reason
+  and score are the **model's** — because without it a daemon that forgot to
+  inject the path would look exactly like a daemon with the refine switched
+  off: the pulse keeps working, it just gets quieter, and nothing reports
+  that the refine is dead.
+  **10 mutations, 10 caught** in two independent passes with **byte-identical**
+  logs, two of them aimed at the **wiring** (the daemon's hand-over and the
+  engine's carry) that only the daemon's end-to-end test sees.
+  The **first** pass reported three BUILDERRs, all **the mutation's** defect:
+  the two clamp mutations removed a brace (a build error says nothing about
+  the behaviour — they now move the *threshold* so the file compiles and only
+  the guarantee breaks), and the mutation that removes the daemon's injection
+  must also remove the `kernel/agent` **import**, whose `extra` edit was
+  written in a single-quoted PowerShell string where a backtick-t is a
+  literal backtick-t and not a tab — the import survived, `agent` became
+  unused, and the package stopped compiling.
+  **What remains**: the ratchet stands at **9/3** — four `adapter-bypass`
+  edges, two `cross-module`, three `upward`. The traps are unchanged and are
+  the map for the next slices: `controlplane → runtime` (the control plane
+  calls **37** verbs on the kernel's god-object — a redesign, not a slice),
+  `selfrepair → runtime` (the six agent rows could move to the reaper's
+  `api` package, but `RunWith`/`RunWithRetry`/`ReaperScan`/`NewCorrelation`
+  need a **runs port that does not exist** yet, so that port is a slice of
+  its own), and `channel → bus` (26 plugin `Config`s hold `*bus.Bus` and
+  nil-check it — an interface parameter turns a nil pointer into a **non-nil**
+  interface, the guard stops firing, and the publish panics inside the
+  deferred recover). The two `agentgw` edges are **free riders** —
+  `k.AgentGateway()` has no caller outside its own declaration — so their fix
+  is a **move** (the daemon builds the gateway) and the price is that the
+  gateway's wiring is untested today, the same "wiring nobody proves" shape
+  this slice just fixed for the pulse. The forbidden-call ratchet is still
+  **3**, with two holes the measurement found: the staged writes are not
+  **fsynced** (a swapped-in tree can hold a half-written file) and the swap
+  **removes the old copy before** the new one is in place (a failure there
+  loses the content; a partial removal leaves a half-deleted tree).
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

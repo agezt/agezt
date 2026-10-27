@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/pulse"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
@@ -97,6 +98,7 @@ func buildPulse(k *kernelruntime.Kernel, ward warden.Engine, model string, stdou
 		State:      k.State(),
 		Warden:     ward,
 		Provider:   k.Provider(),
+		Generator:  agent.GenerateObject, // the structured-output path (W3.66)
 		Model:      model,
 		Relevance:  k.World(), // world-model relevance signal (SPEC-05 §3.4)
 		Observers:  obs,

@@ -9,7 +9,6 @@ adapter-bypass kernel/controlplane -> kernel/update
 adapter-bypass kernel/restapi -> kernel/update
 cross-module kernel/cadence/systemtasks -> kernel/runtime
 cross-module kernel/modules/agents/selfrepair -> kernel/runtime
-cross-module kernel/pulse -> kernel/agent
 upward kernel/channel -> kernel/bus
 upward kernel/runtime -> kernel/agentgw
 upward kernel/runtime/runexec -> kernel/agentgw

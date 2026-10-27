@@ -2,9 +2,10 @@
 
 // Package llm is the model-provider contract: the canonical conversation
 // (Message, Role, ToolCall), one completion round trip (CompletionRequest,
-// CompletionResponse, Usage, StopReason, Params) and the provider interfaces
-// (Provider, StreamingProvider, Chunk). Pure types — accessors only, standard
-// library plus the sibling tool contract — so any layer may depend on it
+// CompletionResponse, Usage, StopReason, Params), the provider interfaces
+// (Provider, StreamingProvider, Chunk) and the structured-output path
+// (Generator). Pure types — accessors only, standard library plus the
+// sibling tool contract — so any layer may depend on it
 // (architecture/20-target-architecture.md §2, layer L1).
 //
 // These types used to live in kernel/agent, next to the agent loop, so the
