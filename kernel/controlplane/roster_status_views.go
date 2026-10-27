@@ -8,7 +8,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
 func (s *Server) agentStatusViews(profiles []agentapi.Profile) map[string]map[string]any {
@@ -41,7 +40,7 @@ func (s *Server) collectRosterStatusSnapshot(profiles []agentapi.Profile, reaper
 			return s.k.Standing().List()
 		},
 		Board:  s.statusBoardMessages,
-		Reaper: func(cut int64) runtime.ReaperReport { return s.k.ReaperScan(cut, cut) },
+		Reaper: func(cut int64) agentapi.ReaperReport { return s.k.ReaperScan(cut, cut) },
 	}, profiles, reaperCut, routingCut)
 }
 

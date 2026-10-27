@@ -3238,6 +3238,18 @@ This file holds the active `[Unreleased]` working set.
   import the runtime at all. One fix came with it: an empty model chain is
   now a no-op instead of a panic.
 
+- **The control plane names the runtime only as a handle (W5.4m).** It held
+  four runtime symbols — the kernel handle and three module rows — and now
+  holds one. The council's rows turned out to be **contract rows already**
+  (the reasoning module's api package re-exports them as aliases), so naming
+  the contract directly is a spelling change, not a conversion; the reaper's
+  rows were the exception and moved to the contract layer, where the rows
+  that cross the boundary belong. The module's api package re-exports them
+  as aliases — one row, one spelling — and **two of the control plane's
+  files stopped importing the runtime at all**. What is left is the handle
+  itself; closing the edge needs a port in the application layer, and the
+  adapter now knows no module row at all, so that work is mechanical.
+
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still

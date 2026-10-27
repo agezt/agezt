@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4l the adapter stops naming the runtime's run decoration, 2026-10-27
+## Current checkpoint — W5.4m the adapter names the runtime only as a handle, 2026-10-27
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5406,6 +5406,37 @@ files, five of the seventeen mutations would have escaped.
   have to reach the contract layer first, the same move this slice made for
   the wake. Evidence:
   `architecture/217-w54l-adapter-run-decoration-evidence.md`
+
+- W5.4m (the adapter names the runtime only as a handle) leaves the control
+  plane with **one** runtime symbol: the kernel handle. It had four — the
+  handle plus **three module rows** (`CouncilMember`, `CouncilResult`,
+  `ReaperReport`). The measurement carried the surprise that made it cheap:
+  the **reasoning** module's api rows were **already contract rows**
+  (`type CouncilMember = reasoningapi.CouncilMember`, and `reasoningapi`
+  lives in `kernel/contract/`), so the adapter was reaching for the
+  runtime's *alias* of a contract row — naming the contract row directly is
+  a spelling change, not a conversion. The **reaper's** rows were the
+  exception, but they cross the boundary too (the module produces them, the
+  application layer's operator scan reads them, the adapter hands them on),
+  so their home is the contract layer, exactly like the wake provenance and
+  the tool allowlist were in W5.4l. The module's api package re-exports them
+  as aliases — **one row, one spelling** — and the adapter names the
+  contract's rows. **Two of its files stopped importing the runtime at all**
+  (18 → 15). **3 permanent tests** (2 moved with the rows) and **6
+  mutations, 6 caught** in two independent passes with **byte-identical**
+  logs (SHA-256 `07ECFBA0…D19C834BE`); the calibration run found three
+  faulty mutations — an anchor matching three rows instead of one, an
+  anchor matching nothing, and a mutation that broke the build — all three
+  rewritten, because a mutation's fault is not a test's fault. The guard
+  test reads each file's own import to learn the runtime's name in it, so
+  "the handle and nothing else" is precise rather than approximate. The
+  edge is **narrower, not closed**: the handle itself is left, and closing
+  it needs a **port** that cannot live in the contract layer (most of the
+  kernel's verbs return L3 types), so it has to live in the application
+  layer with the adapter's native verbs moving down into it. What this
+  slice did is make that work **mechanical** — the adapter no longer knows a
+  single module row. Evidence:
+  `architecture/218-w54m-adapter-names-the-runtime-only-as-a-handle-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
