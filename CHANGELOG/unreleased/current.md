@@ -3103,6 +3103,30 @@ This file holds the active `[Unreleased]` working set.
   pretend otherwise: it recovers the panic and reports that nothing was
   recorded, instead of raising a panic of its own on every error event.
 
+- **The system tasks no longer name the kernel (W5.4e).** The seven scheduled
+  maintenance tasks took a live kernel and asked it nine questions — the
+  kernel was their API — which made the cadence module depend on the runs
+  module. They now run against the contract's port set
+  (`cadenceapi.SystemTaskPorts`), which the kernel hands over. The import
+  ratchet goes **3 → 2**.
+
+- **A daemon without a capability says so (W5.4e).** "This daemon has no
+  memory" and "the memory is empty" are different facts, and a maintenance
+  job that reported the second one was reporting a store it never looked at.
+  Every task that needs a capability now refuses by name — memory, journal,
+  artifact index, roster, catalog library, reload path, publisher.
+
+- **The scheduled collect holds one verb, not the artifact index's ten
+  (W5.4e).** The index's `Collect` deletes entries and `SetRefGuard` switches
+  off the journal's protection of the bytes the journal still names; the
+  collect task needed the first and had no business holding the second.
+
+- **The catalog sync's failure no longer crashes the daemon (W5.4e).** The
+  failure message was built from the reload's error without checking it, so a
+  reload that answered no catalog *and* no error would have dereferenced a
+  nil error in the error path. The message is now built from what the port
+  actually answered.
+
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still

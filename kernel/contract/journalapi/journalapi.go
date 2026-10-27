@@ -61,3 +61,20 @@ type Reader interface {
 	// history could not be read.
 	Tail(n int) ([]Record, error)
 }
+
+// Scanner is the port through which the WHOLE history is walked.
+//
+// The Reader answers "what happened most recently"; the Scanner answers "what
+// happened at all". A maintenance task that reports the journal's pressure
+// needs every event's timestamp and the chain's head, and nothing else — so
+// this is the second read port over the same rows, not a second copy of them.
+//
+// The scan visits the events oldest first. The visit function's error stops
+// the walk and is returned.
+type Scanner interface {
+	// Scan visits every durable event, oldest first.
+	Scan(visit func(Record) error) error
+	// Head answers the journal's head: the sequence number of the last
+	// event and its hash. Both are zero when the journal is empty.
+	Head() (seq int64, hash string)
+}

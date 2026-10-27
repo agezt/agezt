@@ -45,6 +45,56 @@ func TestTheReadPortCarriesExactlyOneVerb(t *testing.T) {
 	}
 }
 
+// TestTheScanPortCarriesExactlyTwoVerbs: the port is Scan and Head, and
+// nothing else.
+//
+// The scan port exists for the maintenance task that reports the journal's
+// pressure: it needs every event's timestamp and the chain's head. It does
+// NOT need the journal's append, recover or verify verbs — a reader of the
+// history has no business writing to it.
+func TestTheScanPortCarriesExactlyTwoVerbs(t *testing.T) {
+	typ := reflect.TypeOf((*Scanner)(nil)).Elem()
+	if typ.Kind() != reflect.Interface {
+		t.Fatalf("Scanner must be an interface, got %v", typ.Kind())
+	}
+	if typ.NumMethod() != 2 {
+		t.Fatalf("the scan port has %d methods, want 2: %v", typ.NumMethod(), typ)
+	}
+	scan, ok := typ.MethodByName("Scan")
+	if !ok {
+		t.Fatal("the scan port must have a Scan method")
+	}
+	if scan.Type.NumIn() != 1 {
+		t.Errorf("Scan must take 1 argument, got %v", scan.Type)
+	}
+	visit := reflect.TypeOf(func(Record) error { return nil })
+	if scan.Type.In(0) != visit {
+		t.Errorf("Scan must take the visit function, got %v", scan.Type.In(0))
+	}
+	if scan.Type.NumOut() != 1 {
+		t.Errorf("Scan must answer 1 value, got %v", scan.Type)
+	}
+	if scan.Type.Out(0) != reflect.TypeOf((*error)(nil)).Elem() {
+		t.Errorf("Scan must answer an error, got %v", scan.Type.Out(0))
+	}
+	head, ok := typ.MethodByName("Head")
+	if !ok {
+		t.Fatal("the scan port must have a Head method")
+	}
+	if head.Type.NumIn() != 0 {
+		t.Errorf("Head must take no arguments, got %v", head.Type)
+	}
+	if head.Type.NumOut() != 2 {
+		t.Errorf("Head must answer 2 values, got %v", head.Type)
+	}
+	if head.Type.Out(0) != reflect.TypeOf(int64(0)) {
+		t.Errorf("Head must answer the sequence number, got %v", head.Type.Out(0))
+	}
+	if head.Type.Out(1) != reflect.TypeOf("") {
+		t.Errorf("Head must answer the hash, got %v", head.Type.Out(1))
+	}
+}
+
 // TestTheRecordKeepsItsFields: the projection carries exactly the four
 // things a reader folds — the kind, the run it belongs to, when it happened
 // and what it carried. A fifth field would be a second shape to keep in

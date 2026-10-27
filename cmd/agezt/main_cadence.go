@@ -114,7 +114,7 @@ func buildCadence(ctx context.Context, k *kernelruntime.Kernel, store *cadence.S
 				Payload:       scheduleFiredEventPayload(id, intent, model, ent, prof),
 			})
 			return runScheduledTrackedTarget(mctx, k, corr, ent, intent, func(ctx context.Context) (string, error) {
-				if err := systemtasks.Run(ctx, k, corr, id, ent.SystemTask); err != nil {
+				if err := systemtasks.Run(ctx, k.SystemTaskPorts(), corr, id, ent.SystemTask); err != nil {
 					return "", err
 				}
 				return "system task " + ent.SystemTask + " completed", nil
