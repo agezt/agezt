@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -557,7 +558,7 @@ func TestAtomicWriteFile_PreservesOriginalOnWriteFailure(t *testing.T) {
 	}
 
 	orig := writeAll
-	writeAll = func(*os.File, []byte) (int, error) { return 0, errors.New("simulated ENOSPC") }
+	writeAll = func(io.Writer, []byte) (int, error) { return 0, errors.New("simulated ENOSPC") }
 	defer func() { writeAll = orig }()
 
 	if err := atomicWriteFile(p, []byte("NEW-CONTENT-THAT-FAILS"), 0o644); err == nil {
@@ -575,7 +576,7 @@ func TestAtomicWriteFile_PreservesOriginalOnWriteFailure(t *testing.T) {
 	// No temp litter left behind.
 	ents, _ := os.ReadDir(dir)
 	for _, e := range ents {
-		if strings.HasPrefix(e.Name(), ".agezt-write-") {
+		if strings.HasSuffix(e.Name(), ".tmp") {
 			t.Errorf("temp file leaked after failed write: %s", e.Name())
 		}
 	}

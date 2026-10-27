@@ -26,22 +26,26 @@ import (
 // stays under the count cannot hide a new raw write in a file the count no
 // longer names.
 
-// TestTheCLIRawWritesAreOnlyTheTwoKnownSites: the package's remaining raw
-// writes, by file, with the reason each is still there.
+// TestTheCLIHasNoRawWrites: the CLI writes no file outside the platform's
+// atomic writer.
 //
-// The list is short on purpose and every entry says why. When a site moves,
-// this table moves with it — that is the point: a table that silently keeps
-// a stale entry would let the writer come back.
-func TestTheCLIRawWritesAreOnlyTheTwoKnownSites(t *testing.T) {
-	known := map[string]string{
-		"doctor_ops_env.go": "the writability PROBE — a transient file nobody reads; it becomes a unique CreateTemp",
-	}
-
+// The GATE holds this at PACKAGE granularity (any raw write in cmd/agt is a
+// violation). The test below holds it at FILE granularity, so a package that
+// stays under the count cannot hide a new raw write in a file the count no
+// longer names.
+//
+// The rule counts three calls: os.WriteFile, os.Create and os.CreateTemp.
+// The third one is the interesting one. A package that creates its OWN temp
+// file is hand-rolling the atomic writer — the mechanism (temp, fsync,
+// chmod, rename) that belongs in exactly one place. Before os.CreateTemp was
+// in the set, a package could move its write to a temp file and the count
+// would DROP without any new guarantee being enforced: the count was
+// measuring less than it claimed to measure.
+func TestTheCLIHasNoRawWrites(t *testing.T) {
 	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatal(err)
 	}
-	found := map[string]int{}
 	for _, e := range entries {
 		name := e.Name()
 		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
@@ -52,20 +56,11 @@ func TestTheCLIRawWritesAreOnlyTheTwoKnownSites(t *testing.T) {
 			t.Fatal(err)
 		}
 		src := string(raw)
-		found[name] = strings.Count(src, "os.WriteFile(") + strings.Count(src, "os.Create(")
-	}
-
-	for name, count := range found {
-		if count == 0 {
-			continue
-		}
-		if _, ok := known[name]; !ok {
-			t.Errorf("%s has %d raw write(s) and is not on the known list — route it through the atomic writer", name, count)
-		}
-	}
-	for name, reason := range known {
-		if found[name] == 0 {
-			t.Errorf("%s no longer has a raw write — drop it from the known list (it was: %s)", name, reason)
+		n := strings.Count(src, "os.WriteFile(") +
+			strings.Count(src, "os.Create(") +
+			strings.Count(src, "os.CreateTemp(")
+		if n > 0 {
+			t.Errorf("%s has %d raw write(s) — route it through the atomic writer", name, n)
 		}
 	}
 }

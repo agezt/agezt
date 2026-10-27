@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4j the platform gains a streaming atomic writer, and the backup uses it, 2026-10-27
+## Current checkpoint — W5.4k the rule learns to see os.CreateTemp, and the forbidden-call ratchet is zero, 2026-10-27
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5335,6 +5335,51 @@ files, five of the seventeen mutations would have escaped.
   `os.OpenFile(O_CREATE)` — which will surface an honest count elsewhere in
   the tree. The **import** ratchet stands at **2**. Evidence:
   `architecture/215-w54j-streaming-atomic-write-evidence.md`
+
+- W5.4k (the rule learns to see `os.CreateTemp`, and the forbidden-call ratchet
+  is zero) takes the last site in the CLI's raw-write ratchet and — the part
+  that matters — the **rule itself**. W5.4j left the ratchet at one site and
+  named the honest reason in the record: the rule counted only `os.WriteFile`
+  and `os.Create`, so **`os.CreateTemp` was invisible to the gate**. That is
+  not a formatting note. A package could move its write to a temp file, the
+  number would fall, and **no new guarantee would exist anywhere** — the count
+  was reporting less than it claimed to report. `os.CreateTemp` is in the set
+  because a package that creates its **own** temp file is hand-rolling the
+  atomic writer (temp → fsync → chmod → rename), and that mechanism belongs
+  in exactly one place: `internal/atomicfile` (L0, exempt as the foundation
+  it is). The extension does not create debt, it **reveals** it — the
+  measurement found three `os.CreateTemp` sites: two in the writer itself and
+  **one real violation, a second implementation of the whole mechanism in
+  `plugins/tools/file`**. Two writes moved. The **doctor's writability probe**
+  (`cmd/agt/doctor_ops_env.go`) was the CLI's last raw write; it now goes
+  through the canonical writer, which is the point — the probe's whole purpose
+  is to be a **faithful sample** of what a write to that directory does, so it
+  must use the same writer a real file would. The **file tool's own copy of
+  the atomic writer** is gone: it kept a second implementation for one stated
+  reason ("so the `writeAll` seam can inject mid-write failures in tests"), and
+  the seam did not need a second implementation to survive, because
+  `atomicfile.WriteStream` takes a **callback** (`func(w io.Writer) error`) —
+  exactly the shape a mid-write injection needs. The plugin's write is now a
+  stream, the seam survives, the guarantee is the canonical one, and the
+  plugin gained the Windows fallback the canonical writer already had. The
+  rule's **exemption unit stays the package**: the file plugin could not be
+  exempted as "a generator that writes its own output" — it writes the
+  **agent's** files, and the exemption would have hidden every other raw
+  write in the package with it. **5 permanent tests** (2 rewritten) and **6
+  mutations, 6 caught** in two independent passes with **byte-identical** logs
+  (SHA-256 `79F8E61D…32A256`). The forbidden-call ratchet goes **1 → 0**:
+  `tools/archcheck/calls-allowlist.txt` now holds nothing but its header, and
+  **one of the two numbers W5.4 asks for is met**. What remains is a
+  **different kind of remainder**: the rule still cannot see **`os.OpenFile`
+  with a write flag**, because the mode is an *argument* and a selector-based
+  rule would count the read-only opens too — **12** non-test sites carry a
+  write flag, plus **four** whose flag is a **variable** and cannot be
+  classified by looking at the call at all. Counting them needs a
+  **flag-aware** counter, and it is deliberately **not smuggled in here**: a
+  rule that guesses is worse than a rule that does not exist, because a guess
+  that silently under-counts is exactly the blind spot this slice just closed.
+  The **import** ratchet stands at **2**. Evidence:
+  `architecture/216-w54k-raw-write-createtemp-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

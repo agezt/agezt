@@ -43,6 +43,7 @@ func f(ctx context.Context) {
 	_ = stdhttp.StatusOK                    // unrelated selector: fine
 	_ = os.WriteFile("p", nil, 0o600)       // raw-write
 	_, _ = os.Create("p")                   // raw-write
+	_, _ = os.CreateTemp("d", "p")          // raw-write
 	_, _ = os.Open("p")                     // read: fine
 }
 `)
@@ -50,7 +51,7 @@ func f(ctx context.Context) {
 	if err := countFileCalls(filepath.Join(dir, "a.go"), counts); err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]int{CallExec: 2, CallHTTPClient: 4, CallRawWrite: 2}
+	want := map[string]int{CallExec: 2, CallHTTPClient: 4, CallRawWrite: 3}
 	for rule, n := range want {
 		if counts[rule] != n {
 			t.Errorf("%s = %d, want %d (all counts: %v)", rule, counts[rule], n, counts)
@@ -85,6 +86,49 @@ func TestTheRootLayerIsNotExemptFromRawWrite(t *testing.T) {
 		if got := layerExempt(tc.rule, tc.layer); got != tc.want {
 			t.Errorf("layerExempt(%q, %d) = %v, want %v", tc.rule, tc.layer, got, tc.want)
 		}
+	}
+}
+
+// TestTheRawWriteRuleSeesATempFile: the blind spot os.CreateTemp was.
+//
+// The raw-write rule counts the calls that bypass the canonical atomic
+// writer. A package that creates its OWN temp file and renames it over the
+// target is hand-rolling that writer — temp, fsync, chmod, rename — and it
+// was INVISIBLE to the gate, because the rule only knew os.WriteFile and
+// os.Create.
+//
+// That invisibility had a price: a package could move its write to a temp
+// file and the ratchet count would DROP, with no new guarantee anywhere. A
+// count that can fall without a guarantee being enforced is a count that
+// measures less than it claims to measure.
+//
+// The one implementation of that writer is internal/atomicfile (layer 0,
+// exempt as the foundation it is). This test pins that the rule SEES the
+// hand-rolled version, so the exemption stays where it belongs.
+func TestTheRawWriteRuleSeesATempFile(t *testing.T) {
+	dir := t.TempDir()
+	writeGo(t, dir, "hand.go", `package hand
+
+import "os"
+
+func write(path string, data []byte) error {
+	tmp, err := os.CreateTemp(".", "x")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(data); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
+}
+`)
+	counts := map[string]int{}
+	if err := countFileCalls(filepath.Join(dir, "hand.go"), counts); err != nil {
+		t.Fatal(err)
+	}
+	if counts[CallRawWrite] != 1 {
+		t.Errorf("raw-write = %d, want 1 (the hand-rolled temp writer must be counted): %v", counts[CallRawWrite], counts)
 	}
 }
 

@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
@@ -156,8 +157,8 @@ func readUpTo(r io.Reader, max int) ([]byte, error) {
 }
 
 // writeAll is indirected so tests can simulate a mid-write failure and confirm
-// atomicWriteFile leaves the original file intact.
-var writeAll = func(f *os.File, b []byte) (int, error) { return f.Write(b) }
+// the atomic write leaves the original file intact.
+var writeAll = func(w io.Writer, b []byte) (int, error) { return w.Write(b) }
 
 // atomicWriteFile writes data to path atomically: a fresh temp file in the same
 // directory is written, fsynced, and renamed over path. A mid-write failure
@@ -166,29 +167,16 @@ var writeAll = func(f *os.File, b []byte) (int, error) { return f.Write(b) }
 // is created with O_EXCL (never a pre-existing symlink); rename does not follow a
 // symlink at path (it replaces the entry), so the write cannot escape the
 // directory. perm is applied to the result.
-// Kept local (not internal/atomicfile) so the writeAll seam above can inject
-// mid-write failures in tests.
+//
+// The write goes to the platform's ONE canonical writer (internal/atomicfile),
+// not to a second implementation living in this package: the mechanism and its
+// guarantees belong in one place, and a package that keeps its own copy drifts
+// from it. The write is a STREAM rather than a byte slice because that is the
+// shape the writeAll seam above needs — it injects the failure in the middle of
+// the write, which is the failure the guarantee is about.
 func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
-	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, ".agezt-write-*")
-	if err != nil {
+	return atomicfile.WriteStream(path, perm, func(w io.Writer) error {
+		_, err := writeAll(w, data)
 		return err
-	}
-	tmpName := tmp.Name()
-	defer os.Remove(tmpName) // no-op once the rename has moved it
-	if _, err := writeAll(tmp, data); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if err := os.Chmod(tmpName, perm); err != nil {
-		return err
-	}
-	return os.Rename(tmpName, path)
+	})
 }

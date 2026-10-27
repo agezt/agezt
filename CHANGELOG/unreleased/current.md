@@ -3209,6 +3209,22 @@ This file holds the active `[Unreleased]` working set.
   there, and deleting it was destroying exactly what the operator needed.
   The archive is now also written `0600` instead of the umask's `0644`.
 
+- **The forbidden-call ratchet is zero, and the rule that counts it now sees
+  `os.CreateTemp` (W5.4k).** The gate that counts the writes which bypass the
+  platform's atomic writer knew only about `os.WriteFile` and `os.Create` —
+  so a package could move its write to a temp file, the count would fall, and
+  **no new guarantee would exist anywhere**: the number was reporting less
+  than it claimed to report. `os.CreateTemp` is counted now too, because a
+  package that creates its own temp file is hand-rolling the atomic writer,
+  and that mechanism belongs in one place (`internal/atomicfile`). The two
+  writes that were hiding behind the blind spot moved: the doctor's
+  writability probe now goes through the canonical writer (it is a *sample* of
+  a write to that directory, so it must use the same writer a real file
+  would), and the file tool's own copy of the atomic writer is gone — it keeps
+  its mid-write failure seam, but through the canonical writer's callback
+  instead of a second implementation. The forbidden-call allowlist is now
+  empty.
+
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still

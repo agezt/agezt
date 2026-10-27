@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/agezt/agezt/internal/atomicfile"
 	"github.com/agezt/agezt/internal/brand"
 )
 
@@ -29,9 +30,14 @@ func checkBaseDir(base string, baseErr error) doctorCheck {
 	if !info.IsDir() {
 		return fail(name, base+" exists but is not a directory", "remove the file or set AGEZT_HOME")
 	}
-	// Prove writability rather than guessing from mode bits.
+	// Prove writability rather than guessing from mode bits. The probe goes
+	// through the platform's atomic writer like every other file the CLI
+	// writes: a unique temp, fsynced, chmodded, renamed into place, and the
+	// temp is gone either way. A plain os.WriteFile here would be a raw
+	// write the forbidden-call gate counts — and the probe's whole point is
+	// to be a faithful sample of what a write to this directory does.
 	probe := filepath.Join(base, ".doctor-probe")
-	if werr := os.WriteFile(probe, []byte("ok"), 0o600); werr != nil {
+	if werr := atomicfile.WriteFile(probe, []byte("ok"), 0o600); werr != nil {
 		return fail(name, base+" (not writable: "+werr.Error()+")", "fix ownership/permissions on the base dir")
 	}
 	_ = os.Remove(probe)
