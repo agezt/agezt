@@ -3225,6 +3225,19 @@ This file holds the active `[Unreleased]` working set.
   instead of a second implementation. The forbidden-call allowlist is now
   empty.
 
+- **The control plane no longer reaches into the runtime to build a run
+  (W5.4l).** The adapter named **seven** of the runtime's run-decoration
+  symbols — the agent's profile, the wake provenance, the cost ceiling, the
+  model chain, the tool allowlist — and built the runs itself, in the
+  module's language. The wake provenance and the tool allowlist are
+  **decisions about a run**, so their rows moved to the contract layer (one
+  row, one spelling; the runtime keeps aliases), and the **application**
+  layer now owns the decoration (`kernel/app/runs.Decorate` and its
+  siblings). The host asks the application for it. The adapter names **four**
+  runtime symbols now instead of eleven, and two of its files no longer
+  import the runtime at all. One fix came with it: an empty model chain is
+  now a no-op instead of a panic.
+
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still
