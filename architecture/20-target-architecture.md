@@ -303,11 +303,11 @@ Rules that keep modules clean:
 
 | Metric | Today | Target |
 |---|---|---|
-| archcheck violations (`tools/archcheck/allowlist.txt`) | **200** (88 plugin-reach · 70 cross-module · 34 adapter-bypass · 8 upward), 2026-10-02 | **0** |
+| archcheck violations (`tools/archcheck/allowlist.txt`) | **200** (88 plugin-reach · 70 cross-module · 34 adapter-bypass · 8 upward), 2026-10-02 → **2** after W5.4k (`controlplane → runtime`, `selfrepair → runtime`) | **0** |
 | Methods on the biggest type | `controlplane.Server` 437, `runtime.Kernel` 284 | no type > 60 methods |
 | Largest Go package (files) | controlplane 204, runtime 81 | ≤ 40 |
 | Run entry points outside `modules/runs` | 10 | **1** (`RunService.Start`, called only from `app` ops and triggers) |
-| Direct `exec.Command` / `http.Client{}` / `os.WriteFile` outside their L2 home (`tools/archcheck/calls-allowlist.txt`) | **85 sites** (13 exec · 58 http-client · 14 raw-write; union over linux/windows/darwin), 2026-10-02 → **27** after W1.4 (http-client 0) → **14** after W1.5 (exec 0; raw-write remains) | 0 |
+| Direct `exec.Command` / `http.Client{}` / `os.WriteFile` outside their L2 home (`tools/archcheck/calls-allowlist.txt`) | **85 sites** (13 exec · 58 http-client · 14 raw-write; union over linux/windows/darwin), 2026-10-02 → **27** after W1.4 (http-client 0) → **14** after W1.5 (exec 0; raw-write remains) → **0** after W5.4k (the allowlist is empty; the rule counts `os.CreateTemp` too, so the zero means *no raw writes*, not *no raw writes the counter can see*) | 0 |
 | Hand-maintained route/op/SDK tables | control plane table, 198 webui routes, 4 SDKs | 0 (generated) |
 | Event kinds without schema / never emitted | ~7 ad-hoc / 8 dead → **0 ad-hoc / 0 dead / 0 reserved** (W1.6, W1.8; `TestKindRegistryIsClosed`). Payload schemas per kind: not yet | 0 / 0 |
 | Journal full scans on hot paths (`why`, channel history, epistemic gate) | 3+ per call | 0 (index) |
