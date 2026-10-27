@@ -15,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/app/providers"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
+	"github.com/agezt/agezt/kernel/contract/toolboxapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/kernel/update"
@@ -136,6 +137,14 @@ type Server struct {
 	// wakes standing orders exactly like an agent's send. Nil-safe.
 	boardNotify func(m boardapi.Message, corr string)
 
+	// toolboxHost is the host CLI-tool inventory + installer, injected via
+	// SetToolbox — the CONTRACT's port (W5.4b), not the toolbox module.
+	//
+	// Nil when the daemon has no toolbox: the reads answer "the toolbox is not
+	// available on this daemon" and the install refuses — which is NOT the same
+	// as a toolbox that found nothing on the machine.
+	toolboxHost toolboxapi.Host
+
 	// updateSvc is the self-update engine (M860), injected via SetUpdateService.
 	// Nil when update is disabled; the update handlers report that.
 	updateSvc appupdate.Backend
@@ -204,6 +213,13 @@ func (s *Server) SetBoard(st boardapi.Store, notify func(m boardapi.Message, cor
 	s.boardStore = st
 	s.boardNotify = notify
 }
+
+// SetToolbox wires the host CLI-tool inventory + installer (M956). The port is
+// the CONTRACT's (W5.4b): the control plane may not name the toolbox module —
+// an adapter reaches the app layer's operations, never a module (archcheck's
+// principle P2). Nil leaves the toolbox commands reporting that the toolbox is
+// not available on this daemon.
+func (s *Server) SetToolbox(host toolboxapi.Host) { s.toolboxHost = host }
 
 // SetRepairSource wires the agent-repair surface the operator's incident
 // resolution drives (the overseer's repair source). The daemon injects it:

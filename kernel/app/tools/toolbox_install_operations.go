@@ -7,8 +7,8 @@ import (
 	"errors"
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/contract/toolboxapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/extensions/toolbox"
 	"github.com/agezt/agezt/kernel/platform/schema"
 	"reflect"
 )
@@ -26,7 +26,7 @@ var toolboxProgressSchema = func() json.RawMessage {
 	if err := json.Unmarshal([]byte(event.WireSchema), &frame); err != nil {
 		panic(err)
 	}
-	raw, err := schema.FromType(reflect.TypeFor[toolbox.InstallResult](), true)
+	raw, err := schema.FromType(reflect.TypeFor[toolboxapi.InstallResult](), true)
 	if err != nil {
 		panic(err)
 	}

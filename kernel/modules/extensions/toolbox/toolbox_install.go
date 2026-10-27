@@ -10,20 +10,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/toolboxapi"
 	"github.com/agezt/agezt/kernel/platform/sandbox"
 )
 
-// InstallResult is one tool's install outcome (streamed per-tool by the caller).
-type InstallResult struct {
-	Tool       string `json:"tool"`
-	OK         bool   `json:"ok"`
-	Skipped    bool   `json:"skipped,omitempty"` // not installable on this host
-	Manager    string `json:"manager,omitempty"`
-	Command    string `json:"command,omitempty"`
-	Version    string `json:"version,omitempty"` // version after a successful install
-	OutputTail string `json:"output_tail,omitempty"`
-	Error      string `json:"error,omitempty"`
-}
+// InstallResult is one tool's install outcome (streamed per-tool by the
+// caller). The row itself lives in the contract (W5.4b): the progress frame
+// an operation emits is built from the contract's schema, so the row cannot
+// live in this module.
+type InstallResult = toolboxapi.InstallResult
 
 // installTimeout bounds one package install — downloads + compile can be slow,
 // so this is generous.

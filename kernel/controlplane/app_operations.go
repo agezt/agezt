@@ -1308,7 +1308,9 @@ var forgeLifecycleOperations = func() []app.Operation {
 }()
 
 var toolboxReadOperations = func() []app.Operation {
-	operations, err := apptools.ToolboxReadOperations(func(context.Context) *apptools.ToolboxReads { return apptools.NewToolboxReads(nativeToolboxReader{}) })
+	operations, err := apptools.ToolboxReadOperations(func(ctx context.Context) *apptools.ToolboxReads {
+		return apptools.NewToolboxReads(ctx.Value(systemHostKey{}).(*Server).toolboxHost)
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -1318,7 +1320,7 @@ var toolboxReadOperations = func() []app.Operation {
 var toolboxInstallOperations = func() []app.Operation {
 	operations, err := apptools.ToolboxInstallOperations(func(ctx context.Context) *apptools.ToolboxInstall {
 		host := ctx.Value(appHostKey{}).(appHost)
-		return apptools.NewToolboxInstall(nativeToolboxInstaller{}, func(kind event.Kind, payload map[string]any) error {
+		return apptools.NewToolboxInstall(ctx.Value(systemHostKey{}).(*Server).toolboxHost, func(kind event.Kind, payload map[string]any) error {
 			_, err := host.kernel.Bus().Publish(event.Spec{Subject: "toolbox", Kind: kind, Actor: "toolbox", CorrelationID: opapi.CorrelationFromContext(ctx), Payload: payload})
 			return err
 		})

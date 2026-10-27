@@ -18,6 +18,7 @@ package controlplane
 
 import (
 	"github.com/agezt/agezt/kernel/contract/boardapi"
+	"github.com/agezt/agezt/kernel/contract/toolboxapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/kernel/update"
@@ -43,6 +44,11 @@ type Deps struct {
 	// refuse.
 	Board       boardapi.Store
 	BoardNotify func(m boardapi.Message, corr string)
+	// Toolbox is the host CLI-tool inventory + installer (M956) — the
+	// CONTRACT's port (W5.4b). Leave it nil when the daemon has no toolbox:
+	// the toolbox commands then answer "the toolbox is not available on this
+	// daemon" instead of inspecting a machine they cannot inspect.
+	Toolbox toolboxapi.Host
 	// DiskFree probes free/total bytes for the disk health check (M131).
 	DiskFree DiskFreeFunc
 	// UpdateSvc is the self-update engine (M860); nil = update disabled.
@@ -71,6 +77,7 @@ func NewServerWithDeps(k *runtime.Kernel, baseDir string, d Deps) *Server {
 	s := NewServer(k, baseDir)
 	s.SetConfigEnvPinned(d.ConfigEnvPinned)
 	s.SetBoard(d.Board, d.BoardNotify)
+	s.SetToolbox(d.Toolbox)
 	s.SetDiskFree(d.DiskFree)
 	s.SetUpdateService(d.UpdateSvc)
 	s.SetTenants(d.Tenants)

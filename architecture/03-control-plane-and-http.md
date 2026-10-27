@@ -53,13 +53,16 @@ protocol (the Web UI is an in-process HTTP server that dials the daemon's own co
 
 Local control protocol between the `agezt` daemon and every operator client (`agt`, the Web UI proxy, `sdk/`, `cmd/agt/dial`,
 `haltresume`, `keys`, `whoami`). It hosts ~320 named commands covering the whole product surface (runs, roster, memory, world
-model, schedules, workflows, marketplace, policy, providers, journal audit folds...). It is the largest kernel package and the
-only one that imports almost every other kernel subsystem (50+ internal imports, see import graph).
+model, schedules, workflows, marketplace, policy, providers, journal audit folds...). It is the largest kernel package, and it
+reaches the widest surface **through the app layer's typed operations** — it names no module of its own (the toolbox, W5.4b,
+and the board, W3.59, reach it through their contract's port).
 
-Imports (from `internal-deps.txt`): `internal/brand internal/strutil kernel/{acpcatalog agent approval artifact board bus cadence catalog channel
-chatgptauth configcenter convo creds datalake edict event executionprofile governor intent intervention journal market mcp memory
-netguard okr planner redact reflect roster runtime scheduler seat settings skill standing taste tenant toolbox toolforge ulid update
-warden workboard workflow worldmodel}`.
+Imports (production, from `go list`): `internal/atomicfile internal/brand`, the `kernel/app/*` typed operation packages
+(approvals … world), `kernel/approval kernel/channel kernel/configcenter kernel/creds kernel/edict kernel/event
+kernel/executionprofile kernel/governor kernel/netguard kernel/redact kernel/runtime kernel/settings kernel/tenant kernel/ulid
+kernel/update`, the platform ports `kernel/platform/netout kernel/platform/rollbackstore`, and the contracts
+`kernel/contract/{agentapi,boardapi,cadenceapi,memoryapi,opapi,seatapi,skillapi,standingapi,toolboxapi,workboardapi,workflowapi}`.
+The control plane names **no module** any more: the toolbox (W5.4b) and the board (W3.59) reach it through their contract's port.
 Imported by: `cmd/agezt`, `cmd/agt`, `cmd/agt/{dial,haltresume,keys,whoami}`, `kernel/webui`, `sdk`.
 
 ### 1.2 Protocol (deliverable a)
@@ -943,7 +946,7 @@ Most files carry a `Provenance:` header from the "god-file split" refactors (Day
 | `app/market/write_operations.go` | Five writer specs/codecs/typed progress; native market.go removed. parseCapList is in args.go; unused strArg/mustJSONRaw removed. |
 | `app/tools/mcp_lifecycle_operations.go` | Five typed lifecycle specs/codecs; native mcp.go wrappers removed. |
 | `app/tools/forge_catalog.go`, `forge_lifecycle.go`, `forge_lifecycle_operations.go` | Eight typed native toolforge operations: two unaudited reads and six mandatory audited lifecycle writes (promotion is operator-only). Kernel/store owns durable lifecycle transitions. |
-| `toolbox.go` | Host discovery/installer adapters and shared market/ACP JSON helpers; all three native toolbox operations are app-owned. |
+| `toolbox.go` | **gone (W5.4b).** The native host discovery/installer adapters are deleted: the control plane may not name the toolbox module. The daemon hands the control plane the contract's port (`contract/toolboxapi.Host`) and the three toolbox operations are app-owned. |
 | `artifact.go` | `artifact_get` (re-verified bytes), `artifact_list`, `artifact_delete`, `artifact_collect`. |
 | `plugin.go` | Selected runtime-manifest Reader adapter → app/plugins.Service; the manifest is handed over as the contract type itself (`contract/types.PluginInfo`), so the field-by-field projection is gone; codec/socket framing uses generic app dispatcher. |
 | `app/data/data.go` | Typed operator window onto the data lake (M836): read-only `data_collections` and `data_records` (search, sort, direction, page) and audited `data_insert`, `data_update`, `data_delete`, `data_create_collection` and `data_drop_collection`, with operator provenance, strict collection/id/name arguments, lenient paging and the lake's not-found, exists and system-collection errors. |

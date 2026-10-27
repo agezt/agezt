@@ -6,7 +6,7 @@ import (
 	"errors"
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	"github.com/agezt/agezt/kernel/modules/extensions/toolbox"
+	"github.com/agezt/agezt/kernel/contract/toolboxapi"
 )
 
 func ToolboxReadOperations(provider func(context.Context) *ToolboxReads) ([]app.Operation, error) {
@@ -16,7 +16,7 @@ func ToolboxReadOperations(provider func(context.Context) *ToolboxReads) ([]app.
 	spec := func(name string) opapi.Spec {
 		return opapi.Spec{Name: name, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}
 	}
-	detect, err := app.NewOperation(spec("toolbox_detect"), func(ctx context.Context, in ToolboxDetectInput) (toolbox.Inventory, error) {
+	detect, err := app.NewOperation(spec("toolbox_detect"), func(ctx context.Context, in ToolboxDetectInput) (toolboxapi.Inventory, error) {
 		return provider(ctx).Detect(ctx, in)
 	})
 	if err != nil {

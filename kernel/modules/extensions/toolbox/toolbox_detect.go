@@ -14,30 +14,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/toolboxapi"
 	"github.com/agezt/agezt/kernel/platform/sandbox"
 )
 
-// ToolStatus is the per-tool detection result for the wire.
-type ToolStatus struct {
-	Name        string `json:"name"`
-	Category    string `json:"category"`
-	Description string `json:"description"`
-	Installed   bool   `json:"installed"`
-	Version     string `json:"version,omitempty"`
-	Path        string `json:"path,omitempty"`
-	Installable bool   `json:"installable"`
-	Manager     string `json:"manager,omitempty"` // the manager that would install it
-	Command     string `json:"command,omitempty"` // the install command, shown in the UI
-}
+// ToolStatus is the per-tool detection result for the wire. The row itself
+// lives in the contract (W5.4b): an adapter may not name this module, so the
+// row an operation's schema is built from has to be the contract's.
+type ToolStatus = toolboxapi.ToolStatus
 
-// Inventory is the full detection snapshot.
-type Inventory struct {
-	OS             string       `json:"os"`
-	Managers       []string     `json:"managers"`
-	Tools          []ToolStatus `json:"tools"`
-	InstalledCount int          `json:"installed_count"`
-	MissingCount   int          `json:"missing_count"`
-}
+// Inventory is the full detection snapshot — the contract's row (W5.4b).
+type Inventory = toolboxapi.Inventory
 
 // versionTimeout bounds a single `--version` probe so a hanging or interactive
 // binary (the inventory found ollama/convert misbehaving) can't stall detection.

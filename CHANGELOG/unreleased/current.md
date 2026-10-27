@@ -3046,6 +3046,25 @@ This file holds the active `[Unreleased]` working set.
   tree back, so the destination is never left missing. The
   forbidden-call allowlist is now **empty**.
 
+- **The control plane no longer reaches the toolbox module (W5.4b).** The
+  control plane is an adapter, and an adapter reaches the app layer's typed
+  operations, never a module — but it imported the toolbox module and built
+  its operations' schema from the module's rows. The toolbox now has the
+  board's shape: a contract (`kernel/contract/toolboxapi`) owns the rows, the
+  port and the answer a daemon without a toolbox owes; the module implements
+  the port and re-exports the rows as aliases; the daemon — the composition
+  root — hands the port over. The app layer no longer imports the module at
+  all, and the import ratchet goes **7 → 6**.
+
+- **A daemon without a toolbox says so (W5.4b).** "The toolbox is not
+  available on this daemon" and "this machine has no tools" are different
+  facts, and the first was reported as the second: the reads answered with an
+  empty inventory. The install also published "install requested" before it
+  knew there was a toolbox to install through — so an install that could not
+  run was journaled as requested. The reads and the install now answer that
+  the toolbox is not available, and the install refuses before it publishes
+  anything.
+
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still

@@ -10,12 +10,25 @@ import (
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolbox"
+	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/plugins/providers/mock"
 	"net"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 )
+
+// toolboxAppFixture wires the toolbox port the daemon wires (W5.4b): the
+// control plane reaches the toolbox through the CONTRACT's port, so a test
+// that wants the real host behaviour injects it explicitly — a bare server has
+// no toolbox at all.
+func toolboxAppFixture(t *testing.T) (*runtime.Kernel, *Server, *pulseAppPort, *mock.Provider) {
+	t.Helper()
+	k, s, port, provider := pulseAppFixture(t)
+	s.SetToolbox(toolbox.NewHost())
+	return k, s, port, provider
+}
 
 func toolboxUnknownBatch(t *testing.T) []any {
 	t.Helper()
@@ -28,7 +41,7 @@ func toolboxUnknownBatch(t *testing.T) []any {
 	return []any{name, name, name}
 }
 func TestToolboxInstallNativeAuditFailureBlocksRequestedAndAttempts(t *testing.T) {
-	k, s, _, p := pulseAppFixture(t)
+	k, s, _, p := toolboxAppFixture(t)
 	if err := k.Journal().Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +51,7 @@ func TestToolboxInstallNativeAuditFailureBlocksRequestedAndAttempts(t *testing.T
 	}
 }
 func TestToolboxInstallNativeCanceledAdmissionHasNoLifecycleOrAudit(t *testing.T) {
-	k, s, _, _ := pulseAppFixture(t)
+	k, s, _, _ := toolboxAppFixture(t)
 	head, hash := k.Journal().Head()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -91,7 +104,7 @@ func (*toolboxRecordingConn) SetDeadline(time.Time) error      { return nil }
 func (*toolboxRecordingConn) SetReadDeadline(time.Time) error  { return nil }
 func (*toolboxRecordingConn) SetWriteDeadline(time.Time) error { return nil }
 func TestToolboxInstallNativeBrokenStreamStopsLaterAttempts(t *testing.T) {
-	k, s, _, p := pulseAppFixture(t)
+	k, s, _, p := toolboxAppFixture(t)
 	head, _ := k.Journal().Head()
 	conn := newToolboxRecordingConn(Request{ID: "owned", Cmd: CmdToolboxInstall, Token: "primary", Args: map[string]any{"names": toolboxUnknownBatch(t)}})
 	conn.failure = errors.New("owned stream write failure")
@@ -121,7 +134,7 @@ func TestToolboxInstallNativeBrokenStreamStopsLaterAttempts(t *testing.T) {
 	}
 }
 func TestToolboxInstallNativeDomainEventsShareOperationIdentity(t *testing.T) {
-	k, s, _, _ := pulseAppFixture(t)
+	k, s, _, _ := toolboxAppFixture(t)
 	head, _ := k.Journal().Head()
 	frames := callAppHost(t, s, Request{ID: "owned", Cmd: CmdToolboxInstall, Token: "primary", Args: map[string]any{"names": toolboxUnknownBatch(t), "correlation_id": "poison", "tenant": "spoof"}})
 	if len(frames) != 4 || frames[3].Type != RespResult {
@@ -186,7 +199,7 @@ func TestToolboxNativeThreeOperationsPolicyStreamAndTypes(t *testing.T) {
 }
 
 func TestToolboxInstallNativePostAdmissionPublicationErrorStopsProgress(t *testing.T) {
-	k, s, _, _ := pulseAppFixture(t)
+	k, s, _, _ := toolboxAppFixture(t)
 	conn := newToolboxRecordingConn(Request{ID: "owned", Cmd: CmdToolboxInstall, Token: "primary", Args: map[string]any{"names": toolboxUnknownBatch(t)}})
 	conn.afterWrite = func() {
 		if conn.writes == 1 {

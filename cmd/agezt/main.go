@@ -48,6 +48,7 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/modules/agents/selfrepair"
+	"github.com/agezt/agezt/kernel/modules/extensions/toolbox"
 	"github.com/agezt/agezt/kernel/modules/providers/boot"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
@@ -1165,9 +1166,13 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// "unauthorized"). The late deps (pulse, channel send, standing fire) arrive
 	// via srv.Bind at each point of readiness below.
 	srv := controlplane.NewServerWithDeps(k, baseDir, controlplane.Deps{
-		ConfigEnvPinned:    configPinned,       // M693: Config Center marks env-pinned fields read-only
-		Board:              srvBoard,           // M937: the ONE shared board instance…
-		BoardNotify:        srvBoardNotify,     // …and its board.posted notifier
+		ConfigEnvPinned: configPinned,   // M693: Config Center marks env-pinned fields read-only
+		Board:           srvBoard,       // M937: the ONE shared board instance…
+		BoardNotify:     srvBoardNotify, // …and its board.posted notifier
+		// The host CLI-tool inventory + installer (M956). The daemon is the
+		// composition root: it hands the control plane the CONTRACT's port
+		// (W5.4b), and the control plane never names the toolbox module.
+		Toolbox:            toolbox.NewHost(),
 		DiskFree:           pulse.DiskUsage,    // M131: cross-platform probe keeps controlplane pulse-free
 		UpdateSvc:          updateSvc,          // M860: nil = update disabled
 		Tenants:            tenantReg,          // P6-MULTI: nil = single-tenant
