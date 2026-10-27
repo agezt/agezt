@@ -3004,6 +3004,35 @@ This file holds the active `[Unreleased]` working set.
 
 ### Fixed
 
+- **The agent gateway is the daemon's transport, and it is closed before the
+  kernel (W3.67).** The gateway was built inside the kernel's startup, which
+  made the kernel import an inbound transport it does not own, and gave every
+  kernel — the primary and every tenant — a gateway of its own over a socket
+  path that was never published anywhere, so nobody could reach it. The daemon
+  now builds **one** gateway over its own ports (bus, memory, roster, config
+  center, journal), starts it, and closes it **before** the kernel — the
+  gateway's audit trail is flushed on close and that flush appends to the
+  kernel's journal, so the order is now a guarantee rather than an accident.
+  The kernel's `AgentGateway()` accessor, which had no caller at all, is gone.
+
+- **The gateway's audit record is no longer dropped (W3.67).** The record's
+  actor was the token's *parent* id, which is empty for a top-level token —
+  the only kind `agt token create` mints — and an event without an actor is
+  rejected by the journal, so every access made with a CLI-minted token was
+  recorded nowhere. The trail that answers "who used which capability" was
+  empty. A top-level token is now charged to itself.
+
+- **The gateway accepts the memory's type in any case (W3.67).** The type
+  vocabulary is upper-case and validates strictly, so a client that wrote
+  `"fact"` was refused with a write error for a type that exists.
+
+- **The gateway's five uncalled symbols are now marked as what they are
+  (W3.67).** `CreateSubprocessToken`, `CapsIntersect`,
+  `CapabilityChecker.CheckAny/CheckAll` and `AuditLogger.LogSync` had no
+  production caller — only the package's own tests — so they moved to
+  `kernel/agentgw/testonly_test.go`, where the dead-code gate can see that
+  they are test-only instead of the tree carrying them as live API.
+
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still
