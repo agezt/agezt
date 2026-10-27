@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/agezt/agezt/kernel/contract/memoryapi"
 )
@@ -46,10 +47,11 @@ func (g *Gateway) handleMemoryWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	recType := memoryapi.Type(req.Type)
-	if req.Type == "" {
-		recType = memoryapi.TypeFact
-	}
+	// The memory's type vocabulary is upper-case ("FACT", "SUMMARY"), and the
+	// contract validates it strictly — so a client that wrote "fact" got a
+	// 500 WRITE_ERROR for a type that exists. The gateway is the transport:
+	// it canonicalises the spelling it accepts.
+	recType := memoryRecordType(req.Type)
 
 	spec := memoryapi.RememberSpec{
 		Type:    recType,
@@ -69,6 +71,23 @@ func (g *Gateway) handleMemoryWrite(w http.ResponseWriter, r *http.Request) {
 		"record":  record,
 		"created": created,
 	})
+}
+
+// memoryRecordType canonicalises the type a client wrote into the memory's
+// own vocabulary.
+//
+// The contract's types are upper-case ("FACT", "SUMMARY") and the memory
+// validates them strictly, so a client that wrote "fact" — the spelling the
+// type's NAME uses — was refused with a 500 WRITE_ERROR for a type that
+// exists. The gateway is the transport: it accepts the spelling and
+// canonicalises it. Split out of the handler so the mapping is assertable
+// without a memory manager behind it.
+func memoryRecordType(raw string) memoryapi.Type {
+	canonical := memoryapi.Type(strings.ToUpper(strings.TrimSpace(raw)))
+	if canonical == "" {
+		return memoryapi.TypeFact
+	}
+	return canonical
 }
 
 // handleMemorySearch handles searching memory (Recall).

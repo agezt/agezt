@@ -57,9 +57,15 @@ func (g *Gateway) auditAccess(r *http.Request, claims *TokenClaims) {
 	if g.auditLog == nil {
 		return
 	}
+	// The audit entry's actor is the token the access is charged to: a
+	// SUBPROCESS token inherits its parent's id, but a TOP-LEVEL token — the
+	// kind `agt token create` mints, and the only kind the SDK path uses —
+	// has no parent. An empty actor is rejected by the journal, so the whole
+	// audit record was dropped on the floor for every CLI-minted token: the
+	// trail that answers "who asked for what" was empty.
 	g.auditLog.Log(AuditEntry{
 		Timestamp:  time.Now(),
-		TokenID:    claims.ParentTokenID,
+		TokenID:    auditActor(claims),
 		RunID:      claims.RunID,
 		Subprocess: claims.SubprocessID,
 		Operation:  r.Method,
@@ -67,6 +73,19 @@ func (g *Gateway) auditAccess(r *http.Request, claims *TokenClaims) {
 		Success:    true,
 		ClientIP:   r.RemoteAddr,
 	})
+}
+
+// auditActor is the identity the audit record is charged to: the parent token
+// for a subprocess token, the token itself for a top-level one.
+//
+// It must never be EMPTY: an event without an actor is rejected by the
+// journal, so an empty actor does not mean "an anonymous access" — it means
+// the access is not recorded at all.
+func auditActor(claims *TokenClaims) string {
+	if claims.ParentTokenID != "" {
+		return claims.ParentTokenID
+	}
+	return claims.TokenID
 }
 
 // maxRateLimitEntries bounds the per-token rate-limit map so a flood of

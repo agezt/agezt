@@ -85,7 +85,6 @@ func (k *Kernel) Close() error {
 			return k.skillStore.Close()
 		},
 		k.journal.Close,
-		func() error { return k.agentGW.Close() },
 	)
 }
 

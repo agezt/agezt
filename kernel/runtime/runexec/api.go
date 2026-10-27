@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
-	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/configcenter"
@@ -105,7 +104,6 @@ type KernelAPI interface {
 	ConfigCenter() *configcenter.Center
 	Catalog() *catalogapi.Catalog
 	CatalogStore() catalogapi.Store
-	AgentGateway() *agentgw.Gateway
 	PublishIntentInterpreted(corr, actor string, frame intent.Frame)
 	PublishContextFailureAnalysis(corr, actor string, err error)
 	PublishHeuristicBypass(ctx context.Context, corr, actor, intent, answer string) error

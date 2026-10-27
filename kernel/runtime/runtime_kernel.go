@@ -13,7 +13,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/configcenter"
@@ -84,7 +83,6 @@ type Kernel struct {
 	reflect      *reflect.Engine
 	schedules    cadenceapi.HostStore    // persistent typed schedule store (autonomy) — the contract's host port (W3.49)
 	schedEngine  cadenceapi.Engine       // live cadence resident, set by the daemon after Open
-	agentGW      *agentgw.Gateway        // agent subprocess gateway (agent SDK)
 	configCenter *configcenter.Center    // config center for agent SDK config access
 	toolInvoker  toolapi.Invoker         // immutable invocation port, constructed per Open
 	toolPhases   toolphaseapi.Phases     // same service's batch-aware port for root/delegated loops

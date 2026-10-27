@@ -3,12 +3,11 @@
 package runtime
 
 // Provenance: *Kernel simple getter accessors: Journal, Bus, State, Edict, Warden,
-//             Approvals, Scheduler, Provider, Memory, AgentGateway, Schedules,
+//             Approvals, Scheduler, Provider, Memory, Schedules,
 //             Tools. Code extracted from runtime.go during the Day-41 god-file
 //             split. Public API unchanged.
 
 import (
-	"github.com/agezt/agezt/kernel/agentgw"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
@@ -50,9 +49,6 @@ func (k *Kernel) Provider() llm.Provider { return k.cfg.Provider }
 // Memory returns the memory-lite manager — the contract's port (W3.57), not the
 // module's concrete manager. A host that was given no memory holds a NIL port.
 func (k *Kernel) Memory() memoryapi.Manager { return k.memory }
-
-// AgentGateway returns the Agent Gateway for subprocess communication.
-func (k *Kernel) AgentGateway() *agentgw.Gateway { return k.agentGW }
 
 // Schedules returns the persistent typed schedule store — the contract's HOST
 // port (W3.49), not the module's concrete store. The library's file is the

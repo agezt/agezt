@@ -72,7 +72,7 @@ func TestTheKernelStillAnswersItsAccessorSurface(t *testing.T) {
 	for _, name := range []string{
 		// Day 13 — the store getters the deleted sub-package mirrored.
 		"Journal", "Bus", "State", "Edict", "Warden", "Approvals", "Scheduler",
-		"Provider", "Memory", "AgentGateway", "Schedules",
+		"Provider", "Memory", "Schedules",
 		// Day 14 — the live reads.
 		"Tools", "World", "Forge", "StartTime", "ConfigCenter", "MaxDuration",
 		"Reflect",
@@ -99,5 +99,14 @@ func TestTheKernelStillAnswersItsAccessorSurface(t *testing.T) {
 	// its ABSENCE is pinned too: if it comes back, it comes back dead.
 	if _, ok := kernelType.MethodByName("ConfigMu"); ok {
 		t.Error("*Kernel has a ConfigMu method again — it had the deleted sub-package as its only caller, and a getter nobody calls is dead code")
+	}
+
+	// AgentGateway went the same way (W3.67): the agent gateway is an
+	// ADAPTER (L5), so the kernel (L3) may not hold one, and the accessor
+	// had no caller at all — the daemon owns the gateway now. Its ABSENCE
+	// is pinned, because an accessor that comes back comes back with the
+	// upward import edge that the ratchet just closed.
+	if _, ok := kernelType.MethodByName("AgentGateway"); ok {
+		t.Error("*Kernel has an AgentGateway method again — the gateway is the daemon's adapter (L5), the kernel is a module (L3), and the accessor had no caller")
 	}
 }

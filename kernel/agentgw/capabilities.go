@@ -55,26 +55,6 @@ func (cc *CapabilityChecker) Check(claims *TokenClaims, required AgentCapability
 	return fmt.Errorf("agentgw: capability %q not granted", required)
 }
 
-// CheckAny validates that the token has at least one of the required capabilities.
-func (cc *CapabilityChecker) CheckAny(claims *TokenClaims, required ...AgentCapability) error {
-	for _, cap := range required {
-		if err := cc.Check(claims, cap); err == nil {
-			return nil
-		}
-	}
-	return fmt.Errorf("agentgw: none of the required capabilities %v granted", required)
-}
-
-// CheckAll validates that the token has all of the required capabilities.
-func (cc *CapabilityChecker) CheckAll(claims *TokenClaims, required ...AgentCapability) error {
-	for _, cap := range required {
-		if err := cc.Check(claims, cap); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // ParseCapability parses a capability string into an AgentCapability.
 func ParseCapability(s string) (AgentCapability, error) {
 	s = strings.ToLower(strings.TrimSpace(s))
@@ -140,22 +120,6 @@ func CapsSubset(child, parent []string) []string {
 		}
 	}
 	return missing
-}
-
-// CapsIntersect returns the capabilities present in BOTH want and parent,
-// preserving want's order and dropping anything the parent does not grant.
-func CapsIntersect(want, parent []string) []string {
-	have := make(map[string]bool, len(parent))
-	for _, c := range parent {
-		have[strings.ToLower(strings.TrimSpace(c))] = true
-	}
-	out := make([]string, 0, len(want))
-	for _, c := range want {
-		if have[strings.ToLower(strings.TrimSpace(c))] {
-			out = append(out, c)
-		}
-	}
-	return out
 }
 
 // NormalizeCaps normalizes and validates a list of capability strings.
