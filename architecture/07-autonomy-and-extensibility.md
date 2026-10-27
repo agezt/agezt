@@ -56,7 +56,7 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 | `workflow` | bus, contract/workflowapi, event, filestore, ulid | cmd/agezt, controlplane, runtime |
 | `workflowexec` | — | **nobody** (dead; see §16.5) |
 | `update` | brand, netguard | cmd/agezt, controlplane, restapi |
-| `toolbox` | — | controlplane |
+| `toolbox` | contract/toolboxapi | cmd/agezt (the daemon hands over the port) |
 | `toolforge` | contract/toolforgeapi, filestore, ulid | cmd/agezt, controlplane, runtime (+runexec) |
 | `channel` | strutil, bus, event | cmd/agezt, channelwire, controlplane, builtinchannels, every plugins/channels/*, tools/sendmedia |
 | `channelwire` | bus, channel, pulse, settings | cmd/agezt, builtinchannels |
@@ -1367,6 +1367,17 @@ Tests: `acpcatalog_test`, `clients_test`, `registry_test`, `coverage_supp_test`.
 - Bus events `toolbox.install.requested` and one `toolbox.installed` per tool; `toolbox.progress` frames on the stream.
 - No persistence, no env vars.
 
+**The port is the contract's (W5.4b).** The control plane is an **adapter**, and
+an adapter reaches the app layer's operations, never a module — so the control
+plane may not name this package. The daemon (the composition root) hands it the
+**contract's** port `kernel/contract/toolboxapi.Host`, and the module
+implements it (`toolbox.Host`). The rows (`Inventory`, `ToolStatus`,
+`InstallResult`) live in the contract too and are **aliased** here, so there is
+one row and one spelling of it. A daemon with **no** toolbox answers "the
+toolbox is not available on this daemon" (`toolboxapi.ErrUnavailable`) — which
+is not the same fact as "this machine has no tools", and the install refuses
+**before** it publishes "install requested".
+
 **Files**
 
 | File | Contents |
@@ -1374,11 +1385,12 @@ Tests: `acpcatalog_test`, `clients_test`, `registry_test`, `coverage_supp_test`.
 | `doc.go` | Package doc. |
 | `toolbox.go` | Types, `ResolveInstall`, manager probes. |
 | `catalog.go` | Recipe helpers and `Catalog`. |
-| `toolbox_detect.go` | `Detect`. |
-| `toolbox_install.go` | `Install`. |
+| `toolbox_detect.go` | `Detect`, the contract's row aliases. |
+| `toolbox_install.go` | `Install`, the contract's row alias. |
 | `toolbox_outdated.go` | `Outdated`. |
+| `host.go` | `Host` — the module's implementation of the contract's port. |
 
-Tests: `toolbox_test`, `toolbox_cov_test`.
+Tests: `toolbox_test`, `toolbox_cov_test`, `host_test`.
 
 ---
 

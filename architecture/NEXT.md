@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4a the forbidden-call ratchet is zero, 2026-10-27
+## Current checkpoint — W5.4b the toolbox reaches the control plane through the contract's port, 2026-10-27
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -4847,6 +4847,54 @@ files, five of the seventeen mutations would have escaped.
   redesign, `selfrepair → runtime` needs a runs port that does not exist yet,
   `channel → bus` is a nil-interface trap). W5.4's other two parts are still
   open: the **import** allowlist at zero and the **`docs/`** archiving.
+
+- W5.4b (the toolbox reaches the control plane through the contract's port)
+  takes the **first** of the seven import edges — the smallest — and the
+  ratchet goes **7 → 6**. The edge was
+  `adapter-bypass kernel/controlplane -> kernel/modules/extensions/toolbox`:
+  the control plane is an **adapter** (L5), the toolbox is a **module** (L3),
+  and an adapter reaches the app layer's typed operations, never a module
+  (P2). The measured map had called the control plane's twenty-four-line
+  `toolbox.go` a *wrapper* that could move to a contract/api package, and that
+  was **half right** on both counts: the control plane did not wrap the module,
+  it **implemented** it (`nativeToolboxReader`/`nativeToolboxInstaller` were
+  the adapter's own types whose methods called the module's package
+  functions), and moving those adapters would not have closed the edge — the
+  adapter would still have called `toolbox.Detect`. The edge closes only when
+  the **implementation** comes from somewhere the adapter cannot name, so the
+  toolbox takes the board's (W3.59) shape: a new contract
+  `kernel/contract/toolboxapi` owns the rows (`Inventory`, `ToolStatus`,
+  `InstallResult`), the port (`Host`) and the one answer a daemon without a
+  toolbox owes (`ErrUnavailable`); the module **implements** the port
+  (`toolbox.Host`, `toolbox.NewHost()`) and re-exports the rows as
+  **aliases** — one row, one spelling of it; the **daemon** (the composition
+  root) calls `toolbox.NewHost()` and hands the port over in
+  `controlplane.Deps.Toolbox`; the app layer speaks the contract and no
+  longer imports the module **at all**, not even in its tests.
+  A missing port is **not** an empty answer: "the toolbox is not available on
+  this daemon" and "this machine has no tools" are different facts, so the
+  reads and the install answer `ErrUnavailable`, and the install refuses
+  **before** it publishes `toolbox.install.requested` — nothing will be
+  installed, so nothing may be journaled as requested.
+  **8 permanent tests** (the module's rows are the contract's rows and not
+  copies; the module's host is the contract's port; the app's guards and its
+  "publish nothing" rule; the control plane's setter and deps take the
+  **contract's** port, asserted **statically** because an anonymous interface
+  with the same verbs would compile and would be a second shape of the same
+  port; a daemon without a toolbox says so and journals no toolbox lifecycle
+  event; the operations reach the host's rows and not the machine; the
+  daemon's deps reach the server) and **13 mutations, 13 caught** in two
+  independent passes with **byte-identical** logs. The first calibration pass
+  reported one **NO-TESTS** — the mutation was pointed at the app package
+  while the test that observes the count lives in the control plane's: a
+  defect of the **mutation**, and the two reported passes are the clean ones.
+  **What remains**: the **import** ratchet stands at **6** —
+  `controlplane → runtime` (a redesign), `controlplane → update` and
+  `restapi → update` (the update port that `kernel/app/update` already is),
+  `cadence/systemtasks → runtime` (nine accessors, two of them platform types
+  the contract may not name), `selfrepair → runtime` (a runs port that does
+  not exist yet) and `channel → bus` (the nil-interface trap). W5.4's
+  remaining part is the **`docs/`** archiving.
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
