@@ -11,28 +11,23 @@ package runtime
 
 import (
 	"context"
+
 	"github.com/agezt/agezt/kernel/contract/agentapi"
-	"strings"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // WithWakeContext attaches run provenance to the next agent loop. Empty fields
 // are omitted from the journal; callers can layer it with WithAgentProfile.
+//
+// The row and the context key live in the CONTRACT layer (agentapi): a host
+// that starts a run states WHY the run exists, and it must not have to name
+// this module to do it.
 func WithWakeContext(ctx context.Context, w WakeContext) context.Context {
-	w.Source = strings.TrimSpace(w.Source)
-	w.Reason = strings.TrimSpace(w.Reason)
-	w.ScheduleID = strings.TrimSpace(w.ScheduleID)
-	w.StandingID = strings.TrimSpace(w.StandingID)
-	w.StandingName = strings.TrimSpace(w.StandingName)
-	w.TriggerSubject = strings.TrimSpace(w.TriggerSubject)
-	w.ParentCorrelation = strings.TrimSpace(w.ParentCorrelation)
-	if w == (WakeContext{}) {
-		return ctx
-	}
-	return context.WithValue(ctx, ctxKeyWakeContext, w)
+	return agentapi.WithWakeContext(ctx, w)
 }
 
 func wakeContextFromCtx(ctx context.Context) WakeContext {
-	v, _ := ctx.Value(ctxKeyWakeContext).(WakeContext)
+	v, _ := agentapi.WakeContextFrom(ctx)
 	return v
 }
 
@@ -85,16 +80,19 @@ func modelChainFromCtx(ctx context.Context) []string {
 // for a pure-reasoning / safe one-off run) — activates the restriction; passing it
 // is the only way to override, so an unrestricted run is simply one where this is
 // never called. Names not registered are ignored.
+//
+// The allowlist and its context key live in the CONTRACT layer (toolapi): the
+// application decides which tools a run may call, and a host that starts the
+// run states that decision without naming this module.
 func WithTools(ctx context.Context, allow []string) context.Context {
-	return context.WithValue(ctx, ctxKeyTools, allow)
+	return toolapi.WithTools(ctx, allow)
 }
 
 // toolsFromCtx returns the per-run tool allowlist and whether one was set. ok=false
 // means "no restriction" (use all tools); ok=true with an empty/nil slice means
 // "no tools".
 func toolsFromCtx(ctx context.Context) ([]string, bool) {
-	v, ok := ctx.Value(ctxKeyTools).([]string)
-	return v, ok
+	return toolapi.ToolsFrom(ctx)
 }
 
 func actorFromCtx(ctx context.Context) string {

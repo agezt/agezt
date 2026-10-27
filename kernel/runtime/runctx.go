@@ -7,6 +7,8 @@ package runtime
 
 import (
 	"time"
+
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 )
 
 // per-run context keys used by RunWith → policyHook to carry the
@@ -21,7 +23,6 @@ const (
 	ctxKeyImages
 	ctxKeySystem
 	ctxKeyRunTimeout
-	ctxKeyTools
 	ctxKeyMaxCost
 	ctxKeyJSONMode
 	ctxKeyTrustCeiling
@@ -34,7 +35,6 @@ const (
 	ctxKeyAgentToolPolicy
 	ctxKeyAgentConfigOverrides
 	ctxKeyAgentNoisePolicy
-	ctxKeyWakeContext
 	ctxKeyAutoApproveCaps
 	ctxKeyTrustedObservations
 	ctxKeyResumeOwned // M1002: a resume ticket for this corr is already owned by an outer frame
@@ -71,12 +71,9 @@ const agentNoisePendingNotifyTTL = 5 * time.Minute
 
 // WakeContext is durable provenance for why a run exists. It is stamped on
 // task.received by agent.Run and intentionally kept separate from the prompt.
-type WakeContext struct {
-	Source            string
-	Reason            string
-	ScheduleID        string
-	StandingID        string
-	StandingName      string
-	TriggerSubject    string
-	ParentCorrelation string
-}
+//
+// The ROW lives in the contract layer (agentapi): it is provenance about a
+// run, not a mechanism of the runtime, and the host that starts a run has to
+// be able to state it without naming this module. The runtime re-exports the
+// row as an alias — one row, one spelling.
+type WakeContext = agentapi.WakeContext

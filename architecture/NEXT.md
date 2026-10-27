@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4k the rule learns to see os.CreateTemp, and the forbidden-call ratchet is zero, 2026-10-27
+## Current checkpoint — W5.4l the adapter stops naming the runtime's run decoration, 2026-10-27
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5380,6 +5380,32 @@ files, five of the seventeen mutations would have escaped.
   that silently under-counts is exactly the blind spot this slice just closed.
   The **import** ratchet stands at **2**. Evidence:
   `architecture/216-w54k-raw-write-createtemp-evidence.md`
+
+- W5.4l (the adapter stops naming the runtime's run decoration) narrows the
+  last unblocked import edge. The control plane named **11 distinct runtime
+  symbols**; **seven** of them were the run's own **decoration** — the
+  profile, the wake provenance, the cost ceiling, the model chain, the tool
+  allowlist — and the adapter was building the runs itself, in the module's
+  language. The **rows** (the wake provenance, the tool allowlist) moved to
+  the **contract** layer, where such values already live (`opapi`,
+  `memoryapi`, `toolapi` each carry context values today), and the runtime
+  keeps its names as aliases — one row, one spelling. The **application**
+  owns the decoration now (`kernel/app/runs.Decorate`,
+  `DecorateModels`, `DecorateTools`), and the host asks the application for
+  it. `workboard_dispatch.go` and `workflow.go` no longer import the runtime
+  at all; the adapter names **4** runtime symbols instead of **11**, and two
+  files left the edge. **13 permanent tests**, **6 mutations, 6 caught** in
+  two independent passes with **byte-identical** logs. The edge is
+  **narrower, not closed**: the adapter still holds the kernel handle in 16
+  files, and closing it needs a **port** — one that cannot live in the
+  contract layer (most of the kernel's verbs return L3 types) and therefore
+  has to live in the application layer, with the adapter's native verbs
+  moving down into it. The two rows the adapter still names
+  (`CouncilMember`, `CouncilResult`, `ReaperReport`) are the modules' api
+  rows, and the adapter may not import a module's api package either — they
+  have to reach the contract layer first, the same move this slice made for
+  the wake. Evidence:
+  `architecture/217-w54l-adapter-run-decoration-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
