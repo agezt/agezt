@@ -20,7 +20,8 @@ import (
 // The native bridge binds the actual profile/context APIs; business seat,
 // retry settlement and proof/review orchestration live in app/workboard.
 func (s *Server) runWorkboardDispatch(corr string, p agentapi.Profile, task workboardapi.Task, intent, reason string) {
-	service := appworkboard.NewExecution(s.k, s.k.Seats(), s.k.Workboard(), workboardExecutionContext{s: s, profile: p},
+	ports := s.workboardPorts()
+	service := appworkboard.NewExecution(ports.Execution, ports.SeatIndex, ports.TaskIndex, workboardExecutionContext{s: s, profile: p},
 		func(ctx context.Context, corr, intent string) (string, error) {
 			if p.RetryPolicy != nil && p.RetryPolicy.MaxAttempts > 1 {
 				return s.k.RunWithRetry(ctx, corr, intent, *p.RetryPolicy)

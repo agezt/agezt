@@ -3305,6 +3305,14 @@ This file holds the active `[Unreleased]` working set.
   context and its panic reporting stay in the host: they are the protocol
   surface, not the application's.
 
+- **The workboard family's wiring moved into the application (W5.4u).** The
+  task board is the application's ports now (`kernel/app/workboard`:
+  `PortsFromKernel`), and **seven** sites left the adapter's production code —
+  the adapter no longer hands the handle to the workboard application at all.
+  The dispatcher's agent closure and the execution's run and publish closures
+  stay in the adapter: they are the host's protocol surface, not the
+  application's. The routed kernel stays the routed kernel: a tenant's board is
+  the tenant's board.
 - **The objective family's wiring moved into the application (W5.4t).** The
   objectives are the application's ports now (`kernel/app/okr`:
   `PortsFromKernel`), and the adapter no longer hands the handle to the
