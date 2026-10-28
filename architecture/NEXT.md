@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4t the objective family's ports, 2026-10-28
+## Current checkpoint — W5.4u the workboard family's ports, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5626,6 +5626,45 @@ files, five of the seventeen mutations would have escaped.
   that the adapter still names.
   Evidence:
   `architecture/225-w54t-the-objective-familys-ports-evidence.md`
+
+- W5.4u (the workboard family's ports, and the last of the board's handle) is
+  the **eighth** family of the port programme and the **largest** one: the task
+  board, with **seventeen** kernel verbs, **six** services and **three** adapter
+  sites. The adapter's workboard surface was not a list of verb calls — it was
+  three places where the **whole handle** was handed to the application. The
+  ports moved into the application (`kernel/app/workboard`:
+  `PortsFromKernel`) and the adapter keeps the binding, on the **routed**
+  kernel: a tenant's board is the tenant's board. **Seven** sites left the
+  adapter's production code, and the adapter no longer hands the handle to the
+  workboard application at all. The dispatcher's **agent** closure and the
+  execution's **run** and **publish** closures stay in the adapter: they are
+  the host's protocol surface (who the seat is, how the run is decorated, what
+  is published) and not the application's business. The family is found by
+  reading the kernel's own workboard files with a **glob**, because the verbs
+  live in **two** of them and the proof verb is called `ProveTask`, which says
+  nothing about the board — a **name** rule would miss it, and a verb the rule
+  misses is a verb the adapter may name. The guard now holds **92**
+  application-owned verbs. The port's field names must not collide with kernel
+  verbs — the **third** time this programme learned it: the journal port is
+  `Events` and the seat catalog port is `SeatStore`. The **seat** port
+  deserves a word: the workboard family asks "is this seat real?" and the seat
+  family owns the answer — the same shape as the registry being the tools
+  family's answer for four other families. **3 permanent tests** and **19
+  mutations, 19 caught** in two independent passes with **byte-identical**
+  logs (SHA-256 `2802D351…05A6C`). M15, M16 and M17 are worth reading together: none
+  of them is a behavioural regression — the wiring would work **exactly as
+  well**, it would simply be in the wrong layer — so only the two rules can
+  see them. M19 is worth reading twice: the rule's glob loses the proof file,
+  and the guard's own test catches it, because that test finds the files
+  **itself** rather than through the helper the guard uses. A derivation that
+  checks itself is not a derivation. With this slice the family map's **verbs
+  without libraries** are done — the adapter no longer names a workboard, an
+  objective, a tool or an MCP server. What is left is the **handle** itself:
+  the families that hold it (the seat catalog, the journal, the sandbox, the
+  providers) are the ones the roadmap calls *libraries* — they own a store,
+  and the store is the host's file.
+  Evidence:
+  `architecture/226-w54u-the-workboard-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
