@@ -113,7 +113,15 @@ func TestTheBindingRuleSeesTheViolationItExistsFor(t *testing.T) {
 // helper that spelled the type — the count went to eighteen, and every
 // document that said "fifteen files" became false while nothing failed. This
 // test is the thing that fails.
-const controlPlaneRuntimeNamingFiles = 15
+//
+// It is **fourteen** now: the data-root slice (W5.4ad) took the journal
+// statistics file off the runtime, because the data root came from the
+// application's own port instead of from the kernel's accessor.
+//
+// The TEST's name carries no number, on purpose: a name that states the count
+// has to be renamed every time the count moves, and a rename is a chance to
+// forget to update the documents that name the test.
+const controlPlaneRuntimeNamingFiles = 14
 
 // runtimeNamingDrifted reports whether a measured count has drifted from the
 // recorded one.
@@ -151,7 +159,7 @@ func runtimeNamingFiles(t *testing.T) []string {
 	return naming
 }
 
-func TestTheControlPlaneNamesTheRuntimeInFifteenFiles(t *testing.T) {
+func TestTheControlPlaneNamesTheRuntimeInTheRecordedNumberOfFiles(t *testing.T) {
 	naming := runtimeNamingFiles(t)
 	if runtimeNamingDrifted(len(naming)) {
 		t.Errorf("the control plane names the kernel runtime in %d production files (%s), not %d — the number may only go down: if it did, this constant and the documents that state it change in the same slice; if it grew, the handle walked back in",

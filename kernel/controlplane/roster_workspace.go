@@ -40,7 +40,7 @@ func (s *Server) agentWorkspaceInfo(p agentapi.Profile) (string, bool) {
 
 // agentWorkspaceRoot is the root every agent workspace lives under.
 func (s *Server) agentWorkspaceRoot() string {
-	return approster.WorkspaceRoot(s.k.BaseDir())
+	return approster.WorkspaceRoot(s.baseDirPorts().Dir())
 }
 
 // countTreeFiles counts the files and the bytes under a directory.

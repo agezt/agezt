@@ -107,7 +107,8 @@ var rosterProfileWriteOperations = func() []app.Operation {
 
 var sandboxOperations = func() []app.Operation {
 	ops, err := appsandbox.Operations(func(ctx context.Context) *appsandbox.Service {
-		return appsandbox.New(filepath.Join(ctx.Value(systemHostKey{}).(*Server).k.BaseDir(), "sandbox", "projects"))
+		server := ctx.Value(systemHostKey{}).(*Server)
+		return appsandbox.New(filepath.Join(server.baseDirPorts().Dir(), "sandbox", "projects"))
 	})
 	if err != nil {
 		panic(err)
@@ -450,9 +451,8 @@ var edictDecisionOperations = func() []app.Operation {
 
 var edictOverlayOperations = func() []app.Operation {
 	ops, err := appedict.OverlayOperations(func(ctx context.Context) *appedict.Overlay {
-		k := ctx.Value(appHostKey{}).(appHost).kernel
 		save := func(snap *edict.OverlaySnapshot) error {
-			return edict.SaveOverlaySnapshot(filepath.Join(k.BaseDir(), "runtime", edict.OverlaySnapshotFile), snap)
+			return edict.SaveOverlaySnapshot(filepath.Join(requestBaseDirPorts(ctx).Dir(), "runtime", edict.OverlaySnapshotFile), snap)
 		}
 		return appedict.NewOverlay(requestJournalPorts(ctx).Events, save, func(spec event.Spec) { _, _ = requestBusPorts(ctx).Publish(spec) })
 	})
@@ -514,7 +514,7 @@ var traceOperations = func() []app.Operation {
 
 var journalOperations = func() []app.Operation {
 	ops, err := appjournal.Operations(func(ctx context.Context) *appjournal.Service {
-		return journalReads(ctx.Value(appHostKey{}).(appHost).kernel)
+		return journalReads(ctx)
 	})
 	if err != nil {
 		panic(err)
@@ -1081,8 +1081,7 @@ var okrOperations = func() []app.Operation {
 var storageOperations = func() []app.Operation {
 	ops, err := appstorage.Operations(func(ctx context.Context) *appstorage.Service {
 		server := ctx.Value(systemHostKey{}).(*Server)
-		k := ctx.Value(appHostKey{}).(appHost).kernel
-		return appstorage.New(k.BaseDir(), storageFilesystem{}, server.diskFree)
+		return appstorage.New(requestBaseDirPorts(ctx).Dir(), storageFilesystem{}, server.diskFree)
 	})
 	if err != nil {
 		panic(err)
@@ -1313,7 +1312,7 @@ var pluginInventoryOperations = func() []app.Operation {
 
 var configReadOperations = func() []app.Operation {
 	operations, err := appconfig.Operations(func(ctx context.Context) *appconfig.Service {
-		return appconfig.New(nativeConfigReader{kernel: ctx.Value(appHostKey{}).(appHost).kernel, tools: requestToolsPorts(ctx), edict: requestEdictPorts(ctx), provider: requestProviderPorts(ctx)}, configEnvVars, nativeConfigEnvPresent)
+		return appconfig.New(nativeConfigReader{kernel: ctx.Value(appHostKey{}).(appHost).kernel, tools: requestToolsPorts(ctx), edict: requestEdictPorts(ctx), provider: requestProviderPorts(ctx), basedir: requestBaseDirPorts(ctx)}, configEnvVars, nativeConfigEnvPresent)
 	})
 	if err != nil {
 		panic(err)
