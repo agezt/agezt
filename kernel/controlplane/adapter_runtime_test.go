@@ -135,6 +135,37 @@ func toolsOwnedVerbs(t *testing.T) []string {
 	return kernelVerbsNamed(t, "Tool", "MCP")
 }
 
+// okrAccessorFile is where the kernel's objective verbs live.
+const okrAccessorFile = "../runtime/okr.go"
+
+// okrAccessor finds the kernel's objective verbs in the file that declares
+// them.
+var okrAccessor = regexp.MustCompile(`func \(k \*Kernel\) ([A-Z][A-Za-z0-9_]*)\(`)
+
+// okrOwnedVerbs are the kernel's OBJECTIVE verbs: the library's store, the
+// rollup and the five writes.
+//
+// The rule reads the kernel's own objective file rather than the NAME: the
+// rollup verb is called "Rollup" and says nothing about objectives, so a
+// name rule would miss it — and a verb the rule misses is a verb the adapter
+// may name.
+func okrOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	raw, err := os.ReadFile(okrAccessorFile)
+	if err != nil {
+		t.Fatalf("read the kernel's objective accessors: %v", err)
+	}
+	matches := okrAccessor.FindAllStringSubmatch(string(raw), -1)
+	if len(matches) == 0 {
+		t.Fatal("no objective verbs found — the kernel's objective accessors moved?")
+	}
+	verbs := make([]string, 0, len(matches))
+	for _, m := range matches {
+		verbs = append(verbs, m[1])
+	}
+	return verbs
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -143,7 +174,8 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, standingOwnedVerbs(t)...)
 	verbs = append(verbs, scheduleOwnedVerbs(t)...)
 	verbs = append(verbs, workflowOwnedVerbs(t)...)
-	return append(verbs, toolsOwnedVerbs(t)...)
+	verbs = append(verbs, toolsOwnedVerbs(t)...)
+	return append(verbs, okrOwnedVerbs(t)...)
 }
 
 // The guard's list must hold verbs the kernel actually has: a verb nobody has
@@ -273,6 +305,28 @@ func TestTheGuardNamesEveryToolsVerbTheKernelHas(t *testing.T) {
 	}
 }
 
+// And the same for the OBJECTIVE family — read from the kernel's own
+// objective file, independently of the helper the guard uses.
+func TestTheGuardNamesEveryObjectiveVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	raw, err := os.ReadFile(filepath.Join("..", "runtime", "okr.go"))
+	if err != nil {
+		t.Fatalf("read the kernel's objective accessors: %v", err)
+	}
+	declared := regexp.MustCompile(`func \(k \*Kernel\) ([A-Z][A-Za-z0-9_]*)\(`).FindAllStringSubmatch(string(raw), -1)
+	if len(declared) == 0 {
+		t.Fatal("no objective verbs found — the kernel's objective accessors moved?")
+	}
+	for _, m := range declared {
+		if !guarded[m[1]] {
+			t.Errorf("the kernel's objective verb %s is not named by the guard — the objective family's business belongs to the application", m[1])
+		}
+	}
+}
+
 // applicationOwnedVerbHits reports the application-owned verbs the source
 // reaches through a selector.
 //
@@ -391,27 +445,44 @@ func TestTheAdapterNamesTheRuntimeOnlyAsAHandle(t *testing.T) {
 	}
 }
 
-// The TOOLS family's services must be built from the family's PORTS.
+// The HANDLE must not be handed to an application.
 //
-// The verb rule above cannot see a HANDLE: `apptools.NewForgeLifecycle(k)`
+// The verb rule above cannot see a handle: `apptools.NewForgeLifecycle(k)`
 // names no verb at all, so the guard would read it as clean — and the handle
-// IS the tools family's whole capability surface, so handing it over is
-// handing over the family. This rule closes that door: the tools application
-// takes its ports, and the handle the ports were filled from stops at the
-// binding.
+// IS the family's whole capability surface, so handing it over is handing over
+// the family. This rule closes that door: an application takes PORTS, and the
+// handle the ports were filled from stops at the binding.
 //
 // The handle is the kernel itself, so the argument that hands it over is the
 // one that ENDS with the handle's spelling. An argument that reaches THROUGH
 // the handle for something else — the journal, say — is not the handle, and
 // the rule leaves it alone.
-var toolsApplicationImport = regexp.MustCompile(`(?:^|\n)\s*(?:(\w+)\s+)?"github\.com/agezt/agezt/kernel/app/tools"`)
-
-// handleArgument is an argument that hands the kernel handle over.
+//
+// The rule covers every application that has declared its OWN ports: that is
+// the port programme's own statement of who owns a kernel verb, and the list
+// is read from the tree, so a family is covered the day it declares them.
 var handleArgument = regexp.MustCompile(`(?:\bkernel\b|\.\s*k\b|\bk\b)$`)
 
-// toolsServiceArguments are the argument lists of the tools application's
+// programmeApplications are the applications that declare their own ports.
+func programmeApplications(t *testing.T) []string {
+	t.Helper()
+	matches, err := filepath.Glob(filepath.Join("..", "app", "*", "ports.go"))
+	if err != nil {
+		t.Fatalf("glob the applications that declare their ports: %v", err)
+	}
+	if len(matches) == 0 {
+		t.Fatal("no application declares its own ports — the port programme moved?")
+	}
+	names := make([]string, 0, len(matches))
+	for _, m := range matches {
+		names = append(names, filepath.Base(filepath.Dir(m)))
+	}
+	return names
+}
+
+// applicationServiceArguments are the argument lists of an application's
 // constructor calls in the source.
-func toolsServiceArguments(src, alias string) []string {
+func applicationServiceArguments(src, alias string) []string {
 	selector := regexp.MustCompile(`\b` + regexp.QuoteMeta(alias) + `\.New[A-Za-z0-9_]*\(`)
 	var lists []string
 	for _, loc := range selector.FindAllStringIndex(src, -1) {
@@ -461,7 +532,8 @@ func topLevelArguments(list string) []string {
 	return append(args, list[start:])
 }
 
-func TestTheAdapterHandsTheToolsApplicationPortsAndNotTheHandle(t *testing.T) {
+func TestTheAdapterHandsTheApplicationsPortsAndNotTheHandle(t *testing.T) {
+	applications := programmeApplications(t)
 	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatal(err)
@@ -477,19 +549,22 @@ func TestTheAdapterHandsTheToolsApplicationPortsAndNotTheHandle(t *testing.T) {
 		}
 		src := string(raw)
 
-		m := toolsApplicationImport.FindStringSubmatch(src)
-		if m == nil {
-			continue // the file does not name the tools application at all
-		}
-		alias := m[1]
-		if alias == "" {
-			alias = "tools"
-		}
-		for _, list := range toolsServiceArguments(src, alias) {
-			for _, arg := range topLevelArguments(list) {
-				arg = strings.TrimSpace(arg)
-				if handleArgument.MatchString(arg) {
-					t.Errorf("%s hands the kernel handle to the tools application (%s) — the family takes ports, not the handle it filled them from", name, arg)
+		for _, application := range applications {
+			importRE := regexp.MustCompile(`(?:^|\n)\s*(?:(\w+)\s+)?"github\.com/agezt/agezt/kernel/app/` + regexp.QuoteMeta(application) + `"`)
+			m := importRE.FindStringSubmatch(src)
+			if m == nil {
+				continue // the file does not name this application at all
+			}
+			alias := m[1]
+			if alias == "" {
+				alias = application
+			}
+			for _, list := range applicationServiceArguments(src, alias) {
+				for _, arg := range topLevelArguments(list) {
+					arg = strings.TrimSpace(arg)
+					if handleArgument.MatchString(arg) {
+						t.Errorf("%s hands the kernel handle to the %s application (%s) — the family takes ports, not the handle it filled them from", name, application, arg)
+					}
 				}
 			}
 		}

@@ -1127,11 +1127,11 @@ var workboardOperations = func() []app.Operation {
 
 var okrOperations = func() []app.Operation {
 	ops, err := appokr.Operations(func(ctx context.Context) *appokr.Service {
-		k := ctx.Value(appHostKey{}).(appHost).kernel
-		return appokr.New(k.OKR(), k)
+		ports := requestOKRPorts(ctx)
+		return appokr.New(ports.Reader, ports.Progress)
 	}, func(ctx context.Context) *appokr.Lifecycle {
-		k := ctx.Value(appHostKey{}).(appHost).kernel
-		return appokr.NewLifecycle(k, appokr.New(k.OKR(), k))
+		ports := requestOKRPorts(ctx)
+		return appokr.NewLifecycle(ports.Mutation, appokr.New(ports.Reader, ports.Progress))
 	})
 	if err != nil {
 		panic(err)
