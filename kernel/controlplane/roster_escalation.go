@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 
+	appeventbus "github.com/agezt/agezt/kernel/app/eventbus"
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
@@ -23,10 +24,11 @@ import (
 )
 
 func publishOperatorAction(k *runtime.Kernel, subject, corr string, payload map[string]any) {
-	if k == nil || k.Bus() == nil {
+	ports := appeventbus.PortsFromKernel(k)
+	if !ports.Ready() {
 		return
 	}
-	_, _ = k.Bus().Publish(event.Spec{
+	_, _ = ports.Publish(event.Spec{
 		Subject:       subject,
 		Kind:          event.KindInfo,
 		Actor:         "controlplane",

@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-209 package(s):
+210 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -26,6 +26,7 @@
 - **`kernel/app/council`** — Package council owns the Council of Elders (M839) and the Conductor (M997): the default membership, which models speak when the multi-model panel is convened without an explicit panel, the Conductor roles auto-filled from it, and the live operations that convene the panel and run the Conductor.
 - **`kernel/app/data`** — Package data is the operator's window onto the personal data lake (M836): browsing and lightly editing the structured collections agents build with the db tool (M834/M835), from the Web UI Data view and `agt data`.
 - **`kernel/app/edict`** — Package edict owns the operator's view of one kernel's policy engine: the trust levels, ask policy and hard-deny rules, and a dry-run decision probe.
+- **`kernel/app/eventbus`** — Package eventbus is the event bus application's ports.
 - **`kernel/app/execprofile`** — Package execprofile reports the execution profiles a kernel can route work to: the inventory, one profile, and the health check of each profile and policy, built from the kernel's tools and warden and the host's remote backend configuration.
 - **`kernel/app/files`** — Package files applies console file mutations through the host's governed tool invocation port.
 - **`kernel/app/guardians`** — Package guardians is the app-layer adapter that lets the guardian seeder — a plugin — reach the live daemon without naming the runtime.

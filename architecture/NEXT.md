@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4x the journal family's ports, 2026-10-28
+## Current checkpoint — W5.4y the event bus family's ports, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5792,6 +5792,45 @@ files, five of the seventeen mutations would have escaped.
   become somebody else's.
   Evidence:
   `architecture/229-w54x-the-journal-familys-ports-evidence.md`
+
+- W5.4y (the event bus family's ports, and the eleven families that publish
+  through it) is the port programme's **twelfth** slice and the **third** one of
+  its last phase: the handle itself. The bus is the one capability every family
+  **publishes** through, and the adapter reached for the kernel's bus in
+  **nineteen** places across **seven** files. Seven of them were **routed** (a
+  tenant's bus is the tenant's bus) and five read the daemon's own; the seven
+  that take the kernel as a **parameter** keep following the kernel they were
+  handed. The ports moved into the application (`kernel/app/eventbus`:
+  `PortsFromKernel`) and the adapter keeps the binding
+  (`kernel/controlplane/bus_ports.go`), which does not name the runtime. The bus
+  is the **first** family whose port does not carry the capability as a named
+  field: the bus is held **unexported** and the port offers `Publish`,
+  `Subscribe` and `Redactor`. That is not a style choice: the bus has a **nil
+  discipline**, and the adapter spelled "there is no bus" **five** times across
+  **five** files — five spellings that could disagree with each other. The
+  application spells it **once** (`ErrNoBus`), and because the object is hidden
+  the adapter **cannot** publish into nothing and cannot forget the check.
+  Because there is no named field, the **verb-name collision cannot happen at
+  all** — this programme learned that lesson four times, and this family never
+  had the chance. The application layer's operation audit now holds the **ports**
+  instead of the handle: the same bus, one layer down. The rule is **by name**
+  and answers to three names — `Bus`, `Event` and `Publish` — the last sweeping
+  in the runtime's own publishes, because they publish **through the bus** and
+  the adapter must not name them either: the adapter publishes by **asking** the
+  family. The guard now holds **101** application-owned verbs. The adapter's
+  handle-verb debt: **76 → 57** call sites, **29 → 28** distinct verbs.
+  **4 permanent tests** and **13 mutations, 13 caught** in two independent passes
+  with **byte-identical** logs (SHA-256 `94F0438…302E0`). M11, M12 and M13 put
+  the kernel back — the routed publisher reaches for the kernel's bus again,
+  the daemon's subscriber does the same, and the binding file names the runtime
+  again — and the **three rules** catch every one of them; none is a behavioural
+  regression, because the wiring would work **exactly as well**, it would simply
+  be in the wrong layer. M06 and M07 are the ones that bite: the port publishes
+  **nothing** and the port subscribes to **nothing**. M08 removes the nil
+  discipline and the host with no bus **panics** instead of answering; M09 makes
+  the port claim it is ready when there is no bus at all.
+  Evidence:
+  `architecture/230-w54y-the-event-bus-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

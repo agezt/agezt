@@ -7,13 +7,15 @@ package controlplane
 //             API unchanged.
 
 import (
+	appeventbus "github.com/agezt/agezt/kernel/app/eventbus"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/event"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
 func publishWorkboardDispatch(k *kernelruntime.Kernel, corr string, task workboardapi.Task, phase, agent, reason, answer, errText string) {
-	if k == nil || k.Bus() == nil {
+	ports := appeventbus.PortsFromKernel(k)
+	if !ports.Ready() {
 		return
 	}
 	payload := map[string]any{
@@ -34,7 +36,7 @@ func publishWorkboardDispatch(k *kernelruntime.Kernel, corr string, task workboa
 	if task.Seat != "" {
 		payload["seat"] = task.Seat
 	}
-	_, _ = k.Bus().Publish(event.Spec{
+	_, _ = ports.Publish(event.Spec{
 		Subject:       "workboard." + task.ID,
 		Kind:          event.KindWorkboardTaskDispatched,
 		Actor:         "workboard",

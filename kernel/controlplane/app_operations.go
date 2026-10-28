@@ -443,8 +443,8 @@ var reaperOperations = func() []app.Operation {
 
 var redactionOperations = func() []app.Operation {
 	ops, err := appredaction.Operations(func(ctx context.Context) *appredaction.Service {
-		k := ctx.Value(systemHostKey{}).(*Server).k
-		return appredaction.New(func() appredaction.Redactor { return k.Bus().Redactor() }, redact.MatchedCategories)
+		ports := ctx.Value(systemHostKey{}).(*Server).busPorts()
+		return appredaction.New(func() appredaction.Redactor { return ports.Redactor() }, redact.MatchedCategories)
 	})
 	if err != nil {
 		panic(err)
@@ -509,7 +509,7 @@ var edictOverlayOperations = func() []app.Operation {
 		save := func(snap *edict.OverlaySnapshot) error {
 			return edict.SaveOverlaySnapshot(filepath.Join(k.BaseDir(), "runtime", edict.OverlaySnapshotFile), snap)
 		}
-		return appedict.NewOverlay(requestJournalPorts(ctx).Events, save, func(spec event.Spec) { _, _ = k.Bus().Publish(spec) })
+		return appedict.NewOverlay(requestJournalPorts(ctx).Events, save, func(spec event.Spec) { _, _ = requestBusPorts(ctx).Publish(spec) })
 	})
 	if err != nil {
 		panic(err)
@@ -520,7 +520,7 @@ var edictOverlayOperations = func() []app.Operation {
 var edictWriteOperations = func() []app.Operation {
 	ops, err := appedict.WriteOperations(func(ctx context.Context) *appedict.Writes {
 		k := ctx.Value(appHostKey{}).(appHost).kernel
-		return appedict.NewWrites(k.Edict(), func(spec event.Spec) { _, _ = k.Bus().Publish(spec) })
+		return appedict.NewWrites(k.Edict(), func(spec event.Spec) { _, _ = requestBusPorts(ctx).Publish(spec) })
 	})
 	if err != nil {
 		panic(err)
@@ -600,9 +600,10 @@ var planAuthoringOperations = func() []app.Operation {
 
 var planRunOperations = func() []app.Operation {
 	ops, err := appruns.PlanRunOperations(func(ctx context.Context) *appruns.PlanRunner {
-		k := ctx.Value(systemHostKey{}).(*Server).k
+		s := ctx.Value(systemHostKey{}).(*Server)
+		k := s.k
 		return appruns.NewPlanRunner(k.LoopRunner, k.Approvals, k.RunPlan, func(pattern string, buffer int) (appruns.PlanSubscription, error) {
-			sub, err := k.Bus().Subscribe(pattern, buffer)
+			sub, err := s.busPorts().Subscribe(pattern, buffer)
 			if err != nil {
 				return nil, err
 			}
@@ -1291,9 +1292,8 @@ var toolboxReadOperations = func() []app.Operation {
 
 var toolboxInstallOperations = func() []app.Operation {
 	operations, err := apptools.ToolboxInstallOperations(func(ctx context.Context) *apptools.ToolboxInstall {
-		host := ctx.Value(appHostKey{}).(appHost)
 		return apptools.NewToolboxInstall(ctx.Value(systemHostKey{}).(*Server).toolboxHost, func(kind event.Kind, payload map[string]any) error {
-			_, err := host.kernel.Bus().Publish(event.Spec{Subject: "toolbox", Kind: kind, Actor: "toolbox", CorrelationID: opapi.CorrelationFromContext(ctx), Payload: payload})
+			_, err := requestBusPorts(ctx).Publish(event.Spec{Subject: "toolbox", Kind: kind, Actor: "toolbox", CorrelationID: opapi.CorrelationFromContext(ctx), Payload: payload})
 			return err
 		})
 	})
@@ -1343,7 +1343,7 @@ var marketWriteOperations = func() []app.Operation {
 	operations, err := appmarket.WriteOperations(func(ctx context.Context) *appmarket.Writes {
 		host := ctx.Value(appHostKey{}).(appHost)
 		publish := func(kind event.Kind, payload map[string]any) error {
-			_, err := host.kernel.Bus().Publish(event.Spec{Subject: "market", Kind: kind, Actor: "market", CorrelationID: opapi.CorrelationFromContext(ctx), Payload: payload})
+			_, err := requestBusPorts(ctx).Publish(event.Spec{Subject: "market", Kind: kind, Actor: "market", CorrelationID: opapi.CorrelationFromContext(ctx), Payload: payload})
 			return err
 		}
 		manager := host.kernel.Market()
