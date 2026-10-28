@@ -15,7 +15,7 @@ type inventoryReader struct {
 	reads      int
 }
 
-func (p *inventoryReader) Tools() map[string]toolapi.Tool { p.reads++; return p.registered }
+func (p *inventoryReader) Registered() map[string]toolapi.Tool { p.reads++; return p.registered }
 
 type inventoryTool struct {
 	def                      toolapi.ToolDef

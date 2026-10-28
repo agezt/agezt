@@ -13,7 +13,7 @@ func (s *Server) scheduleAdmission() *appschedule.Admission {
 		Agent:              s.rosterPorts().Get,
 		WorkflowName:       func(ref string) (string, bool) { w, ok := s.workflowPorts().Get(ref); return w.Name, ok },
 		Workflow:           func(ref string) bool { _, ok := s.workflowPorts().Get(ref); return ok },
-		Tool:               func(name string) bool { _, ok := s.k.Tools()[name]; return ok },
+		Tool:               s.toolsPorts().Has,
 		ManagedDirectError: approster.ManagedDirectCallError,
 	})
 }

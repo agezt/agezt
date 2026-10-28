@@ -374,13 +374,10 @@ var nodeOperations = func() []app.Operation {
 	ops, err := appnodes.Operations(func(ctx context.Context) *appnodes.Service {
 		s := ctx.Value(systemHostKey{}).(*Server)
 		return appnodes.New(appnodes.Ports{
-			Model: s.k.Model,
-			RemoteRun: func() (bool, bool) {
-				t, ok := s.k.Tools()["remote_run"]
-				return ok, t != nil
-			},
-			PeerSpec: s.nodePeerSpec,
-			Client:   nodeProbeClient,
+			Model:     s.k.Model,
+			RemoteRun: s.toolsPorts().RemoteRun,
+			PeerSpec:  s.nodePeerSpec,
+			Client:    nodeProbeClient,
 		})
 	})
 	if err != nil {
@@ -471,7 +468,7 @@ var rosterPermissionOperations = func() []app.Operation {
 		return approster.NewPermissions(approster.PermissionPorts{
 			Get:    s.rosterPorts().Get,
 			Update: s.rosterPorts().Update,
-			Tools:  s.k.Tools,
+			Tools:  s.toolsPorts().Registry.Registered,
 			Decide: func(capability edict.Capability, ceiling edict.TrustLevel) edict.Outcome {
 				return s.k.Edict().DecideWithCeiling(capability, "", ceiling)
 			},
@@ -1249,7 +1246,7 @@ var autonomyOperations = func() []app.Operation {
 
 var toolInventoryOperations = func() []app.Operation {
 	operations, err := apptools.InventoryOperations(func(ctx context.Context) *apptools.Inventory {
-		return apptools.NewInventory(ctx.Value(appHostKey{}).(appHost).kernel)
+		return apptools.NewInventory(requestToolsPorts(ctx).Registry)
 	})
 	if err != nil {
 		panic(err)
@@ -1269,7 +1266,7 @@ var toolObservationOperations = func() []app.Operation {
 
 var forgeReadOperations = func() []app.Operation {
 	operations, err := apptools.ForgeReadOperations(func(ctx context.Context) *apptools.ForgeCatalog {
-		return apptools.NewForgeCatalog(ctx.Value(appHostKey{}).(appHost).kernel.ToolForge())
+		return apptools.NewForgeCatalog(requestToolsPorts(ctx).Forge)
 	})
 	if err != nil {
 		panic(err)
@@ -1279,7 +1276,7 @@ var forgeReadOperations = func() []app.Operation {
 
 var forgeLifecycleOperations = func() []app.Operation {
 	operations, err := apptools.ForgeLifecycleOperations(func(ctx context.Context) *apptools.ForgeLifecycle {
-		return apptools.NewForgeLifecycle(ctx.Value(appHostKey{}).(appHost).kernel)
+		return apptools.NewForgeLifecycle(requestToolsPorts(ctx).ForgeWriter)
 	})
 	if err != nil {
 		panic(err)
@@ -1313,8 +1310,8 @@ var toolboxInstallOperations = func() []app.Operation {
 
 var mcpCatalogOperations = func() []app.Operation {
 	operations, err := apptools.MCPCatalogOperations(func(ctx context.Context) *apptools.MCPCatalog {
-		host := ctx.Value(appHostKey{}).(appHost)
-		return apptools.NewMCPCatalog(host.kernel.MCPReader(), host.kernel)
+		ports := requestToolsPorts(ctx)
+		return apptools.NewMCPCatalog(ports.MCP, ports.Attachment)
 	})
 	if err != nil {
 		panic(err)
@@ -1324,8 +1321,8 @@ var mcpCatalogOperations = func() []app.Operation {
 
 var mcpLifecycleOperations = func() []app.Operation {
 	operations, err := apptools.MCPLifecycleOperations(func(ctx context.Context) *apptools.MCPLifecycle {
-		host := ctx.Value(appHostKey{}).(appHost)
-		return apptools.NewMCPLifecycle(host.kernel, host.kernel)
+		ports := requestToolsPorts(ctx)
+		return apptools.NewMCPLifecycle(ports.MCPLifecycle, ports.Attachment)
 	})
 	if err != nil {
 		panic(err)
@@ -1378,7 +1375,7 @@ var pluginInventoryOperations = func() []app.Operation {
 
 var configReadOperations = func() []app.Operation {
 	operations, err := appconfig.Operations(func(ctx context.Context) *appconfig.Service {
-		return appconfig.New(nativeConfigReader{ctx.Value(appHostKey{}).(appHost).kernel}, configEnvVars, nativeConfigEnvPresent)
+		return appconfig.New(nativeConfigReader{kernel: ctx.Value(appHostKey{}).(appHost).kernel, tools: requestToolsPorts(ctx)}, configEnvVars, nativeConfigEnvPresent)
 	})
 	if err != nil {
 		panic(err)
