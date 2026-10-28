@@ -350,6 +350,35 @@ func skillOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
+// memoryOwnedVerbs are the kernel's MEMORY verbs: the manager, the active
+// records, the forget, the profile and the searches.
+//
+// The rule is BY WORD: a kernel verb whose name carries "Memory" as a whole
+// word is the memory family's business, and a verb that lands in the kernel is
+// guarded the day it lands.
+//
+// The sweep takes in the distillation verbs — the brain, the facts and the
+// profile: they consolidate the memory's own records, so they are the memory's
+// business even though the runtime calls them. The family answers to TWO
+// names, "Memory" and "Distill", because the checked distillation surface
+// (DistillBrain, DistillProfile) does not say "memory" in its name.
+func memoryOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	verbs := kernelVerbsWord(t, "Memory")
+	for _, verb := range kernelVerbsWord(t, "Distill") {
+		seen := false
+		for _, owned := range verbs {
+			if owned == verb {
+				seen = true
+			}
+		}
+		if !seen {
+			verbs = append(verbs, verb)
+		}
+	}
+	return verbs
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -364,6 +393,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, journalOwnedVerbs(t)...)
 	verbs = append(verbs, busOwnedVerbs(t)...)
 	verbs = append(verbs, skillOwnedVerbs(t)...)
+	verbs = append(verbs, memoryOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -577,6 +607,40 @@ func TestTheSkillFamilyDoesNotClaimTheMemorysVerbs(t *testing.T) {
 		if memoryVerbs[verb] {
 			t.Errorf("the skill family claims the kernel's %s — a memory is not a skill", verb)
 		}
+	}
+}
+
+// And the same for the MEMORY family — the daemon's records.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries "Memory" or "Distill" as a whole
+// word is the memory's business. The expectation is not derived through the
+// helper the guard uses.
+func TestTheGuardNamesEveryMemoryVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		carries := false
+		for _, word := range camelWords(name) {
+			if word == "Memory" || word == "Distill" {
+				carries = true
+			}
+		}
+		if !carries {
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's memory verb %s is not named by the guard — the memory family's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no memory verbs found — the kernel's memory verbs are gone?")
 	}
 }
 

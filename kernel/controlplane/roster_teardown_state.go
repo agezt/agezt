@@ -25,8 +25,8 @@ import (
 func (s *Server) teardownStatePorts() approster.TeardownStatePorts {
 	center := s.configCenterPorts()
 	return approster.TeardownStatePorts{
-		MemoryRecords: func() ([]memoryapi.Record, error) { return s.k.MemoryActive() },
-		ForgetMemory:  func(id string) (bool, error) { return s.k.MemoryForget("", id) },
+		MemoryRecords: func() ([]memoryapi.Record, error) { return s.memoryPorts().Active() },
+		ForgetMemory:  func(id string) (bool, error) { return s.memoryPorts().Forget(id) },
 		// A daemon with NO skill library holds a nil port (W3.55): the teardown
 		// sees no skills, and archiving refuses rather than calling into
 		// nothing.

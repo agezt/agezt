@@ -24,7 +24,7 @@ import (
 func (s *Server) impactPorts() approster.ImpactPorts {
 	return approster.ImpactPorts{
 		Schedules:     appschedule.PortsFromKernel(s.k).Entries,
-		MemoryRecords: func() ([]memoryapi.Record, error) { return s.k.MemoryActive() },
+		MemoryRecords: func() ([]memoryapi.Record, error) { return s.memoryPorts().Active() },
 		// A daemon with NO skill library holds a nil port (W3.55): the cascade
 		// sees no skills rather than calling into nothing.
 		Skills: func() ([]skillapi.Skill, error) {
