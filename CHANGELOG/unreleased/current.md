@@ -3305,6 +3305,14 @@ This file holds the active `[Unreleased]` working set.
   context and its panic reporting stay in the host: they are the protocol
   surface, not the application's.
 
+- **The config center family's ports moved into the application (W5.4w).** The
+  config center is the first of the families that hold a store, and the first
+  step of the port programme's last phase: the adapter stops reaching for the
+  kernel's config center and **asks the family** instead — the roster's
+  teardown, the roster's cascade and the roster's permission picture now take
+  their entries from the config center's own ports. The "a daemon with no
+  config center" nil-check moved with them: the adapter spelled it five
+  times, the application spells it once.
 - **The adapter's bindings no longer name the kernel runtime (W5.4v).** The
   tools, objective and workboard bindings hand the handle over by calling
   `PortsFromKernel` directly instead of through a helper that spelled the

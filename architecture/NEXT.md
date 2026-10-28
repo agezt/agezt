@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4v the binding does not name the runtime, 2026-10-28
+## Current checkpoint — W5.4w the config center family's ports, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5711,6 +5711,48 @@ files, five of the seventeen mutations would have escaped.
   name it.
   Evidence:
   `architecture/227-w54v-the-binding-does-not-name-the-runtime-evidence.md`
+
+- W5.4w (the config center family's ports, and the first step of the handle) is
+  the port programme's **tenth** slice and the **first** one of its last step:
+  the handle itself. W5.4n measured the whole remaining programme — the
+  adapter's kernel use is almost entirely port filling — and said the work was
+  "one family at a time, until the last family is gone and the handle goes
+  with it". Eight families are gone (council, roster, standing, schedule,
+  workflow, tools, objectives, workboard); this slice takes the **config
+  center**, the first of the families that hold a **store**, and the first
+  slice in which the adapter stops reaching for a kernel verb and **asks a
+  family** instead. The adapter reached for the kernel's config center in
+  **eleven** places across **five** files: three were **port filling** (the
+  center's own reads and writes) and two were **families asking the kernel**
+  for a capability that is not theirs (the roster's teardown, the roster's
+  permission picture) — because the config center family had no ports to ask.
+  The ports moved into the application (`kernel/app/configcenter`:
+  `PortsFromKernel`) and the adapter keeps the binding
+  (`kernel/controlplane/configcenter_ports.go`), which does not name the
+  runtime. The **nil-port discipline** moved with it: the adapter spelled "a
+  daemon with no config center" **five** times across two files — five
+  spellings that could disagree with each other — and the application spells
+  it **once**, in `PortsFromCenter`. The rule is **by name** — a kernel verb
+  that mentions the config center is the config center family's business — and
+  the guard now holds **93** application-owned verbs. The adapter's
+  handle-verb debt: **115 → 104** call sites, **31 → 30** distinct verbs.
+  **4 permanent tests** and **14 mutations, 14 caught** in two independent
+  passes with **byte-identical** logs (SHA-256 `19EFE4F1…E445E`).
+  **M12 survived the first calibration** and it is worth reading twice: it
+  breaks the teardown's config **delete** — the agent's own entries stop being
+  deleted — and **nothing caught it**, because the teardown's config path had
+  **no test at all**: the cascade test proved the entries were *counted* and
+  the permissions test proved the picture was *empty*, but no test ever
+  watched an entry disappear. The slice wrote that test, and the mutation is
+  caught now — the second time this programme a mutation has found a
+  **missing test** rather than a missing rule, and it is why the calibration
+  runs before the two clean passes. The handle stays: the adapter still calls
+  **104** kernel verbs on it — the journal (**27**), the bus (**19**), the
+  forge (**7**), the providers (**7**), the base directory (**6**), the memory
+  (**5**), the policy engine (**4**) — and those families own a store, and the
+  store is the host's file.
+  Evidence:
+  `architecture/228-w54w-the-config-center-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

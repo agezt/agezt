@@ -218,6 +218,18 @@ func workboardOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
+// configCenterOwnedVerbs are the kernel's CONFIG CENTER verbs: the center
+// itself, which the adapter used to reach for whenever a family needed the
+// config center's entries.
+//
+// The rule is BY NAME: a kernel verb that mentions the config center is the
+// config center family's business, and a verb that lands in the kernel is
+// guarded the day it lands.
+func configCenterOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	return kernelVerbsNamed(t, "ConfigCenter")
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -228,6 +240,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, workflowOwnedVerbs(t)...)
 	verbs = append(verbs, toolsOwnedVerbs(t)...)
 	verbs = append(verbs, okrOwnedVerbs(t)...)
+	verbs = append(verbs, configCenterOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -393,6 +406,25 @@ func TestTheGuardNamesEveryWorkboardVerbTheKernelHas(t *testing.T) {
 	}
 	if found == 0 {
 		t.Fatal("no workboard accessor files found — the kernel's workboard verbs moved?")
+	}
+}
+
+// And the same for the CONFIG CENTER family — the center the roster's
+// teardown, the roster's cascade and the roster's permissions all read.
+func TestTheGuardNamesEveryConfigCenterVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		if !strings.Contains(name, "ConfigCenter") {
+			continue
+		}
+		if !guarded[name] {
+			t.Errorf("the kernel's config center verb %s is not named by the guard — the config center family's business belongs to the application", name)
+		}
 	}
 }
 

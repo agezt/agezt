@@ -35,10 +35,8 @@ func (s *Server) impactPorts() approster.ImpactPorts {
 			return f.List()
 		},
 		ConfigEntries: func() []*configcenter.ConfigEntry {
-			if s.k.ConfigCenter() == nil {
-				return nil
-			}
-			return s.k.ConfigCenter().ListEntries()
+			entries, _ := s.configCenterPorts().Entries()
+			return entries
 		},
 		WorkspaceInfo: s.agentWorkspaceInfo,
 		Workflows:     s.workflowPorts().Entries,

@@ -24,6 +24,7 @@ import (
 // teardownStatePorts binds the host's stores to the application's state
 // cleanup.
 func (s *Server) teardownStatePorts() approster.TeardownStatePorts {
+	center := s.configCenterPorts()
 	return approster.TeardownStatePorts{
 		MemoryRecords: func() ([]memoryapi.Record, error) { return s.k.MemoryActive() },
 		ForgetMemory:  func(id string) (bool, error) { return s.k.MemoryForget("", id) },
@@ -45,23 +46,11 @@ func (s *Server) teardownStatePorts() approster.TeardownStatePorts {
 			return f.Archive("", id, reason)
 		},
 		ConfigEntries: func() []*configcenter.ConfigEntry {
-			if s.k.ConfigCenter() == nil {
-				return nil
-			}
-			return s.k.ConfigCenter().ListEntries()
+			entries, _ := center.Entries()
+			return entries
 		},
-		DeleteConfig: func(key string) error {
-			if s.k.ConfigCenter() == nil {
-				return nil
-			}
-			return s.k.ConfigCenter().Delete(key)
-		},
-		SetConfig: func(e *configcenter.ConfigEntry) error {
-			if s.k.ConfigCenter() == nil {
-				return nil
-			}
-			return s.k.ConfigCenter().Set(e)
-		},
+		DeleteConfig:  center.Delete,
+		SetConfig:     center.Set,
 		WorkspaceRoot: s.agentWorkspaceRoot,
 		WorkspaceDir: func(dir string) (bool, bool, error) {
 			info, err := os.Stat(dir)
