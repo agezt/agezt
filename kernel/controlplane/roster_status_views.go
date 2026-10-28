@@ -4,10 +4,10 @@ package controlplane
 import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
+	appschedule "github.com/agezt/agezt/kernel/app/schedule"
 	appstanding "github.com/agezt/agezt/kernel/app/standing"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
-	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 )
 
 func (s *Server) agentStatusViews(profiles []agentapi.Profile) map[string]map[string]any {
@@ -19,20 +19,12 @@ func (s *Server) agentStatusViews(profiles []agentapi.Profile) map[string]map[st
 // standing orders, the board's open help requests and the reaper scan.
 func (s *Server) collectRosterStatusSnapshot(profiles []agentapi.Profile, reaperCut, routingCut int64) approster.StatusSnapshot {
 	return approster.CollectStatus(approster.StatusSources{
-		Journal: s.k.Journal().Range,
-		Runs:    s.statusRunRows,
-		Schedules: func() []cadenceapi.Entry {
-			// The schedule library is the daemon's file (W3.49): a host
-			// without it holds a nil port, and the status view sees no
-			// schedules rather than calling into nothing.
-			if s.k.Schedules() == nil {
-				return nil
-			}
-			return s.k.Schedules().List()
-		},
-		Standing: appstanding.PortsFromKernel(s.k).Orders,
-		Board:    s.statusBoardMessages,
-		Reaper:   func(cut int64) agentapi.ReaperReport { return s.k.ReaperScan(cut, cut) },
+		Journal:   s.k.Journal().Range,
+		Runs:      s.statusRunRows,
+		Schedules: appschedule.PortsFromKernel(s.k).Entries,
+		Standing:  appstanding.PortsFromKernel(s.k).Orders,
+		Board:     s.statusBoardMessages,
+		Reaper:    func(cut int64) agentapi.ReaperReport { return s.k.ReaperScan(cut, cut) },
 	}, profiles, reaperCut, routingCut)
 }
 

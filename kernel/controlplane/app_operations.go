@@ -1170,7 +1170,7 @@ var scheduleOperations = func() []app.Operation {
 		Lifecycle: func(ctx context.Context) *appschedule.Lifecycle { return server(ctx).scheduleLifecycle(ctx) },
 		Admission: func(ctx context.Context) *appschedule.Admission { return server(ctx).scheduleAdmission() },
 		Creation: func(ctx context.Context) *appschedule.Creation {
-			return appschedule.NewCreation(ctx.Value(appHostKey{}).(appHost).kernel.Schedules(), nil)
+			return appschedule.NewCreation(appschedule.PortsFromKernel(ctx.Value(appHostKey{}).(appHost).kernel).Store, nil)
 		},
 		Editing: func(ctx context.Context) *appschedule.Editing { return server(ctx).scheduleEditing() },
 		Firings: func(ctx context.Context) *appschedule.FiringService {
