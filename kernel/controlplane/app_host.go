@@ -9,6 +9,7 @@ import (
 	"net"
 	"time"
 
+	appeventbus "github.com/agezt/agezt/kernel/app/eventbus"
 	"github.com/agezt/agezt/kernel/app/opaudit"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
@@ -38,14 +39,14 @@ type appAuditor struct{}
 
 func (appAuditor) Begin(ctx context.Context, record opapi.AuditRecord) (opapi.AuditSpan, error) {
 	host, ok := ctx.Value(appHostKey{}).(appHost)
-	if !ok || host.kernel == nil || host.kernel.Bus() == nil || host.correlation == "" {
+	if !ok || host.correlation == "" || !requestBusPorts(ctx).Ready() {
 		return nil, errors.New("operation audit host unavailable")
 	}
 	var args map[string]any
 	if err := json.Unmarshal(record.Input, &args); err != nil {
 		return nil, err
 	}
-	span := &appAuditSpan{host: host, operation: record.Operation, start: time.Now()}
+	span := &appAuditSpan{host: host, ports: requestBusPorts(ctx), operation: record.Operation, start: time.Now()}
 	payload := map[string]any{"op": record.Operation, "caller": string(record.Principal.Kind)}
 	if record.Principal.Tenant != "" {
 		payload["tenant"] = record.Principal.Tenant
@@ -53,7 +54,7 @@ func (appAuditor) Begin(ctx context.Context, record opapi.AuditRecord) (opapi.Au
 	if redacted := opaudit.SummarizeArgs(args); redacted != nil {
 		payload["args"] = redacted
 	}
-	if _, err := host.kernel.Bus().Publish(event.Spec{
+	if _, err := requestBusPorts(ctx).Publish(event.Spec{
 		Subject: "op." + record.Operation, Kind: event.KindOpInvoked, Actor: "controlplane",
 		CorrelationID: host.correlation, Payload: payload,
 	}); err != nil {
@@ -64,6 +65,7 @@ func (appAuditor) Begin(ctx context.Context, record opapi.AuditRecord) (opapi.Au
 
 type appAuditSpan struct {
 	host      appHost
+	ports     appeventbus.Ports
 	operation string
 	start     time.Time
 }
@@ -75,7 +77,7 @@ func (s *appAuditSpan) End(_ context.Context, cause error) error {
 		kind = event.KindOpFailed
 		payload["error"] = opaudit.TruncateValue(cause.Error())
 	}
-	_, err := s.host.kernel.Bus().Publish(event.Spec{
+	_, err := s.ports.Publish(event.Spec{
 		Subject: "op." + s.operation, Kind: kind, Actor: "controlplane",
 		CorrelationID: s.host.correlation, Payload: payload,
 	})

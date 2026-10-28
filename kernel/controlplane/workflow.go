@@ -35,10 +35,11 @@ func (s *Server) workflowExecution() *appworkflow.Execution {
 		},
 		Panic: func(wake appworkflow.Wake, corr, name string, value any) {
 			fmt.Fprintf(os.Stderr, "workflow %q (%s) panicked: %v\n", name, wake.Source, value)
-			if s.k == nil || s.k.Bus() == nil {
+			ports := s.busPorts()
+			if !ports.Ready() {
 				return
 			}
-			_, _ = s.k.Bus().Publish(event.Spec{Subject: "workflow." + name, Kind: event.KindWorkflowPanic, Actor: "controlplane", CorrelationID: corr, Payload: map[string]any{"workflow": name, "source": wake.Source, "panic": fmt.Sprintf("%v", value)}})
+			_, _ = ports.Publish(event.Spec{Subject: "workflow." + name, Kind: event.KindWorkflowPanic, Actor: "controlplane", CorrelationID: corr, Payload: map[string]any{"workflow": name, "source": wake.Source, "panic": fmt.Sprintf("%v", value)}})
 		},
 	})
 }

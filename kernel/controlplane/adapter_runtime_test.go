@@ -244,6 +244,23 @@ func journalOwnedVerbs(t *testing.T) []string {
 	return kernelVerbsNamed(t, "Journal")
 }
 
+// busOwnedVerbs are the kernel's BUS verbs: the bus itself, the two verbs
+// that publish through it, and every verb whose name says an event is being
+// published.
+//
+// The rule is BY NAME: a kernel verb that mentions the bus, an event or a
+// publish is the event bus family's business, and a verb that lands in the
+// kernel is guarded the day it lands.
+//
+// The "Publish" name sweeps in the runtime's own publishes — the intent
+// interpretation, the heuristic bypass, the context failure analysis. They
+// publish through the bus, so the adapter must not name them either: the
+// adapter publishes by ASKING the family, never by reaching for the kernel.
+func busOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	return kernelVerbsNamed(t, "Bus", "Event", "Publish")
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -256,6 +273,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, okrOwnedVerbs(t)...)
 	verbs = append(verbs, configCenterOwnedVerbs(t)...)
 	verbs = append(verbs, journalOwnedVerbs(t)...)
+	verbs = append(verbs, busOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -439,6 +457,25 @@ func TestTheGuardNamesEveryJournalVerbTheKernelHas(t *testing.T) {
 		}
 		if !guarded[name] {
 			t.Errorf("the kernel's journal verb %s is not named by the guard — the journal family's business belongs to the application", name)
+		}
+	}
+}
+
+// And the same for the EVENT BUS family — the transport every family
+// publishes through.
+func TestTheGuardNamesEveryBusVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		if !strings.Contains(name, "Bus") && !strings.Contains(name, "Event") && !strings.Contains(name, "Publish") {
+			continue
+		}
+		if !guarded[name] {
+			t.Errorf("the kernel's bus verb %s is not named by the guard — the event bus family's business belongs to the application", name)
 		}
 	}
 }

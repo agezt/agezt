@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	appeventbus "github.com/agezt/agezt/kernel/app/eventbus"
 	"github.com/agezt/agezt/kernel/app/opaudit"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -53,6 +54,7 @@ func (c *auditedConn) outcome() (settled bool, errMsg string) {
 // opAudit journals one state-changing command's invocation and outcome.
 type opAudit struct {
 	k     *runtime.Kernel
+	ports appeventbus.Ports
 	cmd   string
 	corr  string
 	start time.Time
@@ -61,7 +63,8 @@ type opAudit struct {
 
 func beginOpAudit(dc *DispatchCtx) *opAudit {
 	k := dc.K
-	if k == nil || k.Bus() == nil {
+	ports := appeventbus.PortsFromKernel(k)
+	if !ports.Ready() {
 		return nil
 	}
 	caller := "operator"
@@ -70,6 +73,7 @@ func beginOpAudit(dc *DispatchCtx) *opAudit {
 	}
 	a := &opAudit{
 		k:     k,
+		ports: ports,
 		cmd:   dc.Req.Cmd,
 		corr:  k.NewCorrelation(),
 		start: time.Now(),
@@ -82,7 +86,7 @@ func beginOpAudit(dc *DispatchCtx) *opAudit {
 	if args := opaudit.SummarizeArgs(dc.Req.Args); args != nil {
 		payload["args"] = args
 	}
-	_, _ = k.Bus().Publish(event.Spec{
+	_, _ = ports.Publish(event.Spec{
 		Subject:       "op." + a.cmd,
 		Kind:          event.KindOpInvoked,
 		Actor:         "controlplane",
@@ -112,7 +116,7 @@ func (a *opAudit) end(panicked bool) {
 	case errMsg != "":
 		kind, payload["error"] = event.KindOpFailed, opaudit.TruncateValue(errMsg)
 	}
-	_, _ = a.k.Bus().Publish(event.Spec{
+	_, _ = a.ports.Publish(event.Spec{
 		Subject:       "op." + a.cmd,
 		Kind:          kind,
 		Actor:         "controlplane",
