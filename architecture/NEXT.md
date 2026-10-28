@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4ac the provider family's ports, 2026-10-28
+## Current checkpoint — W5.4ad the data root's ports, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -6002,6 +6002,51 @@ files, five of the seventeen mutations would have escaped.
   forwarded**.
   Evidence:
   `architecture/234-w54ac-the-providers-ports-evidence.md`
+
+- W5.4ad (the daemon's data root, and the family that owns nothing but a place)
+  is the port programme's **seventeenth** slice and the **eighth** one of its last
+  phase: the handle itself. The data root is where the daemon keeps everything —
+  the journal's segments, the sandbox's projects, the storage's artifacts, the
+  policy overlay's snapshot, the roster's workspaces — and the adapter reached for
+  the kernel's base directory in **six** places across **five** files, every one
+  of them belonging to a **different** family. The ports moved into the
+  application (`kernel/app/basedir`: `PortsFromKernel`) and the adapter keeps the
+  binding (`kernel/controlplane/basedir_ports.go`), which does not name the
+  runtime. The family is one string wide, and that is the whole truth about it:
+  the data root is not the journal's business, nor the sandbox's, nor the
+  storage's — it is the place all of them keep their files, and it is a family
+  of its own for exactly that reason. This is also the one binding where "the
+  daemon's base dir" would be **wrong**: the tenant registry opens **one base
+  directory per tenant**, so four of the six routed sites would have put a
+  tenant's journal and a tenant's artifacts under the **daemon's** directory had
+  the server's own field been used — the daemon and the routed kernel are bound
+  apart, like every other family. The slice also moved the **ratchet**: the
+  journal statistics file asked the kernel for its base directory and nothing
+  else, and that one call was the file's only reason to name the runtime, so the
+  control plane now names the runtime in **14** production files instead of
+  **15** — and the machine-checked constant moved with the tree and with the
+  documents that state it. The ratchet test's **name** carried the count, so
+  every move of the count wanted a rename; it is
+  `TestTheControlPlaneNamesTheRuntimeInTheRecordedNumberOfFiles` now, because
+  the name should say the **rule** and the rule does not move. The rule is **by
+  word**, and the family name is **two** words: camel-case splits `BaseDir` into
+  `Base` and `Dir`, so the rule looks for a verb carrying **both** — neither
+  half is the family on its own (`Base` alone is too loose, and `BaseDir` as a
+  **substring** over-captures, because `RebaseDir` begins with `Base` and
+  carries no `Base` word at all). The guard now holds **123** application-owned
+  verbs. The adapter's handle-verb debt: **34 → 28** call sites, **22 → 21**
+  distinct verbs. **5 permanent tests** and **13 mutations, 13 caught** in two
+  independent passes with **byte-identical** logs (SHA-256 `86105055…CC2E794`).
+  M07 through M12 put the kernel back — the sandbox, the storage, the policy
+  overlay, the config reader, the journal reads and the workspace root each
+  reach for the kernel's base directory again — and the **verb guard** catches
+  every one of them; none is a behavioural regression, because the wiring would
+  work **exactly as well**, it would simply be in the wrong layer. M01, M02, M03
+  and M06 are the ones that bite: the port binds **no** root, the daemon's
+  binding answers for **nobody**, the request's binding answers for **nobody**,
+  and the port reports **another** root.
+  Evidence:
+  `architecture/235-w54ad-the-data-roots-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
