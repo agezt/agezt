@@ -100,13 +100,26 @@ func scheduleOwnedVerbs(t *testing.T) []string {
 	return kernelVerbsNamed(t, "Schedule")
 }
 
+// workflowOwnedVerbs are the kernel's WORKFLOW verbs: the library's store, the
+// engine that runs it, and the eight verbs the workflow services need —
+// save, restore, enable, remove, draft, refine, run and test.
+//
+// This is the first family whose application holds the HANDLE itself, so the
+// rule matters most here: the application may reach the handle's workflow
+// verbs through its port, and the adapter may not.
+func workflowOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	return kernelVerbsNamed(t, "Workflow")
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
 	verbs := append([]string{}, councilOwnedVerbs...)
 	verbs = append(verbs, rosterOwnedVerbs(t)...)
 	verbs = append(verbs, standingOwnedVerbs(t)...)
-	return append(verbs, scheduleOwnedVerbs(t)...)
+	verbs = append(verbs, scheduleOwnedVerbs(t)...)
+	return append(verbs, workflowOwnedVerbs(t)...)
 }
 
 // The guard's list must hold verbs the kernel actually has: a verb nobody has
@@ -194,6 +207,25 @@ func TestTheGuardNamesEveryScheduleVerbTheKernelHas(t *testing.T) {
 		}
 		if !guarded[name] {
 			t.Errorf("the kernel's schedule verb %s is not named by the guard — the schedule family's business belongs to the application", name)
+		}
+	}
+}
+
+// And the same for the WORKFLOW family — the first one whose application
+// holds the handle itself.
+func TestTheGuardNamesEveryWorkflowVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		if !strings.Contains(name, "Workflow") {
+			continue
+		}
+		if !guarded[name] {
+			t.Errorf("the kernel's workflow verb %s is not named by the guard — the workflow family's business belongs to the application", name)
 		}
 	}
 }
