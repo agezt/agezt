@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4ad the data root's ports, 2026-10-28
+## Current checkpoint — W5.4ae the correlation family's ports, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -6047,6 +6047,52 @@ files, five of the seventeen mutations would have escaped.
   and the port reports **another** root.
   Evidence:
   `architecture/235-w54ad-the-data-roots-ports-evidence.md`
+
+- W5.4ae (the correlation family, and the binding a value cannot hold)
+  is the port programme's **eighteenth** slice and the **ninth** one of its last
+  phase: the handle itself. The correlation is the identity one operation
+  carries — the journal's rows, the audit's rows and the wake's lineage all
+  name it — and the daemon mints a fresh one for every mutating request. The
+  adapter reached for the kernel's correlation in **nine** places across **four**
+  files: six were **method values** (the mint handed over as a value) and three
+  were calls, and the correlation was the **largest** cluster the adapter had
+  left. The ports moved into the application (`kernel/app/correlation`:
+  `PortsFromKernel`) and the adapter keeps the binding
+  (`kernel/controlplane/correlation_ports.go`), which does not name the runtime.
+  The port holds the kernel's two surfaces as **capabilities** — the mint and the
+  actor decoration — so a family that asks for a correlation never names the
+  kernel's verb to get one, and the port cannot drift into being a handle: it
+  holds two functions, not a kernel. The **router** mints the request's
+  correlation before the request's kernel is in the context, so it builds the
+  family's ports from the kernel it holds, the way the council family has always
+  been built. The rule is **by whole word** — a kernel verb whose name carries
+  "Correlation" as a **complete word** is the correlation family's business — and
+  the sweep takes in **three** verbs: the mint, the actor decoration and the
+  wake provenance's parent correlation (a reader, but it reads the same
+  identity). The guard now holds **126** application-owned verbs. The slice also
+  says what it **could not** hold: the correlation is `"run-" + ulid.New()`, a
+  fresh ULID every time from a generator the kernel does not own per kernel, so
+  the daemon's mint and the tenant's mint are **indistinguishable by their
+  value** — a binding that answered with the wrong kernel would hand out a
+  perfectly good ULID. The binding test therefore holds what CAN be held (the
+  daemon's binding reaches a live kernel; every mint is its own) and records the rest as a
+  limit rather than dressing it up; and the kernel's correlation lives in a
+  **private** context key with no public reader, so the application reads the
+  **actor** instead — the part of the decoration the kernel does publish. The
+  adapter's handle-verb debt: **28 → 24** call sites, **21 → 19** distinct
+  verbs, and the **method values handed over fall from 15 to 9**.
+  **5 permanent tests** and **13 mutations, 13 caught** in two independent passes
+  with **byte-identical** logs (SHA-256 `FF14A51B…28A74`). M08 through M12 put
+  the kernel back — the roster's repair, the roster's wake, the router, the
+  operation audit and the schedule's action each reach for the kernel's
+  correlation again — and the **verb guard** catches every one of them; none is
+  a behavioural regression, because the wiring would work **exactly as well**,
+  it would simply be in the wrong layer. M01, M02, M03, M06 and M07 are the ones
+  that bite: the port holds **no** mint, the daemon's binding answers for
+  **nobody**, the request's binding answers for **nobody**, the port hands out
+  **one** correlation for every operation, and the port stamps **no** actor.
+  Evidence:
+  `architecture/236-w54ae-the-correlation-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
