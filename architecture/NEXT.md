@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4o the roster's own ports, and a guard that reads the kernel, 2026-10-28
+## Current checkpoint — W5.4p the standing family's ports, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5478,6 +5478,33 @@ files, five of the seventeen mutations would have escaped.
   now, so the next family fills in the same rule instead of writing a new one.
   Evidence:
   `architecture/220-w54o-the-rosters-own-ports-evidence.md`
+
+- W5.4p (the standing family's ports, and the nil-port discipline that moved
+  with them) is the **third** family of the port programme, and the first one
+  that is a set of **stores** rather than plain verbs: the daemon opens the
+  standing library and hands the kernel a contract port (W3.50), and a daemon
+  with no library holds a **nil** port. The adapter carried that discipline
+  itself, spelled **twice** — and a third surface that forgot it would have
+  called into nothing. The standing family's ports moved into the application
+  (`kernel/app/standing`: `PortsFromKernel`), the application now spells the
+  nil-check **once**, and **four** kernel verb sites left the adapter's
+  production code. The adapter no longer hands `s.k` to an application
+  constructor at all: it hands the application a **narrow** view (four
+  methods). The guard needed its **own** rule and could not use the roster's —
+  the standing accessor file also holds the data accessors, so a file rule
+  would sweep in verbs that are not the standing family's. The standing rule is
+  **the name**, and the test that holds it reads the kernel's own method set
+  **independently** of the helper the guard uses, for the reason W5.4o's
+  calibration forced. The guard now holds **21** application-owned verbs.
+  **3 permanent tests** and **12 mutations, 12 caught** in two independent
+  passes with **byte-identical** logs (SHA-256 `306EA35F…B9E23`). M05 and M06
+  break the pause port in **opposite** directions — do nothing, do the
+  opposite — and only the flag's direction in the assertion separates them.
+  The ratchet does not move yet — the control plane still imports the runtime
+  in **15** files — and the next family is the **schedule** library (W3.49):
+  the same shape, with the pattern now proven for both halves.
+  Evidence:
+  `architecture/221-w54p-the-standing-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
