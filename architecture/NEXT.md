@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4q the schedule family's ports, 2026-10-28
+## Current checkpoint — W5.4r the workflow family's ports, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5529,6 +5529,32 @@ files, five of the seventeen mutations would have escaped.
   "the kernel, narrowed to what this application needs".
   Evidence:
   `architecture/222-w54q-the-schedule-familys-ports-evidence.md`
+
+- W5.4r (the workflow family's ports, and the handle that finally reaches the
+  application) is the **fifth** family of the port programme, and the first one
+  where the **handle itself** reaches the application. The four families
+  before it had a shape the application could hold without the kernel; the
+  workflow services need to save, restore, enable, remove, draft, refine, run
+  and test workflows, and the kernel is what does those — so the port is the
+  handle itself, seen through the interfaces the application already declares.
+  The workflow family's ports moved into the application (`kernel/app/workflow`:
+  `PortsFromKernel`), and **thirteen** kernel verb sites left the adapter's
+  production code: the adapter no longer hands the handle to an application
+  constructor at all. Two things stayed in the host on purpose — the execution
+  host's `WithWake` and `Panic` are the **adapter's** business — and the port's
+  `Run` and `TestNode` answer in the **application's** own rows, so the
+  kernel's result types stop at the application's edge. The guard needed its
+  **fourth** rule, and it matters most here because this is the family where
+  the handle is in play; the guard now holds **38** application-owned verbs.
+  **4 permanent tests** and **9 mutations, 9 caught** in two independent
+  passes with **byte-identical** logs (SHA-256 `E4D5444F…663C9`). M04 and M05
+  are worth reading together: they are the two ports that are the handle,
+  narrowed, and a port that is **nil** is not a narrow view — it is no view at
+  all. Five families are done, and the next ones (tools and MCP, workboard and
+  OKR) are the *verbs without libraries* — the same shape as the council's,
+  which is the template.
+  Evidence:
+  `architecture/223-w54r-the-workflow-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

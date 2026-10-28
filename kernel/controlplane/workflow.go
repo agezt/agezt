@@ -6,32 +6,30 @@ import (
 	"fmt"
 	appworkflow "github.com/agezt/agezt/kernel/app/workflow"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
-	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/event"
 	"os"
 )
 
 func (s *Server) workflowReads() *appworkflow.Reads {
-	return appworkflow.NewReads(s.k.Workflows(), s.k.Journal(), nil)
+	ports := s.workflowPorts()
+	return appworkflow.NewReads(ports.Reader, ports.Journal, nil)
 }
 
-func (s *Server) workflowLifecycle() *appworkflow.Lifecycle { return appworkflow.NewLifecycle(s.k) }
+func (s *Server) workflowLifecycle() *appworkflow.Lifecycle {
+	return appworkflow.NewLifecycle(s.workflowPorts().Writer)
+}
 
 func (s *Server) workflowCopilot() *appworkflow.Copilot {
-	return appworkflow.NewCopilot(s.k.Workflows(), s.k, s.k.NewCorrelation)
+	ports := s.workflowPorts()
+	return appworkflow.NewCopilot(ports.Reader, ports.Designer, ports.Correlation)
 }
 
 func (s *Server) workflowExecution() *appworkflow.Execution {
-	return appworkflow.NewExecution(s.k.Workflows(), appworkflow.ExecutionHost{
-		Correlation: s.k.NewCorrelation,
-		Run: func(ctx context.Context, corr, ref string, payload any) (appworkflow.RunResult, error) {
-			res, err := s.k.RunWorkflow(ctx, corr, ref, payload)
-			return appworkflow.RunResult{Executed: res.Executed, Outputs: res.Outputs}, err
-		},
-		TestNode: func(ctx context.Context, corr string, w workflowapi.Workflow, node string, data map[string]any, payload any) (appworkflow.NodeResult, error) {
-			res, err := s.k.TestWorkflowNode(ctx, corr, w, node, data, payload)
-			return appworkflow.NodeResult{Output: res.Output, Port: res.Port, Attempts: res.Attempts}, err
-		},
+	ports := s.workflowPorts()
+	return appworkflow.NewExecution(ports.Reader, appworkflow.ExecutionHost{
+		Correlation: ports.Correlation,
+		Run:         ports.Run,
+		TestNode:    ports.TestNode,
 		WithWake: func(ctx context.Context, wake appworkflow.Wake) context.Context {
 			return agentapi.WithWakeContext(ctx, agentapi.WakeContext{Source: wake.Source, Reason: wake.Reason, ScheduleID: wake.ScheduleID, StandingID: wake.StandingID, StandingName: wake.StandingName, TriggerSubject: wake.TriggerSubject, ParentCorrelation: wake.ParentCorrelation})
 		},
