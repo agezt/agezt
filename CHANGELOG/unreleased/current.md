@@ -3305,6 +3305,14 @@ This file holds the active `[Unreleased]` working set.
   context and its panic reporting stay in the host: they are the protocol
   surface, not the application's.
 
+- **The provider family's ports moved into the application (W5.4ac).** The
+  provider is the daemon's live door to the model, and the adapter reached for
+  the kernel's provider in **nine** places — seven calls and two method values
+  the measurement could not see. The ports moved into the application
+  (`kernel/app/provider`: `PortsFromKernel`), the adapter asks the family, and
+  the daemon's governor's three faces — the routing tables, the routing view
+  and the spend — are named as **capabilities** instead of being asserted one
+  at a time.
 - **The policy family's ports moved into the application (W5.4ab).** The policy
   engine is the daemon's own authority, and the adapter reached for the
   kernel's engine in **four** places across **two** files. The ports moved into
