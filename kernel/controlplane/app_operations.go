@@ -473,11 +473,7 @@ var rosterPermissionOperations = func() []app.Operation {
 				return s.k.Edict().DecideWithCeiling(capability, "", ceiling)
 			},
 			Config: func() ([]*configcenter.ConfigEntry, bool) {
-				center := s.k.ConfigCenter()
-				if center == nil {
-					return nil, false
-				}
-				return center.ListEntries(), true
+				return s.configCenterPorts().Entries()
 			},
 		})
 	})
