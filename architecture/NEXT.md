@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4aa the memory family's ports, 2026-10-28
+## Current checkpoint — W5.4ab the policy family's ports, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5920,6 +5920,44 @@ files, five of the seventeen mutations would have escaped.
   refusal becomes a silent success.
   Evidence:
   `architecture/232-w54aa-the-memory-familys-ports-evidence.md`
+
+- W5.4ab (the policy family's ports, and the decision that must fail closed)
+  is the port programme's **fifteenth** slice and the **sixth** one of its last
+  phase: the handle itself. The policy engine is the daemon's own authority —
+  the thing every capability is decided against — and the adapter reached for
+  the kernel's engine in **four** places across **two** files: three in
+  `kernel/controlplane/app_operations.go` (one the daemon's own, two routed)
+  and one in `kernel/controlplane/config_handler.go` (the config reader that
+  reports the daemon's live fields). All four were the same verb: the kernel's
+  engine accessor (`Edict`). The ports moved into the application
+  (`kernel/app/edict`: `PortsFromKernel`) and the adapter keeps the binding
+  (`kernel/controlplane/edict_ports.go`), which does not name the runtime. The
+  engine is **two** views, and the port keeps the split: `Engine()` for the
+  readers and `WriteEngine()` for the writers, so the service that only reads
+  cannot write because the view it holds does not have the door. The slice's
+  one **decision** is the nil case: every other family answers "there is
+  nothing here", but the policy family's answer has a **direction** — a host
+  with no engine decides **deny**, names the capability and says why, because a
+  policy that cannot be asked must not let a capability through, and an empty
+  answer would have been an allow. The rule is **by whole word** — a kernel
+  verb whose name carries "Edict" as a **complete word** is the policy family's
+  business — and it is held in **both** directions: broad (every policy verb
+  the kernel has is named by the guard) and sharp (the policy's list claims no
+  other family's verb and does not claim the whole kernel), because a rule that
+  only ever grows is a rule that eventually guards everything and guards
+  nothing. The guard now holds **121** application-owned verbs. The adapter's
+  handle-verb debt: **45 → 41** call sites, **24 → 23** distinct verbs.
+  **5 permanent tests** and **13 mutations, 13 caught** in two independent passes
+  with **byte-identical** logs (SHA-256 `31FE3623…C3512D`). M11, M12 and M13 put
+  the kernel back — the routed consumer reaches for the kernel's engine again,
+  the daemon's consumer does the same, and the config reader does too — and the
+  **verb guard** catches every one of them; none is a behavioural regression,
+  because the wiring would work **exactly as well**, it would simply be in the
+  wrong layer. M06, M07 and M08 are the ones that bite: the port lets
+  **everything** through where it should refuse, the refusal loses its
+  **reason**, and the port decides with no engine at all.
+  Evidence:
+  `architecture/233-w54ab-the-policy-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
