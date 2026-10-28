@@ -1061,21 +1061,20 @@ var tasteOperations = func() []app.Operation {
 var skillOperations = func() []app.Operation {
 	operations, err := appskill.Operations(
 		func(ctx context.Context) *appskill.Service {
-			return appskill.New(ctx.Value(appHostKey{}).(appHost).kernel.Forge())
+			return appskill.New(requestSkillPorts(ctx).Reader())
 		},
 		func(ctx context.Context) *appskill.Lifecycle {
-			return appskill.NewLifecycle(ctx.Value(appHostKey{}).(appHost).kernel.Forge())
+			return appskill.NewLifecycle(requestSkillPorts(ctx).Lifecycle())
 		},
 		func(ctx context.Context) *appskill.Curation {
 			host := ctx.Value(appHostKey{}).(appHost)
-			return appskill.NewCuration(host.kernel.Forge(), func(slug string) bool {
+			return appskill.NewCuration(requestSkillPorts(ctx).Curation(), func(slug string) bool {
 				_, ok := approster.ProfilePortsFromKernel(host.kernel).Get(slug)
 				return ok
 			})
 		},
 		func(ctx context.Context) *appskill.Observations {
-			host := ctx.Value(appHostKey{}).(appHost)
-			return appskill.NewObservations(host.kernel.Forge(), requestJournalPorts(ctx).Events)
+			return appskill.NewObservations(requestSkillPorts(ctx).Observation(), requestJournalPorts(ctx).Events)
 		},
 	)
 	if err != nil {
@@ -1262,7 +1261,7 @@ var toolObservationOperations = func() []app.Operation {
 
 var forgeReadOperations = func() []app.Operation {
 	operations, err := apptools.ForgeReadOperations(func(ctx context.Context) *apptools.ForgeCatalog {
-		return apptools.NewForgeCatalog(requestToolsPorts(ctx).Forge)
+		return apptools.NewForgeCatalog(requestToolsPorts(ctx).ScriptForge)
 	})
 	if err != nil {
 		panic(err)

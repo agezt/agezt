@@ -39,12 +39,17 @@ type Ports struct {
 	// Registry reads the registered tools.
 	Registry RegistryReader
 
-	// Forge reads the script-tool forge.
+	// ScriptForge reads the script-tool forge.
 	//
 	// It is nil when the daemon holds no forge: the application answers
 	// "the script-tool forge is not available on this daemon" rather than
 	// reading into nothing.
-	Forge ForgeReader
+	//
+	// The field is the application's own name, for the reason Attachment has
+	// it: the kernel's verb for the skill library is called "Forge", and a
+	// port field that answers to a kernel verb's name is a verb the adapter
+	// may name — and the adapter holds this port.
+	ScriptForge ForgeReader
 
 	// ForgeWriter drives the script-tool lifecycle: draft, edit, test,
 	// promote, quarantine and remove.
@@ -69,7 +74,7 @@ type Ports struct {
 func PortsFromKernel(k *runtime.Kernel) Ports {
 	return Ports{
 		Registry:     kernelRegistry{k: k},
-		Forge:        k.ToolForge(),
+		ScriptForge:  k.ToolForge(),
 		ForgeWriter:  k,
 		MCP:          k.MCPReader(),
 		Attachment:   k,

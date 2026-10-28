@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4y the event bus family's ports, 2026-10-28
+## Current checkpoint — W5.4z the skill family's ports, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5831,6 +5831,52 @@ files, five of the seventeen mutations would have escaped.
   the port claim it is ready when there is no bus at all.
   Evidence:
   `architecture/230-w54y-the-event-bus-familys-ports-evidence.md`
+
+- W5.4z (the skill family's ports, and the rule that had to learn a word) is the
+  port programme's **thirteenth** slice and the **fourth** one of its last phase:
+  the handle itself. The skill library is the daemon's own file (W3.55) — the
+  forge that holds the skills — and the adapter reached for the kernel's forge in
+  **seven** places across **three** files. Four of them were **routed** (a
+  tenant's skills are the tenant's skills) and three read the daemon's own; the
+  slice keeps that split exactly. The ports moved into the application
+  (`kernel/app/skill`: `PortsFromKernel`) and the adapter keeps the binding
+  (`kernel/controlplane/skill_ports.go`), which does not name the runtime. The
+  curator is held **unexported**, like the bus's: the library may be absent, and
+  the port answers for that case. The adapter spelled "there is no skill
+  library" **three** times across **two** files — twice as a nil check and once
+  as a refusal it wrote out in full, word for word the refusal the application
+  already had for its own services; now there is **one** spelling of it, in the
+  application. The rule is **by whole word**: a kernel verb whose name carries
+  "Forge" as a **complete word** is the forge's business. That is not a
+  preference — the substring rule over-captures, because **"Forget" begins with
+  "Forge"**, and the memory's `MemoryForget` would have been handed to the
+  forge. The family answers for `Forge`, `MaybeForge`, `SkillForge` and
+  `SkillForgeMinTools`, and leaves the **tool** forge to the tools family. The
+  guard now holds **105** application-owned verbs. The slice also cleared two
+  more names that answered to a verb: the **tools port's field** was called
+  `Forge` — it holds the *script-tool* forge, a different forge, but a port
+  field that answers to a kernel verb's name is a verb the adapter may name, and
+  the adapter holds that port — so it is now `ScriptForge`, the **fifth** time
+  this programme learned that lesson; and a **comment** in the command
+  catalogue said "the kernel's `skill.Forge`", which the guard read as a
+  selector, because the guard reads the adapter's prose as well as its code. The
+  adapter's handle-verb debt: **57 → 50** call sites, **28 → 27** distinct
+  verbs. **5 permanent tests** and **13 mutations, 13 caught** in two
+  independent passes with **byte-identical** logs (SHA-256 `04B0CC0C…550595`).
+  M11, M12 and M13 put the kernel back — the routed consumer reaches for the
+  kernel's forge again, the daemon's consumer does the same, and the tools port
+  answers to the kernel verb's name again — and the **three rules** catch every
+  one of them; none is a behavioural regression, because the wiring would work
+  **exactly as well**, it would simply be in the wrong layer. M05 is the sharp
+  one: it puts the substring rule back, and the memory's verb walks into the
+  forge's list again — the rule is asked whether it is **sharp**, not only
+  whether it is **broad**. M07 survived the first calibration: it makes the
+  port's archive do nothing and **nothing caught it**, because the test asked
+  the wrong question — it asked "is the skill still active?", and a newly
+  created skill is a **draft**; the test now asks whether the skill the port
+  archived really is **archived**.
+  Evidence:
+  `architecture/231-w54z-the-skill-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

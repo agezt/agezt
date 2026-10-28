@@ -139,10 +139,10 @@ func TestTheToolsPortsRefuseADaemonWithNoForge(t *testing.T) {
 	defer k.Close()
 
 	ports := PortsFromKernel(k)
-	if ports.Forge != nil {
+	if ports.ScriptForge != nil {
 		t.Skip("this daemon holds a forge — the refusal is not the question here")
 	}
-	if _, err := NewForgeCatalog(ports.Forge).List(context.Background(), ForgeListInput{}); err == nil {
+	if _, err := NewForgeCatalog(ports.ScriptForge).List(context.Background(), ForgeListInput{}); err == nil {
 		t.Error("the forge catalog listed a daemon with no forge, want the plain refusal")
 	}
 }
@@ -194,7 +194,7 @@ func TestTheToolsPortsReachTheKernelForge(t *testing.T) {
 	defer k.Close()
 
 	ports := PortsFromKernel(k)
-	if ports.Forge == nil {
+	if ports.ScriptForge == nil {
 		t.Fatal("the forge port is nil — the application cannot read the forge")
 	}
 	if ports.ForgeWriter == nil {
@@ -209,11 +209,11 @@ func TestTheToolsPortsReachTheKernelForge(t *testing.T) {
 		t.Fatalf("the lifecycle port drafted %+v, want a stored tool", drafted)
 	}
 
-	found, ok := ports.Forge.Get(drafted.ID)
+	found, ok := ports.ScriptForge.Get(drafted.ID)
 	if !ok || found.Name != "echo" {
 		t.Fatalf("the forge port reads %+v %v, want the drafted tool", found, ok)
 	}
-	out, err := NewForgeCatalog(ports.Forge).List(context.Background(), ForgeListInput{})
+	out, err := NewForgeCatalog(ports.ScriptForge).List(context.Background(), ForgeListInput{})
 	if err != nil || out.Count != 1 || out.Tools[0].Name != "echo" {
 		t.Fatalf("the forge catalog = %+v %v, want the drafted tool", out, err)
 	}

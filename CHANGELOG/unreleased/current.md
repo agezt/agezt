@@ -3305,6 +3305,16 @@ This file holds the active `[Unreleased]` working set.
   context and its panic reporting stay in the host: they are the protocol
   surface, not the application's.
 
+- **The skill family's ports moved into the application (W5.4z).** The skill
+  library is the daemon's own file, and the adapter reached for the kernel's
+  forge in **seven** places across **three** files. The ports moved into the
+  application (`kernel/app/skill`: `PortsFromKernel`), the adapter asks the
+  family, and the families that read the library stop reaching for the kernel.
+  "There is no skill library" is now spelled once, in the application, instead
+  of three times in the adapter. The guard's rule for the forge is by **whole
+  word**, because "Forget" begins with "Forge" and the memory's verb is not the
+  forge's business; and the tools port's field, which answered to the kernel
+  verb's name, is now `ScriptForge`.
 - **The event bus family's ports moved into the application (W5.4y).** The bus
   is the one capability every family publishes through, and the adapter reached
   for the kernel's bus in **nineteen** places across **seven** files. The ports

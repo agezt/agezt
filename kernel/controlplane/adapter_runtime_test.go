@@ -261,6 +261,95 @@ func busOwnedVerbs(t *testing.T) []string {
 	return kernelVerbsNamed(t, "Bus", "Event", "Publish")
 }
 
+// camelWords splits a camel-case name into its words.
+//
+// "SkillForgeMinTools" is three words — Skill, Forge, Min, Tools — and
+// "MCPRegistration" is two — MCP, Registration. The split is what lets a
+// family say "a verb whose name carries MY word" without claiming a verb
+// that merely happens to contain the family's letters.
+func camelWords(name string) []string {
+	runes := []rune(name)
+	var words []string
+	start := 0
+	for i := 1; i < len(runes); i++ {
+		prev, cur := runes[i-1], runes[i]
+		boundary := false
+		switch {
+		case cur >= 'A' && cur <= 'Z' && (prev < 'A' || prev > 'Z'):
+			boundary = true
+		case cur >= 'A' && cur <= 'Z' && prev >= 'A' && prev <= 'Z' && i+1 < len(runes) && runes[i+1] >= 'a' && runes[i+1] <= 'z':
+			boundary = true
+		}
+		if boundary {
+			words = append(words, string(runes[start:i]))
+			start = i
+		}
+	}
+	return append(words, string(runes[start:]))
+}
+
+// kernelVerbsWord are the kernel's verbs whose name carries the family name as
+// a COMPLETE word.
+//
+// The substring rule over-captures when a family name hides inside another
+// word: "Forget" begins with "Forge", so the memory's MemoryForget would be
+// claimed by the forge — and it is not the forge's business. A whole word is
+// a word.
+func kernelVerbsWord(t *testing.T, family string) []string {
+	t.Helper()
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	var verbs []string
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		for _, word := range camelWords(name) {
+			if word == family {
+				verbs = append(verbs, name)
+				break
+			}
+		}
+	}
+	if len(verbs) == 0 {
+		t.Fatalf("no %s verbs found — the kernel's %s verbs are gone?", family, family)
+	}
+	return verbs
+}
+
+// skillOwnedVerbs are the kernel's SKILL verbs: the forge — the daemon's skill
+// library — and the verbs that say whether a run may forge.
+//
+// The rule is BY WORD: a kernel verb whose name carries "Forge" as a whole
+// word is the forge's business, and a verb that lands in the kernel is guarded
+// the day it lands.
+//
+// The sweep takes in MaybeForge, the runtime's own lifecycle hook: it decides
+// whether a run's answer becomes a skill, and a skill is the forge's business.
+//
+// The TOOL forge is left out: the script-tool forge is the tools family's own
+// verb, and a verb that another family names as a whole word is that family's
+// business. The skill family's own thresholds — SkillForgeMinTools — stay
+// here: a threshold on forging is the forge's business, even though the
+// tools' rule happens to catch it too.
+func skillOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	var verbs []string
+	for _, verb := range kernelVerbsWord(t, "Forge") {
+		other := false
+		for _, word := range camelWords(verb) {
+			if word == "Tool" || word == "MCP" {
+				other = true
+			}
+		}
+		if other {
+			continue
+		}
+		verbs = append(verbs, verb)
+	}
+	if len(verbs) == 0 {
+		t.Fatal("no skill verbs found — the kernel's skill verbs are gone?")
+	}
+	return verbs
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -274,6 +363,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, configCenterOwnedVerbs(t)...)
 	verbs = append(verbs, journalOwnedVerbs(t)...)
 	verbs = append(verbs, busOwnedVerbs(t)...)
+	verbs = append(verbs, skillOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -458,6 +548,72 @@ func TestTheGuardNamesEveryJournalVerbTheKernelHas(t *testing.T) {
 		if !guarded[name] {
 			t.Errorf("the kernel's journal verb %s is not named by the guard — the journal family's business belongs to the application", name)
 		}
+	}
+}
+
+// The rule must be SHARP, not only broad: a family name that hides inside
+// another word is not that word.
+//
+// "Forget" begins with "Forge", so a substring rule would hand the memory's
+// MemoryForget to the forge — and forgetting a memory is not the forge's
+// business. The rule is by WHOLE WORD, and the rule is held by the rule: the
+// memory's verbs are found HERE, by the kernel's own method set, and the
+// skill family's list must not carry any of them.
+func TestTheSkillFamilyDoesNotClaimTheMemorysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	memoryVerbs := map[string]bool{}
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		for _, word := range camelWords(name) {
+			if word == "Memory" {
+				memoryVerbs[name] = true
+			}
+		}
+	}
+	if len(memoryVerbs) == 0 {
+		t.Fatal("no memory verbs found — the kernel's memory verbs are gone?")
+	}
+	for _, verb := range skillOwnedVerbs(t) {
+		if memoryVerbs[verb] {
+			t.Errorf("the skill family claims the kernel's %s — a memory is not a skill", verb)
+		}
+	}
+}
+
+// And the same for the SKILL family — the daemon's skill library.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries "Forge" as a whole word is the
+// forge's business, and a verb the tools family already names is the tools
+// family's. The expectation is not derived through the helper the guard uses.
+func TestTheGuardNamesEverySkillVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		carries := false
+		for _, word := range camelWords(name) {
+			if word == "Forge" {
+				carries = true
+			}
+			if word == "Tool" || word == "MCP" {
+				carries = false
+			}
+		}
+		if !carries {
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's skill verb %s is not named by the guard — the skill family's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no skill verbs found — the kernel's skill verbs are gone?")
 	}
 }
 
