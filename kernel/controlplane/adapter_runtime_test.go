@@ -394,6 +394,22 @@ func edictOwnedVerbs(t *testing.T) []string {
 	return kernelVerbsWord(t, "Edict")
 }
 
+// providerOwnedVerbs are the kernel's PROVIDER verbs: the live provider every
+// routing and spending question goes through.
+//
+// The rule is BY WORD: a kernel verb whose name carries "Provider" as a whole
+// word is the provider family's business, and a verb that lands in the kernel
+// is guarded the day it lands.
+//
+// The daemon's live provider is the governor, and the governor carries three
+// faces the adapter used to reach one at a time: the routing tables it routes
+// by, the routing view it reports and the spend it keeps. One door, four
+// consumers — and the door belongs to the family.
+func providerOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	return kernelVerbsWord(t, "Provider")
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -410,6 +426,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, skillOwnedVerbs(t)...)
 	verbs = append(verbs, memoryOwnedVerbs(t)...)
 	verbs = append(verbs, edictOwnedVerbs(t)...)
+	verbs = append(verbs, providerOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -776,6 +793,85 @@ func TestTheEdictFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	kernelVerbs := kernel.NumMethod()
 	if len(edict) == kernelVerbs {
 		t.Errorf("the policy family claims all %d kernel verbs — a family that claims everything claims nothing", kernelVerbs)
+	}
+}
+
+// And the same for the PROVIDER family — the live provider the routing
+// tables, the routing view and the spend all come through.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries "Provider" as a whole word is the
+// provider's business. The expectation is not derived through the helper the
+// guard uses.
+func TestTheGuardNamesEveryProviderVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		carries := false
+		for _, word := range camelWords(name) {
+			if word == "Provider" {
+				carries = true
+			}
+		}
+		if !carries {
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's provider verb %s is not named by the guard — the provider family's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no provider verbs found — the kernel's provider verbs are gone?")
+	}
+}
+
+// And the PROVIDER family must not claim another family's verbs: the live
+// provider is not a tool's business, a memory's business, or the policy's.
+//
+// The rule must be BOTH broad and sharp. Broad: every provider verb is
+// guarded (the test above). Sharp: the provider's list carries nothing that
+// belongs to someone else, and it is a strict subset of the kernel's verbs —
+// a rule that only ever grows is a rule that eventually guards the whole
+// kernel, and a guard that guards the whole kernel guards nothing.
+func TestTheProviderFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	provider := providerOwnedVerbs(t)
+	if len(provider) == 0 {
+		t.Fatal("the provider family names no verb — the provider family's business belongs to the application")
+	}
+	for _, verb := range provider {
+		if others[verb] {
+			t.Errorf("the provider family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	if len(provider) == kernel.NumMethod() {
+		t.Errorf("the provider family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
 	}
 }
 

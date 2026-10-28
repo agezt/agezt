@@ -75,7 +75,6 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/executionprofile"
-	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/platform/rollbackstore"
 	"github.com/agezt/agezt/kernel/redact"
 	"github.com/agezt/agezt/kernel/settings"
@@ -116,21 +115,10 @@ var sandboxOperations = func() []app.Operation {
 	return ops
 }()
 
-// budgetGovernor adapts the primary kernel's governor to the budget port.
-type budgetGovernor struct{ g *governor.Governor }
-
-func (b budgetGovernor) Snapshot() appbudget.Snapshot {
-	return appbudget.SnapshotOf(b.g.Snapshot())
-}
-
-func (b budgetGovernor) SetDailyCeiling(microcents int64) { b.g.SetDailyCeiling(microcents) }
-
 var budgetOperations = func() []app.Operation {
 	ops, err := appbudget.Operations(func(ctx context.Context) *appbudget.Service {
-		if gov, ok := ctx.Value(systemHostKey{}).(*Server).k.Provider().(*governor.Governor); ok {
-			return appbudget.New(budgetGovernor{g: gov})
-		}
-		return appbudget.New(nil)
+		s := ctx.Value(systemHostKey{}).(*Server)
+		return appbudget.New(appbudget.GovernorFrom(s.providerPorts().Budget()))
 	})
 	if err != nil {
 		panic(err)
@@ -138,50 +126,15 @@ var budgetOperations = func() []app.Operation {
 	return ops
 }()
 
-// The governor's routing registries, asserted by method so any provider that
-// carries one is read and edited.
-type (
-	taskChainsReader interface {
-		TaskModelChainsView() map[string][]string
-	}
-	taskChainsWriter interface {
-		SetTaskModelChains(map[string][]string)
-	}
-	namedChainsReader interface {
-		FallbackChainsView() (map[string][]string, string)
-	}
-	namedChainsWriter interface {
-		SetFallbackChains(map[string][]string, string)
-	}
-)
-
 var routingOperations = func() []app.Operation {
 	ops, err := approuting.Operations(func(ctx context.Context) *approuting.Service {
 		s := ctx.Value(systemHostKey{}).(*Server)
+		provider := s.providerPorts()
 		return approuting.New(approuting.Ports{
-			TaskChains: func() (map[string][]string, bool) {
-				if gov, ok := s.k.Provider().(taskChainsReader); ok {
-					return gov.TaskModelChainsView(), true
-				}
-				return nil, false
-			},
-			SetTaskChains: func(chains map[string][]string) {
-				if gov, ok := s.k.Provider().(taskChainsWriter); ok {
-					gov.SetTaskModelChains(chains)
-				}
-			},
-			Named: func() (map[string][]string, string, bool) {
-				if gov, ok := s.k.Provider().(namedChainsReader); ok {
-					chains, def := gov.FallbackChainsView()
-					return chains, def, true
-				}
-				return nil, "", false
-			},
-			SetNamed: func(chains map[string][]string, def string) {
-				if gov, ok := s.k.Provider().(namedChainsWriter); ok {
-					gov.SetFallbackChains(chains, def)
-				}
-			},
+			TaskChains:    provider.TaskChains,
+			SetTaskChains: provider.SetTaskChains,
+			Named:         provider.Named,
+			SetNamed:      provider.SetNamed,
 			Agents: func() []approuting.Agent {
 				return approuting.Agents(s.rosterPorts().List())
 			},
@@ -348,7 +301,7 @@ var reflectionOperations = func() []app.Operation {
 var chatSummaryOperations = func() []app.Operation {
 	ops, err := appchat.SummaryOperations(func(ctx context.Context) *appchat.Summarizer {
 		k := ctx.Value(systemHostKey{}).(*Server).k
-		return appchat.NewSummarizer(appchat.SummaryPorts{Provider: k.Provider, Model: k.Model})
+		return appchat.NewSummarizer(appchat.SummaryPorts{Provider: ctx.Value(systemHostKey{}).(*Server).providerPorts().Live, Model: k.Model})
 	})
 	if err != nil {
 		panic(err)
@@ -401,13 +354,7 @@ var missionControlOperations = func() []app.Operation {
 	ops, err := appmissioncontrol.Operations(func(ctx context.Context) *appmissioncontrol.Service {
 		s := ctx.Value(systemHostKey{}).(*Server)
 		return appmissioncontrol.New(appmissioncontrol.Ports{
-			Spend: func() (int64, bool) {
-				gov, ok := s.k.Provider().(*governor.Governor)
-				if !ok {
-					return 0, false
-				}
-				return gov.Snapshot().SpentMicrocents, true
-			},
+			Spend: s.providerPorts().SpentMicrocents,
 			Pending: func() []approval.Request {
 				if registry := s.k.Approvals(); registry != nil {
 					return registry.Pending()
@@ -587,7 +534,7 @@ var tenantOperations = func() []app.Operation {
 
 var planAuthoringOperations = func() []app.Operation {
 	ops, err := appruns.PlanAuthoringOperations(func(ctx context.Context) *appruns.PlanAuthoring {
-		return appruns.NewPlanAuthoring(ctx.Value(systemHostKey{}).(*Server).k.Provider)
+		return appruns.NewPlanAuthoring(ctx.Value(systemHostKey{}).(*Server).providerPorts().Live)
 	})
 	if err != nil {
 		panic(err)
@@ -1366,7 +1313,7 @@ var pluginInventoryOperations = func() []app.Operation {
 
 var configReadOperations = func() []app.Operation {
 	operations, err := appconfig.Operations(func(ctx context.Context) *appconfig.Service {
-		return appconfig.New(nativeConfigReader{kernel: ctx.Value(appHostKey{}).(appHost).kernel, tools: requestToolsPorts(ctx), edict: requestEdictPorts(ctx)}, configEnvVars, nativeConfigEnvPresent)
+		return appconfig.New(nativeConfigReader{kernel: ctx.Value(appHostKey{}).(appHost).kernel, tools: requestToolsPorts(ctx), edict: requestEdictPorts(ctx), provider: requestProviderPorts(ctx)}, configEnvVars, nativeConfigEnvPresent)
 	})
 	if err != nil {
 		panic(err)
