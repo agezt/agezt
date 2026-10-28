@@ -12,6 +12,7 @@ package controlplane
 // future `--tenant` can scope it to a tenant's own journal.
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,14 +20,14 @@ import (
 
 	appjournal "github.com/agezt/agezt/kernel/app/journal"
 	"github.com/agezt/agezt/kernel/governor"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
 // journalReads binds the app journal reads to the given kernel's journal and
 // its on-disk directory.
-func journalReads(k *runtime.Kernel) *appjournal.Service {
+func journalReads(ctx context.Context) *appjournal.Service {
+	k := ctx.Value(appHostKey{}).(appHost).kernel
 	return appjournal.New(appjournal.PortsFromKernel(k).Events, func() (int, int64) {
-		dir := filepath.Join(k.BaseDir(), "journal")
+		dir := filepath.Join(requestBaseDirPorts(ctx).Dir(), "journal")
 		bytes, _ := dirUsage(dir)
 		return countSegments(dir), bytes
 	}, time.Now).WithCost(governor.CostMicrocents)

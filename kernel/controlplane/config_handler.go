@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	appbasedir "github.com/agezt/agezt/kernel/app/basedir"
 	appconfig "github.com/agezt/agezt/kernel/app/config"
 	appedict "github.com/agezt/agezt/kernel/app/edict"
 	appprovider "github.com/agezt/agezt/kernel/app/provider"
@@ -21,9 +22,10 @@ type nativeConfigReader struct {
 	tools    apptools.Ports
 	edict    appedict.Ports
 	provider appprovider.Ports
+	basedir  appbasedir.Ports
 }
 
-func (r nativeConfigReader) BaseDir() string       { return r.kernel.BaseDir() }
+func (r nativeConfigReader) BaseDir() string       { return r.basedir.Dir() }
 func (r nativeConfigReader) Model() string         { return r.kernel.Model() }
 func (r nativeConfigReader) SystemPromptSet() bool { return r.kernel.System() != "" }
 func (r nativeConfigReader) ToolCount() int        { return r.tools.Count() }

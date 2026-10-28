@@ -100,7 +100,7 @@ day it is written, and no list can rot.
 
 ### The ratchet
 
-`controlPlaneRuntimeNamingFiles = 15` is the **recorded** measurement: how
+`controlPlaneRuntimeNamingFiles = 15` was the **recorded** measurement: how
 many production files of the control plane name the kernel runtime. The
 comparison runs in **both** directions, because a number that is a
 measurement has to be updated in the slice that changes it:
@@ -120,7 +120,7 @@ tree, and nothing noticed.
 |---|---|
 | `TestTheAdapterBindingsDoNotNameTheRuntime` | no binding file names the runtime |
 | `TestTheBindingRuleSeesTheViolationItExistsFor` | the rule can see the violation it exists for |
-| `TestTheControlPlaneNamesTheRuntimeInFifteenFiles` | the recorded number is the measured number |
+| `TestTheControlPlaneNamesTheRuntimeInTheRecordedNumberOfFiles` | the recorded number is the measured number |
 | `TestTheRuntimeNamingCheckFailsInBothDirections` | the comparison fails in both directions |
 | `TestTheRuntimeNamingMeasurementCountsWhatItClaims` | the measurement counts production files |
 

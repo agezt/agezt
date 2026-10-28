@@ -3305,6 +3305,13 @@ This file holds the active `[Unreleased]` working set.
   context and its panic reporting stay in the host: they are the protocol
   surface, not the application's.
 
+- **The data root's ports moved into the application (W5.4ad).** The daemon keeps
+  everything under one root — the journal's segments, the sandbox's projects, the
+  storage's artifacts, the policy overlay's snapshot, the roster's workspaces —
+  and the adapter reached for the kernel's base directory in **six** places. The
+  ports moved into the application (`kernel/app/basedir`: `PortsFromKernel`), the
+  adapter asks the family, and the daemon's root and a tenant's own root are
+  bound apart: the tenant registry opens one base directory per tenant.
 - **The provider family's ports moved into the application (W5.4ac).** The
   provider is the daemon's live door to the model, and the adapter reached for
   the kernel's provider in **nine** places — seven calls and two method values

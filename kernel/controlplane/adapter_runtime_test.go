@@ -410,6 +410,48 @@ func providerOwnedVerbs(t *testing.T) []string {
 	return kernelVerbsWord(t, "Provider")
 }
 
+// baseDirOwnedVerbs are the kernel's DATA ROOT verbs: where the daemon keeps
+// everything.
+//
+// The rule is by WORD, and the family name is TWO words: camel-case splits
+// "BaseDir" into "Base" and "Dir", so a rule that looked for the whole name
+// would never match. The rule therefore looks for a verb that carries BOTH
+// words.
+//
+// Neither half is enough on its own. "Base" alone would be too loose, and the
+// compound "BaseDir" as a SUBSTRING would over-capture: "RebaseDir" begins
+// with "Base" and is not the data root's business. "RebaseDir" splits into
+// "Rebase" and "Dir", and carries no "Base" word at all.
+//
+// The family is its own family on purpose: the data root is not the journal's
+// business, nor the sandbox's, nor the storage's — it is the place all of
+// them keep their files, and it is the place a tenant's own kernel keeps the
+// tenant's.
+func baseDirOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	var verbs []string
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		hasBase, hasDir := false, false
+		for _, word := range camelWords(name) {
+			if word == "Base" {
+				hasBase = true
+			}
+			if word == "Dir" {
+				hasDir = true
+			}
+		}
+		if hasBase && hasDir {
+			verbs = append(verbs, name)
+		}
+	}
+	if len(verbs) == 0 {
+		t.Fatal("no data-root verbs found — the kernel's data-root verbs are gone?")
+	}
+	return verbs
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -427,6 +469,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, memoryOwnedVerbs(t)...)
 	verbs = append(verbs, edictOwnedVerbs(t)...)
 	verbs = append(verbs, providerOwnedVerbs(t)...)
+	verbs = append(verbs, baseDirOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -872,6 +915,86 @@ func TestTheProviderFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	}
 	if len(provider) == kernel.NumMethod() {
 		t.Errorf("the provider family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the same for the DATA ROOT family — where the daemon keeps everything.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries BOTH the "Base" and the "Dir"
+// words — the compound is two words, and neither half is the family. The
+// expectation is not derived through the helper the guard uses.
+func TestTheGuardNamesEveryBaseDirVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		hasBase, hasDir := false, false
+		for _, word := range camelWords(name) {
+			if word == "Base" {
+				hasBase = true
+			}
+			if word == "Dir" {
+				hasDir = true
+			}
+		}
+		if !hasBase || !hasDir {
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's data-root verb %s is not named by the guard — the data root's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no data-root verbs found — the kernel's data-root verbs are gone?")
+	}
+}
+
+// And the DATA ROOT family must not claim another family's verbs.
+//
+// The rule must be BOTH broad and sharp: broad (every data-root verb is
+// guarded, the test above) and sharp (the data root's list carries nothing
+// that belongs to someone else, and it is a strict subset of the kernel's
+// verbs).
+func TestTheBaseDirFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+		providerOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	baseDir := baseDirOwnedVerbs(t)
+	if len(baseDir) == 0 {
+		t.Fatal("the data-root family names no verb — the data root's business belongs to the application")
+	}
+	for _, verb := range baseDir {
+		if others[verb] {
+			t.Errorf("the data-root family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	if len(baseDir) == kernel.NumMethod() {
+		t.Errorf("the data-root family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
 	}
 }
 
