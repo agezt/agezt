@@ -11,7 +11,6 @@ package controlplane
 // here is the host's data access.
 
 import (
-	"errors"
 	"os"
 
 	approster "github.com/agezt/agezt/kernel/app/roster"
@@ -32,18 +31,10 @@ func (s *Server) teardownStatePorts() approster.TeardownStatePorts {
 		// sees no skills, and archiving refuses rather than calling into
 		// nothing.
 		Skills: func() ([]skillapi.Skill, error) {
-			f := s.k.Forge()
-			if f == nil {
-				return nil, nil
-			}
-			return f.List()
+			return s.skillPorts().List()
 		},
 		ArchiveSkill: func(id, reason string) error {
-			f := s.k.Forge()
-			if f == nil {
-				return errors.New("skill: the skill library is not available on this daemon")
-			}
-			return f.Archive("", id, reason)
+			return s.skillPorts().Archive(id, reason)
 		},
 		ConfigEntries: func() []*configcenter.ConfigEntry {
 			entries, _ := center.Entries()

@@ -28,11 +28,7 @@ func (s *Server) impactPorts() approster.ImpactPorts {
 		// A daemon with NO skill library holds a nil port (W3.55): the cascade
 		// sees no skills rather than calling into nothing.
 		Skills: func() ([]skillapi.Skill, error) {
-			f := s.k.Forge()
-			if f == nil {
-				return nil, nil
-			}
-			return f.List()
+			return s.skillPorts().List()
 		},
 		ConfigEntries: func() []*configcenter.ConfigEntry {
 			entries, _ := s.configCenterPorts().Entries()

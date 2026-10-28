@@ -61,7 +61,7 @@ const (
 	CmdWorldForget = "world_forget"
 
 	// Forge / skills (SPEC-05 §4–5). The journaled skill-lifecycle behind
-	// `agt skill`; transitions go through the kernel's skill.Forge so every
+	// `agt skill`; transitions go through the kernel's skill forge so every
 	// promote/quarantine/revert is auditable via `agt why`.
 	//
 	// CmdSkillList returns all skills (any state), with an active count.
