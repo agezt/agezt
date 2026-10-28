@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4p the standing family's ports, 2026-10-28
+## Current checkpoint — W5.4q the schedule family's ports, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5505,6 +5505,30 @@ files, five of the seventeen mutations would have escaped.
   the same shape, with the pattern now proven for both halves.
   Evidence:
   `architecture/221-w54p-the-standing-familys-ports-evidence.md`
+
+- W5.4q (the schedule family's ports, and the fifth nil-check that went with
+  them) is the **fourth** family of the port programme and the second one that
+  is a **library** rather than a set of plain verbs. The schedule library
+  (W3.49) has the same shape as the standing one, and the adapter was carrying
+  the same nil-port discipline **five** times — in three files — plus three
+  places that handed the raw store to an application constructor. The
+  schedule's ports moved into the application (`kernel/app/schedule`:
+  `PortsFromKernel`), the application spells the nil-check **once**, and the
+  schedule's **per-request** (routed tenant) kernel is bound too, so the
+  creation service is built from the kernel the request arrived on. The guard
+  needed its **third** rule, and the standing rule generalised into it: the
+  helper now takes the family's name. The guard holds **26** application-owned
+  verbs. **4 permanent tests** and **12 mutations, 12 caught** in two
+  independent passes with **byte-identical** logs (SHA-256 `B7E37BBA…A9396`).
+  M06 is worth reading: a removal port that says "removed" and removes nothing
+  is a **lie**, and only an assertion that looks at the library afterwards
+  catches it. The ratchet does not move yet — the control plane still imports
+  the runtime in **15** files — and the next family is the **workflow**
+  library, the first one that hands the application the **handle itself**:
+  the port the application holds stops being "the kernel's verbs" and becomes
+  "the kernel, narrowed to what this application needs".
+  Evidence:
+  `architecture/222-w54q-the-schedule-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
