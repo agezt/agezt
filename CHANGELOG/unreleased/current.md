@@ -3272,6 +3272,18 @@ This file holds the active `[Unreleased]` working set.
   the list pretending to guard something. The matcher also sees a verb that
   leaves the adapter as a **method value**, not only as a call.
 
+- **The standing family's wiring moved into the application (W5.4p).** The
+  standing library is the daemon's file: the daemon opens it and hands the
+  kernel a contract port, and a daemon with no library holds a **nil** port.
+  The adapter carried that discipline itself, spelled out twice, and a third
+  surface that forgot it would have called into nothing. The standing ports
+  now live in `kernel/app/standing` (`PortsFromKernel`), the application spells
+  the nil-check once, and **four** kernel verb sites left the adapter's
+  production code. The adapter no longer hands the kernel handle to an
+  application constructor: it hands the application a four-method view. The
+  guard's standing rule is derived from the kernel's own method set, so a
+  standing verb added to the kernel is guarded the day it lands.
+
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still
