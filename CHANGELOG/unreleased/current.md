@@ -3305,6 +3305,16 @@ This file holds the active `[Unreleased]` working set.
   context and its panic reporting stay in the host: they are the protocol
   surface, not the application's.
 
+- **The event bus family's ports moved into the application (W5.4y).** The bus
+  is the one capability every family publishes through, and the adapter reached
+  for the kernel's bus in **nineteen** places across **seven** files. The ports
+  moved into the application (`kernel/app/eventbus`: `PortsFromKernel`), the
+  adapter asks the family, and the **eleven** families that publish through it
+  stop reaching for the kernel. The port holds the bus unexported and offers
+  `Publish`, `Subscribe` and `Redactor`, so "there is no bus" is spelled once,
+  in the application, instead of five times in the adapter. A tenant's bus is
+  still the tenant's bus: the request's ports follow the routed kernel, the
+  daemon's own ports answer for the root.
 - **The journal family's ports moved into the application (W5.4x).** The event
   log is the one capability every family reads, and the adapter reached for
   the kernel's journal in **twenty-eight** places across **eight** files. The
