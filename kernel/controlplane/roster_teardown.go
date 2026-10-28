@@ -11,29 +11,24 @@ package controlplane
 
 import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
+	appstanding "github.com/agezt/agezt/kernel/app/standing"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
-	"github.com/agezt/agezt/kernel/contract/standingapi"
 )
 
 // teardownPorts binds the host's stores to the application's teardown.
 func (s *Server) teardownPorts() approster.TeardownPorts {
+	standing := appstanding.PortsFromKernel(s.k)
 	return approster.TeardownPorts{
 		RetireChild: func(slug, reason string) error {
 			_, err := s.rosterPorts().SetRetired(slug, true, reason)
 			return err
 		},
-		Standing: func() []standingapi.Order {
-			// The standing library is the daemon's file (W3.50): a host
-			// without it holds a nil port, and the teardown sees no standing
-			// orders rather than calling into nothing.
-			if s.k.Standing() == nil {
-				return nil
-			}
-			return s.k.Standing().List()
+		Standing:       standing.Orders,
+		RemoveStanding: standing.Remove,
+		SetStandingEnabled: func(id string, enabled bool) error {
+			return standing.SetEnabled(id, enabled)
 		},
-		RemoveStanding:     func(id string) (bool, error) { return s.k.RemoveStanding(id) },
-		SetStandingEnabled: func(id string, enabled bool) error { _, err := s.k.SetStandingEnabled(id, enabled); return err },
 		Schedules: func() []cadenceapi.Entry {
 			// The schedule library is the daemon's file (W3.49): a host
 			// without it holds a nil port, and the teardown sees no schedules

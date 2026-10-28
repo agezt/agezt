@@ -8,5 +8,6 @@ import (
 )
 
 func (s *Server) standingService() *appstanding.Service {
-	return appstanding.New(s.k.Standing(), s.k, appstanding.Host{Agent: s.rosterPorts().Get, ManagedDirectError: approster.ManagedDirectCallError})
+	ports := appstanding.PortsFromKernel(s.k)
+	return appstanding.New(ports.Reader, ports.Writer, appstanding.Host{Agent: s.rosterPorts().Get, ManagedDirectError: approster.ManagedDirectCallError})
 }
