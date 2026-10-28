@@ -166,6 +166,58 @@ func okrOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
+// workboardAccessor finds the kernel's workboard verbs in the file that
+// declares them.
+var workboardAccessor = regexp.MustCompile(`func \(k \*Kernel\) ([A-Z][A-Za-z0-9_]*)\(`)
+
+// workboardAccessorFiles finds the kernel's workboard files.
+//
+// The family's verbs live in more than one file — the task lifecycle in one,
+// the proof in another — so the rule reads them all. The pattern is a GLOB: a
+// verb that lands in a new workboard file is guarded the day it lands.
+func workboardAccessorFiles(t *testing.T) []string {
+	t.Helper()
+	matches, err := filepath.Glob(filepath.Join("..", "runtime", "workboard*.go"))
+	if err != nil {
+		t.Fatalf("glob the kernel's workboard accessors: %v", err)
+	}
+	var files []string
+	for _, m := range matches {
+		if strings.HasSuffix(m, "_test.go") {
+			continue
+		}
+		files = append(files, m)
+	}
+	if len(files) == 0 {
+		t.Fatal("no workboard accessor files found — the kernel's workboard verbs moved?")
+	}
+	return files
+}
+
+// workboardOwnedVerbs are the kernel's WORKBOARD verbs: the board's store, the
+// task lifecycle, the relations and the proof.
+//
+// The rule reads the kernel's own workboard files rather than the NAME: the
+// proof verb is called "ProveTask" and says nothing about the board, and a
+// verb the rule misses is a verb the adapter may name.
+func workboardOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	var verbs []string
+	for _, file := range workboardAccessorFiles(t) {
+		raw, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("read the kernel's workboard accessors: %v", err)
+		}
+		for _, m := range workboardAccessor.FindAllStringSubmatch(string(raw), -1) {
+			verbs = append(verbs, m[1])
+		}
+	}
+	if len(verbs) == 0 {
+		t.Fatal("no workboard verbs found — the kernel's workboard accessors moved?")
+	}
+	return verbs
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -175,7 +227,8 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, scheduleOwnedVerbs(t)...)
 	verbs = append(verbs, workflowOwnedVerbs(t)...)
 	verbs = append(verbs, toolsOwnedVerbs(t)...)
-	return append(verbs, okrOwnedVerbs(t)...)
+	verbs = append(verbs, okrOwnedVerbs(t)...)
+	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
 // The guard's list must hold verbs the kernel actually has: a verb nobody has
@@ -302,6 +355,44 @@ func TestTheGuardNamesEveryToolsVerbTheKernelHas(t *testing.T) {
 		if !guarded[name] {
 			t.Errorf("the kernel's tools verb %s is not named by the guard — the tools family's business belongs to the application", name)
 		}
+	}
+}
+
+// And the same for the WORKBOARD family — read from the kernel's own
+// workboard files, independently of the helper the guard uses.
+func TestTheGuardNamesEveryWorkboardVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	// The files are found HERE, independently of the helper the guard uses: a
+	// derivation that checks itself is not a derivation.
+	matches, err := filepath.Glob("../runtime/workboard*.go")
+	if err != nil {
+		t.Fatalf("glob the kernel's workboard accessors: %v", err)
+	}
+	found := 0
+	for _, file := range matches {
+		if strings.HasSuffix(file, "_test.go") {
+			continue
+		}
+		raw, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("read the kernel's workboard accessors: %v", err)
+		}
+		declared := regexp.MustCompile(`func \(k \*Kernel\) ([A-Z][A-Za-z0-9_]*)\(`).FindAllStringSubmatch(string(raw), -1)
+		if len(declared) == 0 {
+			t.Fatalf("no workboard verbs found in %s — the kernel's workboard accessors moved?", file)
+		}
+		found += len(declared)
+		for _, m := range declared {
+			if !guarded[m[1]] {
+				t.Errorf("the kernel's workboard verb %s is not named by the guard — the workboard family's business belongs to the application", m[1])
+			}
+		}
+	}
+	if found == 0 {
+		t.Fatal("no workboard accessor files found — the kernel's workboard verbs moved?")
 	}
 }
 

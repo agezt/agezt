@@ -8,7 +8,8 @@ import (
 )
 
 func (s *Server) workboardDispatcher() *appworkboard.Dispatch {
-	service := appworkboard.NewDispatch(s.k.Workboard(), s.k,
+	ports := s.workboardPorts()
+	service := appworkboard.NewDispatch(ports.Store, ports.Dispatch,
 		func(ref string) (appworkboard.DispatchAgent, bool) {
 			p, ok := s.rosterPorts().Get(ref)
 			if !ok {
