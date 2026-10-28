@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4w the config center family's ports, 2026-10-28
+## Current checkpoint — W5.4x the journal family's ports, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5753,6 +5753,45 @@ files, five of the seventeen mutations would have escaped.
   store is the host's file.
   Evidence:
   `architecture/228-w54w-the-config-center-familys-ports-evidence.md`
+
+- W5.4x (the journal family's ports, and the seventeen families that read it)
+  is the port programme's **eleventh** slice and the **second** one of its last
+  phase: the handle itself. The journal is the one capability **every** family
+  reads, and the adapter reached for the kernel's journal in **twenty-eight**
+  places across **eight** files — more sites than any other verb in the
+  control plane. Twelve of them were **routed** (a tenant's journal is the
+  tenant's journal) and the rest read the daemon's own; the slice keeps that
+  split exactly. The ports moved into the application
+  (`kernel/app/journal`: `PortsFromKernel`) and the adapter keeps the binding
+  (`kernel/controlplane/journal_ports.go`), which does not name the runtime.
+  The port carries the **journal itself**, and that is the point of this
+  family: every consumer already declares its **own** interface over the part
+  of the journal it uses — the roster's range, the channel inbox's append, the
+  schedule's firing, the pulse stream's tail — and those narrow views are the
+  consumers' business, not the family's. The field is named `Events`, not
+  `Journal`: the **fourth** time this programme learned that a port field must
+  not answer to a kernel verb's name; the collision this time was the
+  **workflow** application's own port field, so it was renamed and the adapter
+  reads `ports.Events`. The journal family's trace service was handed the
+  **whole handle**, and the **handle rule** caught it the moment the family
+  declared its own ports — the fix was free, because the kernel's three
+  provenance verbs are **pure delegations to the very same journal**, so the
+  trace service reads the routed kernel's journal, which is what the handle
+  answered with: the same answer, one layer down. The guard now holds **94**
+  application-owned verbs. The adapter's handle-verb debt: **104 → 76** call
+  sites, **30 → 29** distinct verbs. **3 permanent tests** and **13 mutations,
+  13 caught** in two independent passes with **byte-identical** logs (SHA-256
+  `F58AEDF4…D420D3`). M11, M12 and M13 put the kernel back — the routed
+  consumer reaches for the kernel's journal again, the daemon's consumer does
+  the same, and the binding file names the runtime again — and the **three
+  rules** catch every one of them; none is a behavioural regression, because
+  the wiring would work **exactly as well**, it would simply be in the wrong
+  layer. M08 and M09 are the ones that bite: the runs fold and the tenant's
+  activity read the **daemon's** journal instead of the kernel they were
+  handed — the routed kernel's rule, broken where a tenant's runs silently
+  become somebody else's.
+  Evidence:
+  `architecture/229-w54x-the-journal-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

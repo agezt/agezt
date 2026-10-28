@@ -3305,6 +3305,14 @@ This file holds the active `[Unreleased]` working set.
   context and its panic reporting stay in the host: they are the protocol
   surface, not the application's.
 
+- **The journal family's ports moved into the application (W5.4x).** The event
+  log is the one capability every family reads, and the adapter reached for
+  the kernel's journal in **twenty-eight** places across **eight** files. The
+  ports moved into the application (`kernel/app/journal`: `PortsFromKernel`),
+  the adapter asks the family, and the **seventeen** families that read it
+  stop reaching for the kernel. A tenant's journal is still the tenant's
+  journal: the request's ports follow the routed kernel, the daemon's own
+  ports answer for the root.
 - **The config center family's ports moved into the application (W5.4w).** The
   config center is the first of the families that hold a store, and the first
   step of the port programme's last phase: the adapter stops reaching for the
