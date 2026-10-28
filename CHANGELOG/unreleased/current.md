@@ -3295,6 +3295,16 @@ This file holds the active `[Unreleased]` working set.
   bound too, so the creation service is built from the kernel the request
   arrived on.
 
+- **The workflow family's wiring moved into the application (W5.4r).** This is
+  the first family whose application holds the **handle itself**: the workflow
+  services save, restore, enable, remove, draft, refine, run and test
+  workflows, and the kernel is what does those. The ports now live in
+  `kernel/app/workflow` (`PortsFromKernel`), and **thirteen** kernel verb
+  sites left the adapter's production code — the adapter no longer hands the
+  handle to an application constructor at all. The execution host's wake
+  context and its panic reporting stay in the host: they are the protocol
+  surface, not the application's.
+
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still
