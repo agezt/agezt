@@ -3305,6 +3305,14 @@ This file holds the active `[Unreleased]` working set.
   context and its panic reporting stay in the host: they are the protocol
   surface, not the application's.
 
+- **The memory family's ports moved into the application (W5.4aa).** The memory
+  is the daemon's own file, and the adapter reached for the kernel's memory in
+  **five** places across **three** files — and handed the kernel's **handle** to
+  the memory family's own distillation service. The ports moved into the
+  application (`kernel/app/memory`: `PortsFromKernel`), the adapter asks the
+  family, and the distillation service now takes a **capability** rather than
+  the handle it was filled from. "There is no memory" is spelled once, in the
+  application: the active records are none, and a forget refuses.
 - **The skill family's ports moved into the application (W5.4z).** The skill
   library is the daemon's own file, and the adapter reached for the kernel's
   forge in **seven** places across **three** files. The ports moved into the
