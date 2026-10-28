@@ -80,7 +80,7 @@ func TestTheWorkflowPortsReachTheKernelWorkflows(t *testing.T) {
 	}
 
 	// The reads service reads the same library.
-	reads := NewReads(ports.Reader, ports.Journal, nil)
+	reads := NewReads(ports.Reader, ports.Events, nil)
 	shown, err := reads.Show(context.Background(), ShowInput{Ref: saved.ID})
 	if err != nil {
 		t.Fatalf("Show: %v", err)

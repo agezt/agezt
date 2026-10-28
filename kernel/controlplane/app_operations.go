@@ -186,7 +186,7 @@ var routingOperations = func() []app.Operation {
 				return approuting.Agents(s.rosterPorts().List())
 			},
 			Journal: func(visit func(*event.Event)) {
-				_ = s.k.Journal().Range(func(e *event.Event) error {
+				_ = s.journalPorts().Events.Range(func(e *event.Event) error {
 					visit(e)
 					return nil
 				})
@@ -495,7 +495,7 @@ var edictReadOperations = func() []app.Operation {
 
 var edictDecisionOperations = func() []app.Operation {
 	ops, err := appedict.DecisionOperations(func(ctx context.Context) *appedict.Decisions {
-		return appedict.NewDecisions(ctx.Value(appHostKey{}).(appHost).kernel.Journal(), time.Now)
+		return appedict.NewDecisions(requestJournalPorts(ctx).Events, time.Now)
 	})
 	if err != nil {
 		panic(err)
@@ -509,7 +509,7 @@ var edictOverlayOperations = func() []app.Operation {
 		save := func(snap *edict.OverlaySnapshot) error {
 			return edict.SaveOverlaySnapshot(filepath.Join(k.BaseDir(), "runtime", edict.OverlaySnapshotFile), snap)
 		}
-		return appedict.NewOverlay(k.Journal(), save, func(spec event.Spec) { _, _ = k.Bus().Publish(spec) })
+		return appedict.NewOverlay(requestJournalPorts(ctx).Events, save, func(spec event.Spec) { _, _ = k.Bus().Publish(spec) })
 	})
 	if err != nil {
 		panic(err)
@@ -540,7 +540,7 @@ var approvalLiveOperations = func() []app.Operation {
 
 var approvalHistoryOperations = func() []app.Operation {
 	ops, err := appapprovals.Operations(func(ctx context.Context) *appapprovals.History {
-		return appapprovals.New(ctx.Value(appHostKey{}).(appHost).kernel.Journal(), time.Now)
+		return appapprovals.New(requestJournalPorts(ctx).Events, time.Now)
 	})
 	if err != nil {
 		panic(err)
@@ -550,7 +550,7 @@ var approvalHistoryOperations = func() []app.Operation {
 
 var auditOperations = func() []app.Operation {
 	ops, err := appaudit.Operations(func(ctx context.Context) *appaudit.Service {
-		return appaudit.New(ctx.Value(appHostKey{}).(appHost).kernel.Journal(), time.Now)
+		return appaudit.New(requestJournalPorts(ctx).Events, time.Now)
 	})
 	if err != nil {
 		panic(err)
@@ -560,7 +560,7 @@ var auditOperations = func() []app.Operation {
 
 var traceOperations = func() []app.Operation {
 	ops, err := appjournal.TraceOperations(func(ctx context.Context) *appjournal.Trace {
-		return appjournal.NewTrace(ctx.Value(appHostKey{}).(appHost).kernel)
+		return appjournal.NewTrace(requestJournalPorts(ctx).Events)
 	})
 	if err != nil {
 		panic(err)
@@ -617,7 +617,7 @@ var planRunOperations = func() []app.Operation {
 
 var planOperations = func() []app.Operation {
 	ops, err := appruns.PlanOperations(func(ctx context.Context) *appruns.Plans {
-		return appruns.NewPlans(ctx.Value(appHostKey{}).(appHost).kernel.Journal())
+		return appruns.NewPlans(requestJournalPorts(ctx).Events)
 	})
 	if err != nil {
 		panic(err)
@@ -730,10 +730,10 @@ var rosterResolveOperations = func() []app.Operation {
 			},
 			HelpRequest: s.postOperatorHelp,
 			ExhaustedChain: func(slug string, l approster.IncidentLineage, taskType string) []string {
-				return approster.LatestExhaustedRoutingChain(s.k.Journal().Range, slug, l, taskType)
+				return approster.LatestExhaustedRoutingChain(s.journalPorts().Events.Range, slug, l, taskType)
 			},
 			ForceGeneration: func(slug, taskType string) int {
-				return approster.LatestOperatorForceGeneration(s.k.Journal().Range, slug, taskType)
+				return approster.LatestOperatorForceGeneration(s.journalPorts().Events.Range, slug, taskType)
 			},
 			ApplyChain: s.applyRoutingChain,
 		})
@@ -814,7 +814,7 @@ var rosterEscalationOperations = func() []app.Operation {
 				return nil, err
 			}
 			return nativeEscalationBoard{st}, nil
-		}, s.k.Journal().Range)
+		}, s.journalPorts().Events.Range)
 	})
 	if err != nil {
 		panic(err)
@@ -825,7 +825,7 @@ var rosterEscalationOperations = func() []app.Operation {
 var rosterRepairStatusOperations = func() []app.Operation {
 	ops, err := approster.RepairStatusOperations(func(ctx context.Context) *approster.RepairStatusService {
 		s := ctx.Value(systemHostKey{}).(*Server)
-		return approster.NewRepairStatus(s.rosterPorts().Get, s.k.Journal().Range, approster.AutoRepairCooldown, nil)
+		return approster.NewRepairStatus(s.rosterPorts().Get, s.journalPorts().Events.Range, approster.AutoRepairCooldown, nil)
 	})
 	if err != nil {
 		panic(err)
@@ -836,7 +836,7 @@ var rosterRepairStatusOperations = func() []app.Operation {
 var rosterActivityOperations = func() []app.Operation {
 	ops, err := approster.ActivityOperations(func(ctx context.Context) *approster.ActivityService {
 		s := ctx.Value(systemHostKey{}).(*Server)
-		return approster.NewActivity(s.rosterPorts().Get, s.k.Journal().Range)
+		return approster.NewActivity(s.rosterPorts().Get, s.journalPorts().Events.Range)
 	})
 	if err != nil {
 		panic(err)
@@ -867,7 +867,7 @@ var updateOperations = func() []app.Operation {
 
 var webhookOperations = func() []app.Operation {
 	ops, err := appwebhook.Operations(func(ctx context.Context) *appwebhook.Observability {
-		return appwebhook.NewObservability(ctx.Value(appHostKey{}).(appHost).kernel.Journal(), nil)
+		return appwebhook.NewObservability(requestJournalPorts(ctx).Events, nil)
 	})
 	if err != nil {
 		panic(err)
@@ -930,7 +930,7 @@ var oauthOperations = func() []app.Operation {
 
 var observationOperations = func() []app.Operation {
 	operations, err := appproviders.ObservationOperations(func(ctx context.Context) *appproviders.Observations {
-		return appproviders.NewObservations(ctx.Value(appHostKey{}).(appHost).kernel.Journal())
+		return appproviders.NewObservations(requestJournalPorts(ctx).Events)
 	})
 	if err != nil {
 		panic(err)
@@ -1023,7 +1023,7 @@ var memoryOperations = func() []app.Operation {
 			return appmemory.NewDistillation(ctx.Value(appHostKey{}).(appHost).kernel)
 		},
 		func(ctx context.Context) *appmemory.LogService {
-			return appmemory.NewLog(ctx.Value(appHostKey{}).(appHost).kernel.Journal())
+			return appmemory.NewLog(requestJournalPorts(ctx).Events)
 		},
 	)
 	if err != nil {
@@ -1038,7 +1038,7 @@ var worldOperations = func() []app.Operation {
 			return appworld.New(ctx.Value(appHostKey{}).(appHost).kernel.World())
 		},
 		func(ctx context.Context) *appworld.LogService {
-			return appworld.NewLog(ctx.Value(appHostKey{}).(appHost).kernel.Journal())
+			return appworld.NewLog(requestJournalPorts(ctx).Events)
 		},
 	)
 	if err != nil {
@@ -1074,7 +1074,7 @@ var skillOperations = func() []app.Operation {
 		},
 		func(ctx context.Context) *appskill.Observations {
 			host := ctx.Value(appHostKey{}).(appHost)
-			return appskill.NewObservations(host.kernel.Forge(), host.kernel.Journal())
+			return appskill.NewObservations(host.kernel.Forge(), requestJournalPorts(ctx).Events)
 		},
 	)
 	if err != nil {
@@ -1180,7 +1180,7 @@ var standingOperations = func() []app.Operation {
 	operations, err := appstanding.Operations(appstanding.Providers{
 		Service: func(ctx context.Context) *appstanding.Service { return server(ctx).standingService() },
 		Observations: func(ctx context.Context) *appstanding.Observations {
-			return appstanding.NewObservations(ctx.Value(appHostKey{}).(appHost).kernel.Journal())
+			return appstanding.NewObservations(requestJournalPorts(ctx).Events)
 		},
 		Firing: func(ctx context.Context) *appstanding.Firing {
 			s := server(ctx)
@@ -1231,7 +1231,7 @@ var pulseSubscribeOperations = func() []app.Operation {
 
 var autonomyOperations = func() []app.Operation {
 	operations, err := appautonomy.Operations(func(ctx context.Context) *appautonomy.Feed {
-		return appautonomy.NewFeed(ctx.Value(appHostKey{}).(appHost).kernel.Journal())
+		return appautonomy.NewFeed(requestJournalPorts(ctx).Events)
 	})
 	if err != nil {
 		panic(err)
@@ -1251,7 +1251,7 @@ var toolInventoryOperations = func() []app.Operation {
 
 var toolObservationOperations = func() []app.Operation {
 	operations, err := apptools.ObservationOperations(func(ctx context.Context) *apptools.Observations {
-		return apptools.NewObservations(ctx.Value(appHostKey{}).(appHost).kernel.Journal())
+		return apptools.NewObservations(requestJournalPorts(ctx).Events)
 	}, nil)
 	if err != nil {
 		panic(err)

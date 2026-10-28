@@ -19,7 +19,7 @@ func (s *Server) agentStatusViews(profiles []agentapi.Profile) map[string]map[st
 // standing orders, the board's open help requests and the reaper scan.
 func (s *Server) collectRosterStatusSnapshot(profiles []agentapi.Profile, reaperCut, routingCut int64) approster.StatusSnapshot {
 	return approster.CollectStatus(approster.StatusSources{
-		Journal:   s.k.Journal().Range,
+		Journal:   s.journalPorts().Events.Range,
 		Runs:      s.statusRunRows,
 		Schedules: appschedule.PortsFromKernel(s.k).Entries,
 		Standing:  appstanding.PortsFromKernel(s.k).Orders,
@@ -32,7 +32,7 @@ func (s *Server) collectRosterStatusSnapshot(profiles []agentapi.Profile, reaper
 // collection needs. The application owns what a row means; the host only
 // supplies the rows.
 func (s *Server) statusRunRows() ([]approster.RunRow, error) {
-	rows, err := appruns.Collect(s.k.Journal().Range)
+	rows, err := appruns.Collect(s.journalPorts().Events.Range)
 	if err != nil {
 		return nil, err
 	}

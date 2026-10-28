@@ -74,7 +74,7 @@ func pulseClientGone(ctx context.Context, conn net.Conn) <-chan struct{} {
 }
 
 func (s *Server) pulseStream() *apppulse.Stream {
-	return apppulse.NewStream(s.k.Journal(), func(pattern string, buffer int) (apppulse.Subscription, error) {
+	return apppulse.NewStream(s.journalPorts().Events, func(pattern string, buffer int) (apppulse.Subscription, error) {
 		sub, err := s.k.Bus().Subscribe(pattern, buffer)
 		if err != nil {
 			return apppulse.Subscription{}, err

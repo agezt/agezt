@@ -25,7 +25,7 @@ import (
 // journalReads binds the app journal reads to the given kernel's journal and
 // its on-disk directory.
 func journalReads(k *runtime.Kernel) *appjournal.Service {
-	return appjournal.New(k.Journal(), func() (int, int64) {
+	return appjournal.New(appjournal.PortsFromKernel(k).Events, func() (int, int64) {
 		dir := filepath.Join(k.BaseDir(), "journal")
 		bytes, _ := dirUsage(dir)
 		return countSegments(dir), bytes
