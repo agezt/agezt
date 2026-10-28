@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4u the workboard family's ports, 2026-10-28
+## Current checkpoint — W5.4v the binding does not name the runtime, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5665,6 +5665,52 @@ files, five of the seventeen mutations would have escaped.
   and the store is the host's file.
   Evidence:
   `architecture/226-w54u-the-workboard-familys-ports-evidence.md`
+
+- W5.4v (the binding does not name the runtime, and the number is finally
+  checked) is the port programme's **ninth** slice and the first one about a
+  **word** rather than a call. W5.4s, W5.4t and W5.4u each wrote a binding
+  helper whose only purpose was to spell the kernel's type
+  (`func toolsPortsFor(k *runtime.Kernel) apptools.Ports { ... }`), so the
+  control plane's runtime-naming count went from **fifteen** to **eighteen**
+  while evidence 224, 225 and 226 kept saying — correctly, when they were
+  written — that *the control plane still imports the runtime in **15**
+  files*. **Three merged slices carried a false claim and nothing failed**:
+  the number was prose, and the archcheck ratchet holds the
+  `kernel/controlplane -> kernel/runtime` edge at PACKAGE granularity, so a
+  new file inside the same package is invisible to it. Go does not need the
+  spelling — a value of the kernel's type can be passed to a function that
+  expects it without the caller ever naming the package — so the three
+  bindings now call `PortsFromKernel` directly, the **roster** family's shape,
+  and the count is back to **15**. Two rules hold it: the **binding rule** (a
+  `kernel/controlplane/*_ports.go` file does not import the runtime at all,
+  read from the tree so a family's binding is covered the day it is written)
+  and the **ratchet** (`controlPlaneRuntimeNamingFiles = 15` is the recorded
+  measurement, and the comparison runs in BOTH directions: a count that grows
+  means the handle walked back in, a count that shrinks means the constant and
+  the documents that state it change in the same slice). This is the **first
+  machine-checked statement** of that number. No behaviour changed: the
+  daemon's bindings still answer for the root kernel and the request's for the
+  routed one. **5 permanent tests** and **13 mutations, 13 caught** in two
+  independent passes with **byte-identical** logs (SHA-256 `59FBC268…7EB90`).
+  M01, M02 and M03 put the runtime import back into each of the three
+  bindings and the two rules catch every one of them — none of them is a
+  behavioural regression, because the wiring would work **exactly as well**,
+  it would simply be in the wrong layer. M07 is worth reading twice: the
+  binding rule's filter widens from `_ports.go` to `_go`, the rule starts
+  flagging the whole adapter, and the rule's own test catches it — the rule is
+  asked whether it is **sharp**, not whether it is **broad**. M08 and M09 hold
+  the ratchet, and M10 and M11 hold the **measurement** (the count jumps to
+  166 when the test files are let in, and drops to zero when it is narrowed to
+  the binding files). The ratchet does not move yet: the control plane still
+  names the runtime in **15** files, and those fifteen are the ones the
+  programme's last step is about — the families that own a **store** (the seat
+  catalog, the journal, the sandbox, the providers) are the ones the roadmap
+  calls *libraries*, and the store is the host's file. The binding rule does
+  not touch them: a file that **holds** the handle may name it; what the rule
+  says is narrower — a file that merely **hands the handle over** must not
+  name it.
+  Evidence:
+  `architecture/227-w54v-the-binding-does-not-name-the-runtime-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

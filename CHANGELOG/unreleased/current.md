@@ -3305,6 +3305,12 @@ This file holds the active `[Unreleased]` working set.
   context and its panic reporting stay in the host: they are the protocol
   surface, not the application's.
 
+- **The adapter's bindings no longer name the kernel runtime (W5.4v).** The
+  tools, objective and workboard bindings hand the handle over by calling
+  `PortsFromKernel` directly instead of through a helper that spelled the
+  kernel's type, so the control plane names the runtime in **15** production
+  files again — the number every document has been stating since W5.4n, and
+  the first one now **checked** by a test instead of asserted by prose.
 - **The workboard family's wiring moved into the application (W5.4u).** The
   task board is the application's ports now (`kernel/app/workboard`:
   `PortsFromKernel`), and **seven** sites left the adapter's production code —
