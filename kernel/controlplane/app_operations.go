@@ -468,7 +468,7 @@ var rosterPermissionOperations = func() []app.Operation {
 			Update: s.rosterPorts().Update,
 			Tools:  s.toolsPorts().Registry.Registered,
 			Decide: func(capability edict.Capability, ceiling edict.TrustLevel) edict.Outcome {
-				return s.k.Edict().DecideWithCeiling(capability, "", ceiling)
+				return s.edictPorts().DecideWithCeiling(capability, "", ceiling)
 			},
 			Config: func() ([]*configcenter.ConfigEntry, bool) {
 				return s.configCenterPorts().Entries()
@@ -483,7 +483,7 @@ var rosterPermissionOperations = func() []app.Operation {
 
 var edictReadOperations = func() []app.Operation {
 	ops, err := appedict.Operations(func(ctx context.Context) *appedict.Service {
-		return appedict.New(ctx.Value(appHostKey{}).(appHost).kernel.Edict())
+		return appedict.New(requestEdictPorts(ctx).Engine())
 	})
 	if err != nil {
 		panic(err)
@@ -517,8 +517,7 @@ var edictOverlayOperations = func() []app.Operation {
 
 var edictWriteOperations = func() []app.Operation {
 	ops, err := appedict.WriteOperations(func(ctx context.Context) *appedict.Writes {
-		k := ctx.Value(appHostKey{}).(appHost).kernel
-		return appedict.NewWrites(k.Edict(), func(spec event.Spec) { _, _ = requestBusPorts(ctx).Publish(spec) })
+		return appedict.NewWrites(requestEdictPorts(ctx).WriteEngine(), func(spec event.Spec) { _, _ = requestBusPorts(ctx).Publish(spec) })
 	})
 	if err != nil {
 		panic(err)
@@ -1367,7 +1366,7 @@ var pluginInventoryOperations = func() []app.Operation {
 
 var configReadOperations = func() []app.Operation {
 	operations, err := appconfig.Operations(func(ctx context.Context) *appconfig.Service {
-		return appconfig.New(nativeConfigReader{kernel: ctx.Value(appHostKey{}).(appHost).kernel, tools: requestToolsPorts(ctx)}, configEnvVars, nativeConfigEnvPresent)
+		return appconfig.New(nativeConfigReader{kernel: ctx.Value(appHostKey{}).(appHost).kernel, tools: requestToolsPorts(ctx), edict: requestEdictPorts(ctx)}, configEnvVars, nativeConfigEnvPresent)
 	})
 	if err != nil {
 		panic(err)

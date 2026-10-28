@@ -379,6 +379,21 @@ func memoryOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
+// edictOwnedVerbs are the kernel's POLICY verbs: the policy engine every
+// capability is decided against.
+//
+// The rule is BY WORD: a kernel verb whose name carries "Edict" as a whole word
+// is the policy family's business, and a verb that lands in the kernel is
+// guarded the day it lands.
+//
+// The whole-word rule is the sharp one here: "Edict" hides inside no other
+// word of the kernel's, and a substring rule would claim a verb whose name
+// merely begins with the same letters.
+func edictOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	return kernelVerbsWord(t, "Edict")
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -394,6 +409,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, busOwnedVerbs(t)...)
 	verbs = append(verbs, skillOwnedVerbs(t)...)
 	verbs = append(verbs, memoryOwnedVerbs(t)...)
+	verbs = append(verbs, edictOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -678,6 +694,88 @@ func TestTheGuardNamesEverySkillVerbTheKernelHas(t *testing.T) {
 	}
 	if found == 0 {
 		t.Fatal("no skill verbs found — the kernel's skill verbs are gone?")
+	}
+}
+
+// And the same for the POLICY family — the engine every capability is decided
+// against.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries "Edict" as a whole word is the
+// policy's business. The expectation is not derived through the helper the
+// guard uses.
+func TestTheGuardNamesEveryEdictVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		carries := false
+		for _, word := range camelWords(name) {
+			if word == "Edict" {
+				carries = true
+			}
+		}
+		if !carries {
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's policy verb %s is not named by the guard — the policy family's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no policy verbs found — the kernel's policy verbs are gone?")
+	}
+}
+
+// And the POLICY family must not claim another family's verbs: a policy
+// decision is not a tool's business, a memory's business, or the bus's.
+//
+// The rule must be BOTH broad and sharp. Broad: every policy verb is guarded
+// (the test above). Sharp: the policy's list carries nothing that belongs to
+// someone else, and it is a strict subset of the kernel's verbs — a rule that
+// only ever grows is a rule that eventually guards the whole kernel, and a
+// guard that guards the whole kernel guards nothing.
+//
+// The other families' verbs are found by THEIR OWN rules, read here, so the
+// check does not stand on the helper the guard uses.
+func TestTheEdictFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	edict := edictOwnedVerbs(t)
+	if len(edict) == 0 {
+		t.Fatal("the policy family names no verb — the policy family's business belongs to the application")
+	}
+	for _, verb := range edict {
+		if others[verb] {
+			t.Errorf("the policy family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	kernelVerbs := kernel.NumMethod()
+	if len(edict) == kernelVerbs {
+		t.Errorf("the policy family claims all %d kernel verbs — a family that claims everything claims nothing", kernelVerbs)
 	}
 }
 
