@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4r the workflow family's ports, 2026-10-28
+## Current checkpoint — W5.4s the tools family's ports, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5555,6 +5555,42 @@ files, five of the seventeen mutations would have escaped.
   which is the template.
   Evidence:
   `architecture/223-w54r-the-workflow-familys-ports-evidence.md`
+
+- W5.4s (the tools family's ports, and the registry the other families ask) is
+  the **sixth** family of the port programme, and the first one the family map
+  calls **verbs without libraries**: there is no store the daemon opens and
+  hands over, there is a **registry** the kernel holds, a script-tool forge
+  and a set of MCP servers beside it. The tools family was the busiest reader
+  in the adapter — the registry was named **five** times and the **whole
+  handle** was handed to the tools application three times, because the
+  application's own ports were shaped like the kernel's method set. The ports
+  moved into the application (`kernel/app/tools`: `PortsFromKernel`), and
+  **nine** kernel verb sites left the adapter's production code: the adapter
+  no longer hands the handle to a tools-application constructor at all. The
+  port has the **application's** name, not the kernel's (`Registered()`, not
+  `Tools()`), and a port's field names must not collide with kernel verbs
+  either — the first draft called the MCP attachment port `MCPAttached`, and
+  the guard caught the adapter the moment it did. The registry is read by four
+  other families and is now asked **once**: the roster's permission picture,
+  the config's tool count, the schedule's tool targets and the nodes'
+  remote-run check all ask the tools family. The **routed** kernel stays the
+  routed kernel — a tenant's tools are the tenant's tools — while the
+  daemon's own ports answer for the root. The guard needed its **fifth** rule
+  (**29** verbs: every kernel method whose name mentions a tool or an MCP
+  server, which also sweeps the two threshold verbs the memory and the skill
+  families own — a verb guarded twice is still guarded) and a **sixth**, because
+  the verb rule cannot see a **handle**: `apptools.NewForgeLifecycle(k)` names
+  no verb at all, so the tools application takes **ports**, never the handle
+  they were filled from. The guard now holds **67** application-owned verbs.
+  **11 permanent tests** and **23 mutations, 23 caught** in two independent
+  passes with **byte-identical** logs (SHA-256 `E6F662F1…35887`). M14, M17 and M18
+  are worth reading together: none of them is a behavioural regression — the
+  wiring would work **exactly as well**, it would simply be in the wrong
+  layer — so only the two rules can see them. Six families are done, and the
+  next one (the workboard and OKR surface) is the last of the *verbs without
+  libraries*.
+  Evidence:
+  `architecture/224-w54s-the-tools-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
