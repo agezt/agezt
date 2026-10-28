@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4ab the policy family's ports, 2026-10-28
+## Current checkpoint — W5.4ac the provider family's ports, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5958,6 +5958,50 @@ files, five of the seventeen mutations would have escaped.
   **reason**, and the port decides with no engine at all.
   Evidence:
   `architecture/233-w54ab-the-policy-familys-ports-evidence.md`
+
+- W5.4ac (the provider's door, and the two sites the measurement could not see)
+  is the port programme's **sixteenth** slice and the **seventh** one of its last
+  phase: the handle itself. The provider is the daemon's live door to the model
+  — the routing tables it routes by, the routing view it reports, the spend it
+  keeps and the completion the chat and plan families drive — and the adapter
+  reached for the kernel's provider in **nine** places across **two** files.
+  Seven were calls and two were **method values** (`k.Provider` handed over as
+  a value, not called): the established measure counts calls and could not see
+  them, but the **guard** reads the adapter's raw source and caught both the
+  moment the family was declared. The ports moved into the application
+  (`kernel/app/provider`: `PortsFromKernel`) and the adapter keeps the binding
+  (`kernel/controlplane/provider_ports.go`), which does not name the runtime.
+  The daemon's live provider is the **governor**, and the governor carries more
+  than one face — the routing tables, the routing view and the spend — so the
+  port names the faces as **capabilities** (`Chains`, `Routing`, `Budget`) and
+  each consumer asks for the one it needs; a family that asks for the chains
+  never learns what the governor is. The budget's crossing moved into the
+  budget family (`kernel/app/budget`: `GovernorFrom`), because the conversion
+  of the keeper's snapshot into the budget's own rows is the budget's business
+  and not the adapter's. The port's first name for the provider itself was
+  `Provider()`, and the **guard refused it** — the adapter that asks
+  `providerPorts().Provider` was seen reaching for the kernel's own verb; this
+  is the **fifth** time a port's own name has collided with a kernel verb (the
+  tools' `Forge` became `ScriptForge`), and the name is now `Live()`. The rule
+  is **by whole word** — a kernel verb whose name carries "Provider" as a
+  **complete word** is the provider family's business — and it is held in
+  **both** directions: broad (every provider verb the kernel has is named by
+  the guard) and sharp (the provider's list claims no other family's verb and
+  does not claim the whole kernel). The guard now holds **122** application-owned
+  verbs. The adapter's handle-verb debt: **41 → 34** call sites, **23 → 22**
+  distinct verbs, and the **method values handed over fall from 17 to 15**.
+  **8 permanent tests** and **13 mutations, 13 caught** in two independent passes
+  with **byte-identical** logs (SHA-256 `B6747B25…30A89B`). M11, M12 and M13 put
+  the kernel back — the config reader reaches for the kernel's provider again,
+  the chat summarizer is handed the kernel's provider again, and the plan
+  authoring is handed the kernel's provider again — and the **verb guard**
+  catches every one of them; none is a behavioural regression, because the
+  wiring would work **exactly as well**, it would simply be in the wrong layer.
+  M06, M07 and M09 are the ones that bite: the port claims it holds **no**
+  chains, the port writes **no** chains, and the budget's ceiling is **not
+  forwarded**.
+  Evidence:
+  `architecture/234-w54ac-the-providers-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
