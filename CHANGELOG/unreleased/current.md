@@ -3261,6 +3261,17 @@ This file holds the active `[Unreleased]` working set.
   behavioural test could: the wiring would work exactly as well in the wrong
   layer.
 
+- **The roster's wiring moved into the application (W5.4o).** The roster was
+  the busiest family the control plane had: **eight** kernel verbs named in
+  **28** call sites across **seven** files, all of it port filling. The
+  roster's ports now live in `kernel/app/roster` (`ProfilePortsFromKernel`),
+  and **no roster verb is named in the adapter's production code** any more.
+  The guard that holds this is no longer a hand-written list: it reads the
+  kernel's own roster accessors, so a roster verb added to the kernel is
+  guarded the day it lands, and a verb the kernel does not have cannot sit in
+  the list pretending to guard something. The matcher also sees a verb that
+  leaves the adapter as a **method value**, not only as a call.
+
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still

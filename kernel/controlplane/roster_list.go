@@ -8,7 +8,7 @@ import (
 
 func (s *Server) rosterListService() *approster.ListService {
 	s.rosterListOnce.Do(func() {
-		s.rosterList = approster.NewList(func() []agentapi.Profile { return s.k.RosterList() }, s.agentStatusViews, nil)
+		s.rosterList = approster.NewList(func() []agentapi.Profile { return s.rosterPorts().List() }, s.agentStatusViews, nil)
 	})
 	return s.rosterList
 }

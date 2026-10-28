@@ -10,7 +10,7 @@ import (
 
 func (s *Server) scheduleAdmission() *appschedule.Admission {
 	return appschedule.NewAdmission(appschedule.AdmissionHost{
-		Agent:              s.k.RosterGet,
+		Agent:              s.rosterPorts().Get,
 		WorkflowName:       func(ref string) (string, bool) { w, ok := s.k.Workflows().Get(ref); return w.Name, ok },
 		Workflow:           func(ref string) bool { _, ok := s.k.Workflows().Get(ref); return ok },
 		Tool:               func(name string) bool { _, ok := s.k.Tools()[name]; return ok },

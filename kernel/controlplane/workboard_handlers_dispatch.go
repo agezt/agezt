@@ -10,7 +10,7 @@ import (
 func (s *Server) workboardDispatcher() *appworkboard.Dispatch {
 	service := appworkboard.NewDispatch(s.k.Workboard(), s.k,
 		func(ref string) (appworkboard.DispatchAgent, bool) {
-			p, ok := s.k.RosterGet(ref)
+			p, ok := s.rosterPorts().Get(ref)
 			if !ok {
 				return appworkboard.DispatchAgent{}, false
 			}

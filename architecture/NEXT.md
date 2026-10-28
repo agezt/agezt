@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4n the application fills the council's own ports, 2026-10-28
+## Current checkpoint — W5.4o the roster's own ports, and a guard that reads the kernel, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5453,6 +5453,31 @@ files, five of the seventeen mutations would have escaped.
   yet, but the pattern is proven end to end.
   Evidence:
   `architecture/219-w54n-the-application-fills-the-councils-ports-evidence.md`
+
+- W5.4o (the roster's own ports, and a guard that reads the kernel) is the
+  **second** family of the port programme. The roster was the busiest the
+  adapter had: **eight** kernel verbs named in **28** call sites across
+  **seven** files, all of it port filling, so the roster's ports moved into the
+  application (`kernel/app/roster`: `ProfilePortsFromKernel`) and the adapter
+  keeps one binding. **No roster verb is named in the adapter's production
+  code** any more, and the rows are contract rows (`agentapi.Profile`), so
+  nothing was converted. Two holes in W5.4n's guard closed with it: the
+  matcher now sees a verb that leaves the adapter as a **method value** (the
+  old one saw calls only), and the roster's verbs are **derived from the
+  kernel's own accessor file** instead of being hand-written — a verb added to
+  the kernel is guarded the day it lands, and a verb the kernel does not have
+  cannot sit in the list pretending to guard something. **6 permanent tests**
+  (5 new, 1 extended) and **13 mutations, 13 caught** in two independent
+  passes with **byte-identical** logs (SHA-256 `0EE5DAE0…C808E`). The
+  calibration forced two rewrites, and both are worth keeping: a mutation that
+  **survived** because the check meant to catch it called the very helper it
+  truncated (the expectation must not be derived by the code path it checks),
+  and a **no-op mutation** that changed nothing (a mutation that changes
+  nothing is not a mutation). The ratchet does not move yet — the control plane
+  still imports the runtime in **15** files — but the guard reads the kernel
+  now, so the next family fills in the same rule instead of writing a new one.
+  Evidence:
+  `architecture/220-w54o-the-rosters-own-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
