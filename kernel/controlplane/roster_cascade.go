@@ -11,10 +11,10 @@ package controlplane
 
 import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
+	appschedule "github.com/agezt/agezt/kernel/app/schedule"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
-	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
@@ -24,15 +24,7 @@ import (
 // derivation.
 func (s *Server) impactPorts() approster.ImpactPorts {
 	return approster.ImpactPorts{
-		Schedules: func() []cadenceapi.Entry {
-			// The schedule library is the daemon's file (W3.49): a host
-			// without it holds a nil port, and the impact derivation sees no
-			// schedules rather than calling into nothing.
-			if s.k.Schedules() == nil {
-				return nil
-			}
-			return s.k.Schedules().List()
-		},
+		Schedules:     appschedule.PortsFromKernel(s.k).Entries,
 		MemoryRecords: func() ([]memoryapi.Record, error) { return s.k.MemoryActive() },
 		// A daemon with NO skill library holds a nil port (W3.55): the cascade
 		// sees no skills rather than calling into nothing.

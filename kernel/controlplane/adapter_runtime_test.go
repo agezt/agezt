@@ -55,13 +55,29 @@ func rosterOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
+// kernelVerbsNamed are the kernel's methods whose name mentions the family.
+//
+// A family whose accessor file also holds other families' verbs cannot be
+// found by file — the standing accessor file holds the data accessors too —
+// so the families that live in a mixed file are found BY NAME.
+func kernelVerbsNamed(t *testing.T, family string) []string {
+	t.Helper()
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	var verbs []string
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		if strings.Contains(name, family) {
+			verbs = append(verbs, name)
+		}
+	}
+	if len(verbs) == 0 {
+		t.Fatalf("no %s verbs found — the kernel's %s verbs are gone?", family, family)
+	}
+	return verbs
+}
+
 // standingOwnedVerbs are the kernel's STANDING verbs: the library's store,
 // its read snapshot and its four write verbs.
-//
-// The list is DERIVED from the kernel's own method set — every method whose
-// name mentions the standing library — because the standing family's accessor
-// file also holds the data accessors (the artifact store, the data lake), so a
-// file rule would sweep in verbs that are not the standing family's.
 //
 // The rule also sweeps in the two wake-provenance context readers
 // (WakeContextStandingID, WakeContextStandingName). That is right: the adapter
@@ -70,18 +86,18 @@ func rosterOwnedVerbs(t *testing.T) []string {
 // family's business.
 func standingOwnedVerbs(t *testing.T) []string {
 	t.Helper()
-	kernel := reflect.TypeOf(&runtime.Kernel{})
-	var verbs []string
-	for i := 0; i < kernel.NumMethod(); i++ {
-		name := kernel.Method(i).Name
-		if strings.Contains(name, "Standing") {
-			verbs = append(verbs, name)
-		}
-	}
-	if len(verbs) == 0 {
-		t.Fatal("no standing verbs found — the kernel's standing verbs are gone?")
-	}
-	return verbs
+	return kernelVerbsNamed(t, "Standing")
+}
+
+// scheduleOwnedVerbs are the kernel's SCHEDULE verbs: the library's store,
+// the engine that fires it and the wake-provenance context reader.
+//
+// The rule sweeps in the scheduler's own accessors (Scheduler,
+// ScheduleEngine, SetScheduleEngine): the scheduler is the module's
+// implementation, and the adapter must not name it either.
+func scheduleOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	return kernelVerbsNamed(t, "Schedule")
 }
 
 // applicationOwnedVerbs are all the verbs the application owns.
@@ -89,7 +105,8 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
 	verbs := append([]string{}, councilOwnedVerbs...)
 	verbs = append(verbs, rosterOwnedVerbs(t)...)
-	return append(verbs, standingOwnedVerbs(t)...)
+	verbs = append(verbs, standingOwnedVerbs(t)...)
+	return append(verbs, scheduleOwnedVerbs(t)...)
 }
 
 // The guard's list must hold verbs the kernel actually has: a verb nobody has
@@ -154,6 +171,29 @@ func TestTheGuardNamesEveryStandingVerbTheKernelHas(t *testing.T) {
 		}
 		if !guarded[name] {
 			t.Errorf("the kernel's standing verb %s is not named by the guard — the standing family's business belongs to the application", name)
+		}
+	}
+}
+
+// And the same for the SCHEDULE family: every verb whose name mentions the
+// schedule library is the schedule family's business, and the guard names it.
+//
+// The verbs are found HERE, by the kernel's own method set, not through the
+// helper the guard uses — the expectation must not be derived by the code path
+// it checks.
+func TestTheGuardNamesEveryScheduleVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		if !strings.Contains(name, "Schedule") {
+			continue
+		}
+		if !guarded[name] {
+			t.Errorf("the kernel's schedule verb %s is not named by the guard — the schedule family's business belongs to the application", name)
 		}
 	}
 }

@@ -11,14 +11,15 @@ package controlplane
 
 import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
+	appschedule "github.com/agezt/agezt/kernel/app/schedule"
 	appstanding "github.com/agezt/agezt/kernel/app/standing"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
-	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 )
 
 // teardownPorts binds the host's stores to the application's teardown.
 func (s *Server) teardownPorts() approster.TeardownPorts {
 	standing := appstanding.PortsFromKernel(s.k)
+	schedule := appschedule.PortsFromKernel(s.k)
 	return approster.TeardownPorts{
 		RetireChild: func(slug, reason string) error {
 			_, err := s.rosterPorts().SetRetired(slug, true, reason)
@@ -29,26 +30,10 @@ func (s *Server) teardownPorts() approster.TeardownPorts {
 		SetStandingEnabled: func(id string, enabled bool) error {
 			return standing.SetEnabled(id, enabled)
 		},
-		Schedules: func() []cadenceapi.Entry {
-			// The schedule library is the daemon's file (W3.49): a host
-			// without it holds a nil port, and the teardown sees no schedules
-			// rather than calling into nothing.
-			if s.k.Schedules() == nil {
-				return nil
-			}
-			return s.k.Schedules().List()
-		},
-		RemoveSchedule: func(id string) (bool, error) {
-			if s.k.Schedules() == nil {
-				return false, nil
-			}
-			return s.k.Schedules().Remove(id)
-		},
+		Schedules:      schedule.Entries,
+		RemoveSchedule: schedule.Remove,
 		SetScheduleEnabled: func(id string, enabled bool) (bool, error) {
-			if s.k.Schedules() == nil {
-				return false, nil
-			}
-			return s.k.Schedules().SetEnabled(id, enabled)
+			return schedule.SetEnabled(id, enabled)
 		},
 	}
 }

@@ -15,11 +15,11 @@ import (
 )
 
 func (s *Server) scheduleEditing() *appschedule.Editing {
-	return appschedule.NewEditing(s.k.Schedules(), appschedule.EditingHost{WorkflowName: func(ref string) (string, bool) { w, ok := s.k.Workflows().Get(ref); return w.Name, ok }, Tool: func(name string) bool { _, ok := s.k.Tools()[name]; return ok }, Now: time.Now})
+	return appschedule.NewEditing(appschedule.PortsFromKernel(s.k).Store, appschedule.EditingHost{WorkflowName: func(ref string) (string, bool) { w, ok := s.k.Workflows().Get(ref); return w.Name, ok }, Tool: func(name string) bool { _, ok := s.k.Tools()[name]; return ok }, Now: time.Now})
 }
 
 func (s *Server) scheduleLifecycle(ctx context.Context) *appschedule.Lifecycle {
-	return appschedule.NewLifecycle(s.k.Schedules(), s.validateScheduleRunnable, func(id string, enabled bool, action string, current cadenceapi.Entry) {
+	return appschedule.NewLifecycle(appschedule.PortsFromKernel(s.k).Store, s.validateScheduleRunnable, func(id string, enabled bool, action string, current cadenceapi.Entry) {
 		corr := opapi.CorrelationFromContext(ctx)
 		if corr == "" {
 			corr = s.k.NewCorrelation()
@@ -34,7 +34,7 @@ func (s *Server) scheduleFiringReads(k *runtime.Kernel) *appschedule.FiringServi
 	})
 }
 func (s *Server) scheduleReads() *appschedule.Service {
-	return appschedule.New(s.k.Schedules(), appschedule.Host{LastFirings: func() (map[string]appschedule.LastFiring, error) {
+	return appschedule.New(appschedule.PortsFromKernel(s.k).Store, appschedule.Host{LastFirings: func() (map[string]appschedule.LastFiring, error) {
 		return s.scheduleFiringReads(s.k).Latest(context.Background())
 	}, Validate: s.validateScheduleRunnable, Warning: s.scheduleFrequencyWarning}, time.Now)
 }

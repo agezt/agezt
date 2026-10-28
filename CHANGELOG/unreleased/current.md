@@ -3284,6 +3284,17 @@ This file holds the active `[Unreleased]` working set.
   guard's standing rule is derived from the kernel's own method set, so a
   standing verb added to the kernel is guarded the day it lands.
 
+- **The schedule family's wiring moved into the application (W5.4q).** The
+  schedule library is the daemon's file, exactly like the standing library: a
+  daemon with no schedule library holds a **nil** port, and the adapter was
+  carrying that discipline **five** times — in three files — plus three places
+  that handed the raw store to an application constructor. The schedule ports
+  now live in `kernel/app/schedule` (`PortsFromKernel`), the application
+  spells the nil-check once, and the schedule family's kernel verb sites left
+  the adapter's production code. The per-request (routed tenant) kernel is
+  bound too, so the creation service is built from the kernel the request
+  arrived on.
+
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still
