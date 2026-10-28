@@ -6,6 +6,8 @@ package controlplane
 
 import (
 	"context"
+
+	appjournal "github.com/agezt/agezt/kernel/app/journal"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 	appschedule "github.com/agezt/agezt/kernel/app/schedule"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
@@ -29,8 +31,8 @@ func (s *Server) scheduleLifecycle(ctx context.Context) *appschedule.Lifecycle {
 }
 
 func (s *Server) scheduleFiringReads(k *runtime.Kernel) *appschedule.FiringService {
-	return appschedule.NewFiringService(k.Journal(), func() (map[string]appruns.Run, error) {
-		return appruns.Collect(k.Journal().Range)
+	return appschedule.NewFiringService(appjournal.PortsFromKernel(k).Events, func() (map[string]appruns.Run, error) {
+		return appruns.Collect(appjournal.PortsFromKernel(k).Events.Range)
 	})
 }
 func (s *Server) scheduleReads() *appschedule.Service {

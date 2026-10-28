@@ -5,6 +5,7 @@ package controlplane
 import (
 	"time"
 
+	appjournal "github.com/agezt/agezt/kernel/app/journal"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 	apptenants "github.com/agezt/agezt/kernel/app/tenants"
 )
@@ -23,7 +24,7 @@ func (s *Server) tenantService() *apptenants.Service {
 			return nil, err
 		}
 		return func() (map[string]appruns.Run, error) {
-			return appruns.Collect(k.Journal().Range)
+			return appruns.Collect(appjournal.PortsFromKernel(k).Events.Range)
 		}, nil
 	}
 	return apptenants.New(registry, activity, time.Now)

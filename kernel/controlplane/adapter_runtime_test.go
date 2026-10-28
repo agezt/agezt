@@ -230,6 +230,20 @@ func configCenterOwnedVerbs(t *testing.T) []string {
 	return kernelVerbsNamed(t, "ConfigCenter")
 }
 
+// journalOwnedVerbs are the kernel's JOURNAL verbs: the event log every
+// family reads.
+//
+// The rule is BY NAME: a kernel verb that mentions the journal is the journal
+// family's business, and a verb that lands in the kernel is guarded the day
+// it lands.
+//
+// This is the family with the most consumers: seventeen of them read the
+// journal, and every one of them used to reach for the kernel to do it.
+func journalOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	return kernelVerbsNamed(t, "Journal")
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -241,6 +255,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, toolsOwnedVerbs(t)...)
 	verbs = append(verbs, okrOwnedVerbs(t)...)
 	verbs = append(verbs, configCenterOwnedVerbs(t)...)
+	verbs = append(verbs, journalOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -406,6 +421,25 @@ func TestTheGuardNamesEveryWorkboardVerbTheKernelHas(t *testing.T) {
 	}
 	if found == 0 {
 		t.Fatal("no workboard accessor files found — the kernel's workboard verbs moved?")
+	}
+}
+
+// And the same for the JOURNAL family — the event log that seventeen
+// families read.
+func TestTheGuardNamesEveryJournalVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		if !strings.Contains(name, "Journal") {
+			continue
+		}
+		if !guarded[name] {
+			t.Errorf("the kernel's journal verb %s is not named by the guard — the journal family's business belongs to the application", name)
+		}
 	}
 }
 

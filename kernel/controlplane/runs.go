@@ -11,6 +11,7 @@ package controlplane
 import (
 	"time"
 
+	appjournal "github.com/agezt/agezt/kernel/app/journal"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 	"github.com/agezt/agezt/kernel/runtime"
 )
@@ -26,5 +27,5 @@ func (s *Server) runReads(k *runtime.Kernel) *appruns.Service {
 // run rows. The run operation enriches its terminal answer with the run's own
 // iters, spend and model from this fold.
 func (s *Server) runFold(k *runtime.Kernel) (map[string]appruns.Run, error) {
-	return appruns.Collect(k.Journal().Range)
+	return appruns.Collect(appjournal.PortsFromKernel(k).Events.Range)
 }

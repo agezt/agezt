@@ -40,8 +40,12 @@ type Ports struct {
 	// reader instead of panicking.
 	Reader Reader
 
-	// Journal folds the journal for a workflow's own story.
-	Journal Journal
+	// Events folds the journal for a workflow's own story.
+	//
+	// The field answers to the FAMILY's name, not to the kernel's verb: the
+	// kernel's verb is "Journal", and a port field that answers to a verb's
+	// name is a verb the adapter may name.
+	Events Journal
 
 	// Writer writes the workflows: the kernel's save, restore, enable and
 	// remove verbs.
@@ -78,7 +82,7 @@ func PortsFromKernel(k *runtime.Kernel) Ports {
 	store := k.Workflows()
 	return Ports{
 		Reader:      store,
-		Journal:     k.Journal(),
+		Events:      k.Journal(),
 		Writer:      k,
 		Designer:    k,
 		Correlation: k.NewCorrelation,

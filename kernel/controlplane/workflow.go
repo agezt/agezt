@@ -12,7 +12,7 @@ import (
 
 func (s *Server) workflowReads() *appworkflow.Reads {
 	ports := s.workflowPorts()
-	return appworkflow.NewReads(ports.Reader, ports.Journal, nil)
+	return appworkflow.NewReads(ports.Reader, ports.Events, nil)
 }
 
 func (s *Server) workflowLifecycle() *appworkflow.Lifecycle {
