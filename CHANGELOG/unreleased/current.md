@@ -3305,6 +3305,15 @@ This file holds the active `[Unreleased]` working set.
   context and its panic reporting stay in the host: they are the protocol
   surface, not the application's.
 
+- **The policy family's ports moved into the application (W5.4ab).** The policy
+  engine is the daemon's own authority, and the adapter reached for the
+  kernel's engine in **four** places across **two** files. The ports moved into
+  the application (`kernel/app/edict`: `PortsFromKernel`), the adapter asks the
+  family, and the engine's two **views** are kept apart: the service that only
+  reads cannot write. "There is no policy engine" is now a **decision**, and it
+  fails **closed**: a host with no engine decides **deny**, names the
+  capability, and says why — a policy that cannot be asked must not let a
+  capability through.
 - **The memory family's ports moved into the application (W5.4aa).** The memory
   is the daemon's own file, and the adapter reached for the kernel's memory in
   **five** places across **three** files — and handed the kernel's **handle** to
