@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4z the skill family's ports, 2026-10-28
+## Current checkpoint — W5.4aa the memory family's ports, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5877,6 +5877,49 @@ files, five of the seventeen mutations would have escaped.
   archived really is **archived**.
   Evidence:
   `architecture/231-w54z-the-skill-familys-ports-evidence.md`
+
+- W5.4aa (the memory family's ports, and the distillation that held the handle)
+  is the port programme's **fourteenth** slice and the **fifth** one of its last
+  phase: the handle itself. The memory is the daemon's own file (W3.57), and the
+  adapter reached for the kernel's memory in **five** places across **three**
+  files — and handed the kernel's **handle** to the memory family's own
+  distillation service. The ports moved into the application
+  (`kernel/app/memory`: `PortsFromKernel`) and the adapter keeps the binding
+  (`kernel/controlplane/memory_ports.go`), which does not name the runtime. The
+  memory may be absent, and the port answers for that case: the **active**
+  records are none and a **forget** refuses with `ErrNoMemory` — the same
+  answer the kernel's own memory verbs gave, spelled once now, in the
+  application. The sixth site was not a verb at all: the memory family's
+  **distillation service** was handed the kernel handle, and the **handle rule**
+  caught it the moment the family declared its own ports — a family that
+  declares its ports takes ports, not the handle they were filled from, and the
+  rule reads the tree, so a family is covered the day it writes its
+  `ports.go`. The fix is not a rename: the distillation needs the **provider**
+  and the **model** it runs under, and the kernel is the only thing that knows
+  them — so the port carries a **capability** instead of the handle
+  (`kernelDistiller`), and the family sees a `Distiller`, never a kernel. The
+  rule is **by whole word** and it answers to **two** names — "Memory" and
+  "Distill" — because the checked distillation surface (`DistillBrain`,
+  `DistillProfile`) does not say "memory" in its name; the sweep takes in the
+  distillation verbs (the brain, the facts, the profile), because they
+  consolidate the memory's own records. The slice also learned that **a port
+  must reach the same surface the handle reached**: the first version of the
+  port reached for the accessor behind the checked verb, and a halted daemon
+  answered the consolidation with a **success** — a capability is not only what
+  it can do, it is also what it **refuses**. The guard now holds **120**
+  application-owned verbs. The adapter's
+  handle-verb debt: **50 → 45** call sites, **27 → 24** distinct verbs.
+  **4 permanent tests** and **13 mutations, 13 caught** in two independent passes
+  with **byte-identical** logs (SHA-256 `13235682…7051BCD`). M11, M12 and M13 put
+  the kernel back — the routed consumer reaches for the kernel's memory again,
+  the daemon's consumer does the same, and the distillation service is handed
+  the handle again — and the **three rules** catch every one of them; none is a
+  behavioural regression, because the wiring would work **exactly as well**, it
+  would simply be in the wrong layer. M06, M07 and M09 are the ones that bite:
+  the port lists **nothing**, the port forgets **nothing**, and the port's
+  refusal becomes a silent success.
+  Evidence:
+  `architecture/232-w54aa-the-memory-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

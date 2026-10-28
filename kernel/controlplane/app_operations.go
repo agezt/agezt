@@ -359,9 +359,7 @@ var chatSummaryOperations = func() []app.Operation {
 var chatOperations = func() []app.Operation {
 	ops, err := appchat.Operations(func(ctx context.Context) *appchat.Service {
 		var ports appchat.Ports
-		if mgr := ctx.Value(systemHostKey{}).(*Server).k.Memory(); mgr != nil {
-			ports.ActiveMemory = mgr.Active
-		}
+		ports.ActiveMemory = ctx.Value(systemHostKey{}).(*Server).memoryPorts().Active
 		return appchat.New(ports)
 	})
 	if err != nil {
@@ -1018,10 +1016,10 @@ var channelInventoryOperations = func() []app.Operation {
 var memoryOperations = func() []app.Operation {
 	operations, err := appmemory.Operations(
 		func(ctx context.Context) *appmemory.Service {
-			return appmemory.New(ctx.Value(appHostKey{}).(appHost).kernel.Memory())
+			return appmemory.New(requestMemoryPorts(ctx).Manager())
 		},
 		func(ctx context.Context) *appmemory.Distillation {
-			return appmemory.NewDistillation(ctx.Value(appHostKey{}).(appHost).kernel)
+			return appmemory.NewDistillation(requestMemoryPorts(ctx))
 		},
 		func(ctx context.Context) *appmemory.LogService {
 			return appmemory.NewLog(requestJournalPorts(ctx).Events)
