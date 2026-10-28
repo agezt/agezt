@@ -20,7 +20,7 @@ import (
 func (s *Server) teardownPorts() approster.TeardownPorts {
 	return approster.TeardownPorts{
 		RetireChild: func(slug, reason string) error {
-			_, err := s.k.SetProfileRetired(slug, true, reason)
+			_, err := s.rosterPorts().SetRetired(slug, true, reason)
 			return err
 		},
 		Standing: func() []standingapi.Order {

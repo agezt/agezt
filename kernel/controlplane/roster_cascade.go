@@ -70,16 +70,18 @@ func (s *Server) impactPorts() approster.ImpactPorts {
 // preview's shape and the sub-agent aggregation live in approster.ImpactService.
 type nativeImpactSource struct{ s *Server }
 
-func (n nativeImpactSource) Get(ref string) (agentapi.Profile, bool) { return n.s.k.RosterGet(ref) }
+func (n nativeImpactSource) Get(ref string) (agentapi.Profile, bool) {
+	return n.s.rosterPorts().Get(ref)
+}
 
 func (n nativeImpactSource) Subagents(slug string) []agentapi.Profile {
-	return approster.Subagents(n.s.k.RosterList(), slug)
+	return approster.Subagents(n.s.rosterPorts().List(), slug)
 }
 
 func (n nativeImpactSource) Holdings(p agentapi.Profile) approster.ImpactHoldings {
 	ports := n.s.impactPorts()
 	return approster.ImpactHoldings{
-		StandingOrders:         n.s.k.AgentImpact(p.Slug),
+		StandingOrders:         n.s.rosterPorts().Impact(p.Slug),
 		Schedules:              approster.ScheduleImpact(ports, p),
 		Memories:               approster.MemoryImpact(ports, p),
 		AuthoredSharedMemories: approster.AuthoredSharedMemoryImpact(ports, p),
@@ -99,7 +101,7 @@ func (s *Server) impactService() *approster.ImpactService {
 
 // agentSubagents returns the agent's sub-agent tree.
 func (s *Server) agentSubagents(slug string) []agentapi.Profile {
-	return approster.Subagents(s.k.RosterList(), slug)
+	return approster.Subagents(s.rosterPorts().List(), slug)
 }
 
 // agentRemovalMailboxImpact is the removal payload's retained-message list:

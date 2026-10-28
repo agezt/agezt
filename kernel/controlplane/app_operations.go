@@ -97,7 +97,8 @@ var rosterListOperations = func() []app.Operation {
 var rosterProfileWriteOperations = func() []app.Operation {
 	ops, err := approster.ProfileWriteOperations(func(ctx context.Context) *approster.ProfileWriteService {
 		s := ctx.Value(systemHostKey{}).(*Server)
-		return approster.NewProfileWrite(s.k.RosterGet, s.k.AddProfile, s.k.UpdateProfile, s.invalidateAgentListCache)
+		ports := s.rosterPorts()
+		return approster.NewProfileWrite(ports.Get, ports.Add, ports.Update, s.invalidateAgentListCache)
 	})
 	if err != nil {
 		panic(err)
@@ -182,7 +183,7 @@ var routingOperations = func() []app.Operation {
 				}
 			},
 			Agents: func() []approuting.Agent {
-				return approuting.Agents(s.k.RosterList())
+				return approuting.Agents(s.rosterPorts().List())
 			},
 			Journal: func(visit func(*event.Event)) {
 				_ = s.k.Journal().Range(func(e *event.Event) error {
@@ -468,8 +469,8 @@ var rosterPermissionOperations = func() []app.Operation {
 	ops, err := approster.PermissionOperations(func(ctx context.Context) *approster.PermissionService {
 		s := ctx.Value(systemHostKey{}).(*Server)
 		return approster.NewPermissions(approster.PermissionPorts{
-			Get:    s.k.RosterGet,
-			Update: s.k.UpdateProfile,
+			Get:    s.rosterPorts().Get,
+			Update: s.rosterPorts().Update,
 			Tools:  s.k.Tools,
 			Decide: func(capability edict.Capability, ceiling edict.TrustLevel) edict.Outcome {
 				return s.k.Edict().DecideWithCeiling(capability, "", ceiling)
@@ -655,7 +656,7 @@ var rosterRemoveOperations = func() []app.Operation {
 	ops, err := approster.RemoveOperations(func(ctx context.Context) *approster.RemoveService {
 		s := ctx.Value(systemHostKey{}).(*Server)
 		return approster.NewRemove(approster.RemovePorts{
-			Get:       s.k.RosterGet,
+			Get:       s.rosterPorts().Get,
 			Subagents: s.agentSubagents,
 			Retained:  s.agentRemovalMailboxImpact,
 			Workflows: s.agentWorkflowImpact,
@@ -667,7 +668,7 @@ var rosterRemoveOperations = func() []app.Operation {
 			Skills:    s.archiveAgentSkills,
 			Config:    s.deleteAgentConfigEntries,
 			Workspace: s.deleteAgentWorkspace,
-			Remove:    s.k.RemoveProfile,
+			Remove:    s.rosterPorts().Remove,
 			NewCorr:   s.k.NewCorrelation,
 			Publish: func(subject, corr string, payload map[string]any) {
 				publishOperatorAction(s.k, subject, corr, payload)
@@ -685,10 +686,10 @@ var rosterSetRetiredOperations = func() []app.Operation {
 	ops, err := approster.SetRetiredOperations(func(ctx context.Context) *approster.SetRetiredService {
 		s := ctx.Value(systemHostKey{}).(*Server)
 		return approster.NewSetRetired(approster.SetRetiredPorts{
-			Get:    s.k.RosterGet,
+			Get:    s.rosterPorts().Get,
 			Impact: s.impactService().Summary,
 			SetRetired: func(ref string, retired bool, reason string) (agentapi.Profile, error) {
-				return s.k.SetProfileRetired(ref, retired, reason)
+				return s.rosterPorts().SetRetired(ref, retired, reason)
 			},
 			PauseStanding:        s.pauseAgentStanding,
 			PauseSchedules:       s.pauseAgentSchedules,
@@ -721,17 +722,17 @@ var rosterResolveOperations = func() []app.Operation {
 	ops, err := approster.ResolveOperations(func(ctx context.Context) *approster.ResolveService {
 		s := ctx.Value(systemHostKey{}).(*Server)
 		return approster.NewResolve(approster.ResolvePorts{
-			Get:            s.k.RosterGet,
+			Get:            s.rosterPorts().Get,
 			NewCorrelation: s.k.NewCorrelation,
 			Publish: func(subject, corr string, payload map[string]any) {
 				publishOperatorAction(s.k, subject, corr, payload)
 			},
 			Pause: func(slug string) error {
-				_, err := s.k.SetProfileEnabled(slug, false)
+				_, err := s.rosterPorts().SetEnabled(slug, false)
 				return err
 			},
 			Retire: func(slug, reason string) error {
-				_, err := s.k.SetProfileRetired(slug, true, reason)
+				_, err := s.rosterPorts().SetRetired(slug, true, reason)
 				return err
 			},
 			HelpRequest: s.postOperatorHelp,
@@ -753,7 +754,7 @@ var rosterResolveOperations = func() []app.Operation {
 var rosterRepairOperations = func() []app.Operation {
 	ops, err := approster.RepairOperations(func(ctx context.Context) *approster.RepairService {
 		s := ctx.Value(systemHostKey{}).(*Server)
-		return approster.NewRepair(s.k.RosterGet, s.k.NewCorrelation, func(subject, corr string, payload map[string]any) {
+		return approster.NewRepair(s.rosterPorts().Get, s.k.NewCorrelation, func(subject, corr string, payload map[string]any) {
 			publishOperatorAction(s.k, subject, corr, payload)
 		}, func(corr string, p agentapi.Profile, reason string, l approster.IncidentLineage) {
 			go s.launchOperatorRepair(corr, p, reason, l)
@@ -768,7 +769,7 @@ var rosterRepairOperations = func() []app.Operation {
 var rosterWakeOperations = func() []app.Operation {
 	ops, err := approster.WakeOperations(func(ctx context.Context) *approster.WakeService {
 		s := ctx.Value(systemHostKey{}).(*Server)
-		return approster.NewWake(s.k.RosterGet, s.k.NewCorrelation, func(subject, corr string, payload map[string]any) {
+		return approster.NewWake(s.rosterPorts().Get, s.k.NewCorrelation, func(subject, corr string, payload map[string]any) {
 			publishOperatorAction(s.k, subject, corr, payload)
 		}, func(corr string, p agentapi.Profile, intent, reason string, l approster.IncidentLineage) {
 			go s.launchOperatorWake(corr, p, intent, reason, l)
@@ -783,7 +784,7 @@ var rosterWakeOperations = func() []app.Operation {
 var rosterTaskUpdateOperations = func() []app.Operation {
 	ops, err := approster.TaskUpdateOperations(func(ctx context.Context) *approster.TaskUpdateService {
 		s := ctx.Value(systemHostKey{}).(*Server)
-		return approster.NewTaskUpdate(s.k.UpdateProfile)
+		return approster.NewTaskUpdate(s.rosterPorts().Update)
 	})
 	if err != nil {
 		panic(err)
@@ -794,7 +795,7 @@ var rosterTaskUpdateOperations = func() []app.Operation {
 var rosterSetEnabledOperations = func() []app.Operation {
 	ops, err := approster.SetEnabledOperations(func(ctx context.Context) *approster.SetEnabledService {
 		s := ctx.Value(systemHostKey{}).(*Server)
-		return approster.NewSetEnabled(s.k.SetProfileEnabled, s.countAgentPausedStanding, s.countAgentPausedSchedules, s.invalidateAgentListCache)
+		return approster.NewSetEnabled(s.rosterPorts().SetEnabled, s.countAgentPausedStanding, s.countAgentPausedSchedules, s.invalidateAgentListCache)
 	})
 	if err != nil {
 		panic(err)
@@ -814,7 +815,7 @@ func (b nativeEscalationBoard) Replies(id string) []boardapi.Message {
 var rosterEscalationOperations = func() []app.Operation {
 	ops, err := approster.EscalationOperations(func(ctx context.Context) *approster.EscalationService {
 		s := ctx.Value(systemHostKey{}).(*Server)
-		return approster.NewEscalations(s.k.RosterGet, func() (approster.EscalationBoard, error) {
+		return approster.NewEscalations(s.rosterPorts().Get, func() (approster.EscalationBoard, error) {
 			st, err := s.boardReader()
 			if err != nil {
 				return nil, err
@@ -831,7 +832,7 @@ var rosterEscalationOperations = func() []app.Operation {
 var rosterRepairStatusOperations = func() []app.Operation {
 	ops, err := approster.RepairStatusOperations(func(ctx context.Context) *approster.RepairStatusService {
 		s := ctx.Value(systemHostKey{}).(*Server)
-		return approster.NewRepairStatus(s.k.RosterGet, s.k.Journal().Range, approster.AutoRepairCooldown, nil)
+		return approster.NewRepairStatus(s.rosterPorts().Get, s.k.Journal().Range, approster.AutoRepairCooldown, nil)
 	})
 	if err != nil {
 		panic(err)
@@ -842,7 +843,7 @@ var rosterRepairStatusOperations = func() []app.Operation {
 var rosterActivityOperations = func() []app.Operation {
 	ops, err := approster.ActivityOperations(func(ctx context.Context) *approster.ActivityService {
 		s := ctx.Value(systemHostKey{}).(*Server)
-		return approster.NewActivity(s.k.RosterGet, s.k.Journal().Range)
+		return approster.NewActivity(s.rosterPorts().Get, s.k.Journal().Range)
 	})
 	if err != nil {
 		panic(err)
@@ -853,7 +854,7 @@ var rosterActivityOperations = func() []app.Operation {
 var rosterGraveyardOperations = func() []app.Operation {
 	ops, err := approster.GraveyardOperations(func(ctx context.Context) *approster.GraveyardService {
 		s := ctx.Value(systemHostKey{}).(*Server)
-		return approster.NewGraveyard(func() []agentapi.Profile { return s.k.RosterList() }, nil)
+		return approster.NewGraveyard(func() []agentapi.Profile { return s.rosterPorts().List() }, nil)
 	})
 	if err != nil {
 		panic(err)
@@ -1073,7 +1074,10 @@ var skillOperations = func() []app.Operation {
 		},
 		func(ctx context.Context) *appskill.Curation {
 			host := ctx.Value(appHostKey{}).(appHost)
-			return appskill.NewCuration(host.kernel.Forge(), func(slug string) bool { _, ok := host.kernel.RosterGet(slug); return ok })
+			return appskill.NewCuration(host.kernel.Forge(), func(slug string) bool {
+				_, ok := approster.ProfilePortsFromKernel(host.kernel).Get(slug)
+				return ok
+			})
 		},
 		func(ctx context.Context) *appskill.Observations {
 			host := ctx.Value(appHostKey{}).(appHost)
