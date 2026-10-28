@@ -5,21 +5,21 @@ import (
 	"context"
 
 	appworkboard "github.com/agezt/agezt/kernel/app/workboard"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
-// The workboard application's ports, bound to a kernel.
+// The daemon's own workboard ports: the root kernel's board.
 //
 // The host does not decide what the board is read from: it hands over the
 // kernel handle and the APPLICATION fills its own ports
 // (`kernel/app/workboard/ports.go`). What stays here is the binding — which
 // kernel answers the workboard family's questions.
-func workboardPortsFor(k *runtime.Kernel) appworkboard.Ports {
-	return appworkboard.PortsFromKernel(k)
+//
+// The handle is never named here: this file does not import the runtime, so
+// the adapter may hold the handle without naming the runtime package to hand
+// it over.
+func (s *Server) workboardPorts() appworkboard.Ports {
+	return appworkboard.PortsFromKernel(s.k)
 }
-
-// The daemon's own workboard ports: the root kernel's board.
-func (s *Server) workboardPorts() appworkboard.Ports { return workboardPortsFor(s.k) }
 
 // The REQUEST's workboard ports.
 //
@@ -27,5 +27,5 @@ func (s *Server) workboardPorts() appworkboard.Ports { return workboardPortsFor(
 // board is the tenant's board: the routed kernel is the one the request's
 // services must read.
 func requestWorkboardPorts(ctx context.Context) appworkboard.Ports {
-	return workboardPortsFor(ctx.Value(appHostKey{}).(appHost).kernel)
+	return appworkboard.PortsFromKernel(ctx.Value(appHostKey{}).(appHost).kernel)
 }
