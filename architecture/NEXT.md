@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4s the tools family's ports, 2026-10-28
+## Current checkpoint — W5.4t the objective family's ports, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -5591,6 +5591,41 @@ files, five of the seventeen mutations would have escaped.
   libraries*.
   Evidence:
   `architecture/224-w54s-the-tools-familys-ports-evidence.md`
+
+- W5.4t (the objective family's ports, and the rule that reads a file) is the
+  **seventh** family of the port programme: the **objectives**. The adapter's
+  objective surface was small — **two** sites — but it was the shape the
+  programme is about: `appokr.New(k.OKR(), k)` and
+  `appokr.NewLifecycle(k, appokr.New(k.OKR(), k))`, the handle as the rollup
+  and as the mutation host. The ports moved into the application
+  (`kernel/app/okr`: `PortsFromKernel`) and the adapter keeps the binding, on
+  the **routed** kernel — a tenant's objectives are the tenant's objectives.
+  **Two** kernel verb sites left the adapter's production code, and the
+  adapter no longer hands the handle to the objective application at all. The
+  family is found by reading the kernel's own objective file
+  (`kernel/runtime/okr.go`), the way the roster family is found by reading its
+  accessor file: a **name** rule would have missed the rollup verb, which is
+  called `Rollup` and says nothing about objectives, and a verb the rule misses
+  is a verb the adapter may name. The rule reads the **exported** methods of
+  that file only — the file also holds two private helpers, and a private
+  method is not a verb the adapter can name. The guard now holds **75**
+  application-owned verbs. The port's field names must not collide with kernel
+  verbs: the first draft called the rollup port `Rollup`, because the app's
+  own interface is `Rollupper`, and the guard caught the adapter the moment
+  it did (the field is `Progress` now) — the **second** time this programme
+  learned the same lesson, which is why it is written down. The **handle** rule
+  now covers the whole programme: it reads the programme's membership from the
+  tree, so every application that declares its own `ports.go` is in scope and
+  the list cannot rot. **3 permanent tests** and **10 mutations, 10 caught** in
+  two independent passes with **byte-identical** logs (SHA-256 `D528C9DD…86B70`).
+  M09 is worth reading twice: the derivation narrows, and the guard's own test
+  catches it — because that test reads the kernel's file **independently** of
+  the helper the guard uses. A derivation that checks itself is not a
+  derivation. Seven families are done, and the **workboard** is next: the
+  largest of them, and the last of the family map's *verbs without libraries*
+  that the adapter still names.
+  Evidence:
+  `architecture/225-w54t-the-objective-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

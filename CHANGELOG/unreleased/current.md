@@ -3305,6 +3305,15 @@ This file holds the active `[Unreleased]` working set.
   context and its panic reporting stay in the host: they are the protocol
   surface, not the application's.
 
+- **The objective family's wiring moved into the application (W5.4t).** The
+  objectives are the application's ports now (`kernel/app/okr`:
+  `PortsFromKernel`), and the adapter no longer hands the handle to the
+  objective application at all — **two** kernel verb sites left the adapter's
+  production code. The family is found by reading the kernel's own objective
+  file rather than by name, because the rollup verb is called `Rollup` and
+  says nothing about objectives, and a verb the rule misses is a verb the
+  adapter may name. The routed kernel stays the routed kernel: a tenant's
+  objectives are the tenant's objectives.
 - **The tools family's wiring moved into the application (W5.4s).** The tool
   registry, the script-tool forge and the MCP servers are the application's
   ports now (`kernel/app/tools`: `PortsFromKernel`), and **nine** kernel verb
