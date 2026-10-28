@@ -60,18 +60,24 @@ func rosterOwnedVerbs(t *testing.T) []string {
 // A family whose accessor file also holds other families' verbs cannot be
 // found by file — the standing accessor file holds the data accessors too —
 // so the families that live in a mixed file are found BY NAME.
-func kernelVerbsNamed(t *testing.T, family string) []string {
+//
+// A family may have more than one name: the tools family is the tool verbs
+// AND the MCP verbs, and the rule holds both.
+func kernelVerbsNamed(t *testing.T, families ...string) []string {
 	t.Helper()
 	kernel := reflect.TypeOf(&runtime.Kernel{})
 	var verbs []string
 	for i := 0; i < kernel.NumMethod(); i++ {
 		name := kernel.Method(i).Name
-		if strings.Contains(name, family) {
-			verbs = append(verbs, name)
+		for _, family := range families {
+			if strings.Contains(name, family) {
+				verbs = append(verbs, name)
+				break
+			}
 		}
 	}
 	if len(verbs) == 0 {
-		t.Fatalf("no %s verbs found — the kernel's %s verbs are gone?", family, family)
+		t.Fatalf("no %s verbs found — the kernel's %s verbs are gone?", strings.Join(families, "/"), strings.Join(families, "/"))
 	}
 	return verbs
 }
@@ -112,6 +118,23 @@ func workflowOwnedVerbs(t *testing.T) []string {
 	return kernelVerbsNamed(t, "Workflow")
 }
 
+// toolsOwnedVerbs are the kernel's TOOL verbs: the tool registry, the
+// script-tool forge, the tool runner and the MCP servers.
+//
+// The rule is BY NAME: a kernel verb that mentions a tool or an MCP server is
+// the tools family's business, and a verb that lands in the kernel is guarded
+// the day it lands.
+//
+// The rule also sweeps the two threshold verbs — MemoryDistillMinTools and
+// SkillForgeMinTools. They are the memory and skill families' numbers rather
+// than the tools family's, but the adapter must not name them either, and
+// until those families are wired they have no rule of their own. When they
+// are, the verb is named twice — a verb guarded twice is still guarded.
+func toolsOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	return kernelVerbsNamed(t, "Tool", "MCP")
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -119,7 +142,8 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, rosterOwnedVerbs(t)...)
 	verbs = append(verbs, standingOwnedVerbs(t)...)
 	verbs = append(verbs, scheduleOwnedVerbs(t)...)
-	return append(verbs, workflowOwnedVerbs(t)...)
+	verbs = append(verbs, workflowOwnedVerbs(t)...)
+	return append(verbs, toolsOwnedVerbs(t)...)
 }
 
 // The guard's list must hold verbs the kernel actually has: a verb nobody has
@@ -226,6 +250,25 @@ func TestTheGuardNamesEveryWorkflowVerbTheKernelHas(t *testing.T) {
 		}
 		if !guarded[name] {
 			t.Errorf("the kernel's workflow verb %s is not named by the guard — the workflow family's business belongs to the application", name)
+		}
+	}
+}
+
+// And the same for the TOOLS family — the registry, the forge, the runner and
+// the MCP servers.
+func TestTheGuardNamesEveryToolsVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		if !strings.Contains(name, "Tool") && !strings.Contains(name, "MCP") {
+			continue
+		}
+		if !guarded[name] {
+			t.Errorf("the kernel's tools verb %s is not named by the guard — the tools family's business belongs to the application", name)
 		}
 	}
 }
@@ -345,5 +388,137 @@ func TestTheAdapterNamesTheRuntimeOnlyAsAHandle(t *testing.T) {
 			}
 			t.Errorf("%s names %s.%s — the adapter may hold the kernel handle, but every row and mechanism it touches must come from the contract or the application layer", name, alias, hit[1])
 		}
+	}
+}
+
+// The TOOLS family's services must be built from the family's PORTS.
+//
+// The verb rule above cannot see a HANDLE: `apptools.NewForgeLifecycle(k)`
+// names no verb at all, so the guard would read it as clean — and the handle
+// IS the tools family's whole capability surface, so handing it over is
+// handing over the family. This rule closes that door: the tools application
+// takes its ports, and the handle the ports were filled from stops at the
+// binding.
+//
+// The handle is the kernel itself, so the argument that hands it over is the
+// one that ENDS with the handle's spelling. An argument that reaches THROUGH
+// the handle for something else — the journal, say — is not the handle, and
+// the rule leaves it alone.
+var toolsApplicationImport = regexp.MustCompile(`(?:^|\n)\s*(?:(\w+)\s+)?"github\.com/agezt/agezt/kernel/app/tools"`)
+
+// handleArgument is an argument that hands the kernel handle over.
+var handleArgument = regexp.MustCompile(`(?:\bkernel\b|\.\s*k\b|\bk\b)$`)
+
+// toolsServiceArguments are the argument lists of the tools application's
+// constructor calls in the source.
+func toolsServiceArguments(src, alias string) []string {
+	selector := regexp.MustCompile(`\b` + regexp.QuoteMeta(alias) + `\.New[A-Za-z0-9_]*\(`)
+	var lists []string
+	for _, loc := range selector.FindAllStringIndex(src, -1) {
+		if list, ok := balancedArguments(src, loc[1]-1); ok {
+			lists = append(lists, list)
+		}
+	}
+	return lists
+}
+
+// balancedArguments reads the argument list of the call whose opening
+// parenthesis sits at the given index.
+func balancedArguments(src string, open int) (string, bool) {
+	depth := 0
+	for i := open; i < len(src); i++ {
+		switch src[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return src[open+1 : i], true
+			}
+		}
+	}
+	return "", false
+}
+
+// topLevelArguments splits an argument list at the commas that separate the
+// arguments — a comma inside a call or a closure is not a separator.
+func topLevelArguments(list string) []string {
+	var args []string
+	depth, start := 0, 0
+	for i := 0; i < len(list); i++ {
+		switch list[i] {
+		case '(', '[', '{':
+			depth++
+		case ')', ']', '}':
+			depth--
+		case ',':
+			if depth == 0 {
+				args = append(args, list[start:i])
+				start = i + 1
+			}
+		}
+	}
+	return append(args, list[start:])
+}
+
+func TestTheAdapterHandsTheToolsApplicationPortsAndNotTheHandle(t *testing.T) {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		raw, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		src := string(raw)
+
+		m := toolsApplicationImport.FindStringSubmatch(src)
+		if m == nil {
+			continue // the file does not name the tools application at all
+		}
+		alias := m[1]
+		if alias == "" {
+			alias = "tools"
+		}
+		for _, list := range toolsServiceArguments(src, alias) {
+			for _, arg := range topLevelArguments(list) {
+				arg = strings.TrimSpace(arg)
+				if handleArgument.MatchString(arg) {
+					t.Errorf("%s hands the kernel handle to the tools application (%s) — the family takes ports, not the handle it filled them from", name, arg)
+				}
+			}
+		}
+	}
+}
+
+// The rule is held by the rule: a matcher that could not see the handle
+// would let the family walk back in through the door the verb rule cannot
+// see.
+func TestTheHandleRuleSeesTheHandleAndLeavesTheReachedThingAlone(t *testing.T) {
+	if !handleArgument.MatchString("host.kernel") {
+		t.Error("the rule does not see the handle as a host field")
+	}
+	if !handleArgument.MatchString("s.k") {
+		t.Error("the rule does not see the handle as a server field")
+	}
+	if !handleArgument.MatchString("ctx.Value(appHostKey{}).(appHost).kernel") {
+		t.Error("the rule does not see the handle reached through the request")
+	}
+	if handleArgument.MatchString("ctx.Value(appHostKey{}).(appHost).kernel.Journal()") {
+		t.Error("the rule took the journal for the handle — the journal is not the handle")
+	}
+	if handleArgument.MatchString("requestToolsPorts(ctx).Registry") {
+		t.Error("the rule took a port for the handle — a port is what the family takes")
+	}
+	if got := topLevelArguments("a, f(b, c), d"); len(got) != 3 || strings.TrimSpace(got[1]) != "f(b, c)" {
+		t.Errorf("topLevelArguments = %q, want the closure's comma left alone", got)
+	}
+	if got, ok := balancedArguments("f(a, g(b)) trailing", 1); !ok || got != "a, g(b)" {
+		t.Errorf("balancedArguments = %q %v, want the call's own argument list", got, ok)
 	}
 }

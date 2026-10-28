@@ -15,7 +15,7 @@ import (
 )
 
 func (s *Server) scheduleEditing() *appschedule.Editing {
-	return appschedule.NewEditing(appschedule.PortsFromKernel(s.k).Store, appschedule.EditingHost{WorkflowName: func(ref string) (string, bool) { w, ok := s.workflowPorts().Get(ref); return w.Name, ok }, Tool: func(name string) bool { _, ok := s.k.Tools()[name]; return ok }, Now: time.Now})
+	return appschedule.NewEditing(appschedule.PortsFromKernel(s.k).Store, appschedule.EditingHost{WorkflowName: func(ref string) (string, bool) { w, ok := s.workflowPorts().Get(ref); return w.Name, ok }, Tool: s.toolsPorts().Has, Now: time.Now})
 }
 
 func (s *Server) scheduleLifecycle(ctx context.Context) *appschedule.Lifecycle {

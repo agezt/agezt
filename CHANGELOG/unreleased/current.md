@@ -3305,6 +3305,15 @@ This file holds the active `[Unreleased]` working set.
   context and its panic reporting stay in the host: they are the protocol
   surface, not the application's.
 
+- **The tools family's wiring moved into the application (W5.4s).** The tool
+  registry, the script-tool forge and the MCP servers are the application's
+  ports now (`kernel/app/tools`: `PortsFromKernel`), and **nine** kernel verb
+  sites left the adapter's production code — the adapter no longer hands the
+  handle to a tools-application constructor at all. The registry is read by
+  four other families (the roster's permission picture, the config's tool
+  count, the schedule's tool targets and the nodes' remote-run check) and is
+  now asked **once**, through the tools family. The routed kernel stays the
+  routed kernel: a tenant's tools are the tenant's tools.
 - **The built-in skills are seeded again while a scanner holds the old bundle.**
   Seeding a built-in skill bundle removed the old bundle and renamed the staged
   one over it in a single step. On Windows, a scanner or indexer that still

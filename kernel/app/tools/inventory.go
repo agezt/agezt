@@ -25,12 +25,12 @@ func PrimaryCapability(name string) edict.Capability {
 	return edict.CapabilityForToolCall(name, catalogProbe[name])
 }
 
-type InventoryReader interface {
-	Tools() map[string]toolapi.Tool
-}
-type Inventory struct{ reader InventoryReader }
+// The inventory reads the registry through the application's own port
+// (RegistryReader): the registry's vocabulary is this layer's, and the
+// kernel's verb for the same thing stays on the other side of it.
+type Inventory struct{ reader RegistryReader }
 
-func NewInventory(reader InventoryReader) *Inventory { return &Inventory{reader: reader} }
+func NewInventory(reader RegistryReader) *Inventory { return &Inventory{reader: reader} }
 
 type InventoryInput struct{}
 type InventoryItem struct {
@@ -49,7 +49,10 @@ type InventoryOutput struct {
 // List reads definitions without invoking any tool. Names sort by the advertised
 // definition name; equal-name tie order retains the original map traversal policy.
 func (s *Inventory) List(_ context.Context, _ InventoryInput) (InventoryOutput, error) {
-	registered := s.reader.Tools()
+	registered := map[string]toolapi.Tool{}
+	if s.reader != nil {
+		registered = s.reader.Registered()
+	}
 	rows := make([]InventoryItem, 0, len(registered))
 	for name, tool := range registered {
 		def := tool.Definition()
