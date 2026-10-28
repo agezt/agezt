@@ -28,6 +28,7 @@ import (
 	appchat "github.com/agezt/agezt/kernel/app/chat"
 	appconfig "github.com/agezt/agezt/kernel/app/config"
 	appconfigcenter "github.com/agezt/agezt/kernel/app/configcenter"
+	appcorrelation "github.com/agezt/agezt/kernel/app/correlation"
 	appcouncil "github.com/agezt/agezt/kernel/app/council"
 	appdata "github.com/agezt/agezt/kernel/app/data"
 	appedict "github.com/agezt/agezt/kernel/app/edict"
@@ -280,7 +281,7 @@ var researchOperations = func() []app.Operation {
 		k := ctx.Value(systemHostKey{}).(*Server).k
 		return appresearch.Engines{
 			Research:       k.Research,
-			NewCorrelation: k.NewCorrelation,
+			NewCorrelation: ctx.Value(systemHostKey{}).(*Server).correlationPorts().Mint,
 		}
 	})
 	if err != nil {
@@ -607,7 +608,7 @@ var rosterRemoveOperations = func() []app.Operation {
 			Config:    s.deleteAgentConfigEntries,
 			Workspace: s.deleteAgentWorkspace,
 			Remove:    s.rosterPorts().Remove,
-			NewCorr:   s.k.NewCorrelation,
+			NewCorr:   s.correlationPorts().Mint,
 			Publish: func(subject, corr string, payload map[string]any) {
 				publishOperatorAction(s.k, subject, corr, payload)
 			},
@@ -633,7 +634,7 @@ var rosterSetRetiredOperations = func() []app.Operation {
 			PauseSchedules:       s.pauseAgentSchedules,
 			CountPausedStanding:  s.countAgentPausedStanding,
 			CountPausedSchedules: s.countAgentPausedSchedules,
-			NewCorrelation:       s.k.NewCorrelation,
+			NewCorrelation:       s.correlationPorts().Mint,
 			Publish: func(subject, corr string, payload map[string]any) {
 				publishOperatorAction(s.k, subject, corr, payload)
 			},
@@ -661,7 +662,7 @@ var rosterResolveOperations = func() []app.Operation {
 		s := ctx.Value(systemHostKey{}).(*Server)
 		return approster.NewResolve(approster.ResolvePorts{
 			Get:            s.rosterPorts().Get,
-			NewCorrelation: s.k.NewCorrelation,
+			NewCorrelation: s.correlationPorts().Mint,
 			Publish: func(subject, corr string, payload map[string]any) {
 				publishOperatorAction(s.k, subject, corr, payload)
 			},
@@ -692,7 +693,7 @@ var rosterResolveOperations = func() []app.Operation {
 var rosterRepairOperations = func() []app.Operation {
 	ops, err := approster.RepairOperations(func(ctx context.Context) *approster.RepairService {
 		s := ctx.Value(systemHostKey{}).(*Server)
-		return approster.NewRepair(s.rosterPorts().Get, s.k.NewCorrelation, func(subject, corr string, payload map[string]any) {
+		return approster.NewRepair(s.rosterPorts().Get, s.correlationPorts().Mint, func(subject, corr string, payload map[string]any) {
 			publishOperatorAction(s.k, subject, corr, payload)
 		}, func(corr string, p agentapi.Profile, reason string, l approster.IncidentLineage) {
 			go s.launchOperatorRepair(corr, p, reason, l)
@@ -707,7 +708,7 @@ var rosterRepairOperations = func() []app.Operation {
 var rosterWakeOperations = func() []app.Operation {
 	ops, err := approster.WakeOperations(func(ctx context.Context) *approster.WakeService {
 		s := ctx.Value(systemHostKey{}).(*Server)
-		return approster.NewWake(s.rosterPorts().Get, s.k.NewCorrelation, func(subject, corr string, payload map[string]any) {
+		return approster.NewWake(s.rosterPorts().Get, s.correlationPorts().Mint, func(subject, corr string, payload map[string]any) {
 			publishOperatorAction(s.k, subject, corr, payload)
 		}, func(corr string, p agentapi.Profile, intent, reason string, l approster.IncidentLineage) {
 			go s.launchOperatorWake(corr, p, intent, reason, l)
@@ -1628,8 +1629,9 @@ func (r appTenantRouter) Route(ctx context.Context, principal opapi.Principal, s
 	}
 	host := appHost{kernel: k}
 	if !spec.ReadOnly {
-		host.correlation = k.NewCorrelation()
-		ctx = k.WithActorCorrelation(ctx, string(principal.Kind), host.correlation)
+		correlation := appcorrelation.PortsFromKernel(k)
+		host.correlation = correlation.Mint()
+		ctx = correlation.WithActor(ctx, string(principal.Kind), host.correlation)
 		ctx = opapi.WithCorrelation(ctx, host.correlation)
 	}
 	ctx = context.WithValue(ctx, appHostKey{}, host)

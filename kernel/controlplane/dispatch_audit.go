@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	appcorrelation "github.com/agezt/agezt/kernel/app/correlation"
 	appeventbus "github.com/agezt/agezt/kernel/app/eventbus"
 	"github.com/agezt/agezt/kernel/app/opaudit"
 	"github.com/agezt/agezt/kernel/event"
@@ -75,7 +76,7 @@ func beginOpAudit(dc *DispatchCtx) *opAudit {
 		k:     k,
 		ports: ports,
 		cmd:   dc.Req.Cmd,
-		corr:  k.NewCorrelation(),
+		corr:  appcorrelation.PortsFromKernel(k).Mint(),
 		start: time.Now(),
 		conn:  &auditedConn{Conn: dc.Conn},
 	}

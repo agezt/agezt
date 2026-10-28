@@ -24,7 +24,7 @@ func (s *Server) scheduleLifecycle(ctx context.Context) *appschedule.Lifecycle {
 	return appschedule.NewLifecycle(appschedule.PortsFromKernel(s.k).Store, s.validateScheduleRunnable, func(id string, enabled bool, action string, current cadenceapi.Entry) {
 		corr := opapi.CorrelationFromContext(ctx)
 		if corr == "" {
-			corr = s.k.NewCorrelation()
+			corr = s.correlationPorts().Mint()
 		}
 		publishOperatorAction(s.k, "schedule.enable", corr, map[string]any{"id": id, "enabled": enabled, "action": action, "target": current.Target, "agent": current.Agent, "cadence": current.Cadence()})
 	})
