@@ -760,6 +760,32 @@ func hasWord(words []string, want string) bool {
 	return false
 }
 
+// reaperOwnedVerbs are the kernel's REAPER verbs: the read-only scan that
+// finds dead, degraded, misconfigured and routing-troubled agents and stale
+// artifacts, the host's own facts the scanner needs, and the setter that
+// injects the scanner.
+//
+// The rule is by WORD: a kernel verb whose name carries "Reaper" as a whole
+// word is the reaper family's business.
+func reaperOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	var verbs []string
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		for _, word := range camelWords(name) {
+			if word == "Reaper" {
+				verbs = append(verbs, name)
+				break
+			}
+		}
+	}
+	if len(verbs) == 0 {
+		t.Fatal("no reaper verbs found — the kernel's reaper verbs are gone?")
+	}
+	return verbs
+}
+
 // runsOwnedVerbs are the kernel's RUN verbs: the two that START a run under
 // a correlation — plainly, and with a retry policy.
 //
@@ -920,6 +946,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, dataOwnedVerbs(t)...)
 	verbs = append(verbs, reflectionOwnedVerbs(t)...)
 	verbs = append(verbs, runsOwnedVerbs(t)...)
+	verbs = append(verbs, reaperOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -2693,6 +2720,102 @@ func TestTheRunsFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	}
 	if len(runs) == kernel.NumMethod() {
 		t.Errorf("the runs family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the same for the REAPER family — the read-only scan behind the
+// operator's dead-agent report.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries "Reaper" as a whole word is the
+// reaper family's business. The expectation is not derived through the helper
+// the guard uses.
+func TestTheGuardNamesEveryReaperVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		carries := false
+		for _, word := range camelWords(name) {
+			if word == "Reaper" {
+				carries = true
+			}
+		}
+		if !carries {
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's reaper verb %s is not named by the guard — the reaper family's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no reaper verbs found — the kernel's reaper verbs are gone?")
+	}
+}
+
+// And the REAPER family must not claim another family's verbs: the reaper's
+// scan is not a tool's business, a memory's business, or the policy's.
+//
+// The rule must be BOTH broad and sharp. Broad: every reaper verb is guarded
+// (the test above). Sharp: the reaper family's list carries nothing that
+// belongs to someone else, and it is a strict subset of the kernel's verbs — a
+// rule that only ever grows is a rule that eventually guards the whole kernel,
+// and a guard that guards the whole kernel guards nothing.
+func TestTheReaperFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+		providerOwnedVerbs(t),
+		baseDirOwnedVerbs(t),
+		correlationOwnedVerbs(t),
+		catalogOwnedVerbs(t),
+		artifactOwnedVerbs(t),
+		pluginOwnedVerbs(t),
+		marketOwnedVerbs(t),
+		approvalOwnedVerbs(t),
+		worldOwnedVerbs(t),
+		tasteOwnedVerbs(t),
+		personaOwnedVerbs(t),
+		stateOwnedVerbs(t),
+		seatOwnedVerbs(t),
+		dataOwnedVerbs(t),
+		reflectionOwnedVerbs(t),
+		runsOwnedVerbs(t),
+		workboardOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	reaper := reaperOwnedVerbs(t)
+	if len(reaper) == 0 {
+		t.Fatal("the reaper family names no verb — the reaper family's business belongs to the application")
+	}
+	for _, verb := range reaper {
+		if others[verb] {
+			t.Errorf("the reaper family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	if len(reaper) == kernel.NumMethod() {
+		t.Errorf("the reaper family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
 	}
 }
 

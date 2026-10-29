@@ -3419,6 +3419,15 @@ This file holds the active `[Unreleased]` working set.
   kernel's own verb name. There is no request-level binding: the two surfaces
   that launch runs are the daemon's own, and the choice between a plain run and
   a retrying run stays with the caller.
+- **The reaper family's ports moved into the application (W5.4as).** The
+  reaper's read-only scan is the daemon's own — the dead-agent report behind
+  the operator's view — and the adapter reached for the kernel's scan in **two**
+  places. The ports moved into the application (`kernel/app/reaper`:
+  `PortsFromKernel`), the adapter asks the family, and the port holds the scan
+  as a capability — it answers `Scan`, never the kernel's own verb name. There
+  is no request-level binding: the two surfaces that scan are the daemon's own,
+  and a daemon that was given no reaper module is answered with an **empty
+  report** rather than a refusal.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —

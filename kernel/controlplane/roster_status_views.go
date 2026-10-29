@@ -24,7 +24,7 @@ func (s *Server) collectRosterStatusSnapshot(profiles []agentapi.Profile, reaper
 		Schedules: appschedule.PortsFromKernel(s.k).Entries,
 		Standing:  appstanding.PortsFromKernel(s.k).Orders,
 		Board:     s.statusBoardMessages,
-		Reaper:    func(cut int64) agentapi.ReaperReport { return s.k.ReaperScan(cut, cut) },
+		Reaper:    func(cut int64) agentapi.ReaperReport { return s.reaperPorts().Scan(cut, cut) },
 	}, profiles, reaperCut, routingCut)
 }
 
