@@ -225,18 +225,16 @@ var personaOperations = func() []app.Operation {
 	ops, err := apppersona.Operations(func(ctx context.Context) *apppersona.Service {
 		s := ctx.Value(systemHostKey{}).(*Server)
 		prompts := filepath.Join(s.baseDir, "chat_prompts.json")
-		return apppersona.New(apppersona.Ports{
-			System:      s.k.System,
-			SetSystem:   s.k.SetSystem,
-			Store:       func() apppersona.Store { return settings.NewStore(s.baseDir) },
-			ReadPrompts: func() ([]byte, error) { return os.ReadFile(prompts) },
-			// The prompt library is written through the platform's atomic
-			// writer, so a reader never sees a half-written library. The
-			// library is read back on every Chat view, and a torn file
-			// would read as an EMPTY library rather than as an error — the
-			// operator would see their prompts gone and no reason why.
-			SavePrompts: func(data []byte) error { return atomicfile.WriteFile(prompts, data, 0o600) },
-		})
+		ports := s.personaPorts()
+		ports.Store = func() apppersona.Store { return settings.NewStore(s.baseDir) }
+		ports.ReadPrompts = func() ([]byte, error) { return os.ReadFile(prompts) }
+		// The prompt library is written through the platform's atomic
+		// writer, so a reader never sees a half-written library. The
+		// library is read back on every Chat view, and a torn file
+		// would read as an EMPTY library rather than as an error — the
+		// operator would see their prompts gone and no reason why.
+		ports.SavePrompts = func(data []byte) error { return atomicfile.WriteFile(prompts, data, 0o600) }
+		return apppersona.New(ports)
 	})
 	if err != nil {
 		panic(err)
@@ -302,8 +300,10 @@ var reflectionOperations = func() []app.Operation {
 
 var chatSummaryOperations = func() []app.Operation {
 	ops, err := appchat.SummaryOperations(func(ctx context.Context) *appchat.Summarizer {
-		k := ctx.Value(systemHostKey{}).(*Server).k
-		return appchat.NewSummarizer(appchat.SummaryPorts{Provider: ctx.Value(systemHostKey{}).(*Server).providerPorts().Live, Model: k.Model})
+		s := ctx.Value(systemHostKey{}).(*Server)
+		// The default model is the IDENTITY family's answer: the summarizer
+		// asks the persona family for it rather than reaching for the kernel.
+		return appchat.NewSummarizer(appchat.SummaryPorts{Provider: s.providerPorts().Live, Model: s.personaPorts().Identity.DefaultModel})
 	})
 	if err != nil {
 		panic(err)
@@ -327,7 +327,7 @@ var nodeOperations = func() []app.Operation {
 	ops, err := appnodes.Operations(func(ctx context.Context) *appnodes.Service {
 		s := ctx.Value(systemHostKey{}).(*Server)
 		return appnodes.New(appnodes.Ports{
-			Model:     s.k.Model,
+			Model:     s.personaPorts().Identity.DefaultModel,
 			RemoteRun: s.toolsPorts().RemoteRun,
 			PeerSpec:  s.nodePeerSpec,
 			Client:    nodeProbeClient,
@@ -1302,7 +1302,7 @@ var pluginInventoryOperations = func() []app.Operation {
 
 var configReadOperations = func() []app.Operation {
 	operations, err := appconfig.Operations(func(ctx context.Context) *appconfig.Service {
-		return appconfig.New(nativeConfigReader{kernel: ctx.Value(appHostKey{}).(appHost).kernel, tools: requestToolsPorts(ctx), edict: requestEdictPorts(ctx), provider: requestProviderPorts(ctx), basedir: requestBaseDirPorts(ctx), plugins: requestPluginPorts(ctx)}, configEnvVars, nativeConfigEnvPresent)
+		return appconfig.New(nativeConfigReader{persona: requestPersonaPorts(ctx), tools: requestToolsPorts(ctx), edict: requestEdictPorts(ctx), provider: requestProviderPorts(ctx), basedir: requestBaseDirPorts(ctx), plugins: requestPluginPorts(ctx)}, configEnvVars, nativeConfigEnvPresent)
 	})
 	if err != nil {
 		panic(err)
