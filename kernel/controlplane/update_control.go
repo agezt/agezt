@@ -34,7 +34,13 @@ func (s *Server) writeUpdateSentinel() {
 // used to keep a second copy of it.
 func (s *Server) operatorUpdate() *appupdate.Service {
 	return appupdate.New(s.updateSvc, brand.Version, func(_ context.Context, timeout time.Duration) updateapi.DrainResult {
-		timedOut, active := s.k.DrainAndHalt(timeout)
+		timedOut, active, err := s.lifecyclePorts().Drain(timeout)
+		if err != nil {
+			// The daemon could not be drained. The update must NOT land on a
+			// daemon that is still running, so the flow is told the drain
+			// timed out and leaves the binary alone.
+			return updateapi.DrainResult{Timeout: true}
+		}
 		return updateapi.DrainResult{Timeout: timedOut, ActiveRuns: active}
 	}, s.writeUpdateSentinel, func(delay time.Duration) { go func() { time.Sleep(delay); s.signalShutdown() }() })
 }

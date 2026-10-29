@@ -760,6 +760,35 @@ func hasWord(words []string, want string) bool {
 	return false
 }
 
+// lifecycleOwnedVerbs are the kernel's LIFECYCLE verbs: the drain that
+// cancels the runs in flight, waits for them and halts the daemon.
+//
+// The rule is by WORD: a kernel verb whose name carries "Drain" as a whole word
+// is the lifecycle family's business.
+//
+// The daemon's OTHER lifecycle verbs — the halt and the suspend, the halted
+// flag, the runs in flight — are asked for by the daemon's own overview, and
+// they are named there and not here: this slice moves the drain, and the
+// overview's own asks are the phase after it.
+func lifecycleOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	var verbs []string
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		for _, word := range camelWords(name) {
+			if word == "Drain" {
+				verbs = append(verbs, name)
+				break
+			}
+		}
+	}
+	if len(verbs) == 0 {
+		t.Fatal("no lifecycle verbs found — the kernel's lifecycle verbs are gone?")
+	}
+	return verbs
+}
+
 // reaperOwnedVerbs are the kernel's REAPER verbs: the read-only scan that
 // finds dead, degraded, misconfigured and routing-troubled agents and stale
 // artifacts, the host's own facts the scanner needs, and the setter that
@@ -947,6 +976,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, reflectionOwnedVerbs(t)...)
 	verbs = append(verbs, runsOwnedVerbs(t)...)
 	verbs = append(verbs, reaperOwnedVerbs(t)...)
+	verbs = append(verbs, lifecycleOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -2816,6 +2846,103 @@ func TestTheReaperFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	}
 	if len(reaper) == kernel.NumMethod() {
 		t.Errorf("the reaper family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the same for the LIFECYCLE family — the drain that cancels the runs in
+// flight and halts the daemon.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries "Drain" as a whole word is the
+// daemon family's business. The expectation is not derived through the helper
+// the guard uses.
+func TestTheGuardNamesEveryLifecycleVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		carries := false
+		for _, word := range camelWords(name) {
+			if word == "Drain" {
+				carries = true
+			}
+		}
+		if !carries {
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's lifecycle verb %s is not named by the guard — the lifecycle family's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no lifecycle verbs found — the kernel's lifecycle verbs are gone?")
+	}
+}
+
+// And the LIFECYCLE family must not claim another family's verbs: the drain is
+// not a tool's business, a memory's business, or the policy's.
+//
+// The rule must be BOTH broad and sharp. Broad: every daemon verb is guarded
+// (the test above). Sharp: the daemon family's list carries nothing that
+// belongs to someone else, and it is a strict subset of the kernel's verbs — a
+// rule that only ever grows is a rule that eventually guards the whole kernel,
+// and a guard that guards the whole kernel guards nothing.
+func TestTheLifecycleFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+		providerOwnedVerbs(t),
+		baseDirOwnedVerbs(t),
+		correlationOwnedVerbs(t),
+		catalogOwnedVerbs(t),
+		artifactOwnedVerbs(t),
+		pluginOwnedVerbs(t),
+		marketOwnedVerbs(t),
+		approvalOwnedVerbs(t),
+		worldOwnedVerbs(t),
+		tasteOwnedVerbs(t),
+		personaOwnedVerbs(t),
+		stateOwnedVerbs(t),
+		seatOwnedVerbs(t),
+		dataOwnedVerbs(t),
+		reflectionOwnedVerbs(t),
+		runsOwnedVerbs(t),
+		reaperOwnedVerbs(t),
+		workboardOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	lifecycle := lifecycleOwnedVerbs(t)
+	if len(lifecycle) == 0 {
+		t.Fatal("the lifecycle family names no verb — the lifecycle family's business belongs to the application")
+	}
+	for _, verb := range lifecycle {
+		if others[verb] {
+			t.Errorf("the lifecycle family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	if len(lifecycle) == kernel.NumMethod() {
+		t.Errorf("the lifecycle family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
 	}
 }
 
