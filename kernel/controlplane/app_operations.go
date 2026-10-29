@@ -75,7 +75,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/platform/rollbackstore"
 	"github.com/agezt/agezt/kernel/redact"
 	"github.com/agezt/agezt/kernel/settings"
@@ -165,10 +164,7 @@ var routingOperations = func() []app.Operation {
 var executionProfileOperations = func() []app.Operation {
 	ops, err := appexecprofile.Operations(func(ctx context.Context) *appexecprofile.Service {
 		k := ctx.Value(appHostKey{}).(appHost).kernel
-		return appexecprofile.New(appexecprofile.Ports{
-			Inventory: func() executionprofile.Inventory { return appexecprofile.Inventory(k) },
-			Policy:    executionprofile.PolicyFromEnv,
-		})
+		return appexecprofile.New(appexecprofile.PortsFromKernel(k))
 	})
 	if err != nil {
 		panic(err)

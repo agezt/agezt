@@ -827,6 +827,20 @@ func daemonOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
+// execProfileOwnedVerbs are the kernel's EXECUTION PROFILE verbs: the warden
+// engine the profiles are routed through.
+//
+// The rule is BY NAME: a kernel verb whose name mentions the warden is the
+// execution profile family's business. It catches one verb today: Warden.
+//
+// The execution profile family reads the tools too, but the tools are the
+// TOOLS family's business and the rule here does not reach for them — two
+// families claiming one verb is exactly what the sharp test refuses.
+func execProfileOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	return kernelVerbsNamed(t, "Warden")
+}
+
 // reaperOwnedVerbs are the kernel's REAPER verbs: the read-only scan that
 // finds dead, degraded, misconfigured and routing-troubled agents and stale
 // artifacts, the host's own facts the scanner needs, and the setter that
@@ -1016,6 +1030,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, reaperOwnedVerbs(t)...)
 	verbs = append(verbs, lifecycleOwnedVerbs(t)...)
 	verbs = append(verbs, daemonOwnedVerbs(t)...)
+	verbs = append(verbs, execProfileOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -2966,6 +2981,7 @@ func TestTheLifecycleFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 		runsOwnedVerbs(t),
 		reaperOwnedVerbs(t),
 		daemonOwnedVerbs(t),
+		execProfileOwnedVerbs(t),
 		workboardOwnedVerbs(t),
 	} {
 		for _, verb := range list {
@@ -3100,6 +3116,114 @@ func TestTheConfigToolNamesNoKernelVerbTheGuardMisses(t *testing.T) {
 		verb := match[1]
 		if !guarded[verb] {
 			t.Errorf("the config tool's port names the kernel's %s and the guard does not — a verb the guard misses is a verb the adapter may name", verb)
+		}
+	}
+}
+
+// And the EXECUTION PROFILE family — the warden the profiles are routed
+// through.
+//
+// The rule is held in BOTH directions: broad (the guard names the execution
+// profile's verbs) and sharp (the family claims no other family's verb).
+func TestTheExecutionProfileFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+		providerOwnedVerbs(t),
+		baseDirOwnedVerbs(t),
+		correlationOwnedVerbs(t),
+		catalogOwnedVerbs(t),
+		artifactOwnedVerbs(t),
+		pluginOwnedVerbs(t),
+		marketOwnedVerbs(t),
+		approvalOwnedVerbs(t),
+		worldOwnedVerbs(t),
+		tasteOwnedVerbs(t),
+		personaOwnedVerbs(t),
+		stateOwnedVerbs(t),
+		seatOwnedVerbs(t),
+		dataOwnedVerbs(t),
+		reflectionOwnedVerbs(t),
+		runsOwnedVerbs(t),
+		reaperOwnedVerbs(t),
+		lifecycleOwnedVerbs(t),
+		daemonOwnedVerbs(t),
+		workboardOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	family := execProfileOwnedVerbs(t)
+	if len(family) == 0 {
+		t.Fatal("the execution profile family names no verb — the warden's business belongs to the application")
+	}
+	for _, verb := range family {
+		if others[verb] {
+			t.Errorf("the execution profile family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	if len(family) == kernel.NumMethod() {
+		t.Errorf("the execution profile family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the guard names EVERY execution profile verb: the warden the profiles
+// are routed through is named here, and a verb the guard misses is a verb the
+// adapter may name.
+//
+// The expectation is written HERE, in the test's own words, and not taken
+// from the helper the guard runs.
+func TestTheGuardNamesEveryExecutionProfileVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	for _, verb := range []string{
+		"Warden",
+	} {
+		if !guarded[verb] {
+			t.Errorf("the kernel's execution profile verb %s is not named by the guard — the warden's business belongs to the application", verb)
+		}
+	}
+}
+
+// And the execution profile's PORT names no kernel verb the guard misses: the
+// port is where the handle is filled, and every verb it names is the
+// application's business — so every one of them must be guarded.
+//
+// The verbs are read from the port's own source, HERE, and not through the
+// helper the guard runs.
+func TestTheExecutionProfileNamesNoKernelVerbTheGuardMisses(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "app", "execprofile", "ports.go"))
+	if err != nil {
+		t.Fatalf("read the execution profile's ports: %v", err)
+	}
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	named := regexp.MustCompile(`\bk\.([A-Z][A-Za-z0-9_]*)`).FindAllStringSubmatch(string(raw), -1)
+	if len(named) == 0 {
+		t.Fatal("the execution profile's port names no kernel verb — the port stopped filling itself?")
+	}
+	for _, match := range named {
+		verb := match[1]
+		if !guarded[verb] {
+			t.Errorf("the execution profile's port names the kernel's %s and the guard does not — a verb the guard misses is a verb the adapter may name", verb)
 		}
 	}
 }

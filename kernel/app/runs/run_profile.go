@@ -24,7 +24,7 @@ func WardenProfile(ctx context.Context, k *runtime.Kernel, id string) (context.C
 	p, ok := executionprofile.WardenProfileForRun(id)
 	if !ok {
 		return ctx, "", fmt.Errorf("execution profile %q is not routable for run tools yet (supported: %s)",
-			id, strings.Join(executionprofile.RoutableRunProfileIDsFor(appexecprofile.Inventory(k)), ", "))
+			id, strings.Join(executionprofile.RoutableRunProfileIDsFor(appexecprofile.PortsFromKernel(k).Inventory()), ", "))
 	}
 	if p == warden.ProfileContainer && k.Warden().EffectiveProfile(p) != warden.ProfileContainer {
 		return ctx, "", fmt.Errorf("execution profile %q requires an active container backend (set AGEZT_WARDEN_DOCKER=1 and configure AGEZT_WARDEN_DOCKER_IMAGE/runtime)", id)
