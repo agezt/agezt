@@ -6681,6 +6681,49 @@ files, five of the seventeen mutations would have escaped.
   and the **number of attempts** is the difference: one for a plain run, two
   under `MaxAttempts: 2`. Evidence:
   `architecture/249-w54ar-the-runs-familys-ports-evidence.md`
+- W5.4as (the reaper family, and the module the daemon may not have) is the
+  port programme's **thirty-second** slice and the **twenty-third** one of its
+  last phase: the handle itself. The reaper's scan is the daemon's own — the
+  read-only pass that finds dead, degraded, misconfigured and routing-troubled
+  agents and stale artifacts — and the adapter reached for the kernel's scan in
+  **two** places: the reaper's own operations and the roster's status
+  collection. The ports moved into the application (`kernel/app/reaper`:
+  `PortsFromKernel` → `Scan`) and the adapter keeps the binding
+  (`kernel/controlplane/reaper_ports.go`), which does not name the runtime — and
+  it has **no request-level binding**: the two surfaces that scan are the
+  daemon's own, so they ask the daemon's kernel, and a binding nobody calls is
+  dead code. The port answers `Scan`, **never** the kernel's own verb name. The
+  scan was also a **method value** — the kernel's own method handed over as a
+  function — and it is a method value no more. The rule is **by whole word** —
+  a kernel verb whose name carries "Reaper" as a **complete word** is the reaper
+  family's business — and it catches **three** verbs today: `ReaperScan`,
+  `ReaperPorts` and `SetReaperScanner`. The guard now holds **153**
+  application-owned verbs. The adapter's handle-verb debt: **2 → 1** call sites,
+  **2 → 1** distinct verbs, and the method values handed over fall **4 → 3**;
+  the control plane's production files that name the runtime stay at **twelve**.
+  The reaper is a **module** the composition root injects, and a daemon that
+  was given none holds no scanner: the kernel answers such a daemon with an
+  **empty report**, and the port answers the same way — the scan's own contract
+  is "read-only, and empty means nothing found". **8 permanent tests** and **11
+  mutations, 11 caught** in two independent passes with **byte-identical** logs
+  (SHA-256 `64CA9248…16D62A`). M01, M02 and M03 are the ones that bite: the
+  port holds **no** scan, a host with no kernel asks the kernel **anyway**, and
+  the port hands over **no scan**. M04 gives the port a method that carries a
+  kernel verb's own name, M05 empties the daemon's binding, M06 puts the kernel
+  back in the reaper's operations and the **verb guard** catches it, M07 puts
+  the kernel back in the roster's status and the **verb guard** catches it too,
+  M08 takes the family out of the guard, M09 hands the family **another**
+  family's verbs, M10 makes the binding name the runtime, and M11 **swaps the
+  two cutoffs** — the fake remembers them, and the test sees the swap. The two
+  halves are told apart by a **fake scanner** that answers with a known dead
+  agent: a daemon with no reaper module and a daemon with a reaper over an empty
+  fleet both answer an empty report, and the filled half is the one that carries
+  the agent. The **application** layer reaches for the same scan in two more
+  places (`kernel/app/overseer`, `kernel/app/introspect`), but both hold the
+  kernel for many other reasons too — the roster's verbs, the provider's
+  chains, the schedules, the journal — and that is the phase after this one.
+  Evidence:
+  `architecture/250-w54as-the-reaper-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
