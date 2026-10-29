@@ -524,6 +524,37 @@ func artifactOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
+// pluginOwnedVerbs are the kernel's PLUGIN verbs: the external-plugin manifest
+// the daemon was given at Open.
+//
+// The rule is by WORD, and the family answers to **two** names, "Plugin" and
+// "Plugins" — for the same reason the artifacts family answers to "Artifact"
+// and "Artifacts": the camel-case splitter reads "PluginCount" as "Plugin" +
+// "Count", while "Plugins" is ONE word to it.
+//
+// The rule is written out rather than taken from the helper, because the
+// helper FAILS when a name finds no verb at all — and "Plugin" finds none
+// today. A rule that cannot be asked about a name it has not seen yet is a
+// rule that breaks on the day the name arrives.
+func pluginOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	var verbs []string
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		for _, word := range camelWords(name) {
+			if word == "Plugin" || word == "Plugins" {
+				verbs = append(verbs, name)
+				break
+			}
+		}
+	}
+	if len(verbs) == 0 {
+		t.Fatal("no plugin verbs found — the kernel's plugin verbs are gone?")
+	}
+	return verbs
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -545,6 +576,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, correlationOwnedVerbs(t)...)
 	verbs = append(verbs, catalogOwnedVerbs(t)...)
 	verbs = append(verbs, artifactOwnedVerbs(t)...)
+	verbs = append(verbs, pluginOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -1318,6 +1350,91 @@ func TestTheArtifactFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	}
 	if len(artifact) == kernel.NumMethod() {
 		t.Errorf("the artifact family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the same for the PLUGIN family — the external-plugin manifest the daemon
+// was given at Open.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries "Plugin" or "Plugins" as a whole
+// word is the plugins family's business. The expectation is not derived through
+// the helper the guard uses.
+func TestTheGuardNamesEveryPluginVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		carries := false
+		for _, word := range camelWords(name) {
+			if word == "Plugin" || word == "Plugins" {
+				carries = true
+			}
+		}
+		if !carries {
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's plugin verb %s is not named by the guard — the plugins family's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no plugin verbs found — the kernel's plugin verbs are gone?")
+	}
+}
+
+// And the PLUGIN family must not claim another family's verbs: the plugin
+// manifest is not a tool's business, a memory's business, or the policy's.
+//
+// The rule must be BOTH broad and sharp. Broad: every plugin verb is guarded
+// (the test above). Sharp: the plugin's list carries nothing that belongs to
+// someone else, and it is a strict subset of the kernel's verbs — a rule that
+// only ever grows is a rule that eventually guards the whole kernel, and a
+// guard that guards the whole kernel guards nothing.
+func TestThePluginFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+		providerOwnedVerbs(t),
+		baseDirOwnedVerbs(t),
+		correlationOwnedVerbs(t),
+		catalogOwnedVerbs(t),
+		artifactOwnedVerbs(t),
+		workboardOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	plugin := pluginOwnedVerbs(t)
+	if len(plugin) == 0 {
+		t.Fatal("the plugin family names no verb — the plugins family's business belongs to the application")
+	}
+	for _, verb := range plugin {
+		if others[verb] {
+			t.Errorf("the plugin family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	if len(plugin) == kernel.NumMethod() {
+		t.Errorf("the plugin family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
 	}
 }
 

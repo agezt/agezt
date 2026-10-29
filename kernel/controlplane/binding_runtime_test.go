@@ -114,14 +114,15 @@ func TestTheBindingRuleSeesTheViolationItExistsFor(t *testing.T) {
 // document that said "fifteen files" became false while nothing failed. This
 // test is the thing that fails.
 //
-// It is **fourteen** now: the data-root slice (W5.4ad) took the journal
-// statistics file off the runtime, because the data root came from the
-// application's own port instead of from the kernel's accessor.
+// It is **thirteen** now: the plugins slice (W5.4ah) deleted the adapter's
+// plugin reader of its own — the wrapper that held the kernel handle to hand
+// the manifest over — and the manifest now comes from the application's own
+// port. One file off the runtime: the handle walked back, not forward.
 //
 // The TEST's name carries no number, on purpose: a name that states the count
 // has to be renamed every time the count moves, and a rename is a chance to
 // forget to update the documents that name the test.
-const controlPlaneRuntimeNamingFiles = 14
+const controlPlaneRuntimeNamingFiles = 13
 
 // runtimeNamingDrifted reports whether a measured count has drifted from the
 // recorded one.

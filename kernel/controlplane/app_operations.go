@@ -1301,7 +1301,7 @@ var marketWriteOperations = func() []app.Operation {
 
 var pluginInventoryOperations = func() []app.Operation {
 	operations, err := appplugins.Operations(func(ctx context.Context) *appplugins.Service {
-		return appplugins.New(nativePluginReader{ctx.Value(appHostKey{}).(appHost).kernel})
+		return appplugins.New(requestPluginPorts(ctx))
 	})
 	if err != nil {
 		panic(err)
@@ -1311,7 +1311,7 @@ var pluginInventoryOperations = func() []app.Operation {
 
 var configReadOperations = func() []app.Operation {
 	operations, err := appconfig.Operations(func(ctx context.Context) *appconfig.Service {
-		return appconfig.New(nativeConfigReader{kernel: ctx.Value(appHostKey{}).(appHost).kernel, tools: requestToolsPorts(ctx), edict: requestEdictPorts(ctx), provider: requestProviderPorts(ctx), basedir: requestBaseDirPorts(ctx)}, configEnvVars, nativeConfigEnvPresent)
+		return appconfig.New(nativeConfigReader{kernel: ctx.Value(appHostKey{}).(appHost).kernel, tools: requestToolsPorts(ctx), edict: requestEdictPorts(ctx), provider: requestProviderPorts(ctx), basedir: requestBaseDirPorts(ctx), plugins: requestPluginPorts(ctx)}, configEnvVars, nativeConfigEnvPresent)
 	})
 	if err != nil {
 		panic(err)
