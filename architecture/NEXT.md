@@ -6724,6 +6724,60 @@ files, five of the seventeen mutations would have escaped.
   chains, the schedules, the journal — and that is the phase after this one.
   Evidence:
   `architecture/250-w54as-the-reaper-familys-ports-evidence.md`
+- W5.4at (the lifecycle family, and the last call on the handle) is the port
+  programme's **thirty-third** slice and the **twenty-fourth** one of its last
+  phase: the handle itself. The daemon's own lifecycle capability — drain the
+  runs in flight, wait for them, halt — is what the update flow asks for, and
+  the adapter reached for the kernel's drain in **one** place. **This slice
+  empties the adapter's call sites on the handle: after it, the adapter names
+  NO kernel verb on the handle at all.** The ports moved into the application
+  (`kernel/app/lifecycle`: `PortsFromKernel` → `Drain`) and the adapter keeps
+  the binding (`kernel/controlplane/lifecycle_ports.go`), which does not name
+  the runtime — and it has **no request-level binding**: the update flow drains
+  the **daemon's own** runs, so it asks the daemon's kernel, and a binding
+  nobody calls is dead code. The port answers `Drain`, **never** the kernel's
+  own verb name. The **refusal is a refusal**: a host with no kernel holds no
+  daemon to drain, and the adapter's update wiring maps that refusal to a
+  **drain timeout** — and the update flow's own contract is exact about what a
+  timeout means (the staging file stays, the binary is **not** swapped, the
+  daemon is **not** restarted), so a drain that could not happen is treated as
+  a drain that did not finish. **A new family, and the gate that said why:**
+  the slice first put the port in `kernel/app/system` — the daemon's
+  **overview** — and the gate said no: the rule fires the day a family
+  declares its ports, and from that moment the adapter may not hand that family
+  the handle. The daemon's overview takes the **handle** for **thirteen**
+  verbs across **eight** families. The rule was not loosened: the drain
+  belongs to the daemon's **lifecycle** — the overview *reports* what the
+  daemon is doing, and the lifecycle *does* what the daemon does to itself
+  when it must stop — so the slice opened `kernel/app/lifecycle` and left the
+  overview's thirteen verbs for the next phase. The rule did its job: it caught
+  a boundary violation the measurement could not see, because the measurement
+  counts *calls* and this was about *ownership*. The rule is **by whole word**
+  — a kernel verb whose name carries "Drain" as a **complete word** is the
+  lifecycle family's business — and it catches **one** verb today:
+  `DrainAndHalt`; the daemon's **other** lifecycle verbs are asked for by the
+  overview and are named there and not here. The guard now holds **154**
+  application-owned verbs. The adapter's handle-verb debt: **1 → 0** call sites,
+  **1 → 0** distinct verbs, and the method values handed over stay at **3**;
+  the control plane's production files that name the runtime stay at **twelve**.
+  **7 permanent tests** and **11 mutations, 11 caught** in two independent
+  passes with **byte-identical** logs (SHA-256 `C7B2810A…91C4A`). M01, M02 and
+  M03 are the ones that bite: the port holds **no** drain, a host with no
+  kernel asks the kernel **anyway**, and the port hands over **no drain**. M04
+  gives the port a method that carries a kernel verb's own name, M05 empties
+  the daemon's binding, M06 puts the kernel back in the update flow and the
+  **verb guard** catches it, M07 swallows the port's **refusal**, M08 takes the
+  family out of the guard, M09 hands the family **another** family's verbs, M10
+  makes the binding name the runtime, and M11 makes the port answer the drain
+  **wrong**. The drain's hard case is **observed**: a run hangs on a provider
+  that never answers until the test lets it, and the test holds the drain's
+  **timeout** — a clean drain proves almost nothing. The **application** layer
+  still holds the kernel in a dozen files (the daemon's own overview with
+  thirteen verbs across eight families, the runs, the overseer, the
+  introspector, the execution profile, the guardians, the config tool, the
+  memory, the tools): that is the phase after this one — the handle itself, on
+  the application's side. Evidence:
+  `architecture/251-w54at-the-lifecycle-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
