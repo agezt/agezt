@@ -3428,6 +3428,16 @@ This file holds the active `[Unreleased]` working set.
   is no request-level binding: the two surfaces that scan are the daemon's own,
   and a daemon that was given no reaper module is answered with an **empty
   report** rather than a refusal.
+- **The lifecycle family's ports moved into the application (W5.4at).** The
+  daemon's lifecycle capability — drain the runs in flight and halt — is what
+  the update flow asks for, and the adapter reached for the kernel's drain in
+  **one** place. The ports moved into the application (`kernel/app/lifecycle`:
+  `PortsFromKernel`), the adapter asks the family, and the port holds the drain
+  as a capability — it answers `Drain`, never the kernel's own verb name. There
+  is no request-level binding: the update flow drains the daemon's own runs,
+  and a daemon that could not be drained is reported as a drain that **timed
+  out**, so the update does not land. After this slice the adapter names **no**
+  kernel verb on the handle at all.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —
