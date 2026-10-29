@@ -90,7 +90,7 @@ func PortsFromKernel(k *runtime.Kernel) Ports {
 		profiles:     k.RosterList,
 		profile:      k.RosterGet,
 		impact:       k.AgentImpact,
-		stopRun:      k.CancelRun,
+		stopRun:      runs.Cancel,
 		haltDaemon:   func(reason string) { k.HaltWith(reason) },
 		resumeDaemon: func(reason string) { k.ResumeWith(reason) },
 		enableAgent:  k.SetProfileEnabled,
@@ -171,8 +171,8 @@ func (p Ports) ImpactOf(slug string) []string {
 
 // StopRun cancels the run named by corr.
 //
-// It is the overseer's own verb: the kernel's own is "CancelRun", and the
-// guard says that this one belongs to the overseer.
+// The run's own end belongs to the RUNS family — the family that starts a
+// run also stops it — and the overseer asks that family for it.
 func (p Ports) StopRun(corr string) bool {
 	if p.stopRun == nil {
 		return false

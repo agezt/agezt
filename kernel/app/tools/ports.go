@@ -3,6 +3,9 @@
 package tools
 
 import (
+	"context"
+	"encoding/json"
+
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/runtime"
 )
@@ -68,6 +71,13 @@ type Ports struct {
 	// MCPLifecycle drives the MCP server lifecycle: add, attach, detach,
 	// enable and remove.
 	MCPLifecycle MCPLifecycleWriter
+
+	// Invoke runs a registered tool on the daemon's behalf, under the agent's
+	// own policy.
+	//
+	// The tool RUNNER is the tools family's business — the kernel's verb for
+	// the same thing is a tools verb, and the adapter must not name it.
+	Invoke func(ctx context.Context, corr, agent, tool string, args json.RawMessage) (toolapi.Result, error)
 }
 
 // PortsFromKernel fills the tools application's ports from the kernel handle.
@@ -79,6 +89,7 @@ func PortsFromKernel(k *runtime.Kernel) Ports {
 		MCP:          k.MCPReader(),
 		Attachment:   k,
 		MCPLifecycle: k,
+		Invoke:       k.RunTool,
 	}
 }
 

@@ -9,16 +9,15 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
 // execute runs the resolved run and streams its events to the caller until it
 // finishes, then reports the terminal answer.
 func (s *RunService) execute(ctx context.Context, resolved *resolvedRun, emit func(*event.Event) error) (RunOutput, error) {
-	k := s.ports.kernel
 	corr := resolved.corr
+	bus := s.ports.EventBus()
 	// The subscription is taken before the run starts, so no event is missed.
-	sub, err := k.Bus().Subscribe(k.SubjectForRun(corr), 1024)
+	sub, err := bus.Subscribe(s.ports.Subject(corr), 1024)
 	if err != nil {
 		return RunOutput{}, err
 	}
@@ -28,7 +27,7 @@ func (s *RunService) execute(ctx context.Context, resolved *resolvedRun, emit fu
 	// an advisory tied to this run's correlation so `agt why <run>` shows the
 	// guardrail was inert. Best-effort.
 	if resolved.maxCost > 0 && !modelPriced(resolved.model) {
-		_, _ = k.Bus().Publish(event.Spec{
+		_, _ = bus.Publish(event.Spec{
 			Subject:       "governor.budget",
 			Kind:          event.KindBudgetCapInert,
 			Actor:         "controlplane",
@@ -52,7 +51,7 @@ func (s *RunService) execute(ctx context.Context, resolved *resolvedRun, emit fu
 	if s.ports.CancelOnDisconnect && s.ports.Disconnect != nil {
 		go func(signal <-chan struct{}) {
 			<-signal
-			k.CancelRun(corr)
+			s.ports.Launcher().Cancel(corr)
 		}(s.ports.Disconnect())
 	}
 
@@ -94,26 +93,23 @@ func (s *RunService) execute(ctx context.Context, resolved *resolvedRun, emit fu
 // run performs the run itself: the remote-agezt delegation, the assured loop,
 // the agent's retry policy, or the plain governed run.
 func (s *RunService) run(ctx context.Context, resolved *resolvedRun) (string, error) {
-	k := s.ports.kernel
 	corr := resolved.corr
 	if resolved.remote {
 		return s.runRemote(ctx, resolved)
 	}
 	if resolved.assure > 0 {
-		ans, _, err := k.RunAssured(ctx, corr, resolved.intent, int(resolved.assure))
+		ans, _, err := s.ports.Assured(ctx, corr, resolved.intent, int(resolved.assure))
 		return ans, err
 	}
 	if resolved.agent != nil && resolved.agent.RetryPolicy != nil && resolved.agent.RetryPolicy.MaxAttempts > 1 {
-		ans, err := k.RunWithRetry(ctx, corr, resolved.intent, *resolved.agent.RetryPolicy)
-		return ans, err
+		return s.ports.Launcher().Launch(ctx, corr, resolved.intent, resolved.agent.RetryPolicy)
 	}
-	return k.RunWith(ctx, corr, resolved.intent)
+	return s.ports.Launcher().Launch(ctx, corr, resolved.intent, nil)
 }
 
 // runRemote delegates the run to a remote-agezt peer through the remote_run
 // tool and mirrors the peer's events into this run's stream.
 func (s *RunService) runRemote(ctx context.Context, resolved *resolvedRun) (string, error) {
-	k := s.ports.kernel
 	corr := resolved.corr
 	receivedPayload := map[string]any{
 		"intent":            resolved.intent,
@@ -123,7 +119,7 @@ func (s *RunService) runRemote(ctx context.Context, resolved *resolvedRun) (stri
 	if resolved.peer != "" {
 		receivedPayload["remote_peer"] = resolved.peer
 	}
-	if err := PublishRemoteRunEvent(k, corr, event.KindTaskReceived, "task", receivedPayload); err != nil {
+	if err := s.ports.PublishRemoteEvent(corr, event.KindTaskReceived, "task", receivedPayload); err != nil {
 		return "", err
 	}
 	delegatingInfo := map[string]any{
@@ -134,7 +130,7 @@ func (s *RunService) runRemote(ctx context.Context, resolved *resolvedRun) (stri
 	if resolved.peer != "" {
 		delegatingInfo["remote_peer"] = resolved.peer
 	}
-	if err := PublishRemoteRunEvent(k, corr, event.KindInfo, "execution_profile", delegatingInfo); err != nil {
+	if err := s.ports.PublishRemoteEvent(corr, event.KindInfo, "execution_profile", delegatingInfo); err != nil {
 		return "", err
 	}
 	payload := map[string]string{"task": resolved.intent}
@@ -146,16 +142,16 @@ func (s *RunService) runRemote(ctx context.Context, resolved *resolvedRun) (stri
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
-		_ = PublishRemoteRunEvent(k, corr, event.KindTaskFailed, "task", map[string]any{
+		_ = s.ports.PublishRemoteEvent(corr, event.KindTaskFailed, "task", map[string]any{
 			"error":             err.Error(),
 			"reason":            "remote-agezt",
 			"execution_profile": "remote-agezt",
 		})
 		return "", err
 	}
-	res, err := k.RunTool(ctx, corr, "execution-profile-remote-agezt", "remote_run", raw)
+	res, err := s.ports.InvokeTool(ctx, corr, "execution-profile-remote-agezt", "remote_run", raw)
 	if err != nil {
-		_ = PublishRemoteRunEvent(k, corr, event.KindTaskFailed, "task", map[string]any{
+		_ = s.ports.PublishRemoteEvent(corr, event.KindTaskFailed, "task", map[string]any{
 			"error":             err.Error(),
 			"reason":            "remote-agezt",
 			"execution_profile": "remote-agezt",
@@ -167,7 +163,7 @@ func (s *RunService) runRemote(ctx context.Context, resolved *resolvedRun) (stri
 		if msg == "" {
 			msg = "remote-agezt execution profile failed"
 		}
-		_ = PublishRemoteRunEvent(k, corr, event.KindTaskFailed, "task", map[string]any{
+		_ = s.ports.PublishRemoteEvent(corr, event.KindTaskFailed, "task", map[string]any{
 			"error":             msg,
 			"reason":            "remote-agezt",
 			"execution_profile": "remote-agezt",
@@ -185,7 +181,7 @@ func (s *RunService) runRemote(ctx context.Context, resolved *resolvedRun) (stri
 		"chars":   len(res.Output),
 	}
 	addPeerMetadata(completedInfo, peerMeta)
-	if err := PublishRemoteRunEvent(k, corr, event.KindInfo, "execution_profile", completedInfo); err != nil {
+	if err := s.ports.PublishRemoteEvent(corr, event.KindInfo, "execution_profile", completedInfo); err != nil {
 		return "", err
 	}
 	completedTask := map[string]any{
@@ -196,7 +192,7 @@ func (s *RunService) runRemote(ctx context.Context, resolved *resolvedRun) (stri
 		"execution_profile": "remote-agezt",
 	}
 	addPeerMetadata(completedTask, peerMeta)
-	if err := PublishRemoteRunEvent(k, corr, event.KindTaskCompleted, "task", completedTask); err != nil {
+	if err := s.ports.PublishRemoteEvent(corr, event.KindTaskCompleted, "task", completedTask); err != nil {
 		return "", err
 	}
 	return res.Output, nil
@@ -226,20 +222,6 @@ func (s *RunService) answer(resolved *resolvedRun, answer string) RunOutput {
 		out.Model = &model
 	}
 	return out
-}
-
-// PublishRemoteRunEvent publishes a remote-agezt lifecycle event under the
-// run's own subject, so it reaches the run's event stream.
-func PublishRemoteRunEvent(k *runtime.Kernel, corr string, kind event.Kind, suffix string, payload any) error {
-	actor := "agent-" + corr
-	_, err := k.Bus().Publish(event.Spec{
-		Subject:       "agent." + actor + "." + suffix,
-		Kind:          kind,
-		Actor:         actor,
-		CorrelationID: corr,
-		Payload:       payload,
-	})
-	return err
 }
 
 // remoteAnswerPreview truncates a peer's answer to the run's event payload.

@@ -9,8 +9,10 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -195,6 +197,60 @@ func TestTheRunServiceRefusesTheRemoteProfileWithoutPeers(t *testing.T) {
 	}
 }
 
+// The daemon's default prompt is the IDENTITY family's own, and the run's
+// port carries it: a run that asks "is a daemon-default prompt configured?"
+// must be answered by the family that owns the daemon's default identity.
+func TestTheRunPortsCarryTheDaemonsDefaultPrompt(t *testing.T) {
+	k := runKernel(t)
+	k.SetSystem("the daemon's own prompt")
+	ports := RunPortsFromKernel(k)
+
+	if got := ports.Prompt(); got != "the daemon's own prompt" {
+		t.Errorf("the prompt = %q, want the daemon's own", got)
+	}
+}
+
+// The run's own events reach the caller.
+//
+// The execute path subscribes to the run's OWN subject before the run starts,
+// and the events the run publishes land there. A path that subscribed to
+// another subject would answer correctly and show nothing — the operator
+// would watch an empty stream.
+func TestTheRunEventsReachTheCaller(t *testing.T) {
+	service := NewRunService(RunPortsFromKernel(runKernel(t)))
+
+	events := 0
+	out, err := service.Execute(context.Background(), RunRequest{
+		Intent: json.RawMessage(`"say hi"`),
+	}, func(*event.Event) error {
+		events++
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Answer == nil || *out.Answer != "the answer" {
+		t.Fatalf("answer = %v, want the run's own", out.Answer)
+	}
+	if events == 0 {
+		t.Fatal("the run's own events never reached the caller — the execute path listened on the wrong subject")
+	}
+}
+
+// The assured loop is the daemon's own, and the run's port carries it: the
+// run asks for the assured answer, not for a plain one.
+func TestTheRunPortsCarryTheAssuredLoop(t *testing.T) {
+	ports := RunPortsFromKernel(runKernel(t))
+
+	answer, _, err := ports.Assured(context.Background(), "corr", "say hi", 1)
+	if err != nil {
+		t.Fatalf("Assured: %v", err)
+	}
+	if answer != "the answer" {
+		t.Errorf("the assured answer = %q, want the run's own", answer)
+	}
+}
+
 // The run service's port names may not be the kernel's own: a port that
 // carried the name of the verb it stands for would let the adapter name the
 // kernel's verb through the port's door.
@@ -209,5 +265,144 @@ func TestTheRunServicePortNamesAreNotTheKernelVerbs(t *testing.T) {
 		if _, ok := kernel.MethodByName(name); ok {
 			t.Errorf("the run service's port %s is the kernel's own verb — a port may not carry the name of the verb it stands for", name)
 		}
+	}
+}
+
+// The EXECUTE path's capabilities are really the daemon's: the run's own
+// subject on the bus, the bus itself, the daemon's run verbs, the daemon's
+// ceiling, the daemon's default prompt, the live provider, the catalog and
+// the tool registry.
+//
+// This is the half that says the port is FILLED. A port that answered empty
+// for every one of these would let a run start on a host that has no daemon
+// and would report a plan that knows nothing about the daemon it would run
+// on.
+func TestTheRunPortsReachTheDaemonForTheExecutePath(t *testing.T) {
+	k := runKernelWithToolsAndCeiling(t)
+	ports := RunPortsFromKernel(k)
+
+	// The bus half: the run's own subject, and the bus to subscribe on.
+	if got, want := ports.Subject("abc"), "agent.agent-abc.>"; got != want {
+		t.Errorf("the run's subject = %q, want %q", got, want)
+	}
+	if !ports.EventBus().Ready() {
+		t.Error("the port holds no bus — the run could not stream its events")
+	}
+
+	// The run verbs half: the launcher starts and cancels.
+	if ports.Launcher().Cancel("no-such-run") {
+		t.Error("the port cancelled a run that does not exist")
+	}
+	if _, err := ports.Launcher().Launch(context.Background(), "corr", "say hi", nil); err != nil {
+		t.Errorf("the launcher refused a plain run: %v", err)
+	}
+
+	// The daemon's own ceiling.
+	if got, want := ports.Ceiling(), k.MaxDuration(); got != want {
+		t.Errorf("the ceiling = %v, want the daemon's %v", got, want)
+	}
+
+	// The daemon's default prompt — the identity family's own.
+	if got, want := ports.Prompt(), k.System(); got != want {
+		t.Errorf("the prompt = %q, want the daemon's %q", got, want)
+	}
+
+	// The live provider, the catalog and the tool registry.
+	if ports.LiveProvider() == nil {
+		t.Error("the port holds no live provider — the run would have nothing to talk to")
+	}
+	if ports.CatalogSnapshot() == nil {
+		t.Error("the port holds no catalog — the plan could not say what the model can do")
+	}
+	if _, ok := ports.RegisteredTools()["shell"]; !ok {
+		t.Error("the port's registry does not hold the shell tool the daemon registers")
+	}
+
+	// The runner: the request really reaches the daemon's tool runner. The
+	// runner answers with the tool's own refusal when the tool is not
+	// trusted — what matters is that the refusal comes from the RUNNER and
+	// not from an empty port.
+	_, err := ports.InvokeTool(context.Background(), "corr", "agent", "file", json.RawMessage(`{}`))
+	if err == nil {
+		t.Error("the runner did not answer — the port may not be wired to the daemon's runner")
+	} else if !strings.Contains(err.Error(), "file") {
+		t.Errorf("the runner's error = %v, want it to name the tool it refused", err)
+	}
+}
+
+// A host with no daemon holds no daemon to run on, and the execute path's
+// capabilities say so rather than calling into nothing.
+func TestTheRunPortsRefuseTheExecutePathWithoutADaemon(t *testing.T) {
+	ports := RunPortsFromKernel(nil)
+
+	if ports.EventBus().Ready() {
+		t.Error("a host with no daemon holds a bus")
+	}
+	if got := ports.Subject("abc"); got != "" {
+		t.Errorf("a host with no daemon has a run subject: %q", got)
+	}
+	if ports.Launcher().Cancel("abc") {
+		t.Error("a host with no daemon cancelled a run")
+	}
+	if _, err := ports.Launcher().Launch(context.Background(), "corr", "x", nil); err == nil {
+		t.Error("a host with no daemon started a run")
+	}
+	if _, _, err := ports.Assured(context.Background(), "corr", "x", 1); err == nil {
+		t.Error("a host with no daemon ran the assured loop")
+	}
+	if got := ports.Ceiling(); got != 0 {
+		t.Errorf("a host with no daemon has a ceiling: %v", got)
+	}
+	if got := ports.Prompt(); got != "" {
+		t.Errorf("a host with no daemon has a default prompt: %q", got)
+	}
+	if ports.LiveProvider() != nil {
+		t.Error("a host with no daemon holds a live provider")
+	}
+	if cat := ports.CatalogSnapshot(); cat == nil || len(cat.Providers) != 0 {
+		t.Errorf("a host with no daemon holds a catalog with providers: %v", cat)
+	}
+	if got := ports.RegisteredTools(); got != nil {
+		t.Errorf("a host with no daemon registers tools: %v", got)
+	}
+	if _, err := ports.InvokeTool(context.Background(), "corr", "agent", "shell", json.RawMessage(`{}`)); err == nil {
+		t.Error("a host with no daemon ran a tool")
+	}
+	if err := ports.PublishRemoteEvent("corr", event.KindInfo, "task", map[string]any{}); err == nil {
+		t.Error("a host with no daemon published a remote event")
+	}
+}
+
+// The remote run's own event reaches the run's stream: the subject is the
+// run's own, and the bus carries it.
+//
+// The mirror publishes through this port, so a remote event that landed
+// somewhere else would leave the operator watching an empty stream.
+func TestTheRunPortsPublishTheRemoteEventOntoTheRunStream(t *testing.T) {
+	ports := RunPortsFromKernel(runKernel(t))
+
+	sub, err := ports.EventBus().Subscribe(ports.Subject("corr-remote"), 16)
+	if err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+	defer sub.Cancel()
+
+	if err := ports.PublishRemoteEvent("corr-remote", event.KindInfo, "task", map[string]any{"phase": "completed"}); err != nil {
+		t.Fatalf("PublishRemoteEvent: %v", err)
+	}
+
+	select {
+	case ev := <-sub.C:
+		if ev == nil {
+			t.Fatal("the subscription closed without an event")
+		}
+		if ev.CorrelationID != "corr-remote" {
+			t.Errorf("the event's correlation = %q, want the run's own", ev.CorrelationID)
+		}
+		if ev.Subject != "agent.agent-corr-remote.task" {
+			t.Errorf("the event's subject = %q, want the run's own subject", ev.Subject)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the remote event never reached the run's stream")
 	}
 }

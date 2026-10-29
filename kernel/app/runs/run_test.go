@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/opapi"
@@ -94,6 +95,32 @@ func TestRunScopesTheOfferedTools(t *testing.T) {
 	if len(offered) != 1 || offered[0] != "shell" {
 		t.Fatalf("offered tools = %v, want [shell]", offered)
 	}
+}
+
+// runKernelWithToolsAndCeiling opens a kernel with two registered tools and a
+// daemon-wide wall-clock ceiling.
+//
+// The ceiling is what the dry run reports as the daemon's own timeout, and a
+// daemon with NO ceiling cannot say whether the port carried it.
+func runKernelWithToolsAndCeiling(t *testing.T) *runtime.Kernel {
+	t.Helper()
+	prov := mock.New()
+	prov.Responder = runResponder
+	k, err := runtime.Open(withRoster(t, runtime.Config{
+		BaseDir:     t.TempDir(),
+		Provider:    prov,
+		Model:       "run-model",
+		MaxDuration: 5 * time.Minute,
+		Tools: map[string]toolapi.Tool{
+			"shell": fakeTool{name: "shell"},
+			"file":  fakeTool{name: "file"},
+		},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { k.Close() })
+	return k
 }
 
 // TestRunOperations: the run is an audited, tenant-routed operation that
