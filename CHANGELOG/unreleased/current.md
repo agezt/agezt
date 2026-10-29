@@ -3344,6 +3344,16 @@ This file holds the active `[Unreleased]` working set.
   the ports are filled still answers. The adapter's own nil checks for the reads
   and the writes left with them: the port hands over nothing when the daemon
   holds nothing.
+- **The approvals family's ports moved into the application (W5.4aj).** The
+  human-in-the-loop queue is the daemon's own file, and the adapter reached for
+  the kernel's registry in **three** places — the live list, the mission
+  control's pending count and the plan runner's node spec. The ports moved into
+  the application (`kernel/app/approvals`: `PortsFromKernel`) and the adapter
+  keeps **two** bindings that answer for **two different kernels**: the routed
+  one for the request's own approvals, the daemon's one for the daemon's own
+  surfaces. The port answers in two shapes — the narrow `Broker` and the
+  `Registry` the scheduler's node spec carries — and the refusal for a daemon
+  that holds no queue is written **once**.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —

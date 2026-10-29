@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4ai the marketplace family's ports, 2026-10-29
+## Current checkpoint — W5.4aj the approvals family's ports, 2026-10-29
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -6298,6 +6298,48 @@ files, five of the seventeen mutations would have escaped.
   here was not about the port's answer but about the port's **question**.
   Evidence:
   `architecture/240-w54ai-the-marketplace-familys-ports-evidence.md`
+
+- W5.4aj (the approvals family, and the queue two kernels answer for) is the
+  port programme's **twenty-third** slice and the **fourteenth** one of its last
+  phase: the handle itself. The approval registry is the daemon's own
+  human-in-the-loop queue — the requests waiting for an operator and the
+  decision that answers them — and the adapter reached for the kernel's registry
+  in **three** places in **one** file: the live list, the mission control's
+  pending count and the plan runner's node spec. The **application** layer held
+  no approval handle either: `kernel/app/approvals` already took a `Broker` of
+  its own. The ports moved into the application (`kernel/app/approvals`:
+  `PortsFromKernel`) and the adapter keeps **two** bindings
+  (`kernel/controlplane/approvals_ports.go`), which do not name the runtime —
+  and they answer for **two different kernels**: the live approvals run on the
+  **request's** path, so the **routed** kernel is the one that answers (a tenant
+  decides its own queue), while the mission control's pending count and the plan
+  runner's node spec are the **daemon's** own surfaces and ask the daemon's
+  kernel. The port answers in **two** shapes, because two kinds of consumer want
+  the queue: `Broker()` — the family's own narrow view, the waiting requests and
+  the decision over them — and `Registry()`, the registry itself, because the
+  **scheduler's** node spec carries the queue and a reader of it would not do.
+  The port's names are **not** the kernel's. The refusal for a daemon that holds
+  no queue is written **once** — `approvals.ErrNoBroker` — and the live approvals
+  refuse instead of reading from nothing. The rule is **by whole word** — a
+  kernel verb whose name carries "Approvals" as a **complete word** is the
+  approvals family's business — and the sweep takes in `Approvals`. The guard now
+  holds **138** application-owned verbs. The adapter's handle-verb debt: **16 → 14**
+  call sites, **13 → 12** distinct verbs, and the method values handed over fall
+  from **9** to **8**. **9 permanent tests** and **14 mutations, 14 caught** in
+  two independent passes with **byte-identical** logs (SHA-256 `33837520…022A87E`).
+  M08, M09 and M10 put the kernel back — the mission control, the live approvals
+  and the plan runner each reach for the kernel's registry again — and the **verb
+  guard** catches every one of them; none is a behavioural regression, because
+  the wiring would work **exactly as well**, it would simply be in the wrong
+  layer. M01, M02 and M03 are the ones that bite: the port holds **no** registry,
+  a host with no kernel asks the kernel **anyway**, and the port hands over
+  **nothing**. M04 gives the port a method that carries a kernel verb's own name,
+  M05 empties the request's binding, M06 makes it follow the **daemon's** kernel —
+  a tenant's queue would become the daemon's — M07 empties the daemon's binding,
+  M11 takes the family out of the guard, M12 hands the family **another** family's
+  verbs, M13 takes the refusal away, and M14 makes the binding name the runtime.
+  Evidence:
+  `architecture/241-w54aj-the-approvals-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
