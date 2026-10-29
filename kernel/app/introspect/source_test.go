@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/introspectapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
@@ -22,11 +23,27 @@ import (
 // site breaks instead of the tool.
 var _ introspectapi.Source = (*kernelSource)(nil)
 
-// TestNewKernelSource: the constructor returns a Source even for a nil kernel
-// (the tool stays bound; the gather panics only if it is actually called).
+// TestNewKernelSource: the constructor returns a Source even for a host with
+// no daemon (the tool stays bound), and the GATHER answers with nothing
+// instead of panicking: the port holds no daemon, so there is nothing to
+// report on and no uptime to claim.
 func TestNewKernelSource(t *testing.T) {
-	if NewKernelSource(nil) == nil {
-		t.Fatal("NewKernelSource should return a Source even with a nil kernel")
+	src := NewKernelSource(PortsFromKernel(nil))
+	if src == nil {
+		t.Fatal("NewKernelSource should return a Source even with no daemon")
+	}
+	ov := src.Overview()
+	if ov.UptimeSeconds != 0 {
+		t.Errorf("a host with no daemon reported an uptime of %d seconds", ov.UptimeSeconds)
+	}
+	if len(ov.Tools) != 0 || ov.JournalHead != 0 || ov.MemoryRecords != 0 {
+		t.Errorf("a host with no daemon reported state: %+v", ov)
+	}
+	if got := src.Schedules(); got != nil {
+		t.Errorf("a host with no daemon holds schedules: %v", got)
+	}
+	if got := src.Standing(); got != nil {
+		t.Errorf("a host with no daemon holds standing orders: %v", got)
 	}
 }
 
@@ -48,7 +65,7 @@ func TestKernelSourceCarriesTheKernelCeilings(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
-	got := NewKernelSource(k).Overview().Delegation
+	got := NewKernelSource(PortsFromKernel(k)).Overview().Delegation
 	want := types.SubAgentLimits{Enabled: true, MaxDepth: 2, MaxFanout: 3, MaxSpendMicrocents: 500, MaxTotal: 7}
 	if got != want {
 		t.Fatalf("delegation = %+v, want %+v", got, want)
@@ -96,7 +113,7 @@ func TestThePortReadsTheLiveKernelSchedulesAndStanding(t *testing.T) {
 		t.Fatalf("Add standing order: %v", err)
 	}
 
-	src := NewKernelSource(k)
+	src := NewKernelSource(PortsFromKernel(k))
 
 	entries := src.Schedules()
 	if len(entries) != 1 {
@@ -121,18 +138,18 @@ func TestThePortReadsTheLiveKernelSchedulesAndStanding(t *testing.T) {
 // fleet scan that is missing a bucket and never be told. So every field is
 // measured here.
 func TestTheReaperProjectionCarriesEveryField(t *testing.T) {
-	rep := kernelruntime.ReaperReport{
-		DeadAgents: []kernelruntime.ReaperAgent{
+	rep := agentapi.ReaperReport{
+		DeadAgents: []agentapi.ReaperAgent{
 			{Slug: "idle-one", Name: "Idle One", LastActiveMS: 111},
 		},
-		DegradedAgents: []kernelruntime.DegradedAgent{
+		DegradedAgents: []agentapi.DegradedAgent{
 			{
 				Slug: "sick-one", Name: "Sick One", Failures: 4, Window: 60, Threshold: 3,
 				DoctorAgent: "doctor", SelfRepairEnabled: true, EscalateTo: "human",
 				LastFailureMS: 222, LastReason: "boom",
 			},
 		},
-		MisconfiguredAgents: []kernelruntime.MisconfiguredAgent{
+		MisconfiguredAgents: []agentapi.MisconfiguredAgent{
 			{
 				Slug: "broken-one", Name: "Broken One", Issues: []string{"model: missing"},
 				DoctorAgent: "doctor", SelfRepairEnabled: true, EscalateTo: "human",
@@ -177,10 +194,10 @@ func TestTheReaperProjectionCarriesEveryField(t *testing.T) {
 // TestTheReaperOverviewProjectionCarriesEveryField: the same projection for
 // the overview's fleet snapshot — the counts and the slugs.
 func TestTheReaperOverviewProjectionCarriesEveryField(t *testing.T) {
-	rep := kernelruntime.ReaperReport{
-		DeadAgents:          []kernelruntime.ReaperAgent{{Slug: "a"}, {Slug: "b"}},
-		DegradedAgents:      []kernelruntime.DegradedAgent{{Slug: "c"}},
-		MisconfiguredAgents: []kernelruntime.MisconfiguredAgent{{Slug: "d"}},
+	rep := agentapi.ReaperReport{
+		DeadAgents:          []agentapi.ReaperAgent{{Slug: "a"}, {Slug: "b"}},
+		DegradedAgents:      []agentapi.DegradedAgent{{Slug: "c"}},
+		MisconfiguredAgents: []agentapi.MisconfiguredAgent{{Slug: "d"}},
 	}
 	out := reaperOverview(rep)
 	if out.DeadAgents != 2 || out.DegradedAgents != 1 || out.MisconfiguredAgents != 1 {
@@ -211,7 +228,7 @@ func TestTheOverviewIsAssembledFromTheLiveKernel(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	ov := NewKernelSource(k).Overview()
+	ov := NewKernelSource(PortsFromKernel(k)).Overview()
 	if ov.Daemon == "" {
 		t.Error("the overview must name the daemon")
 	}
