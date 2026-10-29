@@ -3402,6 +3402,14 @@ This file holds the active `[Unreleased]` working set.
   answers `Lake`, never the kernel's own verb name. There is no request-level
   binding: the data surface inspects the daemon's own lake, and a daemon that
   was given none is **refused** rather than answered with an empty list.
+- **The reflection family's ports moved into the application (W5.4aq).** The
+  reflection engine is the daemon's own — the pass that folds the journal into
+  observations and explains the world model's decay — and the adapter reached
+  for the kernel's engine in **one** place. The ports moved into the
+  application (`kernel/app/reflection`: `PortsFromKernel`), the adapter asks
+  the family, and the port holds the engine as a capability — it answers
+  `Engine`, never the kernel's own verb name. There is no request-level
+  binding: the reflection surface drives the daemon's own engine.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —

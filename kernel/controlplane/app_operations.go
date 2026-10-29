@@ -287,7 +287,7 @@ var researchOperations = func() []app.Operation {
 
 var reflectionOperations = func() []app.Operation {
 	ops, err := appreflection.Operations(func(ctx context.Context) *appreflection.Service {
-		return appreflection.New(ctx.Value(systemHostKey{}).(*Server).k.Reflect(), ulid.New)
+		return appreflection.New(ctx.Value(systemHostKey{}).(*Server).reflectionPorts().Engine(), ulid.New)
 	})
 	if err != nil {
 		panic(err)
