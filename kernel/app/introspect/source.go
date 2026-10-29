@@ -9,11 +9,11 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/strutil"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/introspectapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/event"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
 // fallbackWindow bounds the journal scan for provider.fallback events — recent
@@ -22,95 +22,80 @@ import (
 const fallbackWindow = 5000
 const reaperOverviewWindow = 30 * 24 * time.Hour
 
-// kernelSource adapts the live *runtime.Kernel to the tool's narrow Source. The
-// kernel owns every slice the overview reports, so this is a thin gather — the
+// kernelSource adapts the introspector's ports to the tool's narrow Source. The
+// daemon owns every slice the overview reports, so this is a thin gather — the
 // same data `agt status` (handleStatus) assembles, minus the server-level
 // HTTP/channel extras the kernel doesn't own.
+//
+// The source holds the PORTS and not the handle they were filled from: a file
+// that names the runtime is the port's business, and the adapter that answers
+// the contract is not.
 type kernelSource struct {
-	k *kernelruntime.Kernel
+	ports Ports
 }
 
-// NewKernelSource binds the introspect tool to the live kernel. Wired in
-// cmd/agezt once the kernel opens, exactly like the other self-knowledge tools.
-func NewKernelSource(k *kernelruntime.Kernel) introspectapi.Source { return &kernelSource{k: k} }
+// NewKernelSource binds the introspect tool to the ports. Wired in cmd/agezt
+// once the kernel opens, exactly like the other self-knowledge tools.
+//
+// The source stays bound even when the ports hold no daemon: the tool keeps
+// its shape, and the GATHER answers with nothing rather than panicking.
+func NewKernelSource(ports Ports) introspectapi.Source { return &kernelSource{ports: ports} }
 
 func (s *kernelSource) Overview() introspectapi.Overview {
-	k := s.k
-
-	headSeq, _ := k.Journal().Head() // (seq, hash); hash unused here
+	headSeq, _ := s.ports.JournalHead() // (seq, hash); hash unused here
 	if headSeq < 0 {
 		headSeq = 0 // empty journal returns -1; render 0 for a fresh install
 	}
 
 	// Floor uptime to whole seconds — sub-second precision is noise.
-	uptimeSecs := int64(time.Since(k.StartTime()) / time.Second)
-
-	schedTotal, schedEnabled := 0, 0
-	if sched := k.Schedules(); sched != nil {
-		for _, e := range sched.List() {
-			schedTotal++
-			if e.Enabled {
-				schedEnabled++
-			}
-		}
+	//
+	// A host with NO daemon has no uptime: measuring from the zero time would
+	// claim a daemon has been running since the year one.
+	var uptimeSecs int64
+	if s.ports.Ready() {
+		uptimeSecs = int64(time.Since(s.ports.Started()) / time.Second)
 	}
 
-	pendingApprovals := 0
-	if ap := k.Approvals(); ap != nil {
-		pendingApprovals = ap.PendingCount()
+	schedTotal, schedEnabled := 0, 0
+	for _, e := range s.ports.ScheduleEntries() {
+		schedTotal++
+		if e.Enabled {
+			schedEnabled++
+		}
 	}
 
 	fbCount, fbReason := s.providerFallbacks()
 	reaper := s.reaperOverview()
 
-	dl := k.SubAgentLimits()
-
 	// Registered tool names, sorted, so the agent sees its own capability surface
 	// (and the list is stable across calls).
-	names := make([]string, 0, len(k.Tools()))
-	for name := range k.Tools() {
-		names = append(names, name)
-	}
+	names := s.ports.ToolNames()
 	sort.Strings(names)
-
-	// A daemon with NO world model or NO skill library holds a nil port
-	// (W3.54, W3.55): the overview reports zero rather than calling into
-	// nothing.
-	worldEntities, activeSkills := 0, 0
-	if g := k.World(); g != nil {
-		worldEntities = g.Count()
-	}
-	if f := k.Forge(); f != nil {
-		activeSkills = f.Count()
-	}
 
 	return introspectapi.Overview{
 		Daemon:                 brand.Version,
 		Protocol:               brand.ProtocolVersion,
-		Model:                  k.Model(),
+		Model:                  s.ports.DefaultModel(),
 		UptimeSeconds:          uptimeSecs,
-		Halted:                 k.IsHalted(),
-		ActiveRuns:             k.ActiveRuns(),
+		Halted:                 s.ports.Stopped(),
+		ActiveRuns:             s.ports.ActiveRunCount(),
 		Tools:                  names,
-		MemoryRecords:          k.MemoryCount(),
-		WorldEntities:          worldEntities,
-		ActiveSkills:           activeSkills,
+		MemoryRecords:          s.ports.MemoryRecordCount(),
+		WorldEntities:          s.ports.WorldEntities(),
+		ActiveSkills:           s.ports.ActiveSkills(),
 		JournalHead:            headSeq,
 		SchedulesTotal:         schedTotal,
 		SchedulesEnabled:       schedEnabled,
-		PendingApprovals:       pendingApprovals,
+		PendingApprovals:       s.ports.PendingApprovals(),
 		ProviderFallbacks:      fbCount,
 		ProviderFallbackReason: fbReason,
-		Delegation:             dl,
+		Delegation:             s.ports.Delegation(),
 		Reaper:                 reaper,
 	}
 }
 
 func (s *kernelSource) Schedules() []cadenceapi.Entry {
-	if sched := s.k.Schedules(); sched != nil {
-		return sched.List()
-	}
-	return nil
+	return s.ports.ScheduleEntries()
 }
 
 func (s *kernelSource) Reaper() introspectapi.ReaperReport {
@@ -118,16 +103,16 @@ func (s *kernelSource) Reaper() introspectapi.ReaperReport {
 }
 
 // scan runs the reaper over the window the health report cares about.
-func (s *kernelSource) scan() kernelruntime.ReaperReport {
+func (s *kernelSource) scan() agentapi.ReaperReport {
 	cutoff := time.Now().Add(-reaperOverviewWindow).UnixMilli()
-	return s.k.ReaperScan(cutoff, cutoff)
+	return s.ports.FleetScan(cutoff)
 }
 
 // reaperReport projects the reaper's own scan row onto the contract's row.
 // The projection is a hand-written field-for-field copy, so it is pinned by a
 // test: a field dropped here would be silent — the agent would read a fleet
 // scan that is missing a bucket without ever being told.
-func reaperReport(rep kernelruntime.ReaperReport) introspectapi.ReaperReport {
+func reaperReport(rep agentapi.ReaperReport) introspectapi.ReaperReport {
 	out := introspectapi.ReaperReport{StaleArtifacts: rep.StaleArtifacts, StaleBytes: rep.StaleBytes}
 	for _, a := range rep.DeadAgents {
 		out.DeadAgents = append(out.DeadAgents, introspectapi.ReaperAgent{Slug: a.Slug, Name: a.Name, LastActiveMS: a.LastActiveMS})
@@ -150,7 +135,7 @@ func reaperReport(rep kernelruntime.ReaperReport) introspectapi.ReaperReport {
 
 // reaperOverview projects the same scan onto the overview's fleet snapshot:
 // the counts and the slugs, without the rows themselves.
-func reaperOverview(rep kernelruntime.ReaperReport) introspectapi.ReaperOverview {
+func reaperOverview(rep agentapi.ReaperReport) introspectapi.ReaperOverview {
 	out := introspectapi.ReaperOverview{
 		DeadAgents:          len(rep.DeadAgents),
 		DegradedAgents:      len(rep.DegradedAgents),
@@ -169,10 +154,7 @@ func reaperOverview(rep kernelruntime.ReaperReport) introspectapi.ReaperOverview
 }
 
 func (s *kernelSource) Standing() []standingapi.Order {
-	if st := s.k.Standing(); st != nil {
-		return st.List()
-	}
-	return nil
+	return s.ports.StandingOrders()
 }
 
 // providerFallbacks folds recent journal events for provider.fallback (M280):
@@ -181,18 +163,14 @@ func (s *kernelSource) Standing() []standingapi.Order {
 // gets masked by the always-on mock fallback — is otherwise invisible in a
 // health report.
 func (s *kernelSource) providerFallbacks() (int, string) {
-	j := s.k.Journal()
-	if j == nil {
-		return 0, ""
-	}
-	evs, err := j.Tail(fallbackWindow)
+	evs, err := s.ports.JournalTail(fallbackWindow)
 	if err != nil {
 		return 0, ""
 	}
 	count := 0
 	last := ""
 	for _, e := range evs {
-		if e.Kind != event.KindProviderFallback {
+		if e == nil || e.Kind != event.KindProviderFallback {
 			continue
 		}
 		count++

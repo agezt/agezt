@@ -36,7 +36,7 @@ func TestIntrospectSpecReadsTheLiveKernelThroughThePort(t *testing.T) {
 		t.Fatalf("Build: %v", err)
 	}
 	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{
-		Introspect: introspect.NewKernelSource(k),
+		Introspect: introspect.NewKernelSource(introspect.PortsFromKernel(k)),
 	}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}

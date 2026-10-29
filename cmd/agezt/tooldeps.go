@@ -88,7 +88,7 @@ func toolKernelDeps(k *runtime.Kernel, baseDir string, stdout io.Writer) toolreg
 		// The introspect tool reads the daemon's own live state through a
 		// contract port; the app-layer adapter gathers it from the live
 		// kernel, because the tool is a plugin and may reach neither.
-		Introspect: introspect.NewKernelSource(k),
+		Introspect: introspect.NewKernelSource(introspect.PortsFromKernel(k)),
 		// The tool_forge tool reads the script-tool store through a contract
 		// port; the daemon hands the live store over, because the tool is a
 		// plugin and may not name the module that keeps it. A nil store must

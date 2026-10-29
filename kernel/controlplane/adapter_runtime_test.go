@@ -3260,6 +3260,40 @@ func TestTheGuardianPortsNameNoKernelVerbTheGuardMisses(t *testing.T) {
 	}
 }
 
+// And the INTROSPECTOR's PORT names no kernel verb the guard misses: the port
+// is where the handle is filled, and every verb it names is the
+// application's business — so every one of them must be guarded.
+//
+// The introspector reads MANY families — the journal, the schedules, the
+// approvals, the world, the skills, the tools, the memory, the identity and
+// the daemon's own state — so it takes NO rule of its own: every verb it
+// names already belongs to a family that declares its own ports. The reaper's
+// scan is asked of the REAPER FAMILY and not of the kernel, so the port does
+// not name that verb either.
+//
+// The verbs are read from the port's own source, HERE, and not through the
+// helper the guard runs.
+func TestTheIntrospectNamesNoKernelVerbTheGuardMisses(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "app", "introspect", "ports.go"))
+	if err != nil {
+		t.Fatalf("read the introspector's ports: %v", err)
+	}
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	named := regexp.MustCompile(`\bk\.([A-Z][A-Za-z0-9_]*)`).FindAllStringSubmatch(string(raw), -1)
+	if len(named) == 0 {
+		t.Fatal("the introspector's port names no kernel verb — the port stopped filling itself?")
+	}
+	for _, match := range named {
+		verb := match[1]
+		if !guarded[verb] {
+			t.Errorf("the introspector's port names the kernel's %s and the guard does not — a verb the guard misses is a verb the adapter may name", verb)
+		}
+	}
+}
+
 // And the daemon overview's PORT names no kernel verb the guard misses: the
 // port is where the handle is filled, and every verb it names is the
 // application's business — so every one of them must be guarded.
