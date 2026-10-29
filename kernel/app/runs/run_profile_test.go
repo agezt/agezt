@@ -7,12 +7,13 @@ import (
 	"strings"
 	"testing"
 
+	appexecprofile "github.com/agezt/agezt/kernel/app/execprofile"
 	"github.com/agezt/agezt/kernel/warden"
 )
 
 func TestWardenProfileResolvesAWardenFamilyProfile(t *testing.T) {
 	k := runKernel(t)
-	ctx, label, err := WardenProfile(context.Background(), k, "warden")
+	ctx, label, err := WardenProfile(context.Background(), appexecprofile.PortsFromKernel(k), "warden")
 	if err != nil {
 		t.Fatalf("warden profile: %v", err)
 	}
@@ -32,7 +33,7 @@ func TestWardenProfileResolvesAWardenFamilyProfile(t *testing.T) {
 // The id is matched case-insensitively, like every other profile id.
 func TestWardenProfileResolvesAnUppercaseProfileID(t *testing.T) {
 	k := runKernel(t)
-	_, label, err := WardenProfile(context.Background(), k, "WARDEN")
+	_, label, err := WardenProfile(context.Background(), appexecprofile.PortsFromKernel(k), "WARDEN")
 	if err != nil {
 		t.Fatalf("warden profile: %v", err)
 	}
@@ -45,7 +46,7 @@ func TestWardenProfileResolvesAnUppercaseProfileID(t *testing.T) {
 // what is supported.
 func TestWardenProfileRefusesAnUnroutableProfile(t *testing.T) {
 	k := runKernel(t)
-	_, _, err := WardenProfile(context.Background(), k, "not-a-profile")
+	_, _, err := WardenProfile(context.Background(), appexecprofile.PortsFromKernel(k), "not-a-profile")
 	if err == nil {
 		t.Fatalf("err = nil, want a refusal")
 	}
@@ -64,7 +65,7 @@ func TestWardenProfileRefusesAnUnroutableProfile(t *testing.T) {
 // refused, and the message says how to get one.
 func TestWardenProfileRefusesTheContainerProfileWithoutItsBackend(t *testing.T) {
 	k := runKernel(t)
-	_, _, err := WardenProfile(context.Background(), k, "docker")
+	_, _, err := WardenProfile(context.Background(), appexecprofile.PortsFromKernel(k), "docker")
 	if err == nil {
 		t.Fatalf("err = nil, want the container backend refusal")
 	}

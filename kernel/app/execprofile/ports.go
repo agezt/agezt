@@ -5,6 +5,7 @@ package execprofile
 import (
 	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/warden"
 )
 
 // The execution profile family's ports, filled from the kernel handle.
@@ -31,11 +32,18 @@ func PortsFromKernel(k *runtime.Kernel) Ports {
 		return Ports{
 			Inventory: func() executionprofile.Inventory { return executionprofile.Build(executionprofile.Options{}) },
 			Policy:    executionprofile.PolicyFromEnv,
+			// A host with no daemon holds no warden, and the conservative
+			// answer is no isolation: a run that asked for the container
+			// profile is refused rather than silently unisolated.
+			EffectiveProfile: func(warden.Profile) warden.Profile { return warden.ProfileNone },
 		}
 	}
 	return Ports{
 		Inventory: func() executionprofile.Inventory { return buildInventory(k) },
 		Policy:    executionprofile.PolicyFromEnv,
+		EffectiveProfile: func(p warden.Profile) warden.Profile {
+			return k.Warden().EffectiveProfile(p)
+		},
 	}
 }
 

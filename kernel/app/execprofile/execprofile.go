@@ -18,13 +18,27 @@ import (
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/executionprofile"
 	"github.com/agezt/agezt/kernel/platform/schema"
+	"github.com/agezt/agezt/kernel/warden"
 )
 
 // Ports builds the inventory for the routed kernel and reads the profile
 // policy; both are read on every call so configuration changes show at once.
+//
+// The third capability is the WARDEN's own answer: the profile the daemon
+// really runs for a requested one. The warden is the execution profile
+// family's business — the guard says so by name — and the run path asks this
+// family for it instead of reaching for the kernel's own verb.
 type Ports struct {
 	Inventory func() executionprofile.Inventory
 	Policy    func() executionprofile.ProfilePolicy
+
+	// EffectiveProfile answers the profile the daemon's warden really runs
+	// for a requested one.
+	//
+	// A host with no daemon holds no warden, and the answer is the
+	// CONSERVATIVE one: no isolation. A run that asked for the container
+	// profile is then refused rather than silently unisolated.
+	EffectiveProfile func(warden.Profile) warden.Profile
 }
 
 type Service struct{ ports Ports }
