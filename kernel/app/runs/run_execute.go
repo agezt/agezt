@@ -15,7 +15,7 @@ import (
 // execute runs the resolved run and streams its events to the caller until it
 // finishes, then reports the terminal answer.
 func (s *RunService) execute(ctx context.Context, resolved *resolvedRun, emit func(*event.Event) error) (RunOutput, error) {
-	k := s.ports.Kernel
+	k := s.ports.kernel
 	corr := resolved.corr
 	// The subscription is taken before the run starts, so no event is missed.
 	sub, err := k.Bus().Subscribe(k.SubjectForRun(corr), 1024)
@@ -94,7 +94,7 @@ func (s *RunService) execute(ctx context.Context, resolved *resolvedRun, emit fu
 // run performs the run itself: the remote-agezt delegation, the assured loop,
 // the agent's retry policy, or the plain governed run.
 func (s *RunService) run(ctx context.Context, resolved *resolvedRun) (string, error) {
-	k := s.ports.Kernel
+	k := s.ports.kernel
 	corr := resolved.corr
 	if resolved.remote {
 		return s.runRemote(ctx, resolved)
@@ -113,7 +113,7 @@ func (s *RunService) run(ctx context.Context, resolved *resolvedRun) (string, er
 // runRemote delegates the run to a remote-agezt peer through the remote_run
 // tool and mirrors the peer's events into this run's stream.
 func (s *RunService) runRemote(ctx context.Context, resolved *resolvedRun) (string, error) {
-	k := s.ports.Kernel
+	k := s.ports.kernel
 	corr := resolved.corr
 	receivedPayload := map[string]any{
 		"intent":            resolved.intent,

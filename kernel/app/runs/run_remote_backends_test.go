@@ -28,13 +28,13 @@ func TestRunPathKnowsEveryRemoteBackend(t *testing.T) {
 		executionprofile.IDRemoteAgezt: "requires configured AGEZT peers",
 	}
 	for _, id := range executionprofile.RemoteBackendIDs {
-		_, _, _, err := applyExecutionProfile(context.Background(), k, id)
+		_, _, _, err := applyExecutionProfile(context.Background(), RunPortsFromKernel(k), id)
 		if err == nil || !strings.Contains(err.Error(), want[id]) {
 			t.Fatalf("%q: error = %v, want the %q refusal", id, err, want[id])
 		}
 	}
 	// The profile id is matched without regard to the case, as before.
-	if _, _, _, err := applyExecutionProfile(context.Background(), k, "SSH"); err == nil || !strings.Contains(err.Error(), want[executionprofile.IDSSH]) {
+	if _, _, _, err := applyExecutionProfile(context.Background(), RunPortsFromKernel(k), "SSH"); err == nil || !strings.Contains(err.Error(), want[executionprofile.IDSSH]) {
 		t.Fatalf("the upper-case id: error = %v, want the SSH refusal", err)
 	}
 }

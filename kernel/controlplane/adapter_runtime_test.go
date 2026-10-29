@@ -913,6 +913,12 @@ func reaperOwnedVerbs(t *testing.T) []string {
 // that swept it in would make the runs family claim another family's verb.
 // The exception is written out here, and the sharp guard test says so out
 // loud.
+//
+// And ONE verb belongs to the runs family by an EXACT name: `AdmitImages`,
+// the vision gate a run asks before it looks at anything. It was unguarded
+// until this slice, and the runs family is the only family that reads it —
+// the admission is the run's own gate. A word rule would not find it: it
+// carries neither "Run" nor "With".
 func runsOwnedVerbs(t *testing.T) []string {
 	t.Helper()
 	kernel := reflect.TypeOf(&runtime.Kernel{})
@@ -937,6 +943,10 @@ func runsOwnedVerbs(t *testing.T) []string {
 		}
 		verbs = append(verbs, name)
 	}
+	if _, ok := kernel.MethodByName("AdmitImages"); !ok {
+		t.Fatal("the kernel has no AdmitImages verb — the runs family's vision gate moved?")
+	}
+	verbs = append(verbs, "AdmitImages")
 	if len(verbs) == 0 {
 		t.Fatal("no run verbs found — the kernel's run verbs are gone?")
 	}
@@ -3373,6 +3383,33 @@ func TestTheGuardNamesEveryOverseerVerbTheKernelHas(t *testing.T) {
 	} {
 		if !guarded[verb] {
 			t.Errorf("the kernel's overseer verb %s is not named by the guard — the supervision of the live fleet belongs to the application", verb)
+		}
+	}
+}
+
+// And the RUNS family's PORT names no kernel verb the guard misses: the port
+// is where the handle is filled, and every verb it names is the application's
+// business — so every one of them must be guarded.
+//
+// The verbs are read from the port's own source, HERE, and not through the
+// helper the guard runs.
+func TestTheRunsNamesNoKernelVerbTheGuardMisses(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "app", "runs", "ports.go"))
+	if err != nil {
+		t.Fatalf("read the runs family's ports: %v", err)
+	}
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	named := regexp.MustCompile(`\bk\.([A-Z][A-Za-z0-9_]*)`).FindAllStringSubmatch(string(raw), -1)
+	if len(named) == 0 {
+		t.Fatal("the runs family's port names no kernel verb — the port stopped filling itself?")
+	}
+	for _, match := range named {
+		verb := match[1]
+		if !guarded[verb] {
+			t.Errorf("the runs family's port names the kernel's %s and the guard does not — a verb the guard misses is a verb the adapter may name", verb)
 		}
 	}
 }
