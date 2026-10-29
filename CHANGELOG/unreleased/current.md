@@ -3354,6 +3354,14 @@ This file holds the active `[Unreleased]` working set.
   surfaces. The port answers in two shapes — the narrow `Broker` and the
   `Registry` the scheduler's node spec carries — and the refusal for a daemon
   that holds no queue is written **once**.
+- **The world family's ports moved into the application (W5.4ak).** The world
+  model is the daemon's own graph of entities and their relations, and the
+  adapter reached for the kernel's graph in **one** place. The ports moved into
+  the application (`kernel/app/world`: `PortsFromKernel`), the adapter asks the
+  family, and the port holds the graph as a capability — it answers `Graph`,
+  never the kernel's own verb name. There is no daemon-level binding: every
+  surface that reads the world reads it on the request's path, so the routed
+  kernel is the one that answers.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —
