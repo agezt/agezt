@@ -3449,6 +3449,16 @@ This file holds the active `[Unreleased]` working set.
   the hash-chain check) is a capability the port fills, not the handle. After
   this slice the application layer names the handle in **9** files outside a
   port file, down from **10**.
+- **The config tool's ports moved into the application (W5.4av).** The config
+  tool is a **plugin**, and its app-layer adapter is the file that lets it
+  reach the live daemon without naming the runtime — and that file held the
+  runtime to do it. The ports moved into the application (`kernel/app/configtool`:
+  `PortsFromKernel`), the source holds the **ports**, and the port answers
+  `EditProfile` and `Rebuild` — **never** the kernel's own verb names. The
+  refusal is written **once**: a host with no daemon holds no daemon to
+  answer for, and the tool is handed a nil port. After this slice the
+  application layer names the handle in **8** files outside a port file, down
+  from **9**.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —
