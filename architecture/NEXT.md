@@ -6908,6 +6908,26 @@ files, five of the seventeen mutations would have escaped.
   holds the handle in **five** files outside a port file (the runs family with
   four, and the overseer): that is the phase after this one. Evidence:
   `architecture/256-w54ay-the-introspectors-ports-evidence.md`
+- W5.4az (the runs family's warden profile, and the first of its four files) is
+  the port programme's **thirty-ninth** slice and the **thirtieth** one of its last
+  phase: the handle itself. The first slice that takes one of the **runs family's**
+  four files off it — the **narrowest** of them, the file that resolves a
+  warden-family execution profile. The file reached for the handle for the
+  execution profile's **inventory** and the **warden's** answer; the inventory was
+  already asked of the **execution profile family**, and that family owns the
+  warden, so it now owns the warden's **answer** too. The control plane's
+  workboard dispatch now hands the application **ports** — the handle the ports
+  were filled from stops at the binding. A host with **no daemon** answers the
+  **conservative** profile: no isolation, which is the ground of the container
+  refusal. **No new family and no new rule**. The **application's** own number
+  moves: the application layer names the handle in **4** files outside a **port
+  file**, down from **5**. **2 permanent tests** and **7 mutations, 7 caught** in
+  two independent passes with **byte-identical** logs (SHA-256 `352A0061…4E0E`).
+  Two mutations were **rewritten**: one survived because it produced no defect on
+  a host that downgrades every profile anyway, and one did not compile. The
+  **other three** files of the runs family and the **overseer** still hold the
+  handle: that is the phase after this one. Evidence:
+  `architecture/257-w54az-the-runs-familys-warden-profile-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

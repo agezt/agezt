@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	appexecprofile "github.com/agezt/agezt/kernel/app/execprofile"
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/executionprofile"
@@ -306,7 +307,7 @@ func applyExecutionProfile(ctx context.Context, k *runtime.Kernel, execProfile s
 		}
 		return ctx, "remote-agezt", true, nil
 	}
-	ctx, label, err := WardenProfile(ctx, k, execProfile)
+	ctx, label, err := WardenProfile(ctx, appexecprofile.PortsFromKernel(k), execProfile)
 	if err != nil {
 		return ctx, "", false, err
 	}
