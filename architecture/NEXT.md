@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4aj the approvals family's ports, 2026-10-29
+## Current checkpoint — W5.4ak the world family's ports, 2026-10-29
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -6340,6 +6340,41 @@ files, five of the seventeen mutations would have escaped.
   verbs, M13 takes the refusal away, and M14 makes the binding name the runtime.
   Evidence:
   `architecture/241-w54aj-the-approvals-familys-ports-evidence.md`
+
+- W5.4ak (the world family, and the one site that asked for the whole model) is
+  the port programme's **twenty-fourth** slice and the **fifteenth** one of its
+  last phase: the handle itself. The world model is the daemon's own graph of
+  entities and the relations between them, and the adapter reached for the
+  kernel's graph in **one** place. The **application** layer held no world
+  handle either: `kernel/app/world` already took the contract's
+  `worldmodelapi.Graph` as an argument. The ports moved into the application
+  (`kernel/app/world`: `PortsFromKernel`) and the adapter keeps the binding
+  (`kernel/controlplane/world_ports.go`), which does not name the runtime — and
+  it has **no daemon-level binding**: every surface that reads the world reads
+  it on the **request's** path, so the routed kernel is the one that answers,
+  and a binding nobody calls is dead code. The port holds the kernel's one
+  surface as a **capability** — the graph — and answers `Graph`, **never** the
+  kernel's own verb name. The world model is the daemon's **file**: the daemon
+  opens the store and hands the kernel the contract's port and the **builder**,
+  so a daemon that was given neither holds **no** graph — the port hands over
+  nothing and the surfaces already refuse with their own sentence. The rule is
+  **by whole word** — a kernel verb whose name carries "World" as a **complete
+  word** is the world family's business — and the sweep takes in one verb:
+  `World`. The guard now holds **139** application-owned verbs. The adapter's
+  handle-verb debt: **14 → 13** call sites, **12 → 11** distinct verbs, and the
+  method values handed over stay at **8**. **8 permanent tests** and **11
+  mutations, 11 caught** in two independent passes with **byte-identical** logs
+  (SHA-256 `6FECE8AE…C612662`). M01, M02 and M03 are the ones that bite: the
+  port holds **no** graph, a host with no kernel asks the kernel **anyway**, and
+  the port hands over **nothing**. M04 gives the port a method that carries a
+  kernel verb's own name, M05 empties the request's binding, M06 makes it follow
+  the **daemon's** kernel — a tenant's world would become the daemon's — M07
+  builds the service from **nothing** and the world add over the socket refuses,
+  M08 puts the kernel back and the **verb guard** catches it, M09 takes the
+  family out of the guard, M10 hands the family **another** family's verbs, and
+  M11 makes the binding name the runtime.
+  Evidence:
+  `architecture/242-w54ak-the-world-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
