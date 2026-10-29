@@ -452,6 +452,22 @@ func baseDirOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
+// correlationOwnedVerbs are the kernel's CORRELATION verbs: the identity one
+// operation carries.
+//
+// The rule is BY WORD: a kernel verb whose name carries "Correlation" as a
+// whole word is the correlation family's business, and a verb that lands in
+// the kernel is guarded the day it lands.
+//
+// The sweep takes in three verbs: the mint, the actor decoration and the wake
+// provenance's parent correlation. The third says nothing about minting — it
+// is a reader — but it reads the same identity, so it is the same family's
+// business.
+func correlationOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	return kernelVerbsWord(t, "Correlation")
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -470,6 +486,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, edictOwnedVerbs(t)...)
 	verbs = append(verbs, providerOwnedVerbs(t)...)
 	verbs = append(verbs, baseDirOwnedVerbs(t)...)
+	verbs = append(verbs, correlationOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -995,6 +1012,87 @@ func TestTheBaseDirFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	}
 	if len(baseDir) == kernel.NumMethod() {
 		t.Errorf("the data-root family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the same for the CORRELATION family — the identity one operation
+// carries.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries "Correlation" as a whole word is
+// the correlation family's business. The expectation is not derived through
+// the helper the guard uses.
+func TestTheGuardNamesEveryCorrelationVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		carries := false
+		for _, word := range camelWords(name) {
+			if word == "Correlation" {
+				carries = true
+			}
+		}
+		if !carries {
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's correlation verb %s is not named by the guard — the correlation family's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no correlation verbs found — the kernel's correlation verbs are gone?")
+	}
+}
+
+// And the CORRELATION family must not claim another family's verbs: a
+// correlation is not a tool's business, a memory's business, or the policy's.
+//
+// The rule must be BOTH broad and sharp. Broad: every correlation verb is
+// guarded (the test above). Sharp: the correlation's list carries nothing that
+// belongs to someone else, and it is a strict subset of the kernel's verbs — a
+// rule that only ever grows is a rule that eventually guards the whole kernel,
+// and a guard that guards the whole kernel guards nothing.
+func TestTheCorrelationFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+		providerOwnedVerbs(t),
+		baseDirOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	correlation := correlationOwnedVerbs(t)
+	if len(correlation) == 0 {
+		t.Fatal("the correlation family names no verb — the correlation family's business belongs to the application")
+	}
+	for _, verb := range correlation {
+		if others[verb] {
+			t.Errorf("the correlation family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	if len(correlation) == kernel.NumMethod() {
+		t.Errorf("the correlation family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
 	}
 }
 

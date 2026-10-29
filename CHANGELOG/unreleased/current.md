@@ -3305,6 +3305,12 @@ This file holds the active `[Unreleased]` working set.
   context and its panic reporting stay in the host: they are the protocol
   surface, not the application's.
 
+- **The correlation family's ports moved into the application (W5.4ae).** The
+  correlation is the identity one operation carries, and the adapter reached for
+  the kernel's mint in **nine** places — six of them handing the mint over as a
+  **value**. The ports moved into the application (`kernel/app/correlation`:
+  `PortsFromKernel`), the adapter asks the family, and the port holds the
+  kernel's two surfaces as capabilities rather than the kernel itself.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —
