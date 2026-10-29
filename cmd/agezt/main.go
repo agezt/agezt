@@ -1195,7 +1195,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// the wiring: the control plane and the self-repair module both ASK for a
 	// repair, and neither imports the tool that provides it — an adapter
 	// reaches the module's vocabulary, never a plugin (archcheck's P5).
-	repairSource := overseer.NewKernelSource(k, baseDir)
+	repairSource := overseer.NewKernelSource(overseer.PortsFromKernel(k), baseDir)
 	srv.SetRepairSource(repairSource)
 	if err := srv.Start(ctx); err != nil {
 		fmt.Fprintf(stderr, "%s: start control plane: %v\n", brand.Binary, err)

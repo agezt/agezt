@@ -84,7 +84,7 @@ func toolKernelDeps(k *runtime.Kernel, baseDir string, stdout io.Writer) toolreg
 		// implementation that answers it needs the live kernel and the board
 		// store, so the daemon builds it here (the tool is a plugin and may
 		// reach neither).
-		Overseer: overseer.NewKernelSource(k, baseDir),
+		Overseer: overseer.NewKernelSource(overseer.PortsFromKernel(k), baseDir),
 		// The introspect tool reads the daemon's own live state through a
 		// contract port; the app-layer adapter gathers it from the live
 		// kernel, because the tool is a plugin and may reach neither.

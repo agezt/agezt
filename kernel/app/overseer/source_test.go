@@ -30,7 +30,7 @@ func TestKernelSourceAnswersThePortFromTheLiveKernel(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	src := NewKernelSource(k, dir)
+	src := NewKernelSource(PortsFromKernel(k), dir)
 	if src == nil {
 		t.Fatal("NewKernelSource returned nil")
 	}
@@ -102,7 +102,7 @@ func TestKernelSourceProtectsSystemGuardians(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { k.Close() })
-	src := NewKernelSource(k, dir)
+	src := NewKernelSource(PortsFromKernel(k), dir)
 
 	if _, err := k.AddProfile(agentapi.Profile{Slug: "guardian", System: true}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
@@ -142,7 +142,7 @@ func TestKernelSourceEditAppliesOnlyProvidedFields(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { k.Close() })
-	src := NewKernelSource(k, dir)
+	src := NewKernelSource(PortsFromKernel(k), dir)
 
 	if _, err := k.AddProfile(agentapi.Profile{Slug: "scout", Name: "Scout", Soul: "stay sharp"}); err != nil {
 		t.Fatalf("AddProfile: %v", err)

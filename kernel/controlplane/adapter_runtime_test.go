@@ -827,6 +827,40 @@ func daemonOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
+// overseerOwnedVerbs are the kernel's OVERSEER verbs: the two verbs that
+// belong to nobody else — the run a supervision cancels, and the runs that are
+// in flight.
+//
+// The rule is BY NAME, and it answers to two EXACT names.
+//
+// It cannot be a word rule, and the reason is worth writing down. A "Run"
+// rule would take the RUNS family's own verbs — the two that START a run —
+// and "Cancel" belongs to no other family either, but a rule that sweeps by
+// word would grow every time the kernel grows a run verb. The names are
+// exact, so a verb that lands in the kernel later is guarded the day the
+// family that owns it says so.
+//
+// These two verbs were UNGUARDED until this slice: no family claimed them,
+// so the adapter was free to name them, and nothing in the tree said that
+// the supervision of the live fleet was the application's business. The
+// OVERSEER is the only family that reads them, so the overseer owns them.
+func overseerOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	want := []string{
+		"CancelRun",
+		"ActiveRunIDs",
+	}
+	verbs := make([]string, 0, len(want))
+	for _, name := range want {
+		if _, ok := kernel.MethodByName(name); !ok {
+			t.Fatalf("the kernel has no %s verb — the overseer family's verbs moved?", name)
+		}
+		verbs = append(verbs, name)
+	}
+	return verbs
+}
+
 // execProfileOwnedVerbs are the kernel's EXECUTION PROFILE verbs: the warden
 // engine the profiles are routed through.
 //
@@ -1031,6 +1065,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, lifecycleOwnedVerbs(t)...)
 	verbs = append(verbs, daemonOwnedVerbs(t)...)
 	verbs = append(verbs, execProfileOwnedVerbs(t)...)
+	verbs = append(verbs, overseerOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -3256,6 +3291,115 @@ func TestTheGuardianPortsNameNoKernelVerbTheGuardMisses(t *testing.T) {
 		verb := match[1]
 		if !guarded[verb] {
 			t.Errorf("the guardian seeder's port names the kernel's %s and the guard does not — a verb the guard misses is a verb the adapter may name", verb)
+		}
+	}
+}
+
+// And the OVERSEER family — the supervision of the live fleet.
+//
+// The rule is held in BOTH directions: broad (the guard names the overseer's
+// two verbs) and sharp (the family claims no other family's verb).
+func TestTheOverseerFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+		providerOwnedVerbs(t),
+		baseDirOwnedVerbs(t),
+		correlationOwnedVerbs(t),
+		catalogOwnedVerbs(t),
+		artifactOwnedVerbs(t),
+		pluginOwnedVerbs(t),
+		marketOwnedVerbs(t),
+		approvalOwnedVerbs(t),
+		worldOwnedVerbs(t),
+		tasteOwnedVerbs(t),
+		personaOwnedVerbs(t),
+		stateOwnedVerbs(t),
+		seatOwnedVerbs(t),
+		dataOwnedVerbs(t),
+		reflectionOwnedVerbs(t),
+		runsOwnedVerbs(t),
+		reaperOwnedVerbs(t),
+		lifecycleOwnedVerbs(t),
+		daemonOwnedVerbs(t),
+		execProfileOwnedVerbs(t),
+		workboardOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	family := overseerOwnedVerbs(t)
+	if len(family) == 0 {
+		t.Fatal("the overseer family names no verb — the supervision of the live fleet belongs to the application")
+	}
+	for _, verb := range family {
+		if others[verb] {
+			t.Errorf("the overseer family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	if len(family) == kernel.NumMethod() {
+		t.Errorf("the overseer family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the guard names EVERY overseer verb: the two verbs that belong to nobody
+// else are named here, and a verb the guard misses is a verb the adapter may
+// name.
+//
+// The expectation is written HERE, in the test's own words, and not taken
+// from the helper the guard runs.
+func TestTheGuardNamesEveryOverseerVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	for _, verb := range []string{
+		"CancelRun",
+		"ActiveRunIDs",
+	} {
+		if !guarded[verb] {
+			t.Errorf("the kernel's overseer verb %s is not named by the guard — the supervision of the live fleet belongs to the application", verb)
+		}
+	}
+}
+
+// And the overseer's PORT names no kernel verb the guard misses: the port is
+// where the handle is filled, and every verb it names is the application's
+// business — so every one of them must be guarded.
+//
+// The verbs are read from the port's own source, HERE, and not through the
+// helper the guard runs.
+func TestTheOverseerNamesNoKernelVerbTheGuardMisses(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "app", "overseer", "ports.go"))
+	if err != nil {
+		t.Fatalf("read the overseer's ports: %v", err)
+	}
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	named := regexp.MustCompile(`\bk\.([A-Z][A-Za-z0-9_]*)`).FindAllStringSubmatch(string(raw), -1)
+	if len(named) == 0 {
+		t.Fatal("the overseer's port names no kernel verb — the port stopped filling itself?")
+	}
+	for _, match := range named {
+		verb := match[1]
+		if !guarded[verb] {
+			t.Errorf("the overseer's port names the kernel's %s and the guard does not — a verb the guard misses is a verb the adapter may name", verb)
 		}
 	}
 }
