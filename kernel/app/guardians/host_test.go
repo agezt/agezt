@@ -20,7 +20,7 @@ var _ guardianapi.Host = (*kernelHost)(nil)
 // TestAMissingKernelIsANilPort: a daemon with no kernel hands over a NIL
 // port, not a port wrapping nothing.
 func TestAMissingKernelIsANilPort(t *testing.T) {
-	if got := NewKernelHost(nil); got != nil {
+	if got := NewKernelHost(Ports{}); got != nil {
 		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
 	}
 }
@@ -38,7 +38,7 @@ func TestTheAdapterAnswersTheLiveRoster(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	host := NewKernelHost(k)
+	host := NewKernelHost(PortsFromKernel(k))
 	added, err := host.AddAgent(agentapi.Profile{Slug: "guardian-health", System: true})
 	if err != nil {
 		t.Fatalf("AddAgent: %v", err)
@@ -79,7 +79,7 @@ func TestTheAdapterReportsAnUnknownAgent(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	_, found, err := NewKernelHost(k).UpdateAgent("nobody", func(*agentapi.Profile) {})
+	_, found, err := NewKernelHost(PortsFromKernel(k)).UpdateAgent("nobody", func(*agentapi.Profile) {})
 	if err != nil {
 		t.Fatalf("UpdateAgent: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestTheAdapterAnswersTheLiveSchedules(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	host := NewKernelHost(k)
+	host := NewKernelHost(PortsFromKernel(k))
 	entry, err := host.AddInterval("cycle repo-watch", 90*time.Second, "mock-model", "")
 	if err != nil {
 		t.Fatalf("AddInterval: %v", err)

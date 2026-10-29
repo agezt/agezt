@@ -19,5 +19,5 @@ import (
 // A daemon with no kernel is refused by the seeder itself, so the boot step
 // hears about it instead of panicking.
 func seedBuiltInGuardians(k *runtime.Kernel) ([]builtinguardians.Seeded, error) {
-	return builtinguardians.SeedAll(guardians.NewKernelHost(k), "")
+	return builtinguardians.SeedAll(guardians.NewKernelHost(guardians.PortsFromKernel(k)), "")
 }

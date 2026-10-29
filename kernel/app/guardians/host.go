@@ -9,54 +9,49 @@
 package guardians
 
 import (
-	"errors"
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/guardianapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
-// kernelHost answers the seeder's port from the live kernel. Each write goes
-// through the kernel's own stores, so seeded guardians, standing orders and
-// schedules are persisted and journaled exactly like operator-created ones.
-// Schedules are tagged source "system" so SyncEnv (which only replaces "env"
-// entries) never prunes them and the UI can tell them apart.
-type kernelHost struct{ k *kernelruntime.Kernel }
-
-// NewKernelHost builds the kernel-backed host of the seeder's port.
+// kernelHost answers the seeder's port from the seeder's own ports. Each write
+// goes through the daemon's own stores, so seeded guardians, standing orders
+// and schedules are persisted and journaled exactly like operator-created
+// ones. Schedules are tagged source "system" so SyncEnv (which only replaces
+// "env" entries) never prunes them and the UI can tell them apart.
 //
-// The nil check is on the CONCRETE type, on purpose: a nil *Kernel handed
-// back as an interface would be a non-nil interface wrapping nothing.
-func NewKernelHost(k *kernelruntime.Kernel) guardianapi.Host {
-	if k == nil {
+// The host holds the PORTS, not the handle they were filled from: a file that
+// names the runtime is the port's business, and the adapter that answers the
+// contract is not.
+type kernelHost struct{ ports Ports }
+
+// NewKernelHost builds the seeder's host from its ports.
+//
+// A host with no daemon holds no daemon to seed, and the seeder is handed a
+// NIL port rather than a port that calls into nothing: the refusal is written
+// **once**, in the ports, and the composition root does not spell it again.
+func NewKernelHost(ports Ports) guardianapi.Host {
+	if !ports.Ready() {
 		return nil
 	}
-	return &kernelHost{k: k}
+	return &kernelHost{ports: ports}
 }
 
 // Agents lists the agents the daemon knows.
-func (h *kernelHost) Agents() []agentapi.Profile { return h.k.RosterList() }
+func (h *kernelHost) Agents() []agentapi.Profile { return h.ports.Agents() }
 
 // AddAgent creates an agent.
 func (h *kernelHost) AddAgent(p agentapi.Profile) (agentapi.Profile, error) {
-	return h.k.AddProfile(p)
+	return h.ports.AddAgent(p)
 }
 
 // UpdateAgent edits the agent named by ref.
 func (h *kernelHost) UpdateAgent(ref string, mutate func(*agentapi.Profile)) (agentapi.Profile, bool, error) {
-	return h.k.UpdateProfile(ref, mutate)
+	return h.ports.EditAgent(ref, mutate)
 }
-
-// errNoStandingLibrary is the answer the guardian host gives when the daemon
-// holds no standing library.
-//
-// The standing library is the daemon's file (W3.50): the kernel holds the
-// contract's store port, and a host that was given none holds a nil port.
-// The refusal is the answer — not a panic, and not a silent "nothing to do".
-var errNoStandingLibrary = errors.New("guardians: the standing library is not available on this daemon")
 
 // StandingOrders lists the standing orders the daemon knows.
 //
@@ -64,37 +59,23 @@ var errNoStandingLibrary = errors.New("guardians: the standing library is not av
 // a nil port, and the guardian sees no standing orders rather than calling
 // into nothing.
 func (h *kernelHost) StandingOrders() []standingapi.Order {
-	if h.k.Standing() == nil {
-		return nil
-	}
-	return h.k.Standing().List()
+	return h.ports.Orders()
 }
 
 // UpdateStanding edits the order named by id.
 func (h *kernelHost) UpdateStanding(id string, mutate func(*standingapi.Order)) (standingapi.Order, bool, error) {
-	return h.k.UpdateStanding(id, mutate)
+	return h.ports.EditOrder(id, mutate)
 }
 
 // AddStanding creates a standing order.
 func (h *kernelHost) AddStanding(o standingapi.Order) (standingapi.Order, error) {
-	if h.k.Standing() == nil {
-		return standingapi.Order{}, errNoStandingLibrary
-	}
-	return h.k.Standing().Add(o)
+	return h.ports.AddOrder(o)
 }
 
 // SetStandingEnabled pauses or resumes an order.
 func (h *kernelHost) SetStandingEnabled(id string, enabled bool) (standingapi.Order, error) {
-	return h.k.SetStandingEnabled(id, enabled)
+	return h.ports.SetOrderEnabled(id, enabled)
 }
-
-// errNoScheduleLibrary is the answer the guardian host gives when the daemon
-// holds no schedule library.
-//
-// The schedule library is the daemon's file (W3.49): the kernel holds the
-// contract's host port, and a host that was given none holds a nil port. The
-// refusal is the answer — not a panic, and not a silent "nothing to do".
-var errNoScheduleLibrary = errors.New("guardians: the schedule library is not available on this daemon")
 
 // Schedules lists the schedules the daemon knows.
 //
@@ -102,49 +83,20 @@ var errNoScheduleLibrary = errors.New("guardians: the schedule library is not av
 // a nil port, and the guardian sees no schedules rather than calling into
 // nothing.
 func (h *kernelHost) Schedules() []cadenceapi.Entry {
-	if h.k.Schedules() == nil {
-		return nil
-	}
-	return h.k.Schedules().List()
+	return h.ports.Entries()
 }
 
 // Reschedule moves a schedule to a new cadence.
 func (h *kernelHost) Reschedule(id string, mode string, interval time.Duration, atMinutes, days int) (bool, error) {
-	if h.k.Schedules() == nil {
-		return false, errNoScheduleLibrary
-	}
-	return h.k.Schedules().Reschedule(id, mode, interval, atMinutes, 0, days, "", time.Time{}, time.Now())
+	return h.ports.Reschedule(id, mode, interval, atMinutes, days)
 }
 
 // AddInterval plants a repeating schedule.
 func (h *kernelHost) AddInterval(intent string, interval time.Duration, model, agent string) (cadenceapi.Entry, error) {
-	if h.k.Schedules() == nil {
-		return cadenceapi.Entry{}, errNoScheduleLibrary
-	}
-	e, err := h.k.Schedules().Add(intent, interval, model, "system", time.Now())
-	if err != nil || agent == "" {
-		return e, err
-	}
-	if _, err := h.k.Schedules().SetAgent(e.ID, agent); err != nil {
-		return cadenceapi.Entry{}, err
-	}
-	e.Agent = agent
-	return e, nil
+	return h.ports.AddInterval(intent, interval, model, agent)
 }
 
 // AddDaily plants a daily schedule.
 func (h *kernelHost) AddDaily(intent string, atMinutes int, model, agent string) (cadenceapi.Entry, error) {
-	// days=0 → every day; tz="" → daemon local.
-	if h.k.Schedules() == nil {
-		return cadenceapi.Entry{}, errNoScheduleLibrary
-	}
-	e, err := h.k.Schedules().AddDaily(intent, atMinutes, 0, "", model, "system", time.Now())
-	if err != nil || agent == "" {
-		return e, err
-	}
-	if _, err := h.k.Schedules().SetAgent(e.ID, agent); err != nil {
-		return cadenceapi.Entry{}, err
-	}
-	e.Agent = agent
-	return e, nil
+	return h.ports.AddDaily(intent, atMinutes, model, agent)
 }
