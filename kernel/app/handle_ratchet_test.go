@@ -24,7 +24,7 @@ import (
 // The count only ever goes DOWN. A family that moves its reads behind its
 // ports takes its file out of this list; a file that walks back in is a
 // handle that walked back in.
-const applicationHandleNamingFiles = 9
+const applicationHandleNamingFiles = 8
 
 // TestTheApplicationLayerNamesTheHandleOnlyInPortFiles holds the count: the
 // application layer names the kernel's handle in exactly the recorded number

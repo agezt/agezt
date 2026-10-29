@@ -16,34 +16,36 @@ import (
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
-// kernelSource answers the config tool's port from the live kernel.
+// kernelSource answers the config tool's port from the tool's own ports.
+//
+// The source holds the PORTS, not the handle they were filled from: a file
+// that names the runtime is the port's business, and the adapter that
+// answers the contract is not.
 type kernelSource struct {
-	k *kernelruntime.Kernel
+	ports Ports
 }
 
-// NewKernelSource builds the kernel-backed source of the config tool's port.
+// NewKernelSource builds the config tool's source from its ports.
 //
-// The nil check is on the CONCRETE type, on purpose: a nil *Kernel handed
-// back as an interface would be a non-nil interface wrapping nothing, and
-// the tool would call into a kernel that is not there instead of reporting
-// that the daemon is not wired.
-func NewKernelSource(k *kernelruntime.Kernel) configapi.Kernel {
-	if k == nil {
+// A host with no daemon holds no daemon to answer for, and the tool is handed
+// a NIL port rather than a port that calls into nothing: the refusal is
+// written **once**, in the ports, and the adapter does not spell it again.
+func NewKernelSource(ports Ports) configapi.Kernel {
+	if !ports.Ready() {
 		return nil
 	}
-	return &kernelSource{k: k}
+	return &kernelSource{ports: ports}
 }
 
 // UpdateProfile edits the agent named by ref — the agent-scoped write path.
 func (s *kernelSource) UpdateProfile(ref string, mutate func(*agentapi.Profile)) (agentapi.Profile, bool, error) {
-	return s.k.UpdateProfile(ref, mutate)
+	return s.ports.EditProfile(ref, mutate)
 }
 
 // Reload rebuilds the provider in place — the live-apply path. The
 // catalogue the reload produced is dropped: the tool may not name it.
 func (s *kernelSource) Reload() error {
-	_, _, err := s.k.Reload()
-	return err
+	return s.ports.Rebuild()
 }
 
 // AgentConfigOverrides returns the config overrides the run in this context
