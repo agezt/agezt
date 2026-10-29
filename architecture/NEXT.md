@@ -6834,6 +6834,30 @@ files, five of the seventeen mutations would have escaped.
   with four, the overseer, the introspector, the execution profile and the
   guardians): that is the phase after this one. Evidence:
   `architecture/253-w54av-the-config-tool-familys-ports-evidence.md`
+- W5.4aw (the execution profile family, and the warden the profiles run through) is
+  the port programme's **thirty-sixth** slice and the **twenty-seventh** one of its
+  last phase: the handle itself. The third slice of that phase whose subject is the
+  **application's** handle, and the first one where the file that held the handle
+  was not an adapter at all but a **helper**. The ports moved into the application
+  (`kernel/app/execprofile`: `PortsFromKernel`), the adapter asks for the ports,
+  and the runs family asks the execution profile family for the same picture. The
+  **empty host is not the daemon with no tools**: a host with no daemon answers the
+  **empty picture**, and the host still knows its own operating system. The remote
+  backends come from the **host's environment**, not from the kernel. The rule is
+  **by name** — a kernel verb whose name mentions the warden is this family's
+  business, and it catches **one** verb today: `Warden`, which was **unguarded**
+  until this slice. The rule does not reach for the tools: they are the tools
+  family's business. The guard now holds **162** application-owned verbs. The
+  **application's** own number moves: the application layer names the handle in
+  **7** files outside a **port file**, down from **8**. **6 permanent tests** and
+  **9 mutations, 9 caught** in two independent passes with **byte-identical** logs
+  (SHA-256 `E59E6664…7B2C`). One mutation **survived** the first run — it dropped
+  the warden, and the builder falls back to a default warden that answers the same,
+  so it produced no defect and measured nothing. The **application** layer still
+  holds the handle in **seven** files outside a port file (the runs family with
+  four, the overseer, the introspector and the guardians): that is the phase after
+  this one. Evidence:
+  `architecture/254-w54aw-the-execution-profile-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

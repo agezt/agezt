@@ -3459,6 +3459,17 @@ This file holds the active `[Unreleased]` working set.
   answer for, and the tool is handed a nil port. After this slice the
   application layer names the handle in **8** files outside a port file, down
   from **9**.
+- **The execution profile family's ports moved into the application
+  (W5.4aw).** The execution profile family reads the daemon's tools and the
+  daemon's warden to build the picture of where work can run, and the helper
+  that read them held the runtime. The ports moved into the application
+  (`kernel/app/execprofile`: `PortsFromKernel`), the adapter asks for the
+  ports, and a host with **no daemon** answers the **empty picture** — the
+  profiles that need a tool are unsupported, and the ones that do not are still
+  there. The kernel's **warden** verb was unguarded until this slice; the
+  execution profile family's rule is by name and catches it. After this slice
+  the application layer names the handle in **7** files outside a port file,
+  down from **8**.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —
