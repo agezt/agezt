@@ -6928,6 +6928,27 @@ files, five of the seventeen mutations would have escaped.
   **other three** files of the runs family and the **overseer** still hold the
   handle: that is the phase after this one. Evidence:
   `architecture/257-w54az-the-runs-familys-warden-profile-evidence.md`
+- W5.4ba (the overseer, and the two verbs that belonged to nobody) is the port
+  programme's **fortieth** slice and the **thirty-first** one of its last phase:
+  the handle itself. The first one whose file reached for **eighteen** verbs at
+  once: the overseer supervises the live system. The ports moved into the
+  application (`kernel/app/overseer`: `PortsFromKernel`), and four of the
+  capabilities are other families' as a **whole** — the correlation, the run,
+  the fleet scan and the live provider — and they are asked of the families that
+  own them, so a verb is never named twice. **Two** verbs belonged to **nobody**:
+  `CancelRun` and `ActiveRunIDs` were free for the adapter to name, and the
+  overseer is the only family that reads them, so the overseer owns them by
+  **exact name** — a word rule would sweep in the runs family's own verbs. The
+  guard now holds **164** application-owned verbs, up from **162**. The
+  **application's** own number moves: the application layer names the handle in
+  **3** files outside a **port file**, down from **4**. The **refusal is written
+  once**: a host with **no daemon** holds no daemon to supervise — the reads
+  answer with nothing and the writes refuse. **3 permanent tests** and **13
+  mutations, 13 caught** in two independent passes with **byte-identical** logs
+  (SHA-256 `32801023…57A7`). The slice also records the **regression** its first
+  cut caused: a family's port narrows to that family's **full** view, and the
+  consumer's own narrow view belongs to the consumer. Evidence:
+  `architecture/258-w54ba-the-overseers-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

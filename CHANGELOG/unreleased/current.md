@@ -3499,6 +3499,18 @@ This file holds the active `[Unreleased]` working set.
   **conservative** profile — no isolation — which is what the container
   refusal stands on. After this slice the application layer names the handle in
   **4** files outside a port file, down from **5**.
+- **The overseer's ports moved into the application (W5.4ba).** The overseer
+  supervises the live system — the fleet, the agents' impacts, the pause and the
+  retirement, the run cancel, the wake, the repair, the daemon's own halt — and
+  it reached for **eighteen** verbs at once to do it. The ports moved into the
+  application (`kernel/app/overseer`: `PortsFromKernel`), the source, the
+  operations and the chains keep the ports and nothing else, and the
+  correlation, the run, the fleet scan and the live provider are asked of the
+  families that own them. The two verbs that belonged to **nobody** — the run
+  cancel and the run ids — are now the overseer's own, by exact name. A host
+  with **no daemon** answers with nothing and refuses every write. After this
+  slice the application layer names the handle in **3** files outside a port
+  file, down from **4**.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —
