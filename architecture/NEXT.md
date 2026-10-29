@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4af the catalog family's ports, 2026-10-28
+## Current checkpoint — W5.4ag the artifacts family's ports, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -6142,6 +6142,51 @@ files, five of the seventeen mutations would have escaped.
   the rule, and hand the family another family's verb.
   Evidence:
   `architecture/237-w54af-the-catalog-familys-ports-evidence.md`
+
+- W5.4ag (the artifacts family, and the plural the splitter cannot see) is the
+  port programme's **twentieth** slice and the **eleventh** one of its last
+  phase: the handle itself. The artifact store is the content-addressed store
+  the loop offloads oversized tool outputs into, and the artifact index is the
+  browsable, deletable metadata over it. The adapter reached for the kernel's
+  artifact surface in **two** places in **one** file, and the **application**
+  layer held no artifact handle at all — `kernel/app/artifacts` already took
+  its store and its index as arguments — so this slice is the clean shape of the
+  programme: one family, one file, two sites. The ports moved into the
+  application (`kernel/app/artifacts`: `PortsFromKernel`) and the adapter keeps
+  the binding (`kernel/controlplane/artifacts_ports.go`), which does not name the
+  runtime. The port holds the kernel's two surfaces as **capabilities** — the
+  store and the index — and answers `Store` and `Index`, **never** the kernel's
+  own verb names: a port that carried the name of the verb it stands for would
+  let the adapter name the kernel's verb through the port's door. The adapter's
+  two **nil checks** — one for the store, one for the index — left the adapter
+  with the port: it hands over nothing when the daemon holds nothing, and the
+  daemon's own absence of a store is now the port's answer rather than the
+  adapter's spelling. The rule is **by whole word** and the family answers to
+  **two** names — "Artifact" and "Artifacts" — because the camel-case splitter
+  reads `ArtifactIndex` as **"Artifact" + "Index"** while `Artifacts` is **ONE**
+  word to it: a plural 's' does not start a new word. A family that looked for
+  a single name would guard either the store and the index, **or** the plural,
+  and never both — and the one it left out would be a verb the adapter may
+  name. The sweep takes in **three** verbs: `Artifacts`, `ArtifactIndex` and
+  `ArtifactStore`. The guard now holds **134** application-owned verbs. The
+  adapter's handle-verb debt: **22 → 20** call sites, **17 → 15** distinct
+  verbs, and the method values handed over stay at **9**. **7 permanent tests**
+  and **13 mutations, 13 caught** in two independent passes with
+  **byte-identical** logs (SHA-256 `9929404F…31A5`). M06 puts the kernel back —
+  the adapter's artifact service reaches for the kernel's store and index
+  again — and the **verb guard** catches it; it is not a behavioural regression,
+  because the wiring would work **exactly as well**, it would simply be in the
+  wrong layer. M01 through M04 are the ones that bite: the port holds **no**
+  store, the store answers with **nothing** for every caller, the port holds
+  **no** index, the index answers with **nothing**. M05 empties the daemon's
+  binding, M10 gives the port a method that carries a kernel verb's own name,
+  M11 makes the binding name the runtime, M12 builds the service from
+  **nothing** — and the artifact list over the socket answers *"artifact index
+  unavailable"* — M13 drops the singular half of the rule, M08 drops the plural
+  half, M07 takes the family out of the guard, and M09 hands the family
+  **another** family's verbs.
+  Evidence:
+  `architecture/238-w54ag-the-artifacts-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
