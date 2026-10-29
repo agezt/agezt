@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	appexecprofile "github.com/agezt/agezt/kernel/app/execprofile"
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/executionprofile"
@@ -45,9 +44,8 @@ type resolvedRun struct {
 // Nothing here executes: a dry run resolves exactly the same way, so the plan
 // can never drift from what would run.
 func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, error) {
-	k := s.ports.Kernel
-	if k == nil {
-		return nil, errors.New("run kernel unavailable")
+	if !s.ports.Ready() {
+		return nil, ErrNoKernel
 	}
 	intent := strings.TrimSpace(argText(in.Intent))
 	if intent == "" {
@@ -71,7 +69,7 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 	// this run's defaults. An unknown, retired, paused or managed agent is a
 	// usage error — silently running as the default identity would be worse.
 	if ref := strings.TrimSpace(agentRaw); ref != "" {
-		p, found := k.RosterGet(ref)
+		p, found := s.ports.Profile(ref)
 		if !found {
 			return nil, errors.New("unknown agent: " + ref)
 		}
@@ -97,13 +95,13 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 		if len(p.Fallbacks) > 0 {
 			primary := modelOverride
 			if primary == "" {
-				primary = k.Model()
+				primary = s.ports.DefaultModel()
 			}
 			ctx = runtime.WithModelChain(ctx, approster.AgentModelChain(primary, p.Fallbacks))
 		}
 	}
 	resolved.ctx = ctx
-	resolved.model = k.Model()
+	resolved.model = s.ports.DefaultModel()
 	if modelOverride != "" {
 		resolved.model = modelOverride
 	}
@@ -111,13 +109,13 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 
 	// The correlation is minted before the vision gate so the sidecar's
 	// journaled event links to this run.
-	resolved.corr = k.NewCorrelation()
+	resolved.corr = s.ports.Correlation()
 
 	imageRefs, _, err := argStringList(in.Images, "images")
 	if err != nil {
 		return nil, err
 	}
-	admission, err := k.AdmitImages(ctx, resolved.corr, modelOverride, intent, imageRefs)
+	admission, err := s.ports.AdmitVision(ctx, resolved.corr, modelOverride, intent, imageRefs)
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +203,7 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 		execProfile = strings.TrimSpace(resolved.agent.ExecutionProfile)
 	}
 	resolved.profile = execProfile
-	ctx, label, remote, err := applyExecutionProfile(ctx, k, execProfile)
+	ctx, label, remote, err := applyExecutionProfile(ctx, s.ports, execProfile)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +258,7 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 // applyExecutionProfile resolves the requested execution profile: it checks the
 // policy, the backend's availability and the tools the profile needs, and
 // returns the label the run reports.
-func applyExecutionProfile(ctx context.Context, k *runtime.Kernel, execProfile string) (context.Context, string, bool, error) {
+func applyExecutionProfile(ctx context.Context, ports RunPorts, execProfile string) (context.Context, string, bool, error) {
 	if execProfile == "" {
 		return ctx, "", false, nil
 	}
@@ -279,7 +277,7 @@ func applyExecutionProfile(ctx context.Context, k *runtime.Kernel, execProfile s
 		if !k8sCfg.Active() {
 			return ctx, "", false, errors.New(`execution profile "k8s" requires an active Kubernetes backend (set AGEZT_EXEC_K8S=1 and AGEZT_EXEC_K8S_POD=<pod>; optional AGEZT_EXEC_K8S_NAMESPACE/CONTEXT/CONTAINER/WORKDIR)`)
 		}
-		if err := requireShellTool(k, "k8s"); err != nil {
+		if err := requireShellTool(ports, "k8s"); err != nil {
 			return ctx, "", false, err
 		}
 		return executionprofile.WithK8sOverride(ctx, k8sCfg), "k8s", false, nil
@@ -288,7 +286,7 @@ func applyExecutionProfile(ctx context.Context, k *runtime.Kernel, execProfile s
 		if !modalCfg.Active() {
 			return ctx, "", false, errors.New(`execution profile "modal" requires an active Modal backend (set AGEZT_EXEC_MODAL=1; optional AGEZT_EXEC_MODAL_REF or AGEZT_EXEC_MODAL_IMAGE)`)
 		}
-		if err := requireShellTool(k, "modal"); err != nil {
+		if err := requireShellTool(ports, "modal"); err != nil {
 			return ctx, "", false, err
 		}
 		return executionprofile.WithModalOverride(ctx, modalCfg), "modal", false, nil
@@ -297,17 +295,17 @@ func applyExecutionProfile(ctx context.Context, k *runtime.Kernel, execProfile s
 		if !daytonaCfg.Active() {
 			return ctx, "", false, errors.New(`execution profile "daytona" requires an active Daytona backend (set AGEZT_EXEC_DAYTONA=1 and AGEZT_EXEC_DAYTONA_SANDBOX=<id-or-name>)`)
 		}
-		if err := requireShellTool(k, "daytona"); err != nil {
+		if err := requireShellTool(ports, "daytona"); err != nil {
 			return ctx, "", false, err
 		}
 		return executionprofile.WithDaytonaOverride(ctx, daytonaCfg), "daytona", false, nil
 	case strings.EqualFold(execProfile, executionprofile.IDRemoteAgezt):
-		if _, ok := k.Tools()["remote_run"]; !ok {
+		if !ports.HasTool("remote_run") {
 			return ctx, "", false, errors.New(`execution profile "remote-agezt" requires configured AGEZT peers (set AGEZT_PEERS=name=https://host|token so the remote_run tool is registered)`)
 		}
 		return ctx, "remote-agezt", true, nil
 	}
-	ctx, label, err := WardenProfile(ctx, appexecprofile.PortsFromKernel(k), execProfile)
+	ctx, label, err := WardenProfile(ctx, ports.ExecProfile(), execProfile)
 	if err != nil {
 		return ctx, "", false, err
 	}
@@ -316,9 +314,9 @@ func applyExecutionProfile(ctx context.Context, k *runtime.Kernel, execProfile s
 
 // requireShellTool refuses an execution profile whose backend needs the shell
 // or code_exec tool when neither is registered.
-func requireShellTool(k *runtime.Kernel, profile string) error {
-	if _, ok := k.Tools()["shell"]; !ok {
-		if _, ok := k.Tools()["code_exec"]; !ok {
+func requireShellTool(ports RunPorts, profile string) error {
+	if !ports.HasTool("shell") {
+		if !ports.HasTool("code_exec") {
 			return fmt.Errorf("execution profile %q requires the shell or code_exec tool to be registered", profile)
 		}
 	}

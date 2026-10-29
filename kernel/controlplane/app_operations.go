@@ -181,22 +181,21 @@ var runOperations = func() []app.Operation {
 		k := ctx.Value(appHostKey{}).(appHost).kernel
 		s := ctx.Value(systemHostKey{}).(*Server)
 		conn, _ := ctx.Value(appConnKey{}).(net.Conn)
-		return appruns.NewRunService(appruns.RunPorts{
-			Kernel: k,
-			Run: func(corr string) (appruns.Run, bool, error) {
-				rows, err := s.runFold(k)
-				if err != nil {
-					return appruns.Run{}, false, err
-				}
-				row, ok := rows[corr]
-				return row, ok, nil
-			},
-			CancelOnDisconnect: s.cancelOnDisconnect,
-			Disconnect:         func() <-chan struct{} { return disconnectSignal(conn) },
-			MirrorRemote: func(ctx context.Context, corr string, meta map[string]string) {
-				s.mirrorRemoteExecutionProfileEvents(ctx, k, corr, meta)
-			},
-		})
+		ports := appruns.RunPortsFromKernel(k)
+		ports.Run = func(corr string) (appruns.Run, bool, error) {
+			rows, err := s.runFold(k)
+			if err != nil {
+				return appruns.Run{}, false, err
+			}
+			row, ok := rows[corr]
+			return row, ok, nil
+		}
+		ports.CancelOnDisconnect = s.cancelOnDisconnect
+		ports.Disconnect = func() <-chan struct{} { return disconnectSignal(conn) }
+		ports.MirrorRemote = func(ctx context.Context, corr string, meta map[string]string) {
+			s.mirrorRemoteExecutionProfileEvents(ctx, k, corr, meta)
+		}
+		return appruns.NewRunService(ports)
 	})
 	if err != nil {
 		panic(err)

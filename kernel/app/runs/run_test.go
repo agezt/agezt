@@ -84,7 +84,7 @@ func TestRunScopesTheOfferedTools(t *testing.T) {
 		}
 		return mock.FinalText("the answer")
 	}
-	service := NewRunService(RunPorts{Kernel: k})
+	service := NewRunService(RunPortsFromKernel(k))
 	if _, err := service.Execute(context.Background(), RunRequest{
 		Intent: json.RawMessage(`"say hi"`),
 		Tools:  json.RawMessage(`["shell"]`),
@@ -137,7 +137,7 @@ func TestRunOperations(t *testing.T) {
 // silent default — a mistyped dry_run must not execute the run.
 func TestRunResolveRejectsBadArguments(t *testing.T) {
 	k := runKernel(t)
-	service := NewRunService(RunPorts{Kernel: k})
+	service := NewRunService(RunPortsFromKernel(k))
 	cases := []struct {
 		name string
 		in   RunRequest
@@ -179,7 +179,7 @@ func TestRunResolveRejectsBadArguments(t *testing.T) {
 // no run.
 func TestRunDryRunResolvesWithoutRunning(t *testing.T) {
 	k := runKernel(t)
-	service := NewRunService(RunPorts{Kernel: k})
+	service := NewRunService(RunPortsFromKernel(k))
 	out, err := service.Execute(context.Background(), RunRequest{
 		Intent: json.RawMessage(`"what is the weather"`),
 		DryRun: json.RawMessage(`true`),
@@ -207,7 +207,7 @@ func TestRunDryRunResolvesWithoutRunning(t *testing.T) {
 // TestRunDryRunNeverEmitsEvents: the plan is a terminal answer, not a stream.
 func TestRunDryRunNeverEmitsEvents(t *testing.T) {
 	k := runKernel(t)
-	service := NewRunService(RunPorts{Kernel: k})
+	service := NewRunService(RunPortsFromKernel(k))
 	emitted := 0
 	if _, err := service.Execute(context.Background(), RunRequest{
 		Intent: json.RawMessage(`"x"`),
@@ -224,7 +224,7 @@ func TestRunDryRunNeverEmitsEvents(t *testing.T) {
 // answer and correlation.
 func TestRunExecuteAnswersWithTheRun(t *testing.T) {
 	k := runKernel(t)
-	service := NewRunService(RunPorts{Kernel: k})
+	service := NewRunService(RunPortsFromKernel(k))
 	out, err := service.Execute(context.Background(), RunRequest{
 		Intent: json.RawMessage(`"say hi"`),
 	}, func(*event.Event) error { return nil })
@@ -245,13 +245,11 @@ func TestRunExecuteAnswersWithTheRun(t *testing.T) {
 // TestRunExecuteEnrichesTheAnswer: the terminal answer carries the run's own
 // accounting when the journal fold knows the run.
 func TestRunExecuteEnrichesTheAnswer(t *testing.T) {
-	k := runKernel(t)
-	service := NewRunService(RunPorts{
-		Kernel: k,
-		Run: func(corr string) (Run, bool, error) {
-			return Run{Iters: 3, SpentMicrocents: 42, Model: "run-model"}, true, nil
-		},
-	})
+	ports := RunPortsFromKernel(runKernel(t))
+	ports.Run = func(corr string) (Run, bool, error) {
+		return Run{Iters: 3, SpentMicrocents: 42, Model: "run-model"}, true, nil
+	}
+	service := NewRunService(ports)
 	out, err := service.Execute(context.Background(), RunRequest{
 		Intent: json.RawMessage(`"say hi"`),
 	}, func(*event.Event) error { return nil })
@@ -272,13 +270,11 @@ func TestRunExecuteEnrichesTheAnswer(t *testing.T) {
 // TestRunAnswerStaysBareWhenTheFoldIsUnknown: a fold that does not know the
 // run leaves the answer bare — never a wrong number.
 func TestRunAnswerStaysBareWhenTheFoldIsUnknown(t *testing.T) {
-	k := runKernel(t)
-	service := NewRunService(RunPorts{
-		Kernel: k,
-		Run: func(corr string) (Run, bool, error) {
-			return Run{Iters: 9, SpentMicrocents: 99}, false, nil
-		},
-	})
+	ports := RunPortsFromKernel(runKernel(t))
+	ports.Run = func(corr string) (Run, bool, error) {
+		return Run{Iters: 9, SpentMicrocents: 99}, false, nil
+	}
+	service := NewRunService(ports)
 	out, err := service.Execute(context.Background(), RunRequest{
 		Intent: json.RawMessage(`"say hi"`),
 	}, func(*event.Event) error { return nil })
@@ -297,7 +293,7 @@ func TestRunResolveUsesTheAgentsModel(t *testing.T) {
 	if _, err := k.AddProfile(roster.Profile{Slug: "modeled", Model: "agent-model"}); err != nil {
 		t.Fatal(err)
 	}
-	service := NewRunService(RunPorts{Kernel: k})
+	service := NewRunService(RunPortsFromKernel(k))
 	resolved, err := service.resolve(context.Background(), RunRequest{
 		Intent: json.RawMessage(`"x"`),
 		Agent:  json.RawMessage(`"modeled"`),
@@ -329,7 +325,7 @@ func TestRunResolveUsesTheAgentsModel(t *testing.T) {
 // tools — the plan reports exactly the tool set the agent loop would see.
 func TestRunDryRunScopesTheTools(t *testing.T) {
 	k := runKernelWithTools(t)
-	service := NewRunService(RunPorts{Kernel: k})
+	service := NewRunService(RunPortsFromKernel(k))
 	out, err := service.Execute(context.Background(), RunRequest{
 		Intent: json.RawMessage(`"x"`),
 		Tools:  json.RawMessage(`["shell"]`),
@@ -350,7 +346,7 @@ func TestRunDryRunScopesTheTools(t *testing.T) {
 // WOULD use — an override, not the daemon default.
 func TestRunDryRunReportsTheModelOverride(t *testing.T) {
 	k := runKernel(t)
-	service := NewRunService(RunPorts{Kernel: k})
+	service := NewRunService(RunPortsFromKernel(k))
 	out, err := service.Execute(context.Background(), RunRequest{
 		Intent: json.RawMessage(`"x"`),
 		Model:  json.RawMessage(`"override-model"`),
@@ -374,7 +370,7 @@ func TestRunResolveUsesTheAgentsExecutionProfile(t *testing.T) {
 	if _, err := k.AddProfile(roster.Profile{Slug: "ssh-agent", ExecutionProfile: "ssh"}); err != nil {
 		t.Fatal(err)
 	}
-	service := NewRunService(RunPorts{Kernel: k})
+	service := NewRunService(RunPortsFromKernel(k))
 	// The agent's profile is applied, and the inactive SSH backend is refused.
 	_, err := service.resolve(context.Background(), RunRequest{
 		Intent: json.RawMessage(`"x"`),
@@ -403,7 +399,7 @@ func TestRunResolveRejectsAManagedSubAgent(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	service := NewRunService(RunPorts{Kernel: k})
+	service := NewRunService(RunPortsFromKernel(k))
 	_, err := service.resolve(context.Background(), RunRequest{
 		Intent: json.RawMessage(`"x"`),
 		Agent:  json.RawMessage(`"worker"`),
@@ -429,7 +425,7 @@ func TestRunResolveRejectsARetiredOrPausedAgent(t *testing.T) {
 	if _, err := k.Roster().SetEnabled("paused-one", false); err != nil {
 		t.Fatal(err)
 	}
-	service := NewRunService(RunPorts{Kernel: k})
+	service := NewRunService(RunPortsFromKernel(k))
 	for _, tc := range []struct{ agent, want string }{
 		{"retired-one", "is retired"},
 		{"paused-one", "is paused"},

@@ -12,7 +12,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/platform/schema"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
 // RunRequest is the run command's arguments. Every field stays raw so the
@@ -72,26 +71,6 @@ type RunOutput struct {
 	SupportsVision   *bool     `json:"supports_vision,omitempty"`
 	SupportsTools    *bool     `json:"supports_tools,omitempty"`
 	RemotePeer       *string   `json:"remote_peer,omitempty"`
-}
-
-// RunPorts binds the run to its host. The kernel is the routed one, so a
-// tenant's run stays inside its tenant's journal, bus and tools.
-type RunPorts struct {
-	// Kernel is the routed kernel the run executes on.
-	Kernel *runtime.Kernel
-	// Run folds one of the kernel's journal runs and reports whether the fold
-	// knows it. It enriches the terminal answer with the run's own iters,
-	// spend and model; an unknown or failing fold only drops those fields.
-	Run func(corr string) (Run, bool, error)
-	// CancelOnDisconnect cancels the run when the operator's client goes away,
-	// so a cancelled run does not keep spending into a closed connection.
-	CancelOnDisconnect bool
-	// Disconnect reports the client connection closing. It is only consulted
-	// when CancelOnDisconnect is set.
-	Disconnect func() <-chan struct{}
-	// MirrorRemote mirrors a remote-agezt peer's events into this run's
-	// stream. The host owns the peer registry, so it provides the mirror.
-	MirrorRemote func(ctx context.Context, corr string, meta map[string]string)
 }
 
 // RunService executes one governed run.

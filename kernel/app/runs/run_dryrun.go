@@ -52,7 +52,7 @@ type dryRunInput struct {
 // wall-clock timeout, and the precise tool set the agent loop would see after
 // the per-run filter. Nothing runs and no token is spent.
 func (s *RunService) dryRun(resolved *resolvedRun) (RunOutput, error) {
-	k := s.ports.Kernel
+	k := s.ports.kernel
 	in := dryRunInput{
 		Intent:           resolved.intent,
 		Tenant:           resolved.tenant,
