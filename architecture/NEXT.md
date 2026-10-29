@@ -6979,6 +6979,33 @@ files, five of the seventeen mutations would have escaped.
   after this one. Evidence:
   `architecture/259-w54bb-the-runs-familys-resolve-path-evidence.md`
 
+- W5.4bc (the execute path asks its own ports, and the handle leaves the
+  application) is the port programme's **forty-second** slice and the
+  **thirty-third** one of its last phase: the handle itself — and the **last**
+  slice of that phase. The **third** of the runs family's four files:
+  `kernel/app/runs/run_execute.go`, plus the dry run beside it. The execute
+  path reached for the handle **seven** times and the dry run **five** more,
+  and they are now the runs family's port capabilities. **Every other family's
+  capability is asked of the family that owns it**: the roster for the agent
+  lookup, the persona family for the daemon's default identity, the
+  correlation family for the correlation, the catalog family for the model's
+  row, the provider family for the live provider, the tools family for the
+  registry **and the runner**, and the event bus family for the bus.
+  **The run's own end belongs to the family that owns runs**: `CancelRun` was
+  the **overseer's** by exact name since W5.4ba, but the runs family reads it
+  too, so the verb **moved** to the runs family and the overseer asks that
+  family for it. Three verbs were **unguarded** and belonged to **nobody** —
+  `SubjectForRun`, `RunAssured` and `MaxDuration` — and the runs family owns
+  them by exact name; the guard now holds **168** application-owned verbs, up
+  from **165**. The **application's** own number moves: the application layer
+  names the handle in **0** files outside a **port file**, down from **1**.
+  **6 permanent tests** and **24 mutations, 24 caught** in two independent
+  passes with **byte-identical** logs (SHA-256 `B20EA480…32F`); two
+  mutations were rewritten for the mutation's own fault (one **survived**
+  because the daemon under test held no ceiling and the mutation produced no
+  defect, one did not compile). Evidence:
+  `architecture/260-w54bc-the-execute-path-asks-its-own-ports-evidence.md`
+
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
 grew a gate, `kernel/modules/providers/api`. The slice was a **ports rewrite**:

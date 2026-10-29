@@ -3525,6 +3525,18 @@ This file holds the active `[Unreleased]` working set.
   daemon to run on, and the refusal is written **once** (`ErrNoKernel`).
   After this slice the application layer names the handle in **1** file
   outside a port file, down from **3**.
+- **The runs family's execute path asks its own ports, and the handle leaves the
+  application (W5.4bc).** The last file of the runs family that named the
+  kernel's handle is gone: the execute path reached for it **seven** times —
+  the bus, the run's own subject, the cancel, the assured loop, the plain run,
+  the run with a retry policy and the tool runner — and the dry run for
+  **five** more. They are now the family's port capabilities, and every other
+  family's capability is asked of the family that owns it. The run's own end
+  belongs to the family that owns runs: `CancelRun` moved from the overseer to
+  the runs family, and the overseer asks that family for it. The tools family
+  gained the tool **runner**. After this slice the application layer names the
+  handle in **0** files outside a **port file**, down from **1**, and the guard
+  holds **168** application-owned verbs, up from **165**.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —
