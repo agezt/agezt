@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4ah the plugins family's ports, 2026-10-28
+## Current checkpoint — W5.4ai the marketplace family's ports, 2026-10-29
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -6248,6 +6248,56 @@ files, five of the seventeen mutations would have escaped.
   supposed to find.
   Evidence:
   `architecture/239-w54ah-the-plugins-familys-ports-evidence.md`
+
+- W5.4ai (the marketplace family, and the port that asks when it is asked) is the
+  port programme's **twenty-second** slice and the **thirteenth** one of its last
+  phase: the handle itself. The marketplace is the daemon's own library of packs
+  — the built-in Official catalogue and the sources the operator adds — and the
+  adapter reached for the kernel's manager in **two** places in **one** file: once
+  for the reads, once for the writes. The **application** layer held no
+  marketplace handle either: `kernel/app/market` already took a `Reader` and a
+  `Writer` of its own, so what the adapter did was reach for the kernel's manager
+  in both directions and spell the **nil case twice**, in two shapes, for one
+  family. The ports moved into the application (`kernel/app/market`:
+  `PortsFromKernel`) and the adapter keeps the binding
+  (`kernel/controlplane/market_ports.go`), which does not name the runtime — and
+  it has **no daemon-level binding**: both surfaces run on the **request's**
+  path, so the routed kernel is the one that answers, and a binding nobody calls
+  is dead code. The port holds the kernel's one surface as a **capability** —
+  the manager, over the reads and the writes — and answers `Manager`, **never**
+  the kernel's own verb name: a port that carried the name of the verb it stands
+  for would let the adapter name the kernel's verb through the port's door. The
+  port holds a **function**, not a value, so it asks the kernel **when it is
+  asked**: a daemon that is given its marketplace after the ports are filled still
+  answers — the same shape as the artifacts family's port and the catalog
+  family's method value. The adapter's two **nil checks** left the adapter with
+  the port: it hands over nothing when the daemon holds nothing. The rule is **by
+  whole word** — a kernel verb whose name carries "Market" as a **complete word**
+  is the marketplace family's business — and it catches **two** verbs, because the
+  camel-case splitter reads `SetMarket` as **"Set" + "Market"**: a family that
+  looked for the exact name `Market` would guard the accessor and leave the
+  setter unguarded. The sweep takes in `Market` and `SetMarket`. The guard now
+  holds **137** application-owned verbs. The adapter's handle-verb debt: **18 → 16**
+  call sites, **14 → 13** distinct verbs, and the method values handed over stay
+  at **9**. **10 permanent tests** and **13 mutations, 13 caught** in two
+  independent passes with **byte-identical** logs (SHA-256 `95DF9C3C…5D80BF11`).
+  M01, M02, M03 and M13 are the ones that bite: the port holds **no** manager, a
+  host with no kernel asks the kernel **anyway**, the port hands over **nothing**,
+  and the port answers from what it was given **at fill time**. M04 empties the
+  binding, M05 makes it follow the **daemon's** kernel — a tenant's marketplace
+  would become the daemon's — M06 and M07 build the reads and the writes from
+  **nothing**, M08 gives the port a method that carries a kernel verb's own name,
+  M09 takes the family out of the guard, M10 drops the setter half of the rule,
+  M11 hands the family **another** family's verbs, and M12 makes the binding name
+  the runtime. One of the thirteen was caught only after the slice learned
+  something: M13 first ran against the **service test**, which asks the port
+  itself and therefore cannot see a mutation in the adapter's operation builder —
+  the mutation **survived**, the test was the wrong test; the slice then wrote
+  `TestTheMarketPortsAskTheKernelWhenTheyAreAsked`, which holds the port's
+  **timing**. A surviving mutation is a **missing test**, and the missing test
+  here was not about the port's answer but about the port's **question**.
+  Evidence:
+  `architecture/240-w54ai-the-marketplace-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

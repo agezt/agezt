@@ -3334,6 +3334,16 @@ This file holds the active `[Unreleased]` working set.
   the reader of its own is gone: the application's narrow view is named for what
   the daemon holds, so the port **is** the reader. The control plane's
   runtime-naming count went from **fourteen** files to **thirteen**.
+- **The marketplace family's ports moved into the application (W5.4ai).** The
+  marketplace is the daemon's own library of packs, and the adapter reached for
+  the kernel's manager in **two** places — once for the reads, once for the
+  writes — and spelled the **nil case twice**. The ports moved into the
+  application (`kernel/app/market`: `PortsFromKernel`), the adapter asks the
+  family, and the port holds a **function** rather than a value: it asks the
+  kernel **when it is asked**, so a daemon that is given its marketplace after
+  the ports are filled still answers. The adapter's own nil checks for the reads
+  and the writes left with them: the port hands over nothing when the daemon
+  holds nothing.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —
