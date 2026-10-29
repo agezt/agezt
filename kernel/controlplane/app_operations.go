@@ -821,7 +821,7 @@ var webhookOperations = func() []app.Operation {
 var lifecycleOperations = func() []app.Operation {
 	ops, err := system.LifecycleOperations(func(ctx context.Context) *system.Lifecycle {
 		s := ctx.Value(systemHostKey{}).(*Server)
-		return system.NewLifecycle(s.k, s.scheduleShutdown)
+		return system.NewLifecycle(s.systemPorts().Gate(), s.scheduleShutdown)
 	})
 	if err != nil {
 		panic(err)

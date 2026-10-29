@@ -11,5 +11,5 @@ func (s *Server) systemService() *system.Service {
 	if s.tenants != nil {
 		tenants = s.tenants
 	}
-	return system.New(s.k, tenants, s.httpBindings, s.channels, s.credChain)
+	return system.New(s.systemPorts(), tenants, s.httpBindings, s.channels, s.credChain)
 }

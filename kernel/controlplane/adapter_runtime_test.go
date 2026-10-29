@@ -789,6 +789,44 @@ func lifecycleOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
+// daemonOwnedVerbs are the kernel's DAEMON verbs: the daemon's own state —
+// when it started, the ceilings its delegation runs under, whether it has
+// halted and how many runs are in flight — and the gate it stops and starts
+// itself with.
+//
+// The rule is BY NAME, and it answers to seven EXACT names.
+//
+// It cannot be a word rule, and the reason is worth writing down: the daemon's
+// verbs share no word. A "Halt" rule would take the drain from the LIFECYCLE
+// family (the drain halts), and a "Verify" rule would take the workboard's
+// proof from the family that owns it. A rule that reaches into another
+// family's verbs is a rule that makes two families claim the same verb, and
+// the sharp test below is exactly there to stop that.
+//
+// The names are the daemon's own: the overview reports them, and the
+// daemon's gate is the halt, the resume and the journal's hash-chain check.
+func daemonOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	want := []string{
+		"StartTime",
+		"SubAgentLimits",
+		"IsHalted",
+		"ActiveRuns",
+		"HaltWith",
+		"ResumeWith",
+		"Verify",
+	}
+	verbs := make([]string, 0, len(want))
+	for _, name := range want {
+		if _, ok := kernel.MethodByName(name); !ok {
+			t.Fatalf("the kernel has no %s verb — the daemon family's verbs moved?", name)
+		}
+		verbs = append(verbs, name)
+	}
+	return verbs
+}
+
 // reaperOwnedVerbs are the kernel's REAPER verbs: the read-only scan that
 // finds dead, degraded, misconfigured and routing-troubled agents and stale
 // artifacts, the host's own facts the scanner needs, and the setter that
@@ -977,6 +1015,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, runsOwnedVerbs(t)...)
 	verbs = append(verbs, reaperOwnedVerbs(t)...)
 	verbs = append(verbs, lifecycleOwnedVerbs(t)...)
+	verbs = append(verbs, daemonOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -2926,6 +2965,7 @@ func TestTheLifecycleFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 		reflectionOwnedVerbs(t),
 		runsOwnedVerbs(t),
 		reaperOwnedVerbs(t),
+		daemonOwnedVerbs(t),
 		workboardOwnedVerbs(t),
 	} {
 		for _, verb := range list {
@@ -2943,6 +2983,125 @@ func TestTheLifecycleFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	}
 	if len(lifecycle) == kernel.NumMethod() {
 		t.Errorf("the lifecycle family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the same for the DAEMON family — the daemon's own state and the gate
+// it stops and starts itself with.
+//
+// The rule is held in BOTH directions: broad (the guard names every daemon
+// verb, and the daemon's port names no verb the guard misses) and sharp (the
+// daemon family's list claims no other family's verb, and it does not claim
+// the whole kernel), because a rule that only ever grows is a rule that
+// eventually guards everything and guards nothing.
+func TestTheDaemonFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+		providerOwnedVerbs(t),
+		baseDirOwnedVerbs(t),
+		correlationOwnedVerbs(t),
+		catalogOwnedVerbs(t),
+		artifactOwnedVerbs(t),
+		pluginOwnedVerbs(t),
+		marketOwnedVerbs(t),
+		approvalOwnedVerbs(t),
+		worldOwnedVerbs(t),
+		tasteOwnedVerbs(t),
+		personaOwnedVerbs(t),
+		stateOwnedVerbs(t),
+		seatOwnedVerbs(t),
+		dataOwnedVerbs(t),
+		reflectionOwnedVerbs(t),
+		runsOwnedVerbs(t),
+		reaperOwnedVerbs(t),
+		lifecycleOwnedVerbs(t),
+		workboardOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	daemon := daemonOwnedVerbs(t)
+	if len(daemon) == 0 {
+		t.Fatal("the daemon family names no verb — the daemon's own business belongs to the application")
+	}
+	for _, verb := range daemon {
+		if others[verb] {
+			t.Errorf("the daemon family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	if len(daemon) == kernel.NumMethod() {
+		t.Errorf("the daemon family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the guard names EVERY daemon verb: the daemon's own state and its gate
+// are named here, one by one, and a verb the guard misses is a verb the
+// adapter may name.
+//
+// The expectation is written HERE, in the test's own words, and not taken
+// from the helper the guard runs: a test that asks the helper what the
+// helper owns cannot see the helper reach for something that is not its own.
+func TestTheGuardNamesEveryDaemonVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	for _, verb := range []string{
+		"StartTime",
+		"SubAgentLimits",
+		"IsHalted",
+		"ActiveRuns",
+		"HaltWith",
+		"ResumeWith",
+		"Verify",
+	} {
+		if !guarded[verb] {
+			t.Errorf("the kernel's daemon verb %s is not named by the guard — the daemon's own business belongs to the application", verb)
+		}
+	}
+}
+
+// And the daemon overview's PORT names no kernel verb the guard misses: the
+// port is where the handle is filled, and every verb it names is the
+// application's business — so every one of them must be guarded.
+//
+// The verbs are read from the port's own source, HERE, and not through the
+// helper the guard runs.
+func TestTheDaemonOverviewNamesNoKernelVerbTheGuardMisses(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "app", "system", "ports.go"))
+	if err != nil {
+		t.Fatalf("read the daemon overview's ports: %v", err)
+	}
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	// The port names the kernel's verbs in two ways: as calls (k.Approvals())
+	// and as method values (k.Journal), so both spellings are read.
+	named := regexp.MustCompile(`\bk\.([A-Z][A-Za-z0-9_]*)`).FindAllStringSubmatch(string(raw), -1)
+	if len(named) == 0 {
+		t.Fatal("the daemon overview's port names no kernel verb — the port stopped filling itself?")
+	}
+	for _, match := range named {
+		verb := match[1]
+		if !guarded[verb] {
+			t.Errorf("the daemon overview's port names the kernel's %s and the guard does not — a verb the guard misses is a verb the adapter may name", verb)
+		}
 	}
 }
 
