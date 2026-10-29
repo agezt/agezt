@@ -6601,6 +6601,45 @@ files, five of the seventeen mutations would have escaped.
   "Data" as well and no other verb carries it — a mutation that survives for a
   good reason still measures nothing. Evidence:
   `architecture/247-w54ap-the-data-familys-ports-evidence.md`
+- W5.4aq (the reflection family, and the engine the daemon always has) is the
+  port programme's **thirtieth** slice and the **twenty-first** one of its last
+  phase: the handle itself. The reflection engine is the daemon's own — the
+  pass that folds the journal into observations, applies the world model's decay
+  and derives advisory proposals — and the adapter reached for the kernel's
+  engine in **one** place. The **application** layer held no engine handle
+  either: `kernel/app/reflection` already took the engine as an argument. The
+  ports moved into the application (`kernel/app/reflection`: `PortsFromKernel` →
+  `Engine`) and the adapter keeps the binding
+  (`kernel/controlplane/reflection_ports.go`), which does not name the runtime —
+  and it has **no request-level binding**: the reflection surface drives the
+  **daemon's own** engine, so it asks the daemon's kernel, and a binding nobody
+  calls is dead code. The port answers `Engine`, **never** the kernel's own verb
+  name. The rule is **by whole word** — a kernel verb whose name carries
+  "Reflect" as a **complete word** is the reflection family's business — and it
+  catches **one** verb today: `Reflect`. The guard now holds **148**
+  application-owned verbs. The adapter's handle-verb debt: **7 → 6** call sites,
+  **5 → 4** distinct verbs, and the method values handed over stay at **4**; the
+  control plane's production files that name the runtime stay at **twelve**. The
+  reflection engine is **not** a daemon's file — the composition root always
+  builds one — so there is no "daemon without an engine" to test against: the
+  case is unreachable in production, and the port's absent half is only the host
+  that holds **no kernel at all**, which the test says in words rather than
+  pretending to test an unreachable half. **6 permanent tests** and **11
+  mutations, 11 caught** in two independent passes with **byte-identical** logs
+  (SHA-256 `49826F05…BD663`). M01, M02 and M03 are the ones that bite: the port
+  holds **no** engine, a host with no kernel asks the kernel **anyway**, and the
+  port hands over **nothing**. M04 gives the port a method that carries a kernel
+  verb's own name, M05 empties the daemon's binding, M06 puts the kernel back in
+  the operations and the **verb guard** catches it, M07 drops the pass's own
+  "reflect-" correlation prefix and the surface over the socket catches it, M08
+  takes the family out of the guard, M09 hands the family **another** family's
+  verbs, M10 makes the binding name the runtime, and M11 makes the surface stop
+  reading the engine's latest report. One mutation did not compile and was
+  rewritten: replacing the mint at the call site left the `ulid` import unused,
+  and a mutation that does not compile proves nothing about the test —
+  **BUILDERR is the mutation's fault**, exactly as a surviving mutation is.
+  Evidence:
+  `architecture/248-w54aq-the-reflection-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
