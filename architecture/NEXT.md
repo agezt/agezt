@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4ak the world family's ports, 2026-10-29
+## Current checkpoint — W5.4al the taste family's ports, 2026-10-29
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -6375,6 +6375,49 @@ files, five of the seventeen mutations would have escaped.
   M11 makes the binding name the runtime.
   Evidence:
   `architecture/242-w54ak-the-world-familys-ports-evidence.md`
+
+- W5.4al (the taste family, and the library the daemon may not have) is the port
+  programme's **twenty-fifth** slice and the **sixteenth** one of its last phase:
+  the handle itself. The taste is the daemon's own library of curated exemplars
+  — the examples a run may imitate — and the adapter reached for the kernel's
+  library in **one** place. The **application** layer held no taste handle
+  either: `kernel/app/taste` already took the contract's `tasteapi.Store` as an
+  argument. The ports moved into the application (`kernel/app/taste`:
+  `PortsFromKernel`) and the adapter keeps the binding
+  (`kernel/controlplane/taste_ports.go`), which does not name the runtime — and
+  it has **no daemon-level binding**: every surface that reads the taste reads
+  it on the **request's** path, so the routed kernel is the one that answers,
+  and a binding nobody calls is dead code. The port holds the kernel's one
+  surface as a **capability** — the library — and answers `Store`, **never** the
+  kernel's own verb name. The curated exemplar library is **not** opened by the
+  kernel — it is the composition root's file and the kernel holds the contract's
+  store port — so a daemon that was given none holds a **nil** port and injects
+  no exemplars into a run rather than calling into nothing: the port's empty
+  case is a **real** case here, and the port answers it by handing over nothing
+  while the surfaces report the empty library, which is the honest answer. The
+  rule is **by whole word** — a kernel verb whose name carries "Taste" as a
+  **complete word** is the taste family's business — and the sweep takes in one
+  verb: `Taste`. The guard now holds **140** application-owned verbs. The
+  adapter's handle-verb debt: **13 → 12** call sites, **11 → 10** distinct
+  verbs, and the method values handed over stay at **8**. **8 permanent tests**
+  and **11 mutations, 11 caught** in two independent passes with **byte-identical**
+  logs (SHA-256 `BEBEF94C…7ED27D19A`). M01, M02 and M03 are the ones that bite:
+  the port holds **no** store, a host with no kernel asks the kernel **anyway**,
+  and the port hands over **nothing**. M04 gives the port a method that carries
+  a kernel verb's own name, M05 empties the request's binding, M06 makes it
+  follow the **daemon's** kernel — a tenant's library would become the daemon's —
+  M07 puts the kernel back and the **verb guard** catches it, M08 takes the
+  family out of the guard, M09 hands the family **another** family's verbs, M10
+  drops the family's word from the rule, and M11 makes the binding name the
+  runtime. Three of the eleven were caught only after the slice learned
+  something: the first run tested a daemon **without** a taste library — and a
+  daemon without one holds a nil store, so the port's empty answer and the
+  kernel's empty answer were the same answer, and the mutations **survived**;
+  the slice then wrote the daemon the **library** as well. A port's test must
+  see **both** of the port's states: the empty state is where the refusal lives,
+  and the full state is where the wiring lives.
+  Evidence:
+  `architecture/243-w54al-the-taste-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

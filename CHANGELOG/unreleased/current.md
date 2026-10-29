@@ -3362,6 +3362,14 @@ This file holds the active `[Unreleased]` working set.
   never the kernel's own verb name. There is no daemon-level binding: every
   surface that reads the world reads it on the request's path, so the routed
   kernel is the one that answers.
+- **The taste family's ports moved into the application (W5.4al).** The curated
+  exemplar library is the daemon's own file, and the adapter reached for the
+  kernel's library in **one** place. The ports moved into the application
+  (`kernel/app/taste`: `PortsFromKernel`), the adapter asks the family, and the
+  port holds the library as a capability — it answers `Store`, never the
+  kernel's own verb name. There is no daemon-level binding: every surface that
+  reads the taste reads it on the request's path, so the routed kernel is the
+  one that answers.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —
