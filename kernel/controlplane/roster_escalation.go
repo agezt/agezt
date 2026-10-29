@@ -45,10 +45,7 @@ func (s *Server) launchOperatorWake(corr string, p agentapi.Profile, intent, rea
 	approster.LaunchOperatorWake(approster.WakeLaunchPorts{
 		Run: func(corr, intent string, retry *agentapi.RetryPolicy, maxCostMc int64) (string, error) {
 			ctx := appruns.Decorate(context.Background(), p, agentapi.WakeContext{Source: "operator", Reason: reason}, maxCostMc)
-			if retry != nil {
-				return s.k.RunWithRetry(ctx, corr, intent, *retry)
-			}
-			return s.k.RunWith(ctx, corr, intent)
+			return s.runPorts().Launch(ctx, corr, intent, retry)
 		},
 		Publish: func(subject, corr string, payload map[string]any) {
 			publishOperatorAction(s.k, subject, corr, payload)

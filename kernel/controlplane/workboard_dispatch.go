@@ -24,9 +24,9 @@ func (s *Server) runWorkboardDispatch(corr string, p agentapi.Profile, task work
 	service := appworkboard.NewExecution(ports.Execution, ports.SeatIndex, ports.TaskIndex, workboardExecutionContext{s: s, profile: p},
 		func(ctx context.Context, corr, intent string) (string, error) {
 			if p.RetryPolicy != nil && p.RetryPolicy.MaxAttempts > 1 {
-				return s.k.RunWithRetry(ctx, corr, intent, *p.RetryPolicy)
+				return s.runPorts().Launch(ctx, corr, intent, p.RetryPolicy)
 			}
-			return s.k.RunWith(ctx, corr, intent)
+			return s.runPorts().Launch(ctx, corr, intent, nil)
 		}, func(corr string, task workboardapi.Task, phase, agent, reason, answer, errText string) {
 			publishWorkboardDispatch(s.k, corr, task, phase, agent, reason, answer, errText)
 		})

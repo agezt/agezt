@@ -6640,6 +6640,47 @@ files, five of the seventeen mutations would have escaped.
   **BUILDERR is the mutation's fault**, exactly as a surviving mutation is.
   Evidence:
   `architecture/248-w54aq-the-reflection-familys-ports-evidence.md`
+- W5.4ar (the runs family, and the two verbs that start a run) is the port
+  programme's **thirty-first** slice and the **twenty-second** one of its last
+  phase: the handle itself. The daemon's run capability — the two verbs that
+  start a run under a correlation, plainly and with a retry policy — is what
+  two adapter surfaces ask for: the roster's operator wake and the workboard's
+  dispatch, and the adapter reached for the kernel's verbs in **four** places.
+  The ports moved into the application (`kernel/app/runs`: `PortsFromKernel` →
+  `Launch`) and the adapter keeps the binding
+  (`kernel/controlplane/runs_ports.go`), which does not name the runtime — and
+  it has **no request-level binding**: the two surfaces that launch runs are the
+  daemon's own, so they ask the daemon's kernel, and a binding nobody calls is
+  dead code. The port answers `Launch`, **never** the kernel's own verb name.
+  The choice between a plain run and a retrying run stays with the **caller**:
+  the roster asks for a plain run unless it was handed a policy, the workboard
+  asks for a plain run unless the policy really retries, and the port only
+  carries the decision the caller made. The rule is **by two whole words** — a
+  kernel verb whose name carries "Run" **and** "With" as **complete words** is
+  the runs family's business — and it catches **two** verbs today: `RunWith` and
+  `RunWithRetry`. **One** verb carries both words and is **not** the runs
+  family's: `RunToolWithLookup` is the **tools** family's, and the exception is
+  written out in the family's own rule while the sharp guard test says so out
+  loud. The guard now holds **150** application-owned verbs. The adapter's
+  handle-verb debt: **6 → 2** call sites, **4 → 2** distinct verbs — the
+  **biggest** single drop so far — and the method values handed over stay at
+  **4**; the control plane's production files that name the runtime stay at
+  **twelve**. **8 permanent tests** and **12 mutations, 12 caught** in two
+  independent passes with **byte-identical** logs (SHA-256 `0B776A75…B34E2B`).
+  M01, M02 and M03 are the ones that bite: the plain launcher answers
+  **nothing**, a host with no kernel asks the kernel **anyway**, and the port
+  hands over **no runner**. M04 gives the port a method that carries a kernel
+  verb's own name, M05 empties the daemon's binding, M06 puts the kernel back in
+  the workboard's dispatch and the **verb guard** catches it, M07 drops the
+  **correlation** the run is journaled under, M08 takes the family out of the
+  guard, M09 sweeps the **tools' verb** into the runs family's list and the
+  sharp guard test catches it, M10 makes the binding name the runtime, M11
+  swallows the port's **refusal**, and M12 carries the **retry policy away**.
+  The plain path and the retrying path look the same when the run succeeds, so
+  the slice gives the provider **no scripted responses** — every attempt fails,
+  and the **number of attempts** is the difference: one for a plain run, two
+  under `MaxAttempts: 2`. Evidence:
+  `architecture/249-w54ar-the-runs-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

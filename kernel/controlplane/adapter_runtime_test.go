@@ -760,6 +760,48 @@ func hasWord(words []string, want string) bool {
 	return false
 }
 
+// runsOwnedVerbs are the kernel's RUN verbs: the two that START a run under
+// a correlation — plainly, and with a retry policy.
+//
+// The rule is by TWO WORDS: a kernel verb whose name carries "Run" AND "With"
+// as whole words is the runs family's business. A launch verb that lands in
+// the kernel is guarded the day it lands.
+//
+// ONE verb carries both words and is **not** the runs family's:
+// `RunToolWithLookup` is the TOOLS family's — it looks a tool up — and a rule
+// that swept it in would make the runs family claim another family's verb.
+// The exception is written out here, and the sharp guard test says so out
+// loud.
+func runsOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	var verbs []string
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		hasRun, hasWith := false, false
+		for _, word := range camelWords(name) {
+			if word == "Run" {
+				hasRun = true
+			}
+			if word == "With" {
+				hasWith = true
+			}
+		}
+		if !hasRun || !hasWith {
+			continue
+		}
+		switch name {
+		case "RunToolWithLookup":
+			continue
+		}
+		verbs = append(verbs, name)
+	}
+	if len(verbs) == 0 {
+		t.Fatal("no run verbs found — the kernel's run verbs are gone?")
+	}
+	return verbs
+}
+
 // reflectionOwnedVerbs are the kernel's REFLECTION verbs: the pass that folds
 // the journal into observations, applies the world model's decay and derives
 // advisory proposals.
@@ -877,6 +919,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, seatOwnedVerbs(t)...)
 	verbs = append(verbs, dataOwnedVerbs(t)...)
 	verbs = append(verbs, reflectionOwnedVerbs(t)...)
+	verbs = append(verbs, runsOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -2559,6 +2602,97 @@ func TestTheReflectionFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	}
 	if len(reflection) == kernel.NumMethod() {
 		t.Errorf("the reflection family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the same for the RUNS family — the two verbs that start a run.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries "Run" AND "With" as whole words is
+// the runs family's business. The expectation is not derived through the
+// helper the guard uses.
+func TestTheGuardNamesEveryRunVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		words := camelWords(name)
+		if !hasWord(words, "Run") || !hasWord(words, "With") {
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's run verb %s is not named by the guard — the runs family's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no run verbs found — the kernel's run verbs are gone?")
+	}
+}
+
+// And the RUNS family must not claim another family's verbs: the run launcher
+// is not a tool's business, a memory's business, or the policy's.
+//
+// The rule must be BOTH broad and sharp. Broad: every run verb is guarded
+// (the test above). Sharp: the runs family's list carries nothing that
+// belongs to someone else — and in particular NOT `RunToolWithLookup`, which
+// carries "Run" and "With" and is the TOOLS family's — and it is a strict
+// subset of the kernel's verbs, because a rule that only ever grows is a rule
+// that eventually guards the whole kernel, and a guard that guards the whole
+// kernel guards nothing.
+func TestTheRunsFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+		providerOwnedVerbs(t),
+		baseDirOwnedVerbs(t),
+		correlationOwnedVerbs(t),
+		catalogOwnedVerbs(t),
+		artifactOwnedVerbs(t),
+		pluginOwnedVerbs(t),
+		marketOwnedVerbs(t),
+		approvalOwnedVerbs(t),
+		worldOwnedVerbs(t),
+		tasteOwnedVerbs(t),
+		personaOwnedVerbs(t),
+		stateOwnedVerbs(t),
+		seatOwnedVerbs(t),
+		dataOwnedVerbs(t),
+		reflectionOwnedVerbs(t),
+		workboardOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	runs := runsOwnedVerbs(t)
+	if len(runs) == 0 {
+		t.Fatal("the runs family names no verb — the runs family's business belongs to the application")
+	}
+	for _, verb := range runs {
+		if others[verb] {
+			t.Errorf("the runs family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	if len(runs) == kernel.NumMethod() {
+		t.Errorf("the runs family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
 	}
 }
 
