@@ -3511,6 +3511,20 @@ This file holds the active `[Unreleased]` working set.
   with **no daemon** answers with nothing and refuses every write. After this
   slice the application layer names the handle in **3** files outside a port
   file, down from **4**.
+- **The runs family's resolve path asks its own ports (W5.4bb).** The part of a
+  run that decides **who** runs, **on what**, **under which correlation** and
+  **looking at what** reached for the kernel handle **six** times. Four of the
+  six already belonged to a family, so the runs family's port gained them as
+  **capabilities** — `Profile`, `DefaultModel`, `Correlation`, `AdmitVision`,
+  `HasTool` and `ExecProfile` — and the file asks the port instead of the
+  handle. The vision gate belonged to **nobody**: it carried neither "Run" nor
+  "With", so the word rule could not find it, and the runs family is the only
+  family that reads it, so it is now the runs family's own verb by exact
+  name. A port may not carry the kernel's verb name, so the gate's accessor
+  is `AdmitVision` and not `AdmitImages`. A host with **no daemon** holds no
+  daemon to run on, and the refusal is written **once** (`ErrNoKernel`).
+  After this slice the application layer names the handle in **1** file
+  outside a port file, down from **3**.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —

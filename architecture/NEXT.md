@@ -6950,6 +6950,35 @@ files, five of the seventeen mutations would have escaped.
   consumer's own narrow view belongs to the consumer. Evidence:
   `architecture/258-w54ba-the-overseers-ports-evidence.md`
 
+- W5.4bb (the runs family's resolve path, and the vision gate that belonged to
+  nobody) is the port programme's **forty-first** slice and the
+  **thirty-second** one of its last phase: the handle itself. The eighth
+  slice of that phase whose subject is the **application's** handle, and the
+  **second** of the runs family's four files:
+  `kernel/app/runs/run_resolve.go` — the part of a run that decides **who**
+  runs, **on what**, **under which correlation** and **looking at what**. The
+  file reached for the handle **six** times, and four of the six already
+  belonged to a family, so the port gained them as **capabilities**:
+  `Profile`, `DefaultModel`, `Correlation`, `AdmitVision`, `HasTool` and
+  `ExecProfile`. `RunPorts` moved out of `run.go` into the family's **port
+  file**. **One** verb belonged to **nobody**: `AdmitImages` — the vision
+  gate — carried neither "Run" nor "With", so the word rule could not find
+  it; the runs family is the only family that reads it, so the runs family
+  **owns** it by **exact name**. The guard now holds **165** application-owned
+  verbs, up from **164**. The **application's** own number moves: the
+  application layer names the handle in **1** file outside a **port file**,
+  down from **3**. The **port may not carry the kernel's verb name** — the
+  vision gate is the kernel's `AdmitImages`, so the port's accessor is
+  `AdmitVision`, and a reflection test holds that line. The **refusal is
+  written once**: `ErrNoKernel`, asked for by value (`errors.Is`). The handle
+  stays for the **execute** path only. **9 permanent tests** and **26
+  mutations, 26 caught** in two independent passes with **byte-identical**
+  logs (SHA-256 `4581114C…AB0BE`); **three** mutations were rewritten, each
+  for the mutation's own fault (two **BUILDERR**, one missed call site). The
+  **last** file of the runs family still holds the handle: that is the phase
+  after this one. Evidence:
+  `architecture/259-w54bb-the-runs-familys-resolve-path-evidence.md`
+
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
 grew a gate, `kernel/modules/providers/api`. The slice was a **ports rewrite**:
