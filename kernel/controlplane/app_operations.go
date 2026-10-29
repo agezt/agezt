@@ -358,7 +358,7 @@ var missionControlOperations = func() []app.Operation {
 		return appmissioncontrol.New(appmissioncontrol.Ports{
 			Spend: s.providerPorts().SpentMicrocents,
 			Pending: func() []approval.Request {
-				if registry := s.k.Approvals(); registry != nil {
+				if registry := s.approvalPorts().Registry(); registry != nil {
 					return registry.Pending()
 				}
 				return nil
@@ -475,7 +475,7 @@ var edictWriteOperations = func() []app.Operation {
 
 var approvalLiveOperations = func() []app.Operation {
 	ops, err := appapprovals.LiveOperations(func(ctx context.Context) *appapprovals.Live {
-		return appapprovals.NewLive(ctx.Value(appHostKey{}).(appHost).kernel.Approvals())
+		return appapprovals.NewLive(requestApprovalPorts(ctx).Broker())
 	})
 	if err != nil {
 		panic(err)
@@ -547,7 +547,7 @@ var planRunOperations = func() []app.Operation {
 	ops, err := appruns.PlanRunOperations(func(ctx context.Context) *appruns.PlanRunner {
 		s := ctx.Value(systemHostKey{}).(*Server)
 		k := s.k
-		return appruns.NewPlanRunner(k.LoopRunner, k.Approvals, k.RunPlan, func(pattern string, buffer int) (appruns.PlanSubscription, error) {
+		return appruns.NewPlanRunner(k.LoopRunner, s.approvalPorts().Registry, k.RunPlan, func(pattern string, buffer int) (appruns.PlanSubscription, error) {
 			sub, err := s.busPorts().Subscribe(pattern, buffer)
 			if err != nil {
 				return nil, err

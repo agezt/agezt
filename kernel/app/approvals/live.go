@@ -20,6 +20,14 @@ type Broker interface {
 	Resolve(id string, decision approval.Decision, reason, resolvedBy string) error
 }
 
+// ErrNoBroker is the refusal the live approvals give when the daemon holds no
+// approval queue.
+//
+// It is written ONCE: the queue is the daemon's own file, and a daemon that
+// was given none holds none. The surfaces that read it refuse instead of
+// reading from nothing.
+var ErrNoBroker = errors.New("approvals not available on this daemon")
+
 // Live lists the waiting approval requests and resolves them.
 type Live struct{ broker Broker }
 
@@ -76,6 +84,9 @@ func lenientString(raw json.RawMessage) string {
 // Pending lists the waiting requests, oldest first, with the intent and effect
 // metadata an operator decides on.
 func (l *Live) Pending(context.Context, PendingRequest) (PendingOutput, error) {
+	if l.broker == nil {
+		return PendingOutput{}, ErrNoBroker
+	}
 	pending := l.broker.Pending()
 	out := PendingOutput{Pending: make([]PendingRow, 0, len(pending)), Count: len(pending)}
 	for _, p := range pending {
@@ -94,6 +105,9 @@ func (l *Live) Pending(context.Context, PendingRequest) (PendingOutput, error) {
 // Decide grants or denies one waiting request as the operator. The id, decision
 // and reason are read leniently; an empty id is checked before the decision.
 func (l *Live) Decide(_ context.Context, in DecideRequest) (DecideOutput, error) {
+	if l.broker == nil {
+		return DecideOutput{}, ErrNoBroker
+	}
 	id, name, reason := lenientString(in.ID), lenientString(in.Decision), lenientString(in.Reason)
 	if id == "" {
 		return DecideOutput{}, errors.New("args.id required")
