@@ -14,7 +14,14 @@ import (
 // manifest over without a field-by-field projection and the two sides cannot
 // drift.
 type Registration = types.PluginInfo
-type Reader interface{ Plugins() []Registration }
+
+// Reader is the plugins family's own narrow view of the manifest.
+//
+// The method is named "Manifest" — the daemon's own word for what it holds —
+// and not "Plugins": the family's own port may not carry the name of the
+// kernel verb it stands for.
+type Reader interface{ Manifest() []Registration }
+
 type Service struct{ reader Reader }
 
 func New(reader Reader) *Service { return &Service{reader: reader} }
@@ -34,7 +41,7 @@ type ListOutput struct {
 }
 
 func (s *Service) List(_ context.Context, _ ListInput) (ListOutput, error) {
-	plugins := s.reader.Plugins()
+	plugins := s.reader.Manifest()
 	rows := make([]Row, 0, len(plugins))
 	for _, p := range plugins {
 		args := make([]string, len(p.Args))

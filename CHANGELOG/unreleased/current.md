@@ -3326,6 +3326,14 @@ This file holds the active `[Unreleased]` working set.
   adapter asks the family, and the adapter's own nil checks for the store and
   the index left with them: the port hands over nothing when the daemon holds
   nothing.
+- **The plugins family's ports moved into the application (W5.4ah).** The plugin
+  manifest is the external-plugin list the daemon was given at Open, and the
+  adapter reached for it in **two** places — behind a reader of its own that
+  held the kernel handle. The ports moved into the application
+  (`kernel/app/plugins`: `PortsFromKernel`), the adapter asks the family, and
+  the reader of its own is gone: the application's narrow view is named for what
+  the daemon holds, so the port **is** the reader. The control plane's
+  runtime-naming count went from **fourteen** files to **thirteen**.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —

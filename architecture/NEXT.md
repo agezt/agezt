@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4ag the artifacts family's ports, 2026-10-28
+## Current checkpoint — W5.4ah the plugins family's ports, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -6187,6 +6187,67 @@ files, five of the seventeen mutations would have escaped.
   **another** family's verbs.
   Evidence:
   `architecture/238-w54ag-the-artifacts-familys-ports-evidence.md`
+
+- W5.4ah (the plugins family, and the rule that must survive a name it has not
+  seen) is the port programme's **twenty-first** slice and the **twelfth** one of
+  its last phase: the handle itself. The plugin manifest is the external-plugin
+  list the daemon was given at Open — the rows the operator reads with `agt
+  plugin list` — and the adapter reached for the kernel's manifest in **two**
+  places across **two** files. The **application** layer held no plugin handle
+  either: `kernel/app/plugins` already took a reader of its own, and what the
+  adapter did was wrap the kernel in a reader of its own — and that wrapper held
+  the handle. The ports moved into the application (`kernel/app/plugins`:
+  `PortsFromKernel`) and the adapter keeps the binding
+  (`kernel/controlplane/plugins_ports.go`), which does not name the runtime — and
+  it has **no daemon-level binding**: every surface that reads the manifest reads
+  it on the **request's** path, so the routed kernel is the one that answers, and
+  a binding nobody calls is dead code. The adapter's plugin reader of its own
+  was a **production file that named the kernel runtime**, and deleting it took
+  the control plane's runtime-naming count from **fourteen** to **thirteen** —
+  the ratchet compares in both directions, so the recorded number changed in
+  this slice. The
+  port holds the kernel's one surface as a **capability** — the manifest — and
+  answers `Manifest`, **never** the kernel's own verb name: a port that carried
+  the name of the verb it stands for would let the adapter name the kernel's
+  verb through the port's door. The wrapper is **gone**: the application's own
+  narrow view (`Reader`) was renamed to the daemon's word for what it holds
+  (`Manifest() []Registration`), so the port **is** the reader and there is
+  nothing between the application and the kernel's verb. The manifest is the
+  contract type itself, so nothing is projected and nothing can drift. The rule
+  is **by whole word** and the family answers to **two** names — "Plugin" and
+  "Plugins" — for the same reason the artifacts family answers to "Artifact" and
+  "Artifacts": the camel-case splitter reads `PluginCount` as **"Plugin" +
+  "Count"** while `Plugins` is **ONE** word to it. But the rule is written
+  **out**, not taken from the helper: `kernelVerbsWord` **fails** when a name
+  finds no verb at all, and "Plugin" finds none today — a rule that cannot be
+  asked about a name it has not seen yet breaks on the day the name arrives. The
+  sweep takes in **one** verb today: `Plugins`. The guard now holds **135**
+  application-owned verbs. The adapter's handle-verb debt: **20 → 18** call
+  sites, **15 → 14** distinct verbs, and the method values handed over stay at
+  **9**. **9 permanent tests** and **13 mutations, 13 caught** in two independent
+  passes with **byte-identical** logs (SHA-256 `819ADBE7…70FA0`). M05 puts the
+  kernel back — the config reader reaches for the kernel's plugin manifest
+  again — and the **verb guard** catches it; it is not a behavioural regression,
+  because the wiring would work **exactly as well**, it would simply be in the
+  wrong layer. M01, M02 and M10 are the ones that bite: the port holds **no**
+  manifest, the manifest answers with **nothing** for every caller, and the
+  application reads **nothing**. M03 empties the binding, M04 makes it follow
+  the **daemon's** kernel — a tenant's plugin list would become the daemon's —
+  M06 gives the port a method that carries a kernel verb's own name, M07 takes
+  the family out of the guard, M08 drops the plural half of the rule, M09 hands
+  the family **another** family's verbs, M11 makes the binding name the runtime,
+  M12 builds the service from **nothing** — and the plugin list over the socket
+  reports an **empty** manifest — and M13 makes the config reader count **no**
+  plugins. Two of the thirteen were caught only after the slice learned
+  something: M12 first ran against the **tenant-denial** test, which asserts
+  that a tenant cannot read the daemon's manifest — and a denial is a denial
+  whether the manifest is there or not, so the mutation **survived**; it now
+  runs against the test that asserts the manifest's **content**. And M13 did
+  not exist until the slice wrote a test for the config reader's plugin count —
+  a surface with no test of its own, which is exactly the gap a mutation is
+  supposed to find.
+  Evidence:
+  `architecture/239-w54ah-the-plugins-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

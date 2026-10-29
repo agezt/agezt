@@ -13,7 +13,7 @@ type inventoryProbe struct {
 	calls int
 }
 
-func (p *inventoryProbe) Plugins() []Registration { p.calls++; return p.rows }
+func (p *inventoryProbe) Manifest() []Registration { p.calls++; return p.rows }
 func TestInventoryTypedEmptyRequiredFieldsNilAndRawValues(t *testing.T) {
 	for _, rows := range [][]Registration{nil, {}, {{Prefix: "z", Path: " raw path ö ", Args: []string{" raw arg ", "second"}, ToolCount: -2, HashPinned: true, AllowedTools: []string{" raw-tool ", "second"}}, {Prefix: "a", Args: nil, AllowedTools: nil}, {Prefix: "b", Args: []string{}, AllowedTools: []string{}}}} {
 		p := &inventoryProbe{rows: rows}
