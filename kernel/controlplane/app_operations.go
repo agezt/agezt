@@ -979,7 +979,7 @@ var memoryOperations = func() []app.Operation {
 var worldOperations = func() []app.Operation {
 	operations, err := appworld.Operations(
 		func(ctx context.Context) *appworld.Service {
-			return appworld.New(ctx.Value(appHostKey{}).(appHost).kernel.World())
+			return appworld.New(requestWorldPorts(ctx).Graph())
 		},
 		func(ctx context.Context) *appworld.LogService {
 			return appworld.NewLog(requestJournalPorts(ctx).Events)

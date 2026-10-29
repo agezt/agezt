@@ -614,6 +614,30 @@ func approvalOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
+// worldOwnedVerbs are the kernel's WORLD verbs: the graph of entities and the
+// relations between them — what the operator's world is made of.
+//
+// The rule is by WORD: a kernel verb whose name carries "World" as a whole
+// word is the world family's business.
+func worldOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	var verbs []string
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		for _, word := range camelWords(name) {
+			if word == "World" {
+				verbs = append(verbs, name)
+				break
+			}
+		}
+	}
+	if len(verbs) == 0 {
+		t.Fatal("no world verbs found — the kernel's world verbs are gone?")
+	}
+	return verbs
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -638,6 +662,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, pluginOwnedVerbs(t)...)
 	verbs = append(verbs, marketOwnedVerbs(t)...)
 	verbs = append(verbs, approvalOwnedVerbs(t)...)
+	verbs = append(verbs, worldOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -1670,6 +1695,94 @@ func TestTheApprovalFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	}
 	if len(approval) == kernel.NumMethod() {
 		t.Errorf("the approvals family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the same for the WORLD family — the graph of entities and the relations
+// between them.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries "World" as a whole word is the world
+// family's business. The expectation is not derived through the helper the
+// guard uses.
+func TestTheGuardNamesEveryWorldVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		carries := false
+		for _, word := range camelWords(name) {
+			if word == "World" {
+				carries = true
+			}
+		}
+		if !carries {
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's world verb %s is not named by the guard — the world family's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no world verbs found — the kernel's world verbs are gone?")
+	}
+}
+
+// And the WORLD family must not claim another family's verbs: the world model
+// is not a tool's business, a memory's business, or the policy's.
+//
+// The rule must be BOTH broad and sharp. Broad: every world verb is guarded
+// (the test above). Sharp: the world's list carries nothing that belongs to
+// someone else, and it is a strict subset of the kernel's verbs — a rule that
+// only ever grows is a rule that eventually guards the whole kernel, and a
+// guard that guards the whole kernel guards nothing.
+func TestTheWorldFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+		providerOwnedVerbs(t),
+		baseDirOwnedVerbs(t),
+		correlationOwnedVerbs(t),
+		catalogOwnedVerbs(t),
+		artifactOwnedVerbs(t),
+		pluginOwnedVerbs(t),
+		marketOwnedVerbs(t),
+		approvalOwnedVerbs(t),
+		workboardOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	world := worldOwnedVerbs(t)
+	if len(world) == 0 {
+		t.Fatal("the world family names no verb — the world family's business belongs to the application")
+	}
+	for _, verb := range world {
+		if others[verb] {
+			t.Errorf("the world family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	if len(world) == kernel.NumMethod() {
+		t.Errorf("the world family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
 	}
 }
 
