@@ -6557,6 +6557,50 @@ files, five of the seventeen mutations would have escaped.
   — on the port side and on the binding side; without the filled half, M01 and
   M03 are invisible. Evidence:
   `architecture/246-w54ao-the-seats-familys-ports-evidence.md`
+- W5.4ap (the data family, and the lake the daemon may not have) is the port
+  programme's **twenty-ninth** slice and the **twentieth** one of its last
+  phase: the handle itself. The personal data lake is the daemon's own file —
+  the collections the agents build and share — and the adapter reached for the
+  kernel's lake in **one** place. The **application** layer held no lake handle
+  either: `kernel/app/data` already took the lake as an argument. The ports
+  moved into the application (`kernel/app/data`: `PortsFromKernel` → `Lake`) and
+  the adapter keeps the binding (`kernel/controlplane/data_ports.go`), which
+  does not name the runtime — and it has **no request-level binding**: the data
+  surface inspects the **daemon's own** lake, so it asks the daemon's kernel,
+  and a binding nobody calls is dead code. The two branches the old call site
+  carried — "a lake, or no lake at all" — are gone: the port answers the same
+  question in both cases, and the service refuses when the answer is "none".
+  The port answers `Lake`, **never** the kernel's own verb name. The rule is
+  **by two whole words** — a kernel verb whose name carries "Data" **and**
+  "Lake" as **complete words** is the data family's business, because the
+  lake's own name is one word to the camel-case splitter ("DataLake" reads as
+  "Data" + "Lake") — and it catches **one** verb today: `DataLake`. The guard
+  test states the rule **again**, in its own words, with its own `hasWord`
+  helper, and does **not** ask the guard's helper what the guard owns: a test
+  that asks the helper cannot see the helper reach for something that is not
+  its own. The guard now holds **147** application-owned verbs. The adapter's
+  handle-verb debt: **8 → 7** call sites, **6 → 5** distinct verbs, and the
+  method values handed over stay at **4**; the control plane's production files
+  that name the runtime stay at **twelve**. **9 permanent tests** and **11
+  mutations, 11 caught** in two independent passes with **byte-identical** logs
+  (SHA-256 `51D1AB73…D10FD`). M01, M02 and M03 are the ones that bite: the
+  port holds **no** lake, a host with no kernel asks the kernel **anyway**, and
+  the port hands over **nothing**. M04 gives the port a method that carries a
+  kernel verb's own name, M05 empties the daemon's binding, M06 puts the kernel
+  back in the operations and the **verb guard** catches it, M07 builds the
+  surface from **nothing** and the data operations over the socket refuse, M08
+  takes the family out of the guard, M09 makes the rule reach for **another
+  family's word** and the sharp guard test catches it, M10 makes the binding
+  name the runtime, and M11 makes the surface answer an **empty list** where it
+  owes a refusal. The lake is the daemon's **file**, so the port and the binding
+  tests hold **both** halves — a daemon with a lake and a daemon without one —
+  and the slice added the third: the surface must **refuse** a daemon with no
+  lake and say why, instead of answering an empty collection list that reads
+  like "there is no data". One mutation was **rewritten**: widening the rule's
+  word check with the provider family's word survived, because the rule demands
+  "Data" as well and no other verb carries it — a mutation that survives for a
+  good reason still measures nothing. Evidence:
+  `architecture/247-w54ap-the-data-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

@@ -3394,6 +3394,14 @@ This file holds the active `[Unreleased]` working set.
   catalog as a capability — it answers `Store`, never the kernel's own verb
   name. There is no request-level binding: the seat surface inspects the
   daemon's own catalog.
+- **The data family's ports moved into the application (W5.4ap).** The personal
+  data lake is the daemon's own file — the collections the agents build and
+  share — and the adapter reached for the kernel's lake in **one** place. The
+  ports moved into the application (`kernel/app/data`: `PortsFromKernel`), the
+  adapter asks the family, and the port holds the lake as a capability — it
+  answers `Lake`, never the kernel's own verb name. There is no request-level
+  binding: the data surface inspects the daemon's own lake, and a daemon that
+  was given none is **refused** rather than answered with an empty list.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —
