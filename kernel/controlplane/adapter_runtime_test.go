@@ -587,6 +587,33 @@ func marketOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
+// approvalOwnedVerbs are the kernel's APPROVAL verbs: the human-in-the-loop
+// queue the daemon owns — the requests waiting for an operator and the
+// decision that answers them.
+//
+// The rule is by WORD: a kernel verb whose name carries "Approvals" as a
+// whole word is the approvals family's business. The queue is the approvals
+// family's own, and a family that asked the kernel for it would be reaching
+// across the boundary.
+func approvalOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	var verbs []string
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		for _, word := range camelWords(name) {
+			if word == "Approvals" {
+				verbs = append(verbs, name)
+				break
+			}
+		}
+	}
+	if len(verbs) == 0 {
+		t.Fatal("no approval verbs found — the kernel's approval verbs are gone?")
+	}
+	return verbs
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -610,6 +637,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, artifactOwnedVerbs(t)...)
 	verbs = append(verbs, pluginOwnedVerbs(t)...)
 	verbs = append(verbs, marketOwnedVerbs(t)...)
+	verbs = append(verbs, approvalOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -1555,6 +1583,93 @@ func TestTheMarketFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	}
 	if len(market) == kernel.NumMethod() {
 		t.Errorf("the marketplace family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the same for the APPROVALS family — the human-in-the-loop queue the
+// daemon owns.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries "Approvals" as a whole word is the
+// approvals family's business. The expectation is not derived through the
+// helper the guard uses.
+func TestTheGuardNamesEveryApprovalVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		carries := false
+		for _, word := range camelWords(name) {
+			if word == "Approvals" {
+				carries = true
+			}
+		}
+		if !carries {
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's approval verb %s is not named by the guard — the approvals family's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no approval verbs found — the kernel's approval verbs are gone?")
+	}
+}
+
+// And the APPROVALS family must not claim another family's verbs: the queue is
+// not a tool's business, a memory's business, or the policy's.
+//
+// The rule must be BOTH broad and sharp. Broad: every approval verb is guarded
+// (the test above). Sharp: the approvals' list carries nothing that belongs to
+// someone else, and it is a strict subset of the kernel's verbs — a rule that
+// only ever grows is a rule that eventually guards the whole kernel, and a
+// guard that guards the whole kernel guards nothing.
+func TestTheApprovalFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+		providerOwnedVerbs(t),
+		baseDirOwnedVerbs(t),
+		correlationOwnedVerbs(t),
+		catalogOwnedVerbs(t),
+		artifactOwnedVerbs(t),
+		pluginOwnedVerbs(t),
+		marketOwnedVerbs(t),
+		workboardOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	approval := approvalOwnedVerbs(t)
+	if len(approval) == 0 {
+		t.Fatal("the approvals family names no verb — the approvals family's business belongs to the application")
+	}
+	for _, verb := range approval {
+		if others[verb] {
+			t.Errorf("the approvals family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	if len(approval) == kernel.NumMethod() {
+		t.Errorf("the approvals family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
 	}
 }
 
