@@ -210,10 +210,7 @@ var runOperations = func() []app.Operation {
 
 var dataOperations = func() []app.Operation {
 	ops, err := appdata.Operations(func(ctx context.Context) *appdata.Service {
-		if lake := ctx.Value(systemHostKey{}).(*Server).k.DataLake(); lake != nil {
-			return appdata.New(lake)
-		}
-		return appdata.New(nil)
+		return appdata.New(ctx.Value(systemHostKey{}).(*Server).dataPorts().Lake())
 	})
 	if err != nil {
 		panic(err)

@@ -71,3 +71,31 @@ func TestDataEditsThePrimaryLake(t *testing.T) {
 		}
 	}
 }
+
+// The lake is the DAEMON's file, and a daemon that was given none holds none.
+//
+// The surface must REFUSE then, and not read from nothing: the port hands over
+// no lake, the service says the lake is unavailable, and the operator is told
+// so instead of being handed an empty list that reads like "there is no data".
+func TestTheDataSurfaceRefusesWhenTheDaemonHoldsNoLake(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer k.Close()
+	s := NewServer(k, t.TempDir())
+	s.token = "primary"
+	call := func(cmd string, args map[string]any) (string, string) {
+		t.Helper()
+		resp := callAppHost(t, s, Request{ID: "d", Cmd: cmd, Token: "primary", Args: args})[0]
+		raw, _ := json.Marshal(resp.Result)
+		return string(raw), resp.Error
+	}
+	out, msg := call(CmdDataCollections, nil)
+	if msg == "" {
+		t.Fatal("the data surface answered a daemon with no lake", out)
+	}
+	if !strings.Contains(msg, "data lake unavailable") {
+		t.Fatal("the data surface refused for the wrong reason", msg)
+	}
+}

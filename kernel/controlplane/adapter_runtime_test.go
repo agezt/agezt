@@ -745,6 +745,53 @@ func stateOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
+// hasWord reports whether a split name carries a word as a COMPLETE word.
+//
+// It is a second reading of the same rule, written out here so the guard
+// test's expectation is NOT taken from the helper the guard runs: a test that
+// asks the helper what the helper owns cannot see the helper reach for
+// something that is not its own.
+func hasWord(words []string, want string) bool {
+	for _, word := range words {
+		if word == want {
+			return true
+		}
+	}
+	return false
+}
+
+// dataOwnedVerbs are the kernel's DATA verbs: the personal data lake — the
+// collections the agents build and share.
+//
+// The rule is by TWO WORDS: a kernel verb whose name carries "Data" AND
+// "Lake" as whole words is the data family's business. The lake's own name is
+// one word to the camel-case splitter ("DataLake" reads as "Data" + "Lake"),
+// and the rule says so out loud rather than trusting the shape.
+func dataOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	var verbs []string
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		hasData, hasLake := false, false
+		for _, word := range camelWords(name) {
+			if word == "Data" {
+				hasData = true
+			}
+			if word == "Lake" {
+				hasLake = true
+			}
+		}
+		if hasData && hasLake {
+			verbs = append(verbs, name)
+		}
+	}
+	if len(verbs) == 0 {
+		t.Fatal("no data verbs found — the kernel's data verbs are gone?")
+	}
+	return verbs
+}
+
 // seatOwnedVerbs are the kernel's SEAT verbs: the execution-seat catalog the
 // daemon owns — the seats it offers, seeded and custom.
 //
@@ -803,6 +850,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, personaOwnedVerbs(t)...)
 	verbs = append(verbs, stateOwnedVerbs(t)...)
 	verbs = append(verbs, seatOwnedVerbs(t)...)
+	verbs = append(verbs, dataOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -2301,6 +2349,94 @@ func TestTheSeatFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	}
 	if len(seats) == kernel.NumMethod() {
 		t.Errorf("the seats family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the same for the DATA family — the personal data lake the agents build
+// and share.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries "Data" AND "Lake" as whole words is
+// the data family's business. The expectation is not derived through the
+// helper the guard uses.
+func TestTheGuardNamesEveryDataVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		words := camelWords(name)
+		if !hasWord(words, "Data") || !hasWord(words, "Lake") {
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's data verb %s is not named by the guard — the data family's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no data verbs found — the kernel's data verbs are gone?")
+	}
+}
+
+// And the DATA family must not claim another family's verbs: the personal data
+// lake is not a tool's business, a memory's business, or the policy's.
+//
+// The rule must be BOTH broad and sharp. Broad: every data verb is guarded
+// (the test above). Sharp: the data family's list carries nothing that
+// belongs to someone else, and it is a strict subset of the kernel's verbs — a
+// rule that only ever grows is a rule that eventually guards the whole kernel,
+// and a guard that guards the whole kernel guards nothing.
+func TestTheDataFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+		providerOwnedVerbs(t),
+		baseDirOwnedVerbs(t),
+		correlationOwnedVerbs(t),
+		catalogOwnedVerbs(t),
+		artifactOwnedVerbs(t),
+		pluginOwnedVerbs(t),
+		marketOwnedVerbs(t),
+		approvalOwnedVerbs(t),
+		worldOwnedVerbs(t),
+		tasteOwnedVerbs(t),
+		personaOwnedVerbs(t),
+		stateOwnedVerbs(t),
+		seatOwnedVerbs(t),
+		workboardOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	data := dataOwnedVerbs(t)
+	if len(data) == 0 {
+		t.Fatal("the data family names no verb — the data family's business belongs to the application")
+	}
+	for _, verb := range data {
+		if others[verb] {
+			t.Errorf("the data family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	if len(data) == kernel.NumMethod() {
+		t.Errorf("the data family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
 	}
 }
 
