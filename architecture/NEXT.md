@@ -6813,6 +6813,27 @@ files, five of the seventeen mutations would have escaped.
   profile, the guardians and the config tool): that is the phase after this one.
   Evidence:
   `architecture/252-w54au-the-daemon-overview-takes-ports-evidence.md`
+- W5.4av (the config tool's family, and the second file off the handle) is the port
+  programme's **thirty-fifth** slice and the **twenty-sixth** one of its last phase:
+  the handle itself. The config tool's adapter is the file that lets a **plugin**
+  reach the live daemon without naming the runtime, and it held the runtime **to do
+  that**. The ports moved into the application (`kernel/app/configtool`:
+  `PortsFromKernel`), the source holds the **ports**, and the port answers
+  `EditProfile` and `Rebuild` — **never** the kernel's own verb names. The **refusal
+  is written once**: the ports say "no daemon" themselves, and the composition root
+  does not spell it again. **No new family and no new rule**: the two verbs the port
+  names already belong to the roster and the catalog, and the sharp guard test
+  refuses a family that claims another family's verb. The **application's** own
+  number moves: the application layer names the handle in **8** files outside a
+  **port file**, down from **9**. The guard still holds **161** application-owned
+  verbs, the adapter's call sites on the handle stay at **zero**, and the control
+  plane's production files that name the runtime stay at **twelve**. **4 permanent
+  tests** and **11 mutations, 11 caught** in two independent passes with
+  **byte-identical** logs (SHA-256 `5C6EDEB7…5D4EE`). The **application** layer
+  still holds the handle in **eight** files outside a port file (the runs family
+  with four, the overseer, the introspector, the execution profile and the
+  guardians): that is the phase after this one. Evidence:
+  `architecture/253-w54av-the-config-tool-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

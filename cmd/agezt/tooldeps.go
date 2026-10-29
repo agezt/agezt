@@ -113,11 +113,11 @@ func toolKernelDeps(k *runtime.Kernel, baseDir string, stdout io.Writer) toolreg
 // config tool's way into the roster and the provider. The nil-port rule is
 // the same as the forge store's: a daemon with no kernel hands over a nil
 // port, not a port wrapping nothing.
+//
+// The rule is written ONCE: the ports say "no daemon" themselves, and the
+// composition root does not spell it again.
 func configSource(k *runtime.Kernel) configapi.Kernel {
-	if k == nil {
-		return nil
-	}
-	return configtool.NewKernelSource(k)
+	return configtool.NewKernelSource(configtool.PortsFromKernel(k))
 }
 
 // workboardStore hands the live task store to the tool registry as the

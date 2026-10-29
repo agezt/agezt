@@ -22,7 +22,7 @@ var _ configapi.Kernel = (*kernelSource)(nil)
 // be a non-nil interface, and the tool would call into a kernel that is not
 // there instead of reporting that the daemon is not wired.
 func TestAMissingKernelIsANilPort(t *testing.T) {
-	if got := NewKernelSource(nil); got != nil {
+	if got := NewKernelSource(Ports{}); got != nil {
 		t.Fatalf("a missing kernel must yield a nil port, got %v", got)
 	}
 }
@@ -44,7 +44,7 @@ func TestTheAdapterAnswersTheLiveRoster(t *testing.T) {
 		t.Fatalf("AddProfile: %v", err)
 	}
 
-	port := NewKernelSource(k)
+	port := NewKernelSource(PortsFromKernel(k))
 	got, found, err := port.UpdateProfile("researcher", func(p *agentapi.Profile) {
 		p.ConfigOverrides = map[string]string{"AGEZT_MODEL": "agent-model"}
 	})
@@ -76,7 +76,7 @@ func TestTheAdapterReportsAnUnknownAgent(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	port := NewKernelSource(k)
+	port := NewKernelSource(PortsFromKernel(k))
 	_, found, err := port.UpdateProfile("nobody", func(*agentapi.Profile) {})
 	if err != nil {
 		t.Fatalf("UpdateProfile: %v", err)
@@ -103,7 +103,7 @@ func TestTheAdapterReloadsTheLiveDaemon(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if err := NewKernelSource(k).Reload(); err != nil {
+	if err := NewKernelSource(PortsFromKernel(k)).Reload(); err != nil {
 		t.Fatalf("Reload: %v", err)
 	}
 }
@@ -120,7 +120,7 @@ func TestTheAdapterReadsTheRunsOverrides(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	port := NewKernelSource(k)
+	port := NewKernelSource(PortsFromKernel(k))
 	if got := port.AgentConfigOverrides(context.Background()); len(got) != 0 {
 		t.Fatalf("a plain context carries no overrides, got %v", got)
 	}
