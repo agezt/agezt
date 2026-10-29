@@ -8,13 +8,6 @@ import (
 )
 
 func (s *Server) artifactService() *appartifacts.Service {
-	var store appartifacts.BlobStore
-	var index appartifacts.Index
-	if actual := s.k.Artifacts(); actual != nil {
-		store = actual
-	}
-	if actual := s.k.ArtifactIndex(); actual != nil {
-		index = actual
-	}
-	return appartifacts.New(store, index, time.Now)
+	ports := s.artifactPorts()
+	return appartifacts.New(ports.Store(), ports.Index(), time.Now)
 }

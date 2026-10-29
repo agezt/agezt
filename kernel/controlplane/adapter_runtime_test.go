@@ -496,6 +496,34 @@ func catalogOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
+// artifactOwnedVerbs are the kernel's ARTIFACT verbs: the content-addressed
+// store the loop offloads tool outputs into, and the metadata index over it.
+//
+// The rule is by WORD, and the family answers to TWO names, "Artifact" and
+// "Artifacts" — because the camel-case splitter reads "ArtifactIndex" as
+// "Artifact" + "Index", while "Artifacts" is ONE word to it: a plural 's' does
+// not start a new word.
+//
+// A family that looked for a single name would guard either the store and the
+// index, or the plural, and never both — and the one it left out would be a
+// verb the adapter may name.
+func artifactOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	verbs := kernelVerbsWord(t, "Artifact")
+	for _, verb := range kernelVerbsWord(t, "Artifacts") {
+		seen := false
+		for _, owned := range verbs {
+			if owned == verb {
+				seen = true
+			}
+		}
+		if !seen {
+			verbs = append(verbs, verb)
+		}
+	}
+	return verbs
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -516,6 +544,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, baseDirOwnedVerbs(t)...)
 	verbs = append(verbs, correlationOwnedVerbs(t)...)
 	verbs = append(verbs, catalogOwnedVerbs(t)...)
+	verbs = append(verbs, artifactOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -1205,6 +1234,90 @@ func TestTheCatalogFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	}
 	if len(catalog) == kernel.NumMethod() {
 		t.Errorf("the catalog family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the same for the ARTIFACT family — the content-addressed store and the
+// metadata index over it.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries "Artifact" or "Artifacts" as a whole
+// word is the artifacts family's business. The expectation is not derived
+// through the helper the guard uses.
+func TestTheGuardNamesEveryArtifactVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		carries := false
+		for _, word := range camelWords(name) {
+			if word == "Artifact" || word == "Artifacts" {
+				carries = true
+			}
+		}
+		if !carries {
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's artifact verb %s is not named by the guard — the artifacts family's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no artifact verbs found — the kernel's artifact verbs are gone?")
+	}
+}
+
+// And the ARTIFACT family must not claim another family's verbs: the artifact
+// store is not a tool's business, a memory's business, or the policy's.
+//
+// The rule must be BOTH broad and sharp. Broad: every artifact verb is guarded
+// (the test above). Sharp: the artifact's list carries nothing that belongs to
+// someone else, and it is a strict subset of the kernel's verbs — a rule that
+// only ever grows is a rule that eventually guards the whole kernel, and a
+// guard that guards the whole kernel guards nothing.
+func TestTheArtifactFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+		providerOwnedVerbs(t),
+		baseDirOwnedVerbs(t),
+		correlationOwnedVerbs(t),
+		catalogOwnedVerbs(t),
+		workboardOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	artifact := artifactOwnedVerbs(t)
+	if len(artifact) == 0 {
+		t.Fatal("the artifact family names no verb — the artifacts family's business belongs to the application")
+	}
+	for _, verb := range artifact {
+		if others[verb] {
+			t.Errorf("the artifact family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	if len(artifact) == kernel.NumMethod() {
+		t.Errorf("the artifact family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
 	}
 }
 
