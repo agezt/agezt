@@ -35,6 +35,7 @@ func (f *fakeStore) Save() error {
 
 type fake struct {
 	system    string
+	model     string
 	store     *fakeStore
 	file      []byte
 	readErr   error
@@ -45,8 +46,11 @@ type fake struct {
 
 func (f *fake) service() *Service {
 	return New(Ports{
-		System:      func() string { return f.system },
-		SetSystem:   func(s string) { f.setSystem = append(f.setSystem, s); f.system = s },
+		Identity: Identity{
+			defaultModel: func() string { return f.model },
+			prompt:       func() string { return f.system },
+			setPrompt:    func(s string) { f.setSystem = append(f.setSystem, s); f.system = s },
+		},
 		Store:       func() Store { return f.store },
 		ReadPrompts: func() ([]byte, error) { return f.file, f.readErr },
 		SavePrompts: func(b []byte) error {

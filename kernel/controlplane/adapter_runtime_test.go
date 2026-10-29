@@ -662,6 +662,52 @@ func tasteOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
+// personaOwnedVerbs are the kernel's IDENTITY verbs: the daemon's default
+// identity — the model the runs fall back to and the system instructions they
+// fall back to.
+//
+// The rule is by WORD, over TWO words: "System" and "Model". The persona
+// family is the owner's chat defaults, and the daemon's default identity is
+// its business.
+//
+// FOUR verbs carry those words and are NOT the identity's: "ResolveRunModel"
+// and "currentTaskModelChain" are the ROUTING's business — which model a run
+// resolves — "SystemTaskPorts" is the SYSTEM TASK family's, and
+// "VisionModel" is the daemon's vision SIDECAR — the model that captions
+// images for a run whose active model cannot see them. A rule that swept them
+// in would make the persona family claim four other families' verbs, and a
+// family that claims everything claims nothing.
+//
+// The CONTEXT helpers are not the identity's either: the system agent from the
+// context is the roster's business, and the model chain from the context is
+// the routing's.
+func personaOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	var verbs []string
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		carries := false
+		for _, word := range camelWords(name) {
+			if word == "System" || word == "Model" {
+				carries = true
+			}
+		}
+		if !carries || strings.HasSuffix(name, "FromCtx") {
+			continue
+		}
+		switch name {
+		case "ResolveRunModel", "currentTaskModelChain", "SystemTaskPorts", "VisionModel":
+			continue
+		}
+		verbs = append(verbs, name)
+	}
+	if len(verbs) == 0 {
+		t.Fatal("no identity verbs found — the kernel's identity verbs are gone?")
+	}
+	return verbs
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -688,6 +734,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, approvalOwnedVerbs(t)...)
 	verbs = append(verbs, worldOwnedVerbs(t)...)
 	verbs = append(verbs, tasteOwnedVerbs(t)...)
+	verbs = append(verbs, personaOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -1897,6 +1944,100 @@ func TestTheTasteFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	}
 	if len(taste) == kernel.NumMethod() {
 		t.Errorf("the taste family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the same for the PERSONA family — the owner's chat defaults, and the
+// daemon's default identity.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries "System" or "Model" as a whole word
+// is the identity's business, and the CONTEXT helpers are not.
+func TestTheGuardNamesEveryPersonaVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		carries := false
+		for _, word := range camelWords(name) {
+			if word == "System" || word == "Model" {
+				carries = true
+			}
+		}
+		if !carries || strings.HasSuffix(name, "FromCtx") {
+			continue
+		}
+		switch name {
+		case "ResolveRunModel", "currentTaskModelChain", "SystemTaskPorts", "VisionModel":
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's identity verb %s is not named by the guard — the persona family's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no identity verbs found — the kernel's identity verbs are gone?")
+	}
+}
+
+// And the PERSONA family must not claim another family's verbs: the daemon's
+// default identity is not a tool's business, a memory's business, or the
+// policy's.
+//
+// The rule must be BOTH broad and sharp. Broad: every identity verb is guarded
+// (the test above). Sharp: the persona's list carries nothing that belongs to
+// someone else, and it is a strict subset of the kernel's verbs — a rule that
+// only ever grows is a rule that eventually guards the whole kernel, and a
+// guard that guards the whole kernel guards nothing.
+func TestThePersonaFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+		providerOwnedVerbs(t),
+		baseDirOwnedVerbs(t),
+		correlationOwnedVerbs(t),
+		catalogOwnedVerbs(t),
+		artifactOwnedVerbs(t),
+		pluginOwnedVerbs(t),
+		marketOwnedVerbs(t),
+		approvalOwnedVerbs(t),
+		worldOwnedVerbs(t),
+		tasteOwnedVerbs(t),
+		workboardOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	persona := personaOwnedVerbs(t)
+	if len(persona) == 0 {
+		t.Fatal("the persona family names no verb — the persona family's business belongs to the application")
+	}
+	for _, verb := range persona {
+		if others[verb] {
+			t.Errorf("the persona family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	if len(persona) == kernel.NumMethod() {
+		t.Errorf("the persona family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
 	}
 }
 

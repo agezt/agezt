@@ -35,9 +35,11 @@ type Store interface {
 
 // Ports reads and changes the primary kernel's default identity, opens the
 // config store, and reads and writes the prompt library file's bytes.
+//
+// The identity is the persona family's OWN port (`Identity`), filled by the
+// application from the kernel handle; the rest is the host's files.
 type Ports struct {
-	System      func() string
-	SetSystem   func(string)
+	Identity    Identity
 	Store       func() Store
 	ReadPrompts func() ([]byte, error)
 	SavePrompts func([]byte) error
@@ -55,7 +57,7 @@ type GetOutput struct {
 }
 
 func (s *Service) Get(_ context.Context, _ GetRequest) (GetOutput, error) {
-	system := s.ports.System()
+	system := s.ports.Identity.Prompt()
 	return GetOutput{System: system, Set: system != ""}, nil
 }
 
@@ -95,7 +97,7 @@ func (s *Service) Set(_ context.Context, in SetRequest) (SetOutput, error) {
 	if err := store.Save(); err != nil {
 		return SetOutput{}, errors.New("save config: " + err.Error())
 	}
-	s.ports.SetSystem(system)
+	s.ports.Identity.SetPrompt(system)
 	return SetOutput{Saved: true, Applied: "live", Set: system != "", Length: len(system)}, nil
 }
 

@@ -78,7 +78,7 @@ func TestTheConfigReaderCountsThePluginsThroughThePort(t *testing.T) {
 	defer root.Close()
 
 	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: root})
-	reader := nativeConfigReader{kernel: root, plugins: requestPluginPorts(ctx)}
+	reader := nativeConfigReader{plugins: requestPluginPorts(ctx)}
 
 	if got := reader.PluginCount(); got != 2 {
 		t.Fatalf("the config reader reports %d plugins, want the manifest's two", got)
