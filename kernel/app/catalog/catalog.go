@@ -20,16 +20,19 @@ import (
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/event"
 	providercatalog "github.com/agezt/agezt/kernel/modules/providers/catalog"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
-// errNoCatalogLibrary is the answer the catalog app layer gives when it
-// holds no library.
+// ErrNoLibrary is the answer the catalog app layer gives when it holds no
+// library.
 //
-// The catalog directory and its syncer are the DAEMON's (W3.51): the kernel
-// holds the contract's ports, and a host that was given none holds nil ports.
+// The catalog directory is the DAEMON's (W3.51): the kernel holds the
+// contract's store port, and a host that was given none holds a nil port.
 // The refusal is the answer — not a panic, and not a silent "nothing to do".
-var errNoCatalogLibrary = errors.New("catalog: the catalog library is not available on this daemon")
+//
+// The refusal is spelled ONCE, here, and the families that ask the catalog
+// inherit it: a second spelling of the same refusal is a second answer to the
+// same question, and the two could drift apart.
+var ErrNoLibrary = errors.New("catalog: the catalog library is not available on this daemon")
 
 type SyncInput struct {
 	URL            string  `json:"url,omitempty"`
@@ -41,11 +44,30 @@ type DiscoverInput struct {
 }
 
 type Service struct {
-	k       *runtime.Kernel
+	ports   Ports
+	bus     Publisher
 	baseDir string
 }
 
-func New(k *runtime.Kernel, baseDir string) *Service { return &Service{k: k, baseDir: baseDir} }
+// New builds the catalog service.
+//
+// The service holds its family's own PORTS and the narrow bus it publishes
+// through — never the kernel handle: the handle stops at the binding, and the
+// application asks the family for what it needs.
+func New(ports Ports, bus Publisher, baseDir string) *Service {
+	return &Service{ports: ports, bus: bus, baseDir: baseDir}
+}
+
+// publish writes one event on the bus.
+//
+// A host with no bus publishes nothing: the failure of an event is not the
+// operation's failure, and the family spells that once, here.
+func (s *Service) publish(spec event.Spec) {
+	if s.bus == nil {
+		return
+	}
+	_, _ = s.bus.Publish(spec)
+}
 
 func envOrDefault(name, fallback string) string {
 	if v := os.Getenv(name); v != "" {
@@ -63,9 +85,9 @@ func (s *Service) Sync(ctx context.Context, in SyncInput) (SyncOutput, error) {
 	// port, and this layer may not name the catalog module's implementation.
 	// A host with no syncer has nothing to sync from — the refusal is the
 	// answer, not a panic.
-	syncer := s.k.CatalogSyncer()
+	syncer := s.ports.Syncer()
 	if syncer == nil {
-		return SyncOutput{}, errNoCatalogLibrary
+		return SyncOutput{}, ErrNoLibrary
 	}
 	timeout := time.Duration(0)
 	if t := in.TimeoutSeconds; t > 0 {
@@ -74,7 +96,7 @@ func (s *Service) Sync(ctx context.Context, in SyncInput) (SyncOutput, error) {
 
 	raw, cat, res, err := syncer.Sync(ctx, url, timeout)
 	if err != nil {
-		s.k.Bus().Publish(event.Spec{
+		s.publish(event.Spec{
 			Subject:       "catalog.sync",
 			Kind:          event.KindCatalogSyncFailed,
 			Actor:         "catalog",
@@ -84,10 +106,10 @@ func (s *Service) Sync(ctx context.Context, in SyncInput) (SyncOutput, error) {
 		return SyncOutput{}, err
 	}
 
-	if s.k.CatalogStore() == nil {
-		return SyncOutput{}, errNoCatalogLibrary
+	if s.ports.Store() == nil {
+		return SyncOutput{}, ErrNoLibrary
 	}
-	if err := s.k.CatalogStore().SaveAPI(raw, url); err != nil {
+	if err := s.ports.Store().SaveAPI(raw, url); err != nil {
 		return SyncOutput{}, fmt.Errorf("save: %w", err)
 	}
 	// FULL reload — catalog snapshot AND provider re-selection (M928). A daemon
@@ -98,11 +120,11 @@ func (s *Service) Sync(ctx context.Context, in SyncInput) (SyncOutput, error) {
 	// On a provider-rebuild failure the catalog snapshot has already installed
 	// (Reload loads it first), so surface the error in the result instead of
 	// failing the sync the operator asked for.
-	freshCat, providersReloaded, provErr := s.k.Reload()
+	freshCat, providersReloaded, provErr := s.ports.Refresh()
 	if freshCat == nil {
 		return SyncOutput{}, fmt.Errorf("reload: %w", provErr)
 	}
-	_, _ = s.k.Bus().Publish(event.Spec{
+	s.publish(event.Spec{
 		Subject:       "catalog.sync",
 		Kind:          event.KindCatalogSynced,
 		Actor:         "catalog",
@@ -124,7 +146,7 @@ func (s *Service) Sync(ctx context.Context, in SyncInput) (SyncOutput, error) {
 }
 
 func (s *Service) List(_ context.Context, _ ListInput) (ListOutput, error) {
-	cat := s.k.Catalog()
+	cat := s.ports.Snapshot()
 	// A provider is "credentialed" if a key exists for it in the process env OR the
 	// vault — provider keys (incl. the M700 keyring) live in the vault, so checking
 	// os.Getenv alone would miss them and mark keyed providers as un-keyed.
@@ -176,7 +198,7 @@ func (s *Service) List(_ context.Context, _ ListInput) (ListOutput, error) {
 			ModelCount: len(p.Models), Models: models,
 		})
 	}
-	meta, _ := s.k.CatalogStore().LoadMeta()
+	meta, _ := s.ports.Store().LoadMeta()
 	return ListOutput{
 		Providers: providers, Sources: slices.Clone(cat.Sources), ProviderCount: len(providers),
 		APISyncedAt: meta.APISyncedAt.Format(time.RFC3339Nano), APISourceURL: meta.APISourceURL,
@@ -188,8 +210,8 @@ func (s *Service) Discover(ctx context.Context, in DiscoverInput) (DiscoverOutpu
 	// The catalog library is the DAEMON's (W3.51): without it there is
 	// nowhere to save what a discovery finds, so the refusal comes FIRST —
 	// before the network call, not after it.
-	if s.k.CatalogStore() == nil {
-		return DiscoverOutput{}, errNoCatalogLibrary
+	if s.ports.Store() == nil {
+		return DiscoverOutput{}, ErrNoLibrary
 	}
 	endpoint := in.Endpoint
 	if endpoint == "" {
@@ -197,7 +219,7 @@ func (s *Service) Discover(ctx context.Context, in DiscoverInput) (DiscoverOutpu
 	}
 	frag, err := providercatalog.DiscoverOllama(ctx, endpoint)
 	if err != nil {
-		_, _ = s.k.Bus().Publish(event.Spec{
+		s.publish(event.Spec{
 			Subject:       "catalog.discovery",
 			Kind:          event.KindCatalogDiscoveryFailed,
 			Actor:         "catalog",
@@ -206,13 +228,13 @@ func (s *Service) Discover(ctx context.Context, in DiscoverInput) (DiscoverOutpu
 		})
 		return DiscoverOutput{}, err
 	}
-	if err := s.k.CatalogStore().SaveLocal(frag, "ollama@"+endpoint); err != nil {
+	if err := s.ports.Store().SaveLocal(frag, "ollama@"+endpoint); err != nil {
 		return DiscoverOutput{}, fmt.Errorf("save: %w", err)
 	}
 	// Full reload (M928) — same rationale as handleCatalogSync: a freshly
 	// discovered local provider must be able to displace the offline mock
 	// primary without a daemon restart.
-	freshCat, providersReloaded, provErr := s.k.Reload()
+	freshCat, providersReloaded, provErr := s.ports.Refresh()
 	if freshCat == nil {
 		return DiscoverOutput{}, fmt.Errorf("reload: %w", provErr)
 	}
@@ -220,7 +242,7 @@ func (s *Service) Discover(ctx context.Context, in DiscoverInput) (DiscoverOutpu
 	for _, p := range frag.Providers {
 		modelCount += len(p.Models)
 	}
-	_, _ = s.k.Bus().Publish(event.Spec{
+	s.publish(event.Spec{
 		Subject:       "catalog.discovery",
 		Kind:          event.KindCatalogDiscoveryCompleted,
 		Actor:         "catalog",

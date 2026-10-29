@@ -3311,6 +3311,14 @@ This file holds the active `[Unreleased]` working set.
   **value**. The ports moved into the application (`kernel/app/correlation`:
   `PortsFromKernel`), the adapter asks the family, and the port holds the
   kernel's two surfaces as capabilities rather than the kernel itself.
+- **The catalog family's ports moved into the application (W5.4af).** The catalog
+  is the directory the daemon keeps its provider and model catalog in, and the
+  adapter reached for it in **two** places while the application layer reached
+  for it in **twenty-one** more. The ports moved into the application
+  (`kernel/app/catalog`: `PortsFromKernel`), the adapter asks the family, and
+  the catalog and providers applications stopped holding the kernel handle for
+  the catalog's verbs. The refusal for a daemon that holds no catalog library
+  is now written **once**, by the family that answers for the catalog.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —

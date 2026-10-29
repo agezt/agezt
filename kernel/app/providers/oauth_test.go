@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 	"github.com/agezt/agezt/kernel/platform/browsercallback"
@@ -45,7 +46,7 @@ func TestOAuthImportStatusLogoutRemainSocketFreeAndUseLiveModels(t *testing.T) {
 	dir := t.TempDir()
 	var reloads, syncs atomic.Int32
 	k := openKernel(t, runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
-	auth := NewOAuth(k, dir, func() ([]string, string) {
+	auth := NewOAuth(appcatalog.PortsFromKernel(k), dir, func() ([]string, string) {
 		syncs.Add(1)
 		return []string{"fixture-current-model"}, "fixture-current-model"
 	})
@@ -91,7 +92,7 @@ func TestOAuthImportStatusLogoutRemainSocketFreeAndUseLiveModels(t *testing.T) {
 
 func TestOAuthCallbackDenialStateFilteringAndConcurrentStatus(t *testing.T) {
 	t.Setenv(creds.PassphraseEnvVar, "isolated-oauth-fixture")
-	auth := NewOAuth(nil, t.TempDir(), nil)
+	auth := NewOAuth(appcatalog.Ports{}, t.TempDir(), nil)
 	login := &providerLogin{state: "fixture-state", status: "pending"}
 	auth.provLogin = login
 	response := httptest.NewRecorder()

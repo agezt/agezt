@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4ae the correlation family's ports, 2026-10-28
+## Current checkpoint — W5.4af the catalog family's ports, 2026-10-28
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -6093,6 +6093,55 @@ files, five of the seventeen mutations would have escaped.
   **one** correlation for every operation, and the port stamps **no** actor.
   Evidence:
   `architecture/236-w54ae-the-correlation-familys-ports-evidence.md`
+
+- W5.4af (the catalog family, and the refusal written once) is the port
+  programme's **nineteenth** slice and the **tenth** one of its last phase: the
+  handle itself. The catalog is the directory the daemon keeps its provider and
+  model catalog in (W3.51) — the daemon's own file, and the store the sync
+  writes, the snapshot the routing reads, the syncer the discovery fetches
+  with, the refresh that re-reads it and rebuilds the live provider registry.
+  The adapter reached for the kernel's catalog in **two** places; the
+  **application** layer reached for it in **twenty-one** places across **four**
+  files, and that is where the debt was: the application layer is where the
+  handle travels *past* the binding. The ports moved into the application
+  (`kernel/app/catalog`: `PortsFromKernel`) and the adapter keeps the binding
+  (`kernel/controlplane/catalog_ports.go`), which does not name the runtime. The
+  port holds the kernel's four surfaces as **capabilities** — the snapshot, the
+  store, the syncer and the refresh — and answers `Snapshot`, `Store`, `Syncer`
+  and `Refresh`, **never** the kernel's own verb names: a port that carried the
+  name of the verb it stands for would let the adapter name the kernel's verb
+  through the port's door. The **catalog application** and the **providers
+  application** now hold the family's ports and **no** handle, and the catalog
+  family publishes through a **narrow view of the bus** (`Publisher`) — the
+  consumer's business, not the bus family's. The refusal for a daemon that holds
+  no catalog library is written **once**, in the family that answers for the
+  catalog (`catalog.ErrNoLibrary`); the providers' second spelling is gone,
+  because two spellings of the same refusal are two answers to the same
+  question. The rule is **by whole word** and the family answers to **two**
+  names — "Catalog" and "Reload" — **unioned**, the way the memory family
+  answers to "Memory" and "Distill": the checked refresh surface does not say
+  the family's name in it, and `ReloadCatalog` carries both words, so a family
+  that took only one would leave the other unguarded. The sweep takes in
+  **five** verbs: `Catalog`, `CatalogStore`, `CatalogSyncer`, `ReloadCatalog` and
+  `Reload`. The guard now holds **131** application-owned verbs. The adapter's
+  handle-verb debt: **24 → 22** call sites, **19 → 17** distinct verbs, and the
+  method values handed over stay at **9**. The application layer's catalog-verb
+  sites: **21 → 0**. **11 permanent tests** and **13 mutations, 13 caught** in
+  two independent passes with **byte-identical** logs (SHA-256 `99B10138…ACF79`).
+  M12 and M13 put the kernel back — the routing's model check and the settings
+  writer's refresh each reach for the kernel's catalog again — and the **verb
+  guard** catches every one of them; none is a behavioural regression, because
+  the wiring would work **exactly as well**, it would simply be in the wrong
+  layer. M01 through M05 are the ones that bite: the port holds **no** snapshot,
+  the snapshot answers with the **empty** catalog for every caller, the port
+  holds **no** store, the refresh **swallows** the refusal, and the service
+  publishes **nothing**. M06 removes the providers' refusal, M07 empties the
+  daemon's binding, M08 makes the request's binding follow the **daemon's**
+  kernel — a tenant's operations would run against the daemon's catalog — and
+  M09 through M11 take the family out of the guard, drop the "Reload" half of
+  the rule, and hand the family another family's verb.
+  Evidence:
+  `architecture/237-w54af-the-catalog-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

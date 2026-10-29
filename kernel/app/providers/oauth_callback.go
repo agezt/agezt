@@ -47,9 +47,7 @@ func (s *OAuth) completeProviderLogin(parent context.Context, login *providerLog
 	if !current {
 		return providerCallbackResult{Message: "Invalid or expired sign-in. Start again from the console.", Close: true}
 	}
-	if s.k != nil {
-		_, _, _ = s.k.Reload()
-	}
+	_, _, _ = s.cat.Refresh()
 	s.syncChatGPTModels()
 	return providerCallbackResult{Success: true, Close: true}
 }

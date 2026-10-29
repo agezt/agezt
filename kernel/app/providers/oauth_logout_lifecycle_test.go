@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/platform/browsercallback"
 )
@@ -26,7 +27,7 @@ func TestOAuthLogoutClosesPendingLoginAndReleasesCallbackAddress(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer listener.Close()
-	auth := NewOAuth(nil, t.TempDir(), nil)
+	auth := NewOAuth(appcatalog.Ports{}, t.TempDir(), nil)
 	auth.provLogin = &providerLogin{state: "fixture-state", status: "pending", srv: listener}
 	out, err := auth.Logout(context.Background(), OAuthLogoutInput{})
 	if err != nil || !out.OK || out.Connected {
@@ -48,7 +49,7 @@ func TestOAuthLogoutVaultFailureKeepsPendingLogin(t *testing.T) {
 	if err := os.WriteFile(blocked, []byte("fixture"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	auth := NewOAuth(nil, blocked, nil)
+	auth := NewOAuth(appcatalog.Ports{}, blocked, nil)
 	login := &providerLogin{state: "fixture-state", status: "pending"}
 	auth.provLogin = login
 	if _, err := auth.Logout(context.Background(), OAuthLogoutInput{}); err == nil {

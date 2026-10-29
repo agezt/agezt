@@ -34,7 +34,10 @@ func (w nativeSettingsWriter) VaultStore() appsettings.ValueStore {
 }
 func (w nativeSettingsWriter) EnvPinned(name string) bool    { return w.server.configEnvPinned[name] }
 func (w nativeSettingsWriter) SetLiveEnv(name, value string) { setLiveEnv(name, value) }
-func (w nativeSettingsWriter) Reload() error                 { _, _, err := w.server.k.Reload(); return err }
+func (w nativeSettingsWriter) Reload() error {
+	_, _, err := w.server.catalogPorts().Refresh()
+	return err
+}
 func (w nativeSettingsWriter) Register(sec appsettings.Section) error {
 	return settings.NewRegistry(w.server.baseDir).Register(sec)
 }
