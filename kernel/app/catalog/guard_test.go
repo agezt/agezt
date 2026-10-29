@@ -25,15 +25,15 @@ func TestTheAppLayerRefusesWithoutALibrary(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { _ = k.Close() })
-	svc := New(k, t.TempDir())
+	svc := New(PortsFromKernel(k), nil, t.TempDir())
 
 	// The sync surface.
-	if _, err := svc.Sync(ctx, SyncInput{}); !errors.Is(err, errNoCatalogLibrary) {
+	if _, err := svc.Sync(ctx, SyncInput{}); !errors.Is(err, ErrNoLibrary) {
 		t.Fatalf("sync must refuse without a library, got %v", err)
 	}
 
 	// The discovery surface.
-	if _, err := svc.Discover(ctx, DiscoverInput{}); !errors.Is(err, errNoCatalogLibrary) {
+	if _, err := svc.Discover(ctx, DiscoverInput{}); !errors.Is(err, ErrNoLibrary) {
 		t.Fatalf("discover must refuse without a library, got %v", err)
 	}
 }
@@ -42,7 +42,7 @@ func TestTheAppLayerRefusesWithoutALibrary(t *testing.T) {
 // leave the operator guessing between an unwired daemon, an empty catalog and
 // a failed fetch.
 func TestTheRefusalNamesItsReason(t *testing.T) {
-	if errNoCatalogLibrary.Error() != "catalog: the catalog library is not available on this daemon" {
-		t.Fatalf("the refusal says %q", errNoCatalogLibrary.Error())
+	if ErrNoLibrary.Error() != "catalog: the catalog library is not available on this daemon" {
+		t.Fatalf("the refusal says %q", ErrNoLibrary.Error())
 	}
 }

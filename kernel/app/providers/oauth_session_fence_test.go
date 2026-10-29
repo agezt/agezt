@@ -7,13 +7,14 @@ import (
 	"testing"
 	"time"
 
+	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/modules/providers/chatgptauth"
 )
 
 func TestOAuthLogoutPreventsLateCallbackPersistence(t *testing.T) {
 	t.Setenv(creds.PassphraseEnvVar, "isolated-oauth-fixture")
-	auth := NewOAuth(nil, t.TempDir(), nil)
+	auth := NewOAuth(appcatalog.Ports{}, t.TempDir(), nil)
 	login := expiryLogin()
 	login.verifier = "fixture-verifier"
 	auth.provLogin = login
@@ -52,7 +53,7 @@ func TestOAuthLogoutPreventsLateCallbackPersistence(t *testing.T) {
 func TestOAuthReplacementPreventsLateCallbackPersistenceAndModelEffects(t *testing.T) {
 	t.Setenv(creds.PassphraseEnvVar, "isolated-oauth-fixture")
 	models := 0
-	auth := NewOAuth(nil, t.TempDir(), func() ([]string, string) { models++; return nil, "" })
+	auth := NewOAuth(appcatalog.Ports{}, t.TempDir(), func() ([]string, string) { models++; return nil, "" })
 	old := expiryLogin()
 	auth.provLogin = old
 	started, release := make(chan struct{}), make(chan struct{})
@@ -88,7 +89,7 @@ func TestOAuthPersistenceRejectsCanceledExpiredAndTerminalOwners(t *testing.T) {
 	t.Setenv(creds.PassphraseEnvVar, "isolated-oauth-fixture")
 	for _, mode := range []string{"canceled", "stopped", "terminal", "retired"} {
 		t.Run(mode, func(t *testing.T) {
-			auth := NewOAuth(nil, t.TempDir(), nil)
+			auth := NewOAuth(appcatalog.Ports{}, t.TempDir(), nil)
 			login := expiryLogin()
 			auth.provLogin = login
 			ctx, cancel := context.WithCancel(context.Background())
@@ -116,7 +117,7 @@ func TestOAuthPersistenceRejectsCanceledExpiredAndTerminalOwners(t *testing.T) {
 func TestOAuthCurrentSessionPersistsCandidateAndCompletes(t *testing.T) {
 	t.Setenv(creds.PassphraseEnvVar, "isolated-oauth-fixture")
 	models := 0
-	auth := NewOAuth(nil, t.TempDir(), func() ([]string, string) { models++; return []string{}, "" })
+	auth := NewOAuth(appcatalog.Ports{}, t.TempDir(), func() ([]string, string) { models++; return []string{}, "" })
 	login := expiryLogin()
 	login.verifier = "owned-verifier"
 	auth.provLogin = login
@@ -134,7 +135,7 @@ func TestOAuthCurrentSessionPersistsCandidateAndCompletes(t *testing.T) {
 
 func TestOAuthCallbackRetiredAfterExchangeSkipsCompletionEffects(t *testing.T) {
 	models := 0
-	auth := NewOAuth(nil, t.TempDir(), func() ([]string, string) { models++; return nil, "" })
+	auth := NewOAuth(appcatalog.Ports{}, t.TempDir(), func() ([]string, string) { models++; return nil, "" })
 	login := expiryLogin()
 	auth.provLogin = login
 	result := auth.completeProviderLogin(context.Background(), login, providerCallbackInput{Code: "fixture-code", State: login.state}, func(context.Context, string, string) error {

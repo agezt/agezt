@@ -148,7 +148,7 @@ var routingOperations = func() []app.Operation {
 			},
 			Store: func() approuting.Store { return settings.NewStore(s.baseDir) },
 			Models: func() func(string) bool {
-				cat := s.k.Catalog()
+				cat := s.catalogPorts().Snapshot()
 				return func(model string) bool {
 					_, m := cat.FindModel(model)
 					return m != nil
@@ -842,9 +842,8 @@ var systemOperations = func() []app.Operation {
 
 var catalogOperations = func() []app.Operation {
 	ops, err := appcatalog.Operations(func(ctx context.Context) *appcatalog.Service {
-		host := ctx.Value(appHostKey{}).(appHost)
 		server := ctx.Value(systemHostKey{}).(*Server)
-		return appcatalog.New(host.kernel, server.baseDir)
+		return appcatalog.New(requestCatalogPorts(ctx), requestBusPorts(ctx), server.baseDir)
 	})
 	if err != nil {
 		panic(err)
@@ -854,9 +853,8 @@ var catalogOperations = func() []app.Operation {
 
 var providerOperations = func() []app.Operation {
 	ops, err := appproviders.Operations(func(ctx context.Context) *appproviders.Service {
-		host := ctx.Value(appHostKey{}).(appHost)
 		server := ctx.Value(systemHostKey{}).(*Server)
-		return appproviders.New(host.kernel, server.baseDir)
+		return appproviders.New(requestCatalogPorts(ctx), server.baseDir)
 	})
 	if err != nil {
 		panic(err)

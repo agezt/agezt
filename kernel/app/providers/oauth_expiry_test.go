@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
 )
 
 func expiryLogin() *providerLogin {
@@ -23,7 +25,7 @@ func waitExpiry(t *testing.T, login *providerLogin) {
 }
 
 func TestOAuthStartStopWiresOwnedExpiryCancellation(t *testing.T) {
-	auth := NewOAuth(nil, t.TempDir(), nil)
+	auth := NewOAuth(appcatalog.Ports{}, t.TempDir(), nil)
 	if _, err := auth.Start(context.Background(), OAuthStartInput{}); err != nil {
 		if strings.Contains(err.Error(), "cannot bind") {
 			t.Skip("callback port is owned by another fixture")
@@ -40,7 +42,7 @@ func TestOAuthStartStopWiresOwnedExpiryCancellation(t *testing.T) {
 }
 
 func TestOAuthExpiryStopReleasesWorkerWithoutTimeoutMutation(t *testing.T) {
-	auth := NewOAuth(nil, t.TempDir(), nil)
+	auth := NewOAuth(appcatalog.Ports{}, t.TempDir(), nil)
 	login := expiryLogin()
 	auth.provLogin = login
 	go auth.expireProviderLogin(login, time.Hour)
@@ -54,7 +56,7 @@ func TestOAuthExpiryStopReleasesWorkerWithoutTimeoutMutation(t *testing.T) {
 }
 
 func TestOAuthExpiryCallbackCloseReleasesWorker(t *testing.T) {
-	auth := NewOAuth(nil, t.TempDir(), nil)
+	auth := NewOAuth(appcatalog.Ports{}, t.TempDir(), nil)
 	login := expiryLogin()
 	login.status = "done"
 	auth.provLogin = login
@@ -68,7 +70,7 @@ func TestOAuthExpiryCallbackCloseReleasesWorker(t *testing.T) {
 
 func TestOAuthExpiryRetainsTimeoutAndIgnoresReplacedLogin(t *testing.T) {
 	for _, replaced := range []bool{false, true} {
-		auth := NewOAuth(nil, t.TempDir(), nil)
+		auth := NewOAuth(appcatalog.Ports{}, t.TempDir(), nil)
 		login := expiryLogin()
 		auth.provLogin = login
 		if replaced {

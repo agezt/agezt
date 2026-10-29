@@ -16,9 +16,9 @@ import (
 	"sync"
 	"time"
 
+	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
 	"github.com/agezt/agezt/kernel/modules/providers/chatgptauth"
 	"github.com/agezt/agezt/kernel/platform/browsercallback"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
 const providerLoginTTL = 5 * time.Minute
@@ -37,7 +37,7 @@ type providerLogin struct {
 }
 
 type OAuth struct {
-	k           *runtime.Kernel
+	cat         appcatalog.Ports
 	baseDir     string
 	chatgptOnce sync.Once
 	chatgpt     *chatgptauth.Manager
@@ -47,8 +47,13 @@ type OAuth struct {
 	fetchTokens func(context.Context, string, string) (chatgptauth.Tokens, error)
 }
 
-func NewOAuth(k *runtime.Kernel, baseDir string, syncModels func() ([]string, string)) *OAuth {
-	s := &OAuth{k: k, baseDir: baseDir, chatgptSync: syncModels}
+// NewOAuth builds the provider login.
+//
+// The login holds the CATALOG family's ports — the provider goes live on the
+// next refresh of the catalog — and never the kernel handle: the handle stops
+// at the binding.
+func NewOAuth(cat appcatalog.Ports, baseDir string, syncModels func() ([]string, string)) *OAuth {
+	s := &OAuth{cat: cat, baseDir: baseDir, chatgptSync: syncModels}
 	s.fetchTokens = func(ctx context.Context, code, verifier string) (chatgptauth.Tokens, error) {
 		return s.chatgptMgr().ExchangeTokens(ctx, code, verifier)
 	}
@@ -192,9 +197,7 @@ func (s *OAuth) Import(_ context.Context, in OAuthImportInput) (OAuthImportOutpu
 	if err := s.chatgptMgr().ImportFromCodexCLI(path); err != nil {
 		return OAuthImportOutput{}, err
 	}
-	if s.k != nil {
-		_, _, _ = s.k.Reload()
-	}
+	_, _, _ = s.cat.Refresh()
 	models, defaultModel := s.syncChatGPTModels()
 	email, account := s.chatgptMgr().Account()
 	return OAuthImportOutput{OK: true, Connected: true, Email: email, Account: account, Models: models, DefaultModel: defaultModel}, nil
@@ -211,8 +214,6 @@ func (s *OAuth) Logout(_ context.Context, _ OAuthLogoutInput) (OAuthLogoutOutput
 	s.provLogin = nil
 	s.provLoginMu.Unlock()
 	s.closeProviderLogin(login)
-	if s.k != nil {
-		_, _, _ = s.k.Reload()
-	}
+	_, _, _ = s.cat.Refresh()
 	return OAuthLogoutOutput{OK: true, Connected: false}, nil
 }

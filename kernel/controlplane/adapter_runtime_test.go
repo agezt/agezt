@@ -468,6 +468,34 @@ func correlationOwnedVerbs(t *testing.T) []string {
 	return kernelVerbsWord(t, "Correlation")
 }
 
+// catalogOwnedVerbs are the kernel's CATALOG verbs: the catalog directory the
+// daemon keeps its provider and model catalog in, and the refresh that
+// re-reads it.
+//
+// The rule is BY WORD, and the family answers to TWO names, "Catalog" and
+// "Reload": the checked refresh surface (Reload, ReloadCatalog) does not say
+// "catalog" in its name, and the refresh IS the catalog's own — it re-reads the
+// catalog from disk and rebuilds the live provider registry from what it read.
+//
+// The two names are UNIONED, not chosen between: "ReloadCatalog" carries both,
+// and a family that took only one of them would leave the other unguarded.
+func catalogOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	verbs := kernelVerbsWord(t, "Catalog")
+	for _, verb := range kernelVerbsWord(t, "Reload") {
+		seen := false
+		for _, owned := range verbs {
+			if owned == verb {
+				seen = true
+			}
+		}
+		if !seen {
+			verbs = append(verbs, verb)
+		}
+	}
+	return verbs
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -487,6 +515,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, providerOwnedVerbs(t)...)
 	verbs = append(verbs, baseDirOwnedVerbs(t)...)
 	verbs = append(verbs, correlationOwnedVerbs(t)...)
+	verbs = append(verbs, catalogOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -1093,6 +1122,89 @@ func TestTheCorrelationFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	}
 	if len(correlation) == kernel.NumMethod() {
 		t.Errorf("the correlation family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the same for the CATALOG family — the catalog directory and the refresh
+// that re-reads it.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries "Catalog" or "Reload" as a whole
+// word is the catalog family's business. The expectation is not derived through
+// the helper the guard uses.
+func TestTheGuardNamesEveryCatalogVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		carries := false
+		for _, word := range camelWords(name) {
+			if word == "Catalog" || word == "Reload" {
+				carries = true
+			}
+		}
+		if !carries {
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's catalog verb %s is not named by the guard — the catalog family's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no catalog verbs found — the kernel's catalog verbs are gone?")
+	}
+}
+
+// And the CATALOG family must not claim another family's verbs: the catalog
+// directory is not a tool's business, a memory's business, or the policy's.
+//
+// The rule must be BOTH broad and sharp. Broad: every catalog verb is guarded
+// (the test above). Sharp: the catalog's list carries nothing that belongs to
+// someone else, and it is a strict subset of the kernel's verbs — a rule that
+// only ever grows is a rule that eventually guards the whole kernel, and a
+// guard that guards the whole kernel guards nothing.
+func TestTheCatalogFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+		providerOwnedVerbs(t),
+		baseDirOwnedVerbs(t),
+		correlationOwnedVerbs(t),
+		workboardOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	catalog := catalogOwnedVerbs(t)
+	if len(catalog) == 0 {
+		t.Fatal("the catalog family names no verb — the catalog family's business belongs to the application")
+	}
+	for _, verb := range catalog {
+		if others[verb] {
+			t.Errorf("the catalog family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	if len(catalog) == kernel.NumMethod() {
+		t.Errorf("the catalog family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
 	}
 }
 

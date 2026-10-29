@@ -12,19 +12,16 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
+	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/creds"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
-// errNoCatalogLibrary is the answer the providers app layer gives when it
-// holds no catalog library.
-//
-// The catalog directory is the DAEMON's (W3.51): the kernel holds the
-// contract's store port, and a host that was given none holds a nil port.
-// The refusal is the answer — not a panic, and not a silent "nothing to do".
-var errNoCatalogLibrary = errors.New("providers: the catalog library is not available on this daemon")
-
+// The refusal for a daemon that holds no catalog library belongs to the
+// CATALOG family — it is the family that answers for the catalog directory,
+// and the families that ask it inherit the one refusal it spells. The
+// providers used to spell a second one here, and two spellings of the same
+// refusal are two answers to the same question.
 type ConnectInput struct {
 	ID    string `json:"id,omitempty"`
 	API   string `json:"api,omitempty"`
@@ -39,11 +36,16 @@ type KeyInput struct {
 	Active                      bool
 }
 type Service struct {
-	k       *runtime.Kernel
+	cat     appcatalog.Ports
 	baseDir string
 }
 
-func New(k *runtime.Kernel, baseDir string) *Service { return &Service{k: k, baseDir: baseDir} }
+// New builds the providers service.
+//
+// The service holds the CATALOG family's ports — the catalog directory is the
+// daemon's file, and the providers answer from it — and never the kernel
+// handle: the handle stops at the binding.
+func New(cat appcatalog.Ports, baseDir string) *Service { return &Service{cat: cat, baseDir: baseDir} }
 
 var providerEnvPattern = regexp.MustCompile(`^[A-Z0-9][A-Z0-9_]*$`)
 var providerIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`)
@@ -116,9 +118,9 @@ func (s *Service) Connect(_ context.Context, in ConnectInput) (ConnectOutput, er
 	// (from models.dev sync, local.json discovery, or a prior custom.json
 	// write), preserve the existing entry. No upsert, no clobber. The
 	// caller attaches the key on the separate keys/add path.
-	cat := s.k.Catalog()
+	cat := s.cat.Snapshot()
 	if _, exists := cat.Providers[id]; exists {
-		_, providersReloaded, rerr := s.k.Reload()
+		_, providersReloaded, rerr := s.cat.Refresh()
 		result := ConnectOutput{ProviderID: id, Added: false, Exists: true, ProvidersReloaded: providersReloaded, Note: "id already in catalog; custom.json was NOT written — existing entry preserved. Attach the key via /api/provider/keys/add."}
 		if rerr != nil {
 			result.ReloadError = rerr.Error()
@@ -136,14 +138,14 @@ func (s *Service) Connect(_ context.Context, in ConnectInput) (ConnectOutput, er
 		Env:    envs,
 		Models: nil, // unknown coverage — see kernel/governor/modelchain_skip_test.go
 	}
-	if s.k.CatalogStore() == nil {
-		return ConnectOutput{}, errNoCatalogLibrary
+	if s.cat.Store() == nil {
+		return ConnectOutput{}, appcatalog.ErrNoLibrary
 	}
-	added, err := s.k.CatalogStore().UpsertCustomProvider(p)
+	added, err := s.cat.Store().UpsertCustomProvider(p)
 	if err != nil {
 		return ConnectOutput{}, fmt.Errorf("save custom provider: %w", err)
 	}
-	_, providersReloaded, rerr := s.k.Reload()
+	_, providersReloaded, rerr := s.cat.Refresh()
 	result := ConnectOutput{ProviderID: id, Added: added, Exists: false, ProvidersReloaded: providersReloaded}
 	if rerr != nil {
 		result.ReloadError = rerr.Error()
@@ -152,7 +154,7 @@ func (s *Service) Connect(_ context.Context, in ConnectInput) (ConnectOutput, er
 }
 
 func (s *Service) Reload(_ context.Context, _ ReloadInput) (ReloadOutput, error) {
-	cat, providersReloaded, err := s.k.Reload()
+	cat, providersReloaded, err := s.cat.Refresh()
 	if err != nil {
 		return ReloadOutput{}, err
 	}
@@ -199,7 +201,7 @@ func (s *Service) KeyAdd(_ context.Context, in KeyInput) (KeyAddOutput, error) {
 	}
 	result := KeyAddOutput{Provider: provider, Env: env, Label: label, Added: true, ActiveChanged: activeChanged}
 	if activeChanged {
-		if _, _, err := s.k.Reload(); err != nil {
+		if _, _, err := s.cat.Refresh(); err != nil {
 			result.ReloadError = err.Error()
 		}
 	}
@@ -225,7 +227,7 @@ func (s *Service) KeyActivate(_ context.Context, in KeyInput) (KeyActivateOutput
 		return KeyActivateOutput{}, fmt.Errorf("save vault: %w", err)
 	}
 	result := KeyActivateOutput{Provider: provider, Env: env, Label: label, Active: true}
-	if _, _, err := s.k.Reload(); err != nil {
+	if _, _, err := s.cat.Refresh(); err != nil {
 		result.ReloadError = err.Error()
 	}
 	return result, nil
@@ -249,7 +251,7 @@ func (s *Service) KeyRemove(_ context.Context, in KeyInput) (KeyRemoveOutput, er
 	}
 	result := KeyRemoveOutput{Provider: provider, Env: env, Label: label, Removed: removed, WasActive: wasActive}
 	if wasActive {
-		if _, _, err := s.k.Reload(); err != nil {
+		if _, _, err := s.cat.Refresh(); err != nil {
 			result.ReloadError = err.Error()
 		}
 	}

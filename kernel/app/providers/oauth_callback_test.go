@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -26,7 +27,7 @@ func TestOAuthCallbackBusinessAdmissionBlocksExchangeAndEffects(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			effects := 0
-			auth := NewOAuth(nil, t.TempDir(), func() ([]string, string) { effects++; return nil, "" })
+			auth := NewOAuth(appcatalog.Ports{}, t.TempDir(), func() ([]string, string) { effects++; return nil, "" })
 			login := &providerLogin{state: "expected", verifier: "fixture-verifier", status: "pending"}
 			auth.provLogin = login
 			result := auth.completeProviderLogin(context.Background(), login, tc.in, func(context.Context, string, string) error { effects++; return nil })
@@ -50,7 +51,7 @@ func TestOAuthCallbackBusinessSuccessPreservesIdentityBudgetAndEffectOrder(t *te
 		order = append(order, "reload")
 		return errors.New("legacy ignored reload failure")
 	}})
-	auth := NewOAuth(k, dir, func() ([]string, string) {
+	auth := NewOAuth(appcatalog.PortsFromKernel(k), dir, func() ([]string, string) {
 		order = append(order, "models")
 		return []string{}, ""
 	})
@@ -86,7 +87,7 @@ func TestOAuthCallbackBusinessExchangeFailureAndCancellationPreserveTerminalShap
 			cause = context.Canceled
 		}
 		models := 0
-		auth := NewOAuth(nil, t.TempDir(), func() ([]string, string) { models++; return nil, "" })
+		auth := NewOAuth(appcatalog.Ports{}, t.TempDir(), func() ([]string, string) { models++; return nil, "" })
 		login := &providerLogin{state: "expected", verifier: "fixture-verifier", status: "pending"}
 		auth.provLogin = login
 		result := auth.completeProviderLogin(parent, login, providerCallbackInput{Code: "fixture-code", State: "expected"}, func(ctx context.Context, _, _ string) error {

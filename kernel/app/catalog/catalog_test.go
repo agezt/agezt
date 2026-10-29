@@ -14,6 +14,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
+	appeventbus "github.com/agezt/agezt/kernel/app/eventbus"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
@@ -50,7 +51,7 @@ func TestCatalogHandlersWorkWithoutSocketAndRetainWire(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { k.Close() })
-			svc := appcatalog.New(k, dir)
+			svc := appcatalog.New(appcatalog.PortsFromKernel(k), appeventbus.PortsFromKernel(k), dir)
 			t.Setenv(brand.EnvPrefix+"CATALOG_URL", ts.URL)
 			t.Setenv(brand.EnvPrefix+"OLLAMA_ENDPOINT", ts.URL)
 			t.Setenv("CATALOG_FIXTURE_KEY", "")
@@ -149,7 +150,7 @@ func TestCatalogFailedFetchRetainsEventsAndSkipsPersistenceReload(t *testing.T) 
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
-	svc := appcatalog.New(k, dir)
+	svc := appcatalog.New(appcatalog.PortsFromKernel(k), appeventbus.PortsFromKernel(k), dir)
 	if output, err := svc.Sync(context.Background(), appcatalog.SyncInput{URL: ts.URL}); err == nil || output != (appcatalog.SyncOutput{}) {
 		t.Fatalf("failed sync=%v %v", output, err)
 	}

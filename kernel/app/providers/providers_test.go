@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/internal/brand"
+	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
 	"github.com/agezt/agezt/kernel/app/providers"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
@@ -52,7 +53,7 @@ func TestProviderConnectPreservesCatalogAndUnknownModels(t *testing.T) {
 	if _, err := k.ReloadCatalog(); err != nil {
 		t.Fatal(err)
 	}
-	svc := providers.New(k, dir)
+	svc := providers.New(appcatalog.PortsFromKernel(k), dir)
 	result, err := svc.Connect(context.Background(), providers.ConnectInput{ID: "known", API: "https://fixture.invalid", Model: "invented"})
 	if err != nil {
 		t.Fatal(err)
@@ -88,7 +89,7 @@ func TestProviderKeyringLifecyclePrivacyAndScope(t *testing.T) {
 	var reloads atomic.Int32
 	dir := t.TempDir()
 	k := openKernel(t, runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
-	svc := providers.New(k, dir)
+	svc := providers.New(appcatalog.PortsFromKernel(k), dir)
 	ctx := context.Background()
 	secret := strings.Join([]string{"fixture", "private", "value", "1234"}, "-")
 	input := providers.KeyInput{Provider: "alpha", Env: "PROVIDER_FIXTURE_KEY", Label: "first", Value: secret}
@@ -167,7 +168,7 @@ func TestProviderReloadFailureKeepsSuccessfulChanges(t *testing.T) {
 	t.Setenv(creds.PassphraseEnvVar, "isolated-provider-fixture")
 	dir := t.TempDir()
 	k := openKernel(t, runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { return context.DeadlineExceeded }})
-	svc := providers.New(k, dir)
+	svc := providers.New(appcatalog.PortsFromKernel(k), dir)
 	connected, err := svc.Connect(context.Background(), providers.ConnectInput{ID: "new", API: "https://fixture.invalid"})
 	if err != nil || connected.ReloadError == "" {
 		t.Fatalf("connect rebuild failure=%v %v", connected, err)
@@ -188,7 +189,7 @@ func TestProviderReloadFailureKeepsSuccessfulChanges(t *testing.T) {
 func TestProviderReloadWithoutRebuildKeepsOperatorNote(t *testing.T) {
 	dir := t.TempDir()
 	k := openKernel(t, runtime.Config{BaseDir: dir, Provider: mock.New()})
-	result, err := providers.New(k, dir).Reload(context.Background(), providers.ReloadInput{})
+	result, err := providers.New(appcatalog.PortsFromKernel(k), dir).Reload(context.Background(), providers.ReloadInput{})
 	if err != nil {
 		t.Fatal(err)
 	}

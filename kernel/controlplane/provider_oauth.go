@@ -8,7 +8,7 @@ import (
 
 func (s *Server) providerOAuth() *providers.OAuth {
 	s.providerOAuthOnce.Do(func() {
-		s.providerOAuthState = providers.NewOAuth(s.k, s.baseDir, func() ([]string, string) {
+		s.providerOAuthState = providers.NewOAuth(s.catalogPorts(), s.baseDir, func() ([]string, string) {
 			if s.chatgptSync == nil {
 				return nil, ""
 			}
