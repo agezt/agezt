@@ -3479,6 +3479,16 @@ This file holds the active `[Unreleased]` working set.
   library, no schedule library — and the reads answer nothing while the writes
   refuse, because "absent" is not "empty". After this slice the application
   layer names the handle in **6** files outside a port file, down from **7**.
+- **The introspector's ports moved into the application (W5.4ay).** The
+  introspector gathers the daemon's own self-knowledge — the overview an agent
+  reads when it asks what this daemon is — and it read **thirteen** kernel
+  verbs at once to do it. The ports moved into the application
+  (`kernel/app/introspect`: `PortsFromKernel`), the source keeps the ports and
+  nothing else, and the composition root asks for the ports. A host with **no
+  daemon** now answers with **nothing** rather than with a lie — it claims no
+  uptime for a daemon that does not exist — while a daemon whose **libraries**
+  are absent still answers zero for them. After this slice the application
+  layer names the handle in **5** files outside a port file, down from **6**.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —
