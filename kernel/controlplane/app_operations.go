@@ -377,7 +377,7 @@ var missionControlOperations = func() []app.Operation {
 
 var reaperOperations = func() []app.Operation {
 	ops, err := appreaper.Operations(func(ctx context.Context) *appreaper.Service {
-		return appreaper.New(ctx.Value(systemHostKey{}).(*Server).k.ReaperScan, time.Now)
+		return appreaper.New(ctx.Value(systemHostKey{}).(*Server).reaperPorts().Scan, time.Now)
 	})
 	if err != nil {
 		panic(err)
