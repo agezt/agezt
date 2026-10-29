@@ -3386,6 +3386,14 @@ This file holds the active `[Unreleased]` working set.
   family, and the port holds the store as a capability — it answers `Store`,
   never the kernel's own verb name. There is no request-level binding: the
   state surface inspects the daemon's own file.
+- **The seats family's ports moved into the application (W5.4ao).** The seat
+  catalog is the daemon's own file — the execution seats a workboard task can
+  be dispatched under — and the adapter reached for the kernel's catalog in
+  **one** place. The ports moved into the application (`kernel/app/seats`:
+  `PortsFromKernel`), the adapter asks the family, and the port holds the
+  catalog as a capability — it answers `Store`, never the kernel's own verb
+  name. There is no request-level binding: the seat surface inspects the
+  daemon's own catalog.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —
