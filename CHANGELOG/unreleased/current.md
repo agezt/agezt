@@ -3379,6 +3379,13 @@ This file holds the active `[Unreleased]` working set.
   kernel handle at all**: every field it reports belongs to a family, and it
   asks each of them. The chat summarizer and the nodes family now ask the
   identity family for the default model too.
+- **The state family's ports moved into the application (W5.4an).** The key/value
+  file the agents and the scheduler write to is the daemon's own, and the
+  adapter reached for the kernel's store in **one** place. The ports moved into
+  the application (`kernel/app/state`: `PortsFromKernel`), the adapter asks the
+  family, and the port holds the store as a capability — it answers `Store`,
+  never the kernel's own verb name. There is no request-level binding: the
+  state surface inspects the daemon's own file.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —

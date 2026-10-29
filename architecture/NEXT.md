@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4am the persona family's identity, 2026-10-29
+## Current checkpoint — W5.4an the state family's ports, 2026-10-29
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -6475,6 +6475,46 @@ files, five of the seventeen mutations would have escaped.
   **both** answers, and the surface is driven **over the socket**, the way the
   operator does. Evidence:
   `architecture/244-w54am-the-persona-familys-identity-evidence.md`
+
+- W5.4an (the state family, and the run's state that is not the state's) is the
+  port programme's **twenty-seventh** slice and the **eighteenth** one of its last
+  phase: the handle itself. The state store is the daemon's own key/value file —
+  the namespaces and the keys under them, which the agents and the scheduler
+  write to and no operator can read — and the adapter reached for the kernel's
+  store in **one** place. The **application** layer held no state handle either:
+  `kernel/app/state` already took the read side of the store as an argument. The
+  ports moved into the application (`kernel/app/state`: `PortsFromKernel` →
+  `Store`) and the adapter keeps the binding
+  (`kernel/controlplane/state_ports.go`), which does not name the runtime — and
+  it has **no request-level binding**: the state surface inspects the **daemon's
+  own** file, so it asks the daemon's kernel, and a binding nobody calls is dead
+  code. The port answers `Store`, **never** the kernel's own verb name. The
+  rule is **by whole word** — a kernel verb whose name carries "State" as a
+  **complete word** is the state family's business — and it catches **one** verb
+  today: `State`. **Three** verbs carry the word and are **not** the state
+  family's: `CleanupRunState`, `SetupRunState` and `RunControlState` are the
+  **run's** own business — the state a run leaves behind and the control that
+  stops it; a rule that swept them in would make the state family claim three
+  other families' verbs, and the sharp guard test says so out loud. The guard
+  now holds **145** application-owned verbs. The adapter's handle-verb debt:
+  **10 → 9** call sites, **8 → 7** distinct verbs, and the method values handed
+  over stay at **4**. **6 permanent tests** and **11 mutations, 11 caught** in two
+  independent passes with **byte-identical** logs (SHA-256 `0DF94C4E…57A7DC94`).
+  M01, M02 and M03 are the ones that bite: the port holds **no** store, a host
+  with no kernel asks the kernel **anyway**, and the port hands over **nothing**.
+  M04 gives the port a method that carries a kernel verb's own name, M05 empties
+  the daemon's binding, M06 puts the kernel back in the operations and the
+  **verb guard** catches it, M07 builds the surface from **nothing** and the
+  state read over the socket refuses, M08 takes the family out of the guard, M09
+  hands the family **another** family's verbs, M10 makes the binding name the
+  runtime, and M11 sweeps the **run's** state verbs into the state's list — and
+  the sharp guard test catches it. One false positive, fixed in the slice: the
+  guard reads the adapter's **raw source**, comments included, so a piece of
+  prose that ended a sentence with the family's word — "the kernel state store.
+  State is normally invisible to operators" — read as a call; the slice reworded
+  the comment rather than loosen the guard, because a guard that skips comments
+  is a guard that a commented-out call walks past. Evidence:
+  `architecture/245-w54an-the-state-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
