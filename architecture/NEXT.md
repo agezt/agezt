@@ -6778,6 +6778,41 @@ files, five of the seventeen mutations would have escaped.
   memory, the tools): that is the phase after this one — the handle itself, on
   the application's side. Evidence:
   `architecture/251-w54at-the-lifecycle-familys-ports-evidence.md`
+- W5.4au (the daemon overview, and the handle on the application's side) is the port
+  programme's **thirty-fourth** slice and the **twenty-fifth** one of its last phase:
+  the handle itself — and the **first** one of that phase whose subject is the
+  **application's** handle rather than the adapter's. The adapter's call sites on
+  the handle are **zero** (W5.4at), and the other side of the same door was still
+  open: the **application** layer held the kernel in a dozen files, the biggest of
+  them the daemon's own **overview** — the `agt status` surface — with **thirteen**
+  kernel verbs across **eight** families. The ports moved into the application
+  (`kernel/app/system/ports.go`: `PortsFromKernel(k)`), the adapter keeps the
+  binding (`kernel/controlplane/system_ports.go`), which does not name the
+  runtime, and the port answers `DefaultModel`, `Stopped`, `ToolCount` and
+  `MemoryRecordCount` — **never** the kernel's own verb names — with its **fields**
+  held unexported. The **refusal is a refusal**: a host with no daemon holds no
+  daemon to report on, and the status refuses (`ErrNoDaemon`) rather than
+  answering zeros; the daemon's **gate** (the halt, the resume, the hash-chain
+  check) is a **capability**, not the handle, and the lifecycle service refuses
+  (`ErrNoGate`) when there is none. The rule is **by name** — **seven exact
+  names**, because the daemon's verbs share no word: a "Halt" rule would take the
+  drain from the **lifecycle** family and a "Verify" rule would take the
+  workboard's proof. The guard now holds **161** application-owned verbs. The
+  phase's new measurement is the **application's** own: the application layer
+  names the handle in **9** files outside a **port file**, down from **10**
+  (`kernel/app/handle_ratchet_test.go`), and the port file is where the handle is
+  **filled**. The control plane's production files that name the runtime stay at
+  **twelve**. **9 permanent tests** and **14 mutations, 14 caught** in two
+  independent passes with **byte-identical** logs (SHA-256 `55B765DD…3D60`). Two
+  mutations **survived** the first run and both were the programme's own lesson
+  coming back: M06 survived because the test asked the **port** and not the
+  **surface**, and M08 survived because the mutation did not do what its name
+  said — it captured the value on every **call**, not at **fill** time. The
+  **application** layer still holds the kernel in **nine** files outside a port
+  file (the runs family with four, the overseer, the introspector, the execution
+  profile, the guardians and the config tool): that is the phase after this one.
+  Evidence:
+  `architecture/252-w54au-the-daemon-overview-takes-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

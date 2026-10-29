@@ -3438,6 +3438,17 @@ This file holds the active `[Unreleased]` working set.
   and a daemon that could not be drained is reported as a drain that **timed
   out**, so the update does not land. After this slice the adapter names **no**
   kernel verb on the handle at all.
+- **The daemon overview's ports moved into the application (W5.4au).** The
+  daemon's own **overview** — the `agt status` surface — held the whole kernel
+  and named **thirteen** kernel verbs across **eight** families. The ports moved
+  into the application (`kernel/app/system`: `PortsFromKernel`), the adapter
+  keeps the binding, and the port answers `DefaultModel`, `Stopped`,
+  `ToolCount` and `MemoryRecordCount` — **never** the kernel's own verb names.
+  A host with **no daemon** holds no daemon to report on: the status refuses
+  rather than answering zeros, and the daemon's **gate** (the halt, the resume,
+  the hash-chain check) is a capability the port fills, not the handle. After
+  this slice the application layer names the handle in **9** files outside a
+  port file, down from **10**.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —
