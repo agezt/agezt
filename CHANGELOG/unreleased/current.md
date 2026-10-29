@@ -3489,6 +3489,16 @@ This file holds the active `[Unreleased]` working set.
   uptime for a daemon that does not exist — while a daemon whose **libraries**
   are absent still answers zero for them. After this slice the application
   layer names the handle in **5** files outside a port file, down from **6**.
+- **The runs family's warden profile asks the execution profile family for the
+  warden's answer (W5.4az).** The file that resolves a warden-family execution
+  profile reached for the kernel handle for the warden's own answer, one line
+  below a call that already asked the family that owns the warden. The family
+  now owns the warden's answer as well, the file asks the family instead of the
+  handle, and the control plane's workboard dispatch hands over **ports** rather
+  than the handle they were filled from. A host with **no daemon** answers the
+  **conservative** profile — no isolation — which is what the container
+  refusal stands on. After this slice the application layer names the handle in
+  **4** files outside a port file, down from **5**.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —
