@@ -13,22 +13,20 @@ import (
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
-// Kernel is the primary kernel's run gate and journal check.
-type Kernel interface {
-	HaltWith(reason string)
-	ResumeWith(reason string)
-	Verify() error
-}
-
 // Lifecycle halts and resumes new runs, verifies the journal and stops the
 // daemon. Shutdown schedules the daemon's exit after the response is sent.
+//
+// The service takes the daemon's GATE — the halt, the resume and the
+// hash-chain check — and not the handle those three doors live behind: a
+// service that needs three verbs does not need the whole kernel.
 type Lifecycle struct {
-	kernel   Kernel
+	gate     Gate
 	shutdown func()
 }
 
-func NewLifecycle(kernel Kernel, shutdown func()) *Lifecycle {
-	return &Lifecycle{kernel: kernel, shutdown: shutdown}
+// NewLifecycle binds the daemon's gate and the daemon's exit.
+func NewLifecycle(gate Gate, shutdown func()) *Lifecycle {
+	return &Lifecycle{gate: gate, shutdown: shutdown}
 }
 
 type ReasonRequest struct {
@@ -62,29 +60,52 @@ func reason(raw json.RawMessage) (string, error) {
 	return s, nil
 }
 
+// gateOrRefuse returns the daemon's gate, or the refusal.
+//
+// A host with no daemon holds no gate: halting a daemon that is not there is
+// not a halt, and the refusal is the honest answer.
+func (l *Lifecycle) gateOrRefuse() (Gate, error) {
+	if l.gate == nil {
+		return nil, ErrNoGate
+	}
+	return l.gate, nil
+}
+
 // Halt stops new runs, recording why.
 func (l *Lifecycle) Halt(_ context.Context, in ReasonRequest) (GateOutput, error) {
+	gate, err := l.gateOrRefuse()
+	if err != nil {
+		return GateOutput{}, err
+	}
 	r, err := reason(in.Reason)
 	if err != nil {
 		return GateOutput{}, err
 	}
-	l.kernel.HaltWith(r)
+	gate.HaltWith(r)
 	return GateOutput{OK: true, Halted: true, Reason: r}, nil
 }
 
 // Resume allows new runs again, recording why.
 func (l *Lifecycle) Resume(_ context.Context, in ReasonRequest) (GateOutput, error) {
+	gate, err := l.gateOrRefuse()
+	if err != nil {
+		return GateOutput{}, err
+	}
 	r, err := reason(in.Reason)
 	if err != nil {
 		return GateOutput{}, err
 	}
-	l.kernel.ResumeWith(r)
+	gate.ResumeWith(r)
 	return GateOutput{OK: true, Reason: r}, nil
 }
 
 // Verify checks the primary journal's hash chain.
 func (l *Lifecycle) Verify(context.Context, EmptyRequest) (OKOutput, error) {
-	if err := l.kernel.Verify(); err != nil {
+	gate, err := l.gateOrRefuse()
+	if err != nil {
+		return OKOutput{}, err
+	}
+	if err := gate.Verify(); err != nil {
 		return OKOutput{}, err
 	}
 	return OKOutput{OK: true}, nil

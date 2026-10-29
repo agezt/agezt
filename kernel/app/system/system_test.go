@@ -26,7 +26,7 @@ func TestTypedHandlersWorkWithoutTransportAndRemainReadOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
-	service := system.New(k, nil, nil, nil, "")
+	service := system.New(system.PortsFromKernel(k), nil, nil, nil, "")
 	before, _ := k.Journal().Head()
 	status, err := service.Status(context.Background(), system.StatusInput{})
 	if err != nil {
@@ -71,7 +71,7 @@ func TestStatusRetainsMetadataAndFallbackDimensions(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	service := system.New(k, tenantCount(2), []system.HTTPBinding{{Name: "console", Addr: "127.0.0.1:9000", Loopback: true}}, []system.ChannelInfo{{Kind: "telegram", Inbound: true, Allowlist: 3}}, "ambient chain")
+	service := system.New(system.PortsFromKernel(k), tenantCount(2), []system.HTTPBinding{{Name: "console", Addr: "127.0.0.1:9000", Loopback: true}}, []system.ChannelInfo{{Kind: "telegram", Inbound: true, Allowlist: 3}}, "ambient chain")
 	status, err := service.Status(context.Background(), system.StatusInput{})
 	if err != nil {
 		t.Fatal(err)
@@ -120,7 +120,7 @@ func TestStatusZeroTenantsAndMetadataWireContract(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 	bindings := []system.HTTPBinding{{Name: "console", Addr: "127.0.0.1:9000", Loopback: true}}
 	channels := []system.ChannelInfo{{Kind: "telegram", Inbound: true, Allowlist: 3}}
-	service := system.New(k, tenantCount(0), bindings, channels, "ambient")
+	service := system.New(system.PortsFromKernel(k), tenantCount(0), bindings, channels, "ambient")
 	status, err := service.Status(context.Background(), system.StatusInput{})
 	if err != nil {
 		t.Fatal(err)

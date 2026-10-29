@@ -40,7 +40,7 @@ func TestStatusCarriesTheKernelCeilingsUnchanged(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
-	status, err := system.New(k, nil, nil, nil, "").Status(context.Background(), system.StatusInput{})
+	status, err := system.New(system.PortsFromKernel(k), nil, nil, nil, "").Status(context.Background(), system.StatusInput{})
 	if err != nil {
 		t.Fatal(err)
 	}
