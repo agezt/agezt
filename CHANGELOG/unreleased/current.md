@@ -3370,6 +3370,15 @@ This file holds the active `[Unreleased]` working set.
   kernel's own verb name. There is no daemon-level binding: every surface that
   reads the taste reads it on the request's path, so the routed kernel is the
   one that answers.
+- **The daemon's default identity became the persona family's port (W5.4am).**
+  The default model and the default identity prompt were the last things the
+  config reader held a kernel handle for, and the persona surface took the
+  prompt and its setter as method values. The identity is now a port of its own
+  (`kernel/app/persona`: `IdentityFromKernel`), the adapter keeps two bindings
+  that answer for two different kernels, and the **config reader holds no
+  kernel handle at all**: every field it reports belongs to a family, and it
+  asks each of them. The chat summarizer and the nodes family now ask the
+  identity family for the default model too.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —

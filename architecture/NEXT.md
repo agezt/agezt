@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4al the taste family's ports, 2026-10-29
+## Current checkpoint — W5.4am the persona family's identity, 2026-10-29
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -6418,6 +6418,63 @@ files, five of the seventeen mutations would have escaped.
   and the full state is where the wiring lives.
   Evidence:
   `architecture/243-w54al-the-taste-familys-ports-evidence.md`
+
+- W5.4am (the daemon's default identity becomes the persona family's port) is the
+  port programme's **twenty-sixth** slice and the **seventeenth** one of its last
+  phase: the handle itself. The daemon's **default identity** — the model the
+  runs fall back to and the system instructions they fall back to — was the last
+  thing the config reader held a kernel handle for: **two** calls in the config
+  reader and **four** method values in the operations, for the persona surface's
+  prompt and setter, the chat summarizer's model and the nodes family's model.
+  The **application** layer held no identity handle either: `kernel/app/persona`
+  already took the system prompt and the setter as **fields** of its own
+  `Ports`, filled by the adapter with the kernel's method values. The identity
+  became a **port of its own** (`kernel/app/persona`: `IdentityFromKernel` →
+  `DefaultModel`, `Prompt`, `PromptSet`, `SetPrompt`) and the adapter keeps
+  **two** bindings (`kernel/controlplane/persona_ports.go`), which do not name
+  the runtime — and they answer for **two different kernels**: the persona
+  **surface** is PRIMARY only, so it is the daemon's own, while the **config**
+  surface reports the identity on the **request's** path and asks the routed
+  kernel. And the **config reader holds no kernel handle at all**: every field
+  it reports belongs to a family — the tools' count, the policy's ask-policy,
+  the provider's routing, the plugins' count, the base dir's path — and it asks
+  each of them; the reader's `kernel` field is gone. The **chat summarizer** and
+  the **nodes** family needed the default model too and asked the **kernel** for
+  it; they now ask the **identity** family. The port's names are **not** the
+  kernel's: it answers `DefaultModel`, `Prompt`, `PromptSet` and `SetPrompt` —
+  never `Model` and never `System` — because a port that carried the name of
+  the verb it stands for would let the adapter name the kernel's verb through
+  the port's door, and the guard would read that call as the adapter reaching
+  for the kernel. The guard's rule for this family is by **two whole words** —
+  "System" and "Model" — with **four** exceptions: `ResolveRunModel` and
+  `currentTaskModelChain` are the routing's business, `SystemTaskPorts` is the
+  system task family's, and `VisionModel` is the daemon's vision sidecar; a
+  rule that swept them in would make the persona family claim four other
+  families' verbs. The sweep takes in four verbs: `Model`, `SetModel`, `System`,
+  `SetSystem`. The guard now holds **144** application-owned verbs. The adapter's
+  handle-verb debt: **12 → 10** call sites, **10 → 8** distinct verbs, and the
+  method values handed over fall from **8** to **4**. The config reader no
+  longer names the runtime at all, so the control plane's runtime-naming count
+  went from **thirteen** production files to **twelve**, and the ratchet's
+  recorded number changed in the same slice — as the ratchet requires. **9 permanent tests** and
+  **15 mutations, 15 caught** in two independent passes with **byte-identical**
+  logs (SHA-256 `9426CAAE…A83897A`). M01, M02, M03 and M04 are the ones that
+  bite: the identity holds **no** model, a host with no kernel asks the kernel
+  **anyway**, the identity hands over **no** prompt, and the identity says **no**
+  prompt is set. M05 gives the port a method that carries a kernel verb's own
+  name, M06 makes the config reader report the prompt as the model, M07 makes
+  it say a prompt is **always** set, M08 empties the request's binding, M09
+  makes it follow the **daemon's** kernel, M10 empties the daemon's binding, M11
+  makes the persona surface edit **nothing**, M12 puts the kernel back in the
+  chat summarizer and the **verb guard** catches it, M13 takes the family out of
+  the guard, M14 hands the family **another** family's verbs, and M15 makes the
+  binding name the runtime. Two of the fifteen were caught only after the slice
+  learned something: the config reader test held only the "a prompt **IS** set"
+  answer, and the persona test asked the **binding** directly instead of
+  driving the **surface**; the slice then wrote both halves — the reader holds
+  **both** answers, and the surface is driven **over the socket**, the way the
+  operator does. Evidence:
+  `architecture/244-w54am-the-persona-familys-identity-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
