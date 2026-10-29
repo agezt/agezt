@@ -134,7 +134,7 @@ const (
 	CmdCacheStats = "cache_stats"
 
 	// CmdStateList enumerates namespaces and (optionally) keys in
-	// the kernel state store. State is normally invisible to
+	// the kernel state store, which is normally invisible to
 	// operators — agents and the scheduler write here but there's
 	// no CLI path to read what's accumulated. Closing this gap
 	// matters for debugging "why did the agent loop think X?" and

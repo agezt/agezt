@@ -401,7 +401,7 @@ var redactionOperations = func() []app.Operation {
 
 var stateOperations = func() []app.Operation {
 	ops, err := appstate.Operations(func(ctx context.Context) *appstate.Service {
-		return appstate.New(ctx.Value(systemHostKey{}).(*Server).k.State())
+		return appstate.New(ctx.Value(systemHostKey{}).(*Server).statePorts().Store())
 	})
 	if err != nil {
 		panic(err)

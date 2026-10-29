@@ -708,6 +708,43 @@ func personaOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
+// stateOwnedVerbs are the kernel's STATE verbs: the daemon's own key/value
+// file — the namespaces and the keys under them.
+//
+// The rule is by WORD: a kernel verb whose name carries "State" as a whole
+// word is the state family's business.
+//
+// THREE verbs carry it and are NOT the state family's: "CleanupRunState",
+// "SetupRunState" and "RunControlState" are the RUN family's business — the
+// state a run leaves behind and the control that stops it. A rule that swept
+// them in would make the state family claim three other families' verbs.
+func stateOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	var verbs []string
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		carries := false
+		for _, word := range camelWords(name) {
+			if word == "State" {
+				carries = true
+			}
+		}
+		if !carries {
+			continue
+		}
+		switch name {
+		case "CleanupRunState", "SetupRunState", "RunControlState":
+			continue
+		}
+		verbs = append(verbs, name)
+	}
+	if len(verbs) == 0 {
+		t.Fatal("no state verbs found — the kernel's state verbs are gone?")
+	}
+	return verbs
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -735,6 +772,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, worldOwnedVerbs(t)...)
 	verbs = append(verbs, tasteOwnedVerbs(t)...)
 	verbs = append(verbs, personaOwnedVerbs(t)...)
+	verbs = append(verbs, stateOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -2038,6 +2076,109 @@ func TestThePersonaFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	}
 	if len(persona) == kernel.NumMethod() {
 		t.Errorf("the persona family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the same for the STATE family — the daemon's own key/value file.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries "State" as a whole word is the
+// state's business, and the RUN's state verbs are not.
+func TestTheGuardNamesEveryStateVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		carries := false
+		for _, word := range camelWords(name) {
+			if word == "State" {
+				carries = true
+			}
+		}
+		if !carries {
+			continue
+		}
+		switch name {
+		case "CleanupRunState", "SetupRunState", "RunControlState":
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's state verb %s is not named by the guard — the state family's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no state verbs found — the kernel's state verbs are gone?")
+	}
+}
+
+// And the STATE family must not claim another family's verbs: the daemon's
+// key/value file is not a tool's business, a memory's business, or the policy's.
+//
+// The rule must be BOTH broad and sharp. Broad: every state verb is guarded
+// (the test above). Sharp: the state's list carries nothing that belongs to
+// someone else, and it is a strict subset of the kernel's verbs — a rule that
+// only ever grows is a rule that eventually guards the whole kernel, and a
+// guard that guards the whole kernel guards nothing.
+func TestTheStateFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+		providerOwnedVerbs(t),
+		baseDirOwnedVerbs(t),
+		correlationOwnedVerbs(t),
+		catalogOwnedVerbs(t),
+		artifactOwnedVerbs(t),
+		pluginOwnedVerbs(t),
+		marketOwnedVerbs(t),
+		approvalOwnedVerbs(t),
+		worldOwnedVerbs(t),
+		tasteOwnedVerbs(t),
+		personaOwnedVerbs(t),
+		workboardOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	state := stateOwnedVerbs(t)
+	if len(state) == 0 {
+		t.Fatal("the state family names no verb — the state family's business belongs to the application")
+	}
+	for _, verb := range state {
+		if others[verb] {
+			t.Errorf("the state family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	// And the RUN's state verbs are the run's own: the state a run leaves
+	// behind and the control that stops it are the run family's business, and
+	// the state family's rule says so out loud.
+	for _, verb := range []string{"CleanupRunState", "SetupRunState", "RunControlState"} {
+		for _, claimed := range state {
+			if claimed == verb {
+				t.Errorf("the state family claims the kernel's %s — that verb is the RUN family's business", verb)
+			}
+		}
+	}
+	if len(state) == kernel.NumMethod() {
+		t.Errorf("the state family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
 	}
 }
 
