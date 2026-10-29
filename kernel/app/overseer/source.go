@@ -25,12 +25,11 @@ import (
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/overseerapi"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
 // sharing the board tool's in-process instance.
 type kernelSource struct {
-	k        *kernelruntime.Kernel
+	ports    Ports
 	baseDir  string
 	boardDir string
 	// fleetLock, when set, makes the AGENT-reachable EditAgent/CreateAgent paths
@@ -43,11 +42,15 @@ type kernelSource struct {
 	fleetLock bool
 }
 
-// NewKernelSource builds the kernel-backed Source. baseDir is the daemon's base
-// directory; the board lives at <baseDir>/board.
-func NewKernelSource(k *kernelruntime.Kernel, baseDir string) overseerapi.Source {
+// NewKernelSource builds the source from the overseer's ports. baseDir is the
+// daemon's base directory; the board lives at <baseDir>/board.
+//
+// The source holds the PORTS and not the handle they were filled from: a file
+// that names the runtime is the port's business, and the adapter that answers
+// the contract is not.
+func NewKernelSource(ports Ports, baseDir string) overseerapi.Source {
 	return &kernelSource{
-		k:         k,
+		ports:     ports,
 		baseDir:   baseDir,
 		boardDir:  filepath.Join(baseDir, "board"),
 		fleetLock: fleetLockEnabled(),
@@ -67,25 +70,25 @@ func fleetLockEnabled() bool {
 	}
 }
 
-func (s *kernelSource) IsHalted() bool         { return s.k.IsHalted() }
-func (s *kernelSource) ActiveRunIDs() []string { return s.k.ActiveRunIDs() }
+func (s *kernelSource) IsHalted() bool         { return s.ports.Stopped() }
+func (s *kernelSource) ActiveRunIDs() []string { return s.ports.RunningIDs() }
 func (s *kernelSource) Agents() []agentapi.Profile {
-	return s.k.RosterList()
+	return s.ports.Profiles()
 }
-func (s *kernelSource) AgentImpact(slug string) []string { return s.k.AgentImpact(slug) }
-func (s *kernelSource) CancelRun(corr string) bool       { return s.k.CancelRun(corr) }
-func (s *kernelSource) Halt(reason string)               { s.k.HaltWith(reason) }
-func (s *kernelSource) ResumeAll(reason string)          { s.k.ResumeWith(reason) }
+func (s *kernelSource) AgentImpact(slug string) []string { return s.ports.ImpactOf(slug) }
+func (s *kernelSource) CancelRun(corr string) bool       { return s.ports.StopRun(corr) }
+func (s *kernelSource) Halt(reason string)               { s.ports.HaltDaemon(reason) }
+func (s *kernelSource) ResumeAll(reason string)          { s.ports.ResumeDaemon(reason) }
 
 func (s *kernelSource) SetAgentEnabled(ref string, enabled bool) (agentapi.Profile, error) {
-	return s.k.SetProfileEnabled(ref, enabled)
+	return s.ports.EnableAgent(ref, enabled)
 }
 func (s *kernelSource) SetAgentRetired(ref string, retired bool, reason string) (agentapi.Profile, error) {
 	r := strings.TrimSpace(reason)
 	if r == "" {
-		return s.k.SetProfileRetired(ref, retired)
+		return s.ports.RetireAgent(ref, retired, "")
 	}
-	return s.k.SetProfileRetired(ref, retired, r)
+	return s.ports.RetireAgent(ref, retired, r)
 }
 
 // EditAgent applies `in`'s mutable fields to the agent named by ref, using a
@@ -108,7 +111,7 @@ func (s *kernelSource) EditAgent(ref string, in agentapi.Profile) (agentapi.Prof
 	if s.fleetLock {
 		return agentapi.Profile{}, errors.New("fleet administration via the overseer tool is locked (AGEZT_OVERSEER_FLEET_LOCK): an operator must make agent edits through the console/CLI")
 	}
-	cur, ok := s.k.RosterGet(ref)
+	cur, ok := s.ports.Profile(ref)
 	if !ok {
 		return agentapi.Profile{}, fmt.Errorf("unknown agent: %s", ref)
 	}
@@ -127,7 +130,7 @@ func (s *kernelSource) EditAgent(ref string, in agentapi.Profile) (agentapi.Prof
 			}
 		}
 	}
-	p, found, err := s.k.UpdateProfile(ref, func(dst *agentapi.Profile) {
+	p, found, err := s.ports.EditProfile(ref, func(dst *agentapi.Profile) {
 		applyProfilePatchField(provided, "name", &dst.Name, in.Name)
 		applyProfilePatchField(provided, "soul", &dst.Soul, in.Soul)
 		applyProfilePatchField(provided, "model", &dst.Model, in.Model)
@@ -204,7 +207,7 @@ func (s *kernelSource) CreateAgent(in agentapi.Profile) (agentapi.Profile, error
 		return agentapi.Profile{}, errors.New("fleet administration via the overseer tool is locked (AGEZT_OVERSEER_FLEET_LOCK): an operator must create agents through the console/CLI")
 	}
 	in.System = false
-	return s.k.AddProfile(in)
+	return s.ports.CreateProfile(in)
 }
 
 // DeleteAgent permanently removes a non-System agent by slug or id. System
@@ -214,7 +217,7 @@ func (s *kernelSource) DeleteAgent(ref string) (bool, error) {
 	if s.fleetLock {
 		return false, errors.New("fleet administration via the overseer tool is locked (AGEZT_OVERSEER_FLEET_LOCK): an operator must delete agents through the console/CLI")
 	}
-	ok, err := s.k.RemoveProfile(ref)
+	ok, err := s.ports.DeleteProfile(ref)
 	if err != nil {
 		return false, err
 	}
@@ -223,7 +226,7 @@ func (s *kernelSource) DeleteAgent(ref string) (bool, error) {
 
 // GetAgent returns the full profile for a single agent by slug or id.
 func (s *kernelSource) GetAgent(ref string) (agentapi.Profile, bool, error) {
-	p, ok := s.k.RosterGet(ref)
+	p, ok := s.ports.Profile(ref)
 	if !ok {
 		return agentapi.Profile{}, false, nil
 	}
@@ -239,7 +242,7 @@ func (s *kernelSource) CloneAgent(source string, overrides agentapi.Profile) (ag
 	if s.fleetLock {
 		return agentapi.Profile{}, errors.New("fleet administration via the overseer tool is locked (AGEZT_OVERSEER_FLEET_LOCK): an operator must create agents through the console/CLI")
 	}
-	src, ok := s.k.RosterGet(source)
+	src, ok := s.ports.Profile(source)
 	if !ok {
 		return agentapi.Profile{}, fmt.Errorf("unknown source agent: %s", source)
 	}
@@ -336,7 +339,7 @@ func (s *kernelSource) CloneAgent(source string, overrides agentapi.Profile) (ag
 		built.TaskList = append([]agentapi.AgentTask(nil), overrides.TaskList...)
 	}
 
-	return s.k.AddProfile(built)
+	return s.ports.CreateProfile(built)
 }
 
 // SearchAgents returns agents matching the filter criteria. Empty filter returns

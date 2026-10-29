@@ -2,13 +2,15 @@
 
 package overseer
 
-// TaskModelChains persistence for the kernelSource: taskModelChainsSource
-// interface + taskModelChain + setTaskModelChain + persistTaskModelChains
-// + encodeTaskModelChains + sanitizeTaskModelChain. Carved out of
-// kernelsource.go during the Day 164 god-file split so the main file
-// can focus on the CRUD / lifecycle / bulk / wake / search / repair /
-// help surface.
-// Public API unchanged.
+// TaskModelChains persistence for the kernelSource: taskModelChain +
+// setTaskModelChain + persistTaskModelChains + encodeTaskModelChains +
+// sanitizeTaskModelChain. Carved out of kernelsource.go during the Day 164
+// god-file split so the main file can focus on the CRUD / lifecycle / bulk /
+// wake / search / repair / help surface. Public API unchanged.
+//
+// The chains themselves are the PROVIDER's business, and the port carries the
+// live provider: the narrow view over it — the task model chains and nothing
+// else — is the CONSUMER's business, and the consumer declares it here.
 
 import (
 	"fmt"
@@ -29,12 +31,11 @@ func (s *kernelSource) taskModelChain(taskType string) []string {
 	if taskType == "" {
 		return nil
 	}
-	gov, ok := s.k.Provider().(taskModelChainsSource)
+	chains, ok := s.ports.LiveProvider().(taskModelChainsSource)
 	if !ok {
 		return nil
 	}
-	chains := gov.TaskModelChainsView()
-	src := chains[taskType]
+	src := chains.TaskModelChainsView()[taskType]
 	if len(src) == 0 {
 		return nil
 	}
@@ -48,7 +49,7 @@ func (s *kernelSource) setTaskModelChain(taskType string, chain []string) error 
 	if taskType == "" {
 		return fmt.Errorf("task model chain target task type is empty")
 	}
-	gov, ok := s.k.Provider().(taskModelChainsSource)
+	gov, ok := s.ports.LiveProvider().(taskModelChainsSource)
 	if !ok {
 		return fmt.Errorf("live provider does not support task model chains")
 	}

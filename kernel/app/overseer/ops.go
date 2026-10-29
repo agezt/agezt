@@ -27,7 +27,7 @@ import (
 func (s *kernelSource) BulkSetEnabled(slugs []string, enabled bool) []overseerapi.BulkResult {
 	results := make([]overseerapi.BulkResult, 0, len(slugs))
 	for _, slug := range slugs {
-		_, err := s.k.SetProfileEnabled(slug, enabled)
+		_, err := s.ports.EnableAgent(slug, enabled)
 		r := overseerapi.BulkResult{Slug: slug, Success: err == nil}
 		if err != nil {
 			r.Error = err.Error()
@@ -43,9 +43,9 @@ func (s *kernelSource) BulkSetRetired(slugs []string, retired bool, reason strin
 	for _, slug := range slugs {
 		var err error
 		if r == "" {
-			_, err = s.k.SetProfileRetired(slug, retired)
+			_, err = s.ports.RetireAgent(slug, retired, "")
 		} else {
-			_, err = s.k.SetProfileRetired(slug, retired, r)
+			_, err = s.ports.RetireAgent(slug, retired, r)
 		}
 		res := overseerapi.BulkResult{Slug: slug, Success: err == nil}
 		if err != nil {
@@ -59,7 +59,7 @@ func (s *kernelSource) BulkSetRetired(slugs []string, retired bool, reason strin
 func (s *kernelSource) BulkDelete(slugs []string) []overseerapi.BulkResult {
 	results := make([]overseerapi.BulkResult, 0, len(slugs))
 	for _, slug := range slugs {
-		_, err := s.k.RemoveProfile(slug)
+		_, err := s.ports.DeleteProfile(slug)
 		r := overseerapi.BulkResult{Slug: slug, Success: err == nil}
 		if err != nil {
 			r.Error = err.Error()
@@ -73,7 +73,7 @@ func (s *kernelSource) BulkDelete(slugs []string) []overseerapi.BulkResult {
 // intent or reason. Validates the agent is enabled and allows direct calls
 // before creating the run correlation.
 func (s *kernelSource) WakeAgent(ref, intent, reason string) (string, error) {
-	p, ok := s.k.RosterGet(ref)
+	p, ok := s.ports.Profile(ref)
 	if !ok {
 		return "", fmt.Errorf("unknown agent: %s", ref)
 	}
@@ -92,19 +92,19 @@ func (s *kernelSource) WakeAgent(ref, intent, reason string) (string, error) {
 	if strings.TrimSpace(intent) == "" {
 		intent = "wake: " + strings.TrimSpace(reason)
 	}
-	corr := s.k.NewCorrelation()
+	corr := s.ports.NewCorrelationID()
 	ctx := kernelruntime.WithAgentProfile(context.Background(), p)
 	if p.MaxCostMc > 0 {
 		ctx = kernelruntime.WithMaxCost(ctx, p.MaxCostMc)
 	}
 	go func() {
-		_, _ = s.k.RunWith(ctx, corr, strings.TrimSpace(intent))
+		_, _ = s.ports.Launch(ctx, corr, strings.TrimSpace(intent), nil)
 	}()
 	return corr, nil
 }
 
 func (s *kernelSource) SearchAgents(filter overseerapi.SearchFilter) []agentapi.Profile {
-	all := s.k.RosterList()
+	all := s.ports.Profiles()
 	if len(all) == 0 {
 		return nil
 	}
@@ -190,7 +190,7 @@ func (s *kernelSource) SearchAgents(filter overseerapi.SearchFilter) []agentapi.
 }
 
 func (s *kernelSource) RepairAgent(ref, reason string) (agentapi.RepairResult, error) {
-	p, ok := s.k.RosterGet(ref)
+	p, ok := s.ports.Profile(ref)
 	if !ok {
 		return agentapi.RepairResult{}, fmt.Errorf("unknown agent: %s", ref)
 	}
@@ -204,21 +204,24 @@ func (s *kernelSource) RepairAgent(ref, reason string) (agentapi.RepairResult, e
 		return agentapi.RepairResult{}, errors.New(managedSubAgentRepairHint(p))
 	}
 	cut := time.Now().Add(-30 * 24 * time.Hour).UnixMilli()
-	report := s.k.ReaperScan(cut, cut)
+	report := s.ports.FleetScan(cut)
 	taskType := repairTaskType(p, report)
 	brief := buildRepairBrief(p, report, reason, s.taskModelChain(taskType))
-	corr := s.k.NewCorrelation()
+	corr := s.ports.NewCorrelationID()
 	ctx := kernelruntime.WithAgentProfile(context.Background(), p)
 	if p.MaxCostMc > 0 {
 		ctx = kernelruntime.WithMaxCost(ctx, p.MaxCostMc)
 	}
 	var answer string
 	var err error
+	// The policy is carried only when it really retries: the run port's own
+	// choice is between a plain run and a retrying one, and the CALLER's
+	// choice is between carrying the policy and leaving it behind.
+	var retry *agentapi.RetryPolicy
 	if p.RetryPolicy != nil && p.RetryPolicy.MaxAttempts > 1 {
-		answer, err = s.k.RunWithRetry(ctx, corr, brief, *p.RetryPolicy)
-	} else {
-		answer, err = s.k.RunWith(ctx, corr, brief)
+		retry = p.RetryPolicy
 	}
+	answer, err = s.ports.Launch(ctx, corr, brief, retry)
 	if err != nil {
 		return agentapi.RepairResult{}, err
 	}
@@ -230,7 +233,7 @@ func (s *kernelSource) RepairAgent(ref, reason string) (agentapi.RepairResult, e
 		if len(prop.TaskModelChain) > 0 && repairProposalTaskType(p, prop) == "" {
 			return agentapi.RepairResult{}, fmt.Errorf("repair proposal included task_model_chain without a task_type or existing agent task type")
 		}
-		_, _, uerr := s.k.UpdateProfile(p.Slug, func(dst *agentapi.Profile) {
+		_, _, uerr := s.ports.EditProfile(p.Slug, func(dst *agentapi.Profile) {
 			applied = applyRepairProposal(dst, prop)
 		})
 		if uerr != nil {
@@ -262,7 +265,7 @@ func (s *kernelSource) RollbackRouting(ref, taskType string, targetChain []strin
 }
 
 func (s *kernelSource) ApplyRoutingChain(ref, taskType string, targetChain []string, reason string) (agentapi.RepairResult, error) {
-	p, ok := s.k.RosterGet(ref)
+	p, ok := s.ports.Profile(ref)
 	if !ok {
 		return agentapi.RepairResult{}, fmt.Errorf("unknown agent: %s", ref)
 	}

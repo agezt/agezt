@@ -115,7 +115,7 @@ func TestAgentResolveNativePorts(t *testing.T) {
 	}
 	s := NewServer(k, dir)
 	// The operator's repair surface is injected (the daemon owns the wiring).
-	s.SetRepairSource(overseer.NewKernelSource(k, dir))
+	s.SetRepairSource(overseer.NewKernelSource(overseer.PortsFromKernel(k), dir))
 	s.token = "primary"
 	if line := resolveCall(t, s, map[string]any{"ref": "ops", "resolution": "force_chain", "task_type": "code", "task_model_chain": []any{"A", " b "}, "parent_incident_id": "chain-root"}); !strings.Contains(line, `"error":"force_chain resolution must choose a new chain for exhausted routing policy"`) {
 		t.Fatal("exhausted chain via parent lineage", line)
