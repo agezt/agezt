@@ -3470,6 +3470,15 @@ This file holds the active `[Unreleased]` working set.
   execution profile family's rule is by name and catches it. After this slice
   the application layer names the handle in **7** files outside a port file,
   down from **8**.
+- **The guardian seeder's ports moved into the application (W5.4ax).** The
+  guardian seeder plants agents, standing orders and schedules, and its host
+  held the handle to reach all three of the daemon's libraries at once. The
+  ports moved into the application (`kernel/app/guardians`: `PortsFromKernel`),
+  the host keeps the ports and nothing else, and the composition root asks for
+  the ports. Each absence has its **own** refusal — no daemon, no standing
+  library, no schedule library — and the reads answer nothing while the writes
+  refuse, because "absent" is not "empty". After this slice the application
+  layer names the handle in **6** files outside a port file, down from **7**.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —

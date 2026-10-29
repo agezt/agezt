@@ -3228,6 +3228,38 @@ func TestTheExecutionProfileNamesNoKernelVerbTheGuardMisses(t *testing.T) {
 	}
 }
 
+// And the GUARDIAN seeder's PORT names no kernel verb the guard misses: the
+// port is where the handle is filled, and every verb it names is the
+// application's business — so every one of them must be guarded.
+//
+// The guardian seeder reads the roster, the standing library and the schedule
+// library — three families that are already guarded — so the seeder takes NO
+// rule of its own. What it must do is name no verb OUTSIDE those families.
+//
+// The verbs are read from the port's own source, HERE, and not through the
+// helper the guard runs: a test that asks the helper what the helper owns
+// cannot see the helper reach for something that is not its own.
+func TestTheGuardianPortsNameNoKernelVerbTheGuardMisses(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "app", "guardians", "ports.go"))
+	if err != nil {
+		t.Fatalf("read the guardian seeder's ports: %v", err)
+	}
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	named := regexp.MustCompile(`\bk\.([A-Z][A-Za-z0-9_]*)`).FindAllStringSubmatch(string(raw), -1)
+	if len(named) == 0 {
+		t.Fatal("the guardian seeder's port names no kernel verb — the port stopped filling itself?")
+	}
+	for _, match := range named {
+		verb := match[1]
+		if !guarded[verb] {
+			t.Errorf("the guardian seeder's port names the kernel's %s and the guard does not — a verb the guard misses is a verb the adapter may name", verb)
+		}
+	}
+}
+
 // And the daemon overview's PORT names no kernel verb the guard misses: the
 // port is where the handle is filled, and every verb it names is the
 // application's business — so every one of them must be guarded.

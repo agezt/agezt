@@ -6858,6 +6858,30 @@ files, five of the seventeen mutations would have escaped.
   four, the overseer, the introspector and the guardians): that is the phase after
   this one. Evidence:
   `architecture/254-w54aw-the-execution-profile-familys-ports-evidence.md`
+- W5.4ax (the guardian seeder's family, and the daemon's three libraries) is the
+  port programme's **thirty-seventh** slice and the **twenty-eighth** one of its last
+  phase: the handle itself. The fourth slice of that phase whose subject is the
+  **application's** handle, and the first one whose file reached for **three** of the
+  daemon's libraries at once: the guardian seeder's host answered its port from the
+  live kernel, and the seeder plants guardians — agents, standing orders and
+  schedules. The ports moved into the application (`kernel/app/guardians`:
+  `PortsFromKernel`), eleven capabilities held **unexported** and held as
+  **functions**, so a question is asked when it is asked. **Three refusals, written
+  once**: a host with **no daemon**, a daemon with **no standing library**, a daemon
+  with **no schedule library** — and the **reads** answer nothing while the **writes**
+  refuse, because "absent" is not "empty". **No new family and no new rule**: the
+  seeder reads the roster's verbs, the standing family's verbs and the schedule
+  family's verbs, and each belongs to a family that declares its own ports. What the
+  slice adds is the **broad** half: the port names no verb the guard misses, read
+  from the port's **own source**. The guard now holds **162** application-owned
+  verbs. The **application's** own number moves: the application layer names the
+  handle in **6** files outside a **port file**, down from **7**. **5 permanent
+  tests** and **10 mutations, 10 caught** in two independent passes with
+  **byte-identical** logs (SHA-256 `3BFBB7D2…1648`) — all ten caught on the
+  **first** pass, none survived and none failed to compile. The **application**
+  layer still holds the handle in **six** files outside a port file (the runs family
+  with four, the overseer and the introspector): that is the phase after this one.
+  Evidence: `architecture/255-w54ax-the-guardian-seeder-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
