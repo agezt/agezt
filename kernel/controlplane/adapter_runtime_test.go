@@ -745,6 +745,35 @@ func stateOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
+// seatOwnedVerbs are the kernel's SEAT verbs: the execution-seat catalog the
+// daemon owns — the seats it offers, seeded and custom.
+//
+// The rule is by WORD: a kernel verb whose name carries "Seats" as a whole
+// word is the seats family's business.
+//
+// The word is the PLURAL "Seats", because that is the word the kernel's own
+// verb carries: the camel-case splitter reads "Seats" as ONE word — a trailing
+// plural "s" does not start a new word — so a rule written as "Seat" would
+// match nothing at all and the guard would fail on the day it is written.
+func seatOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	var verbs []string
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		for _, word := range camelWords(name) {
+			if word == "Seats" {
+				verbs = append(verbs, name)
+				break
+			}
+		}
+	}
+	if len(verbs) == 0 {
+		t.Fatal("no seat verbs found — the kernel's seat verbs are gone?")
+	}
+	return verbs
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -773,6 +802,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, tasteOwnedVerbs(t)...)
 	verbs = append(verbs, personaOwnedVerbs(t)...)
 	verbs = append(verbs, stateOwnedVerbs(t)...)
+	verbs = append(verbs, seatOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -2179,6 +2209,98 @@ func TestTheStateFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	}
 	if len(state) == kernel.NumMethod() {
 		t.Errorf("the state family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the same for the SEATS family — the execution-seat catalog the daemon
+// owns.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries "Seats" as a whole word is the
+// seats family's business. The expectation is not derived through the helper
+// the guard uses.
+func TestTheGuardNamesEverySeatVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		carries := false
+		for _, word := range camelWords(name) {
+			if word == "Seats" {
+				carries = true
+			}
+		}
+		if !carries {
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's seat verb %s is not named by the guard — the seats family's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no seat verbs found — the kernel's seat verbs are gone?")
+	}
+}
+
+// And the SEATS family must not claim another family's verbs: the execution
+// seat catalog is not a tool's business, a memory's business, or the policy's.
+//
+// The rule must be BOTH broad and sharp. Broad: every seat verb is guarded
+// (the test above). Sharp: the seats' list carries nothing that belongs to
+// someone else, and it is a strict subset of the kernel's verbs — a rule that
+// only ever grows is a rule that eventually guards the whole kernel, and a
+// guard that guards the whole kernel guards nothing.
+func TestTheSeatFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+		providerOwnedVerbs(t),
+		baseDirOwnedVerbs(t),
+		correlationOwnedVerbs(t),
+		catalogOwnedVerbs(t),
+		artifactOwnedVerbs(t),
+		pluginOwnedVerbs(t),
+		marketOwnedVerbs(t),
+		approvalOwnedVerbs(t),
+		worldOwnedVerbs(t),
+		tasteOwnedVerbs(t),
+		personaOwnedVerbs(t),
+		stateOwnedVerbs(t),
+		workboardOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	seats := seatOwnedVerbs(t)
+	if len(seats) == 0 {
+		t.Fatal("the seats family names no verb — the seats family's business belongs to the application")
+	}
+	for _, verb := range seats {
+		if others[verb] {
+			t.Errorf("the seats family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	if len(seats) == kernel.NumMethod() {
+		t.Errorf("the seats family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
 	}
 }
 
