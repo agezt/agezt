@@ -993,7 +993,7 @@ var worldOperations = func() []app.Operation {
 
 var tasteOperations = func() []app.Operation {
 	operations, err := apptaste.Operations(func(ctx context.Context) *apptaste.Service {
-		return apptaste.New(ctx.Value(appHostKey{}).(appHost).kernel.Taste())
+		return apptaste.New(requestTastePorts(ctx).Store())
 	})
 	if err != nil {
 		panic(err)
