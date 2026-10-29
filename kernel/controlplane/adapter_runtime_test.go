@@ -638,6 +638,30 @@ func worldOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
+// tasteOwnedVerbs are the kernel's TASTE verbs: the curated exemplar library
+// the daemon keeps — the examples a run may imitate.
+//
+// The rule is by WORD: a kernel verb whose name carries "Taste" as a whole
+// word is the taste family's business.
+func tasteOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	var verbs []string
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		for _, word := range camelWords(name) {
+			if word == "Taste" {
+				verbs = append(verbs, name)
+				break
+			}
+		}
+	}
+	if len(verbs) == 0 {
+		t.Fatal("no taste verbs found — the kernel's taste verbs are gone?")
+	}
+	return verbs
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -663,6 +687,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, marketOwnedVerbs(t)...)
 	verbs = append(verbs, approvalOwnedVerbs(t)...)
 	verbs = append(verbs, worldOwnedVerbs(t)...)
+	verbs = append(verbs, tasteOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -1783,6 +1808,95 @@ func TestTheWorldFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	}
 	if len(world) == kernel.NumMethod() {
 		t.Errorf("the world family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the same for the TASTE family — the curated exemplar library the daemon
+// keeps.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries "Taste" as a whole word is the taste
+// family's business. The expectation is not derived through the helper the
+// guard uses.
+func TestTheGuardNamesEveryTasteVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		carries := false
+		for _, word := range camelWords(name) {
+			if word == "Taste" {
+				carries = true
+			}
+		}
+		if !carries {
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's taste verb %s is not named by the guard — the taste family's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no taste verbs found — the kernel's taste verbs are gone?")
+	}
+}
+
+// And the TASTE family must not claim another family's verbs: the exemplar
+// library is not a tool's business, a memory's business, or the policy's.
+//
+// The rule must be BOTH broad and sharp. Broad: every taste verb is guarded
+// (the test above). Sharp: the taste's list carries nothing that belongs to
+// someone else, and it is a strict subset of the kernel's verbs — a rule that
+// only ever grows is a rule that eventually guards the whole kernel, and a
+// guard that guards the whole kernel guards nothing.
+func TestTheTasteFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+		providerOwnedVerbs(t),
+		baseDirOwnedVerbs(t),
+		correlationOwnedVerbs(t),
+		catalogOwnedVerbs(t),
+		artifactOwnedVerbs(t),
+		pluginOwnedVerbs(t),
+		marketOwnedVerbs(t),
+		approvalOwnedVerbs(t),
+		worldOwnedVerbs(t),
+		workboardOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	taste := tasteOwnedVerbs(t)
+	if len(taste) == 0 {
+		t.Fatal("the taste family names no verb — the taste family's business belongs to the application")
+	}
+	for _, verb := range taste {
+		if others[verb] {
+			t.Errorf("the taste family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	if len(taste) == kernel.NumMethod() {
+		t.Errorf("the taste family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
 	}
 }
 
