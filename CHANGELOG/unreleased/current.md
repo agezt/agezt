@@ -3410,6 +3410,15 @@ This file holds the active `[Unreleased]` working set.
   the family, and the port holds the engine as a capability — it answers
   `Engine`, never the kernel's own verb name. There is no request-level
   binding: the reflection surface drives the daemon's own engine.
+- **The runs family's ports moved into the application (W5.4ar).** The daemon's
+  run capability is what two adapter surfaces ask for — the roster's operator
+  wake and the workboard's dispatch — and the adapter reached for the kernel's
+  verbs in **four** places. The ports moved into the application
+  (`kernel/app/runs`: `PortsFromKernel`), the adapter asks the family, and the
+  port holds the runner as a capability — it answers `Launch`, never the
+  kernel's own verb name. There is no request-level binding: the two surfaces
+  that launch runs are the daemon's own, and the choice between a plain run and
+  a retrying run stays with the caller.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —
