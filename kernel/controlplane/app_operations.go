@@ -1268,11 +1268,7 @@ var mcpLifecycleOperations = func() []app.Operation {
 
 var marketReadOperations = func() []app.Operation {
 	operations, err := appmarket.ReadOperations(func(ctx context.Context) *appmarket.Reads {
-		manager := ctx.Value(appHostKey{}).(appHost).kernel.Market()
-		if manager == nil {
-			return appmarket.NewReads(nil)
-		}
-		return appmarket.NewReads(manager)
+		return appmarket.NewReads(requestMarketPorts(ctx).Manager())
 	})
 	if err != nil {
 		panic(err)
@@ -1282,16 +1278,11 @@ var marketReadOperations = func() []app.Operation {
 
 var marketWriteOperations = func() []app.Operation {
 	operations, err := appmarket.WriteOperations(func(ctx context.Context) *appmarket.Writes {
-		host := ctx.Value(appHostKey{}).(appHost)
 		publish := func(kind event.Kind, payload map[string]any) error {
 			_, err := requestBusPorts(ctx).Publish(event.Spec{Subject: "market", Kind: kind, Actor: "market", CorrelationID: opapi.CorrelationFromContext(ctx), Payload: payload})
 			return err
 		}
-		manager := host.kernel.Market()
-		if manager == nil {
-			return appmarket.NewWrites(nil, publish)
-		}
-		return appmarket.NewWrites(manager, publish)
+		return appmarket.NewWrites(requestMarketPorts(ctx).Manager(), publish)
 	})
 	if err != nil {
 		panic(err)

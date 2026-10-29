@@ -555,6 +555,38 @@ func pluginOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
+// marketOwnedVerbs are the kernel's MARKETPLACE verbs: the manager over the
+// daemon's own library of packs — the built-in Official library and the sources
+// the operator adds.
+//
+// The rule is by WORD: a kernel verb whose name carries "Market" as a whole
+// word is the marketplace family's business. That catches BOTH the accessor
+// ("Market") and the setter ("SetMarket" — the camel-case splitter reads it as
+// "Set" + "Market"), and it catches a marketplace verb the day it lands.
+//
+// The rule is written out rather than taken from the helper, so that the
+// family's own shape — one name that covers two verbs — is visible here and
+// can be held: a helper that only ever answered with the exact name would
+// leave the setter unguarded.
+func marketOwnedVerbs(t *testing.T) []string {
+	t.Helper()
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	var verbs []string
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		for _, word := range camelWords(name) {
+			if word == "Market" {
+				verbs = append(verbs, name)
+				break
+			}
+		}
+	}
+	if len(verbs) == 0 {
+		t.Fatal("no marketplace verbs found — the kernel's marketplace verbs are gone?")
+	}
+	return verbs
+}
+
 // applicationOwnedVerbs are all the verbs the application owns.
 func applicationOwnedVerbs(t *testing.T) []string {
 	t.Helper()
@@ -577,6 +609,7 @@ func applicationOwnedVerbs(t *testing.T) []string {
 	verbs = append(verbs, catalogOwnedVerbs(t)...)
 	verbs = append(verbs, artifactOwnedVerbs(t)...)
 	verbs = append(verbs, pluginOwnedVerbs(t)...)
+	verbs = append(verbs, marketOwnedVerbs(t)...)
 	return append(verbs, workboardOwnedVerbs(t)...)
 }
 
@@ -1435,6 +1468,93 @@ func TestThePluginFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	}
 	if len(plugin) == kernel.NumMethod() {
 		t.Errorf("the plugin family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
+	}
+}
+
+// And the same for the MARKETPLACE family — the manager over the daemon's own
+// library of packs.
+//
+// The verbs are found HERE, by the kernel's own method set and by the rule the
+// family states: a verb whose name carries "Market" as a whole word is the
+// marketplace family's business. The expectation is not derived through the
+// helper the guard uses.
+func TestTheGuardNamesEveryMarketVerbTheKernelHas(t *testing.T) {
+	guarded := map[string]bool{}
+	for _, verb := range applicationOwnedVerbs(t) {
+		guarded[verb] = true
+	}
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	found := 0
+	for i := 0; i < kernel.NumMethod(); i++ {
+		name := kernel.Method(i).Name
+		carries := false
+		for _, word := range camelWords(name) {
+			if word == "Market" {
+				carries = true
+			}
+		}
+		if !carries {
+			continue
+		}
+		found++
+		if !guarded[name] {
+			t.Errorf("the kernel's marketplace verb %s is not named by the guard — the marketplace family's business belongs to the application", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no marketplace verbs found — the kernel's marketplace verbs are gone?")
+	}
+}
+
+// And the MARKETPLACE family must not claim another family's verbs: the
+// marketplace's library is not a tool's business, a memory's business, or the
+// policy's.
+//
+// The rule must be BOTH broad and sharp. Broad: every marketplace verb is
+// guarded (the test above). Sharp: the marketplace's list carries nothing that
+// belongs to someone else, and it is a strict subset of the kernel's verbs — a
+// rule that only ever grows is a rule that eventually guards the whole kernel,
+// and a guard that guards the whole kernel guards nothing.
+func TestTheMarketFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	others := map[string]bool{}
+	for _, list := range [][]string{
+		councilOwnedVerbs,
+		rosterOwnedVerbs(t),
+		standingOwnedVerbs(t),
+		scheduleOwnedVerbs(t),
+		workflowOwnedVerbs(t),
+		toolsOwnedVerbs(t),
+		okrOwnedVerbs(t),
+		configCenterOwnedVerbs(t),
+		journalOwnedVerbs(t),
+		busOwnedVerbs(t),
+		skillOwnedVerbs(t),
+		memoryOwnedVerbs(t),
+		edictOwnedVerbs(t),
+		providerOwnedVerbs(t),
+		baseDirOwnedVerbs(t),
+		correlationOwnedVerbs(t),
+		catalogOwnedVerbs(t),
+		artifactOwnedVerbs(t),
+		pluginOwnedVerbs(t),
+		workboardOwnedVerbs(t),
+	} {
+		for _, verb := range list {
+			others[verb] = true
+		}
+	}
+	market := marketOwnedVerbs(t)
+	if len(market) == 0 {
+		t.Fatal("the marketplace family names no verb — the marketplace family's business belongs to the application")
+	}
+	for _, verb := range market {
+		if others[verb] {
+			t.Errorf("the marketplace family claims the kernel's %s — that verb is another family's business", verb)
+		}
+	}
+	if len(market) == kernel.NumMethod() {
+		t.Errorf("the marketplace family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
 	}
 }
 
