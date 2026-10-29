@@ -244,7 +244,7 @@ var personaOperations = func() []app.Operation {
 
 var seatOperations = func() []app.Operation {
 	ops, err := appseats.Operations(func(ctx context.Context) *appseats.Service {
-		return appseats.New(ctx.Value(systemHostKey{}).(*Server).k.Seats())
+		return appseats.New(ctx.Value(systemHostKey{}).(*Server).seatPorts().Store())
 	})
 	if err != nil {
 		panic(err)

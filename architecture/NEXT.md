@@ -6515,6 +6515,48 @@ files, five of the seventeen mutations would have escaped.
   the comment rather than loosen the guard, because a guard that skips comments
   is a guard that a commented-out call walks past. Evidence:
   `architecture/245-w54an-the-state-familys-ports-evidence.md`
+- W5.4ao (the seats family, and the plural word the splitter reads as one) is the
+  port programme's **twenty-eighth** slice and the **nineteenth** one of its last
+  phase: the handle itself. The seat catalog is the daemon's own file — the
+  execution seats a workboard task can be dispatched under, the seeded built-ins
+  and the operator's own custom ones — and the adapter reached for the kernel's
+  catalog in **one** place. The **application** layer held no seat handle either:
+  `kernel/app/seats` already took the catalog as an argument. The ports moved
+  into the application (`kernel/app/seats`: `PortsFromKernel` → `Store`) and the
+  adapter keeps the binding (`kernel/controlplane/seats_ports.go`), which does
+  not name the runtime — and it has **no request-level binding**: the seat
+  surface inspects the **daemon's own** catalog, so it asks the daemon's kernel,
+  and a binding nobody calls is dead code. The port answers `Store`, **never**
+  the kernel's own verb name. The rule is **by whole word** — a kernel verb
+  whose name carries "Seats" as a **complete word** is the seats family's
+  business — and it catches **one** verb today: `Seats`. The word is the
+  **plural**, and that is not a detail: the camel-case splitter reads a trailing
+  "s" as part of its own word, so a rule written as "Seat" matches **nothing at
+  all** and the guard's helper fails on the day it is written. The slice found
+  this the hard way — the rule was written as "Seat" first, and the guard test
+  failed with *"no seat verbs found"* — and fixed the **rule**, not the test.
+  The guard now holds **146** application-owned verbs. The adapter's
+  handle-verb debt: **9 → 8** call sites, **7 → 6** distinct verbs, and the
+  method values handed over stay at **4**; the control plane's production files
+  that name the runtime stay at **twelve**. **8 permanent tests** and **11
+  mutations, 11 caught** in two independent passes with **byte-identical** logs
+  (SHA-256 `880B91EB…EDFCDD6`). M01, M02 and M03 are the ones that bite: the
+  port holds **no** store, a host with no kernel asks the kernel **anyway**, and
+  the port hands over **nothing**. M04 gives the port a method that carries a
+  kernel verb's own name, M05 empties the daemon's binding, M06 puts the kernel
+  back in the operations and the **verb guard** catches it, M07 builds the
+  surface from **nothing** and the seat list over the socket refuses, M08 takes
+  the family out of the guard, M09 hands the family **another** family's verbs,
+  M10 makes the binding name the runtime, and M11 writes the rule as the
+  **singular** so it matches nothing and the guard goes blind. Two mutations
+  were **rewritten** in the slice: a mutation that survives for a good reason
+  still measures nothing, and both first drafts widened the guard **test's own**
+  rule, where the truth already satisfies it — both were turned onto the rule
+  the guard actually runs. The catalog is the daemon's **file**, so the port
+  test holds **both** halves — a daemon with a catalog and a daemon without one
+  — on the port side and on the binding side; without the filled half, M01 and
+  M03 are invisible. Evidence:
+  `architecture/246-w54ao-the-seats-familys-ports-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
