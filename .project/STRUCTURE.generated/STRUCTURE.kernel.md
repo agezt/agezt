@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-213 package(s):
+214 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -34,6 +34,7 @@
 - **`kernel/app/guardians`** — Package guardians is the app-layer adapter that lets the guardian seeder — a plugin — reach the live daemon without naming the runtime.
 - **`kernel/app/introspect`** — —
 - **`kernel/app/journal`** — Package journal owns the operator's journal reads: the head checkpoint, the last-N tail and the journal's size and shape statistics.
+- **`kernel/app/lifecycle`** — Package lifecycle owns the daemon's lifecycle: draining the runs in flight, waiting for them, and halting the daemon.
 - **`kernel/app/market`** — SPDX-License-Identifier: MIT
 - **`kernel/app/memory`** — Package memory owns transport-independent memory use cases.
 - **`kernel/app/missioncontrol`** — Package missioncontrol owns the console's Mission Control status reads: the spend-today tile and the needs-your-attention feed.
