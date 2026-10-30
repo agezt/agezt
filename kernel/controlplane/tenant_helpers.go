@@ -1,7 +1,7 @@
 package controlplane
 
 // Provenance: SPDX-License-Identifier: MIT kernel/controlplane tenant-lookup helpers
-//             (tenantOf, Server.kernelFor, Server.SetTenants). Extracted from
+//             (tenantOf, Server.scopeFor, Server.SetTenants). Extracted from
 //             tenant.go during Day 211 god-file refactor (#98). Public API
 //             unchanged.
 
@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	"github.com/agezt/agezt/kernel/tenant"
 )
 
@@ -17,21 +18,21 @@ func tenantOf(req Request) string {
 	t, _, _ := argString(req.Args, "tenant")
 	return t
 }
-func (s *Server) kernelFor(tenantID string) (any, error) {
+
+// scopeFor is the SCOPE of a request's daemon: the primary's, or the
+// tenant's when the request names a tenant.
+//
+// The tenant's scope is filled in the application layer, from the tenant's own
+// kernel: the adapter asks for a scope and gets one, and the tenant's handle
+// never reaches the adapter.
+func (s *Server) scopeFor(tenantID string) (binding.Scope, error) {
 	tenantID = strings.TrimSpace(tenantID)
 	if tenantID == "" {
-		return s.k, nil
+		return s.scoped(), nil
 	}
 	if s.tenants == nil {
-		return nil, fmt.Errorf("multi-tenancy is disabled (no tenant registry configured)")
+		return binding.RefusingScope(), fmt.Errorf("multi-tenancy is disabled (no tenant registry configured)")
 	}
-	t, err := s.tenants.Acquire(tenantID, time.Now())
-	if err != nil {
-		return nil, err
-	}
-	// The tenant's own handle is handed over WITHOUT naming the runtime: the
-	// application fills the families' ports from it, and a handle that is not
-	// the daemon's own yields empty ports that refuse.
-	return t.Kernel, nil
+	return binding.ScopeForTenant(s.tenants, tenantID, time.Now(), s.baseDir)
 }
 func (s *Server) SetTenants(r *tenant.Registry) { s.tenants = r }

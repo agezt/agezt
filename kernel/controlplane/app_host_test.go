@@ -53,8 +53,8 @@ func TestAppHostSocketMutationAndStreaming(t *testing.T) {
 				if !spec.ReadOnly {
 					host := ctx.Value(appHostKey{}).(appHost)
 					handlerCorrelation = host.correlation
-					if host.kernel != k || k.ActorFromCtx(ctx) != "operator" {
-						t.Error("handler lost routed actor/kernel context")
+					if host.scope.BaseDir != dir || k.ActorFromCtx(ctx) != "operator" {
+						t.Error("handler lost routed actor/scope context")
 					}
 					invocations := 0
 					_ = k.Journal().Range(func(e *event.Event) error {
@@ -199,7 +199,7 @@ func TestAppHostTenantAuditUsesRoutedJournal(t *testing.T) {
 	calls := 0
 	op, err := app.NewOperation(opapi.Spec{Name: name, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant}, func(ctx context.Context, in input) (output, error) {
 		host := ctx.Value(appHostKey{}).(appHost)
-		if host.kernel != entry.Kernel || host.kernel == primary || strings.TrimSpace(in.Tenant) != "acme" {
+		if host.scope.BaseDir != entry.BaseDir || host.scope.BaseDir == dir || strings.TrimSpace(in.Tenant) != "acme" {
 			t.Error("tenant operation bound to another host")
 		}
 		calls++

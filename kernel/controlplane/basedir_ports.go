@@ -6,21 +6,20 @@ import (
 	"context"
 
 	appbasedir "github.com/agezt/agezt/kernel/app/basedir"
-	"github.com/agezt/agezt/kernel/app/binding"
 )
 
 // The daemon's own data root: the root kernel's base directory.
 //
-// The host does not decide where the daemon keeps its files: it hands over the
-// kernel handle and the APPLICATION fills its own ports
+// The host does not decide where the daemon keeps its files: the COMPOSITION ROOT fills the
+// scope and the APPLICATION fills the family's own ports
 // (`kernel/app/basedir/ports.go`). What stays here is the binding — which
 // kernel's root answers.
 //
-// The handle is never named here: this file does not import the runtime, so
-// the adapter may hold the handle without naming the runtime package to hand
-// it over.
+// The handle is never named here, and it is never held here either: the
+// adapter holds the SCOPE — the family's ports, filled by the composition
+// root — and this file does not import the runtime to say so.
 func (s *Server) baseDirPorts() appbasedir.Ports {
-	return binding.Fill(s.k, appbasedir.PortsFromKernel)
+	return s.scoped().BasedirPorts
 }
 
 // The REQUEST's data root.
@@ -30,5 +29,5 @@ func (s *Server) baseDirPorts() appbasedir.Ports {
 // base directory per tenant. The daemon's own ports answer for the root
 // kernel.
 func requestBaseDirPorts(ctx context.Context) appbasedir.Ports {
-	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, appbasedir.PortsFromKernel)
+	return requestScope(ctx).BasedirPorts
 }

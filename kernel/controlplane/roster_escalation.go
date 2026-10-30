@@ -16,15 +16,14 @@ import (
 	"os"
 
 	"github.com/agezt/agezt/kernel/app/binding"
-	appeventbus "github.com/agezt/agezt/kernel/app/eventbus"
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
-func publishOperatorAction(k any, subject, corr string, payload map[string]any) {
-	ports := binding.Fill(k, appeventbus.PortsFromKernel)
+func publishOperatorAction(scope binding.Scope, subject, corr string, payload map[string]any) {
+	ports := scope.BusPorts
 	if !ports.Ready() {
 		return
 	}
@@ -48,7 +47,7 @@ func (s *Server) launchOperatorWake(corr string, p agentapi.Profile, intent, rea
 			return s.runPorts().Launch(ctx, corr, intent, retry)
 		},
 		Publish: func(subject, corr string, payload map[string]any) {
-			publishOperatorAction(s.k, subject, corr, payload)
+			publishOperatorAction(s.scoped(), subject, corr, payload)
 		},
 	}, p, corr, intent, reason, lineage)
 }
@@ -76,7 +75,7 @@ func (s *Server) launchOperatorRepair(corr string, p agentapi.Profile, reason st
 			}, nil
 		},
 		Publish: func(subject, corr string, payload map[string]any) {
-			publishOperatorAction(s.k, subject, corr, payload)
+			publishOperatorAction(s.scoped(), subject, corr, payload)
 		},
 		OnPanic: func(slug string, r any) {
 			fmt.Fprintf(os.Stderr, "operator repair of %q panicked: %v\n", slug, r)

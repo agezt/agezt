@@ -29,8 +29,8 @@ func TestTheAdapterBindsThePersonaPortsToTheRoutedKernel(t *testing.T) {
 	root.SetModel("daemon-model")
 	tenant.SetModel("tenant-model")
 
-	tenantCtx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: tenant})
-	daemonCtx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: root})
+	tenantCtx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(tenant)})
+	daemonCtx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(root)})
 
 	// The request's ports follow the routed kernel.
 	if got := requestPersonaPorts(tenantCtx).Identity.DefaultModel(); got != "tenant-model" {
@@ -58,7 +58,7 @@ func TestTheConfigReaderReportsTheIdentityThroughThePort(t *testing.T) {
 	root.SetModel("the-model")
 	root.SetSystem("the prompt")
 
-	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: root})
+	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(root)})
 	reader := nativeConfigReader{persona: requestPersonaPorts(ctx)}
 
 	if got := reader.Model(); got != "the-model" {
@@ -74,7 +74,7 @@ func TestTheConfigReaderReportsTheIdentityThroughThePort(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 	defer bare.Close()
-	bareCtx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: bare})
+	bareCtx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(bare)})
 	bareReader := nativeConfigReader{persona: requestPersonaPorts(bareCtx)}
 
 	if bareReader.SystemPromptSet() {

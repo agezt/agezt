@@ -32,7 +32,7 @@ func TestTheAdapterBindsTheCatalogPortsToItsOwnKernel(t *testing.T) {
 	defer tenant.Close()
 
 	s := NewServer(root, t.TempDir())
-	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: tenant})
+	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(tenant)})
 	ctx = context.WithValue(ctx, systemHostKey{}, s)
 
 	// The daemon's own ports answer for its own kernel.

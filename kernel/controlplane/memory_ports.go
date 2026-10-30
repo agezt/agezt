@@ -5,21 +5,20 @@ package controlplane
 import (
 	"context"
 
-	"github.com/agezt/agezt/kernel/app/binding"
 	appmemory "github.com/agezt/agezt/kernel/app/memory"
 )
 
 // The daemon's own memory ports: the root kernel's memory.
 //
-// The host does not decide what the memory is: it hands over the kernel
-// handle and the APPLICATION fills its own ports
-// (`kernel/app/memory/ports.go`). What stays here is the binding — which
-// kernel answers the memory family's questions.
+// The host does not decide what the memory is: the COMPOSITION ROOT fills the
+// scope and the APPLICATION fills the family's own ports
+// (`kernel/app/memory/ports.go`). What stays here is the reading — which
+// scope answers the memory family's questions.
 //
-// The handle is never named here: this file does not import the runtime, so
-// the adapter may hold the handle without naming the runtime package to hand
-// it over.
-func (s *Server) memoryPorts() appmemory.Ports { return binding.Fill(s.k, appmemory.PortsFromKernel) }
+// The handle is never named here, and it is never held here either: the
+// adapter holds the SCOPE — the family's ports, filled by the composition
+// root — and this file does not import the runtime to say so.
+func (s *Server) memoryPorts() appmemory.Ports { return s.scoped().MemoryPorts }
 
 // The REQUEST's memory ports.
 //
@@ -27,5 +26,5 @@ func (s *Server) memoryPorts() appmemory.Ports { return binding.Fill(s.k, appmem
 // memory is the tenant's memory: the routed kernel is the one the request's
 // services must read. The daemon's own ports answer for the root kernel.
 func requestMemoryPorts(ctx context.Context) appmemory.Ports {
-	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, appmemory.PortsFromKernel)
+	return requestScope(ctx).MemoryPorts
 }

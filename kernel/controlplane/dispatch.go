@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"net"
+
+	"github.com/agezt/agezt/kernel/app/binding"
 )
 
 // Phase 2.3: the declarative command registry handleConn dispatches through.
@@ -16,15 +18,15 @@ import (
 // constants; tenant_auth_test.go sweeps the TenantAllowed surface end-to-end.
 
 // DispatchCtx carries everything a command handler needs for one request.
-// K is the pre-resolved kernel for the request (the primary kernel, or the
-// tenant's kernel for tenant-routed commands) so handlers no longer each
-// re-derive it via kernelFor(tenantOf(req)).
+// Scope is the pre-resolved SCOPE for the request (the primary daemon's, or
+// the tenant's for tenant-routed commands) so handlers no longer each
+// re-derive it via scopeFor(tenantOf(req)).
 type DispatchCtx struct {
 	Ctx           context.Context
 	Conn          net.Conn
 	Req           Request
 	S             *Server
-	K             any
+	Scope         binding.Scope
 	Tenant        string // authorized tenant id ("" for the primary token)
 	Primary       bool   // true when the request carried the primary token
 	CorrelationID string // operation audit identity, assigned before a mutating handler

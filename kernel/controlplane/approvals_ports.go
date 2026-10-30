@@ -5,7 +5,6 @@ import (
 	"context"
 
 	appapprovals "github.com/agezt/agezt/kernel/app/approvals"
-	"github.com/agezt/agezt/kernel/app/binding"
 )
 
 // The approvals family's ports.
@@ -19,19 +18,19 @@ import (
 // runner's node spec are the DAEMON's own surfaces, so they ask the daemon's
 // kernel.
 //
-// The host does not decide what the approvals are: it hands over the kernel
-// handle and the APPLICATION fills its own ports
-// (`kernel/app/approvals/ports.go`). What stays here is the binding — which
-// kernel answers the approvals family's questions.
+// The host does not decide what the approvals are: the COMPOSITION ROOT fills the
+// scope and the APPLICATION fills the family's own ports
+// (`kernel/app/approvals/ports.go`). What stays here is the reading — which
+// scope answers the approvals family's questions.
 //
-// The handle is never named here: this file does not import the runtime, so the
-// adapter may hold the handle without naming the runtime package to hand it
-// over.
+// The handle is never named here, and it is never held here either: the
+// adapter holds the SCOPE — the family's ports, filled by the composition
+// root — and this file does not import the runtime to say so.
 func (s *Server) approvalPorts() appapprovals.Ports {
-	return binding.Fill(s.k, appapprovals.PortsFromKernel)
+	return s.scoped().ApprovalPorts
 }
 
 // requestApprovalPorts are the REQUEST's approval ports.
 func requestApprovalPorts(ctx context.Context) appapprovals.Ports {
-	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, appapprovals.PortsFromKernel)
+	return requestScope(ctx).ApprovalPorts
 }

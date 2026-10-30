@@ -5,21 +5,20 @@ package controlplane
 import (
 	"context"
 
-	"github.com/agezt/agezt/kernel/app/binding"
 	appskill "github.com/agezt/agezt/kernel/app/skill"
 )
 
 // The daemon's own skill ports: the root kernel's skill library.
 //
-// The host does not decide what the skill library is: it hands over the kernel
-// handle and the APPLICATION fills its own ports
+// The host does not decide what the skill library is: the COMPOSITION ROOT fills the
+// scope and the APPLICATION fills the family's own ports
 // (`kernel/app/skill/ports.go`). What stays here is the binding — which kernel
 // answers the skill family's questions.
 //
-// The handle is never named here: this file does not import the runtime, so
-// the adapter may hold the handle without naming the runtime package to hand
-// it over.
-func (s *Server) skillPorts() appskill.Ports { return binding.Fill(s.k, appskill.PortsFromKernel) }
+// The handle is never named here, and it is never held here either: the
+// adapter holds the SCOPE — the family's ports, filled by the composition
+// root — and this file does not import the runtime to say so.
+func (s *Server) skillPorts() appskill.Ports { return s.scoped().SkillPorts }
 
 // The REQUEST's skill ports.
 //
@@ -28,5 +27,5 @@ func (s *Server) skillPorts() appskill.Ports { return binding.Fill(s.k, appskill
 // request's services must read. The daemon's own ports answer for the root
 // kernel.
 func requestSkillPorts(ctx context.Context) appskill.Ports {
-	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, appskill.PortsFromKernel)
+	return requestScope(ctx).SkillPorts
 }

@@ -21,7 +21,6 @@ import (
 	appartifacts "github.com/agezt/agezt/kernel/app/artifacts"
 	appaudit "github.com/agezt/agezt/kernel/app/audit"
 	appautonomy "github.com/agezt/agezt/kernel/app/autonomy"
-	"github.com/agezt/agezt/kernel/app/binding"
 	appboard "github.com/agezt/agezt/kernel/app/board"
 	appbudget "github.com/agezt/agezt/kernel/app/budget"
 	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
@@ -29,7 +28,6 @@ import (
 	appchat "github.com/agezt/agezt/kernel/app/chat"
 	appconfig "github.com/agezt/agezt/kernel/app/config"
 	appconfigcenter "github.com/agezt/agezt/kernel/app/configcenter"
-	appcorrelation "github.com/agezt/agezt/kernel/app/correlation"
 	appcouncil "github.com/agezt/agezt/kernel/app/council"
 	appdata "github.com/agezt/agezt/kernel/app/data"
 	appedict "github.com/agezt/agezt/kernel/app/edict"
@@ -164,8 +162,7 @@ var routingOperations = func() []app.Operation {
 
 var executionProfileOperations = func() []app.Operation {
 	ops, err := appexecprofile.Operations(func(ctx context.Context) *appexecprofile.Service {
-		k := ctx.Value(appHostKey{}).(appHost).kernel
-		return appexecprofile.New(binding.Fill(k, appexecprofile.PortsFromKernel))
+		return appexecprofile.New(requestScope(ctx).ExecProfilePorts)
 	})
 	if err != nil {
 		panic(err)
@@ -179,12 +176,12 @@ var executionProfileOperations = func() []app.Operation {
 // connection's disconnect signal.
 var runOperations = func() []app.Operation {
 	ops, err := appruns.RunOperations(func(ctx context.Context) *appruns.RunService {
-		k := ctx.Value(appHostKey{}).(appHost).kernel
+		scope := requestScope(ctx)
 		s := ctx.Value(systemHostKey{}).(*Server)
 		conn, _ := ctx.Value(appConnKey{}).(net.Conn)
-		ports := binding.Fill(k, appruns.RunPortsFromKernel)
+		ports := scope.RunPorts
 		ports.Run = func(corr string) (appruns.Run, bool, error) {
-			rows, err := s.runFold(k)
+			rows, err := s.runFold(scope)
 			if err != nil {
 				return appruns.Run{}, false, err
 			}
@@ -194,7 +191,7 @@ var runOperations = func() []app.Operation {
 		ports.CancelOnDisconnect = s.cancelOnDisconnect
 		ports.Disconnect = func() <-chan struct{} { return disconnectSignal(conn) }
 		ports.MirrorRemote = func(ctx context.Context, corr string, meta map[string]string) {
-			s.mirrorRemoteExecutionProfileEvents(ctx, k, corr, meta)
+			s.mirrorRemoteExecutionProfileEvents(ctx, scope, corr, meta)
 		}
 		return appruns.NewRunService(ports)
 	})
@@ -248,7 +245,7 @@ var seatOperations = func() []app.Operation {
 var councilOperations = func() []app.Operation {
 	ops, err := appcouncil.Operations(func(ctx context.Context) *appcouncil.Service {
 		s := ctx.Value(systemHostKey{}).(*Server)
-		return appcouncil.New(appcouncil.PortsFromHandle(s.k, s.baseDir))
+		return appcouncil.New(s.scoped().CouncilPorts)
 	})
 	if err != nil {
 		panic(err)
@@ -258,8 +255,7 @@ var councilOperations = func() []app.Operation {
 
 var councilAskOperations = func() []app.Operation {
 	ops, err := appcouncil.AskOperations(func(ctx context.Context) appcouncil.Engines {
-		k := ctx.Value(systemHostKey{}).(*Server).k
-		return binding.Fill(k, appcouncil.EnginesFromKernel)
+		return ctx.Value(systemHostKey{}).(*Server).scoped().CouncilEngines
 	})
 	if err != nil {
 		panic(err)
@@ -269,8 +265,7 @@ var councilAskOperations = func() []app.Operation {
 
 var researchOperations = func() []app.Operation {
 	ops, err := appresearch.AskOperations(func(ctx context.Context) appresearch.Engines {
-		k := ctx.Value(systemHostKey{}).(*Server).k
-		return appresearch.EnginesFromHandle(k, ctx.Value(systemHostKey{}).(*Server).correlationPorts().Mint)
+		return ctx.Value(systemHostKey{}).(*Server).scoped().ResearchEngines
 	})
 	if err != nil {
 		panic(err)
@@ -334,7 +329,7 @@ var fileOperations = func() []app.Operation {
 		s := ctx.Value(systemHostKey{}).(*Server)
 		host := ctx.Value(appHostKey{}).(appHost)
 		callID := app.RequestID(ctx)
-		return appfiles.New(appfiles.Ports{Runner: appfiles.RunnerFromHandle(host.kernel), Correlation: host.correlation, CallID: callID, CatalogPath: filepath.Join(s.baseDir, filepath.FromSlash(rollbackstore.RelativePath))})
+		return appfiles.New(appfiles.Ports{Runner: host.scope.FilesRunner, Correlation: host.correlation, CallID: callID, CatalogPath: filepath.Join(s.baseDir, filepath.FromSlash(rollbackstore.RelativePath))})
 	})
 	if err != nil {
 		panic(err)
@@ -536,7 +531,7 @@ var planAuthoringOperations = func() []app.Operation {
 var planRunOperations = func() []app.Operation {
 	ops, err := appruns.PlanRunOperations(func(ctx context.Context) *appruns.PlanRunner {
 		s := ctx.Value(systemHostKey{}).(*Server)
-		return appruns.NewPlanRunner(appruns.PlanRunnerPortsFromHandle(s.k), s.approvalPorts().Registry, func(pattern string, buffer int) (appruns.PlanSubscription, error) {
+		return appruns.NewPlanRunner(s.scoped().PlanRunnerPorts, s.approvalPorts().Registry, func(pattern string, buffer int) (appruns.PlanSubscription, error) {
 			sub, err := s.busPorts().Subscribe(pattern, buffer)
 			if err != nil {
 				return nil, err
@@ -562,7 +557,7 @@ var planOperations = func() []app.Operation {
 
 var runsOperations = func() []app.Operation {
 	ops, err := appruns.Operations(func(ctx context.Context) *appruns.Service {
-		return ctx.Value(systemHostKey{}).(*Server).runReads(ctx.Value(appHostKey{}).(appHost).kernel)
+		return ctx.Value(systemHostKey{}).(*Server).runReads(requestScope(ctx))
 	})
 	if err != nil {
 		panic(err)
@@ -572,7 +567,7 @@ var runsOperations = func() []app.Operation {
 
 var steerOperations = func() []app.Operation {
 	ops, err := appsteer.Operations(func(ctx context.Context) *appsteer.Service {
-		return appsteer.New(appsteer.RunsFromHandle(ctx.Value(appHostKey{}).(appHost).kernel))
+		return appsteer.New(requestScope(ctx).SteerRuns)
 	})
 	if err != nil {
 		panic(err)
@@ -599,7 +594,7 @@ var rosterRemoveOperations = func() []app.Operation {
 			Remove:    s.rosterPorts().Remove,
 			NewCorr:   s.correlationPorts().Mint,
 			Publish: func(subject, corr string, payload map[string]any) {
-				publishOperatorAction(s.k, subject, corr, payload)
+				publishOperatorAction(s.scoped(), subject, corr, payload)
 			},
 			Invalidate: s.invalidateAgentListCache,
 		})
@@ -625,7 +620,7 @@ var rosterSetRetiredOperations = func() []app.Operation {
 			CountPausedSchedules: s.countAgentPausedSchedules,
 			NewCorrelation:       s.correlationPorts().Mint,
 			Publish: func(subject, corr string, payload map[string]any) {
-				publishOperatorAction(s.k, subject, corr, payload)
+				publishOperatorAction(s.scoped(), subject, corr, payload)
 			},
 			Invalidate: s.invalidateAgentListCache,
 		})
@@ -653,7 +648,7 @@ var rosterResolveOperations = func() []app.Operation {
 			Get:            s.rosterPorts().Get,
 			NewCorrelation: s.correlationPorts().Mint,
 			Publish: func(subject, corr string, payload map[string]any) {
-				publishOperatorAction(s.k, subject, corr, payload)
+				publishOperatorAction(s.scoped(), subject, corr, payload)
 			},
 			Pause: func(slug string) error {
 				_, err := s.rosterPorts().SetEnabled(slug, false)
@@ -683,7 +678,7 @@ var rosterRepairOperations = func() []app.Operation {
 	ops, err := approster.RepairOperations(func(ctx context.Context) *approster.RepairService {
 		s := ctx.Value(systemHostKey{}).(*Server)
 		return approster.NewRepair(s.rosterPorts().Get, s.correlationPorts().Mint, func(subject, corr string, payload map[string]any) {
-			publishOperatorAction(s.k, subject, corr, payload)
+			publishOperatorAction(s.scoped(), subject, corr, payload)
 		}, func(corr string, p agentapi.Profile, reason string, l approster.IncidentLineage) {
 			go s.launchOperatorRepair(corr, p, reason, l)
 		})
@@ -698,7 +693,7 @@ var rosterWakeOperations = func() []app.Operation {
 	ops, err := approster.WakeOperations(func(ctx context.Context) *approster.WakeService {
 		s := ctx.Value(systemHostKey{}).(*Server)
 		return approster.NewWake(s.rosterPorts().Get, s.correlationPorts().Mint, func(subject, corr string, payload map[string]any) {
-			publishOperatorAction(s.k, subject, corr, payload)
+			publishOperatorAction(s.scoped(), subject, corr, payload)
 		}, func(corr string, p agentapi.Profile, intent, reason string, l approster.IncidentLineage) {
 			go s.launchOperatorWake(corr, p, intent, reason, l)
 		})
@@ -1001,7 +996,7 @@ var skillOperations = func() []app.Operation {
 		func(ctx context.Context) *appskill.Curation {
 			host := ctx.Value(appHostKey{}).(appHost)
 			return appskill.NewCuration(requestSkillPorts(ctx).Curation(), func(slug string) bool {
-				_, ok := binding.Fill(host.kernel, approster.ProfilePortsFromKernel).Get(slug)
+				_, ok := host.scope.RosterProfilePorts.Get(slug)
 				return ok
 			})
 		},
@@ -1093,11 +1088,11 @@ var scheduleOperations = func() []app.Operation {
 		Lifecycle: func(ctx context.Context) *appschedule.Lifecycle { return server(ctx).scheduleLifecycle(ctx) },
 		Admission: func(ctx context.Context) *appschedule.Admission { return server(ctx).scheduleAdmission() },
 		Creation: func(ctx context.Context) *appschedule.Creation {
-			return appschedule.NewCreation(binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, appschedule.PortsFromKernel).Store, nil)
+			return appschedule.NewCreation(requestScope(ctx).SchedulePorts.Store, nil)
 		},
 		Editing: func(ctx context.Context) *appschedule.Editing { return server(ctx).scheduleEditing() },
 		Firings: func(ctx context.Context) *appschedule.FiringService {
-			return server(ctx).scheduleFiringReads(ctx.Value(appHostKey{}).(appHost).kernel)
+			return server(ctx).scheduleFiringReads(requestScope(ctx))
 		},
 	})
 	if err != nil {
@@ -1597,17 +1592,17 @@ func (a appAuthenticator) Authenticate(_ context.Context, caller opapi.Caller) (
 type appTenantRouter struct{ server *Server }
 
 func (r appTenantRouter) Route(ctx context.Context, principal opapi.Principal, spec opapi.Spec) (context.Context, error) {
-	k := r.server.k
+	scope := r.server.scoped()
 	if spec.Tenancy == opapi.CallerTenant {
 		var err error
-		k, err = r.server.kernelFor(principal.Tenant)
+		scope, err = r.server.scopeFor(principal.Tenant)
 		if err != nil {
 			return nil, err
 		}
 	}
-	host := appHost{kernel: k}
+	host := appHost{scope: scope}
 	if !spec.ReadOnly {
-		correlation := binding.Fill(k, appcorrelation.PortsFromKernel)
+		correlation := scope.CorrelationPorts
 		host.correlation = correlation.Mint()
 		ctx = correlation.WithActor(ctx, string(principal.Kind), host.correlation)
 		ctx = opapi.WithCorrelation(ctx, host.correlation)

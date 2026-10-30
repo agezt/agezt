@@ -56,7 +56,7 @@ func TestTheAdapterBindsTheWorkboardPortsToItsOwnKernel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: other})
+	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(other)})
 	tasks := requestWorkboardPorts(ctx).Reader.List(workboard.Filter{})
 	if len(tasks) != 1 || tasks[0].ID != routed.ID {
 		t.Fatalf("the request's board ports read %+v, want the routed kernel's task", tasks)

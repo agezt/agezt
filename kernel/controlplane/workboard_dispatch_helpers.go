@@ -8,13 +8,12 @@ package controlplane
 
 import (
 	"github.com/agezt/agezt/kernel/app/binding"
-	appeventbus "github.com/agezt/agezt/kernel/app/eventbus"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
-func publishWorkboardDispatch(k any, corr string, task workboardapi.Task, phase, agent, reason, answer, errText string) {
-	ports := binding.Fill(k, appeventbus.PortsFromKernel)
+func publishWorkboardDispatch(scope binding.Scope, corr string, task workboardapi.Task, phase, agent, reason, answer, errText string) {
+	ports := scope.BusPorts
 	if !ports.Ready() {
 		return
 	}

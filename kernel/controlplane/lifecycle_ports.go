@@ -2,7 +2,6 @@
 package controlplane
 
 import (
-	"github.com/agezt/agezt/kernel/app/binding"
 	applifecycle "github.com/agezt/agezt/kernel/app/lifecycle"
 )
 
@@ -13,14 +12,14 @@ import (
 // daemon's kernel. There is no request-level binding: a binding nobody calls
 // is dead code.
 //
-// The host does not decide how a daemon is drained: it hands over the kernel
-// handle and the APPLICATION fills its own ports
-// (`kernel/app/lifecycle/ports.go`). What stays here is the binding — which
-// kernel answers the lifecycle family's questions.
+// The host does not decide how a daemon is drained: the COMPOSITION ROOT fills the
+// scope and the APPLICATION fills the family's own ports
+// (`kernel/app/lifecycle/ports.go`). What stays here is the reading — which
+// scope answers the lifecycle family's questions.
 //
-// The handle is never named here: this file does not import the runtime, so the
-// adapter may hold the handle without naming the runtime package to hand it
-// over.
+// The handle is never named here, and it is never held here either: the
+// adapter holds the SCOPE — the family's ports, filled by the composition
+// root — and this file does not import the runtime to say so.
 func (s *Server) lifecyclePorts() applifecycle.Ports {
-	return binding.Fill(s.k, applifecycle.PortsFromKernel)
+	return s.scoped().LifecyclePorts
 }

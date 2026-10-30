@@ -95,17 +95,24 @@ func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 		return
 	}
 
-	dc := &DispatchCtx{Ctx: ctx, Conn: conn, Req: req, S: s, K: s.k, Tenant: tenantID, Primary: primary}
+	dc := &DispatchCtx{Ctx: ctx, Conn: conn, Req: req, S: s, Scope: s.scoped(), Tenant: tenantID, Primary: primary}
 	if spec.TenantRouted {
-		// Resolve the request's kernel once at the dispatch boundary. For a
-		// primary caller without a tenant arg kernelFor("") == s.k, so
-		// tenant-routed commands cost nothing extra in the common case.
-		k, err := s.kernelFor(tenantOf(req))
+		// Resolve the request's SCOPE once at the dispatch boundary. For a
+		// primary caller without a tenant arg scopeFor("") == the server's own
+		// scope, so tenant-routed commands cost nothing extra in the common
+		// case.
+		//
+		// The scope is what the native audit publishes through, so a
+		// tenant-routed command's audit lands in the TENANT's journal. Every
+		// tenant-routed command today is AppOwned — the app dispatcher audits
+		// it with the request's own scope — so this half is mechanism rather
+		// than behaviour until a native tenant-routed command exists.
+		scope, err := s.scopeFor(tenantOf(req))
 		if err != nil {
 			s.fail(conn, req, err)
 			return
 		}
-		dc.K = k
+		dc.Scope = scope
 	}
 	if spec.Streaming == StreamLive {
 		// Long-lived streaming work: tie the handler's context to the client

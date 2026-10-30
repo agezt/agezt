@@ -5,6 +5,7 @@ package controlplane
 import (
 	"context"
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/app/binding"
 	appchannels "github.com/agezt/agezt/kernel/app/channels"
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/app/system"
@@ -25,8 +26,11 @@ type Server struct {
 	operationOnce sync.Once
 	operations    *app.Dispatcher
 	operationErr  error
-	k             any
-	baseDir       string
+	// scope is the daemon's SCOPE: every family's ports, filled by the
+	// composition root. The server holds no handle — it can reach each
+	// family's capabilities and nothing of the kernel behind them.
+	scope   binding.Scope
+	baseDir string
 
 	mu       sync.Mutex
 	listener net.Listener

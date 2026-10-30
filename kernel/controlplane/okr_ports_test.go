@@ -56,7 +56,7 @@ func TestTheAdapterBindsTheObjectivePortsToItsOwnKernel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: other})
+	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(other)})
 	objectives := requestOKRPorts(ctx).Reader.List(okrapi.Filter{})
 	if len(objectives) != 1 || objectives[0].ID != routed.ID {
 		t.Fatalf("the request's objective ports read %+v, want the routed kernel's objective", objectives)

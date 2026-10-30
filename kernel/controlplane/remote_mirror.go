@@ -17,15 +17,14 @@ import (
 
 	"github.com/agezt/agezt/kernel/app/binding"
 	appremote "github.com/agezt/agezt/kernel/app/remote"
-	appruns "github.com/agezt/agezt/kernel/app/runs"
 	"github.com/agezt/agezt/kernel/event"
 )
 
-func (s *Server) mirrorRemoteExecutionProfileEvents(ctx context.Context, k any, corr string, meta map[string]string) {
+func (s *Server) mirrorRemoteExecutionProfileEvents(ctx context.Context, scope binding.Scope, corr string, meta map[string]string) {
 	// The remote run's own events travel under the run's subject, and that
 	// convention belongs to the runs family: the mirror publishes through the
 	// family's port, not through the kernel's bus.
-	runPorts := binding.Fill(k, appruns.RunPortsFromKernel)
+	runPorts := scope.RunPorts
 	appremote.Mirror(ctx, appremote.MirrorPorts{
 		LookupPeer:     s.lookupNodePeer,
 		FetchEvents:    fetchRemoteEvents,

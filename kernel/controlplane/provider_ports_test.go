@@ -34,7 +34,7 @@ func TestTheAdapterBindsTheProviderPortsToItsOwnKernel(t *testing.T) {
 	defer tenant.Close()
 
 	s := NewServer(root, t.TempDir())
-	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: tenant})
+	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(tenant)})
 
 	// The daemon's own ports answer for its own kernel.
 	if s.providerPorts().Live() == nil {

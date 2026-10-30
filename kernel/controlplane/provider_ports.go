@@ -5,22 +5,21 @@ package controlplane
 import (
 	"context"
 
-	"github.com/agezt/agezt/kernel/app/binding"
 	appprovider "github.com/agezt/agezt/kernel/app/provider"
 )
 
 // The daemon's own provider ports: the root kernel's live provider.
 //
-// The host does not decide what the provider is: it hands over the kernel
-// handle and the APPLICATION fills its own ports
-// (`kernel/app/provider/ports.go`). What stays here is the binding — which
-// kernel answers the provider family's questions.
+// The host does not decide what the provider is: the COMPOSITION ROOT fills the
+// scope and the APPLICATION fills the family's own ports
+// (`kernel/app/provider/ports.go`). What stays here is the reading — which
+// scope answers the provider family's questions.
 //
-// The handle is never named here: this file does not import the runtime, so
-// the adapter may hold the handle without naming the runtime package to hand
-// it over.
+// The handle is never named here, and it is never held here either: the
+// adapter holds the SCOPE — the family's ports, filled by the composition
+// root — and this file does not import the runtime to say so.
 func (s *Server) providerPorts() appprovider.Ports {
-	return binding.Fill(s.k, appprovider.PortsFromKernel)
+	return s.scoped().ProviderPorts
 }
 
 // The REQUEST's provider ports.
@@ -30,5 +29,5 @@ func (s *Server) providerPorts() appprovider.Ports {
 // request's services must read. The daemon's own ports answer for the root
 // kernel.
 func requestProviderPorts(ctx context.Context) appprovider.Ports {
-	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, appprovider.PortsFromKernel)
+	return requestScope(ctx).ProviderPorts
 }
