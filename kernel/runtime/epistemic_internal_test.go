@@ -14,6 +14,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
+	"github.com/agezt/agezt/kernel/platform/policy/admission"
 	"github.com/agezt/agezt/kernel/platform/policy/epistemic"
 )
 
@@ -58,7 +59,7 @@ func epistemicHostKernel(j *journal.Journal) *Kernel {
 func TestEpistemicGateAsksThePlatformRule(t *testing.T) {
 	k := epistemicHostKernel(nil)
 	input := json.RawMessage(`{"target":"prod"}`)
-	bundle := approvalBundle{EffectClass: string(toolapi.EffectCompensable), Confidence: 0.3}
+	bundle := admission.Bundle{EffectClass: string(toolapi.EffectCompensable), Confidence: 0.3}
 
 	got := k.epistemicGate("riskprobe", edict.CapFileWrite, input, toolapi.ToolDef{}, bundle)
 
@@ -87,7 +88,7 @@ func TestEpistemicGateAsksThePlatformRule(t *testing.T) {
 func TestEpistemicGateResolvesTheToolThroughTheLookupPort(t *testing.T) {
 	k := epistemicHostKernel(nil)
 	input := json.RawMessage(`{"target":"prod"}`)
-	bundle := approvalBundle{EffectClass: string(toolapi.EffectCompensable), Confidence: 0.95}
+	bundle := admission.Bundle{EffectClass: string(toolapi.EffectCompensable), Confidence: 0.95}
 
 	got := k.epistemicGate("riskprobe", edict.CapFileWrite, input, toolapi.ToolDef{}, bundle)
 
@@ -111,7 +112,7 @@ func TestEpistemicGateReadsTheJournalThroughTheScanPort(t *testing.T) {
 	k := epistemicHostKernel(j)
 
 	input := json.RawMessage(`{"target":"prod"}`)
-	bundle := approvalBundle{EffectClass: string(toolapi.EffectCompensable), Confidence: 0.95}
+	bundle := admission.Bundle{EffectClass: string(toolapi.EffectCompensable), Confidence: 0.95}
 
 	// The first decision carries the conditions the journal must record for
 	// the second one to match.
@@ -171,7 +172,7 @@ func TestEpistemicGateReadsTheJournalThroughTheScanPort(t *testing.T) {
 func TestEpistemicGateWithoutAJournalKnowsNothing(t *testing.T) {
 	k := epistemicHostKernel(nil)
 	input := json.RawMessage(`{"target":"prod"}`)
-	bundle := approvalBundle{EffectClass: string(toolapi.EffectReadOnly), Confidence: 0.95}
+	bundle := admission.Bundle{EffectClass: string(toolapi.EffectReadOnly), Confidence: 0.95}
 
 	got := k.epistemicGate("riskprobe", edict.CapFileRead, input, toolapi.ToolDef{}, bundle)
 

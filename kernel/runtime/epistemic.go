@@ -9,6 +9,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/platform/policy/admission"
 	"github.com/agezt/agezt/kernel/platform/policy/epistemic"
 )
 
@@ -24,7 +25,7 @@ import (
 // Provenance: kernel/runtime/epistemic.go held the guard and its twelve helpers
 // until W3.73. The rule moved to the platform package; this file became the
 // host's port wiring.
-func (k *Kernel) epistemicGate(toolName string, cap edict.Capability, input json.RawMessage, def toolapi.ToolDef, bundle approvalBundle) epistemic.Decision {
+func (k *Kernel) epistemicGate(toolName string, cap edict.Capability, input json.RawMessage, def toolapi.ToolDef, bundle admission.Bundle) epistemic.Decision {
 	return k.epistemicGateFor().Decide(toolName, string(cap), input, def, bundle.EffectClass, bundle.Confidence)
 }
 
