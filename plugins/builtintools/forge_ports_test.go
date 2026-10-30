@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/toolregapi"
+	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -29,7 +30,11 @@ func TestTheToolForgeSpecWiresTheStorePort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open the forge store: %v", err)
 	}
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), ToolForge: store})
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), ToolForge: store,
+		ForgeBuilder: func(deps extapi.ForgeDependencies) extapi.ForgeService {
+			return toolforge.NewService(deps)
+		},
+	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

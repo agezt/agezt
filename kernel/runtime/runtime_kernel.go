@@ -130,6 +130,19 @@ type Kernel struct {
 	// and every registry verb refuses until then.
 	mcp extapi.MCPRegistryService
 
+	// scriptForge is the EXTENSIONS MODULE's script-tool forge — the
+	// lifecycle over the agent-authored scripts and the bridge that folds the
+	// promoted ones into a run's tool map (W3.72). The module lives in
+	// kernel/modules/extensions; the runtime cannot import it (archcheck's
+	// principle P5), so the composition root builds the service over the
+	// store the host opened, the sandbox runner, the operator's approval
+	// registry and the kernel's own publisher, and hands it over here. nil
+	// until it is wired, and every forge verb refuses until then.
+	//
+	// The name says SCRIPT forge because the kernel's `forge` field is the
+	// SKILLS' forge (the curator) — two forges, two fields.
+	scriptForge extapi.ForgeService
+
 	// reaperScanner is the agents module's reaper (the read-only fleet health
 	// scan). The module lives in kernel/modules/agents/reaper; the runtime
 	// cannot import it (a module may import another module's api package and

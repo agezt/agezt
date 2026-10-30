@@ -192,7 +192,11 @@ func TestTheToolsPortsReachTheKernelForge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("toolforge.Open: %v", err)
 	}
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New(), ToolForge: store})
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New(), ToolForge: store,
+		ForgeBuilder: func(deps extapi.ForgeDependencies) extapi.ForgeService {
+			return toolforge.NewService(deps)
+		},
+	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

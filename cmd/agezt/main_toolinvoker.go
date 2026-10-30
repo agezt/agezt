@@ -379,6 +379,19 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 		}
 		cfg.ToolForge = store
 	}
+	if cfg.ForgeBuilder == nil {
+		// The script-tool FORGE's SERVICE (W3.72) — the lifecycle over the
+		// agent-authored scripts and the bridge that folds the promoted ones
+		// into a run's tool map. The implementation lives in the extensions
+		// module and the kernel may not name it, so the daemon injects the
+		// BUILDER: the kernel calls it with the store, the sandbox runner,
+		// the operator's approval registry and its own publisher, so every
+		// lifecycle transition journals through the kernel's bus without
+		// either side naming the other's implementation.
+		cfg.ForgeBuilder = func(deps extapi.ForgeDependencies) extapi.ForgeService {
+			return toolforge.NewService(deps)
+		}
+	}
 	// The voice, image and rerank tools (W3.44): the kernel may not name a tool
 	// package, so the composition root builds them over the daemon's own
 	// adapter seams and hands them over as ordinary tools. They are built HERE,

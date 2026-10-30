@@ -8,6 +8,7 @@ import (
 	"github.com/agezt/agezt/kernel/app/binding"
 	apptools "github.com/agezt/agezt/kernel/app/tools"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -39,7 +40,11 @@ func forgeReadFixture(t *testing.T) (*runtime.Kernel, *Server, *mock.Provider) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, ToolForge: store})
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, ToolForge: store,
+		ForgeBuilder: func(deps extapi.ForgeDependencies) extapi.ForgeService {
+			return toolforge.NewService(deps)
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

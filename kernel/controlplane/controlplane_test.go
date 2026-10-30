@@ -25,6 +25,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/board/board"
+	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
@@ -210,6 +211,11 @@ func startPairWithConfigAndDeps(t *testing.T, cfg runtime.Config, deps func(dir 
 		t.Fatalf("open the forge store: %v", err)
 	}
 	cfg.ToolForge = forge
+	// The forge's LIFECYCLE is the extensions module's (W3.72): the root
+	// hands the kernel the module's builder, the way the daemon does.
+	cfg.ForgeBuilder = func(deps extapi.ForgeDependencies) extapi.ForgeService {
+		return toolforge.NewService(deps)
+	}
 	// The task board is the composition root's file too (W3.47): the kernel
 	// holds the contract's host port, and the root opens the file.
 	taskBoard, err := workboard.OpenStore(filepath.Join(dir, "workboard"))

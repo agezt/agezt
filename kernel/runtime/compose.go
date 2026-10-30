@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/configcenter"
+	"github.com/agezt/agezt/kernel/contract/approvalapi"
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
@@ -235,6 +236,32 @@ func Open(cfg Config) (*Kernel, error) {
 		})
 	}
 
+	// The script-tool FORGE's lifecycle is the extensions module's (W3.72) —
+	// the module keeps the operations, and the daemon keeps the names. The
+	// daemon hands over the BUILDER (it names the module), and the kernel
+	// calls it with the store, the sandbox runner, the operator's approval
+	// registry and its own publisher — so every lifecycle transition journals
+	// through the kernel's bus without either side naming the other's
+	// implementation.
+	//
+	// A host that was given neither holds no service: the forge writes
+	// refuse and the reads answer "no tools".
+	var forgeSvc extapi.ForgeService
+	if cfg.ToolForge != nil && cfg.ForgeBuilder != nil {
+		forgeSvc = cfg.ForgeBuilder(extapi.ForgeDependencies{
+			Store:        cfg.ToolForge,
+			ScriptRunner: cfg.ScriptRunner,
+			AutoPromote:  cfg.AutoPromoteScriptTools,
+			Approve: func(ctx context.Context, spec approvalapi.SubmitSpec) approvalapi.Outcome {
+				if apr == nil {
+					return approvalapi.Outcome{}
+				}
+				return apr.Submit(ctx, spec)
+			},
+			Publish: mcpPublisher{b: kbus}.Publish,
+		})
+	}
+
 	// The workflow store is NOT opened here (W3.48): the store file is the
 	// composition root's business (cmd/agezt), and the kernel holds the
 	// contract's read port. The ENGINE is the host's too — it is built over
@@ -352,6 +379,7 @@ func Open(cfg Config) (*Kernel, error) {
 		toolForge:    cfg.ToolForge,
 		mcpStore:     cfg.MCPStore,
 		mcp:          mcpSvc,
+		scriptForge:  forgeSvc,
 		workflows:    cfg.Workflows,
 		workboard:    cfg.Workboard,
 		okr:          cfg.OKRStore,

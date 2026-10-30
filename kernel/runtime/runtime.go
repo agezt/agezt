@@ -99,6 +99,22 @@ type Config struct {
 	// forge is unavailable rather than calling into nothing.
 	ToolForge toolforgeapi.HostStore
 
+	// ForgeBuilder builds the script-tool forge service over the
+	// dependencies the host collected (W3.72).
+	//
+	// The forge's LIFECYCLE is the extensions module's: the module keeps the
+	// operations — draft, edit, test, promote, ask the operator, quarantine,
+	// remove — and the bridge that folds the promoted scripts into a run's
+	// tool map, and the daemon keeps the names. The daemon hands over the
+	// BUILDER (it names the module), and the kernel calls it with the store,
+	// the sandbox runner, the operator's approval registry and its own
+	// publisher — so every lifecycle transition journals through the
+	// kernel's bus without either side naming the other's implementation.
+	//
+	// Nil means no service: the forge writes refuse and the reads answer
+	// "no tools".
+	ForgeBuilder extapi.ForgeBuilder
+
 	// MCPDialer spawns + handshakes one MCP server on attach (M796).
 	//
 	// It is a SEAM (W3.58): the implementation lives in the MCP module and

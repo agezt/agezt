@@ -3730,6 +3730,38 @@ This file holds the active `[Unreleased]` working set.
   is 2,673, up from 2,323. The move also made two daemon helpers dead:
   `workboardStore()` and `publishWorkboard()` were the proof cycle's only callers, so they
   lost their last caller with it.
+  `architecture/269-w371-the-mcp-registrys-lifecycle-moves-into-the-extensions-module-evidence.md`
+- **The script-tool forge's lifecycle and the agent bridge move into the
+  extensions module (W3.72).** The fifth slice of the runtime's dissolution,
+  and the second one to move a family whose data was already in a module
+  while its operations were in the daemon. The script-tool forge's catalogue —
+  the durable records, the store, the rules that decide whether a script may
+  be drafted and whether it may go live — already lived in the extensions
+  module, while its operations lived in the daemon: the seven lifecycle verbs
+  that draft, edit, test, promote, ask the operator, quarantine and remove a
+  script, the sandbox test, the operator's queue and the bridge that folds
+  the promoted scripts into a run's tool map. The module now owns both
+  (`kernel/modules/extensions/toolforge/forge.go` and `bridge.go`), and the
+  module's face grew a second service
+  (`kernel/modules/extensions/api/forge.go`): the `ForgeService` and the
+  `ForgeDependencies` ports — the catalogue's store, the sandbox runner, the
+  operator's approval registry and the bus to publish on, all of them ways to
+  ASK and never ways to reach. The daemon keeps its names and forwards, so
+  **no caller outside the runtime changed** — 0 production files in
+  `kernel/app` — and the daemon's public forge names are still 8. The rules
+  did not change: only tested code goes live, any edit demotes the tool back
+  to draft with its test record cleared, and the operator — not the agent —
+  grants a promotion. The refusal both sides need became a contract row
+  (`toolforgeapi.ErrNoStore`), because the daemon may not name the module and
+  the module may not name the daemon; the daemon keeps its old name as the
+  row's alias. The move also added one refusal that did not exist before: a
+  daemon with no approval registry says "promotions need an operator"
+  instead of calling into nothing. The daemon's calls into the catalogue's
+  store are 0, down from 8 — every one of them is the module's now. The slice
+  cost **nine test setups**, which had to learn the module's builder; the
+  daemon itself cost nothing, because `cmd/agezt` wires its own builder by
+  default. `kernel/runtime` is 9,080 lines, down from 9,170, and
+  `kernel/modules/extensions` is 5,687, up from 5,234.
 - **The MCP registry's lifecycle and the agent bridge move into the extensions
   module (W3.71).** The fourth slice of the runtime's dissolution, and the
   first one to move a family whose **data** was already in a module while its
