@@ -8,7 +8,6 @@ package runtime
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
@@ -16,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
+	"github.com/agezt/agezt/kernel/platform/policy/guards"
 )
 
 // policyHook adapts the kernel's Edict engine to the agent.Policy
@@ -142,48 +142,45 @@ func (k *Kernel) policyHook(ctx context.Context, tc llm.ToolCall) agent.PolicyVe
 	}
 	regretAxes := intentmodel.RegretForAction(intentAction)
 	confirmationPrompt := ""
+	requiresConfirmation := false
 	if hasIntentFrame {
 		confirmationPrompt = intentmodel.ConfirmationPrompt(intentFrame, intentAction, regretAxes)
+		requiresConfirmation = intentmodel.RequiresConfirmation(intentFrame, regretAxes)
 	}
 
-	requiresApproval := out.RequiresApproval
-	approvalReason := out.Reason
-	// guardRaised names the fail-closed guard that routed this call to approval,
-	// as opposed to the Edict Ask axis (out.RequiresApproval). The session
-	// auto-approve grant below satisfies the Ask axis only: a guard the operator
-	// armed deliberately must not be answered by a blanket capability grant.
-	guardRaised := ""
-	if k.cfg.EpistemicEscalation && verdict.Allow && ep.Escalates() {
-		requiresApproval = true
-		approvalReason = ep.Reason
+	// The guards are the PLATFORM's rules (W3.74): the epistemic escalation,
+	// the intent/regret gate and the prompt-injection guard, evaluated in that
+	// order, and the FIRST one that raises wins — a guard that has already
+	// stopped the call cannot be answered by a later one. The daemon keeps
+	// the doors: it reads the context, it publishes the events, and it
+	// submits the approval.
+	outcome := guards.Evaluate(guards.Input{
+		Allow:                verdict.Allow,
+		AskRequired:          out.RequiresApproval,
+		AskReason:            out.Reason,
+		EffectClass:          bundle.EffectClass,
+		Epistemic:            ep,
+		RequiresConfirmation: requiresConfirmation,
+		ConfirmationPrompt:   confirmationPrompt,
+		DirectiveLike:        hasTaint && taint.DirectiveLike,
+		TaintSources:         taint.Sources,
+		TrustedObservations:  trustedObservations(ctx),
+		EpistemicEscalation:  k.cfg.EpistemicEscalation,
+		IntentRegretGating:   k.cfg.IntentRegretGating,
+		PromptInjection:      k.cfg.PromptInjectionGuard,
+		AutoApprove:          autoApproveCap(ctx, string(out.Capability)),
+	})
+	requiresApproval := outcome.RequiresApproval
+	approvalReason := outcome.Reason
+	if outcome.Guard != "" {
 		verdict.Allow = false
 		verdict.WouldAsk = true
-		guardRaised = "epistemic escalation"
 	}
-	if k.cfg.IntentRegretGating && verdict.Allow && hasIntentFrame && intentmodel.RequiresConfirmation(intentFrame, regretAxes) {
-		requiresApproval = true
-		approvalReason = confirmationPrompt
-		verdict.Allow = false
-		verdict.WouldAsk = true
-		guardRaised = "intent/regret gating"
+	if outcome.Guard == guards.GuardIntentRegret {
 		k.publishIntentConfirmationRequired(correlationFromCtx(ctx), actorFromCtx(ctx), intentFrame, regretAxes, confirmationPrompt)
 	}
-	// Prompt-injection guard: an effectful action within the causal window of a
-	// directive-like untrusted observation. The agent loop already scoped
-	// taint.DirectiveLike to that window, so this no longer fires for the whole
-	// run after one suspicious observation.
-	if k.cfg.PromptInjectionGuard != PromptInjectionOff && verdict.Allow && hasTaint && taint.DirectiveLike && bundle.EffectClass != string(toolapi.EffectReadOnly) {
-		// Block only in On mode and only when the operator hasn't trusted this
-		// run; warn mode and a trusted run audit without interrupting.
-		if k.cfg.PromptInjectionGuard == PromptInjectionOn && !trustedObservations(ctx) {
-			requiresApproval = true
-			approvalReason = "prompt-injection guard: effectful action is downstream of directive-like untrusted observation from " + strings.Join(taint.Sources, ", ")
-			verdict.Allow = false
-			verdict.WouldAsk = true
-			guardRaised = "prompt-injection guard"
-		} else {
-			k.publishPromptInjectionWarned(correlationFromCtx(ctx), actorFromCtx(ctx), tc.Name, string(out.Capability), taint.Sources, trustedObservations(ctx))
-		}
+	if outcome.Warn {
+		k.publishPromptInjectionWarned(correlationFromCtx(ctx), actorFromCtx(ctx), tc.Name, string(out.Capability), taint.Sources, trustedObservations(ctx))
 	}
 
 	// Session-scoped operator grant (chat "auto-approve Tool Forge this session"):
@@ -198,7 +195,7 @@ func (k *Kernel) policyHook(ctx context.Context, tc llm.ToolCall) agent.PolicyVe
 	// blanket capability grant is not an answer to a question they asked for a
 	// different reason. Such a call falls through to live HITL carrying the
 	// guard's own reason string, so the operator sees which guard stopped it.
-	if requiresApproval && guardRaised == "" && autoApproveCap(ctx, string(out.Capability)) {
+	if outcome.AutoApproved {
 		verdict.Allow = true
 		verdict.WouldAsk = true
 		k.publishAutoApprove(correlationFromCtx(ctx), actorFromCtx(ctx), string(out.Capability), tc.Name)
