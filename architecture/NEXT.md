@@ -7035,6 +7035,39 @@ files, five of the seventeen mutations would have escaped.
   mutation's own fault (all **BUILDERR**). The adapter still **holds** the
   handle; it no longer **names** it. Evidence:
   `architecture/261-w55a-the-adapter-holds-the-handle-without-naming-it-evidence.md`
+- W5.5b (the composition root holds the handle) is the port programme's
+  **forty-fourth** slice and the **second** one of its **next phase** — the
+  **adapter's** handle. The phase before it (W5.5a) made the handle
+  **unnamed** in the adapter; this slice moves the **holding** to the
+  **composition root**. The daemon is the root: it holds the kernel, it
+  builds the **scope** — every family's ports, filled, in one bundle
+  (`kernel/app/binding`: `Scope`, `ScopeFromKernel`, `ScopeFromHandle`,
+  `RefusingScope`, `Resolve`) — and what it hands the adapter is the scope,
+  never the kernel. The adapter's **three** handle fields (`Server.k`,
+  `DispatchCtx.K`, the app host's `kernel`) are gone, and the
+  **sixty-eight** binding call sites across **forty-five** files became
+  one-line reads (`s.scoped().ToolsPorts`). The **tenant** path moved with
+  it: the application opens the tenant's kernel and fills the tenant's
+  **own** scope (`ScopeForTenant`), so the tenant's directory is the
+  tenant's and the tenant's kernel never reaches the adapter either. The
+  **names do not carry the verbs**: the scope's fields are named after their
+  **ports** (`ToolsPorts`, `CouncilPorts`, `ReaperScanPorts`…), because the
+  guard's broad half reads `scope.Council` as a call to the kernel's
+  `Council` verb — it caught the first draft ✗ → the fields were renamed ✓,
+  and two of them collided with the kernel's own verbs (`ReaperPorts`,
+  `WorkflowPorts`) and became `ReaperScanPorts` and `WorkflowEnginePorts`.
+  The measurement that moved: the adapter's types that hold a handle **3 →
+  0** and the adapter's binding call sites **68 → 0**; the control plane
+  still names the runtime in **0** production files and the guard still
+  holds **170** application-owned verbs. **11 permanent tests** — the
+  adapter's own rule ("the adapter's types have no untyped field") among
+  them — and **17 mutations, 17 caught** in two independent passes with
+  **byte-identical** logs (SHA-256 `A272DBBA43B9073D31D4A4B268E3A42383C055735AA788DA396A352FD73C2908`); **ten** mutations were
+  rewritten, each for its own fault (seven BUILDERR, one test that asked
+  whether a store was **there** instead of whether it **answered**, and two
+  that hit the wrong path — the tenant routing happens in **two** places,
+  the native dispatch and the typed operation router). Evidence:
+  `architecture/262-w55b-the-composition-root-holds-the-handle-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

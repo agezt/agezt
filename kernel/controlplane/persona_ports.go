@@ -4,7 +4,6 @@ package controlplane
 import (
 	"context"
 
-	"github.com/agezt/agezt/kernel/app/binding"
 	apppersona "github.com/agezt/agezt/kernel/app/persona"
 )
 
@@ -20,19 +19,19 @@ import (
 // set — and it runs on the REQUEST's path, so it asks the ROUTED kernel:
 // `requestPersonaPorts(ctx)`.
 //
-// The host does not decide what the identity is: it hands over the kernel
-// handle and the APPLICATION fills its own ports
-// (`kernel/app/persona/ports.go`). What stays here is the binding — which
-// kernel answers the persona family's questions.
+// The host does not decide what the identity is: the COMPOSITION ROOT fills the
+// scope and the APPLICATION fills the family's own ports
+// (`kernel/app/persona/ports.go`). What stays here is the reading — which
+// scope answers the persona family's questions.
 //
-// The handle is never named here: this file does not import the runtime, so the
-// adapter may hold the handle without naming the runtime package to hand it
-// over.
+// The handle is never named here, and it is never held here either: the
+// adapter holds the SCOPE — the family's ports, filled by the composition
+// root — and this file does not import the runtime to say so.
 func (s *Server) personaPorts() apppersona.Ports {
-	return binding.Fill(s.k, apppersona.PortsFromKernel)
+	return s.scoped().PersonaPorts
 }
 
 // requestPersonaPorts are the REQUEST's persona ports.
 func requestPersonaPorts(ctx context.Context) apppersona.Ports {
-	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, apppersona.PortsFromKernel)
+	return requestScope(ctx).PersonaPorts
 }

@@ -140,7 +140,7 @@ func TestRunsNativeSameMillisecondOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	out, err := (&Server{}).runReads(k).List(context.Background(), appruns.ListRequest{})
+	out, err := (&Server{}).runReads(scopeForKernel(k)).List(context.Background(), appruns.ListRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}

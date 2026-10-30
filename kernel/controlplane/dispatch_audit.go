@@ -14,8 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agezt/agezt/kernel/app/binding"
-	appcorrelation "github.com/agezt/agezt/kernel/app/correlation"
 	appeventbus "github.com/agezt/agezt/kernel/app/eventbus"
 	"github.com/agezt/agezt/kernel/app/opaudit"
 	"github.com/agezt/agezt/kernel/event"
@@ -62,8 +60,8 @@ type opAudit struct {
 }
 
 func beginOpAudit(dc *DispatchCtx) *opAudit {
-	k := dc.K
-	ports := binding.Fill(k, appeventbus.PortsFromKernel)
+	scope := dc.Scope
+	ports := scope.BusPorts
 	if !ports.Ready() {
 		return nil
 	}
@@ -74,7 +72,7 @@ func beginOpAudit(dc *DispatchCtx) *opAudit {
 	a := &opAudit{
 		ports: ports,
 		cmd:   dc.Req.Cmd,
-		corr:  binding.Fill(k, appcorrelation.PortsFromKernel).Mint(),
+		corr:  scope.CorrelationPorts.Mint(),
 		start: time.Now(),
 		conn:  &auditedConn{Conn: dc.Conn},
 	}

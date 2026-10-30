@@ -31,8 +31,8 @@ func TestTheAdapterBindsThePluginPortsToTheRoutedKernel(t *testing.T) {
 	defer tenant.Close()
 
 	s := NewServer(root, t.TempDir())
-	tenantCtx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: tenant})
-	daemonCtx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: root})
+	tenantCtx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(tenant)})
+	daemonCtx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(root)})
 	daemonCtx = context.WithValue(daemonCtx, systemHostKey{}, s)
 
 	// The request's ports follow the routed kernel.
@@ -58,7 +58,7 @@ func TestTheAdapterBindsThePluginPortsToAHostWithNoManifest(t *testing.T) {
 	}
 	defer root.Close()
 
-	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: root})
+	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(root)})
 	if got := requestPluginPorts(ctx).Manifest(); len(got) != 0 {
 		t.Fatalf("a daemon with no plugin manifest reports %v", got)
 	}
@@ -77,7 +77,7 @@ func TestTheConfigReaderCountsThePluginsThroughThePort(t *testing.T) {
 	}
 	defer root.Close()
 
-	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: root})
+	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(root)})
 	reader := nativeConfigReader{plugins: requestPluginPorts(ctx)}
 
 	if got := reader.PluginCount(); got != 2 {
@@ -95,7 +95,7 @@ func TestThePluginServiceReadsTheManifestThroughThePort(t *testing.T) {
 	}
 	defer root.Close()
 
-	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: root})
+	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(root)})
 	out, err := appplugins.New(requestPluginPorts(ctx)).List(context.Background(), appplugins.ListInput{})
 	if err != nil {
 		t.Fatalf("list: %v", err)

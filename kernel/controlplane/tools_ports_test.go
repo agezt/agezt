@@ -125,7 +125,7 @@ func TestTheRequestToolsPortsFollowTheRoutedKernel(t *testing.T) {
 	}
 
 	// The request's ports follow the routed kernel.
-	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: tenant})
+	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(tenant)})
 	ports := requestToolsPorts(ctx)
 	if !ports.Has("tenant_tool") {
 		t.Error("the request's tools ports do not see the routed kernel's tool")

@@ -49,8 +49,8 @@ func TestTheAdapterBindsTheMarketPortsToTheRoutedKernel(t *testing.T) {
 	defer tenant.Close()
 	tenant.SetMarket(core.NewManager(core.Config{Library: marketPortLibrary{pack: core.Pack{Name: "tenant-pack"}}, Store: core.NewStore(t.TempDir())}))
 
-	tenantCtx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: tenant})
-	daemonCtx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: root})
+	tenantCtx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(tenant)})
+	daemonCtx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(root)})
 	// The server is on the context too, so a binding that asked the DAEMON's
 	// kernel instead of the routed one would answer — wrongly — rather than
 	// fall over.
@@ -94,7 +94,7 @@ func TestTheAdapterBindsTheMarketPortsToAHostWithNoManager(t *testing.T) {
 	}
 	defer root.Close()
 
-	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: root})
+	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(root)})
 	if got := requestMarketPorts(ctx).Manager(); got != nil {
 		t.Fatal("a daemon with no marketplace hands over a marketplace manager")
 	}
@@ -117,7 +117,7 @@ func TestTheMarketServiceReadsThroughThePort(t *testing.T) {
 	defer root.Close()
 	root.SetMarket(core.NewManager(core.Config{Library: marketPortLibrary{pack: core.Pack{Name: "owned"}}, Store: core.NewStore(t.TempDir())}))
 
-	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: root})
+	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(root)})
 	out, err := appmarket.NewReads(requestMarketPorts(ctx).Manager()).List(context.Background(), appmarket.ListInput{})
 	if err != nil {
 		t.Fatalf("list: %v", err)

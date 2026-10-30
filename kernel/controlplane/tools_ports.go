@@ -4,22 +4,21 @@ package controlplane
 import (
 	"context"
 
-	"github.com/agezt/agezt/kernel/app/binding"
 	apptools "github.com/agezt/agezt/kernel/app/tools"
 )
 
 // The daemon's own tools ports: the root kernel's registry, forge and MCP
 // servers.
 //
-// The host does not decide what the tools are read from: it hands over the
-// kernel handle and the APPLICATION fills its own ports
-// (`kernel/app/tools/ports.go`). What stays here is the binding — which
-// kernel answers the tools family's questions.
+// The host does not decide what the tools are read from: the COMPOSITION ROOT fills the
+// scope and the APPLICATION fills the family's own ports
+// (`kernel/app/tools/ports.go`). What stays here is the reading — which
+// scope answers the tools family's questions.
 //
-// The handle is never named here: this file does not import the runtime, so
-// the adapter may hold the handle without naming the runtime package to hand
-// it over.
-func (s *Server) toolsPorts() apptools.Ports { return binding.Fill(s.k, apptools.PortsFromKernel) }
+// The handle is never named here, and it is never held here either: the
+// adapter holds the SCOPE — the family's ports, filled by the composition
+// root — and this file does not import the runtime to say so.
+func (s *Server) toolsPorts() apptools.Ports { return s.scoped().ToolsPorts }
 
 // The REQUEST's tools ports.
 //
@@ -27,5 +26,5 @@ func (s *Server) toolsPorts() apptools.Ports { return binding.Fill(s.k, apptools
 // tools are the tenant's tools: the routed kernel is the one the request's
 // services must read. The daemon's own ports answer for the root kernel.
 func requestToolsPorts(ctx context.Context) apptools.Ports {
-	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, apptools.PortsFromKernel)
+	return requestScope(ctx).ToolsPorts
 }

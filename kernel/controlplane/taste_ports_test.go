@@ -41,8 +41,8 @@ func TestTheAdapterBindsTheTastePortsToTheRoutedKernel(t *testing.T) {
 	}
 	defer tenant.Close()
 
-	tenantCtx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: tenant})
-	daemonCtx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: root})
+	tenantCtx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(tenant)})
+	daemonCtx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(root)})
 
 	// The request's ports follow the routed kernel.
 	if got := requestTastePorts(tenantCtx).Store(); got == nil {
@@ -69,7 +69,7 @@ func TestTheAdapterBindsTheTastePortsToAHostWithNoLibrary(t *testing.T) {
 	}
 	defer root.Close()
 
-	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: root})
+	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(root)})
 	if got := requestTastePorts(ctx).Store(); got != nil {
 		t.Fatal("a daemon with no taste library hands over a taste store")
 	}

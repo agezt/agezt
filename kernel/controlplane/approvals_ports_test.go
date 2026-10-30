@@ -53,8 +53,8 @@ func TestTheAdapterBindsTheApprovalPortsToTheRoutedKernel(t *testing.T) {
 	// One request waits in the TENANT's queue.
 	submitApproval(t, tenant.Approvals(), "corr-tenant")
 
-	tenantCtx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: tenant})
-	daemonCtx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: root})
+	tenantCtx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(tenant)})
+	daemonCtx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(root)})
 	// The server is on the context too, so a binding that asked the DAEMON's
 	// kernel instead of the routed one would answer — wrongly — rather than
 	// fall over.
@@ -113,7 +113,7 @@ func TestTheLiveApprovalsReadThroughThePort(t *testing.T) {
 
 	submitApproval(t, root.Approvals(), "corr-owned")
 
-	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{kernel: root})
+	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(root)})
 	out, err := appapprovals.NewLive(requestApprovalPorts(ctx).Broker()).Pending(context.Background(), appapprovals.PendingRequest{})
 	if err != nil {
 		t.Fatalf("pending: %v", err)

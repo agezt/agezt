@@ -2,7 +2,6 @@
 package controlplane
 
 import (
-	"github.com/agezt/agezt/kernel/app/binding"
 	appreflection "github.com/agezt/agezt/kernel/app/reflection"
 )
 
@@ -13,14 +12,14 @@ import (
 // own, so it asks the daemon's kernel. There is no request-level binding: a
 // binding nobody calls is dead code.
 //
-// The host does not decide what the engine is: it hands over the kernel handle
-// and the APPLICATION fills its own ports
-// (`kernel/app/reflection/ports.go`). What stays here is the binding — which
-// kernel answers the reflection family's questions.
+// The host does not decide what the engine is: the COMPOSITION ROOT fills the scope
+// and the APPLICATION fills the family's own ports
+// (`kernel/app/reflection/ports.go`). What stays here is the reading — which
+// scope answers the reflection family's questions.
 //
-// The handle is never named here: this file does not import the runtime, so the
-// adapter may hold the handle without naming the runtime package to hand it
-// over.
+// The handle is never named here, and it is never held here either: the
+// adapter holds the SCOPE — the family's ports, filled by the composition
+// root — and this file does not import the runtime to say so.
 func (s *Server) reflectionPorts() appreflection.Ports {
-	return binding.Fill(s.k, appreflection.PortsFromKernel)
+	return s.scoped().ReflectionPorts
 }

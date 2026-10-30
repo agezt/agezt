@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/app/binding"
-	appexecprofile "github.com/agezt/agezt/kernel/app/execprofile"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 	appworkboard "github.com/agezt/agezt/kernel/app/workboard"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
@@ -30,7 +28,7 @@ func (s *Server) runWorkboardDispatch(corr string, p agentapi.Profile, task work
 			}
 			return s.runPorts().Launch(ctx, corr, intent, nil)
 		}, func(corr string, task workboardapi.Task, phase, agent, reason, answer, errText string) {
-			publishWorkboardDispatch(s.k, corr, task, phase, agent, reason, answer, errText)
+			publishWorkboardDispatch(s.scoped(), corr, task, phase, agent, reason, answer, errText)
 		})
 	_, _ = service.Run(context.Background(), appworkboard.ExecutionInput{CorrelationID: corr, Agent: appworkboard.ExecutionAgent{Slug: p.Slug, ExecutionProfile: p.ExecutionProfile}, Task: task, Intent: intent, Reason: reason})
 }
@@ -72,5 +70,5 @@ func (s *Server) applyWardenExecutionProfile(ctx context.Context, id string) (co
 	if executionprofile.IsRemoteBackend(id) {
 		return ctx, "", fmt.Errorf("seat isolation %q is only available on direct runs, not workboard dispatch", id)
 	}
-	return appruns.WardenProfile(ctx, binding.Fill(s.k, appexecprofile.PortsFromKernel), id)
+	return appruns.WardenProfile(ctx, s.scoped().ExecProfilePorts, id)
 }

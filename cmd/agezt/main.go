@@ -36,6 +36,7 @@ import (
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/agentgw"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"github.com/agezt/agezt/kernel/app/overseer"
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/channel"
@@ -1168,7 +1169,11 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// post-Start SetTenants left a boot window where they were rejected as
 	// "unauthorized"). The late deps (pulse, channel send, standing fire) arrive
 	// via srv.Bind at each point of readiness below.
-	srv := controlplane.NewServerWithDeps(k, baseDir, controlplane.Deps{
+	//
+	// The daemon is the COMPOSITION ROOT: it holds the kernel, and what it
+	// hands the control plane is the kernel's SCOPE — every family's ports,
+	// filled. The adapter never receives the handle itself (W5.5b).
+	srv := controlplane.NewServerWithDeps(binding.ScopeFromKernel(k, baseDir), baseDir, controlplane.Deps{
 		ConfigEnvPinned: configPinned,   // M693: Config Center marks env-pinned fields read-only
 		Board:           srvBoard,       // M937: the ONE shared board instance…
 		BoardNotify:     srvBoardNotify, // …and its board.posted notifier

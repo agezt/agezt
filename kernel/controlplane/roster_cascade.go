@@ -10,9 +10,7 @@ package controlplane
 // data access.
 
 import (
-	"github.com/agezt/agezt/kernel/app/binding"
 	approster "github.com/agezt/agezt/kernel/app/roster"
-	appschedule "github.com/agezt/agezt/kernel/app/schedule"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
@@ -24,7 +22,7 @@ import (
 // derivation.
 func (s *Server) impactPorts() approster.ImpactPorts {
 	return approster.ImpactPorts{
-		Schedules:     binding.Fill(s.k, appschedule.PortsFromKernel).Entries,
+		Schedules:     s.scoped().SchedulePorts.Entries,
 		MemoryRecords: func() ([]memoryapi.Record, error) { return s.memoryPorts().Active() },
 		// A daemon with NO skill library holds a nil port (W3.55): the cascade
 		// sees no skills rather than calling into nothing.

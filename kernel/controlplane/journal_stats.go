@@ -18,16 +18,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/app/binding"
 	appjournal "github.com/agezt/agezt/kernel/app/journal"
 	"github.com/agezt/agezt/kernel/governor"
 )
 
-// journalReads binds the app journal reads to the given kernel's journal and
-// its on-disk directory.
+// journalReads binds the app journal reads to the request's scope and its
+// on-disk directory.
 func journalReads(ctx context.Context) *appjournal.Service {
-	k := ctx.Value(appHostKey{}).(appHost).kernel
-	return appjournal.New(binding.Fill(k, appjournal.PortsFromKernel).Events, func() (int, int64) {
+	scope := requestScope(ctx)
+	return appjournal.New(scope.JournalPorts.Events, func() (int, int64) {
 		dir := filepath.Join(requestBaseDirPorts(ctx).Dir(), "journal")
 		bytes, _ := dirUsage(dir)
 		return countSegments(dir), bytes

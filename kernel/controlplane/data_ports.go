@@ -2,7 +2,6 @@
 package controlplane
 
 import (
-	"github.com/agezt/agezt/kernel/app/binding"
 	appdata "github.com/agezt/agezt/kernel/app/data"
 )
 
@@ -13,14 +12,14 @@ import (
 // asks the daemon's kernel, and there is no request-level binding: a binding
 // nobody calls is dead code.
 //
-// The host does not decide what the lake is: it hands over the kernel handle
-// and the APPLICATION fills its own ports (`kernel/app/data/ports.go`). What
+// The host does not decide what the lake is: the COMPOSITION ROOT fills the scope
+// and the APPLICATION fills the family's own ports (`kernel/app/data/ports.go`). What
 // stays here is the binding — which kernel answers the data family's
 // questions.
 //
-// The handle is never named here: this file does not import the runtime, so the
-// adapter may hold the handle without naming the runtime package to hand it
-// over.
+// The handle is never named here, and it is never held here either: the
+// adapter holds the SCOPE — the family's ports, filled by the composition
+// root — and this file does not import the runtime to say so.
 func (s *Server) dataPorts() appdata.Ports {
-	return binding.Fill(s.k, appdata.PortsFromKernel)
+	return s.scoped().DataPorts
 }

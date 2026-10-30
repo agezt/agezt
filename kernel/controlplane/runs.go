@@ -12,20 +12,19 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/app/binding"
-	appjournal "github.com/agezt/agezt/kernel/app/journal"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 )
 
-// runReads binds the app run reads to the given kernel's folded runs.
-func (s *Server) runReads(k any) *appruns.Service {
+// runReads binds the app run reads to the given scope's folded runs.
+func (s *Server) runReads(scope binding.Scope) *appruns.Service {
 	return appruns.New(func() (map[string]appruns.Run, error) {
-		return s.runFold(k)
+		return s.runFold(scope)
 	}, time.Now)
 }
 
-// runFold walks the given kernel's journal and folds it into the app layer's
+// runFold walks the given scope's journal and folds it into the app layer's
 // run rows. The run operation enriches its terminal answer with the run's own
 // iters, spend and model from this fold.
-func (s *Server) runFold(k any) (map[string]appruns.Run, error) {
-	return appruns.Collect(binding.Fill(k, appjournal.PortsFromKernel).Events.Range)
+func (s *Server) runFold(scope binding.Scope) (map[string]appruns.Run, error) {
+	return appruns.Collect(scope.JournalPorts.Events.Range)
 }

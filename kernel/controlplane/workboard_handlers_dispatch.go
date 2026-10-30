@@ -25,7 +25,7 @@ func (s *Server) workboardDispatcher() *appworkboard.Dispatch {
 			}}, true
 		},
 		func(corr string, task workboardapi.Task, phase, agent, reason, answer, errText string) {
-			publishWorkboardDispatch(s.k, corr, task, phase, agent, reason, answer, errText)
+			publishWorkboardDispatch(s.scoped(), corr, task, phase, agent, reason, answer, errText)
 		})
 	return service
 }

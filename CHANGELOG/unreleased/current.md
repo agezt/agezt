@@ -3550,6 +3550,16 @@ This file holds the active `[Unreleased]` working set.
   production files, down from **12**, the archcheck allowlist's
   `adapter-bypass` edge is deleted, and the guard holds **170**
   application-owned verbs, up from **168**.
+- **The composition root holds the handle (W5.5b).** The control plane held
+  the daemon's kernel as an unnamed value and filled each family's ports
+  from it on the spot. The **composition root** — the daemon — now builds
+  the **scope**, a bundle of every family's filled ports, and the adapter
+  holds the scope and never the kernel. The **tenant** path moved with it:
+  the tenant's own scope is filled in the application layer, with the
+  tenant's own directory. The scope's fields are named after their
+  **ports**, so the adapter's verb rule keeps holding. After this slice the
+  adapter's types that hold a handle are **0**, down from **3**, and the
+  adapter's binding call sites are **0**, down from **68**.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —

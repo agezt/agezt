@@ -9,6 +9,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	appeventbus "github.com/agezt/agezt/kernel/app/eventbus"
 	"github.com/agezt/agezt/kernel/app/opaudit"
 	"github.com/agezt/agezt/kernel/contract/opapi"
@@ -30,7 +31,10 @@ type appConnKey struct{}
 // reads it the same way.
 
 type appHost struct {
-	kernel      any
+	// scope is the SCOPE of the request: the families' ports, filled for the
+	// daemon the request is routed to. The host holds no handle — it can
+	// reach each family's capabilities and nothing behind them.
+	scope       binding.Scope
 	correlation string
 }
 

@@ -12,11 +12,23 @@ import (
 	"errors"
 	"fmt"
 	"net"
+
+	"github.com/agezt/agezt/kernel/app/binding"
 )
 
-func NewServer(k any, baseDir string) *Server {
+// NewServer constructs a Server for one scope.
+//
+// The scope is what the COMPOSITION ROOT builds: the families' ports, filled
+// from the daemon's own kernel. The server keeps the scope and never the
+// handle it was filled from — what it was handed is consumed here and
+// dropped, so nothing behind the ports stays reachable from the adapter.
+//
+// A handle is still accepted for the callers that have one, and it is turned
+// into a scope on the spot: the same value, resolved once, with the same
+// refusal when it is not the daemon's own.
+func NewServer(scope any, baseDir string) *Server {
 	return &Server{
-		k:          k,
+		scope:      binding.Resolve(scope, baseDir),
 		baseDir:    baseDir,
 		shutdownCh: make(chan struct{}),
 	}

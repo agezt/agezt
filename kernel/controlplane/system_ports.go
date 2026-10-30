@@ -3,7 +3,6 @@
 package controlplane
 
 import (
-	"github.com/agezt/agezt/kernel/app/binding"
 	"github.com/agezt/agezt/kernel/app/system"
 )
 
@@ -14,5 +13,5 @@ import (
 // through the application's own port-filler, and the control plane does not
 // spell the kernel's type to hand it over.
 func (s *Server) systemPorts() system.Ports {
-	return binding.Fill(s.k, system.PortsFromKernel)
+	return s.scoped().SystemPorts
 }
