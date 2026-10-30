@@ -13,12 +13,14 @@ func interventionRequest() intervention.Request {
 	return intervention.Request{CorrelationID: "corr"}
 }
 
-// The run controls REFUSE when the handle is not the daemon's own.
+// The run controls REFUSE when there is no daemon.
 //
-// A host with no daemon holds no run to steer, pause, resume or step — and
-// the controls say so rather than pretending.
+// The run controls are filled from the daemon's own kernel, by type: there is
+// no foreign handle to fill them with any more. A host with no daemon holds
+// no run to steer, pause, resume or step — and the controls say so rather
+// than pretending.
 func TestTheRunControlsRefuseWithoutADaemon(t *testing.T) {
-	runs := RunsFromHandle("not a daemon")
+	runs := RunsFromKernel(nil)
 
 	if runs.CancelRun("corr") {
 		t.Error("a host with no daemon cancelled a run")

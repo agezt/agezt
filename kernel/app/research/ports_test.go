@@ -10,12 +10,14 @@ import (
 	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 )
 
-// The research engines REFUSE when the handle is not the daemon's own.
+// The research engines REFUSE when there is no daemon.
 //
-// A host with no daemon holds no research capability, and the engines say so
-// rather than answering as if a model had answered.
+// The engines are filled from the daemon's own kernel, by type: there is no
+// foreign handle to fill them with any more. A host with no daemon holds no
+// research capability, and the engines say so rather than answering as if a
+// model had answered.
 func TestTheResearchEnginesRefuseWithoutADaemon(t *testing.T) {
-	engines := EnginesFromHandle("not a daemon", func() string { return "corr" })
+	engines := EnginesFromKernel(nil, func() string { return "corr" })
 
 	_, err := engines.Research(context.Background(), "corr", "what is the weather", api.ResearchOptions{})
 	if err == nil {

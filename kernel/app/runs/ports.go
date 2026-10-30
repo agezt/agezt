@@ -222,20 +222,19 @@ func RunPortsFromKernel(k *runtime.Kernel) RunPorts {
 	}
 }
 
-// PlanRunnerPortsFromHandle fills the plan runner's capabilities from the
-// daemon's handle.
+// PlanRunnerPortsFromKernel fills the plan runner's capabilities from the
+// daemon's own kernel.
 //
 // The plan runner's own wiring is the runs family's business: the loop that
 // runs a plan's nodes and the daemon's plan verb are named HERE, and the
-// adapter never names them. The adapter hands over the handle, the approvals
+// adapter never names them. The adapter hands over the daemon, the approvals
 // registry and the subscription, and the runner is wired by the family that
 // owns it.
 //
-// A handle that is not the daemon's own yields capabilities that REFUSE — a
-// plan cannot run on a daemon that does not exist.
-func PlanRunnerPortsFromHandle(h any) PlanRunnerPorts {
-	k, ok := h.(*runtime.Kernel)
-	if !ok {
+// A daemon that does not exist yields capabilities that REFUSE — a plan
+// cannot run on a daemon that does not exist.
+func PlanRunnerPortsFromKernel(k *runtime.Kernel) PlanRunnerPorts {
+	if k == nil {
 		return PlanRunnerPorts{
 			LoopRunner: func() scheduler.LoopRunner { return nil },
 			RunPlan: func(context.Context, scheduler.Plan, string) (*scheduler.PlanResult, error) {
