@@ -5,6 +5,7 @@ package controlplane
 import (
 	"context"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	appprovider "github.com/agezt/agezt/kernel/app/provider"
 )
 
@@ -18,7 +19,9 @@ import (
 // The handle is never named here: this file does not import the runtime, so
 // the adapter may hold the handle without naming the runtime package to hand
 // it over.
-func (s *Server) providerPorts() appprovider.Ports { return appprovider.PortsFromKernel(s.k) }
+func (s *Server) providerPorts() appprovider.Ports {
+	return binding.Fill(s.k, appprovider.PortsFromKernel)
+}
 
 // The REQUEST's provider ports.
 //
@@ -27,5 +30,5 @@ func (s *Server) providerPorts() appprovider.Ports { return appprovider.PortsFro
 // request's services must read. The daemon's own ports answer for the root
 // kernel.
 func requestProviderPorts(ctx context.Context) appprovider.Ports {
-	return appprovider.PortsFromKernel(ctx.Value(appHostKey{}).(appHost).kernel)
+	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, appprovider.PortsFromKernel)
 }

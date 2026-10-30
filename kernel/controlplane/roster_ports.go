@@ -3,6 +3,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	approster "github.com/agezt/agezt/kernel/app/roster"
 )
 
@@ -13,5 +14,5 @@ import (
 // (`kernel/app/roster/ports.go`). What stays here is the binding — which
 // kernel answers the roster's questions on this daemon.
 func (s *Server) rosterPorts() approster.ProfilePorts {
-	return approster.ProfilePortsFromKernel(s.k)
+	return binding.Fill(s.k, approster.ProfilePortsFromKernel)
 }

@@ -4,6 +4,7 @@ package controlplane
 import (
 	"context"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	apppersona "github.com/agezt/agezt/kernel/app/persona"
 )
 
@@ -28,10 +29,10 @@ import (
 // adapter may hold the handle without naming the runtime package to hand it
 // over.
 func (s *Server) personaPorts() apppersona.Ports {
-	return apppersona.PortsFromKernel(s.k)
+	return binding.Fill(s.k, apppersona.PortsFromKernel)
 }
 
 // requestPersonaPorts are the REQUEST's persona ports.
 func requestPersonaPorts(ctx context.Context) apppersona.Ports {
-	return apppersona.PortsFromKernel(ctx.Value(appHostKey{}).(appHost).kernel)
+	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, apppersona.PortsFromKernel)
 }

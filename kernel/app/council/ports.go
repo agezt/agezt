@@ -42,6 +42,24 @@ func PortsFromKernel(k *runtime.Kernel, baseDir string) Ports {
 	}
 }
 
+// PortsFromHandle fills the council's ports from the daemon's handle.
+//
+// The handle is not named by the caller: the council family fills its own
+// ports from it. A handle that is not the daemon's own yields ports that
+// REFUSE — there are no seats to sit, and no store to read.
+func PortsFromHandle(h any, baseDir string) Ports {
+	k, ok := h.(*runtime.Kernel)
+	if !ok {
+		return Ports{
+			Members:    func() []Member { return nil },
+			SetMembers: func([]Member) {},
+			Store:      func() Store { return nil },
+			Models:     func() func(string) bool { return func(string) bool { return false } },
+		}
+	}
+	return PortsFromKernel(k, baseDir)
+}
+
 // EnginesFromKernel fills the council's engines from the kernel handle: the
 // council itself, the conductor that runs a thinking task, and the
 // correlation mint for a run that arrives without one.

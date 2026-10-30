@@ -4,6 +4,7 @@ package controlplane
 import (
 	"context"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	appokr "github.com/agezt/agezt/kernel/app/okr"
 )
 
@@ -18,5 +19,5 @@ import (
 // the adapter may hold the handle without naming the runtime package to hand
 // it over.
 func requestOKRPorts(ctx context.Context) appokr.Ports {
-	return appokr.PortsFromKernel(ctx.Value(appHostKey{}).(appHost).kernel)
+	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, appokr.PortsFromKernel)
 }

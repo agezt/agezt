@@ -4,6 +4,7 @@ package controlplane
 import (
 	"context"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	appworld "github.com/agezt/agezt/kernel/app/world"
 )
 
@@ -23,5 +24,5 @@ import (
 // adapter may hold the handle without naming the runtime package to hand it
 // over.
 func requestWorldPorts(ctx context.Context) appworld.Ports {
-	return appworld.PortsFromKernel(ctx.Value(appHostKey{}).(appHost).kernel)
+	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, appworld.PortsFromKernel)
 }

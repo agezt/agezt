@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
 )
 
@@ -18,7 +17,7 @@ func tenantOf(req Request) string {
 	t, _, _ := argString(req.Args, "tenant")
 	return t
 }
-func (s *Server) kernelFor(tenantID string) (*runtime.Kernel, error) {
+func (s *Server) kernelFor(tenantID string) (any, error) {
 	tenantID = strings.TrimSpace(tenantID)
 	if tenantID == "" {
 		return s.k, nil
@@ -30,10 +29,9 @@ func (s *Server) kernelFor(tenantID string) (*runtime.Kernel, error) {
 	if err != nil {
 		return nil, err
 	}
-	k, ok := t.Kernel.(*runtime.Kernel)
-	if !ok {
-		return nil, fmt.Errorf("tenant %q: kernel is not a *runtime.Kernel", tenantID)
-	}
-	return k, nil
+	// The tenant's own handle is handed over WITHOUT naming the runtime: the
+	// application fills the families' ports from it, and a handle that is not
+	// the daemon's own yields empty ports that refuse.
+	return t.Kernel, nil
 }
 func (s *Server) SetTenants(r *tenant.Registry) { s.tenants = r }

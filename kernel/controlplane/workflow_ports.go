@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	appworkflow "github.com/agezt/agezt/kernel/app/workflow"
 )
 
@@ -12,5 +13,5 @@ import (
 // (`kernel/app/workflow/ports.go`). What stays here is the binding — which
 // kernel answers the workflow's questions on this daemon.
 func (s *Server) workflowPorts() appworkflow.Ports {
-	return appworkflow.PortsFromKernel(s.k)
+	return binding.Fill(s.k, appworkflow.PortsFromKernel)
 }

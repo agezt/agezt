@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 	appschedule "github.com/agezt/agezt/kernel/app/schedule"
@@ -21,8 +22,8 @@ func (s *Server) collectRosterStatusSnapshot(profiles []agentapi.Profile, reaper
 	return approster.CollectStatus(approster.StatusSources{
 		Journal:   s.journalPorts().Events.Range,
 		Runs:      s.statusRunRows,
-		Schedules: appschedule.PortsFromKernel(s.k).Entries,
-		Standing:  appstanding.PortsFromKernel(s.k).Orders,
+		Schedules: binding.Fill(s.k, appschedule.PortsFromKernel).Entries,
+		Standing:  binding.Fill(s.k, appstanding.PortsFromKernel).Orders,
 		Board:     s.statusBoardMessages,
 		Reaper:    func(cut int64) agentapi.ReaperReport { return s.reaperPorts().Scan(cut, cut) },
 	}, profiles, reaperCut, routingCut)

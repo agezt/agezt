@@ -46,9 +46,19 @@ type PlanRunner struct {
 	subscribe  func(pattern string, buffer int) (PlanSubscription, error)
 }
 
-// NewPlanRunner binds the plan runner to the kernel.
-func NewPlanRunner(loopRunner func() scheduler.LoopRunner, approvals func() *approval.Registry, runPlan func(ctx context.Context, plan scheduler.Plan, planID string) (*scheduler.PlanResult, error), subscribe func(pattern string, buffer int) (PlanSubscription, error)) *PlanRunner {
-	return &PlanRunner{loopRunner: loopRunner, approvals: approvals, runPlan: runPlan, subscribe: subscribe}
+// PlanRunnerPorts are the plan runner's own capabilities: the daemon's loop
+// that runs a plan's nodes and the daemon's plan verb.
+//
+// The runner takes PORTS, not the handle: the adapter that hands the daemon's
+// handle over never names the loop or the plan verb.
+type PlanRunnerPorts struct {
+	LoopRunner func() scheduler.LoopRunner
+	RunPlan    func(ctx context.Context, plan scheduler.Plan, planID string) (*scheduler.PlanResult, error)
+}
+
+// NewPlanRunner binds the plan runner to its ports.
+func NewPlanRunner(ports PlanRunnerPorts, approvals func() *approval.Registry, subscribe func(pattern string, buffer int) (PlanSubscription, error)) *PlanRunner {
+	return &PlanRunner{loopRunner: ports.LoopRunner, approvals: approvals, runPlan: ports.RunPlan, subscribe: subscribe}
 }
 
 // PlanRunRequest is the plan submission.

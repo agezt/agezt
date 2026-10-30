@@ -4,6 +4,7 @@ package controlplane
 import (
 	"context"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	appworkboard "github.com/agezt/agezt/kernel/app/workboard"
 )
 
@@ -18,7 +19,7 @@ import (
 // the adapter may hold the handle without naming the runtime package to hand
 // it over.
 func (s *Server) workboardPorts() appworkboard.Ports {
-	return appworkboard.PortsFromKernel(s.k)
+	return binding.Fill(s.k, appworkboard.PortsFromKernel)
 }
 
 // The REQUEST's workboard ports.
@@ -27,5 +28,5 @@ func (s *Server) workboardPorts() appworkboard.Ports {
 // board is the tenant's board: the routed kernel is the one the request's
 // services must read.
 func requestWorkboardPorts(ctx context.Context) appworkboard.Ports {
-	return appworkboard.PortsFromKernel(ctx.Value(appHostKey{}).(appHost).kernel)
+	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, appworkboard.PortsFromKernel)
 }

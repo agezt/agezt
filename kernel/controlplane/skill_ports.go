@@ -5,6 +5,7 @@ package controlplane
 import (
 	"context"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	appskill "github.com/agezt/agezt/kernel/app/skill"
 )
 
@@ -18,7 +19,7 @@ import (
 // The handle is never named here: this file does not import the runtime, so
 // the adapter may hold the handle without naming the runtime package to hand
 // it over.
-func (s *Server) skillPorts() appskill.Ports { return appskill.PortsFromKernel(s.k) }
+func (s *Server) skillPorts() appskill.Ports { return binding.Fill(s.k, appskill.PortsFromKernel) }
 
 // The REQUEST's skill ports.
 //
@@ -27,5 +28,5 @@ func (s *Server) skillPorts() appskill.Ports { return appskill.PortsFromKernel(s
 // request's services must read. The daemon's own ports answer for the root
 // kernel.
 func requestSkillPorts(ctx context.Context) appskill.Ports {
-	return appskill.PortsFromKernel(ctx.Value(appHostKey{}).(appHost).kernel)
+	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, appskill.PortsFromKernel)
 }

@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	appreaper "github.com/agezt/agezt/kernel/app/reaper"
 )
 
@@ -22,5 +23,5 @@ import (
 // adapter may hold the handle without naming the runtime package to hand it
 // over.
 func (s *Server) reaperPorts() appreaper.Ports {
-	return appreaper.PortsFromKernel(s.k)
+	return binding.Fill(s.k, appreaper.PortsFromKernel)
 }

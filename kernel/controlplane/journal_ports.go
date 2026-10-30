@@ -4,6 +4,7 @@ package controlplane
 import (
 	"context"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	appjournal "github.com/agezt/agezt/kernel/app/journal"
 )
 
@@ -17,7 +18,9 @@ import (
 // The handle is never named here: this file does not import the runtime, so
 // the adapter may hold the handle without naming the runtime package to hand
 // it over.
-func (s *Server) journalPorts() appjournal.Ports { return appjournal.PortsFromKernel(s.k) }
+func (s *Server) journalPorts() appjournal.Ports {
+	return binding.Fill(s.k, appjournal.PortsFromKernel)
+}
 
 // The REQUEST's journal ports.
 //
@@ -25,5 +28,5 @@ func (s *Server) journalPorts() appjournal.Ports { return appjournal.PortsFromKe
 // journal is the tenant's journal: the routed kernel is the one the request's
 // services must read. The daemon's own ports answer for the root kernel.
 func requestJournalPorts(ctx context.Context) appjournal.Ports {
-	return appjournal.PortsFromKernel(ctx.Value(appHostKey{}).(appHost).kernel)
+	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, appjournal.PortsFromKernel)
 }

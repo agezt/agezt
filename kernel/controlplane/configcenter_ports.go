@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 package controlplane
 
-import appconfigcenter "github.com/agezt/agezt/kernel/app/configcenter"
+import (
+	"github.com/agezt/agezt/kernel/app/binding"
+	appconfigcenter "github.com/agezt/agezt/kernel/app/configcenter"
+)
 
 // The config center family's ports, bound to this daemon's kernel.
 //
@@ -14,5 +17,5 @@ import appconfigcenter "github.com/agezt/agezt/kernel/app/configcenter"
 // the adapter may hold the handle without naming the runtime package to hand
 // it over.
 func (s *Server) configCenterPorts() appconfigcenter.Ports {
-	return appconfigcenter.PortsFromKernel(s.k)
+	return binding.Fill(s.k, appconfigcenter.PortsFromKernel)
 }

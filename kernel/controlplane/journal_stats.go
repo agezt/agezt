@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	appjournal "github.com/agezt/agezt/kernel/app/journal"
 	"github.com/agezt/agezt/kernel/governor"
 )
@@ -26,7 +27,7 @@ import (
 // its on-disk directory.
 func journalReads(ctx context.Context) *appjournal.Service {
 	k := ctx.Value(appHostKey{}).(appHost).kernel
-	return appjournal.New(appjournal.PortsFromKernel(k).Events, func() (int, int64) {
+	return appjournal.New(binding.Fill(k, appjournal.PortsFromKernel).Events, func() (int, int64) {
 		dir := filepath.Join(requestBaseDirPorts(ctx).Dir(), "journal")
 		bytes, _ := dirUsage(dir)
 		return countSegments(dir), bytes

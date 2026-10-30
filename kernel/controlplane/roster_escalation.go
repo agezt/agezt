@@ -15,16 +15,16 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	appeventbus "github.com/agezt/agezt/kernel/app/eventbus"
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
-func publishOperatorAction(k *runtime.Kernel, subject, corr string, payload map[string]any) {
-	ports := appeventbus.PortsFromKernel(k)
+func publishOperatorAction(k any, subject, corr string, payload map[string]any) {
+	ports := binding.Fill(k, appeventbus.PortsFromKernel)
 	if !ports.Ready() {
 		return
 	}

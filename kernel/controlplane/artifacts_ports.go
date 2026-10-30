@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	appartifacts "github.com/agezt/agezt/kernel/app/artifacts"
+	"github.com/agezt/agezt/kernel/app/binding"
 )
 
 // The daemon's own artifact ports: the root kernel's artifact store and its
@@ -17,4 +18,6 @@ import (
 // The handle is never named here: this file does not import the runtime, so the
 // adapter may hold the handle without naming the runtime package to hand it
 // over.
-func (s *Server) artifactPorts() appartifacts.Ports { return appartifacts.PortsFromKernel(s.k) }
+func (s *Server) artifactPorts() appartifacts.Ports {
+	return binding.Fill(s.k, appartifacts.PortsFromKernel)
+}

@@ -14,11 +14,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	appcorrelation "github.com/agezt/agezt/kernel/app/correlation"
 	appeventbus "github.com/agezt/agezt/kernel/app/eventbus"
 	"github.com/agezt/agezt/kernel/app/opaudit"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
 // auditedConn records the terminal response a handler writes, so dispatch can
@@ -54,7 +54,6 @@ func (c *auditedConn) outcome() (settled bool, errMsg string) {
 
 // opAudit journals one state-changing command's invocation and outcome.
 type opAudit struct {
-	k     *runtime.Kernel
 	ports appeventbus.Ports
 	cmd   string
 	corr  string
@@ -64,7 +63,7 @@ type opAudit struct {
 
 func beginOpAudit(dc *DispatchCtx) *opAudit {
 	k := dc.K
-	ports := appeventbus.PortsFromKernel(k)
+	ports := binding.Fill(k, appeventbus.PortsFromKernel)
 	if !ports.Ready() {
 		return nil
 	}
@@ -73,10 +72,9 @@ func beginOpAudit(dc *DispatchCtx) *opAudit {
 		caller = "tenant"
 	}
 	a := &opAudit{
-		k:     k,
 		ports: ports,
 		cmd:   dc.Req.Cmd,
-		corr:  appcorrelation.PortsFromKernel(k).Mint(),
+		corr:  binding.Fill(k, appcorrelation.PortsFromKernel).Mint(),
 		start: time.Now(),
 		conn:  &auditedConn{Conn: dc.Conn},
 	}

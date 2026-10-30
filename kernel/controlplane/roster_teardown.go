@@ -10,6 +10,7 @@ package controlplane
 // access: the stores and their writes.
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	appschedule "github.com/agezt/agezt/kernel/app/schedule"
 	appstanding "github.com/agezt/agezt/kernel/app/standing"
@@ -18,8 +19,8 @@ import (
 
 // teardownPorts binds the host's stores to the application's teardown.
 func (s *Server) teardownPorts() approster.TeardownPorts {
-	standing := appstanding.PortsFromKernel(s.k)
-	schedule := appschedule.PortsFromKernel(s.k)
+	standing := binding.Fill(s.k, appstanding.PortsFromKernel)
+	schedule := binding.Fill(s.k, appschedule.PortsFromKernel)
 	return approster.TeardownPorts{
 		RetireChild: func(slug, reason string) error {
 			_, err := s.rosterPorts().SetRetired(slug, true, reason)
