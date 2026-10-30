@@ -827,28 +827,31 @@ func daemonOwnedVerbs(t *testing.T) []string {
 	return verbs
 }
 
-// overseerOwnedVerbs are the kernel's OVERSEER verbs: the two verbs that
-// belong to nobody else — the run a supervision cancels, and the runs that are
-// in flight.
+// overseerOwnedVerbs are the kernel's OVERSEER verbs: the runs that are in
+// flight.
 //
-// The rule is BY NAME, and it answers to two EXACT names.
+// The rule is BY NAME, and it answers to ONE EXACT name.
 //
 // It cannot be a word rule, and the reason is worth writing down. A "Run"
 // rule would take the RUNS family's own verbs — the two that START a run —
-// and "Cancel" belongs to no other family either, but a rule that sweeps by
-// word would grow every time the kernel grows a run verb. The names are
-// exact, so a verb that lands in the kernel later is guarded the day the
-// family that owns it says so.
+// and a rule that sweeps by word would grow every time the kernel grows a run
+// verb. The name is exact, so a verb that lands in the kernel later is
+// guarded the day the family that owns it says so.
 //
-// These two verbs were UNGUARDED until this slice: no family claimed them,
-// so the adapter was free to name them, and nothing in the tree said that
-// the supervision of the live fleet was the application's business. The
-// OVERSEER is the only family that reads them, so the overseer owns them.
+// This verb was UNGUARDED until the W5.4ba slice: no family claimed it, so
+// the adapter was free to name it, and nothing in the tree said that the
+// supervision of the live fleet was the application's business. The OVERSEER
+// was the only family that read it then, so the overseer owned it.
+//
+// The RUNS family reads it too, and the run's own end belongs to the family
+// that owns runs: the family that starts a run also stops it — a run that
+// outlives the operator's client stops itself. So the verb moved to the runs
+// family, and the overseer asks that family for it: the supervisor stops a
+// run by asking the family that owns runs.
 func overseerOwnedVerbs(t *testing.T) []string {
 	t.Helper()
 	kernel := reflect.TypeOf(&runtime.Kernel{})
 	want := []string{
-		"CancelRun",
 		"ActiveRunIDs",
 	}
 	verbs := make([]string, 0, len(want))
@@ -914,11 +917,17 @@ func reaperOwnedVerbs(t *testing.T) []string {
 // The exception is written out here, and the sharp guard test says so out
 // loud.
 //
-// And ONE verb belongs to the runs family by an EXACT name: `AdmitImages`,
-// the vision gate a run asks before it looks at anything. It was unguarded
-// until this slice, and the runs family is the only family that reads it —
-// the admission is the run's own gate. A word rule would not find it: it
-// carries neither "Run" nor "With".
+// And FOUR verbs belong to the runs family by an EXACT name: `AdmitImages`,
+// the vision gate a run asks before it looks at anything; `SubjectForRun`,
+// the run's own subject on the bus; `RunAssured`, the loop that runs the
+// intent until the answer is assured; and `MaxDuration`, the daemon's own run
+// ceiling. None of them was guarded until this slice, and none of them carries
+// "Run" AND "With" — a word rule cannot find them.
+//
+// `CancelRun` joined them: it was the OVERSEER's by name since the W5.4ba
+// slice, but the RUNS family reads it too — a run that outlives the
+// operator's client stops itself — and the run's own end belongs to the
+// family that owns runs. The overseer asks that family for it now.
 func runsOwnedVerbs(t *testing.T) []string {
 	t.Helper()
 	kernel := reflect.TypeOf(&runtime.Kernel{})
@@ -943,10 +952,12 @@ func runsOwnedVerbs(t *testing.T) []string {
 		}
 		verbs = append(verbs, name)
 	}
-	if _, ok := kernel.MethodByName("AdmitImages"); !ok {
-		t.Fatal("the kernel has no AdmitImages verb — the runs family's vision gate moved?")
+	for _, name := range []string{"AdmitImages", "SubjectForRun", "RunAssured", "MaxDuration", "CancelRun"} {
+		if _, ok := kernel.MethodByName(name); !ok {
+			t.Fatalf("the kernel has no %s verb — the runs family's verbs moved?", name)
+		}
+		verbs = append(verbs, name)
 	}
-	verbs = append(verbs, "AdmitImages")
 	if len(verbs) == 0 {
 		t.Fatal("no run verbs found — the kernel's run verbs are gone?")
 	}

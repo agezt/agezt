@@ -22,13 +22,17 @@ import (
 )
 
 func (s *Server) mirrorRemoteExecutionProfileEvents(ctx context.Context, k *runtime.Kernel, corr string, meta map[string]string) {
+	// The remote run's own events travel under the run's subject, and that
+	// convention belongs to the runs family: the mirror publishes through the
+	// family's port, not through the kernel's bus.
+	runPorts := appruns.RunPortsFromKernel(k)
 	appremote.Mirror(ctx, appremote.MirrorPorts{
 		LookupPeer:     s.lookupNodePeer,
 		FetchEvents:    fetchRemoteEvents,
 		FetchArtifacts: fetchRemoteArtifacts,
 		Redact:         redactedRemotePayload,
 		Publish: func(ctx context.Context, corr string, kind event.Kind, suffix string, payload map[string]any) error {
-			return appruns.PublishRemoteRunEvent(k, corr, kind, suffix, payload)
+			return runPorts.PublishRemoteEvent(corr, kind, suffix, payload)
 		},
 	}, appremote.EnvMode(), corr, meta)
 }

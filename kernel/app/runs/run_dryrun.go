@@ -52,16 +52,15 @@ type dryRunInput struct {
 // wall-clock timeout, and the precise tool set the agent loop would see after
 // the per-run filter. Nothing runs and no token is spent.
 func (s *RunService) dryRun(resolved *resolvedRun) (RunOutput, error) {
-	k := s.ports.kernel
 	in := dryRunInput{
 		Intent:           resolved.intent,
 		Tenant:           resolved.tenant,
 		Model:            resolved.model,
 		ModelOverridden:  resolved.overridden,
-		SystemSet:        strings.TrimSpace(k.System()) != "",
+		SystemSet:        strings.TrimSpace(s.ports.Prompt()) != "",
 		SystemOverride:   resolved.system != "",
 		Timeout:          resolved.timeout,
-		DaemonTimeout:    k.MaxDuration(),
+		DaemonTimeout:    s.ports.Ceiling(),
 		AllowSet:         resolved.toolsSet,
 		Allow:            resolved.tools,
 		MaxCostMC:        resolved.maxCost,
@@ -70,8 +69,8 @@ func (s *RunService) dryRun(resolved *resolvedRun) (RunOutput, error) {
 		RemotePeer:       resolved.peer,
 		ModelPriced:      modelPriced(resolved.model),
 	}
-	in.StrictPricing, in.ModelHasPrice = strictPricingPlan(k.Provider(), resolved.model)
-	if cat := k.Catalog(); cat != nil {
+	in.StrictPricing, in.ModelHasPrice = strictPricingPlan(s.ports.LiveProvider(), resolved.model)
+	if cat := s.ports.CatalogSnapshot(); cat != nil {
 		if _, m := cat.FindModel(resolved.model); m != nil {
 			in.ModelKnown = true
 			in.SupportsVision = m.SupportsVision()
@@ -79,7 +78,7 @@ func (s *RunService) dryRun(resolved *resolvedRun) (RunOutput, error) {
 			in.ContextLimit = m.Limit.Context
 		}
 	}
-	for name := range runtime.AgentTools(resolved.ctx, k.Tools()) {
+	for name := range runtime.AgentTools(resolved.ctx, s.ports.RegisteredTools()) {
 		in.AllToolNames = append(in.AllToolNames, name)
 	}
 	return buildRunPlan(in), nil
