@@ -4952,6 +4952,106 @@ files, five of the seventeen mutations would have escaped.
   the host's ports, and a forwarder); and the rest of the runtime's
   dissolution stands at **240 verbs** in **9,590 lines**. Evidence:
   `architecture/267-w369-the-objective-librarys-verbs-move-into-the-work-module-evidence.md`
+- W3.70 (the task board's proof cycle moves into the work module) is the
+  **third** slice of the runtime's dissolution and the first one to move a
+  **judgment** rather than a lifecycle. The task board's **proof cycle** lived
+  in the daemon (`kernel/runtime/workboard_proof.go`, 218 lines): it gathered
+  the evidence the proof rests on, asked a judge whether the answer satisfied
+  the task's acceptance criteria, read the judge's reply, recorded the proof on
+  the task and announced the verdict. That is the **board's** business — the
+  module's own words say so: "the durable, checkable evidence that a
+  **workboard task** actually satisfied its acceptance criteria". The task
+  carries the proof, and the proof carries the verdict; a module that keeps the
+  task and the store but leaves the judgment in the daemon keeps the data and
+  gives away the meaning of the data. After W3.68 (the lifecycle), W3.69 (the
+  goals) and W3.70 (the proof), the work module keeps the whole of the board's
+  business. The **shape** of the candidate decided the slice's design: the
+  proof is not a separate family with its own face — it is a **verb of the
+  board**. So the proof did not become a new service with a new injection
+  point; it became `BoardService.Prove`, and the board's dependencies grew the
+  ports the judge asks through. **That decision is the slice's real finding**,
+  and it is what makes the slice cheap: the board was **already wired** in
+  every host that had one. The module now owns the judgment
+  (`kernel/modules/work/workboard/workboard_proof.go`): the evidence to gather,
+  the criterion prompt, the reply to parse, the verdict to publish and the
+  proof to record. The board's face grew **one verb and five ports** —
+  `Prove(ctx, corr, id, answer)` beside the lifecycle's fifteen, and
+  `TaskProved`, `Complete`, `Model`, `VerifyCompletion`, `Artifacts` and
+  `Journal` beside the board's `Publish` and `TaskCompleted`. The `Complete`
+  port is the reasoning module's port **letter for letter**, so the governor's
+  task routing, the task budgets and the per-run spend attribution keep
+  working: the judge asks through the host's funnel rather than around it.
+  `ArtifactLister` and `EventScanner` are the module's own **narrow shapes**
+  (`kernel/modules/work/api/proof.go`); the host's artifact index and the
+  host's journal satisfy them **structurally**, so nothing in the contract
+  names the host's journal package and the module never reaches it — the module
+  holds a way to ASK and does the walking and the filtering itself, which keeps
+  the **rule** ("scan by correlation id, not a fixed tail window") where it
+  belongs. The daemon keeps its name and forwards (`ProveTask` asks the board's
+  service), so **no caller outside the runtime changed**: **0 production
+  files** in `kernel/app` changed. What did NOT move, and why: the **judge
+  stays the host's** (the model, the governor's routing and the spend
+  attribution are the host's machinery — the module asks through a port); the
+  host's **plain completion judge stays the host's** (a task with no acceptance
+  criteria has no criteria to judge, so the module asks for that answer and
+  never judges completion itself); and the **refusal did not become a contract
+  row** (the board's existing `workboardapi.ErrNoStore` already answers "no
+  board", and the judge's own refusal is the module's, because only the module
+  answers it). **What the slice cost: nothing to wire** — the board was
+  already injected everywhere, so the proof came with it. The two prior slices
+  paid **11** and **6** test sites for their new injection points; this one
+  paid **0**. That is the finding worth keeping: **a move into an existing
+  face costs nothing, and a move that invents a new face costs a wiring in
+  every host.** **21 permanent tests** in three places — the module's own
+  (**16**: the board refuses to prove without a store, it proves a criterialess
+  task with the host's plain judge, it **holds the gate** when the answer falls
+  short, it judges **each** criterion and reads the reply, it holds the gate
+  when the reply cannot be read, it holds the gate when the host has no judge,
+  it gathers the evidence under the **right** correlation id, it gathers no
+  evidence when the host has none, it publishes the verdict, it tells the host
+  that a task was proved, it synthesizes an answer when there is none, it
+  refuses a task it cannot find, it is quiet without a bus, and the judge's
+  reply is read even when it is fenced in prose), the daemon's (**4**: the
+  daemon asks the module — a **fake board** records the arguments, so a daemon
+  that grew the judgment back would record nothing; the daemon refuses when
+  the module is not wired; the daemon hands the proof's ports over; the daemon
+  hands its journal over) and the root's (**1**) — and **13 mutations, 13
+  caught** in two independent passes with **byte-identical** logs (SHA-256
+  `C734D7BFCA4D490ABED5EF80141387D6140AF46B435223FCEB6577DB0F88D4EA`). The
+  first calibration reported **one BUILDERR** and **three** further faults, and
+  **all four were the harness's**, not the code's: the mutation that stopped the
+  daemon asking the module left `svc` unused, so Go refused to compile (a
+  compile error is not a caught mutation, it is a mutation that never ran); the
+  mutation that made the module read a broken reply as a pass was pointed at
+  the **second** of the two "not valid JSON" branches while the test watches the
+  **first**; the mutation that dropped the artifact listing was pointed at the
+  test that expects **no** evidence; and the mutation that emptied the
+  evidence's correlation id was **correct** and **survived**, because the test
+  did not yet say whose correlation the evidence belongs to — the test was
+  wrong, not the mutation, and the evidence's correlation id is now pinned. The
+  measurement that moved: the daemon's calls into the board's store **3 → 0**,
+  the daemon's calls into the module **0 → 1**, the module's calls into the
+  board's store **0 → 2**, the daemon's public proof names **1 → 1**, the
+  application layer's production files that changed **0**, the test sites that
+  had to be wired **0**, the contract's new rows **0**, `kernel/runtime`
+  **9,590 → 9,395** lines and `kernel/modules/work` **2,323 → 2,673**. The move
+  also made two daemon helpers **dead**: `workboardStore()` and
+  `publishWorkboard()` were the proof cycle's **only** callers, so they lost their
+  last caller with it and are gone. The module's own publisher says the **same**
+  thing — the same subject, the same kind, the same payload row
+  (`workboardapi.TaskEventPayload`) — because the tools read one shape. A move that
+  takes the last caller of a helper takes the helper too, and the event's shape
+  does not change on the way: only the place that speaks it. The
+  **kernel's verb count did not move at all** (240 → 240), and that is the
+  point: `ProveTask` is still the daemon's name and always was; the board's
+  service gained a verb, the daemon kept its one, and **what moved is the body
+  behind the name**. The lines are counted the way the previous two slices
+  counted them: **non-blank** lines of the package's production files. **What
+  is left**: the work module keeps the whole of the board's business, and the
+  next candidate is not another slice of the work module but the **scope's leaf
+  contract** — the surface family that the leaf's own contract should own,
+  whose first slice is the **files** family. Evidence:
+  `architecture/268-w370-the-task-boards-proof-cycle-moves-into-the-work-module-evidence.md`
 - W5.4a (the forbidden-call ratchet is zero) takes the **call-site** half of
   W5.4 — the last **three** `raw-write` call sites — and the ratchet goes
   **3 → 0**. The three were the marketplace cache's two staged writes and the

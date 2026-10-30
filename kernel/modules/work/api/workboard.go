@@ -24,8 +24,11 @@ package api
 //     it.
 
 import (
+	"context"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/assureapi"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/event"
 )
@@ -69,6 +72,15 @@ type BoardService interface {
 	ReclaimStale(corr, id, actor string, staleAfter time.Duration) (workboardapi.Task, error)
 	// SweepStaleClaims reclaims every stale claim, up to limit.
 	SweepStaleClaims(corr, actor string, staleAfter time.Duration, limit int) ([]workboardapi.Task, error)
+	// Prove judges an answer against the task's acceptance criteria and
+	// records the proof on the task.
+	//
+	// The proof is the BOARD's own: it is the durable, checkable evidence that
+	// the task actually satisfied what it promised. A task with no criteria is
+	// judged by the host's plain completion judge; a task with criteria is
+	// judged criterion by criterion, and the gate HOLDS when the answer falls
+	// short — a proof that cannot be reached is not a proof that passed.
+	Prove(ctx context.Context, corr, id, answer string) (workboardapi.Task, error)
 }
 
 // Dependencies are the host's ports the board needs to answer a verb.
@@ -91,4 +103,45 @@ type BoardDependencies struct {
 	// toward a Key Result, and the host keeps the library. The board calls
 	// the hook and holds no knowledge of objectives.
 	TaskCompleted func(corr, taskID string)
+
+	// TaskProved is called after a task's proof is recorded.
+	//
+	// The objective rollup is the host's business here too: a PROVED task
+	// counts toward a Key Result just as a done one does. The board calls the
+	// hook and holds no knowledge of objectives.
+	TaskProved func(corr, taskID string)
+
+	// Complete is the host's auxiliary-completion funnel.
+	//
+	// The per-criterion judge asks through it, so the governor's task routing,
+	// the task budgets and the per-run spend attribution keep working. A nil
+	// port means the host has no judge, and a proof with criteria cannot be
+	// reached — the gate HOLDS rather than declaring a false success.
+	Complete func(ctx context.Context, corr, taskType string, req llm.CompletionRequest) (*llm.CompletionResponse, error)
+
+	// Model names the model the judge speaks with.
+	//
+	// A nil port means the host has no model, and the judge answers with an
+	// empty model id rather than guessing one.
+	Model func() string
+
+	// VerifyCompletion is the host's PLAIN completion judge.
+	//
+	// A task with no acceptance criteria has no criteria to judge, and the
+	// host's own judge answers whether the answer accomplishes the task at
+	// all. The port is the host's answer to that question; the board never
+	// judges completion itself.
+	VerifyCompletion func(ctx context.Context, corr, task, answer string) (assureapi.Verdict, error)
+
+	// Artifacts lists the artifacts the host recorded.
+	//
+	// A nil port means the host keeps no artifact index, and a proof rests on
+	// no artifacts — an emptier record, never a failed one.
+	Artifacts ArtifactLister
+
+	// Journal walks the host's durable events.
+	//
+	// A nil port means the host keeps no journal, and a proof records no
+	// journal range — an emptier record, never a failed one.
+	Journal EventScanner
 }

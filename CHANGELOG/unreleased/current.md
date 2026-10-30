@@ -3708,6 +3708,28 @@ This file holds the active `[Unreleased]` working set.
   bounded window on Windows — the same remedy the atomic file helper already
   carries for files.
 
+- **The task board's proof cycle moves into the work module (W3.70).** The
+  third slice of the runtime's dissolution, and the first one to move a
+  **judgment** rather than a lifecycle. The task board's proof cycle lived in
+  the daemon: it gathered the evidence a proof rests on, asked a judge whether
+  the answer satisfied the task's acceptance criteria, read the judge's reply,
+  recorded the proof on the task and announced the verdict. That is the
+  **board's** business — the module's own words say so: "the durable,
+  checkable evidence that a **workboard task** actually satisfied its
+  acceptance criteria". The module now owns the judgment
+  (`kernel/modules/work/workboard/workboard_proof.go`), and the board's face
+  grew one verb (`Prove`) and five ports — the judge, the model, the host's
+  plain completion judge, the artifact index and the journal — all of them
+  ways to ASK, never ways to reach. The daemon keeps its name and forwards, so
+  **no caller outside the runtime changed** — 0 production files in
+  `kernel/app` — and the kernel's verb count did not move at all (240 → 240):
+  what moved is the body behind the name. The slice cost **nothing to wire**,
+  because the proof joined a face that was already injected everywhere; the two
+  prior slices paid 11 and 6 test sites for their new injection points.
+  `kernel/runtime` is 9,395 lines, down from 9,590, and `kernel/modules/work`
+  is 2,673, up from 2,323. The move also made two daemon helpers dead:
+  `workboardStore()` and `publishWorkboard()` were the proof cycle's only callers, so they
+  lost their last caller with it.
 - **The objective library's verbs move into the work module (W3.69).** The second
   slice of the runtime's dissolution, and the first one to move a family whose
   **rule** — not just its operations — lived in the daemon. The objective
