@@ -1,9 +1,9 @@
 module github.com/agezt/agezt
 
-go 1.26.4
+go 1.26.10
 
 require (
-	github.com/btcsuite/btcd/btcec/v2 v2.5.0
+	github.com/btcsuite/btcd/btcec/v2 v2.5.1
 	github.com/coder/websocket v1.8.15
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
 	golang.org/x/net v0.58.0
