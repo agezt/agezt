@@ -408,7 +408,7 @@ Numbered narrative with the real function names:
 3. `approvalDecisionBundle`: effect class from the ToolDef, else `defaultEffectClass(cap)`. Also predicted effects, affected resources (from input), rollback notes, confidence.
 4. `epistemicGate`: the **rule** is the platform's (`kernel/platform/policy/epistemic`), asked through three host ports — the journal scan, the clock and the tool map. Signals `dynamic_tool_surface`, `temporal_sensitive`, `novel_tool_conditions`, `matched_failure_conditions:N`, `low_effect_confidence:X`, `permissive_schema_effectful_tool`. History comes from the platform's `matchHistoricalToolOutcomes`, a **full `journal.Range`** over `policy.decision`/`tool.result`, keeping the last 4096 and weighting failures by time decay. The result is advisory unless `EpistemicEscalation` is set.
 5. Hard denials that bypass approval: `agentToolPolicyDenial` (profile `ToolAllow`/`ToolDeny`) and `agentNoisePolicyDenial` (e.g. memory writes disabled, notify throttling).
-6. Fail-closed guards that each force HITL with their own reason (`guardRaised`): epistemic escalation (opt-in), intent/regret gating (`IntentRegretGating`, publishes `intent.confirmation_required`), and the prompt-injection guard (`PromptInjectionOn` and not `WithTrustedObservations`; in `Warn` mode it publishes `prompt_injection.warned` and allows). The injection guard only fires for non-read-only effect classes.
+6. Fail-closed guards that each force HITL with their own reason: the **rules** are the platform's (`kernel/platform/policy/guards`, W3.74) — the epistemic escalation (opt-in), intent/regret gating (`IntentRegretGating`, publishes `intent.confirmation_required`), and the prompt-injection guard (`PromptInjectionOn` and not `WithTrustedObservations`; in `Warn` mode it publishes `prompt_injection.warned` and allows). They are evaluated in that order and the **first** one that raises wins, so the operator sees one reason — the guard's own. The injection guard only fires for non-read-only effect classes. The daemon gathers the evidence, asks `guards.Evaluate`, and applies the outcome.
 7. Session auto-approve (`autoApproveCap`) satisfies **only** the Edict Ask axis, never a guard. It publishes `policy.auto_approved`.
 8. Live HITL: `k.approvals.Submit(ctx, approval.SubmitSpec{Capability, ToolName, Input, Reason, Actor, CorrelationID, EffectClass, PredictedEffects, AffectedResources, RollbackNotes, Confidence, CanonicalIntent, HarmfulInterpretation, AmbiguityScore, RegretAxes, ConfirmationPrompt})`. Grant gives `Allow=true`, `Reason="approval granted by <who>"`. Anything else gives `approval <decision>: <reason>`.
 
@@ -606,7 +606,7 @@ Root package, grouped by concern; every non-test file is listed.
 | `runctx.go` | `ctxKey` enum (24 keys), `agentToolPolicy`, `agentNoisePolicy`/state, `WakeContext`. |
 | `runctx_agent.go` | `WithAgentProfile` (system agent, soul→WithSystem, lifecycle, retry policy, tool policy, noise, overrides, trust ceiling, model+chain, memory scope, workdir, ident), `WithAgentIdent`, noise-policy resolution. |
 | `runctx_basic.go` | `WithTrustCeiling`, `WithImages`, `WithJSONMode`, `WithModel`, `WithSystem`, `WithRunTimeout`, `WithMaxCost`, `rootFromCtx`, and their getters. |
-| `runctx_security.go` | `WithAutoApproveCapabilities`/merge/`autoApproveCap`, `PromptInjectionMode` + `ParsePromptInjectionMode`, `WithTrustedObservations`. |
+| `runctx_security.go` | `WithAutoApproveCapabilities`/merge/`autoApproveCap`, `PromptInjectionMode` + `ParsePromptInjectionMode` (the platform's rows, kept as the daemon's aliases — W3.74), `WithTrustedObservations`. |
 | `runctx_wake.go` | `WithWakeContext`, `systemAgentFromCtx`, tool/retry policy getters, `AgentConfigOverrides`, `WithModelChain`, `WithTools`, `actorFromCtx`, `correlationFromCtx`. |
 | `image_admission.go` | Shared image admission and `ImageAdmission{Intent, Images, Caption}`; caption text replaces raw refs before the primary run, while channel artifacts retain the caption. |
 | `resume.go` | Resume integration (section 4.8): `ResumeStore`, `WithResumeSeed`, `WithResumeOwned`, `claimResumeTicket`, `buildResumeTicket`, `resumeCheckpointFn`, `finalizeResumeTicket`, `ResumeFinalize`, `Suspend`, `publishResumeAnomaly`. |
@@ -628,7 +628,7 @@ Root package, grouped by concern; every non-test file is listed.
 
 | File | What it does |
 |---|---|
-| `policy.go` | `validatedToolCaps`, `capabilityFor`, `policyHook` (section 4.5). |
+| `policy.go` | `validatedToolCaps`, `capabilityFor`, `policyHook` (section 4.5). The guards' rules are the platform's (W3.74): the hook gathers the evidence, asks `guards.Evaluate` and applies the outcome. |
 | `policy_helpers.go` | Noise policy denial/notify (`agentNoisePolicyDenial`, `completeAgentNoiseNotify`, state in `state` ns `agent_noise`), `approvalBundle`/`approvalDecisionBundle`, `defaultEffectClass`, `affectedResourcesFromInput`, rollback/confidence defaults. |
 | `epistemic.go` | The host's half of the epistemic gate (W3.73): `epistemicGate` asks the platform's rule (`kernel/platform/policy/epistemic`) over three ports — `epistemicScan` (the journal), `epistemicLookup` (the tool map) and the clock. |
 | `intent.go` | Publishers: `intent.interpreted`, `intent.confirmation_required`, `policy.auto_approved`, `prompt_injection.warned`; `regretAxesPayload`. |

@@ -5376,6 +5376,86 @@ files, five of the seventeen mutations would have escaped.
   slice) and — last, because it is the largest and the most entangled — the
   **run engine** (→ `modules/runs`). Evidence:
   `architecture/271-w373-the-epistemic-guards-rule-moves-into-the-platform-evidence.md`
+- W3.74 (the policy hook's guards move into the platform) is the **seventh**
+  slice of the runtime's dissolution and the second one that moves a **rule**
+  (W3.73 moved the epistemic guard). The daemon's tool-call policy hook is the
+  gate every tool call passes, and it held three **fail-closed guards** — rules
+  that stop an otherwise-allowed call and send it to a human: the **epistemic
+  escalation** (the platform's own guard, W3.73), the **intent/regret gate**
+  (the operator's frame says the call's regret axes need a confirmation) and
+  the **prompt-injection guard** (an effectful call downstream of a
+  directive-like untrusted observation) — plus the **session grant's
+  arbitration**: the blanket capability grant answers the Edict Ask axis and
+  nothing else. Those are rules, not plumbing: they own no store, they publish
+  nothing, and every host that gates a tool call asks the same ones. The
+  candidate was measured before it was chosen: the daemon's guard block **57
+  non-blank lines**, the prompt-injection **mode** (the operator's setting, its
+  parser and its three values) **27 non-blank lines**, the daemon's copies of
+  the guards' rules **3**, the daemon's own stores **0**. **A rule that owns
+  no store is the platform's** — the rule W3.73 stated, now confirmed on a
+  second rule. The platform now keeps the guards
+  (`kernel/platform/policy/guards/guards.go`, 167 lines): the three rules, the
+  order they are asked in, the mode and the grant's arbitration, over an
+  `Input` (seventeen rows of evidence) and an `Outcome` (requires approval,
+  reason, which guard, warn, auto-approved). **Three properties are the
+  platform's now**: the **order** (the first guard that raises wins — a guard
+  that has already stopped the call cannot be answered by a later one, and the
+  operator is shown one reason: the guard's own), the **grant's reach** (the
+  blanket capability grant answers the Ask axis and nothing else, because a
+  guard the operator armed deliberately asked a different question) and the
+  **mode** (`off`/`warn`/`on`, the operator's spellings and the default). The
+  daemon keeps the **doors**: it reads the context, it publishes the three
+  events, and it submits the approval — what it no longer owns is **when** a
+  guard raises. The daemon's public names stay as **aliases**, so **no caller
+  outside the runtime changed**: **0 production files** in `kernel/app`, and
+  `cmd/agezt` still parses the operator's setting with
+  `runtime.ParsePromptInjectionMode`. What the slice cost: **nothing to wire**.
+  **The measurement that did NOT move, and is worth writing down rather than
+  dressing up: the daemon's line count barely moved** — `policy.go`
+  **231 → 228** and `kernel/runtime` **8,802 → 8,796**. **Moving a rule moves
+  the CONDITIONS, not the lines**: the daemon's conditions are gone (a
+  **ratchet test** holds them gone) but the host's *wiring* — seventeen rows
+  of evidence, each one a fact the host read — took their place, and the wiring
+  was always there: it was inside the conditions. What moved is the
+  **ownership**: the platform holds **167** lines of rule that every host asks,
+  and the daemon holds none. **23 permanent tests** (17 platform, 4 runtime, 2
+  internal) — and the slice had to **add two**, because the mutations showed
+  the gap, which is the programme's standing rule that **a mutation that
+  survives means the test is missing something**: the **warning was invisible**
+  (in warn mode the call runs, so a daemon that stopped publishing
+  `prompt_injection.warned` would still pass every behaviour test) and the
+  **guard's verdict was invisible** (the approval request carries the guard's
+  reason, so a daemon that stopped setting the verdict's `would_ask` flag
+  would still pass). **23 mutations, 23 caught** in two independent passes with
+  **byte-identical** logs (SHA-256
+  `44EDB41A6422CF8D24AB1760671E49D625EE96CBB058F5F698C38C005F11A4C4`). The
+  calibration had three survivors and one compile error, and all four were the
+  harness's fault or the test's gap, not the rule's: the mutation that swapped
+  the guards' **order** swapped the conditions without the bodies (it now uses
+  `fallthrough`); the mutation that dropped the prompt-injection guard's
+  evidence left the `toolapi` import unused so Go refused to compile (it now
+  keeps the import alive); the mutation that let the session grant answer a
+  guard was **equivalent** — the guards return early, so the grant never sees
+  one, and the platform had a **dead condition** that said the same thing
+  twice (the condition is gone and the comment now says why); and the mutation
+  that made the daemon ignore the guard was caught only after the journaled
+  verdict became observable. The measurement that moved: the daemon's copies
+  of the guards' rules **3 → 0**, the platform's lines of rule **0 → 167**,
+  the daemon's calls into the platform's rules **0 → 1**, the daemon's public
+  names for the mode **5 → 5** (aliases), the kernel's verbs **242 → 242**, the
+  application layer's production files that changed **0**, the test setups that
+  had to be wired **0**, the contract's new rows **0**, `kernel/runtime`
+  **8,802 → 8,796** lines, `kernel/platform` **3,013 → 3,180**, the daemon's
+  `policy.go` **231 → 228** and its `runctx_security.go` **102 → 99**. **What
+  is left**: the **policy hook** is not finished — the guards moved, but the
+  hook still owns the **capability resolution** (`capabilityFor`: the
+  declaration, the plugin manifest overlay and the name switch, in that order)
+  and the **approval bundle**'s tables (the effect class per capability, the
+  rollback notes, the resources derived from the input). Those are rules too,
+  and they are the natural next slice: the same shape, one platform package,
+  the daemon keeping its names. After that, the largest and the most
+  entangled: the **run engine** (→ `modules/runs`). Evidence:
+  `architecture/272-w374-the-policy-hooks-guards-move-into-the-platform-evidence.md`
 - W5.4a (the forbidden-call ratchet is zero) takes the **call-site** half of
   W5.4 — the last **three** `raw-write` call sites — and the ratchet goes
   **3 → 0**. The three were the marketplace cache's two staged writes and the
