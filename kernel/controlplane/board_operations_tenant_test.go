@@ -14,19 +14,24 @@ import (
 )
 
 func TestBoardOperationsSocketRetainPrimarySharedStore(t *testing.T) {
-	_, server, owner, dir := startPair(t, mock.New(mock.FinalText("unused")))
-	registry := withTenants(t, server, dir)
+	calls := 0
+	var store *board.Store
+	_, _, owner, dir, registry := startPairWithTenantsAndDeps(t, mock.New(mock.FinalText("unused")), func(dir string) controlplane.Deps {
+		var err error
+		store, err = board.Open(filepath.Join(dir, "board"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return controlplane.Deps{
+			Board:       store,
+			BoardNotify: func(board.Message, string) { calls++ },
+		}
+	})
 	token := mustTenant(t, registry, "acme")
-	store, err := board.Open(filepath.Join(dir, "board"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	seed, err := store.Send(board.Message{Topic: "status", From: "writer", To: "reviewer", Text: "primary-private"}, 100)
 	if err != nil {
 		t.Fatal(err)
 	}
-	calls := 0
-	server.SetBoard(store, func(board.Message, string) { calls++ })
 	client := tenantClient(t, dir, token)
 	for _, cmd := range []string{controlplane.CmdBoardRead, controlplane.CmdBoardHelp, controlplane.CmdBoardInbox, controlplane.CmdBoardGet, controlplane.CmdBoardReplies, controlplane.CmdBoardSend, controlplane.CmdBoardAck} {
 		if _, err := client.Call(context.Background(), cmd, map[string]any{"tenant": "acme", "id": seed.ID, "by": "reviewer", "to": "reviewer", "text": "blocked", "topic": "status"}); err == nil {

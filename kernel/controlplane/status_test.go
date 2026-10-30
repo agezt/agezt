@@ -86,7 +86,7 @@ func TestStatus_ReturnsExpectedShape(t *testing.T) {
 // TestStatus_SchedulesAndTenants — status reflects armed typed schedules (M130)
 // and reports a tenant count when a registry is wired.
 func TestStatus_SchedulesAndTenants(t *testing.T) {
-	k, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
+	k, _, c, _, reg := startPairWithTenants(t, mock.New(mock.FinalText("ok")))
 	// Arm two schedules, one paused.
 	now := time.Now()
 	if _, err := k.Schedules().Add("daily report", time.Hour, "", "operator", now); err != nil {
@@ -99,8 +99,7 @@ func TestStatus_SchedulesAndTenants(t *testing.T) {
 	if _, err := k.Schedules().SetEnabled(e2.ID, false); err != nil {
 		t.Fatalf("SetEnabled: %v", err)
 	}
-	// Wire a tenant registry with one tenant.
-	reg := withTenants(t, srv, dir)
+	// The tenant registry is a CONSTRUCTION dependency — the pair carries it.
 	if _, err := reg.Acquire("acme", now); err != nil {
 		t.Fatalf("Acquire: %v", err)
 	}
@@ -190,7 +189,7 @@ func TestStatus_SchedulesReportsRunningFirings(t *testing.T) {
 // TestStatus_Channels — configured messaging channels are surfaced (M141), with
 // inbound/addr/allowlist, and omitted entirely when none are set.
 func TestStatus_Channels(t *testing.T) {
-	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
 	// None configured → no channels key at all.
 	res, err := c.Call(context.Background(), controlplane.CmdStatus, nil)
@@ -201,11 +200,15 @@ func TestStatus_Channels(t *testing.T) {
 		t.Errorf("channels should be absent when none configured, got %v", res["channels"])
 	}
 
-	srv.SetChannels([]controlplane.ChannelInfo{
-		{Kind: "telegram", Inbound: true, Allowlist: 1},
-		{Kind: "discord", Inbound: false, Addr: "127.0.0.1:8850", Allowlist: 2},
+	// The channels are a CONSTRUCTION dependency: the wired surface is a SECOND
+	// adapter, built with the channels the daemon configured.
+	_, _, wired, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(string) controlplane.Deps {
+		return controlplane.Deps{Channels: []controlplane.ChannelInfo{
+			{Kind: "telegram", Inbound: true, Allowlist: 1},
+			{Kind: "discord", Inbound: false, Addr: "127.0.0.1:8850", Allowlist: 2},
+		}}
 	})
-	res, err = c.Call(context.Background(), controlplane.CmdStatus, nil)
+	res, err = wired.Call(context.Background(), controlplane.CmdStatus, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}

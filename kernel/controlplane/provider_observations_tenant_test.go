@@ -16,8 +16,7 @@ import (
 )
 
 func TestProviderObservationsSocketTenantJournalIsolation(t *testing.T) {
-	primary, server, owner, dir := startPair(t, mock.New(mock.FinalText("ok")))
-	registry := withTenants(t, server, dir)
+	primary, _, owner, dir, registry := startPairWithTenants(t, mock.New(mock.FinalText("ok")))
 	token := mustTenant(t, registry, "acme")
 	_ = mustTenant(t, registry, "other")
 	seed := func(k *runtime.Kernel, identity string) {

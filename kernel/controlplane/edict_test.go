@@ -15,8 +15,9 @@ import (
 )
 
 // newTenantReg builds a registry of real per-tenant kernels (each a fresh
-// runtime.Open) for the per-tenant policy tests, and wires it into srv.
-func newTenantReg(t *testing.T, srv *controlplane.Server) {
+// runtime.Open) for the per-tenant policy tests, and the DEPS that carry it —
+// the registry is a CONSTRUCTION dependency.
+func newTenantReg(t *testing.T) controlplane.Deps {
 	t.Helper()
 	reg, err := tenant.New(t.TempDir(), func(id, baseDir string) (io.Closer, error) {
 		return runtime.Open(runtime.Config{
@@ -29,7 +30,7 @@ func newTenantReg(t *testing.T, srv *controlplane.Server) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { reg.CloseAll() })
-	srv.SetTenants(reg)
+	return controlplane.Deps{Tenants: reg}
 }
 
 // hardDenied is a tiny helper: does an edict_test probe report hard_denied?
@@ -317,8 +318,9 @@ func TestEdictSetMode_RuntimeChange(t *testing.T) {
 // TestEdictDeny_PerTenantIsolation proves M22: a deny rule added to one
 // tenant's engine is invisible to other tenants and to the primary.
 func TestEdictDeny_PerTenantIsolation(t *testing.T) {
-	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	newTenantReg(t, srv)
+	_, _, c, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(string) controlplane.Deps {
+		return newTenantReg(t)
+	})
 	ctx := context.Background()
 
 	// Add a deny rule to tenant "alpha" only.
@@ -369,8 +371,9 @@ func TestEdictDeny_PerTenantIsolation(t *testing.T) {
 // TestEdictLevel_PerTenantIsolation proves a trust-level change on one
 // tenant doesn't leak to another or to the primary.
 func TestEdictLevel_PerTenantIsolation(t *testing.T) {
-	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	newTenantReg(t, srv)
+	_, _, c, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(string) controlplane.Deps {
+		return newTenantReg(t)
+	})
 	ctx := context.Background()
 
 	// Lock shell to L0 on alpha.

@@ -172,8 +172,6 @@ func TestAppHostTenantAuditUsesRoutedJournal(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { primary.Close() })
-	s := NewServer(binding.ScopeFromKernel(primary, dir))
-	s.token = "primary"
 	registry, err := tenant.New(filepath.Join(dir, "tenants"), func(_ string, baseDir string) (io.Closer, error) {
 		return runtime.Open(runtime.Config{BaseDir: baseDir, Provider: mock.New()})
 	})
@@ -181,7 +179,8 @@ func TestAppHostTenantAuditUsesRoutedJournal(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = registry.CloseAll() })
-	s.SetTenants(registry)
+	s := NewServerWithDeps(binding.ScopeFromKernel(primary, dir), Deps{Tenants: registry})
+	s.token = "primary"
 	entry, err := registry.Acquire("acme", time.Now())
 	if err != nil {
 		t.Fatal(err)

@@ -11,8 +11,7 @@ import (
 
 func TestToolInventoryPrimaryReadSocketTenantDenialPreservesJournal(t *testing.T) {
 	provider := mock.New()
-	k, server, _, dir := startPair(t, provider)
-	registry := withTenants(t, server, dir)
+	k, _, _, dir, registry := startPairWithTenants(t, provider)
 	token := mustTenant(t, registry, "acme")
 	head, hash := k.Journal().Head()
 	client := tenantClient(t, dir, token)

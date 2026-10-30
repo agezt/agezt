@@ -71,9 +71,8 @@ func TestEdictReadsNativeRouting(t *testing.T) {
 	if _, err := tk.Edict().AddHardDeny(rules[0]); err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(binding.ScopeFromKernel(k, dir))
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{Tenants: reg})
 	s.token = "primary"
-	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) string {
 		a, b := net.Pipe()
 		a.SetDeadline(time.Now().Add(3 * time.Second))
@@ -161,9 +160,8 @@ func TestEdictWritesNativeRouting(t *testing.T) {
 	}
 	tk := entry.Kernel.(*runtime.Kernel)
 	tenantToken, _ := reg.Token("acme")
-	s := NewServer(binding.ScopeFromKernel(k, dir))
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{Tenants: reg})
 	s.token = "primary"
-	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) string {
 		a, b := net.Pipe()
 		a.SetDeadline(time.Now().Add(3 * time.Second))
@@ -260,9 +258,8 @@ func TestEdictDecisionsNativeRouting(t *testing.T) {
 	}
 	decide(k, "primary-tool", true)
 	decide(tk, "tenant-tool", false)
-	s := NewServer(binding.ScopeFromKernel(k, dir))
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{Tenants: reg})
 	s.token = "primary"
-	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) string {
 		a, b := net.Pipe()
 		a.SetDeadline(time.Now().Add(3 * time.Second))
@@ -355,9 +352,8 @@ func TestEdictOverlayNativeRouting(t *testing.T) {
 	}
 	tk := entry.Kernel.(*runtime.Kernel)
 	tenantToken, _ := reg.Token("acme")
-	s := NewServer(binding.ScopeFromKernel(k, dir))
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{Tenants: reg})
 	s.token = "primary"
-	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) string {
 		a, b := net.Pipe()
 		a.SetDeadline(time.Now().Add(3 * time.Second))

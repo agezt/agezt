@@ -40,7 +40,6 @@ func TestTheUpdateOperationsReachTheContractPort(t *testing.T) {
 // update engine answers "update is disabled" — it does not dereference nil.
 func TestTheUpdateOperationsWithoutAPortReportDisabled(t *testing.T) {
 	_, s, _, _ := pulseAppFixture(t)
-	s.SetUpdateService(nil)
 
 	frames := callAppHost(t, s, Request{ID: "owned", Cmd: CmdUpdateCheck, Token: "primary"})
 	last := frames[len(frames)-1]
@@ -55,9 +54,8 @@ func TestTheUpdateOperationsWithoutAPortReportDisabled(t *testing.T) {
 // TestTheUpdatePortIsTheContractPort: the port the server holds is the
 // contract's — the module's service is one implementation of it.
 func TestTheUpdatePortIsTheContractPort(t *testing.T) {
-	_, s, _, _ := pulseAppFixture(t)
 	var port core.Backend = &ownedUpdateBackend{}
-	s.SetUpdateService(port)
+	_, s, _, _ := pulseAppFixtureWithDeps(t, Deps{UpdateSvc: port})
 	frames := callAppHost(t, s, Request{ID: "owned", Cmd: CmdUpdateCheck, Token: "primary"})
 	if last := frames[len(frames)-1]; last.Type != RespResult {
 		t.Fatalf("EXPECTED:the wired port answers ACTUAL:%+v", last)

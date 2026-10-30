@@ -42,10 +42,13 @@ func TestChannelSendNativeAuditAndCanceledBeforeSender(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer k.Close()
-			s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
-			s.token = "primary"
 			sends := 0
-			s.SetChannelSender(func(context.Context, string, string, string) error { sends++; return nil })
+			s := NewServerWithDeps(binding.ScopeFromKernel(k, t.TempDir()), Deps{
+				ChannelSend: func() ChannelSender {
+					return func(context.Context, string, string, string) error { sends++; return nil }
+				},
+			})
+			s.token = "primary"
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			if gate == "canceled" {
@@ -95,7 +98,9 @@ func TestChannelSendNativeContextReleasedOnTerminalWriteFailureOrPanic(t *testin
 	for _, panics := range []bool{false, true} {
 		s := &Server{}
 		var call context.Context
-		s.SetChannelSender(func(ctx context.Context, _, _, _ string) error { call = ctx; return nil })
+		s.channelSendProvider = func() ChannelSender {
+			return func(ctx context.Context, _, _, _ string) error { call = ctx; return nil }
+		}
 		a, b := net.Pipe()
 		func() {
 			defer func() {

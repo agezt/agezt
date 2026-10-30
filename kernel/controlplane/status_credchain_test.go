@@ -15,7 +15,7 @@ import (
 // EKS can confirm IRSA/ambient credentials engaged from `agt status` rather than
 // the boot banner. Omitted when AWS credentials aren't configured.
 func TestStatusSurfacesCredChain(t *testing.T) {
-	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
 	// Unset → the field is omitted (no noise for non-AWS operators).
 	res, err := c.Call(context.Background(), controlplane.CmdStatus, nil)
@@ -27,8 +27,12 @@ func TestStatusSurfacesCredChain(t *testing.T) {
 	}
 
 	// After the daemon records the chain → surfaced verbatim.
-	srv.SetCredChain("AWS chain: vault → env → web_identity=EksPodRole → default(file+IMDS)")
-	res, err = c.Call(context.Background(), controlplane.CmdStatus, nil)
+	// The cred chain is a CONSTRUCTION dependency: the wired surface is a
+	// SECOND adapter, built with the chain the daemon resolved.
+	_, _, wired, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(string) controlplane.Deps {
+		return controlplane.Deps{CredChain: "AWS chain: vault → env → web_identity=EksPodRole → default(file+IMDS)"}
+	})
+	res, err = wired.Call(context.Background(), controlplane.CmdStatus, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

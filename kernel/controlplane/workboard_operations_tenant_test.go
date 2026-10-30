@@ -14,8 +14,7 @@ import (
 )
 
 func TestWorkboardOperationsSocketTenantDenialPreservesPrimary(t *testing.T) {
-	primary, server, _, dir := startPair(t, mock.New())
-	registry := withTenants(t, server, dir)
+	primary, _, _, dir, registry := startPairWithTenants(t, mock.New())
 	token := mustTenant(t, registry, "acme")
 	task, _, err := primary.Workboard().Create(workboard.CreateSpec{Title: "primary-private"}, time.UnixMilli(100))
 	if err != nil {

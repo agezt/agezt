@@ -12,8 +12,7 @@ import (
 
 func TestAutonomyPrimaryFeedSocketTenantDenialPreservesJournal(t *testing.T) {
 	provider := mock.New()
-	k, server, _, dir := startPair(t, provider)
-	registry := withTenants(t, server, dir)
+	k, _, _, dir, registry := startPairWithTenants(t, provider)
 	token := mustTenant(t, registry, "acme")
 	if _, err := k.Bus().Publish(event.Spec{Subject: "primary-private", Kind: event.KindScheduleFired, Actor: "fixture"}); err != nil {
 		t.Fatal(err)

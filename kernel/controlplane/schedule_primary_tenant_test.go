@@ -14,8 +14,7 @@ import (
 
 func TestSchedulePrimaryOperationsSocketTenantDenialPreservesCadence(t *testing.T) {
 	provider := mock.New()
-	k, server, _, dir := startPair(t, provider)
-	registry := withTenants(t, server, dir)
+	k, _, _, dir, registry := startPairWithTenants(t, provider)
 	token := mustTenant(t, registry, "acme")
 	entry, err := k.Schedules().Add("primary-private", time.Hour, "", "operator", time.Now().Add(time.Hour))
 	if err != nil {

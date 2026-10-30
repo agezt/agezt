@@ -15,8 +15,7 @@ import (
 
 func TestToolObservationsSocketTenantJournalIsolationAndUnauditedReads(t *testing.T) {
 	provider := mock.New()
-	primary, server, owner, dir := startPair(t, provider)
-	registry := withTenants(t, server, dir)
+	primary, _, owner, dir, registry := startPairWithTenants(t, provider)
 	token := mustTenant(t, registry, "acme")
 	_ = mustTenant(t, registry, "other")
 	kernels := map[string]*runtime.Kernel{"primary": primary}

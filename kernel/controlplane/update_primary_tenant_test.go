@@ -9,8 +9,7 @@ import (
 )
 
 func TestUpdateNativePrimaryOnlyTenantDenied(t *testing.T) {
-	_, server, _, dir := startPair(t, mock.New())
-	registry := withTenants(t, server, dir)
+	_, _, _, dir, registry := startPairWithTenants(t, mock.New())
 	token := mustTenant(t, registry, "acme")
 	client := tenantClient(t, dir, token)
 	for _, cmd := range []string{controlplane.CmdUpdateCheck, controlplane.CmdUpdateApply} {

@@ -40,9 +40,8 @@ func TestExecutionProfilesReadTheCallersKernel(t *testing.T) {
 		t.Fatal(err)
 	}
 	tenantToken, _ := reg.Token("acme")
-	s := NewServer(binding.ScopeFromKernel(k, dir))
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{Tenants: reg})
 	s.token = "primary"
-	s.SetTenants(reg)
 	read := func(token, cmd string, args map[string]any) string {
 		t.Helper()
 		resp := callAppHost(t, s, Request{ID: "x", Cmd: cmd, Token: token, Args: args})[0]

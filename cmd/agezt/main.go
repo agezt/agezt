@@ -1163,12 +1163,31 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 	}
 
+	// The LATE artifacts: the pulse engine, the live channels and the
+	// standing-order runner only exist after the adapter is up. The root
+	// declares them here and hands the adapter a way to ASK — the answer is
+	// nil until the artifact is ready. There is no phase to bind: the
+	// adapter's wiring is one door (P8).
+	var (
+		pulseEngine    lateHolder[controlplane.PulseController]
+		pulseWatch     lateHolder[controlplane.PulseObservers]
+		liveSender     lateHolder[controlplane.ChannelSender]
+		standingRunner lateHolder[controlplane.StandingFirer]
+	)
+
+	// The agent-repair surface (the overseer's kernel source). The daemon owns
+	// the wiring: the control plane and the self-repair module both ASK for a
+	// repair, and neither imports the tool that provides it — an adapter
+	// reaches the module's vocabulary, never a plugin (archcheck's P5).
+	repairSource := overseer.NewKernelSource(overseer.PortsFromKernel(k), baseDir)
+
 	// One-shot early wiring (Phase 2.6 3b-ii): the server comes up with every
 	// pre-Start dependency already applied — including the tenant registry, so
 	// tenant tokens authorize from the very first accepted connection (the old
 	// post-Start SetTenants left a boot window where they were rejected as
-	// "unauthorized"). The late deps (pulse, channel send, standing fire) arrive
-	// via srv.Bind at each point of readiness below.
+	// "unauthorized"). The late artifacts (pulse, channel send, standing fire)
+	// are PROVIDERS: the adapter asks when it needs one, and the root
+	// publishes them when they are ready.
 	//
 	// The daemon is the COMPOSITION ROOT: it holds the kernel, and what it
 	// hands the control plane is the kernel's SCOPE — every family's ports,
@@ -1183,6 +1202,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		Toolbox:            toolbox.NewHost(),
 		DiskFree:           pulse.DiskUsage,    // M131: cross-platform probe keeps controlplane pulse-free
 		UpdateSvc:          updatePort,         // M860: nil = update disabled
+		RepairSource:       repairSource,       // the overseer's repair surface
 		Tenants:            tenantReg,          // P6-MULTI: nil = single-tenant
 		CancelOnDisconnect: cancelOnDisconnect, // M35
 		HTTPBindings:       httpBindings,       // M137: exposure check + `agt status`
@@ -1191,17 +1211,17 @@ func runDaemon(stdout, stderr io.Writer) int {
 		// Post-sign-in ChatGPT catalog refresh + model surface. The kernel never
 		// imports the provider layer, so the hook is supplied here.
 		ChatGPTSync: func() ([]string, string) { return boot.SyncChatGPTCatalog(catStore, baseDir, providerPorts()) },
+		// The late artifacts are PROVIDERS: the answer is nil until the
+		// artifact is ready, and the root decides when that changes.
+		Pulse:        pulseEngine.get,
+		Observers:    pulseWatch.get,
+		ChannelSend:  liveSender.get,
+		StandingFire: standingRunner.get,
 	})
 	cancelOnDisconnectDesc := "disabled (set " + brand.EnvPrefix + "CANCEL_ON_DISCONNECT=on)"
 	if cancelOnDisconnect {
 		cancelOnDisconnectDesc = "on (a dropped `agt run` client cancels its run)"
 	}
-	// The agent-repair surface (the overseer's kernel source). The daemon owns
-	// the wiring: the control plane and the self-repair module both ASK for a
-	// repair, and neither imports the tool that provides it — an adapter
-	// reaches the module's vocabulary, never a plugin (archcheck's P5).
-	repairSource := overseer.NewKernelSource(overseer.PortsFromKernel(k), baseDir)
-	srv.SetRepairSource(repairSource)
 	if err := srv.Start(ctx); err != nil {
 		fmt.Fprintf(stderr, "%s: start control plane: %v\n", brand.Binary, err)
 		return 1
@@ -1304,13 +1324,12 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// is configured, briefs tee to it (closes the Jarvis loop).
 	if eng, pulseDesc := buildPulse(k, ward, model, stdout, channelSinks); eng != nil {
 		eng.Start(ctx)
-		// Late-bind the engine + the runtime watch registry (disk watches M767,
+		// Publish the engine + the runtime watch registry (disk watches M767,
 		// command probes M768): the adapter builds the observers (the daemon owns
 		// the DiskUsage func and the warden) and registers them on the live engine.
-		srv.Bind(controlplane.LateDeps{
-			Pulse:     eng,
-			Observers: pulseObserverAdmin{eng: eng, ward: ward, st: k.State()},
-		})
+		// The adapter ASKS for both; the answer is nil until this point.
+		pulseEngine.set(eng)
+		pulseWatch.set(pulseObserverAdmin{eng: eng, ward: ward, st: k.State()})
 		// Reaper (#53, M903): each beat, scan for dead agents, degraded live agents,
 		// and stale artifacts, and surface a low-severity brief when the pile grows.
 		// Detection only — retire (graveyard), doctoring, and collect stay gated by
@@ -1490,7 +1509,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 		return firstErr
 	}
-	srv.Bind(controlplane.LateDeps{ChannelSend: channelSend})
+	liveSender.set(channelSend)
 
 	// Late registry phase (Phase 2.2 PR 5): Set.ConfigureLate wires the specs
 	// that need live infrastructure, at the exact point their hand-wired Binds
@@ -1790,7 +1809,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 	}
 	standingDesc, fireStandingNow := buildStandingRunner(ctx, k, standingStore, standingBrief)
-	srv.Bind(controlplane.LateDeps{StandingFire: fireStandingNow})
+	standingRunner.set(fireStandingNow)
 	fmt.Fprintf(stdout, "  standing orders  : %s\n", standingDesc)
 	// Resume interrupted runs (M1002): re-dispatch any run that a prior restart —
 	// stop/start, self-update, or hard kill — left mid-flight, so ongoing work

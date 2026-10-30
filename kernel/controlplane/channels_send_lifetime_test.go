@@ -16,7 +16,9 @@ func TestChannelSendNativeContextLivesThroughTerminalWrite(t *testing.T) {
 	for _, senderError := range []error{nil, errors.New("owned sender error")} {
 		s := &Server{}
 		var senderContext context.Context
-		s.channelSend = func(ctx context.Context, kind, to, text string) error { senderContext = ctx; return senderError }
+		s.channelSendProvider = func() ChannelSender {
+			return func(ctx context.Context, kind, to, text string) error { senderContext = ctx; return senderError }
+		}
 		client, conn := net.Pipe()
 		client.SetDeadline(time.Now().Add(3 * time.Second))
 		entered, release := make(chan struct{}), make(chan struct{})

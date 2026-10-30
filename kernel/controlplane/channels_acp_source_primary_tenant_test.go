@@ -58,8 +58,7 @@ func TestACPAgentsSourceIsolated(t *testing.T) {
 func TestChannelACPInventoryNativeTenantDenialNoDiscoveryAuditOrProvider(t *testing.T) {
 	discoveryCalls := isolateOwnedACPSources(t)
 	p := mock.New()
-	k, s, _, dir := startPair(t, p)
-	registry := withTenants(t, s, dir)
+	k, _, _, dir, registry := startPairWithTenants(t, p)
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
 	if _, err := client.Call(context.Background(), controlplane.CmdACPAgents, map[string]any{"tenant": "acme", "force": true}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {

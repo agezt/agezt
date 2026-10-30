@@ -71,6 +71,13 @@ func (p *pulseAppPort) AddProbeObserver(name string, argv []string) (string, boo
 
 func pulseAppFixture(t *testing.T) (*runtime.Kernel, *Server, *pulseAppPort, *mock.Provider) {
 	t.Helper()
+	return pulseAppFixtureWithDeps(t, Deps{})
+}
+
+// pulseAppFixtureWithDeps is pulseAppFixture with the adapter's dependencies
+// handed over at CONSTRUCTION — the adapter has no setter to call later.
+func pulseAppFixtureWithDeps(t *testing.T, deps Deps) (*runtime.Kernel, *Server, *pulseAppPort, *mock.Provider) {
+	t.Helper()
 	dir := t.TempDir()
 	provider := mock.New()
 	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider})
@@ -78,11 +85,11 @@ func pulseAppFixture(t *testing.T) (*runtime.Kernel, *Server, *pulseAppPort, *mo
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
-	s := NewServer(binding.ScopeFromKernel(k, dir))
-	s.token = "primary"
 	port := &pulseAppPort{observerOK: true}
-	s.SetPulse(port)
-	s.SetPulseObservers(port)
+	deps.Pulse = func() PulseController { return port }
+	deps.Observers = func() PulseObservers { return port }
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), deps)
+	s.token = "primary"
 	return k, s, port, provider
 }
 func pulseAppArgs() map[string]any {
@@ -195,8 +202,8 @@ func TestPulseControlAppReadPolicyAndPairedMutationAudit(t *testing.T) {
 }
 func TestPulseControlAppAvailabilityIsSelectedAtEachDispatch(t *testing.T) {
 	_, s, port, provider := pulseAppFixture(t)
-	s.SetPulse(nil)
-	s.SetPulseObservers(nil)
+	s.pulseProvider = nil
+	s.observersProvider = nil
 	for _, cmd := range []string{CmdPulseAskResolve, CmdPulseCadence, CmdPulseDial, CmdPulseQuiet, CmdPulseUnwatch, CmdPulseWatch, CmdPulseProbe} {
 		out := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"issue_key": true, "dial": true, "name": true, "path": true, "command": true, "hours": true}})
 		want := "pulse is disabled (AGEZT_PULSE=off)"
@@ -207,8 +214,8 @@ func TestPulseControlAppAvailabilityIsSelectedAtEachDispatch(t *testing.T) {
 			t.Fatal(cmd, out)
 		}
 	}
-	s.SetPulse(port)
-	s.SetPulseObservers(port)
+	s.pulseProvider = func() PulseController { return port }
+	s.observersProvider = func() PulseObservers { return port }
 	out := callAppHost(t, s, Request{ID: "live", Cmd: CmdPulseBeat, Token: "primary"})
 	if len(out) != 1 || !reflect.DeepEqual(out[0].Result, map[string]any{"triggered": true}) || !reflect.DeepEqual(port.calls, []string{"beat"}) || provider.CallCount() != 0 {
 		t.Fatal(out, port.calls, provider.CallCount())

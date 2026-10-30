@@ -70,9 +70,8 @@ func TestPlanHistoryNativeRouting(t *testing.T) {
 	publish(k, event.KindPlanStarted, map[string]any{"plan_name": "primary-plan", "node_count": 2})
 	publish(tk, event.KindPlanStarted, map[string]any{"plan_name": "tenant-plan", "node_count": 3})
 	publish(tk, event.KindPlanFailed, map[string]any{"plan_name": "ignored"})
-	s := NewServer(binding.ScopeFromKernel(k, dir))
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{Tenants: reg})
 	s.token = "primary"
-	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) string {
 		a, b := net.Pipe()
 		a.SetDeadline(time.Now().Add(3 * time.Second))

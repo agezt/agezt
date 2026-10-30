@@ -11,8 +11,7 @@ import (
 
 func TestConfigCenterReadsNativeTenantDenialNoAuditOrProvider(t *testing.T) {
 	p := mock.New()
-	k, s, _, dir := startPair(t, p)
-	registry := withTenants(t, s, dir)
+	k, _, _, dir, registry := startPairWithTenants(t, p)
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
 	for _, command := range []string{controlplane.CmdConfigCenterGet, controlplane.CmdConfigCenterList, controlplane.CmdConfigCenterAccessLog, controlplane.CmdConfigCenterAudit, controlplane.CmdConfigCenterHealth} {

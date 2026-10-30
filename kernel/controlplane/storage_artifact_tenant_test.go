@@ -12,8 +12,7 @@ import (
 )
 
 func TestStorageArtifactSocketTenantDenialPreservesPrimary(t *testing.T) {
-	k, server, _, dir := startPair(t, mock.New())
-	registry := withTenants(t, server, dir)
+	k, _, _, dir, registry := startPairWithTenants(t, mock.New())
 	token := mustTenant(t, registry, "acme")
 	entry, err := k.ArtifactIndex().PutEntry(artifact.Entry{Name: "primary-private"}, []byte("owned"), 100)
 	if err != nil {

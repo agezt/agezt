@@ -70,9 +70,8 @@ func TestAgentPermissionsNativeRouting(t *testing.T) {
 	if _, err := tk.AddProfile(roster.Profile{Slug: "builder", TrustCeiling: "L1"}); err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(binding.ScopeFromKernel(k, dir))
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{Tenants: reg})
 	s.token = "primary"
-	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) string {
 		a, b := net.Pipe()
 		a.SetDeadline(time.Now().Add(3 * time.Second))

@@ -26,12 +26,11 @@ import (
 func TestTheControlPlaneHoldsTheToolboxContractPort(t *testing.T) {
 	hostPort := reflect.TypeOf((*toolboxapi.Host)(nil)).Elem()
 
-	set, ok := reflect.TypeOf((*controlplane.Server)(nil)).MethodByName("SetToolbox")
-	if !ok {
-		t.Fatal("the control plane has no SetToolbox")
-	}
-	if got := set.Type.In(1); got != hostPort {
-		t.Fatalf("SetToolbox takes %v, want the contract's toolbox port %v", got, hostPort)
+	// The adapter's wiring is ONE door: the port is handed over when the
+	// adapter is BUILT, and the adapter exposes no setter to change it later
+	// (P8: the wiring is declarative).
+	if _, ok := reflect.TypeOf((*controlplane.Server)(nil)).MethodByName("SetToolbox"); ok {
+		t.Fatal("the control plane still has a SetToolbox — the wiring is one door")
 	}
 
 	field, ok := reflect.TypeOf(controlplane.Deps{}).FieldByName("Toolbox")

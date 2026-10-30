@@ -13,8 +13,7 @@ import (
 
 func TestPluginInventoryNativeTenantDenialPreservesManifestAndJournal(t *testing.T) {
 	p := mock.New()
-	k, s, _, dir := startPairWithConfig(t, runtime.Config{Provider: p, Plugins: []runtime.PluginInfo{{Prefix: "owned", Path: "never-executed", Args: []string{" raw "}, AllowedTools: []string{"owned"}, ToolCount: 1, HashPinned: true}}})
-	registry := withTenants(t, s, dir)
+	k, _, _, dir, registry := startPairWithConfigAndTenants(t, runtime.Config{Provider: p, Plugins: []runtime.PluginInfo{{Prefix: "owned", Path: "never-executed", Args: []string{" raw "}, AllowedTools: []string{"owned"}, ToolCount: 1, HashPinned: true}}})
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
 	before := append([]runtime.PluginInfo(nil), k.Plugins()...)

@@ -24,15 +24,20 @@ type boardNotification struct {
 // it, a reply threads back, ack clears a broadcast, and the notifier fires for
 // every write.
 func TestBoardWrite_SendInboxAckReplies(t *testing.T) {
-	_, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
-
-	st, err := board.Open(filepath.Join(dir, "board"))
-	if err != nil {
-		t.Fatalf("board.Open: %v", err)
-	}
 	var notified []boardNotification
-	srv.SetBoard(st, func(m board.Message, corr string) {
-		notified = append(notified, boardNotification{Message: m, Corr: corr})
+	var st *board.Store
+	_, _, c, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(dir string) controlplane.Deps {
+		var err error
+		st, err = board.Open(filepath.Join(dir, "board"))
+		if err != nil {
+			t.Fatalf("board.Open: %v", err)
+		}
+		return controlplane.Deps{
+			Board: st,
+			BoardNotify: func(m board.Message, corr string) {
+				notified = append(notified, boardNotification{Message: m, Corr: corr})
+			},
+		}
 	})
 
 	ctx := context.Background()
@@ -154,66 +159,69 @@ func TestBoardWrite_SendInboxAckReplies(t *testing.T) {
 // store, missing text, a post with neither topic nor recipient, a reply to an
 // unknown id, and an ack without its required args.
 func TestBoardWrite_Validation(t *testing.T) {
-	_, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
-	ctx := context.Background()
-
 	// Not wired → the board is not available, and the READS say so too: the
 	// control plane does not open the board's file behind the daemon's back
 	// (W3.59) — the daemon owns that file and hands over the port. A board
 	// that could not be opened must not look like a board with no messages.
-	srv.SetBoard(nil, nil)
-	if _, err := c.Call(ctx, controlplane.CmdBoardSend, map[string]any{"topic": "x", "text": "y"}); err == nil ||
+	_, _, unwired, _ := startPairWithoutBoard(t)
+	ctx := context.Background()
+	if _, err := unwired.Call(ctx, controlplane.CmdBoardSend, map[string]any{"topic": "x", "text": "y"}); err == nil ||
 		!strings.Contains(err.Error(), "not available") {
 		t.Fatalf("unwired send: err = %v, want board-unavailable", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdBoardInbox, map[string]any{"to": "a"}); err == nil ||
+	if _, err := unwired.Call(ctx, controlplane.CmdBoardInbox, map[string]any{"to": "a"}); err == nil ||
 		!strings.Contains(err.Error(), "not available") {
 		t.Fatalf("unwired inbox: err = %v, want board-unavailable", err)
 	}
 
-	st, err := board.Open(filepath.Join(dir, "board"))
-	if err != nil {
-		t.Fatalf("board.Open: %v", err)
-	}
-	srv.SetBoard(st, nil)
+	// The board is a CONSTRUCTION dependency: the wired surface is a SECOND
+	// adapter, built with the board the daemon opened.
+	_, _, wired, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(dir string) controlplane.Deps {
+		st, err := board.Open(filepath.Join(dir, "board"))
+		if err != nil {
+			t.Fatalf("board.Open: %v", err)
+		}
+		return controlplane.Deps{Board: st}
+	})
 
-	if _, err := c.Call(ctx, controlplane.CmdBoardSend, map[string]any{"topic": "x"}); err == nil ||
+	if _, err := wired.Call(ctx, controlplane.CmdBoardSend, map[string]any{"topic": "x"}); err == nil ||
 		!strings.Contains(err.Error(), "text") {
 		t.Fatalf("missing text: err = %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdBoardSend, map[string]any{"text": "x"}); err == nil ||
+	if _, err := wired.Call(ctx, controlplane.CmdBoardSend, map[string]any{"text": "x"}); err == nil ||
 		!strings.Contains(err.Error(), "topic") {
 		t.Fatalf("missing topic and to: err = %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdBoardSend, map[string]any{"text": "x", "reply_to": "nope"}); err == nil ||
+	if _, err := wired.Call(ctx, controlplane.CmdBoardSend, map[string]any{"text": "x", "reply_to": "nope"}); err == nil ||
 		!strings.Contains(err.Error(), "no message") {
 		t.Fatalf("reply to unknown id: err = %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdBoardAck, map[string]any{"id": "only-id"}); err == nil ||
+	if _, err := wired.Call(ctx, controlplane.CmdBoardAck, map[string]any{"id": "only-id"}); err == nil ||
 		!strings.Contains(err.Error(), "by") {
 		t.Fatalf("ack without by: err = %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdBoardAck, map[string]any{"id": "nope", "by": "a"}); err == nil ||
+	if _, err := wired.Call(ctx, controlplane.CmdBoardAck, map[string]any{"id": "nope", "by": "a"}); err == nil ||
 		!strings.Contains(err.Error(), "no message") {
 		t.Fatalf("ack unknown id: err = %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdBoardInbox, map[string]any{}); err == nil ||
+	if _, err := wired.Call(ctx, controlplane.CmdBoardInbox, map[string]any{}); err == nil ||
 		!strings.Contains(err.Error(), "to") {
 		t.Fatalf("inbox without to: err = %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdBoardReplies, map[string]any{}); err == nil ||
+	if _, err := wired.Call(ctx, controlplane.CmdBoardReplies, map[string]any{}); err == nil ||
 		!strings.Contains(err.Error(), "id") {
 		t.Fatalf("replies without id: err = %v", err)
 	}
 }
 
 func TestBoardRead_CursorPaginatesByTSMSDesc(t *testing.T) {
-	_, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
-	st, err := board.Open(filepath.Join(dir, "board"))
-	if err != nil {
-		t.Fatalf("board.Open: %v", err)
-	}
-	srv.SetBoard(st, nil)
+	_, _, c, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(dir string) controlplane.Deps {
+		st, err := board.Open(filepath.Join(dir, "board"))
+		if err != nil {
+			t.Fatalf("board.Open: %v", err)
+		}
+		return controlplane.Deps{Board: st}
+	})
 	ctx := context.Background()
 
 	// Five distinct posts on a single topic.
@@ -284,12 +292,13 @@ func TestBoardRead_CursorPaginatesByTSMSDesc(t *testing.T) {
 }
 
 func TestBoardRead_UnparseableCursorFallsBackToFirstPage(t *testing.T) {
-	_, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
-	st, err := board.Open(filepath.Join(dir, "board"))
-	if err != nil {
-		t.Fatalf("board.Open: %v", err)
-	}
-	srv.SetBoard(st, nil)
+	_, _, c, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(dir string) controlplane.Deps {
+		st, err := board.Open(filepath.Join(dir, "board"))
+		if err != nil {
+			t.Fatalf("board.Open: %v", err)
+		}
+		return controlplane.Deps{Board: st}
+	})
 	ctx := context.Background()
 	for i := 0; i < 2; i++ {
 		if _, err := c.Call(ctx, controlplane.CmdBoardSend, map[string]any{

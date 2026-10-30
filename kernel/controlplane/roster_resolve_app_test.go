@@ -114,9 +114,10 @@ func TestAgentResolveNativePorts(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	s := NewServer(binding.ScopeFromKernel(k, dir))
 	// The operator's repair surface is injected (the daemon owns the wiring).
-	s.SetRepairSource(overseer.NewKernelSource(overseer.PortsFromKernel(k), dir))
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{
+		RepairSource: overseer.NewKernelSource(overseer.PortsFromKernel(k), dir),
+	})
 	s.token = "primary"
 	if line := resolveCall(t, s, map[string]any{"ref": "ops", "resolution": "force_chain", "task_type": "code", "task_model_chain": []any{"A", " b "}, "parent_incident_id": "chain-root"}); !strings.Contains(line, `"error":"force_chain resolution must choose a new chain for exhausted routing policy"`) {
 		t.Fatal("exhausted chain via parent lineage", line)
@@ -144,17 +145,24 @@ func TestAgentResolveNativePorts(t *testing.T) {
 		t.Fatal(err)
 	}
 	var notified []string
-	s.SetBoard(st, func(m board.Message, corr string) { notified = append(notified, m.To+"|"+m.Text+"|"+corr) })
-	if line := resolveCall(t, s, map[string]any{"ref": "ops", "resolution": "delegated", "delegate_to": "peer", "summary": "own this"}); !strings.Contains(line, `"applied":true`) || len(notified) != 1 || notified[0] != "peer|own this|" {
+	// The board is a CONSTRUCTION dependency: the wired surface is a SECOND
+	// adapter, built with the board the daemon opened.
+	wired := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{
+		RepairSource: overseer.NewKernelSource(overseer.PortsFromKernel(k), dir),
+		Board:        st,
+		BoardNotify:  func(m board.Message, corr string) { notified = append(notified, m.To+"|"+m.Text+"|"+corr) },
+	})
+	wired.token = "primary"
+	if line := resolveCall(t, wired, map[string]any{"ref": "ops", "resolution": "delegated", "delegate_to": "peer", "summary": "own this"}); !strings.Contains(line, `"applied":true`) || len(notified) != 1 || notified[0] != "peer|own this|" {
 		t.Fatal("delegation", line, notified)
 	}
-	if line := resolveCall(t, s, map[string]any{"ref": "peer", "resolution": "paused"}); !strings.Contains(line, `"applied":true`) {
+	if line := resolveCall(t, wired, map[string]any{"ref": "peer", "resolution": "paused"}); !strings.Contains(line, `"applied":true`) {
 		t.Fatal("pause", line)
 	}
 	if p, _ := k.Roster().Get("peer"); p.Enabled {
 		t.Fatal("pause port did not pause")
 	}
-	if line := resolveCall(t, s, map[string]any{"ref": "peer", "resolution": "retired"}); !strings.Contains(line, `"applied":true`) {
+	if line := resolveCall(t, wired, map[string]any{"ref": "peer", "resolution": "retired"}); !strings.Contains(line, `"applied":true`) {
 		t.Fatal("retire", line)
 	}
 	if p, _ := k.Roster().Get("peer"); !p.Retired || p.RetiredReason != "retired by operator incident resolution" {

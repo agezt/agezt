@@ -594,12 +594,15 @@ func TestAgentTaskUpdate_RejectsInvalidTaskMutations(t *testing.T) {
 }
 
 func TestAgentList_IncludesDynamicHealthAndRepairStatus(t *testing.T) {
-	k, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
-	st, err := board.Open(filepath.Join(dir, "board"))
-	if err != nil {
-		t.Fatalf("board.Open: %v", err)
-	}
-	srv.SetBoard(st, nil)
+	var st *board.Store
+	k, _, c, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(dir string) controlplane.Deps {
+		var err error
+		st, err = board.Open(filepath.Join(dir, "board"))
+		if err != nil {
+			t.Fatalf("board.Open: %v", err)
+		}
+		return controlplane.Deps{Board: st}
+	})
 	ctx := context.Background()
 
 	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
@@ -707,13 +710,16 @@ func TestAgentList_IncludesDynamicHealthAndRepairStatus(t *testing.T) {
 }
 
 func TestAgentRemove_CascadeDeletesPrivateOwnedResourcesOnly(t *testing.T) {
-	k, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
+	var st *board.Store
+	k, _, c, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(dir string) controlplane.Deps {
+		var err error
+		st, err = board.Open(filepath.Join(dir, "board"))
+		if err != nil {
+			t.Fatalf("board.Open: %v", err)
+		}
+		return controlplane.Deps{Board: st}
+	})
 	ctx := context.Background()
-	st, err := board.Open(filepath.Join(dir, "board"))
-	if err != nil {
-		t.Fatalf("board.Open: %v", err)
-	}
-	srv.SetBoard(st, nil)
 
 	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "researcher", "memory_scope": "agent/researcher", "workdir": "researcher"},
@@ -2968,12 +2974,15 @@ func TestAgentResolve_PausesAndJournalsLifecycle(t *testing.T) {
 }
 
 func TestAgentResolve_DelegatesViaBoard(t *testing.T) {
-	_, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
-	st, err := board.Open(filepath.Join(dir, "board"))
-	if err != nil {
-		t.Fatalf("board.Open: %v", err)
-	}
-	srv.SetBoard(st, nil)
+	var st *board.Store
+	_, _, c, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(dir string) controlplane.Deps {
+		var err error
+		st, err = board.Open(filepath.Join(dir, "board"))
+		if err != nil {
+			t.Fatalf("board.Open: %v", err)
+		}
+		return controlplane.Deps{Board: st}
+	})
 	ctx := context.Background()
 	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "builder", "soul": "You build.", "model": "m"},
@@ -3207,12 +3216,13 @@ func (p *rosterRoutingProvider) SetTaskModelChains(chains map[string][]string) {
 }
 
 func TestAgentEscalations_ShowsOpenDoctorResponsibilities(t *testing.T) {
-	k, srv, c, dir := startPair(t, mock.New(mock.FinalText("done")))
-	st, err := board.Open(filepath.Join(dir, "board"))
-	if err != nil {
-		t.Fatalf("board.Open: %v", err)
-	}
-	srv.SetBoard(st, nil)
+	k, _, c, _ := startPairWithDeps(t, mock.New(mock.FinalText("done")), func(dir string) controlplane.Deps {
+		st, err := board.Open(filepath.Join(dir, "board"))
+		if err != nil {
+			t.Fatalf("board.Open: %v", err)
+		}
+		return controlplane.Deps{Board: st}
+	})
 	ctx := context.Background()
 	for _, slug := range []string{"builder", "lead"} {
 		if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{

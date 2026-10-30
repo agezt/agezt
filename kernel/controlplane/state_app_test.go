@@ -67,9 +67,8 @@ func TestStateNativeRouting(t *testing.T) {
 	if err := entry.Kernel.(*runtime.Kernel).State().Set("tenant_ns", "k", "acme"); err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(binding.ScopeFromKernel(k, dir))
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{Tenants: reg})
 	s.token = "primary"
-	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) string {
 		a, b := net.Pipe()
 		a.SetDeadline(time.Now().Add(3 * time.Second))

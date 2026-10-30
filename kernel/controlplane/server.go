@@ -17,7 +17,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/toolboxapi"
-	"github.com/agezt/agezt/kernel/contract/updateapi"
 	"github.com/agezt/agezt/kernel/tenant"
 )
 
@@ -52,79 +51,80 @@ type Server struct {
 	shutdownCh   chan struct{}
 	shutdownOnce sync.Once
 
-	// pulse is the optional resident proactive engine, injected by the
-	// daemon via SetPulse. Nil when Pulse is disabled (AGEZT_PULSE=off);
-	// the pulse handlers report "disabled" rather than dereferencing it.
-	pulse PulseController
+	// pulseProvider asks for the optional resident proactive engine. The
+	// daemon publishes the engine through it; nil when Pulse is disabled
+	// (AGEZT_PULSE=off); the pulse handlers report "disabled" rather than
+	// dereferencing it.
+	pulseProvider func() PulseController
 
 	// One application-owned list/cache service per primary Server.
 	rosterListOnce sync.Once
 	rosterList     *approster.ListService
 
-	// standingFire fires a standing order on demand (M765), injected by the
-	// daemon via SetStandingFire (it closes over the daemon's fire path + ctx,
-	// so this package stays decoupled from the run launcher). Returns false if
-	// the id is unknown. Nil until wired; the handler reports that.
-	standingFire func(id string) bool
+	// standingFireProvider asks for the standing-order runner's callback
+	// (M765). The daemon publishes it (it closes over the daemon's fire path
+	// + ctx, so this package stays decoupled from the run launcher). Returns
+	// false if the id is unknown. Nil until the runner is built; the handler
+	// reports that.
+	standingFireProvider func() StandingFirer
 
-	// observers adds pulse observers (disk-space watches M767, command probes
-	// M768) at runtime. The daemon injects an adapter over the live engine via
-	// SetPulseObservers (it owns the DiskUsage func and the warden, keeping this
-	// package decoupled from kernel/pulse). Nil when pulse is disabled; the
-	// handlers report that.
-	observers PulseObservers
+	// observersProvider asks for the pulse observers (disk-space watches M767,
+	// command probes M768) the daemon registers at runtime. The daemon
+	// publishes an adapter over the live engine (it owns the DiskUsage func and
+	// the warden, keeping this package decoupled from kernel/pulse). Nil when
+	// pulse is disabled; the handlers report that.
+	observersProvider func() PulseObservers
 
 	// tenants is the optional multi-tenant registry, injected by the daemon
-	// via SetTenants. Nil unless multi-tenancy is enabled; the tenant handlers
+	// through the composition root. Nil unless multi-tenancy is enabled; the tenant handlers
 	// report "disabled" rather than dereferencing it.
 	tenants *tenant.Registry
 
 	// configEnvPinned marks config env vars set in the real process environment at
 	// startup (before the config-store injection). The Config Center shows these
-	// read-only because the real env overrides the store (M693). Set via
-	// SetConfigEnvPinned; nil-safe.
+	// read-only because the real env overrides the store (M693). Injected
+	// through the composition root; nil-safe.
 	configEnvPinned map[string]bool
 
 	// cancelOnDisconnect, when true, makes a streaming CmdRun cancel its run
 	// if the client connection drops before the run finishes (M35). Off by
 	// default so a backgrounded `agt run &` (whose client stays alive) is
 	// unaffected; only a genuinely-gone client (Ctrl-C / killed) cancels.
-	// Set once at startup via SetCancelOnDisconnect.
 	cancelOnDisconnect bool
 
 	// diskFree returns (free, total) bytes for the filesystem at a path,
-	// injected by the daemon via SetDiskFree (the daemon passes pulse.DiskUsage,
-	// so this package never imports kernel/pulse — the same decoupling as
-	// SetPulse). Nil when not wired; the disk handler reports it as unavailable.
+	// injected by the daemon (the daemon passes pulse.DiskUsage, so this
+	// package never imports kernel/pulse — the same decoupling as the pulse
+	// engine). Nil when not wired; the disk handler reports it as unavailable.
 	diskFree DiskFreeFunc
 
 	// httpBindings lists the daemon's network-exposed HTTP servers (web UI, REST
-	// API, OpenAI API) with whether each is loopback-bound, injected by the daemon
-	// via SetHTTPBindings. `agt status` surfaces them and the doctor exposure check
+	// API, OpenAI API) with whether each is loopback-bound, injected by the daemon.
+	// `agt status` surfaces them and the doctor exposure check
 	// (M137) warns on any non-loopback bind. Empty when no HTTP server is enabled.
 	httpBindings []HTTPBinding
 
 	// channels lists the messaging channels the daemon has configured (Telegram,
-	// Slack, Discord), injected via SetChannels. `agt status` surfaces them so an
+	// Slack, Discord), injected through the composition root. `agt status` surfaces them so an
 	// operator can confirm what's listening without scrolling back to the boot
 	// banner (M141). Empty when no channel is configured.
 	channels []ChannelInfo
 
-	// channelSend delivers an operator-initiated outbound message through a named
-	// channel (M142), injected via SetChannelSender. Kept as a primitive func (not a
-	// channel.Channel) so this package never imports the channel plugins. Nil when no
-	// channel is configured; handleSend reports that as unavailable.
-	channelSend ChannelSender
+	// channelSendProvider asks for the operator-initiated outbound message path
+	// through a named channel (M142). Kept as a primitive func (not a
+	// channel.Channel) so this package never imports the channel plugins. Nil
+	// until the channels are up; handleSend reports that as unavailable.
+	channelSendProvider func() ChannelSender
 
 	// credChain is a short human-readable description of the resolved AWS
 	// credential chain (which keyless/ambient layers engaged — SSO, assume-role,
-	// IRSA/web-identity, IMDS), injected via SetCredChain (M307). `agt status`
+	// IRSA/web-identity, IMDS), injected through the composition root (M307). `agt status`
 	// surfaces it so an operator on EKS can confirm IRSA actually engaged without
 	// grepping the boot banner. Empty when AWS credentials aren't in play.
 	credChain string
 
-	// boardStore is the daemon's ONE shared message board, injected via
-	// SetBoard (M937 mailbox) — the CONTRACT's port (W3.59), not the module's
+	// boardStore is the daemon's ONE shared message board, injected through
+	// the composition root (M937 mailbox) — the CONTRACT's port (W3.59), not the module's
 	// concrete store. Board WRITES must go through this instance — the
 	// `board` tool holds the same one, and a second instance would clobber its
 	// last write (each holds the whole message list and saves it whole).
@@ -140,20 +140,20 @@ type Server struct {
 	// wakes standing orders exactly like an agent's send. Nil-safe.
 	boardNotify func(m boardapi.Message, corr string)
 
-	// toolboxHost is the host CLI-tool inventory + installer, injected via
-	// SetToolbox — the CONTRACT's port (W5.4b), not the toolbox module.
+	// toolboxHost is the host CLI-tool inventory + installer, injected through
+	// the composition root — the CONTRACT's port (W5.4b), not the toolbox module.
 	//
 	// Nil when the daemon has no toolbox: the reads answer "the toolbox is not
 	// available on this daemon" and the install refuses — which is NOT the same
 	// as a toolbox that found nothing on the machine.
 	toolboxHost toolboxapi.Host
 
-	// updateSvc is the self-update engine (M860), injected via SetUpdateService.
+	// updateSvc is the self-update engine (M860), injected through the composition root.
 	// Nil when update is disabled; the update handlers report that.
 	updateSvc appupdate.Backend
 
 	// repairSource is the agent-repair surface the operator's incident
-	// resolution drives, injected via SetRepairSource. Nil when unwired; the
+	// resolution drives, injected through the composition root. Nil when unwired; the
 	// repair paths report that rather than dereferencing nil.
 	repairSource agentapi.RepairSource
 
@@ -181,87 +181,13 @@ type ChannelSender func(ctx context.Context, kind, channelID, text string) error
 // HTTPBinding describes one network-exposed HTTP server for the exposure check.
 type HTTPBinding = system.HTTPBinding
 
-// SetHTTPBindings records the daemon's enabled HTTP servers so `agt status` and
-// `agt doctor` can report whether any is reachable beyond localhost.
-func (s *Server) SetHTTPBindings(b []HTTPBinding) { s.httpBindings = b }
-
 // ChannelInfo describes one configured messaging channel for `agt status`.
 type ChannelInfo = system.ChannelInfo
-
-// SetChannels records the daemon's configured messaging channels so `agt status`
-// can report what's listening.
-func (s *Server) SetChannels(c []ChannelInfo) { s.channels = c }
-
-// SetChannelSender wires operator-initiated outbound (`agt send`) to the live
-// channels. Nil leaves `agt send` reporting "no channels configured".
-func (s *Server) SetChannelSender(send ChannelSender) { s.channelSend = send }
-
-// SetChatGPTSync wires the post-sign-in catalog refresh + model-surface lookup.
-// Nil leaves the sign-in responses without a model list (the console then falls
-// back to whatever the catalog already holds).
-func (s *Server) SetChatGPTSync(fn ChatGPTSyncFunc) { s.chatgptSync = fn }
-
-// SetCredChain records the resolved AWS credential-chain description so
-// `agt status` can report which credential layer engaged (M307).
-func (s *Server) SetCredChain(desc string) { s.credChain = desc }
-
-// SetBoard wires the daemon's shared message-board instance and its post
-// notifier (M937 mailbox). Board write commands (board_send/board_ack) require
-// it — a fresh per-request Open would clobber the `board` tool's writes; notify
-// publishes board.posted so SDK sends wake standing orders like agent sends.
-//
-// The store is the CONTRACT's port (W3.59): the control plane may not name the
-// module, and a host that hands over no store holds no board at all.
-func (s *Server) SetBoard(st boardapi.Store, notify func(m boardapi.Message, corr string)) {
-	s.boardStore = st
-	s.boardNotify = notify
-}
-
-// SetToolbox wires the host CLI-tool inventory + installer (M956). The port is
-// the CONTRACT's (W5.4b): the control plane may not name the toolbox module —
-// an adapter reaches the app layer's operations, never a module (archcheck's
-// principle P2). Nil leaves the toolbox commands reporting that the toolbox is
-// not available on this daemon.
-func (s *Server) SetToolbox(host toolboxapi.Host) { s.toolboxHost = host }
-
-// SetRepairSource wires the agent-repair surface the operator's incident
-// resolution drives (the overseer's repair source). The daemon injects it:
-// the control plane must not import the tool that provides it — an adapter
-// reaches the module's vocabulary, not a plugin (archcheck's principle P5).
-// Nil when unwired; the repair paths then report that instead of
-// dereferencing nil.
-func (s *Server) SetRepairSource(src agentapi.RepairSource) { s.repairSource = src }
-
-// SetUpdateService wires the self-update engine (M860). Nil when update is
-// disabled; update commands report that rather than dereferencing nil.
-//
-// The port is the CONTRACT's (W5.4c): the control plane may not name the
-// update module. The daemon converts the concrete engine to the port where
-// the value is still concrete — a nil *update.Service handed to an interface
-// parameter is a NON-nil interface, and the holder would hold an engine that
-// is not there.
-func (s *Server) SetUpdateService(svc updateapi.Backend) {
-	if svc == nil {
-		s.updateSvc = nil
-		return
-	}
-	s.updateSvc = svc
-}
 
 // DiskFreeFunc returns the free (available) and total bytes for the filesystem
 // containing path (M131). The daemon injects a real implementation
 // (pulse.DiskUsage) so this package stays free of platform syscalls.
 type DiskFreeFunc func(path string) (free, total uint64, err error)
 
-// SetDiskFree injects the disk-usage probe used by the disk-space health check.
-func (s *Server) SetDiskFree(fn DiskFreeFunc) { s.diskFree = fn }
-
 // NewServer constructs a Server that will manage runtime files under
 // <baseDir>/runtime/ when Start is called.
-func (s *Server) SetCancelOnDisconnect(on bool) { s.cancelOnDisconnect = on }
-
-// SetConfigEnvPinned records which config env vars were set in the real process
-// environment at startup (before the config-store injection), so the Config
-// Center can mark them read-only — the real env wins over an edit (M693). Called
-// once at startup; nil-safe (an unset map reads as "nothing pinned").
-func (s *Server) SetConfigEnvPinned(pinned map[string]bool) { s.configEnvPinned = pinned }
