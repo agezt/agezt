@@ -5456,6 +5456,70 @@ files, five of the seventeen mutations would have escaped.
   the daemon keeping its names. After that, the largest and the most
   entangled: the **run engine** (→ `modules/runs`). Evidence:
   `architecture/272-w374-the-policy-hooks-guards-move-into-the-platform-evidence.md`
+- W3.75 (the policy hook's admission rules move into the platform) is the
+  **eighth** slice of the runtime's dissolution and the third one that moves a
+  **rule** (W3.73 the epistemic guard, W3.74 the guards). The policy hook was
+  not finished after W3.74: the guards moved, but the hook still owned two more
+  rules — the **capability resolution** and the **approval bundle**'s tables.
+  The resolution answers *which policy axis is this call judged on?*, from three
+  sources in order of specificity: the tool's own declaration, the plugin
+  manifest overlay (M900), and the name switch that still owns the dynamic
+  surfaces no static declaration can cover (forged `forge_*` script tools,
+  bridged `mcp_*` calls) — plus the rule that makes the order safe: a
+  declaration naming a capability Edict does not govern is **ignored** rather
+  than honoured, because an unknown capability is default-denied and honouring
+  a typo would silently kill the tool. The bundle answers *what is the operator
+  told about this call?*: the effect class, the predicted effects, the affected
+  resources, the rollback notes and the confidence, each defaulting to a
+  **row** when the tool declared none. They are rules, not plumbing, so they
+  moved to `kernel/platform/policy/admission` and the hook now asks. The
+  candidate was measured before it was chosen: the capability resolution **44
+  non-blank lines**, the bundle tables **99 non-blank lines**, the daemon's
+  copies of the rules **7** (six functions and a type), the daemon's own stores
+  **0**. **A rule that owns no store is the platform's** — confirmed on a
+  third and a fourth rule. The platform now keeps the rules
+  (`kernel/platform/policy/admission/admission.go`, 201 lines): `ValidatedToolCaps`,
+  `ResolveCapability`, the `Bundle` and `BundleFor`, and the tables behind them
+  (`EffectClassFor`, `RollbackNotesFor`, `AffectedResourcesFromInput`,
+  `NormalizeEffectClass`). The one thing the platform cannot have is the **tool
+  map** — the host builds the tools — so the lookup is a **port**, a way to ASK
+  for a definition by name; a host with no tool map is not an error, the bundle
+  then works with the definition the caller handed it. The daemon keeps its two
+  doors — its **overlay** and its **tool map** — and asks. What the slice cost:
+  **nothing to wire**, for the third time and for the same reason. What did NOT
+  move, and why: the **agent-noise policy stayed in the daemon** (it reads the
+  run's context and the daemon's own **state** — the notify cooldown — and
+  owns both; it is the host's noise bookkeeping, not a rule about a call); the
+  **bundle's shape** did not change; the **capability resolution** did not
+  change; and the **confidence row** did not move a second time — it was
+  already the platform's (W3.73), and the bundle now asks for it. **19
+  permanent tests** (16 platform, 3 internal) — and the slice had to **sharpen**
+  one, because the mutation that made the bundle ignore the host's tool map
+  survived: the test's looked-up definition carried the **same** effect class the
+  capability's default would have produced, so a bundle that never asked looked
+  identical; the test now asks for a definition whose effect **differs** from
+  the capability's default. And the two passes were not byte-identical at
+  first, and the cause was the **tests**, not the code: two table tests iterated
+  a **map**, so the failing row — and therefore the failure message in the log
+  — changed from run to run; the rows are **slices** now, because a mutation log
+  that changes between two runs of the same tree is not evidence. **23 mutations,
+  23 caught** in two independent passes with **byte-identical** logs (SHA-256
+  `29DC1C4F939A37AF7D0FE2F65115DC69652DDB6B0A3B97B2C0B1CD47D5FF3CE0`). The
+  measurement that moved: the daemon's copies of the admission rules **7 → 0**
+  (a **ratchet test** holds them there), the platform's lines of rule **0 →
+  201**, the daemon's calls into the platform's rules **0 → 2**, the kernel's
+  verbs **242 → 242**, the application layer's production files that changed
+  **0**, the test setups that had to be wired **0**, the contract's new rows
+  **0**, `kernel/runtime` **8,796 → 8,687** lines and `kernel/platform`
+  **3,180 → 3,381**, the daemon's `policy.go` **228 → 198** and its
+  `policy_helpers.go` **220 → 140**. The daemon shrank by **109** lines this
+  time (W3.74 shrank by **6**), and the difference is the rule: W3.74 moved a
+  rule whose conditions the host's wiring had to replace, and W3.75 moved rules
+  the host only had to *ask* about. **What is left**: the **policy hook** is now
+  finished as far as its rules go, and what remains of the runtime's
+  dissolution is the **run engine** (→ `modules/runs`) — the largest and the
+  most entangled. Evidence:
+  `architecture/273-w375-the-policy-hooks-admission-rules-move-into-the-platform-evidence.md`
 - W5.4a (the forbidden-call ratchet is zero) takes the **call-site** half of
   W5.4 — the last **three** `raw-write` call sites — and the ratchet goes
   **3 → 0**. The three were the marketplace cache's two staged writes and the
