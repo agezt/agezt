@@ -32,6 +32,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/edict"
+	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -122,6 +123,20 @@ type Config struct {
 	// "no servers" and the registry writes refuse, rather than calling into
 	// nothing.
 	MCPStore mcpapi.Registry
+
+	// MCPBuilder builds the MCP registry service over the dependencies the
+	// host collected (W3.71).
+	//
+	// The registry's LIFECYCLE is the extensions module's: the module keeps
+	// the operations, the live attachments and the bridge, and the daemon
+	// keeps the names. The daemon hands over the BUILDER (it names the
+	// module), and the kernel calls it with the store, the two dialers and
+	// its own publisher — so every lifecycle transition journals through the
+	// kernel's bus without either side naming the other's implementation.
+	//
+	// Nil means no service: the registry writes refuse and the reads answer
+	// "no servers".
+	MCPBuilder extapi.MCPRegistryBuilder
 
 	// Model is the default model name passed to the provider.
 	Model string

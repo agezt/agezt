@@ -32,7 +32,7 @@ func (k *Kernel) Runs() map[string]context.CancelFunc { return k.runs }
 
 // RunsMu exposes the runs mutex so the Manager can honour the lock
 // order documented on the Kernel struct (configMu < runsMu < fanoutMu <
-// treeMu < steersMu < spawnsMu < mcpMu).
+// treeMu < steersMu < spawnsMu).
 func (k *Kernel) RunsMu() *sync.Mutex { return &k.runsMu }
 
 // RunWG exposes the in-flight WaitGroup so the Manager can wait

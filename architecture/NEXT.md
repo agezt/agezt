@@ -5052,6 +5052,115 @@ files, five of the seventeen mutations would have escaped.
   contract** — the surface family that the leaf's own contract should own,
   whose first slice is the **files** family. Evidence:
   `architecture/268-w370-the-task-boards-proof-cycle-moves-into-the-work-module-evidence.md`
+- W3.71 (the MCP registry's lifecycle and the agent bridge move into the
+  extensions module) is the **fourth** slice of the runtime's dissolution and
+  the first one to move a family whose **data** was already in a module while
+  its **operations** were in the daemon. The MCP registry was split in half:
+  its **data** — the durable registrations, the store, the client that dials
+  a server — already lived in the extensions module
+  (`kernel/modules/extensions/mcp`), while its **operations** — the seven
+  lifecycle verbs that register, enable, attach, detach and remove a server,
+  the live-connection map, the dial rule and the five journaled transitions —
+  lived in the daemon (`kernel/runtime/mcptool.go` and
+  `kernel/runtime/mcptool_bridge.go`, 496 lines), together with the **bridge**
+  that folds an attached server's tools into a run's tool map. A module that
+  keeps the registry and leaves the lifecycle in the daemon keeps the data and
+  gives away the meaning of the data; the target architecture says it in one
+  line: the extensions module owns the **MCP registry**. The **shape** of the
+  candidate decided the slice's design, and this time the shape cut both ways:
+  the **lifecycle** and the **bridge** answer **one** question — which tools
+  may this run call — and they share the live attachments that answer it, so
+  they moved **together** as one service; and the **reads** are the daemon's
+  nil-safe view over the **contract's port** (the shape W3.58 established), so
+  they stayed with the host, which is what opens the registry's file. That is
+  the slice's finding: **a family splits along the line between the port and
+  the operations**. The module now owns the lifecycle
+  (`kernel/modules/extensions/mcp/registry.go`) and the bridge
+  (`kernel/modules/extensions/mcp/bridge.go`), and the extensions module grew
+  its first **api** package (`kernel/modules/extensions/api/mcp.go`): the
+  `MCPRegistryService` face and the `MCPRegistryDependencies` ports — the
+  registry's store, the two dialers and the bus to publish on, all of them
+  ways to ASK and never ways to reach. The daemon keeps its names and
+  forwards, so **no caller outside the runtime changed**: **0 production
+  files** in `kernel/app` changed, and the plugin, the app's lifecycle
+  surface, the marketplace and the control plane all keep speaking the
+  daemon's **fourteen** names. The wiring is a **builder**, not a setter: the
+  daemon hands the kernel the module's BUILDER (`cfg.MCPBuilder`) and the
+  kernel calls it with the store, the two dialers and its own publisher at
+  `Open` — the W3.57 shape, and the right one here, because the MCP store and
+  the dialers were already cfg seams (W3.58). What did NOT move, and why: the
+  **registry's READS stayed in the daemon** (they are the nil-safe view over
+  the contract's port, and the host is what opens the file); the **dialers
+  stayed the host's seams** (the implementations live in the module, but the
+  host injects them, so the module never names its own clients); and the
+  **event's shape did not change** (the same five kinds, the same subject,
+  the same actor and the same payload rows — only the place that speaks them
+  moved). The refusal became a **contract row** (`mcpapi.ErrNoRegistry`),
+  because two sides answer it and a caller compares it with `errors.Is`: the
+  module raises it when the daemon handed over no registry port, and the daemon
+  raises it when the module was never wired. The daemon keeps the name
+  (`runtime.ErrNoMCPRegistry`) as the row's alias. **What the slice cost:
+  six test setups** had to learn the builder (the runtime's MCP test helper,
+  one runtime test with a fake registry, the control plane's two MCP test
+  helpers, the built-in tools' MCP test helper and the application layer's MCP
+  ports test), and the **daemon itself
+  cost nothing** — `cmd/agezt` wires its own builder by default, the way it
+  wires the memory's. That is the price of **inventing a new face**, and the
+  slice states the rule the prior three slices measured: a move into an
+  **existing** face costs **nothing** (W3.70: 0 sites), and a move that
+  invents a **new** face costs a wiring in every host that has one (W3.68:
+  11, W3.69: 6, W3.71: 6). **26 permanent tests** in four places — the
+  module's registry (**14**: the service refuses to write without a store, it
+  registers the server and journals `mcp.added` with the transport, a remote
+  registration is journalled as http, it flips the flag and journals
+  `mcp.updated`, it dials, discovers and journals the tools, it refuses an
+  unknown server **without dialing**, it refuses a double attach **without
+  dialing again**, a remote row dials over HTTP and a local one over stdio,
+  the attach refuses without a dialer, the detach is the kill switch, the
+  remove detaches a live server first, the boot path skips the disabled and
+  **reports** the failures instead of failing, the attached surface counts the
+  tools, and the close detaches everything), the module's bridge (**8**: the
+  merge leaves the map untouched without attachments, it exposes the attached
+  tools and forwards the call, it honours the allowlist, it collapses a lazy
+  server into one dispatcher, the dispatcher refuses an unexposed tool, a
+  registered tool wins a collision, the callable name is sanitized and capped
+  at 64, and a failing call is an error **result** while a cancelled run stays
+  cancelled), the daemon's (**3**: the daemon refuses every registry verb when
+  the module is not wired, the daemon forwards every registry verb — a **fake
+  registry** records the arguments, so a daemon that grew the lifecycle back
+  would record nothing — and the daemon keeps the fourteen names) and the
+  daemon's merge (**1**) — and **13 mutations, 13 caught** in two independent
+  passes with **byte-identical** logs (SHA-256
+  `5BBC8B2B662AC26714D0289B241FBE7053BBB065539DA0906342AF70BA386B07`). The
+  first calibration reported **one BUILDERR** and **one** mutation that
+  survived, and **both were the harness's and the test's** faults, not the
+  code's: the mutation that stopped the daemon asking the module left `svc`
+  unused, so Go refused to compile (a compile error is not a caught mutation,
+  it is a mutation that never ran); and the mutation that let a double attach
+  through **survived** because it was **correct** — the second guard still
+  refused the attach, so the behaviour was equivalent — but the **test** was
+  wrong, not the mutation: the dial **spawns a child process**, and a refused
+  attach must not spawn one. The test now counts the dials and pins it. The
+  measurement that moved: the daemon's calls into the registry's store
+  **9 → 3** (the reads stayed), the module's calls into the store **0 → 7**,
+  the daemon's calls into the module **0 → 9**, the daemon's public MCP names
+  **14 → 14**, the kernel's verbs **240 → 241** (the one that moved is
+  `SetMCPRegistry`, the seam that lets a host swap the module's service), the
+  application layer's production files that changed **0**, the test setups
+  that had to be wired **6**, the contract's new rows **1**,
+  `kernel/runtime` **9,395 → 9,170** lines,
+  `kernel/modules/extensions` **4,621 → 5,234** and
+  `kernel/modules/extensions/mcp` **821 → 1,323**. The daemon's own lock went
+  with the attachments: `mcpMu` guarded `mcpConns`, so the daemon's **lock
+  order** is now one link shorter (`configMu < runsMu < fanoutMu < treeMu <
+  steersMu < spawnsMu`), and the four places that named it (the kernel struct,
+  the run executor's three files and the lifecycle's comment) were updated in
+  the same slice — a lock order that names a lock that no longer exists is a
+  lie that ages badly. **What is left**: the extensions module keeps the whole
+  of the MCP registry's business, and the nearest families are the **MCP
+  registry's fourteen** (now forwarders), the **board's sixteen**, the
+  **workflow host's twelve** and the **reasoning module's six**. Evidence:
+  `architecture/269-w371-the-mcp-registrys-lifecycle-moves-into-the-extensions-module-evidence.md`
 - W5.4a (the forbidden-call ratchet is zero) takes the **call-site** half of
   W5.4 — the last **three** `raw-write` call sites — and the ratchet goes
   **3 → 0**. The three were the marketplace cache's two staged writes and the

@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/artifacts/datalake"
 	"github.com/agezt/agezt/kernel/modules/board/board"
+	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
@@ -336,6 +337,19 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 	}
 	if cfg.MCPHTTPDialer == nil {
 		cfg.MCPHTTPDialer = mcp.DialHTTP
+	}
+	if cfg.MCPBuilder == nil {
+		// The MCP registry's SERVICE (W3.71) — the lifecycle over the
+		// registered servers, the live attachments and the bridge that folds
+		// an attached server's tools into a run's tool map. The
+		// implementation lives in the extensions module and the kernel may
+		// not name it, so the daemon injects the BUILDER: the kernel calls it
+		// with the store, the two dialers and its own publisher, so every
+		// lifecycle transition journals through the kernel's bus without
+		// either side naming the other's implementation.
+		cfg.MCPBuilder = func(deps extapi.MCPRegistryDependencies) extapi.MCPRegistryService {
+			return mcp.NewService(deps)
+		}
 	}
 	if cfg.Workboard == nil {
 		// The durable task board (W3.47) — the contract's host port. The

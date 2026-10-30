@@ -25,7 +25,7 @@ import (
 // The single piece that requires extra care here is the lock-ordering
 // invariant documented on Kernel:
 //
-//   configMu (light config) < runsMu < fanoutMu < treeMu < steersMu < spawnsMu < mcpMu
+//   configMu (light config) < runsMu < fanoutMu < treeMu < steersMu < spawnsMu
 //
 // The deferred cleanup at the bottom of RunWith takes all five
 // (runsMu → fanoutMu → treeMu → steersMu → spawnsMu) in this exact

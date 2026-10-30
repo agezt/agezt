@@ -257,21 +257,22 @@ Tests (20 files): `agent_test.go` (loop end to end with mock provider), `panic_t
 ## 4. kernel/runtime — the Kernel
 
 ### 4.1 Kernel struct and concurrency (runtime_kernel.go)
-`Kernel` holds `cfg Config`, the stores (journal, state, bus, edict, warden, approvals, scheduler, memory/world/forge stores, resume, toolForge, seat, artifacts + artIndex, lake, reflect, configCenter) and the HOST PORTS the daemon injects (`marketapi.Manager` — W3.46, `workboardapi.HostStore` — W3.47, `workflowapi.Store` + the `workflowapi.Engine` port — W3.48, `cadenceapi.HostStore` + the `cadenceapi.Engine` port — W3.49, `standingapi.Store` — W3.50, `catalogapi.Store` + `catalogapi.Syncer` — W3.51, `tasteapi.Store` — W3.52, `okrapi.Store` — W3.53, `worldmodelapi.Graph` + `worldmodelapi.Store` — W3.54, `skillapi.Curator` + `skillapi.Store` — W3.55, `agentapi.Store` — W3.56, `memoryapi.Manager` + `memoryapi.Store` — W3.57, `mcpapi.Registry` — W3.58, plus the `mcpapi.Dialer` + `mcpapi.HTTPDialer` seams the daemon injects so the kernel never names the module's clients), `tools` (the effective in-process map), `conductorExec`, `reasoning` (the reasoning module's service, injected by the composition root), the catalog snapshot, and three sub-managers (`lifecycle`, `accessors`, `runexec`).
+`Kernel` holds `cfg Config`, the stores (journal, state, bus, edict, warden, approvals, scheduler, memory/world/forge stores, resume, toolForge, seat, artifacts + artIndex, lake, reflect, configCenter) and the HOST PORTS the daemon injects (`marketapi.Manager` — W3.46, `workboardapi.HostStore` — W3.47, `workflowapi.Store` + the `workflowapi.Engine` port — W3.48, `cadenceapi.HostStore` + the `cadenceapi.Engine` port — W3.49, `standingapi.Store` — W3.50, `catalogapi.Store` + `catalogapi.Syncer` — W3.51, `tasteapi.Store` — W3.52, `okrapi.Store` — W3.53, `worldmodelapi.Graph` + `worldmodelapi.Store` — W3.54, `skillapi.Curator` + `skillapi.Store` — W3.55, `agentapi.Store` — W3.56, `memoryapi.Manager` + `memoryapi.Store` — W3.57, `mcpapi.Registry` — W3.58, plus the `mcpapi.Dialer` + `mcpapi.HTTPDialer` seams the daemon injects so the kernel never names the module's clients), `tools` (the effective in-process map), `conductorExec`, `reasoning` (the reasoning module's service, injected by the composition root), `mcp` (the **extensions module's** registry service — W3.71: the module keeps the MCP lifecycle, the live attachments and the bridge, and the daemon keeps the names; the composition root builds it over the store, the two dialers and the kernel's own publisher), the catalog snapshot, and three sub-managers (`lifecycle`, `accessors`, `runexec`).
 
 Mutexes, with a mandatory acquisition order (documented on the struct and in runexec/doc.go):
 ```
-configMu < runsMu < fanoutMu < treeMu < steersMu < spawnsMu < mcpMu
+configMu < runsMu < fanoutMu < treeMu < steersMu < spawnsMu
 ```
 | Mutex | Guards |
 |---|---|
-| `configMu` | live `system`, `model`, `cfg`, `catalog`, `schedEngine` |
+| `configMu` | live `system`, `model`, `cfg`, `catalog`, `schedEngine`, `mcp` |
 | `runsMu` | `halted`, `runs map[corr]CancelFunc` |
 | `fanoutMu` | `fanout map[spawningCorr]int` (M46) |
 | `treeMu` | `tree map[rootCorr]int` (M629) |
 | `steersMu` | `steers map[corr]*runControl` |
 | `spawnsMu` | `spawns map[childCorr]*spawnHandle` (async delegation) |
-| `mcpMu` | `mcpConns map[server]mcpapi.Conn` |
+
+The MCP attachments' own lock (`mcpMu`) moved with the attachments into the extensions module (W3.71): the daemon no longer holds a live connection.
 
 Also: `suspending atomic.Bool` (latched by `Suspend`, never cleared); `runWG sync.WaitGroup` (root runs plus async spawns, drained by `Close`/`DrainAndHalt`); `toolCaps` (read-only after Open); `startTime`.
 
@@ -768,7 +769,7 @@ Everything else reaches `runtime.Config` through `cmd/agezt/internal/daemonconfi
 
 ## 14. Gotchas / invariants / surprises
 
-1. **Lock order** `configMu < runsMu < fanoutMu < treeMu < steersMu < spawnsMu < mcpMu` is load-bearing; `-race` tests guard it. `setupRunState` takes `steersMu` inside `runsMu`. `runSubAgentAsync` takes `runsMu` then `spawnsMu`.
+1. **Lock order** `configMu < runsMu < fanoutMu < treeMu < steersMu < spawnsMu` is load-bearing; `-race` tests guard it. `setupRunState` takes `steersMu` inside `runsMu`. `runSubAgentAsync` takes `runsMu` then `spawnsMu`. (The MCP attachments' lock left the daemon together with the attachments in W3.71.)
 2. **One corr, one live run** (M480). Re-running under the same corr is only legal sequentially (RunAssured / RunWithRetry / resumer).
 3. **Stale comments in runexec.** `runexec/doc.go`, `runner.go`'s `Runner` doc, `runexec.go`'s file comment and `compose.go` say "the 260-line RunWith body stays on *Kernel". It does not: the full body is `runexec.Runner.RunWith`. `spawnHandle`'s comment says "Guarded by k.mu"; the actual lock is `spawnsMu`.
 4. **Dead or duplicate code:**

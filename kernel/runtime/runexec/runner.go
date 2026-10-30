@@ -27,7 +27,7 @@ import (
 // Lock-ordering invariant: every site that takes a mutex must
 // honour the order documented on the Kernel struct
 //
-//	configMu < runsMu < fanoutMu < treeMu < steersMu < spawnsMu < mcpMu
+//	configMu < runsMu < fanoutMu < treeMu < steersMu < spawnsMu
 //
 // Day 22's Run / RunAssured don't take any of those mutexes
 // directly. Day 23 adds RunWithRetry (no mutex — just ctx /

@@ -9,6 +9,8 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/mcpapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
+	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -155,6 +157,9 @@ func TestTheToolsPortsReachTheKernelMCPServers(t *testing.T) {
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(),
 		MCPStore: registry,
+		MCPBuilder: func(deps extapi.MCPRegistryDependencies) extapi.MCPRegistryService {
+			return mcp.NewService(deps)
+		},
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)

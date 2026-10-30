@@ -68,6 +68,15 @@ type HTTPDialer func(ctx context.Context, url string, headers map[string]string)
 // errors.Is comparison silently false.
 var ErrNotFound = errors.New("mcp: server not found")
 
+// ErrNoRegistry is answered when the host holds no MCP registry at all.
+//
+// The sentinel lives in the contract because TWO sides answer it and a caller
+// compares with errors.Is: the module raises it when the daemon handed over
+// no registry port (W3.71), and the host raises it when the module was never
+// wired. Two look-alike errors of their own would leave every comparison
+// silently false.
+var ErrNoRegistry = errors.New("mcp: the MCP registry is not available on this daemon")
+
 // Registry is the durable MCP-server registry — the store port.
 //
 // Six verbs, the registry's whole surface: the lifecycle (add, enable, remove)

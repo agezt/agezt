@@ -158,10 +158,11 @@ func TestKernelWithoutARegistryAnswersNoServersAndRefusesWrites(t *testing.T) {
 func TestKernelHoldsTheRegistryItWasGiven(t *testing.T) {
 	registry := &recordingRegistry{}
 	k, err := runtime.Open(runtime.Config{
-		BaseDir:   t.TempDir(),
-		Provider:  mock.New(),
-		MCPStore:  registry,
-		MCPDialer: func(context.Context, string, []string, map[string]string) (mcpapi.Conn, error) { return nil, nil },
+		BaseDir:    t.TempDir(),
+		Provider:   mock.New(),
+		MCPStore:   registry,
+		MCPBuilder: mcpServiceBuilder(),
+		MCPDialer:  func(context.Context, string, []string, map[string]string) (mcpapi.Conn, error) { return nil, nil },
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
