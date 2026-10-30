@@ -9,12 +9,14 @@ import (
 	"testing"
 )
 
-// The runner REFUSES when the handle is not the daemon's own.
+// The runner REFUSES when there is no daemon.
 //
-// A host with no daemon holds no tools to run, and the runner says so rather
-// than answering as if a tool had answered.
+// The runner is filled from the daemon's own kernel, by type: there is no
+// foreign handle to fill it with any more. A host with no daemon holds no
+// tools to run, and the runner says so rather than answering as if a tool
+// had answered.
 func TestTheRunnerRefusesWithoutADaemon(t *testing.T) {
-	runner := RunnerFromHandle("not a daemon")
+	runner := RunnerFromKernel(nil)
 
 	res, err := runner.RunToolWithLookup(context.Background(), "corr", "agent", "file", json.RawMessage(`{}`), nil)
 	if err == nil {

@@ -15,12 +15,14 @@ import (
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
-// The plan runner's ports REFUSE when the handle is not the daemon's own.
+// The plan runner's ports REFUSE when there is no daemon.
 //
-// A host with no daemon holds no plan machinery: the loop is nowhere and the
-// plan verb refuses, so a submitted plan is answered by nobody.
+// The plan runner's ports are filled from the daemon's own kernel, by type:
+// there is no foreign handle to fill them with any more. A host with no
+// daemon holds no plan machinery: the loop is nowhere and the plan verb
+// refuses, so a submitted plan is answered by nobody.
 func TestThePlanRunnerPortsRefuseWithoutADaemon(t *testing.T) {
-	ports := PlanRunnerPortsFromHandle("not a daemon")
+	ports := PlanRunnerPortsFromKernel(nil)
 
 	if runner := ports.LoopRunner(); runner != nil {
 		t.Error("a host with no daemon holds a plan loop")

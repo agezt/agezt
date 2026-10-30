@@ -10,15 +10,15 @@ import (
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
-// EnginesFromHandle fills the research family's engines from the daemon's
-// handle.
+// EnginesFromKernel fills the research family's engines from the daemon's own
+// kernel.
 //
-// The handle is not named by the caller: the research family fills its own
-// engines from it. A handle that is not the daemon's own yields engines that
+// The research capability IS the daemon's own: the research family fills its
+// own engines from it. A daemon that does not exist yields engines that
 // REFUSE — the research question is answered by nobody rather than by a
 // capability that does not exist.
-func EnginesFromHandle(h any, newCorrelation func() string) Engines {
-	research := ResearchFromHandle(h)
+func EnginesFromKernel(k *runtime.Kernel, newCorrelation func() string) Engines {
+	research := ResearchFromKernel(k)
 	if research == nil {
 		research = func(context.Context, string, string, api.ResearchOptions) (api.ResearchReport, error) {
 			return api.ResearchReport{}, errors.New("the research capability is not available")
@@ -30,13 +30,12 @@ func EnginesFromHandle(h any, newCorrelation func() string) Engines {
 	}
 }
 
-// ResearchFromHandle returns the daemon's research capability from the
-// handle.
+// ResearchFromKernel returns the daemon's research capability from the
+// daemon's own kernel.
 //
-// It is nil when the handle is not the daemon's own.
-func ResearchFromHandle(h any) func(ctx context.Context, corr, question string, opts api.ResearchOptions) (api.ResearchReport, error) {
-	k, ok := h.(*runtime.Kernel)
-	if !ok {
+// It is nil when there is no daemon.
+func ResearchFromKernel(k *runtime.Kernel) func(ctx context.Context, corr, question string, opts api.ResearchOptions) (api.ResearchReport, error) {
+	if k == nil {
 		return nil
 	}
 	return k.Research

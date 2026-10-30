@@ -9,14 +9,14 @@ import (
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
-// RunsFromHandle returns the daemon's run controls from the handle.
+// RunsFromKernel returns the daemon's run controls from the daemon's own
+// kernel.
 //
-// The handle is not named by the caller: the steer family fills its own run
-// controls from it. A handle that is not the daemon's own yields controls
-// that REFUSE — a run is not steered by nobody.
-func RunsFromHandle(h any) Runs {
-	k, ok := h.(*runtime.Kernel)
-	if !ok {
+// The run controls ARE the daemon's own kernel: the steer family fills its
+// own controls from it. A daemon that does not exist yields controls that
+// REFUSE — a run is not steered by nobody.
+func RunsFromKernel(k *runtime.Kernel) Runs {
+	if k == nil {
 		return refusingRuns{}
 	}
 	return k

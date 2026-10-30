@@ -11,15 +11,15 @@ import (
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
-// RunnerFromHandle returns the daemon's tool runner from the handle.
+// RunnerFromKernel returns the daemon's tool runner from the daemon's own
+// kernel.
 //
-// The handle is not named by the caller: the files family fills its own
-// runner from it. A handle that is not the daemon's own yields a runner that
-// REFUSES — a file operation is answered by nobody rather than by a runner
-// that does not exist.
-func RunnerFromHandle(h any) Runner {
-	k, ok := h.(*runtime.Kernel)
-	if !ok {
+// The runner IS the daemon's own kernel: the files family fills its own
+// runner from it, and the caller never names the kernel's verbs. A daemon
+// that does not exist yields a runner that REFUSES — a file operation is
+// answered by nobody rather than by a runner that does not exist.
+func RunnerFromKernel(k *runtime.Kernel) Runner {
+	if k == nil {
 		return refusingRunner{}
 	}
 	return k

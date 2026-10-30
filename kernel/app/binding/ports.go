@@ -1,25 +1,21 @@
 // SPDX-License-Identifier: MIT
 
-// Package binding hands the daemon's handle to the family that owns the
+// Package binding hands the daemon's own kernel to the family that owns the
 // ports.
 //
-// The handle is the daemon's own kernel. A family fills its OWN ports from
-// it, and the adapter that holds the handle never names the runtime — Go does
+// The daemon IS the daemon's own kernel. A family fills its OWN ports from
+// it, and the adapter that holds the daemon never names the runtime — Go does
 // not need the name to hand a value over. This bridge is that hand-over, and
 // it lives in the application layer because the application owns the
 // families' ports.
 //
-// The bridge has TWO faces:
+// The bridge has ONE face: it fills EVERY family's ports at once, for ONE
+// scope of the daemon (the primary, or one tenant). It is what the
+// COMPOSITION ROOT builds: the root is the one place that holds the daemon,
+// and what it hands to the adapter is a scope — the families' capabilities,
+// already filled — and never the daemon itself.
 //
-//   - Fill fills ONE family's ports from the handle. The family owns the fill;
-//     the bridge only hands the handle to the right family.
-//   - Scope fills EVERY family's ports at once, for ONE scope of the daemon
-//     (the primary, or one tenant). It is what the COMPOSITION ROOT builds:
-//     the root is the one place that holds the handle, and what it hands to
-//     the adapter is a scope — the families' capabilities, already filled —
-//     and never the handle itself.
-//
-// A scope is a bundle of ports, not a handle: an adapter that holds one can
+// A scope is a bundle of ports, not a daemon: an adapter that holds one can
 // reach every family's capabilities and can reach NOTHING of the kernel
 // behind them.
 package binding
@@ -67,21 +63,6 @@ import (
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
 )
-
-// Fill fills a family's ports from the daemon's handle.
-//
-// The family that owns the ports fills them; this bridge only hands the
-// handle to the right family. A handle that is not the daemon's own yields
-// the family's EMPTY ports, and an empty port refuses rather than calling
-// into nothing.
-func Fill[T any](handle any, fill func(*runtime.Kernel) T) T {
-	k, ok := handle.(*runtime.Kernel)
-	if !ok {
-		var zero T
-		return zero
-	}
-	return fill(k)
-}
 
 // Scope holds the ports of EVERY family the adapter reaches, for ONE scope of
 // the daemon: the primary's, or one tenant's.
@@ -163,46 +144,46 @@ func ScopeFromKernel(k *runtime.Kernel, baseDir string) Scope {
 		return RefusingScope(baseDir)
 	}
 	return Scope{
-		ApprovalPorts:       Fill(k, appapprovals.PortsFromKernel),
-		ArtifactPorts:       Fill(k, appartifacts.PortsFromKernel),
-		BasedirPorts:        Fill(k, appbasedir.PortsFromKernel),
-		BusPorts:            Fill(k, appeventbus.PortsFromKernel),
-		CatalogPorts:        Fill(k, appcatalog.PortsFromKernel),
-		ConfigCenterPorts:   Fill(k, appconfigcenter.PortsFromKernel),
-		CorrelationPorts:    Fill(k, appcorrelation.PortsFromKernel),
+		ApprovalPorts:       appapprovals.PortsFromKernel(k),
+		ArtifactPorts:       appartifacts.PortsFromKernel(k),
+		BasedirPorts:        appbasedir.PortsFromKernel(k),
+		BusPorts:            appeventbus.PortsFromKernel(k),
+		CatalogPorts:        appcatalog.PortsFromKernel(k),
+		ConfigCenterPorts:   appconfigcenter.PortsFromKernel(k),
+		CorrelationPorts:    appcorrelation.PortsFromKernel(k),
 		CouncilPorts:        appcouncil.PortsFromKernel(k, baseDir),
 		CouncilEngines:      appcouncil.EnginesFromKernel(k),
-		DataPorts:           Fill(k, appdata.PortsFromKernel),
-		EdictPorts:          Fill(k, appedict.PortsFromKernel),
-		ExecProfilePorts:    Fill(k, appexecprofile.PortsFromKernel),
-		FilesRunner:         appfiles.RunnerFromHandle(k),
-		JournalPorts:        Fill(k, appjournal.PortsFromKernel),
-		LifecyclePorts:      Fill(k, applifecycle.PortsFromKernel),
-		MarketPorts:         Fill(k, appmarket.PortsFromKernel),
-		MemoryPorts:         Fill(k, appmemory.PortsFromKernel),
-		OkrPorts:            Fill(k, appokr.PortsFromKernel),
-		PersonaPorts:        Fill(k, apppersona.PortsFromKernel),
-		PlanRunnerPorts:     appruns.PlanRunnerPortsFromHandle(k),
-		PluginPorts:         Fill(k, appplugins.PortsFromKernel),
-		ProviderPorts:       Fill(k, appprovider.PortsFromKernel),
-		ReaperScanPorts:     Fill(k, appreaper.PortsFromKernel),
-		ReflectionPorts:     Fill(k, appreflection.PortsFromKernel),
-		ResearchEngines:     appresearch.EnginesFromHandle(k, appcorrelation.PortsFromKernel(k).Mint),
-		RosterProfilePorts:  Fill(k, approster.ProfilePortsFromKernel),
-		RunPorts:            Fill(k, appruns.RunPortsFromKernel),
-		RunsPorts:           Fill(k, appruns.PortsFromKernel),
-		SchedulePorts:       Fill(k, appschedule.PortsFromKernel),
-		SeatsPorts:          Fill(k, appseats.PortsFromKernel),
-		SkillPorts:          Fill(k, appskill.PortsFromKernel),
-		StandingPorts:       Fill(k, appstanding.PortsFromKernel),
-		StatePorts:          Fill(k, appstate.PortsFromKernel),
-		SteerRuns:           appsteer.RunsFromHandle(k),
-		SystemPorts:         Fill(k, appsystem.PortsFromKernel),
-		TastePorts:          Fill(k, apptaste.PortsFromKernel),
-		ToolsPorts:          Fill(k, apptools.PortsFromKernel),
-		WorkboardPorts:      Fill(k, appworkboard.PortsFromKernel),
-		WorkflowEnginePorts: Fill(k, appworkflow.PortsFromKernel),
-		WorldPorts:          Fill(k, appworld.PortsFromKernel),
+		DataPorts:           appdata.PortsFromKernel(k),
+		EdictPorts:          appedict.PortsFromKernel(k),
+		ExecProfilePorts:    appexecprofile.PortsFromKernel(k),
+		FilesRunner:         appfiles.RunnerFromKernel(k),
+		JournalPorts:        appjournal.PortsFromKernel(k),
+		LifecyclePorts:      applifecycle.PortsFromKernel(k),
+		MarketPorts:         appmarket.PortsFromKernel(k),
+		MemoryPorts:         appmemory.PortsFromKernel(k),
+		OkrPorts:            appokr.PortsFromKernel(k),
+		PersonaPorts:        apppersona.PortsFromKernel(k),
+		PlanRunnerPorts:     appruns.PlanRunnerPortsFromKernel(k),
+		PluginPorts:         appplugins.PortsFromKernel(k),
+		ProviderPorts:       appprovider.PortsFromKernel(k),
+		ReaperScanPorts:     appreaper.PortsFromKernel(k),
+		ReflectionPorts:     appreflection.PortsFromKernel(k),
+		ResearchEngines:     appresearch.EnginesFromKernel(k, appcorrelation.PortsFromKernel(k).Mint),
+		RosterProfilePorts:  approster.ProfilePortsFromKernel(k),
+		RunPorts:            appruns.RunPortsFromKernel(k),
+		RunsPorts:           appruns.PortsFromKernel(k),
+		SchedulePorts:       appschedule.PortsFromKernel(k),
+		SeatsPorts:          appseats.PortsFromKernel(k),
+		SkillPorts:          appskill.PortsFromKernel(k),
+		StandingPorts:       appstanding.PortsFromKernel(k),
+		StatePorts:          appstate.PortsFromKernel(k),
+		SteerRuns:           appsteer.RunsFromKernel(k),
+		SystemPorts:         appsystem.PortsFromKernel(k),
+		TastePorts:          apptaste.PortsFromKernel(k),
+		ToolsPorts:          apptools.PortsFromKernel(k),
+		WorkboardPorts:      appworkboard.PortsFromKernel(k),
+		WorkflowEnginePorts: appworkflow.PortsFromKernel(k),
+		WorldPorts:          appworld.PortsFromKernel(k),
 		Directory:           baseDir,
 		filled:              true,
 	}
@@ -219,11 +200,11 @@ func ScopeFromKernel(k *runtime.Kernel, baseDir string) Scope {
 // is, and the adapter's own directory comes from it.
 func RefusingScope(baseDir string) Scope {
 	return Scope{
-		CouncilPorts:    appcouncil.PortsFromHandle(nil, baseDir),
-		FilesRunner:     appfiles.RunnerFromHandle(nil),
-		PlanRunnerPorts: appruns.PlanRunnerPortsFromHandle(nil),
-		ResearchEngines: appresearch.EnginesFromHandle(nil, func() string { return "" }),
-		SteerRuns:       appsteer.RunsFromHandle(nil),
+		CouncilPorts:    appcouncil.PortsFromKernel(nil, baseDir),
+		FilesRunner:     appfiles.RunnerFromKernel(nil),
+		PlanRunnerPorts: appruns.PlanRunnerPortsFromKernel(nil),
+		ResearchEngines: appresearch.EnginesFromKernel(nil, func() string { return "" }),
+		SteerRuns:       appsteer.RunsFromKernel(nil),
 		Directory:       baseDir,
 	}
 }

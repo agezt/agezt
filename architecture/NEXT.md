@@ -7133,6 +7133,42 @@ files, five of the seventeen mutations would have escaped.
   `07C3225A85B605B9D9C9AC9404E0AAE73FD3EE4B1690DED91E63CED1AB1412D9`); **no**
   mutation needed a rewrite this time. Evidence:
   `architecture/264-w55d-the-adapters-wiring-is-one-door-evidence.md`
+- W5.5e (the last untyped handle closes) is the port programme's
+  **forty-seventh** slice and the **fifth** one of its **next phase** — the
+  **adapter's** handle. The phase's first slice (W5.5a) made the handle
+  **unnamed**, the second (W5.5b) moved the **holding** to the **composition
+  root**, the third (W5.5c) closed the **door**, the fourth (W5.5d) closed the
+  **wiring around** it — and this one closes the **last untyped handle**. The
+  slice started with a measurement of **one** untyped handle in the kernel
+  (`binding.Fill[T any](handle any, …)`) and that measurement was **wrong**:
+  the ratchet that held the count matched the handle's **long names**
+  (`k|kh|kernel|handle`), and **six** family fills named their handle **`h`**
+  (`appfiles.RunnerFromHandle`, `appsteer.RunsFromHandle`,
+  `appcouncil.PortsFromHandle`, `appresearch.EnginesFromHandle`,
+  `appresearch.ResearchFromHandle`, `appruns.PlanRunnerPortsFromHandle`) — a
+  rule that names the shapes it knows is a rule with a hole in it → the true
+  count was **seven**, not one. The bridge's generic fill is **deleted**: the
+  bridge calls the **forty** families directly, each by its own name, and the
+  six families that took an `any` handle take the daemon's own kernel **by
+  type** now and wear the same name as the other thirty-four; the council's
+  two fills are **one** fill, and its refusal is unchanged. The families'
+  refusals did not move — a host with no daemon still gets a runner, controls,
+  engines and a plan runner that refuse — but only the daemon's own kernel can
+  ask for them now. Five family tests used to pass the **string** `"not a
+  daemon"` to prove the refusal and now pass **nil**: a foreign handle cannot
+  arrive any more, so the test says what it means. The measurement that moved:
+  the kernel's untyped handles **7 → 0** (the count was measured wrong before
+  this slice), the bridge's generic fills **1 → 0**, the family fills that take
+  an `any` handle **6 → 0**, the shapes the ratchet knows **1 → 2**, and the
+  families the bridge fills directly **0 → 40**; the control plane still names
+  the runtime in **0** production files and the guard still holds **170**
+  application-owned verbs. **5 permanent tests** — the bridge's own rule (four
+  families and a directory, not one), the signature rule and the count rule
+  among them — and **13 mutations, 13 caught** in two independent passes with
+  **byte-identical** logs (SHA-256
+  `64165A501A98F89A2419FCCDB192CC23DCBC0BC5476E9F55226A0CD1A521E382`); **no**
+  mutation needed a rewrite this time. Evidence:
+  `architecture/265-w55e-the-last-untyped-handle-closes-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

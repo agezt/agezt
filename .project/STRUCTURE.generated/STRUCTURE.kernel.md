@@ -16,7 +16,7 @@
 - **`kernel/app/audit`** — Package audit owns the guard audit reads folded from the journal: egress blocks, run-rate throttles and sandboxed executions, as paged logs and windowed statistics.
 - **`kernel/app/autonomy`** — SPDX-License-Identifier: MIT
 - **`kernel/app/basedir`** — —
-- **`kernel/app/binding`** — Package binding hands the daemon's handle to the family that owns the ports.
+- **`kernel/app/binding`** — Package binding hands the daemon's own kernel to the family that owns the ports.
 - **`kernel/app/board`** — Package board owns transport-independent message-board use cases.
 - **`kernel/app/budget`** — Package budget owns the operator's view of the governor's daily spend: the snapshot behind `agt budget` and the console's budget panel, and the runtime knob that adjusts the global daily ceiling (M607).
 - **`kernel/app/catalog`** — Package catalog owns transport-independent catalog sync, listing and discovery.

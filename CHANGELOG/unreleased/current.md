@@ -3584,6 +3584,21 @@ This file holds the active `[Unreleased]` working set.
   After this slice the adapter's exported `SetX` methods are **0**, down from
   **16**, its binding phases are **0**, down from **1**, and the daemon's
   `Bind` call sites are **0**, down from **3**.
+- **The last untyped handle closes (W5.5e).** The kernel named **seven**
+  untyped handles and the count said **one**: the ratchet that held it matched
+  the handle's **long names** (`k`, `kh`, `kernel`, `handle`), and **six**
+  family fills named their handle **`h`** — a rule that names the shapes it
+  knows is a rule with a hole in it. The bridge's generic fill
+  (`binding.Fill[T any]`) is **deleted**; the bridge calls the **forty**
+  families directly, each by its own name, and the six families that took an
+  `any` handle take the daemon's own kernel **by type** now
+  (`RunnerFromKernel`, `RunsFromKernel`, `PortsFromKernel`,
+  `EnginesFromKernel`, `ResearchFromKernel`, `PlanRunnerPortsFromKernel`). A
+  foreign handle cannot arrive any more, so a family's refusal is only "there
+  is no daemon" — and the five family tests that used to pass the **string**
+  `"not a daemon"` now pass **nil**. After this slice the kernel's untyped
+  handles are **0**, down from **7**, the bridge's generic fills are **0**,
+  down from **1**, and the shapes the ratchet knows are **2**, up from **1**.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —

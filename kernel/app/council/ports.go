@@ -24,8 +24,23 @@ import (
 // is the reasoning module's row, which is the contract's), so the port hands
 // them over without a conversion.
 
-// PortsFromKernel fills the council's ports from the kernel handle.
+// PortsFromKernel fills the council's ports from the daemon's own kernel.
+//
+// The council's own wiring is the council family's business: the seats, the
+// settings store and the model catalog are named HERE, and the adapter never
+// names them.
+//
+// A daemon that does not exist yields ports that REFUSE — there are no seats
+// to sit, and no store to read.
 func PortsFromKernel(k *runtime.Kernel, baseDir string) Ports {
+	if k == nil {
+		return Ports{
+			Members:    func() []Member { return nil },
+			SetMembers: func([]Member) {},
+			Store:      func() Store { return nil },
+			Models:     func() func(string) bool { return func(string) bool { return false } },
+		}
+	}
 	return Ports{
 		Members: func() []Member { return k.CouncilDefaultMembers() },
 		SetMembers: func(members []Member) {
@@ -40,24 +55,6 @@ func PortsFromKernel(k *runtime.Kernel, baseDir string) Ports {
 			}
 		},
 	}
-}
-
-// PortsFromHandle fills the council's ports from the daemon's handle.
-//
-// The handle is not named by the caller: the council family fills its own
-// ports from it. A handle that is not the daemon's own yields ports that
-// REFUSE — there are no seats to sit, and no store to read.
-func PortsFromHandle(h any, baseDir string) Ports {
-	k, ok := h.(*runtime.Kernel)
-	if !ok {
-		return Ports{
-			Members:    func() []Member { return nil },
-			SetMembers: func([]Member) {},
-			Store:      func() Store { return nil },
-			Models:     func() func(string) bool { return func(string) bool { return false } },
-		}
-	}
-	return PortsFromKernel(k, baseDir)
 }
 
 // EnginesFromKernel fills the council's engines from the kernel handle: the
