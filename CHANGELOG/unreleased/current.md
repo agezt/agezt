@@ -5965,3 +5965,24 @@ This file holds the active `[Unreleased]` working set.
   `kernel/platform` is 3,013, up from 2,557. The roadmap had listed this
   candidate for `modules/knowledge`; it is the platform's, and the slice is
   what settles that.
+- **The policy hook's guards move into the platform (W3.74).** The seventh
+  slice of the runtime's dissolution, and the second one that moves a **rule**.
+  The daemon's tool-call policy hook held three fail-closed guards — the
+  epistemic escalation, the intent/regret gate and the prompt-injection guard
+  — plus the session grant's arbitration, which answers the Edict Ask axis
+  and nothing else. Those are rules, not plumbing: they own no store, they
+  publish nothing, and every host asks the same ones. They now live in
+  `kernel/platform/policy/guards`, over the evidence the host gathers: the
+  order (the first guard that raises wins, so the operator is shown one
+  reason — the guard's own), the grant's reach, and the prompt-injection
+  mode, whose rows the daemon keeps as aliases so `cmd/agezt` and every test
+  keep speaking the daemon's vocabulary. The daemon keeps the doors: it reads
+  the context, it publishes `intent.confirmation_required`,
+  `policy.auto_approved` and `prompt_injection.warned`, and it submits the
+  approval. The verdict's shape, the events and the live HITL path did not
+  change, and no caller outside the runtime did either — 0 production files in
+  `kernel/app`. The daemon's line count barely moved (8,796, down from 8,802):
+  moving a rule moves the conditions, not the lines — the host's wiring took
+  their place, and the wiring was always there, inside the conditions. What
+  moved is the ownership: the platform holds 167 lines of rule that every host
+  asks, and the daemon holds none.
