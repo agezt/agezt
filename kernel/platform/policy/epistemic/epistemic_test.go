@@ -310,11 +310,11 @@ func TestTheGuardWithoutAJournalKnowsNothing(t *testing.T) {
 // runtime's approval bundle and the guard read the same numbers.
 func TestTheDefaultConfidenceIsTheClassesOwn(t *testing.T) {
 	cases := map[string]float64{
-		string(toolapi.EffectReadOnly):    0.95,
-		string(toolapi.EffectReversible):  0.75,
-		string(toolapi.EffectCompensable): 0.6,
+		string(toolapi.EffectReadOnly):     0.95,
+		string(toolapi.EffectReversible):   0.75,
+		string(toolapi.EffectCompensable):  0.6,
 		string(toolapi.EffectIrreversible): 0.5,
-		"unknown":                         0.4,
+		"unknown":                          0.4,
 	}
 	for class, want := range cases {
 		if got := DefaultEffectConfidence(class); got != want {

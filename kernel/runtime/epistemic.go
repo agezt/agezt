@@ -21,9 +21,9 @@ import (
 // kernel/platform/policy/epistemic, so every host asks the same rule instead
 // of re-implementing it.
 //
-// Provenance: kernel/runtime/epistemic.go held the guard and its twelve
-//             helpers until W3.73. The rule moved to the platform package;
-//             this file became the host's port wiring.
+// Provenance: kernel/runtime/epistemic.go held the guard and its twelve helpers
+// until W3.73. The rule moved to the platform package; this file became the
+// host's port wiring.
 func (k *Kernel) epistemicGate(toolName string, cap edict.Capability, input json.RawMessage, def toolapi.ToolDef, bundle approvalBundle) epistemic.Decision {
 	return k.epistemicGateFor().Decide(toolName, string(cap), input, def, bundle.EffectClass, bundle.Confidence)
 }
