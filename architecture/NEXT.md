@@ -5272,6 +5272,110 @@ files, five of the seventeen mutations would have escaped.
   **policy hook** (→ `platform/policy`) and — last, because it is the largest
   and the most entangled — the **run engine** (→ `modules/runs`). Evidence:
   `architecture/270-w372-the-script-tool-forges-lifecycle-moves-into-the-extensions-module-evidence.md`
+- W3.73 (the epistemic guard's rule moves into the platform) is the **sixth**
+  slice of the runtime's dissolution and the **first** one that moves a
+  **rule** rather than a family. The guard lived in the daemon
+  (`kernel/runtime/epistemic.go`, 80 lines, and `epistemic_helpers.go`, 245
+  lines — **325 lines** of rule): it read the journal's memory, weighed the
+  failures it found against their age, matched the call's conditions and
+  decided whether a tool call needs a human before it runs. The rule is not a
+  module's business — it owns no store, it publishes nothing, and it has no
+  lifecycle of its own. It is **infrastructure**, the same kind of thing the
+  Edict engine and the intent model already are, and the target architecture
+  says where infrastructure lives: `kernel/platform`. The roadmap's candidate
+  list had guessed `modules/knowledge`, and the slice shows why that guess was
+  wrong: **knowledge** is a *bounded context* (the memory library, the
+  world's graph, the objectives), and a guard that **every** tool call asks is
+  not one context's business — it is the platform's. The candidate was
+  measured before it was chosen: the daemon's guard **325 non-blank lines** in
+  two files, the daemon's copies of the rule's tables **1**, the kernel's
+  verbs that mention it **1**, the daemon's own stores **0**. **A rule that
+  owns no store is the platform's** — and that is why the slice needed no new
+  face, no new contract row and no host wiring. The platform now keeps the
+  rule (`kernel/platform/policy/epistemic/epistemic.go`, 173 lines: the
+  `Decision`, the `Ports`, the `Gate`; and `helpers.go`, 283 lines: the
+  escalation policy, the confidence floors, the schema hashing, the
+  input-shape heuristics, the history matching and the decay math) over
+  **three host ports** — `Scan` (the journal's walk), `Now` (the clock) and
+  `Lookup` (the tool map) — every one of them a way to ASK and never a way to
+  reach, and every one of them optional: a host with no journal answers
+  "nothing is known" and the guard treats the tool as novel, which is the
+  **safe** direction (unknown means ask). The daemon keeps the doors and asks:
+  `kernel/runtime/epistemic.go` is now **60 lines** of port wiring and a
+  forwarder, and `policyHook` reads `ep.Escalates()` instead of the old
+  `ep.escalates()` — the same question, asked of a type that now lives
+  somewhere else. **One row had to be shared**: the approval bundle's
+  fallback confidence was the daemon's copy of a table the guard also needed,
+  and two copies of a table is two tables — they drift, and the drift is
+  invisible; the table is the platform's now
+  (`epistemic.DefaultEffectConfidence`), and the daemon asks for it. What the
+  slice cost: **nothing to wire** — no host had to learn a new seam, because
+  the rule's ports are the kernel's **own** facilities (the journal it
+  already opens, the clock it already has, the tool map it already holds).
+  That is the **third** shape the programme has measured, and the cheapest
+  one: a move into an **existing** face costs **nothing** (W3.70: 0 sites); a
+  move that invents a **new** face costs a wiring in every host that has one
+  (W3.68: 11, W3.69: 6, W3.71: 6, W3.72: 9); a move of a **rule that owns no
+  store** into the **platform** costs **nothing** (W3.73: 0 sites). **The
+  rule: the host keeps the doors, the platform keeps the rule.** It is held by
+  the rule's own observer: the daemon's decision is compared with the
+  platform's decision over the same ports, and the daemon's three ports are
+  each observed on their own — the journal through a **real** journal (not a
+  stub), the tool map through a **real** tool map, and the clock through the
+  platform's own port. What did NOT move, and why: the **journal stayed the
+  host's** (it is the host's file; the guard asks for a **walk** over it, and
+  the walk is a port); the **tool map stayed the host's** (the host builds the
+  tools; the guard asks for a definition by name); the **verdict's shape did
+  not change** (the same thirteen fields reach `agent.PolicyVerdict` and the
+  same rows reach the `policy.decision` journal entry — only the place that
+  computes them moved); and the **rules did not change** (a read-only tool
+  escalates only on repeated weighted failures; an effectful tool escalates on
+  a matching failure, on a confidence below its class's floor, or on a
+  permissive schema behind a dynamic tool surface; and a failure's weight
+  decays with its age — 6 hours for a read, 7 days for an irreversible
+  effect). The **contract's rows did not move either** (**0 new**): a contract
+  row exists when two sides answer the same refusal and a caller compares
+  them with `errors.Is` (W3.71's `mcpapi.ErrNoRegistry`, W3.72's
+  `toolforgeapi.ErrNoStore`), and the guard has no refusal to share — a host
+  with no journal is not an error, it is a host with no memory, and the
+  guard's answer to it is a decision, not a failure. **20 permanent tests** in
+  three places — the platform's rule (**14**), the daemon's ports (**5**: the
+  daemon's decision **is** the platform's decision over the same ports, the
+  tool map resolves the definition through the lookup port, the journal is
+  read through the scan port through a **real** journal, a kernel without a
+  journal knows nothing, and the default confidence row is the platform's)
+  and the daemon's bundle (**1**: a tool that declares no confidence is
+  judged under the **platform's** class default) — and the three daemon-level
+  tests that were already there were **not touched**: they now exercise the
+  platform's rule through the daemon, which is the point, because the
+  daemon's behaviour did not change, so its tests did not have to. **20
+  mutations, 20 caught** in two independent passes with **byte-identical**
+  logs (SHA-256 `B576A0B10DCF64C07C697BEB4E9C696B98098AB10E1B96FD93EEB3A9D8193AE9`).
+  The first calibration reported **two BUILDERR** — the mutations that stopped
+  the failure weight from decaying and that gave the daemon a confidence of
+  its own both left an import unused, so Go refused to compile; a compile error
+  is not a caught mutation, it is a mutation that never ran, and both now keep
+  the import alive. The measurement that moved: the daemon's lines of **rule**
+  **325 → 60**, the platform's lines of rule **0 → 456**, the daemon's
+  copies of the confidence table **1 → 0**, the daemon's calls into the
+  platform's rule **0 → 2**, the kernel's verbs **242 → 242**, the
+  application layer's production files that changed **0**, the test setups
+  that had to be wired **0**, the contract's new rows **0**, `kernel/runtime`
+  **9,080 → 8,802** lines and `kernel/platform` **2,557 → 3,013**. The daemon
+  shrank by **278** lines and the platform grew by **456**. One candidate the
+  slice settles: the roadmap listed the epistemic gate as a candidate for
+  `modules/knowledge`, and it is not one — the guard owns no library, it reads
+  the journal and the tool map (both the host's), and **every** tool call in
+  the daemon asks it; a bounded context is a context's business, and the
+  guard is the platform's. The dissolution map in
+  `architecture/20-target-architecture.md` already said "platform/policy" for
+  it — the candidate list was the thing that drifted, and this slice is what
+  settles it. **What is left**: the runtime's dissolution stands at **242
+  verbs** in **8,802 lines**; the next candidates the target architecture
+  names are the **policy hook** (→ `platform/policy` — the same shape as this
+  slice) and — last, because it is the largest and the most entangled — the
+  **run engine** (→ `modules/runs`). Evidence:
+  `architecture/271-w373-the-epistemic-guards-rule-moves-into-the-platform-evidence.md`
 - W5.4a (the forbidden-call ratchet is zero) takes the **call-site** half of
   W5.4 — the last **three** `raw-write` call sites — and the ratchet goes
   **3 → 0**. The three were the marketplace cache's two staged writes and the

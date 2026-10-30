@@ -5940,3 +5940,28 @@ This file holds the active `[Unreleased]` working set.
   The prose convention the package documented — package-prefixed messages, `Err*` sentinels,
   always `%w` — was the part worth keeping, so it moved to `docs/ARCHITECTURE.md` § Error
   Convention, where it applies to all of the code instead of a sixth of it.
+- **The epistemic guard's rule moves into the platform (W3.73).** The sixth
+  slice of the runtime's dissolution, and the first one that moves a **rule**
+  rather than a family. The guard lived in the daemon (325 lines across
+  `kernel/runtime/epistemic.go` and `epistemic_helpers.go`): it read the
+  journal's memory, weighed the failures it found against their age and
+  decided whether a tool call needs a human before it runs. A rule that owns
+  no store is the platform's, and the target architecture says where
+  infrastructure lives — so the rule moved to
+  `kernel/platform/policy/epistemic`, over three host ports: the journal's
+  walk, the clock and the tool map. Every port is a way to ask and never a way
+  to reach, and every port is optional: a host with no journal answers "nothing
+  is known" and the guard treats the tool as novel, which is the safe
+  direction. The daemon keeps the doors: `kernel/runtime/epistemic.go` is now
+  60 lines of port wiring and a forwarder, and the approval bundle reads the
+  platform's confidence row instead of keeping a copy of the table — two
+  copies of a table are two tables. The daemon's behaviour did not change:
+  the same thirteen verdict fields reach the policy hook and the same rows
+  reach the `policy.decision` journal entry, and the three daemon-level tests
+  that already covered it were not touched. The kernel's verb count did not
+  move (242 → 242) and no contract row was added — the guard has no refusal to
+  share, because a host with no journal is not an error but a host with no
+  memory. `kernel/runtime` is 8,802 lines, down from 9,080, and
+  `kernel/platform` is 3,013, up from 2,557. The roadmap had listed this
+  candidate for `modules/knowledge`; it is the platform's, and the slice is
+  what settles that.
