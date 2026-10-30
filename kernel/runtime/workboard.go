@@ -20,29 +20,20 @@ package runtime
 // (workboardapi.ErrNoStore): a daemon with no board answers no board.
 
 import (
+	"context"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/assureapi"
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/event"
 	workapi "github.com/agezt/agezt/kernel/modules/work/api"
 )
 
-// workboardStore returns the host's board store port, or the refusal.
-//
-// The store file is the HOST's business (W3.47): the daemon opens it and
-// hands the port to the module. The proof path still drives the store
-// directly; the lifecycle verbs go through the module's service.
-func (k *Kernel) workboardStore() (workboardapi.HostStore, error) {
-	if k.workboard == nil {
-		return nil, workboardapi.ErrNoStore
-	}
-	return k.workboard, nil
-}
-
 // Workboard returns the host's board store port.
 //
 // It is the port the plugins' contract speaks (workboardapi.Store); the
-// lifecycle the daemon drives goes through the module's service.
+// lifecycle and the proof go through the module's service.
 func (k *Kernel) Workboard() workboardapi.HostStore { return k.workboard }
 
 // SetWorkboard injects the task board the daemon drives.
@@ -64,11 +55,24 @@ func (k *Kernel) boardService() workapi.BoardService {
 }
 
 // WorkboardDependencies are the host's ports the board needs to answer a
-// verb: the bus to publish on, and the objective rollup a completed task
-// feeds.
+// verb: the bus to publish on, the objective rollup a completed task feeds,
+// and the judge's side of the proof cycle.
 //
 // The board asks the host; it never reaches into it.
+//
+// The proof's ports (W3.70) are the HOST's machinery: the model that judges an
+// answer, the artifacts the answer rests on, the journal the proof points at,
+// and the host's own plain completion judge for a task with no criteria. The
+// board holds them as ways to ASK — never as a way to reach.
 func (k *Kernel) WorkboardDependencies() workapi.BoardDependencies {
+	// The journal is a CONCRETE pointer: handing a nil one to an interface
+	// would make the port look wired while it is not, and the proof would walk
+	// a journal that is not there. The port is nil when the daemon has no
+	// journal, and the proof records no journal range.
+	var scanner workapi.EventScanner
+	if j := k.Journal(); j != nil {
+		scanner = j
+	}
 	return workapi.BoardDependencies{
 		Publish: func(spec event.Spec) {
 			if k.bus == nil {
@@ -79,6 +83,20 @@ func (k *Kernel) WorkboardDependencies() workapi.BoardDependencies {
 		TaskCompleted: func(corr, taskID string) {
 			k.recomputeOKRForTask(corr, taskID)
 		},
+		TaskProved: func(corr, taskID string) {
+			k.recomputeOKRForTask(corr, taskID)
+		},
+		Complete: func(ctx context.Context, corr, taskType string, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
+			return k.completeAux(ctx, corr, taskType, req)
+		},
+		Model: func() string {
+			return k.Model()
+		},
+		VerifyCompletion: func(ctx context.Context, corr, task, answer string) (assureapi.Verdict, error) {
+			return k.VerifyCompletion(ctx, corr, task, answer)
+		},
+		Artifacts: k.ArtifactIndex(),
+		Journal:   scanner,
 	}
 }
 
@@ -227,25 +245,4 @@ func (k *Kernel) SweepStaleWorkboardClaims(corr, actor string, staleAfter time.D
 		return nil, err
 	}
 	return svc.SweepStaleClaims(corr, actor, staleAfter, limit)
-}
-
-// publishWorkboard says what happened to a task on the daemon's bus.
-//
-// It is the PROOF path's publisher: the proof loop still lives in the daemon
-// (it judges with the daemon's model), so it publishes with the same payload
-// the module's service publishes — the contract's row
-// (workboardapi.TaskEventPayload), because the tools read one shape.
-//
-// A daemon with no bus is quiet rather than broken.
-func (k *Kernel) publishWorkboard(corr string, kind event.Kind, t workboardapi.Task, action string, extra map[string]any) {
-	if k.bus == nil {
-		return
-	}
-	k.bus.Publish(event.Spec{
-		Subject:       "workboard." + t.ID,
-		Kind:          kind,
-		Actor:         "workboard",
-		CorrelationID: corr,
-		Payload:       workboardapi.TaskEventPayload(t, action, extra),
-	})
 }
