@@ -1221,13 +1221,16 @@ module's `Validate` is a one-line delegation to it.
 - The control plane echoes only env and header **keys**, never their values.
 - A server that fails to attach at boot is skipped; it does not fail boot.
 
-### 12.3 Bridging (`kernel/runtime/mcptool_bridge.go`)
+### 12.3 Bridging (`kernel/modules/extensions/mcp/bridge.go`)
 
-`mergeMCPTools` runs once per run (`loopconfig.go:41`, `workflowrun_helpers.go:22`):
-- It snapshots `k.mcpConns` under `mcpMu` and honours `ToolAllow`.
+`MergeTools` runs once per run (`kernel/runtime/loopconfig.go`, `kernel/runtime/toolrun.go` — the daemon's forwarder asks the module):
+- It snapshots the module's live connections under its own lock and honours `ToolAllow`.
 - Tools that are already registered win any name collision.
 - **Eager servers:** each tool becomes a `bridgedMCPTool` named `mcp_<server>_<sanitized tool>`, truncated to 64 chars, marked Compensable with confidence 0.45.
 - **Lazy servers:** one `lazyMCPDispatch` tool with schema `{tool: enum, arguments}`.
+
+The bridge moved into the extensions module with the lifecycle (W3.71): it answers for the LIVE attachments, so it belongs with them. The daemon keeps `mergeMCPTools` as a forwarder.
+
 
 How Edict sees these tools:
 - Anything with the `mcp_` prefix requires `mcp.call`.
@@ -1239,10 +1242,10 @@ A newly attached tool is visible **from the next run**.
 
 | Aspect | Details |
 |---|---|
-| Persistence | `<home>/mcp/servers.json` (atomic). Live connections are held only in `k.mcpConns`. The **file is the daemon's** (W3.58): the composition root opens it and hands the kernel the contract's `mcpapi.Registry` port — the kernel opens no registry of its own, and a kernel with no registry answers **"no servers"** on the reads and **refuses** the writes. |
-| Ports | The registry's port is the contract's `mcpapi.Registry` (**six** verbs: `Add`, `SetEnabled`, `Remove`, `Get`, `List`, `Count`); the catalog reads through the kernel's nil-safe `mcpapi.RegistrationReader` (**one** verb), because the raw port is a **nil-able** thing. The **clients** are the host's **seams**: the daemon injects `mcpapi.Dialer` / `mcpapi.HTTPDialer`, so the kernel never names the module's `mcp.Dial` / `mcp.DialHTTP`; a kernel with no dialer refuses the attach with a readable error instead of calling a nil func value. |
-| Concurrency | stdio: one `readLoop` goroutine per connection; it gives up after 60 s of frames nobody reads. `Close` sends stdin EOF, waits 2 s, then kills. HTTP: `httpConn.mu` serialises requests. Attach dials outside `k.mcpMu`, then re-checks. |
-| Events | `mcp.added`, `mcp.updated`, `mcp.attached`, `mcp.detached`, `mcp.removed`. Subject `mcp.<name>`, actor `mcp`. |
+| Persistence | `<home>/mcp/servers.json` (atomic). Live connections are held only by the **extensions module** (W3.71 — the daemon holds none). The **file is the daemon's** (W3.58): the composition root opens it and hands the kernel the contract's `mcpapi.Registry` port — the kernel opens no registry of its own, and a daemon with no registry answers **"no servers"** on the reads and **refuses** the writes. |
+| Ports | The registry's port is the contract's `mcpapi.Registry` (**six** verbs: `Add`, `SetEnabled`, `Remove`, `Get`, `List`, `Count`); the catalog reads through the kernel's nil-safe `mcpapi.RegistrationReader` (**one** verb), because the raw port is a **nil-able** thing. The **clients** are the host's **seams**: the daemon injects `mcpapi.Dialer` / `mcpapi.HTTPDialer`, so neither the kernel nor the module names the module's `mcp.Dial` / `mcp.DialHTTP`; a daemon with no dialer refuses the attach with a readable error instead of calling a nil func value. |
+| Concurrency | stdio: one `readLoop` goroutine per connection; it gives up after 60 s of frames nobody reads. `Close` sends stdin EOF, waits 2 s, then kills. HTTP: `httpConn.mu` serialises requests. Attach dials outside the module's own lock, then re-checks. |
+| Events | `mcp.added`, `mcp.updated`, `mcp.attached`, `mcp.detached`, `mcp.removed`. Subject `mcp.<name>`, actor `mcp`. The **module** publishes them (W3.71) on the host's bus, through the publisher the daemon handed it. |
 | Wiring | `main.go:1598` calls `AttachEnabledMCPServers`. The `mcp` agent tool supports stdio only for `op=add`. Other entry points: control-plane `mcp_*`, Web UI `/api/mcp*`, `agt mcp add`, and market packs. `builtinmarket` seeds lazy `fetch`, `playwright`, `duckduckgo`, `excel` and `time` servers. The legacy bridge lives in `plugins/external/mcpbridge` ([08](08-providers.md)). |
 
 **Files**
@@ -1256,8 +1259,10 @@ A newly attached tool is visible **from the next run**.
 | `http.go` | Streamable HTTP connection, `DialHTTP`. |
 | `http_helpers.go` | `roundTrip`, headers, response and SSE parsing. |
 | `store.go` | `Server`, `Validate`, `Store`. |
+| `registry.go` | The registry SERVICE (W3.71): the lifecycle over the registered servers, the live attachments, the dial and the close. |
+| `bridge.go` | The MCP-to-agent bridge (W3.71): `MergeTools`, the bridged tool, the lazy dispatcher, the callable-name rule. |
 
-Tests: `client_test`, `http_test`, `store_test`, `coverage_supp_test`.
+Tests: `client_test`, `http_test`, `store_test`, `coverage_supp_test`, `registry_test`, `bridge_test`.
 
 ## 13. `kernel/acp` — Agent Client Protocol (server)
 

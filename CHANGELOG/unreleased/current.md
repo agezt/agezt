@@ -3730,6 +3730,34 @@ This file holds the active `[Unreleased]` working set.
   is 2,673, up from 2,323. The move also made two daemon helpers dead:
   `workboardStore()` and `publishWorkboard()` were the proof cycle's only callers, so they
   lost their last caller with it.
+- **The MCP registry's lifecycle and the agent bridge move into the extensions
+  module (W3.71).** The fourth slice of the runtime's dissolution, and the
+  first one to move a family whose **data** was already in a module while its
+  **operations** were in the daemon. The MCP registry was split in half: its
+  data — the durable registrations, the store, the client that dials a server
+  — already lived in the extensions module, while its operations — the seven
+  lifecycle verbs that register, enable, attach, detach and remove a server,
+  the live-connection map, the dial rule and the five journaled transitions —
+  lived in the daemon, together with the bridge that folds an attached
+  server's tools into a run's tool map. The module now owns both
+  (`kernel/modules/extensions/mcp/registry.go` and `bridge.go`), and the
+  extensions module grew its first api package
+  (`kernel/modules/extensions/api/mcp.go`): the `MCPRegistryService` face and
+  the `MCPRegistryDependencies` ports — the registry's store, the two dialers
+  and the bus to publish on, all of them ways to ASK and never ways to reach.
+  The daemon keeps its names and forwards, so **no caller outside the runtime
+  changed** — 0 production files in `kernel/app` — and the daemon's public MCP
+  names are still 14. The refusal both sides need became a contract row
+  (`mcpapi.ErrNoRegistry`), because the daemon may not name the module and the
+  module may not name the daemon; the daemon keeps its old name as the row's
+  alias. The daemon's calls into the registry's store are 3, down from 9 — the
+  three that stayed are the READS, which are the daemon's nil-safe view over
+  the contract's port. The slice cost **six test setups**, which had to
+  learn the module's builder; the daemon itself cost nothing, because
+  `cmd/agezt` wires its own builder by default. `kernel/runtime` is 9,170
+  lines, down from 9,395, and `kernel/modules/extensions` is 5,234, up from
+  4,621. The daemon's own MCP lock went with the attachments, so the lock
+  order is one link shorter.
 - **The objective library's verbs move into the work module (W3.69).** The second
   slice of the runtime's dissolution, and the first one to move a family whose
   **rule** — not just its operations — lived in the daemon. The objective
