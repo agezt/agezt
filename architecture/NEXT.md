@@ -7068,6 +7068,36 @@ files, five of the seventeen mutations would have escaped.
   that hit the wrong path — the tenant routing happens in **two** places,
   the native dispatch and the typed operation router). Evidence:
   `architecture/262-w55b-the-composition-root-holds-the-handle-evidence.md`
+- W5.5c (the adapter's door closes) is the port programme's **forty-fifth** slice
+  and the **third** one of its **next phase** — the **adapter's** handle. The
+  phase's first slice (W5.5a) made the handle **unnamed** in the adapter, the
+  second (W5.5b) moved the **holding** to the **composition root**, and this one
+  closes the **door**. The adapter's constructors took an **untyped** value
+  (`NewServer(k any, …)`, `NewServerWithDeps(k any, …)`), and an `any` in a
+  constructor is a door: anything can walk through it, and the compiler will not
+  say what. They take a **scope, by type** now — the rule is the reflection of
+  the signature itself, and it asks the helper nothing. The scope's own
+  directory wore the **kernel's** verb's name (`BaseDir` is
+  `func (k *Kernel) BaseDir()`), and a scope that carries the verb's name names
+  a door it does not have → the field is `Directory` now, and the new rule says
+  it out loud: no field of the scope is named like a verb of the kernel. The
+  two helpers the previous slice left behind (`binding.Resolve`,
+  `binding.ScopeFromHandle`) turned unreachable the moment the door closed, and
+  the **deadcode gate** said so ✗ → they are deleted ✓. **~160** call sites
+  across **134** files were rewritten to build the scope at the **root**
+  (`binding.ScopeFromKernel(k, baseDir)`) and pass it in — the daemon, the
+  agent, the web UI and the tests. The refusal keeps its **directory**
+  (`RefusingScope(baseDir)`), and the scope with **no daemon** is a refusal and
+  not an absence. The measurement that moved: the adapter's constructors that
+  take an untyped value **2 → 0** and the scope's fields named after a kernel
+  verb **1 → 0**; the control plane still names the runtime in **0** production
+  files and the guard still holds **170** application-owned verbs. **5 permanent
+  tests** — the adapter's own rule and the scope's own rule among them — and
+  **13 mutations, 13 caught** in two independent passes with **byte-identical**
+  logs (SHA-256 `2572E403E605AC0911F484A963D75F8C917ADB03F5026AA7CE9E1315D362837E`);
+  **one** mutation was rewritten for its own fault (it left a read value unused
+  and did not compile). Evidence:
+  `architecture/263-w55c-the-adapters-door-closes-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module

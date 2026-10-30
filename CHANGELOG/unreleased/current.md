@@ -3560,6 +3560,18 @@ This file holds the active `[Unreleased]` working set.
   **ports**, so the adapter's verb rule keeps holding. After this slice the
   adapter's types that hold a handle are **0**, down from **3**, and the
   adapter's binding call sites are **0**, down from **68**.
+- **The adapter's door closes (W5.5c).** The control plane's constructors took
+  an **untyped** value, and an `any` in a constructor is a door: anything can
+  walk through it, and the compiler will not say what. They take a **scope, by
+  type** now — `NewServer(scope binding.Scope)` and
+  `NewServerWithDeps(scope binding.Scope, d Deps)` — and the server's own
+  directory **is** the scope's directory. The scope's own directory wore the
+  **kernel's** verb's name (`BaseDir` is `func (k *Kernel) BaseDir()`); it is
+  `Directory` now, and a new rule holds it: no field of the scope is named like
+  a verb of the kernel. The scope with **no daemon** is a **refusal** and not
+  an absence, and the refusal keeps its **directory**. After this slice the
+  adapter's constructors that take an untyped value are **0**, down from **2**,
+  and the scope's fields named after a kernel verb are **0**, down from **1**.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —
