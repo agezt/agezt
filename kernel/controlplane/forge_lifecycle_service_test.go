@@ -10,6 +10,7 @@ import (
 	apptools "github.com/agezt/agezt/kernel/app/tools"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
+	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -37,7 +38,11 @@ func TestForgeLifecycleServiceOwnStoreJournalAndContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	k, err := runtime.Open(runtime.Config{BaseDir: base, Provider: provider, ScriptRunner: runner, ToolForge: store})
+	k, err := runtime.Open(runtime.Config{BaseDir: base, Provider: provider, ScriptRunner: runner, ToolForge: store,
+		ForgeBuilder: func(deps extapi.ForgeDependencies) extapi.ForgeService {
+			return toolforge.NewService(deps)
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -178,6 +178,15 @@ var ErrNotFound = errors.New("toolforge: script tool not found")
 // flow answers with it, and the flow lives in the host.
 var ErrUntested = errors.New("toolforge: the current code has no passing test — run a test first")
 
+// ErrNoStore is answered when the host holds no script-tool forge at all.
+//
+// The sentinel lives in the contract because TWO sides answer it and a caller
+// compares with errors.Is: the module raises it when the daemon handed over no
+// forge store (W3.72), and the host raises it when the module was never
+// wired. Two look-alike errors of their own would leave every comparison
+// silently false — the same reason mcpapi.ErrNoRegistry exists (W3.71).
+var ErrNoStore = errors.New("toolforge: the script-tool forge is not available on this daemon")
+
 // Runner is the port through which a script tool's LIFECYCLE is driven:
 // draft it, edit it, test it in the sandbox, and ask the operator to promote
 // it.

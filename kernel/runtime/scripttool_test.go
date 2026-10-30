@@ -49,6 +49,7 @@ func openForgeKernel(t *testing.T, prov llm.Provider, runner toolforge.Runner) *
 		Provider:     prov,
 		ScriptRunner: runner,
 		ToolForge:    store,
+		ForgeBuilder: forgeServiceBuilder(),
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -368,6 +369,7 @@ func TestRequestToolPromotion_AutoPromote(t *testing.T) {
 		ScriptRunner:           runner,
 		AutoPromoteScriptTools: true,
 		ToolForge:              store,
+		ForgeBuilder:           forgeServiceBuilder(),
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
