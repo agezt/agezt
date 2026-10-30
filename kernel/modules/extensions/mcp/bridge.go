@@ -1,0 +1,261 @@
+// SPDX-License-Identifier: MIT
+
+package mcp
+
+// Provenance: the MCP-TO-AGENT BRIDGE (W3.71): MergeTools + the bridged and
+//             lazy tool adapters + the callable-name rule. Moved out of
+//             kernel/runtime with the registry's lifecycle — the bridge
+//             answers for the LIVE attachments, so it belongs with them.
+//
+// The rule of the bridge is the same wherever it lives: a registered tool
+// wins a name collision, an allowlist trims what a server exposes, and a
+// lazy server collapses into ONE dispatcher tool instead of N schemas.
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/agezt/agezt/kernel/contract/mcpapi"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
+)
+
+// mcpToolName builds the callable name: the mcp_ prefix routes the Edict
+// toolmap to the mcp.call capability and namespaces bridged tools away from
+// built-ins; the server segment (no underscores, by store validation) keeps
+// the origin parseable. The server's own tool name is sanitized to the
+// provider-safe alphabet and the whole thing capped at 64 chars.
+func mcpToolName(server, tool string) string {
+	var b strings.Builder
+	for _, r := range tool {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '_', r == '-':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('-')
+		}
+	}
+	name := "mcp_" + server + "_" + b.String()
+	if len(name) > 64 {
+		name = name[:64]
+	}
+	return name
+}
+
+// MergeTools returns the run's tool map extended with every live
+// attachment's tools. Registered tools win a name collision; the input map
+// comes back untouched when nothing is attached.
+func (s *Service) MergeTools(tools map[string]toolapi.Tool) map[string]toolapi.Tool {
+	s.mu.Lock()
+	type liveConn struct {
+		name string
+		conn mcpapi.Conn
+	}
+	live := make([]liveConn, 0, len(s.conns))
+	for name, conn := range s.conns {
+		live = append(live, liveConn{name, conn})
+	}
+	s.mu.Unlock()
+	if len(live) == 0 {
+		return tools
+	}
+	sort.Slice(live, func(i, j int) bool { return live[i].name < live[j].name })
+
+	out := make(map[string]toolapi.Tool, len(tools)+8)
+	for name, t := range tools {
+		out[name] = t
+	}
+	for _, lc := range live {
+		// Per-server config: ToolAllow (M899) trims which tools are exposed; Lazy
+		// (M906) collapses them into a single dispatcher. An empty/absent
+		// allowlist means "expose all"; lazy defaults off (eager injection).
+		var filter map[string]bool
+		lazy := false
+		// The nil-safe read: this is the HOT PATH (every run merges its tool
+		// map), so it must never panic on a service with no registry.
+		if srv, ok := s.registration(lc.name); ok {
+			if len(srv.ToolAllow) > 0 {
+				filter = make(map[string]bool, len(srv.ToolAllow))
+				for _, t := range srv.ToolAllow {
+					filter[t] = true
+				}
+			}
+			lazy = srv.Lazy
+		}
+
+		// The exposed subset (after the allowlist).
+		exposed := make([]mcpapi.ToolDef, 0, len(lc.conn.Tools()))
+		for _, def := range lc.conn.Tools() {
+			if filter != nil && !filter[def.Name] {
+				continue
+			}
+			exposed = append(exposed, def)
+		}
+		if len(exposed) == 0 {
+			continue
+		}
+
+		if lazy {
+			// One dispatcher tool for the whole server — N schemas → 1.
+			name := "mcp_" + lc.name
+			if _, exists := out[name]; !exists {
+				out[name] = lazyMCPDispatch{name: name, server: lc.name, conn: lc.conn, tools: exposed}
+			}
+			continue
+		}
+		for _, def := range exposed {
+			name := mcpToolName(lc.name, def.Name)
+			if _, exists := out[name]; exists {
+				continue
+			}
+			out[name] = bridgedMCPTool{name: name, server: lc.name, def: def, conn: lc.conn}
+		}
+	}
+	return out
+}
+
+// registration returns one registered server by id or name — the nil-safe
+// read the bridge uses to learn a server's per-server config.
+func (s *Service) registration(ref string) (mcpapi.Server, bool) {
+	if s.registry == nil {
+		return mcpapi.Server{}, false
+	}
+	return s.registry.Get(ref)
+}
+
+// bridgedMCPTool adapts one discovered MCP tool to toolapi.Tool: the call's
+// raw JSON input forwards as the tools/call arguments; the server's text
+// content (and its own isError verdict) come back as the result.
+type bridgedMCPTool struct {
+	name   string
+	server string
+	def    mcpapi.ToolDef
+	conn   mcpapi.Conn
+}
+
+func (t bridgedMCPTool) Definition() toolapi.ToolDef {
+	schema := t.def.InputSchema
+	if len(schema) == 0 {
+		schema = json.RawMessage(`{"type":"object"}`)
+	}
+	desc := strings.TrimSpace(t.def.Description)
+	if desc == "" {
+		desc = t.def.Name
+	}
+	return toolapi.ToolDef{
+		Name:        t.name,
+		Description: desc + " (via the attached MCP server \"" + t.server + "\")",
+		InputSchema: schema,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectCompensable,
+			PredictedEffects: []string{
+				"Forward this tool call to an attached MCP server.",
+			},
+			AffectedResources: []string{"MCP server " + t.server, "remote resources reachable by MCP tool " + t.def.Name},
+			RollbackNotes:     "Compensation depends on the MCP server and specific remote tool; detach the server to stop future calls.",
+			Confidence:        0.45,
+		},
+	}
+}
+
+func (t bridgedMCPTool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
+	text, isErr, err := t.conn.Call(ctx, t.def.Name, raw)
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return toolapi.Result{}, err // the run was cancelled, not the tool failing
+		}
+		return toolapi.Result{Output: t.name + ": " + err.Error(), IsError: true}, nil
+	}
+	if text == "" {
+		text = "(no output)"
+	}
+	return toolapi.Result{Output: text, IsError: isErr}, nil
+}
+
+// lazyMCPDispatch collapses one server's exposed tools into a single dispatcher
+// tool (mcp_<server>) for context efficiency (M906): instead of injecting each
+// tool's full input schema into every run, the run is offered ONE tool whose
+// `tool` argument is an enum of the server's tool names and whose `arguments`
+// is a freeform object the remote server validates. The tool descriptions are
+// listed in the dispatcher's own description so the model can still choose.
+type lazyMCPDispatch struct {
+	name   string // mcp_<server>
+	server string
+	conn   mcpapi.Conn
+	tools  []mcpapi.ToolDef // the exposed (allowlisted) subset
+}
+
+func (t lazyMCPDispatch) Definition() toolapi.ToolDef {
+	names := make([]string, 0, len(t.tools))
+	var b strings.Builder
+	fmt.Fprintf(&b, "Call a tool on the attached MCP server %q. Set \"tool\" to one of its tools and \"arguments\" to that tool's input object (the server validates it). Available tools:\n", t.server)
+	for _, d := range t.tools {
+		names = append(names, d.Name)
+		if desc := strings.TrimSpace(d.Description); desc != "" {
+			fmt.Fprintf(&b, "- %s: %s\n", d.Name, desc)
+		} else {
+			fmt.Fprintf(&b, "- %s\n", d.Name)
+		}
+	}
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"tool":      map[string]any{"type": "string", "enum": names, "description": "which of the server's tools to call"},
+			"arguments": map[string]any{"type": "object", "description": "the input object for that tool"},
+		},
+		"required":             []string{"tool"},
+		"additionalProperties": false,
+	}
+	raw, _ := json.Marshal(schema)
+	return toolapi.ToolDef{
+		Name:        t.name,
+		Description: strings.TrimRight(b.String(), "\n"),
+		InputSchema: raw,
+		Effect: toolapi.ToolEffect{
+			Class: toolapi.EffectCompensable,
+			PredictedEffects: []string{
+				"Dispatch a selected tool call through an attached MCP server.",
+			},
+			AffectedResources: []string{"MCP server " + t.server, "remote resources reachable by the selected MCP tool"},
+			RollbackNotes:     "Compensation depends on the selected MCP tool; detach the server to stop future calls.",
+			Confidence:        0.4,
+		},
+	}
+}
+
+func (t lazyMCPDispatch) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result, error) {
+	var in struct {
+		Tool      string          `json:"tool"`
+		Arguments json.RawMessage `json:"arguments"`
+	}
+	if err := json.Unmarshal(raw, &in); err != nil {
+		return toolapi.Result{Output: t.name + ": invalid input: " + err.Error(), IsError: true}, nil
+	}
+	if strings.TrimSpace(in.Tool) == "" {
+		return toolapi.Result{Output: t.name + `: "tool" is required (one of the server's tools)`, IsError: true}, nil
+	}
+	exposed := false
+	for _, d := range t.tools {
+		if d.Name == in.Tool {
+			exposed = true
+			break
+		}
+	}
+	if !exposed {
+		return toolapi.Result{Output: fmt.Sprintf("%s: tool %q is not exposed by server %q", t.name, in.Tool, t.server), IsError: true}, nil
+	}
+	text, isErr, err := t.conn.Call(ctx, in.Tool, in.Arguments)
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return toolapi.Result{}, err
+		}
+		return toolapi.Result{Output: t.name + ": " + err.Error(), IsError: true}, nil
+	}
+	if text == "" {
+		text = "(no output)"
+	}
+	return toolapi.Result{Output: text, IsError: isErr}, nil
+}

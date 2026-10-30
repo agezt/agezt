@@ -38,6 +38,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/journal"
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
+	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 	workapi "github.com/agezt/agezt/kernel/modules/work/api"
 	"github.com/agezt/agezt/kernel/reflect"
@@ -119,6 +120,16 @@ type Kernel struct {
 	// with SetObjectiveLibrary. nil until it is wired.
 	objectives workapi.ObjectiveService
 
+	// mcp is the EXTENSIONS MODULE's MCP registry — the lifecycle over the
+	// registered servers, the live attachments and the bridge that folds an
+	// attached server's tools into a run's tool map (W3.71). The module lives
+	// in kernel/modules/extensions; the runtime cannot import it (a module may
+	// import another module's api package and nothing else — archcheck's
+	// principle P5), so the composition root builds the service over the
+	// store the host opened and hands it over here. nil until it is wired,
+	// and every registry verb refuses until then.
+	mcp extapi.MCPRegistryService
+
 	// reaperScanner is the agents module's reaper (the read-only fleet health
 	// scan). The module lives in kernel/modules/agents/reaper; the runtime
 	// cannot import it (a module may import another module's api package and
@@ -150,14 +161,13 @@ type Kernel struct {
 
 	// Fine-grained mutexes to reduce lock contention. Lock ordering to prevent
 	// deadlocks (always acquire in this order):
-	//   configMu (light config) < runsMu < fanoutMu < treeMu < steersMu < spawnsMu < mcpMu
-	configMu sync.Mutex // guards: system, model, cfg, catalog, schedEngine
+	//   configMu (light config) < runsMu < fanoutMu < treeMu < steersMu < spawnsMu
+	configMu sync.Mutex // guards: system, model, cfg, catalog, schedEngine, mcp
 	runsMu   sync.Mutex // guards: halted, runs
 	fanoutMu sync.Mutex
 	treeMu   sync.Mutex
 	steersMu sync.Mutex
 	spawnsMu sync.Mutex
-	mcpMu    sync.Mutex // guards: mcpConns
 
 	halted bool
 	// suspending latches true when Suspend begins tearing the daemon down for a
@@ -179,9 +189,6 @@ type Kernel struct {
 	// classification. Built once at Open from cfg.ToolCapabilities (known
 	// capabilities only); read-only afterwards, so no lock needed.
 	toolCaps map[string]edict.Capability
-	// mcpConns are the LIVE MCP attachments (M796): server name → connection.
-	// Merged into every run's tool map (mergeMCPTools); detach removes.
-	mcpConns map[string]mcpapi.Conn
 
 	startTime time.Time // wall-clock at Open() — powers `agt status` uptime
 }

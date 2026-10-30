@@ -16,7 +16,7 @@
 // is the load-bearing refactor — any new locking site added in
 // this file MUST respect:
 //
-//	configMu (light config) < runsMu < fanoutMu < treeMu < steersMu < spawnsMu < mcpMu
+//	configMu (light config) < runsMu < fanoutMu < treeMu < steersMu < spawnsMu
 //
 // The deferred cleanup at the bottom of *Kernel.RunWith takes
 // all five (runsMu → fanoutMu → treeMu → steersMu → spawnsMu) in

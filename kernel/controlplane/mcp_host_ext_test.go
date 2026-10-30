@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/internal/testfixtures"
+	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
+	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -35,5 +37,8 @@ func withMCP(t *testing.T, cfg runtime.Config) runtime.Config {
 		t.Fatalf("open the MCP registry: %v", err)
 	}
 	cfg.MCPStore = registry
+	cfg.MCPBuilder = func(deps extapi.MCPRegistryDependencies) extapi.MCPRegistryService {
+		return mcp.NewService(deps)
+	}
 	return cfg
 }

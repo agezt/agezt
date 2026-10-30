@@ -7,11 +7,17 @@ package runtime_test
 //             contract's port and never opens a registry of its own — so a
 //             test that expects a registry opens one and injects it, the same
 //             way the daemon does.
+//
+// The registry's LIFECYCLE is the extensions module's (W3.71), so a test that
+// expects a working registry also hands the kernel the module's BUILDER —
+// the same handover the daemon makes.
 
 import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/internal/testfixtures"
+	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
+	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -35,5 +41,15 @@ func withMCP(t *testing.T, cfg runtime.Config) runtime.Config {
 		t.Fatalf("open the MCP registry: %v", err)
 	}
 	cfg.MCPStore = registry
+	cfg.MCPBuilder = mcpServiceBuilder()
 	return cfg
+}
+
+// mcpServiceBuilder is the extensions module's builder, handed to the kernel
+// the way the daemon hands it over (W3.71): the module keeps the registry's
+// lifecycle, the daemon keeps the names.
+func mcpServiceBuilder() extapi.MCPRegistryBuilder {
+	return func(deps extapi.MCPRegistryDependencies) extapi.MCPRegistryService {
+		return mcp.NewService(deps)
+	}
 }

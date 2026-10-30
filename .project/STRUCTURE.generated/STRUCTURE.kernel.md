@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-216 package(s):
+217 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -153,6 +153,7 @@
 - **`kernel/modules/artifacts/datalake`** — Package datalake is AGEZT's file-based structured store — the "Personal Data Lake" (M834).
 - **`kernel/modules/board/board`** — Package board is the in-process shared message board: a persistent, topic-addressed space every agent — the lead, its sub-agents, scheduled and standing-order agents, and the continuous loops — can post to and read from, so they can coordinate and talk to each other (M647).
 - **`kernel/modules/extensions/acpcatalog`** — Package acpcatalog discovers the Agent Client Protocol (ACP) coding agents installed on the host so AGEZT can drive ANY of them, not just one operator-configured command.
+- **`kernel/modules/extensions/api`** — Package api is the extensions module's public vocabulary: the rows the module publishes, the ports it needs from the host and the verbs the host drives.
 - **`kernel/modules/extensions/mcp`** — Package mcp is governed runtime self-install for MCP servers (M796): a durable registry of Model Context Protocol servers plus a minimal MCP client, so an agent (or operator) can ADD a server and ATTACH it while the daemon runs — no restart, no separate bridge binary, no env-var surgery.
 - **`kernel/modules/extensions/plugin`** — Package plugin is the kernel's out-of-process plugin host (M1.y).
 - **`kernel/modules/extensions/plugin/testdata/echoplugin`** — Command echoplugin is a minimal reference implementation of the agezt plugin protocol.

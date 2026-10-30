@@ -19,7 +19,6 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
-	"github.com/agezt/agezt/kernel/contract/mcpapi"
 	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
@@ -28,6 +27,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/journal"
+	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/resume"
@@ -215,6 +215,25 @@ func Open(cfg Config) (*Kernel, error) {
 	// contract's store port (cfg.MCPStore). A host that was given none holds a
 	// nil port: the registry reads answer "no servers" and the registry
 	// writes refuse, rather than calling into nothing.
+	//
+	// The registry's LIFECYCLE is the extensions module's (W3.71) — the module
+	// keeps the operations, the live attachments and the bridge, and the host
+	// keeps the names. The daemon hands over the BUILDER (it names the
+	// module), and the kernel calls it with the store, the two dialers and
+	// its own publisher — so every lifecycle transition journals through the
+	// kernel's bus without either side naming the other's implementation.
+	//
+	// A host that was given neither holds no service: the registry writes
+	// refuse and the reads answer "no servers".
+	var mcpSvc extapi.MCPRegistryService
+	if cfg.MCPStore != nil && cfg.MCPBuilder != nil {
+		mcpSvc = cfg.MCPBuilder(extapi.MCPRegistryDependencies{
+			Registry:   cfg.MCPStore,
+			Dialer:     cfg.MCPDialer,
+			HTTPDialer: cfg.MCPHTTPDialer,
+			Publish:    mcpPublisher{b: kbus}.Publish,
+		})
+	}
 
 	// The workflow store is NOT opened here (W3.48): the store file is the
 	// composition root's business (cmd/agezt), and the kernel holds the
@@ -332,7 +351,7 @@ func Open(cfg Config) (*Kernel, error) {
 		roster:       cfg.Roster,
 		toolForge:    cfg.ToolForge,
 		mcpStore:     cfg.MCPStore,
-		mcpConns:     make(map[string]mcpapi.Conn),
+		mcp:          mcpSvc,
 		workflows:    cfg.Workflows,
 		workboard:    cfg.Workboard,
 		okr:          cfg.OKRStore,
