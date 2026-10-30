@@ -39,6 +39,7 @@ import (
 	"github.com/agezt/agezt/kernel/journal"
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/reasoning/api"
+	workapi "github.com/agezt/agezt/kernel/modules/work/api"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/resume"
 	"github.com/agezt/agezt/kernel/runtime/lifecycle"
@@ -102,6 +103,14 @@ type Kernel struct {
 	// root builds the service and injects it here with SetReasoning. nil until
 	// it is wired.
 	reasoning api.Service
+
+	// board is the WORK MODULE's task board — the lifecycle over the store the
+	// host opened (W5.6). The module lives in kernel/modules/work; the runtime
+	// cannot import it (a module may import another module's api package and
+	// nothing else — archcheck's principle P5), so the composition root builds
+	// the service over the store and injects it here with SetWorkboard. nil
+	// until it is wired, and every board verb refuses until then.
+	board workapi.Service
 
 	// reaperScanner is the agents module's reaper (the read-only fleet health
 	// scan). The module lives in kernel/modules/agents/reaper; the runtime

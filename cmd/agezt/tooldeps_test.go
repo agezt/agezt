@@ -20,6 +20,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/modules/board/board"
+	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/introspecttool"
@@ -257,6 +258,7 @@ func TestToolKernelDepsSuppliesTheWorkboardPort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
+	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
 	t.Cleanup(func() { k.Close() })
 
 	deps := toolKernelDeps(k, t.TempDir(), io.Discard)

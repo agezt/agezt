@@ -32,6 +32,7 @@ func TestTheWorkboardPortsReachTheKernelBoard(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
+	k.SetWorkboard(workboardstore.NewService(k.Workboard(), k.WorkboardDependencies()))
 	defer k.Close()
 	if _, _, err := k.Workboard().Create(workboardstore.CreateSpec{Title: "owned", Status: workboardstore.StatusReady}, time.UnixMilli(100)); err != nil {
 		t.Fatalf("Create: %v", err)

@@ -396,5 +396,11 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 	k.SetWorkflowEngine(workflow.NewEngine(cfg.Workflows, k.WorkflowPorts()))
 	k.SetReasoning(reasoning.New(k.ReasoningDependencies()))
 	k.SetReaperScanner(reaper.New(k.ReaperPorts()))
+	// The TASK BOARD is the work module's too (W5.6): the module keeps the
+	// store, the lifecycle and the retry rule, and the daemon holds the
+	// module's face and forwards to it. The service is built HERE — over the
+	// store the daemon opened and over the host's own ports (the bus and the
+	// objective rollup) — because the ports are the kernel's own.
+	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
 	return k, nil
 }

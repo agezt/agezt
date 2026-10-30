@@ -104,6 +104,7 @@ func TestOKRReadsUseActualStoreAndLiveWorkboardRollup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
 	defer k.Close()
 	objective, err := k.CreateObjective("owned-corr", objectives.CreateSpec{Title: "owned", Tenant: "team"})
 	if err != nil {

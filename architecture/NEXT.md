@@ -4808,6 +4808,77 @@ files, five of the seventeen mutations would have escaped.
   the same two holes: the staged writes are not **fsynced**, and the swap
   **removes the old copy before** the new one is in place.
 
+- W3.68 (the task board's verbs move into the work module) is the **first**
+  slice of the runtime's dissolution and the first time the port programme's
+  work is **spent**: the port layers were the preparation, and this is one of
+  the moves they were preparing. The **task board** was split in half — its
+  **DATA** (the store, the transitions, the retry rule) already lived in the
+  work module (`kernel/modules/work/workboard`, 1,014 lines), while its
+  **OPERATIONS** (the fifteen verbs that create, claim, complete and archive a
+  task) lived in the daemon (`kernel/runtime/workboard.go`, 297 lines),
+  spelling out the lifecycle over the store the daemon held. That is the split
+  P5 forbids: the module that keeps the data must also keep the operations
+  over it, and the daemon may hold its **face**, never its **body**. The
+  measurement that named the candidate: the daemon's board file held **15**
+  lifecycle verbs and **24** external call sites, **all** of them in the
+  board's own family and the root, and the target architecture's own mapping
+  gives `Task.*` to `work`. The split was not visible from the daemon's side,
+  because the daemon's file *looked* thin — it called the store, published an
+  event and recursed into the OKR rollup — but it held **every decision** about
+  what a task's lifecycle MEANS, including the two rules that were nowhere
+  else: the retry decision's action name (`escalate` when the budget is spent)
+  and the sweep's per-task action. The module now owns the service:
+  `kernel/modules/work/api` declares the **Service** the daemon drives and the
+  **Dependencies** the module needs from the host (the bus to publish on, the
+  objective rollup a completed task feeds), and
+  `kernel/modules/work/workboard/service.go` is the implementation. The daemon
+  keeps its **names** and forwards — `ClaimWorkboardTask` asks the module and
+  returns the module's answer — so **no caller outside the runtime changed**:
+  **0 production files** in `kernel/app` changed, and the daemon's public
+  board names are still **15**. The module is wired by the **composition
+  root** (`k.SetWorkboard(workboard.NewService(k.Workboard(),
+  k.WorkboardDependencies()))`), the same shape the reasoning module uses and
+  the one the layer rule forces: a module may import another module's `api`
+  package and nothing else, so the runtime can hold the module's face but
+  never name its implementation. The two answers both sides need became
+  **contract rows** — `workboardapi.ErrNoStore` (the refusal a daemon with no
+  board gives) and `workboardapi.TaskEventPayload` (the payload the board
+  publishes; the daemon's proof path publishes the same shape, so the tools
+  read one) — because the daemon may not name the module and the module may
+  not name the daemon. What the slice cost, and what it fixed on the way:
+  **11 test sites** had to wire the board, because the module is injected
+  after `Open` (the price the reasoning module's move paid in 6 places), and
+  the daemon's board publish had **no nil-bus check** — a latent panic, now
+  structurally impossible, because the host's port is nil-safe and the board
+  stays quiet instead. **11 permanent tests** — the module's own (the board
+  refuses without a store, publishes what happened to a task, tells the host
+  that a task reached done, and is quiet without a bus), the daemon's (a
+  **fake module** records what the daemon asks, so a daemon that grew the
+  lifecycle back would record nothing; the daemon refuses when the module is
+  not wired; the daemon still holds the host's board file), the contract's
+  two, and the root's — and **13 mutations, 13 caught** in two independent
+  passes with **byte-identical** logs (SHA-256
+  `79D7F91071F5866007BE92FE876ABEBEAE87A482A75D18C513536C3AB8160D7E`). The
+  first calibration reported **three BUILDERRs** and all three were the
+  **mutation's** defect: a forwarder that stopped calling the module left the
+  service **declared and not used** and Go refused to compile — a compile error
+  is not a caught mutation, it is a mutation that never ran; all three were
+  rewritten to keep the service alive while answering on their own. The
+  measurement that moved: the daemon's calls into the board's store **15 → 0**,
+  the daemon's calls into the module **0 → 15**, the module's calls into the
+  store **0 → 15**, the daemon's public board names **15 → 15**, the
+  application layer's production files that changed **0**, `kernel/runtime`
+  **9,649 → 9,588** lines and `kernel/modules/work` **1,664 → 2,049**. The
+  **kernel's verb count moved by two** (236 → 238): the fifteen board verbs stayed —
+  the names are the host's public API — and the slice added the two names of the
+  **seam** (SetWorkboard, WorkboardDependencies); what moved is the **body** behind
+  the names, not the names. **What remains**: the board's **proof**
+  (`kernel/runtime/workboard_proof.go`) still lives in the daemon because it
+  judges with the daemon's **model** and reads the daemon's artifact index and
+  journal — the same move as the reasoning module's service (an `api` package,
+  the host's ports, and a forwarder); and the rest of the runtime's
+  dissolution stands at **238 verbs** in **9,588 lines**. Evidence:
+  `architecture/266-w368-the-task-boards-verbs-move-into-the-work-module-evidence.md`
 - W5.4a (the forbidden-call ratchet is zero) takes the **call-site** half of
   W5.4 — the last **three** `raw-write` call sites — and the ratchet goes
   **3 → 0**. The three were the marketplace cache's two staged writes and the

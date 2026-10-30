@@ -39,6 +39,7 @@ func okrAppFixture(t *testing.T) (*runtime.Kernel, *Server, okr.Objective, strin
 	if err != nil {
 		t.Fatal(err)
 	}
+	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
 	t.Cleanup(func() { k.Close() })
 	objective, err := k.OKR().Create(okr.CreateSpec{Title: "owned", Tenant: "team"}, 100)
 	if err != nil {

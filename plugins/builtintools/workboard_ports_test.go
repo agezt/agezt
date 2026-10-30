@@ -39,6 +39,7 @@ func TestTheWorkboardSpecWiresTheStorePort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
+	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
 	t.Cleanup(func() { k.Close() })
 
 	if k.Workboard() == nil {

@@ -22,6 +22,10 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 )
 
+// assureCriteriaMaxTokens bounds the per-criterion verdict reply. It is larger
+// than the plain completion check because the judge itemizes each criterion.
+const assureCriteriaMaxTokens = 800
+
 func (k *Kernel) ProveTask(ctx context.Context, corr, id, answer string) (workboardapi.Task, error) {
 	store, err := k.workboardStore()
 	if err != nil {
