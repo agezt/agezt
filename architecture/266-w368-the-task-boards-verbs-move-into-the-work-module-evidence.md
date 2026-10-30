@@ -172,6 +172,7 @@ rewritten to keep the service alive (`_ = svc`) while answering on their own.
 | the daemon's calls into the module | **0** | **15** |
 | the module's calls into the board's store | **0** | **15** |
 | the daemon's public board names | **15** | **15** |
+| the kernel's verbs | **236** | **238** |
 | the application layer's production files that changed | — | **0** |
 | `kernel/runtime` (lines) | **9,649** | **9,588** |
 | `kernel/modules/work` (lines) | **1,664** | **2,049** |
@@ -179,10 +180,11 @@ rewritten to keep the service alive (`_ = svc`) while answering on their own.
 | the contract's board rows | — | **2** |
 | the daemon's answer when the module is not wired | the store's answer | the **contract's refusal** |
 
-The **kernel's verb count did not move** (236 before, 236 after): the daemon
-keeps the names, because the names are the host's public API. What moved is
-the **body** behind them — and the daemon's board file is now 46 lines of
-forwarders and their refusals.
+The **kernel's verb count moved by two** (236 → 238): the fifteen board verbs
+stayed — the names are the host's public API — and the slice added the two
+names of the **seam** (`SetWorkboard` and `WorkboardDependencies`). What moved
+is the **body** behind the names, not the names — and the daemon's board file
+is now 46 lines of forwarders and their refusals.
 
 ## What is left
 
@@ -195,6 +197,6 @@ reads the daemon's artifact index and journal — the same shape as the
 reasoning module's service, and the same move: give it an `api` package, hand
 it the host's ports, and let the daemon forward.
 
-The rest of the runtime's dissolution is unchanged: **236 verbs** in
+The rest of the runtime's dissolution stands at **238 verbs** in
 **9,588 lines**, of which the board's fifteen and the workflow host's twelve
 and the reasoning module's six are the nearest.

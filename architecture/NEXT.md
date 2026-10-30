@@ -4869,14 +4869,15 @@ files, five of the seventeen mutations would have escaped.
   store **0 → 15**, the daemon's public board names **15 → 15**, the
   application layer's production files that changed **0**, `kernel/runtime`
   **9,649 → 9,588** lines and `kernel/modules/work` **1,664 → 2,049**. The
-  **kernel's verb count did not move** (236 before, 236 after): the daemon
-  keeps the names, because the names are the host's public API — what moved is
-  the **body** behind them. **What remains**: the board's **proof**
+  **kernel's verb count moved by two** (236 → 238): the fifteen board verbs stayed —
+  the names are the host's public API — and the slice added the two names of the
+  **seam** (SetWorkboard, WorkboardDependencies); what moved is the **body** behind
+  the names, not the names. **What remains**: the board's **proof**
   (`kernel/runtime/workboard_proof.go`) still lives in the daemon because it
   judges with the daemon's **model** and reads the daemon's artifact index and
   journal — the same move as the reasoning module's service (an `api` package,
   the host's ports, and a forwarder); and the rest of the runtime's
-  dissolution is unchanged at **236 verbs** in **9,588 lines**. Evidence:
+  dissolution stands at **238 verbs** in **9,588 lines**. Evidence:
   `architecture/266-w368-the-task-boards-verbs-move-into-the-work-module-evidence.md`
 - W5.4a (the forbidden-call ratchet is zero) takes the **call-site** half of
   W5.4 — the last **three** `raw-write` call sites — and the ratchet goes
