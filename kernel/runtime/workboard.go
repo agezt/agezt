@@ -2,321 +2,250 @@
 
 package runtime
 
-// Provenance: Runtime workboard: getter + state-transition wrappers +
-//             publishWorkboard. Code extracted from workboard.go during the Day-121
-//             god-file split. Public API unchanged.
+// Provenance: Runtime workboard: the host's names for the task board.
+//
+// The board is the WORK MODULE's: the module keeps the store, the lifecycle
+// and the retry rule, and the host holds the module's face
+// (kernel/modules/work/workapi.Service) and forwards to it.
+//
+// The host's public names did not move — ClaimWorkboardTask and its fifteen
+// siblings are still the daemon's verbs, and every caller outside the runtime
+// is untouched. What moved is WHERE the answer comes from: the daemon used
+// to hold the store and spell out the lifecycle itself, which left the
+// module keeping the DATA and the daemon keeping the OPERATIONS over it.
+//
+// The composition root builds the module's service over the store it opened
+// and hands it over with SetWorkboard — the same shape the reasoning module
+// uses. Until it does, the board refuses every verb with the contract's row
+// (workboardapi.ErrNoStore): a daemon with no board answers no board.
 
 import (
-	"errors"
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/event"
+	workapi "github.com/agezt/agezt/kernel/modules/work/api"
 )
 
-// errNoWorkboard is the answer a kernel gives when it holds no task board.
+// workboardStore returns the host's board store port, or the refusal.
 //
-// The board used to be opened by the kernel, so the field was never nil and
-// the code never had to say what happens without one. Now the store file is
-// the host's (W3.47) and a host may open a kernel without a board — and the
-// answer is a refusal, not a panic.
-var errNoWorkboard = errors.New("runtime: the task board is not available on this daemon (no workboard store)")
-
-// workboardStore returns the board port, or the refusal.
+// The store file is the HOST's business (W3.47): the daemon opens it and
+// hands the port to the module. The proof path still drives the store
+// directly; the lifecycle verbs go through the module's service.
 func (k *Kernel) workboardStore() (workboardapi.HostStore, error) {
 	if k.workboard == nil {
-		return nil, errNoWorkboard
+		return nil, workboardapi.ErrNoStore
 	}
 	return k.workboard, nil
 }
 
-// Workboard returns the durable typed multi-agent work queue.
+// Workboard returns the host's board store port.
 //
-// The port is the CONTRACT's host port (workboardapi.HostStore): the kernel
-// holds a port, not a module's store.
+// It is the port the plugins' contract speaks (workboardapi.Store); the
+// lifecycle the daemon drives goes through the module's service.
 func (k *Kernel) Workboard() workboardapi.HostStore { return k.workboard }
 
+// SetWorkboard injects the task board the daemon drives.
+//
+// The board is the work module's service: the module keeps the lifecycle, the
+// daemon keeps the names. The composition root builds it over the store it
+// opened and hands it over here.
+func (k *Kernel) SetWorkboard(s workapi.Service) {
+	k.configMu.Lock()
+	k.board = s
+	k.configMu.Unlock()
+}
+
+// boardService returns the injected board, or nil.
+func (k *Kernel) boardService() workapi.Service {
+	k.configMu.Lock()
+	defer k.configMu.Unlock()
+	return k.board
+}
+
+// WorkboardDependencies are the host's ports the board needs to answer a
+// verb: the bus to publish on, and the objective rollup a completed task
+// feeds.
+//
+// The board asks the host; it never reaches into it.
+func (k *Kernel) WorkboardDependencies() workapi.Dependencies {
+	return workapi.Dependencies{
+		Publish: func(spec event.Spec) {
+			if k.bus == nil {
+				return
+			}
+			k.bus.Publish(spec)
+		},
+		TaskCompleted: func(corr, taskID string) {
+			k.recomputeOKRForTask(corr, taskID)
+		},
+	}
+}
+
+// boardOrRefusal returns the board the daemon drives, or the refusal.
+//
+// The refusal is the contract's row: a daemon with no board answers no board,
+// whether the store was never opened or the module was never wired.
+func (k *Kernel) boardOrRefusal() (workapi.Service, error) {
+	svc := k.boardService()
+	if svc == nil {
+		return nil, workboardapi.ErrNoStore
+	}
+	return svc, nil
+}
+
+// CreateWorkboardTask adds a task to the board.
 func (k *Kernel) CreateWorkboardTask(corr string, spec workboardapi.CreateSpec) (workboardapi.Task, bool, error) {
-	store, err := k.workboardStore()
+	svc, err := k.boardOrRefusal()
 	if err != nil {
 		return workboardapi.Task{}, false, err
 	}
-	t, created, err := store.Create(spec, time.Now())
-	if err != nil {
-		return workboardapi.Task{}, false, err
-	}
-	if created {
-		k.publishWorkboard(corr, event.KindWorkboardTaskCreated, t, "created", nil)
-	}
-	return t, created, nil
+	return svc.Create(corr, spec)
 }
 
+// ClaimWorkboardTask takes a task for an agent under a run.
 func (k *Kernel) ClaimWorkboardTask(corr, id, agent, runID string) (workboardapi.Task, error) {
-	store, err := k.workboardStore()
+	svc, err := k.boardOrRefusal()
 	if err != nil {
 		return workboardapi.Task{}, err
 	}
-	t, err := store.Claim(id, agent, runID, time.Now())
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	k.publishWorkboard(corr, event.KindWorkboardTaskClaimed, t, "claimed", map[string]any{"agent": agent, "run_id": runID})
-	return t, nil
+	return svc.Claim(corr, id, agent, runID)
 }
 
+// HeartbeatWorkboardTask keeps a claim alive.
 func (k *Kernel) HeartbeatWorkboardTask(corr, id, agent, runID string) (workboardapi.Task, error) {
-	store, err := k.workboardStore()
+	svc, err := k.boardOrRefusal()
 	if err != nil {
 		return workboardapi.Task{}, err
 	}
-	t, err := store.Heartbeat(id, agent, runID, time.Now())
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	k.publishWorkboard(corr, event.KindWorkboardTaskHeartbeat, t, "heartbeat", map[string]any{"agent": agent, "run_id": runID})
-	return t, nil
+	return svc.Heartbeat(corr, id, agent, runID)
 }
 
+// CommentWorkboardTask adds a note to a task.
 func (k *Kernel) CommentWorkboardTask(corr, id, author, body string) (workboardapi.Task, error) {
-	store, err := k.workboardStore()
+	svc, err := k.boardOrRefusal()
 	if err != nil {
 		return workboardapi.Task{}, err
 	}
-	t, err := store.Comment(id, author, body, time.Now())
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	k.publishWorkboard(corr, event.KindWorkboardTaskCommented, t, "commented", map[string]any{"author": author})
-	return t, nil
+	return svc.Comment(corr, id, author, body)
 }
 
+// BlockWorkboardTask parks a task with a reason.
 func (k *Kernel) BlockWorkboardTask(corr, id, actor, reason string) (workboardapi.Task, error) {
-	store, err := k.workboardStore()
+	svc, err := k.boardOrRefusal()
 	if err != nil {
 		return workboardapi.Task{}, err
 	}
-	t, err := store.Block(id, actor, reason, time.Now())
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	k.publishWorkboard(corr, event.KindWorkboardTaskUpdated, t, "blocked", map[string]any{"actor": actor, "reason": reason})
-	return t, nil
+	return svc.Block(corr, id, actor, reason)
 }
 
+// FailWorkboardTask records a failed attempt and returns the retry decision.
 func (k *Kernel) FailWorkboardTask(corr, id, actor, reason string) (workboardapi.Task, workboardapi.RetryDecision, error) {
-	store, err := k.workboardStore()
+	svc, err := k.boardOrRefusal()
 	if err != nil {
 		return workboardapi.Task{}, workboardapi.RetryDecision{}, err
 	}
-	t, decision, err := store.Fail(id, actor, reason, time.Now())
-	if err != nil {
-		return workboardapi.Task{}, workboardapi.RetryDecision{}, err
-	}
-	k.publishWorkboard(corr, event.KindWorkboardTaskUpdated, t, decision.Action, map[string]any{
-		"actor":         actor,
-		"reason":        reason,
-		"failure_count": decision.FailureCount,
-		"max_attempts":  decision.MaxAttempts,
-		"next_attempt":  decision.NextAttempt,
-		"retry":         decision.Retry,
-		"exhausted":     decision.Exhausted,
-		"escalate_to":   decision.EscalateTo,
-	})
-	return t, decision, nil
+	return svc.Fail(corr, id, actor, reason)
 }
 
+// UnblockWorkboardTask returns a blocked task to the queue.
 func (k *Kernel) UnblockWorkboardTask(corr, id, actor string) (workboardapi.Task, error) {
-	store, err := k.workboardStore()
+	svc, err := k.boardOrRefusal()
 	if err != nil {
 		return workboardapi.Task{}, err
 	}
-	t, err := store.Unblock(id, actor, time.Now())
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	k.publishWorkboard(corr, event.KindWorkboardTaskUpdated, t, "unblocked", map[string]any{"actor": actor})
-	return t, nil
+	return svc.Unblock(corr, id, actor)
 }
 
+// SetWorkboardRetryPolicy sets (or clears) a task's retry budget.
 func (k *Kernel) SetWorkboardRetryPolicy(corr, id, actor string, policy *workboardapi.RetryPolicy) (workboardapi.Task, error) {
-	store, err := k.workboardStore()
+	svc, err := k.boardOrRefusal()
 	if err != nil {
 		return workboardapi.Task{}, err
 	}
-	t, err := store.SetRetryPolicy(id, actor, policy, time.Now())
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	extra := map[string]any{"actor": actor}
-	if policy != nil {
-		extra["max_attempts"] = policy.MaxAttempts
-		extra["escalate_to"] = policy.EscalateTo
-	} else {
-		extra["cleared"] = true
-	}
-	k.publishWorkboard(corr, event.KindWorkboardTaskUpdated, t, "retry_policy", extra)
-	return t, nil
+	return svc.SetRetryPolicy(corr, id, actor, policy)
 }
 
+// CompleteWorkboardTask finishes a task.
 func (k *Kernel) CompleteWorkboardTask(corr, id, actor string) (workboardapi.Task, error) {
-	store, err := k.workboardStore()
+	svc, err := k.boardOrRefusal()
 	if err != nil {
 		return workboardapi.Task{}, err
 	}
-	t, err := store.Complete(id, actor, time.Now())
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	k.publishWorkboard(corr, event.KindWorkboardTaskUpdated, t, "completed", map[string]any{"actor": actor})
-	// An ungated task completing normally still rolls up into any OKR that links it.
-	k.recomputeOKRForTask(corr, id)
-	return t, nil
+	return svc.Complete(corr, id, actor)
 }
 
+// ReviewWorkboardTask moves a task into review.
 func (k *Kernel) ReviewWorkboardTask(corr, id, actor, summary string) (workboardapi.Task, error) {
-	store, err := k.workboardStore()
+	svc, err := k.boardOrRefusal()
 	if err != nil {
 		return workboardapi.Task{}, err
 	}
-	t, err := store.Review(id, actor, summary, time.Now())
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	k.publishWorkboard(corr, event.KindWorkboardTaskUpdated, t, "review", map[string]any{"actor": actor})
-	return t, nil
+	return svc.Review(corr, id, actor, summary)
 }
 
+// ArchiveWorkboardTask retires a task.
 func (k *Kernel) ArchiveWorkboardTask(corr, id, actor string) (workboardapi.Task, error) {
-	store, err := k.workboardStore()
+	svc, err := k.boardOrRefusal()
 	if err != nil {
 		return workboardapi.Task{}, err
 	}
-	t, err := store.Archive(id, actor, time.Now())
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	k.publishWorkboard(corr, event.KindWorkboardTaskUpdated, t, "archived", map[string]any{"actor": actor})
-	return t, nil
+	return svc.Archive(corr, id, actor)
 }
 
+// LinkWorkboardTask connects a task to something else.
 func (k *Kernel) LinkWorkboardTask(corr, id, typ, target string) (workboardapi.Task, error) {
-	store, err := k.workboardStore()
+	svc, err := k.boardOrRefusal()
 	if err != nil {
 		return workboardapi.Task{}, err
 	}
-	t, err := store.Link(id, typ, target, time.Now())
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	k.publishWorkboard(corr, event.KindWorkboardTaskLinked, t, "linked", map[string]any{"type": typ, "target": target})
-	return t, nil
+	return svc.Link(corr, id, typ, target)
 }
 
+// AddWorkboardDependency makes a task wait for another one.
 func (k *Kernel) AddWorkboardDependency(corr, id, dependsOn string) (workboardapi.Task, error) {
-	store, err := k.workboardStore()
+	svc, err := k.boardOrRefusal()
 	if err != nil {
 		return workboardapi.Task{}, err
 	}
-	t, err := store.AddDependency(id, dependsOn, time.Now())
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	k.publishWorkboard(corr, event.KindWorkboardTaskDependency, t, "dependency_added", map[string]any{"depends_on": dependsOn})
-	return t, nil
+	return svc.AddDependency(corr, id, dependsOn)
 }
 
+// ReclaimStaleWorkboardTask takes a stale claim back.
 func (k *Kernel) ReclaimStaleWorkboardTask(corr, id, actor string, staleAfter time.Duration) (workboardapi.Task, error) {
-	store, err := k.workboardStore()
+	svc, err := k.boardOrRefusal()
 	if err != nil {
 		return workboardapi.Task{}, err
 	}
-	t, err := store.ReclaimStale(id, actor, staleAfter, time.Now())
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	action := "reclaimed"
-	decision := workboardapi.RetryDecisionFor(t, "stale heartbeat")
-	if decision.Exhausted {
-		action = "escalate"
-	}
-	k.publishWorkboard(corr, event.KindWorkboardTaskUpdated, t, action, map[string]any{
-		"actor":          actor,
-		"stale_after_ms": staleAfter.Milliseconds(),
-		"failure_count":  decision.FailureCount,
-		"max_attempts":   decision.MaxAttempts,
-		"next_attempt":   decision.NextAttempt,
-		"retry":          decision.Retry,
-		"exhausted":      decision.Exhausted,
-		"escalate_to":    decision.EscalateTo,
-	})
-	return t, nil
+	return svc.ReclaimStale(corr, id, actor, staleAfter)
 }
 
+// SweepStaleWorkboardClaims reclaims every stale claim, up to limit.
 func (k *Kernel) SweepStaleWorkboardClaims(corr, actor string, staleAfter time.Duration, limit int) ([]workboardapi.Task, error) {
-	store, err := k.workboardStore()
+	svc, err := k.boardOrRefusal()
 	if err != nil {
 		return nil, err
 	}
-	tasks, err := store.SweepStaleClaims(actor, staleAfter, limit, time.Now())
-	if err != nil {
-		return nil, err
-	}
-	for _, t := range tasks {
-		action := "reclaimed"
-		decision := workboardapi.RetryDecisionFor(t, "stale heartbeat")
-		if decision.Exhausted {
-			action = "escalate"
-		}
-		k.publishWorkboard(corr, event.KindWorkboardTaskUpdated, t, action, map[string]any{
-			"actor":          actor,
-			"stale_after_ms": staleAfter.Milliseconds(),
-			"sweep":          true,
-			"failure_count":  decision.FailureCount,
-			"max_attempts":   decision.MaxAttempts,
-			"next_attempt":   decision.NextAttempt,
-			"retry":          decision.Retry,
-			"exhausted":      decision.Exhausted,
-			"escalate_to":    decision.EscalateTo,
-		})
-	}
-	return tasks, nil
+	return svc.SweepStaleClaims(corr, actor, staleAfter, limit)
 }
 
+// publishWorkboard says what happened to a task on the daemon's bus.
+//
+// It is the PROOF path's publisher: the proof loop still lives in the daemon
+// (it judges with the daemon's model), so it publishes with the same payload
+// the module's service publishes — the contract's row
+// (workboardapi.TaskEventPayload), because the tools read one shape.
+//
+// A daemon with no bus is quiet rather than broken.
 func (k *Kernel) publishWorkboard(corr string, kind event.Kind, t workboardapi.Task, action string, extra map[string]any) {
-	payload := map[string]any{
-		"id":       t.ID,
-		"title":    t.Title,
-		"status":   string(t.Status),
-		"priority": t.Priority,
-		"assignee": t.Assignee,
-		"tenant":   t.Tenant,
-		"action":   action,
+	if k.bus == nil {
+		return
 	}
-	for key, val := range extra {
-		if val != "" {
-			payload[key] = val
-		}
-	}
-	_, _ = k.bus.Publish(event.Spec{
+	k.bus.Publish(event.Spec{
 		Subject:       "workboard." + t.ID,
 		Kind:          kind,
 		Actor:         "workboard",
 		CorrelationID: corr,
-		Payload:       payload,
+		Payload:       workboardapi.TaskEventPayload(t, action, extra),
 	})
 }
-
-// assureCriteriaMaxTokens bounds the per-criterion verdict reply. It is larger
-// than the plain completion check because the judge itemizes each criterion.
-const assureCriteriaMaxTokens = 800
-
-// ProveTask closes the proof loop for a task: it runs the acceptance-criteria
-// judge over the task's answer, gathers the artifacts + hash-chained journal
-// range produced under corr as evidence, records the resulting proof, and
-// publishes a proved/unproven event. When the proof is satisfied the task
-// reaches done; otherwise it parks in review with the gap visible. A task with
-// no acceptance criteria is judged on overall completion alone.
-//
-// answer is the run output to judge; pass "" to have ProveTask synthesize a
-// proxy from the task's latest attempt summary and recent comments (used by the
-// manual `agt workboard prove` path, which has no answer in hand).

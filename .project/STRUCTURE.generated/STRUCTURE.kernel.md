@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-215 package(s):
+216 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -171,6 +171,7 @@
 - **`kernel/modules/reasoning/api`** — Package api is the reasoning module's public vocabulary: the rows and results the council, the conductor and the research harness produce, and the pure helpers both sides share.
 - **`kernel/modules/skills/builtins`** — Package builtins ships the skill bundles baked into the binary — the agentskills.io shape (M847): a SKILL.md plus reference files and scripts, embedded here and materialized into the skill store by the skills module.
 - **`kernel/modules/skills/skill`** — Package skill implements "Forge v1" (SPEC-05 §4–5): the agent learns reusable, named procedures ("skills") from what it does, and those skills are governed through a journaled, reversible state machine instead of straight-to-active markdown.
+- **`kernel/modules/work/api`** — —
 - **`kernel/modules/work/okr`** — Package okr is AGEZT's durable objectives-and-key-results spine: the layer that makes fleet work legible as progress toward goals rather than a flat task queue.
 - **`kernel/modules/work/proof`** — Package proof is AGEZT's "PROOF > VIBES" record: the durable, checkable evidence that a workboard task actually satisfied its acceptance criteria before it was allowed to reach done.
 - **`kernel/modules/work/seat`** — Package seat names the execution "seats" a workboard task can be dispatched under — the AGEZT answer to Matrix's "choose the right execution seat for the job".

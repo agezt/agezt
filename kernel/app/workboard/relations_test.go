@@ -118,10 +118,7 @@ func TestWorkboardRelationsRetainAllFacadeInputsAndOriginalCauses(t *testing.T) 
 }
 func TestWorkboardRelationsRetainRealKernelDependenciesAndMaintenance(t *testing.T) {
 	dir := t.TempDir()
-	k, err := runtime.Open(withWorkboard(t, runtime.Config{BaseDir: dir, Provider: mock.New()}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	k := withWorkboard(t, runtime.Config{BaseDir: dir, Provider: mock.New()})
 	defer k.Close()
 	s := appwork.NewRelations(k)
 	ctx := context.Background()

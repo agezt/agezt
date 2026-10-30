@@ -122,10 +122,7 @@ func TestWorkboardLifecycleRetainsAllFacadeInputsAndOriginalCauses(t *testing.T)
 }
 func TestWorkboardLifecycleRetainsRealKernelTransitionsAndCorrelation(t *testing.T) {
 	dir := t.TempDir()
-	k, err := runtime.Open(withWorkboard(t, runtime.Config{BaseDir: dir, Provider: mock.New()}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	k := withWorkboard(t, runtime.Config{BaseDir: dir, Provider: mock.New()})
 	defer k.Close()
 	service := appwork.NewLifecycle(k, k.Workboard())
 	ctx := context.Background()
