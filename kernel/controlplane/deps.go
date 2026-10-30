@@ -20,7 +20,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/toolboxapi"
 	"github.com/agezt/agezt/kernel/contract/updateapi"
-	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
 )
 
@@ -75,7 +74,7 @@ type Deps struct {
 
 // NewServerWithDeps constructs a Server with its early dependencies applied,
 // via the same setters the tests use. Call Bind for the late-phase ones.
-func NewServerWithDeps(k *runtime.Kernel, baseDir string, d Deps) *Server {
+func NewServerWithDeps(k any, baseDir string, d Deps) *Server {
 	s := NewServer(k, baseDir)
 	s.SetConfigEnvPinned(d.ConfigEnvPinned)
 	s.SetBoard(d.Board, d.BoardNotify)

@@ -17,7 +17,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/toolboxapi"
 	"github.com/agezt/agezt/kernel/contract/updateapi"
-	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
 )
 
@@ -26,7 +25,7 @@ type Server struct {
 	operationOnce sync.Once
 	operations    *app.Dispatcher
 	operationErr  error
-	k             *runtime.Kernel
+	k             any
 	baseDir       string
 
 	mu       sync.Mutex

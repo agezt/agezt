@@ -928,6 +928,11 @@ func reaperOwnedVerbs(t *testing.T) []string {
 // slice, but the RUNS family reads it too — a run that outlives the
 // operator's client stops itself — and the run's own end belongs to the
 // family that owns runs. The overseer asks that family for it now.
+//
+// And TWO more joined them in the W5.5a slice: `LoopRunner` and `RunPlan`,
+// the plan runner's own machinery — the daemon's plan loop and the daemon's
+// plan verb. The plan runner is the runs family's, so the machinery it
+// drives is the runs family's too.
 func runsOwnedVerbs(t *testing.T) []string {
 	t.Helper()
 	kernel := reflect.TypeOf(&runtime.Kernel{})
@@ -952,7 +957,7 @@ func runsOwnedVerbs(t *testing.T) []string {
 		}
 		verbs = append(verbs, name)
 	}
-	for _, name := range []string{"AdmitImages", "SubjectForRun", "RunAssured", "MaxDuration", "CancelRun"} {
+	for _, name := range []string{"AdmitImages", "SubjectForRun", "RunAssured", "MaxDuration", "CancelRun", "LoopRunner", "RunPlan"} {
 		if _, ok := kernel.MethodByName(name); !ok {
 			t.Fatalf("the kernel has no %s verb — the runs family's verbs moved?", name)
 		}

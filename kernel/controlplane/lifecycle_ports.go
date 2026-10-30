@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	applifecycle "github.com/agezt/agezt/kernel/app/lifecycle"
 )
 
@@ -21,5 +22,5 @@ import (
 // adapter may hold the handle without naming the runtime package to hand it
 // over.
 func (s *Server) lifecyclePorts() applifecycle.Ports {
-	return applifecycle.PortsFromKernel(s.k)
+	return binding.Fill(s.k, applifecycle.PortsFromKernel)
 }

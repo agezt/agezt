@@ -3,6 +3,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	appcorrelation "github.com/agezt/agezt/kernel/app/correlation"
 )
 
@@ -22,4 +23,6 @@ import (
 // is in the context, and the protocol audit runs on a context that never
 // carries one. Both ask the family directly, with the kernel they hold — the
 // same shape the council family has always had.
-func (s *Server) correlationPorts() appcorrelation.Ports { return appcorrelation.PortsFromKernel(s.k) }
+func (s *Server) correlationPorts() appcorrelation.Ports {
+	return binding.Fill(s.k, appcorrelation.PortsFromKernel)
+}

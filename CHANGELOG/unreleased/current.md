@@ -3537,6 +3537,19 @@ This file holds the active `[Unreleased]` working set.
   gained the tool **runner**. After this slice the application layer names the
   handle in **0** files outside a **port file**, down from **1**, and the guard
   holds **168** application-owned verbs, up from **165**.
+- **The adapter holds the handle without naming it (W5.5a).** The control
+  plane held the daemon's handle **by type** in twelve production files and
+  filled the families' ports from it. The handle is now **unnamed** in the
+  adapter: the `Server`, the `DispatchCtx` and the request's app host carry
+  it as an unnamed value, and the **application** fills the families' ports
+  from it through a bridge that lives in the application layer. Five families
+  gained their own entry point for the capabilities the adapter used to
+  reach through the handle, and each **refuses** when the handle is not the
+  daemon's own. The plan runner takes **ports** instead of four loose
+  functions. After this slice the control plane names the runtime in **0**
+  production files, down from **12**, the archcheck allowlist's
+  `adapter-bypass` edge is deleted, and the guard holds **170**
+  application-owned verbs, up from **168**.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —

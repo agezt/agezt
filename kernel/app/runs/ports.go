@@ -23,6 +23,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/scheduler"
 )
 
 // ErrNoKernel is the answer a host with no daemon gives the run service.
@@ -219,6 +220,30 @@ func RunPortsFromKernel(k *runtime.Kernel) RunPorts {
 			return err
 		},
 	}
+}
+
+// PlanRunnerPortsFromHandle fills the plan runner's capabilities from the
+// daemon's handle.
+//
+// The plan runner's own wiring is the runs family's business: the loop that
+// runs a plan's nodes and the daemon's plan verb are named HERE, and the
+// adapter never names them. The adapter hands over the handle, the approvals
+// registry and the subscription, and the runner is wired by the family that
+// owns it.
+//
+// A handle that is not the daemon's own yields capabilities that REFUSE — a
+// plan cannot run on a daemon that does not exist.
+func PlanRunnerPortsFromHandle(h any) PlanRunnerPorts {
+	k, ok := h.(*runtime.Kernel)
+	if !ok {
+		return PlanRunnerPorts{
+			LoopRunner: func() scheduler.LoopRunner { return nil },
+			RunPlan: func(context.Context, scheduler.Plan, string) (*scheduler.PlanResult, error) {
+				return nil, errors.New("the plan capability is not available")
+			},
+		}
+	}
+	return PlanRunnerPorts{LoopRunner: k.LoopRunner, RunPlan: k.RunPlan}
 }
 
 // Ready reports whether the ports hold a daemon to run on.

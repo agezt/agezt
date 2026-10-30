@@ -5,6 +5,7 @@ package controlplane
 import (
 	"context"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	appedict "github.com/agezt/agezt/kernel/app/edict"
 )
 
@@ -18,7 +19,7 @@ import (
 // The handle is never named here: this file does not import the runtime, so
 // the adapter may hold the handle without naming the runtime package to hand
 // it over.
-func (s *Server) edictPorts() appedict.Ports { return appedict.PortsFromKernel(s.k) }
+func (s *Server) edictPorts() appedict.Ports { return binding.Fill(s.k, appedict.PortsFromKernel) }
 
 // The REQUEST's policy ports.
 //
@@ -27,5 +28,5 @@ func (s *Server) edictPorts() appedict.Ports { return appedict.PortsFromKernel(s
 // request's services must read. The daemon's own ports answer for the root
 // kernel.
 func requestEdictPorts(ctx context.Context) appedict.Ports {
-	return appedict.PortsFromKernel(ctx.Value(appHostKey{}).(appHost).kernel)
+	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, appedict.PortsFromKernel)
 }

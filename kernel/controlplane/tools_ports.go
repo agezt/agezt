@@ -4,6 +4,7 @@ package controlplane
 import (
 	"context"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	apptools "github.com/agezt/agezt/kernel/app/tools"
 )
 
@@ -18,7 +19,7 @@ import (
 // The handle is never named here: this file does not import the runtime, so
 // the adapter may hold the handle without naming the runtime package to hand
 // it over.
-func (s *Server) toolsPorts() apptools.Ports { return apptools.PortsFromKernel(s.k) }
+func (s *Server) toolsPorts() apptools.Ports { return binding.Fill(s.k, apptools.PortsFromKernel) }
 
 // The REQUEST's tools ports.
 //
@@ -26,5 +27,5 @@ func (s *Server) toolsPorts() apptools.Ports { return apptools.PortsFromKernel(s
 // tools are the tenant's tools: the routed kernel is the one the request's
 // services must read. The daemon's own ports answer for the root kernel.
 func requestToolsPorts(ctx context.Context) apptools.Ports {
-	return apptools.PortsFromKernel(ctx.Value(appHostKey{}).(appHost).kernel)
+	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, apptools.PortsFromKernel)
 }

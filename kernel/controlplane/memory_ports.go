@@ -5,6 +5,7 @@ package controlplane
 import (
 	"context"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	appmemory "github.com/agezt/agezt/kernel/app/memory"
 )
 
@@ -18,7 +19,7 @@ import (
 // The handle is never named here: this file does not import the runtime, so
 // the adapter may hold the handle without naming the runtime package to hand
 // it over.
-func (s *Server) memoryPorts() appmemory.Ports { return appmemory.PortsFromKernel(s.k) }
+func (s *Server) memoryPorts() appmemory.Ports { return binding.Fill(s.k, appmemory.PortsFromKernel) }
 
 // The REQUEST's memory ports.
 //
@@ -26,5 +27,5 @@ func (s *Server) memoryPorts() appmemory.Ports { return appmemory.PortsFromKerne
 // memory is the tenant's memory: the routed kernel is the one the request's
 // services must read. The daemon's own ports answer for the root kernel.
 func requestMemoryPorts(ctx context.Context) appmemory.Ports {
-	return appmemory.PortsFromKernel(ctx.Value(appHostKey{}).(appHost).kernel)
+	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, appmemory.PortsFromKernel)
 }

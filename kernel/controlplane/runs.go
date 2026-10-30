@@ -11,13 +11,13 @@ package controlplane
 import (
 	"time"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	appjournal "github.com/agezt/agezt/kernel/app/journal"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
 // runReads binds the app run reads to the given kernel's folded runs.
-func (s *Server) runReads(k *runtime.Kernel) *appruns.Service {
+func (s *Server) runReads(k any) *appruns.Service {
 	return appruns.New(func() (map[string]appruns.Run, error) {
 		return s.runFold(k)
 	}, time.Now)
@@ -26,6 +26,6 @@ func (s *Server) runReads(k *runtime.Kernel) *appruns.Service {
 // runFold walks the given kernel's journal and folds it into the app layer's
 // run rows. The run operation enriches its terminal answer with the run's own
 // iters, spend and model from this fold.
-func (s *Server) runFold(k *runtime.Kernel) (map[string]appruns.Run, error) {
-	return appruns.Collect(appjournal.PortsFromKernel(k).Events.Range)
+func (s *Server) runFold(k any) (map[string]appruns.Run, error) {
+	return appruns.Collect(binding.Fill(k, appjournal.PortsFromKernel).Events.Range)
 }

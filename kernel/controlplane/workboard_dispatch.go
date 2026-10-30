@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	appexecprofile "github.com/agezt/agezt/kernel/app/execprofile"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 	appworkboard "github.com/agezt/agezt/kernel/app/workboard"
@@ -71,5 +72,5 @@ func (s *Server) applyWardenExecutionProfile(ctx context.Context, id string) (co
 	if executionprofile.IsRemoteBackend(id) {
 		return ctx, "", fmt.Errorf("seat isolation %q is only available on direct runs, not workboard dispatch", id)
 	}
-	return appruns.WardenProfile(ctx, appexecprofile.PortsFromKernel(s.k), id)
+	return appruns.WardenProfile(ctx, binding.Fill(s.k, appexecprofile.PortsFromKernel), id)
 }

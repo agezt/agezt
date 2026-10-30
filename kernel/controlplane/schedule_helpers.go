@@ -7,21 +7,21 @@ package controlplane
 import (
 	"context"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	appjournal "github.com/agezt/agezt/kernel/app/journal"
 	appruns "github.com/agezt/agezt/kernel/app/runs"
 	appschedule "github.com/agezt/agezt/kernel/app/schedule"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	"github.com/agezt/agezt/kernel/runtime"
 	"time"
 )
 
 func (s *Server) scheduleEditing() *appschedule.Editing {
-	return appschedule.NewEditing(appschedule.PortsFromKernel(s.k).Store, appschedule.EditingHost{WorkflowName: func(ref string) (string, bool) { w, ok := s.workflowPorts().Get(ref); return w.Name, ok }, Tool: s.toolsPorts().Has, Now: time.Now})
+	return appschedule.NewEditing(binding.Fill(s.k, appschedule.PortsFromKernel).Store, appschedule.EditingHost{WorkflowName: func(ref string) (string, bool) { w, ok := s.workflowPorts().Get(ref); return w.Name, ok }, Tool: s.toolsPorts().Has, Now: time.Now})
 }
 
 func (s *Server) scheduleLifecycle(ctx context.Context) *appschedule.Lifecycle {
-	return appschedule.NewLifecycle(appschedule.PortsFromKernel(s.k).Store, s.validateScheduleRunnable, func(id string, enabled bool, action string, current cadenceapi.Entry) {
+	return appschedule.NewLifecycle(binding.Fill(s.k, appschedule.PortsFromKernel).Store, s.validateScheduleRunnable, func(id string, enabled bool, action string, current cadenceapi.Entry) {
 		corr := opapi.CorrelationFromContext(ctx)
 		if corr == "" {
 			corr = s.correlationPorts().Mint()
@@ -30,13 +30,13 @@ func (s *Server) scheduleLifecycle(ctx context.Context) *appschedule.Lifecycle {
 	})
 }
 
-func (s *Server) scheduleFiringReads(k *runtime.Kernel) *appschedule.FiringService {
-	return appschedule.NewFiringService(appjournal.PortsFromKernel(k).Events, func() (map[string]appruns.Run, error) {
-		return appruns.Collect(appjournal.PortsFromKernel(k).Events.Range)
+func (s *Server) scheduleFiringReads(k any) *appschedule.FiringService {
+	return appschedule.NewFiringService(binding.Fill(k, appjournal.PortsFromKernel).Events, func() (map[string]appruns.Run, error) {
+		return appruns.Collect(binding.Fill(k, appjournal.PortsFromKernel).Events.Range)
 	})
 }
 func (s *Server) scheduleReads() *appschedule.Service {
-	return appschedule.New(appschedule.PortsFromKernel(s.k).Store, appschedule.Host{LastFirings: func() (map[string]appschedule.LastFiring, error) {
+	return appschedule.New(binding.Fill(s.k, appschedule.PortsFromKernel).Store, appschedule.Host{LastFirings: func() (map[string]appschedule.LastFiring, error) {
 		return s.scheduleFiringReads(s.k).Latest(context.Background())
 	}, Validate: s.validateScheduleRunnable, Warning: s.scheduleFrequencyWarning}, time.Now)
 }

@@ -54,6 +54,11 @@ func bindingViolations(sources map[string]string) []string {
 //	func (s *Server) toolsPorts() apptools.Ports { return apptools.PortsFromKernel(s.k) }
 //
 // So the rule is that a binding file does not import the runtime at all.
+//
+// The binding itself is now the BRIDGE: the adapter hands the handle over
+// without naming it, and the application fills the family's ports from it.
+//
+//	func (s *Server) toolsPorts() apptools.Ports { return binding.Fill(s.k, apptools.PortsFromKernel) }
 func TestTheAdapterBindingsDoNotNameTheRuntime(t *testing.T) {
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -128,7 +133,7 @@ func TestTheBindingRuleSeesTheViolationItExistsFor(t *testing.T) {
 // The TEST's name carries no number, on purpose: a name that states the count
 // has to be renamed every time the count moves, and a rename is a chance to
 // forget to update the documents that name the test.
-const controlPlaneRuntimeNamingFiles = 12
+const controlPlaneRuntimeNamingFiles = 0
 
 // runtimeNamingDrifted reports whether a measured count has drifted from the
 // recorded one.
@@ -183,7 +188,7 @@ func TestTheRuntimeNamingCheckFailsInBothDirections(t *testing.T) {
 	if !runtimeNamingDrifted(controlPlaneRuntimeNamingFiles + 1) {
 		t.Error("the check accepts more files than recorded — a growing debt walks past it")
 	}
-	if !runtimeNamingDrifted(controlPlaneRuntimeNamingFiles - 1) {
+	if controlPlaneRuntimeNamingFiles > 0 && !runtimeNamingDrifted(controlPlaneRuntimeNamingFiles-1) {
 		t.Error("the check accepts fewer files than recorded — a shrinking debt never updates the record")
 	}
 }
@@ -191,14 +196,18 @@ func TestTheRuntimeNamingCheckFailsInBothDirections(t *testing.T) {
 // The measurement is held by the measurement: a counter that could not count
 // would report a number it never measured, and the ratchet would be a wall
 // with no wall behind it.
+//
+// The adapter names the runtime in NO production file now, so the measurement
+// has nothing to count in the tree — but it must still be able to SEE the
+// runtime, or it would report zero for the wrong reason.
 func TestTheRuntimeNamingMeasurementCountsWhatItClaims(t *testing.T) {
 	naming := runtimeNamingFiles(t)
-	if len(naming) == 0 {
-		t.Fatal("the measurement found no file naming the runtime — the adapter's runtime imports are gone?")
-	}
 	for _, name := range naming {
 		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
 			t.Errorf("the measurement counted %q, which is not a production file of the control plane", name)
 		}
+	}
+	if !bindingNamesRuntime("import \"github.com/agezt/agezt/kernel/runtime\"\n") {
+		t.Error("the measurement cannot see the runtime at all — it would report zero for the wrong reason")
 	}
 }

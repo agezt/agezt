@@ -6,8 +6,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
 // Phase 2.3: the declarative command registry handleConn dispatches through.
@@ -26,7 +24,7 @@ type DispatchCtx struct {
 	Conn          net.Conn
 	Req           Request
 	S             *Server
-	K             *runtime.Kernel
+	K             any
 	Tenant        string // authorized tenant id ("" for the primary token)
 	Primary       bool   // true when the request carried the primary token
 	CorrelationID string // operation audit identity, assigned before a mutating handler

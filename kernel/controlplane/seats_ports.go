@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	appseats "github.com/agezt/agezt/kernel/app/seats"
 )
 
@@ -20,5 +21,5 @@ import (
 // adapter may hold the handle without naming the runtime package to hand it
 // over.
 func (s *Server) seatPorts() appseats.Ports {
-	return appseats.PortsFromKernel(s.k)
+	return binding.Fill(s.k, appseats.PortsFromKernel)
 }

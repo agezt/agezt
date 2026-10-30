@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	appreflection "github.com/agezt/agezt/kernel/app/reflection"
 )
 
@@ -21,5 +22,5 @@ import (
 // adapter may hold the handle without naming the runtime package to hand it
 // over.
 func (s *Server) reflectionPorts() appreflection.Ports {
-	return appreflection.PortsFromKernel(s.k)
+	return binding.Fill(s.k, appreflection.PortsFromKernel)
 }

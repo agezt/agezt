@@ -5,6 +5,7 @@ package controlplane
 import (
 	"context"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
 )
 
@@ -18,7 +19,9 @@ import (
 // The handle is never named here: this file does not import the runtime, so the
 // adapter may hold the handle without naming the runtime package to hand it
 // over.
-func (s *Server) catalogPorts() appcatalog.Ports { return appcatalog.PortsFromKernel(s.k) }
+func (s *Server) catalogPorts() appcatalog.Ports {
+	return binding.Fill(s.k, appcatalog.PortsFromKernel)
+}
 
 // The REQUEST's catalog ports.
 //
@@ -26,5 +29,5 @@ func (s *Server) catalogPorts() appcatalog.Ports { return appcatalog.PortsFromKe
 // catalog is the tenant's catalog: the routed kernel is the one the request's
 // services must read. The daemon's own ports answer for the root kernel.
 func requestCatalogPorts(ctx context.Context) appcatalog.Ports {
-	return appcatalog.PortsFromKernel(ctx.Value(appHostKey{}).(appHost).kernel)
+	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, appcatalog.PortsFromKernel)
 }

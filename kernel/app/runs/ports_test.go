@@ -11,8 +11,24 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
+
+// The plan runner's ports REFUSE when the handle is not the daemon's own.
+//
+// A host with no daemon holds no plan machinery: the loop is nowhere and the
+// plan verb refuses, so a submitted plan is answered by nobody.
+func TestThePlanRunnerPortsRefuseWithoutADaemon(t *testing.T) {
+	ports := PlanRunnerPortsFromHandle("not a daemon")
+
+	if runner := ports.LoopRunner(); runner != nil {
+		t.Error("a host with no daemon holds a plan loop")
+	}
+	if _, err := ports.RunPlan(context.Background(), scheduler.Plan{}, "plan-1"); err == nil {
+		t.Error("a host with no daemon ran a plan")
+	}
+}
 
 // The runs family's ports are filled by the APPLICATION from the kernel
 // handle — the host never binds them itself.

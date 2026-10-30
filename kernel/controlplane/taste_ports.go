@@ -4,6 +4,7 @@ package controlplane
 import (
 	"context"
 
+	"github.com/agezt/agezt/kernel/app/binding"
 	apptaste "github.com/agezt/agezt/kernel/app/taste"
 )
 
@@ -23,5 +24,5 @@ import (
 // adapter may hold the handle without naming the runtime package to hand it
 // over.
 func requestTastePorts(ctx context.Context) apptaste.Ports {
-	return apptaste.PortsFromKernel(ctx.Value(appHostKey{}).(appHost).kernel)
+	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, apptaste.PortsFromKernel)
 }

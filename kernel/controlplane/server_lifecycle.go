@@ -12,11 +12,9 @@ import (
 	"errors"
 	"fmt"
 	"net"
-
-	"github.com/agezt/agezt/kernel/runtime"
 )
 
-func NewServer(k *runtime.Kernel, baseDir string) *Server {
+func NewServer(k any, baseDir string) *Server {
 	return &Server{
 		k:          k,
 		baseDir:    baseDir,

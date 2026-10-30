@@ -5,6 +5,7 @@ import (
 	"context"
 
 	appapprovals "github.com/agezt/agezt/kernel/app/approvals"
+	"github.com/agezt/agezt/kernel/app/binding"
 )
 
 // The approvals family's ports.
@@ -27,10 +28,10 @@ import (
 // adapter may hold the handle without naming the runtime package to hand it
 // over.
 func (s *Server) approvalPorts() appapprovals.Ports {
-	return appapprovals.PortsFromKernel(s.k)
+	return binding.Fill(s.k, appapprovals.PortsFromKernel)
 }
 
 // requestApprovalPorts are the REQUEST's approval ports.
 func requestApprovalPorts(ctx context.Context) appapprovals.Ports {
-	return appapprovals.PortsFromKernel(ctx.Value(appHostKey{}).(appHost).kernel)
+	return binding.Fill(ctx.Value(appHostKey{}).(appHost).kernel, appapprovals.PortsFromKernel)
 }

@@ -7,14 +7,14 @@ package controlplane
 //             API unchanged.
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	appeventbus "github.com/agezt/agezt/kernel/app/eventbus"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/event"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
-func publishWorkboardDispatch(k *kernelruntime.Kernel, corr string, task workboardapi.Task, phase, agent, reason, answer, errText string) {
-	ports := appeventbus.PortsFromKernel(k)
+func publishWorkboardDispatch(k any, corr string, task workboardapi.Task, phase, agent, reason, answer, errText string) {
+	ports := binding.Fill(k, appeventbus.PortsFromKernel)
 	if !ports.Ready() {
 		return
 	}
