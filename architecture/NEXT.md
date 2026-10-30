@@ -7006,6 +7006,36 @@ files, five of the seventeen mutations would have escaped.
   defect, one did not compile). Evidence:
   `architecture/260-w54bc-the-execute-path-asks-its-own-ports-evidence.md`
 
+- W5.5a (the adapter holds the handle without naming it) is the port
+  programme's **forty-third** slice and the **first** one of its **next**
+  phase: the **adapter's** handle. The phase before it was the handle itself
+  — the application's own files stopped naming it and the ratchet is at **0**
+  — and this is the other side of the same door: the **adapter** (the control
+  plane) held the handle too, and it **named** it, in **twelve** production
+  files. The handle is now **unnamed** in the adapter: the `Server` holds it
+  as `any`, the `DispatchCtx` carries it as `any`, the request's app host
+  carries it as `any`, and the **application** fills the families' ports from
+  it through a **bridge** (`kernel/app/binding`) — the bridge lives in the
+  application layer because the application owns the families' ports, and a
+  handle that is not the daemon's own yields the family's **empty** ports.
+  **Forty-five** binding files now read
+  `binding.Fill(s.k, apptools.PortsFromKernel)`. **Five** families gained an
+  entry point for the capabilities the adapter used to reach through the
+  handle — the council's ports, the files' runner, the research's engines,
+  the steer family's run controls and the runs family's plan machinery — and
+  each **refuses** when the handle is not the daemon's own. The **plan runner
+  takes ports** now. The **archcheck's edge is gone**: the allowlist's
+  `adapter-bypass kernel/controlplane -> kernel/runtime` entry is deleted,
+  and the check **fails** when a listed edge no longer occurs ✓. The
+  **adapter's** own number moves: the control plane names the runtime in
+  **0** production files, down from **12**, and the guard now holds **170**
+  application-owned verbs, up from **168**. **8 permanent tests** and **14
+  mutations, 14 caught** in two independent passes with **byte-identical**
+  logs (SHA-256 `C3985CB2…7ED`); nine mutations were rewritten for the
+  mutation's own fault (all **BUILDERR**). The adapter still **holds** the
+  handle; it no longer **names** it. Evidence:
+  `architecture/261-w55a-the-adapter-holds-the-handle-without-naming-it-evidence.md`
+
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
 grew a gate, `kernel/modules/providers/api`. The slice was a **ports rewrite**:
