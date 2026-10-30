@@ -11,8 +11,7 @@ import (
 
 func TestToolboxReadsNativeTenantDenialPreservesJournal(t *testing.T) {
 	provider := mock.New()
-	k, server, _, dir := startPair(t, provider)
-	registry := withTenants(t, server, dir)
+	k, _, _, dir, registry := startPairWithTenants(t, provider)
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
 	for _, cmd := range []string{controlplane.CmdToolboxDetect, controlplane.CmdToolboxOutdated} {

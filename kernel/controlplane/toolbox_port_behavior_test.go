@@ -82,7 +82,6 @@ func TestToolboxOperationsWithoutAPortSaySoAndJournalNothing(t *testing.T) {
 // TestToolboxOperationsReachTheContractPort: with the port wired, the
 // operations answer with the host's rows — the machine is never consulted.
 func TestToolboxOperationsReachTheContractPort(t *testing.T) {
-	_, s, _, _ := pulseAppFixture(t)
 	host := &toolboxFakeHost{
 		inventory: toolboxapi.Inventory{
 			OS:             "owned-os",
@@ -93,7 +92,7 @@ func TestToolboxOperationsReachTheContractPort(t *testing.T) {
 		outdated: map[string]bool{"owned-tool": true},
 		results:  map[string]toolboxapi.InstallResult{"owned-tool": {Tool: "owned-tool", OK: true, Version: "owned-version"}},
 	}
-	s.SetToolbox(host)
+	_, s, _, _ := pulseAppFixtureWithDeps(t, Deps{Toolbox: host})
 
 	frames := callAppHost(t, s, Request{ID: "owned", Cmd: CmdToolboxDetect, Token: "primary"})
 	last := frames[len(frames)-1]

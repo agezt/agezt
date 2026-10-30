@@ -52,13 +52,13 @@ func TestMarketReadNativeUnavailablePrecedesNameAndReadShapesHaveNoEffects(t *te
 }
 func TestMarketReadNativeThreeTenantDenialsPreserveManagerAndJournal(t *testing.T) {
 	p := mock.New()
-	k, s, _, dir := startPair(t, p)
+	k, _, _, dir, registry := startPairWithTenants(t, p)
 	store := market.NewStore(dir)
 	k.SetMarket(market.NewManager(market.Config{Library: marketReadNativeLibrary{}, Store: store}))
 	if err := store.RecordInstall(market.InstalledPack{Name: "owned", Version: "1.0.0", InstalledMS: 10}); err != nil {
 		t.Fatal(err)
 	}
-	registry := withTenants(t, s, dir)
+
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
 	before, _ := store.Installed()

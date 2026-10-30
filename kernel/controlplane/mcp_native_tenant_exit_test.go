@@ -23,7 +23,7 @@ func (mcpExitTenantPeer) Close() error { return nil }
 func TestMCPNativeAllSixTenantDenialsPreserveRegistrationAttachmentAndJournal(t *testing.T) {
 	p := mock.New()
 	dials := 0
-	k, s, _, dir := startPairWithConfig(t, runtime.Config{Provider: p, MCPDialer: func(context.Context, string, []string, map[string]string) (mcp.Conn, error) {
+	k, _, _, dir, registry := startPairWithConfigAndTenants(t, runtime.Config{Provider: p, MCPDialer: func(context.Context, string, []string, map[string]string) (mcp.Conn, error) {
 		dials++
 		return mcpExitTenantPeer{}, nil
 	}, MCPHTTPDialer: func(context.Context, string, map[string]string) (mcp.Conn, error) {
@@ -33,7 +33,7 @@ func TestMCPNativeAllSixTenantDenialsPreserveRegistrationAttachmentAndJournal(t 
 	if _, err := k.AddMCPServer("owned-seed", mcp.Server{Name: "owned", Command: "owned-never-spawned", Env: map[string]string{"OWNED": "owned-private-value"}}); err != nil {
 		t.Fatal(err)
 	}
-	registry := withTenants(t, s, dir)
+
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
 	rows := k.MCPStore().List()

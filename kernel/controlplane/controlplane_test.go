@@ -35,6 +35,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/standing"
+	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/shell"
@@ -67,6 +68,83 @@ func startPairWithLibrary(t *testing.T, prov llm.Provider, sched *cadence.Store)
 // M49 delegation ceilings). BaseDir is set to a fresh TempDir; the rest of the
 // config is the caller's.
 func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *controlplane.Server, *controlplane.Client, string) {
+	t.Helper()
+	return startPairWithConfigAndDeps(t, cfg, nil)
+}
+
+// startPairWithoutBoard is startPair with NO board: the daemon opened none, so
+// the adapter”s board surface says so (the board is a CONSTRUCTION
+// dependency — the daemon hands over the port, or it hands over nothing).
+func startPairWithoutBoard(t *testing.T) (*runtime.Kernel, *controlplane.Server, *controlplane.Client, string) {
+	t.Helper()
+	return startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(string) controlplane.Deps {
+		return controlplane.Deps{}
+	})
+}
+
+// startPairWithDeps is startPair with the adapter's dependencies handed over at
+// CONSTRUCTION.
+//
+// The adapter has no setter to call later (P8: the wiring is declarative), so a
+// test that needs a dependency hands it over when the adapter is built. A
+// dependency that needs the daemon's own directory (the tenant registry) can
+// only be built once that directory exists — so the dependencies are a
+// FUNCTION of it.
+func startPairWithDeps(t *testing.T, prov llm.Provider, deps func(dir string) controlplane.Deps) (*runtime.Kernel, *controlplane.Server, *controlplane.Client, string) {
+	t.Helper()
+	return startPairWithConfigAndDeps(t, runtime.Config{
+		Provider: prov,
+		Tools:    map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+	}, deps)
+}
+
+// startPairWithTenants is startPair with the daemon's TENANT registry.
+//
+// The registry is a CONSTRUCTION dependency: the adapter is built with it, so
+// a tenant token authorizes from the very first accepted connection. The
+// registry needs the daemon's own directory, and only the pair knows it — so
+// the pair builds it and hands it over.
+func startPairWithTenants(t *testing.T, prov llm.Provider) (*runtime.Kernel, *controlplane.Server, *controlplane.Client, string, *tenant.Registry) {
+	t.Helper()
+	var reg *tenant.Registry
+	k, srv, c, dir := startPairWithDeps(t, prov, func(dir string) controlplane.Deps {
+		reg = newTenants(t, dir)
+		return controlplane.Deps{Tenants: reg}
+	})
+	return k, srv, c, dir, reg
+}
+
+// startPairWithConfigAndTenants is startPairWithConfig with the daemon's
+// tenant registry.
+func startPairWithConfigAndTenants(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *controlplane.Server, *controlplane.Client, string, *tenant.Registry) {
+	t.Helper()
+	var reg *tenant.Registry
+	k, srv, c, dir := startPairWithConfigAndDeps(t, cfg, func(dir string) controlplane.Deps {
+		reg = newTenants(t, dir)
+		return controlplane.Deps{Tenants: reg}
+	})
+	return k, srv, c, dir, reg
+}
+
+// startPairWithTenantsAndDeps is startPair with the tenant registry AND the
+// caller's own dependencies — both are CONSTRUCTION dependencies.
+func startPairWithTenantsAndDeps(t *testing.T, prov llm.Provider, deps func(dir string) controlplane.Deps) (*runtime.Kernel, *controlplane.Server, *controlplane.Client, string, *tenant.Registry) {
+	t.Helper()
+	var reg *tenant.Registry
+	k, srv, c, dir := startPairWithDeps(t, prov, func(dir string) controlplane.Deps {
+		reg = newTenants(t, dir)
+		d := deps(dir)
+		if d.Tenants == nil {
+			d.Tenants = reg
+		}
+		return d
+	})
+	return k, srv, c, dir, reg
+}
+
+// startPairWithConfigAndDeps is startPairWithConfig with the adapter's
+// dependencies: the root resolves them and the adapter is built with them.
+func startPairWithConfigAndDeps(t *testing.T, cfg runtime.Config, deps func(dir string) controlplane.Deps) (*runtime.Kernel, *controlplane.Server, *controlplane.Client, string) {
 	t.Helper()
 	dir := t.TempDir()
 	cfg.BaseDir = dir
@@ -210,15 +288,25 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 	k.SetWorkflowEngine(workflow.NewEngine(wfstore, k.WorkflowPorts()))
 	t.Cleanup(func() { k.Close() })
 
-	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))
 	// The message board is the daemon's file (W3.59): the root opens it and
-	// hands the control plane the contract's port. A test that wants the
-	// unwired surface un-wires it again.
-	srv.SetBoard(messageBoard, nil)
+	// hands the control plane the contract's port.
 	// The operator's repair surface is injected (the daemon owns the wiring: the
 	// control plane asks for a repair, it does not import the tool that provides
 	// it).
-	srv.SetRepairSource(overseer.NewKernelSource(overseer.PortsFromKernel(k), dir))
+	d := controlplane.Deps{
+		Board:        messageBoard,
+		RepairSource: overseer.NewKernelSource(overseer.PortsFromKernel(k), dir),
+	}
+	if deps != nil {
+		// The caller's deps ARE the deps: a daemon that opened no board hands
+		// over no board, and the adapter's board surface says so.
+		caller := deps(dir)
+		if caller.RepairSource == nil {
+			caller.RepairSource = d.RepairSource
+		}
+		d = caller
+	}
+	srv := controlplane.NewServerWithDeps(binding.ScopeFromKernel(k, dir), d)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	if err := srv.Start(ctx); err != nil {
@@ -551,8 +639,9 @@ func startDisconnectRun(t *testing.T, c *controlplane.Client) (corr string, drop
 // the client connection mid-run cancels the run server-side, terminating it
 // as task.failed(reason=canceled) (M35).
 func TestCancelOnDisconnect_Enabled(t *testing.T) {
-	k, srv, c, _ := startPair(t, cpBlockingProvider{})
-	srv.SetCancelOnDisconnect(true)
+	k, _, c, _ := startPairWithDeps(t, cpBlockingProvider{}, func(string) controlplane.Deps {
+		return controlplane.Deps{CancelOnDisconnect: true}
+	})
 
 	corr, drop, streamDone := startDisconnectRun(t, c)
 	drop() // simulate Ctrl-C / killed client

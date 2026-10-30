@@ -25,8 +25,7 @@ import (
 // no toolbox at all.
 func toolboxAppFixture(t *testing.T) (*runtime.Kernel, *Server, *pulseAppPort, *mock.Provider) {
 	t.Helper()
-	k, s, port, provider := pulseAppFixture(t)
-	s.SetToolbox(toolbox.NewHost())
+	k, s, port, provider := pulseAppFixtureWithDeps(t, Deps{Toolbox: toolbox.NewHost()})
 	return k, s, port, provider
 }
 

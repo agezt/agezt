@@ -12,12 +12,14 @@ import (
 )
 
 func TestSend_RoutesToChannel(t *testing.T) {
-	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-
 	var gotKind, gotTo, gotText string
-	srv.SetChannelSender(func(_ context.Context, kind, id, text string) error {
-		gotKind, gotTo, gotText = kind, id, text
-		return nil
+	_, _, c, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(string) controlplane.Deps {
+		return controlplane.Deps{ChannelSend: func() controlplane.ChannelSender {
+			return func(_ context.Context, kind, id, text string) error {
+				gotKind, gotTo, gotText = kind, id, text
+				return nil
+			}
+		}}
 	})
 
 	res, err := c.Call(context.Background(), controlplane.CmdSend, map[string]any{
@@ -36,8 +38,11 @@ func TestSend_RoutesToChannel(t *testing.T) {
 }
 
 func TestSend_MissingArgs(t *testing.T) {
-	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	srv.SetChannelSender(func(context.Context, string, string, string) error { return nil })
+	_, _, c, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(string) controlplane.Deps {
+		return controlplane.Deps{ChannelSend: func() controlplane.ChannelSender {
+			return func(context.Context, string, string, string) error { return nil }
+		}}
+	})
 
 	// Missing text → error, no send.
 	if _, err := c.Call(context.Background(), controlplane.CmdSend, map[string]any{
@@ -58,9 +63,12 @@ func TestSend_NoSenderConfigured(t *testing.T) {
 }
 
 func TestSend_PropagatesSenderError(t *testing.T) {
-	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	srv.SetChannelSender(func(context.Context, string, string, string) error {
-		return fmt.Errorf("channel %q not configured", "discord")
+	_, _, c, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(string) controlplane.Deps {
+		return controlplane.Deps{ChannelSend: func() controlplane.ChannelSender {
+			return func(context.Context, string, string, string) error {
+				return fmt.Errorf("channel %q not configured", "discord")
+			}
+		}}
 	})
 	if _, err := c.Call(context.Background(), controlplane.CmdSend, map[string]any{
 		"channel": "discord", "to": "D1", "text": "hi",

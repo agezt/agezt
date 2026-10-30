@@ -255,7 +255,7 @@ func TestUpdateNativeNilSetterReportsDisabledBeforeCodec(t *testing.T) {
 	// engine that is not there — the daemon converts the concrete engine to
 	// the port where the value is still concrete.
 	var backend core.Backend
-	s.SetUpdateService(backend)
+	s.updateSvc = backend
 	for _, cmd := range []string{CmdUpdateCheck, CmdUpdateApply} {
 		a, b := net.Pipe()
 		a.SetDeadline(time.Now().Add(time.Second))

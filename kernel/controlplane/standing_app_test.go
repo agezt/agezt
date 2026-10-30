@@ -16,7 +16,13 @@ import (
 	"testing"
 )
 
-func standingAppFixture(t *testing.T) (*runtime.Kernel, *Server, string, *mock.Provider) {
+// standingAppFixture builds the standing surface and the SLOT the fire
+// callback is published into.
+//
+// The callback is a PROVIDER: the adapter asks when it needs one, and the
+// answer is nil until the test publishes it — the adapter has no setter to
+// call later.
+func standingAppFixture(t *testing.T) (*runtime.Kernel, *Server, string, *mock.Provider, *StandingFirer) {
 	t.Helper()
 	dir := t.TempDir()
 	provider := mock.New()
@@ -36,9 +42,14 @@ func standingAppFixture(t *testing.T) (*runtime.Kernel, *Server, string, *mock.P
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(binding.ScopeFromKernel(k, dir))
+	// The fire callback is a PROVIDER: the adapter asks when it needs one, and
+	// the answer is nil until the test publishes it.
+	var fire StandingFirer
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{
+		StandingFire: func() StandingFirer { return fire },
+	})
 	s.token = "primary"
-	return k, s, order.ID, provider
+	return k, s, order.ID, provider, &fire
 }
 func TestStandingNativeMetadataComesFromSevenTypedAppSpecs(t *testing.T) {
 	want := map[string]bool{CmdStandingList: true, CmdStandingWhy: true, CmdStandingAdd: false, CmdStandingEdit: false, CmdStandingSetEnabled: false, CmdStandingRemove: false, CmdStandingFire: false}
@@ -62,9 +73,9 @@ func TestStandingNativeMetadataComesFromSevenTypedAppSpecs(t *testing.T) {
 func TestStandingAppRequiresActualAuditBeforeAllFiveMutations(t *testing.T) {
 	for _, cmd := range []string{CmdStandingAdd, CmdStandingEdit, CmdStandingSetEnabled, CmdStandingRemove, CmdStandingFire} {
 		t.Run(cmd, func(t *testing.T) {
-			k, s, id, provider := standingAppFixture(t)
+			k, s, id, provider, fireSlot := standingAppFixture(t)
 			fires := 0
-			s.SetStandingFire(func(string) bool { fires++; return true })
+			*fireSlot = func(string) bool { fires++; return true }
 			before := k.Standing().List()
 			if err := k.Journal().Close(); err != nil {
 				t.Fatal(err)
@@ -78,7 +89,7 @@ func TestStandingAppRequiresActualAuditBeforeAllFiveMutations(t *testing.T) {
 	}
 }
 func TestStandingAppReadsUnauditedAndFireUsesLatestInjectedCallback(t *testing.T) {
-	k, s, id, provider := standingAppFixture(t)
+	k, s, id, provider, fireSlot := standingAppFixture(t)
 	for _, cmd := range []string{CmdStandingList, CmdStandingWhy} {
 		responses := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"id": id, "unused": true}})
 		if len(responses) != 1 || responses[0].Type != RespResult {
@@ -102,7 +113,7 @@ func TestStandingAppReadsUnauditedAndFireUsesLatestInjectedCallback(t *testing.T
 		t.Fatal(first)
 	}
 	calls := []string{}
-	s.SetStandingFire(func(ref string) bool { calls = append(calls, ref); return false })
+	*fireSlot = func(ref string) bool { calls = append(calls, ref); return false }
 	out := callAppHost(t, s, Request{ID: "declined", Cmd: CmdStandingFire, Token: "primary", Args: map[string]any{"id": id}})
 	if len(out) != 1 || out[0].Type != RespResult || !reflect.DeepEqual(out[0].Result, map[string]any{"fired": false, "id": id}) || !reflect.DeepEqual(calls, []string{id}) || provider.CallCount() != 0 {
 		t.Fatal(out, calls, provider.CallCount())
@@ -140,7 +151,7 @@ func TestStandingAppReadsUnauditedAndFireUsesLatestInjectedCallback(t *testing.T
 	}
 }
 func TestStandingAppPresenceValidationAndOutputSchemas(t *testing.T) {
-	_, s, id, _ := standingAppFixture(t)
+	_, s, id, _, fireSlot := standingAppFixture(t)
 	for _, value := range []any{"true", "1", float64(1), nil, true, false} {
 		out := callAppHost(t, s, Request{ID: "enable", Cmd: CmdStandingSetEnabled, Token: "primary", Args: map[string]any{"id": id, "enabled": value}})
 		want, _ := value.(bool)
@@ -161,7 +172,7 @@ func TestStandingAppPresenceValidationAndOutputSchemas(t *testing.T) {
 			args["id"] = id
 		}
 		if spec.Name == CmdStandingFire {
-			s.SetStandingFire(func(string) bool { return true })
+			*fireSlot = func(string) bool { return true }
 		}
 		if spec.Name == CmdStandingAdd {
 			args["order"] = map[string]any{"name": "added", "triggers": []any{map[string]any{"type": "event", "subject": "fixture"}}}
@@ -194,7 +205,7 @@ func TestStandingAppPresenceValidationAndOutputSchemas(t *testing.T) {
 	}
 }
 func TestStandingAppAuditKeepsRuntimeLifecycleIdentity(t *testing.T) {
-	k, s, id, _ := standingAppFixture(t)
+	k, s, id, _, _ := standingAppFixture(t)
 	out := callAppHost(t, s, Request{ID: "edit", Cmd: CmdStandingEdit, Token: "primary", Args: map[string]any{"id": id, "name": "edited", "correlation_id": "spoof"}})
 	if len(out) != 1 || out[0].Type != RespResult {
 		t.Fatal(out)

@@ -15,13 +15,13 @@ import (
 
 func TestConfigCenterWritesNativeTenantDenialPreservesStateJournalAndProvider(t *testing.T) {
 	p := mock.New()
-	k, s, _, dir := startPair(t, p)
+	k, _, _, dir, registry := startPairWithTenants(t, p)
 	seed := core.NewConfigEntry("owned", "owned value")
 	if err := k.ConfigCenter().Set(seed); err != nil {
 		t.Fatal(err)
 	}
 	want := *seed
-	registry := withTenants(t, s, dir)
+
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
 	for _, command := range []string{controlplane.CmdConfigCenterSet, controlplane.CmdConfigCenterDelete, controlplane.CmdConfigCenterSetRating, controlplane.CmdConfigCenterSetAccess} {

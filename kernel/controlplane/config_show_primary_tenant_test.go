@@ -12,8 +12,7 @@ import (
 
 func TestConfigShowNativeTenantDenialPreservesConfigurationAndJournal(t *testing.T) {
 	p := mock.New()
-	k, s, _, dir := startPairWithConfig(t, runtime.Config{Provider: p, Model: "owned-model", System: "owned-private-prompt", Plugins: []runtime.PluginInfo{{Prefix: "owned", Path: "never-executed"}}})
-	registry := withTenants(t, s, dir)
+	k, _, _, dir, registry := startPairWithConfigAndTenants(t, runtime.Config{Provider: p, Model: "owned-model", System: "owned-private-prompt", Plugins: []runtime.PluginInfo{{Prefix: "owned", Path: "never-executed"}}})
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
 	model, system := k.Model(), k.System()

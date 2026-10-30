@@ -14,8 +14,7 @@ import (
 )
 
 func TestTasteOperationsSocketRetainPrimaryOnlyStore(t *testing.T) {
-	primary, server, owner, dir := startPair(t, mock.New(mock.FinalText("unused")))
-	registry := withTenants(t, server, dir)
+	primary, _, owner, dir, registry := startPairWithTenants(t, mock.New(mock.FinalText("unused")))
 	token := mustTenant(t, registry, "acme")
 	handle, err := registry.Acquire("acme", time.Now())
 	if err != nil {

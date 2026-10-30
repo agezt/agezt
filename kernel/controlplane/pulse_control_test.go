@@ -122,9 +122,10 @@ func TestPulsePauseDisabledErrors(t *testing.T) {
 }
 
 func TestPulseAsksListAndResolve(t *testing.T) {
-	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	fp := &fakePulse{asks: []map[string]any{{"issue_key": "k1", "summary": "ci failed"}}}
-	srv.SetPulse(fp)
+	_, _, c, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(string) controlplane.Deps {
+		return controlplane.Deps{Pulse: func() controlplane.PulseController { return fp }}
+	})
 	ctx := context.Background()
 
 	// List surfaces the pending asks.
@@ -163,9 +164,15 @@ func TestPulseAsksListAndResolve(t *testing.T) {
 }
 
 func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
-	_, srv, c, baseDir := startPair(t, mock.New(mock.FinalText("ok")))
 	fp := &fakePulse{}
-	srv.SetPulse(fp)
+	var obs controlplane.PulseObservers
+	var obsFake *fakePulseObservers
+	_, _, c, baseDir := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(string) controlplane.Deps {
+		return controlplane.Deps{
+			Pulse:     func() controlplane.PulseController { return fp },
+			Observers: func() controlplane.PulseObservers { return obs },
+		}
+	})
 	ctx := context.Background()
 
 	res, err := c.Call(ctx, controlplane.CmdPulseStatus, nil)
@@ -253,8 +260,8 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 	// PulseObservers registry — the same seam the daemon wires at boot. The two
 	// per-capability setters this used to drive were a compatibility shim with
 	// no production caller and were deleted 2026-08-12.
-	obs := &fakePulseObservers{}
-	srv.SetPulseObservers(obs)
+	obsFake = &fakePulseObservers{}
+	obs = obsFake
 	wres, err := c.Call(ctx, controlplane.CmdPulseWatch, map[string]any{"path": "/data", "min_pct": 10})
 	if err != nil {
 		t.Fatalf("pulse_watch: %v", err)
@@ -276,8 +283,8 @@ func TestPulseStatusPauseResumeWithEngine(t *testing.T) {
 	if obs, _ := pres["observer"].(string); obs != "probe:ci" {
 		t.Fatalf("expected observer probe:ci, got %v", pres["observer"])
 	}
-	if len(obs.probeArgv) != 2 || obs.probeArgv[0] != "make" || obs.probeArgv[1] != "test" {
-		t.Fatalf("command not split into argv: %v", obs.probeArgv)
+	if len(obsFake.probeArgv) != 2 || obsFake.probeArgv[0] != "make" || obsFake.probeArgv[1] != "test" {
+		t.Fatalf("command not split into argv: %v", obsFake.probeArgv)
 	}
 	// Missing command is rejected.
 	if _, err := c.Call(ctx, controlplane.CmdPulseProbe, map[string]any{"name": "ci"}); err == nil {

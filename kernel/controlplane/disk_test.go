@@ -15,10 +15,11 @@ import (
 // journal's on-disk size and, when a disk-free probe is injected, the free/total
 // bytes and percentage (M131).
 func TestDiskStats_ReportsJournalAndFreeSpace(t *testing.T) {
-	k, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	// Inject a deterministic disk-free probe: 25 GB free of 100 GB → 25%.
-	srv.SetDiskFree(func(string) (free, total uint64, err error) {
-		return 25 << 30, 100 << 30, nil
+	// A deterministic disk-free probe: 25 GB free of 100 GB → 25%.
+	k, _, c, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(string) controlplane.Deps {
+		return controlplane.Deps{DiskFree: func(string) (free, total uint64, err error) {
+			return 25 << 30, 100 << 30, nil
+		}}
 	})
 	// Write an event so the journal segment has real bytes on disk.
 	if _, err := k.Bus().Publish(event.Spec{

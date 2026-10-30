@@ -25,14 +25,17 @@ type nopCloser struct{}
 func (nopCloser) Close() error { return nil }
 
 func TestTenantCreateListReleaseRemove(t *testing.T) {
-	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	reg, err := tenant.New(t.TempDir(), func(id, baseDir string) (io.Closer, error) {
-		return nopCloser{}, nil
+	var reg *tenant.Registry
+	_, _, c, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(string) controlplane.Deps {
+		var err error
+		reg, err = tenant.New(t.TempDir(), func(id, baseDir string) (io.Closer, error) {
+			return nopCloser{}, nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return controlplane.Deps{Tenants: reg}
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	srv.SetTenants(reg)
 	ctx := context.Background()
 
 	// Create two tenants.
@@ -107,20 +110,23 @@ func TestTenantCreateListReleaseRemove(t *testing.T) {
 
 func TestRun_RoutesToTenantKernel(t *testing.T) {
 	// Primary kernel (from startPair) plus a registry of real tenant kernels.
-	_, srv, c, primaryDir := startPair(t, mock.New(mock.FinalText("primary")))
 	regRoot := t.TempDir()
-	reg, err := tenant.New(regRoot, func(id, baseDir string) (io.Closer, error) {
-		return runtime.Open(runtime.Config{
-			BaseDir:  baseDir,
-			Provider: mock.New(mock.FinalText("tenant-" + id)),
-			Tools:    map[string]toolapi.Tool{},
+	var reg *tenant.Registry
+	_, _, c, primaryDir := startPairWithDeps(t, mock.New(mock.FinalText("primary")), func(string) controlplane.Deps {
+		var err error
+		reg, err = tenant.New(regRoot, func(id, baseDir string) (io.Closer, error) {
+			return runtime.Open(runtime.Config{
+				BaseDir:  baseDir,
+				Provider: mock.New(mock.FinalText("tenant-" + id)),
+				Tools:    map[string]toolapi.Tool{},
+			})
 		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reg.CloseAll() })
+		return controlplane.Deps{Tenants: reg}
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { reg.CloseAll() })
-	srv.SetTenants(reg)
 
 	ctx := context.Background()
 	// Route a run to tenant "alpha" (CmdRun streams events, so use Stream).
@@ -184,26 +190,29 @@ func TestTenantDisabledWithoutRegistry(t *testing.T) {
 // journal into a per-tenant run count (M126). alpha runs 1 task, beta runs 2;
 // the response attributes them correctly and the grand total is 3.
 func TestTenantStats_AggregatesPerTenant(t *testing.T) {
-	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("primary")))
 	regRoot := t.TempDir()
-	reg, err := tenant.New(regRoot, func(id, baseDir string) (io.Closer, error) {
-		p := mock.New()
-		// Responder answers every request, so a tenant can run multiple tasks
-		// without exhausting a one-shot scripted response.
-		p.Responder = func(llm.CompletionRequest) llm.CompletionResponse {
-			return mock.FinalText("tenant-" + id)
-		}
-		return runtime.Open(runtime.Config{
-			BaseDir:  baseDir,
-			Provider: p,
-			Tools:    map[string]toolapi.Tool{},
+	var reg *tenant.Registry
+	_, _, c, _ := startPairWithDeps(t, mock.New(mock.FinalText("primary")), func(string) controlplane.Deps {
+		var err error
+		reg, err = tenant.New(regRoot, func(id, baseDir string) (io.Closer, error) {
+			p := mock.New()
+			// Responder answers every request, so a tenant can run multiple tasks
+			// without exhausting a one-shot scripted response.
+			p.Responder = func(llm.CompletionRequest) llm.CompletionResponse {
+				return mock.FinalText("tenant-" + id)
+			}
+			return runtime.Open(runtime.Config{
+				BaseDir:  baseDir,
+				Provider: p,
+				Tools:    map[string]toolapi.Tool{},
+			})
 		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reg.CloseAll() })
+		return controlplane.Deps{Tenants: reg}
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { reg.CloseAll() })
-	srv.SetTenants(reg)
 	ctx := context.Background()
 
 	run := func(tenantID, intent string) {

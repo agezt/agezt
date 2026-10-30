@@ -54,15 +54,16 @@ func TestProviderOAuthAppSocketAuditAndAuthoritativeEmptyModels(t *testing.T) {
 	var empty atomic.Bool
 	dir := t.TempDir()
 	k := openCatalogKernel(t, runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
-	s := NewServer(binding.ScopeFromKernel(k, dir))
-	s.token = "primary"
-	s.SetChatGPTSync(func() ([]string, string) {
-		syncs.Add(1)
-		if empty.Load() {
-			return []string{}, ""
-		}
-		return []string{"fixture-live-model"}, "fixture-live-model"
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{
+		ChatGPTSync: func() ([]string, string) {
+			syncs.Add(1)
+			if empty.Load() {
+				return []string{}, ""
+			}
+			return []string{"fixture-live-model"}, "fixture-live-model"
+		},
 	})
+	s.token = "primary"
 	call := func(command string, args map[string]any) Response {
 		t.Helper()
 		result := callAppHost(t, s, Request{ID: command, Cmd: command, Token: "primary", Args: args})[0]

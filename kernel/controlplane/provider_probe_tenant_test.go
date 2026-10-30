@@ -21,8 +21,7 @@ func TestProviderProbeSocketTenantDenialPreventsEndpointRequest(t *testing.T) {
 		_, _ = w.Write([]byte(`{"data":[]}`))
 	}))
 	defer endpoint.Close()
-	_, server, owner, dir := startPair(t, mock.New())
-	registry := withTenants(t, server, dir)
+	_, _, owner, dir, registry := startPairWithTenants(t, mock.New())
 	token := mustTenant(t, registry, "acme")
 	if _, err := owner.Call(context.Background(), controlplane.CmdProviderProbe, map[string]any{"url": endpoint.URL, "tenant": "ignored"}); err != nil {
 		t.Fatal(err)

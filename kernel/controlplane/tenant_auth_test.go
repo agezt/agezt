@@ -30,7 +30,7 @@ import (
 
 // withTenants builds a tenant registry under dir, wires it into srv, and
 // returns it. The OpenFunc opens a real isolated kernel per tenant.
-func withTenants(t *testing.T, srv *controlplane.Server, dir string) *tenant.Registry {
+func newTenants(t *testing.T, dir string) *tenant.Registry {
 	t.Helper()
 	reg, err := tenant.New(filepath.Join(dir, "tenants"), func(id, tdir string) (io.Closer, error) {
 		// The exemplar library is the composition root's file (W3.52): each
@@ -88,7 +88,6 @@ func withTenants(t *testing.T, srv *controlplane.Server, dir string) *tenant.Reg
 	// Close tenant kernels before the TempDir cleanup runs, else their open
 	// journal files block removal on Windows.
 	t.Cleanup(func() { _ = reg.CloseAll() })
-	srv.SetTenants(reg)
 	return reg
 }
 
@@ -119,8 +118,7 @@ func tenantClient(t *testing.T, dir, token string) *controlplane.Client {
 // TestTenantToken_AuthorizesOwnTenant — a tenant token authenticates and may
 // run an allowlisted, tenant-routed command on its OWN tenant (M38).
 func TestTenantToken_AuthorizesOwnTenant(t *testing.T) {
-	_, srv, _, dir := startPair(t, mock.New(mock.FinalText("ok")))
-	reg := withTenants(t, srv, dir)
+	_, _, _, dir, reg := startPairWithTenants(t, mock.New(mock.FinalText("ok")))
 	tok := mustTenant(t, reg, "acme")
 
 	c := tenantClient(t, dir, tok)
@@ -133,8 +131,7 @@ func TestTenantToken_AuthorizesOwnTenant(t *testing.T) {
 // TestTenantToken_RejectsOtherTenant — a tenant token cannot act on a
 // DIFFERENT tenant (Authorize fails for the mismatched id).
 func TestTenantToken_RejectsOtherTenant(t *testing.T) {
-	_, srv, _, dir := startPair(t, mock.New(mock.FinalText("ok")))
-	reg := withTenants(t, srv, dir)
+	_, _, _, dir, reg := startPairWithTenants(t, mock.New(mock.FinalText("ok")))
 	acmeTok := mustTenant(t, reg, "acme")
 	_ = mustTenant(t, reg, "beta")
 
@@ -150,8 +147,7 @@ func TestTenantToken_RejectsOtherTenant(t *testing.T) {
 // a command outside the tenant allowlist. Tenant-registry management and
 // daemon-global commands stay primary-only.
 func TestTenantToken_ForbidsNonAllowlistedCmd(t *testing.T) {
-	_, srv, _, dir := startPair(t, mock.New(mock.FinalText("ok")))
-	reg := withTenants(t, srv, dir)
+	_, _, _, dir, reg := startPairWithTenants(t, mock.New(mock.FinalText("ok")))
 	tok := mustTenant(t, reg, "acme")
 
 	c := tenantClient(t, dir, tok)
@@ -182,8 +178,7 @@ func TestTenantToken_ForbidsNonAllowlistedCmd(t *testing.T) {
 // tenant-routed via kernelFor but had been left out of the allowlist, so a tenant
 // was wrongly denied its own data. Each must now reach its handler (no "forbidden").
 func TestTenantToken_AllowsOwnObservability(t *testing.T) {
-	_, srv, _, dir := startPair(t, mock.New(mock.FinalText("ok")))
-	reg := withTenants(t, srv, dir)
+	_, _, _, dir, reg := startPairWithTenants(t, mock.New(mock.FinalText("ok")))
 	tok := mustTenant(t, reg, "acme")
 	c := tenantClient(t, dir, tok)
 
@@ -204,8 +199,7 @@ func TestTenantToken_AllowsOwnObservability(t *testing.T) {
 // TestTenantToken_AllowsOwnRunStats — a tenant token may read its OWN run
 // stats/list (M39 made these tenant-scoped + allowlisted).
 func TestTenantToken_AllowsOwnRunStats(t *testing.T) {
-	_, srv, _, dir := startPair(t, mock.New(mock.FinalText("ok")))
-	reg := withTenants(t, srv, dir)
+	_, _, _, dir, reg := startPairWithTenants(t, mock.New(mock.FinalText("ok")))
 	tok := mustTenant(t, reg, "acme")
 
 	c := tenantClient(t, dir, tok)
@@ -221,8 +215,7 @@ func TestTenantToken_AllowsOwnRunStats(t *testing.T) {
 
 // TestTenantToken_InvalidRejected — a bogus token never authenticates.
 func TestTenantToken_InvalidRejected(t *testing.T) {
-	_, srv, _, dir := startPair(t, mock.New(mock.FinalText("ok")))
-	reg := withTenants(t, srv, dir)
+	_, _, _, dir, reg := startPairWithTenants(t, mock.New(mock.FinalText("ok")))
 	_ = mustTenant(t, reg, "acme")
 
 	c := tenantClient(t, dir, "deadbeefnotarealtoken")
@@ -236,8 +229,7 @@ func TestTenantToken_InvalidRejected(t *testing.T) {
 // TestRunsAreTenantScoped — runs in a tenant's journal appear only under
 // that tenant's scope, never in the primary view, and vice versa (M39).
 func TestRunsAreTenantScoped(t *testing.T) {
-	k, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
-	reg := withTenants(t, srv, dir)
+	k, _, c, _, reg := startPairWithTenants(t, mock.New(mock.FinalText("ok")))
 	tk, err := reg.Acquire("acme", time.Now())
 	if err != nil {
 		t.Fatalf("Acquire: %v", err)
@@ -292,8 +284,7 @@ func TestRunsAreTenantScoped(t *testing.T) {
 // scope can't see it (and vice versa). Also proves CmdWhy is allowlisted for a
 // tenant token (the tenant call reaches the handler rather than being forbidden).
 func TestWhyIsTenantScoped(t *testing.T) {
-	k, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
-	reg := withTenants(t, srv, dir)
+	k, _, c, dir, reg := startPairWithTenants(t, mock.New(mock.FinalText("ok")))
 	tok := mustTenant(t, reg, "acme")
 	tk, err := reg.Acquire("acme", time.Now())
 	if err != nil {
@@ -350,8 +341,7 @@ func TestWhyIsTenantScoped(t *testing.T) {
 // TestWhoami_PrimaryAndTenant — `agt whoami` reports the authenticated principal
 // (M62): the primary token reports primary; a tenant token reports its tenant.
 func TestWhoami_PrimaryAndTenant(t *testing.T) {
-	_, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
-	reg := withTenants(t, srv, dir)
+	_, _, c, dir, reg := startPairWithTenants(t, mock.New(mock.FinalText("ok")))
 	tok := mustTenant(t, reg, "acme")
 
 	// Primary token (the default startPair client).
@@ -396,8 +386,7 @@ func TestWhoami_PrimaryAndTenant(t *testing.T) {
 // fails fast on the missing args.intent. The per-call timeout is a hang safety
 // net, not an exclusion mechanism.
 func TestTenantToken_RegistryExhaustive(t *testing.T) {
-	_, srv, _, dir := startPair(t, mock.New(mock.FinalText("ok")))
-	reg := withTenants(t, srv, dir)
+	_, _, _, dir, reg := startPairWithTenants(t, mock.New(mock.FinalText("ok")))
 	tok := mustTenant(t, reg, "acme")
 	c := tenantClient(t, dir, tok)
 
@@ -431,8 +420,7 @@ func TestTenantToken_RegistryExhaustive(t *testing.T) {
 // everything: a tenant-routed command on any tenant AND tenant-registry
 // management (which a tenant token may not do).
 func TestPrimaryToken_RetainsFullAccess(t *testing.T) {
-	_, srv, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
-	reg := withTenants(t, srv, dir)
+	_, _, c, _, reg := startPairWithTenants(t, mock.New(mock.FinalText("ok")))
 	_ = mustTenant(t, reg, "acme")
 
 	// Primary managing a tenant's edict.

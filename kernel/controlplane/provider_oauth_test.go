@@ -162,14 +162,14 @@ func TestProviderOAuthImport(t *testing.T) {
 // console pins as the model.
 func TestProviderOAuthModelSurface(t *testing.T) {
 	t.Setenv("AGEZT_VAULT_PASSPHRASE", "test-pass")
-	_, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	ctx := context.Background()
-
 	var syncs int
-	srv.SetChatGPTSync(func() ([]string, string) {
-		syncs++
-		return []string{"gpt-5.6-sol", "gpt-5.4"}, "gpt-5.6-sol"
+	_, _, c, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(string) controlplane.Deps {
+		return controlplane.Deps{ChatGPTSync: func() ([]string, string) {
+			syncs++
+			return []string{"gpt-5.6-sol", "gpt-5.4"}, "gpt-5.6-sol"
+		}}
 	})
+	ctx := context.Background()
 
 	authPath := filepath.Join(t.TempDir(), "auth.json")
 	id := makeJWT(map[string]any{"email": "owner@example.com"})

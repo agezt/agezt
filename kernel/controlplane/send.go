@@ -7,5 +7,5 @@ import (
 
 // Resolve the currently selected server sender for each request.
 func (s *Server) channelOutbound() *appchannels.Outbound {
-	return appchannels.NewOutbound(appchannels.Sender(s.channelSend))
+	return appchannels.NewOutbound(appchannels.Sender(s.channelSender()))
 }

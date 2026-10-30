@@ -12,8 +12,7 @@ import (
 )
 
 func TestOKROperationsSocketTenantDenialPreservesPrimary(t *testing.T) {
-	primary, server, _, dir := startPair(t, mock.New())
-	registry := withTenants(t, server, dir)
+	primary, _, _, dir, registry := startPairWithTenants(t, mock.New())
 	token := mustTenant(t, registry, "acme")
 	objective, err := primary.OKR().Create(okr.CreateSpec{Title: "primary-private"}, 100)
 	if err != nil {

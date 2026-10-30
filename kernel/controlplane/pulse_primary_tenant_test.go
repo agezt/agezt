@@ -11,13 +11,15 @@ import (
 
 func TestPulseFourteenPrimaryOperationsSocketTenantDenialHasNoEffects(t *testing.T) {
 	provider := mock.New()
-	_, server, _, dir := startPair(t, provider)
-	registry := withTenants(t, server, dir)
-	token := mustTenant(t, registry, "acme")
 	port := &fakePulse{}
 	observers := &fakePulseObservers{}
-	server.SetPulse(port)
-	server.SetPulseObservers(observers)
+	_, _, _, dir, registry := startPairWithTenantsAndDeps(t, provider, func(string) controlplane.Deps {
+		return controlplane.Deps{
+			Pulse:     func() controlplane.PulseController { return port },
+			Observers: func() controlplane.PulseObservers { return observers },
+		}
+	})
+	token := mustTenant(t, registry, "acme")
 	client := tenantClient(t, dir, token)
 	for _, cmd := range []string{controlplane.CmdPulseSubscribe, controlplane.CmdPulseStatus, controlplane.CmdPulseAsks, controlplane.CmdPulseAskResolve, controlplane.CmdPulsePause, controlplane.CmdPulseResume, controlplane.CmdPulseBeat, controlplane.CmdPulseCadence, controlplane.CmdPulseDial, controlplane.CmdPulseQuiet, controlplane.CmdPulseFlush, controlplane.CmdPulseWatch, controlplane.CmdPulseProbe, controlplane.CmdPulseUnwatch} {
 		if _, err := client.Call(context.Background(), cmd, map[string]any{"tenant": "acme", "issue_key": "owned", "seconds": 30, "path": "owned", "min_pct": 20, "name": "owned", "command": "echo owned", "dial": "quiet", "hours": "22-7"}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {

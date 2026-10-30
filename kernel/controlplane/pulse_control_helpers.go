@@ -28,10 +28,6 @@ type PulseController = apppulse.Controller
 // handlers report the watch commands as unavailable.
 type PulseObservers = apppulse.Observers
 
-// SetPulseObservers wires the runtime observer registry (disk watches + command
-// probes) in one step. Nil leaves both watch commands reporting unavailable.
-func (s *Server) SetPulseObservers(o PulseObservers) { s.observers = o }
-
 func (s *Server) pulseControls() *apppulse.Controls {
-	return apppulse.NewControls(s.pulse, s.observers, s.persistPulseSetting)
+	return apppulse.NewControls(s.pulseController(), s.pulseObservers(), s.persistPulseSetting)
 }

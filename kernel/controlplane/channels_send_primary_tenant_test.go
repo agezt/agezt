@@ -12,10 +12,12 @@ import (
 
 func TestChannelSendNativeTenantDenialNoEffectAuditOrProvider(t *testing.T) {
 	p := mock.New()
-	k, s, _, dir := startPair(t, p)
 	calls := 0
-	s.SetChannelSender(func(context.Context, string, string, string) error { calls++; return nil })
-	registry := withTenants(t, s, dir)
+	k, _, _, dir, registry := startPairWithTenantsAndDeps(t, p, func(string) controlplane.Deps {
+		return controlplane.Deps{ChannelSend: func() controlplane.ChannelSender {
+			return func(context.Context, string, string, string) error { calls++; return nil }
+		}}
+	})
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
 	if _, err := client.Call(context.Background(), controlplane.CmdSend, map[string]any{"tenant": "acme", "channel": "slack", "to": "owned", "text": "fixture"}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {

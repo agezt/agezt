@@ -88,9 +88,8 @@ func TestSteerNativeRoutesToTheCallersKernel(t *testing.T) {
 	}
 	tk := entry.Kernel.(*runtime.Kernel)
 	tenantToken, _ := reg.Token("acme")
-	s := NewServer(binding.ScopeFromKernel(k, dir))
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{Tenants: reg})
 	s.token = "primary"
-	s.SetTenants(reg)
 	pCorr, pRelease, pDone := blockedRun(t, k, primaryProv)
 	tCorr, tRelease, tDone := blockedRun(t, tk, tenantProv)
 	call := func(token, cmd string, args map[string]any) string {

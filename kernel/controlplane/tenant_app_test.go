@@ -116,9 +116,8 @@ func TestTenantNativeStats(t *testing.T) {
 	if _, err := reg.Release("idle"); err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(binding.ScopeFromKernel(k, dir))
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{Tenants: reg})
 	s.token = "primary"
-	s.SetTenants(reg)
 	a, b := net.Pipe()
 	a.SetDeadline(time.Now().Add(3 * time.Second))
 	done := make(chan struct{})

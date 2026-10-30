@@ -13,7 +13,7 @@ import (
 
 func TestMarketWriteNativeFiveTenantDenialsPreserveOwnedStoreAndJournal(t *testing.T) {
 	p := mock.New()
-	k, s, _, dir := startPair(t, p)
+	k, _, _, dir, registry := startPairWithTenants(t, p)
 	store := market.NewStore(dir)
 	k.SetMarket(market.NewManager(market.Config{Library: marketReadNativeLibrary{}, Store: store}))
 	if err := store.RecordInstall(market.InstalledPack{Name: "owned", Version: "1.0.0", InstalledMS: 10}); err != nil {
@@ -22,7 +22,7 @@ func TestMarketWriteNativeFiveTenantDenialsPreserveOwnedStoreAndJournal(t *testi
 	if err := store.AddSource(market.Source{Name: "owned", URL: "http://127.0.0.1:1/owned", AddedMS: 10}); err != nil {
 		t.Fatal(err)
 	}
-	registry := withTenants(t, s, dir)
+
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
 	installed, _ := store.Installed()

@@ -26,12 +26,11 @@ import (
 func TestTheControlPlaneHoldsTheUpdateContractPort(t *testing.T) {
 	backendPort := reflect.TypeOf((*updateapi.Backend)(nil)).Elem()
 
-	set, ok := reflect.TypeOf((*controlplane.Server)(nil)).MethodByName("SetUpdateService")
-	if !ok {
-		t.Fatal("the control plane has no SetUpdateService")
-	}
-	if got := set.Type.In(1); got != backendPort {
-		t.Fatalf("SetUpdateService takes %v, want the contract's update port %v", got, backendPort)
+	// The adapter's wiring is ONE door: the port is handed over when the
+	// adapter is BUILT, and the adapter exposes no setter to change it later
+	// (P8: the wiring is declarative).
+	if _, ok := reflect.TypeOf((*controlplane.Server)(nil)).MethodByName("SetUpdateService"); ok {
+		t.Fatal("the control plane still has a SetUpdateService — the wiring is one door")
 	}
 
 	field, ok := reflect.TypeOf(controlplane.Deps{}).FieldByName("UpdateSvc")

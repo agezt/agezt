@@ -141,7 +141,6 @@ func TestTheTenantsScopeIsTheTenantsOwn(t *testing.T) {
 	}
 	t.Cleanup(func() { primary.Close() })
 
-	s := NewServer(binding.ScopeFromKernel(primary, dir))
 	registry, err := tenant.New(filepath.Join(dir, "tenants"), func(_ string, baseDir string) (io.Closer, error) {
 		return runtime.Open(runtime.Config{BaseDir: baseDir, Provider: mock.New()})
 	})
@@ -149,7 +148,7 @@ func TestTheTenantsScopeIsTheTenantsOwn(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = registry.CloseAll() })
-	s.SetTenants(registry)
+	s := NewServerWithDeps(binding.ScopeFromKernel(primary, dir), Deps{Tenants: registry})
 	entry, err := registry.Acquire("acme", time.Now())
 	if err != nil {
 		t.Fatal(err)

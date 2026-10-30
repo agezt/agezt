@@ -349,8 +349,8 @@ var missionControlOperations = func() []app.Operation {
 				return nil
 			},
 			Asks: func() []map[string]any {
-				if s.pulse != nil {
-					return s.pulse.PendingAsks()
+				if pulse := s.pulseController(); pulse != nil {
+					return pulse.PendingAsks()
 				}
 				return nil
 			},
@@ -1110,7 +1110,7 @@ var standingOperations = func() []app.Operation {
 		},
 		Firing: func(ctx context.Context) *appstanding.Firing {
 			s := server(ctx)
-			return appstanding.NewFiring(s.standingService(), s.standingFire)
+			return appstanding.NewFiring(s.standingService(), s.standingFirer())
 		},
 	})
 	if err != nil {

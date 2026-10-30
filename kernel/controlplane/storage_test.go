@@ -15,9 +15,10 @@ import (
 // per top-level subdirectory with bytes + file counts, and the journal (which
 // has real bytes after an event) appears in the breakdown (M927).
 func TestStorageStats_BreaksDownHomeDir(t *testing.T) {
-	k, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	srv.SetDiskFree(func(string) (free, total uint64, err error) {
-		return 25 << 30, 100 << 30, nil
+	k, _, c, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(string) controlplane.Deps {
+		return controlplane.Deps{DiskFree: func(string) (free, total uint64, err error) {
+			return 25 << 30, 100 << 30, nil
+		}}
 	})
 	if _, err := k.Bus().Publish(event.Spec{
 		Subject: "task", Kind: event.KindTaskReceived, Actor: "a",

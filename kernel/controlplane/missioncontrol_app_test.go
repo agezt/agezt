@@ -74,7 +74,10 @@ func TestMissionControlNativeBindings(t *testing.T) {
 	for k.Approvals().PendingCount() != 1 {
 		time.Sleep(time.Millisecond)
 	}
-	s := NewServer(binding.ScopeFromKernel(k, dir))
+	var pulsePort PulseController
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{
+		Pulse: func() PulseController { return pulsePort },
+	})
 	s.token = "primary"
 	call := func(cmd string, args map[string]any) string {
 		a, b := net.Pipe()
@@ -99,7 +102,7 @@ func TestMissionControlNativeBindings(t *testing.T) {
 	if line := call(CmdAttention, nil); !strings.Contains(line, `"count":1`) || !strings.Contains(line, `"summary":"shell — risky"`) {
 		t.Fatal("without a pulse the feed holds the pending approval", line)
 	}
-	s.SetPulse(askPulse{asks: []map[string]any{{"issue_key": "disk", "summary": "disk filling", "ts_unix_ms": time.Now().UnixMilli()}}})
+	pulsePort = askPulse{asks: []map[string]any{{"issue_key": "disk", "summary": "disk filling", "ts_unix_ms": time.Now().UnixMilli()}}}
 	if line := call(CmdAttention, map[string]any{"limit": 1}); !strings.Contains(line, `"count":1`) || !strings.Contains(line, `"href":"/jarvis#ask-disk"`) {
 		t.Fatal("the newest item, a fresh pulse ask, leads the feed", line)
 	}

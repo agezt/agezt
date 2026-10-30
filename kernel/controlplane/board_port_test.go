@@ -28,15 +28,11 @@ func TestTheControlPlaneHoldsTheBoardsContractPort(t *testing.T) {
 	storePort := reflect.TypeOf((*boardapi.Store)(nil)).Elem()
 	row := reflect.TypeOf((*boardapi.Message)(nil)).Elem()
 
-	set, ok := reflect.TypeOf((*controlplane.Server)(nil)).MethodByName("SetBoard")
-	if !ok {
-		t.Fatal("the control plane has no SetBoard")
-	}
-	if got := set.Type.In(1); got != storePort {
-		t.Fatalf("SetBoard takes %v, want the contract's store port %v", got, storePort)
-	}
-	if got := set.Type.In(2).In(0); got != row {
-		t.Fatalf("the notifier speaks %v, want the contract's row %v", got, row)
+	// The adapter's wiring is ONE door: the port is handed over when the
+	// adapter is BUILT, and the adapter exposes no setter to change it later
+	// (P8: the wiring is declarative).
+	if _, ok := reflect.TypeOf((*controlplane.Server)(nil)).MethodByName("SetBoard"); ok {
+		t.Fatal("the control plane still has a SetBoard — the wiring is one door")
 	}
 
 	field, ok := reflect.TypeOf(controlplane.Deps{}).FieldByName("Board")
@@ -45,5 +41,13 @@ func TestTheControlPlaneHoldsTheBoardsContractPort(t *testing.T) {
 	}
 	if field.Type != storePort {
 		t.Fatalf("Deps.Board is %v, want the contract's store port %v", field.Type, storePort)
+	}
+
+	notify, ok := reflect.TypeOf(controlplane.Deps{}).FieldByName("BoardNotify")
+	if !ok {
+		t.Fatal("the control plane's deps have no BoardNotify")
+	}
+	if got := notify.Type.In(0); got != row {
+		t.Fatalf("the notifier speaks %v, want the contract's row %v", got, row)
 	}
 }

@@ -12,12 +12,12 @@ import (
 
 func TestMCPCatalogNativeTenantDenialPreservesStoreAndJournal(t *testing.T) {
 	p := mock.New()
-	k, s, _, dir := startPair(t, p)
+	k, _, _, dir, registry := startPairWithTenants(t, p)
 	srv, err := k.AddMCPServer("owned-seed", mcp.Server{Name: "owned", Command: "owned-never-spawned", Env: map[string]string{"OWNED": "owned-private-value"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	registry := withTenants(t, s, dir)
+
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
 	if _, err := client.Call(context.Background(), controlplane.CmdMCPList, map[string]any{"tenant": "acme"}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {

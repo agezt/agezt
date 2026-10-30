@@ -426,7 +426,12 @@ func TestStanding_Why(t *testing.T) {
 // wired, CmdStandingFire looks up the order and invokes it; an unknown id is a
 // no-op; and without a callback wired the daemon reports it unavailable.
 func TestStandingFire(t *testing.T) {
-	k, srv, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
+	// The fire callback is a PROVIDER: the adapter asks when it needs one, and
+	// the answer is nil until the callback is published.
+	var fire controlplane.StandingFirer
+	k, _, c, _ := startPairWithDeps(t, mock.New(mock.FinalText("ok")), func(string) controlplane.Deps {
+		return controlplane.Deps{StandingFire: func() controlplane.StandingFirer { return fire }}
+	})
 	ctx := context.Background()
 
 	// Seed an order to fire.
@@ -448,9 +453,9 @@ func TestStandingFire(t *testing.T) {
 		t.Error("fire with no callback wired should error")
 	}
 
-	// Wire a recording fire callback (mirrors the daemon's injection).
+	// Publish a recording fire callback (mirrors the daemon's injection).
 	var firedID string
-	srv.SetStandingFire(func(fid string) bool { firedID = fid; return true })
+	fire = func(fid string) bool { firedID = fid; return true }
 
 	res, err := c.Call(ctx, controlplane.CmdStandingFire, map[string]any{"id": id})
 	if err != nil {

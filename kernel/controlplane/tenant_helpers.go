@@ -1,9 +1,8 @@
 package controlplane
 
 // Provenance: SPDX-License-Identifier: MIT kernel/controlplane tenant-lookup helpers
-//             (tenantOf, Server.scopeFor, Server.SetTenants). Extracted from
-//             tenant.go during Day 211 god-file refactor (#98). Public API
-//             unchanged.
+//             (tenantOf, Server.scopeFor). Extracted from tenant.go during
+//             Day 211 god-file refactor (#98). Public API unchanged.
 
 import (
 	"fmt"
@@ -11,7 +10,6 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/app/binding"
-	"github.com/agezt/agezt/kernel/tenant"
 )
 
 func tenantOf(req Request) string {
@@ -35,4 +33,3 @@ func (s *Server) scopeFor(tenantID string) (binding.Scope, error) {
 	}
 	return binding.ScopeForTenant(s.tenants, tenantID, time.Now(), s.baseDir)
 }
-func (s *Server) SetTenants(r *tenant.Registry) { s.tenants = r }

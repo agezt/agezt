@@ -13,8 +13,10 @@ func TestChannelSendNativeSelectedSenderFreshnessAndServerIsolation(t *testing.T
 	s, other := &Server{}, &Server{}
 	selectedCalls, otherCalls := 0, 0
 	sentinel := errors.New("owned replacement sender")
-	s.SetChannelSender(func(context.Context, string, string, string) error { selectedCalls++; return nil })
-	other.SetChannelSender(func(context.Context, string, string, string) error { otherCalls++; return nil })
+	var selected ChannelSender = func(context.Context, string, string, string) error { selectedCalls++; return nil }
+	var others ChannelSender = func(context.Context, string, string, string) error { otherCalls++; return nil }
+	s.channelSendProvider = func() ChannelSender { return selected }
+	other.channelSendProvider = func() ChannelSender { return others }
 	call := func(server *Server) error {
 		var resultErr error
 		replies := 0
@@ -27,11 +29,11 @@ func TestChannelSendNativeSelectedSenderFreshnessAndServerIsolation(t *testing.T
 	if err := call(s); err != nil || selectedCalls != 1 || otherCalls != 0 {
 		t.Fatal(err, selectedCalls, otherCalls)
 	}
-	s.SetChannelSender(func(context.Context, string, string, string) error { selectedCalls++; return sentinel })
+	selected = func(context.Context, string, string, string) error { selectedCalls++; return sentinel }
 	if err := call(s); !errors.Is(err, sentinel) || selectedCalls != 2 || otherCalls != 0 {
 		t.Fatal(err, selectedCalls, otherCalls)
 	}
-	s.SetChannelSender(nil)
+	selected = nil
 	if err := call(s); err == nil || err.Error() != "no channels configured (set a channel token to enable send)" || selectedCalls != 2 || otherCalls != 0 {
 		t.Fatal(err, selectedCalls, otherCalls)
 	}

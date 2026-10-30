@@ -15,8 +15,7 @@ import (
 )
 
 func TestWebhookNativeSelectedTenantJournal(t *testing.T) {
-	primary, server, owner, dir := startPair(t, mock.New())
-	registry := withTenants(t, server, dir)
+	primary, _, owner, dir, registry := startPairWithTenants(t, mock.New())
 	token := mustTenant(t, registry, "acme")
 	_ = mustTenant(t, registry, "other")
 	kernels := map[string]*runtime.Kernel{"primary": primary}

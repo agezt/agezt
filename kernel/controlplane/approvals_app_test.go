@@ -72,9 +72,8 @@ func TestApprovalHistoryNativeRouting(t *testing.T) {
 	publish(k, event.KindApprovalRequested, map[string]any{"approval_id": "primary-ap", "capability": "shell"})
 	publish(tk, event.KindApprovalRequested, map[string]any{"approval_id": "tenant-ap", "capability": "shell"})
 	publish(tk, event.KindApprovalDenied, map[string]any{"approval_id": "tenant-ap", "resolved_by": "lead"})
-	s := NewServer(binding.ScopeFromKernel(k, dir))
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{Tenants: reg})
 	s.token = "primary"
-	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) string {
 		a, b := net.Pipe()
 		a.SetDeadline(time.Now().Add(3 * time.Second))
@@ -173,9 +172,8 @@ func TestApprovalLiveNativeDecide(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 	id := k.Approvals().Pending()[0].ID
-	s := NewServer(binding.ScopeFromKernel(k, dir))
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{Tenants: reg})
 	s.token = "primary"
-	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) string {
 		a, b := net.Pipe()
 		a.SetDeadline(time.Now().Add(3 * time.Second))

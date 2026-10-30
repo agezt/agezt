@@ -32,9 +32,11 @@ func TestBoardAppSocketRequiresAuditBeforeStoreAndNotifier(t *testing.T) {
 			}
 			before := store.Read("", 0)
 			notifications := 0
-			s := NewServer(binding.ScopeFromKernel(k, dir))
+			s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{
+				Board:       store,
+				BoardNotify: func(board.Message, string) { notifications++ },
+			})
 			s.token = "primary"
-			s.SetBoard(store, func(board.Message, string) { notifications++ })
 			if err := k.Journal().Close(); err != nil {
 				t.Fatal(err)
 			}
@@ -100,8 +102,14 @@ func TestBoardAppHostRefusesWithoutABoardAndWritesThroughTheSharedOne(t *testing
 	}
 	calls := 0
 	corr := ""
-	s.SetBoard(store, func(_ board.Message, c string) { calls++; corr = c })
-	r := callAppHost(t, s, Request{ID: "send", Cmd: CmdBoardSend, Token: "primary", Args: map[string]any{"text": " new ", "topic": " status ", "correlation_id": " inbound ", "unused": true}})[0]
+	// The board is a CONSTRUCTION dependency: the wired surface is a SECOND
+	// adapter, built with the board the daemon opened.
+	wired := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{
+		Board:       store,
+		BoardNotify: func(_ board.Message, c string) { calls++; corr = c },
+	})
+	wired.token = "primary"
+	r := callAppHost(t, wired, Request{ID: "send", Cmd: CmdBoardSend, Token: "primary", Args: map[string]any{"text": " new ", "topic": " status ", "correlation_id": " inbound ", "unused": true}})[0]
 	if r.Type != RespResult || r.Result["correlation_id"] != "inbound" || calls != 1 || corr != "inbound" || len(store.Read("", 0)) != 2 {
 		t.Fatalf("shared send=%+v notify=%d/%q", r, calls, corr)
 	}
@@ -109,7 +117,7 @@ func TestBoardAppHostRefusesWithoutABoardAndWritesThroughTheSharedOne(t *testing
 		t.Fatal(err)
 	}
 	for _, cmd := range []string{CmdBoardRead, CmdBoardHelp, CmdBoardInbox, CmdBoardGet, CmdBoardReplies} {
-		r := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"id": m.ID, "to": "reviewer"}})[0]
+		r := callAppHost(t, wired, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"id": m.ID, "to": "reviewer"}})[0]
 		if r.Type != RespResult {
 			t.Fatalf("read unexpectedly audited %s=%+v", cmd, r)
 		}

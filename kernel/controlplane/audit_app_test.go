@@ -70,9 +70,8 @@ func TestAuditNativeReadsTheCallersKernel(t *testing.T) {
 	publish(tk, event.KindNetguardBlocked, map[string]any{"ip": "169.254.169.254", "tool": "browser"})
 	publish(tk, event.KindRateLimited, map[string]any{"used": 9, "limit_per_min": 5})
 	publish(tk, event.KindWardenExecuted, map[string]any{"profile_effective": "strict", "argv0": "python", "downgraded": true})
-	s := NewServer(binding.ScopeFromKernel(k, dir))
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{Tenants: reg})
 	s.token = "primary"
-	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) map[string]any {
 		a, b := net.Pipe()
 		a.SetDeadline(time.Now().Add(3 * time.Second))

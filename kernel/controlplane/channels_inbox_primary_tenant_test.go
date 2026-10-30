@@ -12,8 +12,7 @@ import (
 
 func TestChannelInboxNativeTenantDenialNoAuditOrProvider(t *testing.T) {
 	p := mock.New()
-	k, s, _, dir := startPair(t, p)
-	registry := withTenants(t, s, dir)
+	k, _, _, dir, registry := startPairWithTenants(t, p)
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
 	if _, err := client.Call(context.Background(), controlplane.CmdInbox, map[string]any{"tenant": "acme", "limit": 1}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
