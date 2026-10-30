@@ -30,7 +30,7 @@ import (
 // service is the board's own face over the host's store port.
 type service struct {
 	store workboardapi.HostStore
-	deps  api.Dependencies
+	deps  api.BoardDependencies
 }
 
 // NewService builds the board's service over the host's store port.
@@ -38,7 +38,7 @@ type service struct {
 // A nil store is not an error here: the board REFUSES every verb, and the
 // refusal is the contract's row (workboardapi.ErrNoStore) — the same answer
 // the daemon gives when it holds no board.
-func NewService(store workboardapi.HostStore, deps api.Dependencies) api.Service {
+func NewService(store workboardapi.HostStore, deps api.BoardDependencies) api.BoardService {
 	return &service{store: store, deps: deps}
 }
 

@@ -36,7 +36,7 @@ func openBoard(t *testing.T) *Store {
 // module may not name the host, so the answer they share has to live in the
 // contract. A daemon with no board answers no board.
 func TestTheBoardRefusesWithoutAStore(t *testing.T) {
-	svc := NewService(nil, api.Dependencies{})
+	svc := NewService(nil, api.BoardDependencies{})
 	if _, _, err := svc.Create("corr", workboardapi.CreateSpec{Title: "none"}); err != workboardapi.ErrNoStore {
 		t.Errorf("Create without a store: err = %v, want the contract's refusal", err)
 	}
@@ -91,7 +91,7 @@ func TestTheBoardRefusesWithoutAStore(t *testing.T) {
 // the contract's row, because the tools read one shape.
 func TestTheBoardPublishesWhatHappenedToATask(t *testing.T) {
 	var published []event.Spec
-	svc := NewService(openBoard(t), api.Dependencies{
+	svc := NewService(openBoard(t), api.BoardDependencies{
 		Publish: func(spec event.Spec) { published = append(published, spec) },
 	})
 	task, created, err := svc.Create("corr-1", workboardapi.CreateSpec{Title: "owned"})
@@ -148,7 +148,7 @@ func TestTheBoardPublishesWhatHappenedToATask(t *testing.T) {
 // hook and holds no knowledge of objectives.
 func TestTheBoardTellsTheHostThatATaskReachedDone(t *testing.T) {
 	var completed []string
-	svc := NewService(openBoard(t), api.Dependencies{
+	svc := NewService(openBoard(t), api.BoardDependencies{
 		TaskCompleted: func(corr, taskID string) { completed = append(completed, corr+"/"+taskID) },
 	})
 	task, _, err := svc.Create("corr-2", workboardapi.CreateSpec{Title: "owned"})
@@ -168,7 +168,7 @@ func TestTheBoardTellsTheHostThatATaskReachedDone(t *testing.T) {
 // The task still moved and the caller still holds the answer: the board
 // publishes through a port, and a daemon with no bus simply has no port.
 func TestTheBoardIsQuietWithoutABus(t *testing.T) {
-	svc := NewService(openBoard(t), api.Dependencies{})
+	svc := NewService(openBoard(t), api.BoardDependencies{})
 	task, created, err := svc.Create("corr-3", workboardapi.CreateSpec{Title: "quiet"})
 	if err != nil || !created {
 		t.Fatalf("Create without a bus: created = %v, err = %v", created, err)

@@ -3708,6 +3708,28 @@ This file holds the active `[Unreleased]` working set.
   bounded window on Windows — the same remedy the atomic file helper already
   carries for files.
 
+- **The objective library's verbs move into the work module (W3.69).** The second
+  slice of the runtime's dissolution, and the first one to move a family whose
+  **rule** — not just its operations — lived in the daemon. The objective
+  library was split in half: its **data** — the store, the durable goals, the
+  rollup rule's row — already lived in the work module, while its
+  **operations** — the eight verbs that create a goal, add a key result, link a
+  task, unlink a task, archive a goal and roll a goal up — lived in the daemon.
+  The module now owns the service
+  (`kernel/modules/work/api.ObjectiveService`, built by the composition root
+  over the library the daemon opened), and the daemon keeps its public names
+  and forwards: `LinkObjectiveTask` asks the module and returns the module's
+  answer. **No caller outside the runtime changed** — 0 production files in
+  `kernel/app` — and the daemon's public objective names are still 8. The
+  refusal both sides need became a contract row (`okrapi.ErrNoLibrary`),
+  because the daemon may not name the module and the module may not name the
+  daemon; the board keeps its own row (`workboardapi.ErrNoStore`), so a daemon
+  that holds neither can say which one is missing. The daemon's calls into the
+  library's store are 0, down from 10; `kernel/runtime` is 9,590 lines, up
+  from 9,588, and `kernel/modules/work` is 2,323, up from 2,049. The board's
+  **proof** — the loop that judges a task's answer against its acceptance
+  criteria — still lives in the daemon, because it judges with the daemon's
+  model.
 - **The task board's verbs move into the work module (W3.68).** The first slice
   of the runtime's dissolution, and the first time the port programme's work
   is spent. The task board was split in half: its **data** — the store, the

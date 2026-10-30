@@ -27,7 +27,7 @@ import (
 // The embedded interface is nil on purpose: a verb the daemon must not reach
 // for panics instead of silently answering.
 type recordingBoard struct {
-	workapi.Service
+	workapi.BoardService
 	creates   []string
 	claims    []string
 	completes []string

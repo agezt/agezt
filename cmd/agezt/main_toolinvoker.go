@@ -402,5 +402,10 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 	// store the daemon opened and over the host's own ports (the bus and the
 	// objective rollup) — because the ports are the kernel's own.
 	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
+	// The OBJECTIVE LIBRARY is the same module's (W3.69): the module keeps the
+	// goals, the key results and the rollup rule, and the daemon holds the
+	// module's face and forwards to it. The service is built HERE — over the
+	// store the daemon opened — because the store is the daemon's file.
+	k.SetObjectiveLibrary(okr.NewService(k.OKR(), k.ObjectiveLibraryDependencies()))
 	return k, nil
 }

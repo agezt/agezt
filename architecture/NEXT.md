@@ -4879,6 +4879,79 @@ files, five of the seventeen mutations would have escaped.
   the host's ports, and a forwarder); and the rest of the runtime's
   dissolution stands at **238 verbs** in **9,588 lines**. Evidence:
   `architecture/266-w368-the-task-boards-verbs-move-into-the-work-module-evidence.md`
+- W3.69 (the objective library's verbs move into the work module) is the **second**
+  slice of the runtime's dissolution and the first one to move a family whose
+  **rule** — not just its operations — lived in the daemon. The **objective
+  library** was split in half, exactly like the task board was one slice ago: its
+  **DATA** (the store, the durable goals, the rollup rule's row) already lived in
+  the work module (`kernel/modules/work/okr`, 380 lines), while its
+  **OPERATIONS** (the eight verbs that create a goal, add a key result, link a
+  task, unlink a task, archive a goal and roll a goal up) lived in the daemon
+  (`kernel/runtime/okr.go`, 175 lines), spelling out the lifecycle over the store
+  the daemon held. That is the split P5 forbids: the module that keeps the data
+  must also keep the operations over it, and the daemon may hold its **face**,
+  never its **body**. The board's move was the first half of the work module's
+  dissolution; this one closes the other half of the same family — after it, the
+  work module keeps the board AND the goals, and the daemon holds two faces
+  instead of two bodies. The measurement that named the candidate: the daemon's
+  objective file held **8** public verbs and **6** external call sites, **all** of
+  them in the objective family's own application (`kernel/app/okr`), and the
+  target architecture's own mapping gives `OKR.*` to `work`. The split was
+  not visible from the daemon's side, because the daemon's file *looked* thin — it
+  called the store and published an event — but it held **every decision** about
+  what a goal's PROGRESS means, including the two rules that were nowhere
+  else: the rule that decides whether a linked task counts toward a Key
+  Result (it counts when it is **done**) and the rule that maintains the
+  durable **achieved** signal when a task crosses the target or regresses below
+  it. The module now owns the service: `kernel/modules/work/api` declares the
+  **ObjectiveService** the daemon drives and the **ObjectiveDependencies** the module
+  needs from the host (the bus to publish on, a task's live status) — the
+  board's vocabulary's package now carries two families, so the two get their own
+  names (`BoardService`/`BoardDependencies` and
+  `ObjectiveService`/`ObjectiveDependencies`) — and
+  `kernel/modules/work/okr/service.go` is the implementation. The daemon keeps its
+  **names** and forwards — `LinkObjectiveTask` asks the module and returns the
+  module's answer — so **no caller outside the runtime changed**: **0 production
+  files** in `kernel/app` changed. The module is wired by the **composition
+  root** (`k.SetObjectiveLibrary(okr.NewService(k.OKR(),
+  k.ObjectiveLibraryDependencies()))`), the same shape the board's move used and the one
+  the layer rule forces: a module may import another module's `api` package and
+  nothing else, so the runtime can hold the module's face but never name its
+  implementation. The refusal both sides need became a **contract row** —
+  `okrapi.ErrNoLibrary` — because the daemon may not name the module and the
+  module may not name the daemon; the board keeps its own row
+  (`workboardapi.ErrNoStore`), because a daemon that holds neither must be able to
+  say **which** one is missing. What the slice cost: **6 test sites** had to wire
+  the library, because the module is injected after `Open` (the price the board's
+  move paid in 11 places). **14 permanent tests** — the module's own (the library
+  refuses without a store, publishes what happened to a goal, rolls up from the
+  live status of the linked tasks, counts nothing without a board, recomputes the
+  durable achieved signal in both directions, and is quiet without a bus), the
+  daemon's (a **fake module** records what the daemon asks, so a daemon that grew
+  the lifecycle back would record nothing; the daemon refuses when the module is
+  not wired; the daemon still holds the host's library file; the daemon rolls up
+  **through** the module), the contract's two, and the root's — and **13 mutations,
+  13 caught** in two independent passes with **byte-identical** logs (SHA-256
+  `9FD92FCD93468EC6CF5BC1CAE4AF462E144B591CD235B47A06D0F8FF96088963`). The first
+  calibration reported **one BUILDERR** and it was the **mutation's** defect: the
+  mutation that made every task count as done dropped the `workboardapi` reference
+  and Go refused to compile — a compile error is not a caught mutation, it is a
+  mutation that never ran; it was rewritten to keep the import alive while changing
+  the rule. The measurement that moved: the daemon's calls into the library's store
+  **10 → 0**, the daemon's calls into the module **0 → 8**, the module's calls into the
+  store **0 → 10**, the daemon's public objective names **8 → 10**, the
+  application layer's production files that changed **0**, `kernel/runtime`
+  **9,588 → 9,590** lines and `kernel/modules/work` **2,049 → 2,323**. The
+  **kernel's verb count moved by two** (238 → 240): the eight objective verbs stayed —
+  the names are the host's public API — and the slice added the two names of the
+  **seam** (SetObjectiveLibrary, ObjectiveLibraryDependencies); what moved is the
+  **body** behind the names, not the names. **What remains**: the board's **proof**
+  (`kernel/runtime/workboard_proof.go`) still lives in the daemon because it
+  judges with the daemon's **model** and reads the daemon's artifact index and
+  journal — the same move as the reasoning module's service (an `api` package,
+  the host's ports, and a forwarder); and the rest of the runtime's
+  dissolution stands at **240 verbs** in **9,590 lines**. Evidence:
+  `architecture/267-w369-the-objective-librarys-verbs-move-into-the-work-module-evidence.md`
 - W5.4a (the forbidden-call ratchet is zero) takes the **call-site** half of
   W5.4 — the last **three** `raw-write` call sites — and the ratchet goes
   **3 → 0**. The three were the marketplace cache's two staged writes and the

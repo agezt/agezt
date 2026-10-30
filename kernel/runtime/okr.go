@@ -2,22 +2,30 @@
 
 package runtime
 
-import (
-	"errors"
-	"time"
+// Provenance: Runtime objectives: the host's names for the objective library.
+//
+// The library is the WORK MODULE's: the module keeps the store, the goals and
+// the rollup rule, and the host holds the module's face
+// (kernel/modules/work/api.Service) and forwards to it.
+//
+// The host's public names did not move — CreateObjective and its siblings are
+// still the daemon's verbs, and every caller outside the runtime is
+// untouched. What moved is WHERE the answer comes from: the daemon used to
+// hold the store and spell out the rollup itself, which left the module
+// keeping the DATA and the daemon keeping the OPERATIONS over it.
+//
+// The composition root builds the module's service over the store it opened
+// and hands it over with SetObjectiveLibrary — the same shape the board and
+// the reasoning module use. Until it does, the library refuses every verb
+// with the contract's row (okrapi.ErrNoLibrary): a daemon with no library
+// answers no library.
 
+import (
 	"github.com/agezt/agezt/kernel/contract/okrapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/event"
+	workapi "github.com/agezt/agezt/kernel/modules/work/api"
 )
-
-// errNoObjectiveLibrary is the answer the objective surfaces give when the
-// kernel holds no library.
-//
-// The objective library is the DAEMON's (W3.53): the kernel holds the
-// contract's port, and a host that was given none holds a nil port. The
-// refusal is the answer — not a panic, and not a silent "nothing to do".
-var errNoObjectiveLibrary = errors.New("okr: the objective library is not available on this daemon")
 
 // OKR returns the durable objectives-and-key-results store.
 //
@@ -26,150 +34,139 @@ var errNoObjectiveLibrary = errors.New("okr: the objective library is not availa
 // it. A host that was given no library holds a nil port.
 func (k *Kernel) OKR() okrapi.Store { return k.okr }
 
-// taskDone is the rollup signal: a linked workboard task counts toward a Key
-// Result once it is done. Because the proof gate only lets a criteria-bearing
-// task reach done after its acceptance criteria are proven, this is exactly
-// "proven tasks roll up" for gated work; legitimately-completed ungated tasks
-// count too.
-func (k *Kernel) taskDone(taskID string) bool {
-	if k.workboard == nil {
-		return false
+// SetObjectiveLibrary injects the objective library the daemon drives.
+//
+// The library is the work module's service: the module keeps the rollup rule,
+// the daemon keeps the names. The composition root builds it over the store it
+// opened and hands it over here.
+func (k *Kernel) SetObjectiveLibrary(s workapi.ObjectiveService) {
+	k.configMu.Lock()
+	k.objectives = s
+	k.configMu.Unlock()
+}
+
+// objectiveLibrary returns the injected library, or nil.
+func (k *Kernel) objectiveLibrary() workapi.ObjectiveService {
+	k.configMu.Lock()
+	defer k.configMu.Unlock()
+	return k.objectives
+}
+
+// ObjectiveLibraryDependencies are the host's ports the library needs to
+// answer a verb: the bus to publish on, and a task's live status.
+//
+// The library asks the host; it never reaches into it.
+func (k *Kernel) ObjectiveLibraryDependencies() workapi.ObjectiveDependencies {
+	return workapi.ObjectiveDependencies{
+		Publish: func(spec event.Spec) {
+			if k.bus == nil {
+				return
+			}
+			k.bus.Publish(spec)
+		},
+		TaskStatus: func(taskID string) (workboardapi.Status, bool) {
+			if k.workboard == nil {
+				return "", false
+			}
+			t, ok := k.workboard.Get(taskID)
+			if !ok {
+				return "", false
+			}
+			return t.Status, true
+		},
 	}
-	t, ok := k.workboard.Get(taskID)
-	return ok && t.Status == workboardapi.StatusDone
+}
+
+// objectiveLibraryOrRefusal returns the library the daemon drives, or the
+// refusal.
+//
+// The refusal is the contract's row: a daemon with no library answers no
+// library, whether the store was never opened or the module was never wired.
+func (k *Kernel) objectiveLibraryOrRefusal() (workapi.ObjectiveService, error) {
+	svc := k.objectiveLibrary()
+	if svc == nil {
+		return nil, okrapi.ErrNoLibrary
+	}
+	return svc, nil
 }
 
 // Rollup computes an objective's progress from the live done-status of its
 // linked workboard tasks.
 func (k *Kernel) Rollup(o okrapi.Objective) okrapi.ObjectiveProgress {
-	return o.Progress(k.taskDone)
+	svc := k.objectiveLibrary()
+	if svc == nil {
+		// No library, no board, nothing counts — the same answer the daemon
+		// gave before the module was wired.
+		return o.Progress(func(string) bool { return false })
+	}
+	return svc.Progress(o)
 }
 
 // ObjectiveRollup returns an objective and its live progress rollup, computed
 // from the current done-status of its linked workboard tasks.
 func (k *Kernel) ObjectiveRollup(id string) (okrapi.Objective, okrapi.ObjectiveProgress, bool) {
-	if k.okr == nil {
+	svc := k.objectiveLibrary()
+	if svc == nil {
 		return okrapi.Objective{}, okrapi.ObjectiveProgress{}, false
 	}
-	o, ok := k.okr.Get(id)
-	if !ok {
-		return okrapi.Objective{}, okrapi.ObjectiveProgress{}, false
-	}
-	return o, o.Progress(k.taskDone), true
+	return svc.ProgressOf(id)
 }
 
+// CreateObjective adds a goal to the library.
 func (k *Kernel) CreateObjective(corr string, spec okrapi.CreateSpec) (okrapi.Objective, error) {
-	if k.okr == nil {
-		return okrapi.Objective{}, errNoObjectiveLibrary
-	}
-	o, err := k.okr.Create(spec, time.Now().UnixMilli())
+	svc, err := k.objectiveLibraryOrRefusal()
 	if err != nil {
 		return okrapi.Objective{}, err
 	}
-	k.publishOKR(corr, event.KindOKRObjectiveCreated, o, "created", nil)
-	return o, nil
+	return svc.Create(corr, spec)
 }
 
+// AddObjectiveKeyResult adds a measurable outcome under a goal.
 func (k *Kernel) AddObjectiveKeyResult(corr, objID, title string, target int) (okrapi.Objective, error) {
-	if k.okr == nil {
-		return okrapi.Objective{}, errNoObjectiveLibrary
-	}
-	o, err := k.okr.AddKeyResult(objID, title, target, time.Now().UnixMilli())
+	svc, err := k.objectiveLibraryOrRefusal()
 	if err != nil {
 		return okrapi.Objective{}, err
 	}
-	k.publishOKR(corr, event.KindOKRObjectiveUpdated, o, "key_result_added", map[string]any{"title": title, "target": target})
-	return o, nil
+	return svc.AddKeyResult(corr, objID, title, target)
 }
 
+// LinkObjectiveTask counts a task toward a key result.
 func (k *Kernel) LinkObjectiveTask(corr, objID, krID, taskID string) (okrapi.Objective, error) {
-	if k.okr == nil {
-		return okrapi.Objective{}, errNoObjectiveLibrary
-	}
-	o, err := k.okr.LinkTask(objID, krID, taskID, time.Now().UnixMilli())
+	svc, err := k.objectiveLibraryOrRefusal()
 	if err != nil {
 		return okrapi.Objective{}, err
 	}
-	k.publishOKR(corr, event.KindOKRObjectiveUpdated, o, "task_linked", map[string]any{"key_result": krID, "task": taskID})
-	// A task linked after it was already done should roll up immediately.
-	k.recomputeOKRForTask(corr, taskID)
-	return o, nil
+	return svc.LinkTask(corr, objID, krID, taskID)
 }
 
+// UnlinkObjectiveTask stops counting a task.
 func (k *Kernel) UnlinkObjectiveTask(corr, objID, krID, taskID string) (okrapi.Objective, error) {
-	if k.okr == nil {
-		return okrapi.Objective{}, errNoObjectiveLibrary
-	}
-	o, err := k.okr.UnlinkTask(objID, krID, taskID, time.Now().UnixMilli())
+	svc, err := k.objectiveLibraryOrRefusal()
 	if err != nil {
 		return okrapi.Objective{}, err
 	}
-	k.publishOKR(corr, event.KindOKRObjectiveUpdated, o, "task_unlinked", map[string]any{"key_result": krID, "task": taskID})
-	return o, nil
+	return svc.UnlinkTask(corr, objID, krID, taskID)
 }
 
+// ArchiveObjective retires a goal.
 func (k *Kernel) ArchiveObjective(corr, objID string) (okrapi.Objective, error) {
-	if k.okr == nil {
-		return okrapi.Objective{}, errNoObjectiveLibrary
-	}
-	o, err := k.okr.Archive(objID, time.Now().UnixMilli())
+	svc, err := k.objectiveLibraryOrRefusal()
 	if err != nil {
 		return okrapi.Objective{}, err
 	}
-	k.publishOKR(corr, event.KindOKRObjectiveUpdated, o, "archived", nil)
-	return o, nil
+	return svc.Archive(corr, objID)
 }
 
 // recomputeOKRForTask re-rolls every objective that links taskID and flips its
 // cached achieved status (emitting an event) when it crosses — or regresses
-// below — the target. The rollup itself is always computed live on read; this
-// only maintains the durable "achieved" signal + the achieved event that Phase-2
-// consumers (and the OKR board) react to. Called after a task is proven or
-// completed.
+// below — the target.
+//
+// It is the daemon's glue: the board's service calls the hook after a task
+// reaches done, and the daemon asks the module.
 func (k *Kernel) recomputeOKRForTask(corr, taskID string) {
-	if k.okr == nil {
+	svc := k.objectiveLibrary()
+	if svc == nil {
 		return
 	}
-	for _, objID := range k.okr.ObjectivesForTask(taskID) {
-		o, ok := k.okr.Get(objID)
-		if !ok {
-			continue
-		}
-		pr := o.Progress(k.taskDone)
-		switch {
-		case pr.Achieved && o.Status == okrapi.StatusActive:
-			if updated, err := k.okr.SetStatus(objID, okrapi.StatusAchieved, time.Now().UnixMilli()); err == nil {
-				k.publishOKR(corr, event.KindOKRObjectiveAchieved, updated, "achieved", map[string]any{"percent": pr.Percent})
-			}
-		case !pr.Achieved && o.Status == okrapi.StatusAchieved:
-			// A linked task reopened after the objective was achieved.
-			if updated, err := k.okr.SetStatus(objID, okrapi.StatusActive, time.Now().UnixMilli()); err == nil {
-				k.publishOKR(corr, event.KindOKRObjectiveUpdated, updated, "reopened", map[string]any{"percent": pr.Percent})
-			}
-		}
-	}
-}
-
-func (k *Kernel) publishOKR(corr string, kind event.Kind, o okrapi.Objective, action string, extra map[string]any) {
-	if k.bus == nil {
-		return
-	}
-	payload := map[string]any{
-		"id":     o.ID,
-		"title":  o.Title,
-		"status": string(o.Status),
-		"action": action,
-	}
-	for key, val := range extra {
-		if val != "" {
-			payload[key] = val
-		}
-	}
-	_, _ = k.bus.Publish(event.Spec{
-		Subject:       "okr." + o.ID,
-		Kind:          kind,
-		Actor:         "okr",
-		CorrelationID: corr,
-		Payload:       payload,
-	})
+	svc.RecomputeForTask(corr, taskID)
 }

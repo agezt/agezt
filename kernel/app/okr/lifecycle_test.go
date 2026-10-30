@@ -102,6 +102,9 @@ func TestOKRLifecycleUsesActualKernelJournalingAndPreservesReturnedSnapshot(t *t
 		t.Fatal(err)
 	}
 	defer k.Close()
+	// The objective verbs live in the WORK MODULE (W3.69): this test is such a
+	// host — it builds the module's service over the library it opened.
+	k.SetObjectiveLibrary(objectives.NewService(k.OKR(), k.ObjectiveLibraryDependencies()))
 	service := appokr.NewLifecycle(k, appokr.New(k.OKR(), k))
 	ctx := context.Background()
 	out, err := service.Create(ctx, appokr.CreateInput{CorrelationID: "owned", Spec: objectives.CreateSpec{Title: "objective", Owner: "writer", Tenant: "team"}})

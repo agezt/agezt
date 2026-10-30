@@ -6,7 +6,7 @@ package runtime
 //
 // The board is the WORK MODULE's: the module keeps the store, the lifecycle
 // and the retry rule, and the host holds the module's face
-// (kernel/modules/work/workapi.Service) and forwards to it.
+// (kernel/modules/work/workapi.BoardService) and forwards to it.
 //
 // The host's public names did not move — ClaimWorkboardTask and its fifteen
 // siblings are still the daemon's verbs, and every caller outside the runtime
@@ -50,14 +50,14 @@ func (k *Kernel) Workboard() workboardapi.HostStore { return k.workboard }
 // The board is the work module's service: the module keeps the lifecycle, the
 // daemon keeps the names. The composition root builds it over the store it
 // opened and hands it over here.
-func (k *Kernel) SetWorkboard(s workapi.Service) {
+func (k *Kernel) SetWorkboard(s workapi.BoardService) {
 	k.configMu.Lock()
 	k.board = s
 	k.configMu.Unlock()
 }
 
 // boardService returns the injected board, or nil.
-func (k *Kernel) boardService() workapi.Service {
+func (k *Kernel) boardService() workapi.BoardService {
 	k.configMu.Lock()
 	defer k.configMu.Unlock()
 	return k.board
@@ -68,8 +68,8 @@ func (k *Kernel) boardService() workapi.Service {
 // feeds.
 //
 // The board asks the host; it never reaches into it.
-func (k *Kernel) WorkboardDependencies() workapi.Dependencies {
-	return workapi.Dependencies{
+func (k *Kernel) WorkboardDependencies() workapi.BoardDependencies {
+	return workapi.BoardDependencies{
 		Publish: func(spec event.Spec) {
 			if k.bus == nil {
 				return
@@ -86,7 +86,7 @@ func (k *Kernel) WorkboardDependencies() workapi.Dependencies {
 //
 // The refusal is the contract's row: a daemon with no board answers no board,
 // whether the store was never opened or the module was never wired.
-func (k *Kernel) boardOrRefusal() (workapi.Service, error) {
+func (k *Kernel) boardOrRefusal() (workapi.BoardService, error) {
 	svc := k.boardService()
 	if svc == nil {
 		return nil, workboardapi.ErrNoStore
