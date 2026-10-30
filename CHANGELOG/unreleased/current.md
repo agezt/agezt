@@ -3572,6 +3572,18 @@ This file holds the active `[Unreleased]` working set.
   an absence, and the refusal keeps its **directory**. After this slice the
   adapter's constructors that take an untyped value are **0**, down from **2**,
   and the scope's fields named after a kernel verb are **0**, down from **1**.
+- **The adapter's wiring is one door (W5.5d).** The control plane's surface was
+  a back-wiring yard: **16** exported `SetX` setters and a late-binding phase
+  (`LateDeps` + `Bind`) that the daemon called at three points of readiness.
+  The target architecture's P8 says it plainly — no `SetX()` back-wiring, no
+  `Bind(LateDeps)` phases — so every dependency now travels in **`Deps`** and
+  the constructor applies it once, at the door. The artifacts that only exist
+  after the adapter is up — the pulse engine, the live channels, the
+  standing-order runner — are **providers** now: a way to ask, whose answer is
+  nil until the root publishes it. The window is unchanged; the phase is gone.
+  After this slice the adapter's exported `SetX` methods are **0**, down from
+  **16**, its binding phases are **0**, down from **1**, and the daemon's
+  `Bind` call sites are **0**, down from **3**.
 - **The data root's ports moved into the application (W5.4ad).** The daemon keeps
   everything under one root — the journal's segments, the sandbox's projects, the
   storage's artifacts, the policy overlay's snapshot, the roster's workspaces —

@@ -7098,6 +7098,41 @@ files, five of the seventeen mutations would have escaped.
   **one** mutation was rewritten for its own fault (it left a read value unused
   and did not compile). Evidence:
   `architecture/263-w55c-the-adapters-door-closes-evidence.md`
+- W5.5d (the adapter's wiring is one door) is the port programme's
+  **forty-sixth** slice and the **fourth** one of its **next phase** — the
+  **adapter's** handle. The phase's first slice (W5.5a) made the handle
+  **unnamed**, the second (W5.5b) moved the **holding** to the **composition
+  root**, the third (W5.5c) closed the **door** — and this one closes the
+  **wiring around** it. The adapter's surface was a back-wiring yard: **16**
+  exported `SetX` setters over **5** files and a late-binding phase
+  (`LateDeps` + `Bind`), which the daemon called at **3** points of readiness.
+  The target architecture's P8 says it plainly — "no `SetX()` back-wiring, no
+  `Bind(LateDeps)` phases" → every dependency the daemon has when it builds
+  the adapter now travels in **`Deps`**, and the constructor applies it once,
+  at the door. The artifacts that only exist AFTER the adapter is up — the
+  pulse engine, the live channels, the standing-order runner — are no longer
+  pushed in: they are **PROVIDERS** (`func() PulseController`), a way to
+  **ask**; the answer is nil until the root publishes it, and the daemon
+  publishes on its own goroutine through a synchronized holder
+  (`cmd/agezt/late_wiring.go`). The **window** is unchanged (before the engine
+  is up the pulse handlers still answer "pulse is disabled"), but the **phase**
+  is gone. The tests had to say what they mean: a dependency is handed over
+  when the adapter is **built**, and the tests that observe the "not wired"
+  state observe it on a **second** adapter — **93** files in
+  `kernel/controlplane` rewired. Three **port** tests changed their rule with
+  the slice: the board's, the toolbox's and the update engine's port used to
+  assert that the adapter HAS a setter; they now assert that the port arrives
+  through `Deps` and that the setter is **gone**. The measurement that moved:
+  the adapter's exported `SetX` methods **16 → 0**, its binding phases **1 →
+  0**, the daemon's `Bind` call sites **3 → 0**, and the late artifacts that
+  are providers **0 → 4**; the control plane still names the runtime in **0**
+  production files and the guard still holds **170** application-owned verbs.
+  **5 permanent tests** — the door rule, the provider rule, the nil window and
+  the ask-not-cache rule among them — and **17 mutations, 17 caught** in two
+  independent passes with **byte-identical** logs (SHA-256
+  `07C3225A85B605B9D9C9AC9404E0AAE73FD3EE4B1690DED91E63CED1AB1412D9`); **no**
+  mutation needed a rewrite this time. Evidence:
+  `architecture/264-w55d-the-adapters-wiring-is-one-door-evidence.md`
 
 **W3.12 — the providerboot half of `modules/providers` (delivered).**
 `plugins/providerboot` is now `kernel/modules/providers/boot`, and the module
