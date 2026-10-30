@@ -28,6 +28,10 @@ func TestTheObjectivePortsReachTheKernelObjectives(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 	defer k.Close()
+	// The objective verbs live in the WORK MODULE (W3.69): the daemon holds
+	// the module's face and forwards to it. This test is such a host — it
+	// builds the module's service over the store it opened.
+	k.SetObjectiveLibrary(okrstore.NewService(k.OKR(), k.ObjectiveLibraryDependencies()))
 	owned, err := k.OKR().Create(okrstore.CreateSpec{Title: "owned"}, 100)
 	if err != nil {
 		t.Fatalf("Create: %v", err)

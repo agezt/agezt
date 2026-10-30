@@ -31,6 +31,10 @@ func openOKRKernel(t *testing.T) *runtime.Kernel {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { k.Close() })
+	// The objective verbs live in the WORK MODULE (W3.69): the daemon holds
+	// the module's face and forwards to it. This test is such a host — it
+	// builds the module's service over the library it opened.
+	k.SetObjectiveLibrary(okr.NewService(k.OKR(), k.ObjectiveLibraryDependencies()))
 	return k
 }
 

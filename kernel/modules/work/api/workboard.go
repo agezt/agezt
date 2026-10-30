@@ -38,7 +38,7 @@ import (
 //
 // Every verb answers with the task it touched, so a caller never reads the
 // store to learn what happened.
-type Service interface {
+type BoardService interface {
 	// Create adds a task; the bool is false when the idempotency key was seen.
 	Create(corr string, spec workboardapi.CreateSpec) (workboardapi.Task, bool, error)
 	// Claim takes a task for an agent under a run.
@@ -76,7 +76,7 @@ type Service interface {
 // Every port is a way to ASK, never a way to reach: the board publishes on the
 // host's bus and tells the host that a task reached done, and it holds
 // nothing else of the host's.
-type Dependencies struct {
+type BoardDependencies struct {
 	// Publish emits one event on the host's bus.
 	//
 	// The host owns the bus; the board only says what happened to a task, and

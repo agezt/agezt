@@ -105,6 +105,9 @@ func TestOKRReadsUseActualStoreAndLiveWorkboardRollup(t *testing.T) {
 		t.Fatal(err)
 	}
 	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
+	// The objective verbs live in the WORK MODULE (W3.69): this test is such a
+	// host — it builds the module's service over the library it opened.
+	k.SetObjectiveLibrary(objectives.NewService(k.OKR(), k.ObjectiveLibraryDependencies()))
 	defer k.Close()
 	objective, err := k.CreateObjective("owned-corr", objectives.CreateSpec{Title: "owned", Tenant: "team"})
 	if err != nil {

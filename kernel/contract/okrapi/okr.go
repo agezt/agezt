@@ -35,6 +35,14 @@ var (
 	ErrKRNotFound = errors.New("okr: key result not found")
 	// ErrInvalidStatus is returned for a status outside the lifecycle.
 	ErrInvalidStatus = errors.New("okr: invalid status")
+	// ErrNoLibrary is the answer the objective surfaces give when the daemon
+	// holds no library.
+	//
+	// The library's file is the DAEMON's, so a daemon that was given none
+	// holds a nil port. The refusal is the answer — not a panic, and not a
+	// silent "nothing to do" — and it lives here because the daemon and the
+	// module that keeps the library both have to NAME it.
+	ErrNoLibrary = errors.New("okr: the objective library is not available on this daemon")
 )
 
 // Status is the lifecycle state of an Objective.

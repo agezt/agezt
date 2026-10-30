@@ -110,7 +110,14 @@ type Kernel struct {
 	// nothing else — archcheck's principle P5), so the composition root builds
 	// the service over the store and injects it here with SetWorkboard. nil
 	// until it is wired, and every board verb refuses until then.
-	board workapi.Service
+	board workapi.BoardService
+
+	// objectives is the WORK MODULE's objective library — the goals, the key
+	// results and the rollup rule over the store the host opened (W3.69). Same
+	// shape as the board: the module keeps the rule, the daemon keeps the
+	// names, and the composition root builds the service and injects it here
+	// with SetObjectiveLibrary. nil until it is wired.
+	objectives workapi.ObjectiveService
 
 	// reaperScanner is the agents module's reaper (the read-only fleet health
 	// scan). The module lives in kernel/modules/agents/reaper; the runtime
