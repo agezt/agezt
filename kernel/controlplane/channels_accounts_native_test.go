@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -30,7 +31,7 @@ func TestChannelAccountsNativeSelectedServerRootPersistenceAndNoDirectAudit(t *t
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, serverDir)
+	s := NewServer(binding.ScopeFromKernel(k, serverDir))
 	svc := s.channelAccounts()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

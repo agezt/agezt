@@ -5,6 +5,7 @@ package controlplane
 import (
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
@@ -49,7 +50,7 @@ func TestTheAdapterBindsTheToolsPortsToItsOwnKernel(t *testing.T) {
 		t.Fatalf("AddProfile: %v", err)
 	}
 
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 
 	// The daemon's own ports read its own kernel's registry.
@@ -117,7 +118,7 @@ func TestTheRequestToolsPortsFollowTheRoutedKernel(t *testing.T) {
 	}
 	defer tenant.Close()
 
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 
 	// The daemon's own ports answer for the root kernel.
 	if !s.toolsPorts().Has("shell") || s.toolsPorts().Has("tenant_tool") {

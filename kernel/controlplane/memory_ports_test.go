@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/memoryapi"
@@ -44,7 +45,7 @@ func TestTheAdapterBindsTheMemoryPortsToItsOwnKernel(t *testing.T) {
 		t.Fatalf("Remember in the tenant's memory: %v", err)
 	}
 
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(tenant)})
 
 	// The daemon's own ports answer for its own kernel.

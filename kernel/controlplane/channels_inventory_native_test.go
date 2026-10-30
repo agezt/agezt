@@ -4,6 +4,7 @@ package controlplane
 import (
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -50,7 +51,7 @@ func TestChannelInventoryNativeSelectedServerRootAndPresenceOnly(t *testing.T) {
 	if err := vault.Save(); err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(k, serverDir)
+	s := NewServer(binding.ScopeFromKernel(k, serverDir))
 	s.configEnvPinned = map[string]bool{"AGEZT_EMAIL_SMTP_ADDR": true}
 	head, hash := k.Journal().Head()
 	ctx, cancel := context.WithCancel(context.Background())

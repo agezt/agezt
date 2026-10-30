@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"strings"
 	"testing"
 
@@ -23,7 +24,7 @@ func TestDispatchedSeatRefusesEveryRemoteBackend(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	for _, id := range executionprofile.RemoteBackendIDs {
 		_, label, err := s.applyWardenExecutionProfile(context.Background(), id)
 		if err == nil || !strings.Contains(err.Error(), "is only available on direct runs") {

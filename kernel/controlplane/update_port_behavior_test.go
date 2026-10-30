@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 
 	core "github.com/agezt/agezt/kernel/contract/updateapi"
@@ -25,7 +26,7 @@ func TestTheUpdateOperationsReachTheContractPort(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 	backend := &ownedUpdateBackend{}
 
-	s := NewServerWithDeps(k, dir, Deps{UpdateSvc: backend})
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{UpdateSvc: backend})
 	s.token = "primary"
 
 	frames := callAppHost(t, s, Request{ID: "owned", Cmd: CmdUpdateCheck, Token: "primary"})

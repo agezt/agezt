@@ -3,6 +3,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"strings"
 	"testing"
 
@@ -39,7 +40,7 @@ func planKernel(t *testing.T) *runtime.Kernel {
 // outputs.
 func TestPlanRunsOnTheSharedDispatcher(t *testing.T) {
 	k := planKernel(t)
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	plan := `{"nodes":[{"id":"a","kind":"loop","intent":"say hi"}]}`
 	responses := callAppHost(t, s, Request{ID: "q1", Cmd: CmdPlan, Token: "primary", Args: map[string]any{
@@ -82,7 +83,7 @@ func TestPlanRunsOnTheSharedDispatcher(t *testing.T) {
 // error.
 func TestPlanRefusesTheMissingPlan(t *testing.T) {
 	k := planKernel(t)
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	resp := callAppHost(t, s, Request{ID: "q1", Cmd: CmdPlan, Token: "primary", Args: map[string]any{}})[0]
 	if resp.Type != RespError || !strings.Contains(resp.Error, "args.plan_json required") {

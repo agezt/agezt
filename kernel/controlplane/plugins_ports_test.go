@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 
 	appplugins "github.com/agezt/agezt/kernel/app/plugins"
@@ -30,7 +31,7 @@ func TestTheAdapterBindsThePluginPortsToTheRoutedKernel(t *testing.T) {
 	}
 	defer tenant.Close()
 
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 	tenantCtx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(tenant)})
 	daemonCtx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(root)})
 	daemonCtx = context.WithValue(daemonCtx, systemHostKey{}, s)

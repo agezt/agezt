@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"os"
 	"path/filepath"
 	"testing"
@@ -23,7 +24,7 @@ func TestPersonaBindsTheServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, serverDir)
+	s := NewServer(binding.ScopeFromKernel(k, serverDir))
 	s.token = "primary"
 	call := func(cmd string, args map[string]any) string {
 		t.Helper()

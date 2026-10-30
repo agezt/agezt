@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/runtime"
@@ -95,7 +96,7 @@ func TestThePersonaPortsEditTheDaemonsIdentity(t *testing.T) {
 	defer root.Close()
 	root.SetSystem("before")
 
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 	s.personaPorts().Identity.SetPrompt("after")
 
 	if got := root.System(); got != "after" {

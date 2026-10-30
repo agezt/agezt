@@ -5,6 +5,7 @@ package controlplane
 import (
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -46,7 +47,7 @@ func TestNodeRegistryBindsTheServer(t *testing.T) {
 	if err := store.Save(); err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(k, serverDir)
+	s := NewServer(binding.ScopeFromKernel(k, serverDir))
 	s.token = "primary"
 	call := func() string {
 		t.Helper()

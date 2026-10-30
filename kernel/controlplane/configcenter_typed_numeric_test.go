@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net"
 	"testing"
 	"time"
@@ -32,7 +33,7 @@ func TestConfigCenterTypedNativeLargeIntegerLexemesAndZeroFields(t *testing.T) {
 	e.UpdatedAt = 0
 	e.Version = -2
 	head, hash := k.Journal().Head()
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	for _, command := range []string{CmdConfigCenterGet, CmdConfigCenterList} {
 		a, b := net.Pipe()

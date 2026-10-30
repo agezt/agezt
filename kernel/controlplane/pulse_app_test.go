@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/platform/schema"
@@ -77,7 +78,7 @@ func pulseAppFixture(t *testing.T) (*runtime.Kernel, *Server, *pulseAppPort, *mo
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	port := &pulseAppPort{observerOK: true}
 	s.SetPulse(port)

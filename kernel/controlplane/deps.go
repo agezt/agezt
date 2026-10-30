@@ -17,6 +17,7 @@ package controlplane
 // the internal application path.
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/toolboxapi"
 	"github.com/agezt/agezt/kernel/contract/updateapi"
@@ -27,8 +28,8 @@ import (
 // daemon can supply before Start. The zero value is fully valid: every field is
 // optional, and nil/false/empty is exactly the state the corresponding setter
 // would otherwise leave behind (board writes unavailable, update disabled,
-// multi-tenancy disabled, ...), so NewServerWithDeps(k, dir, Deps{}) behaves
-// identically to plain NewServer(k, dir).
+// multi-tenancy disabled, ...), so NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{}) behaves
+// identically to plain NewServer(binding.ScopeFromKernel(k, dir)).
 type Deps struct {
 	// ConfigEnvPinned marks config env vars set in the real environment at
 	// startup, shown read-only in the Config Center (M693).
@@ -74,8 +75,11 @@ type Deps struct {
 
 // NewServerWithDeps constructs a Server with its early dependencies applied,
 // via the same setters the tests use. Call Bind for the late-phase ones.
-func NewServerWithDeps(k any, baseDir string, d Deps) *Server {
-	s := NewServer(k, baseDir)
+//
+// The scope is the COMPOSITION ROOT's: the families' ports, filled. The
+// server's own directory is the scope's directory.
+func NewServerWithDeps(scope binding.Scope, d Deps) *Server {
+	s := NewServer(scope)
 	s.SetConfigEnvPinned(d.ConfigEnvPinned)
 	s.SetBoard(d.Board, d.BoardNotify)
 	s.SetToolbox(d.Toolbox)

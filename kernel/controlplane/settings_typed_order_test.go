@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/settings"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -22,7 +23,7 @@ func TestSettingsTypedNativeSchemaPreservesLegacyStructMemberOrder(t *testing.T)
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	sections := settings.NewRegistry(dir).Sections()
 	want, _ := json.Marshal(Response{ID: "owned", Type: RespResult, Result: map[string]any{"sections": sections, "reload_boundaries": settings.ReloadBoundaries(sections)}})

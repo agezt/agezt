@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net"
 	"testing"
 	"time"
@@ -20,7 +21,7 @@ func TestWebhookNativeCanceledBeforeJournal(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	for _, cmd := range []string{CmdWebhookLog, CmdWebhookStats} {
 		t.Run(cmd, func(t *testing.T) {

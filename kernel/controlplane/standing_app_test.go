@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/platform/schema"
@@ -35,7 +36,7 @@ func standingAppFixture(t *testing.T) (*runtime.Kernel, *Server, string, *mock.P
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	return k, s, order.ID, provider
 }

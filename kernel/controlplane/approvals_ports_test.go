@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 	"time"
 
@@ -58,7 +59,7 @@ func TestTheAdapterBindsTheApprovalPortsToTheRoutedKernel(t *testing.T) {
 	// The server is on the context too, so a binding that asked the DAEMON's
 	// kernel instead of the routed one would answer — wrongly — rather than
 	// fall over.
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 	tenantCtx = context.WithValue(tenantCtx, systemHostKey{}, s)
 	daemonCtx = context.WithValue(daemonCtx, systemHostKey{}, s)
 
@@ -91,7 +92,7 @@ func TestTheAdapterBindsTheApprovalPortsToTheDaemon(t *testing.T) {
 
 	submitApproval(t, tenant.Approvals(), "corr-tenant")
 
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 
 	pending := s.approvalPorts().Broker().Pending()
 	if len(pending) != 0 {

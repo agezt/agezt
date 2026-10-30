@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net"
 	"reflect"
 	"strings"
@@ -53,7 +54,7 @@ func TestChannelInventoryNativeMediaMemberOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	ops, err := appchannels.InventoryOperations(func(context.Context) *appchannels.Inventory {
 		return appchannels.NewInventory(ownedMediaInventoryReader{})
@@ -101,7 +102,7 @@ func TestChannelInventoryNativeCanceledAdmissionBeforeSelectedReader(t *testing.
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	reader := &ownedInventoryGateReader{}
 	providerCalls := 0

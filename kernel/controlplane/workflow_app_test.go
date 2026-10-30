@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"path/filepath"
 
 	"github.com/agezt/agezt/kernel/contract/opapi"
@@ -37,7 +38,7 @@ func workflowAppFixture(t *testing.T) (*runtime.Kernel, *Server, workflow.Workfl
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	return k, s, graph, provider
 }

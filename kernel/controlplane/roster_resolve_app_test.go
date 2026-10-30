@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net"
 	"path/filepath"
 	"strings"
@@ -113,7 +114,7 @@ func TestAgentResolveNativePorts(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	// The operator's repair surface is injected (the daemon owns the wiring).
 	s.SetRepairSource(overseer.NewKernelSource(overseer.PortsFromKernel(k), dir))
 	s.token = "primary"

@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"path/filepath"
 	"testing"
 
@@ -43,7 +44,7 @@ func TestTheAdapterBindsTheWorkflowPortsToItsOwnKernel(t *testing.T) {
 		t.Fatalf("SaveWorkflow: %v", err)
 	}
 
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 
 	// The adapter's own ports read the kernel's workflows.
 	got, ok := s.workflowPorts().Get(saved.ID)

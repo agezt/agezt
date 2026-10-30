@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
@@ -31,7 +32,7 @@ func TestWorkflowAllNineAppMutationsJoinOwnedAuditAndDomainIdentity(t *testing.T
 			if err != nil {
 				t.Fatal(err)
 			}
-			s := NewServer(k, dir)
+			s := NewServer(binding.ScopeFromKernel(k, dir))
 			s.token = "primary"
 			args := map[string]any{"ref": graph.ID, "workflow": graph, "enabled": false, "async": true, "description": "design graph", "instruction": "revise graph", "node": "work", "payload": "owned", "secret": "owned fixture credential", "corr": "spoof", "correlation_id": "spoof"}
 			responses := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: args})
@@ -87,7 +88,7 @@ func TestWorkflowDispatcherInflightCancellationSettlesJoinedAuditWithoutProvider
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	dispatcher, err := app.NewDispatcher(registeredAppOperations(), app.Dependencies{Auth: appAuthenticator{s}, Router: appTenantRouter{s}, Audit: appAuditor{}})
 	if err != nil {

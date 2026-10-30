@@ -3,6 +3,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -35,7 +36,7 @@ func TestSkillAppSocketRequiresAuditBeforeMutations(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			server := NewServer(k, dir)
+			server := NewServer(binding.ScopeFromKernel(k, dir))
 			server.token = "primary"
 			if err := k.Journal().Close(); err != nil {
 				t.Fatal(err)

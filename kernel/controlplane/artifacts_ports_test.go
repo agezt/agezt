@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"path/filepath"
 	"testing"
 
@@ -32,7 +33,7 @@ func TestTheAdapterBindsTheArtifactPortsToItsOwnKernel(t *testing.T) {
 	}
 	defer root.Close()
 
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 
 	// The daemon's own ports answer for its own kernel.
 	rootPorts := appartifacts.PortsFromKernel(root)
@@ -56,7 +57,7 @@ func TestTheAdapterBindsTheArtifactPortsToAHostWithNoStore(t *testing.T) {
 	}
 	defer root.Close()
 
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 	if got := s.artifactPorts().Store(); got != nil {
 		t.Fatal("a daemon with no artifact store hands one over")
 	}

@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	appsettings "github.com/agezt/agezt/kernel/app/settings"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -26,7 +27,7 @@ func TestSettingsWritesNativeSelectedRootPersistencePinnedAndRegistry(t *testing
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, serverDir)
+	s := NewServer(binding.ScopeFromKernel(k, serverDir))
 	s.configEnvPinned = map[string]bool{"AGEZT_W45B_NATIVE_PUBLIC": true}
 	svc := s.settingsWrites()
 	sec := settings.Section{ID: "owned-native-writes", Name: "Owned", Locked: true, Fields: []settings.Field{{Env: "AGEZT_W45B_NATIVE_PUBLIC", Type: settings.TypeText, Apply: settings.ApplyLive}, {Env: "AGEZT_W45B_NATIVE_SECRET", Type: settings.TypePassword, Secret: true}}}

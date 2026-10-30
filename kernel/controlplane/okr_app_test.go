@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"path/filepath"
 
 	"github.com/agezt/agezt/kernel/contract/opapi"
@@ -51,7 +52,7 @@ func okrAppFixture(t *testing.T) (*runtime.Kernel, *Server, okr.Objective, strin
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	return k, s, objective, objective.KeyResults[0].ID, task.ID, provider
 }

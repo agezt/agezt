@@ -20,16 +20,15 @@ import (
 //
 // The scope is what the COMPOSITION ROOT builds: the families' ports, filled
 // from the daemon's own kernel. The server keeps the scope and never the
-// handle it was filled from — what it was handed is consumed here and
-// dropped, so nothing behind the ports stays reachable from the adapter.
+// handle it was filled from — and it cannot be handed one: the constructor
+// takes a scope, and a scope is the only thing it can hold.
 //
-// A handle is still accepted for the callers that have one, and it is turned
-// into a scope on the spot: the same value, resolved once, with the same
-// refusal when it is not the daemon's own.
-func NewServer(scope any, baseDir string) *Server {
+// The server's own directory is the scope's directory: a scope knows where it
+// is, and the server asks it.
+func NewServer(scope binding.Scope) *Server {
 	return &Server{
-		scope:      binding.Resolve(scope, baseDir),
-		baseDir:    baseDir,
+		scope:      scope,
+		baseDir:    scope.Directory,
 		shutdownCh: make(chan struct{}),
 	}
 }

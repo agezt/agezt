@@ -48,6 +48,49 @@ func TestTheAdapterHoldsNoHandle(t *testing.T) {
 	}
 }
 
+// The adapter's constructors take a SCOPE.
+//
+// A constructor that takes an `any` can be handed the kernel — and a handle
+// that enters the adapter is a handle the adapter can walk. The rule is the
+// signature itself: the first parameter is the scope, BY TYPE, and nothing in
+// the adapter's own API is untyped.
+func TestTheAdaptersConstructorsTakeAScopeAndNotAHandle(t *testing.T) {
+	scopeType := reflect.TypeOf(binding.Scope{})
+	anyType := reflect.TypeOf((*any)(nil)).Elem()
+	for _, ctor := range []any{NewServer, NewServerWithDeps} {
+		fn := reflect.TypeOf(ctor)
+		if fn.NumIn() == 0 || fn.In(0) != scopeType {
+			t.Errorf("%s does not take a scope as its first argument — the adapter's door is open", fn.Name())
+		}
+		for i := 0; i < fn.NumIn(); i++ {
+			if fn.In(i) == anyType {
+				t.Errorf("%s takes an untyped argument — the adapter's door is open", fn.Name())
+			}
+		}
+	}
+}
+
+// The server's own directory is the scope's directory.
+//
+// A scope knows where it is, and the server asks it: the two cannot
+// disagree, because there is only one answer.
+func TestTheServersDirectoryIsTheScopesDirectory(t *testing.T) {
+	dir := t.TempDir()
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	s := NewServer(binding.ScopeFromKernel(k, dir))
+	if s.baseDir != dir {
+		t.Errorf("the server's directory is %q, want the scope's %q", s.baseDir, dir)
+	}
+	if s.scope.Directory != dir {
+		t.Errorf("the server's scope is %q, want %q", s.scope.Directory, dir)
+	}
+}
+
 // The scope the composition root built is the scope the adapter reads.
 func TestTheServerReadsTheScopeItWasGiven(t *testing.T) {
 	dir := t.TempDir()
@@ -57,13 +100,13 @@ func TestTheServerReadsTheScopeItWasGiven(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	s := NewServer(binding.ScopeFromKernel(k, dir), dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	scope := s.scoped()
 	if !scope.Filled() {
 		t.Fatal("the server did not take the scope it was given")
 	}
-	if scope.BaseDir != dir {
-		t.Errorf("the server's scope is %q, want %q", scope.BaseDir, dir)
+	if scope.Directory != dir {
+		t.Errorf("the server's scope is %q, want %q", scope.Directory, dir)
 	}
 	if s.journalPorts().Events == nil {
 		t.Error("the server's scope carries no journal")
@@ -98,7 +141,7 @@ func TestTheTenantsScopeIsTheTenantsOwn(t *testing.T) {
 	}
 	t.Cleanup(func() { primary.Close() })
 
-	s := NewServer(binding.ScopeFromKernel(primary, dir), dir)
+	s := NewServer(binding.ScopeFromKernel(primary, dir))
 	registry, err := tenant.New(filepath.Join(dir, "tenants"), func(_ string, baseDir string) (io.Closer, error) {
 		return runtime.Open(runtime.Config{BaseDir: baseDir, Provider: mock.New()})
 	})
@@ -119,10 +162,10 @@ func TestTheTenantsScopeIsTheTenantsOwn(t *testing.T) {
 	if !scope.Filled() {
 		t.Fatal("the tenant's scope was not filled")
 	}
-	if scope.BaseDir != entry.BaseDir {
-		t.Errorf("the tenant's scope is %q, want the tenant's own %q", scope.BaseDir, entry.BaseDir)
+	if scope.Directory != entry.BaseDir {
+		t.Errorf("the tenant's scope is %q, want the tenant's own %q", scope.Directory, entry.BaseDir)
 	}
-	if scope.BaseDir == dir {
+	if scope.Directory == dir {
 		t.Error("the tenant's scope is the primary's — the tenant is not isolated")
 	}
 	if scope.JournalPorts.Events == nil {
@@ -140,13 +183,13 @@ func TestThePrimaryScopeIsThePrimarysOwn(t *testing.T) {
 	}
 	t.Cleanup(func() { primary.Close() })
 
-	s := NewServer(binding.ScopeFromKernel(primary, dir), dir)
+	s := NewServer(binding.ScopeFromKernel(primary, dir))
 	scope, err := s.scopeFor("")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if scope.BaseDir != dir {
-		t.Errorf("the primary's scope is %q, want %q", scope.BaseDir, dir)
+	if scope.Directory != dir {
+		t.Errorf("the primary's scope is %q, want %q", scope.Directory, dir)
 	}
 	if !scope.Filled() {
 		t.Error("the primary's scope was not filled")
@@ -176,7 +219,7 @@ func TestTheRequestCarriesTheScopeAndNotTheHandle(t *testing.T) {
 	scope := binding.ScopeFromKernel(k, dir)
 	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scope})
 	got := requestScope(ctx)
-	if !got.Filled() || got.BaseDir != dir {
-		t.Errorf("the request's scope is %q, want %q", got.BaseDir, dir)
+	if !got.Filled() || got.Directory != dir {
+		t.Errorf("the request's scope is %q, want %q", got.Directory, dir)
 	}
 }

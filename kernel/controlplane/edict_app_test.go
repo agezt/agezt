@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"io"
 	"net"
 	"os"
@@ -70,7 +71,7 @@ func TestEdictReadsNativeRouting(t *testing.T) {
 	if _, err := tk.Edict().AddHardDeny(rules[0]); err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) string {
@@ -160,7 +161,7 @@ func TestEdictWritesNativeRouting(t *testing.T) {
 	}
 	tk := entry.Kernel.(*runtime.Kernel)
 	tenantToken, _ := reg.Token("acme")
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) string {
@@ -259,7 +260,7 @@ func TestEdictDecisionsNativeRouting(t *testing.T) {
 	}
 	decide(k, "primary-tool", true)
 	decide(tk, "tenant-tool", false)
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) string {
@@ -354,7 +355,7 @@ func TestEdictOverlayNativeRouting(t *testing.T) {
 	}
 	tk := entry.Kernel.(*runtime.Kernel)
 	tenantToken, _ := reg.Token("acme")
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) string {

@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
@@ -37,7 +38,7 @@ func artifactAppFixture(t *testing.T) (*runtime.Kernel, *Server, artifact.Entry,
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	return k, s, entry, provider
 }

@@ -3,6 +3,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -41,7 +42,7 @@ func TestProviderProbeAppSocketAdmissionFailureShapeAndReadOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	call := func(args map[string]any) Response {
 		responses := callAppHost(t, s, Request{ID: "probe", Cmd: CmdProviderProbe, Token: "primary", Args: args})

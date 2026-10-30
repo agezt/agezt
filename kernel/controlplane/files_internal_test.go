@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net"
 	"path/filepath"
 	"testing"
@@ -44,7 +45,7 @@ func TestFileRestoreBindsTheServer(t *testing.T) {
 	if err := rollbackstore.WriteAt(filepath.Join(serverDir, filepath.FromSlash(rollbackstore.RelativePath)), rollbackstore.Catalog{Checkpoints: []rollbackstore.Checkpoint{cp}}); err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(k, serverDir)
+	s := NewServer(binding.ScopeFromKernel(k, serverDir))
 	s.token = "primary"
 	client, server := net.Pipe()
 	defer client.Close()

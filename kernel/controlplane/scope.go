@@ -30,10 +30,11 @@ func requestScope(ctx context.Context) binding.Scope {
 // scopeOrRefusing returns the scope to read from.
 //
 // A scope that was never filled — a server built by hand, without the
-// composition root — refuses every family instead of calling into nothing.
+// composition root — refuses every family instead of calling into nothing,
+// and it keeps the directory it was asked about.
 func scopeOrRefusing(scope binding.Scope) binding.Scope {
 	if scope.Filled() {
 		return scope
 	}
-	return binding.RefusingScope()
+	return binding.RefusingScope(scope.Directory)
 }

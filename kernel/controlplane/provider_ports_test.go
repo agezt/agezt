@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/governor"
@@ -33,7 +34,7 @@ func TestTheAdapterBindsTheProviderPortsToItsOwnKernel(t *testing.T) {
 	}
 	defer tenant.Close()
 
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(tenant)})
 
 	// The daemon's own ports answer for its own kernel.

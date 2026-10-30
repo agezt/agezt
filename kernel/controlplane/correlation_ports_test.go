@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/runtime"
@@ -34,7 +35,7 @@ func TestTheAdapterBindsTheCorrelationPortsToItsOwnKernel(t *testing.T) {
 	}
 	defer root.Close()
 
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 
 	// The daemon's own ports mint.
 	daemonCorr := s.correlationPorts().Mint()

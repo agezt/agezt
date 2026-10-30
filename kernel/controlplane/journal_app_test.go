@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"io"
 	"net"
 	"path/filepath"
@@ -71,7 +72,7 @@ func TestJournalNativeRouting(t *testing.T) {
 	}
 	pHead, pHash := k.Journal().Head()
 	tHead, _ := tk.Journal().Head()
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) (map[string]any, string) {

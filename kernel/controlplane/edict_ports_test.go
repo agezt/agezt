@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 
 	core "github.com/agezt/agezt/kernel/edict"
@@ -39,7 +40,7 @@ func TestTheAdapterBindsTheEdictPortsToItsOwnKernel(t *testing.T) {
 	root.Edict().SetAskPolicy(core.AskDeny)
 	tenant.Edict().SetAskPolicy(core.AskPrompt)
 
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(tenant)})
 
 	// The daemon's own ports answer for its own kernel.

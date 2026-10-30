@@ -3,6 +3,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -43,7 +44,7 @@ func TestGatewayPlatformPreservesNativeProviderAndWhatsAppResults(t *testing.T) 
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	for _, cmd := range []string{CmdProviderProbe, CmdWhatsAppGatewayStatus, CmdWhatsAppGatewayQR} {
 		base := endpoint.URL

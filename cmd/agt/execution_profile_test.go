@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"strings"
 	"testing"
 	"time"
@@ -32,7 +33,7 @@ func TestCmdExecProfileListAndShow(t *testing.T) {
 		t.Fatalf("runtime.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = k.Close() })
-	srv := controlplane.NewServer(k, dir)
+	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	if err := srv.Start(ctx); err != nil {

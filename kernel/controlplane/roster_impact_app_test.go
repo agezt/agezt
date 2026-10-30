@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net"
 	"path/filepath"
 	"strings"
@@ -66,7 +67,7 @@ func TestAgentImpactTombstoneNativeWire(t *testing.T) {
 	if _, err := k.Schedules().SetAgent(job.ID, "lead"); err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	call := func(cmd string) string {
 		a, b := net.Pipe()

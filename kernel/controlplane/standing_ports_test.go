@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"path/filepath"
 	"testing"
 
@@ -34,7 +35,7 @@ func TestTheAdapterBindsTheStandingPortsToItsOwnKernel(t *testing.T) {
 	}
 	defer k.Close()
 
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	svc := s.standingService()
 	ctx := context.Background()
 

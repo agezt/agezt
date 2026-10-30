@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/app/binding"
 	appchannels "github.com/agezt/agezt/kernel/app/channels"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
@@ -80,7 +81,7 @@ func TestChannelInboxNativeWireMemberOrderExactIntegersAndCanceledRange(t *testi
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	j := &inboxBindingJournal{events: []*event.Event{{ID: "owned", CorrelationID: "owned", Kind: event.KindChannelInbound, TSUnixMS: 9223372036854775807, Payload: json.RawMessage(`{"text":"text"}`)}}}
 	providers := 0

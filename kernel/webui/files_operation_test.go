@@ -5,6 +5,7 @@ package webui
 import (
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -33,7 +34,7 @@ func newFilesServerAt(t *testing.T, home string) (*Server, *runtime.Kernel) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
-	transport := controlplane.NewServer(k, home)
+	transport := controlplane.NewServer(binding.ScopeFromKernel(k, home))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	if err := transport.Start(ctx); err != nil {

@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -69,7 +70,7 @@ func TestCatalogAppSocketAdmissionAuditAndWire(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { k.Close() })
-			s := NewServer(k, dir)
+			s := NewServer(binding.ScopeFromKernel(k, dir))
 			s.token = "primary"
 			command := CmdCatalogSync
 			args := map[string]any{"url": ts.URL, "ignored": "legacy-compatible", "tenant": "ignored-primary-scope"}

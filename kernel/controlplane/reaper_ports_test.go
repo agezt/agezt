@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
@@ -31,7 +32,7 @@ func TestTheAdapterBindsTheReaperPortsToTheDaemon(t *testing.T) {
 	defer root.Close()
 	root.SetReaperScanner(fakeReaperScanner{report: api.ReaperReport{DeadAgents: []agentapi.ReaperAgent{{Slug: "idle"}}}})
 
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 
 	report := s.reaperPorts().Scan(1, 1)
 	if len(report.DeadAgents) != 1 || report.DeadAgents[0].Slug != "idle" {
@@ -48,7 +49,7 @@ func TestTheAdapterBindsNoReaperToADaemonWithoutOne(t *testing.T) {
 	}
 	defer root.Close()
 
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 
 	report := s.reaperPorts().Scan(1, 1)
 	if len(report.DeadAgents) != 0 {

@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"os"
 	"reflect"
 	"strings"
@@ -39,7 +40,7 @@ func TestProviderAppSocketKeyringAdmissionPrivacyAndReload(t *testing.T) {
 	var reloads atomic.Int32
 	dir := t.TempDir()
 	k := openCatalogKernel(t, runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	secret := strings.Join([]string{"provider", "fixture", "private", "1234"}, "-")
 	call := func(command string, args map[string]any) Response {
@@ -127,7 +128,7 @@ func TestProviderAppRejectsBeforeVaultAndReloadEffects(t *testing.T) {
 			var reloads atomic.Int32
 			dir := t.TempDir()
 			k := openCatalogKernel(t, runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
-			s := NewServer(k, dir)
+			s := NewServer(binding.ScopeFromKernel(k, dir))
 			s.token = "primary"
 			args := map[string]any{"env": "PROVIDER_FIXTURE_KEY", "label": "fixture", "value": "synthetic-fixture-value"}
 			if mode == "bad-input" {

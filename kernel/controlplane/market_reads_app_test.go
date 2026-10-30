@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/agezt/agezt/kernel/app/binding"
 	appmarket "github.com/agezt/agezt/kernel/app/market"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/market"
@@ -53,7 +54,7 @@ func marketTypedFixture(t *testing.T) (*runtime.Kernel, *Server, *mock.Provider)
 	entry := pack.Entry("")
 	entry.Downloads = 9007199254740993
 	k.SetMarket(market.NewManager(market.Config{Library: marketTypedLibrary{pack: pack, entry: entry}, Store: store}))
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	return k, s, p
 }

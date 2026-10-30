@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"io"
 	"net"
 	"path/filepath"
@@ -69,7 +70,7 @@ func TestPlanHistoryNativeRouting(t *testing.T) {
 	publish(k, event.KindPlanStarted, map[string]any{"plan_name": "primary-plan", "node_count": 2})
 	publish(tk, event.KindPlanStarted, map[string]any{"plan_name": "tenant-plan", "node_count": 3})
 	publish(tk, event.KindPlanFailed, map[string]any{"plan_name": "ignored"})
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) string {

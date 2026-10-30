@@ -3,6 +3,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"reflect"
 	"sort"
 	"strings"
@@ -49,7 +50,7 @@ func councilKernel(t *testing.T) *runtime.Kernel {
 // answer keeps the legacy wire shape, and the operation is audited.
 func TestCouncilAskBindsTheKernel(t *testing.T) {
 	k := councilKernel(t)
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	resp := callAppHost(t, s, Request{ID: "c", Cmd: CmdCouncilAsk, Token: "primary", Args: map[string]any{
 		"question": "why?", "rounds": 1, "corr": "client-corr",
@@ -105,7 +106,7 @@ func TestCouncilAskBindsTheKernel(t *testing.T) {
 // TestCouncilAskRejectsAMissingQuestion: the empty question is a clean error.
 func TestCouncilAskRejectsAMissingQuestion(t *testing.T) {
 	k := councilKernel(t)
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	resp := callAppHost(t, s, Request{ID: "c", Cmd: CmdCouncilAsk, Token: "primary", Args: map[string]any{}})[0]
 	if resp.Type != RespError || !strings.Contains(resp.Error, "args.question required") {
@@ -117,7 +118,7 @@ func TestCouncilAskRejectsAMissingQuestion(t *testing.T) {
 // primary kernel and keeps the legacy wire shape.
 func TestConductorAskBindsTheKernel(t *testing.T) {
 	k := councilKernel(t)
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	resp := callAppHost(t, s, Request{ID: "c", Cmd: CmdConductorAsk, Token: "primary", Args: map[string]any{
 		"task": "what is 2+2?", "max_rounds": 1,

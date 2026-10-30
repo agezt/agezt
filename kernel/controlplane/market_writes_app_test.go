@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/agezt/agezt/kernel/app/binding"
 	appmarket "github.com/agezt/agezt/kernel/app/market"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/market"
@@ -148,7 +149,7 @@ func marketWriteFixture(t *testing.T, cmd string) (*runtime.Kernel, *Server, *ma
 		}
 	}
 	k.SetMarket(market.NewManager(market.Config{Library: marketWriterLibrary{pack}, Store: store, Skills: backend, MCP: backend, Now: func() int64 { return 9007199254740993 }, Syncer: &market.Syncer{HTTP: &http.Client{Transport: transport}}}))
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	args := map[string]any{"name": "owned", "url": "http://remote.owned/new.json", "correlation_id": "caller-poison", "unknown": true}
 	if cmd == CmdMarketAddSource {

@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"strings"
 	"testing"
 
@@ -67,7 +68,7 @@ func TestRunIsATypedOperation(t *testing.T) {
 // starts no run.
 func TestRunDryRunAnswersWithThePlan(t *testing.T) {
 	k := runKernel(t)
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	responses := callAppHost(t, s, Request{ID: "q1", Cmd: CmdRun, Token: "primary", Args: map[string]any{
 		"intent":  "what is the weather",
@@ -105,7 +106,7 @@ func TestRunDryRunAnswersWithThePlan(t *testing.T) {
 // correlation, and streams the run's events.
 func TestRunAnswersWithTheRun(t *testing.T) {
 	k := runKernel(t)
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	responses := callAppHost(t, s, Request{ID: "q1", Cmd: CmdRun, Token: "primary", Args: map[string]any{
 		"intent": "say hi",
@@ -134,7 +135,7 @@ func TestRunAnswersWithTheRun(t *testing.T) {
 // TestRunRefusesAMissingIntent: the run without an intent is a clean error.
 func TestRunRefusesAMissingIntent(t *testing.T) {
 	k := runKernel(t)
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	resp := callAppHost(t, s, Request{ID: "q1", Cmd: CmdRun, Token: "primary", Args: map[string]any{}})[0]
 	if resp.Type != RespError || !strings.Contains(resp.Error, "args.intent required") {
@@ -146,7 +147,7 @@ func TestRunRefusesAMissingIntent(t *testing.T) {
 // an error, not a silent execution of the run the operator meant to preview.
 func TestRunRejectsAMistypedDryRun(t *testing.T) {
 	k := runKernel(t)
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	resp := callAppHost(t, s, Request{ID: "q1", Cmd: CmdRun, Token: "primary", Args: map[string]any{
 		"intent":  "say hi",
@@ -161,7 +162,7 @@ func TestRunRejectsAMistypedDryRun(t *testing.T) {
 // authorized tenant, so a mistyped value is a usage error.
 func TestRunRejectsAMistypedTenant(t *testing.T) {
 	k := runKernel(t)
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	resp := callAppHost(t, s, Request{ID: "q1", Cmd: CmdRun, Token: "primary", Args: map[string]any{
 		"intent": "say hi",
@@ -176,7 +177,7 @@ func TestRunRejectsAMistypedTenant(t *testing.T) {
 // CLI reads it the way it always did.
 func TestRunWireShapeIsFlat(t *testing.T) {
 	k := runKernel(t)
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	responses := callAppHost(t, s, Request{ID: "q1", Cmd: CmdRun, Token: "primary", Args: map[string]any{
 		"intent": "say hi",

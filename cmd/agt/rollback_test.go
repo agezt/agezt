@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"os"
 	"path/filepath"
 	"strings"
@@ -205,7 +206,7 @@ func TestCmdRollbackApplyRestoresSkillStatus(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = k.Close() })
 
-	srv := controlplane.NewServer(k, dir)
+	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	if err := srv.Start(ctx); err != nil {
@@ -276,7 +277,7 @@ func TestWorkflowSaveCheckpointAndRollbackRestore(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = k.Close() })
 
-	srv := controlplane.NewServer(k, dir)
+	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	if err := srv.Start(ctx); err != nil {
@@ -352,7 +353,7 @@ func TestConfigSetCheckpointAndRollbackRestore(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = k.Close() })
 
-	srv := controlplane.NewServer(k, dir)
+	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	if err := srv.Start(ctx); err != nil {

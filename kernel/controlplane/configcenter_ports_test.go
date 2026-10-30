@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 
 	appconfigcenter "github.com/agezt/agezt/kernel/app/configcenter"
@@ -37,7 +38,7 @@ func TestTheAdapterBindsTheConfigCenterPortsToItsOwnKernel(t *testing.T) {
 	}
 	defer k.Close()
 
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 
 	ports := s.configCenterPorts()

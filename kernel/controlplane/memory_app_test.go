@@ -3,6 +3,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"strings"
 	"testing"
 
@@ -38,7 +39,7 @@ func TestMemoryNativeMutationSharesOperationCorrelation(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
-	server := NewServer(k, dir)
+	server := NewServer(binding.ScopeFromKernel(k, dir))
 	server.token = "primary"
 	response := callAppHost(t, server, Request{ID: "correlation", Cmd: CmdMemoryAdd, Token: "primary", Args: map[string]any{"content": "owned correlation fixture", "subject": "correlation"}})[0]
 	if response.Type != RespResult {
@@ -81,7 +82,7 @@ func TestMemoryAppSocketRequiresAuditBeforeMutations(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			server := NewServer(k, dir)
+			server := NewServer(binding.ScopeFromKernel(k, dir))
 			server.token = "primary"
 			if err := k.Journal().Close(); err != nil {
 				t.Fatal(err)

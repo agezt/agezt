@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/settings"
@@ -43,7 +44,7 @@ func TestSettingsReadsSelectedServerRootFreshnessLegacyLoadErrorsAndPrivacy(t *t
 	if err := os.WriteFile(vaultPath, []byte(`{"AGEZT_W45_NATIVE_SECRET":"owned-private-marker"}`), 0600); err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(k, serverDir)
+	s := NewServer(binding.ScopeFromKernel(k, serverDir))
 	s.configEnvPinned = map[string]bool{"AGEZT_W45_NATIVE_PUBLIC": true}
 	svc := s.settingsReads()
 	head, hash := k.Journal().Head()

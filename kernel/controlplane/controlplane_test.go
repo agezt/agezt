@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"os"
 	"path/filepath"
 	"strings"
@@ -209,7 +210,7 @@ func startPairWithConfig(t *testing.T, cfg runtime.Config) (*runtime.Kernel, *co
 	k.SetWorkflowEngine(workflow.NewEngine(wfstore, k.WorkflowPorts()))
 	t.Cleanup(func() { k.Close() })
 
-	srv := controlplane.NewServer(k, dir)
+	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))
 	// The message board is the daemon's file (W3.59): the root opens it and
 	// hands the control plane the contract's port. A test that wants the
 	// unwired surface un-wires it again.

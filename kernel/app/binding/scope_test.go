@@ -3,6 +3,7 @@
 package binding
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/runtime"
@@ -25,8 +26,8 @@ func TestTheScopeIsFilledFromTheDaemonsOwnKernel(t *testing.T) {
 	if !scope.Filled() {
 		t.Fatal("the scope was not filled from the daemon's own kernel")
 	}
-	if scope.BaseDir != dir {
-		t.Errorf("the scope's own directory is %q, want %q", scope.BaseDir, dir)
+	if scope.Directory != dir {
+		t.Errorf("the scope's own directory is %q, want %q", scope.Directory, dir)
 	}
 	if scope.JournalPorts.Events == nil {
 		t.Error("the scope carries no journal — the journal is the family's own port")
@@ -42,31 +43,35 @@ func TestTheScopeIsFilledFromTheDaemonsOwnKernel(t *testing.T) {
 	}
 }
 
-// A handle that is not the daemon's own refuses: the families that take a
-// handle refuse, and the scope is not filled.
-func TestTheScopeRefusesAHandleThatIsNotTheDaemons(t *testing.T) {
-	scope := ScopeFromHandle("not a daemon", t.TempDir())
+// A scope with no daemon behind it refuses: the families that take a handle
+// refuse, and the scope is not filled.
+//
+// There is no way to fill a scope from an untyped handle any more — the
+// scope's own door closed with the adapter's — so "no daemon" is a nil
+// kernel, and the refusal is the same one.
+func TestTheScopeRefusesWhenThereIsNoDaemon(t *testing.T) {
+	scope := ScopeFromKernel(nil, t.TempDir())
 	if scope.Filled() {
-		t.Fatal("a foreign handle filled the scope")
+		t.Fatal("a scope with no daemon filled itself")
 	}
 	if scope.JournalPorts.Events != nil {
-		t.Error("the foreign handle filled a family's port")
+		t.Error("a scope with no daemon filled a family's port")
 	}
 	if scope.FilesRunner == nil {
-		t.Error("the foreign handle left the files' runner empty — a nil runner is not a refusal")
+		t.Error("a scope with no daemon left the files' runner empty — a nil runner is not a refusal")
 	}
 	if scope.SteerRuns == nil {
-		t.Error("the foreign handle left the steer family's runs empty — a nil is not a refusal")
+		t.Error("a scope with no daemon left the steer family's runs empty — a nil is not a refusal")
 	}
 	if scope.PlanRunnerPorts.RunPlan == nil {
-		t.Error("the foreign handle left the plan runner without a refusal")
+		t.Error("a scope with no daemon left the plan runner without a refusal")
 	}
 }
 
 // The refusing scope is what an adapter that was built without one asks for:
 // a family is asked, never called into nothing.
 func TestTheRefusingScopeRefusesEveryFamilyThatTakesAHandle(t *testing.T) {
-	scope := RefusingScope()
+	scope := RefusingScope("")
 	if scope.Filled() {
 		t.Error("the refusing scope claims to be filled")
 	}
@@ -81,24 +86,38 @@ func TestTheRefusingScopeRefusesEveryFamilyThatTakesAHandle(t *testing.T) {
 	}
 }
 
-// Resolve is the scope for what the adapter was handed: a scope stays the
-// scope it is, and a handle is filled into one.
-func TestResolveKeepsAScopeAndFillsAHandle(t *testing.T) {
-	dir := t.TempDir()
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
-	if err != nil {
-		t.Fatal(err)
+// The refusing scope keeps its DIRECTORY.
+//
+// A scope that refuses still knows where it is: the adapter's own directory
+// comes from the scope, and a scope that lost its directory would point the
+// adapter at nothing.
+func TestTheRefusingScopeKeepsItsDirectory(t *testing.T) {
+	scope := RefusingScope(t.TempDir())
+	if scope.Directory == "" {
+		t.Error("the refusing scope lost its directory")
 	}
-	t.Cleanup(func() { k.Close() })
+	if scope.Filled() {
+		t.Error("the refusing scope claims to be filled")
+	}
+}
 
-	filled := ScopeFromKernel(k, dir)
-	if got := Resolve(filled, dir); !got.Filled() || got.BaseDir != dir {
-		t.Errorf("resolve kept %+v, want the scope it was given", got.BaseDir)
-	}
-	if got := Resolve(k, dir); !got.Filled() || got.BaseDir != dir {
-		t.Errorf("resolve filled %q, want the daemon's own scope", got.BaseDir)
-	}
-	if got := Resolve("not a daemon", dir); got.Filled() {
-		t.Error("resolve filled a scope from a foreign handle")
+// The scope's fields are PORT names, never the kernel's verb names.
+//
+// A scope that carried a kernel verb's name would name a door it does not
+// have: the kernel's `BaseDir` is the daemon's own directory, and the scope's
+// directory is the scope's. The rule is the reflection — no field of the scope
+// is named like a verb of the kernel.
+//
+// The rule is about the WHOLE name: a field that carries a family as a prefix
+// (`MemoryPorts`) names the family's port, and the verb it resembles is not
+// the field's name.
+func TestTheScopesFieldsAreNeverTheKernelsVerbs(t *testing.T) {
+	kernel := reflect.TypeOf(&runtime.Kernel{})
+	scope := reflect.TypeOf(Scope{})
+	for i := 0; i < scope.NumField(); i++ {
+		name := scope.Field(i).Name
+		if _, ok := kernel.MethodByName(name); ok {
+			t.Errorf("the scope's %s field is the kernel's own verb — a scope names ports, not verbs", name)
+		}
 	}
 }

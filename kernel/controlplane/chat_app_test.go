@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net"
 	"testing"
 	"time"
@@ -29,7 +30,7 @@ func TestChatSuggestionsReadThePrimaryMemory(t *testing.T) {
 	if _, _, err := k.Memory().Remember("seed", memory.RememberSpec{Type: memory.TypePreference, Subject: "Code Style", Content: "be blunt", Confidence: 0.9, Force: true}); err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	// The raw line keeps each suggestion's declared member order.
 	client, server := net.Pipe()
@@ -67,7 +68,7 @@ func TestChatSummarizeBindsTheKernel(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	resp := callAppHost(t, s, Request{ID: "c", Cmd: CmdChatSummarize, Token: "primary", Args: map[string]any{"turns": []any{map[string]any{"role": "user", "text": "hi"}}}})[0]
 	if raw, _ := json.Marshal(resp.Result); resp.Type != RespResult || string(raw) != `{"summary":"the briefing","turns":1}` || model != "kernel-model" {

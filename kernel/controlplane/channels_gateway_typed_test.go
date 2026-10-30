@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app"
+	"github.com/agezt/agezt/kernel/app/binding"
 	appchannels "github.com/agezt/agezt/kernel/app/channels"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -56,7 +57,7 @@ func TestChannelGatewayNativeCanceledBeforeHTTPAndReadWithoutAudit(t *testing.T)
 					t.Fatal(err)
 				}
 				defer k.Close()
-				s := NewServer(k, dir)
+				s := NewServer(binding.ScopeFromKernel(k, dir))
 				s.token = "primary"
 				providers, gets := 0, 0
 				ops, err := appchannels.GatewayOperations(func(ctx context.Context) *appchannels.Gateway {
