@@ -3708,6 +3708,25 @@ This file holds the active `[Unreleased]` working set.
   bounded window on Windows — the same remedy the atomic file helper already
   carries for files.
 
+- **The task board's verbs move into the work module (W3.68).** The first slice
+  of the runtime's dissolution, and the first time the port programme's work
+  is spent. The task board was split in half: its **data** — the store, the
+  transitions, the retry rule — already lived in the work module, while its
+  **operations** — the fifteen verbs that create, claim, complete and archive
+  a task — lived in the daemon. The module now owns the service
+  (`kernel/modules/work/api.Service`, built by the composition root over the
+  store the daemon opened), and the daemon keeps its public names and
+  forwards: `ClaimWorkboardTask` asks the module and returns the module's
+  answer. **No caller outside the runtime changed** — 0 production files in
+  `kernel/app` — and the daemon's public board names are still 15. The two
+  answers both sides need became contract rows (`workboardapi.ErrNoStore`,
+  `workboardapi.TaskEventPayload`), because the daemon may not name the module
+  and the module may not name the daemon. The daemon's calls into the board's
+  store are 0, down from 15; `kernel/runtime` is 9,588 lines, down from
+  9,649, and `kernel/modules/work` is 2,049, up from 1,664. The board's
+  **proof** — the loop that judges a task's answer against its acceptance
+  criteria — still lives in the daemon, because it judges with the daemon's
+  model.
 - **Operation audit records name the tenant actually reached.** A primary-token
   write that named a tenant with surrounding spaces was routed to that tenant
   but audited under the padded name; the record now carries the trimmed tenant.
