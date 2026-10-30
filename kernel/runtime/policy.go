@@ -153,7 +153,7 @@ func (k *Kernel) policyHook(ctx context.Context, tc llm.ToolCall) agent.PolicyVe
 	// auto-approve grant below satisfies the Ask axis only: a guard the operator
 	// armed deliberately must not be answered by a blanket capability grant.
 	guardRaised := ""
-	if k.cfg.EpistemicEscalation && verdict.Allow && ep.escalates() {
+	if k.cfg.EpistemicEscalation && verdict.Allow && ep.Escalates() {
 		requiresApproval = true
 		approvalReason = ep.Reason
 		verdict.Allow = false

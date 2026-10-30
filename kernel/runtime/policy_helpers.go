@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/platform/policy/epistemic"
 )
 
 func (k *Kernel) agentNoisePolicyDenial(ctx context.Context, tc llm.ToolCall) (string, bool) {
@@ -163,7 +164,7 @@ func (k *Kernel) approvalDecisionBundle(toolName string, cap edict.Capability, i
 	}
 	confidence := effect.Confidence
 	if confidence <= 0 || confidence > 1 {
-		confidence = defaultEffectConfidence(class)
+		confidence = epistemic.DefaultEffectConfidence(class)
 	}
 	return approvalBundle{
 		EffectClass:       class,
@@ -232,20 +233,5 @@ func defaultRollbackNotes(class string) string {
 		return "No reliable rollback path declared; approve only if the effect is acceptable."
 	default:
 		return "No rollback information declared."
-	}
-}
-
-func defaultEffectConfidence(class string) float64 {
-	switch class {
-	case string(toolapi.EffectReadOnly):
-		return 0.95
-	case string(toolapi.EffectReversible):
-		return 0.75
-	case string(toolapi.EffectCompensable):
-		return 0.6
-	case string(toolapi.EffectIrreversible):
-		return 0.5
-	default:
-		return 0.4
 	}
 }

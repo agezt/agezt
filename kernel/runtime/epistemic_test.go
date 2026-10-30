@@ -119,6 +119,56 @@ func TestRunWith_EpistemicSignalsJournaledWithoutEscalation(t *testing.T) {
 	}
 }
 
+// TestRunWith_EpistemicConfidenceFallsBackToThePlatformRow: a tool that
+// declares no confidence is judged under its CLASS's default — and that row
+// is the platform's, not the runtime's own copy of it.
+func TestRunWith_EpistemicConfidenceFallsBackToThePlatformRow(t *testing.T) {
+	var calls int32
+	prov := mock.New(
+		testToolUse("c1", "confprobe", map[string]any{"target": "notes"}),
+		mock.FinalText("done"),
+	)
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:  t.TempDir(),
+		Provider: prov,
+		Tools: map[string]toolapi.Tool{
+			"confprobe": epistemicTool{
+				name: "confprobe", class: toolapi.EffectReadOnly, confidence: 0, calls: &calls,
+			},
+		},
+		Edict: edict.New(edict.Options{UnknownAllow: true}),
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+
+	if _, _, err := k.Run(context.Background(), "read the notes"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	var found bool
+	_ = k.Journal().Range(func(e *event.Event) error {
+		if e.Kind != event.KindPolicyDecision {
+			return nil
+		}
+		var p struct {
+			EpistemicConfidence float64 `json:"epistemic_confidence"`
+		}
+		if err := json.Unmarshal(e.Payload, &p); err != nil {
+			t.Fatalf("policy payload: %v", err)
+		}
+		found = true
+		if p.EpistemicConfidence != 0.95 {
+			t.Errorf("epistemic confidence = %v want 0.95 (the platform's read-only default)", p.EpistemicConfidence)
+		}
+		return nil
+	})
+	if !found {
+		t.Fatal("no policy.decision event")
+	}
+}
+
 func TestRunWith_EpistemicEscalationRoutesLowConfidenceToApproval(t *testing.T) {
 	var calls int32
 	reg := approval.New(approval.Config{Timeout: 5 * time.Second})
