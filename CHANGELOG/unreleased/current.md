@@ -5986,3 +5986,20 @@ This file holds the active `[Unreleased]` working set.
   their place, and the wiring was always there, inside the conditions. What
   moved is the ownership: the platform holds 167 lines of rule that every host
   asks, and the daemon holds none.
+- **The policy hook's admission rules move into the platform (W3.75).** The
+  eighth slice of the runtime's dissolution, and the third one that moves a
+  **rule**. The policy hook was not finished after W3.74: the guards moved, but
+  the hook still owned the capability resolution — which policy axis a call is
+  judged on, from the tool's own declaration, the plugin manifest overlay and
+  the name switch, in that order, ignoring a declaration that names an axis
+  Edict does not govern — and the approval bundle's tables: the effect class,
+  the predicted effects, the affected resources, the rollback notes and the
+  confidence the operator is shown. Those are rules, not plumbing, so they moved
+  to `kernel/platform/policy/admission`. The one thing the platform cannot have
+  is the tool map — the host builds the tools — so the lookup is a port: a way
+  to ask for a definition by name. The daemon keeps its overlay and its tool
+  map, and asks. The agent-noise policy stayed in the daemon: it reads the
+  run's context and the daemon's own state, and owns both. The bundle's shape
+  and the capability resolution did not change, and no caller outside the
+  runtime did either — 0 production files in `kernel/app`. `kernel/runtime` is
+  8,687 lines, down from 8,796, and `kernel/platform` is 3,381, up from 3,180.

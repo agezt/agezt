@@ -15,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
+	"github.com/agezt/agezt/kernel/platform/policy/admission"
 	"github.com/agezt/agezt/kernel/platform/policy/guards"
 )
 
@@ -34,50 +35,19 @@ import (
 // through to Submit and surfaces as DecisionCancel.
 // validatedToolCaps keeps only declarations naming a capability Edict knows
 // (M900) — a plugin may join an existing policy axis, never invent one.
+//
+// The rule is the platform's (W3.75); the daemon keeps the name.
 func validatedToolCaps(declared map[string]string) map[string]edict.Capability {
-	if len(declared) == 0 {
-		return nil
-	}
-	out := make(map[string]edict.Capability, len(declared))
-	for tool, cap := range declared {
-		if edict.KnownCapability(cap) {
-			out[tool] = edict.Capability(cap)
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
+	return admission.ValidatedToolCaps(declared)
 }
 
-// capabilityFor resolves the policy axis one tool call is gated on, in order of
-// how specific the source is:
+// capabilityFor resolves the policy axis one tool call is gated on.
 //
-//  1. The tool's own ToolDef.Capability — the authoritative declaration, made in
-//     the tool's package next to the behaviour it describes.
-//  2. Config.ToolCapabilities (M900) — the same declaration arriving through a
-//     plugin's capability manifest, for a tool whose ToolDef crossed a process
-//     boundary and so cannot carry Go fields.
-//  3. edict.CapabilityForToolCall — the name switch, now a fallback. It still
-//     owns the DYNAMIC surfaces no static declaration can cover: forged
-//     `forge_<name>` script tools and bridged `mcp_<server>_<tool>` calls.
-//
-// A declaration naming a capability Edict does not govern is IGNORED rather than
-// honoured, and resolution continues down the list. This matters: an unknown
-// capability is default-denied, so honouring a typo would silently kill the tool
-// — the exact failure this field was introduced to end. Same rule the plugin
-// manifest overlay already applied (a tool may join an existing axis, never
-// invent one), now applied to in-tree declarations too.
+// The rule is the platform's (W3.75): the declaration, the manifest overlay
+// and the name switch, in that order. The daemon keeps the doors — its
+// overlay and its tool map — and asks.
 func (k *Kernel) capabilityFor(tc llm.ToolCall, def toolapi.ToolDef) edict.Capability {
-	if !def.Capability.IsZero() {
-		if cap := def.Capability.For(tc.Input); edict.KnownCapability(cap) {
-			return edict.Capability(cap)
-		}
-	}
-	if cap, ok := k.toolCaps[tc.Name]; ok {
-		return cap
-	}
-	return edict.CapabilityForToolCall(tc.Name, tc.Input)
+	return admission.ResolveCapability(def, k.toolCaps, tc.Name, tc.Input)
 }
 
 func (k *Kernel) policyHook(ctx context.Context, tc llm.ToolCall) agent.PolicyVerdict {

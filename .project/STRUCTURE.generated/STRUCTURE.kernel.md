@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-219 package(s):
+220 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -188,6 +188,7 @@
 - **`kernel/platform/fileworkspace`** — Package fileworkspace owns console workspace path checks and filesystem primitives.
 - **`kernel/platform/journalview`** — SPDX-License-Identifier: MIT
 - **`kernel/platform/netout`** — Package netout is the outbound-HTTP platform (architecture/20-target- architecture.md §5, layer L2): the one place a client that dials out is built.
+- **`kernel/platform/policy/admission`** — Package admission is the platform's ADMISSION rule: the policy axis a tool call is gated on, and what the operator is told about the call.
 - **`kernel/platform/policy/epistemic`** — Package epistemic is the platform's EPISTEMIC GUARD: the rule that decides whether a tool call needs a human, because the model cannot see what the journal remembers.
 - **`kernel/platform/policy/guards`** — Package guards is the platform's POLICY GUARD set: the fail-closed rules that decide whether an otherwise-allowed tool call must see a human.
 - **`kernel/platform/policyctx`** — Package policyctx carries resolved tool metadata and observation provenance between admission and the policy decision.

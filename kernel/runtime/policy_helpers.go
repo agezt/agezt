@@ -17,7 +17,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/platform/policy/epistemic"
+	"github.com/agezt/agezt/kernel/platform/policy/admission"
 )
 
 func (k *Kernel) agentNoisePolicyDenial(ctx context.Context, tc llm.ToolCall) (string, bool) {
@@ -130,108 +130,23 @@ func notifySeverityRank(severity string) int {
 	}
 }
 
-type approvalBundle struct {
-	EffectClass       string
-	PredictedEffects  []string
-	AffectedResources []string
-	RollbackNotes     string
-	Confidence        float64
+// approvalDecisionBundle assembles what the operator is shown about a call.
+//
+// The rule is the platform's (W3.75): the effect class, the predicted
+// effects, the resources, the rollback notes and the confidence. The daemon
+// keeps the doors — its tool map — and asks.
+func (k *Kernel) approvalDecisionBundle(toolName string, cap edict.Capability, input json.RawMessage, def toolapi.ToolDef) admission.Bundle {
+	return admission.BundleFor(toolName, cap, input, def, k.lookupToolDef)
 }
 
-func (k *Kernel) approvalDecisionBundle(toolName string, cap edict.Capability, input json.RawMessage, def toolapi.ToolDef) approvalBundle {
-	effect := def.Effect
-	if effect.Class == "" && len(effect.PredictedEffects) == 0 && len(effect.AffectedResources) == 0 {
-		if tool, ok := k.tools[toolName]; ok {
-			effect = tool.Definition().Effect
-		}
+// lookupToolDef finds a tool's definition by name — the host's tool map.
+func (k *Kernel) lookupToolDef(name string) (toolapi.ToolDef, bool) {
+	if k == nil {
+		return toolapi.ToolDef{}, false
 	}
-
-	class := normalizeEffectClass(effect.Class)
-	if class == "" {
-		class = defaultEffectClass(cap)
+	tool, ok := k.tools[name]
+	if !ok {
+		return toolapi.ToolDef{}, false
 	}
-	resources := append([]string(nil), effect.AffectedResources...)
-	if len(resources) == 0 {
-		resources = affectedResourcesFromInput(toolName, cap, input)
-	}
-	predicted := append([]string(nil), effect.PredictedEffects...)
-	if len(predicted) == 0 {
-		predicted = []string{fmt.Sprintf("invoke %s under %s", toolName, cap)}
-	}
-	rollback := strings.TrimSpace(effect.RollbackNotes)
-	if rollback == "" {
-		rollback = defaultRollbackNotes(class)
-	}
-	confidence := effect.Confidence
-	if confidence <= 0 || confidence > 1 {
-		confidence = epistemic.DefaultEffectConfidence(class)
-	}
-	return approvalBundle{
-		EffectClass:       class,
-		PredictedEffects:  predicted,
-		AffectedResources: resources,
-		RollbackNotes:     rollback,
-		Confidence:        confidence,
-	}
-}
-
-func normalizeEffectClass(class toolapi.EffectClass) string {
-	switch class {
-	case toolapi.EffectReadOnly, toolapi.EffectReversible, toolapi.EffectCompensable, toolapi.EffectIrreversible:
-		return string(class)
-	default:
-		return ""
-	}
-}
-
-func defaultEffectClass(cap edict.Capability) string {
-	switch cap {
-	case edict.CapFileRead, edict.CapFileList, edict.CapHTTPGet, edict.CapBrowserRead,
-		edict.CapHomeAssistantRead, edict.CapWebSearch, edict.CapRunsRead,
-		edict.CapIntrospect, edict.CapConfigRead, edict.CapProviderCall:
-		return string(toolapi.EffectReadOnly)
-	case edict.CapFileWrite, edict.CapMemory, edict.CapWorld, edict.CapSchedule,
-		edict.CapStanding, edict.CapBoard, edict.CapSkill, edict.CapOversee,
-		edict.CapToolForge, edict.CapConfigWrite, edict.CapWorkflow:
-		return string(toolapi.EffectReversible)
-	case edict.CapNotify, edict.CapHTTPPost, edict.CapRemoteRun:
-		return string(toolapi.EffectCompensable)
-	case edict.CapShell, edict.CapFileDelete, edict.CapCoding, edict.CapACPAgent,
-		edict.CapHomeAssistantCall, edict.CapCodeExec, edict.CapMCPInstall, edict.CapMCP,
-		edict.CapMarket:
-		return string(toolapi.EffectIrreversible)
-	default:
-		return string(toolapi.EffectIrreversible)
-	}
-}
-
-func affectedResourcesFromInput(toolName string, cap edict.Capability, input json.RawMessage) []string {
-	out := []string{"tool:" + toolName, "capability:" + string(cap)}
-	var obj map[string]any
-	if err := json.Unmarshal(input, &obj); err != nil {
-		return out
-	}
-	for _, key := range []string{"path", "url", "endpoint", "entity_id", "service", "command", "op", "name", "id"} {
-		if v, ok := obj[key]; ok {
-			if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
-				out = append(out, key+":"+s)
-			}
-		}
-	}
-	return out
-}
-
-func defaultRollbackNotes(class string) string {
-	switch class {
-	case string(toolapi.EffectReadOnly):
-		return "No rollback required for read-only action."
-	case string(toolapi.EffectReversible):
-		return "Use the corresponding revert/delete/restore operation or journaled state to undo if needed."
-	case string(toolapi.EffectCompensable):
-		return "No guaranteed rollback; compensate with a follow-up action if the outcome is wrong."
-	case string(toolapi.EffectIrreversible):
-		return "No reliable rollback path declared; approve only if the effect is acceptable."
-	default:
-		return "No rollback information declared."
-	}
+	return tool.Definition(), true
 }
