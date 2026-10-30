@@ -4,86 +4,64 @@ package runtime
 
 import (
 	"encoding/json"
-	"fmt"
-	"strings"
+	"time"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/platform/policy/epistemic"
 )
 
-const epistemicHistoryLimit = 4096
-
-type epistemicDecision struct {
-	Action           string
-	Reason           string
-	Signals          []string
-	Confidence       float64
-	FailureMatches   int
-	WeightedFailures float64
-	SchemaHash       string
-	InputShape       string
-	Temporal         bool
-	NovelTool        bool
+// The epistemic guard is the PLATFORM's rule (W3.73): whether a tool call
+// needs a human because the model cannot see what the journal remembers.
+//
+// The runtime keeps only the HOST's half of it — the three ports it owns: the
+// journal it scans, the clock it measures age against, and the tool map it
+// looks definitions up in. The decision belongs to
+// kernel/platform/policy/epistemic, so every host asks the same rule instead
+// of re-implementing it.
+//
+// Provenance: kernel/runtime/epistemic.go held the guard and its twelve helpers
+// until W3.73. The rule moved to the platform package; this file became the
+// host's port wiring.
+func (k *Kernel) epistemicGate(toolName string, cap edict.Capability, input json.RawMessage, def toolapi.ToolDef, bundle approvalBundle) epistemic.Decision {
+	return k.epistemicGateFor().Decide(toolName, string(cap), input, def, bundle.EffectClass, bundle.Confidence)
 }
 
-func (d epistemicDecision) escalates() bool { return d.Action == "escalate" }
+// epistemicGateFor builds the platform's guard over this kernel's ports.
+//
+// The guard is a struct of three function values, so it is built per call
+// rather than held on the kernel: a held gate would need a lock for a value
+// that never changes.
+func (k *Kernel) epistemicGateFor() *epistemic.Gate {
+	return epistemic.New(epistemic.Ports{
+		Scan:   k.epistemicScan,
+		Now:    time.Now,
+		Lookup: k.epistemicLookup,
+	})
+}
 
-// epistemicGate is deliberately outside the model. It treats the model's tool
-// call as a proposal, then uses tool metadata plus journaled outcomes to decide
-// whether the normal policy verdict needs human escalation.
-func (k *Kernel) epistemicGate(toolName string, cap edict.Capability, input json.RawMessage, def toolapi.ToolDef, bundle approvalBundle) epistemicDecision {
-	if def.Name == "" {
-		if tool, ok := k.tools[toolName]; ok {
-			def = tool.Definition()
-		}
+// epistemicScan walks the journal's policy decisions and tool results — the
+// history the guard reasons over.
+//
+// A kernel without a journal has no memory: the walk finds nothing and the
+// guard treats every tool as novel, which is the SAFE direction (unknown
+// means ask).
+func (k *Kernel) epistemicScan(visit func(*event.Event) error) error {
+	if k == nil || k.journal == nil {
+		return nil
 	}
-	if def.Name == "" {
-		return epistemicDecision{Action: "allow", Reason: "tool definition unavailable; handled before epistemic gate"}
-	}
-	schemaHash := hashSchema(def.InputSchema)
-	inputShape := inputShape(input)
-	class := bundle.EffectClass
-	confidence := bundle.Confidence
-	if confidence <= 0 || confidence > 1 {
-		confidence = defaultEffectConfidence(class)
-	}
+	return k.journal.Range(visit)
+}
 
-	signals := make([]string, 0, 5)
-	if strings.HasPrefix(toolName, "mcp_") || strings.HasPrefix(toolName, "forge_") {
-		signals = append(signals, "dynamic_tool_surface")
+// epistemicLookup finds a tool's definition by name — the host's tool map.
+func (k *Kernel) epistemicLookup(name string) (toolapi.ToolDef, bool) {
+	if k == nil {
+		return toolapi.ToolDef{}, false
 	}
-	if temporalSensitive(toolName, def.Description, input) {
-		signals = append(signals, "temporal_sensitive")
+	tool, ok := k.tools[name]
+	if !ok {
+		return toolapi.ToolDef{}, false
 	}
-	seenTool, failures, weightedFailures := k.matchHistoricalToolOutcomes(toolName, string(cap), schemaHash, inputShape, class)
-	if !seenTool {
-		signals = append(signals, "novel_tool_conditions")
-	}
-	if failures > 0 {
-		signals = append(signals, fmt.Sprintf("matched_failure_conditions:%d", failures))
-	}
-	if confidence < confidenceFloor(class) {
-		signals = append(signals, fmt.Sprintf("low_effect_confidence:%.2f", confidence))
-	}
-	if schemaPermissive(def.InputSchema) && class != string(toolapi.EffectReadOnly) {
-		signals = append(signals, "permissive_schema_effectful_tool")
-	}
-
-	decision := epistemicDecision{
-		Action:           "allow",
-		Reason:           "epistemic policy allowed",
-		Signals:          signals,
-		Confidence:       confidence,
-		FailureMatches:   failures,
-		WeightedFailures: weightedFailures,
-		SchemaHash:       schemaHash,
-		InputShape:       inputShape,
-		Temporal:         containsSignal(signals, "temporal_sensitive"),
-		NovelTool:        !seenTool,
-	}
-	if shouldEscalateEpistemic(class, confidence, failures, weightedFailures, signals) {
-		decision.Action = "escalate"
-		decision.Reason = "epistemic policy requires human review: " + strings.Join(signals, ", ")
-	}
-	return decision
+	return tool.Definition(), true
 }

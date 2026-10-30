@@ -402,11 +402,11 @@ Numbered narrative with the real function names:
 12. **Completion.** `FinalizeResumeTicket` (keeps the ticket if the run was interrupted by shutdown), `DeregisterRunSteer` immediately, skill outcome attribution, then on success distill/forge/shadow-eval (thresholds `MemoryDistillMinTools`/`SkillForgeMinTools`, default 4 tool results counted by `FoldRunTools`) and `CompleteAgentLifecycle` (idempotent per corr via `Lifecycle.LastCompletedRun`). Cleanup always runs in the defer.
 13. **Assure / proof** (optional). `RunAssured` loops verify→retry (≤10 attempts, default 3) under the same corr. `ProveTask` (workboard) judges acceptance criteria and gates the task's `done` state (section 10).
 
-### 4.5 policyHook — the Edict gate in detail (policy.go, policy_helpers.go, epistemic*.go, intent.go)
+### 4.5 policyHook — the Edict gate in detail (policy.go, policy_helpers.go, epistemic.go, intent.go)
 1. `capabilityFor(tc, def)`: (a) `def.Capability.For(input)` if it names a capability Edict knows; (b) else `k.toolCaps[name]` (plugin manifest overlay M900, validated at Open by `validatedToolCaps`); (c) else `edict.CapabilityForToolCall` (name switch: `forge_*`→`code.exec`, `mcp_*`→`mcp.call`, …). An unknown capability name falls through to `Capability(toolName)`, which Edict default-denies unless `AGEZT_ALLOW_ALL` (`unknownAllow`).
 2. `edict.DecideWithCeiling(cap, input, ceiling)` when the ctx carries a trust ceiling (agent profile `TrustCeiling`, pulse initiative); otherwise `Decide`.
 3. `approvalDecisionBundle`: effect class from the ToolDef, else `defaultEffectClass(cap)`. Also predicted effects, affected resources (from input), rollback notes, confidence.
-4. `epistemicGate`: signals `dynamic_tool_surface`, `temporal_sensitive`, `novel_tool_conditions`, `matched_failure_conditions:N`, `low_effect_confidence:X`, `permissive_schema_effectful_tool`. History comes from `matchHistoricalToolOutcomes`, a **full `journal.Range`** over `policy.decision`/`tool.result`, keeping the last 4096 and weighting failures by time decay. The result is advisory unless `EpistemicEscalation` is set.
+4. `epistemicGate`: the **rule** is the platform's (`kernel/platform/policy/epistemic`), asked through three host ports — the journal scan, the clock and the tool map. Signals `dynamic_tool_surface`, `temporal_sensitive`, `novel_tool_conditions`, `matched_failure_conditions:N`, `low_effect_confidence:X`, `permissive_schema_effectful_tool`. History comes from the platform's `matchHistoricalToolOutcomes`, a **full `journal.Range`** over `policy.decision`/`tool.result`, keeping the last 4096 and weighting failures by time decay. The result is advisory unless `EpistemicEscalation` is set.
 5. Hard denials that bypass approval: `agentToolPolicyDenial` (profile `ToolAllow`/`ToolDeny`) and `agentNoisePolicyDenial` (e.g. memory writes disabled, notify throttling).
 6. Fail-closed guards that each force HITL with their own reason (`guardRaised`): epistemic escalation (opt-in), intent/regret gating (`IntentRegretGating`, publishes `intent.confirmation_required`), and the prompt-injection guard (`PromptInjectionOn` and not `WithTrustedObservations`; in `Warn` mode it publishes `prompt_injection.warned` and allows). The injection guard only fires for non-read-only effect classes.
 7. Session auto-approve (`autoApproveCap`) satisfies **only** the Edict Ask axis, never a guard. It publishes `policy.auto_approved`.
@@ -630,8 +630,7 @@ Root package, grouped by concern; every non-test file is listed.
 |---|---|
 | `policy.go` | `validatedToolCaps`, `capabilityFor`, `policyHook` (section 4.5). |
 | `policy_helpers.go` | Noise policy denial/notify (`agentNoisePolicyDenial`, `completeAgentNoiseNotify`, state in `state` ns `agent_noise`), `approvalBundle`/`approvalDecisionBundle`, `defaultEffectClass`, `affectedResourcesFromInput`, rollback/confidence defaults. |
-| `epistemic.go` | `epistemicDecision`, `epistemicGate`, `epistemicHistoryLimit=4096`. |
-| `epistemic_helpers.go` | `shouldEscalateEpistemic`, `confidenceFloor`, `hashSchema`, `inputShape`, `schemaPermissive`, `temporalSensitive`, `matchHistoricalToolOutcomes` (journal scan), decay helpers. |
+| `epistemic.go` | The host's half of the epistemic gate (W3.73): `epistemicGate` asks the platform's rule (`kernel/platform/policy/epistemic`) over three ports — `epistemicScan` (the journal), `epistemicLookup` (the tool map) and the clock. |
 | `intent.go` | Publishers: `intent.interpreted`, `intent.confirmation_required`, `policy.auto_approved`, `prompt_injection.warned`; `regretAxesPayload`. |
 | `toolpolicy.go` | `applyAgentNoisePolicyToPromptTools`, `filterTools`, `applyAgentToolPolicy`, `agentToolPolicyDenial`. |
 
