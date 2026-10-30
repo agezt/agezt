@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	appchannels "github.com/agezt/agezt/kernel/app/channels"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/creds"
@@ -79,7 +80,7 @@ func TestChannelAccountNativeMandatoryAuditAndCanceledAdmission(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				s := NewServer(k, dir)
+				s := NewServer(binding.ScopeFromKernel(k, dir))
 				s.token = "primary"
 				args := map[string]any{"kind": "email", "label": "work", "name": "AGEZT_EMAIL_SMTP_ADDR", "value": "after"}
 				ctx, cancel := context.WithCancel(context.Background())

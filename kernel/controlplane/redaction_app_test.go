@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net"
 	"strings"
 	"testing"
@@ -45,7 +46,7 @@ func TestRedactNativeLiveRedactor(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	call := func(args map[string]any) string {
 		a, b := net.Pipe()

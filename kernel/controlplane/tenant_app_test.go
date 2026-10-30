@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"io"
 	"net"
 	"path/filepath"
@@ -52,7 +53,7 @@ func TestTenantNativeDisabled(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	for _, cmd := range []string{CmdTenantCreate, CmdTenantList, CmdTenantRelease, CmdTenantRemove, CmdTenantToken, CmdTenantStats} {
 		a, b := net.Pipe()
@@ -115,7 +116,7 @@ func TestTenantNativeStats(t *testing.T) {
 	if _, err := reg.Release("idle"); err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	s.SetTenants(reg)
 	a, b := net.Pipe()

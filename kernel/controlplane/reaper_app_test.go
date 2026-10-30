@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"io"
 	"net"
 	"path/filepath"
@@ -87,7 +88,7 @@ func TestReaperNativeScan(t *testing.T) {
 	if _, err := tk.Roster().Add(agentapi.Profile{Slug: "tenant-dormant"}); err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	s.SetTenants(reg)
 	call := func(token string, args map[string]any) string {

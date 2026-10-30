@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net"
 	"path/filepath"
 	"strings"
@@ -78,7 +79,7 @@ func TestAgentRetireReviveNativePorts(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	call := func(cmd string, args map[string]any) string {
 		a, b := net.Pipe()

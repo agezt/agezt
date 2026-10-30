@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -38,7 +39,7 @@ func TestRoutingBindsTheKernel(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := t.TempDir()
-	s := NewServer(k, base)
+	s := NewServer(binding.ScopeFromKernel(k, base))
 	s.token = "primary"
 	result := func(cmd string, args map[string]any) string {
 		t.Helper()

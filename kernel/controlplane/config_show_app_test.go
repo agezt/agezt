@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	appconfig "github.com/agezt/agezt/kernel/app/config"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -24,7 +25,7 @@ func TestConfigTypedNativeCanceledAdmissionRejectsRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	head, hash := k.Journal().Head()
 	ctx, cancel := context.WithCancel(context.Background())

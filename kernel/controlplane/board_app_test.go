@@ -3,6 +3,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -31,7 +32,7 @@ func TestBoardAppSocketRequiresAuditBeforeStoreAndNotifier(t *testing.T) {
 			}
 			before := store.Read("", 0)
 			notifications := 0
-			s := NewServer(k, dir)
+			s := NewServer(binding.ScopeFromKernel(k, dir))
 			s.token = "primary"
 			s.SetBoard(store, func(board.Message, string) { notifications++ })
 			if err := k.Journal().Close(); err != nil {
@@ -79,7 +80,7 @@ func TestBoardAppHostRefusesWithoutABoardAndWritesThroughTheSharedOne(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	// Unwired: the board is not available — for the reads AND the writes. The
 	// control plane does not open the board's file itself (W3.59): the daemon

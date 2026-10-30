@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net"
 	"regexp"
 	"testing"
@@ -46,7 +47,7 @@ func TestAgentTaskUpdateNativeWire(t *testing.T) {
 	if _, err := k.AddProfile(roster.Profile{Slug: "ops", Soul: "s"}); err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	call := func(args map[string]any) string {
 		t.Helper()

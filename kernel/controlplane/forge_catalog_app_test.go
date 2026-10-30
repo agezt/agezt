@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	apptools "github.com/agezt/agezt/kernel/app/tools"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
@@ -43,7 +44,7 @@ func forgeReadFixture(t *testing.T) (*runtime.Kernel, *Server, *mock.Provider) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	return k, s, provider
 }

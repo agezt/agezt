@@ -5,6 +5,7 @@ package controlplane_test
 import (
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"strings"
 	"testing"
 
@@ -75,7 +76,7 @@ func TestToolList_EmptyWhenNoToolsRegistered(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	srv := controlplane.NewServer(k, dir)
+	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	if err := srv.Start(ctx); err != nil {
@@ -124,7 +125,7 @@ func TestToolList_SortsByName(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	srv := controlplane.NewServer(k, dir)
+	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	if err := srv.Start(ctx); err != nil {
@@ -208,7 +209,7 @@ func TestAgentPermissions_ReturnsEffectiveToolPolicy(t *testing.T) {
 		}
 	}
 
-	srv := controlplane.NewServer(k, dir)
+	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	if err := srv.Start(ctx); err != nil {
@@ -340,7 +341,7 @@ func TestAgentCapabilities_PatchesResourceAuthority(t *testing.T) {
 	if _, err := k.AddProfile(roster.Profile{Slug: "builder"}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
-	srv := controlplane.NewServer(k, dir)
+	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	if err := srv.Start(ctx); err != nil {

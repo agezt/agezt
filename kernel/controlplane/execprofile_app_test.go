@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"io"
 	"path/filepath"
 	"strings"
@@ -39,7 +40,7 @@ func TestExecutionProfilesReadTheCallersKernel(t *testing.T) {
 		t.Fatal(err)
 	}
 	tenantToken, _ := reg.Token("acme")
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	s.SetTenants(reg)
 	read := func(token, cmd string, args map[string]any) string {

@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 
 	approster "github.com/agezt/agezt/kernel/app/roster"
@@ -31,7 +32,7 @@ func TestTheAdapterBindsTheRosterPortsToItsOwnKernel(t *testing.T) {
 		t.Fatalf("AddProfile: %v", err)
 	}
 
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 
 	// The adapter's own ports read the kernel's agents.
 	p, ok := s.rosterPorts().Get("lead")

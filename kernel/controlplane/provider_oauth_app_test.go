@@ -5,6 +5,7 @@ package controlplane
 import (
 	"encoding/base64"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -53,7 +54,7 @@ func TestProviderOAuthAppSocketAuditAndAuthoritativeEmptyModels(t *testing.T) {
 	var empty atomic.Bool
 	dir := t.TempDir()
 	k := openCatalogKernel(t, runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	s.SetChatGPTSync(func() ([]string, string) {
 		syncs.Add(1)
@@ -124,7 +125,7 @@ func TestProviderOAuthAppAdmissionPreventsStateAndVaultEffects(t *testing.T) {
 			dir := t.TempDir()
 			var reloads atomic.Int32
 			k := openCatalogKernel(t, runtime.Config{BaseDir: dir, Provider: mock.New(), OnReload: func() error { reloads.Add(1); return nil }})
-			s := NewServer(k, dir)
+			s := NewServer(binding.ScopeFromKernel(k, dir))
 			s.token = "primary"
 			args := map[string]any{"provider": "chatgpt", "path": oauthFixtureFile(t)}
 			_ = k.Journal().Close()

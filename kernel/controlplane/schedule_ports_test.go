@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"path/filepath"
 	"testing"
 	"time"
@@ -39,7 +40,7 @@ func TestTheAdapterBindsTheSchedulePortsToItsOwnKernel(t *testing.T) {
 		t.Fatalf("Add: %v", err)
 	}
 
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 
 	// The daemon's schedule service lists the kernel's schedules.
 	list, err := s.scheduleReads().List(context.Background(), appschedule.ListInput{})

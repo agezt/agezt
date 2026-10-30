@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 	"time"
 
@@ -26,7 +27,7 @@ func startCoverageServer(t *testing.T) *runtime.Kernel {
 	}
 	t.Cleanup(func() { _ = k.Close() })
 
-	srv := controlplane.NewServer(k, dir)
+	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	if err := srv.Start(ctx); err != nil {

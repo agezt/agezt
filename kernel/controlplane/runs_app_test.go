@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"io"
 	"net"
 	"path/filepath"
@@ -71,7 +72,7 @@ func TestRunsNativeReadsTheCallersKernel(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) map[string]any {

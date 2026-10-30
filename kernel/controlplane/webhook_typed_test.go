@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net"
 	"reflect"
 	"strings"
@@ -59,7 +60,7 @@ func TestWebhookNativeExactIntegerTerminal(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	a, b := net.Pipe()
 	defer a.Close()

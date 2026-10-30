@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	appsettings "github.com/agezt/agezt/kernel/app/settings"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -33,7 +34,7 @@ func TestSettingsTypedNativeMandatoryAuditAndCanceledAdmission(t *testing.T) {
 				if err := reg.Register(seed); err != nil {
 					t.Fatal(err)
 				}
-				s := NewServer(k, dir)
+				s := NewServer(binding.ScopeFromKernel(k, dir))
 				s.token = "primary"
 				args := map[string]any{}
 				switch command {
@@ -96,7 +97,7 @@ func TestSettingsTypedNativeMandatoryAuditAndCanceledAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer k.Close()
-			s := NewServer(k, dir)
+			s := NewServer(binding.ScopeFromKernel(k, dir))
 			s.token = "primary"
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()

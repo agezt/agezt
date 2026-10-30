@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net"
 	"testing"
 	"time"
@@ -47,7 +48,7 @@ func TestConfigCenterTypedNativeJournalFailureAfterEffectsDoesNotRollback(t *tes
 			if err := k.ConfigCenter().Set(seed); err != nil {
 				t.Fatal(err)
 			}
-			s := NewServer(k, dir)
+			s := NewServer(binding.ScopeFromKernel(k, dir))
 			s.token = "primary"
 			saved := configCenterOperations
 			defer func() { configCenterOperations = saved }()

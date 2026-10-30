@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -21,7 +22,7 @@ func TestConfigCenterWritesNativeSelectedManagerPersistenceClassifierAndNoDirect
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, filepath.Join(root, "server"))
+	s := NewServer(binding.ScopeFromKernel(k, filepath.Join(root, "server")))
 	svc := s.configCenterWrites()
 	head, hash := k.Journal().Head()
 	ctx, cancel := context.WithCancel(context.Background())

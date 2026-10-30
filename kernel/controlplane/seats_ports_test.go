@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"path/filepath"
 	"testing"
 
@@ -29,7 +30,7 @@ func TestTheAdapterBindsTheSeatPortsToTheDaemon(t *testing.T) {
 	}
 	defer root.Close()
 
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 
 	if got := s.seatPorts().Store(); got == nil {
 		t.Fatal("the daemon's seat ports hand over no store — the catalog never reached the family")
@@ -48,7 +49,7 @@ func TestTheAdapterBindsNoSeatStoreToADaemonWithoutACatalog(t *testing.T) {
 	}
 	defer root.Close()
 
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 
 	if got := s.seatPorts().Store(); got != nil {
 		t.Fatal("a daemon with no seat catalog hands over a store")

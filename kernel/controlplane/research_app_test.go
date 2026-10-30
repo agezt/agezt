@@ -3,6 +3,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"sort"
 	"testing"
 
@@ -44,7 +45,7 @@ func researchKernel(t *testing.T) *runtime.Kernel {
 // answer keeps the legacy wire shape, and the operation is audited.
 func TestResearchAskBindsTheKernel(t *testing.T) {
 	k := researchKernel(t)
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	resp := callAppHost(t, s, Request{ID: "c", Cmd: CmdResearchAsk, Token: "primary", Args: map[string]any{
 		"question": "why?", "corr": "client-corr",
@@ -95,7 +96,7 @@ func TestResearchAskBindsTheKernel(t *testing.T) {
 // TestResearchAskRejectsAMissingQuestion: the empty question is a clean error.
 func TestResearchAskRejectsAMissingQuestion(t *testing.T) {
 	k := researchKernel(t)
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	resp := callAppHost(t, s, Request{ID: "c", Cmd: CmdResearchAsk, Token: "primary", Args: map[string]any{}})[0]
 	if resp.Type != RespError || resp.Error == "" {

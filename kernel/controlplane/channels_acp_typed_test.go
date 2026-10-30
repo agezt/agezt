@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net"
 	"reflect"
 	"strconv"
@@ -38,7 +39,7 @@ func TestChannelACPNativeTypedIntegerTerminalAndCanceledAdmission(t *testing.T) 
 			t.Fatal(err)
 		}
 		defer k.Close()
-		s := NewServer(k, dir)
+		s := NewServer(binding.ScopeFromKernel(k, dir))
 		s.token = "primary"
 		providerCalls, discoveryCalls := 0, 0
 		ops, err := appchannels.ACPInventoryOperations(func(context.Context) *appchannels.ACPInventory {

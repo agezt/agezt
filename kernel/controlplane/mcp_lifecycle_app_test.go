@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/agezt/agezt/kernel/app/binding"
 	apptools "github.com/agezt/agezt/kernel/app/tools"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
@@ -87,7 +88,7 @@ func mcpLifecycleNativeFixture(t *testing.T, cmd string) (*runtime.Kernel, *Serv
 	}
 	d.calls = 0
 	d.ctx = nil
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	args := map[string]any{"ref": "owned", "enabled": false, "unknown": true, "tenant": "spoof", "correlation_id": "caller-poison"}
 	if cmd == CmdMCPAdd {

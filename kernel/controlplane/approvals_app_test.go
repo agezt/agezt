@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"io"
 	"net"
 	"path/filepath"
@@ -71,7 +72,7 @@ func TestApprovalHistoryNativeRouting(t *testing.T) {
 	publish(k, event.KindApprovalRequested, map[string]any{"approval_id": "primary-ap", "capability": "shell"})
 	publish(tk, event.KindApprovalRequested, map[string]any{"approval_id": "tenant-ap", "capability": "shell"})
 	publish(tk, event.KindApprovalDenied, map[string]any{"approval_id": "tenant-ap", "resolved_by": "lead"})
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) string {
@@ -172,7 +173,7 @@ func TestApprovalLiveNativeDecide(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 	id := k.Approvals().Pending()[0].ID
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) string {

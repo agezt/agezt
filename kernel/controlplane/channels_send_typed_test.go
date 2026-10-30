@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/agezt/agezt/kernel/app/binding"
 	appchannels "github.com/agezt/agezt/kernel/app/channels"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -41,7 +42,7 @@ func TestChannelSendNativeAuditAndCanceledBeforeSender(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer k.Close()
-			s := NewServer(k, t.TempDir())
+			s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 			s.token = "primary"
 			sends := 0
 			s.SetChannelSender(func(context.Context, string, string, string) error { sends++; return nil })

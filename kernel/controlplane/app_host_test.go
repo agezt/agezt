@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"io"
 	"net"
 	"path/filepath"
@@ -31,7 +32,7 @@ func TestAppHostSocketMutationAndStreaming(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { k.Close() })
-			s := NewServer(k, dir)
+			s := NewServer(binding.ScopeFromKernel(k, dir))
 			s.token = "primary"
 			const name = "zz_test_app_host"
 			type input struct {
@@ -53,7 +54,7 @@ func TestAppHostSocketMutationAndStreaming(t *testing.T) {
 				if !spec.ReadOnly {
 					host := ctx.Value(appHostKey{}).(appHost)
 					handlerCorrelation = host.correlation
-					if host.scope.BaseDir != dir || k.ActorFromCtx(ctx) != "operator" {
+					if host.scope.Directory != dir || k.ActorFromCtx(ctx) != "operator" {
 						t.Error("handler lost routed actor/scope context")
 					}
 					invocations := 0
@@ -171,7 +172,7 @@ func TestAppHostTenantAuditUsesRoutedJournal(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { primary.Close() })
-	s := NewServer(primary, dir)
+	s := NewServer(binding.ScopeFromKernel(primary, dir))
 	s.token = "primary"
 	registry, err := tenant.New(filepath.Join(dir, "tenants"), func(_ string, baseDir string) (io.Closer, error) {
 		return runtime.Open(runtime.Config{BaseDir: baseDir, Provider: mock.New()})
@@ -199,7 +200,7 @@ func TestAppHostTenantAuditUsesRoutedJournal(t *testing.T) {
 	calls := 0
 	op, err := app.NewOperation(opapi.Spec{Name: name, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant}, func(ctx context.Context, in input) (output, error) {
 		host := ctx.Value(appHostKey{}).(appHost)
-		if host.scope.BaseDir != entry.BaseDir || host.scope.BaseDir == dir || strings.TrimSpace(in.Tenant) != "acme" {
+		if host.scope.Directory != entry.BaseDir || host.scope.Directory == dir || strings.TrimSpace(in.Tenant) != "acme" {
 			t.Error("tenant operation bound to another host")
 		}
 		calls++
@@ -281,7 +282,7 @@ func TestAppHostLiveDisconnectSettlesOwnedAudit(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	const name = "zz_test_app_live"
 	started := make(chan struct{})

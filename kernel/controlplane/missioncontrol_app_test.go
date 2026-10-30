@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net"
 	"strings"
 	"testing"
@@ -73,7 +74,7 @@ func TestMissionControlNativeBindings(t *testing.T) {
 	for k.Approvals().PendingCount() != 1 {
 		time.Sleep(time.Millisecond)
 	}
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	call := func(cmd string, args map[string]any) string {
 		a, b := net.Pipe()

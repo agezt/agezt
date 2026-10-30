@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"strings"
 	"testing"
 	"time"
@@ -29,7 +30,7 @@ func TestDataEditsThePrimaryLake(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	call := func(cmd string, args map[string]any) (string, string) {
 		t.Helper()
@@ -83,7 +84,7 @@ func TestTheDataSurfaceRefusesWhenTheDaemonHoldsNoLake(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	call := func(cmd string, args map[string]any) (string, string) {
 		t.Helper()

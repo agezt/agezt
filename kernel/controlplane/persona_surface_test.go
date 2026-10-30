@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/runtime"
@@ -23,7 +24,7 @@ func TestThePersonaSurfaceEditsTheDaemonsIdentity(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 	k.SetSystem("before")
 
-	server := NewServer(k, dir)
+	server := NewServer(binding.ScopeFromKernel(k, dir))
 	server.token = "primary"
 
 	response := callAppHost(t, server, Request{ID: "persona-set", Cmd: CmdPersonaSet, Token: "primary", Args: map[string]any{"system": "after"}})[0]

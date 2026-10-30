@@ -4,6 +4,7 @@ package controlplane_test
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
@@ -74,7 +75,7 @@ func TestPluginList_ReturnsManifestSortedByPrefix(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	srv := controlplane.NewServer(k, dir)
+	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	if err := srv.Start(ctx); err != nil {

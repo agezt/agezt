@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 	"time"
 
@@ -28,7 +29,7 @@ func TestTheAdapterBindsTheDataPortsToTheDaemon(t *testing.T) {
 	}
 	defer root.Close()
 
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 
 	if got := s.dataPorts().Lake(); got == nil {
 		t.Fatal("the daemon's data ports hand over no lake — the lake never reached the family")
@@ -47,7 +48,7 @@ func TestTheAdapterBindsNoLakeToADaemonWithoutOne(t *testing.T) {
 	}
 	defer root.Close()
 
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 
 	if got := s.dataPorts().Lake(); got != nil {
 		t.Fatal("a daemon with no lake hands over a lake")

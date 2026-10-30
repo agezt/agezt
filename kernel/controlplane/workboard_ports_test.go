@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"path/filepath"
 	"testing"
 	"time"
@@ -33,7 +34,7 @@ func TestTheAdapterBindsTheWorkboardPortsToItsOwnKernel(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 
 	// The daemon's task list — the adapter's own wiring — shows the kernel's

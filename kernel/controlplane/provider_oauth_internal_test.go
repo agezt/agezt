@@ -2,11 +2,14 @@
 
 package controlplane
 
-import "testing"
+import (
+	"github.com/agezt/agezt/kernel/app/binding"
+	"testing"
+)
 
 func TestProviderOAuthStateIsOwnedPerServer(t *testing.T) {
-	a := NewServer(nil, t.TempDir())
-	b := NewServer(nil, t.TempDir())
+	a := NewServer(binding.ScopeFromKernel(nil, t.TempDir()))
+	b := NewServer(binding.ScopeFromKernel(nil, t.TempDir()))
 	first, repeated := a.providerOAuth(), a.providerOAuth()
 	if first != repeated {
 		t.Fatal("OAuth state recreated per request")

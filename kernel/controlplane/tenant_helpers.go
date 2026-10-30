@@ -31,7 +31,7 @@ func (s *Server) scopeFor(tenantID string) (binding.Scope, error) {
 		return s.scoped(), nil
 	}
 	if s.tenants == nil {
-		return binding.RefusingScope(), fmt.Errorf("multi-tenancy is disabled (no tenant registry configured)")
+		return binding.RefusingScope(s.baseDir), fmt.Errorf("multi-tenancy is disabled (no tenant registry configured)")
 	}
 	return binding.ScopeForTenant(s.tenants, tenantID, time.Now(), s.baseDir)
 }

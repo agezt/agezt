@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 
 	appcatalog "github.com/agezt/agezt/kernel/app/catalog"
@@ -31,7 +32,7 @@ func TestTheAdapterBindsTheCatalogPortsToItsOwnKernel(t *testing.T) {
 	}
 	defer tenant.Close()
 
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 	ctx := context.WithValue(context.Background(), appHostKey{}, appHost{scope: scopeForKernel(tenant)})
 	ctx = context.WithValue(ctx, systemHostKey{}, s)
 

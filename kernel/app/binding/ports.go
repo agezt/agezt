@@ -135,10 +135,14 @@ type Scope struct {
 	WorkflowEnginePorts appworkflow.Ports
 	WorldPorts          appworld.Ports
 
-	// BaseDir is the scope's own directory: the primary daemon's, or the
+	// Directory is the scope's own directory: the primary daemon's, or the
 	// tenant's. The families that keep state on disk read it, and it is what
 	// tells one scope from another.
-	BaseDir string
+	//
+	// It is not named after the kernel's own verb: the kernel's BaseDir is the
+	// DAEMON's directory, and a scope that carried the verb's name would name
+	// a door it does not have.
+	Directory string
 
 	// filled records that this scope was filled from the daemon's own kernel.
 	// A scope that was not filled is refused, and an adapter that was built
@@ -156,7 +160,7 @@ func (s Scope) Filled() bool { return s.filled }
 // the TENANT's directory.
 func ScopeFromKernel(k *runtime.Kernel, baseDir string) Scope {
 	if k == nil {
-		return RefusingScope()
+		return RefusingScope(baseDir)
 	}
 	return Scope{
 		ApprovalPorts:       Fill(k, appapprovals.PortsFromKernel),
@@ -199,34 +203,9 @@ func ScopeFromKernel(k *runtime.Kernel, baseDir string) Scope {
 		WorkboardPorts:      Fill(k, appworkboard.PortsFromKernel),
 		WorkflowEnginePorts: Fill(k, appworkflow.PortsFromKernel),
 		WorldPorts:          Fill(k, appworld.PortsFromKernel),
-		BaseDir:             baseDir,
+		Directory:           baseDir,
 		filled:              true,
 	}
-}
-
-// ScopeFromHandle fills the scope from a handle that is not named by the
-// caller.
-//
-// A handle that is not the daemon's own yields the REFUSING scope: the
-// families that take a handle refuse, the families that take a kernel yield
-// empty ports, and nothing is called into that does not exist.
-func ScopeFromHandle(handle any, baseDir string) Scope {
-	if k, ok := handle.(*runtime.Kernel); ok {
-		return ScopeFromKernel(k, baseDir)
-	}
-	return RefusingScope()
-}
-
-// Resolve is the scope for a value the ADAPTER was handed.
-//
-// A scope stays the scope it is; a handle is filled into one; anything else
-// refuses. The adapter never stores what it was handed either way: it stores
-// the scope, and the scope is all it can reach.
-func Resolve(value any, baseDir string) Scope {
-	if scope, ok := value.(Scope); ok {
-		return scope
-	}
-	return ScopeFromHandle(value, baseDir)
 }
 
 // RefusingScope is the scope that refuses every family.
@@ -235,13 +214,17 @@ func Resolve(value any, baseDir string) Scope {
 // families that take a handle refuse, the others are empty. An adapter that
 // was built without a scope asks for this one rather than calling into
 // nothing.
-func RefusingScope() Scope {
+//
+// The scope keeps its DIRECTORY: a scope that refuses still knows where it
+// is, and the adapter's own directory comes from it.
+func RefusingScope(baseDir string) Scope {
 	return Scope{
-		CouncilPorts:    appcouncil.PortsFromHandle(nil, ""),
+		CouncilPorts:    appcouncil.PortsFromHandle(nil, baseDir),
 		FilesRunner:     appfiles.RunnerFromHandle(nil),
 		PlanRunnerPorts: appruns.PlanRunnerPortsFromHandle(nil),
 		ResearchEngines: appresearch.EnginesFromHandle(nil, func() string { return "" }),
 		SteerRuns:       appsteer.RunsFromHandle(nil),
+		Directory:       baseDir,
 	}
 }
 
@@ -263,15 +246,18 @@ type TenantAcquirer interface {
 // does not leak into the primary's.
 func ScopeForTenant(reg TenantAcquirer, id string, now time.Time, baseDir string) (Scope, error) {
 	if reg == nil {
-		return RefusingScope(), nil
+		return RefusingScope(baseDir), nil
 	}
 	t, err := reg.Acquire(id, now)
 	if err != nil {
-		return RefusingScope(), err
+		return RefusingScope(baseDir), err
 	}
 	k, ok := t.Kernel.(*runtime.Kernel)
 	if !ok {
-		return RefusingScope(), nil
+		// The tenant's own directory is only known once the tenant is open, so
+		// a tenant that is not the daemon's own refuses in the caller's
+		// directory — the refusal names no tenant's state.
+		return RefusingScope(baseDir), nil
 	}
 	return ScopeFromKernel(k, t.BaseDir), nil
 }

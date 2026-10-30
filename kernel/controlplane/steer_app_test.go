@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"io"
 	"net"
 	"path/filepath"
@@ -87,7 +88,7 @@ func TestSteerNativeRoutesToTheCallersKernel(t *testing.T) {
 	}
 	tk := entry.Kernel.(*runtime.Kernel)
 	tenantToken, _ := reg.Token("acme")
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	s.SetTenants(reg)
 	pCorr, pRelease, pDone := blockedRun(t, k, primaryProv)

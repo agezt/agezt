@@ -13,6 +13,7 @@ package controlplane
 
 import (
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,7 +39,7 @@ func newSandboxTestServer(t *testing.T) *Server {
 		t.Fatalf("runtime.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = k.Close() })
-	s := NewServer(k, base)
+	s := NewServer(binding.ScopeFromKernel(k, base))
 	s.token = "primary"
 	return s
 }

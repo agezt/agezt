@@ -1173,7 +1173,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	// The daemon is the COMPOSITION ROOT: it holds the kernel, and what it
 	// hands the control plane is the kernel's SCOPE — every family's ports,
 	// filled. The adapter never receives the handle itself (W5.5b).
-	srv := controlplane.NewServerWithDeps(binding.ScopeFromKernel(k, baseDir), baseDir, controlplane.Deps{
+	srv := controlplane.NewServerWithDeps(binding.ScopeFromKernel(k, baseDir), controlplane.Deps{
 		ConfigEnvPinned: configPinned,   // M693: Config Center marks env-pinned fields read-only
 		Board:           srvBoard,       // M937: the ONE shared board instance…
 		BoardNotify:     srvBoardNotify, // …and its board.posted notifier

@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"os"
 	"path/filepath"
 	"testing"
@@ -66,7 +67,7 @@ func startRuntimeFiles(t *testing.T, baseDir string) *Server {
 		t.Fatalf("open kernel: %v", err)
 	}
 	t.Cleanup(func() { k.Close() })
-	s := NewServer(k, baseDir)
+	s := NewServer(binding.ScopeFromKernel(k, baseDir))
 	s.token = "primary-token"
 	return s
 }
@@ -271,7 +272,7 @@ func TestThePromptLibraryIsReplacedNotRewritten(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 
 	library := filepath.Join(dir, "chat_prompts.json")
@@ -313,7 +314,7 @@ func TestThePromptLibraryIsWritableByItsOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	library := filepath.Join(dir, "chat_prompts.json")
 	if err := os.WriteFile(library, []byte("[]"), 0o400); err != nil {
@@ -340,7 +341,7 @@ func TestThePromptLibraryIsPrivateToItsOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	library := filepath.Join(dir, "chat_prompts.json")
 	if err := os.WriteFile(library, []byte("[]"), 0o644); err != nil {

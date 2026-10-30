@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/runtime"
@@ -24,7 +25,7 @@ func TestTheAdapterBindsTheReflectionPortsToTheDaemon(t *testing.T) {
 	}
 	defer root.Close()
 
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 
 	if got := s.reflectionPorts().Engine(); got == nil {
 		t.Fatal("the daemon's reflection ports hand over no engine — the engine never reached the family")

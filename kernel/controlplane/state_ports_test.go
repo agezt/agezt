@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/runtime"
@@ -20,7 +21,7 @@ func TestTheAdapterBindsTheStatePortsToTheDaemon(t *testing.T) {
 	}
 	defer root.Close()
 
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 
 	if got := s.statePorts().Store(); got == nil {
 		t.Fatal("the daemon's state ports hand over no store — the daemon holds one")

@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net"
 	"testing"
 	"time"
@@ -53,7 +54,7 @@ func TestAgentWakeNativeLaunchCarriesLineage(t *testing.T) {
 	if _, err := k.AddProfile(roster.Profile{Slug: "ops", Soul: "s"}); err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	a, b := net.Pipe()
 	a.SetDeadline(time.Now().Add(3 * time.Second))

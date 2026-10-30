@@ -4,6 +4,7 @@ package controlplane
 import (
 	"context"
 	"errors"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"strings"
 	"testing"
 
@@ -54,7 +55,7 @@ func TestTheAdapterBindsTheMarketPortsToTheRoutedKernel(t *testing.T) {
 	// The server is on the context too, so a binding that asked the DAEMON's
 	// kernel instead of the routed one would answer — wrongly — rather than
 	// fall over.
-	s := NewServer(root, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(root, t.TempDir()))
 	tenantCtx = context.WithValue(tenantCtx, systemHostKey{}, s)
 	daemonCtx = context.WithValue(daemonCtx, systemHostKey{}, s)
 

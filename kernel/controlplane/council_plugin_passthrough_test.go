@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"reflect"
 	"testing"
 
@@ -30,7 +31,7 @@ func TestCouncilAndPluginRowsPassThroughTheHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	call := func(cmd string, args map[string]any) string {
 		t.Helper()

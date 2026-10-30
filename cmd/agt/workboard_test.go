@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -44,7 +45,7 @@ func TestCmdWorkboardRoundTrip(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = k.Close() })
 
-	srv := controlplane.NewServer(k, dir)
+	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	if err := srv.Start(ctx); err != nil {
@@ -153,7 +154,7 @@ func TestCmdWorkboardPolicyAndFail(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = k.Close() })
 
-	srv := controlplane.NewServer(k, dir)
+	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	if err := srv.Start(ctx); err != nil {
@@ -214,7 +215,7 @@ func TestCmdWorkboardDispatchAndWatch(t *testing.T) {
 		t.Fatalf("AddProfile: %v", err)
 	}
 
-	srv := controlplane.NewServer(k, dir)
+	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	if err := srv.Start(ctx); err != nil {
@@ -331,7 +332,7 @@ func TestCmdWorkboardDispatchRetriesAndEscalates(t *testing.T) {
 		t.Fatalf("AddProfile: %v", err)
 	}
 
-	srv := controlplane.NewServer(k, dir)
+	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	if err := srv.Start(ctx); err != nil {
@@ -379,7 +380,7 @@ func TestCmdWorkboardSweepReclaimsStaleClaims(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = k.Close() })
 
-	srv := controlplane.NewServer(k, dir)
+	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	if err := srv.Start(ctx); err != nil {

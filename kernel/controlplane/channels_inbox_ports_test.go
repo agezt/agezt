@@ -4,6 +4,7 @@ package controlplane
 import (
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	appchannels "github.com/agezt/agezt/kernel/app/channels"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -32,7 +33,7 @@ func TestChannelInboxNativeSelectedKernelJournalIsolation(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	head, hash := k.Journal().Head()
 	otherHead, otherHash := other.Journal().Head()
 	out, err := s.channelInbox().List(context.Background(), appchannels.InboxInput{})

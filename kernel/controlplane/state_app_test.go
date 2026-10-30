@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"io"
 	"net"
 	"path/filepath"
@@ -66,7 +67,7 @@ func TestStateNativeRouting(t *testing.T) {
 	if err := entry.Kernel.(*runtime.Kernel).State().Set("tenant_ns", "k", "acme"); err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	s.SetTenants(reg)
 	call := func(token, cmd string, args map[string]any) string {

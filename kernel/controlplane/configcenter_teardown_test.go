@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 
 	core "github.com/agezt/agezt/kernel/configcenter"
@@ -49,7 +50,7 @@ func TestTheAdapterDeletesTheAgentsOwnConfigEntries(t *testing.T) {
 		t.Fatalf("Set the shared entry: %v", err)
 	}
 
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 
 	removed := callAppHost(t, s, Request{ID: "rm", Cmd: CmdAgentRemove, Token: "primary", Args: map[string]any{

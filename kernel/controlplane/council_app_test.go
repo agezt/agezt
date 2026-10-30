@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
@@ -23,7 +24,7 @@ func TestCouncilMembershipBindsTheKernel(t *testing.T) {
 	}
 	defer k.Close()
 	serverDir := t.TempDir()
-	s := NewServer(k, serverDir)
+	s := NewServer(binding.ScopeFromKernel(k, serverDir))
 	s.token = "primary"
 	call := func(cmd string, args map[string]any) string {
 		t.Helper()

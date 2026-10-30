@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net"
 	"testing"
 	"time"
@@ -25,7 +26,7 @@ func TestDispatch_PanickingOpIsJournaledAsFailed(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 
 	const cmd = "zz_test_panics"

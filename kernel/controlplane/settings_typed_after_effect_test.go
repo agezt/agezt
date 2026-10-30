@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	appsettings "github.com/agezt/agezt/kernel/app/settings"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/settings"
@@ -61,7 +62,7 @@ func TestSettingsTypedNativeJournalFailureAfterEffectsDoesNotRollback(t *testing
 			if err := reg.Register(seed); err != nil {
 				t.Fatal(err)
 			}
-			s := NewServer(k, dir)
+			s := NewServer(binding.ScopeFromKernel(k, dir))
 			s.token = "primary"
 			saved := settingsOperations
 			defer func() { settingsOperations = saved }()

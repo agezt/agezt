@@ -3,6 +3,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -30,7 +31,7 @@ func TestSkillNativeHistoryRejectsCorruptJournalWithoutSuccess(t *testing.T) {
 				}
 				id = sk.ID
 			}
-			server := NewServer(k, dir)
+			server := NewServer(binding.ScopeFromKernel(k, dir))
 			server.token = "primary"
 			if err := k.Journal().Close(); err != nil {
 				t.Fatal(err)

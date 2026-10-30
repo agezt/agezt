@@ -4,6 +4,7 @@ package controlplane
 import (
 	"context"
 	"fmt"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"strings"
 	"testing"
 
@@ -142,7 +143,7 @@ func TestToolboxDepsCarryTheContractPort(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 	host := &toolboxFakeHost{inventory: toolboxapi.Inventory{OS: "owned-deps-os"}}
 
-	s := NewServerWithDeps(k, dir, Deps{Toolbox: host})
+	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{Toolbox: host})
 	s.token = "primary"
 
 	frames := callAppHost(t, s, Request{ID: "owned", Cmd: CmdToolboxDetect, Token: "primary"})

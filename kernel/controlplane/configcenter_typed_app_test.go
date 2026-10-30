@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	appconfigcenter "github.com/agezt/agezt/kernel/app/configcenter"
 	core "github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/opapi"
@@ -38,7 +39,7 @@ func TestConfigCenterTypedNativeAdmissionNoEffects(t *testing.T) {
 					t.Fatal(err)
 				}
 				before, _ := json.Marshal(k.ConfigCenter().ListEntries())
-				s := NewServer(k, dir)
+				s := NewServer(binding.ScopeFromKernel(k, dir))
 				s.token = "primary"
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()

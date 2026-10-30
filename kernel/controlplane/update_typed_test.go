@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/app/binding"
 	"net"
 	"os"
 	"path/filepath"
@@ -57,7 +58,7 @@ func TestUpdateNativeTerminalAuditFailureStillFinishesWriteBeforeRestart(t *test
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := NewServer(k, t.TempDir())
+	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	backend := &closingUpdateBackend{close: k.Journal().Close}
 	s.updateSvc = backend
@@ -121,7 +122,7 @@ func TestUpdateNativeCanceledAndAuditAdmissionBeforeBackend(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer k.Close()
-				s := NewServer(k, t.TempDir())
+				s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 				s.token = "primary"
 				backend := &ownedUpdateBackend{}
 				s.updateSvc = backend

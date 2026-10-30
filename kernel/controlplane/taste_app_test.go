@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/app/binding"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -50,7 +51,7 @@ func TestTasteAppSocketRequiresAuditBeforeMutations(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			s := NewServer(k, dir)
+			s := NewServer(binding.ScopeFromKernel(k, dir))
 			s.token = "primary"
 			if err := k.Journal().Close(); err != nil {
 				t.Fatal(err)
@@ -71,7 +72,7 @@ func TestTasteNativeMutationHasOneOwnedAuditArc(t *testing.T) {
 	dir := t.TempDir()
 	k := openTasteKernel(t, dir)
 	defer k.Close()
-	s := NewServer(k, dir)
+	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	r := callAppHost(t, s, Request{ID: "create", Cmd: CmdTasteCreate, Token: "primary", Args: map[string]any{"title": "fixture", "body": "body"}})[0]
 	if r.Type != RespResult {
