@@ -5,7 +5,7 @@ package steer
 import (
 	"testing"
 
-	"github.com/agezt/agezt/kernel/intervention"
+	"github.com/agezt/agezt/kernel/modules/runs/intervention"
 )
 
 // interventionRequest is the smallest intervention the controls answer.

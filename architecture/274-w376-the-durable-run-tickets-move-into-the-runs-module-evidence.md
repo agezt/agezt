@@ -35,6 +35,14 @@ and the most entangled family the dissolution has left. The resume tickets are
 the part of it that is **whole**: a store, a lifecycle and three rules, with
 nothing else in the daemon owning any of it.
 
+> **Correction (W3.76b).** The loop's **1,415** does **not** reproduce against
+> the current tree: `kernel/agent` measures **2,629** non-blank lines across 20
+> files, and no subset of it sums to 1,415 *while containing the two files that
+> are the loop*. The delegation (**881**), the prompt (**578**), the run
+> context (**562**) and the loop config (**99**) reproduce exactly. The loop is
+> therefore about **1.9×** the size this slice's plan assumed. See
+> `architecture/275-w376b-the-steering-moves-into-the-runs-module-evidence.md`.
+
 The measurement of this family:
 
 - the daemon's copies of the ticket rules: **3** (the scope rule, the
@@ -274,7 +282,8 @@ This slice took the **tickets**. What remains of the run engine for `modules/run
   `executeSubAgent` (89), `subAgentInjectedSystem` (87) and the tree's rails;
 - the **prompt** (**578**) — `buildRunPrompt` (170) and the run's context
   assembly;
-- the **loop** (**1,415**) — the agent loop and `buildLoopConfig` (99);
+- the **loop** (**1,415** as measured then — see the correction above: it
+  measures **2,629** today) — the agent loop and `buildLoopConfig` (99);
 - the **run context** (**562**) — the 22 context keys and their accessors.
 
 `kernel/runtime/runexec` is already ported (`KernelAPI`, 126 non-blank lines) and

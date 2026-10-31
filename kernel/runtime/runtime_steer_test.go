@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/runs/intervention"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -284,6 +285,47 @@ func TestSteerRun_SubAgentIndividuallySteerable(t *testing.T) {
 		if !kinds[want] {
 			t.Errorf("missing %s event on the SUB-AGENT timeline", want)
 		}
+	}
+}
+
+// TestInterveneRun_ThroughTheDaemonDoor drives the protocolized intervention
+// through the daemon's own door: an unknown run is refused, and a live run is
+// halted under a lease. The module owns the operation; this pins that the
+// daemon's door still reaches it.
+func TestInterveneRun_ThroughTheDaemonDoor(t *testing.T) {
+	k := newKernel(t, steerLoopProvider{})
+
+	res, err := k.InterveneRun(intervention.Request{
+		Primitive:     intervention.PrimitiveHalt,
+		CorrelationID: "nope",
+	})
+	if err != nil {
+		t.Fatalf("InterveneRun: %v", err)
+	}
+	if res.State != "unknown" || res.Accepted {
+		t.Fatalf("an intervention for an unknown run = %+v want a refused, unknown state", res)
+	}
+
+	corr := k.NewCorrelation()
+	go func() { _, _ = k.RunWith(context.Background(), corr, "loop until halted") }()
+	time.Sleep(60 * time.Millisecond)
+
+	res, err = k.InterveneRun(intervention.Request{
+		Primitive:     intervention.PrimitiveHalt,
+		CorrelationID: corr,
+		Lease:         time.Minute,
+	})
+	if err != nil {
+		t.Fatalf("InterveneRun: %v", err)
+	}
+	if !res.Accepted || !res.Applied || res.State != "paused" {
+		t.Fatalf("the halt = %+v want an accepted, applied pause", res)
+	}
+	if res.LeaseExpires.IsZero() {
+		t.Fatalf("the halt = %+v want a lease expiry", res)
+	}
+	if paused, _, ok := k.RunControlState(corr); !ok || !paused {
+		t.Fatalf("RunControlState = (paused=%v ok=%v) want paused & ok", paused, ok)
 	}
 }
 

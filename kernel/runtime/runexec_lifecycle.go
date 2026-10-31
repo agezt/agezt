@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/modules/runs/steer"
 	"github.com/agezt/agezt/kernel/runtime/runexec"
 	"github.com/agezt/agezt/kernel/tenantctx"
 )
@@ -137,7 +138,7 @@ func (k *Kernel) setupRunState(corr string, parentCtx context.Context) (context.
 	// resume's shutdown broadcast) — taking only runsMu here raced
 	// with them (caught by -race under concurrent Runs). Lock order
 	// runsMu → steersMu is respected.
-	rc := newRunControl()
+	rc := steer.NewControl()
 	k.steersMu.Lock()
 	k.steers[corr] = rc
 	k.steersMu.Unlock()
