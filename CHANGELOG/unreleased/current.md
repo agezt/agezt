@@ -6003,3 +6003,24 @@ This file holds the active `[Unreleased]` working set.
   and the capability resolution did not change, and no caller outside the
   runtime did either — 0 production files in `kernel/app`. `kernel/runtime` is
   8,687 lines, down from 8,796, and `kernel/platform` is 3,381, up from 3,180.
+
+- **The durable run tickets move into the runs module (W3.76a).** The ninth slice
+  of the runtime's dissolution, the first slice of the run engine programme and
+  the first one that moves a family **with its store**. The durable run ticket
+  was split in half: `kernel/resume` (328 non-blank production lines) held the
+  rows — the `Ticket`, its kinds and statuses, the `Store` with its atomic
+  write, its size cap and its quarantine — while `kernel/runtime/resume.go` (211
+  lines) held the rules: which runs carry a ticket at all, which of those may
+  be resumed, and whether a finished run's ticket survives. A rule that owns no
+  store is the platform's (W3.73); a rule that owns a store is a module's, and
+  the target architecture gives the runs module the resume tickets. The whole
+  family now lives in `kernel/modules/runs/resume`: the rows, the three rules
+  (`CarriesTicket`, `TerminalOutcome`, `JudgeResumability`) and the capture
+  (`Setting.Reconstructible`, `Facts`, `Build`, which assembles the ticket and
+  asks the rule for the verdict so the two cannot drift). The daemon keeps the
+  doors — it reads the run's context, hands the facts over and publishes the
+  events. The ticket format, the resumer's behaviour, the run context and the
+  `runexec` kernel API did not change, and no contract row was added: the wake
+  provenance uses the existing `agentapi.WakeContext`. `kernel/runtime` is 8,695
+  lines, up from 8,687 — moving a rule moves the conditions, not the lines — and
+  `kernel/modules` is 25,844, up from 25,266.
