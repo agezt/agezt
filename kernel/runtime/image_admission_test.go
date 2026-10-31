@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -49,7 +50,7 @@ func TestAdmitImages_ModelResolution(t *testing.T) {
 			if tc.noImages {
 				images = nil
 			}
-			ctx := runtime.WithModel(context.Background(), tc.ctxModel)
+			ctx := runctx.WithModel(context.Background(), tc.ctxModel)
 			got, err := k.AdmitImages(ctx, "test", tc.model, " ", images)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("error=%v wantErr=%v", err, tc.wantErr)

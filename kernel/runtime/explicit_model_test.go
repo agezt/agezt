@@ -9,6 +9,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/governor"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -64,7 +65,7 @@ func TestRunWith_ExplicitModelBeatsTaskChain(t *testing.T) {
 
 	// Explicit pick → exactly that model, not the chain.
 	served = nil
-	ctx := runtime.WithModel(context.Background(), "my-explicit-pick")
+	ctx := runctx.WithModel(context.Background(), "my-explicit-pick")
 	if _, err := k.RunWith(ctx, k.NewCorrelation(), "hi again"); err != nil {
 		t.Fatalf("RunWith with override: %v", err)
 	}

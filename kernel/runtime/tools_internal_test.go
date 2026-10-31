@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 // stubTool is a minimal toolapi.Tool for exercising filterTools by name.
@@ -74,29 +75,29 @@ func TestFilterTools(t *testing.T) {
 
 func TestWithTools_RoundTrip(t *testing.T) {
 	// No value set: ok=false means "unrestricted".
-	if v, ok := toolsFromCtx(context.Background()); ok {
+	if v, ok := runctx.ToolsFromCtx(context.Background()); ok {
 		t.Fatalf("bare context: ok=true (%v), want ok=false", v)
 	}
 
 	// Explicit non-empty allowlist round-trips.
-	ctx := WithTools(context.Background(), []string{"read", "notify"})
-	v, ok := toolsFromCtx(ctx)
+	ctx := runctx.WithTools(context.Background(), []string{"read", "notify"})
+	v, ok := runctx.ToolsFromCtx(ctx)
 	if !ok {
-		t.Fatal("WithTools(non-empty): ok=false, want true")
+		t.Fatal("runctx.WithTools(non-empty): ok=false, want true")
 	}
 	if len(v) != 2 || v[0] != "read" || v[1] != "notify" {
-		t.Fatalf("toolsFromCtx = %v, want [read notify]", v)
+		t.Fatalf("runctx.ToolsFromCtx = %v, want [read notify]", v)
 	}
 
 	// Explicit empty allowlist: ok=true (restriction present) with zero names —
 	// distinct from "unset". This is the --no-tools case.
-	emptyCtx := WithTools(context.Background(), []string{})
-	ev, eok := toolsFromCtx(emptyCtx)
+	emptyCtx := runctx.WithTools(context.Background(), []string{})
+	ev, eok := runctx.ToolsFromCtx(emptyCtx)
 	if !eok {
-		t.Fatal("WithTools(empty): ok=false, want true (restriction is set)")
+		t.Fatal("runctx.WithTools(empty): ok=false, want true (restriction is set)")
 	}
 	if len(ev) != 0 {
-		t.Fatalf("WithTools(empty): got %v, want empty", ev)
+		t.Fatalf("runctx.WithTools(empty): got %v, want empty", ev)
 	}
 	// And filtering by it yields no tools.
 	if got := filterTools(toolSet("read", "write"), ev); len(got) != 0 {

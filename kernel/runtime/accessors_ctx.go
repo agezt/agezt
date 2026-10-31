@@ -13,9 +13,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/reflect"
 )
 
@@ -61,84 +63,94 @@ func (k *Kernel) SkillForgeMinTools() int { return k.cfg.SkillForgeMinTools }
 
 // SystemAgentFromCtx reports whether the current run is operating
 // in system-agent mode (bypasses post-run distillation / forge /
-// shadow-eval). Wraps the package-level systemAgentFromCtx so
+// shadow-eval). Wraps the package-level runctx.SystemAgentFromCtx so
 // the runexec sub-package can read it through KernelAPI (Day 34).
-func (k *Kernel) SystemAgentFromCtx(ctx context.Context) bool { return systemAgentFromCtx(ctx) }
+func (k *Kernel) SystemAgentFromCtx(ctx context.Context) bool { return runctx.SystemAgentFromCtx(ctx) }
 
 // AgentDailyMcFromCtx returns the named agent's daily USD-microcent
-// ceiling attached to a run context by WithAgentProfile. Wraps the
-// package-level agentDailyMcFromCtx (Day 34).
-func (k *Kernel) AgentDailyMcFromCtx(ctx context.Context) int64 { return agentDailyMcFromCtx(ctx) }
+// ceiling attached to a run context by runctx.WithAgentProfile. Wraps the
+// package-level runctx.AgentDailyMcFromCtx (Day 34).
+func (k *Kernel) AgentDailyMcFromCtx(ctx context.Context) int64 {
+	return runctx.AgentDailyMcFromCtx(ctx)
+}
 
 // ModelChainFromCtx returns the explicit per-request model chain
-// attached to a run context by WithModelChain. Wraps the
-// package-level modelChainFromCtx (Day 34).
-func (k *Kernel) ModelChainFromCtx(ctx context.Context) []string { return modelChainFromCtx(ctx) }
+// attached to a run context by runctx.WithModelChain. Wraps the
+// package-level runctx.ModelChainFromCtx (Day 34).
+func (k *Kernel) ModelChainFromCtx(ctx context.Context) []string {
+	return runctx.ModelChainFromCtx(ctx)
+}
 
 // WakeContextSource returns the run provenance "source" field
 // (e.g. "schedule", "channel", "standing"). Wraps the
-// package-level wakeContextFromCtx so the runexec sub-package
+// package-level runctx.WakeContextFromCtx so the runexec sub-package
 // can read individual fields through KernelAPI (Day 34) without
 // importing the WakeContext type across the package boundary.
-func (k *Kernel) WakeContextSource(ctx context.Context) string { return wakeContextFromCtx(ctx).Source }
+func (k *Kernel) WakeContextSource(ctx context.Context) string {
+	return runctx.WakeContextFromCtx(ctx).Source
+}
 
 // WakeContextReason returns the run provenance "reason" field
-// (e.g. "tick", "command", "briefing"). Wraps wakeContextFromCtx.
-func (k *Kernel) WakeContextReason(ctx context.Context) string { return wakeContextFromCtx(ctx).Reason }
+// (e.g. "tick", "command", "briefing"). Wraps runctx.WakeContextFromCtx.
+func (k *Kernel) WakeContextReason(ctx context.Context) string {
+	return runctx.WakeContextFromCtx(ctx).Reason
+}
 
 // WakeContextScheduleID returns the schedule ID that triggered
 // the run ("" when the run did not originate from a schedule).
-// Wraps wakeContextFromCtx.
+// Wraps runctx.WakeContextFromCtx.
 func (k *Kernel) WakeContextScheduleID(ctx context.Context) string {
-	return wakeContextFromCtx(ctx).ScheduleID
+	return runctx.WakeContextFromCtx(ctx).ScheduleID
 }
 
 // WakeContextStandingID returns the standing order ID that
-// triggered the run. Wraps wakeContextFromCtx.
+// triggered the run. Wraps runctx.WakeContextFromCtx.
 func (k *Kernel) WakeContextStandingID(ctx context.Context) string {
-	return wakeContextFromCtx(ctx).StandingID
+	return runctx.WakeContextFromCtx(ctx).StandingID
 }
 
 // WakeContextStandingName returns the standing order name that
-// triggered the run. Wraps wakeContextFromCtx.
+// triggered the run. Wraps runctx.WakeContextFromCtx.
 func (k *Kernel) WakeContextStandingName(ctx context.Context) string {
-	return wakeContextFromCtx(ctx).StandingName
+	return runctx.WakeContextFromCtx(ctx).StandingName
 }
 
 // WakeContextTriggerSubject returns the bus subject that
 // triggered the run (e.g. "channel.telegram.message"). Wraps
-// wakeContextFromCtx.
+// runctx.WakeContextFromCtx.
 func (k *Kernel) WakeContextTriggerSubject(ctx context.Context) string {
-	return wakeContextFromCtx(ctx).TriggerSubject
+	return runctx.WakeContextFromCtx(ctx).TriggerSubject
 }
 
 // WakeContextParentCorrelation returns the parent run's
 // correlation ID (the lead run that delegated this child). Wraps
-// wakeContextFromCtx.
+// runctx.WakeContextFromCtx.
 func (k *Kernel) WakeContextParentCorrelation(ctx context.Context) string {
-	return wakeContextFromCtx(ctx).ParentCorrelation
+	return runctx.WakeContextFromCtx(ctx).ParentCorrelation
 }
 
 // ImagesFromCtx returns the images attached to a run context by
-// WithImages (vision-gated upstream by M91). Wraps the
-// package-level imagesFromCtx (Day 34).
-func (k *Kernel) ImagesFromCtx(ctx context.Context) []string { return imagesFromCtx(ctx) }
+// runctx.WithImages (vision-gated upstream by M91). Wraps the
+// package-level runctx.ImagesFromCtx (Day 34).
+func (k *Kernel) ImagesFromCtx(ctx context.Context) []string { return runctx.ImagesFromCtx(ctx) }
 
 // JSONModeFromCtx reports whether the current run was requested
 // with structured-output (response_format=json_object by OpenAI,
 // tool_choice="any" by Anthropic). Wraps the package-level
-// jsonModeFromCtx (Day 34).
-func (k *Kernel) JSONModeFromCtx(ctx context.Context) bool { return jsonModeFromCtx(ctx) }
+// runctx.JSONModeFromCtx (Day 34).
+func (k *Kernel) JSONModeFromCtx(ctx context.Context) bool { return runctx.JSONModeFromCtx(ctx) }
 
 // MaxCostFromCtx returns the per-run USD-microcent ceiling attached
-// to a run context by WithMaxCost (--max-cost). Wraps the
-// package-level maxCostFromCtx (Day 34).
-func (k *Kernel) MaxCostFromCtx(ctx context.Context) int64 { return maxCostFromCtx(ctx) }
+// to a run context by runctx.WithMaxCost (--max-cost). Wraps the
+// package-level runctx.MaxCostFromCtx (Day 34).
+func (k *Kernel) MaxCostFromCtx(ctx context.Context) int64 { return runctx.MaxCostFromCtx(ctx) }
 
 // RunTimeoutFromCtx returns the per-run timeout attached by
-// WithRunTimeout (`agt run --timeout`). Wraps the package-level
-// runTimeoutFromCtx (Day 34).
-func (k *Kernel) RunTimeoutFromCtx(ctx context.Context) time.Duration { return runTimeoutFromCtx(ctx) }
+// runctx.WithRunTimeout (`agt run --timeout`). Wraps the package-level
+// runctx.RunTimeoutFromCtx (Day 34).
+func (k *Kernel) RunTimeoutFromCtx(ctx context.Context) time.Duration {
+	return runctx.RunTimeoutFromCtx(ctx)
+}
 
 // ResumeOwnedKindFromCtx returns (kind, true) if the run context
 // carries a resume-ticket owned by an outer wrapper (assure /
@@ -191,7 +203,7 @@ func (k *Kernel) ResumeCheckpointFn(corr string) func(int, []llm.Message) {
 // Runner needing the Config type across the package boundary
 // (Day 34).
 func (k *Kernel) ResolveRunModel(ctx context.Context) (string, bool) {
-	if m := modelFromCtx(ctx); m != "" {
+	if m := runctx.ModelFromCtx(ctx); m != "" {
 		return m, true
 	}
 	return k.effectiveConfig(ctx).Model, false
@@ -200,24 +212,40 @@ func (k *Kernel) ResolveRunModel(ctx context.Context) (string, bool) {
 // MergeAutoApproveCapabilities merges a per-run auto-approve list
 // with the existing ctx-stashed one. Wraps the package-level helper.
 func (k *Kernel) MergeAutoApproveCapabilities(ctx context.Context, from map[string]bool) map[string]bool {
-	return mergeAutoApproveCapabilities(ctx, from)
+	return runctx.MergeAutoApproveCapabilities(ctx, from)
 }
 
 // WithActorCorrelation stamps the actor + correlation IDs onto a
 // context for downstream consumers (agent.PolicyHook, the
-// in-process memory tool). Wraps the ctxKeyActor + ctxKeyCorrelation
-// writes so the runexec sub-package can decorate a runCtx
-// without importing the runtime ctx key types (Day 34).
+// in-process memory tool). Wraps the run context's actor +
+// correlation writes so the runexec sub-package can decorate a
+// runCtx without importing the runtime ctx key types (Day 34).
 func (k *Kernel) WithActorCorrelation(ctx context.Context, actor, corr string) context.Context {
-	ctx = context.WithValue(ctx, ctxKeyActor, actor)
-	ctx = context.WithValue(ctx, ctxKeyCorrelation, corr)
-	return ctx
+	return runctx.WithActor(ctx, actor, corr)
 }
 
 // ActorFromCtx returns the actor name stamped by WithActorCorrelation.
 func (k *Kernel) ActorFromCtx(ctx context.Context) string {
-	s, _ := ctx.Value(ctxKeyActor).(string)
-	return s
+	return runctx.ActorFromCtx(ctx)
+}
+
+// WithAgentProfile binds a run context to a roster profile (M790): the soul
+// becomes the system override, the model and its ordered fallbacks become the
+// run's model chain, and the tool allow/deny lists, trust ceiling, noise
+// policy and ledger identity ride along.
+//
+// The daemon keeps the DOOR and the run context owns the vocabulary: a host
+// that holds a kernel handle asks the handle, so it never has to name the
+// runs module (and never creates a cross-module edge to do it).
+func (k *Kernel) WithAgentProfile(ctx context.Context, p agentapi.Profile) context.Context {
+	return runctx.WithAgentProfile(ctx, p)
+}
+
+// WithMaxCost caps the cumulative provider spend (in USD-microcents) for the
+// run started with it (M166) — the per-run cost analogue of WithRunTimeout.
+// The daemon keeps the DOOR; the run context owns the rule.
+func (k *Kernel) WithMaxCost(ctx context.Context, mc int64) context.Context {
+	return runctx.WithMaxCost(ctx, mc)
 }
 
 // ShadowEval reports whether post-run shadow-skill judgement is

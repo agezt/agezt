@@ -189,5 +189,5 @@ func firstSentence(s string) string {
 // system prompt so the model starts the task already knowing what
 // Agezt remembers. The recall is journaled (memory.retrieved) under
 // corr, so `agt why` shows exactly what knowledge was surfaced.
-// Per-run system-prompt override (WithSystem): a one-off identity/instruction
+// Per-run system-prompt override (runctx.WithSystem): a one-off identity/instruction
 // set for this run only; falls back to the kernel's configured System. Memory /

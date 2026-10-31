@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -226,7 +227,7 @@ func TestTheWorkflowRunCarriesTheHostProvenance(t *testing.T) {
 		t.Fatalf("SaveWorkflow: %v", err)
 	}
 
-	ctx := runtime.WithWakeContext(context.Background(), runtime.WakeContext{
+	ctx := runctx.WithWakeContext(context.Background(), runctx.WakeContext{
 		Source: "cron",
 		Reason: "cron interval",
 	})

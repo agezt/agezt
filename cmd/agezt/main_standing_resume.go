@@ -19,6 +19,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -100,9 +101,9 @@ func buildResumer(ctx context.Context, k *kernelruntime.Kernel) string {
 		// OWNS the ticket, so mark it owned to stop the inner RunWith recreating it.
 		rctx := kernelruntime.WithResumeOwned(ctx, t.Kind)
 		if prof != nil {
-			rctx = kernelruntime.WithAgentProfile(rctx, *prof)
+			rctx = runctx.WithAgentProfile(rctx, *prof)
 		}
-		rctx = kernelruntime.WithWakeContext(rctx, kernelruntime.WakeContext{
+		rctx = runctx.WithWakeContext(rctx, runctx.WakeContext{
 			Source:         strutil.FirstNonEmpty(t.WakeSource, "resume"),
 			Reason:         "resumed",
 			ScheduleID:     t.WakeScheduleID,
@@ -113,13 +114,13 @@ func buildResumer(ctx context.Context, k *kernelruntime.Kernel) string {
 		// Governance invariant (M1002): a tightened trust ceiling MUST be re-applied
 		// so a resumed run never silently regains authority.
 		if t.TrustCeiling != nil {
-			rctx = kernelruntime.WithTrustCeiling(rctx, edict.TrustLevel(*t.TrustCeiling))
+			rctx = runctx.WithTrustCeiling(rctx, edict.TrustLevel(*t.TrustCeiling))
 		}
 		if t.MaxCostMc > 0 {
-			rctx = kernelruntime.WithMaxCost(rctx, t.MaxCostMc)
+			rctx = runctx.WithMaxCost(rctx, t.MaxCostMc)
 		}
 		if t.RunTimeoutMs > 0 {
-			rctx = kernelruntime.WithRunTimeout(rctx, time.Duration(t.RunTimeoutMs)*time.Millisecond)
+			rctx = runctx.WithRunTimeout(rctx, time.Duration(t.RunTimeoutMs)*time.Millisecond)
 		}
 		// Continue the interrupted conversation for a message-bearing run; assured/
 		// retry re-run from the top (cheap re-verification), so they carry no seed.

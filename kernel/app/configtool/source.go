@@ -13,7 +13,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/configapi"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 // kernelSource answers the config tool's port from the tool's own ports.
@@ -49,7 +49,7 @@ func (s *kernelSource) Reload() error {
 }
 
 // AgentConfigOverrides returns the config overrides the run in this context
-// carries — the daemon's own context convention, read through the port.
+// carries — the run context's own convention, read through the port.
 func (s *kernelSource) AgentConfigOverrides(ctx context.Context) map[string]string {
-	return kernelruntime.AgentConfigOverrides(ctx)
+	return runctx.AgentConfigOverrides(ctx)
 }

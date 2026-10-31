@@ -1,13 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
-
-// Provenance: Run context wake: WithWakeContext + wakeContextFromCtx +
-//             systemAgentFromCtx + agentToolPolicyFromCtx + agentRetryPolicyFromCtx
-//             + AgentConfigOverrides + WithModelChain + modelChainFromCtx +
-//             WithTools + toolsFromCtx + actorFromCtx + correlationFromCtx. Code
-//             extracted from runctx.go during the Day-69 god-file split. Public API
-//             unchanged.
+package runctx
 
 import (
 	"context"
@@ -26,22 +19,50 @@ func WithWakeContext(ctx context.Context, w WakeContext) context.Context {
 	return agentapi.WithWakeContext(ctx, w)
 }
 
-func wakeContextFromCtx(ctx context.Context) WakeContext {
+// WakeContextFromCtx returns the run's wake provenance.
+func WakeContextFromCtx(ctx context.Context) WakeContext {
 	v, _ := agentapi.WakeContextFrom(ctx)
 	return v
 }
 
-func systemAgentFromCtx(ctx context.Context) bool {
+// WithActor stamps the actor and the correlation the run runs under, so the
+// approval path can attribute the audit events to the originating task.
+func WithActor(ctx context.Context, actor, corr string) context.Context {
+	ctx = context.WithValue(ctx, ctxKeyActor, actor)
+	return context.WithValue(ctx, ctxKeyCorrelation, corr)
+}
+
+// ActorFromCtx returns the run's actor.
+func ActorFromCtx(ctx context.Context) string {
+	if v, ok := ctx.Value(ctxKeyActor).(string); ok {
+		return v
+	}
+	return ""
+}
+
+// CorrelationFromCtx returns the run's correlation.
+func CorrelationFromCtx(ctx context.Context) string {
+	if v, ok := ctx.Value(ctxKeyCorrelation).(string); ok {
+		return v
+	}
+	return ""
+}
+
+// SystemAgentFromCtx reports whether the run is a SYSTEM agent.
+func SystemAgentFromCtx(ctx context.Context) bool {
 	v, _ := ctx.Value(ctxKeySystemAgent).(bool)
 	return v
 }
 
-func agentToolPolicyFromCtx(ctx context.Context) agentToolPolicy {
-	v, _ := ctx.Value(ctxKeyAgentToolPolicy).(agentToolPolicy)
+// AgentToolPolicyFromCtx returns the run's named agent's tool allow/deny list.
+func AgentToolPolicyFromCtx(ctx context.Context) AgentToolPolicy {
+	v, _ := ctx.Value(ctxKeyAgentToolPolicy).(AgentToolPolicy)
 	return v
 }
 
-func agentRetryPolicyFromCtx(ctx context.Context) (agentapi.RetryPolicy, bool) {
+// AgentRetryPolicyFromCtx returns the run's named agent's retry policy and
+// whether one was set.
+func AgentRetryPolicyFromCtx(ctx context.Context) (agentapi.RetryPolicy, bool) {
 	v, ok := ctx.Value(ctxKeyAgentRetryPolicy).(agentapi.RetryPolicy)
 	if !ok {
 		return agentapi.RetryPolicy{}, false
@@ -55,7 +76,7 @@ func agentRetryPolicyFromCtx(ctx context.Context) (agentapi.RetryPolicy, bool) {
 // caller to mutate. Nil means the run carries no agent-specific overrides.
 func AgentConfigOverrides(ctx context.Context) map[string]string {
 	v, _ := ctx.Value(ctxKeyAgentConfigOverrides).(map[string]string)
-	return cloneStringMap(v)
+	return CloneStringMap(v)
 }
 
 // WithModelChain sets the run's per-agent ordered model fallback chain (M787):
@@ -68,7 +89,8 @@ func WithModelChain(ctx context.Context, chain []string) context.Context {
 	return context.WithValue(ctx, ctxKeyModelChain, chain)
 }
 
-func modelChainFromCtx(ctx context.Context) []string {
+// ModelChainFromCtx returns the run's ordered model fallback chain.
+func ModelChainFromCtx(ctx context.Context) []string {
 	if v, ok := ctx.Value(ctxKeyModelChain).([]string); ok {
 		return v
 	}
@@ -88,23 +110,9 @@ func WithTools(ctx context.Context, allow []string) context.Context {
 	return toolapi.WithTools(ctx, allow)
 }
 
-// toolsFromCtx returns the per-run tool allowlist and whether one was set. ok=false
+// ToolsFromCtx returns the per-run tool allowlist and whether one was set. ok=false
 // means "no restriction" (use all tools); ok=true with an empty/nil slice means
 // "no tools".
-func toolsFromCtx(ctx context.Context) ([]string, bool) {
+func ToolsFromCtx(ctx context.Context) ([]string, bool) {
 	return toolapi.ToolsFrom(ctx)
-}
-
-func actorFromCtx(ctx context.Context) string {
-	if v, ok := ctx.Value(ctxKeyActor).(string); ok {
-		return v
-	}
-	return ""
-}
-
-func correlationFromCtx(ctx context.Context) string {
-	if v, ok := ctx.Value(ctxKeyCorrelation).(string); ok {
-		return v
-	}
-	return ""
 }

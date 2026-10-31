@@ -21,7 +21,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	"github.com/agezt/agezt/kernel/contract/overseerapi"
 	"github.com/agezt/agezt/kernel/modules/board/board"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 func (s *kernelSource) BulkSetEnabled(slugs []string, enabled bool) []overseerapi.BulkResult {
@@ -93,9 +93,9 @@ func (s *kernelSource) WakeAgent(ref, intent, reason string) (string, error) {
 		intent = "wake: " + strings.TrimSpace(reason)
 	}
 	corr := s.ports.NewCorrelationID()
-	ctx := kernelruntime.WithAgentProfile(context.Background(), p)
+	ctx := runctx.WithAgentProfile(context.Background(), p)
 	if p.MaxCostMc > 0 {
-		ctx = kernelruntime.WithMaxCost(ctx, p.MaxCostMc)
+		ctx = runctx.WithMaxCost(ctx, p.MaxCostMc)
 	}
 	go func() {
 		_, _ = s.ports.Launch(ctx, corr, strings.TrimSpace(intent), nil)
@@ -208,9 +208,9 @@ func (s *kernelSource) RepairAgent(ref, reason string) (agentapi.RepairResult, e
 	taskType := repairTaskType(p, report)
 	brief := buildRepairBrief(p, report, reason, s.taskModelChain(taskType))
 	corr := s.ports.NewCorrelationID()
-	ctx := kernelruntime.WithAgentProfile(context.Background(), p)
+	ctx := runctx.WithAgentProfile(context.Background(), p)
 	if p.MaxCostMc > 0 {
-		ctx = kernelruntime.WithMaxCost(ctx, p.MaxCostMc)
+		ctx = runctx.WithMaxCost(ctx, p.MaxCostMc)
 	}
 	var answer string
 	var err error

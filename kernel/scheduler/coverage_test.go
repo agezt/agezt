@@ -63,7 +63,7 @@ func TestRun_NilBusPlanFailure(t *testing.T) {
 }
 
 // TestLoopNode_Run_DirectNoCorrelation covers LoopNode.Run's IntentFn override
-// and the correlationFromCtx fallback (empty string) when Run is invoked with a
+// and the runctx.CorrelationFromCtx fallback (empty string) when Run is invoked with a
 // bare context that carries no plan correlation.
 func TestLoopNode_Run_DirectNoCorrelation(t *testing.T) {
 	var gotIntent, gotCorr string
@@ -85,7 +85,7 @@ func TestLoopNode_Run_DirectNoCorrelation(t *testing.T) {
 	}
 	// No correlation in ctx → corr is "<empty>.loop.loop1".
 	if gotCorr != ".loop.loop1" {
-		t.Fatalf("correlationFromCtx fallback wrong, corr=%q", gotCorr)
+		t.Fatalf("runctx.CorrelationFromCtx fallback wrong, corr=%q", gotCorr)
 	}
 	if res.Output != "answer" {
 		t.Fatalf("unexpected output %q", res.Output)

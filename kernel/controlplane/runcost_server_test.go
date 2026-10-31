@@ -17,7 +17,7 @@ import (
 // TestRun_PerRunCostCap_EndToEnd — `agt run --max-cost` enforced through the real
 // control plane: a run billing against a priced model past its cap fails with the
 // cost-budget reason, and an uncapped run completes (M166). This exercises the full
-// wire: handleRun parses max_cost → runtime.WithMaxCost → agent.Run's cap →
+// wire: handleRun parses max_cost → runctx.WithMaxCost → agent.Run's cap →
 // governor.CostMicrocents pricing.
 func TestRun_PerRunCostCap_EndToEnd(t *testing.T) {
 	// The mock bills 100k input tokens under a catalog-priced model

@@ -15,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
@@ -192,7 +193,7 @@ func TestDelegate_NamedAgentNoiseNotifyCompletesCooldown(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{
 		Slug: "worker",
 		NoisePolicy: &roster.NoisePolicy{
 			MinNotifySeverity:    "warning",
@@ -266,7 +267,7 @@ func TestDelegate_ManagedSubAgentRequiresParent(t *testing.T) {
 		t.Fatalf("AddProfile worker: %v", err)
 	}
 
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{Slug: "lead", Soul: "Lead the workers."})
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{Slug: "lead", Soul: "Lead the workers."})
 	ans, _, err := k.Run(ctx, "lead task")
 	if err != nil {
 		t.Fatalf("Run as lead: %v", err)
@@ -290,7 +291,7 @@ func TestDelegate_ManagedSubAgentRequiresParent(t *testing.T) {
 	}
 	col := &collector{}
 	col.watch(k2)
-	ctx = runtime.WithAgentProfile(context.Background(), roster.Profile{Slug: "other"})
+	ctx = runctx.WithAgentProfile(context.Background(), roster.Profile{Slug: "other"})
 	if _, _, err := k2.Run(ctx, "other task"); err != nil {
 		t.Fatalf("Run as other: %v", err)
 	}
@@ -319,7 +320,7 @@ func TestDelegate_ManagedSubAgentAllowsOwner(t *testing.T) {
 		t.Fatalf("AddProfile worker: %v", err)
 	}
 
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{Slug: "owner", Soul: "Own the workers."})
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{Slug: "owner", Soul: "Own the workers."})
 	ans, _, err := k.Run(ctx, "owner task")
 	if err != nil {
 		t.Fatalf("Run as owner: %v", err)
@@ -343,7 +344,7 @@ func TestDelegate_ManagedSubAgentAllowsOwner(t *testing.T) {
 	}
 	col := &collector{}
 	col.watch(k2)
-	ctx = runtime.WithAgentProfile(context.Background(), roster.Profile{Slug: "other"})
+	ctx = runctx.WithAgentProfile(context.Background(), roster.Profile{Slug: "other"})
 	if _, _, err := k2.Run(ctx, "other task"); err != nil {
 		t.Fatalf("Run as other: %v", err)
 	}
@@ -396,7 +397,7 @@ func TestDelegate_ManagedSubAgentRequiresLiveParent(t *testing.T) {
 
 			col := &collector{}
 			col.watch(k)
-			ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{Slug: "lead", Soul: "Lead the workers."})
+			ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{Slug: "lead", Soul: "Lead the workers."})
 			if _, _, err := k.Run(ctx, "lead task"); err != nil {
 				t.Fatalf("Run as lead: %v", err)
 			}
@@ -451,7 +452,7 @@ func TestDelegate_ManagedSubAgentRequiresLiveOwner(t *testing.T) {
 
 			col := &collector{}
 			col.watch(k)
-			ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{Slug: "owner", Soul: "Own the workers."})
+			ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{Slug: "owner", Soul: "Own the workers."})
 			if _, _, err := k.Run(ctx, "owner task"); err != nil {
 				t.Fatalf("Run as owner: %v", err)
 			}

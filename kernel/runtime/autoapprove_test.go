@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -56,28 +57,28 @@ func TestAutoApproveCapabilitiesContext(t *testing.T) {
 	base := context.Background()
 
 	// No grant → nothing auto-approves.
-	if autoApproveCap(base, "tool.forge") {
+	if runctx.AutoApproveCap(base, "tool.forge") {
 		t.Fatal("empty context must not auto-approve")
 	}
 
 	// Empty set is a no-op (context unchanged, no auto-approve).
-	if got := WithAutoApproveCapabilities(base, nil); got != base {
+	if got := runctx.WithAutoApproveCapabilities(base, nil); got != base {
 		t.Fatal("nil caps should leave the context unchanged")
 	}
-	if got := WithAutoApproveCapabilities(base, map[string]bool{}); got != base {
+	if got := runctx.WithAutoApproveCapabilities(base, map[string]bool{}); got != base {
 		t.Fatal("empty caps should leave the context unchanged")
 	}
 
 	// A grant covers exactly its listed capabilities and rides the context (so it
 	// reaches every sub-agent the run spawns, which inherit context values).
-	ctx := WithAutoApproveCapabilities(base, map[string]bool{"tool.forge": true, "code.exec": true})
-	if !autoApproveCap(ctx, "tool.forge") {
+	ctx := runctx.WithAutoApproveCapabilities(base, map[string]bool{"tool.forge": true, "code.exec": true})
+	if !runctx.AutoApproveCap(ctx, "tool.forge") {
 		t.Fatal("granted tool.forge should auto-approve")
 	}
-	if !autoApproveCap(ctx, "code.exec") {
+	if !runctx.AutoApproveCap(ctx, "code.exec") {
 		t.Fatal("granted code.exec should auto-approve")
 	}
-	if autoApproveCap(ctx, "shell") {
+	if runctx.AutoApproveCap(ctx, "shell") {
 		t.Fatal("ungranted capability must still require approval")
 	}
 }

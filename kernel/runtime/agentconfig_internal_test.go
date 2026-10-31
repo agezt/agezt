@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 // Internal tests for the per-run config resolution surface (refactor Phase 3.3).
@@ -101,7 +102,7 @@ func TestEffectiveConfig_LayersBootThenLiveThenAgent(t *testing.T) {
 	}
 
 	// Layer 3 — a named agent retunes knobs for its own runs, over the live values.
-	ctx := WithAgentProfile(context.Background(), roster.Profile{
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{
 		Slug: "tuned",
 		ConfigOverrides: map[string]string{
 			"AGEZT_MODEL":    "agent-model",
@@ -126,7 +127,7 @@ func TestEffectiveConfig_LayersBootThenLiveThenAgent(t *testing.T) {
 	}
 }
 
-// A per-run WithModel pick beats both the live default and the agent's override,
+// A per-run runctx.WithModel pick beats both the live default and the agent's override,
 // and is the only one reported EXPLICIT — that flag is what stops the governor's
 // per-task chain from rerouting an operator's deliberate choice (M931).
 func TestResolveRunModel_PerRunPickWinsAndIsExplicit(t *testing.T) {
@@ -137,7 +138,7 @@ func TestResolveRunModel_PerRunPickWinsAndIsExplicit(t *testing.T) {
 		t.Errorf("no per-run pick = (%q, %v), want (effective-model, false)", model, explicit)
 	}
 
-	model, explicit = resolveRunModel(WithModel(context.Background(), "asked-for"), cfg)
+	model, explicit = resolveRunModel(runctx.WithModel(context.Background(), "asked-for"), cfg)
 	if model != "asked-for" || !explicit {
 		t.Errorf("per-run pick = (%q, %v), want (asked-for, true)", model, explicit)
 	}

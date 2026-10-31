@@ -14,6 +14,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/channel"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -35,7 +36,7 @@ func makeChannelHandler(k *kernelruntime.Kernel) channel.InboundHandler {
 				return channel.Reply{}, err
 			}
 			intent = admission.Intent
-			hctx = kernelruntime.WithImages(hctx, admission.Images)
+			hctx = runctx.WithImages(hctx, admission.Images)
 		}
 		// Inbound voice notes: transcribe them so a voice message "just works" —
 		// the agent reads the transcript like any text. Best-effort: if no STT is

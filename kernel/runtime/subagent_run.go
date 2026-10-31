@@ -13,6 +13,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType, agentRef string) (string, error) {
@@ -112,7 +113,7 @@ func (k *Kernel) awaitSubAgent(ctx context.Context, spawnID string) (toolapi.Res
 	if !ok {
 		return toolapi.Result{Output: fmt.Sprintf("unknown spawn id %q (already collected, cancelled, or never spawned)", spawnID), IsError: true}, nil
 	}
-	if caller := correlationFromCtx(ctx); caller != "" && caller != h.parentCorr {
+	if caller := runctx.CorrelationFromCtx(ctx); caller != "" && caller != h.parentCorr {
 		return toolapi.Result{Output: fmt.Sprintf("spawn %s belongs to another run", spawnID), IsError: true}, nil
 	}
 	select {

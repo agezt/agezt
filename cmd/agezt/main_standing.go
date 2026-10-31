@@ -14,6 +14,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/standing"
 )
@@ -119,13 +120,13 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, store *st
 		rctx := fctx
 		if prof != nil {
 			// Soul → system, model + fallbacks → chain, memory scope (M790).
-			rctx = kernelruntime.WithAgentProfile(rctx, *prof)
+			rctx = runctx.WithAgentProfile(rctx, *prof)
 			// The profile's per-run ceiling is the DEFAULT; the order's own wins.
 			if o.Initiative.BudgetPerRunMc <= 0 && prof.MaxCostMc > 0 {
-				rctx = kernelruntime.WithMaxCost(rctx, prof.MaxCostMc)
+				rctx = runctx.WithMaxCost(rctx, prof.MaxCostMc)
 			}
 		}
-		rctx = kernelruntime.WithWakeContext(rctx, kernelruntime.WakeContext{
+		rctx = runctx.WithWakeContext(rctx, runctx.WakeContext{
 			Source:         "standing",
 			Reason:         "event",
 			StandingID:     o.ID,
@@ -133,7 +134,7 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, store *st
 			TriggerSubject: subject,
 		})
 		if o.Initiative.BudgetPerRunMc > 0 {
-			rctx = kernelruntime.WithMaxCost(rctx, o.Initiative.BudgetPerRunMc)
+			rctx = runctx.WithMaxCost(rctx, o.Initiative.BudgetPerRunMc)
 		}
 		// Cap autonomous action (SPEC-16 §4, M999): the effective ceiling is the MORE
 		// restrictive of the order's max_trust and the trust implied by its initiative
@@ -141,7 +142,7 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, store *st
 		// tool is downgraded to Ask/Deny within this run. Before M999 the mode was
 		// stored but never enforced — only max_trust gated; now the mode is a real dial.
 		if lvl, ok := standingTrustCeiling(o.Initiative); ok {
-			rctx = kernelruntime.WithTrustCeiling(rctx, lvl)
+			rctx = runctx.WithTrustCeiling(rctx, lvl)
 		}
 		// Do-it-for-sure firings (M655): when the order carries an assure budget,
 		// each firing runs-verifies-retries until the plan is judged complete (or

@@ -9,6 +9,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 func TestResumeTicket_ProfileDefaultsAndExplicitOverrides(t *testing.T) {
@@ -19,17 +20,19 @@ func TestResumeTicket_ProfileDefaultsAndExplicitOverrides(t *testing.T) {
 		resumable bool
 	}{
 		{"profile defaults", func(ctx context.Context) context.Context { return ctx }, true},
-		{"explicit system", func(ctx context.Context) context.Context { return WithSystem(ctx, "custom") }, false},
-		{"explicit model", func(ctx context.Context) context.Context { return WithModel(ctx, "custom") }, false},
-		{"same system explicitly", func(ctx context.Context) context.Context { return WithSystem(ctx, AgentProfileSystem(profile)) }, false},
-		{"same model explicitly", func(ctx context.Context) context.Context { return WithModel(ctx, profile.Model) }, false},
-		{"explicit tools", func(ctx context.Context) context.Context { return WithTools(ctx, []string{"echo"}) }, false},
-		{"explicit empty tools", func(ctx context.Context) context.Context { return WithTools(ctx, []string{}) }, false},
-		{"retargeted identity", func(ctx context.Context) context.Context { return WithAgentIdent(ctx, "other", 0) }, false},
+		{"explicit system", func(ctx context.Context) context.Context { return runctx.WithSystem(ctx, "custom") }, false},
+		{"explicit model", func(ctx context.Context) context.Context { return runctx.WithModel(ctx, "custom") }, false},
+		{"same system explicitly", func(ctx context.Context) context.Context {
+			return runctx.WithSystem(ctx, runctx.AgentProfileSystem(profile))
+		}, false},
+		{"same model explicitly", func(ctx context.Context) context.Context { return runctx.WithModel(ctx, profile.Model) }, false},
+		{"explicit tools", func(ctx context.Context) context.Context { return runctx.WithTools(ctx, []string{"echo"}) }, false},
+		{"explicit empty tools", func(ctx context.Context) context.Context { return runctx.WithTools(ctx, []string{}) }, false},
+		{"retargeted identity", func(ctx context.Context) context.Context { return runctx.WithAgentIdent(ctx, "other", 0) }, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := WithAgentProfile(context.Background(), profile)
-			ctx = WithMaxCost(ctx, 321)
+			ctx := runctx.WithAgentProfile(context.Background(), profile)
+			ctx = runctx.WithMaxCost(ctx, 321)
 			ctx = tc.decorate(ctx)
 			ticket := (&Kernel{}).buildResumeTicket(ctx, "corr", "task", resume.KindRun, 0)
 			if ticket.Resumable != tc.resumable {
@@ -40,7 +43,7 @@ func TestResumeTicket_ProfileDefaultsAndExplicitOverrides(t *testing.T) {
 			}
 		})
 	}
-	ctx := WithAgentProfile(context.Background(), roster.Profile{Soul: "unnamed soul", Model: "unnamed-model"})
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{Soul: "unnamed soul", Model: "unnamed-model"})
 	if (&Kernel{}).buildResumeTicket(ctx, "unnamed", "task", resume.KindRun, 0).Resumable {
 		t.Fatal("unnamed profile cannot be reconstructed")
 	}

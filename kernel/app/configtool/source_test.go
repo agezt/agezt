@@ -10,6 +10,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/configapi"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -124,7 +125,7 @@ func TestTheAdapterReadsTheRunsOverrides(t *testing.T) {
 	if got := port.AgentConfigOverrides(context.Background()); len(got) != 0 {
 		t.Fatalf("a plain context carries no overrides, got %v", got)
 	}
-	ctx := kernelruntime.WithAgentProfile(context.Background(), agentapi.Profile{
+	ctx := runctx.WithAgentProfile(context.Background(), agentapi.Profile{
 		Slug:            "researcher",
 		ConfigOverrides: map[string]string{"AGEZT_MODEL": "agent-model"},
 	})

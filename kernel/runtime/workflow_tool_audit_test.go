@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -36,7 +37,7 @@ func TestRunTool_ApprovalCarriesRunIdentity(t *testing.T) {
 			k, reg := newApprovalKernel(t, mock.New(), &invoked, 5*time.Second)
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
-			ctx = runtime.WithAgentProfile(ctx, roster.Profile{Slug: "ops"})
+			ctx = runctx.WithAgentProfile(ctx, roster.Profile{Slug: "ops"})
 			done := make(chan error, 1)
 			go func() {
 				var err error
@@ -141,7 +142,7 @@ func TestRunTool_DynamicLookup(t *testing.T) {
 				}
 				ctx := context.Background()
 				if denied {
-					ctx = runtime.WithAgentProfile(ctx, roster.Profile{Slug: "guarded", ToolDeny: []string{toolName}})
+					ctx = runctx.WithAgentProfile(ctx, roster.Profile{Slug: "guarded", ToolDeny: []string{toolName}})
 				}
 				result, err := k.RunTool(ctx, "dynamic-corr", "dynamic-call", toolName, json.RawMessage(`{}`))
 				if denied {

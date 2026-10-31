@@ -15,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -112,9 +113,9 @@ func TestBuildResumer_ProfileRunSurvivesRestart(t *testing.T) {
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
-			ctx = kernelruntime.WithAgentProfile(ctx, profile)
-			ctx = kernelruntime.WithTrustCeiling(ctx, edict.LevelDeny)
-			ctx = kernelruntime.WithMaxCost(ctx, 321)
+			ctx = runctx.WithAgentProfile(ctx, profile)
+			ctx = runctx.WithTrustCeiling(ctx, edict.LevelDeny)
+			ctx = runctx.WithMaxCost(ctx, 321)
 			const corr = "profile-restart"
 			done := make(chan error, 1)
 			go func() { _, err := k.RunWith(ctx, corr, "continue the task"); done <- err }()

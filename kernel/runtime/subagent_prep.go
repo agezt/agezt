@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/delegation"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/modules/runs/steer"
 )
 
@@ -121,7 +122,7 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 		return nil, fmt.Errorf("max sub-agent depth %d reached", maxDepth)
 	}
 
-	parentCorr := correlationFromCtx(ctx)
+	parentCorr := runctx.CorrelationFromCtx(ctx)
 
 	// Fan-out bound (M46): depth caps how DEEP delegation nests; this caps how
 	// WIDE a single run fans out. We tally sub-agents per spawning correlation
@@ -146,12 +147,12 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 	// one level, but a depth-D, fan-out-F tree can still hold up to F^D agents —
 	// neither cap bounds the WHOLE tree's size. This caps the total sub-agents
 	// across every depth of one delegation tree, attributed to the root run's
-	// correlation. The root is the top-level lead (rootFromCtx is empty at depth
+	// correlation. The root is the top-level lead (runctx.RootFromCtx is empty at depth
 	// 0, so the lead's own correlation seeds the root); every descendant inherits
 	// it via childCtx below, so a spawn three levels down still counts against
 	// the same root. 0 = unbounded. The tally is released when the root run ends
 	// (RunWith's defer deletes k.tree[corr]).
-	rootCorr := rootFromCtx(ctx)
+	rootCorr := runctx.RootFromCtx(ctx)
 	if rootCorr == "" {
 		rootCorr = parentCorr // this spawner is the tree root
 	}
@@ -234,11 +235,10 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 	// Child context: bump depth, retarget actor/correlation so the policy hook
 	// and approval audit attribute the sub-agent's actions correctly.
 	childCtx := delegation.WithDepth(ctx, depth+1)
-	childCtx = context.WithValue(childCtx, ctxKeyActor, actor)
-	childCtx = context.WithValue(childCtx, ctxKeyCorrelation, childCorr)
+	childCtx = runctx.WithActor(childCtx, actor, childCorr)
 	// Carry the tree root to every descendant so the M629 total cap is attributed
 	// to the whole tree, not re-seeded at each level.
-	childCtx = context.WithValue(childCtx, ctxKeyRoot, rootCorr)
+	childCtx = runctx.WithRoot(childCtx, rootCorr)
 	// A named agent is a full roster identity, not only a prompt skin: carry its
 	// tool policy, trust ceiling, noise policy, config overrides, lifecycle,
 	// memory scope, workspace, and budget identity into the child context. The
@@ -246,15 +246,15 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 	// selected model, and model chain so delegation-specific overrides keep their
 	// existing precedence.
 	if prof != nil {
-		childCtx = WithAgentProfile(childCtx, *prof)
+		childCtx = runctx.WithAgentProfile(childCtx, *prof)
 	}
 
 	// A named agent's soul REPLACES the daemon default identity layer (it IS this
 	// sub-agent's identity); the sub-agent preamble always stays on top.
 	system := delegation.SystemPrompt
 	switch {
-	case prof != nil && AgentProfileSystem(*prof) != "":
-		system += "\n\n" + AgentProfileSystem(*prof)
+	case prof != nil && runctx.AgentProfileSystem(*prof) != "":
+		system += "\n\n" + runctx.AgentProfileSystem(*prof)
 	default:
 		// The LIVE default identity (SetSystem, M710) — an operator editing the
 		// persona expects delegated runs to inherit the edit, not the prompt the

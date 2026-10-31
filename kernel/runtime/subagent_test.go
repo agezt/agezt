@@ -14,6 +14,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -440,7 +441,7 @@ func TestSubAgent_TotalUnboundedByDefault(t *testing.T) {
 }
 
 func TestWithModel_OverridesPerRun(t *testing.T) {
-	// A run started with runtime.WithModel makes the provider see that model in
+	// A run started with runctx.WithModel makes the provider see that model in
 	// CompletionRequest.Model — the basis for per-request model selection.
 	prov := mock.New(mock.FinalText("ok"))
 	var sawModel string
@@ -457,7 +458,7 @@ func TestWithModel_OverridesPerRun(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	ctx := runtime.WithModel(context.Background(), "requested-model")
+	ctx := runctx.WithModel(context.Background(), "requested-model")
 	if _, err := k.RunWith(ctx, k.NewCorrelation(), "hi"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}

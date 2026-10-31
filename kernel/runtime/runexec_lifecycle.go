@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/agezt/agezt/kernel/agent"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/modules/runs/steer"
 	"github.com/agezt/agezt/kernel/runtime/runexec"
 	"github.com/agezt/agezt/kernel/tenantctx"
@@ -100,7 +101,7 @@ func (k *Kernel) setupRunState(corr string, parentCtx context.Context) (context.
 	// cancels with DeadlineExceeded (→ task.failed reason=timeout,
 	// M30), whereas the cancel stored in k.runs (invoked by Halt)
 	// cancels with Canceled (→ reason=canceled) — the two stay
-	// distinguishable. 0 = no cap. A per-run override (WithRunTimeout,
+	// distinguishable. 0 = no cap. A per-run override (runctx.WithRunTimeout,
 	// e.g. `agt run --timeout`) takes precedence over the daemon-wide
 	// MaxDuration; either yields a deadline that cancels with
 	// DeadlineExceeded.
@@ -110,11 +111,11 @@ func (k *Kernel) setupRunState(corr string, parentCtx context.Context) (context.
 	// through the timeout/cancel context to every tool call.
 	ctx = tenantctx.WithTenant(ctx, k.cfg.TenantID)
 	if len(k.cfg.AutoApproveCapabilities) > 0 {
-		ctx = WithAutoApproveCapabilities(ctx, mergeAutoApproveCapabilities(ctx, k.cfg.AutoApproveCapabilities))
+		ctx = runctx.WithAutoApproveCapabilities(ctx, runctx.MergeAutoApproveCapabilities(ctx, k.cfg.AutoApproveCapabilities))
 	}
 
 	maxDur := k.cfg.MaxDuration
-	if d := runTimeoutFromCtx(ctx); d > 0 {
+	if d := runctx.RunTimeoutFromCtx(ctx); d > 0 {
 		maxDur = d
 	}
 	var runCtx context.Context

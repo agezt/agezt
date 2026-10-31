@@ -12,13 +12,14 @@ import (
 	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"time"
 )
 
 // world / skill injection below still layer on top.
 func (k *Kernel) buildRunPrompt(runCtx context.Context, corr, actor, intent string, systemAgent bool, skillDirective skillapi.ActivationDirective) (string, []string) {
 	system := k.System() // live daemon default identity (M710), editable at runtime
-	if s := systemFromCtx(runCtx); s != "" {
+	if s := runctx.SystemFromCtx(runCtx); s != "" {
 		system = s
 	}
 	// Operator profile (M1000): prepend what AGEZT has learned about the operator
@@ -40,7 +41,7 @@ func (k *Kernel) buildRunPrompt(runCtx context.Context, corr, actor, intent stri
 		if topK <= 0 {
 			topK = 3
 		}
-		if ex := k.taste.ForScope(agentSlugFromCtx(runCtx), topK); len(ex) > 0 {
+		if ex := k.taste.ForScope(runctx.AgentSlugFromCtx(runCtx), topK); len(ex) > 0 {
 			system = injectTaste(system, ex)
 			ids := make([]string, 0, len(ex))
 			for _, e := range ex {
@@ -51,7 +52,7 @@ func (k *Kernel) buildRunPrompt(runCtx context.Context, corr, actor, intent stri
 				Kind:          event.KindTasteInjected,
 				Actor:         "taste",
 				CorrelationID: corr,
-				Payload:       map[string]any{"count": len(ex), "ids": ids, "scope": agentSlugFromCtx(runCtx)},
+				Payload:       map[string]any{"count": len(ex), "ids": ids, "scope": runctx.AgentSlugFromCtx(runCtx)},
 			})
 		}
 	}
@@ -129,7 +130,7 @@ func (k *Kernel) buildRunPrompt(runCtx context.Context, corr, actor, intent stri
 		if topK <= 0 {
 			topK = 3
 		}
-		agentSlug := agentSlugFromCtx(runCtx)
+		agentSlug := runctx.AgentSlugFromCtx(runCtx)
 		if skillDirective.Explicit {
 			hits, missing, err := k.forge.ActivateExplicitFor(corr, agentSlug, intent, skillDirective.Refs, topK)
 			if err == nil {

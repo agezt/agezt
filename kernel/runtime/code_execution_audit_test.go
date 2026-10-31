@@ -19,6 +19,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -179,9 +180,9 @@ func TestCodeExecutionGoverned(t *testing.T) {
 				case "deny":
 					k.Edict().SetLevel(edict.CapCodeExec, edict.LevelDeny)
 				case "profile-deny":
-					ctx = runtime.WithAgentProfile(ctx, roster.Profile{Slug: "ops", ToolDeny: []string{"code_exec"}})
+					ctx = runctx.WithAgentProfile(ctx, roster.Profile{Slug: "ops", ToolDeny: []string{"code_exec"}})
 				case "ceiling":
-					ctx = runtime.WithTrustCeiling(ctx, edict.LevelDeny)
+					ctx = runctx.WithTrustCeiling(ctx, edict.LevelDeny)
 				}
 				failed, ran, out := callCodeAudit(t, k, ctx, path, "code-corr")
 				if failed != (mode != "allow") {
@@ -319,7 +320,7 @@ func TestCodeExecutionApproval(t *testing.T) {
 				k := newCodeAuditKernel(t, r, engine)
 				ctx, cancel := context.WithCancel(context.Background())
 				t.Cleanup(cancel)
-				ctx = runtime.WithAgentProfile(ctx, roster.Profile{Slug: "ops"})
+				ctx = runctx.WithAgentProfile(ctx, roster.Profile{Slug: "ops"})
 				done := make(chan bool, 1)
 				go func() { failed, _, _ := callCodeAudit(t, k, ctx, path, "code-approval"); done <- failed }()
 				req := waitForPending(t, k.Approvals())

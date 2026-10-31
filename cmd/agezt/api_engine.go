@@ -20,6 +20,7 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/restapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
@@ -50,15 +51,15 @@ func (e kernelAPIEngine) NewCorrelation() string        { return e.k.NewCorrelat
 func (e kernelAPIEngine) SubjectForRun(c string) string { return e.k.SubjectForRun(c) }
 func (e kernelAPIEngine) RunModel(ctx context.Context, corr, intent, model string, images []string, jsonMode bool) (string, error) {
 	// Honour the requested model for this run (empty → kernel default).
-	ctx = kernelruntime.WithModel(ctx, model)
+	ctx = runctx.WithModel(ctx, model)
 	// Structured-output request (M314): a client's response_format flows to the
 	// provider's CompletionRequest.JSONMode. No-op when false.
-	ctx = kernelruntime.WithJSONMode(ctx, jsonMode)
+	ctx = runctx.WithJSONMode(ctx, jsonMode)
 	admission, err := e.k.AdmitImages(ctx, corr, model, intent, images)
 	if err != nil {
 		return "", err
 	}
-	ctx = kernelruntime.WithImages(ctx, admission.Images)
+	ctx = runctx.WithImages(ctx, admission.Images)
 	return e.k.RunWith(ctx, corr, admission.Intent)
 }
 

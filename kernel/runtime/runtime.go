@@ -503,7 +503,7 @@ type Config struct {
 	//   PromptInjectionOff  — no active intervention.
 	// The observation boundary, untrusted rendering, and audit metadata are
 	// always on regardless. A chat run can downgrade On→warn for itself via the
-	// trusted-observations flag (WithTrustedObservations).
+	// trusted-observations flag (runctx.WithTrustedObservations).
 	PromptInjectionGuard PromptInjectionMode
 
 	// DisableHeuristicBypass turns off deterministic fast paths for known-safe

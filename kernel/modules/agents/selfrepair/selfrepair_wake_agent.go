@@ -35,9 +35,9 @@ func autoRepairWakeAgent(ctx context.Context, k *kernelruntime.Kernel, cand auto
 		return autoRepairWakeResult{Target: p.Slug, Skipped: reason}, nil
 	}
 	corr := k.NewCorrelation()
-	rctx := kernelruntime.WithAgentProfile(ctx, p)
+	rctx := k.WithAgentProfile(ctx, p)
 	if p.MaxCostMc > 0 {
-		rctx = kernelruntime.WithMaxCost(rctx, p.MaxCostMc)
+		rctx = k.WithMaxCost(rctx, p.MaxCostMc)
 	}
 	intent := autoRepairWakeIntent(cand, msg)
 	var (

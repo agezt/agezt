@@ -13,21 +13,21 @@ import (
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/cadence/systemtasks"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
-	kernelruntime "github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 func scheduledRunContext(runCtx context.Context, model string, prof *agentapi.Profile) context.Context {
 	mctx := runCtx
 	if prof != nil {
-		mctx = kernelruntime.WithAgentProfile(mctx, *prof)
+		mctx = runctx.WithAgentProfile(mctx, *prof)
 		if prof.MaxCostMc > 0 {
-			mctx = kernelruntime.WithMaxCost(mctx, prof.MaxCostMc)
+			mctx = runctx.WithMaxCost(mctx, prof.MaxCostMc)
 		}
 	}
 	model = strings.TrimSpace(model)
 	if model != "" {
-		mctx = kernelruntime.WithModel(mctx, model)
-		mctx = kernelruntime.WithModelChain(mctx, []string{model})
+		mctx = runctx.WithModel(mctx, model)
+		mctx = runctx.WithModelChain(mctx, []string{model})
 	}
 	return mctx
 }

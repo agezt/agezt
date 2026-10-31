@@ -1,31 +1,43 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
-
-// Provenance: Run context basic: cloneStringMap + With/From for
-//             trust/images/json/model/system/runTimeout/maxCost. Code extracted from
-//             runctx.go during the Day-69 god-file split. Public API unchanged.
+package runctx
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/edict"
 	"time"
+
+	"github.com/agezt/agezt/kernel/edict"
 )
 
-// runStringSetting records whether a model/system value came from the named
+// RunStringSetting records whether a model/system value came from the named
 // profile, which the boot resumer can reload, or an explicit per-run override.
 // The source belongs to the value itself: a later setter replaces both.
-type runStringSetting struct {
-	value       string
-	profileSlug string
+type RunStringSetting struct {
+	Value       string
+	ProfileSlug string
 }
 
-func runStringSettingFromCtx(ctx context.Context, key ctxKey) runStringSetting {
-	v, _ := ctx.Value(key).(runStringSetting)
+func runStringSettingFromCtx(ctx context.Context, key ctxKey) RunStringSetting {
+	v, _ := ctx.Value(key).(RunStringSetting)
 	return v
 }
 
-func cloneStringMap(in map[string]string) map[string]string {
+// SystemSetting returns the run's system-prompt setting: the value and the
+// profile it came from. An empty Value means the run carries no system
+// override; an empty ProfileSlug means the value was an explicit per-run
+// override (and cannot be reconstructed on restart).
+func SystemSetting(ctx context.Context) RunStringSetting {
+	return runStringSettingFromCtx(ctx, ctxKeySystem)
+}
+
+// ModelSetting returns the run's model setting: the value and the profile it
+// came from, with the same reading as SystemSetting.
+func ModelSetting(ctx context.Context) RunStringSetting {
+	return runStringSettingFromCtx(ctx, ctxKeyModel)
+}
+
+// CloneStringMap copies a string map; nil for an empty one.
+func CloneStringMap(in map[string]string) map[string]string {
 	if len(in) == 0 {
 		return nil
 	}
@@ -36,15 +48,21 @@ func cloneStringMap(in map[string]string) map[string]string {
 	return out
 }
 
-// rootFromCtx returns the correlation of the ROOT run of a delegation tree (the
+// RootFromCtx returns the correlation of the ROOT run of a delegation tree (the
 // top-level lead), propagated to every descendant so a tree-wide cap can be
 // attributed to the whole tree rather than a single spawner. Empty when not in
 // a delegated context.
-func rootFromCtx(ctx context.Context) string {
+func RootFromCtx(ctx context.Context) string {
 	if v, ok := ctx.Value(ctxKeyRoot).(string); ok {
 		return v
 	}
 	return ""
+}
+
+// WithRoot stamps the root correlation of a delegation tree on the context, so
+// every descendant can be attributed to the tree.
+func WithRoot(ctx context.Context, root string) context.Context {
+	return context.WithValue(ctx, ctxKeyRoot, root)
 }
 
 // WithTrustCeiling returns a context capping autonomous tool-use at `ceiling` for
@@ -66,13 +84,14 @@ func WithTrustCeiling(ctx context.Context, ceiling edict.TrustLevel) context.Con
 		// any inherited cap survives.
 		return ctx
 	}
-	if existing, ok := trustCeilingFromCtx(ctx); ok && existing < ceiling {
+	if existing, ok := TrustCeilingFromCtx(ctx); ok && existing < ceiling {
 		ceiling = existing
 	}
 	return context.WithValue(ctx, ctxKeyTrustCeiling, ceiling)
 }
 
-func trustCeilingFromCtx(ctx context.Context) (edict.TrustLevel, bool) {
+// TrustCeilingFromCtx returns the run's trust ceiling and whether one was set.
+func TrustCeilingFromCtx(ctx context.Context) (edict.TrustLevel, bool) {
 	v, ok := ctx.Value(ctxKeyTrustCeiling).(edict.TrustLevel)
 	return v, ok
 }
@@ -88,7 +107,8 @@ func WithImages(ctx context.Context, images []string) context.Context {
 	return context.WithValue(ctx, ctxKeyImages, images)
 }
 
-func imagesFromCtx(ctx context.Context) []string {
+// ImagesFromCtx returns the run's image references.
+func ImagesFromCtx(ctx context.Context) []string {
 	if v, ok := ctx.Value(ctxKeyImages).([]string); ok {
 		return v
 	}
@@ -106,7 +126,8 @@ func WithJSONMode(ctx context.Context, jsonMode bool) context.Context {
 	return context.WithValue(ctx, ctxKeyJSONMode, true)
 }
 
-func jsonModeFromCtx(ctx context.Context) bool {
+// JSONModeFromCtx reports whether the run asked for structured output.
+func JSONModeFromCtx(ctx context.Context) bool {
 	v, _ := ctx.Value(ctxKeyJSONMode).(bool)
 	return v
 }
@@ -120,11 +141,12 @@ func WithModel(ctx context.Context, model string) context.Context {
 	if model == "" {
 		return ctx
 	}
-	return context.WithValue(ctx, ctxKeyModel, runStringSetting{value: model})
+	return context.WithValue(ctx, ctxKeyModel, RunStringSetting{Value: model})
 }
 
-func modelFromCtx(ctx context.Context) string {
-	return runStringSettingFromCtx(ctx, ctxKeyModel).value
+// ModelFromCtx returns the run's model override, or "" when it has none.
+func ModelFromCtx(ctx context.Context) string {
+	return runStringSettingFromCtx(ctx, ctxKeyModel).Value
 }
 
 // WithSystem returns a context that overrides the base system prompt for the run
@@ -136,11 +158,12 @@ func WithSystem(ctx context.Context, system string) context.Context {
 	if system == "" {
 		return ctx
 	}
-	return context.WithValue(ctx, ctxKeySystem, runStringSetting{value: system})
+	return context.WithValue(ctx, ctxKeySystem, RunStringSetting{Value: system})
 }
 
-func systemFromCtx(ctx context.Context) string {
-	return runStringSettingFromCtx(ctx, ctxKeySystem).value
+// SystemFromCtx returns the run's system-prompt override, or "" when it has none.
+func SystemFromCtx(ctx context.Context) string {
+	return runStringSettingFromCtx(ctx, ctxKeySystem).Value
 }
 
 // WithRunTimeout returns a context that overrides the per-run wall-clock budget
@@ -154,7 +177,8 @@ func WithRunTimeout(ctx context.Context, d time.Duration) context.Context {
 	return context.WithValue(ctx, ctxKeyRunTimeout, d)
 }
 
-func runTimeoutFromCtx(ctx context.Context) time.Duration {
+// RunTimeoutFromCtx returns the run's wall-clock budget, or 0 when it has none.
+func RunTimeoutFromCtx(ctx context.Context) time.Duration {
 	if v, ok := ctx.Value(ctxKeyRunTimeout).(time.Duration); ok {
 		return v
 	}
@@ -173,7 +197,8 @@ func WithMaxCost(ctx context.Context, mc int64) context.Context {
 	return context.WithValue(ctx, ctxKeyMaxCost, mc)
 }
 
-func maxCostFromCtx(ctx context.Context) int64 {
+// MaxCostFromCtx returns the run's spend cap, or 0 when it has none.
+func MaxCostFromCtx(ctx context.Context) int64 {
 	if v, ok := ctx.Value(ctxKeyMaxCost).(int64); ok {
 		return v
 	}

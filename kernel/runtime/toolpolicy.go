@@ -11,11 +11,12 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 func applyAgentNoisePolicyToPromptTools(tools map[string]toolapi.Tool, ctx context.Context) map[string]toolapi.Tool {
-	policy, ok := agentNoisePolicyFromCtx(ctx)
-	if !ok || !policy.disableMemoryWrites {
+	policy, ok := runctx.AgentNoisePolicyFromCtx(ctx)
+	if !ok || !policy.DisableMemoryWrites {
 		return tools
 	}
 	if _, ok := tools["memory"]; !ok {
@@ -50,23 +51,23 @@ func filterTools(tools map[string]toolapi.Tool, allow []string) map[string]toola
 }
 
 // AgentTools narrows tools to what the run's agent profile allows (its
-// tool_allow / tool_deny, applied by WithAgentProfile). Without a profile the
+// tool_allow / tool_deny, applied by runctx.WithAgentProfile). Without a profile the
 // set is returned unchanged. The run loop and the dry-run plan both shape the
 // tool set with it, so the plan cannot list a tool the run would not offer.
 func AgentTools(ctx context.Context, tools map[string]toolapi.Tool) map[string]toolapi.Tool {
-	return applyAgentToolPolicy(tools, agentToolPolicyFromCtx(ctx))
+	return applyAgentToolPolicy(tools, runctx.AgentToolPolicyFromCtx(ctx))
 }
 
-func applyAgentToolPolicy(tools map[string]toolapi.Tool, pol agentToolPolicy) map[string]toolapi.Tool {
+func applyAgentToolPolicy(tools map[string]toolapi.Tool, pol runctx.AgentToolPolicy) map[string]toolapi.Tool {
 	out := tools
-	if len(pol.allow) > 0 {
-		out = filterTools(out, pol.allow)
+	if len(pol.Allow) > 0 {
+		out = filterTools(out, pol.Allow)
 	}
-	if len(pol.deny) == 0 {
+	if len(pol.Deny) == 0 {
 		return out
 	}
-	deny := make(map[string]struct{}, len(pol.deny))
-	for _, name := range pol.deny {
+	deny := make(map[string]struct{}, len(pol.Deny))
+	for _, name := range pol.Deny {
 		if name = strings.ToLower(strings.TrimSpace(name)); name != "" {
 			deny[name] = struct{}{}
 		}
@@ -81,20 +82,20 @@ func applyAgentToolPolicy(tools map[string]toolapi.Tool, pol agentToolPolicy) ma
 	return next
 }
 
-func agentToolPolicyDenial(pol agentToolPolicy, toolName string) (string, bool) {
+func agentToolPolicyDenial(pol runctx.AgentToolPolicy, toolName string) (string, bool) {
 	name := strings.ToLower(strings.TrimSpace(toolName))
 	if name == "" {
 		return "", false
 	}
-	for _, denied := range pol.deny {
+	for _, denied := range pol.Deny {
 		if strings.ToLower(strings.TrimSpace(denied)) == name {
 			return "agent tool denylist", true
 		}
 	}
-	if len(pol.allow) == 0 {
+	if len(pol.Allow) == 0 {
 		return "", false
 	}
-	for _, allowed := range pol.allow {
+	for _, allowed := range pol.Allow {
 		if strings.ToLower(strings.TrimSpace(allowed)) == name {
 			return "", false
 		}

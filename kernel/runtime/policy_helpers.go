@@ -17,43 +17,49 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/platform/policy/admission"
 )
 
+// agentNoiseStateNS is the daemon's state-store namespace for the per-agent
+// noise bookkeeping. The namespace is the daemon's own (it owns the state
+// store); the ROW it holds is the run context's (runctx.AgentNoiseState).
+const agentNoiseStateNS = "agent_noise"
+
 func (k *Kernel) agentNoisePolicyDenial(ctx context.Context, tc llm.ToolCall) (string, bool) {
-	policy, ok := agentNoisePolicyFromCtx(ctx)
+	policy, ok := runctx.AgentNoisePolicyFromCtx(ctx)
 	if !ok {
 		return "", false
 	}
-	if tc.Name == "memory" && policy.disableMemoryWrites && memoryToolActionWrites(tc.Input) {
+	if tc.Name == "memory" && policy.DisableMemoryWrites && memoryToolActionWrites(tc.Input) {
 		return "agent noise policy: memory writes are disabled", true
 	}
 	if tc.Name != "notify" {
 		return "", false
 	}
-	if min := notifySeverityRank(policy.minNotifySeverity); min > notifySeverityRank(notifySeverityFromInput(tc.Input)) {
-		return fmt.Sprintf("agent noise policy: notify severity must be at least %s", policy.minNotifySeverity), true
+	if min := runctx.NotifySeverityRank(policy.MinNotifySeverity); min > runctx.NotifySeverityRank(notifySeverityFromInput(tc.Input)) {
+		return fmt.Sprintf("agent noise policy: notify severity must be at least %s", policy.MinNotifySeverity), true
 	}
-	if policy.minNotifyIntervalSec <= 0 {
+	if policy.MinNotifyIntervalSec <= 0 {
 		return "", false
 	}
-	slug, _ := agentIdentFromCtx(ctx)
+	slug, _ := runctx.AgentIdentFromCtx(ctx)
 	if strings.TrimSpace(slug) == "" {
 		return "", false
 	}
 	nowMS := time.Now().UnixMilli()
-	var st agentNoiseState
+	var st runctx.AgentNoiseState
 	if raw, ok, err := k.state.Get(agentNoiseStateNS, slug); err != nil {
 		return "agent noise policy: notify cooldown state unavailable: " + err.Error(), true
 	} else if ok {
 		_ = json.Unmarshal(raw, &st)
 	}
-	if st.PendingNotifyMS > 0 && nowMS-st.PendingNotifyMS < int64(agentNoisePendingNotifyTTL/time.Millisecond) {
+	if st.PendingNotifyMS > 0 && nowMS-st.PendingNotifyMS < int64(runctx.AgentNoisePendingNotifyTTL/time.Millisecond) {
 		return "agent noise policy: notify send already in progress", true
 	}
 	if st.LastNotifyMS > 0 {
 		elapsed := nowMS - st.LastNotifyMS
-		minMS := int64(policy.minNotifyIntervalSec) * 1000
+		minMS := int64(policy.MinNotifyIntervalSec) * 1000
 		if elapsed < minMS {
 			remaining := time.Duration(minMS-elapsed) * time.Millisecond
 			return "agent noise policy: notify cooldown active for " + remaining.Round(time.Second).String(), true
@@ -67,15 +73,15 @@ func (k *Kernel) agentNoisePolicyDenial(ctx context.Context, tc llm.ToolCall) (s
 }
 
 func (k *Kernel) completeAgentNoiseNotify(ctx context.Context, tc llm.ToolCall, res toolapi.Result) {
-	policy, ok := agentNoisePolicyFromCtx(ctx)
-	if !ok || policy.minNotifyIntervalSec <= 0 || tc.Name != "notify" {
+	policy, ok := runctx.AgentNoisePolicyFromCtx(ctx)
+	if !ok || policy.MinNotifyIntervalSec <= 0 || tc.Name != "notify" {
 		return
 	}
-	slug, _ := agentIdentFromCtx(ctx)
+	slug, _ := runctx.AgentIdentFromCtx(ctx)
 	if strings.TrimSpace(slug) == "" {
 		return
 	}
-	var st agentNoiseState
+	var st runctx.AgentNoiseState
 	if raw, ok, err := k.state.Get(agentNoiseStateNS, slug); err != nil {
 		return
 	} else if ok {
@@ -115,19 +121,6 @@ func notifySeverityFromInput(raw json.RawMessage) string {
 		return "info"
 	}
 	return severity
-}
-
-func notifySeverityRank(severity string) int {
-	switch strings.ToLower(strings.TrimSpace(severity)) {
-	case "critical":
-		return 3
-	case "warning", "warn":
-		return 2
-	case "info", "":
-		return 1
-	default:
-		return 0
-	}
 }
 
 // approvalDecisionBundle assembles what the operator is shown about a call.

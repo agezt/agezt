@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
-
-// Provenance: Prompt construction: the agent-profile + tasks section + firstSentence
-//             utility. The context-injection helpers live in prompt_context.go; the
-//             environment + shell section lives in prompt_environment.go. Extracted
-//             from prompt.go during the Day-203 god-file split. Public API
-//             unchanged.
+package runctx
 
 import (
-	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"strings"
+
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 )
 
 // AgentProfileSystem renders a profile's system prompt: its soul, standing
 // instructions and task list. Empty when the profile defines none of them.
+//
+// The renderer moved here in W3.76c with the vocabulary that reads it: the
+// profile's soul IS the run's system prompt, and the run context is what
+// carries it.
 func AgentProfileSystem(p agentapi.Profile) string {
 	var b strings.Builder
 	if soul := strings.TrimSpace(p.Soul); soul != "" {

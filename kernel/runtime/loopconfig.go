@@ -8,6 +8,7 @@ import (
 	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/governor"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 // buildLoopConfig assembles the parts of agent.LoopConfig that must be
@@ -42,7 +43,7 @@ func (k *Kernel) buildLoopConfig(runCtx context.Context, corr, model string) age
 	runTools := k.mergeMCPTools(k.mergeScriptTools(k.tools))
 	runTools = AgentTools(runCtx, runTools)
 	runTools = applyAgentNoisePolicyToPromptTools(runTools, runCtx)
-	if allow, ok := toolsFromCtx(runCtx); ok {
+	if allow, ok := runctx.ToolsFromCtx(runCtx); ok {
 		runTools = filterTools(runTools, allow)
 	}
 	if cfg.ToolDiscoveryMax > 0 && len(runTools) > cfg.ToolDiscoveryMax {

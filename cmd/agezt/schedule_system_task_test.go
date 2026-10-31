@@ -16,6 +16,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -245,7 +246,7 @@ func TestRunScheduledTrackedTargetCompletesAgentLifecycle(t *testing.T) {
 		t.Fatalf("AddProfile: %v", err)
 	}
 	ent := cadence.Entry{ID: "sched-cycle", Target: cadence.TargetTool, Tool: "memory", Agent: "cycler"}
-	ctx := kernelruntime.WithAgentProfile(context.Background(), p)
+	ctx := runctx.WithAgentProfile(context.Background(), p)
 	if err := runScheduledTrackedTarget(ctx, k, "corr-cycle", ent, "run cycle tool", func(context.Context) (string, error) {
 		return "ok", nil
 	}); err != nil {
@@ -284,7 +285,7 @@ func TestRunScheduledTrackedTargetDoesNotCompleteLifecycleOnFailure(t *testing.T
 		t.Fatalf("AddProfile: %v", err)
 	}
 	ent := cadence.Entry{ID: "sched-cycle-failed", Target: cadence.TargetWorkflow, Workflow: "bad-flow", Agent: "cycler-failed"}
-	ctx := kernelruntime.WithAgentProfile(context.Background(), p)
+	ctx := runctx.WithAgentProfile(context.Background(), p)
 	if err := runScheduledTrackedTarget(ctx, k, "corr-cycle-failed", ent, "run bad workflow", func(context.Context) (string, error) {
 		return "", errors.New("boom")
 	}); err == nil {
@@ -323,7 +324,7 @@ func TestRunScheduledTrackedTargetHonorsAgentToolPolicy(t *testing.T) {
 		t.Fatalf("AddProfile: %v", err)
 	}
 	ent := cadence.Entry{ID: "sched-probe", Target: cadence.TargetTool, Tool: "probe", Agent: "locked"}
-	ctx := kernelruntime.WithAgentProfile(context.Background(), p)
+	ctx := runctx.WithAgentProfile(context.Background(), p)
 	err = runScheduledTrackedTarget(ctx, k, "corr-probe", ent, "run denied tool", func(ctx context.Context) (string, error) {
 		_, err := k.RunTool(ctx, "corr-probe", "schedule-sched-probe", "probe", json.RawMessage(`{}`))
 		return "", err
