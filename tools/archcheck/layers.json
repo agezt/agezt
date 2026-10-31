@@ -39,7 +39,6 @@
 
     {"pattern": "kernel/agent", "layer": 3, "module": "runs", "note": "contract half -> contract/llm+tool (W1.1); loop stays in runs"},
     {"pattern": "kernel/runtime/...", "layer": 3, "module": "runs", "note": "dissolved into modules in W3"},
-    {"pattern": "kernel/resume", "layer": 3, "module": "runs"},
     {"pattern": "kernel/delegation", "layer": 3, "module": "runs"},
     {"pattern": "kernel/contextselect", "layer": 3, "module": "runs"},
     {"pattern": "kernel/planner", "layer": 3, "module": "runs"},

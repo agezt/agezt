@@ -5520,6 +5520,56 @@ files, five of the seventeen mutations would have escaped.
   dissolution is the **run engine** (→ `modules/runs`) — the largest and the
   most entangled. Evidence:
   `architecture/273-w375-the-policy-hooks-admission-rules-move-into-the-platform-evidence.md`
+- W3.76a (the durable run tickets move into the runs module) is the **ninth**
+  slice of the runtime's dissolution, the **first** slice of the **run engine**
+  programme (W3.76) and the first one that moves a family **with its store**.
+  The durable run ticket was split in half: `kernel/resume` (**328** non-blank
+  production lines) held the **rows** (the `Ticket`, its kinds and statuses, the
+  `Store` with its atomic write, its size cap and its quarantine), while
+  `kernel/runtime/resume.go` (**211** lines) held the **rules** — which runs
+  carry a ticket at all (the **scope** rule), which of those may be resumed (the
+  **resumability** rule) and whether a finished run's ticket survives (the
+  **keep/delete** rule). The candidate was measured before it was chosen: the
+  daemon's copies of the ticket rules **3**, the daemon's own stores **1** — and
+  that store is the family's own. W3.73 said *a rule that owns no store is the
+  platform's*; this is the same statement from the other side — **a rule that
+  owns a store is a MODULE's rule** — and the target architecture gives the runs
+  module the "run registry, **resume tickets**, steering/interventions". The
+  whole family moved to `kernel/modules/runs/resume`: the rows, the three rules
+  (`CarriesTicket`, `TerminalOutcome`, `JudgeResumability`) and the capture
+  (`Setting.Reconstructible`, `Facts`, `Build` — which assembles the ticket and
+  asks the rule for the verdict, so the flag and the rule cannot drift). The
+  daemon keeps the doors: it reads the run's context, hands the facts over and
+  publishes the events. What the slice cost: **10 import sites** and nothing
+  else — no new face, no new contract row (the wake provenance uses the existing
+  `agentapi.WakeContext`), no new test setup, no change to the `runexec` kernel
+  API. What did NOT move, and why: the **store's file opening stayed in the
+  kernel's composition root** (the kernel already opens its journal, its state
+  store and its config center from the same base directory, and the ticket store
+  is the run engine's own durable state — the daemon only asks the kernel for
+  it); the **ticket format** did not change; the **resumer's** behaviour did not
+  change (the durable attempt counter still moves before the re-dispatch); the
+  **run context** did not move (it is a separate family). **12 new permanent
+  tests** (7 in the module, 5 in the daemon) on top of the **15 store tests** that
+  moved with the package, and the eight-scenario profile table still passes
+  unchanged. **37 mutations, 37 caught** in two independent passes with
+  **byte-identical** logs (SHA-256
+  `1DCBE55A3200EFAC6EDD76CA31BA942EF3D723B59862079A1A12317FDD5DFFBB`); the
+  calibration reported **one compile error** and it was the mutation's fault —
+  it left `context` and `errors` imported and unused, so it now mutates the
+  rule's fallback instead. The measurement that moved: the daemon's copies of
+  the ticket rules **3 → 0** (a **ratchet test** holds them there), the module's
+  lines **0 → 569**, the old `kernel/resume` package **gone**, `kernel/modules`
+  **25,266 → 25,844** lines, the kernel's verbs **242 → 242**, the contract's new
+  rows **0**. The measurement that did NOT move: the daemon's `resume.go`
+  **grew** by **8** lines (211 → 219) and `kernel/runtime` with it (**8,687 →
+  8,695**) — because **moving a rule moves the CONDITIONS, not the lines**: the
+  daemon lost the rules' bodies and kept the wiring that feeds them, and that
+  wiring was always there, inside the conditions. **What is left**: the run
+  engine's **delegation** (881 lines), **prompt** (578), **loop** (1,415) and
+  **run context** (562); `kernel/runtime/runexec` is already ported and imports
+  no runtime package, so it moves cleanly once the loop does. Evidence:
+  `architecture/274-w376-the-durable-run-tickets-move-into-the-runs-module-evidence.md`
 - W5.4a (the forbidden-call ratchet is zero) takes the **call-site** half of
   W5.4 — the last **three** `raw-write` call sites — and the ratchet goes
   **3 → 0**. The three were the marketplace cache's two staged writes and the

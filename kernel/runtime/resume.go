@@ -2,21 +2,30 @@
 
 package runtime
 
+// Provenance: Durable run resume (M1002). The durable ticket and the rules
+//             that judge it moved to kernel/modules/runs/resume in W3.76a; the
+//             daemon keeps the doors — it reads the run's context, hands the
+//             facts to the module, and publishes the events.
+
 import (
 	"context"
-	"errors"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/resume"
+	"github.com/agezt/agezt/kernel/modules/runs/resume"
 )
 
-// Durable run resume (M1002). See package kernel/resume for the on-disk ticket
-// format and the daemon's boot-time resumer for the replay side. This file is
-// the kernel-side integration: it decides which runs get a ticket, keeps each
-// run's conversation snapshot fresh, and — when the daemon is going down — flips
-// tickets to "suspended" so the resumer re-dispatches them on the next boot
-// instead of the work being cancelled and lost.
+// Durable run resume (M1002). See package kernel/modules/runs/resume for the
+// on-disk ticket format, the ticket rows and the rules that judge them. This
+// file is the kernel-side integration: it decides which runs get a ticket,
+// keeps each run's conversation snapshot fresh, and — when the daemon is going
+// down — flips tickets to "suspended" so the resumer re-dispatches them on the
+// next boot instead of the work being cancelled and lost.
+//
+// The daemon keeps the DOORS and the module keeps the RULES: the scope rule
+// (a root run carries a ticket), the resumability rule (a per-run override
+// cannot be reconstructed) and the termination rule (a run interrupted by a
+// restart keeps its ticket) are the module's, and the daemon asks.
 
 // ResumeStore returns the durable ticket store (nil when resume is disabled) so
 // the daemon's boot-time resumer can enumerate suspended runs. (Named to avoid
@@ -64,7 +73,8 @@ func resumeOwnedKind(ctx context.Context) (string, bool) {
 // ParentCorrelation (and never reach RunWith anyway), so their work is re-driven
 // by resuming the root rather than persisted separately.
 func (k *Kernel) resumeActive(ctx context.Context) bool {
-	return k.resume != nil && k.cfg.ResumeEnabled && wakeContextFromCtx(ctx).ParentCorrelation == ""
+	return k.resume != nil && k.cfg.ResumeEnabled &&
+		resume.CarriesTicket(wakeContextFromCtx(ctx).ParentCorrelation)
 }
 
 // claimResumeTicket writes a fresh ticket for a root run and returns a context
@@ -90,43 +100,40 @@ func (k *Kernel) claimResumeTicket(ctx context.Context, corr, intent, kind strin
 
 // buildResumeTicket stores the agent slug (the profile is reloaded on boot) and
 // resolved governance ceilings, so resume cannot silently regain authority.
+//
 // Explicit model/system/tools overrides are not stored yet and remain
 // non-resumable. Profile-sourced defaults are reconstructible, even when set.
 func (k *Kernel) buildResumeTicket(ctx context.Context, corr, intent, kind string, assureBudget int) *resume.Ticket {
-	t := &resume.Ticket{
+	facts := resume.Facts{
 		Corr:         corr,
 		Intent:       intent,
 		Kind:         kind,
 		AssureBudget: assureBudget,
 		AgentSlug:    agentSlugFromCtx(ctx),
 		MaxCostMc:    maxCostFromCtx(ctx),
-		Resumable:    true,
-		Status:       resume.StatusActive,
+		Wake:         wakeContextFromCtx(ctx),
 	}
 	if lvl, ok := trustCeilingFromCtx(ctx); ok {
 		v := int(lvl)
-		t.TrustCeiling = &v
+		facts.TrustCeiling = &v
 	}
 	if d := runTimeoutFromCtx(ctx); d > 0 {
-		t.RunTimeoutMs = d.Milliseconds()
+		facts.RunTimeoutMs = d.Milliseconds()
 	}
-	w := wakeContextFromCtx(ctx)
-	t.WakeSource = w.Source
-	t.WakeReason = w.Reason
-	t.WakeScheduleID = w.ScheduleID
-	t.WakeStandingID = w.StandingID
-	t.WakeStandingName = w.StandingName
-	t.WakeTriggerSubject = w.TriggerSubject
-	for _, key := range []ctxKey{ctxKeySystem, ctxKeyModel} {
-		setting := runStringSettingFromCtx(ctx, key)
-		if setting.value != "" && (setting.profileSlug == "" || setting.profileSlug != t.AgentSlug) {
-			t.Resumable = false
-		}
-	}
+	facts.System = resumeSettingFromCtx(ctx, ctxKeySystem)
+	facts.Model = resumeSettingFromCtx(ctx, ctxKeyModel)
 	if _, ok := toolsFromCtx(ctx); ok {
-		t.Resumable = false
+		facts.ToolsOverridden = true
 	}
-	return t
+	return resume.Build(facts)
+}
+
+// resumeSettingFromCtx reads one resolved run setting (the system prompt or the
+// model) and reports where it came from: the agent profile that supplied it
+// (reconstructible on boot) or an explicit per-run override (not).
+func resumeSettingFromCtx(ctx context.Context, key ctxKey) resume.Setting {
+	s := runStringSettingFromCtx(ctx, key)
+	return resume.Setting{Set: s.value != "", SourceProfile: s.profileSlug}
 }
 
 // resumeCheckpointFn returns the closure the agent loop calls at each safe
@@ -151,11 +158,14 @@ func (k *Kernel) resumeCheckpointFn(corr string) func(int, []llm.Message) {
 // resume candidate, so its ticket is kept for the restart. A clean finish, a
 // genuine failure, an operator cancel, or a per-run timeout all delete it — none
 // of those should re-run on the next boot.
+//
+// The keep/delete rule is the MODULE's (resume.TerminalOutcome); the daemon
+// applies it.
 func (k *Kernel) finalizeResumeTicket(corr string, runErr error) {
 	if k.resume == nil {
 		return
 	}
-	if k.suspending.Load() && (errors.Is(runErr, context.Canceled) || errors.Is(runErr, context.DeadlineExceeded)) {
+	if resume.TerminalOutcome(runErr, k.suspending.Load()) == resume.DispositionKeep {
 		return // interrupted by shutdown → keep for resume
 	}
 	if err := k.resume.Delete(corr); err != nil {

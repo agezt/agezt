@@ -16,7 +16,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
-	"github.com/agezt/agezt/kernel/resume"
+	"github.com/agezt/agezt/kernel/modules/runs/resume"
 	"github.com/agezt/agezt/kernel/warden"
 )
 

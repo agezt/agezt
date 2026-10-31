@@ -194,7 +194,3 @@ func (s *Store) Quarantine(corr string) error {
 	}
 	return err
 }
-
-// writeAtomic writes b to path via a unique temp file that is fsynced before
-// the rename, so a crash never yields a torn or unsynced ticket (see
-// internal/atomicfile).

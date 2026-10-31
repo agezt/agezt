@@ -170,6 +170,7 @@
 - **`kernel/modules/providers/chatgptauth`** — Package chatgptauth manages the OAuth tokens for the "Sign in with ChatGPT" provider — the same subscription auth Codex CLI uses.
 - **`kernel/modules/reasoning`** — Package reasoning is the reasoning module: the Council of Elders (a multi-model panel that deliberates and reconciles), the Conductor (a verify-driven Thinker→Worker→Verifier loop) and the deep-research harness.
 - **`kernel/modules/reasoning/api`** — Package api is the reasoning module's public vocabulary: the rows and results the council, the conductor and the research harness produce, and the pure helpers both sides share.
+- **`kernel/modules/runs/resume`** — Package resume persists a durable "ticket" per in-flight root run so the daemon can pick the work back up after a restart — whether the daemon was stopped/started, self-updated, or hard-killed.
 - **`kernel/modules/skills/builtins`** — Package builtins ships the skill bundles baked into the binary — the agentskills.io shape (M847): a SKILL.md plus reference files and scripts, embedded here and materialized into the skill store by the skills module.
 - **`kernel/modules/skills/skill`** — Package skill implements "Forge v1" (SPEC-05 §4–5): the agent learns reusable, named procedures ("skills") from what it does, and those skills are governed through a journaled, reversible state machine instead of straight-to-active markdown.
 - **`kernel/modules/work/api`** — —
@@ -204,7 +205,6 @@
 - **`kernel/reflect`** — Package reflect implements "Reflection v1" (SPEC-05 §6): the meta-cognition loop.
 - **`kernel/reranktool`** — Package reranktool provides the agent-facing rerank tool (M997): it lets a running agent reorder a set of candidate documents by relevance to a query, using a dedicated reranking model (more accurate than embedding cosine for final ranking).
 - **`kernel/restapi`** — GET /api/v1/update — check for updates (M860) POST /api/v1/update/apply — validate and stage an update (M860) Security (SPEC-06): loopback-bound by the operator, token-authed on every request (Authorization: Bearer <token>).
-- **`kernel/resume`** — Package resume persists a durable "ticket" per in-flight root run so the daemon can pick the work back up after a restart — whether the daemon was stopped/started, self-updated, or hard-killed.
 - **`kernel/runtime`** — Package runtime wires the kernel subsystems (journal + state + bus + agent loop + providers + tools) into a single Kernel that the daemon hosts and the control plane drives.
 - **`kernel/runtime/lifecycle`** — Package lifecycle is the kernel's run-lifecycle surface extracted into a sub-package as the first step of the Day 12 sub-package split.
 - **`kernel/runtime/runexec`** — Package runexec owns the kernel's run engine.
