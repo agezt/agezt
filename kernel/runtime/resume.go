@@ -202,7 +202,7 @@ func (k *Kernel) Suspend(reason string) int {
 	// Notify each running agent at its next boundary (best-effort).
 	k.steersMu.Lock()
 	for _, rc := range k.steers {
-		rc.inject("The daemon is shutting down and will resume this run on restart. Wrap up the current step if you can; do not start new long-running work.", true)
+		rc.Inject("The daemon is shutting down and will resume this run on restart. Wrap up the current step if you can; do not start new long-running work.", true)
 	}
 	k.steersMu.Unlock()
 

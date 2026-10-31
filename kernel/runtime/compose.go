@@ -26,10 +26,12 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/journal"
 	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
+	"github.com/agezt/agezt/kernel/modules/runs/steer"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/runtime/lifecycle"
@@ -396,11 +398,24 @@ func Open(cfg Config) (*Kernel, error) {
 		runs:         make(map[string]context.CancelFunc),
 		fanout:       make(map[string]int),
 		tree:         make(map[string]int),
-		steers:       make(map[string]*runControl),
+		steers:       make(map[string]*steer.Control),
 		spawns:       make(map[string]*spawnHandle),
 		toolCaps:     validatedToolCaps(cfg.ToolCapabilities), // M900
 		startTime:    time.Now(),
 	}
+
+	// The steering SERVICE is the runs module's (W3.76b): the module owns the
+	// steering and the interventions, and the daemon hands it the doors — the
+	// live runs, the bus and the cancel. The module never names the daemon.
+	k.steerSvc = steer.NewService(steer.Dependencies{
+		Lookup: func(corr string) (*steer.Control, bool) {
+			rc := k.controlFor(corr)
+			return rc, rc != nil
+		},
+		Publish: func(spec event.Spec) { _, _ = kbus.Publish(spec) },
+		Cancel:  k.CancelRun,
+		Now:     time.Now,
+	})
 	if subTool != nil {
 		subTool.run = k.runSubAgent
 		subTool.spawn = k.runSubAgentAsync // M881: non-blocking delegation

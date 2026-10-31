@@ -8,6 +8,13 @@ import (
 	"time"
 )
 
+func TestNormalize_RequiresDirectiveForRedirect(t *testing.T) {
+	_, err := Normalize(Request{Primitive: PrimitiveRedirect, CorrelationID: "r"})
+	if err == nil {
+		t.Fatal("redirect without directive should be rejected")
+	}
+}
+
 func TestNormalize_DefaultsAndTrims(t *testing.T) {
 	got, err := Normalize(Request{
 		Primitive:     Primitive(" HALT "),

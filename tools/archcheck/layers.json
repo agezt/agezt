@@ -14,7 +14,6 @@
     {"pattern": "kernel/channel", "layer": 1, "note": "Channel interface + UnifiedMessage + manifest registry"},
     {"pattern": "kernel/tenantctx", "layer": 1},
     {"pattern": "kernel/meshctx", "layer": 1},
-    {"pattern": "kernel/intervention", "layer": 1, "note": "live-change grammar types"},
 
     {"pattern": "kernel/journal", "layer": 2, "note": "-> platform/eventlog"},
     {"pattern": "kernel/bus", "layer": 2, "note": "-> platform/eventlog"},

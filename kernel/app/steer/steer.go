@@ -13,7 +13,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
-	"github.com/agezt/agezt/kernel/intervention"
+	"github.com/agezt/agezt/kernel/modules/runs/intervention"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 

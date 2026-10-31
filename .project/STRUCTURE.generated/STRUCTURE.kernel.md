@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-220 package(s):
+221 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -141,7 +141,6 @@
 - **`kernel/imagetool`** — Package imagetool provides the agent-facing image tool (M997): it lets a running agent GENERATE images from a text prompt.
 - **`kernel/intent`** — Package intent turns a user's utterance into auditable intent metadata before runtime policy decides whether a proposed action may execute.
 - **`kernel/internal/testfixtures`** — Package testfixtures provides shared test helpers for kernel packages.
-- **`kernel/intervention`** — Package intervention defines the protocol grammar for safe live changes to a running agent.
 - **`kernel/journal`** — Package journal is the append-only, BLAKE3-hash-chained event log that backs the entire system.
 - **`kernel/market`** — Package market is AGEZT's capability marketplace: it packages skills, MCP servers, and CLI-tool requirements into installable "packs", catalogues them in "marketplaces" (a built-in Official one plus, later, synced remotes), and installs a pack by materializing its parts into the systems that already run them — skills into the Forge, MCP servers into the MCP registry, tool needs reported to the Toolbox.
 - **`kernel/meshctx`** — Package meshctx carries the cross-node delegation hop count for the M8 mesh.
@@ -170,7 +169,9 @@
 - **`kernel/modules/providers/chatgptauth`** — Package chatgptauth manages the OAuth tokens for the "Sign in with ChatGPT" provider — the same subscription auth Codex CLI uses.
 - **`kernel/modules/reasoning`** — Package reasoning is the reasoning module: the Council of Elders (a multi-model panel that deliberates and reconciles), the Conductor (a verify-driven Thinker→Worker→Verifier loop) and the deep-research harness.
 - **`kernel/modules/reasoning/api`** — Package api is the reasoning module's public vocabulary: the rows and results the council, the conductor and the research harness produce, and the pure helpers both sides share.
+- **`kernel/modules/runs/intervention`** — Package intervention defines the protocol grammar for safe live changes to a running agent.
 - **`kernel/modules/runs/resume`** — Package resume persists a durable "ticket" per in-flight root run so the daemon can pick the work back up after a restart — whether the daemon was stopped/started, self-updated, or hard-killed.
+- **`kernel/modules/runs/steer`** — Package steer is the runs module's steering face: the per-run steering surface a live run exposes, and the service that drives it.
 - **`kernel/modules/skills/builtins`** — Package builtins ships the skill bundles baked into the binary — the agentskills.io shape (M847): a SKILL.md plus reference files and scripts, embedded here and materialized into the skill store by the skills module.
 - **`kernel/modules/skills/skill`** — Package skill implements "Forge v1" (SPEC-05 §4–5): the agent learns reusable, named procedures ("skills") from what it does, and those skills are governed through a journaled, reversible state machine instead of straight-to-active markdown.
 - **`kernel/modules/work/api`** — —

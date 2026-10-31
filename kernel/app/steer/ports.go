@@ -5,7 +5,7 @@ package steer
 import (
 	"errors"
 
-	"github.com/agezt/agezt/kernel/intervention"
+	"github.com/agezt/agezt/kernel/modules/runs/intervention"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 

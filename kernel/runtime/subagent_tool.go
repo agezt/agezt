@@ -14,6 +14,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/modules/runs/steer"
 )
 
 func newSubAgentTool() *subAgentTool { return &subAgentTool{} }
@@ -193,7 +194,7 @@ type subAgentPrep struct {
 	agentSlug    string
 	agentDailyMc int64
 	retryPolicy  *agentapi.RetryPolicy
-	rc           *runControl
+	rc           *steer.Control
 }
 
 // runSubAgent executes a delegated task as a nested agent.Run under a fresh

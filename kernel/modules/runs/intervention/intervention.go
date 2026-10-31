@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: MIT
 
 // Package intervention defines the protocol grammar for safe live changes to a
-// running agent. Runtime owns execution; this package is only the wire contract.
+// running agent.
+//
+// The grammar moved here in W3.76a→W3.76b: the runs module owns the steering
+// and the interventions (the target architecture's "run registry, resume
+// tickets, steering/interventions"), and the grammar is that module's wire
+// vocabulary. The runtime executes; this package only speaks.
 package intervention
 
 import (

@@ -17,6 +17,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/delegation"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/runs/steer"
 )
 
 func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, agentRef string, async bool) (*subAgentPrep, error) {
@@ -186,7 +187,7 @@ func (k *Kernel) prepareSubAgent(ctx context.Context, task, model, taskType, age
 	// / resume an INDIVIDUAL sub-agent from the cockpit — reaching into the
 	// delegation tree, not just the top-level lead (M608 only wired RunWith).
 	// Wired into the child loop via LoopConfig.Steer below.
-	rc := newRunControl()
+	rc := steer.NewControl()
 	k.steersMu.Lock()
 	k.steers[childCorr] = rc
 	k.steersMu.Unlock()

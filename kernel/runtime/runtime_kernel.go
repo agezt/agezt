@@ -41,6 +41,7 @@ import (
 	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
+	"github.com/agezt/agezt/kernel/modules/runs/steer"
 	workapi "github.com/agezt/agezt/kernel/modules/work/api"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/runtime/lifecycle"
@@ -193,7 +194,8 @@ type Kernel struct {
 	runs       map[string]context.CancelFunc // correlation_id → cancel
 	fanout     map[string]int                // spawning correlation_id → sub-agents spawned (M46 fan-out bound)
 	tree       map[string]int                // root correlation_id → total sub-agents in the tree (M629 total bound)
-	steers     map[string]*runControl        // correlation_id → live-steering control surface (M608)
+	steers     map[string]*steer.Control     // correlation_id → live-steering control surface (M608)
+	steerSvc   *steer.Service                // the runs module's steering service (W3.76b)
 	spawns     map[string]*spawnHandle       // child correlation_id → pending/finished async delegation (M881)
 	runWG      sync.WaitGroup                // in-flight runs + async spawn goroutines; Close drains it bounded (M883)
 
