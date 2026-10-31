@@ -12511,3 +12511,63 @@ func main() {
 	fmt.Println(len(rows), "handlers write without publishing")
 }
 ```
+
+- W3.76c (the run context moves into the runs module) is the **eleventh** slice
+  of the runtime's dissolution and the **third** slice of the **run engine**
+  programme. W3.76a took the durable **tickets**, W3.76b the **steering**; this
+  one takes the **run context** — the vocabulary a run carries. The family was
+  split across **six** daemon files: `kernel/runtime/runctx.go` (**66**
+  non-blank lines: the `ctxKey` enum, the run's own rows, the `WakeContext`
+  alias), `runctx_agent.go` (**143**: the profile binding), `runctx_basic.go`
+  (**160**: the dispatch knobs), `runctx_security.go` (**99**: the grants),
+  `runctx_wake.go` (**94**: the wake half) and `prompt.go` (**88**: the
+  profile's system prompt). The measurement said it was the cheapest of the
+  four run-engine families — **562** lines, **5** files, **zero** `*Kernel`
+  coupling, **zero** stored state — and a family with no store, no rule and no
+  handle is a **vocabulary**: it belongs to the module whose thing it
+  describes. So the whole vocabulary moved to `kernel/modules/runs/runctx`
+  (`keys.go`, `agent.go`, `basic.go`, `wake.go`, `security.go`, `profile.go`,
+  `noise.go` — **692** lines): the keys, the setters, the getters and the
+  run's own types, with **one spelling**. Three parts did **not** move, and
+  why: the **wake provenance** and the **tool allowlist** are **contract rows**
+  (`agentapi`, `toolapi`), and the module's setters are thin delegates over
+  them; the **prompt-injection mode** is the **platform's** rule (W3.74), so
+  the daemon keeps the name (`kernel/runtime/promptinjection.go`); the
+  **resume handshake** (`WithResumeOwned`, `WithResumeSeed`) is the **daemon's**
+  boot protocol and stays in `kernel/runtime/resume.go` with its own key type.
+  The daemon keeps the **doors** — the Kernel accessors, plus two new ones
+  (`k.WithAgentProfile`, `k.WithMaxCost`), so a host that holds a kernel handle
+  (`kernel/modules/agents/selfrepair`) binds a run without reaching into
+  another module — and there is **no facade**: the hosts name the module
+  directly. The move creates **no** new import edge (the daemon and the module
+  are the same module, `runs`) and it closes one. **39 new permanent tests** in
+  the module and **8 new** in the daemon, on top of the **7** that moved with
+  the code they test. **54 mutations, 54 caught** in two independent passes with
+  **byte-identical** logs (SHA-256
+  `58E51D9E1997145F81A30FA5AD167EA9B8A385058C649167ADF7651885E4CA78`); the calibration recorded **seven** compile errors and every one
+  was the mutation's fault (an unused identifier, an unused pair, a *suspect
+  and* `go vet` refuses, an unused loop variable, two more unused bindings, and
+  a `nil` return that left a parameter unused) — each now keeps the code
+  compilable and changes the behaviour. Five mutations **survived** the first
+  pass, and every one was a **gap in the tests**, not a dead rule: the copied
+  retry policy, the "no clamp" that recorded a ceiling, the empty model that
+  overwrote the run, the tool allowlist that was not applied, and the profile
+  door that bound nothing — each now has a test that asks the rule the question
+  it could not answer before. The measurement that moved: the daemon's copies of
+  the run context **6 files / 650 lines → 0**, `kernel/runtime` **8,391 →
+  7,809** lines (**69 → 64** files), `kernel/modules` **26,337 → 27,038** lines,
+  the module's lines **0 → 692**, the files that name the module **0 → 52**,
+  the kernel's verbs **242 → 244** (the two new doors), the contract's new rows
+  **0**. The measurement that did NOT move: the **family's** own line count
+  went **up** (**650 → 692**), and the daemon's run-dispatch doors with it
+  (**645 → 702**) — moving a rule moves the CONDITIONS, not the lines, and the
+  module's lines are the moved lines **plus the package's own documentation**
+  and the exported surface that the daemon's unexported names became. **What is
+  left**: the run engine's **delegation** (881 lines — nine `*Kernel` methods,
+  three bus publications, a journal read; it needs a real port design first),
+  the **prompt** (578 lines — it reads memory, world and skills through contract
+  ports, and the prompt's own build is still the daemon's), the **loop config**
+  (99 lines), and the **loop** itself (`kernel/agent`, **2,629** lines across 20
+  files — the biggest, and the most entangled with the contract layer: 123
+  production files import `kernel/contract/llm`). Evidence:
+  `architecture/276-w376c-the-run-context-moves-into-the-runs-module-evidence.md`
