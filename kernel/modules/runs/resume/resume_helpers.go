@@ -13,8 +13,6 @@ import (
 	"github.com/agezt/agezt/internal/atomicfile"
 )
 
-func (s *Store) Dir() string { return s.dir }
-
 func safeName(corr string) string {
 	// Correlation ids are "run-<ulid>" — already filename-safe — but strip any
 	// path syntax defensively so a crafted corr can't escape the directory.

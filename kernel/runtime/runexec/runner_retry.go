@@ -18,7 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/assureapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/resume"
+	"github.com/agezt/agezt/kernel/modules/runs/resume"
 )
 
 func (r *Runner) RunWithRetry(ctx context.Context, corr, intent string, pol agentapi.RetryPolicy) (string, error) {

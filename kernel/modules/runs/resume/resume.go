@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-// Package resume persists a durable "ticket" per in-flight root run so the
-// daemon can pick the work back up after a restart (M1002).
-
 package resume
 
 // Provenance: This file holds the declarations: Kind/Status consts +
@@ -111,3 +108,4 @@ func Open(dir string, maxBytes int) (*Store, error) {
 }
 
 // Dir reports the ticket directory (for logging/tests).
+func (s *Store) Dir() string { return s.dir }
