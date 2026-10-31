@@ -5566,10 +5566,67 @@ files, five of the seventeen mutations would have escaped.
   8,695**) — because **moving a rule moves the CONDITIONS, not the lines**: the
   daemon lost the rules' bodies and kept the wiring that feeds them, and that
   wiring was always there, inside the conditions. **What is left**: the run
-  engine's **delegation** (881 lines), **prompt** (578), **loop** (1,415) and
+  engine's **delegation** (881 lines), **prompt** (578), **loop** (1,415 as
+  measured then; it measures 2,629 today — see W3.76b's correction) and
   **run context** (562); `kernel/runtime/runexec` is already ported and imports
   no runtime package, so it moves cleanly once the loop does. Evidence:
   `architecture/274-w376-the-durable-run-tickets-move-into-the-runs-module-evidence.md`
+- W3.76b (the steering moves into the runs module) is the **tenth** slice of the
+  runtime's dissolution and the **second** slice of the **run engine**
+  programme. W3.76a took the durable **tickets**; this one takes the
+  **steering** — the other half of the target architecture's line for the runs
+  module ("run registry, **resume tickets**, **steering/interventions**"). The
+  family was split across three packages: `kernel/runtime/steer.go` (180
+  non-blank lines) held the **surface** (`runControl` — the per-run steering
+  state), `kernel/runtime/steer_ops.go` (183 lines) held the **operations**
+  (pause, resume, step, steer, observe, intervene and the two publishers), and
+  `kernel/intervention` (69 lines) held the **grammar** (the wire vocabulary of
+  an intervention). The measurement settled the seam: the operations touch the
+  daemon in exactly **four** ways — the **live run**, the **bus**, the
+  **cancel** and the **clock** — so the family is **port-shaped** and all three
+  parts moved. `kernel/modules/runs/steer` now owns the surface (`Control`:
+  the pause, the lease, the single-step, the queued directives, the wake
+  channel, the idempotency results) and the operations (`Service` over four
+  named ports — `Lookup`, `Publish`, `Cancel`, `Now`; the clock is a port
+  because the lease arithmetic is the one place the module needed the host's
+  time), and `kernel/modules/runs/intervention` owns the grammar. The daemon
+  keeps the **doors**: `kernel/runtime/steer.go` is now **40** lines of verbs,
+  each one line, delegating to the module's service, and the composition root
+  hands the module its four ports. The verbs kept their names, their signatures
+  and their meaning — the application layer's port (`kernel/app/steer.Runs`)
+  and the operator UI are untouched — so the kernel's verb count stays **242**
+  and the contract grows by **0** rows. What the slice cost: **13 files**
+  outside the moved packages, one new package pair and one deleted file
+  (`kernel/runtime/steer_ops.go`). **15 new permanent tests** (the module's
+  service — 11; the surface's white-box concurrency tests — 7 moved plus 1
+  new; the daemon's ratchet and its doors — 2; the daemon's intervention door
+  end-to-end — 1) and **13 moved** with their packages. The daemon's
+  `InterveneRun` had **no** end-to-end coverage before this slice — the
+  application layer's tests use a fake — and the mutation run found it. **31
+  mutations, 31 caught** in two independent passes with **byte-identical** logs
+  (SHA-256
+  `C4FC447BF2F151FB136369D5C190155258F71366497EDF37C99E217E359AC476`); the
+  calibration recorded **three** compile errors and every one was the
+  mutation's fault (an untyped `nil`, an unused identifier, an ambiguous
+  anchor) — each now keeps the code compilable and changes the behaviour. The
+  measurement that moved: the daemon's copies of the steering operations **6 →
+  0** (a **ratchet test** holds them there), `kernel/runtime/steer.go` **180 →
+  40** lines, `kernel/runtime` **8,695 → 8,391** lines, `kernel/modules`
+  **25,835 → 26,346** lines. The measurement that did NOT move: the family's
+  own line count went **up** (**432 → 542**) — moving a rule moves the
+  CONDITIONS, not the lines, and the module's lines are the moved lines **plus
+  the four ports** and their documentation. **A correction**: the run engine's
+  families were re-measured, and the recorded **loop = 1,415** does **not**
+  reproduce — no subset of `kernel/agent` sums to 1,415 *and* contains the two
+  files that are the loop; `kernel/agent` measures **2,629** lines across 20
+  files. The delegation (881), the prompt (578), the run context (562) and the
+  loop config (99) reproduce exactly. **What is left**: by the evidence, the
+  next cheapest coherent move is the **run context** (562 lines, 5 files, zero
+  `*Kernel` coupling, 17 production call-site files) — the run's own
+  vocabulary, which the prompt, the delegation and the loop all read; the
+  **delegation** (881) is the most entangled; the **loop** is the biggest
+  (2,629) and the most entangled with the contract layer. Evidence:
+  `architecture/275-w376b-the-steering-moves-into-the-runs-module-evidence.md`
 - W5.4a (the forbidden-call ratchet is zero) takes the **call-site** half of
   W5.4 — the last **three** `raw-write` call sites — and the ratchet goes
   **3 → 0**. The three were the marketplace cache's two staged writes and the

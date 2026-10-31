@@ -1,6 +1,6 @@
 # 04 — Agent Runtime (kernel/runtime, kernel/agent, tool execution, delegation, resume, proof)
 
-**Scope:** `kernel/runtime` (81 non-test files) and its sub-packages `kernel/runtime/{lifecycle,runexec}`; the agent loop `kernel/agent`; and the satellite packages `kernel/toolexec`, `kernel/modules/extensions/toolforge`, `kernel/contextselect`, `kernel/delegation`, `kernel/intent`, `kernel/intervention`, `kernel/planner`, `kernel/reflect`, `kernel/modules/runs/resume`, `kernel/meshctx`, `kernel/modules/work/proof` and the contract rows they now hold (`kernel/contract/proofapi`, `kernel/contract/assureapi`). The **seat catalog** (`kernel/modules/work/seat`) is the composition root's file; the kernel holds its port (`kernel/contract/seatapi`, W3.41). The tool registry is **no longer among them**: it moved down to the contract layer in W3.39h (`kernel/contract/toolregapi`) and is described in [10-tools.md](10-tools.md).
+**Scope:** `kernel/runtime` (81 non-test files) and its sub-packages `kernel/runtime/{lifecycle,runexec}`; the agent loop `kernel/agent`; and the satellite packages `kernel/toolexec`, `kernel/modules/extensions/toolforge`, `kernel/contextselect`, `kernel/delegation`, `kernel/intent`, `kernel/planner`, `kernel/reflect`, `kernel/modules/runs/resume`, `kernel/modules/runs/steer`, `kernel/modules/runs/intervention`, `kernel/meshctx`, `kernel/modules/work/proof` and the contract rows they now hold (`kernel/contract/proofapi`, `kernel/contract/assureapi`). The **seat catalog** (`kernel/modules/work/seat`) is the composition root's file; the kernel holds its port (`kernel/contract/seatapi`, W3.41). The tool registry is **no longer among them**: it moved down to the contract layer in W3.39h (`kernel/contract/toolregapi`) and is described in [10-tools.md](10-tools.md).
 
 Everything below was read from the working tree on disk (2026-10-02), not from `docs/`. Where a code comment contradicts the code, the code wins and the discrepancy is listed under "Gotchas".
 
@@ -18,7 +18,7 @@ Sibling docs: governor, Edict, approvals, warden: [05-governance-routing-securit
 | Run engine | `runexec.Runner.RunWith` (+ `RunAssured`, `RunWithRetry`) | Run registration, ctx stamping, intent framing, heuristic bypass, system-prompt assembly, model resolution, LoopConfig, resume ticket, post-run hooks (distill/forge/shadow-eval/lifecycle). |
 | Tool-call policy | `(*Kernel).policyHook` (`policy.go`) | Adapts Edict to `agent.Policy`: capability resolution, trust ceiling, per-agent tool policy, epistemic gate, intent/regret gate, prompt-injection guard, auto-approve grant, live HITL via `approval.Registry.Submit`. |
 | Halt / cancel / drain | `runtime/lifecycle.Manager` | `Halt`, `HaltWith`, `CancelRun`, `DrainAndHalt`, `Resume`, `NewCorrelation` (`run-<ulid>`). |
-| Live steering | `runControl` (`steer.go`), `steer_ops.go`, `kernel/intervention` | pause / step / resume / steer / BTW note / lease-bounded intervene, applied at the loop's iteration boundary. |
+| Live steering | `kernel/modules/runs/steer` + `kernel/modules/runs/intervention` | pause / step / resume / steer / BTW note / lease-bounded intervene, applied at the loop's iteration boundary. |
 | Delegation | `subagent_*.go` + `kernel/delegation` | `delegate` / `delegate_await` tools; depth, fan-out, tree-total and spend rails; async spawns. |
 | Restart resume | `runtime/resume.go` + `kernel/modules/runs/resume` | Durable per-run ticket and per-iteration conversation snapshot; `Suspend` before cancel; the daemon re-dispatches on boot. |
 | Completion assurance | `contract/assureapi` (the rows, the parser and the bounded loop), `Runner.VerifyCompletion`, `kernel/proof`, `ProveTask` | Verify-and-retry loop; acceptance-criteria proof gate for workboard tasks. |
@@ -269,7 +269,7 @@ configMu < runsMu < fanoutMu < treeMu < steersMu < spawnsMu
 | `runsMu` | `halted`, `runs map[corr]CancelFunc` |
 | `fanoutMu` | `fanout map[spawningCorr]int` (M46) |
 | `treeMu` | `tree map[rootCorr]int` (M629) |
-| `steersMu` | `steers map[corr]*runControl` |
+| `steersMu` | `steers map[corr]*steer.Control` |
 | `spawnsMu` | `spawns map[childCorr]*spawnHandle` (async delegation) |
 
 The MCP attachments' own lock (`mcpMu`) moved with the attachments into the extensions module (W3.71): the daemon no longer holds a live connection.
@@ -419,10 +419,10 @@ Numbered narrative with the real function names:
 - `ActiveRuns`, `ActiveRunIDs` (sorted), `SubjectForRun`.
 - Halt during an approval wait: `Submit` sees ctx cancel and resolves to cancel, so the verdict is denied and the loop's next `ctx.Err()` check ends the run.
 
-### 4.7 Live steering, queue and BTW (steer.go, steer_ops.go, kernel/intervention)
-- `runControl` has: `mu`, `paused`, `pauseUntil` (lease), `stepOnce`, `directives []agent.Directive`, a `wake` channel (closed and replaced to broadcast), and idempotency `results`.
-- Operator surface on `*Kernel`: `PauseRun` (`run.paused`), `ResumeRun` (`run.resumed`), `StepRun` (`run.stepped`, one iteration then re-block), `SteerRun(corr, text, note)` (queued; the loop publishes `run.steered{mode:steer|note}` when folded in), `RunControlState`, and `InterveneRun(intervention.Request)`.
-- `kernel/intervention` is the wire grammar only. Primitives: `halt` (lease-bounded pause, default `DefaultLease=5m`), `abort` (→ `CancelRun`), `redirect` (forceful steer), `adjust` (note/BTW), `query`. Idempotency key replay returns the prior `Result`. Publishes `run.intervention`.
+### 4.7 Live steering, queue and BTW (kernel/modules/runs/steer, kernel/modules/runs/intervention)
+- The steering surface is the runs module's `steer.Control`: `mu`, `paused`, `pauseUntil` (lease), `stepOnce`, `directives []agent.Directive`, a `wake` channel (closed and replaced to broadcast), and idempotency `results`.
+- The steering OPERATIONS are the runs module's too (`steer.Service`): the daemon keeps the doors — `PauseRun` (`run.paused`), `ResumeRun` (`run.resumed`), `StepRun` (`run.stepped`, one iteration then re-block), `SteerRun(corr, text, note)` (queued; the loop publishes `run.steered{mode:steer|note}` when folded in), `RunControlState`, and `InterveneRun(intervention.Request)` — and the module reaches the live runs, the bus and the cancel through four ports.
+- `kernel/modules/runs/intervention` is the wire grammar only. Primitives: `halt` (lease-bounded pause, default `DefaultLease=5m`), `abort` (→ `CancelRun`), `redirect` (forceful steer), `adjust` (note/BTW), `query`. Idempotency key replay returns the prior `Result`. Publishes `run.intervention`.
 - Directives are applied **only at the next iteration boundary**. A run blocked in a long tool call sees them after the tool returns. Steering exists for root runs (`setupRunState`) and each sub-agent (`prepareSubAgent` registers `steers[childCorr]`, M631).
 - `Suspend` injects a shutdown note into every live run as a `Note` directive.
 
@@ -613,8 +613,7 @@ Root package, grouped by concern; every non-test file is listed.
 | `runctx_wake.go` | `WithWakeContext`, `systemAgentFromCtx`, tool/retry policy getters, `AgentConfigOverrides`, `WithModelChain`, `WithTools`, `actorFromCtx`, `correlationFromCtx`. |
 | `image_admission.go` | Shared image admission and `ImageAdmission{Intent, Images, Caption}`; caption text replaces raw refs before the primary run, while channel artifacts retain the caption. |
 | `resume.go` | Resume integration (section 4.8): `ResumeStore`, `WithResumeSeed`, `WithResumeOwned`, `claimResumeTicket`, `buildResumeTicket`, `resumeCheckpointFn`, `finalizeResumeTicket`, `ResumeFinalize`, `Suspend`, `publishResumeAnomaly`. |
-| `steer.go` | `runControl` (Wait/Drain/pause/resume/step/inject/snapshot/idempotency), `controlFor`. |
-| `steer_ops.go` | `PauseRun`, `ResumeRun`, `StepRun`, `SteerRun`, `RunControlState`, `InterveneRun`, `publishSteer`, `publishIntervention`. |
+| `steer.go` | The daemon's steering DOORS: `PauseRun`, `ResumeRun`, `StepRun`, `SteerRun`, `RunControlState`, `InterveneRun` (each one line, delegating to the runs module's service) and `controlFor`. |
 
 **Prompt assembly and context selection**
 
@@ -766,7 +765,7 @@ Everything else reaches `runtime.Config` through `cmd/agezt/internal/daemonconfi
 - **Add a run-context value**: add a `ctxKey` constant plus `WithX`/`xFromCtx` in `runctx_*.go`. If resume must reconstruct it, add it to `resume.Ticket` and `buildResumeTicket`, otherwise mark the ticket `Resumable=false`, and handle it in the boot resumer.
 - **Add a policy guard**: implement it in `policyHook` after the Edict decision, set `guardRaised` so auto-approve cannot satisfy it, and add fields to `contract/policyapi.PolicyVerdict` and `platform/toolaudit.PolicyDecisionPayload` if they must be audited (both loop and direct paths use that renderer).
 - **Add an aux LLM feature**: call `k.completeAux(ctx, corr, "<taskType>", req)`, never `cfg.Provider.Complete` directly, so spend is attributed.
-- **Steering primitive**: extend `kernel/intervention.Primitive` and the switch in `InterveneRun`. Effects must apply via `runControl` at the iteration boundary.
+- **Steering primitive**: extend `kernel/modules/runs/intervention.Primitive` and the switch in the runs module's `steer.Service.Intervene`. Effects must apply via `steer.Control` at the iteration boundary.
 - **Context injection layer**: add an `injectX` in `prompt_context.go`, call it in `buildRunPrompt` (and in `subAgentInjectedSystem` for children), and publish a `contextselect.Manifest`.
 
 ---

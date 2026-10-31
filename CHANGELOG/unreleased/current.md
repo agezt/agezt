@@ -6024,3 +6024,22 @@ This file holds the active `[Unreleased]` working set.
   provenance uses the existing `agentapi.WakeContext`. `kernel/runtime` is 8,695
   lines, up from 8,687 — moving a rule moves the conditions, not the lines — and
   `kernel/modules` is 25,844, up from 25,266.
+
+- **The steering moves into the runs module (W3.76b).** The tenth slice of the
+  runtime's dissolution and the second slice of the run engine programme.
+  W3.76a took the durable tickets; this one takes the steering — the other half
+  of the target architecture's line for the runs module ("run registry, resume
+  tickets, steering/interventions"). The family was split across three
+  packages: `kernel/runtime/steer.go` (180 non-blank lines) held the surface
+  (`runControl`), `kernel/runtime/steer_ops.go` (183 lines) held the
+  operations, and `kernel/intervention` (69 lines) held the wire grammar. The
+  operations touch the daemon in exactly four ways — the live run, the bus, the
+  cancel and the clock — so the family is port-shaped: `kernel/modules/runs/steer`
+  now owns the surface (`Control`) and the operations (`Service`, over four
+  named ports), and `kernel/modules/runs/intervention` owns the grammar. The
+  daemon keeps the doors: `kernel/runtime/steer.go` is 40 lines of verbs, each
+  one line, delegating to the module's service. The verbs kept their names,
+  their signatures and their meaning — the application layer's port and the
+  operator UI are untouched — so the kernel's verb count stays 242 and the
+  contract grows by no rows. `kernel/runtime` is 8,391 lines, down from 8,695,
+  and `kernel/modules` is 26,346, up from 25,835.
