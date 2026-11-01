@@ -15,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
+	"github.com/agezt/agezt/kernel/modules/runs/loopcfg"
 	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/platform/policy/admission"
 	"github.com/agezt/agezt/kernel/platform/policy/guards"
@@ -82,7 +83,7 @@ func (k *Kernel) policyHook(ctx context.Context, tc llm.ToolCall) agent.PolicyVe
 	verdict.InputShape = ep.InputShape
 	verdict.TemporalSensitive = ep.Temporal
 	verdict.NovelTool = ep.NovelTool
-	if reason, denied := agentToolPolicyDenial(runctx.AgentToolPolicyFromCtx(ctx), tc.Name); denied {
+	if reason, denied := loopcfg.AgentToolPolicyDenial(runctx.AgentToolPolicyFromCtx(ctx), tc.Name); denied {
 		verdict.Allow = false
 		verdict.Reason = reason
 		verdict.WouldAsk = false

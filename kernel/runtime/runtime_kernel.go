@@ -40,6 +40,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 	"github.com/agezt/agezt/kernel/modules/runs/delegation"
 	"github.com/agezt/agezt/kernel/modules/runs/lifecycle"
+	"github.com/agezt/agezt/kernel/modules/runs/loopcfg"
 	"github.com/agezt/agezt/kernel/modules/runs/prompt"
 	"github.com/agezt/agezt/kernel/modules/runs/registry"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
@@ -184,6 +185,16 @@ type Kernel struct {
 	// run. nil before Open(), so any method that goes through it is safe
 	// to call only post-Open.
 	delegation *delegation.Service
+
+	// loopcfg is the RUNS MODULE's loop-configuration rule
+	// (kernel/modules/runs/loopcfg, W3.76g): it owns the SHAPE every
+	// governed run's loop must have — the tool surface, the tool selector,
+	// the context budget, the artifact offload, the cost function and the
+	// elided-output summarizer. The daemon keeps the state it is built
+	// from: its effective configuration, its live tool surface, its
+	// tool-phase service, its bus, its policy hook, its artifact port and
+	// its model catalog. nil before Open().
+	loopcfg *loopcfg.Service
 
 	// runexec is the run-engine sub-manager extracted as a separate
 	// Go sub-package on Day 21. See kernel/runtime/runexec. As of

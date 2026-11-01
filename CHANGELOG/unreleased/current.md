@@ -6174,3 +6174,55 @@ This file holds the active `[Unreleased]` working set.
   spawn's subject, the child's parent correlation and the flat-backoff clamp —
   and one harness finding: a `-run` pattern that matches no test exits zero,
   which read as a survivor.
+- **The loop configuration moves into the runs module (W3.76g).** The fifteenth
+  slice of the runtime's dissolution and the seventh slice of the run engine
+  programme. W3.76a took the durable tickets, W3.76b the steering, W3.76c the
+  run context, W3.76d the run registry, W3.76e the prompt, W3.76f the
+  delegation engine; this one takes the **loop configuration** — the shape
+  every governed run's loop must have, whether it is a root run or a delegated
+  child. The family was split across three daemon files
+  (`kernel/runtime/loopconfig.go` 100, `toolpolicy.go` 95, `toolsearch.go` 151
+  non-blank lines) plus the elision half of `runexec_helpers.go` (44) — the
+  elided-output summarizer, which shared a file with the retry wrappers it had
+  nothing to do with. The measurement said the family was port-shaped: it
+  touches the daemon in seven ways (the effective configuration, the live tool
+  surface, the tool-phase service, the bus, the policy hook, the noise-policy
+  hook, the artifact port, the model catalog) and it owns no stored state of
+  its own. So the slice began with a port, not with a copy. The seam is **rule
+  versus state**: the module owns the rule — which knobs the loop gets, which
+  tools it is offered, which selector chooses them, how its context is
+  budgeted, when its outputs are offloaded and summarized — and the daemon
+  keeps the state the rule is built from. The port is `loopcfg.Deps`, seven
+  collaborators, and two decisions are worth naming: the configuration crosses
+  as a **projection, not a snapshot** (the daemon's effective configuration is
+  per-run — the daemon-wide config, the operator's live edits and this agent's
+  own overrides — so the daemon reads it for every run and projects the knobs
+  the loop needs), and the catalog crosses as an **accessor**
+  (`func() *catalogapi.Catalog`), because the daemon swaps it on reload (M477)
+  and a captured pointer would freeze the context window. The daemon keeps one
+  door (`kernel/runtime/loopcfg_doors.go`: the projection, the wiring and
+  `BuildLoopConfig`); its three files and the elision half of
+  `runexec_helpers.go` are gone, and the retry half of that file stayed — the
+  retry vocabulary is the daemon's, and the delegation engine's own lives in
+  `kernel/modules/runs/retry` since W3.76f. The **application layer** moved one
+  call site: `kernel/app/runs/run_dryrun.go` now asks `loopcfg.AgentTools`,
+  because the dry-run plan and the run must shape the tool set with the same
+  rule or the plan could list a tool the run would not offer. The measurement
+  that moved: `kernel/runtime` 56 files / 6,573 lines → 54 / 6,281 (recursive
+  62 / 7,465 → 60 / 7,173), `kernel/modules/runs` 37 / 4,082 → 43 / 4,601, the
+  daemon's public verbs 238 → 238, the contract's new rows 0, the application
+  layer +3 lines (one call site and its comment). The measurement that did NOT
+  move: the **family's** own line count went up (390 → 597) — *moving a rule
+  moves the CONDITIONS, not the lines*; the module's lines are the moved lines
+  plus the port, the projection and the documentation of both. The family was
+  under-tested: five test functions between three files, and nothing at all
+  for the assembler. The module now carries 38 test functions (5 moved with the
+  code, 33 new) and the daemon 12 more (393 → 400: 8 door tests, 4 ratchet
+  tests). 56 mutations, 56 caught, in two byte-identical passes; the
+  calibration recorded five findings, and every one was either a gap in the
+  tests (the noise policy's pruning, the deferred selector, the discovery
+  bound, the auto-budget flag) or a fault in the mutation (a deny-list early
+  return that changed nothing — an equivalent mutation; and eight compile
+  errors, each the mutation's fault, because a removed binding or import became
+  unused — the two rules that could not survive that, the cost function and
+  the rescue marker, are now package-level values in the module).

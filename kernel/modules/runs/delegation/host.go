@@ -22,8 +22,8 @@ import (
 // (who may delegate, under which limits, with which identity) and the daemon
 // owns the MECHANISM (how a child run is configured and executed). That is why
 // BaseLoopConfig and RunChild are doors and not module code: the child's loop
-// configuration is the next family to move (kernel/runtime/loopconfig.go) and
-// the loop itself the one after (kernel/agent).
+// configuration is the runs module's rule (kernel/modules/runs/loopcfg,
+// W3.76g) and the loop itself the one after (kernel/agent).
 type Host interface {
 	// RosterGet resolves a roster slug to its profile. The second result is
 	// false when no such agent exists.
