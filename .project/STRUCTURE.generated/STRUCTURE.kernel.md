@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-224 package(s):
+225 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -131,7 +131,6 @@
 - **`kernel/controlplane`** — Package controlplane is the local control protocol between the agezt daemon and the agt CLI.
 - **`kernel/creds`** — Package creds is the local credentials vault for provider env vars.
 - **`kernel/creds/sigv4`** — Package sigv4 implements the AWS Signature Version 4 algorithm.
-- **`kernel/delegation`** — Package delegation provides sub-agent orchestration for the agent loop: sync/async delegate tools, spawn bookkeeping, depth tracking, and ancestry helpers.
 - **`kernel/edict`** — Package edict is the policy engine + trust ladder (TASKS P1-EDICT-01..03; DECISIONS F3/F4).
 - **`kernel/envscrub`** — Package envscrub builds child-process environments that keep ordinary OS launch variables while dropping daemon/provider secrets.
 - **`kernel/event`** — Package event is the canonical event spec for every subsystem in the kernel: identity (ULID, sequence, BLAKE3 hash), routing (subject, actor, correlation/cause), and a kind-tagged payload.
@@ -169,11 +168,13 @@
 - **`kernel/modules/providers/chatgptauth`** — Package chatgptauth manages the OAuth tokens for the "Sign in with ChatGPT" provider — the same subscription auth Codex CLI uses.
 - **`kernel/modules/reasoning`** — Package reasoning is the reasoning module: the Council of Elders (a multi-model panel that deliberates and reconciles), the Conductor (a verify-driven Thinker→Worker→Verifier loop) and the deep-research harness.
 - **`kernel/modules/reasoning/api`** — Package api is the reasoning module's public vocabulary: the rows and results the council, the conductor and the research harness produce, and the pure helpers both sides share.
+- **`kernel/modules/runs/delegation`** — Package delegation is the RUNS MODULE's delegation engine: the policy that decides WHO may delegate WHAT, under WHICH limits, and with WHICH identity.
 - **`kernel/modules/runs/intervention`** — Package intervention defines the protocol grammar for safe live changes to a running agent.
 - **`kernel/modules/runs/lifecycle`** — Package lifecycle is the runs module's run-lifecycle surface: Halt, Resume, CancelRun, DrainAndHalt, plus the read-side queries (IsHalted, ActiveRuns, ActiveRunIDs, NewCorrelation, SubjectForRun).
 - **`kernel/modules/runs/prompt`** — Package prompt assembles a run's system prompt.
 - **`kernel/modules/runs/registry`** — Package registry owns the live-run registry: the correlations that are running right now, their cancel functions, the halt latch, the drain accounting that lets the daemon wait for them to settle, and the suspend latch that says the daemon is on its way out.
 - **`kernel/modules/runs/resume`** — Package resume persists a durable "ticket" per in-flight root run so the daemon can pick the work back up after a restart — whether the daemon was stopped/started, self-updated, or hard-killed.
+- **`kernel/modules/runs/retry`** — Package retry is the RUNS MODULE's retry vocabulary: how a failed run is classified, whether a policy allows another attempt, and how long the backoff waits.
 - **`kernel/modules/runs/runctx`** — Package runctx is the runs module's vocabulary: the context a run carries.
 - **`kernel/modules/runs/steer`** — Package steer is the runs module's steering face: the per-run steering surface a live run exposes, and the service that drives it.
 - **`kernel/modules/skills/builtins`** — Package builtins ships the skill bundles baked into the binary — the agentskills.io shape (M847): a SKILL.md plus reference files and scripts, embedded here and materialized into the skill store by the skills module.

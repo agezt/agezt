@@ -148,10 +148,14 @@ func (k *Kernel) setupRunState(corr string, parentCtx context.Context) (context.
 }
 
 // cleanupRunState is the private body behind the public
-// CleanupRunState wrapper. Encapsulates the 5-mutex lock-ordering
-// invariant: runsMu → fanoutMu → treeMu → steersMu → spawnsMu.
-// Returns the orphan cancel funcs (child spawns that were still in
-// flight); caller invokes them, then invokes the runCtx's cancel.
+// CleanupRunState wrapper. It releases the run's live state and returns the
+// orphan cancel funcs (child spawns that were still in flight); the caller
+// invokes them, then invokes the runCtx's cancel.
+//
+// The delegation engine's own tallies (fan-out, tree total) and its async
+// spawn handles live in the RUNS MODULE since W3.76f: the module releases
+// the tallies and cancels the pending spawns through its own leaf lock, and
+// the daemon keeps only the steering registry it shares with root runs.
 // Day 34: also calls runWG.Done() to balance the Add(1) in
 // setupRunState — without it Close() would deadlock on its
 // bounded Wait (M883 drain accounting).
@@ -164,33 +168,27 @@ func (k *Kernel) cleanupRunState(corr string) []context.CancelFunc {
 	// mutex / spawn-cancel cleanup), and Close's WaitGroup.Wait
 	// sees a counter that monotonically tracks the active set.
 	defer k.registry.Done()
-	// Lock ordering: runsMu → fanoutMu → treeMu → steersMu → spawnsMu
-	// Lock ordering: runsMu → fanoutMu → treeMu → steersMu → spawnsMu
+	// Lock ordering: runsMu → steersMu (the delegation engine's lock is a
+	// leaf — the module never calls back into the daemon while holding it).
 	k.registry.Lock()
 	k.registry.Unregister(corr)
-	k.fanoutMu.Lock()
-	delete(k.fanout, corr) // release this run's fan-out tally (M46)
-	k.treeMu.Lock()
-	delete(k.tree, corr) // release this tree's total sub-agent tally (M629)
+	if k.delegation != nil {
+		// Release this run's fan-out tally (M46) and this tree's total
+		// sub-agent tally (M629).
+		k.delegation.ReleaseTallies(corr)
+	}
 	k.steersMu.Lock()
 	delete(k.steers, corr) // release the steering control (M608)
-	k.spawnsMu.Lock()
-	// Cancel any still-pending async delegations of this tree (M881):
-	// an un-awaited child must not outlive the run that spawned it.
-	// The spawn goroutine observes the cancel, finishes, and journals
-	// its terminal events; the handle is dropped here so the id is no
-	// longer awaitable.
-	var orphans []context.CancelFunc
-	for id, h := range k.spawns {
-		if h.rootCorr == corr || h.parentCorr == corr {
-			orphans = append(orphans, h.cancel)
-			delete(k.spawns, id)
-		}
-	}
-	k.spawnsMu.Unlock()
 	k.steersMu.Unlock()
-	k.treeMu.Unlock()
-	k.fanoutMu.Unlock()
+	var orphans []context.CancelFunc
+	if k.delegation != nil {
+		// Cancel any still-pending async delegations of this tree (M881):
+		// an un-awaited child must not outlive the run that spawned it.
+		// The spawn goroutine observes the cancel, finishes, and journals
+		// its terminal events; the handle is dropped here so the id is no
+		// longer awaitable.
+		orphans = k.delegation.CancelSpawns(corr)
+	}
 	k.registry.Unlock()
 	return orphans
 }

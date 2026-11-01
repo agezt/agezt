@@ -1,37 +1,36 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
+package delegation
 
 import (
-	"github.com/agezt/agezt/kernel/delegation"
 	"github.com/agezt/agezt/kernel/event"
 )
 
-// subAgentSpendMicrocents sums the spend (budget.consumed cost_microcents, M47)
-// of every run descended from parentCorr — its sub-agents and their sub-agents,
+// spendMicrocents sums the spend (budget.consumed cost_microcents, M47) of
+// every run descended from parentCorr — its sub-agents and their sub-agents,
 // transitively — excluding parentCorr's own direct spend. It backs the M48
 // spend cap: a single forward journal pass builds the parent→children links
 // (from subagent.spawned) and the per-run spend (from budget.consumed), then
 // totals the spend over parentCorr's transitive descendants. Stateless and
-// race-free: every prior delegation's spend is already durably journaled by the
-// time the next delegate calls this. Only invoked when the cap is enabled.
+// race-free: every prior delegation's spend is already durably journaled by
+// the time the next delegate calls this. Only invoked when the cap is enabled.
 //
-// The sub-agent's PROMPT half used to live beside this one
-// (subAgentInjectedSystem); it moved to the runs module's prompt service in
-// W3.76e. What stayed is the BUDGET rule, and a budget rule belongs to the
-// delegation family — not to the prompt.
-func (k *Kernel) subAgentSpendMicrocents(parentCorr string) int64 {
+// The spend RULE moved here with the rest of the delegation family in
+// W3.76f: a budget rule belongs to the delegation engine, not to the daemon.
+// The JOURNAL it reads stays the daemon's — the module asks for it through
+// the host's RangeJournal door.
+func (s *Service) spendMicrocents(parentCorr string) int64 {
 	childrenOf := map[string][]string{}
 	spendOf := map[string]int64{}
-	_ = k.journal.Range(func(e *event.Event) error {
+	_ = s.host.RangeJournal(func(e *event.Event) error {
 		switch e.Kind {
 		case event.KindSubAgentSpawned:
-			if child, parent := delegation.SpawnLink(e.Payload); child != "" && parent != "" {
+			if child, parent := SpawnLink(e.Payload); child != "" && parent != "" {
 				childrenOf[parent] = append(childrenOf[parent], child)
 			}
 		case event.KindBudgetConsumed:
 			if e.CorrelationID != "" {
-				spendOf[e.CorrelationID] += delegation.BudgetCostMicrocents(e.Payload)
+				spendOf[e.CorrelationID] += BudgetCostMicrocents(e.Payload)
 			}
 		}
 		return nil

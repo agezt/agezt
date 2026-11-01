@@ -8,70 +8,33 @@ package runtime
 
 import (
 	"context"
-	"errors"
-	"math"
 	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/modules/runs/retry"
 )
 
+// retryReason classifies a run failure for the retry policy.
+//
+// The vocabulary moved to the RUNS MODULE's retry package in W3.76f: the
+// delegation engine needed the same three helpers and could not reach the
+// daemon's unexported copies. The daemon keeps these thin wrappers so its own
+// callers — and the runexec sub-package's API — are unchanged.
 func retryReason(err error) string {
-	switch {
-	case errors.Is(err, ErrHalted):
-		return "halted"
-	case errors.Is(err, context.Canceled):
-		return "canceled"
-	case errors.Is(err, context.DeadlineExceeded):
-		return "timeout"
-	default:
-		return "error"
-	}
+	return retry.Reason(err, ErrHalted)
 }
 
+// agentRetryable reports whether the given reason matches the policy's
+// RetryOn allowlist.
 func agentRetryable(reason string, retryOn []string) bool {
-	if len(retryOn) == 0 {
-		return reason == "error" || reason == "timeout"
-	}
-	for _, r := range retryOn {
-		if strings.TrimSpace(r) == reason {
-			return true
-		}
-	}
-	return false
+	return retry.Retryable(reason, retryOn)
 }
 
+// retryDelay computes the wait between attempts.
 func retryDelay(pol agentapi.RetryPolicy, attempt int) time.Duration {
-	base := time.Duration(pol.BaseDelaySec) * time.Second
-	if base <= 0 {
-		return 0
-	}
-	delay := base
-	if strings.TrimSpace(pol.Backoff) == "exponential" {
-		// Cap inside the loop so the next *= 2 cannot overflow time.Duration's
-		// int64 backing (base=1s overflows at attempt=35, base=60s at attempt=29;
-		// the post-loop clamp below does not catch a wrapped negative value).
-		var hardCap time.Duration
-		if pol.MaxDelaySec > 0 {
-			hardCap = time.Duration(pol.MaxDelaySec) * time.Second
-		} else {
-			hardCap = math.MaxInt64 / 2
-		}
-		for i := 1; i < attempt; i++ {
-			if delay >= hardCap {
-				return hardCap
-			}
-			delay *= 2
-		}
-	}
-	if pol.MaxDelaySec > 0 {
-		max := time.Duration(pol.MaxDelaySec) * time.Second
-		if delay > max {
-			delay = max
-		}
-	}
-	return delay
+	return retry.Delay(pol, attempt)
 }
 
 // elidedSummaryMaxTokens bounds the abstractive summary call (M398): one short

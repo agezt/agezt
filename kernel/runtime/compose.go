@@ -30,6 +30,7 @@ import (
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/journal"
 	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
+	"github.com/agezt/agezt/kernel/modules/runs/delegation"
 	"github.com/agezt/agezt/kernel/modules/runs/lifecycle"
 	"github.com/agezt/agezt/kernel/modules/runs/prompt"
 	"github.com/agezt/agezt/kernel/modules/runs/registry"
@@ -316,14 +317,18 @@ func Open(cfg Config) (*Kernel, error) {
 	// The sub-agent tool's runner needs the finished *Kernel, which doesn't
 	// exist yet; register the tool now and wire its runner just after k is
 	// built (effTools is the same map k.tools holds).
-	var subTool *subAgentTool
-	var awaitTool *subAgentAwaitTool
+	//
+	// The TOOLS themselves are the runs module's (W3.76f): the delegation
+	// engine owns the delegate/delegate_await surface along with the policy
+	// behind it. The daemon only wires their runners.
+	var subTool *delegation.Tool
+	var awaitTool *delegation.AwaitTool
 	if cfg.SubAgentTool {
-		subTool = newSubAgentTool()
+		subTool = delegation.NewTool()
 		effTools["delegate"] = subTool
 		// The collect half of async delegation (M881): delegate(async=true)
 		// returns a spawn_id; delegate_await blocks until that child finishes.
-		awaitTool = newSubAgentAwaitTool()
+		awaitTool = delegation.NewAwaitTool()
 		effTools["delegate_await"] = awaitTool
 	}
 	// The market tool is NOT built here (W3.46): it lives in the market
@@ -398,10 +403,7 @@ func Open(cfg Config) (*Kernel, error) {
 		system:       cfg.System,
 		model:        cfg.Model,
 		registry:     registry.New(),
-		fanout:       make(map[string]int),
-		tree:         make(map[string]int),
 		steers:       make(map[string]*steer.Control),
-		spawns:       make(map[string]*spawnHandle),
 		toolCaps:     validatedToolCaps(cfg.ToolCapabilities), // M900
 		startTime:    time.Now(),
 	}
@@ -418,13 +420,12 @@ func Open(cfg Config) (*Kernel, error) {
 		Cancel:  k.CancelRun,
 		Now:     time.Now,
 	})
-	if subTool != nil {
-		subTool.run = k.runSubAgent
-		subTool.spawn = k.runSubAgentAsync // M881: non-blocking delegation
-	}
-	if awaitTool != nil {
-		awaitTool.await = k.awaitSubAgent
-	}
+	// The delegation engine is the RUNS MODULE's (W3.76f): it owns the
+	// delegation policy — the bounds, the identity resolution, the spawn
+	// journal, the retry policy and the async spawn handles — and reaches
+	// the daemon only through the doors in subagent_doors.go. It is wired
+	// right after the prompt service below, because the engine assembles
+	// the sub-agent's prompt through it.
 
 	// Config Center for agent SDK config access (M???)
 	configCenter, err := configcenter.Open(configcenter.DefaultConfig(cfg.BaseDir))
@@ -485,6 +486,27 @@ func Open(cfg Config) (*Kernel, error) {
 		World:  k.world,
 		Skills: k.forge,
 	})
+
+	// The delegation engine is the RUNS MODULE's (W3.76f): it owns the
+	// delegation policy — the bounds, the identity resolution, the spawn
+	// journal, the retry policy and the async spawn handles — and reaches
+	// the daemon only through the doors in subagent_doors.go. It is wired
+	// after the prompt service, because the engine assembles the sub-agent's
+	// prompt through it.
+	k.delegation = delegation.New(delegation.Deps{
+		Host:     delegationHost{k},
+		Config:   func() delegation.Config { return delegationConfig(k.cfg) },
+		RunChild: delegationRunChild,
+		Prompt:   k.prompt,
+		Registry: k.registry,
+	})
+	if subTool != nil {
+		subTool.Run = k.delegation.Run
+		subTool.Spawn = k.delegation.Spawn // M881: non-blocking delegation
+	}
+	if awaitTool != nil {
+		awaitTool.Await = k.delegation.Await
+	}
 
 	// Wire the run-lifecycle manager last so it sees the fully-built
 	// *Kernel. The Manager is the RUNS MODULE's (W3.76d): it owns the

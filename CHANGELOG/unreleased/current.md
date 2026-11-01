@@ -6137,3 +6137,40 @@ This file holds the active `[Unreleased]` working set.
   chosen" without saying what, and a system-agent test that ran with empty
   stores — and one mutation that left a loop variable unused, which is a
   compile error rather than a kill.
+
+- **The delegation engine moves into the runs module (W3.76f).** The fourteenth
+  slice of the runtime's dissolution and the sixth slice of the run engine
+  programme. W3.76a took the durable tickets, W3.76b the steering, W3.76c the
+  run context, W3.76d the run registry, W3.76e the prompt; this one takes the
+  delegation engine — the layer that decides who may delegate what, under which
+  bounds, with which identity. The family was split across two trees: six
+  daemon files (794 non-blank production lines: `subagent.go` 15,
+  `subagent_prep.go` 303, `subagent_exec.go` 102, `subagent_run.go` 131,
+  `subagent_spend.go` 54, `subagent_tool.go` 189) and the vocabulary package
+  at the kernel's root (`kernel/delegation`, 100 lines). The measurement said
+  the family touches the daemon in FOURTEEN ways — the roster, the live model,
+  the live identity, the halt latch, the correlation mint, the bus, the
+  journal, the steering registry, the skill forge, the run registry, the
+  fan-out tally, the tree tally, the spawn handles, the child's loop
+  configuration and the child loop — so the slice began with a port, not with
+  a copy. The seam is policy versus mechanism: the module owns the policy and
+  the state it needs (the fan-out tally, the tree-total tally, the async spawn
+  handles), the daemon keeps the mechanism (the child's loop configuration and
+  the child's loop). The port is `delegation.Host` — fourteen doors — and the
+  daemon's implementation is `kernel/runtime/subagent_doors.go`. The config
+  crosses as a LIVE provider, because the delegation caps are operator
+  settings and a snapshot would freeze them. The retry vocabulary moved into
+  its own package (`kernel/modules/runs/retry`) because both the root-run
+  retry and the delegation's child retry need it, and the daemon owns the
+  identity of its halt error, so `errors.Is(err, runtime.ErrHalted)` still
+  holds. `kernel/runtime` is 6,573 lines at the upper level (down from 7,269)
+  and 7,465 recursive (down from 8,161); `kernel/modules/runs` is 4,082 (up
+  from 2,842). The daemon's verb count stays 238, the contract grows by no
+  rows and the application layer by no files. 47 module tests (10 moved with
+  the code they test, 37 new), 9 retry tests and 7 new daemon tests. 55
+  mutations, 55 caught, in two byte-identical passes (SHA-256
+  `42B6AC05F384D62615B52064DA280A7EBDFB8F724E9F9011B48B70538990D51D`);
+  the calibration recorded four gaps in the new tests — the tree root, the
+  spawn's subject, the child's parent correlation and the flat-backoff clamp —
+  and one harness finding: a `-run` pattern that matches no test exits zero,
+  which read as a survivor.

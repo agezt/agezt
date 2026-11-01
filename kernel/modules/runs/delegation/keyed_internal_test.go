@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
+package delegation
 
 import (
 	"slices"
 	"testing"
-
-	"github.com/agezt/agezt/kernel/delegation"
 )
 
+// TestKeyedModelChain moved here from the daemon's subagent_keyed_internal_test.go
+// in W3.76f: the keyed model chain is the delegation engine's rule (M838), and
+// the daemon no longer owns it.
 func TestKeyedModelChain(t *testing.T) {
 	keyed := func(want ...string) func(string) bool {
 		return func(m string) bool { return slices.Contains(want, m) }
@@ -51,7 +52,7 @@ func TestKeyedModelChain(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			gotModel, gotChain := delegation.KeyedModelChain(c.subModel, c.chain, c.avail, c.def)
+			gotModel, gotChain := KeyedModelChain(c.subModel, c.chain, c.avail, c.def)
 			if gotModel != c.wantModel {
 				t.Errorf("model = %q, want %q", gotModel, c.wantModel)
 			}
