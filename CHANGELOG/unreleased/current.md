@@ -6078,3 +6078,35 @@ This file holds the active `[Unreleased]` working set.
   rule, and each now has a test that asks the rule the question it could not
   answer before. `kernel/runtime` is 7,809 lines, down from 8,391, and
   `kernel/modules` is 27,038, up from 26,337.
+
+- **The run registry moves into the runs module (W3.76d).** The twelfth slice of
+  the runtime's dissolution and the fourth slice of the run engine programme.
+  W3.76a took the durable tickets, W3.76b the steering, W3.76c the run
+  context; this one takes the run registry — the first of the three nouns the
+  target architecture names for the runs module ("run registry, resume tickets,
+  steering/interventions"), and the last one left in the daemon. The family was
+  split in half: the daemon held the state (the live-run map, the halt latch,
+  the drain waitgroup, the suspend latch) behind six public verbs (`Halted`,
+  `SetHalted`, `Runs`, `RunsMu`, `RunWG`, `Suspending`), while
+  `kernel/runtime/lifecycle` (3 files, 267 non-blank lines) held the operations
+  and reached that state through a seven-verb `KernelAPI` port. The manager
+  needed the daemon to read and write four things and to perform two side
+  effects it could not perform itself (`Suspend` — the daemon's restart
+  protocol — and `PublishBus` — the daemon's bus). A family whose data is the
+  module's own is the module's family, so the whole thing moved to
+  `kernel/modules/runs`: the store (`kernel/modules/runs/registry/registry.go`,
+  118 lines, with a lock discipline that is the store's own — `Lock`/`Unlock`
+  are public because the daemon's compound cleanups must hold it across the
+  fan-out, tree, steer and spawn locks, and that order starts at it) and the
+  operations (`kernel/modules/runs/lifecycle/`, 3 files, 205 lines, over a
+  two-verb `Host` port). The daemon keeps the store handle; its verb count
+  falls 244 → 238, `kernel/runtime` is 8,686 lines recursive (down from 8,968),
+  `kernel/modules/runs` is 2,086 (up from 1,763), and the contract and the
+  application layer grow by nothing. 8 new module tests, the 9 that moved with
+  the code they test, and 5 new daemon tests. 30 mutations, 30 caught, in two
+  byte-identical passes (SHA-256
+  `6BD9ACF83BBFB504F9AC3367DC7EE7281C8C9E421DCA02EBDE1F48FDE489BCCF`); the
+  calibration recorded one mutation that changed nothing (a slice's capacity is
+  not its length), three compile errors that were each the mutation's fault, and
+  one survivor that was a test gap in the new code — `SetHalted` had no test at
+  all, so the gap was closed.

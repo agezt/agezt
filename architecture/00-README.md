@@ -170,9 +170,9 @@ Every Go package, one line each, with the document that covers it in depth.
 | Package | Role |
 |---|---|
 | `agent` | **The** single model→tool loop (`agent.Run`). Defines `Provider`, `Tool`, `CompletionRequest/Response`, `ToolEffect`. Depends only on `bus` + `event`; pricing, policy and steering are injected. |
-| `runtime` | `Kernel`: wires journal + state + bus + loop + providers + tools. Owns run registry, policy hook, delegation rails, MCP attach, lock order. |
+| `runtime` | `Kernel`: wires journal + state + bus + loop + providers + tools. Owns the policy hook, delegation rails, MCP attach, lock order. The **run registry** is no longer among them: it moved into the runs module in W3.76d (`kernel/modules/runs/registry`), and the daemon holds the store handle. |
 | `runtime/runexec` | The run engine: `Runner.RunWith` (state setup → prompt build → loop config → resume ticket → `agent.Run` → post-run distill/forge/lifecycle). |
-| `runtime/lifecycle`, `accessors`, `compose`, `types` | Extracted sub-surfaces of the runtime split. `compose` has no importers and `accessors` is constructed but unused; see findings. |
+| `modules/runs/registry`, `modules/runs/lifecycle` | The runs module's **live-run store** and the halt/resume/cancel surface over it (W3.76d, moved out of `kernel/runtime`). `accessors` is constructed but unused and `compose` has no importers; see findings. |
 | `toolreg` | First-party tool registry: specs with Build/PreOpen/Configure/ConfigureLate hooks, conflict yielding, capability merging. |
 | `app/tools` | L4 tool entry injected by primary/tenant daemon composition; delegates to the legacy pipeline during W2.3 convergence. |
 | `toolexec` | Direct (operator/CLI) tool execution path outside a run. |

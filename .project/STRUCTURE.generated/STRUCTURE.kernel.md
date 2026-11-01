@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-222 package(s):
+223 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -170,6 +170,8 @@
 - **`kernel/modules/reasoning`** — Package reasoning is the reasoning module: the Council of Elders (a multi-model panel that deliberates and reconciles), the Conductor (a verify-driven Thinker→Worker→Verifier loop) and the deep-research harness.
 - **`kernel/modules/reasoning/api`** — Package api is the reasoning module's public vocabulary: the rows and results the council, the conductor and the research harness produce, and the pure helpers both sides share.
 - **`kernel/modules/runs/intervention`** — Package intervention defines the protocol grammar for safe live changes to a running agent.
+- **`kernel/modules/runs/lifecycle`** — Package lifecycle is the runs module's run-lifecycle surface: Halt, Resume, CancelRun, DrainAndHalt, plus the read-side queries (IsHalted, ActiveRuns, ActiveRunIDs, NewCorrelation, SubjectForRun).
+- **`kernel/modules/runs/registry`** — Package registry owns the live-run registry: the correlations that are running right now, their cancel functions, the halt latch, the drain accounting that lets the daemon wait for them to settle, and the suspend latch that says the daemon is on its way out.
 - **`kernel/modules/runs/resume`** — Package resume persists a durable "ticket" per in-flight root run so the daemon can pick the work back up after a restart — whether the daemon was stopped/started, self-updated, or hard-killed.
 - **`kernel/modules/runs/runctx`** — Package runctx is the runs module's vocabulary: the context a run carries.
 - **`kernel/modules/runs/steer`** — Package steer is the runs module's steering face: the per-run steering surface a live run exposes, and the service that drives it.
@@ -208,7 +210,6 @@
 - **`kernel/reranktool`** — Package reranktool provides the agent-facing rerank tool (M997): it lets a running agent reorder a set of candidate documents by relevance to a query, using a dedicated reranking model (more accurate than embedding cosine for final ranking).
 - **`kernel/restapi`** — GET /api/v1/update — check for updates (M860) POST /api/v1/update/apply — validate and stage an update (M860) Security (SPEC-06): loopback-bound by the operator, token-authed on every request (Authorization: Bearer <token>).
 - **`kernel/runtime`** — Package runtime wires the kernel subsystems (journal + state + bus + agent loop + providers + tools) into a single Kernel that the daemon hosts and the control plane drives.
-- **`kernel/runtime/lifecycle`** — Package lifecycle is the kernel's run-lifecycle surface extracted into a sub-package as the first step of the Day 12 sub-package split.
 - **`kernel/runtime/runexec`** — Package runexec owns the kernel's run engine.
 - **`kernel/scheduler`** — Package scheduler is the DAG layer that sits *above* the first-party single-agent tool-loop (DECISIONS B0d, SPEC-02 §4).
 - **`kernel/settings`** — Package settings is the file-backed config store behind the Config Center (M693): the NON-SECRET, operator-editable settings the daemon would otherwise only read from environment variables.
