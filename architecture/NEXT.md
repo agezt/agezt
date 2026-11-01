@@ -12646,3 +12646,80 @@ func main() {
   itself (`kernel/agent`, **2,629** lines across **20** files, the most
   contract-bound family of all). Evidence:
   `architecture/277-w376d-the-run-registry-moves-into-the-runs-module-evidence.md`
+- W3.76e (the prompt assembly moves into the runs module) is the **thirteenth**
+  slice of the runtime's dissolution and the **fifth** slice of the **run
+  engine** programme (W3.76). W3.76a took the durable **tickets**, W3.76b the
+  **steering**, W3.76c the **run context**, W3.76d the **run registry**; this
+  one takes the **prompt** — the layer that decides what a run knows before it
+  starts.
+
+  The family was split across **six** daemon files (**714** non-blank
+  production lines): `prompt_run.go` (**189**, the layered injection and the
+  selection manifests), `prompt_context.go` (**109**, the five injection
+  helpers), `prompt_environment.go` (**178**, the host preamble, the
+  capability briefing, the forge bias, the shell guidance), `prompt_env.go`
+  (**15**, the daemon's gate), `context_selection.go` (**78**, the selection
+  publisher, the candidate adapters — and the failure analysis, which stayed)
+  and `subagent_inject.go` (**145**, the child's half of the same injection,
+  next to the delegation family's budget rule, which stayed).
+
+  The measurement said two things, and both were worth the slice. The family
+  has **ZERO public verbs** — every one of its functions was unexported and
+  the daemon's two doors were the only way in; a family with no public surface
+  is a family's **body**, and a body belongs to whoever owns the thing it
+  describes. And its dependencies are **eight** wide: **four** contract rows
+  the daemon already holds (the memory's manager, the taste library, the
+  world model's graph, the skill library's curator), a **config snapshot**
+  (the daemon's `Config` is read and never written), and **three** things the
+  module cannot do for itself — the live identity, the bus, the clock. That is
+  the same shape the steering family and the registry had: **a family is
+  port-shaped when its operations touch the host in a small, enumerable way.**
+
+  So the whole thing moved to `kernel/modules/runs/prompt` (six files, **756**
+  lines): the `Service` (`Build` for a root run, `BuildSubagent` for a child,
+  `BuildEnvironment` for the machine, `PublishSelection` for the manifests),
+  the `Config` snapshot, the three-verb `Host` port, the five injection
+  helpers, the environment preamble and the three candidate adapters. The
+  daemon keeps the **two doors** and the host port; the daemon's verb count
+  stays **238**, the contract grows by **0** rows and the application layer by
+  **0** files.
+
+  What stayed, and why: the prompt-injection **mode** (the platform's rule,
+  W3.74); the failure **analysis** (it reads the run's journal, which is the
+  daemon's — the module publishes the manifest it derives); and the
+  sub-agent's **spend** walk (a budget rule belongs to the delegation family).
+  The daemon's file is named `prompt_doors.go`, not `prompt.go`: the daemon's
+  `prompt.go` was the run context's profile renderer and it moved to the runs
+  module in W3.76c, so the ratchet that watches that name keeps watching it.
+
+  Measured against `4de7b862`: `kernel/runtime` **70 files / 8,686 lines →
+  67 / 8,161** recursive (the upper level **64 / 7,794 → 61 / 7,269**),
+  `kernel/modules/runs` **20 / 2,086 → 26 / 2,842**, the family's own count
+  **714 → 756** (the difference is the package's documentation and the
+  exported surface the daemon's unexported names became), the daemon's public
+  verbs **238 → 238**.
+
+  **23** module tests (the **8** that moved with the code they test, plus
+  **15** new) and **4** new daemon tests. **40** mutations, **40** caught, in
+  two byte-identical passes (SHA-256 `E0CA08EB71289D707D0E5612C8C6ADDD41A0E576A27E2A8D412AFCF1F8341395`). The calibration recorded two
+  gaps in the new tests, and both were the same shape: *a manifest that says
+  "something was chosen" without saying WHAT is not a selection* (the three
+  candidate adapters could be broken to return nothing and every test still
+  passed — the tests now read the manifest's `Chosen` list and name the
+  record, the entity and the skill in it), and *"the system agent is never
+  injected into" is not "the system agent has no stores"* (the first version
+  of that test ran with one store filled and the rest switched off, so the
+  mutations that removed the `!systemAgent` guard from four paths all
+  survived — the test now switches every injection on and fills every store).
+
+  **What is left**: the runs module now holds everything the target
+  architecture gives it — the run registry, the resume tickets, the
+  steering/interventions — plus the run context and the **prompt**. What is
+  left in the daemon's run engine is the **delegation** surface (**939**
+  lines, **13** verbs, which touches the bus, the journal, the roster and the
+  spend limits and therefore needs a port design before it moves), the **loop
+  config** (**99** lines) and the **loop** itself (`kernel/agent`, **2,629**
+  lines across **20** files, the most contract-bound family of all). The
+  prompt family was the cheapest of the four *by the surface* and not by the
+  ports: eight dependencies for 520 lines. Evidence:
+  `architecture/278-w376e-the-prompt-assembly-moves-into-the-runs-module-evidence.md`

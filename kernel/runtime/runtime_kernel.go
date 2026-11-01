@@ -39,6 +39,7 @@ import (
 	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 	"github.com/agezt/agezt/kernel/modules/runs/lifecycle"
+	"github.com/agezt/agezt/kernel/modules/runs/prompt"
 	"github.com/agezt/agezt/kernel/modules/runs/registry"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
 	"github.com/agezt/agezt/kernel/modules/runs/steer"
@@ -164,6 +165,15 @@ type Kernel struct {
 	// doors over it. Initialised in Open(); nil before that, so any method
 	// that goes through it is safe to call only post-Open.
 	lifecycle *lifecycle.Manager
+
+	// prompt is the RUNS MODULE's prompt service (kernel/modules/runs/prompt,
+	// W3.76e): it assembles what a run knows before it starts — the live
+	// identity, the operator profile, the taste exemplars, the recalled
+	// memory, the resolved world entities, the activated skills — and the
+	// host-environment preamble. The daemon keeps the doors (BuildRunPrompt,
+	// InjectHostEnvironment) and the three-verb host port the module asks
+	// for (the live identity, the bus, the clock).
+	prompt *prompt.Service
 
 	// runexec is the run-engine sub-manager extracted as a separate
 	// Go sub-package on Day 21. See kernel/runtime/runexec. As of

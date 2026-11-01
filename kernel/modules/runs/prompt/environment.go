@@ -1,9 +1,6 @@
-package runtime
+// SPDX-License-Identifier: MIT
 
-// Provenance: SPDX-License-Identifier: MIT Prompt environment + shell section: the
-//             shellHinter interface + injectEnvironment + capabilityBriefing +
-//             forgeBias + defaultShellHint + shellGuidance. Extracted from prompt.go
-//             during the Day-203 god-file split. Public API unchanged.
+package prompt
 
 import (
 	"fmt"
@@ -15,6 +12,9 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
+
+// The environment preamble: what the model must know about the machine it is
+// acting on before it tries anything.
 
 // shellHinter is the optional interface a shell-like tool implements to tell the
 // environment preamble the EXACT interpreter it runs (binary + flag), so the
@@ -56,7 +56,7 @@ func injectEnvironment(system, workspaceRoot string, tools map[string]toolapi.To
 		slices.Sort(names)
 		b.WriteString("- Tools available this run:\n")
 		for _, name := range names {
-			fmt.Fprintf(&b, "  - %s — %s\n", name, firstSentence(tools[name].Definition().Description))
+			fmt.Fprintf(&b, "  - %s — %s\n", name, FirstSentence(tools[name].Definition().Description))
 		}
 	}
 	if brief := capabilityBriefing(tools); brief != "" {
@@ -131,7 +131,7 @@ func forgeBias(tools map[string]toolapi.Tool) string {
 	}
 	var b strings.Builder
 	b.WriteString("## Prefer deterministic tools — and improve your own\n")
-	b.WriteString("For work that must be exact, is repeatable, or you'll likely do again, reach for a tool instead of reasoning it out by hand each time:\n")
+	b.WriteString("For work that must be exact, is repeatable, or you'll likely do again, reach for a tool instead of reasoning it out by hand each turn:\n")
 	if hasCode {
 		b.WriteString("- Write a script (code_exec) so the result is deterministic, checkable, and re-runnable — not re-derived (and error-prone) each turn. Computation, parsing, transforms, and anything with exact rules belong in code.\n")
 	}
@@ -172,9 +172,12 @@ func shellGuidance(shellBin string) string {
 	}
 }
 
-// firstSentence trims a tool description to its first sentence (or first line),
+// FirstSentence trims a tool description to its first sentence (or first line),
 // keeping the environment preamble compact when a tool has a long description.
-func firstSentence(s string) string {
+//
+// It is EXPORTED because the tool-search surface trims descriptions the same
+// way: one spelling of "the first sentence", not two.
+func FirstSentence(s string) string {
 	s = strings.TrimSpace(s)
 	if i := strings.IndexByte(s, '\n'); i >= 0 {
 		s = s[:i]
@@ -184,10 +187,3 @@ func firstSentence(s string) string {
 	}
 	return strings.TrimSpace(s)
 }
-
-// Memory injection: recall relevant records and prepend them to the
-// system prompt so the model starts the task already knowing what
-// Agezt remembers. The recall is journaled (memory.retrieved) under
-// corr, so `agt why` shows exactly what knowledge was surfaced.
-// Per-run system-prompt override (runctx.WithSystem): a one-off identity/instruction
-// set for this run only; falls back to the kernel's configured System. Memory /

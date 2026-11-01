@@ -5,7 +5,9 @@ package runtime
 // Provenance: Kernel accessors: Reflect + StartTime + Plugins + memory/skill flags +
 //             ctx helpers (WakeContext* + Images/JSONMode/MaxCost/RunTimeout/Resume*
 //             +
-//             BuildRunPrompt/InjectHostEnvironment/ResumeCheckpointFn/ResolveRunModel/MergeAutoApproveCapabilities/WithActorCorrelation/ActorFromCtx).
+//             ResumeCheckpointFn/ResolveRunModel/MergeAutoApproveCapabilities/WithActorCorrelation/ActorFromCtx).
+//             The prompt doors (BuildRunPrompt/InjectHostEnvironment) moved to the
+//             runs module's prompt service in W3.76e; they live in prompt.go now.
 //             Code extracted from accessors.go during the Day-56 god-file split.
 //             Public API unchanged.
 
@@ -15,8 +17,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
-	"github.com/agezt/agezt/kernel/contract/skillapi"
-	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/reflect"
 )
@@ -173,20 +173,6 @@ func (k *Kernel) ResumeSeedFromCtx(ctx context.Context) ([]llm.Message, int, boo
 // boundary (Day 34).
 func (k *Kernel) DisableHeuristicBypass(ctx context.Context) bool {
 	return k.effectiveConfig(ctx).DisableHeuristicBypass
-}
-
-// BuildRunPrompt assembles the system prompt (live default +
-// profile/taste/memory/world/skill injection) for a run. Day 34
-// wrapper for the runexec sub-package.
-func (k *Kernel) BuildRunPrompt(runCtx context.Context, corr, actor, intent string, systemAgent bool, skillDirective skillapi.ActivationDirective) (string, []string) {
-	return k.buildRunPrompt(runCtx, corr, actor, intent, systemAgent, skillDirective)
-}
-
-// InjectHostEnvironment prepends the host-environment preamble to
-// the system prompt when Config.EnvironmentInject is set. Day 34
-// wrapper for the runexec sub-package.
-func (k *Kernel) InjectHostEnvironment(system string, tools map[string]toolapi.Tool) string {
-	return k.injectHostEnvironment(system, tools)
 }
 
 // ResumeCheckpointFn returns the per-iteration checkpoint callback

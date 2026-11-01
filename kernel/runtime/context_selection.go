@@ -7,30 +7,22 @@ import (
 	"fmt"
 
 	"github.com/agezt/agezt/kernel/contextselect"
-	"github.com/agezt/agezt/kernel/contract/memoryapi"
-	"github.com/agezt/agezt/kernel/contract/skillapi"
-	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/event"
 )
-
-// publishContextSelection publishes a context.selection event when there is
-// data worth sharing.
-func (k *Kernel) publishContextSelection(corr, actor string, manifest contextselect.Manifest) {
-	if len(manifest.Chosen) == 0 && len(manifest.Rejected) == 0 && len(manifest.Summary) == 0 {
-		return
-	}
-	_, _ = k.bus.Publish(event.Spec{
-		Subject:       "context.selection",
-		Kind:          event.KindContextSelection,
-		Actor:         actor,
-		CorrelationID: corr,
-		Payload:       manifest,
-	})
-}
 
 // publishContextFailureAnalysis scans the run's journal for the last
 // context.selection event and re-ranks its rejected candidates to identify
 // likely context-omission suspects after a run failure.
+//
+// The ANALYSIS stays in the daemon because it reads the run's JOURNAL — the
+// daemon's — but the manifest it derives is PUBLISHED by the runs module's
+// prompt service (W3.76e), which owns the context-selection surface: the
+// module knows what a manifest is, the daemon knows what the run wrote.
+//
+// Note: the types Candidate, Manifest, and pure helper functions
+// (SplitCandidates, TokenCost, Freshness, Risk, etc.) have been moved to
+// kernel/contextselect. Import that package directly when only the data
+// types or pure computation are needed.
 func (k *Kernel) publishContextFailureAnalysis(corr, actor string, runErr error) {
 	if runErr == nil || k == nil || k.journal == nil {
 		return
@@ -50,7 +42,7 @@ func (k *Kernel) publishContextFailureAnalysis(corr, actor string, runErr error)
 		return
 	}
 	suspects := contextselect.FailureAnalysisSuspects(latest.Rejected)
-	k.publishContextSelection(corr, actor, contextselect.Manifest{
+	k.prompt.PublishSelection(corr, actor, contextselect.Manifest{
 		Phase: "failure_analysis",
 		Summary: map[string]any{
 			"classifier":        "heuristic_external",
@@ -61,28 +53,4 @@ func (k *Kernel) publishContextFailureAnalysis(corr, actor string, runErr error)
 		},
 		Rejected: suspects,
 	})
-}
-
-// Note: the types Candidate, Manifest, and pure helper functions
-// (SplitCandidates, TokenCost, Freshness, Risk, etc.) have been moved to
-// kernel/contextselect. Import that package directly when only the data
-// types or pure computation are needed.
-
-// The following conversion functions stay in runtime because they depend
-// on Kernel-owned stores or agent loop state. They call contextselect
-// helpers internally.
-
-// memoryContextCandidates converts memory search hits to context candidates.
-func memoryContextCandidates(hits []memoryapi.Scored, nowMS int64) []contextselect.Candidate {
-	return contextselect.MemoryCandidates(hits, nowMS)
-}
-
-// worldContextCandidates converts world-model search hits to context candidates.
-func worldContextCandidates(hits []worldmodelapi.ScoredEntity, nowMS int64) []contextselect.Candidate {
-	return contextselect.WorldCandidates(hits, nowMS)
-}
-
-// skillContextCandidates converts skill search hits to context candidates.
-func skillContextCandidates(hits []skillapi.Scored, nowMS int64) []contextselect.Candidate {
-	return contextselect.SkillCandidates(hits, nowMS)
 }

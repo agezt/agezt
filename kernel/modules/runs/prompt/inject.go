@@ -1,11 +1,6 @@
-package runtime
+// SPDX-License-Identifier: MIT
 
-// Provenance: SPDX-License-Identifier: MIT Prompt context-injection helpers:
-//             injectMemory + injectUserProfile + injectTaste + injectWorld +
-//             injectSkills. Each takes the current system prompt and a list of
-//             scored hits / exemplars, and returns the augmented system prompt.
-//             Extracted from prompt.go during the Day-203 god-file split. Public API
-//             unchanged.
+package prompt
 
 import (
 	"fmt"
@@ -16,6 +11,11 @@ import (
 	"github.com/agezt/agezt/kernel/contract/tasteapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 )
+
+// The injection helpers: each takes the current system prompt and a list of
+// scored hits / exemplars, and returns the augmented system prompt. The
+// augmented prompt PREPENDS — the identity stays last, so the model reads the
+// freshest context first and the persona underneath it.
 
 // injectMemory prepends a compact "Relevant memory" block to the system
 // prompt. Records are rendered one per line as "- [TYPE] subject: content".
@@ -34,7 +34,7 @@ func injectMemory(system string, hits []memoryapi.Scored) string {
 
 // injectUserProfile prepends the learned operator profile (M1000) to the system
 // prompt so the agent always knows who it works for. profileText is the
-// pre-formatted facet block from memory.ProfileText (never empty here).
+// pre-formatted facet block from the memory's profile text (never empty here).
 func injectUserProfile(system, profileText string) string {
 	var b strings.Builder
 	b.WriteString("What you know about the operator you work for (apply naturally; don't recite):\n")

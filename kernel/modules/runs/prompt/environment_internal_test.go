@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
+package prompt
 
 import (
 	"context"
@@ -61,7 +61,7 @@ func TestInjectEnvironment_CoreFields(t *testing.T) {
 		t.Errorf("expected the shell tool's exact hint 'cmd /C':\n%s", out)
 	}
 	if !strings.Contains(out, "NOT ls/cat/rm") {
-		t.Errorf("cmd shell must carry Windows command guidance:\n%s", out)
+		t.Errorf("cmd shell must carry Windows guidance:\n%s", out)
 	}
 	// First-sentence trimming: the file tool's long description is clipped.
 	if strings.Contains(out, "Long details follow") {
@@ -144,30 +144,36 @@ func TestForgeBias_TunedToTools(t *testing.T) {
 }
 
 func TestShellGuidance_ByInterpreter(t *testing.T) {
-	cases := map[string]string{
-		"cmd":            "Windows",
-		`C:\Win\cmd.exe`: "Windows",
-		"powershell":     "PowerShell",
-		"pwsh":           "PowerShell",
-		"sh":             "POSIX",
-		"/bin/bash":      "POSIX",
+	// The cases are a SLICE, not a map: a map's iteration order is random, and
+	// a test whose failure output depends on that order is a test that cannot
+	// be compared across two runs — which is exactly what a mutation run does.
+	cases := []struct {
+		bin  string
+		want string
+	}{
+		{"cmd", "Windows"},
+		{`C:\Win\cmd.exe`, "Windows"},
+		{"powershell", "PowerShell"},
+		{"pwsh", "PowerShell"},
+		{"sh", "POSIX"},
+		{"/bin/bash", "POSIX"},
 	}
-	for bin, want := range cases {
-		got := shellGuidance(bin)
-		if !strings.Contains(got, want) {
-			t.Errorf("shellGuidance(%q) = %q, want it to mention %q", bin, got, want)
+	for _, c := range cases {
+		got := shellGuidance(c.bin)
+		if !strings.Contains(got, c.want) {
+			t.Errorf("shellGuidance(%q) = %q, want it to mention %q", c.bin, got, c.want)
 		}
 	}
 }
 
 func TestFirstSentence(t *testing.T) {
-	if got := firstSentence("Run a command. More stuff."); got != "Run a command." {
+	if got := FirstSentence("Run a command. More stuff."); got != "Run a command." {
 		t.Errorf("got %q", got)
 	}
-	if got := firstSentence("One line only"); got != "One line only" {
+	if got := FirstSentence("One line only"); got != "One line only" {
 		t.Errorf("got %q", got)
 	}
-	if got := firstSentence("First line\nsecond line"); got != "First line" {
+	if got := FirstSentence("First line\nsecond line"); got != "First line" {
 		t.Errorf("multiline trim got %q", got)
 	}
 }

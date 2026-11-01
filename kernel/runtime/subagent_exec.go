@@ -37,7 +37,7 @@ func (k *Kernel) executeSubAgent(p *subAgentPrep) (string, error) {
 		// per-run spend ceiling below is inert), artifact offload, context
 		// compaction, and tool policy as a root run.
 		lc := k.buildLoopConfig(p.childCtx, p.childCorr, p.subModel)
-		system, skills, task := k.subAgentInjectedSystem(p.childCtx, p.childCorr, p.actor, p.task, p.system)
+		system, skills, task := k.prompt.BuildSubagent(p.childCtx, p.childCorr, p.actor, p.task, p.system)
 		activatedSkillIDs = delegation.AppendUniqueStrings(activatedSkillIDs, skills...)
 		lc.TaskType = p.taskType     // M705: route the sub-agent (chain supplies fallbacks)
 		lc.ModelChain = p.modelChain // M787: the named agent's own fallbacks win

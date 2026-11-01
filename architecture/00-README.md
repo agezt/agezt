@@ -173,6 +173,7 @@ Every Go package, one line each, with the document that covers it in depth.
 | `runtime` | `Kernel`: wires journal + state + bus + loop + providers + tools. Owns the policy hook, delegation rails, MCP attach, lock order. The **run registry** is no longer among them: it moved into the runs module in W3.76d (`kernel/modules/runs/registry`), and the daemon holds the store handle. |
 | `runtime/runexec` | The run engine: `Runner.RunWith` (state setup → prompt build → loop config → resume ticket → `agent.Run` → post-run distill/forge/lifecycle). |
 | `modules/runs/registry`, `modules/runs/lifecycle` | The runs module's **live-run store** and the halt/resume/cancel surface over it (W3.76d, moved out of `kernel/runtime`). `accessors` is constructed but unused and `compose` has no importers; see findings. |
+| `modules/runs/prompt` | The runs module's **prompt assembly** (W3.76e, moved out of `kernel/runtime`): what a run knows before it starts — the live identity, the operator profile, the taste exemplars, the recalled memory, the resolved world entities, the activated skills — plus the host-environment preamble. The daemon keeps two doors and a three-verb host port. |
 | `toolreg` | First-party tool registry: specs with Build/PreOpen/Configure/ConfigureLate hooks, conflict yielding, capability merging. |
 | `app/tools` | L4 tool entry injected by primary/tenant daemon composition; delegates to the legacy pipeline during W2.3 convergence. |
 | `toolexec` | Direct (operator/CLI) tool execution path outside a run. |
