@@ -1223,7 +1223,7 @@ module's `Validate` is a one-line delegation to it.
 
 ### 12.3 Bridging (`kernel/modules/extensions/mcp/bridge.go`)
 
-`MergeTools` runs once per run (`kernel/runtime/loopconfig.go`, `kernel/runtime/toolrun.go` — the daemon's forwarder asks the module):
+`MergeTools` runs once per run (`kernel/modules/runs/loopcfg/service.go`, `kernel/runtime/toolrun.go` — the daemon's forwarder asks the module):
 - It snapshots the module's live connections under its own lock and honours `ToolAllow`.
 - Tools that are already registered win any name collision.
 - **Eager servers:** each tool becomes a `bridgedMCPTool` named `mcp_<server>_<sanitized tool>`, truncated to 64 chars, marked Compensable with confidence 0.45.
