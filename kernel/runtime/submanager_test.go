@@ -12,7 +12,7 @@ import (
 )
 
 // TestTheKernelHoldsOnlyTheSubManagersItCalls: the kernel holds exactly the
-// two sub-managers it actually calls.
+// sub-managers it actually calls.
 //
 // W3.40 deleted the third — the accessors sub-manager — which was wired into
 // the kernel (k.accessors = accessors.New(k)) and then read by nobody. It
@@ -20,6 +20,12 @@ import (
 // unreachable copy of the read surface — and it was the reason the kernel's
 // module reach was counted TWICE in the archcheck ratchet: eleven allowlisted
 // edges that bought nothing at all.
+//
+// W3.76d took the second one out of this package: the run-lifecycle manager
+// is the RUNS MODULE's now (kernel/modules/runs/lifecycle), so it is no
+// longer a `kernel/runtime/` sub-manager — the daemon holds it as a field of
+// the module's type, and the daemon's own sub-manager set is down to the one
+// that is still a sub-manager (the run executor).
 //
 // A third sub-manager that nobody calls is the same defect wearing a new
 // name, so the set is pinned here. A new sub-manager has to be wired AND
@@ -42,7 +48,7 @@ func TestTheKernelHoldsOnlyTheSubManagersItCalls(t *testing.T) {
 	}
 	sort.Strings(subs)
 
-	want := []string{"lifecycle", "runexec"}
+	want := []string{"runexec"}
 	if len(subs) != len(want) {
 		t.Fatalf("the kernel holds the sub-managers %v, want exactly %v — a sub-manager that nobody calls is a second copy of the surface, and it is counted twice in the ratchet", subs, want)
 	}

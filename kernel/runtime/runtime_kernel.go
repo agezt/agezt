@@ -8,9 +8,7 @@ package runtime
 //             unchanged.
 
 import (
-	"context"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/agezt/agezt/kernel/approval"
@@ -40,11 +38,12 @@ import (
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	"github.com/agezt/agezt/kernel/modules/reasoning/api"
+	"github.com/agezt/agezt/kernel/modules/runs/lifecycle"
+	"github.com/agezt/agezt/kernel/modules/runs/registry"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
 	"github.com/agezt/agezt/kernel/modules/runs/steer"
 	workapi "github.com/agezt/agezt/kernel/modules/work/api"
 	"github.com/agezt/agezt/kernel/reflect"
-	"github.com/agezt/agezt/kernel/runtime/lifecycle"
 	"github.com/agezt/agezt/kernel/runtime/runexec"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/state"
@@ -159,11 +158,11 @@ type Kernel struct {
 	catalog      *catalogapi.Catalog // snapshot — refreshable via ReloadCatalog
 	catalogSync  catalogapi.Syncer   // the remote fetcher — the contract's syncer port
 
-	// lifecycle is the run-lifecycle sub-manager extracted as a
-	// separate Go sub-package on Day 12. See kernel/runtime/lifecycle
-	// for the surface and the KernelAPI interface that wires it back
-	// to *Kernel. Initialised in Open(); nil before that, so any
-	// method that goes through it is safe to call only post-Open.
+	// lifecycle is the run-lifecycle manager of the RUNS MODULE
+	// (kernel/modules/runs/lifecycle, W3.76d). It owns the halt/resume/cancel
+	// surface over the module's live-run registry; the daemon keeps only the
+	// doors over it. Initialised in Open(); nil before that, so any method
+	// that goes through it is safe to call only post-Open.
 	lifecycle *lifecycle.Manager
 
 	// runexec is the run-engine sub-manager extracted as a separate
@@ -175,29 +174,28 @@ type Kernel struct {
 
 	// Fine-grained mutexes to reduce lock contention. Lock ordering to prevent
 	// deadlocks (always acquire in this order):
-	//   configMu (light config) < runsMu < fanoutMu < treeMu < steersMu < spawnsMu
+	//   configMu (light config) < registry.Lock < fanoutMu < treeMu < steersMu < spawnsMu
 	configMu sync.Mutex // guards: system, model, cfg, catalog, schedEngine, mcp
-	runsMu   sync.Mutex // guards: halted, runs
 	fanoutMu sync.Mutex
 	treeMu   sync.Mutex
 	steersMu sync.Mutex
 	spawnsMu sync.Mutex
 
-	halted bool
-	// suspending latches true when Suspend begins tearing the daemon down for a
-	// restart (M1002). A run cancelled while this is set is treated as INTERRUPTED
-	// (its ticket is kept for resume) rather than operator-cancelled (ticket
-	// deleted). Never cleared — the process is on its way out.
-	suspending atomic.Bool
-	system     string                        // live daemon default identity / system prompt (M710); seeded from cfg.System, editable at runtime
-	model      string                        // live default model id (M816); seeded from cfg.Model, hot-swapped on provider reload
-	runs       map[string]context.CancelFunc // correlation_id → cancel
-	fanout     map[string]int                // spawning correlation_id → sub-agents spawned (M46 fan-out bound)
-	tree       map[string]int                // root correlation_id → total sub-agents in the tree (M629 total bound)
-	steers     map[string]*steer.Control     // correlation_id → live-steering control surface (M608)
-	steerSvc   *steer.Service                // the runs module's steering service (W3.76b)
-	spawns     map[string]*spawnHandle       // child correlation_id → pending/finished async delegation (M881)
-	runWG      sync.WaitGroup                // in-flight runs + async spawn goroutines; Close drains it bounded (M883)
+	// registry is the runs module's live-run registry (W3.76d): the running
+	// correlations, their cancels, the halt latch, the drain accounting and
+	// the suspend latch. It is the module's own store — the target
+	// architecture gives "run registry" to the runs module — and its lock is
+	// the OUTERMOST of the daemon's: the compound cleanups below hold it
+	// across the fan-out, tree, steer and spawn locks.
+	registry *registry.Registry
+
+	system   string                    // live daemon default identity / system prompt (M710); seeded from cfg.System, editable at runtime
+	model    string                    // live default model id (M816); seeded from cfg.Model, hot-swapped on provider reload
+	fanout   map[string]int            // spawning correlation_id → sub-agents spawned (M46 fan-out bound)
+	tree     map[string]int            // root correlation_id → total sub-agents in the tree (M629 total bound)
+	steers   map[string]*steer.Control // correlation_id → live-steering control surface (M608)
+	steerSvc *steer.Service            // the runs module's steering service (W3.76b)
+	spawns   map[string]*spawnHandle   // child correlation_id → pending/finished async delegation (M881)
 
 	// toolCaps is the validated declared-capability overlay (M900): tool name
 	// → Edict capability, consulted by policyHook before the built-in
@@ -208,10 +206,7 @@ type Kernel struct {
 	startTime time.Time // wall-clock at Open() — powers `agt status` uptime
 }
 
-// Lifecycle API accessors (the kernel/runtime/lifecycle sub-package
-// speaks to *Kernel through these; see kernel/runtime/lifecycle/api.go).
-// They are intentionally narrow — every public method is a new piece
-// of coupling between the kernel umbrella and the sub-package, and
-// the whole point of the split is to *narrow* that coupling.
-
-// Halted is the read side of the halt flag. Used by lifecycle.Manager
+// The run-lifecycle surface (Halt/Resume/Cancel/Drain) is the runs module's
+// (kernel/modules/runs/lifecycle), and the live-run registry it manages is
+// the module's store (kernel/modules/runs/registry). The daemon keeps only
+// the DOORS over them: the verbs below and the Kernel's own run state.

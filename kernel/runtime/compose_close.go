@@ -28,7 +28,7 @@ func (k *Kernel) Close() error {
 	if drain > 0 {
 		settled := make(chan struct{})
 		go func() {
-			k.runWG.Wait()
+			k.registry.Wait()
 			close(settled)
 		}()
 		t := time.NewTimer(drain)

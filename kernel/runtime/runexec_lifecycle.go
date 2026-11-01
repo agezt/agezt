@@ -79,27 +79,27 @@ func (k *Kernel) CompleteAgentLifecycle(ctx context.Context, corr string) {
 // the history of this invariant).
 func (k *Kernel) setupRunState(corr string, parentCtx context.Context) (context.Context, context.CancelFunc, agent.Steerer, error) {
 	ctx := parentCtx
-	k.runsMu.Lock()
-	if k.halted {
-		k.runsMu.Unlock()
+	k.registry.Lock()
+	if k.registry.Halted() {
+		k.registry.Unlock()
 		return nil, nil, nil, ErrHalted
 	}
 	// Reject a correlation that is already running: two concurrent
 	// RunWith calls sharing one id would clobber the run registry —
-	// the second's cancel overwrites the first's k.runs[corr], and
+	// the second's cancel overwrites the first's registry entry, and
 	// the first's deferred delete then removes the second's entry,
 	// leaving a run uncancellable by Halt/CancelRun. The contract is
 	// one id per run; enforce it instead of silently corrupting the
 	// registry. (M480)
-	if _, running := k.runs[corr]; running {
-		k.runsMu.Unlock()
+	if k.registry.Running(corr) {
+		k.registry.Unlock()
 		return nil, nil, nil, fmt.Errorf("runtime: correlation %q is already running", corr)
 	}
 	// Per-run wall-clock budget (M31): when configured, the run
 	// context carries a deadline so a slow provider / blocking tool
 	// can't hang a run forever within a live session. The deadline
 	// cancels with DeadlineExceeded (→ task.failed reason=timeout,
-	// M30), whereas the cancel stored in k.runs (invoked by Halt)
+	// M30), whereas the cancel stored in the registry (invoked by Halt)
 	// cancels with Canceled (→ reason=canceled) — the two stay
 	// distinguishable. 0 = no cap. A per-run override (runctx.WithRunTimeout,
 	// e.g. `agt run --timeout`) takes precedence over the daemon-wide
@@ -125,12 +125,12 @@ func (k *Kernel) setupRunState(corr string, parentCtx context.Context) (context.
 	} else {
 		runCtx, cancel = context.WithCancel(ctx)
 	}
-	k.runs[corr] = cancel
+	k.registry.Register(corr, cancel)
 	// Drain accounting (M883): Close waits (bounded) for in-flight
 	// runs to settle before tearing down the stores they write to.
 	// Add under the same lock as the halted check above, so no run
 	// can slip in after Halt flips the flag and Close begins waiting.
-	k.runWG.Add(1)
+	k.registry.Add(1)
 	// Live-steering control surface (M608): registered for the run's
 	// whole lifetime so an operator can pause/step/inject from
 	// another goroutine. Wired into the agent loop via
@@ -143,7 +143,7 @@ func (k *Kernel) setupRunState(corr string, parentCtx context.Context) (context.
 	k.steersMu.Lock()
 	k.steers[corr] = rc
 	k.steersMu.Unlock()
-	k.runsMu.Unlock()
+	k.registry.Unlock()
 	return runCtx, cancel, rc, nil
 }
 
@@ -163,11 +163,11 @@ func (k *Kernel) cleanupRunState(corr string) []context.CancelFunc {
 	// decrement is the LAST step a run takes (after every map /
 	// mutex / spawn-cancel cleanup), and Close's WaitGroup.Wait
 	// sees a counter that monotonically tracks the active set.
-	defer k.runWG.Done()
+	defer k.registry.Done()
 	// Lock ordering: runsMu → fanoutMu → treeMu → steersMu → spawnsMu
 	// Lock ordering: runsMu → fanoutMu → treeMu → steersMu → spawnsMu
-	k.runsMu.Lock()
-	delete(k.runs, corr)
+	k.registry.Lock()
+	k.registry.Unregister(corr)
 	k.fanoutMu.Lock()
 	delete(k.fanout, corr) // release this run's fan-out tally (M46)
 	k.treeMu.Lock()
@@ -191,7 +191,7 @@ func (k *Kernel) cleanupRunState(corr string) []context.CancelFunc {
 	k.steersMu.Unlock()
 	k.treeMu.Unlock()
 	k.fanoutMu.Unlock()
-	k.runsMu.Unlock()
+	k.registry.Unlock()
 	return orphans
 }
 

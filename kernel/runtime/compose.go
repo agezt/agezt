@@ -30,11 +30,12 @@ import (
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/journal"
 	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
+	"github.com/agezt/agezt/kernel/modules/runs/lifecycle"
+	"github.com/agezt/agezt/kernel/modules/runs/registry"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
 	"github.com/agezt/agezt/kernel/modules/runs/steer"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/reflect"
-	"github.com/agezt/agezt/kernel/runtime/lifecycle"
 	"github.com/agezt/agezt/kernel/runtime/runexec"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/state"
@@ -395,7 +396,7 @@ func Open(cfg Config) (*Kernel, error) {
 		tools:        effTools,
 		system:       cfg.System,
 		model:        cfg.Model,
-		runs:         make(map[string]context.CancelFunc),
+		registry:     registry.New(),
 		fanout:       make(map[string]int),
 		tree:         make(map[string]int),
 		steers:       make(map[string]*steer.Control),
@@ -472,10 +473,12 @@ func Open(cfg Config) (*Kernel, error) {
 	// the gateway, starts it and closes it. A kernel opened without a daemon
 	// has no gateway, and the SDK subprocess path is simply not served.
 
-	// Wire the lifecycle sub-manager (Day 12 split) last so it sees
-	// the fully-built *Kernel. The Manager only holds a KernelAPI
-	// reference; it does not own the kernel's lifecycle state.
-	k.lifecycle = lifecycle.New(k)
+	// Wire the run-lifecycle manager last so it sees the fully-built
+	// *Kernel. The Manager is the RUNS MODULE's (W3.76d): it owns the
+	// halt/resume/cancel surface over the module's live-run registry, and
+	// reaches the daemon only for the two side effects it cannot perform
+	// itself (Suspend, PublishBus).
+	k.lifecycle = lifecycle.New(k.registry, k)
 
 	// Wire the runexec sub-manager (Day 22 split). The Runner holds
 	// a KernelAPI reference; Day 23 will move the 260-line RunWith

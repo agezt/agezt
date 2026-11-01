@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/modules/runs/registry"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
 	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
@@ -61,7 +62,7 @@ func TestTheScopeRuleIsTheModulesRule(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resume.Open: %v", err)
 	}
-	k := &Kernel{cfg: Config{ResumeEnabled: true}, resume: store}
+	k := &Kernel{cfg: Config{ResumeEnabled: true}, resume: store, registry: registry.New()}
 
 	root := context.Background()
 	if !k.resumeActive(root) {
@@ -164,7 +165,7 @@ func TestTheKeepDeleteRuleIsTheModulesRule(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resume.Open: %v", err)
 	}
-	k := &Kernel{cfg: Config{ResumeEnabled: true}, resume: store}
+	k := &Kernel{cfg: Config{ResumeEnabled: true}, resume: store, registry: registry.New()}
 
 	if err := store.Put(&resume.Ticket{Corr: "corr-1", Intent: "task", Kind: resume.KindRun}); err != nil {
 		t.Fatalf("Put: %v", err)
@@ -177,7 +178,7 @@ func TestTheKeepDeleteRuleIsTheModulesRule(t *testing.T) {
 	if err := store.Put(&resume.Ticket{Corr: "corr-2", Intent: "task", Kind: resume.KindRun}); err != nil {
 		t.Fatalf("Put: %v", err)
 	}
-	k.suspending.Store(true)
+	k.registry.Suspending().Store(true)
 	k.finalizeResumeTicket("corr-2", context.Canceled)
 	if _, ok, _ := store.Get("corr-2"); !ok {
 		t.Fatal("a run interrupted by a shutdown KEEPS its ticket")

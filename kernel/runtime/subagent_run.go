@@ -31,7 +31,7 @@ func (k *Kernel) runSubAgent(ctx context.Context, task, model, taskType, agentRe
 // subagent.completed event under the parent correlation, and the result is
 // collected via delegate_await. The child's lifetime is detached from the
 // spawning TOOL CALL (whose context ends when delegate returns) but stays
-// bounded by the kernel: its cancel is registered in k.runs (so Halt and
+// bounded by the kernel: its cancel is registered in the run registry (so Halt and
 // CancelRun reach it) and the parent run's cleanup cancels any un-awaited
 // children, so a spawn never outlives its delegation tree.
 func (k *Kernel) runSubAgentAsync(ctx context.Context, task, model, taskType, agentRef string) (string, error) {
@@ -51,28 +51,28 @@ func (k *Kernel) runSubAgentAsync(ctx context.Context, task, model, taskType, ag
 		cancel:     cancel,
 		done:       make(chan struct{}),
 	}
-	k.runsMu.Lock()
-	if k.halted {
+	k.registry.Lock()
+	if k.registry.Halted() {
 		// Halt won the race after prepare's check: don't start a goroutine
-		// Halt's sweep of k.runs can no longer see.
-		k.runsMu.Unlock()
+		// Halt's sweep of the registry can no longer see.
+		k.registry.Unlock()
 		cancel()
 		return "", ErrHalted
 	}
 	k.spawnsMu.Lock()
 	k.spawns[p.childCorr] = h
-	k.runs[p.childCorr] = cancel
-	k.runWG.Add(1) // Close drains async spawns like any in-flight run (M883)
-	k.runsMu.Unlock()
+	k.registry.Register(p.childCorr, cancel)
+	k.registry.Add(1) // Close drains async spawns like any in-flight run (M883)
+	k.registry.Unlock()
 	k.spawnsMu.Unlock()
 	go func() {
-		defer k.runWG.Done()
+		defer k.registry.Done()
 		defer cancel()
 		answer, err := k.executeSubAgent(p)
 		h.answer, h.err = answer, err
-		k.runsMu.Lock()
-		delete(k.runs, p.childCorr)
-		k.runsMu.Unlock()
+		k.registry.Lock()
+		k.registry.Unregister(p.childCorr)
+		k.registry.Unlock()
 		// Announce completion under the parent correlation BEFORE releasing
 		// awaiters, so by the time delegate_await returns the outcome is
 		// already durably journaled (subscribable by the UI as a push signal).

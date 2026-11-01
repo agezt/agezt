@@ -90,9 +90,9 @@ func (k *Kernel) WorkflowPorts() workflowapi.Ports {
 		DefaultModel: func(ctx context.Context) string { return k.effectiveConfig(ctx).Model },
 		HasProvider:  func() bool { return k.cfg.Provider != nil },
 		Halted: func() bool {
-			k.runsMu.Lock()
-			defer k.runsMu.Unlock()
-			return k.halted
+			k.registry.Lock()
+			defer k.registry.Unlock()
+			return k.registry.Halted()
 		},
 	}
 }

@@ -175,7 +175,7 @@ func (k *Kernel) finalizeResumeTicket(corr string, runErr error) {
 	if k.resume == nil {
 		return
 	}
-	if resume.TerminalOutcome(runErr, k.suspending.Load()) == resume.DispositionKeep {
+	if resume.TerminalOutcome(runErr, k.registry.Suspending().Load()) == resume.DispositionKeep {
 		return // interrupted by shutdown → keep for resume
 	}
 	if err := k.resume.Delete(corr); err != nil {
@@ -193,7 +193,7 @@ func (k *Kernel) ResumeFinalize(corr string, runErr error) { k.finalizeResumeTic
 
 // Suspend flips every live run's ticket to "suspended" — the durable signal that
 // these runs were interrupted by a restart, not completed — and notifies the
-// running agents. It latches k.suspending so finalizeResumeTicket keeps (rather
+// running agents. It latches the registry's suspend latch so finalizeResumeTicket keeps (rather
 // than deletes) any ticket whose run is then cancelled. Idempotent: a second call
 // is a no-op. Returns the number of tickets marked.
 //
@@ -206,7 +206,7 @@ func (k *Kernel) Suspend(reason string) int {
 	if k.resume == nil {
 		return 0
 	}
-	if !k.suspending.CompareAndSwap(false, true) {
+	if !k.registry.Suspending().CompareAndSwap(false, true) {
 		return 0
 	}
 	// Notify each running agent at its next boundary (best-effort).

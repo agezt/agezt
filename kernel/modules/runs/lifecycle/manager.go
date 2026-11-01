@@ -3,40 +3,36 @@
 package lifecycle
 
 import (
-	"context"
+	"sort"
 	"time"
 
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/runs/registry"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
 // Manager owns the run-lifecycle surface (Halt/Resume/Cancel/Drain
-// + read-side queries). It delegates to the host kernel via the
-// KernelAPI interface so this sub-package does not import
-// kernel/runtime — the dependency arrow is one-way:
+// + read-side queries) over the runs module's live-run registry.
 //
-//	kernel/runtime  →  kernel/runtime/lifecycle
-//
-// Construction: Manager is a stateless value around the host
-// kernel; one Manager per *Kernel, initialised in Open() and
-// shared for the kernel's whole lifetime.
+// It holds the registry directly: the registry is the module's own data, so
+// the Manager does not reach back to the host for it. The two side effects
+// it cannot perform itself — suspending the daemon and publishing to the
+// bus — come through the Host interface.
 type Manager struct {
-	k KernelAPI
+	reg  *registry.Registry
+	host Host
 }
 
-// New constructs the Manager. k is the host kernel (must implement
-// KernelAPI). The Manager does not need a separate bus reference —
-// it publishes via k.PublishBus.
-func New(k KernelAPI) *Manager {
-	return &Manager{k: k}
+// New constructs the Manager over a registry and its host.
+func New(reg *registry.Registry, host Host) *Manager {
+	return &Manager{reg: reg, host: host}
 }
 
 // IsHalted reports whether Run will refuse to start.
 func (m *Manager) IsHalted() bool {
-	mu := m.k.RunsMu()
-	mu.Lock()
-	defer mu.Unlock()
-	return m.k.Halted()
+	m.reg.Lock()
+	defer m.reg.Unlock()
+	return m.reg.Halted()
 }
 
 // Halt cancels every in-flight run and prevents new ones. It emits a
@@ -50,26 +46,17 @@ func (m *Manager) Halt() { m.HaltWith("") }
 // "why was the daemon halted at 14:32?". Empty reason is fine and
 // rendered as omitted in the payload.
 func (m *Manager) HaltWith(reason string) {
-	mu := m.k.RunsMu()
-	mu.Lock()
-	if m.k.Halted() {
-		mu.Unlock()
+	m.reg.Lock()
+	if m.reg.Halted() {
+		m.reg.Unlock()
 		return
 	}
-	m.k.SetHalted(true)
-	cancels := make([]context.CancelFunc, 0, len(m.k.Runs()))
-	for _, c := range m.k.Runs() {
-		cancels = append(cancels, c)
-	}
-	// Drop every entry from the live registry. We cannot reassign
-	// the map (interface-implemented field), but delete-everything
-	// has the same effect: the next RunWith registration is the
-	// only writer of new entries, and it does not depend on
-	// pre-existing entries being absent.
-	for corr := range m.k.Runs() {
-		delete(m.k.Runs(), corr)
-	}
-	mu.Unlock()
+	// HaltAll latches the halt flag, takes every live run's cancel and
+	// clears the registry — all under the registry's lock. The cancels are
+	// invoked AFTER the lock is released: cancelling a run under the lock
+	// would run that run's teardown while the registry is held.
+	cancels := m.reg.HaltAll()
+	m.reg.Unlock()
 	for _, c := range cancels {
 		c()
 	}
@@ -77,7 +64,7 @@ func (m *Manager) HaltWith(reason string) {
 	if reason != "" {
 		payload["reason"] = reason
 	}
-	_, _ = m.k.PublishBus(event.Spec{
+	_, _ = m.host.PublishBus(event.Spec{
 		Subject: "kernel.halt",
 		Kind:    event.KindHalt,
 		Actor:   "kernel",
@@ -86,7 +73,7 @@ func (m *Manager) HaltWith(reason string) {
 }
 
 // DrainAndHalt cancels all in-flight runs (equivalent to Halt()) and
-// waits for them to unwind. It is the drain-phase primitive used by
+// waits for them to unwind. This is the drain-phase primitive used by
 // Close and by the self-update engine (M860). The timeout caps how
 // long it waits; if exceeded, the function returns true (timedOut)
 // with remaining runs still counted. A timeout of zero skips the
@@ -96,18 +83,17 @@ func (m *Manager) HaltWith(reason string) {
 // the drain completed within the timeout, e.g. for update vs.
 // shutdown decisions.
 func (m *Manager) DrainAndHalt(timeout time.Duration) (timedOut bool, activeRuns int) {
-	m.k.Suspend("drain") // M1002: classify in-flight runs as resumable BEFORE cancelling them
-	m.Halt()             // cancel and mark halted; no-op if already halted
-	mu := m.k.RunsMu()
-	mu.Lock()
-	activeRuns = len(m.k.Runs())
-	mu.Unlock()
+	m.host.Suspend("drain") // M1002: classify in-flight runs as resumable BEFORE cancelling them
+	m.Halt()                // cancel and mark halted; no-op if already halted
+	m.reg.Lock()
+	activeRuns = m.reg.Count()
+	m.reg.Unlock()
 	if timeout <= 0 {
 		return false, activeRuns
 	}
 	settled := make(chan struct{})
 	go func() {
-		m.k.RunWG().Wait()
+		m.reg.Wait()
 		close(settled)
 	}()
 	t := time.NewTimer(timeout)
@@ -126,14 +112,9 @@ func (m *Manager) DrainAndHalt(timeout time.Duration) (timedOut bool, activeRuns
 // is no such active run (already finished, never existed, or wrong
 // id).
 func (m *Manager) CancelRun(corr string) bool {
-	mu := m.k.RunsMu()
-	mu.Lock()
-	runs := m.k.Runs()
-	cancel, ok := runs[corr]
-	if ok {
-		delete(runs, corr)
-	}
-	mu.Unlock()
+	m.reg.Lock()
+	cancel, ok := m.reg.Cancel(corr)
+	m.reg.Unlock()
 	if !ok {
 		return false
 	}
@@ -150,19 +131,18 @@ func (m *Manager) Resume() { m.ResumeWith("") }
 // kernel.resume event. Symmetric with HaltWith for postmortem
 // reconstruction.
 func (m *Manager) ResumeWith(reason string) {
-	mu := m.k.RunsMu()
-	mu.Lock()
-	if !m.k.Halted() {
-		mu.Unlock()
+	m.reg.Lock()
+	if !m.reg.Halted() {
+		m.reg.Unlock()
 		return
 	}
-	m.k.SetHalted(false)
-	mu.Unlock()
+	m.reg.SetHalted(false)
+	m.reg.Unlock()
 	var payload any
 	if reason != "" {
 		payload = map[string]any{"reason": reason}
 	}
-	_, _ = m.k.PublishBus(event.Spec{
+	_, _ = m.host.PublishBus(event.Spec{
 		Subject: "kernel.resume",
 		Kind:    event.KindResume,
 		Actor:   "kernel",
@@ -171,32 +151,22 @@ func (m *Manager) ResumeWith(reason string) {
 }
 
 // ActiveRuns returns the number of runs currently registered with
-// the kernel. Takes the same mutex as Halt, so it is safe under
+// the kernel. Takes the same lock as Halt, so it is safe under
 // concurrent run starts/completes.
 func (m *Manager) ActiveRuns() int {
-	mu := m.k.RunsMu()
-	mu.Lock()
-	defer mu.Unlock()
-	return len(m.k.Runs())
+	m.reg.Lock()
+	defer m.reg.Unlock()
+	return m.reg.Count()
 }
 
 // ActiveRunIDs returns the correlation ids of the runs in flight
 // right now — the live keys of the cancel registry, sorted for
 // determinism. Safe under concurrent run starts/completes.
 func (m *Manager) ActiveRunIDs() []string {
-	mu := m.k.RunsMu()
-	mu.Lock()
-	defer mu.Unlock()
-	ids := make([]string, 0, len(m.k.Runs()))
-	for corr := range m.k.Runs() {
-		ids = append(ids, corr)
-	}
-	// Insertion sort — small slices, avoids importing sort just for one call.
-	for i := 1; i < len(ids); i++ {
-		for j := i; j > 0 && ids[j-1] > ids[j]; j-- {
-			ids[j-1], ids[j] = ids[j], ids[j-1]
-		}
-	}
+	m.reg.Lock()
+	ids := m.reg.IDs()
+	m.reg.Unlock()
+	sort.Strings(ids)
 	return ids
 }
 
