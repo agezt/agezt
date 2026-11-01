@@ -15,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/delegation"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 func (k *Kernel) subAgentInjectedSystem(ctx context.Context, corr, actor, intent, system string) (string, []string, string) {
@@ -22,7 +23,7 @@ func (k *Kernel) subAgentInjectedSystem(ctx context.Context, corr, actor, intent
 	if directive.Explicit && directive.CleanIntent != "" {
 		intent = directive.CleanIntent
 	}
-	if systemAgentFromCtx(ctx) {
+	if runctx.SystemAgentFromCtx(ctx) {
 		return system, nil, intent
 	}
 	if k.cfg.MemoryInject && k.memory != nil {
@@ -54,14 +55,14 @@ func (k *Kernel) subAgentInjectedSystem(ctx context.Context, corr, actor, intent
 		if topK <= 0 {
 			topK = 3
 		}
-		agentSlug := agentSlugFromCtx(ctx)
+		agentSlug := runctx.AgentSlugFromCtx(ctx)
 		if directive.Explicit {
 			hits, missing, err := k.forge.ActivateExplicitFor(corr, agentSlug, intent, directive.Refs, topK)
 			if err == nil {
 				if len(hits) > 0 {
 					system = injectSkills(system, hits)
 					for _, h := range hits {
-						activatedSkillIDs = appendUniqueString(activatedSkillIDs, h.Skill.ID)
+						activatedSkillIDs = runctx.AppendUniqueString(activatedSkillIDs, h.Skill.ID)
 					}
 				}
 				chosen := skillContextCandidates(hits, time.Now().UnixMilli())
@@ -87,7 +88,7 @@ func (k *Kernel) subAgentInjectedSystem(ctx context.Context, corr, actor, intent
 			if hits, err := k.forge.ActivateFor(corr, agentSlug, intent, topK); err == nil && len(hits) > 0 {
 				system = injectSkills(system, hits)
 				for _, h := range hits {
-					activatedSkillIDs = appendUniqueString(activatedSkillIDs, h.Skill.ID)
+					activatedSkillIDs = runctx.AppendUniqueString(activatedSkillIDs, h.Skill.ID)
 				}
 				chosen, rejected := contextselect.SplitCandidates(skillContextCandidates(hits, time.Now().UnixMilli()), contextselect.ChosenIDSet(activatedSkillIDs), "subagent_skill_injection")
 				summary := contextselect.Summary(chosen, rejected)

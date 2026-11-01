@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -127,7 +128,7 @@ func TestPromptInjectionGuard_TrustedRunDoesNotBlock(t *testing.T) {
 		mock.FinalText("done"),
 	)
 	k, _ := injectionKernel(t, prov, &invoked, runtime.PromptInjectionOn)
-	ctx := runtime.WithTrustedObservations(context.Background())
+	ctx := runctx.WithTrustedObservations(context.Background())
 	if _, _, err := k.Run(ctx, "act now"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}

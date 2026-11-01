@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	apptools "github.com/agezt/agezt/kernel/app/tools"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"strings"
 	"testing"
 
@@ -325,7 +326,7 @@ func TestRemoveAndAttachEnabled(t *testing.T) {
 	}
 }
 
-// TestAllowlistGatesBridgedTools: WithTools applies to MCP tools exactly like
+// TestAllowlistGatesBridgedTools: runctx.WithTools applies to MCP tools exactly like
 // registered ones (merge before filter).
 func TestAllowlistGatesBridgedTools(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"), mock.FinalText("ok"))
@@ -340,14 +341,14 @@ func TestAllowlistGatesBridgedTools(t *testing.T) {
 		t.Fatalf("Attach: %v", err)
 	}
 
-	ctx := runtime.WithTools(context.Background(), []string{"memory"})
+	ctx := runctx.WithTools(context.Background(), []string{"memory"})
 	if _, err := k.RunWith(ctx, k.NewCorrelation(), "restricted"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	if contains(toolNames(req.Tools), "mcp_fake_greet") {
 		t.Fatal("allowlist did not gate the bridged tool")
 	}
-	ctx = runtime.WithTools(context.Background(), []string{"mcp_fake_greet"})
+	ctx = runctx.WithTools(context.Background(), []string{"mcp_fake_greet"})
 	if _, err := k.RunWith(ctx, k.NewCorrelation(), "allowed"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}

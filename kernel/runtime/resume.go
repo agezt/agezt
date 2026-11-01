@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 // Durable run resume (M1002). See package kernel/modules/runs/resume for the
@@ -31,6 +32,16 @@ import (
 // the daemon's boot-time resumer can enumerate suspended runs. (Named to avoid
 // clashing with Resume(), which clears the halt flag.)
 func (k *Kernel) ResumeStore() *resume.Store { return k.resume }
+
+// The daemon keeps its OWN context keys for the resume handshake: the seed and
+// the owned marker are the daemon's boot/resume protocol, not the run's
+// vocabulary (the run context's keys live in the runs module).
+type resumeCtxKey int
+
+const (
+	ctxKeyResumeOwned resumeCtxKey = iota // M1002: a resume ticket for this corr is already owned by an outer frame
+	ctxKeyResumeSeed                      // M1002: prior conversation + iter to seed a resumed run
+)
 
 // WithResumeSeed carries a suspended run's prior conversation and iteration into
 // a resume dispatch, so RunWith continues the interrupted loop instead of
@@ -74,7 +85,7 @@ func resumeOwnedKind(ctx context.Context) (string, bool) {
 // by resuming the root rather than persisted separately.
 func (k *Kernel) resumeActive(ctx context.Context) bool {
 	return k.resume != nil && k.cfg.ResumeEnabled &&
-		resume.CarriesTicket(wakeContextFromCtx(ctx).ParentCorrelation)
+		resume.CarriesTicket(runctx.WakeContextFromCtx(ctx).ParentCorrelation)
 }
 
 // claimResumeTicket writes a fresh ticket for a root run and returns a context
@@ -109,31 +120,30 @@ func (k *Kernel) buildResumeTicket(ctx context.Context, corr, intent, kind strin
 		Intent:       intent,
 		Kind:         kind,
 		AssureBudget: assureBudget,
-		AgentSlug:    agentSlugFromCtx(ctx),
-		MaxCostMc:    maxCostFromCtx(ctx),
-		Wake:         wakeContextFromCtx(ctx),
+		AgentSlug:    runctx.AgentSlugFromCtx(ctx),
+		MaxCostMc:    runctx.MaxCostFromCtx(ctx),
+		Wake:         runctx.WakeContextFromCtx(ctx),
 	}
-	if lvl, ok := trustCeilingFromCtx(ctx); ok {
+	if lvl, ok := runctx.TrustCeilingFromCtx(ctx); ok {
 		v := int(lvl)
 		facts.TrustCeiling = &v
 	}
-	if d := runTimeoutFromCtx(ctx); d > 0 {
+	if d := runctx.RunTimeoutFromCtx(ctx); d > 0 {
 		facts.RunTimeoutMs = d.Milliseconds()
 	}
-	facts.System = resumeSettingFromCtx(ctx, ctxKeySystem)
-	facts.Model = resumeSettingFromCtx(ctx, ctxKeyModel)
-	if _, ok := toolsFromCtx(ctx); ok {
+	facts.System = resumeSetting(runctx.SystemSetting(ctx))
+	facts.Model = resumeSetting(runctx.ModelSetting(ctx))
+	if _, ok := runctx.ToolsFromCtx(ctx); ok {
 		facts.ToolsOverridden = true
 	}
 	return resume.Build(facts)
 }
 
-// resumeSettingFromCtx reads one resolved run setting (the system prompt or the
+// resumeSetting reads one resolved run setting (the system prompt or the
 // model) and reports where it came from: the agent profile that supplied it
 // (reconstructible on boot) or an explicit per-run override (not).
-func resumeSettingFromCtx(ctx context.Context, key ctxKey) resume.Setting {
-	s := runStringSettingFromCtx(ctx, key)
-	return resume.Setting{Set: s.value != "", SourceProfile: s.profileSlug}
+func resumeSetting(s runctx.RunStringSetting) resume.Setting {
+	return resume.Setting{Set: s.Value != "", SourceProfile: s.ProfileSlug}
 }
 
 // resumeCheckpointFn returns the closure the agent loop calls at each safe

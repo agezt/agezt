@@ -15,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/platform/policy/admission"
 	"github.com/agezt/agezt/kernel/platform/policy/guards"
 )
@@ -54,7 +55,7 @@ func (k *Kernel) policyHook(ctx context.Context, tc llm.ToolCall) agent.PolicyVe
 	def, _ := agent.PolicyToolDefFromContext(ctx)
 	cap := k.capabilityFor(tc, def)
 	var out edict.Outcome
-	if ceiling, ok := trustCeilingFromCtx(ctx); ok {
+	if ceiling, ok := runctx.TrustCeilingFromCtx(ctx); ok {
 		out = k.edict.DecideWithCeiling(cap, string(tc.Input), ceiling) // SPEC-16 §4 initiative ceiling
 	} else {
 		out = k.edict.Decide(cap, string(tc.Input))
@@ -81,7 +82,7 @@ func (k *Kernel) policyHook(ctx context.Context, tc llm.ToolCall) agent.PolicyVe
 	verdict.InputShape = ep.InputShape
 	verdict.TemporalSensitive = ep.Temporal
 	verdict.NovelTool = ep.NovelTool
-	if reason, denied := agentToolPolicyDenial(agentToolPolicyFromCtx(ctx), tc.Name); denied {
+	if reason, denied := agentToolPolicyDenial(runctx.AgentToolPolicyFromCtx(ctx), tc.Name); denied {
 		verdict.Allow = false
 		verdict.Reason = reason
 		verdict.WouldAsk = false
@@ -134,11 +135,11 @@ func (k *Kernel) policyHook(ctx context.Context, tc llm.ToolCall) agent.PolicyVe
 		ConfirmationPrompt:   confirmationPrompt,
 		DirectiveLike:        hasTaint && taint.DirectiveLike,
 		TaintSources:         taint.Sources,
-		TrustedObservations:  trustedObservations(ctx),
+		TrustedObservations:  runctx.TrustedObservations(ctx),
 		EpistemicEscalation:  k.cfg.EpistemicEscalation,
 		IntentRegretGating:   k.cfg.IntentRegretGating,
 		PromptInjection:      k.cfg.PromptInjectionGuard,
-		AutoApprove:          autoApproveCap(ctx, string(out.Capability)),
+		AutoApprove:          runctx.AutoApproveCap(ctx, string(out.Capability)),
 	})
 	requiresApproval := outcome.RequiresApproval
 	approvalReason := outcome.Reason
@@ -147,10 +148,10 @@ func (k *Kernel) policyHook(ctx context.Context, tc llm.ToolCall) agent.PolicyVe
 		verdict.WouldAsk = true
 	}
 	if outcome.Guard == guards.GuardIntentRegret {
-		k.publishIntentConfirmationRequired(correlationFromCtx(ctx), actorFromCtx(ctx), intentFrame, regretAxes, confirmationPrompt)
+		k.publishIntentConfirmationRequired(runctx.CorrelationFromCtx(ctx), runctx.ActorFromCtx(ctx), intentFrame, regretAxes, confirmationPrompt)
 	}
 	if outcome.Warn {
-		k.publishPromptInjectionWarned(correlationFromCtx(ctx), actorFromCtx(ctx), tc.Name, string(out.Capability), taint.Sources, trustedObservations(ctx))
+		k.publishPromptInjectionWarned(runctx.CorrelationFromCtx(ctx), runctx.ActorFromCtx(ctx), tc.Name, string(out.Capability), taint.Sources, runctx.TrustedObservations(ctx))
 	}
 
 	// Session-scoped operator grant (chat "auto-approve Tool Forge this session"):
@@ -168,7 +169,7 @@ func (k *Kernel) policyHook(ctx context.Context, tc llm.ToolCall) agent.PolicyVe
 	if outcome.AutoApproved {
 		verdict.Allow = true
 		verdict.WouldAsk = true
-		k.publishAutoApprove(correlationFromCtx(ctx), actorFromCtx(ctx), string(out.Capability), tc.Name)
+		k.publishAutoApprove(runctx.CorrelationFromCtx(ctx), runctx.ActorFromCtx(ctx), string(out.Capability), tc.Name)
 		return verdict
 	}
 
@@ -178,8 +179,8 @@ func (k *Kernel) policyHook(ctx context.Context, tc llm.ToolCall) agent.PolicyVe
 
 	// Live HITL: pause the tool-loop, route the request through the
 	// approval queue, block until decided.
-	actor := actorFromCtx(ctx)
-	corr := correlationFromCtx(ctx)
+	actor := runctx.ActorFromCtx(ctx)
+	corr := runctx.CorrelationFromCtx(ctx)
 	res := k.approvals.Submit(ctx, approval.SubmitSpec{
 		Capability:            string(out.Capability),
 		ToolName:              tc.Name,

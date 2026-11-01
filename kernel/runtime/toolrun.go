@@ -10,6 +10,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 )
 
@@ -51,7 +52,7 @@ func (k *Kernel) RunTool(ctx context.Context, corr, callID, toolName string, arg
 // RunToolWithLookup also admits invocation-local adapters, without modifying
 // the registered tool map or bypassing the shared policy/audit machinery.
 func (k *Kernel) RunToolWithLookup(ctx context.Context, corr, callID, toolName string, args json.RawMessage, lookup toolapi.ToolLookup) (toolapi.Result, error) {
-	actor := actorFromCtx(ctx)
+	actor := runctx.ActorFromCtx(ctx)
 	if actor == "" {
 		actor = toolapi.AgentFromContext(ctx)
 	}

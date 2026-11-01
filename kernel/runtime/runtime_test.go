@@ -16,6 +16,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -137,7 +138,7 @@ func TestRunWith_TimesOut(t *testing.T) {
 	}
 }
 
-// TestRunWith_PerRunTimeoutOverride — a per-run WithRunTimeout (M154) bounds a run
+// TestRunWith_PerRunTimeoutOverride — a per-run runctx.WithRunTimeout (M154) bounds a run
 // even when the daemon-wide MaxDuration is unset (0), cancelling with
 // DeadlineExceeded just like the config-level cap.
 func TestRunWith_PerRunTimeoutOverride(t *testing.T) {
@@ -153,7 +154,7 @@ func TestRunWith_PerRunTimeoutOverride(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 
 	start := time.Now()
-	ctx := runtime.WithRunTimeout(context.Background(), 30*time.Millisecond)
+	ctx := runctx.WithRunTimeout(context.Background(), 30*time.Millisecond)
 	_, runErr := k.RunWith(ctx, "to-corr", "hang forever")
 	if !errors.Is(runErr, context.DeadlineExceeded) {
 		t.Fatalf("got err=%v, want context.DeadlineExceeded from the per-run override", runErr)

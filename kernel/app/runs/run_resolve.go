@@ -12,7 +12,7 @@ import (
 	approster "github.com/agezt/agezt/kernel/app/roster"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/executionprofile"
-	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 // resolvedRun is a run after the request has been resolved against the kernel:
@@ -85,7 +85,7 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 		resolved.agent = &p
 		// The whole profile binds the run: tool allow/deny, trust ceiling,
 		// standing instructions, memory scope, workdir, ledger identity.
-		ctx = runtime.WithAgentProfile(ctx, p)
+		ctx = runctx.WithAgentProfile(ctx, p)
 		if modelOverride == "" {
 			modelOverride = strings.TrimSpace(p.Model)
 		}
@@ -97,7 +97,7 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 			if primary == "" {
 				primary = s.ports.DefaultModel()
 			}
-			ctx = runtime.WithModelChain(ctx, approster.AgentModelChain(primary, p.Fallbacks))
+			ctx = runctx.WithModelChain(ctx, approster.AgentModelChain(primary, p.Fallbacks))
 		}
 	}
 	resolved.ctx = ctx
@@ -122,12 +122,12 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 	resolved.intent = admission.Intent
 	resolved.images = admission.Images
 	if len(resolved.images) > 0 {
-		ctx = runtime.WithImages(ctx, resolved.images)
+		ctx = runctx.WithImages(ctx, resolved.images)
 	}
 	// Route this run to the override model; the loop reads it the same way
 	// the OpenAI API does.
 	if strings.TrimSpace(modelRaw) != "" {
-		ctx = runtime.WithModel(ctx, modelOverride)
+		ctx = runctx.WithModel(ctx, modelOverride)
 	}
 
 	// A per-run system-prompt override replaces the base system prompt for
@@ -140,10 +140,10 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 	if systemOverride == "" && resolved.agent != nil {
 		// The agent's soul, standing instructions and tasks ARE its system
 		// prompt.
-		systemOverride = strings.TrimSpace(runtime.AgentProfileSystem(*resolved.agent))
+		systemOverride = strings.TrimSpace(runctx.AgentProfileSystem(*resolved.agent))
 	}
 	if strings.TrimSpace(sysRaw) != "" {
-		ctx = runtime.WithSystem(ctx, systemOverride)
+		ctx = runctx.WithSystem(ctx, systemOverride)
 	}
 	resolved.system = systemOverride
 
@@ -158,7 +158,7 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 		if perr != nil || d <= 0 {
 			return nil, fmt.Errorf("invalid timeout %q (want a positive Go duration like 30s, 2m)", timeoutRaw)
 		}
-		ctx = runtime.WithRunTimeout(ctx, d)
+		ctx = runctx.WithRunTimeout(ctx, d)
 	}
 	resolved.timeout = timeoutRaw
 
@@ -170,7 +170,7 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 		return nil, err
 	}
 	if toolsSet {
-		ctx = runtime.WithTools(ctx, toolsAllow)
+		ctx = runctx.WithTools(ctx, toolsAllow)
 	}
 	resolved.tools, resolved.toolsSet = toolsAllow, toolsSet
 
@@ -184,7 +184,7 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 		maxCost = resolved.agent.MaxCostMc
 	}
 	if maxCost > 0 {
-		ctx = runtime.WithMaxCost(ctx, maxCost)
+		ctx = runctx.WithMaxCost(ctx, maxCost)
 	}
 	resolved.maxCost = maxCost
 
@@ -222,12 +222,12 @@ func (s *RunService) resolve(ctx context.Context, in RunRequest) (*resolvedRun, 
 	// A session-scoped auto-approve grant lets the loop approve the named
 	// capabilities without prompting. It never overrides a hard-deny.
 	if caps := parseCapList(in.ApproveCaps); len(caps) > 0 {
-		ctx = runtime.WithAutoApproveCapabilities(ctx, caps)
+		ctx = runctx.WithAutoApproveCapabilities(ctx, caps)
 	}
 	// A session-scoped "trust this run's content" grant downgrades the
 	// prompt-injection guard from blocking to warn FOR THIS RUN.
 	if argTruthy(in.Trust) {
-		ctx = runtime.WithTrustedObservations(ctx)
+		ctx = runctx.WithTrustedObservations(ctx)
 	}
 	resolved.ctx = ctx
 

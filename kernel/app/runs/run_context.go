@@ -7,7 +7,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 // A run's CONTEXT carries what the run is: the agent's profile (which binds
@@ -33,10 +33,10 @@ import (
 // the run, the wake says why it exists, and the ceiling is layered on top so
 // an explicit budget wins over the profile's own.
 func Decorate(ctx context.Context, p agentapi.Profile, wake agentapi.WakeContext, maxCostMc int64) context.Context {
-	ctx = runtime.WithAgentProfile(ctx, p)
+	ctx = runctx.WithAgentProfile(ctx, p)
 	ctx = agentapi.WithWakeContext(ctx, wake)
 	if maxCostMc > 0 {
-		ctx = runtime.WithMaxCost(ctx, maxCostMc)
+		ctx = runctx.WithMaxCost(ctx, maxCostMc)
 	}
 	return ctx
 }
@@ -51,8 +51,8 @@ func DecorateModels(ctx context.Context, chain []string) context.Context {
 	if len(chain) == 0 {
 		return ctx
 	}
-	ctx = runtime.WithModel(ctx, chain[0])
-	return runtime.WithModelChain(ctx, chain)
+	ctx = runctx.WithModel(ctx, chain[0])
+	return runctx.WithModelChain(ctx, chain)
 }
 
 // DecorateTools restricts the run to the named tools. A non-nil slice —

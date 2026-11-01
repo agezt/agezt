@@ -19,6 +19,7 @@ import (
 	"github.com/agezt/agezt/kernel/cadence/systemtasks"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -78,7 +79,7 @@ func buildCadence(ctx context.Context, k *kernelruntime.Kernel, store *cadence.S
 			prof = &p
 		}
 		mctx := scheduledRunContext(runCtx, model, prof)
-		mctx = kernelruntime.WithWakeContext(mctx, kernelruntime.WakeContext{
+		mctx = runctx.WithWakeContext(mctx, runctx.WakeContext{
 			Source:     "schedule",
 			Reason:     ent.Target,
 			ScheduleID: id,

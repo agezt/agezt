@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -54,7 +55,7 @@ func TestCouncilGroundingApproval(t *testing.T) {
 			reg := k.Approvals()
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
-			ctx = runtime.WithAgentProfile(ctx, roster.Profile{Slug: "ops"})
+			ctx = runctx.WithAgentProfile(ctx, roster.Profile{Slug: "ops"})
 			type outcome struct {
 				result runtime.CouncilResult
 				err    error
@@ -207,10 +208,10 @@ func TestCouncilGroundingAudit(t *testing.T) {
 				k.Edict().SetLevel(edict.CapWebSearch, edict.LevelDeny)
 			}
 			if mode == "profile-deny" {
-				ctx = runtime.WithAgentProfile(ctx, roster.Profile{Slug: "ops", ToolDeny: []string{"web_search"}})
+				ctx = runctx.WithAgentProfile(ctx, roster.Profile{Slug: "ops", ToolDeny: []string{"web_search"}})
 			}
 			if mode == "ceiling" {
-				ctx = runtime.WithTrustCeiling(ctx, edict.LevelDeny)
+				ctx = runctx.WithTrustCeiling(ctx, edict.LevelDeny)
 			}
 			const corr = "council-audit"
 			result, err := k.Council(ctx, corr, strings.Repeat("ğ", 360), []runtime.CouncilMember{{Seat: "one", Model: "mock-model"}}, 1)

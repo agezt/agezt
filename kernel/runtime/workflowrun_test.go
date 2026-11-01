@@ -14,6 +14,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -74,7 +75,7 @@ func TestRunWorkflow_LLMNodeUsesContextModelWhenUnset(t *testing.T) {
 		Edges: []workflow.Edge{{From: "start", To: "brief"}},
 	})
 
-	_, err := k.RunWorkflow(runtime.WithModel(context.Background(), "schedule-model"), k.NewCorrelation(), "scheduled-model-flow", nil)
+	_, err := k.RunWorkflow(runctx.WithModel(context.Background(), "schedule-model"), k.NewCorrelation(), "scheduled-model-flow", nil)
 	if err != nil {
 		t.Fatalf("RunWorkflow: %v", err)
 	}
@@ -97,7 +98,7 @@ func TestRunWorkflow_LLMNodeExplicitModelWinsOverContextModel(t *testing.T) {
 		Edges: []workflow.Edge{{From: "start", To: "brief"}},
 	})
 
-	_, err := k.RunWorkflow(runtime.WithModel(context.Background(), "schedule-model"), k.NewCorrelation(), "node-model-flow", nil)
+	_, err := k.RunWorkflow(runctx.WithModel(context.Background(), "schedule-model"), k.NewCorrelation(), "node-model-flow", nil)
 	if err != nil {
 		t.Fatalf("RunWorkflow: %v", err)
 	}
@@ -116,8 +117,8 @@ func TestRunWorkflow_JournalsRunnerProvenance(t *testing.T) {
 		},
 		Edges: []workflow.Edge{{From: "start", To: "shape"}},
 	})
-	ctx := runtime.WithAgentIdent(context.Background(), "ops", 0)
-	ctx = runtime.WithWakeContext(ctx, runtime.WakeContext{Source: "schedule", ScheduleID: "sch-1", ParentCorrelation: "corr-parent"})
+	ctx := runctx.WithAgentIdent(context.Background(), "ops", 0)
+	ctx = runctx.WithWakeContext(ctx, runctx.WakeContext{Source: "schedule", ScheduleID: "sch-1", ParentCorrelation: "corr-parent"})
 	corr := k.NewCorrelation()
 	if _, err := k.RunWorkflow(ctx, corr, "agent-owned-flow", nil); err != nil {
 		t.Fatalf("RunWorkflow: %v", err)
@@ -375,7 +376,7 @@ func TestRunWorkflow_AgentToolDenyGatesToolNodes(t *testing.T) {
 		Edges: []workflow.Edge{{From: "start", To: "call"}},
 	})
 
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{
 		Slug:     "guarded",
 		ToolDeny: []string{"echo"},
 	})

@@ -12,6 +12,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -46,7 +47,7 @@ func TestRunWithRetry_ProfilePolicyRetriesWholeRun(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{Slug: "healer"})
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{Slug: "healer"})
 	policy := roster.RetryPolicy{MaxAttempts: 2, Backoff: "exponential", BaseDelaySec: 0, MaxDelaySec: 5, RetryOn: []string{"error", "timeout"}}
 	ans, err := k.RunWithRetry(ctx, "corr-retry", "do the thing", policy)
 	if err != nil {
@@ -96,7 +97,7 @@ func TestRunAssured_UsesAgentProfileRetryPolicyInsideSemanticAttempts(t *testing
 	}
 	t.Cleanup(func() { k.Close() })
 
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{
 		Slug: "healer",
 		RetryPolicy: &roster.RetryPolicy{
 			MaxAttempts: 2,

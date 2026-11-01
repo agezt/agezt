@@ -13,6 +13,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
@@ -28,6 +29,19 @@ import (
 
 type toggledNotifyTool struct {
 	fail atomic.Bool
+}
+
+// extraTool is a registered tool that a profile's allowlist does NOT name.
+// It exists so the allowlist is OBSERVABLE: a run that offers a tool the
+// profile never allowed is a run that broke its own policy.
+type extraTool struct{}
+
+func (extraTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "extra", Description: "a tool the profile does not allow", InputSchema: json.RawMessage(`{"type":"object"}`)}
+}
+
+func (extraTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
+	return toolapi.Result{Output: "extra"}, nil
 }
 
 func (t *toggledNotifyTool) Definition() toolapi.ToolDef {
@@ -68,7 +82,7 @@ func TestWithAgentProfile_AppliesIdentityToRun(t *testing.T) {
 		t.Fatalf("remember: %v", err)
 	}
 
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{
 		Slug: "researcher", Soul: "You are Researcher.",
 		Model: "agent-model", Fallbacks: []string{"agent-model", "backup-1"},
 		MaxDailyMc: 5_000_000_000,
@@ -116,7 +130,7 @@ func TestWithAgentProfile_WorkdirConfinesFileTool(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{Slug: "researcher", Workdir: "research"})
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{Slug: "researcher", Workdir: "research"})
 	if got := toolapi.WorkdirFromContext(ctx); got != "research" {
 		t.Fatalf("context workdir = %q, want research", got)
 	}
@@ -130,7 +144,7 @@ func TestWithAgentProfile_WorkdirConfinesFileTool(t *testing.T) {
 }
 
 func TestWithAgentProfile_WorkdirRejectsEscape(t *testing.T) {
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{Slug: "escape", Workdir: "../outside"})
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{Slug: "escape", Workdir: "../outside"})
 	if got := toolapi.WorkdirFromContext(ctx); got != "" {
 		t.Fatalf("unsafe workdir propagated into tool context: %q", got)
 	}
@@ -177,7 +191,7 @@ func TestWithAgentProfile_SystemAgentSkipsAutomaticLearningLayers(t *testing.T) 
 	}
 	promoteToActive(t, k.Forge(), sk.ID)
 
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{
 		Slug: "guardian-health", Soul: "You are Guardian Health.", System: true,
 		MemoryScope: "system/guardian-health",
 	})
@@ -219,7 +233,7 @@ func TestWithAgentProfile_IncludesInstructionsAndTasks(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{
 		Slug:         "ops",
 		Soul:         "You are Ops.",
 		Instructions: []string{"Stay quiet on green checks."},
@@ -259,7 +273,7 @@ func TestWithAgentProfile_RetireOnCompleteMovesAgentToGraveyard(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
-	if _, err := k.RunWith(runtime.WithAgentProfile(context.Background(), p), k.NewCorrelation(), "finish once"); err != nil {
+	if _, err := k.RunWith(runctx.WithAgentProfile(context.Background(), p), k.NewCorrelation(), "finish once"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	got, ok := k.Roster().Get("one-shot")
@@ -293,7 +307,7 @@ func TestWithAgentProfile_CycleLifecycleIncrementsAndRetiresAtMax(t *testing.T) 
 	if err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
-	ctx := runtime.WithAgentProfile(context.Background(), p)
+	ctx := runctx.WithAgentProfile(context.Background(), p)
 	if _, err := k.RunWith(ctx, k.NewCorrelation(), "cycle once"); err != nil {
 		t.Fatalf("RunWith first cycle: %v", err)
 	}
@@ -371,7 +385,7 @@ func TestCompleteAgentLifecycle_IdempotentPerCorrelation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
-	ctx := runtime.WithAgentProfile(context.Background(), p)
+	ctx := runctx.WithAgentProfile(context.Background(), p)
 
 	corr1 := k.NewCorrelation()
 	k.CompleteAgentLifecycle(ctx, corr1)
@@ -436,7 +450,7 @@ func TestWithAgentProfile_LifecycleDoesNotCompleteOnFailedRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddProfile one-shot: %v", err)
 	}
-	if _, err := k.RunWith(runtime.WithAgentProfile(context.Background(), oneShot), k.NewCorrelation(), "finish once"); err == nil {
+	if _, err := k.RunWith(runctx.WithAgentProfile(context.Background(), oneShot), k.NewCorrelation(), "finish once"); err == nil {
 		t.Fatal("RunWith one-shot should fail with exhausted mock provider")
 	}
 	got, ok := k.Roster().Get("one-shot-failed")
@@ -454,7 +468,7 @@ func TestWithAgentProfile_LifecycleDoesNotCompleteOnFailedRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddProfile cycler: %v", err)
 	}
-	if _, err := k.RunWith(runtime.WithAgentProfile(context.Background(), cycler), k.NewCorrelation(), "cycle once"); err == nil {
+	if _, err := k.RunWith(runctx.WithAgentProfile(context.Background(), cycler), k.NewCorrelation(), "cycle once"); err == nil {
 		t.Fatal("RunWith cycler should fail with exhausted mock provider")
 	}
 	got, ok = k.Roster().Get("cycler-failed")
@@ -476,7 +490,7 @@ func TestWithAgentProfile_ToolPermissionsApply(t *testing.T) {
 	k, err := runtime.Open(withMemory(t, withRoster(t, runtime.Config{
 		BaseDir:    t.TempDir(),
 		Provider:   prov,
-		Tools:      map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
+		Tools:      map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil)), "extra": extraTool{}},
 		MemoryTool: true,
 	})))
 	if err != nil {
@@ -484,7 +498,7 @@ func TestWithAgentProfile_ToolPermissionsApply(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{
 		Slug:      "guarded",
 		ToolAllow: []string{"shell", "memory"},
 		ToolDeny:  []string{"shell"},
@@ -515,7 +529,7 @@ func TestWithAgentProfile_NoisePolicyDisablesMemoryTool(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{
 		Slug: "quiet",
 		NoisePolicy: &roster.NoisePolicy{
 			DisableMemoryWrites: true,
@@ -543,7 +557,7 @@ func TestWithAgentProfile_NoisePolicyBlocksDirectMemoryWrites(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{
 		Slug: "quiet",
 		NoisePolicy: &roster.NoisePolicy{
 			DisableMemoryWrites: true,
@@ -572,7 +586,7 @@ func TestWithAgentProfile_ToolPermissionsGateDirectToolRuns(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{
 		Slug:      "guarded",
 		ToolAllow: []string{"alpha"},
 		ToolDeny:  []string{"alpha"},
@@ -599,7 +613,7 @@ func TestWithAgentProfile_NoisePolicyGatesNotifySeverityAndCooldown(t *testing.T
 	}
 	t.Cleanup(func() { k.Close() })
 
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{
 		Slug: "guardian-health",
 		NoisePolicy: &roster.NoisePolicy{
 			MinNotifySeverity:    "warning",
@@ -633,7 +647,7 @@ func TestWithAgentProfile_NoisePolicyDoesNotCooldownFailedNotify(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{
 		Slug: "guardian-health",
 		NoisePolicy: &roster.NoisePolicy{
 			MinNotifySeverity:    "warning",
@@ -666,7 +680,7 @@ func TestWithAgentProfile_SilentOnSuccessBlocksRoutineNotify(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{
 		Slug: "quiet-worker",
 		NoisePolicy: &roster.NoisePolicy{
 			SilentOnSuccess: true,
@@ -694,7 +708,7 @@ func TestWithAgentProfile_ConfigOverrideChangesModel(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{
 		Slug: "config-agent",
 		ConfigOverrides: map[string]string{
 			"AGEZT_MODEL": "override-model",
@@ -719,7 +733,7 @@ func TestWithAgentProfile_ConfigOverrideCanDisableHeuristicBypass(t *testing.T) 
 	}
 	t.Cleanup(func() { k.Close() })
 
-	ctx := runtime.WithAgentProfile(context.Background(), roster.Profile{
+	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{
 		Slug: "config-agent",
 		ConfigOverrides: map[string]string{
 			"AGEZT_DISABLE_HEURISTIC_BYPASS": "on",

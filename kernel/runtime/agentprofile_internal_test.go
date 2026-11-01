@@ -3,65 +3,18 @@
 package runtime
 
 import (
-	"context"
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
-func TestWithAgentProfile_TrustCeilingAppliesToContext(t *testing.T) {
-	ctx := WithAgentProfile(context.Background(), roster.Profile{
-		Slug:         "guarded",
-		TrustCeiling: "L2",
-	})
-	lvl, ok := trustCeilingFromCtx(ctx)
-	if !ok || lvl != edict.LevelAskFirst {
-		t.Fatalf("trust ceiling from profile = %v/%v, want L2", lvl, ok)
-	}
-}
+// The profile BINDING moved to the runs module in W3.76c (runctx.WithAgentProfile
+// and the context rows it stamps). The daemon keeps only what is the daemon's:
+// the CONFIG OVERRIDE PARSERS that turn the bound map into a run's config, and
+// the issue reporting they do.
 
-func TestWithAgentProfile_ConfigOverridesApplyToContext(t *testing.T) {
-	ctx := WithAgentProfile(context.Background(), roster.Profile{
-		Slug: "guarded",
-		ConfigOverrides: map[string]string{
-			"AGEZT_X_MODE": "agent",
-		},
-	})
-	got := AgentConfigOverrides(ctx)
-	if got["AGEZT_X_MODE"] != "agent" {
-		t.Fatalf("config overrides from profile = %+v", got)
-	}
-	got["AGEZT_X_MODE"] = "mutated"
-	if AgentConfigOverrides(ctx)["AGEZT_X_MODE"] != "agent" {
-		t.Fatal("AgentConfigOverrides should return a defensive copy")
-	}
-}
-
-func TestWithAgentProfile_RetryPolicyAppliesToContext(t *testing.T) {
-	ctx := WithAgentProfile(context.Background(), roster.Profile{
-		Slug: "guarded",
-		RetryPolicy: &roster.RetryPolicy{
-			MaxAttempts: 3,
-			Backoff:     "exponential",
-			RetryOn:     []string{"error", "timeout"},
-		},
-	})
-	got, ok := agentRetryPolicyFromCtx(ctx)
-	if !ok || got.MaxAttempts != 3 || got.Backoff != "exponential" || len(got.RetryOn) != 2 {
-		t.Fatalf("retry policy from profile = %+v/%v", got, ok)
-	}
-	got.RetryOn[0] = "mutated"
-	again, _ := agentRetryPolicyFromCtx(ctx)
-	if again.RetryOn[0] != "error" {
-		t.Fatal("agentRetryPolicyFromCtx should return a defensive copy")
-	}
-}
-
-// Each value KIND in the override table parses and lands on its Config field.
-// Asserted through applyAgentOverrides — the same function a live run resolves
-// its config with — so a parser that works here cannot be one a run ignores.
 func TestAgentConfigOverrideParsers(t *testing.T) {
 	overrides := map[string]string{
 		"AGEZT_MODEL":                    "agent-model",
@@ -72,9 +25,9 @@ func TestAgentConfigOverrideParsers(t *testing.T) {
 	}
 	// A profile carries the overrides via context in production; check the
 	// context plumbing hands back exactly what was set.
-	ctx := WithAgentProfile(context.Background(), roster.Profile{Slug: "guarded", ConfigOverrides: overrides})
+	ctx := runctx.WithAgentProfile(t.Context(), roster.Profile{Slug: "guarded", ConfigOverrides: overrides})
 	var cfg Config
-	if issues := applyAgentOverrides(&cfg, AgentConfigOverrides(ctx)); len(issues) != 0 {
+	if issues := applyAgentOverrides(&cfg, runctx.AgentConfigOverrides(ctx)); len(issues) != 0 {
 		t.Fatalf("well-formed values reported as issues: %+v", issues)
 	}
 	if cfg.Model != "agent-model" {

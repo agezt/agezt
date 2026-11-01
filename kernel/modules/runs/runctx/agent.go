@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
-
-// Provenance: Run context agent: WithAgentProfile + effectiveAgentNoisePolicy +
-//             agentNoisePolicyFromCtx + appendUniqueString + WithAgentIdent +
-//             agentIdentFromCtx + agentSlugFromCtx + agentDailyMcFromCtx. Code
-//             extracted from runctx.go during the Day-69 god-file split. Public API
-//             unchanged.
+package runctx
 
 import (
 	"context"
@@ -27,12 +21,12 @@ import (
 // it so their own explicit budget wins; callers likewise layer explicit
 // per-run model/system overrides on top.
 func WithAgentProfile(ctx context.Context, p agentapi.Profile) context.Context {
-	noise := effectiveAgentNoisePolicy(p)
+	noise := EffectiveAgentNoisePolicy(p)
 	if p.System {
 		ctx = context.WithValue(ctx, ctxKeySystemAgent, true)
 	}
 	if sys := AgentProfileSystem(p); sys != "" {
-		ctx = context.WithValue(ctx, ctxKeySystem, runStringSetting{value: sys, profileSlug: p.Slug})
+		ctx = context.WithValue(ctx, ctxKeySystem, RunStringSetting{Value: sys, ProfileSlug: p.Slug})
 	}
 	if p.Lifecycle.Mode != "" || p.Lifecycle.RetireOnComplete {
 		ctx = context.WithValue(ctx, ctxKeyAgentLifecycle, p.Lifecycle)
@@ -43,16 +37,16 @@ func WithAgentProfile(ctx context.Context, p agentapi.Profile) context.Context {
 		ctx = context.WithValue(ctx, ctxKeyAgentRetryPolicy, cp)
 	}
 	if len(p.ToolAllow) > 0 || len(p.ToolDeny) > 0 {
-		ctx = context.WithValue(ctx, ctxKeyAgentToolPolicy, agentToolPolicy{
-			allow: append([]string(nil), p.ToolAllow...),
-			deny:  append([]string(nil), p.ToolDeny...),
+		ctx = context.WithValue(ctx, ctxKeyAgentToolPolicy, AgentToolPolicy{
+			Allow: append([]string(nil), p.ToolAllow...),
+			Deny:  append([]string(nil), p.ToolDeny...),
 		})
 	}
-	if noise != (agentNoisePolicy{}) {
+	if noise != (AgentNoisePolicy{}) {
 		ctx = context.WithValue(ctx, ctxKeyAgentNoisePolicy, noise)
 	}
 	if len(p.ConfigOverrides) > 0 {
-		ctx = context.WithValue(ctx, ctxKeyAgentConfigOverrides, cloneStringMap(p.ConfigOverrides))
+		ctx = context.WithValue(ctx, ctxKeyAgentConfigOverrides, CloneStringMap(p.ConfigOverrides))
 	}
 	if ceiling := strings.TrimSpace(p.TrustCeiling); ceiling != "" {
 		if lvl, err := edict.ParseTrustLevel(ceiling); err == nil {
@@ -61,7 +55,7 @@ func WithAgentProfile(ctx context.Context, p agentapi.Profile) context.Context {
 	}
 	primary := strings.TrimSpace(p.Model)
 	if primary != "" {
-		ctx = context.WithValue(ctx, ctxKeyModel, runStringSetting{value: primary, profileSlug: p.Slug})
+		ctx = context.WithValue(ctx, ctxKeyModel, RunStringSetting{Value: primary, ProfileSlug: p.Slug})
 	}
 	if len(p.Fallbacks) > 0 {
 		chain := []string{primary}
@@ -87,36 +81,42 @@ func WithAgentProfile(ctx context.Context, p agentapi.Profile) context.Context {
 	return WithAgentIdent(ctx, p.Slug, p.MaxDailyMc)
 }
 
-func effectiveAgentNoisePolicy(p agentapi.Profile) agentNoisePolicy {
-	var out agentNoisePolicy
+// EffectiveAgentNoisePolicy resolves a profile's noise policy, applying the
+// floor a system agent gets: a system agent is always silent on success, never
+// writes memory, and never notifies below a warning.
+func EffectiveAgentNoisePolicy(p agentapi.Profile) AgentNoisePolicy {
+	var out AgentNoisePolicy
 	if p.NoisePolicy != nil {
-		out.silentOnSuccess = p.NoisePolicy.SilentOnSuccess
-		out.disableMemoryWrites = p.NoisePolicy.DisableMemoryWrites
-		out.minNotifySeverity = strings.ToLower(strings.TrimSpace(p.NoisePolicy.MinNotifySeverity))
-		out.minNotifyIntervalSec = p.NoisePolicy.MinNotifyIntervalSec
+		out.SilentOnSuccess = p.NoisePolicy.SilentOnSuccess
+		out.DisableMemoryWrites = p.NoisePolicy.DisableMemoryWrites
+		out.MinNotifySeverity = strings.ToLower(strings.TrimSpace(p.NoisePolicy.MinNotifySeverity))
+		out.MinNotifyIntervalSec = p.NoisePolicy.MinNotifyIntervalSec
 	}
-	if out.silentOnSuccess && notifySeverityRank(out.minNotifySeverity) < notifySeverityRank("warning") {
-		out.minNotifySeverity = "warning"
+	if out.SilentOnSuccess && NotifySeverityRank(out.MinNotifySeverity) < NotifySeverityRank("warning") {
+		out.MinNotifySeverity = "warning"
 	}
 	if p.System {
-		out.silentOnSuccess = true
-		out.disableMemoryWrites = true
-		if notifySeverityRank(out.minNotifySeverity) < notifySeverityRank("warning") {
-			out.minNotifySeverity = "warning"
+		out.SilentOnSuccess = true
+		out.DisableMemoryWrites = true
+		if NotifySeverityRank(out.MinNotifySeverity) < NotifySeverityRank("warning") {
+			out.MinNotifySeverity = "warning"
 		}
-		if out.minNotifyIntervalSec < 8*3600 {
-			out.minNotifyIntervalSec = 8 * 3600
+		if out.MinNotifyIntervalSec < 8*3600 {
+			out.MinNotifyIntervalSec = 8 * 3600
 		}
 	}
 	return out
 }
 
-func agentNoisePolicyFromCtx(ctx context.Context) (agentNoisePolicy, bool) {
-	v, ok := ctx.Value(ctxKeyAgentNoisePolicy).(agentNoisePolicy)
+// AgentNoisePolicyFromCtx returns the run's noise policy and whether one was set.
+func AgentNoisePolicyFromCtx(ctx context.Context) (AgentNoisePolicy, bool) {
+	v, ok := ctx.Value(ctxKeyAgentNoisePolicy).(AgentNoisePolicy)
 	return v, ok
 }
 
-func appendUniqueString(in []string, value string) []string {
+// AppendUniqueString appends a trimmed, non-empty value unless the slice
+// already carries it (case-insensitively).
+func AppendUniqueString(in []string, value string) []string {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return in
@@ -143,13 +143,16 @@ func WithAgentIdent(ctx context.Context, slug string, dailyMc int64) context.Con
 	return context.WithValue(ctx, ctxKeyAgentIdent, agentIdent{slug: slug, dailyMc: dailyMc})
 }
 
-func agentIdentFromCtx(ctx context.Context) (string, int64) {
+// AgentIdentFromCtx returns the run's named agent and its daily ceiling.
+func AgentIdentFromCtx(ctx context.Context) (string, int64) {
 	if v, ok := ctx.Value(ctxKeyAgentIdent).(agentIdent); ok {
 		return v.slug, v.dailyMc
 	}
 	return "", 0
 }
 
-func agentSlugFromCtx(ctx context.Context) string { s, _ := agentIdentFromCtx(ctx); return s }
+// AgentSlugFromCtx returns the run's named agent, or "" when the run has none.
+func AgentSlugFromCtx(ctx context.Context) string { s, _ := AgentIdentFromCtx(ctx); return s }
 
-func agentDailyMcFromCtx(ctx context.Context) int64 { _, d := agentIdentFromCtx(ctx); return d }
+// AgentDailyMcFromCtx returns the run's named agent's daily ceiling.
+func AgentDailyMcFromCtx(ctx context.Context) int64 { _, d := AgentIdentFromCtx(ctx); return d }

@@ -10,9 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 // The durable run tickets moved to the runs module in W3.76a. These tests pin
@@ -65,7 +67,7 @@ func TestTheScopeRuleIsTheModulesRule(t *testing.T) {
 	if !k.resumeActive(root) {
 		t.Fatal("a root run must carry a ticket")
 	}
-	delegated := WithWakeContext(root, WakeContext{ParentCorrelation: "corr-parent"})
+	delegated := runctx.WithWakeContext(root, runctx.WakeContext{ParentCorrelation: "corr-parent"})
 	if k.resumeActive(delegated) {
 		t.Fatal("a delegated run must not carry its own ticket")
 	}
@@ -93,9 +95,9 @@ func TestTheScopeRuleNeedsTheFeatureAndTheStore(t *testing.T) {
 // silently regain authority or guess a cap.
 func TestTheTicketCapturesTheGovernanceCeilings(t *testing.T) {
 	profile := roster.Profile{Slug: "ops", Soul: "ops soul", Model: "ops-model", TrustCeiling: "L2"}
-	ctx := WithAgentProfile(context.Background(), profile)
-	ctx = WithMaxCost(ctx, 321)
-	ctx = WithRunTimeout(ctx, 2*time.Second)
+	ctx := runctx.WithAgentProfile(context.Background(), profile)
+	ctx = runctx.WithMaxCost(ctx, 321)
+	ctx = runctx.WithRunTimeout(ctx, 2*time.Second)
 
 	ticket := (&Kernel{}).buildResumeTicket(ctx, "corr-1", "task", resume.KindRun, 0)
 	if ticket.TrustCeiling == nil || *ticket.TrustCeiling != int(edict.LevelAskFirst) {
@@ -109,6 +111,47 @@ func TestTheTicketCapturesTheGovernanceCeilings(t *testing.T) {
 	}
 	if ticket.AgentSlug != "ops" {
 		t.Fatalf("agent slug lost: %q", ticket.AgentSlug)
+	}
+	// The run's resolved settings travel with the ticket AND keep their SOURCE:
+	// a profile-sourced system prompt is reconstructible on the next boot, an
+	// explicit per-run override is not. A ticket that lost the source would
+	// resume a run under different constraints — or refuse to resume one that
+	// it could.
+	if !ticket.Resumable {
+		t.Fatalf("a profile-sourced run must stay resumable: %+v", ticket)
+	}
+	overridden := runctx.WithSystem(runctx.WithAgentProfile(context.Background(), profile), "explicit system")
+	overrideTicket := (&Kernel{}).buildResumeTicket(overridden, "corr-2", "task", resume.KindRun, 0)
+	if overrideTicket.Resumable {
+		t.Fatalf("a per-run override must not be resumable: %+v", overrideTicket)
+	}
+}
+
+// TestTheResumeHandshakeIsTheDaemons pins the daemon's OWN half of the resume
+// protocol: the owned marker and the seed are the daemon's boot handshake, not
+// the run's vocabulary, and the daemon reads them back.
+func TestTheResumeHandshakeIsTheDaemons(t *testing.T) {
+	owned := WithResumeOwned(context.Background(), resume.KindRun)
+	kind, ok := resumeOwnedKind(owned)
+	if !ok || kind != resume.KindRun {
+		t.Fatalf("owned kind = %q/%v, want %q", kind, ok, resume.KindRun)
+	}
+	if _, ok := resumeOwnedKind(context.Background()); ok {
+		t.Fatal("a bare context owns no ticket")
+	}
+
+	seeded := WithResumeSeed(context.Background(), []llm.Message{{Role: llm.RoleUser, Content: "hi"}}, 3)
+	msgs, iter, ok := resumeSeedFromCtx(seeded)
+	if !ok || iter != 3 || len(msgs) != 1 || msgs[0].Content != "hi" {
+		t.Fatalf("seed = %+v/%v/%v, want the seeded conversation", msgs, iter, ok)
+	}
+	if _, _, ok := resumeSeedFromCtx(context.Background()); ok {
+		t.Fatal("a bare context carries no seed")
+	}
+	// An EMPTY conversation is not a seed: the run starts fresh rather than
+	// resuming with nothing to say.
+	if _, _, ok := resumeSeedFromCtx(WithResumeSeed(context.Background(), nil, 3)); ok {
+		t.Fatal("an empty seed must not resume")
 	}
 }
 

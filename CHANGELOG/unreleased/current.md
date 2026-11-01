@@ -6043,3 +6043,38 @@ This file holds the active `[Unreleased]` working set.
   operator UI are untouched — so the kernel's verb count stays 242 and the
   contract grows by no rows. `kernel/runtime` is 8,391 lines, down from 8,695,
   and `kernel/modules` is 26,346, up from 25,835.
+
+- **The run context moves into the runs module (W3.76c).** The eleventh slice of
+  the runtime's dissolution and the third slice of the run engine programme.
+  W3.76a took the durable tickets, W3.76b the steering; this one takes the run
+  context — the vocabulary a run carries. The family was split across six
+  daemon files: `kernel/runtime/runctx.go` (66 non-blank lines: the `ctxKey`
+  enum, the run's own rows, the `WakeContext` alias), `runctx_agent.go` (143:
+  the profile binding), `runctx_basic.go` (160: the dispatch knobs),
+  `runctx_security.go` (99: the grants), `runctx_wake.go` (94: the wake half)
+  and `prompt.go` (88: the profile's system prompt). The measurement said it
+  was the cheapest of the four run-engine families — 562 lines, 5 files, zero
+  `*Kernel` coupling, zero stored state — and a family with no store, no rule
+  and no handle is a vocabulary: it belongs to the module whose thing it
+  describes. So the whole vocabulary moved to `kernel/modules/runs/runctx`
+  (seven files, 692 lines): the keys, the setters, the getters and the run's
+  own types, with one spelling. Three parts did not move, and why: the wake
+  provenance and the tool allowlist are contract rows (`agentapi`, `toolapi`),
+  and the module's setters are thin delegates over them; the prompt-injection
+  mode is the platform's rule (W3.74), so the daemon keeps the name
+  (`kernel/runtime/promptinjection.go`); the resume handshake (`WithResumeOwned`,
+  `WithResumeSeed`) is the daemon's boot protocol and stays in
+  `kernel/runtime/resume.go` with its own key type. The daemon keeps the doors
+  — the Kernel accessors, plus two new ones (`k.WithAgentProfile`,
+  `k.WithMaxCost`), so a host that holds a kernel handle
+  (`kernel/modules/agents/selfrepair`) binds a run without reaching into
+  another module — and there is no facade: the hosts name the module directly.
+  The move creates no new import edge and it closes one. 39 new permanent tests
+  in the module and 8 new in the daemon, on top of the 7 that moved with the
+  code they test. 54 mutations, 54 caught in two independent passes with
+  byte-identical logs (SHA-256 `58E51D9E1997145F81A30FA5AD167EA9B8A385058C649167ADF7651885E4CA78`); the calibration recorded seven
+  compile errors and every one was the mutation's fault, and five mutations
+  survived the first pass — each of them a gap in the tests rather than a dead
+  rule, and each now has a test that asks the rule the question it could not
+  answer before. `kernel/runtime` is 7,809 lines, down from 8,391, and
+  `kernel/modules` is 27,038, up from 26,337.

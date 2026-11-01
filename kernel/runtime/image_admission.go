@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 // ImageAdmission is the image slice of run admission. Caption is retained for
@@ -31,7 +32,7 @@ func (k *Kernel) AdmitImages(ctx context.Context, corr, model, intent string, im
 		admission.Intent = "Describe the attached image(s)."
 	}
 	if model == "" {
-		model = modelFromCtx(ctx)
+		model = runctx.ModelFromCtx(ctx)
 	}
 	if model == "" {
 		model = k.Model()

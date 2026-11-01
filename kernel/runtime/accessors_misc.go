@@ -19,6 +19,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/governor"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -45,17 +46,17 @@ func (k *Kernel) StandingList() []standingapi.Order {
 }
 
 // AgentSlugFromCtx returns the named agent's slug attached to a
-// run context by WithAgentProfile (or "" when unset). Wraps the
-// package-level agentSlugFromCtx so the run engine can reach it
+// run context by runctx.WithAgentProfile (or "" when unset). Wraps the
+// package-level runctx.AgentSlugFromCtx so the run engine can reach it
 // through the runexec.KernelAPI interface (Day 23).
-func (k *Kernel) AgentSlugFromCtx(ctx context.Context) string { return agentSlugFromCtx(ctx) }
+func (k *Kernel) AgentSlugFromCtx(ctx context.Context) string { return runctx.AgentSlugFromCtx(ctx) }
 
 // AgentRetryPolicyFromCtx returns the named agent's retry policy
-// attached to a run context by WithAgentProfile (or zero + false
-// when unset). Wraps the package-level agentRetryPolicyFromCtx
+// attached to a run context by runctx.WithAgentProfile (or zero + false
+// when unset). Wraps the package-level runctx.AgentRetryPolicyFromCtx
 // for the same reason as AgentSlugFromCtx (Day 23).
 func (k *Kernel) AgentRetryPolicyFromCtx(ctx context.Context) (agentapi.RetryPolicy, bool) {
-	return agentRetryPolicyFromCtx(ctx)
+	return runctx.AgentRetryPolicyFromCtx(ctx)
 }
 
 // BaseDir returns the kernel's base directory — the root under

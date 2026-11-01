@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/modules/agents/api"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 // agentConfigIssue describes one malformed runtime override on an agent
@@ -133,18 +134,18 @@ func (k *Kernel) effectiveConfig(ctx context.Context) Config {
 	// Malformed values are ignored here; the agent doctor is what tells the
 	// operator about them (agentRuntimeConfigIssues), and a run should not be
 	// derailed by a typo in one knob.
-	applyAgentOverrides(&cfg, AgentConfigOverrides(ctx))
+	applyAgentOverrides(&cfg, runctx.AgentConfigOverrides(ctx))
 	return cfg
 }
 
 // resolveRunModel picks the model a run should ask for, given its effective
-// config. A per-run WithModel override wins and is reported as EXPLICIT — the
+// config. A per-run runctx.WithModel override wins and is reported as EXPLICIT — the
 // caller then carries it as the per-request model chain so the governor's
 // per-task chain can't silently reroute an operator's deliberate pick (M931).
 // Otherwise the effective config already holds the live daemon default with any
 // AGEZT_MODEL profile override applied, so there is nothing left to layer.
 func resolveRunModel(ctx context.Context, cfg Config) (model string, explicit bool) {
-	if m := modelFromCtx(ctx); m != "" {
+	if m := runctx.ModelFromCtx(ctx); m != "" {
 		return m, true
 	}
 	return cfg.Model, false

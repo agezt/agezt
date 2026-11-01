@@ -15,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -218,7 +219,7 @@ func TestRunWith_DraftAndQuarantineNeverOffered(t *testing.T) {
 }
 
 // TestRunWith_ToolAllowlistGatesForgedTools: a per-run tool restriction
-// (WithTools) applies to forged tools exactly like registered ones — merge
+// (runctx.WithTools) applies to forged tools exactly like registered ones — merge
 // happens before the filter, so a restricted run can't smuggle them back.
 func TestRunWith_ToolAllowlistGatesForgedTools(t *testing.T) {
 	prov := mock.New(mock.FinalText("ok"), mock.FinalText("ok"))
@@ -228,7 +229,7 @@ func TestRunWith_ToolAllowlistGatesForgedTools(t *testing.T) {
 	k := openForgeKernel(t, prov, runner)
 	promoteEcho(t, k, runner)
 
-	ctx := runtime.WithTools(context.Background(), []string{"memory"}) // not forge_echo
+	ctx := runctx.WithTools(context.Background(), []string{"memory"}) // not forge_echo
 	if _, err := k.RunWith(ctx, k.NewCorrelation(), "restricted"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
@@ -236,7 +237,7 @@ func TestRunWith_ToolAllowlistGatesForgedTools(t *testing.T) {
 		t.Fatalf("allowlist did not gate the forged tool: %v", names)
 	}
 
-	ctx = runtime.WithTools(context.Background(), []string{"forge_echo"})
+	ctx = runctx.WithTools(context.Background(), []string{"forge_echo"})
 	if _, err := k.RunWith(ctx, k.NewCorrelation(), "allowed"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}

@@ -27,6 +27,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 // errNoWorkflowEngine is the answer a kernel gives when it holds no workflow
@@ -111,7 +112,7 @@ func (k *Kernel) workflowEngine() (workflowapi.Engine, error) {
 // workflowProvenance reads the host's wake context and hands the module the
 // run's provenance. The module never sees another package's context keys.
 func workflowProvenance(ctx context.Context) workflowapi.Provenance {
-	w := wakeContextFromCtx(ctx)
+	w := runctx.WakeContextFromCtx(ctx)
 	return workflowapi.Provenance{
 		Source:            w.Source,
 		Reason:            w.Reason,
@@ -229,7 +230,7 @@ func (k *Kernel) RefineWorkflow(ctx context.Context, corr string, base workflowa
 func (k *Kernel) FireWorkflow(ctx context.Context, w workflowapi.Workflow, payload any, t workflowapi.Trigger) {
 	rctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 	defer cancel()
-	rctx = WithWakeContext(rctx, WakeContext{
+	rctx = runctx.WithWakeContext(rctx, runctx.WakeContext{
 		Source:         t.Source,
 		Reason:         t.Reason,
 		TriggerSubject: t.Subject,
