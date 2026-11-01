@@ -31,6 +31,7 @@ import (
 	"github.com/agezt/agezt/kernel/journal"
 	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	"github.com/agezt/agezt/kernel/modules/runs/lifecycle"
+	"github.com/agezt/agezt/kernel/modules/runs/prompt"
 	"github.com/agezt/agezt/kernel/modules/runs/registry"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
 	"github.com/agezt/agezt/kernel/modules/runs/steer"
@@ -472,6 +473,18 @@ func Open(cfg Config) (*Kernel, error) {
 	// center, journal) and hands it over as nothing at all: the daemon owns
 	// the gateway, starts it and closes it. A kernel opened without a daemon
 	// has no gateway, and the SDK subprocess path is simply not served.
+
+	// Wire the RUNS MODULE's prompt service (W3.76e): it assembles what a run
+	// knows before it starts. The module reads the four stores through the
+	// contract rows the daemon already holds (memory, taste, world, skills)
+	// and reaches the daemon for the three things it cannot do itself (the
+	// live identity, the bus, the clock).
+	k.prompt = prompt.New(promptConfig(cfg), promptHost{k}, prompt.Deps{
+		Memory: k.memory,
+		Taste:  k.taste,
+		World:  k.world,
+		Skills: k.forge,
+	})
 
 	// Wire the run-lifecycle manager last so it sees the fully-built
 	// *Kernel. The Manager is the RUNS MODULE's (W3.76d): it owns the

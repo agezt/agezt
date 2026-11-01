@@ -11,6 +11,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/modules/runs/prompt"
 )
 
 const toolSearchName = "tool_search"
@@ -92,7 +93,7 @@ func (t toolSearchTool) Invoke(_ context.Context, raw json.RawMessage) (toolapi.
 		if len(q) > 0 && score == 0 {
 			continue
 		}
-		rows = append(rows, row{Name: def.Name, Description: firstSentence(def.Description), Score: score})
+		rows = append(rows, row{Name: def.Name, Description: prompt.FirstSentence(def.Description), Score: score})
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
 		if rows[i].Score != rows[j].Score {
