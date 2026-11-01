@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/modules/runs/loopcfg"
 )
 
 // smallContextThreshold mirrors catalog.Model.AgentWarnings: a context window
@@ -78,7 +78,10 @@ func (s *RunService) dryRun(resolved *resolvedRun) (RunOutput, error) {
 			in.ContextLimit = m.Limit.Context
 		}
 	}
-	for name := range runtime.AgentTools(resolved.ctx, s.ports.RegisteredTools()) {
+	// The tool set is shaped with the RUNS MODULE's rule (W3.76g): the same
+	// agent-profile allow/deny policy the run loop applies, so the plan
+	// cannot list a tool the run would not offer.
+	for name := range loopcfg.AgentTools(resolved.ctx, s.ports.RegisteredTools()) {
 		in.AllToolNames = append(in.AllToolNames, name)
 	}
 	return buildRunPlan(in), nil

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
+package loopcfg
 
 import (
 	"context"

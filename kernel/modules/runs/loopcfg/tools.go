@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-// Tool-set shaping for a run: the per-run allowlist filter, the roster
-// profile allow/deny policy, and the noise-policy prompt-tool pruning.
-// Split from runtime.go (Phase 3.1 A2).
-
-package runtime
+package loopcfg
 
 import (
 	"context"
@@ -13,6 +9,14 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
+
+// Tool-set shaping for a run: the per-run allowlist filter, the roster
+// profile allow/deny policy, and the noise-policy prompt-tool pruning.
+//
+// These rules moved here from the daemon in W3.76g: they ARE the loop's tool
+// surface, and the loop's tool surface is what this module owns. The
+// application layer's dry-run plan shapes its tool set with the same rule
+// (AgentTools), so the plan cannot list a tool the run would not offer.
 
 func applyAgentNoisePolicyToPromptTools(tools map[string]toolapi.Tool, ctx context.Context) map[string]toolapi.Tool {
 	policy, ok := runctx.AgentNoisePolicyFromCtx(ctx)
@@ -82,7 +86,9 @@ func applyAgentToolPolicy(tools map[string]toolapi.Tool, pol runctx.AgentToolPol
 	return next
 }
 
-func agentToolPolicyDenial(pol runctx.AgentToolPolicy, toolName string) (string, bool) {
+// AgentToolPolicyDenial explains why the agent's tool policy refuses a tool,
+// or reports that it does not. The daemon's policy hook asks it.
+func AgentToolPolicyDenial(pol runctx.AgentToolPolicy, toolName string) (string, bool) {
 	name := strings.ToLower(strings.TrimSpace(toolName))
 	if name == "" {
 		return "", false

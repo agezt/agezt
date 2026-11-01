@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
+package loopcfg
 
 import (
 	"context"
@@ -11,11 +11,12 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 )
 
-// tool_search is injected per RUN (loopconfig, when AGEZT_TOOL_DISCOVERY_MAX
-// defers the catalog), so the capability guards — which walk k.Tools() — never
-// saw it. It declared no capability and edict's name switch has no case for
-// it, so it resolved to the unknown capability "tool_search", which Edict
-// DEFAULT-DENIES: tool discovery was dead exactly when it was switched on.
+// tool_search is injected per RUN (the loop configuration, when
+// AGEZT_TOOL_DISCOVERY_MAX defers the catalog), so the capability guards —
+// which walk the daemon's tool map — never saw it. It declared no capability
+// and edict's name switch has no case for it, so it resolved to the unknown
+// capability "tool_search", which Edict DEFAULT-DENIES: tool discovery was
+// dead exactly when it was switched on.
 func TestToolSearch_DeclaresAGovernedCapability(t *testing.T) {
 	tools := withToolSearch(map[string]toolapi.Tool{"echo": echoTool{}})
 	ts, ok := tools[toolSearchName]

@@ -32,6 +32,7 @@ import (
 	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	"github.com/agezt/agezt/kernel/modules/runs/delegation"
 	"github.com/agezt/agezt/kernel/modules/runs/lifecycle"
+	"github.com/agezt/agezt/kernel/modules/runs/loopcfg"
 	"github.com/agezt/agezt/kernel/modules/runs/prompt"
 	"github.com/agezt/agezt/kernel/modules/runs/registry"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
@@ -507,6 +508,15 @@ func Open(cfg Config) (*Kernel, error) {
 	if awaitTool != nil {
 		awaitTool.Await = k.delegation.Await
 	}
+
+	// The loop configuration is the RUNS MODULE's (W3.76g): it owns the shape
+	// every governed run's loop must have — the tool surface, the tool
+	// selector, the context budget, the artifact offload, the cost function
+	// and the elided-output summarizer — and reaches the daemon only through
+	// the doors in loopcfg_doors.go. It is wired after the delegation engine,
+	// because the delegation engine asks the daemon for the child's loop
+	// configuration through the same door.
+	k.loopcfg = loopcfg.New(k.loopcfgDeps())
 
 	// Wire the run-lifecycle manager last so it sees the fully-built
 	// *Kernel. The Manager is the RUNS MODULE's (W3.76d): it owns the
