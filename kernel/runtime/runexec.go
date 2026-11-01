@@ -85,7 +85,7 @@ func (k *Kernel) ClaimResumeTicket(ctx context.Context, corr, intent, kind strin
 }
 
 // FinalizeResumeTicket is the public surface for clearing or
-// keeping a resume ticket on run exit. Honours k.suspending so
+// keeping a resume ticket on run exit. Honours the registry's suspend latch so
 // shutdown-interrupted runs keep their ticket. Wraps
 // finalizeResumeTicket in resume.go (Day 23).
 func (k *Kernel) FinalizeResumeTicket(corr string, runErr error) {

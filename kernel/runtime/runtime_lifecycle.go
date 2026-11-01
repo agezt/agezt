@@ -9,8 +9,6 @@ package runtime
 
 import (
 	"context"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/agezt/agezt/kernel/agent"
@@ -20,29 +18,13 @@ import (
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 )
 
-func (k *Kernel) Halted() bool { return k.halted }
-
-// SetHalted is the write side. Used by lifecycle.Manager under runsMu.
-func (k *Kernel) SetHalted(b bool) { k.halted = b }
-
-// Runs returns the live correlation → cancel map. The Manager reads
-// and mutates this under runsMu; the kernel's own RunWith also writes
-// it, under the same mutex.
-func (k *Kernel) Runs() map[string]context.CancelFunc { return k.runs }
-
-// RunsMu exposes the runs mutex so the Manager can honour the lock
-// order documented on the Kernel struct (configMu < runsMu < fanoutMu <
-// treeMu < steersMu < spawnsMu).
-func (k *Kernel) RunsMu() *sync.Mutex { return &k.runsMu }
-
-// RunWG exposes the in-flight WaitGroup so the Manager can wait
-// for cancelled runs to unwind (M883).
-func (k *Kernel) RunWG() *sync.WaitGroup { return &k.runWG }
-
-// Suspending returns the atomic.Bool that latches true during a
-// graceful shutdown (M1002). The Manager reads it but never writes
-// it — only kernel/resume.go's Suspend does that.
-func (k *Kernel) Suspending() *atomic.Bool { return &k.suspending }
+// The live-run registry is the RUNS MODULE's store (W3.76d:
+// kernel/modules/runs/registry): the running correlations, their cancels, the
+// halt latch, the drain accounting and the suspend latch. The daemon used
+// to expose them as six accessors (Halted, SetHalted, Runs, RunsMu, RunWG,
+// Suspending) for the lifecycle manager's benefit; the manager now holds the
+// registry itself, so those six doors are gone and the daemon speaks to the
+// module through k.registry.
 
 // PublishBusEvent is the Accessor sub-package's chokepoint for
 // Standing / Roster CRUD side-effects. Returns whatever the bus
@@ -127,7 +109,7 @@ func (k *Kernel) VerifyCompletion(ctx context.Context, corr, task, answer string
 //   - the halted check (returns ErrHalted if set)
 //   - the duplicate-corr guard (returns "correlation already running")
 //   - the tenant + auto-approve + timeout ctx decoration
-//   - the k.runs[corr] = cancel registration
+//   - the registry's Register(corr, cancel) call
 //   - the runWG.Add(1) drain accounting
 //   - the steersMu-locked k.steers[corr] = newRunControl() registration
 //

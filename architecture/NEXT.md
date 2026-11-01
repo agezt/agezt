@@ -12571,3 +12571,78 @@ func main() {
   files — the biggest, and the most entangled with the contract layer: 123
   production files import `kernel/contract/llm`). Evidence:
   `architecture/276-w376c-the-run-context-moves-into-the-runs-module-evidence.md`
+- W3.76d (the run registry moves into the runs module) is the **twelfth** slice of
+  the runtime's dissolution and the **fourth** slice of the **run engine**
+  programme (W3.76). W3.76a took the durable **tickets**, W3.76b the
+  **steering**, W3.76c the **run context**; this one takes the **run registry** —
+  the first of the three nouns the target architecture names for the runs
+  module ("run registry, resume tickets, steering/interventions"), and the last
+  one left in the daemon.
+
+  The family was split in half, and the split was the finding. The daemon held
+  the **state** — the live-run map, the halt latch, the drain waitgroup, the
+  suspend latch and the mutex that guarded the first two — behind **six public
+  verbs** (`Halted`, `SetHalted`, `Runs`, `RunsMu`, `RunWG`, `Suspending`).
+  `kernel/runtime/lifecycle` (3 files, **267** non-blank lines) held the
+  **operations** and reached that state through a **seven-verb** `KernelAPI`
+  port: a manager that owned the daemon's data but not its home. The
+  measurement said what the manager actually needed from the daemon: to read
+  and write **four** things (the live runs, the halt latch, the drain counter,
+  the suspend latch) and to perform **two** side effects it cannot perform
+  itself (`Suspend` — the daemon's restart protocol — and `PublishBus` — the
+  daemon's bus). A family whose **data** is the module's own is the module's
+  family, so the whole thing moved in one piece to `kernel/modules/runs`:
+  the **store** (`kernel/modules/runs/registry/registry.go`, **118** lines) and
+  the **operations** (`kernel/modules/runs/lifecycle/`, 3 files, **205** lines).
+
+  The store's **lock discipline is the store's own**: `Lock`/`Unlock` are part
+  of its surface, because the daemon's compound cleanups must hold the
+  registry's lock across the fan-out, tree, steer and spawn locks — that lock
+  order *starts* at the registry's, so the lock is a contract and not a hidden
+  field. The manager holds the registry **directly** (it is the module's own
+  data) and reaches the daemon only through the **two-verb** `Host` port. The
+  daemon keeps the **store handle** and its own answers to its own callers;
+  the six public verbs are gone.
+
+  What the slice moved: the daemon's verb count **244 → 238** (verified with
+  `git grep -h -E '^func \(k \*Kernel\) [A-Z]'` against the base commit and the
+  working tree — the six that disappeared are exactly the six this slice
+  moved), `kernel/runtime` **73 files / 8,968 lines → 70 / 8,686** recursive
+  (the upper level barely moves: **7,809 → 7,794**), `kernel/modules/runs`
+  **16 files / 1,763 → 20 / 2,086**, and the lifecycle package itself **267 →
+  205** lines — that difference is the slice's real cost: the seven-verb port
+  and the accessors that went with it, replaced by two host verbs and a direct
+  store handle. The contract grows by **0** rows, the application layer by **0**
+  files.
+
+  What the slice added: **8** new module tests (the registry's register /
+  unregister round trip, the ownership rule, the cancel path, the halt sweep,
+  the read side, the drain accounting, the suspend latch and the halt setter),
+  the **9** that moved with the code they test, and **5** new daemon tests — a
+  ratchet that pins the registry's home, the daemon's empty hands and the two
+  doors it keeps. **30** mutations, **30** caught, **0** survived, **0** broken,
+  in two byte-identical passes (SHA-256
+  `6BD9ACF83BBFB504F9AC3367DC7EE7281C8C9E421DCA02EBDE1F48FDE489BCCF`). The
+  calibration recorded three things worth keeping: a mutation that changes a
+  slice's **capacity** does not change its **length** (`make([]T, 0, n)` and
+  `[]T{}` fill the same way, so the "the ids are never listed" mutation passed
+  a test it should have failed); a mutation that removes the only use of an
+  import is a **build error**, not a kill (three mutations were BUILDERR that
+  way, and each was rewritten to compile and still break the behaviour); and
+  the one survivor was a **test gap in the new code** — `SetHalted` had no test
+  at all, because the latch was only ever set by `HaltAll`, which sets it
+  itself — so the gap was closed with
+  `TestRegistry_SetHaltedLatchesAndClears` and the mutation's `-run` pattern
+  was widened to cover it.
+
+  **What is left**: the runs module now holds all three nouns the target
+  architecture names for it, plus the run context and the durable resume
+  handshake. The remaining run-engine families in the daemon are the **prompt**
+  assembly (**520** lines, one public verb, but roughly **eight** ports:
+  memory, taste, world, forge, bus, config and the context selection), the
+  **delegation** surface (**939** lines, **13** verbs, which touches the bus,
+  the journal, the roster and the spend limits and therefore needs a port
+  design before it moves), the **loop config** (**99** lines) and the **loop**
+  itself (`kernel/agent`, **2,629** lines across **20** files, the most
+  contract-bound family of all). Evidence:
+  `architecture/277-w376d-the-run-registry-moves-into-the-runs-module-evidence.md`

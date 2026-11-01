@@ -251,22 +251,22 @@ func (k *Kernel) LoopRunner() scheduler.LoopRunner {
 // cancelled when Halt is called mid-plan. PlanID is the correlation
 // ID for the whole plan; if empty, the scheduler mints one.
 func (k *Kernel) RunPlan(ctx context.Context, plan scheduler.Plan, planID string) (*scheduler.PlanResult, error) {
-	k.runsMu.Lock()
-	if k.halted {
-		k.runsMu.Unlock()
+	k.registry.Lock()
+	if k.registry.Halted() {
+		k.registry.Unlock()
 		return nil, ErrHalted
 	}
 	if planID == "" {
 		planID = "plan-" + ulid.New()
 	}
 	runCtx, cancel := context.WithCancel(ctx)
-	k.runs[planID] = cancel
-	k.runsMu.Unlock()
+	k.registry.Register(planID, cancel)
+	k.registry.Unlock()
 
 	defer func() {
-		k.runsMu.Lock()
-		delete(k.runs, planID)
-		k.runsMu.Unlock()
+		k.registry.Lock()
+		k.registry.Unregister(planID)
+		k.registry.Unlock()
 		cancel()
 	}()
 
