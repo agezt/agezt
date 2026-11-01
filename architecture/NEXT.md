@@ -12723,3 +12723,87 @@ func main() {
   prompt family was the cheapest of the four *by the surface* and not by the
   ports: eight dependencies for 520 lines. Evidence:
   `architecture/278-w376e-the-prompt-assembly-moves-into-the-runs-module-evidence.md`
+
+- W3.76f (the delegation engine moves into the runs module) is the **fourteenth**
+  slice of the runtime's dissolution and the **sixth** slice of the **run engine**
+  programme (W3.76). W3.76a took the durable tickets, W3.76b the steering,
+  W3.76c the run context, W3.76d the run registry, W3.76e the prompt; this one
+  takes the **delegation engine** — the family every other slice had called the
+  most entangled one, and the one whose measurement was done before a line was
+  written.
+
+  The family was split across **two** trees: six daemon files
+  (`kernel/runtime/subagent*.go`, **794** non-blank production lines) held the
+  engine, and a package at the kernel's root (`kernel/delegation`, **100**
+  lines) held the vocabulary it spoke — a split that was itself the smell,
+  because that vocabulary was imported by exactly the family it belonged to and
+  by nothing else. The measurement said why the family was hard: it touches
+  the daemon in **fourteen** ways (the roster, the live model, the live
+  identity, the halt latch, the correlation mint, the bus, the journal, the
+  steering registry, the skill forge, the run registry, the fan-out tally, the
+  tree tally, the spawn handles, the child's loop configuration and the child
+  loop) — where the steering family touched it in four and was therefore
+  "port-shaped".
+
+  So the slice began with a port, not with a copy. The seam is **policy versus
+  mechanism**: the module owns the policy (who may delegate, under which
+  bounds, with which identity, on which model, with which retry policy) and
+  the state that policy needs (the fan-out tally, the tree-total tally, the
+  async spawn handles); the daemon keeps the mechanism (it builds the child's
+  loop configuration and runs the child's loop — the loop is the next family to
+  move, and the loop configuration the one after). The port is
+  `delegation.Host`: **fourteen** doors, and the daemon's implementation is
+  `kernel/runtime/subagent_doors.go` — named for what it is, because the
+  daemon's `delegation.go` never existed and the `runctx` ratchet from W3.76c
+  watches the names the run context left behind.
+
+  Two decisions are worth naming. The **config is a live provider, not a
+  snapshot**: the prompt module takes a snapshot because the daemon's config is
+  read and never written, but the delegation caps are operator settings — an
+  operator raising `SubAgentMaxDepth` at runtime must see the change on the
+  next delegation. And the **retry vocabulary became its own package**
+  (`kernel/modules/runs/retry`): `retryReason`, `agentRetryable` and
+  `retryDelay` lived in the daemon's unexported space and were used by both
+  the root-run retry and the delegation's child retry; rather than duplicate
+  them or ask the daemon for every decision, they moved into the module tree,
+  the daemon keeps thin wrappers so its own API is unchanged, and the halt
+  sentinel became a **parameter** — the daemon owns the identity of its halt
+  error, so `errors.Is(err, runtime.ErrHalted)` still holds.
+
+  The measurement: `kernel/runtime` **61 files / 7,269 lines → 56 / 6,573**
+  (recursive 67 / 8,161 → 62 / 7,465), `kernel/modules/runs` **26 / 2,842 →
+  37 / 4,082**, the daemon's public verbs **238 → 238**, the contract **+0
+  rows**, the application layer **+0 files**. The daemon's own fan-out, tree
+  and spawn maps — and their three mutexes — are gone with the state they
+  guarded: those maps are the engine's state, and no root run ever touched
+  them. The family's own line count went **up** (894 → 1,240 with the retry
+  vocabulary): *moving a rule moves the CONDITIONS, not the lines* — the
+  module's lines are the moved lines **plus** the port, the plan, the
+  configuration and the documentation of both.
+
+  The family was also **under-tested**: nine vocabulary tests and nothing at
+  all for its guards, its identity resolution or its async path. The module
+  now carries **47** test functions (10 moved with the code, 37 new), the retry
+  vocabulary **9**, and the daemon **7** more (388 → 395: five ratchet tests
+  and two door tests). **55 mutations, 55 caught** in two independent passes
+  with **byte-identical** logs (SHA-256
+  `42B6AC05F384D62615B52064DA280A7EBDFB8F724E9F9011B48B70538990D51D`).
+  The calibration of the first pass found four gaps, and every one was a gap
+  in the **tests**, not a dead rule: the tree root (a context that already
+  carried the root hid the mutation — there is now a test for the case where
+  the spawning run *is* the tree root), the spawn's subject, the child's
+  parent correlation, and the final backoff clamp (the exponential path
+  already caps itself inside the growth loop, so the final clamp is only
+  observable on a **flat** backoff). One finding belonged to the **harness**:
+  a `-run` pattern that matches **no test** exits **0**, and the harness read
+  that as a survivor — it now treats "no tests to run" as the mutation's
+  fault.
+
+  **What is left**: the runs module now holds everything the target
+  architecture gives it — the run registry, the resume tickets, the
+  steering/interventions — plus the run context, the **prompt** and the
+  **delegation engine**. What is left in the daemon's run engine is the
+  **loop config** (**99** lines) and the **loop** itself (`kernel/agent`,
+  **2,629** lines across **20** files, the most contract-bound family of all).
+  Evidence:
+  `architecture/279-w376f-the-delegation-engine-moves-into-the-runs-module-evidence.md`

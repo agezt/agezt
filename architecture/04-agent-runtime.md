@@ -19,7 +19,7 @@ Sibling docs: governor, Edict, approvals, warden: [05-governance-routing-securit
 | Tool-call policy | `(*Kernel).policyHook` (`policy.go`) | Adapts Edict to `agent.Policy`: capability resolution, trust ceiling, per-agent tool policy, epistemic gate, intent/regret gate, prompt-injection guard, auto-approve grant, live HITL via `approval.Registry.Submit`. |
 | Halt / cancel / drain | `kernel/modules/runs/lifecycle.Manager` (over `kernel/modules/runs/registry.Registry`) | `Halt`, `HaltWith`, `CancelRun`, `DrainAndHalt`, `Resume`, `NewCorrelation` (`run-<ulid>`). W3.76d moved the manager and the store it holds into the runs module; the daemon keeps the two side effects the module cannot perform itself (`Suspend`, `PublishBus`). |
 | Live steering | `kernel/modules/runs/steer` + `kernel/modules/runs/intervention` | pause / step / resume / steer / BTW note / lease-bounded intervene, applied at the loop's iteration boundary. |
-| Delegation | `subagent_*.go` + `kernel/delegation` | `delegate` / `delegate_await` tools; depth, fan-out, tree-total and spend rails; async spawns. |
+| Delegation | `kernel/modules/runs/delegation` (+ `kernel/modules/runs/retry`) | `delegate` / `delegate_await` tools; depth, fan-out, tree-total and spend rails; async spawns. **W3.76f** moved the engine out of `kernel/runtime` (and the vocabulary out of `kernel/delegation`); the daemon keeps the fourteen doors in `subagent_doors.go` and the child loop the engine asks it to run. |
 | Restart resume | `runtime/resume.go` + `kernel/modules/runs/resume` | Durable per-run ticket and per-iteration conversation snapshot; `Suspend` before cancel; the daemon re-dispatches on boot. |
 | Completion assurance | `contract/assureapi` (the rows, the parser and the bounded loop), `Runner.VerifyCompletion`, `kernel/proof`, `ProveTask` | Verify-and-retry loop; acceptance-criteria proof gate for workboard tasks. |
 | Shared direct/workflow tool path | `toolapi.Invoker` via `(*Kernel).RunTool` (default `toolexec.NewInvoker`) | Operator/CLI/research plus registered-tool, HTTP, pipeline and canvas-node workflow calls: merged lookup, schema, resolved definition → policy, audit, execution. |
@@ -38,10 +38,11 @@ From `internal-deps.txt` (`pkg -> deps`):
 ```
 kernel/agent        -> kernel/bus kernel/event                 (leaf-ish; imported by ~70 pkgs incl. every provider and tool)
 kernel/runtime      -> brand, agent, approval, bus, configcenter,
-                       contextselect, delegation, edict, event, governor, intent, intervention,
+                       contextselect, edict, event, governor, intent, intervention,
                        journal, reflect, resume, roster,
                        runtime/runexec, scheduler, state,
                        tenantctx, toolexec, ulid, warden, worldmodel
+                       (modules/runs/{delegation,retry} — the delegation engine and the retry vocabulary, W3.76f)
                        (contract/{artifactapi,assureapi,cadenceapi,catalogapi,datalakeapi,marketapi,mediaapi,mcpapi,memoryapi,okrapi,proofapi,seatapi,skillapi,standingapi,tasteapi,toolforgeapi,toolregapi,workboardapi,workflowapi,worldmodelapi} — the rows and ports, W3.41–W3.58)
 kernel/runtime/runexec   -> agent, approval, bus, configcenter,
                             edict, event, intent, journal, reflect, resume, roster, scheduler,
@@ -54,7 +55,8 @@ kernel/toolexec     -> contract/toolapi, platform/toolpipeline (legacy forwardin
 kernel/platform/toolpipeline -> contract/{llm,policyapi,toolapi,toolphaseapi}, event, platform/{policyctx,schema,toolaudit,toolinvoke,tooloutput}
 kernel/contract/toolregapi -> contract/{acpapi,agentapi,artifactapi,boardapi,cadenceapi,channelapi,configapi,datalakeapi,eventapi,introspectapi,journalapi,mcpapi,overseerapi,pluginapi,reasoningapi,skillapi,standingapi,toolapi,toolforgeapi,types,wardenapi,workboardapi,workflowapi}
 kernel/modules/extensions/toolforge    -> filestore, ulid
-kernel/delegation   -> agent, edict
+kernel/modules/runs/delegation -> agent, edict, event, modules/runs/{prompt,registry,retry,runctx,steer}, contract/{agentapi,toolapi}
+kernel/modules/runs/retry      -> contract/agentapi
 kernel/modules/runs/resume -> internal/atomicfile, contract/llm, contract/agentapi
 kernel/planner      -> internal/strutil, agent, intent
 kernel/reflect      -> bus, event, journal, worldmodel
@@ -261,22 +263,21 @@ Tests (20 files): `agent_test.go` (loop end to end with mock provider), `panic_t
 
 Mutexes, with a mandatory acquisition order (documented on the struct and in runexec/doc.go):
 ```
-registry lock < configMu < fanoutMu < treeMu < steersMu < spawnsMu
+registry lock < configMu < steersMu
 ```
 | Mutex | Guards |
 |---|---|
 | `configMu` | live `system`, `model`, `cfg`, `catalog`, `schedEngine`, `mcp` |
 | the registry's own lock (`registry.Registry.Lock`) | the live runs (`entries map[corr]CancelFunc`), the `halted` latch — it is the **store's** lock and it is the outermost one (W3.76d) |
-| `fanoutMu` | `fanout map[spawningCorr]int` (M46) |
-| `treeMu` | `tree map[rootCorr]int` (M629) |
 | `steersMu` | `steers map[corr]*steer.Control` |
-| `spawnsMu` | `spawns map[childCorr]*spawnHandle` (async delegation) |
+
+The delegation engine's own lock (the fan-out tally, the tree-total tally and the async spawn handles) lives in the **module** since W3.76f and is a **leaf**: the engine never calls back into the daemon while holding it. The daemon's `fanoutMu`, `treeMu` and `spawnsMu` are gone with the state they guarded.
 
 The MCP attachments' own lock (`mcpMu`) moved with the attachments into the extensions module (W3.71): the daemon no longer holds a live connection.
 
 Also: `toolCaps` (read-only after Open); `startTime`. The `suspending atomic.Bool` (latched by `Suspend`, never cleared) and the `runWG sync.WaitGroup` (root runs plus async spawns, drained by `Close`/`DrainAndHalt`) are **no longer daemon fields**: both moved into the runs module's registry with their owners in W3.76d, and the daemon reaches them through the store.
 
-Goroutines started by the runtime: one per async sub-agent (`runSubAgentAsync`), the drain waiters in `Close`/`DrainAndHalt`, and the tool fan-out workers inside `agent.Run`. Everything else runs on the caller's goroutine. The **agentgw listener is not one of them** (W3.67): the gateway is the **daemon's** transport, so the daemon starts it.
+Goroutines started by the runtime: one per async sub-agent (the delegation engine's `Spawn`), the drain waiters in `Close`/`DrainAndHalt`, and the tool fan-out workers inside `agent.Run`. Everything else runs on the caller's goroutine. The **agentgw listener is not one of them** (W3.67): the gateway is the **daemon's** transport, so the daemon starts it.
 
 ### 4.2 Composition: `Open(cfg Config) (*Kernel, error)` (compose.go)
 Order (each store registers a closer; `fail()` unwinds them in reverse):
@@ -289,7 +290,7 @@ Order (each store registers a closer; `fail()` unwinds them in reverse):
 6. `workboard/` store; `reflect.New(journal, world, bus)`. The **seat catalog is NOT opened here** — it is the composition root's file (W3.41), and the kernel holds `cfg.Seats`, the contract's port. The **script-tool store is NOT opened here either** (W3.45) — the kernel holds `cfg.ToolForge`, the contract's host port. The **workflow library is NOT opened here either** (W3.48) — it is the composition root's file, and the kernel holds `cfg.Workflows`, the contract's host port. The **engine** is the composition root's too: it is built over that store and over the kernel's own ports (`k.WorkflowPorts()`) and handed over after `Open` with `SetWorkflowEngine`. The **curated exemplar library is NOT opened here** (W3.52) — it is the composition root's file (`taste/taste.json`), and the kernel holds `cfg.TasteStore`, the contract's store port; a kernel with no library injects **no** exemplars into a run rather than calling into nothing. The **objective library is NOT opened here** (W3.53) — it is the composition root's file (`okr/okr.json`), and the kernel holds `cfg.OKRStore`, the contract's store port; a kernel with no library refuses the objective writes rather than calling into nothing. The **world model is NOT opened here** (W3.54) — it is the composition root's file (`worldmodel/worldmodel.json`), and the kernel holds `cfg.WorldStore` + `cfg.WorldGraph`, the contract's store port and the **builder** the composition root injects; the kernel calls the builder with the store and its own publisher, so the graph journals through the kernel's bus without either side naming the other's implementation. The **skill library is NOT opened here** (W3.55) — it is the composition root's file (`skills/skills.json`), and the kernel holds `cfg.SkillStore` + `cfg.SkillCurator`, the contract's store port and the **builder** the composition root injects; the kernel calls the builder with the store and its own publisher, so every transition journals through the kernel's bus without either side naming the other's implementation. A kernel with no library holds a **nil** port: the run carries no skill, the run executor proposes nothing and the status reports **zero** rather than calling into nothing. The **roster is NOT opened here either** (W3.56) — it is the composition root's file (`roster/roster.json`), and the kernel holds `cfg.Roster`, the contract's **store** port (`agentapi.Store`, eight verbs); the agent gateway takes the contract's narrower **reader** port (two verbs), because a gateway that lists agents has no business retiring one. Because the roster lives under the **base dir**, a **tenant** keeps **its own** agents. A kernel with no roster holds a **nil** port: the reads answer **"no agents"** through the kernel's nil-safe helpers and the writes refuse ("the roster is not available on this daemon") rather than calling into nothing. The **memory is NOT opened here either** (W3.57) — it is the composition root's file (`memory/memory.json`), and the kernel holds `cfg.MemoryStore` + `cfg.MemoryBuilder` + `cfg.MemoryGenerator` + `cfg.MemoryEmbedder`: the contract's store port, the **builder** the composition root injects, the structured-output path and the embedder seam. The kernel calls the builder with the store and its own publisher, so the manager journals through the kernel's bus without either side naming the other's implementation. A kernel with no memory holds a **nil** port: the reads answer **"no memory"** (the count is 0, the active list is empty, the profile block is empty, the searches find nothing) and the writes **refuse** (`ErrNoMemory`) rather than calling into nothing — the refusal is deliberately not a silent no-op, because "nothing was forgotten" and "there is nothing to forget" are different answers. The **MCP registry is NOT opened here either** (W3.58) — it is the composition root's file (`mcp/servers.json`), and the kernel holds `cfg.MCPStore`, the contract's **store** port (six verbs: `Add`, `SetEnabled`, `Remove`, `Get`, `List`, `Count`); the catalog layer reads through the kernel's nil-safe `MCPReader` (one verb) rather than the raw port, which is a **nil-able** thing. The **dialers are the composition root's too**: the clients live in the module and the kernel may not name them, so the daemon injects `cfg.MCPDialer` and `cfg.MCPHTTPDialer` — the contract's **seams**. The kernel's old **fallback** (calling the module's client itself when no dialer was configured) is gone: a kernel with no dialer refuses the attach with a readable error rather than calling a nil func value, which would panic at the call. Because the registry lives under the **base dir**, a **tenant** keeps **its own** servers. A kernel with no registry holds a **nil** port: the reads answer **"no servers"** (the count is 0, the list is empty, a lookup finds nothing) and the writes **refuse** (`ErrNoMCPRegistry`) rather than calling into nothing.
 7. Effective tools: `cfg.Tools` plus `memory` (MemoryTool), `world` (WorldTool), `delegate` and `delegate_await` (SubAgentTool). The **voice, image_generate and rerank tools are NOT registered here** — they live in their own packages, and the kernel is a module that may not name a module's implementation, so the composition root builds them and hands them over in `cfg.Tools` (W3.44). The **market tool is NOT registered here either** (W3.46) — it lives in the market module and drives the contract's marketplace port, so the composition root builds it and hands it over the same way.
 8. Catalog: `cfg.Catalog`, or `cfg.CatalogStore.Load()` when the daemon handed a store over, else the **empty** catalog — then `governor.SetCatalog(cat)` (global). The **catalog directory is NOT opened here** (W3.51) — it is the composition root's file, and the kernel holds `cfg.CatalogStore` and `cfg.CatalogSyncer`, the contract's ports. The **snapshot is never nil** ("no providers" is an honest answer); the **write** surfaces refuse when the store port is nil.
-9. Build `*Kernel`, then late-bind the closures: `subTool.run=k.runSubAgent`, `subTool.spawn=k.runSubAgentAsync`, `awaitTool.await=k.awaitSubAgent`.
+9. Build `*Kernel`, then late-bind the closures: `subTool.Run=k.delegation.Run`, `subTool.Spawn=k.delegation.Spawn`, `awaitTool.Await=k.delegation.Await` — the delegation **engine** is the runs module's (W3.76f); the daemon only wires its runners.
 10. `configcenter.Open`. The **agent gateway is NOT built here** (W3.67) — it is an **ADAPTER** (L5), the transport the agent SDK's subprocesses talk to, and the kernel is a module (L3) that may not hold one. The composition root (`cmd/agezt`) builds it over the kernel's own ports (`k.Bus()`, `k.Memory()`, `k.Roster()`, `k.ConfigCenter()`, `k.Journal()`), starts it and closes it.
 11. `registry.New()`, `lifecycle.New(k.registry, k)`, `runexec.New(k)`. The **registry** is the runs module's live-run store (W3.76d); the **lifecycle manager** is built over that store and over the daemon as its host — the host interface holds exactly the two verbs the module cannot do itself (`Suspend`, `PublishBus`).
 
@@ -423,7 +424,7 @@ Numbered narrative with the real function names:
 - The steering surface is the runs module's `steer.Control`: `mu`, `paused`, `pauseUntil` (lease), `stepOnce`, `directives []agent.Directive`, a `wake` channel (closed and replaced to broadcast), and idempotency `results`.
 - The steering OPERATIONS are the runs module's too (`steer.Service`): the daemon keeps the doors — `PauseRun` (`run.paused`), `ResumeRun` (`run.resumed`), `StepRun` (`run.stepped`, one iteration then re-block), `SteerRun(corr, text, note)` (queued; the loop publishes `run.steered{mode:steer|note}` when folded in), `RunControlState`, and `InterveneRun(intervention.Request)` — and the module reaches the live runs, the bus and the cancel through four ports.
 - `kernel/modules/runs/intervention` is the wire grammar only. Primitives: `halt` (lease-bounded pause, default `DefaultLease=5m`), `abort` (→ `CancelRun`), `redirect` (forceful steer), `adjust` (note/BTW), `query`. Idempotency key replay returns the prior `Result`. Publishes `run.intervention`.
-- Directives are applied **only at the next iteration boundary**. A run blocked in a long tool call sees them after the tool returns. Steering exists for root runs (`setupRunState`) and each sub-agent (`prepareSubAgent` registers `steers[childCorr]`, M631).
+- Directives are applied **only at the next iteration boundary**. A run blocked in a long tool call sees them after the tool returns. Steering exists for root runs (`setupRunState`) and each sub-agent (the delegation engine registers `steers[childCorr]` through the daemon's door, M631).
 - `Suspend` injects a shutdown note into every live run as a `Note` directive.
 
 ### 4.8 Checkpoint and resume across daemon restart (runtime/resume.go + kernel/modules/runs/resume + cmd/agezt resumer)
@@ -437,22 +438,22 @@ The durable ticket and the three rules that judge it moved into the **runs modul
 5. **Boot** (`buildResumer`, cmd/agezt/main_standing_resume.go): for each ticket, quarantine (`resume/quarantine/`, `anomaly.detected` on `run.resume.quarantined`) if it is non-resumable, has `Attempts >= AGEZT_RESUME_MAX_ATTEMPTS` (default 3), or its agent is gone/retired/disabled. Otherwise `IncrementAttempt` (fsynced **before** dispatch), rebuild the ctx (`WithResumeOwned`, `WithAgentProfile`, `WithWakeContext{Reason:"resumed"}`, `WithTrustCeiling`, `WithMaxCost`, `WithRunTimeout`, and `WithResumeSeed` for `KindRun` with messages), publish `info` `run.resumed`, and dispatch on a goroutine through the matching entry point. `ResumeFinalize` runs on return. The resumed loop starts at `StartIter=t.Iter` with a fresh `MaxIter` segment.
 6. Anomalies (`run.resume.anomaly`, `anomaly.detected`): `ticket_write_failed`, `snapshot_failed`, `ticket_delete_failed`, `mark_suspended_failed`. Resume is best-effort and never fails a run.
 
-### 4.9 Delegation / sub-agent model (subagent_*.go, kernel/delegation)
+### 4.9 Delegation / sub-agent model (kernel/modules/runs/delegation, kernel/modules/runs/retry)
 - Tools: `delegate` (input `task`, `model`, `task_type`, `agent`, `async`) and `delegate_await` (`spawn_id`). Both declare `Capability{Name: edict.CapDelegate}`. `delegate` effect is compensable; `delegate_await` is reversible. They are registered at Open when `cfg.SubAgentTool` is set (daemon: `AGEZT_SUBAGENT != off`).
-- `prepareSubAgent` (identical for sync and async):
+- The engine's `Prepare` (identical for sync and async):
   1. Resolve a named agent (`roster.Get`). Reject unknown, retired, paused, or `!AllowsDelegationFrom(caller)`. Managed agents need a live, enabled manager (`validateDelegationManager`).
   2. Model: explicit > profile `Model` > profile `AGEZT_MODEL` override > live `k.Model()`. Task type: explicit > profile > `"delegate"`. The chain is primary + profile `Fallbacks`, filtered by `delegation.KeyedModelChain(…, cfg.ModelAvailable, default)` (M838: drop unkeyed models).
   3. **Rails, enforced before spawn:**
      - depth: `delegation.DepthFromCtx(ctx) >= SubAgentMaxDepth` (kernel default 1 if unset; **daemon default `AGEZT_SUBAGENT_DEPTH=3`**) is refused.
-     - fan-out: `k.fanout[parentCorr] >= SubAgentMaxFanout` (`AGEZT_SUBAGENT_FANOUT`, 0 = unbounded).
-     - tree total: `k.tree[rootCorr] >= SubAgentMaxTotal` (`AGEZT_SUBAGENT_MAX_TOTAL`; daemon derives **48** when unset and depth > 1, M843).
-     - spend: `subAgentSpendMicrocents(parentCorr) >= SubAgentMaxSpendMicrocents` (`AGEZT_SUBAGENT_SPEND_CAP` USD×1e9), computed by scanning the journal for `budget.consumed` under the children's correlations.
+     - fan-out: the engine's own `fanout[parentCorr] >= SubAgentMaxFanout` (`AGEZT_SUBAGENT_FANOUT`, 0 = unbounded).
+     - tree total: the engine's own `tree[rootCorr] >= SubAgentMaxTotal` (`AGEZT_SUBAGENT_MAX_TOTAL`; daemon derives **48** when unset and depth > 1, M843).
+     - spend: the engine's spend walk over the journal >= SubAgentMaxSpendMicrocents (`AGEZT_SUBAGENT_SPEND_CAP` USD×1e9), computed by scanning the journal for `budget.consumed` under the children's correlations.
      
      A violated rail becomes a tool error the lead model sees ("delegation failed: …").
   4. `childCorr = NewCorrelation()`, actor `subagent-<childCorr>`. Register `steers[childCorr]`. Publish **`subagent.spawned` under the parent correlation** with payload `{task, child_correlation, depth, parent, model, task_type[, agent, autonomy_runbook, wake_source:"delegated", delegated_by, parent_correlation_id][, async]}`.
   5. Child ctx: `delegation.WithDepth(depth+1)`, `runctx.WithActor` (the actor and the correlation), `runctx.WithRoot` (the tree root propagates), `runctx.WithAgentProfile` for named agents. System = `delegation.SystemPrompt` + (profile soul or live `k.System()`).
-- `executeSubAgent`: the same `buildLoopConfig` as root runs (LD-1: cost, compaction, memo, tool policy). Then `subAgentInjectedSystem` (memory/world/skill injection for the child), `TaskType`, `ModelChain`, `WakeSource="subagent"`, `WakeReason="delegation"`, `ParentCorrelation`, `MaxRunCostMicrocents=profile.MaxCostMc`, `Steer=rc`, then `agent.Run`. Profile `RetryPolicy` retries inline (`agent.retry` with `subagent:true`). On exit it releases `fanout[childCorr]` and `steers[childCorr]`. `CompleteAgentLifecycle` runs on success. **No resume ticket and no registry entry for sync children.**
-- Async (`runSubAgentAsync`, M881): `context.WithoutCancel(childCtx)` plus a kernel-owned `WithCancel`. Under the registry's lock → `spawnsMu` it records `spawns[childCorr]` and `registry.Register(childCorr, cancel)`, plus `registry.Add(1)`. A goroutine runs `executeSubAgent` and publishes **`subagent.completed`** under the parent correlation (`{child_correlation, ok, async, error|chars}`) **before** closing `done`. `awaitSubAgent` refuses foreign callers (`caller != parentCorr`). A ctx timeout returns "still running", and the handle remains collectable. A result is collected exactly once. When the parent run ends, `cleanupRunState` cancels every un-awaited spawn whose `rootCorr` or `parentCorr` is the ending run.
+- The engine's `Execute`: the daemon's `buildLoopConfig` as root runs (LD-1: cost, compaction, memo, tool policy) comes through the `BaseLoopConfig` door, and the child's prompt through the runs module's prompt service. Then `TaskType`, `ModelChain`, `WakeSource="subagent"`, `WakeReason="delegation"`, `ParentCorrelation`, `MaxRunCostMicrocents=profile.MaxCostMc`, `Steer=rc`, and the daemon's `RunChild` door runs `agent.Run`. Profile `RetryPolicy` retries inline (`agent.retry` with `subagent:true`). On exit it releases `fanout[childCorr]` and `steers[childCorr]`. `CompleteAgentLifecycle` runs on success. **No resume ticket and no registry entry for sync children.**
+- Async (the engine's `Spawn`, M881): `context.WithoutCancel(childCtx)` plus a kernel-owned `WithCancel`. Under the registry's lock → the engine's own lock it records `spawns[childCorr]` and `registry.Register(childCorr, cancel)`, plus `registry.Add(1)`. A goroutine runs the child and publishes **`subagent.completed`** under the parent correlation (`{child_correlation, ok, async, error|chars}`) **before** closing `done`. `Await` refuses foreign callers (`caller != parentCorr`). A ctx timeout returns "still running", and the handle remains collectable. A result is collected exactly once. When the parent run ends, `cleanupRunState` cancels every un-awaited spawn whose `rootCorr` or `parentCorr` is the ending run.
 - Sub-agents inherit the parent ctx values: trust ceiling, auto-approve caps, tenant, intent frame, memory scope (unless overridden by profile). Daemon-wide `AutoApproveCapabilities` are documented as inherited.
 - Cross-node delegation (`remote_run` / mesh) is a different mechanism: `kernel/meshctx` hop counter (section 11).
 
@@ -543,9 +544,9 @@ Subjects for loop events are `agent.<actor>.<suffix>`, with actor `agent-<corr>`
 | `policy.auto_approved` | `publishAutoApprove` | `policy.auto_approved` | capability, tool |
 | `prompt_injection.warned` | `publishPromptInjectionWarned` | `prompt_injection.warned` | tool, capability, sources, trusted_run |
 | `approval.requested/granted/denied/timeout` | `approval.Registry` (see 05) | — | — |
-| `subagent.spawned` | `prepareSubAgent` (parent corr) | `agent.subagent-<c>.subagent` | see 4.9 |
+| `subagent.spawned` | the delegation engine's `Prepare` (parent corr) | `agent.subagent-<c>.subagent` | see 4.9 |
 | `subagent.completed` | async goroutine (parent corr) | same | `child_correlation`, `ok`, `async`, `error`/`chars` |
-| `agent.retry` | `RunWithRetry`, `executeSubAgent` | `agent[.<slug>].retry` | `agent, attempt, next_attempt, max_attempts, reason, error, delay_ms, backoff, base_delay_sec, max_delay_sec, retry_on` / `subagent` |
+| `agent.retry` | `RunWithRetry`, the delegation engine's `Execute` | `agent[.<slug>].retry` | `agent, attempt, next_attempt, max_attempts, reason, error, delay_ms, backoff, base_delay_sec, max_delay_sec, retry_on` / `subagent` |
 | `assure.verdict` | `VerifyCompletion`, `verifyCriteria` | `agent.agent-<corr>.assure` | `complete`, `gap`, `criteria` |
 | `run.paused/resumed/stepped` | steer ops | `kernel.steer` | `correlation_id` (+ `primitive`, `lease_expires_unix`) |
 | `run.intervention` | `InterveneRun` | `kernel.intervention` | `primitive, correlation_id, accepted, applied, state, paused, pending, scope, idempotency_key, reason, lease_expires_unix, directive` |
@@ -642,10 +643,10 @@ Root package, grouped by concern; every non-test file is listed.
 | `mcptool_bridge.go` | `mcpToolName`, `mergeMCPTools`, `bridgedMCPTool`, `lazyMCPDispatch`. |
 | `subagent.go` | `subAgentTool` struct (run/spawn closures). |
 | `subagent_tool.go` | `delegate`/`delegate_await` Definition and Invoke, `spawnHandle`, `subAgentPrep`. |
-| `subagent_prep.go` | `prepareSubAgent` (identity, model chain, all rails, spawn event, child ctx), `validateDelegationManager`. |
-| `subagent_exec.go` | `executeSubAgent` (child loop plus retry). |
-| `subagent_run.go` | `runSubAgent`, `runSubAgentAsync`, `awaitSubAgent`. |
-| `subagent_inject.go` | `subAgentInjectedSystem` (memory/world/skill injection for children), `subAgentSpendMicrocents` (journal sum of `budget.consumed` over the parent's children via `delegation.SpawnLink`/`BudgetCostMicrocents`). |
+| `subagent_doors.go` | The daemon's fourteen doors for the delegation engine (the roster, the profile model, the live model and identity, the halt latch and its error, the correlation mint, the bus, the journal, the steering registry, the skill forge, the base loop configuration, the child lifecycle), the live policy projection and the child-runner callback. The engine itself is the runs module's (`kernel/modules/runs/delegation`: `prep.go`, `exec.go`, `service.go`, `spend.go`, `tool.go`, `vocabulary.go`, `config.go`, `host.go`, `plan.go`). |
+| (moved) | `subagent_exec.go` → the engine's `exec.go` (the child loop plus the retry). |
+| (moved) | `subagent_run.go` → the engine's `service.go` (`Run`, `Spawn`, `Await`). |
+| (moved) | `subagent_inject.go` → the prompt service's `BuildSubagent` (W3.76e) and the engine's `spend.go` (journal sum of `budget.consumed` over the parent's children via `SpawnLink`/`BudgetCostMicrocents`). |
 
 **Domain features hosted on the Kernel**
 
@@ -766,7 +767,7 @@ Everything else reaches `runtime.Config` through `cmd/agezt/internal/daemonconfi
 
 ## 14. Gotchas / invariants / surprises
 
-1. **Lock order** `registry lock < configMu < fanoutMu < treeMu < steersMu < spawnsMu` is load-bearing; `-race` tests guard it. `setupRunState` takes `steersMu` inside the registry's lock. `runSubAgentAsync` takes the registry's lock then `spawnsMu`. (The MCP attachments' lock left the daemon together with the attachments in W3.71.)
+1. **Lock order** `registry lock < configMu < steersMu` is load-bearing; `-race` tests guard it. `setupRunState` takes `steersMu` inside the registry's lock. The delegation engine's own lock is a **leaf** (W3.76f): the engine never calls back into the daemon while holding it. (The MCP attachments' lock left the daemon together with the attachments in W3.71.)
 2. **One corr, one live run** (M480). Re-running under the same corr is only legal sequentially (RunAssured / RunWithRetry / resumer).
 3. **Stale comments in runexec.** `runexec/doc.go`, `runner.go`'s `Runner` doc, `runexec.go`'s file comment and `compose.go` say "the 260-line RunWith body stays on *Kernel". It does not: the full body is `runexec.Runner.RunWith`. `spawnHandle`'s comment says "Guarded by k.mu"; the actual lock is `spawnsMu`.
 4. **Dead or duplicate code:**
@@ -784,7 +785,7 @@ Everything else reaches `runtime.Config` through `cmd/agezt/internal/daemonconfi
    - ✅ **Fixed W2.3e:** actual agent-loop panic/cancel turns settle every admitted terminal result before task failure; per-call contexts are released and the shared platform primitive retains typed panic classification. Sequential panic prevents later effects, with `not_executed` results; parallel dispatch/order stay intact. Terminal hook/model work is suppressed. Audit errors retain terminal causes and later writes are attempted. Tool-log/stats expose skipped results without execution latency. Regressions: `tool_terminal_audit_test.go`, `tool_terminal_audit_internal_test.go`, `tool_audit_identity_test.go`; twelve mutations guard the boundaries. Admission/policy/memo and result formatting still belong to the loop pending app convergence.
 8. **Performance hot spots.**
    - `epistemicGate` → `matchHistoricalToolOutcomes` does a full `journal.Range` on every gated tool call, even with `EpistemicEscalation` off (the signals are always computed and journaled).
-   - `FoldRunTools`, `publishContextFailureAnalysis`, `subAgentSpendMicrocents` and `reflect.observe` also scan the whole journal.
+   - `FoldRunTools`, `publishContextFailureAnalysis`, the delegation engine's spend walk and `reflect.observe` also scan the whole journal.
 9. **HITL is serialized per turn.** Approvals happen in the sequential gate phase, so a parallel fan-out waits for every approval before any call executes.
 10. **The cost cap is post-call** (overshoot ≤ 1 call). Sub-agent spend is checked only at spawn time, from the journal.
 11. **Sync sub-agents are not in the run registry.** `CancelRun(childCorr)` returns false for them; they die with the parent ctx. Async children are registered and cancellable, and are cancelled when the root run's cleanup runs.
