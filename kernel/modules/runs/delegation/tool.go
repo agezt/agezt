@@ -1,25 +1,31 @@
 // SPDX-License-Identifier: MIT
 
-package runtime
-
-// Provenance: Sub-agent tool surface: Definition() and Invoke() for both
-//             subAgentTool and subAgentAwaitTool. Code extracted from subagent.go
-//             during the Day-40 god-file split. Public API unchanged.
+package delegation
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 
-	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
-	"github.com/agezt/agezt/kernel/modules/runs/steer"
 )
 
-func newSubAgentTool() *subAgentTool { return &subAgentTool{} }
+// Tool is the in-process `delegate` tool (P6-MULTI-01). Its runners are
+// wired to the daemon's delegation engine after the kernel is constructed
+// (the tool is built during Open before *Kernel exists).
+type Tool struct {
+	// Run executes a delegation and blocks until the child answers.
+	Run func(ctx context.Context, req Request) (string, error)
+	// Spawn starts a delegation and returns the spawn id immediately.
+	Spawn func(ctx context.Context, req Request) (string, error)
+}
 
-func (t *subAgentTool) Definition() toolapi.ToolDef {
+// NewTool builds the `delegate` tool.
+func NewTool() *Tool { return &Tool{} }
+
+// Definition describes the `delegate` tool.
+func (t *Tool) Definition() toolapi.ToolDef {
 	return toolapi.ToolDef{
 		Name:       "delegate",
 		Capability: toolapi.ToolCapability{Name: string(edict.CapDelegate)},
@@ -74,7 +80,8 @@ func (t *subAgentTool) Definition() toolapi.ToolDef {
 	}
 }
 
-func (t *subAgentTool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Result, error) {
+// Invoke runs a delegation on behalf of the lead agent.
+func (t *Tool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Result, error) {
 	var in struct {
 		Task     string `json:"task"`
 		Model    string `json:"model"`
@@ -85,20 +92,21 @@ func (t *subAgentTool) Invoke(ctx context.Context, input json.RawMessage) (toola
 	if err := json.Unmarshal(input, &in); err != nil {
 		return toolapi.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
 	}
+	req := Request{Task: in.Task, Model: in.Model, TaskType: in.TaskType, AgentRef: in.Agent}
 	if in.Async {
-		if t.spawn == nil {
+		if t.Spawn == nil {
 			return toolapi.Result{Output: "sub-agent spawner not wired", IsError: true}, nil
 		}
-		id, err := t.spawn(ctx, in.Task, in.Model, in.TaskType, in.Agent)
+		id, err := t.Spawn(ctx, req)
 		if err != nil {
 			return toolapi.Result{Output: "delegation failed: " + err.Error(), IsError: true}, nil
 		}
 		return toolapi.Result{Output: fmt.Sprintf("spawned sub-agent %s — it is working in the background. Collect its result with delegate_await {\"spawn_id\":%q} before your final answer.", id, id)}, nil
 	}
-	if t.run == nil {
+	if t.Run == nil {
 		return toolapi.Result{Output: "sub-agent runner not wired", IsError: true}, nil
 	}
-	out, err := t.run(ctx, in.Task, in.Model, in.TaskType, in.Agent)
+	out, err := t.Run(ctx, req)
 	if err != nil {
 		// Surface as a tool error so the lead agent can adapt, not crash.
 		return toolapi.Result{Output: "delegation failed: " + err.Error(), IsError: true}, nil
@@ -106,16 +114,20 @@ func (t *subAgentTool) Invoke(ctx context.Context, input json.RawMessage) (toola
 	return toolapi.Result{Output: out}, nil
 }
 
-// subAgentAwaitTool is the in-process `delegate_await` tool (M881): the
-// collect half of async delegation. Its runner is wired to k.awaitSubAgent
-// after the kernel is constructed.
-type subAgentAwaitTool struct {
-	await func(ctx context.Context, spawnID string) (toolapi.Result, error)
+// AwaitTool is the in-process `delegate_await` tool (M881): the collect half
+// of async delegation. Its awaiter is wired to the delegation engine after
+// the kernel is constructed.
+type AwaitTool struct {
+	// Await blocks until the spawned delegation finishes and returns its
+	// result exactly once.
+	Await func(ctx context.Context, spawnID string) (toolapi.Result, error)
 }
 
-func newSubAgentAwaitTool() *subAgentAwaitTool { return &subAgentAwaitTool{} }
+// NewAwaitTool builds the `delegate_await` tool.
+func NewAwaitTool() *AwaitTool { return &AwaitTool{} }
 
-func (t *subAgentAwaitTool) Definition() toolapi.ToolDef {
+// Definition describes the `delegate_await` tool.
+func (t *AwaitTool) Definition() toolapi.ToolDef {
 	return toolapi.ToolDef{
 		Name: "delegate_await",
 		// Collecting an async delegation's result is the same axis as spawning
@@ -147,24 +159,25 @@ func (t *subAgentAwaitTool) Definition() toolapi.ToolDef {
 	}
 }
 
-func (t *subAgentAwaitTool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Result, error) {
+// Invoke collects a spawned delegation's result.
+func (t *AwaitTool) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Result, error) {
 	var in struct {
 		SpawnID string `json:"spawn_id"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
 		return toolapi.Result{Output: "invalid input: " + err.Error(), IsError: true}, nil
 	}
-	if t.await == nil {
+	if t.Await == nil {
 		return toolapi.Result{Output: "sub-agent awaiter not wired", IsError: true}, nil
 	}
-	return t.await(ctx, in.SpawnID)
+	return t.Await(ctx, in.SpawnID)
 }
 
 // spawnHandle tracks one asynchronously delegated sub-agent (M881): the child
 // runs on its own goroutine while the lead keeps working; the lead collects
-// the result via delegate_await. Guarded by k.mu except done (close-once
-// signal) and the result fields, which are written exactly once before done
-// is closed and read only after it is.
+// the result via delegate_await. Guarded by the service's mutex except done
+// (close-once signal) and the result fields, which are written exactly once
+// before done is closed and read only after it is.
 type spawnHandle struct {
 	parentCorr string
 	rootCorr   string
@@ -173,31 +186,3 @@ type spawnHandle struct {
 	answer     string
 	err        error
 }
-
-// subAgentPrep carries a fully resolved + journaled delegation, ready to
-// execute: prepareSubAgent applied every guard (depth, fan-out, tree total,
-// spend), resolved the model/identity, registered steering, and published
-// subagent.spawned; executeSubAgent runs the child loop and cleans up.
-type subAgentPrep struct {
-	childCtx     context.Context
-	childCorr    string
-	parentCorr   string
-	rootCorr     string
-	linkCorr     string
-	actor        string
-	task         string
-	system       string
-	subModel     string
-	modelChain   []string
-	taskType     string
-	maxRunCost   int64
-	agentSlug    string
-	agentDailyMc int64
-	retryPolicy  *agentapi.RetryPolicy
-	rc           *steer.Control
-}
-
-// runSubAgent executes a delegated task as a nested agent.Run under a fresh
-// child correlation, bounded by SubAgentMaxDepth. The spawn is journaled under
-// the PARENT correlation (carrying the child correlation) so `agt why <parent>`
-// shows the delegation; the child's own steps live under the child correlation.

@@ -102,7 +102,7 @@ func TestTheDaemonKeepsTheLifecycleDoors(t *testing.T) {
 // move: the daemon's run state is registered in the module's store, never in
 // a map of its own.
 func TestTheDaemonTalksToTheModuleThroughTheRegistry(t *testing.T) {
-	for _, f := range []string{"runexec_lifecycle.go", "subagent_run.go", "accessors_misc.go"} {
+	for _, f := range []string{"runexec_lifecycle.go", "accessors_misc.go"} {
 		src, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatalf("read %s: %v", f, err)
@@ -114,6 +114,20 @@ func TestTheDaemonTalksToTheModuleThroughTheRegistry(t *testing.T) {
 		if !strings.Contains(text, "k.registry.") {
 			t.Fatalf("%s must register through the module's store", f)
 		}
+	}
+	// The async delegation registers its child in the same store. The code
+	// moved to the runs module's delegation engine in W3.76f, so the ratchet
+	// watches the module's file now.
+	mod, err := os.ReadFile(filepath.Join("..", "modules", "runs", "delegation", "exec.go"))
+	if err != nil {
+		t.Fatalf("read the delegation engine: %v", err)
+	}
+	text := string(mod)
+	if !strings.Contains(text, "reg.Register(") {
+		t.Fatal("the delegation engine must register an async child in the module's store")
+	}
+	if strings.Contains(text, "k.runs[") {
+		t.Fatal("the delegation engine still writes the registry's map directly")
 	}
 }
 

@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/delegation"
+	"github.com/agezt/agezt/kernel/modules/runs/delegation"
 )
 
 func TestDepthFromCtx_Default(t *testing.T) {

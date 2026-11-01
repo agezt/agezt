@@ -38,6 +38,7 @@ import (
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	"github.com/agezt/agezt/kernel/modules/reasoning/api"
+	"github.com/agezt/agezt/kernel/modules/runs/delegation"
 	"github.com/agezt/agezt/kernel/modules/runs/lifecycle"
 	"github.com/agezt/agezt/kernel/modules/runs/prompt"
 	"github.com/agezt/agezt/kernel/modules/runs/registry"
@@ -175,6 +176,15 @@ type Kernel struct {
 	// for (the live identity, the bus, the clock).
 	prompt *prompt.Service
 
+	// delegation is the RUNS MODULE's delegation engine
+	// (kernel/modules/runs/delegation, W3.76f): it owns the delegation
+	// POLICY — who may delegate what, under which bounds, with which
+	// identity — plus the async spawn handles. The daemon keeps the
+	// doors (subagent_doors.go) and the child loop the engine asks it to
+	// run. nil before Open(), so any method that goes through it is safe
+	// to call only post-Open.
+	delegation *delegation.Service
+
 	// runexec is the run-engine sub-manager extracted as a separate
 	// Go sub-package on Day 21. See kernel/runtime/runexec. As of
 	// Day 22 only the entry points (Run / RunAssured / RunWith /
@@ -184,12 +194,13 @@ type Kernel struct {
 
 	// Fine-grained mutexes to reduce lock contention. Lock ordering to prevent
 	// deadlocks (always acquire in this order):
-	//   configMu (light config) < registry.Lock < fanoutMu < treeMu < steersMu < spawnsMu
+	//   configMu (light config) < registry.Lock < steersMu
+	//
+	// The delegation engine's own tallies (fan-out, tree total, async spawn
+	// handles) moved to the runs module in W3.76f; its lock is a LEAF — the
+	// module never calls back into the daemon while holding it.
 	configMu sync.Mutex // guards: system, model, cfg, catalog, schedEngine, mcp
-	fanoutMu sync.Mutex
-	treeMu   sync.Mutex
 	steersMu sync.Mutex
-	spawnsMu sync.Mutex
 
 	// registry is the runs module's live-run registry (W3.76d): the running
 	// correlations, their cancels, the halt latch, the drain accounting and
@@ -201,11 +212,8 @@ type Kernel struct {
 
 	system   string                    // live daemon default identity / system prompt (M710); seeded from cfg.System, editable at runtime
 	model    string                    // live default model id (M816); seeded from cfg.Model, hot-swapped on provider reload
-	fanout   map[string]int            // spawning correlation_id → sub-agents spawned (M46 fan-out bound)
-	tree     map[string]int            // root correlation_id → total sub-agents in the tree (M629 total bound)
 	steers   map[string]*steer.Control // correlation_id → live-steering control surface (M608)
 	steerSvc *steer.Service            // the runs module's steering service (W3.76b)
-	spawns   map[string]*spawnHandle   // child correlation_id → pending/finished async delegation (M881)
 
 	// toolCaps is the validated declared-capability overlay (M900): tool name
 	// → Edict capability, consulted by policyHook before the built-in
