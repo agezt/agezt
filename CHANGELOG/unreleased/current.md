@@ -6110,3 +6110,30 @@ This file holds the active `[Unreleased]` working set.
   not its length), three compile errors that were each the mutation's fault, and
   one survivor that was a test gap in the new code — `SetHalted` had no test at
   all, so the gap was closed.
+
+- **The prompt assembly moves into the runs module (W3.76e).** The thirteenth
+  slice of the runtime's dissolution and the fifth slice of the run engine
+  programme. W3.76a took the durable tickets, W3.76b the steering, W3.76c the
+  run context, W3.76d the run registry; this one takes the prompt — the layer
+  that decides what a run knows before it starts: the live identity, the
+  operator profile, the taste exemplars, the recalled memory, the resolved
+  world entities, the activated skills and the host-environment preamble. The
+  family was split across six daemon files (714 non-blank production lines:
+  `prompt_run.go` 189, `prompt_context.go` 109, `prompt_environment.go` 178,
+  `prompt_env.go` 15, `context_selection.go` 78, `subagent_inject.go` 145).
+  The measurement said the family has ZERO public verbs — every function was
+  unexported — and eight dependencies: four contract rows the daemon already
+  holds (memory, taste, world, skills), a config snapshot, and three things
+  the module cannot do for itself (the live identity, the bus, the clock). So
+  it moved to `kernel/modules/runs/prompt` (six files, 756 lines) and the
+  daemon keeps the two doors (`BuildRunPrompt`, `InjectHostEnvironment`) and
+  the three-verb host port: its verb count stays 238, the contract grows by no
+  rows and the application layer by no files. `kernel/runtime` is 8,161 lines
+  recursive (down from 8,686) and 7,269 at the upper level (down from 7,794);
+  `kernel/modules/runs` is 2,842 (up from 2,086). 23 module tests (8 moved
+  with the code they test, 15 new) and 4 new daemon tests. 40 mutations, 40
+  caught, in two byte-identical passes (SHA-256 `E0CA08EB71289D707D0E5612C8C6ADDD41A0E576A27E2A8D412AFCF1F8341395`); the calibration
+  recorded two gaps in the new tests — a manifest that says "something was
+  chosen" without saying what, and a system-agent test that ran with empty
+  stores — and one mutation that left a loop variable unused, which is a
+  compile error rather than a kill.

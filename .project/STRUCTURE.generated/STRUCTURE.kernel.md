@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-223 package(s):
+224 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
@@ -171,6 +171,7 @@
 - **`kernel/modules/reasoning/api`** — Package api is the reasoning module's public vocabulary: the rows and results the council, the conductor and the research harness produce, and the pure helpers both sides share.
 - **`kernel/modules/runs/intervention`** — Package intervention defines the protocol grammar for safe live changes to a running agent.
 - **`kernel/modules/runs/lifecycle`** — Package lifecycle is the runs module's run-lifecycle surface: Halt, Resume, CancelRun, DrainAndHalt, plus the read-side queries (IsHalted, ActiveRuns, ActiveRunIDs, NewCorrelation, SubjectForRun).
+- **`kernel/modules/runs/prompt`** — Package prompt assembles a run's system prompt.
 - **`kernel/modules/runs/registry`** — Package registry owns the live-run registry: the correlations that are running right now, their cancel functions, the halt latch, the drain accounting that lets the daemon wait for them to settle, and the suspend latch that says the daemon is on its way out.
 - **`kernel/modules/runs/resume`** — Package resume persists a durable "ticket" per in-flight root run so the daemon can pick the work back up after a restart — whether the daemon was stopped/started, self-updated, or hard-killed.
 - **`kernel/modules/runs/runctx`** — Package runctx is the runs module's vocabulary: the context a run carries.
