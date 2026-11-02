@@ -3,15 +3,22 @@
 package runtime
 
 // Provenance: Kernel accessors: Reflect + StartTime + Plugins + memory/skill flags +
-//             ctx helpers (WakeContext* + Images/JSONMode/MaxCost +
-//             Resume* +
-//             ResumeCheckpointFn/ResolveRunModel/WithActorCorrelation/ActorFromCtx).
+//             ctx helpers (Resume* +
+//             ResumeCheckpointFn/ResolveRunModel/WithAgentProfile/WithMaxCost).
 //             The prompt doors (BuildRunPrompt/InjectHostEnvironment) moved to the
 //             runs module's prompt service in W3.76e; they live in prompt.go now.
 //             The RunTimeout and MergeAutoApproveCapabilities doors went with
 //             W3.76k: the run's callers read the run context through the module
 //             (runctx.RunTimeoutFromCtx / runctx.MergeAutoApproveCapabilities)
 //             and the daemon's forwarding copies had no caller left.
+//             The run context's READ vocabulary went with W3.76l: fifteen doors
+//             (the wake fields, the images, the json mode, the cost ceiling,
+//             the model chain, the agent's daily ceiling, the actor) were the
+//             daemon's forwarding copies of the module's own names, and the
+//             run engine — which lives INSIDE the module — was asking the host
+//             to read the run's own decoration. What stays here is the host's
+//             own state and the doors a MODULE needs without naming the runs
+//             module (WithAgentProfile, WithMaxCost).
 //             Code extracted from accessors.go during the Day-56 god-file split.
 
 import (
@@ -64,90 +71,6 @@ func (k *Kernel) SkillForge() bool { return k.cfg.SkillForge }
 // runner sub-package can read it through KernelAPI (Day 32).
 func (k *Kernel) SkillForgeMinTools() int { return k.cfg.SkillForgeMinTools }
 
-// SystemAgentFromCtx reports whether the current run is operating
-// in system-agent mode (bypasses post-run distillation / forge /
-// shadow-eval). Wraps the package-level runctx.SystemAgentFromCtx so
-// the runner package can read it through KernelAPI (Day 34).
-func (k *Kernel) SystemAgentFromCtx(ctx context.Context) bool { return runctx.SystemAgentFromCtx(ctx) }
-
-// AgentDailyMcFromCtx returns the named agent's daily USD-microcent
-// ceiling attached to a run context by runctx.WithAgentProfile. Wraps the
-// package-level runctx.AgentDailyMcFromCtx (Day 34).
-func (k *Kernel) AgentDailyMcFromCtx(ctx context.Context) int64 {
-	return runctx.AgentDailyMcFromCtx(ctx)
-}
-
-// ModelChainFromCtx returns the explicit per-request model chain
-// attached to a run context by runctx.WithModelChain. Wraps the
-// package-level runctx.ModelChainFromCtx (Day 34).
-func (k *Kernel) ModelChainFromCtx(ctx context.Context) []string {
-	return runctx.ModelChainFromCtx(ctx)
-}
-
-// WakeContextSource returns the run provenance "source" field
-// (e.g. "schedule", "channel", "standing"). Wraps the
-// package-level runctx.WakeContextFromCtx so the runner package
-// can read individual fields through KernelAPI (Day 34) without
-// importing the WakeContext type across the package boundary.
-func (k *Kernel) WakeContextSource(ctx context.Context) string {
-	return runctx.WakeContextFromCtx(ctx).Source
-}
-
-// WakeContextReason returns the run provenance "reason" field
-// (e.g. "tick", "command", "briefing"). Wraps runctx.WakeContextFromCtx.
-func (k *Kernel) WakeContextReason(ctx context.Context) string {
-	return runctx.WakeContextFromCtx(ctx).Reason
-}
-
-// WakeContextScheduleID returns the schedule ID that triggered
-// the run ("" when the run did not originate from a schedule).
-// Wraps runctx.WakeContextFromCtx.
-func (k *Kernel) WakeContextScheduleID(ctx context.Context) string {
-	return runctx.WakeContextFromCtx(ctx).ScheduleID
-}
-
-// WakeContextStandingID returns the standing order ID that
-// triggered the run. Wraps runctx.WakeContextFromCtx.
-func (k *Kernel) WakeContextStandingID(ctx context.Context) string {
-	return runctx.WakeContextFromCtx(ctx).StandingID
-}
-
-// WakeContextStandingName returns the standing order name that
-// triggered the run. Wraps runctx.WakeContextFromCtx.
-func (k *Kernel) WakeContextStandingName(ctx context.Context) string {
-	return runctx.WakeContextFromCtx(ctx).StandingName
-}
-
-// WakeContextTriggerSubject returns the bus subject that
-// triggered the run (e.g. "channel.telegram.message"). Wraps
-// runctx.WakeContextFromCtx.
-func (k *Kernel) WakeContextTriggerSubject(ctx context.Context) string {
-	return runctx.WakeContextFromCtx(ctx).TriggerSubject
-}
-
-// WakeContextParentCorrelation returns the parent run's
-// correlation ID (the lead run that delegated this child). Wraps
-// runctx.WakeContextFromCtx.
-func (k *Kernel) WakeContextParentCorrelation(ctx context.Context) string {
-	return runctx.WakeContextFromCtx(ctx).ParentCorrelation
-}
-
-// ImagesFromCtx returns the images attached to a run context by
-// runctx.WithImages (vision-gated upstream by M91). Wraps the
-// package-level runctx.ImagesFromCtx (Day 34).
-func (k *Kernel) ImagesFromCtx(ctx context.Context) []string { return runctx.ImagesFromCtx(ctx) }
-
-// JSONModeFromCtx reports whether the current run was requested
-// with structured-output (response_format=json_object by OpenAI,
-// tool_choice="any" by Anthropic). Wraps the package-level
-// runctx.JSONModeFromCtx (Day 34).
-func (k *Kernel) JSONModeFromCtx(ctx context.Context) bool { return runctx.JSONModeFromCtx(ctx) }
-
-// MaxCostFromCtx returns the per-run USD-microcent ceiling attached
-// to a run context by runctx.WithMaxCost (--max-cost). Wraps the
-// package-level runctx.MaxCostFromCtx (Day 34).
-func (k *Kernel) MaxCostFromCtx(ctx context.Context) int64 { return runctx.MaxCostFromCtx(ctx) }
-
 // ResumeOwnedKindFromCtx returns (kind, true) if the run context
 // carries a resume-ticket owned by an outer wrapper (assure /
 // retry / resumer). Wraps the package-level resumeOwnedKind (Day 34).
@@ -189,20 +112,6 @@ func (k *Kernel) ResolveRunModel(ctx context.Context) (string, bool) {
 		return m, true
 	}
 	return k.effectiveConfig(ctx).Model, false
-}
-
-// WithActorCorrelation stamps the actor + correlation IDs onto a
-// context for downstream consumers (agent.PolicyHook, the
-// in-process memory tool). Wraps the run context's actor +
-// correlation writes so the runner package can decorate a
-// runCtx without importing the runtime ctx key types (Day 34).
-func (k *Kernel) WithActorCorrelation(ctx context.Context, actor, corr string) context.Context {
-	return runctx.WithActor(ctx, actor, corr)
-}
-
-// ActorFromCtx returns the actor name stamped by WithActorCorrelation.
-func (k *Kernel) ActorFromCtx(ctx context.Context) string {
-	return runctx.ActorFromCtx(ctx)
 }
 
 // WithAgentProfile binds a run context to a roster profile (M790): the soul

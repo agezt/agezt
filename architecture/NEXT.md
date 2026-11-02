@@ -13149,3 +13149,71 @@ func main() {
   its `Kernel` (`runtime.go`, 665), the accessors family (7 files, **965**)
   and the control plane (`kernel/controlplane`, 7,570). Evidence:
   `architecture/284-w376k-the-daemons-dead-surface-dies-evidence.md`
+- W3.76l (the run engine reads its own context from its own module) is the
+  **twentieth** slice of the runtime's dissolution.
+
+  The run context's vocabulary — the wake's provenance, the images, the json
+  mode, the cost ceiling, the model chain, the agent's daily ceiling, the
+  actor — belongs to **one** package: `kernel/modules/runs/runctx`. The daemon
+  kept **fifteen forwarding copies** of it, and the **run engine** asked the
+  host for those values through the port:
+
+  ```go
+  lc.WakeSource = r.k.WakeContextSource(runCtx)
+  lc.MaxRunCostMicrocents = r.k.MaxCostFromCtx(runCtx)
+  ```
+
+  The run engine **lives inside the module that owns the vocabulary**. It was
+  asking the host to read the run's own decoration, and the host was keeping a
+  second spelling of the module's names so that it could answer.
+
+  The distinction the slice turns on is real: a **module** that binds a run
+  must not name the runs module, or it creates a cross-module edge — so the
+  daemon keeps `WithAgentProfile` and `WithMaxCost` as its doors (the
+  self-repair module binds a run through them). The **application** already
+  named the module for the **writers** (`kernel/app/runs/run_context.go:36-40`);
+  only the **read** side went through the host. Now the two sides agree.
+
+  The run engine now asks the module — `runctx.WithActor`,
+  `runctx.SystemAgentFromCtx`, `runctx.ModelChainFromCtx`,
+  `runctx.AgentDailyMcFromCtx`, `runctx.WakeContextFromCtx`,
+  `runctx.ImagesFromCtx`, `runctx.JSONModeFromCtx`, `runctx.MaxCostFromCtx` —
+  the fifteen daemon copies are gone, and so are the fifteen entries of the
+  host's port. **What stays on the port** is the host's own state: the
+  effective config (the model the run falls back to, the heuristic bypass),
+  the resume ticket, the seed and the checkpoint callback — the answers the
+  module cannot give.
+
+  The measurement: the daemon's public verbs **220 → 205**, its production
+  lines **6,200 → 6,124**, its files **54 → 54**, the run engine's port
+  **81 → 66** methods, the contract's rows **+0**, the control plane **+0**
+  production files, the application layer **+0** production files.
+
+  Four test files read the run's context through the daemon's copies and now
+  read it through the module's names — the application's decoration test, the
+  application's correlation port test, the control plane's routed-actor test
+  and the restart profile test — and the application's correlation port holds
+  the module's writer as the capability, next to the daemon's mint.
+
+  The daemon's own ratchet **shrank honestly**: its list of module names the
+  daemon reads is the six it still reads (the model, the actor, the profile,
+  the ceiling, the timeout, the auto-approve merge), and it now pins the
+  **absence** of the nine forwarding copies the daemon used to keep. The
+  **runner got its own ratchet** — the engine asks the module, the host's port
+  promises none of that vocabulary, and the port still carries the host's own
+  state — and **the probe fired**: putting `SystemAgentFromCtx` back into the
+  port made the port's ratchet fail.
+
+  **No mutation run**: this slice redirects calls and removes a port's
+  promises, and there is no rule whose reversal a mutation could expose. The
+  evidence is the compiler (every caller and the port's shape type-checked),
+  the ratchets and their probe, and the full suite.
+
+  **What is left**: the daemon holds **205** public verbs and **6,124**
+  production lines, and its remaining ctx doors are the host's own — the
+  effective config, the resume state and the two doors a module binds a run
+  through. The rest of the W3 exit is unchanged: the daemon's composition root
+  (`compose.go`, 497 lines), its `Kernel` (`runtime.go`, 665), the accessors
+  family (7 files, **965**) and the control plane (`kernel/controlplane`,
+  7,570). Evidence:
+  `architecture/285-w376l-the-run-engine-reads-its-own-context-evidence.md`

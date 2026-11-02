@@ -8,6 +8,7 @@ import (
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 // A run's CONTEXT is what the run IS: the agent's profile, the provenance of
@@ -20,23 +21,25 @@ import (
 // say so.
 //
 // These tests hold the decoration end to end: what the application applies is
-// what the run actually carries.
+// what the run actually carries. The READ side is the run context's own
+// names (W3.76l): the daemon's forwarding copies of them are gone, and the
+// module's names answer for the module's context.
 
 func TestDecorateCarriesTheProfileTheWakeAndTheCeiling(t *testing.T) {
-	k := runKernel(t)
 	p := agentapi.Profile{Slug: "scout", System: true}
 	ctx := Decorate(context.Background(), p, agentapi.WakeContext{Source: "operator", Reason: "escalate"}, 500)
 
-	if got := k.WakeContextSource(ctx); got != "operator" {
-		t.Errorf("wake source = %q, want %q", got, "operator")
+	wake := runctx.WakeContextFromCtx(ctx)
+	if wake.Source != "operator" {
+		t.Errorf("wake source = %q, want %q", wake.Source, "operator")
 	}
-	if got := k.WakeContextReason(ctx); got != "escalate" {
-		t.Errorf("wake reason = %q, want %q", got, "escalate")
+	if wake.Reason != "escalate" {
+		t.Errorf("wake reason = %q, want %q", wake.Reason, "escalate")
 	}
-	if got := k.MaxCostFromCtx(ctx); got != 500 {
+	if got := runctx.MaxCostFromCtx(ctx); got != 500 {
 		t.Errorf("cost ceiling = %d, want 500", got)
 	}
-	if !k.SystemAgentFromCtx(ctx) {
+	if !runctx.SystemAgentFromCtx(ctx) {
 		t.Error("the profile's system flag did not travel with the run")
 	}
 	if got := toolapi.AgentFromContext(ctx); got != "scout" {
@@ -45,32 +48,29 @@ func TestDecorateCarriesTheProfileTheWakeAndTheCeiling(t *testing.T) {
 }
 
 func TestDecorateWithoutACeilingLeavesTheRunUncapped(t *testing.T) {
-	k := runKernel(t)
 	ctx := Decorate(context.Background(), agentapi.Profile{Slug: "scout"}, agentapi.WakeContext{Source: "operator"}, 0)
-	if got := k.MaxCostFromCtx(ctx); got != 0 {
+	if got := runctx.MaxCostFromCtx(ctx); got != 0 {
 		t.Errorf("cost ceiling = %d, want 0 (uncapped)", got)
 	}
 }
 
 func TestDecorateModelsCarriesTheChainAndItsPrimary(t *testing.T) {
-	k := runKernel(t)
 	ctx := DecorateModels(context.Background(), []string{"model-a", "model-b"})
-	chain := k.ModelChainFromCtx(ctx)
+	chain := runctx.ModelChainFromCtx(ctx)
 	if len(chain) != 2 || chain[0] != "model-a" || chain[1] != "model-b" {
 		t.Errorf("model chain = %v, want [model-a model-b]", chain)
 	}
-	if got, ok := k.ResolveRunModel(ctx); !ok || got != "model-a" {
-		t.Errorf("run model = %q (set=%v), want model-a", got, ok)
+	if got := runctx.ModelFromCtx(ctx); got != "model-a" {
+		t.Errorf("run model = %q, want model-a", got)
 	}
 }
 
 func TestDecorateModelsWithNoChainLeavesTheRunAlone(t *testing.T) {
-	k := runKernel(t)
 	ctx := DecorateModels(context.Background(), nil)
-	if got := k.ModelChainFromCtx(ctx); got != nil {
+	if got := runctx.ModelChainFromCtx(ctx); got != nil {
 		t.Errorf("model chain = %v, want none", got)
 	}
-	if got, ok := k.ResolveRunModel(ctx); ok {
+	if got := runctx.ModelFromCtx(ctx); got != "" {
 		t.Errorf("run model = %q, want no override", got)
 	}
 }

@@ -17,6 +17,7 @@ import (
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/warden"
 )
 
@@ -97,10 +98,10 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// thread them into approval.Submit (the agent.Policy contract
 	// doesn't expose them directly), and so the in-process memory tool
 	// can journal its writes under this run.
-	runCtx = r.k.WithActorCorrelation(runCtx, actor, corr)
+	runCtx = runctx.WithActor(runCtx, actor, corr)
 	runCtx = memoryapi.WithCorrelation(runCtx, corr)
 	runCtx = opapi.WithCorrelation(runCtx, corr)
-	systemAgent := r.k.SystemAgentFromCtx(runCtx)
+	systemAgent := runctx.SystemAgentFromCtx(runCtx)
 	skillDirective := skillapi.ParseActivationDirective(intent)
 	if skillDirective.Explicit && skillDirective.CleanIntent != "" {
 		intent = skillDirective.CleanIntent
@@ -133,7 +134,7 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	model, modelExplicit := r.k.ResolveRunModel(runCtx)
 	// An EXPLICIT pick must actually serve the run (M931): carry the pick as
 	// the per-request chain, which wins over the task chain (M787 precedence).
-	modelChain := r.k.ModelChainFromCtx(runCtx)
+	modelChain := runctx.ModelChainFromCtx(runCtx)
 	if len(modelChain) == 0 && modelExplicit {
 		modelChain = []string{model}
 	}
@@ -164,24 +165,25 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	lc.TaskType = "chat"       // M703: main agent loop → "chat" routing target
 	lc.ModelChain = modelChain // M787 agent fallbacks, or the explicit pick (M931)
 	lc.Agent = r.k.AgentSlugFromCtx(runCtx)
-	lc.AgentDailyCeilingMc = r.k.AgentDailyMcFromCtx(runCtx)
-	lc.WakeSource = r.k.WakeContextSource(runCtx)
-	lc.WakeReason = r.k.WakeContextReason(runCtx)
-	lc.ScheduleID = r.k.WakeContextScheduleID(runCtx)
-	lc.StandingID = r.k.WakeContextStandingID(runCtx)
-	lc.StandingName = r.k.WakeContextStandingName(runCtx)
-	lc.TriggerSubject = r.k.WakeContextTriggerSubject(runCtx)
-	lc.ParentCorrelation = r.k.WakeContextParentCorrelation(runCtx)
+	lc.AgentDailyCeilingMc = runctx.AgentDailyMcFromCtx(runCtx)
+	wake := runctx.WakeContextFromCtx(runCtx)
+	lc.WakeSource = wake.Source
+	lc.WakeReason = wake.Reason
+	lc.ScheduleID = wake.ScheduleID
+	lc.StandingID = wake.StandingID
+	lc.StandingName = wake.StandingName
+	lc.TriggerSubject = wake.TriggerSubject
+	lc.ParentCorrelation = wake.ParentCorrelation
 	lc.System = system
 	lc.Actor = actor
 	lc.CorrelationID = corr
-	lc.Images = r.k.ImagesFromCtx(runCtx)                // M93: image attachments
-	lc.JSONMode = r.k.JSONModeFromCtx(runCtx)            // M314: structured-output request
-	lc.MaxRunCostMicrocents = r.k.MaxCostFromCtx(runCtx) // M166: per-run cost cap
-	lc.Steer = steer                                     // M608: live operator steering
-	lc.Checkpoint = resumeCheckpoint                     // M1002: persist snapshot each iteration
-	lc.PriorMessages = resumePriorMessages               // M1002: seed a resumed run's conversation
-	lc.StartIter = resumeStartIter                       // M1002: continue iter numbering on resume
+	lc.Images = runctx.ImagesFromCtx(runCtx)                // M93: image attachments
+	lc.JSONMode = runctx.JSONModeFromCtx(runCtx)            // M314: structured-output request
+	lc.MaxRunCostMicrocents = runctx.MaxCostFromCtx(runCtx) // M166: per-run cost cap
+	lc.Steer = steer                                        // M608: live operator steering
+	lc.Checkpoint = resumeCheckpoint                        // M1002: persist snapshot each iteration
+	lc.PriorMessages = resumePriorMessages                  // M1002: seed a resumed run's conversation
+	lc.StartIter = resumeStartIter                          // M1002: continue iter numbering on resume
 	answer, err := agent.Run(runCtx, lc, intent)
 
 	// Resume ticket (M1002): clear it on a clean/failed/cancelled terminal, but

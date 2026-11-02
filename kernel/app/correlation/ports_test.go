@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -36,13 +37,14 @@ func TestTheCorrelationPortsReachTheKernelMint(t *testing.T) {
 		t.Fatal("the correlation port minted the same correlation twice")
 	}
 
-	// The actor decoration is the kernel's own.
+	// The actor decoration is the run context's own.
 	//
 	// The correlation itself is the kernel's private context key — the kernel
 	// has no public reader for it — so what the test can read is the ACTOR,
-	// which the kernel does publish.
+	// which the run context publishes (W3.76l: the daemon's forwarding copy
+	// of that reader is gone; the module's own name answers).
 	ctx := ports.WithActor(context.Background(), "operator", corr)
-	if got := k.ActorFromCtx(ctx); got != "operator" {
+	if got := runctx.ActorFromCtx(ctx); got != "operator" {
 		t.Fatalf("the correlation port put the actor %q into the context, want %q", got, "operator")
 	}
 }

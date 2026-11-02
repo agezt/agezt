@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/tenant"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -54,7 +55,7 @@ func TestAppHostSocketMutationAndStreaming(t *testing.T) {
 				if !spec.ReadOnly {
 					host := ctx.Value(appHostKey{}).(appHost)
 					handlerCorrelation = host.correlation
-					if host.scope.Directory != dir || k.ActorFromCtx(ctx) != "operator" {
+					if host.scope.Directory != dir || runctx.ActorFromCtx(ctx) != "operator" {
 						t.Error("handler lost routed actor/scope context")
 					}
 					invocations := 0

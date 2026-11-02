@@ -35,6 +35,13 @@ import (
 // kernel. Day 21a slice: read-side accessors. Day 21b will
 // expand with post-run trio, journal re-exports, and the 27
 // legacy run-engine methods.
+//
+// The run's CONTEXT is not part of it (W3.76l): the run context's vocabulary
+// belongs to the module that owns it (kernel/modules/runs/runctx), and the
+// run engine is INSIDE that module — asking the host to read the run's own
+// decoration was a hop that bought nothing. What stays here is the host's
+// own state: the effective config, the resume ticket and the seed, the
+// profile lookups.
 type KernelAPI interface {
 	Bus() *bus.Bus
 	Journal() *journal.Journal
@@ -56,19 +63,6 @@ type KernelAPI interface {
 	SetupRunState(corr string, parentCtx context.Context) (context.Context, context.CancelFunc, agent.Steerer, error)
 	CleanupRunState(corr string) []context.CancelFunc
 	DeregisterRunSteer(corr string)
-	SystemAgentFromCtx(ctx context.Context) bool
-	AgentDailyMcFromCtx(ctx context.Context) int64
-	ModelChainFromCtx(ctx context.Context) []string
-	WakeContextSource(ctx context.Context) string
-	WakeContextReason(ctx context.Context) string
-	WakeContextScheduleID(ctx context.Context) string
-	WakeContextStandingID(ctx context.Context) string
-	WakeContextStandingName(ctx context.Context) string
-	WakeContextTriggerSubject(ctx context.Context) string
-	WakeContextParentCorrelation(ctx context.Context) string
-	ImagesFromCtx(ctx context.Context) []string
-	JSONModeFromCtx(ctx context.Context) bool
-	MaxCostFromCtx(ctx context.Context) int64
 	ResumeOwnedKindFromCtx(ctx context.Context) (string, bool)
 	ResumeSeedFromCtx(ctx context.Context) ([]llm.Message, int, bool)
 	DisableHeuristicBypass(ctx context.Context) bool
@@ -76,8 +70,6 @@ type KernelAPI interface {
 	InjectHostEnvironment(system string, tools map[string]toolapi.Tool) string
 	ResumeCheckpointFn(corr string) func(int, []llm.Message)
 	ResolveRunModel(ctx context.Context) (string, bool)
-	WithActorCorrelation(ctx context.Context, actor, corr string) context.Context
-	ActorFromCtx(ctx context.Context) string
 	Edict() *edict.Engine
 	Warden() warden.Engine
 	Approvals() *approval.Registry
