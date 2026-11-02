@@ -110,8 +110,6 @@ type KernelAPI interface {
 	VerifyCompletion(ctx context.Context, corr, task, answer string) (assureapi.Verdict, error)
 	ClaimResumeTicket(ctx context.Context, corr, intent, kind string, assureBudget int) (context.Context, bool)
 	FinalizeResumeTicket(corr string, runErr error)
-	AgentSlugFromCtx(ctx context.Context) string
-	AgentRetryPolicyFromCtx(ctx context.Context) (agentapi.RetryPolicy, bool)
 	RetryReason(err error) string
 	AgentRetryable(reason string, retryOn []string) bool
 	RetryDelay(pol agentapi.RetryPolicy, attempt int) time.Duration

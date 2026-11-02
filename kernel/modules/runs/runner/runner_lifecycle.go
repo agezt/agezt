@@ -16,10 +16,11 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 func (r *Runner) CompleteAgentLifecycle(ctx context.Context, corr string) {
-	slug := r.k.AgentSlugFromCtx(ctx)
+	slug := runctx.AgentSlugFromCtx(ctx)
 	if slug == "" {
 		return
 	}
@@ -95,7 +96,7 @@ func (r *Runner) RunAssured(ctx context.Context, corr, intent string, maxAttempt
 	ctx, owns := r.k.ClaimResumeTicket(ctx, corr, intent, resume.KindAssured, maxAttempts)
 	res, err := assureapi.Until(ctx, intent, maxAttempts,
 		func(ctx context.Context, _ int, task string) (string, error) {
-			if pol, ok := r.k.AgentRetryPolicyFromCtx(ctx); ok && pol.MaxAttempts > 1 {
+			if pol, ok := runctx.AgentRetryPolicyFromCtx(ctx); ok && pol.MaxAttempts > 1 {
 				return r.k.RunWithRetry(ctx, corr, task, pol)
 			}
 			return r.k.RunWith(ctx, corr, task)

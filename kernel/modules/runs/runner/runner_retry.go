@@ -19,6 +19,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 func (r *Runner) RunWithRetry(ctx context.Context, corr, intent string, pol agentapi.RetryPolicy) (string, error) {
@@ -53,7 +54,7 @@ func (r *Runner) RunWithRetry(ctx context.Context, corr, intent string, pol agen
 			return "", err
 		}
 		delay := r.k.RetryDelay(pol, attempt)
-		agentSlug := r.k.AgentSlugFromCtx(ctx)
+		agentSlug := runctx.AgentSlugFromCtx(ctx)
 		subject := "agent.retry"
 		if agentSlug != "" {
 			subject = "agent." + agentSlug + ".retry"

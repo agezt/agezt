@@ -157,7 +157,9 @@ func TestTheDaemonKeepsTheDoorsAndNothingMore(t *testing.T) {
 		}
 	}
 	// The read vocabulary is the module's: the daemon keeps no forwarding
-	// copy of it (W3.76l).
+	// copy of it (W3.76l, W3.76m). The check is over the daemon's WHOLE
+	// package — the vocabulary's doors were split over two files, and a
+	// file-scoped check would only watch one of them.
 	for _, gone := range []string{
 		"func (k *Kernel) SystemAgentFromCtx(",
 		"func (k *Kernel) ActorFromCtx(",
@@ -168,12 +170,13 @@ func TestTheDaemonKeepsTheDoorsAndNothingMore(t *testing.T) {
 		"func (k *Kernel) ImagesFromCtx(",
 		"func (k *Kernel) JSONModeFromCtx(",
 		"func (k *Kernel) MaxCostFromCtx(",
+		"func (k *Kernel) AgentSlugFromCtx(",
+		"func (k *Kernel) AgentRetryPolicyFromCtx(",
 	} {
-		if strings.Contains(text, gone) {
+		if daemonPackageContains(t, gone) {
 			t.Errorf("the daemon kept %q — the run context's vocabulary is the module's", gone)
 		}
-	}
-	// The daemon's own package-level setter is gone: a host names the module.
+	} // The daemon's own package-level setter is gone: a host names the module.
 	if hasDaemonDeclaration(t, "WithAgentProfile") || hasDaemonDeclaration(t, "WithMaxCost") {
 		t.Fatal("the daemon kept a package-level run-context setter; the hosts name the module")
 	}
