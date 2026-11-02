@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"strings"
 )
@@ -22,6 +23,18 @@ type ForgeWriter interface {
 type ForgeLifecycle struct{ writer ForgeWriter }
 
 func NewForgeLifecycle(writer ForgeWriter) *ForgeLifecycle { return &ForgeLifecycle{writer: writer} }
+
+// forge returns the writer, or the refusal.
+//
+// The writer is the EXTENSIONS MODULE's runner (W3.76t) and a daemon with no
+// forge holds no runner at all — so the application refuses with the
+// CONTRACT's row (toolforgeapi.ErrNoStore) rather than calling into nothing.
+func (s *ForgeLifecycle) forge() (ForgeWriter, error) {
+	if s.writer == nil {
+		return nil, toolforgeapi.ErrNoStore
+	}
+	return s.writer, nil
+}
 
 type ForgeDraftInput struct {
 	Tool          toolforge.ScriptTool
@@ -63,7 +76,11 @@ func (s *ForgeLifecycle) Draft(ctx context.Context, in ForgeDraftInput) (ForgeMu
 	if err := ctx.Err(); err != nil {
 		return ForgeMutationOutput{}, err
 	}
-	saved, err := s.writer.DraftScriptTool(forgeCorrelation(ctx, in.CorrelationID), in.Tool)
+	writer, err := s.forge()
+	if err != nil {
+		return ForgeMutationOutput{}, err
+	}
+	saved, err := writer.DraftScriptTool(forgeCorrelation(ctx, in.CorrelationID), in.Tool)
 	if err != nil {
 		return ForgeMutationOutput{}, err
 	}
@@ -73,7 +90,11 @@ func (s *ForgeLifecycle) Edit(ctx context.Context, in ForgeEditInput) (ForgeMuta
 	if err := ctx.Err(); err != nil {
 		return ForgeMutationOutput{}, err
 	}
-	st, found, err := s.writer.UpdateScriptTool(forgeCorrelation(ctx, in.CorrelationID), in.Ref, func(dst *toolforge.ScriptTool) {
+	writer, err := s.forge()
+	if err != nil {
+		return ForgeMutationOutput{}, err
+	}
+	st, found, err := writer.UpdateScriptTool(forgeCorrelation(ctx, in.CorrelationID), in.Ref, func(dst *toolforge.ScriptTool) {
 		if strings.TrimSpace(in.Tool.Description) != "" {
 			dst.Description = in.Tool.Description
 		}
@@ -99,7 +120,11 @@ func (s *ForgeLifecycle) Test(ctx context.Context, in ForgeTestInput) (ForgeTest
 	if err := ctx.Err(); err != nil {
 		return ForgeTestOutput{}, err
 	}
-	st, out, err := s.writer.TestScriptTool(ctx, forgeCorrelation(ctx, in.CorrelationID), in.Ref, in.Sample)
+	writer, err := s.forge()
+	if err != nil {
+		return ForgeTestOutput{}, err
+	}
+	st, out, err := writer.TestScriptTool(ctx, forgeCorrelation(ctx, in.CorrelationID), in.Ref, in.Sample)
 	if err != nil {
 		return ForgeTestOutput{}, forgeLifecycleError(err, in.Ref)
 	}
@@ -109,7 +134,11 @@ func (s *ForgeLifecycle) Promote(ctx context.Context, in ForgeRefInput) (ForgeMu
 	if err := ctx.Err(); err != nil {
 		return ForgeMutationOutput{}, err
 	}
-	st, err := s.writer.PromoteScriptTool(forgeCorrelation(ctx, in.CorrelationID), in.Ref)
+	writer, err := s.forge()
+	if err != nil {
+		return ForgeMutationOutput{}, err
+	}
+	st, err := writer.PromoteScriptTool(forgeCorrelation(ctx, in.CorrelationID), in.Ref)
 	if err != nil {
 		return ForgeMutationOutput{}, forgeLifecycleError(err, in.Ref)
 	}
@@ -119,7 +148,11 @@ func (s *ForgeLifecycle) Quarantine(ctx context.Context, in ForgeQuarantineInput
 	if err := ctx.Err(); err != nil {
 		return ForgeMutationOutput{}, err
 	}
-	st, err := s.writer.QuarantineScriptTool(forgeCorrelation(ctx, in.CorrelationID), in.Ref, in.Reason)
+	writer, err := s.forge()
+	if err != nil {
+		return ForgeMutationOutput{}, err
+	}
+	st, err := writer.QuarantineScriptTool(forgeCorrelation(ctx, in.CorrelationID), in.Ref, in.Reason)
 	if err != nil {
 		return ForgeMutationOutput{}, forgeLifecycleError(err, in.Ref)
 	}
@@ -129,7 +162,11 @@ func (s *ForgeLifecycle) Remove(ctx context.Context, in ForgeRefInput) (ForgeRem
 	if err := ctx.Err(); err != nil {
 		return ForgeRemoveOutput{}, err
 	}
-	removed, err := s.writer.RemoveScriptTool(forgeCorrelation(ctx, in.CorrelationID), in.Ref)
+	writer, err := s.forge()
+	if err != nil {
+		return ForgeRemoveOutput{}, err
+	}
+	removed, err := writer.RemoveScriptTool(forgeCorrelation(ctx, in.CorrelationID), in.Ref)
 	if err != nil {
 		return ForgeRemoveOutput{}, err
 	}

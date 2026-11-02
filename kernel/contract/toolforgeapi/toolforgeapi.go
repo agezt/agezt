@@ -192,11 +192,11 @@ var ErrNoStore = errors.New("toolforge: the script-tool forge is not available o
 // it.
 //
 // It is the contract's port, and the tool that drives it is a plugin — so the
-// row the registry carries cannot be the live kernel. The implementation —
-// the kernel's own forge methods — satisfies it without an adapter: its
-// signatures already speak the contract's rows (`toolforge.ScriptTool` is an
-// alias of `toolforgeapi.ScriptTool`, and `approval.Decision` is an alias of
-// `approvalapi.Decision`).
+// row the registry carries cannot be the live kernel. The implementation is
+// the EXTENSIONS MODULE's service (W3.76t): it answers in these names
+// directly, without an adapter — its signatures already speak the contract's
+// rows (`toolforge.ScriptTool` is an alias of `toolforgeapi.ScriptTool`, and
+// `approval.Decision` is an alias of `approvalapi.Decision`).
 type Runner interface {
 	// DraftScriptTool saves a new draft and returns it.
 	DraftScriptTool(corr string, st ScriptTool) (ScriptTool, error)

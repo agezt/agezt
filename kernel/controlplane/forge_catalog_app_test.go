@@ -41,7 +41,7 @@ func forgeReadFixture(t *testing.T) (*runtime.Kernel, *Server, *mock.Provider) {
 		t.Fatal(err)
 	}
 	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, ToolForge: store,
-		ForgeBuilder: func(deps extapi.ForgeDependencies) extapi.ForgeService {
+		ForgeBuilder: func(deps extapi.ForgeDependencies) extapi.ForgeRunner {
 			return toolforge.NewService(deps)
 		},
 	})

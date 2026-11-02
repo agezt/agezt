@@ -74,6 +74,14 @@ var retiredVerbs = []string{
 	// The daemon's own MCP readers (the row surface answers the same rows).
 	"MCPRegistration",
 	"MCPRegistrations",
+	// The daemon's seven forwarders over the script-tool forge's lifecycle.
+	"DraftScriptTool",
+	"UpdateScriptTool",
+	"TestScriptTool",
+	"PromoteScriptTool",
+	"RequestToolPromotion",
+	"QuarantineScriptTool",
+	"RemoveScriptTool",
 }
 
 // daemonPublicVerbs is the ceiling the daemon's public method set may not
@@ -87,10 +95,11 @@ var retiredVerbs = []string{
 // that permits exactly what the program exists to remove.
 //
 // So the ceiling follows the floor: 220 -> 201 (W3.76q) -> 194 (W3.76r, the
-// objective lifecycle) -> 179 (W3.76s, the task board's sixteen forwarders).
-// The daemon holds 179 public verbs today; a new verb needs a new reason, and
+// objective lifecycle) -> 179 (W3.76s, the task board's sixteen forwarders) ->
+// 173 (W3.76t, the script forge's seven forwarders).
+// The daemon holds 173 public verbs today; a new verb needs a new reason, and
 // this file says so.
-const daemonPublicVerbs = 179
+const daemonPublicVerbs = 173
 
 // TestTheRetiredVerbsDoNotComeBack pins the retirement: none of the sixteen
 // names is a method of *Kernel any more.

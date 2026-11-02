@@ -31,7 +31,7 @@ func TestTheToolForgeSpecWiresTheStorePort(t *testing.T) {
 		t.Fatalf("open the forge store: %v", err)
 	}
 	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), ToolForge: store,
-		ForgeBuilder: func(deps extapi.ForgeDependencies) extapi.ForgeService {
+		ForgeBuilder: func(deps extapi.ForgeDependencies) extapi.ForgeRunner {
 			return toolforge.NewService(deps)
 		},
 	})
@@ -49,7 +49,7 @@ func TestTheToolForgeSpecWiresTheStorePort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{ForgeRunner: k, Forge: k.ToolForge()}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{ForgeRunner: k.ForgeRunner(), Forge: k.ToolForge()}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
@@ -91,7 +91,7 @@ func TestTheToolForgeSpecSurvivesAMissingStorePort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{ForgeRunner: k}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{ForgeRunner: k.ForgeRunner()}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 

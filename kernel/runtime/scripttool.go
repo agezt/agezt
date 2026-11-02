@@ -2,159 +2,70 @@
 
 package runtime
 
-// Provenance: Runtime script-tool forge: the READ over the forge's port +
-//             the forwarders to the extensions module's forge service.
+// Provenance: Runtime script-tool forge: the host's face for the forge.
 //
-// The lifecycle is the EXTENSIONS MODULE's (W3.72): the module keeps the
-// forge's operations — draft, edit, test, promote, ask the operator,
-// quarantine, remove — and the bridge that folds the promoted scripts into a
-// run's tool map, and the host holds the module's face
-// (extapi.ForgeService) and forwards to it.
+// The forge's LIFECYCLE is the EXTENSIONS MODULE's (W3.72): the module keeps
+// the operations — draft, edit, test, promote, ask the operator, quarantine,
+// remove — and the bridge that folds the promoted scripts into a run's tool
+// map.
 //
-// The host's public names did not move — DraftScriptTool and its six
-// siblings are still the daemon's verbs, and every caller outside the
-// runtime is untouched. What moved is WHERE the answer comes from: the
-// daemon used to hold the store AND spell out the lifecycle over it, which
-// left the module keeping the CATALOGUE and the daemon keeping the
-// OPERATIONS.
+// The daemon used to hold SEVEN forwarders over the module's own operations
+// (DraftScriptTool, UpdateScriptTool, TestScriptTool, PromoteScriptTool,
+// RequestToolPromotion, QuarantineScriptTool, RemoveScriptTool) — a second
+// spelling of each, and a second copy of the whole forge surface for the
+// application layer and the plugin to call through.
 //
-// The READ stays on this side of the line on purpose: it is the nil-safe
-// view over the CONTRACT's port (W3.45) — the daemon holds the port, and a
-// host with no forge answers "no tools" instead of calling into nothing.
+// The forge's vocabulary is the CONTRACT's: the contract's runner port
+// (kernel/contract/toolforgeapi.Runner) already named four of these
+// operations the way the forge's users say them, and the module answers in
+// those names (W3.76t). The daemon spells none of them.
+//
+// What the daemon keeps is the HOST's own business:
+//
+//   - the forge's FILE (ToolForge): the store port the daemon opened
+//     (W3.45), and the nil-safe read view over it;
+//   - the module's FACE (ForgeRunner): the runner the application layer and
+//     the plugin bind.
+//
+// The composition root hands the kernel the BUILDER (see
+// runtime.Config.ForgeBuilder) and the kernel calls it while opening itself —
+// so the daemon never needs a setter for it.
 
 import (
-	"context"
-
-	"github.com/agezt/agezt/kernel/contract/approvalapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 )
 
-// ErrNoForge is answered when the daemon handed the kernel no script-tool
-// forge (W3.45). The forge's FILE is the daemon's business, so a kernel
-// without one is a daemon with no script tools — and the writes must say so
-// rather than call into nothing.
+// ErrNoForge is the row a caller compares with when the script-tool forge
+// is not there (W3.45).
 //
-// The sentinel is the CONTRACT's row (toolforgeapi.ErrNoStore) since W3.72:
-// the module raises it when the daemon handed over no forge store, and the
-// host raises it when the module was never wired — and a caller compares with
-// errors.Is, so both sides must raise the SAME error.
+// The sentinel is the CONTRACT's row (toolforgeapi.ErrNoStore): the module
+// raises it when the daemon handed over no forge store, and the daemon's
+// alias lets a caller ask the daemon's question in the daemon's own name —
+// a caller compares with errors.Is, so both sides must raise the SAME error.
+//
+// The daemon no longer holds the forge's verbs (W3.76t), so it no longer
+// raises this row itself: the refusal belongs to the module and to the
+// application layer that asks it.
 var ErrNoForge = toolforgeapi.ErrNoStore
 
 // ToolForge returns the durable script-tool store (M794) — the contract's
 // port (W3.45), which the host opened and injected.
 //
-// Nil when the host wired no forge: every operation below then reports that
-// the forge is unavailable rather than calling into nothing.
+// Nil when the host wired no forge: the reads then answer "no tools" instead
+// of calling into nothing.
 func (k *Kernel) ToolForge() toolforgeapi.HostStore { return k.toolForge }
 
-// forgeService returns the injected forge service, or nil.
+// ForgeRunner returns the forge's runner — the EXTENSIONS MODULE's face.
 //
-// The service is the EXTENSIONS MODULE's: the module keeps the lifecycle, the
-// daemon keeps the names. The composition root hands the BUILDER over (see
-// runtime.Config.ForgeBuilder) and the kernel calls it while opening itself —
-// so the daemon never needs a setter for it (W3.76k: the setter's only
-// caller was the daemon's own test).
-func (k *Kernel) forgeService() extapi.ForgeService {
+// It is what the application layer binds (W3.76t): the tools application asks
+// the forge, not the daemon. A daemon that was given no builder holds a nil
+// face, and the application refuses rather than calling into nothing.
+func (k *Kernel) ForgeRunner() extapi.ForgeRunner {
 	k.configMu.Lock()
 	defer k.configMu.Unlock()
 	return k.scriptForge
-}
-
-// forgeOrRefusal returns the forge service the daemon drives, or the
-// refusal.
-//
-// The refusal is the contract's row: a daemon with no forge answers no
-// forge, whether the store was never opened or the module was never wired.
-func (k *Kernel) forgeOrRefusal() (extapi.ForgeService, error) {
-	svc := k.forgeService()
-	if svc == nil {
-		return nil, toolforgeapi.ErrNoStore
-	}
-	return svc, nil
-}
-
-// DraftScriptTool validates and persists a new DRAFT script tool, journaling
-// scripttool.created so the tool's birth is auditable.
-func (k *Kernel) DraftScriptTool(corr string, st toolforgeapi.ScriptTool) (toolforgeapi.ScriptTool, error) {
-	svc, err := k.forgeOrRefusal()
-	if err != nil {
-		return toolforgeapi.ScriptTool{}, err
-	}
-	return svc.Draft(corr, st)
-}
-
-// UpdateScriptTool edits a script tool's mutable fields via mutate,
-// journaling scripttool.updated. The store demotes the tool to draft and
-// clears its test record when the code/language changed — the payload says
-// so, so `agt why` can explain why a live tool went dark. Returns false +
-// nil error for an unknown ref (standing pattern).
-func (k *Kernel) UpdateScriptTool(corr, ref string, mutate func(*toolforgeapi.ScriptTool)) (toolforgeapi.ScriptTool, bool, error) {
-	svc, err := k.forgeOrRefusal()
-	if err != nil {
-		return toolforgeapi.ScriptTool{}, false, err
-	}
-	return svc.Update(corr, ref, mutate)
-}
-
-// TestScriptTool runs a script tool's CURRENT code once in the code-exec
-// sandbox with input as the call payload (surfaced to the script as
-// ./stdin.txt), records the verdict on the tool (Promote requires a pass),
-// and journals scripttool.tested. The sandbox output comes back verbatim so
-// the author can iterate.
-func (k *Kernel) TestScriptTool(ctx context.Context, corr, ref, input string) (toolforgeapi.ScriptTool, string, error) {
-	svc, err := k.forgeOrRefusal()
-	if err != nil {
-		return toolforgeapi.ScriptTool{}, "", err
-	}
-	return svc.Test(ctx, corr, ref, input)
-}
-
-// PromoteScriptTool moves a tested draft/quarantined tool to ACTIVE — from
-// the next run on, every agent is offered it as forge_<name>. Journals
-// scripttool.promoted.
-func (k *Kernel) PromoteScriptTool(corr, ref string) (toolforgeapi.ScriptTool, error) {
-	svc, err := k.forgeOrRefusal()
-	if err != nil {
-		return toolforgeapi.ScriptTool{}, err
-	}
-	return svc.Promote(corr, ref)
-}
-
-// RequestToolPromotion (M813): the agent ASKS for its tool to go live — the
-// promotion queue. The request blocks on the HITL approval registry (it
-// shows up in `agt approvals` and the console's Approvals view); a grant
-// promotes through the exact path the operator CLI uses, a deny/timeout
-// comes back as the decision, not an error. The "only tested code goes
-// live" invariant is checked up front so an untested draft never even
-// reaches the operator's queue.
-func (k *Kernel) RequestToolPromotion(ctx context.Context, corr, ref string) (toolforgeapi.ScriptTool, approvalapi.Decision, string, error) {
-	svc, err := k.forgeOrRefusal()
-	if err != nil {
-		return toolforgeapi.ScriptTool{}, "", "", err
-	}
-	return svc.RequestPromotion(ctx, corr, ref)
-}
-
-// QuarantineScriptTool pulls an active tool from production — the kill
-// switch. Journals scripttool.quarantined with the operator's reason.
-func (k *Kernel) QuarantineScriptTool(corr, ref, reason string) (toolforgeapi.ScriptTool, error) {
-	svc, err := k.forgeOrRefusal()
-	if err != nil {
-		return toolforgeapi.ScriptTool{}, err
-	}
-	return svc.Quarantine(corr, ref, reason)
-}
-
-// RemoveScriptTool deletes a script tool, journaling scripttool.removed when
-// it existed. Returns whether it existed.
-func (k *Kernel) RemoveScriptTool(corr, ref string) (bool, error) {
-	svc, err := k.forgeOrRefusal()
-	if err != nil {
-		return false, err
-	}
-	return svc.Remove(corr, ref)
 }
 
 // mergeScriptTools returns the run's tool map extended with the forge's
@@ -164,7 +75,7 @@ func (k *Kernel) RemoveScriptTool(corr, ref string) (bool, error) {
 // and the common no-scripts path stays allocation-free — the input map comes
 // back untouched.
 func (k *Kernel) mergeScriptTools(tools map[string]toolapi.Tool) map[string]toolapi.Tool {
-	svc := k.forgeService()
+	svc := k.ForgeRunner()
 	if svc == nil {
 		return tools
 	}

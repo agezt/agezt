@@ -68,7 +68,7 @@ func forgeMutationFixture(t *testing.T, cmd string) (*runtime.Kernel, *Server, *
 		t.Fatal(err)
 	}
 	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, ScriptRunner: runner, ToolForge: store,
-		ForgeBuilder: func(deps extapi.ForgeDependencies) extapi.ForgeService {
+		ForgeBuilder: func(deps extapi.ForgeDependencies) extapi.ForgeRunner {
 			return toolforge.NewService(deps)
 		},
 	})

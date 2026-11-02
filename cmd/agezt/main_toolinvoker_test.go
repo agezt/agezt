@@ -195,7 +195,7 @@ func TestOpenAppKernelWiresTheForge(t *testing.T) {
 		t.Fatal("the daemon did not wire the forge store — the kernel holds no port")
 	}
 
-	drafted, err := k.DraftScriptTool("corr-1", toolforgeapi.ScriptTool{
+	drafted, err := k.ForgeRunner().DraftScriptTool("corr-1", toolforgeapi.ScriptTool{
 		Name:        "echo",
 		Description: "echoes its input",
 		Language:    "python",

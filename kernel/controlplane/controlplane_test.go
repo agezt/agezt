@@ -217,7 +217,7 @@ func startPairWithConfigAndDeps(t *testing.T, cfg runtime.Config, deps func(dir 
 	cfg.ToolForge = forge
 	// The forge's LIFECYCLE is the extensions module's (W3.72): the root
 	// hands the kernel the module's builder, the way the daemon does.
-	cfg.ForgeBuilder = func(deps extapi.ForgeDependencies) extapi.ForgeService {
+	cfg.ForgeBuilder = func(deps extapi.ForgeDependencies) extapi.ForgeRunner {
 		return toolforge.NewService(deps)
 	}
 	// The task board is the composition root's file too (W3.47): the kernel

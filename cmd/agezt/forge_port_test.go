@@ -27,7 +27,7 @@ func withForge(t *testing.T, cfg kernelruntime.Config) kernelruntime.Config {
 		t.Fatalf("open the forge store: %v", err)
 	}
 	cfg.ToolForge = store
-	cfg.ForgeBuilder = func(deps extapi.ForgeDependencies) extapi.ForgeService {
+	cfg.ForgeBuilder = func(deps extapi.ForgeDependencies) extapi.ForgeRunner {
 		return toolforge.NewService(deps)
 	}
 	return cfg

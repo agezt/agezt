@@ -2,7 +2,7 @@
 
 package runtime_test
 
-// The daemon's forge verbs: the NAMES it keeps and the BODY it gave away.
+// The daemon's forge verbs: the FACE it keeps and the BODY it gave away.
 //
 // The daemon used to hold the forge's whole lifecycle — the catalogue AND the
 // operations over it, the sandbox test, the operator's queue and the bridge
@@ -13,7 +13,6 @@ package runtime_test
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"testing"
 
@@ -35,42 +34,42 @@ type stubForgeStore struct{ toolforgeapi.HostStore }
 // The embedded interface is nil on purpose: a verb the daemon must not reach
 // for panics instead of silently answering.
 type recordingForge struct {
-	extapi.ForgeService
+	extapi.ForgeRunner
 	calls  []string
 	merged int
 }
 
-func (r *recordingForge) Draft(corr string, st toolforgeapi.ScriptTool) (toolforgeapi.ScriptTool, error) {
+func (r *recordingForge) DraftScriptTool(corr string, st toolforgeapi.ScriptTool) (toolforgeapi.ScriptTool, error) {
 	r.calls = append(r.calls, "draft|"+corr+"|"+st.Name)
 	return toolforgeapi.ScriptTool{Name: st.Name, ID: "owned"}, nil
 }
 
-func (r *recordingForge) Update(corr, ref string, _ func(*toolforgeapi.ScriptTool)) (toolforgeapi.ScriptTool, bool, error) {
+func (r *recordingForge) UpdateScriptTool(corr, ref string, _ func(*toolforgeapi.ScriptTool)) (toolforgeapi.ScriptTool, bool, error) {
 	r.calls = append(r.calls, "update|"+corr+"|"+ref)
 	return toolforgeapi.ScriptTool{Name: ref}, true, nil
 }
 
-func (r *recordingForge) Test(_ context.Context, corr, ref, input string) (toolforgeapi.ScriptTool, string, error) {
+func (r *recordingForge) TestScriptTool(_ context.Context, corr, ref, input string) (toolforgeapi.ScriptTool, string, error) {
 	r.calls = append(r.calls, "test|"+corr+"|"+ref+"|"+input)
 	return toolforgeapi.ScriptTool{Name: ref}, "from the module", nil
 }
 
-func (r *recordingForge) Promote(corr, ref string) (toolforgeapi.ScriptTool, error) {
+func (r *recordingForge) PromoteScriptTool(corr, ref string) (toolforgeapi.ScriptTool, error) {
 	r.calls = append(r.calls, "promote|"+corr+"|"+ref)
 	return toolforgeapi.ScriptTool{Name: ref, Status: toolforgeapi.StatusActive}, nil
 }
 
-func (r *recordingForge) RequestPromotion(_ context.Context, corr, ref string) (toolforgeapi.ScriptTool, approvalapi.Decision, string, error) {
+func (r *recordingForge) RequestToolPromotion(_ context.Context, corr, ref string) (toolforgeapi.ScriptTool, approvalapi.Decision, string, error) {
 	r.calls = append(r.calls, "request-promotion|"+corr+"|"+ref)
 	return toolforgeapi.ScriptTool{Name: ref}, approvalapi.DecisionGrant, "the operator said yes", nil
 }
 
-func (r *recordingForge) Quarantine(corr, ref, reason string) (toolforgeapi.ScriptTool, error) {
+func (r *recordingForge) QuarantineScriptTool(corr, ref, reason string) (toolforgeapi.ScriptTool, error) {
 	r.calls = append(r.calls, "quarantine|"+corr+"|"+ref+"|"+reason)
 	return toolforgeapi.ScriptTool{Name: ref, Status: toolforgeapi.StatusQuarantined}, nil
 }
 
-func (r *recordingForge) Remove(corr, ref string) (bool, error) {
+func (r *recordingForge) RemoveScriptTool(corr, ref string) (bool, error) {
 	r.calls = append(r.calls, "remove|"+corr+"|"+ref)
 	return true, nil
 }
@@ -86,75 +85,65 @@ func (r *recordingForge) MergeTools(tools map[string]toolapi.Tool) map[string]to
 	return out
 }
 
-// TestTheDaemonRefusesEveryForgeVerbWithoutTheModule: a daemon with no
-// forge module is a daemon with no script tools — the writes must SAY so
-// rather than call into nothing.
-func TestTheDaemonRefusesEveryForgeVerbWithoutTheModule(t *testing.T) {
+// TestTheDaemonHoldsNoForgeRunnerWithoutTheModule: a daemon with no forge
+// module is a daemon with no script tools — the daemon holds NO runner at
+// all, so nothing can call into it.
+func TestTheDaemonHoldsNoForgeRunnerWithoutTheModule(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, err := k.DraftScriptTool("corr", toolforgeapi.ScriptTool{Name: "owned"}); !errors.Is(err, runtime.ErrNoForge) {
-		t.Fatalf("draft without the module must refuse, got %v", err)
+	if k.ForgeRunner() != nil {
+		t.Fatal("a daemon without the module must hold no forge runner")
 	}
-	if _, _, err := k.UpdateScriptTool("corr", "owned", func(*toolforgeapi.ScriptTool) {}); !errors.Is(err, runtime.ErrNoForge) {
-		t.Fatalf("update without the module must refuse, got %v", err)
-	}
-	if _, _, err := k.TestScriptTool(context.Background(), "corr", "owned", "{}"); !errors.Is(err, runtime.ErrNoForge) {
-		t.Fatalf("test without the module must refuse, got %v", err)
-	}
-	if _, err := k.PromoteScriptTool("corr", "owned"); !errors.Is(err, runtime.ErrNoForge) {
-		t.Fatalf("promote without the module must refuse, got %v", err)
-	}
-	if _, _, _, err := k.RequestToolPromotion(context.Background(), "corr", "owned"); !errors.Is(err, runtime.ErrNoForge) {
-		t.Fatalf("request-promotion without the module must refuse, got %v", err)
-	}
-	if _, err := k.QuarantineScriptTool("corr", "owned", "why"); !errors.Is(err, runtime.ErrNoForge) {
-		t.Fatalf("quarantine without the module must refuse, got %v", err)
-	}
-	if _, err := k.RemoveScriptTool("corr", "owned"); !errors.Is(err, runtime.ErrNoForge) {
-		t.Fatalf("remove without the module must refuse, got %v", err)
+	if k.ToolForge() != nil {
+		t.Fatal("a daemon without the module must hold no forge store")
 	}
 }
 
-// TestTheDaemonForwardsEveryForgeVerbToTheModule: the daemon keeps the
-// NAMES; the module answers. The fake records what the daemon asked for.
+// TestTheDaemonHoldsTheModulesForgeRunner: the daemon keeps the module's
+// FACE and nothing of the lifecycle. The fake records what the module was
+// asked for, so the answer is provably the module's.
 //
 // The fake is handed over the way the composition root hands it over — over
 // runtime.Config.ForgeBuilder (W3.76k: the daemon's SetForge setter had no
 // caller outside this test and is gone; the builder is the production path).
-func TestTheDaemonForwardsEveryForgeVerbToTheModule(t *testing.T) {
+func TestTheDaemonHoldsTheModulesForgeRunner(t *testing.T) {
 	fake := &recordingForge{}
 	cfg := runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}
 	cfg.ToolForge = stubForgeStore{}
-	cfg.ForgeBuilder = func(extapi.ForgeDependencies) extapi.ForgeService { return fake }
+	cfg.ForgeBuilder = func(extapi.ForgeDependencies) extapi.ForgeRunner { return fake }
 	k, err := runtime.Open(cfg)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, err := k.DraftScriptTool("c1", toolforgeapi.ScriptTool{Name: "owned"}); err != nil {
+	runner := k.ForgeRunner()
+	if runner == nil {
+		t.Fatal("the daemon must hold the module's face")
+	}
+	if _, err := runner.DraftScriptTool("c1", toolforgeapi.ScriptTool{Name: "owned"}); err != nil {
 		t.Fatalf("DraftScriptTool: %v", err)
 	}
-	if _, _, err := k.UpdateScriptTool("c2", "owned", func(*toolforgeapi.ScriptTool) {}); err != nil {
+	if _, _, err := runner.UpdateScriptTool("c2", "owned", func(*toolforgeapi.ScriptTool) {}); err != nil {
 		t.Fatalf("UpdateScriptTool: %v", err)
 	}
-	if _, _, err := k.TestScriptTool(context.Background(), "c3", "owned", "{}"); err != nil {
+	if _, _, err := runner.TestScriptTool(context.Background(), "c3", "owned", "{}"); err != nil {
 		t.Fatalf("TestScriptTool: %v", err)
 	}
-	if _, err := k.PromoteScriptTool("c4", "owned"); err != nil {
+	if _, err := runner.PromoteScriptTool("c4", "owned"); err != nil {
 		t.Fatalf("PromoteScriptTool: %v", err)
 	}
-	if _, _, _, err := k.RequestToolPromotion(context.Background(), "c5", "owned"); err != nil {
+	if _, _, _, err := runner.RequestToolPromotion(context.Background(), "c5", "owned"); err != nil {
 		t.Fatalf("RequestToolPromotion: %v", err)
 	}
-	if _, err := k.QuarantineScriptTool("c6", "owned", "it misbehaved"); err != nil {
+	if _, err := runner.QuarantineScriptTool("c6", "owned", "it misbehaved"); err != nil {
 		t.Fatalf("QuarantineScriptTool: %v", err)
 	}
-	if _, err := k.RemoveScriptTool("c7", "owned"); err != nil {
+	if _, err := runner.RemoveScriptTool("c7", "owned"); err != nil {
 		t.Fatalf("RemoveScriptTool: %v", err)
 	}
 
@@ -168,19 +157,30 @@ func TestTheDaemonForwardsEveryForgeVerbToTheModule(t *testing.T) {
 		"remove|c7|owned",
 	}
 	if !reflect.DeepEqual(fake.calls, want) {
-		t.Fatalf("the daemon asked the module for %v, want %v", fake.calls, want)
+		t.Fatalf("the module was asked for %v, want %v", fake.calls, want)
 	}
 }
 
-// TestTheDaemonKeepsTheForgeNames: the host's public API is unchanged — the
-// eight forge verbs are still the daemon's.
-func TestTheDaemonKeepsTheForgeNames(t *testing.T) {
-	want := []string{
-		"ToolForge", "DraftScriptTool", "UpdateScriptTool", "TestScriptTool",
+// TestTheDaemonKeepsNoForgeVerbsOfItsOwn: the daemon's OWN public verbs must
+// NOT name the forge's lifecycle. It kept seven forwarders over the module's
+// operations once — a second spelling of each — and the application layer
+// called the daemon for them. The module answers in the contract's names now
+// (W3.76t) and the daemon spells none of them.
+//
+// The daemon keeps two: ToolForge (the store's FILE) and ForgeRunner (the
+// module's FACE).
+func TestTheDaemonKeepsNoForgeVerbsOfItsOwn(t *testing.T) {
+	forbidden := []string{
+		"DraftScriptTool", "UpdateScriptTool", "TestScriptTool",
 		"PromoteScriptTool", "RequestToolPromotion", "QuarantineScriptTool", "RemoveScriptTool",
 	}
 	typ := reflect.TypeOf(&runtime.Kernel{})
-	for _, name := range want {
+	for _, name := range forbidden {
+		if _, ok := typ.MethodByName(name); ok {
+			t.Fatalf("the daemon grew the forge verb %s back", name)
+		}
+	}
+	for _, name := range []string{"ToolForge", "ForgeRunner"} {
 		if _, ok := typ.MethodByName(name); !ok {
 			t.Fatalf("the daemon lost the verb %s", name)
 		}

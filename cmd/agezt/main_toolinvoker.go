@@ -405,7 +405,7 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 		// the operator's approval registry and its own publisher, so every
 		// lifecycle transition journals through the kernel's bus without
 		// either side naming the other's implementation.
-		cfg.ForgeBuilder = func(deps extapi.ForgeDependencies) extapi.ForgeService {
+		cfg.ForgeBuilder = func(deps extapi.ForgeDependencies) extapi.ForgeRunner {
 			return toolforge.NewService(deps)
 		}
 	}

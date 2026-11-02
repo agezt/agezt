@@ -13,7 +13,7 @@ import (
 func TestForgeCatalogNativePrimaryReadsAndTenantDenialDoNotMutate(t *testing.T) {
 	provider := mock.New()
 	k, _, owner, dir, registry := startPairWithTenants(t, provider)
-	st, err := k.DraftScriptTool("owned-seed", toolforge.ScriptTool{Name: "owned", Description: "owned fixture", Language: "python", Code: "owned text, never executed"})
+	st, err := k.ForgeRunner().DraftScriptTool("owned-seed", toolforge.ScriptTool{Name: "owned", Description: "owned fixture", Language: "python", Code: "owned text, never executed"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -103,7 +103,7 @@ func TestToolKernelDepsSuppliesTheForgePort(t *testing.T) {
 	if got := deps.Forge.List(); len(got) != 0 {
 		t.Fatalf("a freshly opened daemon has no script tools, got %v", got)
 	}
-	if _, err := k.DraftScriptTool("corr", toolforgeapi.ScriptTool{
+	if _, err := k.ForgeRunner().DraftScriptTool("corr", toolforgeapi.ScriptTool{
 		Name:        "echo",
 		Description: "echoes",
 		Language:    "python",

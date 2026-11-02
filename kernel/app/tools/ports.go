@@ -56,6 +56,15 @@ type Ports struct {
 
 	// ForgeWriter drives the script-tool lifecycle: draft, edit, test,
 	// promote, quarantine and remove.
+	//
+	// It is the EXTENSIONS MODULE's runner (W3.76t), not the daemon's: the
+	// module keeps the lifecycle and the daemon keeps only the store's file.
+	// The application's own names already spell the contract's rows, so the
+	// module's face binds here directly — there is no adapter in between.
+	//
+	// It is nil when the daemon holds no forge: the application answers
+	// "the script-tool forge is not available on this daemon" rather than
+	// calling into nothing.
 	ForgeWriter ForgeWriter
 
 	// MCP reads the MCP registrations.
@@ -85,7 +94,7 @@ func PortsFromKernel(k *runtime.Kernel) Ports {
 	return Ports{
 		Registry:     kernelRegistry{k: k},
 		ScriptForge:  k.ToolForge(),
-		ForgeWriter:  k,
+		ForgeWriter:  k.ForgeRunner(),
 		MCP:          k.MCPReader(),
 		Attachment:   k,
 		MCPLifecycle: k,
