@@ -252,7 +252,7 @@ func (e *Engine) execWorkflowNode(ctx context.Context, corr string, n *Node, w W
 			subPayload = parseMaybeJSONValue(Interpolate(c.Payload, data))
 		}
 		subCtx := context.WithValue(ctx, wfDepthKey{}, depth+1)
-		subRes, err := e.Run(subCtx, corr, c.Workflow, subPayload, prov)
+		subRes, err := e.Run(subCtx, corr, c.Workflow, subPayload)
 		if err != nil {
 			return nil, "", fmt.Errorf("subworkflow %s: %w", c.Workflow, err)
 		}

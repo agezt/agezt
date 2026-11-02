@@ -21,6 +21,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
+	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/introspecttool"
@@ -227,7 +228,7 @@ func TestToolKernelDepsSuppliesTheWorkflowPort(t *testing.T) {
 	if got := deps.Workflows.List(); len(got) != 0 {
 		t.Fatalf("a freshly opened daemon has no workflows, got %v", got)
 	}
-	if _, _, err := k.SaveWorkflow("corr", workflowapi.Workflow{
+	if _, _, err := k.WorkflowEngine().Save("corr", workflowapi.Workflow{
 		Name:  "greeter",
 		Nodes: []workflowapi.Node{{ID: "start", Type: workflowapi.NodeTrigger}},
 	}); err != nil {
@@ -504,13 +505,20 @@ func TestToolKernelDepsSuppliesTheWorkflowAndWorkboardPorts(t *testing.T) {
 	// The board's runner is the WORK MODULE's face under the contract's port
 	// (W3.76s), and the composition root is what hands it over.
 	k.SetBoardRunner(workboard.NewRunner(workboard.NewService(k.Workboard(), k.WorkboardDependencies())))
+	// The workflow engine is the WORKFLOWS MODULE's face under the contract's
+	// port (W3.76u), and the composition root is what hands it over.
+	store, err := workflow.OpenStore(filepath.Join(t.TempDir(), "workflows"))
+	if err != nil {
+		t.Fatalf("open the workflow store: %v", err)
+	}
+	k.SetWorkflowEngine(workflow.NewEngine(store, k.WorkflowPorts()))
 
 	deps := toolKernelDeps(k, t.TempDir(), io.Discard)
 	if deps.WorkflowRunner == nil {
 		t.Fatal("the daemon must supply the workflow runner port")
 	}
-	if deps.WorkflowRunner != k {
-		t.Fatal("the workflow runner port must be the live kernel's")
+	if deps.WorkflowRunner != k.WorkflowEngine() {
+		t.Fatal("the workflow runner port must be the module engine's live face")
 	}
 	if deps.WorkboardRunner == nil {
 		t.Fatal("the daemon must supply the workboard runner port")

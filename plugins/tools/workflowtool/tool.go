@@ -153,7 +153,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		if err := json.Unmarshal(in.Workflow, &w); err != nil {
 			return errResult("workflow JSON: " + err.Error()), nil
 		}
-		saved, created, err := k.SaveWorkflow(corr, w)
+		saved, created, err := k.Save(corr, w)
 		if err != nil {
 			return errResult(err.Error()), nil
 		}
@@ -161,7 +161,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 			// Console saves arrive armed (an operator clicked Save); AGENT
 			// saves arrive disabled — installing standing automation takes an
 			// explicit (gated) op=enable, never rides along with the save.
-			if disarmed, derr := k.SetWorkflowEnabled(corr, saved.Name, false); derr == nil {
+			if disarmed, derr := k.SetEnabled(corr, saved.Name, false); derr == nil {
 				saved = disarmed
 			}
 		}
@@ -183,7 +183,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 				return errResult("payload JSON: " + err.Error()), nil
 			}
 		}
-		res, err := k.RunWorkflow(ctx, corr, strings.TrimSpace(in.Ref), payload)
+		res, err := k.Run(ctx, corr, strings.TrimSpace(in.Ref), payload)
 		if err != nil {
 			return errResult(err.Error()), nil
 		}
@@ -196,7 +196,7 @@ func (t *Tool) Invoke(ctx context.Context, raw json.RawMessage) (toolapi.Result,
 		if strings.TrimSpace(in.Ref) == "" || in.Enabled == nil {
 			return errResult(`op=enable needs a "ref" and an "enabled" boolean`), nil
 		}
-		w, err := k.SetWorkflowEnabled(corr, strings.TrimSpace(in.Ref), *in.Enabled)
+		w, err := k.SetEnabled(corr, strings.TrimSpace(in.Ref), *in.Enabled)
 		if err != nil {
 			return errResult(err.Error()), nil
 		}

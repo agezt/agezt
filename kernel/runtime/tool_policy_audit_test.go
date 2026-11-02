@@ -51,10 +51,10 @@ func TestSharedToolPolicyAuditRetainsDetails(t *testing.T) {
 					}
 					w := workflow.Workflow{Name: "policy-flow", Nodes: []workflow.Node{{ID: "start", Type: workflow.NodeTrigger}, node}, Edges: []workflow.Edge{{From: "start", To: "call"}}}
 					if path == "canvas" {
-						_, err = k.TestWorkflowNode(ctx, corr, w, "call", nil, nil)
+						_, err = k.WorkflowEngine().TestNode(ctx, corr, w, "call", nil, nil)
 					} else {
 						saveFlow(t, k, w)
-						_, err = k.RunWorkflow(ctx, corr, w.Name, nil)
+						_, err = k.WorkflowEngine().Run(ctx, corr, w.Name, nil)
 					}
 				}
 				if (err != nil) != deny {

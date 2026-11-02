@@ -62,6 +62,12 @@ type (
 // HOST reports it, and the host may not name a module's error.
 var ErrHalted = workflowapi.ErrHalted
 
+// ErrNoEngine is returned when the host holds no workflow engine.
+//
+// The sentinel lives in the contract layer — the refusal is a row the whole
+// tree compares with, and the host may not name a module's error.
+var ErrNoEngine = workflowapi.ErrNoEngine
+
 // The engine answers the contract's port, so the host can drive the workflow
 // lifecycle without ever naming this module (W3.48).
 var _ workflowapi.Engine = (*Engine)(nil)

@@ -56,7 +56,7 @@ func openWorkflowKernel(t *testing.T, prov llm.Provider, tool *echoTool) *runtim
 
 func saveFlow(t *testing.T, k *runtime.Kernel, w workflow.Workflow) {
 	t.Helper()
-	if _, _, err := k.SaveWorkflow("", w); err != nil {
+	if _, _, err := k.WorkflowEngine().Save("", w); err != nil {
 		t.Fatalf("SaveWorkflow: %v", err)
 	}
 }
@@ -75,7 +75,7 @@ func TestRunWorkflow_LLMNodeUsesContextModelWhenUnset(t *testing.T) {
 		Edges: []workflow.Edge{{From: "start", To: "brief"}},
 	})
 
-	_, err := k.RunWorkflow(runctx.WithModel(context.Background(), "schedule-model"), k.NewCorrelation(), "scheduled-model-flow", nil)
+	_, err := k.WorkflowEngine().Run(runctx.WithModel(context.Background(), "schedule-model"), k.NewCorrelation(), "scheduled-model-flow", nil)
 	if err != nil {
 		t.Fatalf("RunWorkflow: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestRunWorkflow_LLMNodeExplicitModelWinsOverContextModel(t *testing.T) {
 		Edges: []workflow.Edge{{From: "start", To: "brief"}},
 	})
 
-	_, err := k.RunWorkflow(runctx.WithModel(context.Background(), "schedule-model"), k.NewCorrelation(), "node-model-flow", nil)
+	_, err := k.WorkflowEngine().Run(runctx.WithModel(context.Background(), "schedule-model"), k.NewCorrelation(), "node-model-flow", nil)
 	if err != nil {
 		t.Fatalf("RunWorkflow: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestRunWorkflow_JournalsRunnerProvenance(t *testing.T) {
 	ctx := runctx.WithAgentIdent(context.Background(), "ops", 0)
 	ctx = runctx.WithWakeContext(ctx, runctx.WakeContext{Source: "schedule", ScheduleID: "sch-1", ParentCorrelation: "corr-parent"})
 	corr := k.NewCorrelation()
-	if _, err := k.RunWorkflow(ctx, corr, "agent-owned-flow", nil); err != nil {
+	if _, err := k.WorkflowEngine().Run(ctx, corr, "agent-owned-flow", nil); err != nil {
 		t.Fatalf("RunWorkflow: %v", err)
 	}
 	var started map[string]any
@@ -186,7 +186,7 @@ func TestRunWorkflow_LinearDataFlow(t *testing.T) {
 		}
 	}()
 
-	res, err := k.RunWorkflow(context.Background(), k.NewCorrelation(), "weather-brief",
+	res, err := k.WorkflowEngine().Run(context.Background(), k.NewCorrelation(), "weather-brief",
 		map[string]any{"city": "izmir"})
 	if err != nil {
 		t.Fatalf("RunWorkflow: %v", err)
@@ -251,7 +251,7 @@ func TestRunWorkflow_PipelineNodeChainsTypedToolSteps(t *testing.T) {
 		},
 	})
 
-	res, err := k.RunWorkflow(context.Background(), k.NewCorrelation(), "typed-pipeline", map[string]any{"city": "izmir"})
+	res, err := k.WorkflowEngine().Run(context.Background(), k.NewCorrelation(), "typed-pipeline", map[string]any{"city": "izmir"})
 	if err != nil {
 		t.Fatalf("RunWorkflow: %v", err)
 	}
@@ -288,7 +288,7 @@ func TestRunWorkflow_PipelineOutputSchemaFailure(t *testing.T) {
 		Edges: []workflow.Edge{{From: "start", To: "pipe"}},
 	})
 
-	_, err := k.RunWorkflow(context.Background(), k.NewCorrelation(), "bad-pipeline", nil)
+	_, err := k.WorkflowEngine().Run(context.Background(), k.NewCorrelation(), "bad-pipeline", nil)
 	if err == nil || !strings.Contains(err.Error(), "output rejected by schema") {
 		t.Fatalf("pipeline schema failure = %v", err)
 	}
@@ -314,7 +314,7 @@ func TestRunWorkflow_ConditionBranching(t *testing.T) {
 		},
 	})
 
-	res, err := k.RunWorkflow(context.Background(), k.NewCorrelation(), "branchy", map[string]any{"n": 42})
+	res, err := k.WorkflowEngine().Run(context.Background(), k.NewCorrelation(), "branchy", map[string]any{"n": 42})
 	if err != nil {
 		t.Fatalf("RunWorkflow: %v", err)
 	}
@@ -325,7 +325,7 @@ func TestRunWorkflow_ConditionBranching(t *testing.T) {
 		t.Fatal("false branch ran on a true condition")
 	}
 
-	res, err = k.RunWorkflow(context.Background(), k.NewCorrelation(), "branchy", map[string]any{"n": 3})
+	res, err = k.WorkflowEngine().Run(context.Background(), k.NewCorrelation(), "branchy", map[string]any{"n": 3})
 	if err != nil {
 		t.Fatalf("RunWorkflow(small): %v", err)
 	}
@@ -353,7 +353,7 @@ func TestRunWorkflow_PolicyGatesToolNodes(t *testing.T) {
 		Edges: []workflow.Edge{{From: "start", To: "call"}},
 	})
 
-	_, err := k.RunWorkflow(context.Background(), k.NewCorrelation(), "gated", nil)
+	_, err := k.WorkflowEngine().Run(context.Background(), k.NewCorrelation(), "gated", nil)
 	if err == nil || !strings.Contains(err.Error(), "refused") {
 		t.Fatalf("policy did not gate the tool node: %v", err)
 	}
@@ -380,7 +380,7 @@ func TestRunWorkflow_AgentToolDenyGatesToolNodes(t *testing.T) {
 		Slug:     "guarded",
 		ToolDeny: []string{"echo"},
 	})
-	_, err := k.RunWorkflow(ctx, k.NewCorrelation(), "agent-denied", nil)
+	_, err := k.WorkflowEngine().Run(ctx, k.NewCorrelation(), "agent-denied", nil)
 	if err == nil || !strings.Contains(err.Error(), "agent tool denylist") {
 		t.Fatalf("agent tool deny did not gate workflow tool node: %v", err)
 	}
@@ -407,7 +407,7 @@ func TestRunWorkflow_ToolFailureFailsRun(t *testing.T) {
 		Edges: []workflow.Edge{{From: "start", To: "call"}, {From: "call", To: "after"}},
 	})
 
-	res, err := k.RunWorkflow(context.Background(), k.NewCorrelation(), "failing", nil)
+	res, err := k.WorkflowEngine().Run(context.Background(), k.NewCorrelation(), "failing", nil)
 	if err == nil || !strings.Contains(err.Error(), "boom") {
 		t.Fatalf("tool failure not surfaced: %v", err)
 	}

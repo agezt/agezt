@@ -35,10 +35,15 @@ const workflowStepCap = 256
 // {{trigger.payload}}. Halted kernels refuse; the run respects ctx
 // cancellation between and inside nodes. The first failing node fails the
 // run (error branching arrives with M800).
-func (e *Engine) Run(ctx context.Context, corr, ref string, payload any, prov Provenance) (RunResult, error) {
+//
+// The run's PROVENANCE comes from the host through the ports: the wake
+// context is the host's own, and a module may not read another package's
+// context keys — so the host reads them and the module asks (W3.76u).
+func (e *Engine) Run(ctx context.Context, corr, ref string, payload any) (RunResult, error) {
 	if e.halted() {
 		return RunResult{}, ErrHalted
 	}
+	prov := e.provenance(ctx)
 	w, found := e.store.Get(ref)
 	if !found {
 		return RunResult{}, ErrNotFound
@@ -70,6 +75,18 @@ func (e *Engine) Run(ctx context.Context, corr, ref string, payload any, prov Pr
 		Payload:       mergeRunPayload(map[string]any{"id": w.ID, "name": w.Name, "executed": res.Executed}, runMeta),
 	})
 	return res, nil
+}
+
+// provenance asks the host WHY this run exists.
+//
+// The host fills the row from its own wake context; the module never reads
+// another package's context keys (archcheck's principle P5). A host that does
+// not say (a nil port) gets a manual run.
+func (e *Engine) provenance(ctx context.Context) Provenance {
+	if e.ports.Provenance == nil {
+		return Provenance{}
+	}
+	return e.ports.Provenance(ctx)
 }
 
 // provenanceMap is the run's audit stamp: what fired it and who ran it.

@@ -36,17 +36,17 @@ func newFakeKernel(t *testing.T) *fakeKernel {
 	return &fakeKernel{store: st}
 }
 
-func (f *fakeKernel) SaveWorkflow(corr string, w workflowapi.Workflow) (workflowapi.Workflow, bool, error) {
+func (f *fakeKernel) Save(corr string, w workflowapi.Workflow) (workflowapi.Workflow, bool, error) {
 	f.savedCorr = corr
 	return f.store.Save(w)
 }
 
-func (f *fakeKernel) SetWorkflowEnabled(_ string, ref string, enabled bool) (workflowapi.Workflow, error) {
+func (f *fakeKernel) SetEnabled(_ string, ref string, enabled bool) (workflowapi.Workflow, error) {
 	f.enabledRef, f.enabledVal = ref, enabled
 	return f.store.SetEnabled(ref, enabled)
 }
 
-func (f *fakeKernel) RunWorkflow(_ context.Context, _ string, ref string, payload any) (workflowapi.RunResult, error) {
+func (f *fakeKernel) Run(_ context.Context, _ string, ref string, payload any) (workflowapi.RunResult, error) {
 	f.ranRef, f.ranPayload = ref, payload
 	return workflowapi.RunResult{
 		Executed: []string{"start", "greet"},

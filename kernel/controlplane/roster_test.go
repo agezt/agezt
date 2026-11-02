@@ -853,7 +853,7 @@ func TestAgentRemove_CascadeDeletesPrivateOwnedResourcesOnly(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("shared config: %v", err)
 	}
-	if _, _, err := k.SaveWorkflow("", workflow.Workflow{
+	if _, _, err := k.WorkflowEngine().Save("", workflow.Workflow{
 		Name: "research-agent-flow",
 		Nodes: []workflow.Node{
 			{ID: "start", Type: workflow.NodeTrigger},
@@ -863,7 +863,7 @@ func TestAgentRemove_CascadeDeletesPrivateOwnedResourcesOnly(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("parent workflow: %v", err)
 	}
-	if _, _, err := k.SaveWorkflow("", workflow.Workflow{
+	if _, _, err := k.WorkflowEngine().Save("", workflow.Workflow{
 		Name: "worker-agent-flow",
 		Nodes: []workflow.Node{
 			{ID: "start", Type: workflow.NodeTrigger},

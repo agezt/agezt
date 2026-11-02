@@ -15,7 +15,7 @@ func TestWorkflowPrimaryOperationsSocketTenantDenialPreservesGraphAndProvider(t 
 	provider := mock.New()
 	k, _, _, dir, registry := startPairWithTenants(t, provider)
 	token := mustTenant(t, registry, "acme")
-	graph, _, err := k.SaveWorkflow("", workflow.Workflow{Name: "primary-private", Nodes: []workflow.Node{{ID: "start", Type: workflow.NodeTrigger}}})
+	graph, _, err := k.WorkflowEngine().Save("", workflow.Workflow{Name: "primary-private", Nodes: []workflow.Node{{ID: "start", Type: workflow.NodeTrigger}}})
 	if err != nil {
 		t.Fatal(err)
 	}

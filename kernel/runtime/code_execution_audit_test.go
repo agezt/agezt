@@ -115,11 +115,11 @@ func callCodeAudit(t *testing.T, k *runtime.Kernel, ctx context.Context, path, c
 	}
 	w := codeAuditFlow()
 	if path == "canvas" {
-		res, err := k.TestWorkflowNode(ctx, corr, w, "calc", nil, map[string]any{"n": 42})
+		res, err := k.WorkflowEngine().TestNode(ctx, corr, w, "calc", nil, map[string]any{"n": 42})
 		return err != nil, false, res.Output
 	}
 	saveFlow(t, k, w)
-	res, err := k.RunWorkflow(ctx, corr, w.Name, map[string]any{"n": 42})
+	res, err := k.WorkflowEngine().Run(ctx, corr, w.Name, map[string]any{"n": 42})
 	return err != nil, false, res.Outputs["calc"]
 }
 
@@ -249,13 +249,13 @@ func TestCodeExecutionRetryAudit(t *testing.T) {
 				w := codeAuditFlow()
 				w.Nodes[1].Retries = 1
 				if path == "canvas" {
-					res, err := k.TestWorkflowNode(ctx, "retry-code", w, "calc", nil, map[string]any{"n": 42})
+					res, err := k.WorkflowEngine().TestNode(ctx, "retry-code", w, "calc", nil, map[string]any{"n": 42})
 					if err != nil || res.Attempts != 2 {
 						t.Fatalf("retry result=%+v error=%v", res, err)
 					}
 				} else {
 					saveFlow(t, k, w)
-					if _, err := k.RunWorkflow(ctx, "retry-code", w.Name, map[string]any{"n": 42}); err != nil {
+					if _, err := k.WorkflowEngine().Run(ctx, "retry-code", w.Name, map[string]any{"n": 42}); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -300,7 +300,7 @@ func TestCodeExecutionErrorPort(t *testing.T) {
 	w.Nodes = append(w.Nodes, workflow.Node{ID: "rescue", Type: workflow.NodeTransform, Config: json.RawMessage(`{"template":"rescued: {{calc.output.error}}"}`)})
 	w.Edges = append(w.Edges, workflow.Edge{From: "calc", To: "rescue", Port: "error"})
 	saveFlow(t, k, w)
-	res, err := k.RunWorkflow(context.Background(), "code-error-port", w.Name, map[string]any{"n": 42})
+	res, err := k.WorkflowEngine().Run(context.Background(), "code-error-port", w.Name, map[string]any{"n": 42})
 	if err != nil || !strings.Contains(res.Outputs["rescue"].(string), "non-zero exit") {
 		t.Fatalf("error branch result=%+v error=%v", res, err)
 	}

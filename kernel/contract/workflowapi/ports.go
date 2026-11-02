@@ -21,6 +21,14 @@ import (
 // error.
 var ErrHalted = errors.New("workflow: kernel is halted")
 
+// ErrNoEngine is the answer when the daemon holds no workflow engine.
+//
+// The engine is built by the composition root over the daemon's own ports, so
+// it exists only after the kernel is open — and a daemon may be opened
+// without one. The refusal is a row, not a panic: the caller says the engine
+// is not there.
+var ErrNoEngine = errors.New("workflow: the workflow engine is not available on this daemon")
+
 // Ports are the host capabilities the engine calls out to. A nil port means
 // the capability is unavailable: the engine then refuses the node that needs
 // it (a code node without a sandbox, an llm node without a provider) instead
@@ -54,6 +62,14 @@ type Ports struct {
 	HasProvider func() bool
 	// Halted reports whether the host has stopped the kernel.
 	Halted func() bool
+	// Provenance answers WHY a run exists: the host reads its own wake
+	// context and hands the module the row.
+	//
+	// It is a port because the wake context is the HOST's own — the module
+	// may not read another package's context keys (archcheck's principle P5),
+	// so the host reads them and the module asks. A nil port means the host
+	// does not say: the run is then journalled as a manual one.
+	Provenance func(ctx context.Context) Provenance
 }
 
 // Provenance is why a run exists. The host fills it in from its own wake

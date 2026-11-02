@@ -190,17 +190,23 @@ func reasoningPort(k *runtime.Kernel) reasoningapi.Runner {
 	return k
 }
 
-// workflowPort hands the kernel's workflow library to the tool registry as
-// the contract's write-and-run port (W3.39c) — the workflow tool authors and
+// workflowPort hands the workflow engine to the tool registry as the
+// contract's write-and-run port (W3.39c) — the workflow tool authors and
 // runs durable workflows through it.
 //
+// The runner is the WORKFLOWS MODULE's face under the contract's port
+// (W3.76u): the daemon used to spell the engine's operations out itself and
+// the tool called the daemon. The engine's operations are the module's, and
+// the module answers in the contract's names.
+//
 // The same nil-port rule: a nil kernel handed to an interface parameter is a
-// non-nil interface, and the tool would bind a runner that is not there.
+// non-nil interface, and the tool would bind a runner that is not there. A
+// daemon that holds no engine hands over a nil port too.
 func workflowPort(k *runtime.Kernel) workflowapi.Runner {
 	if k == nil {
 		return nil
 	}
-	return k
+	return k.WorkflowEngine()
 }
 
 // workboardPort hands the board's runner to the tool registry as the

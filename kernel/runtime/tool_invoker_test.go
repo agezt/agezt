@@ -122,13 +122,13 @@ func TestInjectedToolInvokerPreservesPaths(t *testing.T) {
 				}
 				w := workflow.Workflow{Name: "offload-flow", Nodes: []workflow.Node{{ID: "start", Type: workflow.NodeTrigger}, node}, Edges: []workflow.Edge{{From: "start", To: "call"}}}
 				if path == "canvas" {
-					res, err := k.TestWorkflowNode(ctx, corr, w, "call", nil, nil)
+					res, err := k.WorkflowEngine().TestNode(ctx, corr, w, "call", nil, nil)
 					if err != nil || res.Output != full {
 						t.Fatalf("canvas output=%v error=%v", res.Output, err)
 					}
 				} else {
 					saveFlow(t, k, w)
-					res, err := k.RunWorkflow(ctx, corr, w.Name, nil)
+					res, err := k.WorkflowEngine().Run(ctx, corr, w.Name, nil)
 					if err != nil || res.Outputs["call"] != full {
 						t.Fatalf("workflow error=%v", err)
 					}

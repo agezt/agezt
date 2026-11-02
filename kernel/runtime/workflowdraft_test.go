@@ -59,7 +59,7 @@ func TestDraftWorkflow_DesignsValidatedGraph(t *testing.T) {
 		}
 	}()
 
-	w, err := k.DraftWorkflow(context.Background(), k.NewCorrelation(), "my-pick", "fetch a thing then brief it")
+	w, err := k.WorkflowEngine().Draft(context.Background(), k.NewCorrelation(), "my-pick", "fetch a thing then brief it")
 	if err != nil {
 		t.Fatalf("DraftWorkflow: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestDraftWorkflow_RepairRound(t *testing.T) {
 	prov.OnRequest = func(r llm.CompletionRequest) { prompts = append(prompts, r.Messages[0].Content) }
 	k := openWorkflowKernel(t, prov, &echoTool{out: "x"})
 
-	w, err := k.DraftWorkflow(context.Background(), k.NewCorrelation(), "", "loop forever")
+	w, err := k.WorkflowEngine().Draft(context.Background(), k.NewCorrelation(), "", "loop forever")
 	if err != nil {
 		t.Fatalf("DraftWorkflow after repair: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestDraftWorkflow_GivesUpAfterRepair(t *testing.T) {
 	prov := mock.New(mock.FinalText("no json here at all"), mock.FinalText("still chatting, sorry"))
 	k := openWorkflowKernel(t, prov, &echoTool{out: "x"})
 
-	_, err := k.DraftWorkflow(context.Background(), k.NewCorrelation(), "x", "do something")
+	_, err := k.WorkflowEngine().Draft(context.Background(), k.NewCorrelation(), "x", "do something")
 	if err == nil || !strings.Contains(err.Error(), "no JSON object") {
 		t.Fatalf("err = %v", err)
 	}
@@ -163,7 +163,7 @@ func TestRefineWorkflow_RevisesBaseGraph(t *testing.T) {
 		},
 		Edges: []workflow.Edge{{From: "start", To: "greet"}},
 	}
-	w, err := k.RefineWorkflow(context.Background(), k.NewCorrelation(), base, "add an approval gate before greeting")
+	w, err := k.WorkflowEngine().Refine(context.Background(), k.NewCorrelation(), base, "add an approval gate before greeting")
 	if err != nil {
 		t.Fatalf("RefineWorkflow: %v", err)
 	}
@@ -200,11 +200,11 @@ func TestRefineWorkflow_Refusals(t *testing.T) {
 	k := openWorkflowKernel(t, prov, &echoTool{out: "x"})
 	valid := workflow.Workflow{Name: "x", Nodes: []workflow.Node{{ID: "s", Type: workflow.NodeTrigger}}}
 
-	if _, err := k.RefineWorkflow(context.Background(), "", valid, "  "); err == nil {
+	if _, err := k.WorkflowEngine().Refine(context.Background(), "", valid, "  "); err == nil {
 		t.Fatal("want error for empty instruction")
 	}
 	noTrigger := workflow.Workflow{Name: "x", Nodes: []workflow.Node{{ID: "a", Type: workflow.NodeTransform, Config: json.RawMessage(`{"template":"t"}`)}}}
-	if _, err := k.RefineWorkflow(context.Background(), "", noTrigger, "change it"); err == nil || !strings.Contains(err.Error(), "base graph") {
+	if _, err := k.WorkflowEngine().Refine(context.Background(), "", noTrigger, "change it"); err == nil || !strings.Contains(err.Error(), "base graph") {
 		t.Fatalf("want base-graph validation error, got %v", err)
 	}
 	if prov.CallCount() != 0 {
@@ -217,7 +217,7 @@ func TestRefineWorkflow_Refusals(t *testing.T) {
 func TestDraftWorkflow_RequiresDescription(t *testing.T) {
 	prov := mock.New()
 	k := openWorkflowKernel(t, prov, &echoTool{out: "x"})
-	if _, err := k.DraftWorkflow(context.Background(), "", "x", "   "); err == nil {
+	if _, err := k.WorkflowEngine().Draft(context.Background(), "", "x", "   "); err == nil {
 		t.Fatal("want error for empty description")
 	}
 	if prov.CallCount() != 0 {

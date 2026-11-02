@@ -5,6 +5,7 @@ package workflow
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -56,7 +57,7 @@ func TestTheWorkflowPortsReachTheKernelWorkflows(t *testing.T) {
 		t.Error("the run ports are nil — the application cannot run a workflow")
 	}
 
-	saved, created, err := ports.Writer.SaveWorkflow("", graphs.Workflow{
+	saved, created, err := ports.Writer.Save("", graphs.Workflow{
 		Name:  "owned",
 		Nodes: []graphs.Node{{ID: "start", Type: graphs.NodeTrigger}},
 		Edges: []graphs.Edge{},
@@ -122,6 +123,46 @@ func TestTheWorkflowPortsSurviveADaemonWithNoWorkflowLibrary(t *testing.T) {
 	}
 	if _, ok := ports.Get("nothing"); ok {
 		t.Error("Get(nothing) = found, want not found")
+	}
+}
+
+// A daemon with NO workflow ENGINE holds no engine face — and the application
+// refuses with the contract's row instead of calling into nothing (W3.76u).
+//
+// The engine is built by the composition root after the kernel is open, so a
+// daemon opened without one is ordinary, and the refusal has to be an answer.
+func TestTheWorkflowPortsRefuseOnADaemonWithNoEngine(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer k.Close()
+
+	ports := PortsFromKernel(k)
+	if ports.Writer != nil {
+		t.Error("the writer port is not nil — the daemon holds no engine")
+	}
+	if ports.Designer != nil {
+		t.Error("the designer port is not nil — the daemon holds no engine")
+	}
+
+	ctx := context.Background()
+	lifecycle := NewLifecycle(ports.Writer)
+	if _, err := lifecycle.Save(ctx, SaveInput{}); !errors.Is(err, graphs.ErrNoEngine) {
+		t.Errorf("saving without an engine must refuse, got %v", err)
+	}
+	if _, err := lifecycle.SetEnabled(ctx, EnableInput{Ref: "none"}); !errors.Is(err, graphs.ErrNoEngine) {
+		t.Errorf("arming without an engine must refuse, got %v", err)
+	}
+	if _, err := ports.Run(ctx, "corr", "none", nil); !errors.Is(err, graphs.ErrNoEngine) {
+		t.Errorf("running without an engine must refuse, got %v", err)
+	}
+	if _, err := ports.TestNode(ctx, "corr", graphs.Workflow{}, "start", nil, nil); !errors.Is(err, graphs.ErrNoEngine) {
+		t.Errorf("testing a node without an engine must refuse, got %v", err)
+	}
+	copilot := NewCopilot(ports.Reader, ports.Designer, ports.Correlation)
+	if _, err := copilot.Draft(ctx, DraftInput{Description: "a flow"}); !errors.Is(err, graphs.ErrNoEngine) {
+		t.Errorf("drafting without an engine must refuse, got %v", err)
 	}
 }
 

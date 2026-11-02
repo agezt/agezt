@@ -12,15 +12,23 @@ import "context"
 // it names are the contract's own: `Workflow` and `RunResult` are the same
 // types the module keeps and the console canvas edits.
 //
-// It is a port and not the store: the store is the read side
-// (`Store.Get`, `Store.List`), and this is the write-and-run side. The tool
-// needs both, and the daemon hands over both.
+// It is the NARROW face of the engine's port: the agent-facing plugin may
+// save, arm and run a workflow, and nothing else — it may not remove one,
+// restore one, test a node or ask the copilot to draft one. The wider face is
+// `Engine`, and this port is a subset of it.
+//
+// **One vocabulary, two widths** (W3.76u): the contract named this family
+// TWICE — once here, with the long names (`SaveWorkflow`,
+// `SetWorkflowEnabled`, `RunWorkflow`) and once in `Engine`, with the short
+// ones (`Save`, `SetEnabled`, `Run`) — and the daemon added a third copy of
+// the long ones. The engine's port is the WIDEST, so its spelling is the
+// family's: this port now speaks it too.
 type Runner interface {
-	// SaveWorkflow stores a workflow. The bool is false when the reference
-	// already names another workflow.
-	SaveWorkflow(corr string, w Workflow) (Workflow, bool, error)
-	// SetWorkflowEnabled turns a stored workflow on or off.
-	SetWorkflowEnabled(corr, ref string, enabled bool) (Workflow, error)
-	// RunWorkflow runs a stored workflow with a payload.
-	RunWorkflow(ctx context.Context, corr, ref string, payload any) (RunResult, error)
+	// Save stores a workflow by name; the bool is false when the name
+	// already belongs to another workflow.
+	Save(corr string, w Workflow) (Workflow, bool, error)
+	// SetEnabled turns a stored workflow's triggers on or off.
+	SetEnabled(corr, ref string, enabled bool) (Workflow, error)
+	// Run runs a stored workflow with a payload.
+	Run(ctx context.Context, corr, ref string, payload any) (RunResult, error)
 }

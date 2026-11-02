@@ -24,19 +24,19 @@ type lifecyclePort struct {
 	Cause   error
 }
 
-func (p *lifecyclePort) SaveWorkflow(corr string, w graphs.Workflow) (graphs.Workflow, bool, error) {
+func (p *lifecyclePort) Save(corr string, w graphs.Workflow) (graphs.Workflow, bool, error) {
 	p.Calls = append(p.Calls, writeCall{Method: "save", Corr: corr, Workflow: w})
 	return p.Stored, p.Changed, p.Cause
 }
-func (p *lifecyclePort) RestoreWorkflow(corr string, w graphs.Workflow, reason string) (graphs.Workflow, bool, error) {
+func (p *lifecyclePort) Restore(corr string, w graphs.Workflow, reason string) (graphs.Workflow, bool, error) {
 	p.Calls = append(p.Calls, writeCall{Method: "restore", Corr: corr, Workflow: w, Reason: reason})
 	return p.Stored, p.Changed, p.Cause
 }
-func (p *lifecyclePort) SetWorkflowEnabled(corr, ref string, enabled bool) (graphs.Workflow, error) {
+func (p *lifecyclePort) SetEnabled(corr, ref string, enabled bool) (graphs.Workflow, error) {
 	p.Calls = append(p.Calls, writeCall{Method: "enable", Corr: corr, Ref: ref, Enabled: enabled})
 	return p.Stored, p.Cause
 }
-func (p *lifecyclePort) RemoveWorkflow(corr, ref string) (bool, error) {
+func (p *lifecyclePort) Remove(corr, ref string) (bool, error) {
 	p.Calls = append(p.Calls, writeCall{Method: "remove", Corr: corr, Ref: ref})
 	return p.Changed, p.Cause
 }
@@ -109,7 +109,7 @@ func TestWorkflowLifecycleUsesActualRuntimeIdentityAndEvents(t *testing.T) {
 	provider := mock.New()
 	k := openWorkflowKernel(t, runtime.Config{BaseDir: t.TempDir(), Provider: provider})
 	defer k.Close()
-	s := NewLifecycle(k)
+	s := NewLifecycle(k.WorkflowEngine())
 	ctx := context.Background()
 	input := graphs.Workflow{Name: "owned", Nodes: []graphs.Node{{ID: "start", Type: graphs.NodeTrigger}}}
 	saved, err := s.Save(ctx, SaveInput{CorrelationID: "save1", Workflow: input})

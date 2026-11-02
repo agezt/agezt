@@ -53,7 +53,7 @@ func TestRunWorkflow_MapFilterSwitchMerge(t *testing.T) {
 		},
 	})
 
-	res, err := k.RunWorkflow(context.Background(), k.NewCorrelation(), "data-pipes", map[string]any{
+	res, err := k.WorkflowEngine().Run(context.Background(), k.NewCorrelation(), "data-pipes", map[string]any{
 		"mode": "loud",
 		"items": []any{
 			map[string]any{"name": "a", "score": 80},
@@ -108,7 +108,7 @@ func TestRunWorkflow_ErrorPortBranches(t *testing.T) {
 		},
 	})
 
-	res, err := k.RunWorkflow(context.Background(), k.NewCorrelation(), "rescued", nil)
+	res, err := k.WorkflowEngine().Run(context.Background(), k.NewCorrelation(), "rescued", nil)
 	if err != nil {
 		t.Fatalf("error port did not rescue the run: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestRunWorkflow_CodeNode(t *testing.T) {
 		Edges: []workflow.Edge{{From: "start", To: "calc"}, {From: "calc", To: "read"}},
 	})
 
-	res, err := k.RunWorkflow(context.Background(), k.NewCorrelation(), "compute", map[string]any{"n": 42})
+	res, err := k.WorkflowEngine().Run(context.Background(), k.NewCorrelation(), "compute", map[string]any{"n": 42})
 	if err != nil {
 		t.Fatalf("RunWorkflow: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestRunWorkflow_HTTPNodeBridgesTool(t *testing.T) {
 		Edges: []workflow.Edge{{From: "start", To: "get"}},
 	})
 
-	if _, err := k.RunWorkflow(context.Background(), k.NewCorrelation(), "fetcher", map[string]any{"path": "users/1"}); err != nil {
+	if _, err := k.WorkflowEngine().Run(context.Background(), k.NewCorrelation(), "fetcher", map[string]any{"path": "users/1"}); err != nil {
 		t.Fatalf("RunWorkflow: %v", err)
 	}
 	if len(tool.inputs) != 1 {
@@ -226,7 +226,7 @@ func TestRunWorkflow_ApprovalGate(t *testing.T) {
 		}
 	}()
 
-	res, err := k.RunWorkflow(context.Background(), k.NewCorrelation(), "gated-flow", map[string]any{"what": "the deploy"})
+	res, err := k.WorkflowEngine().Run(context.Background(), k.NewCorrelation(), "gated-flow", map[string]any{"what": "the deploy"})
 	if err != nil {
 		t.Fatalf("RunWorkflow: %v", err)
 	}
@@ -260,7 +260,7 @@ func TestRunWorkflow_SubworkflowAndDepthCap(t *testing.T) {
 		Edges: []workflow.Edge{{From: "start", To: "sub"}, {From: "sub", To: "read"}},
 	})
 
-	res, err := k.RunWorkflow(context.Background(), k.NewCorrelation(), "parent", map[string]any{"name": "ersin"})
+	res, err := k.WorkflowEngine().Run(context.Background(), k.NewCorrelation(), "parent", map[string]any{"name": "ersin"})
 	if err != nil {
 		t.Fatalf("RunWorkflow: %v", err)
 	}
@@ -278,7 +278,7 @@ func TestRunWorkflow_SubworkflowAndDepthCap(t *testing.T) {
 		},
 		Edges: []workflow.Edge{{From: "start", To: "again"}},
 	})
-	if _, err := k.RunWorkflow(context.Background(), k.NewCorrelation(), "ouroboros", nil); err == nil ||
+	if _, err := k.WorkflowEngine().Run(context.Background(), k.NewCorrelation(), "ouroboros", nil); err == nil ||
 		!strings.Contains(err.Error(), "nesting") {
 		t.Fatalf("depth cap missing: %v", err)
 	}

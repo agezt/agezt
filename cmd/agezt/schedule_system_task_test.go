@@ -109,7 +109,7 @@ func TestScheduledRunContextModelOverrideWinsOverAgentProfile(t *testing.T) {
 	})
 	t.Cleanup(func() { k.Close() })
 
-	if _, _, err := k.SaveWorkflow("", workflow.Workflow{
+	if _, _, err := k.WorkflowEngine().Save("", workflow.Workflow{
 		Name: "scheduled-profile-flow",
 		Nodes: []workflow.Node{
 			{ID: "start", Type: workflow.NodeTrigger},
@@ -127,7 +127,7 @@ func TestScheduledRunContextModelOverrideWinsOverAgentProfile(t *testing.T) {
 		Fallbacks: []string{"agent-model", "backup-model"},
 	}
 	ctx := scheduledRunContext(context.Background(), "schedule-model", &prof)
-	if _, err := k.RunWorkflow(ctx, k.NewCorrelation(), "scheduled-profile-flow", nil); err != nil {
+	if _, err := k.WorkflowEngine().Run(ctx, k.NewCorrelation(), "scheduled-profile-flow", nil); err != nil {
 		t.Fatalf("RunWorkflow: %v", err)
 	}
 	if llmReq.Model != "schedule-model" {

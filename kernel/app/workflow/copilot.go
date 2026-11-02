@@ -13,9 +13,13 @@ const CopilotTimeout = 3 * time.Minute
 
 var ErrRefineBaseRequired = errors.New("args.workflow or args.ref required")
 
+// Designer is the copilot's face over the module's engine (W3.76u): it
+// speaks the contract's engine vocabulary, so the module's face binds here
+// directly. It is nil when the daemon holds no engine, and the copilot then
+// refuses rather than calling into nothing.
 type Designer interface {
-	DraftWorkflow(context.Context, string, string, string) (graphs.Workflow, error)
-	RefineWorkflow(context.Context, string, graphs.Workflow, string) (graphs.Workflow, error)
+	Draft(context.Context, string, string, string) (graphs.Workflow, error)
+	Refine(context.Context, string, graphs.Workflow, string) (graphs.Workflow, error)
 }
 type Copilot struct {
 	reader      Reader
@@ -25,6 +29,17 @@ type Copilot struct {
 
 func NewCopilot(reader Reader, designer Designer, correlation func() string) *Copilot {
 	return &Copilot{reader: reader, designer: designer, correlation: correlation}
+}
+
+// designer2 returns the designer, or the refusal.
+//
+// The designer is the module's engine, and a daemon opened without one holds
+// no engine at all — so the copilot says so instead of calling into nothing.
+func (s *Copilot) designer2() (Designer, error) {
+	if s.designer == nil {
+		return nil, graphs.ErrNoEngine
+	}
+	return s.designer, nil
 }
 
 type DraftInput struct{ Name, Description string }
@@ -42,7 +57,11 @@ func (s *Copilot) Draft(parent context.Context, in DraftInput) (CopilotOutput, e
 	corr := operationCorrelation(parent, "", s.correlation)
 	ctx, cancel := context.WithTimeout(parent, CopilotTimeout)
 	defer cancel()
-	w, err := s.designer.DraftWorkflow(ctx, corr, in.Name, in.Description)
+	designer, err := s.designer2()
+	if err != nil {
+		return CopilotOutput{}, err
+	}
+	w, err := designer.Draft(ctx, corr, in.Name, in.Description)
 	if err != nil {
 		return CopilotOutput{}, err
 	}
@@ -88,7 +107,11 @@ func (r Refinement) Refine(parent context.Context) (CopilotOutput, error) {
 	corr := operationCorrelation(parent, "", r.copilot.correlation)
 	ctx, cancel := context.WithTimeout(parent, CopilotTimeout)
 	defer cancel()
-	w, err := r.copilot.designer.RefineWorkflow(ctx, corr, r.base, r.instruction)
+	designer, err := r.copilot.designer2()
+	if err != nil {
+		return CopilotOutput{}, err
+	}
+	w, err := designer.Refine(ctx, corr, r.base, r.instruction)
 	if err != nil {
 		return CopilotOutput{}, err
 	}
