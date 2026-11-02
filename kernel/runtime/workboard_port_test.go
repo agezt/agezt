@@ -2,6 +2,17 @@
 
 package runtime_test
 
+// The board's refusal without a store, and the board's live reach.
+//
+// The board's OPERATIONS are the work module's (W3.76s): the daemon holds the
+// store port and the module's runner, and the runner refuses every operation
+// when there is no store — the CONTRACT's row, because the host may not name
+// the module and the module may not name the host.
+//
+// The daemon's part is small and worth pinning: it holds no board until the
+// composition root wires one, and the runner it hands over reaches the LIVE
+// store.
+
 import (
 	"context"
 	"path/filepath"
@@ -10,19 +21,17 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
+	workapi "github.com/agezt/agezt/kernel/modules/work/api"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
-// TestTheBoardRefusesWithoutAStore: the task board used to be opened by the
-// kernel, so the field was never nil and the code never had to say what
-// happens without one. Now the store file is the host's (W3.47) and a host
-// may open a kernel without a board — and EVERY board operation must refuse
-// instead of panicking.
+// TestTheBoardRefusesWithoutAStore: every board operation must refuse instead
+// of panicking.
 //
-// The refusal is the same answer everywhere: "the task board is not
-// available on this daemon".
+// The refusal is the same answer everywhere: "the task board is not available
+// on this daemon".
 func TestTheBoardRefusesWithoutAStore(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
 	if err != nil {
@@ -33,74 +42,79 @@ func TestTheBoardRefusesWithoutAStore(t *testing.T) {
 	if k.Workboard() != nil {
 		t.Fatal("the kernel must hold no board until the daemon wires one")
 	}
+	if k.BoardRunner() != nil {
+		t.Fatal("the kernel must hold no board runner until the composition root wires one")
+	}
 
+	// The board's own service refuses every operation without a store.
+	runner := workboard.NewRunner(workboard.NewService(nil, workapi.BoardDependencies{}))
 	policy := &workboardapi.RetryPolicy{MaxAttempts: 2}
 	for _, c := range []struct {
 		name string
 		run  func() error
 	}{
 		{"create", func() error {
-			_, _, err := k.CreateWorkboardTask("corr", workboardapi.CreateSpec{Title: "no board"})
+			_, _, err := runner.CreateWorkboardTask("corr", workboardapi.CreateSpec{Title: "no board"})
 			return err
 		}},
 		{"claim", func() error {
-			_, err := k.ClaimWorkboardTask("corr", "id", "agent", "run")
+			_, err := runner.ClaimWorkboardTask("corr", "id", "agent", "run")
 			return err
 		}},
 		{"heartbeat", func() error {
-			_, err := k.HeartbeatWorkboardTask("corr", "id", "agent", "run")
+			_, err := runner.HeartbeatWorkboardTask("corr", "id", "agent", "run")
 			return err
 		}},
 		{"comment", func() error {
-			_, err := k.CommentWorkboardTask("corr", "id", "author", "body")
+			_, err := runner.CommentWorkboardTask("corr", "id", "author", "body")
 			return err
 		}},
 		{"block", func() error {
-			_, err := k.BlockWorkboardTask("corr", "id", "actor", "reason")
+			_, err := runner.BlockWorkboardTask("corr", "id", "actor", "reason")
 			return err
 		}},
 		{"fail", func() error {
-			_, _, err := k.FailWorkboardTask("corr", "id", "actor", "reason")
+			_, _, err := runner.FailWorkboardTask("corr", "id", "actor", "reason")
 			return err
 		}},
 		{"unblock", func() error {
-			_, err := k.UnblockWorkboardTask("corr", "id", "actor")
+			_, err := runner.UnblockWorkboardTask("corr", "id", "actor")
 			return err
 		}},
 		{"retry policy", func() error {
-			_, err := k.SetWorkboardRetryPolicy("corr", "id", "actor", policy)
+			_, err := runner.SetWorkboardRetryPolicy("corr", "id", "actor", policy)
 			return err
 		}},
 		{"complete", func() error {
-			_, err := k.CompleteWorkboardTask("corr", "id", "actor")
+			_, err := runner.CompleteWorkboardTask("corr", "id", "actor")
 			return err
 		}},
 		{"review", func() error {
-			_, err := k.ReviewWorkboardTask("corr", "id", "actor", "summary")
+			_, err := runner.ReviewWorkboardTask("corr", "id", "actor", "summary")
 			return err
 		}},
 		{"archive", func() error {
-			_, err := k.ArchiveWorkboardTask("corr", "id", "actor")
+			_, err := runner.ArchiveWorkboardTask("corr", "id", "actor")
 			return err
 		}},
 		{"link", func() error {
-			_, err := k.LinkWorkboardTask("corr", "id", "type", "target")
+			_, err := runner.LinkWorkboardTask("corr", "id", "type", "target")
 			return err
 		}},
 		{"dependency", func() error {
-			_, err := k.AddWorkboardDependency("corr", "id", "other")
+			_, err := runner.AddWorkboardDependency("corr", "id", "other")
 			return err
 		}},
 		{"reclaim", func() error {
-			_, err := k.ReclaimStaleWorkboardTask("corr", "id", "actor", time.Minute)
+			_, err := runner.ReclaimStaleWorkboardTask("corr", "id", "actor", time.Minute)
 			return err
 		}},
 		{"sweep", func() error {
-			_, err := k.SweepStaleWorkboardClaims("corr", "actor", time.Minute, 10)
+			_, err := runner.SweepStaleWorkboardClaims("corr", "actor", time.Minute, 10)
 			return err
 		}},
 		{"prove", func() error {
-			_, err := k.ProveTask(context.Background(), "corr", "id", "answer")
+			_, err := runner.ProveTask(context.Background(), "corr", "id", "answer")
 			return err
 		}},
 	} {
@@ -116,8 +130,8 @@ func TestTheBoardRefusesWithoutAStore(t *testing.T) {
 }
 
 // TestTheKernelDrivesTheBoardThroughThePort: the kernel holds the CONTRACT's
-// host port, and it drives the whole lifecycle through it — the port is not a
-// read-only window onto somebody else's store.
+// host port, and the runner it hands over drives the whole lifecycle through
+// it — the port is not a read-only window onto somebody else's store.
 func TestTheKernelDrivesTheBoardThroughThePort(t *testing.T) {
 	dir := t.TempDir()
 	store, err := workboard.OpenStore(filepath.Join(dir, "workboard"))
@@ -128,20 +142,20 @@ func TestTheKernelDrivesTheBoardThroughThePort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
+	k.SetBoardRunner(workboard.NewRunner(workboard.NewService(k.Workboard(), k.WorkboardDependencies())))
 	t.Cleanup(func() { k.Close() })
 
 	if k.Workboard() == nil {
 		t.Fatal("the kernel must hold the board it was given")
 	}
-	task, created, err := k.CreateWorkboardTask("corr", workboardapi.CreateSpec{Title: "driven"})
+	task, created, err := k.BoardRunner().CreateWorkboardTask("corr", workboardapi.CreateSpec{Title: "driven"})
 	if err != nil {
 		t.Fatalf("CreateWorkboardTask: %v", err)
 	}
 	if !created || task.Title != "driven" {
 		t.Fatalf("the board did not take the task: %+v", task)
 	}
-	// The port must reach the LIVE store — a task the kernel stored has to be
+	// The port must reach the LIVE store — a task the board stored has to be
 	// visible through it.
 	got, ok := k.Workboard().Get(task.ID)
 	if !ok || got.Title != "driven" {

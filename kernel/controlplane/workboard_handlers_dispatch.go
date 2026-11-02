@@ -9,7 +9,7 @@ import (
 
 func (s *Server) workboardDispatcher() *appworkboard.Dispatch {
 	ports := s.workboardPorts()
-	service := appworkboard.NewDispatch(ports.Store, ports.Dispatch,
+	service := appworkboard.NewDispatch(ports.Store, ports.Dispatch, ports.Correlator,
 		func(ref string) (appworkboard.DispatchAgent, bool) {
 			p, ok := s.rosterPorts().Get(ref)
 			if !ok {

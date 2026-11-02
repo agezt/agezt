@@ -10,10 +10,25 @@ import (
 	"strings"
 )
 
+// DispatchHost is the board's claim and link — the two verbs the dispatcher
+// drives.
+//
+// The names are the CONTRACT's runner port's names (the board's users say
+// "claim a workboard task"), and the board's module answers in them since
+// W3.76s: the application asks the BOARD, not the daemon.
 type DispatchHost interface {
-	NewCorrelation() string
 	ClaimWorkboardTask(string, string, string, string) (tasks.Task, error)
 	LinkWorkboardTask(string, string, string, string) (tasks.Task, error)
+}
+
+// Correlator mints the correlation of one operation.
+//
+// It is the HOST's own capability and it is not the board's: a correlation is
+// the identity one operation carries, and the board never mints one. The name
+// is not "NewCorrelation" — a port may not carry the name of the kernel verb
+// it stands for.
+type Correlator interface {
+	Mint() string
 }
 
 // Agent admission and execution are supplied by the selected host; the app layer
@@ -27,14 +42,15 @@ type DispatchAgent struct {
 	Run           func(string, tasks.Task, string, string)
 }
 type Dispatch struct {
-	store   WatchStore
-	host    DispatchHost
-	agent   func(string) (DispatchAgent, bool)
-	publish func(string, tasks.Task, string, string, string, string, string)
+	store      WatchStore
+	host       DispatchHost
+	correlator Correlator
+	agent      func(string) (DispatchAgent, bool)
+	publish    func(string, tasks.Task, string, string, string, string, string)
 }
 
-func NewDispatch(store WatchStore, host DispatchHost, agent func(string) (DispatchAgent, bool), publish func(string, tasks.Task, string, string, string, string, string)) *Dispatch {
-	return &Dispatch{store: store, host: host, agent: agent, publish: publish}
+func NewDispatch(store WatchStore, host DispatchHost, correlator Correlator, agent func(string) (DispatchAgent, bool), publish func(string, tasks.Task, string, string, string, string, string)) *Dispatch {
+	return &Dispatch{store: store, host: host, correlator: correlator, agent: agent, publish: publish}
 }
 
 type DispatchInput struct {
@@ -88,7 +104,7 @@ func (s *Dispatch) Dispatch(_ context.Context, in DispatchInput) (DispatchOutput
 	if !agent.DirectAllowed {
 		return DispatchOutput{}, errors.New(agent.DirectError)
 	}
-	corr := s.host.NewCorrelation()
+	corr := s.correlator.Mint()
 	_, err = s.host.ClaimWorkboardTask(corr, task.ID, agent.Slug, corr)
 	if err != nil {
 		return DispatchOutput{}, err

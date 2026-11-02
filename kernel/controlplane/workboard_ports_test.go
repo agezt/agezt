@@ -29,7 +29,7 @@ func TestTheAdapterBindsTheWorkboardPortsToItsOwnKernel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
+	k.SetBoardRunner(workboard.NewRunner(workboard.NewService(k.Workboard(), k.WorkboardDependencies())))
 	defer k.Close()
 	if _, _, err := k.Workboard().Create(workboard.CreateSpec{Title: "owned", Status: workboard.StatusReady}, time.UnixMilli(100)); err != nil {
 		t.Fatalf("Create: %v", err)
@@ -53,7 +53,7 @@ func TestTheAdapterBindsTheWorkboardPortsToItsOwnKernel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	other.SetWorkboard(workboard.NewService(other.Workboard(), other.WorkboardDependencies()))
+	other.SetBoardRunner(workboard.NewRunner(workboard.NewService(other.Workboard(), other.WorkboardDependencies())))
 	defer other.Close()
 	routed, _, err := other.Workboard().Create(workboard.CreateSpec{Title: "routed", Status: workboard.StatusReady}, time.UnixMilli(100))
 	if err != nil {

@@ -47,7 +47,7 @@ func TestOpenAppKernelWiresTheTaskBoard(t *testing.T) {
 	if k.Workboard() == nil {
 		t.Fatal("the daemon did not wire the task board — the kernel holds no port")
 	}
-	task, created, err := k.CreateWorkboardTask("corr", workboardapi.CreateSpec{Title: "wired"})
+	task, created, err := k.BoardRunner().CreateWorkboardTask("corr", workboardapi.CreateSpec{Title: "wired"})
 	if err != nil {
 		t.Fatalf("CreateWorkboardTask: %v", err)
 	}

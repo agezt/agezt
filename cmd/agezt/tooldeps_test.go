@@ -258,7 +258,7 @@ func TestToolKernelDepsSuppliesTheWorkboardPort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
+	k.SetBoardRunner(workboard.NewRunner(workboard.NewService(k.Workboard(), k.WorkboardDependencies())))
 	t.Cleanup(func() { k.Close() })
 
 	deps := toolKernelDeps(k, t.TempDir(), io.Discard)
@@ -271,7 +271,7 @@ func TestToolKernelDepsSuppliesTheWorkboardPort(t *testing.T) {
 	if got := deps.Workboard.List(workboardapi.Filter{}); len(got) != 0 {
 		t.Fatalf("a freshly opened daemon has no tasks, got %v", got)
 	}
-	if _, _, err := k.CreateWorkboardTask("corr", workboardapi.CreateSpec{Title: "wire me"}); err != nil {
+	if _, _, err := k.BoardRunner().CreateWorkboardTask("corr", workboardapi.CreateSpec{Title: "wire me"}); err != nil {
 		t.Fatalf("CreateWorkboardTask: %v", err)
 	}
 	all := deps.Workboard.List(workboardapi.Filter{})
@@ -501,6 +501,9 @@ func TestToolKernelDepsSuppliesTheWorkflowAndWorkboardPorts(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { k.Close() })
+	// The board's runner is the WORK MODULE's face under the contract's port
+	// (W3.76s), and the composition root is what hands it over.
+	k.SetBoardRunner(workboard.NewRunner(workboard.NewService(k.Workboard(), k.WorkboardDependencies())))
 
 	deps := toolKernelDeps(k, t.TempDir(), io.Discard)
 	if deps.WorkflowRunner == nil {
@@ -512,8 +515,8 @@ func TestToolKernelDepsSuppliesTheWorkflowAndWorkboardPorts(t *testing.T) {
 	if deps.WorkboardRunner == nil {
 		t.Fatal("the daemon must supply the workboard runner port")
 	}
-	if deps.WorkboardRunner != k {
-		t.Fatal("the workboard runner port must be the live kernel's")
+	if deps.WorkboardRunner != k.BoardRunner() {
+		t.Fatal("the workboard runner port must be the board's own runner")
 	}
 }
 

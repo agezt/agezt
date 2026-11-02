@@ -36,7 +36,7 @@ func TestTheRootWiresTheTaskBoardProofCycle(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	task, created, err := k.CreateWorkboardTask("corr", workboardapi.CreateSpec{Title: "wired"})
+	task, created, err := k.BoardRunner().CreateWorkboardTask("corr", workboardapi.CreateSpec{Title: "wired"})
 	if err != nil {
 		t.Fatalf("the root did not wire the board module: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestTheRootWiresTheTaskBoardProofCycle(t *testing.T) {
 	// judge to prove with — the mock provider has none — and the gate HOLDS.
 	// What matters here is that the verb reached the module at all: an
 	// unwired board answers "not available" instead.
-	if _, err := k.ProveTask(context.Background(), "corr", task.ID, "an answer"); err != nil {
+	if _, err := k.BoardRunner().ProveTask(context.Background(), "corr", task.ID, "an answer"); err != nil {
 		if err == workboardapi.ErrNoStore {
 			t.Fatal("the root did not wire the board module: the proof verb refused as unwired")
 		}

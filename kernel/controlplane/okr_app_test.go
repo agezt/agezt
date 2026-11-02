@@ -39,7 +39,7 @@ func okrAppFixture(t *testing.T) (*runtime.Kernel, *Server, okr.Objective, strin
 	if err != nil {
 		t.Fatal(err)
 	}
-	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
+	k.SetBoardRunner(workboard.NewRunner(workboard.NewService(k.Workboard(), k.WorkboardDependencies())))
 	// The objective verbs live in the WORK MODULE (W3.76r): the daemon holds
 	// the module's face and forwards to it. The BUILDER in the config is the
 	// daemon's way of naming the module — the kernel calls it with the store

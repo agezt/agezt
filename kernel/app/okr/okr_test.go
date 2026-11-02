@@ -148,7 +148,7 @@ func TestOKRReadsUseActualStoreAndLiveWorkboardRollup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
+	k.SetBoardRunner(workboard.NewRunner(workboard.NewService(k.Workboard(), k.WorkboardDependencies())))
 	// The objective verbs live in the WORK MODULE (W3.76r): this test is such a
 	// host — it builds the module's service over the library it opened.
 	library := objectiveLibrary(k)
@@ -176,7 +176,7 @@ func TestOKRReadsUseActualStoreAndLiveWorkboardRollup(t *testing.T) {
 	service := appokr.New(k.OKR(), library)
 	for index, want := range []int{0, 50, 100} {
 		if index > 0 {
-			if _, err = k.CompleteWorkboardTask("owned-corr", ids[index-1], "writer"); err != nil {
+			if _, err = k.BoardRunner().CompleteWorkboardTask("owned-corr", ids[index-1], "writer"); err != nil {
 				t.Fatal(err)
 			}
 		}

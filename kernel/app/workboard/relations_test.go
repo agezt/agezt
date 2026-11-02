@@ -120,7 +120,7 @@ func TestWorkboardRelationsRetainRealKernelDependenciesAndMaintenance(t *testing
 	dir := t.TempDir()
 	k := withWorkboard(t, runtime.Config{BaseDir: dir, Provider: mock.New()})
 	defer k.Close()
-	s := appwork.NewRelations(k)
+	s := appwork.NewRelations(k.BoardRunner())
 	ctx := context.Background()
 	a, _, err := k.Workboard().Create(tasks.CreateSpec{Title: "child"}, time.UnixMilli(100))
 	if err != nil {

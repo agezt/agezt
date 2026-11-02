@@ -124,7 +124,7 @@ func TestWorkboardLifecycleRetainsRealKernelTransitionsAndCorrelation(t *testing
 	dir := t.TempDir()
 	k := withWorkboard(t, runtime.Config{BaseDir: dir, Provider: mock.New()})
 	defer k.Close()
-	service := appwork.NewLifecycle(k, k.Workboard())
+	service := appwork.NewLifecycle(k.BoardRunner(), k.Workboard())
 	ctx := context.Background()
 	created, err := service.Create(ctx, appwork.CreateInput{CorrelationID: "owned-flow", Spec: tasks.CreateSpec{Title: "fixture", IdempotencyKey: "idempotent", RetryPolicy: &tasks.RetryPolicy{MaxAttempts: 2}}})
 	if err != nil || !created.Created {

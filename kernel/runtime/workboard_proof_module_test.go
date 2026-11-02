@@ -51,18 +51,18 @@ func openBoardDaemon(t *testing.T) *runtime.Kernel {
 	return k
 }
 
-// The daemon asks the MODULE to prove a task.
+// The board's runner asks the MODULE to prove a task.
 //
-// The daemon's verb is a forwarder: the judgment lives in the work module,
-// and the daemon's answer is the module's answer. A daemon that spelled the
-// judgment out again would answer on its own and the fake would record
-// nothing.
-func TestTheDaemonAsksTheModuleToProveATask(t *testing.T) {
+// The judgment lives in the work module, and the runner — the module's face
+// under the contract's port (W3.76s) — answers in the contract's names. The
+// daemon spells nothing out: the fake records nothing unless the module is
+// really asked.
+func TestTheBoardsRunnerAsksTheModuleToProveATask(t *testing.T) {
 	k := openBoardDaemon(t)
 	board := &recordingProofBoard{}
-	k.SetWorkboard(board)
+	k.SetBoardRunner(workboard.NewRunner(board))
 
-	task, err := k.ProveTask(context.Background(), "corr-1", "task-1", "the answer")
+	task, err := k.BoardRunner().ProveTask(context.Background(), "corr-1", "task-1", "the answer")
 	if err != nil {
 		t.Fatalf("ProveTask: %v", err)
 	}
@@ -70,22 +70,22 @@ func TestTheDaemonAsksTheModuleToProveATask(t *testing.T) {
 		t.Fatalf("the module was asked %d times, want 1", len(board.proves))
 	}
 	if board.proves[0] != "corr-1|task-1|the answer" {
-		t.Errorf("the module was asked %q, want the daemon's own arguments", board.proves[0])
+		t.Errorf("the module was asked %q, want the caller's own arguments", board.proves[0])
 	}
 	if task.Title != "from the module" {
 		t.Errorf("the answer came from %q, want the module's", task.Title)
 	}
 }
 
-// The daemon refuses to prove when the module is not wired.
+// The module refuses to prove without a store.
 //
-// The board is injected by the composition root. Until it is, the daemon has
-// no board — and it says so with the CONTRACT's row, because the host may not
+// The board is injected by the composition root. Until it is, there is no
+// board — and it says so with the CONTRACT's row, because the host may not
 // name the module and the module may not name the host.
-func TestTheDaemonRefusesToProveWhenTheModuleIsNotWired(t *testing.T) {
-	k := openBoardDaemon(t)
-	if _, err := k.ProveTask(context.Background(), "corr", "task-1", "an answer"); err != workboardapi.ErrNoStore {
-		t.Errorf("ProveTask without the module: err = %v, want the contract's refusal", err)
+func TestTheModuleRefusesToProveWithoutAStore(t *testing.T) {
+	runner := workboard.NewRunner(workboard.NewService(nil, workapi.BoardDependencies{}))
+	if _, err := runner.ProveTask(context.Background(), "corr", "task-1", "an answer"); err != workboardapi.ErrNoStore {
+		t.Errorf("ProveTask without a store: err = %v, want the contract's refusal", err)
 	}
 }
 

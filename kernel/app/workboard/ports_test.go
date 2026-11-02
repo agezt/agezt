@@ -14,11 +14,19 @@ import (
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
+// mintStub is the host's correlation mint, as the application sees it: a port
+// that mints, not a kernel verb.
+type mintStub struct{ corr string }
+
+func (m mintStub) Mint() string { return m.corr }
+
 // The workboard application's ports are filled by the APPLICATION from the
-// kernel handle — the host never binds them itself.
+// board's RUNNER — the work module's service under the contract's runner port
+// (W3.76s) — and the contract's store port.
 //
 // The task board is the composition root's file (W3.47), so this test is such
-// a host: it opens the store and hands the kernel the contract's port.
+// a host: it opens the store, hands the kernel the contract's port and wires
+// the module's runner over it.
 func TestTheWorkboardPortsReachTheKernelBoard(t *testing.T) {
 	board, err := workboardstore.OpenStore(filepath.Join(t.TempDir(), "workboard"))
 	if err != nil {
@@ -32,13 +40,13 @@ func TestTheWorkboardPortsReachTheKernelBoard(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	k.SetWorkboard(workboardstore.NewService(k.Workboard(), k.WorkboardDependencies()))
+	k.SetBoardRunner(workboardstore.NewRunner(workboardstore.NewService(k.Workboard(), k.WorkboardDependencies())))
 	defer k.Close()
 	if _, _, err := k.Workboard().Create(workboardstore.CreateSpec{Title: "owned", Status: workboardstore.StatusReady}, time.UnixMilli(100)); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
-	ports := PortsFromKernel(k)
+	ports := PortsFromBoard(k.BoardRunner(), k.Workboard(), k.Seats(), k.Journal(), mintStub{corr: "corr-1"})
 
 	// The ports are FILLED: a port that is nil is not a narrow view, it is no
 	// view at all, and an application that cannot read the board cannot do
@@ -60,6 +68,9 @@ func TestTheWorkboardPortsReachTheKernelBoard(t *testing.T) {
 	}
 	if ports.Dispatch == nil {
 		t.Fatal("the dispatch port is nil — the application cannot claim a task")
+	}
+	if ports.Correlator == nil {
+		t.Fatal("the correlator port is nil — the application cannot name an operation")
 	}
 	if ports.Execution == nil {
 		t.Fatal("the execution port is nil — the application cannot execute a task")
@@ -83,7 +94,7 @@ func TestTheWorkboardPortsReachTheKernelBoard(t *testing.T) {
 		t.Fatalf("the task list = %+v %v, want the kernel's task", list, err)
 	}
 
-	// The lifecycle port writes THROUGH the kernel.
+	// The lifecycle port writes THROUGH the board's runner.
 	created, err := NewLifecycle(ports.Lifecycle, ports.SeatSetter).Create(context.Background(), CreateInput{Spec: workboardstore.CreateSpec{Title: "written", Status: workboardstore.StatusReady}})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -106,12 +117,15 @@ func TestTheWorkboardPortsSurviveADaemonWithNoBoard(t *testing.T) {
 	}
 	defer k.Close()
 
-	ports := PortsFromKernel(k)
+	ports := PortsFromBoard(k.BoardRunner(), k.Workboard(), k.Seats(), k.Journal(), nil)
 	if ports.Reader != nil {
 		t.Error("the reader port is not nil — the daemon holds no board")
 	}
 	if ports.Store != nil {
 		t.Error("the store port is not nil — the daemon holds no board")
+	}
+	if ports.Lifecycle != nil {
+		t.Error("the lifecycle port is not nil — the daemon holds no board runner")
 	}
 
 	if _, err := New(ports.Reader).List(context.Background(), ListInput{}); err == nil {

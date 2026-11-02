@@ -816,6 +816,18 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The task board's runner moves into the work module.** The daemon held
+  sixteen forwarders over the work module's own board operations — a second
+  spelling of every board verb, and a second copy of the whole board surface
+  for the application layer and the plugin to call through. The contract
+  already named that surface, so the **module** implements the contract's
+  runner port over its own service now, and the daemon keeps three things:
+  the board's file, the board's wiring (the bus, the judge, the model, the
+  artifacts, the journal) and the module's face. The application binds the
+  board's runner — `kernel/app/workboard` no longer imports the daemon — and
+  the workboard plugin binds the module's runner too. The daemon's public
+  verbs: **194 → 179**; its production lines: **6,107 → 5,979**; the
+  application packages that name the daemon: **41 → 40**.
 - **The objective library's lifecycle moves into the work module.** The
   library's *file* is the daemon's (it opens `okr/okr.json` and hands over the
   contract's store port), but its *lifecycle* — the goals, the key results and

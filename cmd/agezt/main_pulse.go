@@ -74,7 +74,7 @@ func startWorkboardSweepTicker(ctx context.Context, k *kernelruntime.Kernel, std
 				return
 			case <-ticker.C:
 				corr := "workboard-sweep-" + ulid.New()
-				tasks, err := k.SweepStaleWorkboardClaims(corr, "workboard-sweeper", staleAfter, 100)
+				tasks, err := k.BoardRunner().SweepStaleWorkboardClaims(corr, "workboard-sweeper", staleAfter, 100)
 				if err != nil {
 					fmt.Fprintf(stdout, "workboard sweep failed: %v\n", err)
 					continue
