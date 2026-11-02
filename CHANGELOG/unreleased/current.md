@@ -816,6 +816,15 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The run engine's dead port promises die.** Thirteen of the run engine's
+  port entries were promises nobody kept: nobody in the runs module ever
+  opened `Approvals`, `ArtifactIndex`, `CatalogStore`, `ConfigCenter`,
+  `DataLake`, `Edict`, `Reflect`, `RunAssured`, `Schedules`, `Standing`,
+  `StandingList`, `Voice` or `Warden`. A port entry is a promise to *this*
+  module and a public verb is the host's face to everyone else, so the
+  promises went while the daemon kept every one of those verbs for its other
+  callers. The run engine's port carries **47** entries now (**60 → 47**),
+  and the daemon's public verbs are unchanged at **203**.
 - **The run engine asks the agents module for the roster.** The roster's
   operations are the agents module's, and the run engine — which retires an
   agent whose run completed and advances a cycling agent's cycle counter —

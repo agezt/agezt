@@ -334,7 +334,14 @@ operations, and the run engine — which retires an agent whose run completed
 and advances the agent's cycle counter — now asks the **module** for them
 instead of asking the host to ask the module; the two roster entries nobody in
 the runs module ever opened (`Roster`, `RosterList`) went with them, so the
-run engine's port carries **60** entries. The roster's **read** stayed
+run engine's port carries **60** entries, and W3.76p retired **thirteen** of
+them: nobody in the runs module ever opened `Approvals`, `ArtifactIndex`,
+`CatalogStore`, `ConfigCenter`, `DataLake`, `Edict`, `Reflect`, `RunAssured`,
+`Schedules`, `Standing`, `StandingList`, `Voice` or `Warden`, so the port stopped
+promising them — **60 → 47** entries. The daemon keeps all thirteen verbs (the
+application layer, the composition root and the plugins call them): a **port
+entry** is a promise to *this* module, a **public verb** is the host's face to
+everyone else. The roster's **read** stayed
 (`RosterGet`): a read over the contract's port is the host's own state. The daemon
 keeps the doors a **module** needs without naming the runs
 module (`WithAgentProfile`, `WithMaxCost`) and the host's own state (the

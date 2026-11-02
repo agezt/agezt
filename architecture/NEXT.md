@@ -13411,3 +13411,52 @@ func main() {
   accessors family and the control plane (`kernel/controlplane`, 7,570).
   Evidence:
   `architecture/288-w376o-the-run-engine-asks-the-agents-module-for-the-roster-evidence.md`
+- W3.76p (the run engine's dead port promises die) is the **twenty-fourth**
+  slice of the runtime's dissolution, and the run engine's port seen from the
+  other side of the W3.76k dead-surface sweep: that slice retired the daemon's
+  dead **verbs**, this one retires the run engine's dead **port entries** — the
+  promises the host makes to the run engine.
+
+  Every entry of `runner.KernelAPI` was counted by its callers inside the runs
+  module, and **thirteen** had **zero**: `Approvals`, `ArtifactIndex`,
+  `CatalogStore`, `ConfigCenter`, `DataLake`, `Edict`, `Reflect`,
+  `RunAssured`, `Schedules`, `Standing`, `StandingList`, `Voice`, `Warden`.
+
+  The distinction the slice turns on: **a port entry and a public verb are two
+  different things** — a port entry is a promise to *this* module, a public
+  verb is the host's face to everyone else. So the thirteen promises went and
+  the daemon keeps all thirteen verbs: the application layer, the composition
+  root and the plugins call them (thirty-seven callers for `Schedules`,
+  twenty-six for `Standing`, twenty-three for `Voice`).
+
+  `RunAssured` deserves its own word: the port listed the engine's **own**
+  entry point as something the host would provide — a leftover of the "Day 22
+  entry points" comment. The engine's `RunWith` and `RunWithRetry` stay,
+  because the engine still delegates the child's run back to the host (the
+  documented "Day 23 gap").
+
+  The measurement: the run engine's port **60 → 47** entries, the daemon's
+  public verbs **203 → 203**, its production lines **6,162 → 6,162**, the
+  runner package **931 → 908** lines. Nothing moved and nothing changed — the
+  port simply stopped promising what nobody asked for. The W3 exit criterion
+  that **no type has more than 60 methods** is now met by the port; the
+  daemon's own `*Kernel`, with 203 public verbs, is the type that still breaks
+  it.
+
+  **The probe fired**: putting `RunAssured` back into the port made the port's
+  ratchet fail.
+
+  **No mutation run**: this slice deletes declarations that nothing called, so
+  there is no rule whose reversal a mutation could expose. The evidence is the
+  compiler, the ratchet and its probe, and the full suite.
+
+  **What is left**: the daemon holds **203** public verbs and **6,162**
+  production lines; the run engine's port carries **47** entries. The W3 exit
+  is unchanged: the daemon's composition root (`compose.go`), its `Kernel`
+  (`runtime.go`), the accessors family and the control plane's handlers
+  (`kernel/controlplane`, 7,570 lines). The path to the exit criterion runs
+  through the **application layer**: its forty-three port files still bind the
+  daemon's fifty-two verbs, and every one of those bindings is a reason the
+  daemon's face still exists.
+  Evidence:
+  `architecture/289-w376p-the-run-engines-dead-port-promises-die-evidence.md`
