@@ -63,7 +63,11 @@ func TestTheDaemonForwardsTheToolMergeToTheModule(t *testing.T) {
 	}
 
 	fake := &countingRegistry{}
-	k.SetMCPRegistry(fake)
+	// The setter is gone (W3.76k): the composition root hands the registry
+	// service over through runtime.Config.MCPBuilder and the kernel calls it
+	// while opening itself. The daemon's own test puts the fake where the
+	// composition root would put it — in the field.
+	k.mcp = fake
 	got = k.mergeMCPTools(tools)
 	if len(got) != 2 {
 		t.Fatalf("the merge did not reach the module: %v", got)

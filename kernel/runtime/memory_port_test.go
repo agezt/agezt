@@ -74,6 +74,12 @@ func TestTheKernelNeverOpensAMemoryOfItsOwn(t *testing.T) {
 // honest answer even without a memory, but a write that cannot happen must
 // say so rather than answering "nothing was forgotten" — that would read as a
 // successful no-op on a store that does not exist.
+//
+// The surfaces nobody asked for went with W3.76k: the active list, the profile
+// block, the scoped search, the scoped recall, the forget and the fact
+// distillation had no caller outside the daemon's own tests, so the daemon
+// stops speaking for them. The memory family is the knowledge module's — the
+// layers above read the PORT (k.Memory()), not a daemon verb per operation.
 func TestAKernelWithoutAMemoryAnswersNoMemory(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
 	if err != nil {
@@ -85,30 +91,12 @@ func TestAKernelWithoutAMemoryAnswersNoMemory(t *testing.T) {
 	if got := k.MemoryCount(); got != 0 {
 		t.Fatalf("a kernel with no memory holds %d records, want 0", got)
 	}
-	if active, err := k.MemoryActive(); err != nil || len(active) != 0 {
-		t.Fatalf("a kernel with no memory lists no records, got %d (err=%v)", len(active), err)
-	}
-	if got := k.MemoryProfileText(); got != "" {
-		t.Fatalf("a kernel with no memory renders no profile, got %q", got)
-	}
-	if got, err := k.MemorySearchScoped("q", 5, "scope"); err != nil || len(got) != 0 {
-		t.Fatalf("a kernel with no memory searches nothing, got %d (err=%v)", len(got), err)
-	}
-	if got, err := k.MemoryRecallScoped("corr", "q", 5, "scope"); err != nil || len(got) != 0 {
-		t.Fatalf("a kernel with no memory recalls nothing, got %d (err=%v)", len(got), err)
-	}
 
 	// The WRITES refuse.
-	if _, err := k.MemoryForget("corr", "id"); err != runtime.ErrNoMemory {
-		t.Fatalf("a kernel with no memory must REFUSE the forget, got %v", err)
-	}
-	if _, err := k.MemoryDistillFacts(context.Background(), "corr", mock.New(), "model", "intent", "transcript"); err != runtime.ErrNoMemory {
-		t.Fatalf("a kernel with no memory must REFUSE the distillation, got %v", err)
-	}
-	if _, err := k.MemoryDistillBrain(context.Background(), "corr"); err != runtime.ErrNoMemory {
+	if _, err := k.DistillBrain(context.Background(), "corr"); err != runtime.ErrNoMemory {
 		t.Fatalf("a kernel with no memory must REFUSE the consolidation, got %v", err)
 	}
-	if _, err := k.MemoryDistillProfile(context.Background(), "corr"); err != runtime.ErrNoMemory {
+	if _, err := k.DistillProfile(context.Background(), "corr"); err != runtime.ErrNoMemory {
 		t.Fatalf("a kernel with no memory must REFUSE the profile rebuild, got %v", err)
 	}
 }
@@ -138,7 +126,7 @@ func TestTheInjectedMemoryIsTheLiveOne(t *testing.T) {
 	if got := k.MemoryCount(); got != 1 {
 		t.Fatalf("the kernel must count the injected memory's records, got %d", got)
 	}
-	active, err := k.MemoryActive()
+	active, err := k.Memory().Active()
 	if err != nil || len(active) != 1 || active[0].ID != saved.ID {
 		t.Fatalf("the injected memory must answer the live rows, got %+v (err=%v)", active, err)
 	}

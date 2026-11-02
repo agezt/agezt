@@ -3,13 +3,16 @@
 package runtime
 
 // Provenance: Kernel accessors: Reflect + StartTime + Plugins + memory/skill flags +
-//             ctx helpers (WakeContext* + Images/JSONMode/MaxCost/RunTimeout/Resume*
-//             +
-//             ResumeCheckpointFn/ResolveRunModel/MergeAutoApproveCapabilities/WithActorCorrelation/ActorFromCtx).
+//             ctx helpers (WakeContext* + Images/JSONMode/MaxCost +
+//             Resume* +
+//             ResumeCheckpointFn/ResolveRunModel/WithActorCorrelation/ActorFromCtx).
 //             The prompt doors (BuildRunPrompt/InjectHostEnvironment) moved to the
 //             runs module's prompt service in W3.76e; they live in prompt.go now.
+//             The RunTimeout and MergeAutoApproveCapabilities doors went with
+//             W3.76k: the run's callers read the run context through the module
+//             (runctx.RunTimeoutFromCtx / runctx.MergeAutoApproveCapabilities)
+//             and the daemon's forwarding copies had no caller left.
 //             Code extracted from accessors.go during the Day-56 god-file split.
-//             Public API unchanged.
 
 import (
 	"context"
@@ -145,13 +148,6 @@ func (k *Kernel) JSONModeFromCtx(ctx context.Context) bool { return runctx.JSONM
 // package-level runctx.MaxCostFromCtx (Day 34).
 func (k *Kernel) MaxCostFromCtx(ctx context.Context) int64 { return runctx.MaxCostFromCtx(ctx) }
 
-// RunTimeoutFromCtx returns the per-run timeout attached by
-// runctx.WithRunTimeout (`agt run --timeout`). Wraps the package-level
-// runctx.RunTimeoutFromCtx (Day 34).
-func (k *Kernel) RunTimeoutFromCtx(ctx context.Context) time.Duration {
-	return runctx.RunTimeoutFromCtx(ctx)
-}
-
 // ResumeOwnedKindFromCtx returns (kind, true) if the run context
 // carries a resume-ticket owned by an outer wrapper (assure /
 // retry / resumer). Wraps the package-level resumeOwnedKind (Day 34).
@@ -193,12 +189,6 @@ func (k *Kernel) ResolveRunModel(ctx context.Context) (string, bool) {
 		return m, true
 	}
 	return k.effectiveConfig(ctx).Model, false
-}
-
-// MergeAutoApproveCapabilities merges a per-run auto-approve list
-// with the existing ctx-stashed one. Wraps the package-level helper.
-func (k *Kernel) MergeAutoApproveCapabilities(ctx context.Context, from map[string]bool) map[string]bool {
-	return runctx.MergeAutoApproveCapabilities(ctx, from)
 }
 
 // WithActorCorrelation stamps the actor + correlation IDs onto a
