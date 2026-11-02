@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/runs/registry"
@@ -128,33 +127,10 @@ func TestTheTicketCapturesTheGovernanceCeilings(t *testing.T) {
 	}
 }
 
-// TestTheResumeHandshakeIsTheDaemons pins the daemon's OWN half of the resume
-// protocol: the owned marker and the seed are the daemon's boot handshake, not
-// the run's vocabulary, and the daemon reads them back.
-func TestTheResumeHandshakeIsTheDaemons(t *testing.T) {
-	owned := WithResumeOwned(context.Background(), resume.KindRun)
-	kind, ok := resumeOwnedKind(owned)
-	if !ok || kind != resume.KindRun {
-		t.Fatalf("owned kind = %q/%v, want %q", kind, ok, resume.KindRun)
-	}
-	if _, ok := resumeOwnedKind(context.Background()); ok {
-		t.Fatal("a bare context owns no ticket")
-	}
-
-	seeded := WithResumeSeed(context.Background(), []llm.Message{{Role: llm.RoleUser, Content: "hi"}}, 3)
-	msgs, iter, ok := resumeSeedFromCtx(seeded)
-	if !ok || iter != 3 || len(msgs) != 1 || msgs[0].Content != "hi" {
-		t.Fatalf("seed = %+v/%v/%v, want the seeded conversation", msgs, iter, ok)
-	}
-	if _, _, ok := resumeSeedFromCtx(context.Background()); ok {
-		t.Fatal("a bare context carries no seed")
-	}
-	// An EMPTY conversation is not a seed: the run starts fresh rather than
-	// resuming with nothing to say.
-	if _, _, ok := resumeSeedFromCtx(WithResumeSeed(context.Background(), nil, 3)); ok {
-		t.Fatal("an empty seed must not resume")
-	}
-}
+// The resume HANDSHAKE's own test moved to the module that keeps it
+// (W3.76q): the owned marker and the seed are the resume module's
+// vocabulary, and the daemon no longer holds a copy of it. See
+// kernel/modules/runs/resume/handshake_test.go.
 
 // TestTheKeepDeleteRuleIsTheModulesRule pins the daemon's use of the module's
 // termination rule: a run interrupted by a shutdown keeps its ticket, every

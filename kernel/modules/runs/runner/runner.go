@@ -170,9 +170,9 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	var resumeCheckpoint func(int, []llm.Message)
 	var resumePriorMessages []llm.Message
 	var resumeStartIter int
-	if kind, owned := r.k.ResumeOwnedKindFromCtx(runCtx); ownedHere || (owned && kind == resume.KindRun) {
+	if kind, owned := resume.OwnedKindFromCtx(runCtx); ownedHere || (owned && kind == resume.KindRun) {
 		resumeCheckpoint = r.k.ResumeCheckpointFn(corr)
-		if msgs, it, ok := r.k.ResumeSeedFromCtx(runCtx); ok {
+		if msgs, it, ok := resume.SeedFromCtx(runCtx); ok {
 			resumePriorMessages, resumeStartIter = msgs, it
 		}
 	}

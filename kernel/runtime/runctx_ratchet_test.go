@@ -85,18 +85,24 @@ func TestTheDaemonHoldsNoRunContextKey(t *testing.T) {
 	}
 }
 
-// TestTheDaemonKeepsItsOwnResumeKeys pins the other half of the rule: the
-// daemon's resume handshake keys ARE the daemon's and must stay — they are the
-// boot protocol, not the run's vocabulary.
-func TestTheDaemonKeepsItsOwnResumeKeys(t *testing.T) {
-	src, err := os.ReadFile("resume.go")
-	if err != nil {
-		t.Fatalf("read resume.go: %v", err)
-	}
-	text := string(src)
-	for _, want := range []string{"ctxKeyResumeOwned", "ctxKeyResumeSeed"} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("the daemon must keep its own %s", want)
+// TestTheDaemonKeepsNoResumeKeysOfItsOwn pins the other half of the rule, and
+// the ratchet changed honestly in W3.76q.
+//
+// W3.76l and W3.76m kept the resume handshake's keys in the daemon: they were
+// "the daemon's boot protocol, not the run's vocabulary". They were the
+// RESUME MODULE's vocabulary all along — the owned marker says which ticket
+// kind an outer frame holds, the seed carries the conversation that ticket
+// saved — and the run engine (the reader) lives next to that module. So the
+// keys moved to kernel/modules/runs/resume, the daemon's two readers went
+// with them, and the run engine asks the module now.
+//
+// The check is over the daemon's WHOLE package: the keys were declared in
+// resume.go, and a file-scoped check would have watched one file while the
+// vocabulary could hide in another.
+func TestTheDaemonKeepsNoResumeKeysOfItsOwn(t *testing.T) {
+	for _, name := range []string{"ctxKeyResumeOwned", "ctxKeyResumeSeed", "resumeOwnedKind", "resumeSeedFromCtx"} {
+		if hasDaemonDeclaration(t, name) {
+			t.Fatalf("the daemon declared %s; the resume handshake's vocabulary is the resume module's", name)
 		}
 	}
 }

@@ -39,6 +39,10 @@ import (
 // port kept the roster's READ (RosterGet), because a read over the contract's
 // port is the host's own state, and the two roster entries nobody in this
 // module ever opened (Roster, RosterList) are gone with them.
+//
+// The RESUME HANDSHAKE is not part of it either (W3.76q): the owned marker
+// and the seeded conversation are the resume module's vocabulary, and the run
+// engine — which lives next to that module — reads them from there.
 type KernelAPI interface {
 	Bus() *bus.Bus
 	Journal() *journal.Journal
@@ -57,8 +61,6 @@ type KernelAPI interface {
 	SetupRunState(corr string, parentCtx context.Context) (context.Context, context.CancelFunc, agent.Steerer, error)
 	CleanupRunState(corr string) []context.CancelFunc
 	DeregisterRunSteer(corr string)
-	ResumeOwnedKindFromCtx(ctx context.Context) (string, bool)
-	ResumeSeedFromCtx(ctx context.Context) ([]llm.Message, int, bool)
 	DisableHeuristicBypass(ctx context.Context) bool
 	BuildRunPrompt(runCtx context.Context, corr, actor, intent string, systemAgent bool, skillDirective skillapi.ActivationDirective) (string, []string)
 	InjectHostEnvironment(system string, tools map[string]toolapi.Tool) string
