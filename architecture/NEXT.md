@@ -13824,3 +13824,92 @@ func main() {
   166, it needs 106 more verbs gone.
   Evidence:
   `architecture/294-w376u-the-workflow-engines-lifecycle-moves-into-the-workflows-module-evidence.md`
+- W3.76v (the reasoning capability's lifecycle moves into the reasoning module) is
+  the **thirtieth** slice of the runtime's dissolution.
+
+  The reasoning capability is the **reasoning module's** — the Council of Elders,
+  the Conductor and the deep-research harness — and the module's `*Service` has
+  answered the contract's `reasoningapi.Runner` port since W3.1
+  (`var _ reasoningapi.Runner = (*Service)(nil)` — the compiler's own proof). The
+  daemon still held **three forwarders** over the module's own operations:
+  `Council`, `Conduct` and `Research`, each doing the same four lines: take the
+  service out of the daemon, refuse when there was none, call it, return its
+  answer.
+
+  The **contract** had already named the family in **four widths**:
+  `reasoningapi.CouncilRunner`, `ConductorRunner`, `ResearchRunner` and their
+  union `Runner`. **One vocabulary, four widths**: the narrow ports are one-verb
+  views of the same vocabulary and the wide port is their union, so the module's
+  service answers all of them without an adapter. The daemon's copy was the
+  fifth, and it is gone.
+
+  The daemon keeps three things and no more: the module's **WIRING**
+  (`ReasoningDependencies` — the host's own governed paths), the **SETTER** the
+  composition root injects with (`SetReasoning`) and the module's **FACE**
+  (`ReasoningService`). Its own **read** over the panel
+  (`CouncilDefaultMembers`) stayed: a read over the host's own configuration is
+  the host's.
+
+  The **application** binds the module's face — `kernel/app/council`'s
+  `EnginesFromKernel` asks `k.ReasoningService()` and drives `Council` and
+  `Conduct` on it, and `kernel/app/research` asks the same face for `Research`.
+  A daemon that holds no module holds **no** face, so the engines **refuse** —
+  with the **contract's row** (`reasoningapi.ErrNoService`), which moved out of
+  the daemon's private guard ("runtime: reasoning module not wired") into the
+  contract, because the daemon holds no reasoning verb to raise it with. The
+  council's engines also became nil-safe: `EnginesFromKernel(nil)` used to panic
+  on the correlation mint, and now refuses like every other missing daemon. The
+  **plugin** binds the module's face too (`reasoningPort(k)` answers
+  `k.ReasoningService()`), and a daemon with no module hands over a **nil**
+  port, so the three tools answer "unavailable" themselves rather than binding a
+  runner that is not there.
+
+  The measurement: the daemon's public verbs **166 → 164**, its production
+  lines **5,813 → 5,796**, its files **54 → 54**; the reasoning contract
+  **169 → 185** lines (the refusal row), the council application **426 → 458**,
+  the research application **173 → 185**. The reasoning **module** did not move
+  at all (**1,545** lines before and after): the vocabulary was already the
+  module's, and the slice deleted the copy that stood in front of it. The
+  measurement that did **not** move: the app packages that name the daemon stay
+  at **forty** — the council and the research applications still name the daemon
+  for the **type** they fill their engines from and for the panel's seats, so
+  the reasoning **binding** was narrowed, not the packages'.
+
+  **Three ratchets, one probe firing all of them**: the daemon's new reasoning
+  ratchet pins that the three forwarders do not come back and that the daemon
+  still holds the wiring, the setter and the face; the council application's new
+  binding ratchet pins that the council package does not take the reasoning
+  capability from the **daemon**; the research application's new binding ratchet
+  pins the same for the research package. The daemon's own surface ceiling
+  followed the floor again: **166 → 164** (220 → 201 → 194 → 179 → 173 → 166 →
+  164). **The probe** put the daemon's `Council` forwarder back and bound the
+  daemon as the council application's capability: the retired-verb ratchet, the
+  surface ceiling (165 > 164), the daemon's reasoning ratchet **and** the
+  council application's binding ratchet all went red at once; the probe was
+  reverted and the suites went green again.
+
+  **The coverage moved with the subject**: the contract carries the refusal row
+  and the four ports keep their own tests; the module's tests exercise the
+  module's service under the contract's names — unchanged; the daemon's tests
+  pin what the daemon still does (it holds the wiring, the setter and the face,
+  it holds **no** verb per operation, and a daemon with no module holds **no**
+  face at all); the applications' tests pin the refusal; the composition root's
+  tests pin the wiring.
+
+  **No mutation run**: the slice deletes forwarders and moves a binding, so
+  there is no rule whose reversal a mutation could expose. The evidence is the
+  compiler, the permanent tests, the ratchets and their probes, and the full
+  suite.
+
+  **What is left**: the daemon holds **164** public verbs and **5,796**
+  production lines; **forty** application packages still name it. The same
+  shape is waiting for the families that still have forwarders in the daemon:
+  the **MCP registry** (12), the **standing library** (9) and the **roster's**
+  remaining write doors (5). The MCP registry is the mixed one: the registry's
+  lifecycle is the module's, but the **attach/detach** verbs are the host's
+  (they hold live child processes). The standing library has **no module home**
+  yet — it needs one before its four writes can move. The W3 exit criterion that
+  no type has more than 60 methods is still the daemon's own `*Kernel` that
+  breaks it — at 164, it needs 104 more verbs gone.
+  Evidence:
+  `architecture/295-w376v-the-reasoning-capabilitys-lifecycle-moves-into-the-reasoning-module-evidence.md`
