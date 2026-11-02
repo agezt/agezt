@@ -305,6 +305,26 @@ Also: `toolCaps` (read-only after Open); `startTime`. The `suspending atomic.Boo
 
 Goroutines started by the runtime: one per async sub-agent (the delegation engine's `Spawn`), the drain waiters in `Close`/`DrainAndHalt`, and the tool fan-out workers inside `agent.Run`. Everything else runs on the caller's goroutine. The **agentgw listener is not one of them** (W3.67): the gateway is the **daemon's** transport, so the daemon starts it.
 
+**The daemon's public surface — 220 verbs (W3.76k).** The Kernel's exported
+methods are the host's **doors**: the verbs the layers above call and the
+verbs the daemon's own production paths open. A public verb that nobody
+calls is a second, unreachable copy of a surface, and the target architecture
+dissolves this kernel — so W3.76k measured the surface and retired the
+**eighteen** verbs that no caller reached: the artifact-store getter, the bus
+publisher the deleted `Accessor` sub-package owned, the scheduler getter, the
+daemon's two forwarding copies of the runs module's vocabulary (the run
+timeout, the auto-approve merge — both of which were also entries of the run
+engine's `KernelAPI` port that the engine never opened), the daemon's six
+unread memory operations, its second spelling of the two distill operations
+(`DistillBrain` / `MemoryDistillBrain` — one operation, one name), the OKR
+rollup-by-id verb, the two wiring setters the composition root replaced with
+`Config.ForgeBuilder` / `Config.MCPBuilder`, and the daemon's own two MCP
+readers (the row surface above them answers the same rows). The daemon's
+memory surface is now **the port, the count and the two distill doors** — the
+family itself is the knowledge module's. The surface is **pinned**:
+`kernel/runtime/dead_surface_ratchet_test.go` fails if a retired name comes
+back or if the public surface grows past 220.
+
 ### 4.2 Composition: `Open(cfg Config) (*Kernel, error)` (compose.go)
 Order (each store registers a closer; `fail()` unwinds them in reverse):
 

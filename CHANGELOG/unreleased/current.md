@@ -816,6 +816,28 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The daemon's dead surface dies.** The daemon's public verbs are the host's
+  doors, and a door nobody opens is a second, unreachable copy of a surface —
+  so the runtime's dissolution now shaves the kernel as well as moving
+  families out of it. The daemon held **238** public verbs; **eighteen** of
+  them had no caller and are gone: the artifact-store getter and the
+  scheduler getter (the run engine's port listed them; the engine never
+  asked), the bus publisher the deleted accessor sub-package owned, the
+  daemon's two forwarding copies of the runs module's vocabulary (the run
+  timeout and the auto-approve merge), the daemon's six unread memory
+  operations (the memory family is the knowledge module's), its second
+  spelling of the two distill operations, the OKR rollup-by-id verb (the OKR
+  family is the work module's), the two wiring setters the composition root
+  replaced with the config builders, and the daemon's own two MCP readers
+  (the row surface above them answers the same rows). The daemon keeps the
+  port over the memory, the count the app layer reads and the two distill
+  doors it calls — it keeps the port of a family it does not own and does not
+  keep a verb per operation of that family. The run engine's port loses the
+  four verbs it never opened. The daemon's public surface is now **220**
+  verbs, and none of them is dead: every one is a door somebody opens or a
+  door the daemon opens itself. The surface is pinned by a ratchet that fails
+  if a retired name comes back or if the verb count grows back over 220.
+
 - **The agent loop moves into the runs module.** The single-agent tool loop
   used to be a top-level package, `kernel/agent`; it is now
   `kernel/modules/runs/agent`, the runs module's own subtree. The package

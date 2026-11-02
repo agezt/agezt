@@ -11,7 +11,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/assureapi"
 	"github.com/agezt/agezt/kernel/event"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
@@ -25,26 +24,6 @@ import (
 // Suspending) for the lifecycle manager's benefit; the manager now holds the
 // registry itself, so those six doors are gone and the daemon speaks to the
 // module through k.registry.
-
-// PublishBusEvent is the Accessor sub-package's chokepoint for
-// Standing / Roster CRUD side-effects. Returns whatever the bus
-// returns; the Accessor ignores the id. Day 15.
-//
-// The Accessor sub-package is gone (W3.40), so this chokepoint has no
-// caller left in the tree — it survives only because the app layer passes
-// the standing / roster CRUD in as closures. It is kept for now: it is the
-// one place the kernel publishes a standing/roster event, and removing it
-// would move that event into the callers.
-func (k *Kernel) PublishBusEvent(spec event.Spec) (*event.Event, error) {
-	return k.bus.Publish(spec)
-}
-
-// ArtifactStore returns the content-addressed artifact store
-// (SPEC-04 §3.6), where the loop offloads oversized tool
-// outputs. Exposed for the runner package's KernelAPI
-// (Day 22). The same pointer is reachable via the existing
-// Artifacts() method.
-func (k *Kernel) ArtifactStore() artifactapi.Blob { return k.artifacts }
 
 // Runexec sub-package delegations (Day 22 split).
 //

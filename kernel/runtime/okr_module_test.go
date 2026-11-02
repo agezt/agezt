@@ -181,14 +181,6 @@ func TestTheDaemonRollsUpThroughTheModule(t *testing.T) {
 	if !progress.Achieved || progress.Percent != 100 {
 		t.Errorf("the rollup = %+v, want the module's own answer", progress)
 	}
-
-	got, pr, ok := k.ObjectiveRollup("obj-1")
-	if !ok || got.Title != "from the module" {
-		t.Fatalf("ObjectiveRollup = %+v %v, want the module's goal", got, ok)
-	}
-	if !pr.Achieved {
-		t.Errorf("the rollup = %+v, want the module's own answer", pr)
-	}
 }
 
 // Without the module, the daemon's rollup counts nothing.
@@ -201,8 +193,5 @@ func TestTheDaemonCountsNothingWithoutTheModule(t *testing.T) {
 	goal := okrapi.Objective{ID: "obj-1", KeyResults: []okrapi.KeyResult{{ID: "kr-1", Target: 1, TaskIDs: []string{"t-1"}}}}
 	if progress := k.Rollup(goal); progress.Achieved {
 		t.Error("without the module nothing counts toward a goal")
-	}
-	if _, _, ok := k.ObjectiveRollup("obj-1"); ok {
-		t.Error("without the module there is no goal to roll up")
 	}
 }

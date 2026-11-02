@@ -81,7 +81,7 @@ func TestTheKernelStillAnswersItsAccessorSurface(t *testing.T) {
 	kernelType := reflect.TypeOf(&runtime.Kernel{})
 	for _, name := range []string{
 		// Day 13 — the store getters the deleted sub-package mirrored.
-		"Journal", "Bus", "State", "Edict", "Warden", "Approvals", "Scheduler",
+		"Journal", "Bus", "State", "Edict", "Warden", "Approvals",
 		"Provider", "Memory", "Schedules",
 		// Day 14 — the live reads.
 		"Tools", "World", "Forge", "StartTime", "ConfigCenter", "MaxDuration",
@@ -89,7 +89,7 @@ func TestTheKernelStillAnswersItsAccessorSurface(t *testing.T) {
 		// Day 14 — the configMu-guarded live mutators.
 		"ScheduleEngine", "SetScheduleEngine",
 		// Day 15 — the standing / roster stores and the bus hook.
-		"Standing", "Roster", "PublishBusEvent",
+		"Standing", "Roster",
 		// Day 16 — the store + configMu-free reads / writes.
 		"Market", "SetMarket", "BaseDir", "ArtifactIndex", "DataLake",
 		// Day 18a — the configMu-guarded live mutators and the read helpers.
@@ -118,5 +118,16 @@ func TestTheKernelStillAnswersItsAccessorSurface(t *testing.T) {
 	// upward import edge that the ratchet just closed.
 	if _, ok := kernelType.MethodByName("AgentGateway"); ok {
 		t.Error("*Kernel has an AgentGateway method again — the gateway is the daemon's adapter (L5), the kernel is a module (L3), and the accessor had no caller")
+	}
+
+	// W3.76k retired two more accessors of the same kind: the scheduler
+	// getter (the DAG executor is the daemon's own field, and the run engine
+	// never asked for it) and the bus publisher the deleted Accessor
+	// sub-package used to own. Neither had a caller outside the daemon, so
+	// their ABSENCE is pinned too.
+	for _, name := range []string{"Scheduler", "PublishBusEvent"} {
+		if _, ok := kernelType.MethodByName(name); ok {
+			t.Errorf("*Kernel has a %s method again — it had no caller outside the daemon, and an accessor nobody calls is dead code", name)
+		}
 	}
 }

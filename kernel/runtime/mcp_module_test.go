@@ -35,6 +35,10 @@ func (s mcpStubTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, e
 	return toolapi.Result{Output: "registered"}, nil
 }
 
+// stubMCPStore is the registry's store port, empty on purpose: the fake
+// service answers for the module and never reaches the store.
+type stubMCPStore struct{ mcpapi.Registry }
+
 // recordingMCPRegistry is a fake extensions module: it records what the daemon
 // asks and answers with a row of its own.
 //
@@ -132,15 +136,21 @@ func TestTheDaemonRefusesEveryRegistryVerbWithoutTheModule(t *testing.T) {
 
 // TestTheDaemonForwardsEveryRegistryVerbToTheModule: the daemon keeps the
 // NAMES; the module answers. The fake records what the daemon asked for.
+//
+// The fake is handed over the way the composition root hands it over — over
+// runtime.Config.MCPBuilder (W3.76k: the daemon's SetMCPRegistry setter had
+// no caller outside this test and is gone; the builder is the production
+// path).
 func TestTheDaemonForwardsEveryRegistryVerbToTheModule(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	fake := &recordingMCPRegistry{}
+	cfg := runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}
+	cfg.MCPStore = stubMCPStore{}
+	cfg.MCPBuilder = func(extapi.MCPRegistryDependencies) extapi.MCPRegistryService { return fake }
+	k, err := runtime.Open(cfg)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { k.Close() })
-
-	fake := &recordingMCPRegistry{}
-	k.SetMCPRegistry(fake)
 
 	if _, err := k.AddMCPServer("c1", mcpapi.Server{Name: "owned", Command: "never-executed"}); err != nil {
 		t.Fatalf("AddMCPServer: %v", err)
@@ -178,11 +188,16 @@ func TestTheDaemonForwardsEveryRegistryVerbToTheModule(t *testing.T) {
 	}
 }
 
-// TestTheDaemonKeepsTheRegistryNames: the host's public API is unchanged —
-// the fourteen MCP verbs are still the daemon's.
+// TestTheDaemonKeepsTheRegistryNames: the host's public API keeps the MCP
+// verbs — the row surface the agent-facing tool reads (MCPServers /
+// MCPServer) and the lifecycle it drives.
+//
+// The two readers the daemon kept for itself (MCPRegistrations /
+// MCPRegistration) went with W3.76k: they had no caller outside the daemon,
+// and the row surface above already answers the same rows.
 func TestTheDaemonKeepsTheRegistryNames(t *testing.T) {
 	want := []string{
-		"MCPStore", "MCPRegistrations", "MCPRegistrationCount", "MCPRegistration",
+		"MCPStore", "MCPRegistrationCount",
 		"MCPReader", "MCPServers", "MCPServer", "AddMCPServer", "SetMCPServerEnabled",
 		"AttachMCPServer", "DetachMCPServer", "RemoveMCPServer", "AttachEnabledMCPServers",
 		"MCPAttached",
@@ -191,6 +206,11 @@ func TestTheDaemonKeepsTheRegistryNames(t *testing.T) {
 	for _, name := range want {
 		if _, ok := typ.MethodByName(name); !ok {
 			t.Fatalf("the daemon lost the verb %s", name)
+		}
+	}
+	for _, gone := range []string{"MCPRegistrations", "MCPRegistration"} {
+		if _, ok := typ.MethodByName(gone); ok {
+			t.Errorf("*Kernel has a %s method again — it had no caller outside the daemon, and the row surface (MCPServers / MCPServer) answers the same rows", gone)
 		}
 	}
 }

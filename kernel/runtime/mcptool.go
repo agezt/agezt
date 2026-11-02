@@ -42,9 +42,13 @@ var ErrNoMCPRegistry = mcpapi.ErrNoRegistry
 // readers below are what the layers above should call.
 func (k *Kernel) MCPStore() mcpapi.Registry { return k.mcpStore }
 
-// MCPRegistrations returns every registered MCP server — the read side, and
+// mcpRegistrations returns every registered MCP server — the read side, and
 // the nil-safe answer for a kernel with no registry ("no servers").
-func (k *Kernel) MCPRegistrations() []mcpapi.Server {
+//
+// It is the daemon's OWN reader: the row surface the layers above read is
+// MCPServers / MCPServer (and the MCPReader port), so this copy stays
+// internal (W3.76k: it had no caller outside the daemon).
+func (k *Kernel) mcpRegistrations() []mcpapi.Server {
 	if k.mcpStore == nil {
 		return nil
 	}
@@ -60,9 +64,12 @@ func (k *Kernel) MCPRegistrationCount() int {
 	return k.mcpStore.Count()
 }
 
-// MCPRegistration returns one registered MCP server by id or name — the
+// mcpRegistration returns one registered MCP server by id or name — the
 // nil-safe read for a kernel with no registry.
-func (k *Kernel) MCPRegistration(ref string) (mcpapi.Server, bool) {
+//
+// It is the daemon's OWN reader: the row surface the layers above read is
+// MCPServer (W3.76k: it had no caller outside the daemon).
+func (k *Kernel) mcpRegistration(ref string) (mcpapi.Server, bool) {
 	if k.mcpStore == nil {
 		return mcpapi.Server{}, false
 	}
@@ -83,31 +90,26 @@ func (k *Kernel) MCPReader() mcpapi.RegistrationReader { return mcpReader{k} }
 // kernel with no servers — not a crash.
 type mcpReader struct{ k *Kernel }
 
-func (r mcpReader) List() []mcpapi.Server { return r.k.MCPRegistrations() }
+func (r mcpReader) List() []mcpapi.Server { return r.k.mcpRegistrations() }
 
 // MCPServers returns every registered MCP server — the ROW surface for the
 // agent-facing tool. The tool is a plugin, and a plugin may reach the
 // contract and the platform layers and nothing else, so it may not name the
 // registry: it asks for the rows instead.
-func (k *Kernel) MCPServers() []mcpapi.Server { return k.MCPRegistrations() }
+func (k *Kernel) MCPServers() []mcpapi.Server { return k.mcpRegistrations() }
 
 // MCPServer returns one registered MCP server by id or name.
 func (k *Kernel) MCPServer(ref string) (mcpapi.Server, bool) {
-	return k.MCPRegistration(ref)
-}
-
-// SetMCPRegistry injects the MCP registry service the daemon drives.
-//
-// The registry is the EXTENSIONS MODULE's service: the module keeps the
-// lifecycle, the daemon keeps the names. The composition root builds it over
-// the store it opened and hands it over here.
-func (k *Kernel) SetMCPRegistry(s extapi.MCPRegistryService) {
-	k.configMu.Lock()
-	k.mcp = s
-	k.configMu.Unlock()
+	return k.mcpRegistration(ref)
 }
 
 // mcpService returns the injected registry service, or nil.
+//
+// The service is the EXTENSIONS MODULE's: the module keeps the lifecycle, the
+// daemon keeps the names. The composition root hands the BUILDER over (see
+// runtime.Config.MCPBuilder) and the kernel calls it while opening itself —
+// so the daemon never needs a setter for it (W3.76k: the setter's only
+// caller was the daemon's own test).
 func (k *Kernel) mcpService() extapi.MCPRegistryService {
 	k.configMu.Lock()
 	defer k.configMu.Unlock()

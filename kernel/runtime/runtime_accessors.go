@@ -3,9 +3,11 @@
 package runtime
 
 // Provenance: *Kernel simple getter accessors: Journal, Bus, State, Edict, Warden,
-//             Approvals, Scheduler, Provider, Memory, Schedules,
+//             Approvals, Provider, Memory, Schedules,
 //             Tools. Code extracted from runtime.go during the Day-41 god-file
-//             split. Public API unchanged.
+//             split. The Scheduler getter went with W3.76k: nobody called it
+//             outside the daemon, and the run engine's port asked for it in a
+//             promise the engine never kept.
 
 import (
 	"github.com/agezt/agezt/kernel/approval"
@@ -17,7 +19,6 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/modules/runs/runner"
-	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -39,9 +40,6 @@ func (k *Kernel) Warden() warden.Engine { return k.warden }
 
 // Approvals exposes the HITL queue.
 func (k *Kernel) Approvals() *approval.Registry { return k.approvals }
-
-// Scheduler exposes the DAG executor.
-func (k *Kernel) Scheduler() *scheduler.Executor { return k.scheduler }
 
 // Provider exposes the live llm.Provider.
 func (k *Kernel) Provider() llm.Provider { return k.cfg.Provider }

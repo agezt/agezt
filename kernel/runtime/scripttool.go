@@ -49,18 +49,13 @@ var ErrNoForge = toolforgeapi.ErrNoStore
 // the forge is unavailable rather than calling into nothing.
 func (k *Kernel) ToolForge() toolforgeapi.HostStore { return k.toolForge }
 
-// SetForge injects the forge service the daemon drives.
-//
-// The forge is the EXTENSIONS MODULE's service: the module keeps the
-// lifecycle, the daemon keeps the names. The composition root builds it over
-// the store the host opened and hands it over here.
-func (k *Kernel) SetForge(s extapi.ForgeService) {
-	k.configMu.Lock()
-	k.scriptForge = s
-	k.configMu.Unlock()
-}
-
 // forgeService returns the injected forge service, or nil.
+//
+// The service is the EXTENSIONS MODULE's: the module keeps the lifecycle, the
+// daemon keeps the names. The composition root hands the BUILDER over (see
+// runtime.Config.ForgeBuilder) and the kernel calls it while opening itself —
+// so the daemon never needs a setter for it (W3.76k: the setter's only
+// caller was the daemon's own test).
 func (k *Kernel) forgeService() extapi.ForgeService {
 	k.configMu.Lock()
 	defer k.configMu.Unlock()

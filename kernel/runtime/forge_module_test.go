@@ -25,6 +25,10 @@ import (
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
+// stubForgeStore is the forge's store port, empty on purpose: the fake
+// service answers for the module and never reaches the store.
+type stubForgeStore struct{ toolforgeapi.HostStore }
+
 // recordingForge is a fake extensions module: it records what the daemon asks
 // and answers with a row of its own.
 //
@@ -117,15 +121,20 @@ func TestTheDaemonRefusesEveryForgeVerbWithoutTheModule(t *testing.T) {
 
 // TestTheDaemonForwardsEveryForgeVerbToTheModule: the daemon keeps the
 // NAMES; the module answers. The fake records what the daemon asked for.
+//
+// The fake is handed over the way the composition root hands it over — over
+// runtime.Config.ForgeBuilder (W3.76k: the daemon's SetForge setter had no
+// caller outside this test and is gone; the builder is the production path).
 func TestTheDaemonForwardsEveryForgeVerbToTheModule(t *testing.T) {
-	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	fake := &recordingForge{}
+	cfg := runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}
+	cfg.ToolForge = stubForgeStore{}
+	cfg.ForgeBuilder = func(extapi.ForgeDependencies) extapi.ForgeService { return fake }
+	k, err := runtime.Open(cfg)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { k.Close() })
-
-	fake := &recordingForge{}
-	k.SetForge(fake)
 
 	if _, err := k.DraftScriptTool("c1", toolforgeapi.ScriptTool{Name: "owned"}); err != nil {
 		t.Fatalf("DraftScriptTool: %v", err)

@@ -102,16 +102,6 @@ func (k *Kernel) Rollup(o okrapi.Objective) okrapi.ObjectiveProgress {
 	return svc.Progress(o)
 }
 
-// ObjectiveRollup returns an objective and its live progress rollup, computed
-// from the current done-status of its linked workboard tasks.
-func (k *Kernel) ObjectiveRollup(id string) (okrapi.Objective, okrapi.ObjectiveProgress, bool) {
-	svc := k.objectiveLibrary()
-	if svc == nil {
-		return okrapi.Objective{}, okrapi.ObjectiveProgress{}, false
-	}
-	return svc.ProgressOf(id)
-}
-
 // CreateObjective adds a goal to the library.
 func (k *Kernel) CreateObjective(corr string, spec okrapi.CreateSpec) (okrapi.Objective, error) {
 	svc, err := k.objectiveLibraryOrRefusal()

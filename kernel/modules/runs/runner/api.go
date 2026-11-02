@@ -27,7 +27,6 @@ import (
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/kernel/reflect"
-	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -70,7 +69,6 @@ type KernelAPI interface {
 	ImagesFromCtx(ctx context.Context) []string
 	JSONModeFromCtx(ctx context.Context) bool
 	MaxCostFromCtx(ctx context.Context) int64
-	RunTimeoutFromCtx(ctx context.Context) time.Duration
 	ResumeOwnedKindFromCtx(ctx context.Context) (string, bool)
 	ResumeSeedFromCtx(ctx context.Context) ([]llm.Message, int, bool)
 	DisableHeuristicBypass(ctx context.Context) bool
@@ -78,18 +76,15 @@ type KernelAPI interface {
 	InjectHostEnvironment(system string, tools map[string]toolapi.Tool) string
 	ResumeCheckpointFn(corr string) func(int, []llm.Message)
 	ResolveRunModel(ctx context.Context) (string, bool)
-	MergeAutoApproveCapabilities(ctx context.Context, from map[string]bool) map[string]bool
 	WithActorCorrelation(ctx context.Context, actor, corr string) context.Context
 	ActorFromCtx(ctx context.Context) string
 	Edict() *edict.Engine
 	Warden() warden.Engine
 	Approvals() *approval.Registry
-	Scheduler() *scheduler.Executor
 	Memory() memoryapi.Manager
 	World() worldmodelapi.Graph
 	Reflect() *reflect.Engine
 	Forge() skillapi.Curator
-	ArtifactStore() artifactapi.Blob
 	ArtifactIndex() artifactapi.HostIndex
 	DataLake() datalakeapi.Lake
 	State() *state.FileStore

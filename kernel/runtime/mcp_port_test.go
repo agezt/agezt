@@ -127,13 +127,13 @@ func TestKernelWithoutARegistryAnswersNoServersAndRefusesWrites(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if rows := k.MCPRegistrations(); len(rows) != 0 {
+	if rows := k.MCPServers(); len(rows) != 0 {
 		t.Fatalf("a kernel with no registry must answer no servers, got %v", rows)
 	}
 	if n := k.MCPRegistrationCount(); n != 0 {
 		t.Fatalf("a kernel with no registry must answer zero, got %d", n)
 	}
-	if _, found := k.MCPRegistration("ghost"); found {
+	if _, found := k.MCPServer("ghost"); found {
 		t.Fatal("a kernel with no registry invented a row")
 	}
 	if rows := k.MCPReader().List(); len(rows) != 0 {
@@ -175,7 +175,7 @@ func TestKernelHoldsTheRegistryItWasGiven(t *testing.T) {
 	if registry.Count() != 1 {
 		t.Fatalf("the kernel wrote to a registry of its own, not the injected one: %d", registry.Count())
 	}
-	if rows := k.MCPRegistrations(); len(rows) != 1 || rows[0].Name != "owned" {
+	if rows := k.MCPServers(); len(rows) != 1 || rows[0].Name != "owned" {
 		t.Fatalf("the kernel's reads do not see the injected registry: %v", rows)
 	}
 	if n := k.MCPRegistrationCount(); n != 1 {

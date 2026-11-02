@@ -64,7 +64,11 @@ func TestTheDaemonForwardsTheForgeMergeToTheModule(t *testing.T) {
 	}
 
 	fake := &countingForge{}
-	k.SetForge(fake)
+	// The setter is gone (W3.76k): the composition root hands the forge
+	// service over through runtime.Config.ForgeBuilder and the kernel calls
+	// it while opening itself. The daemon's own test puts the fake where
+	// the composition root would put it — in the field.
+	k.scriptForge = fake
 	got = k.mergeScriptTools(tools)
 	if len(got) != 2 {
 		t.Fatalf("the merge did not reach the module: %v", got)

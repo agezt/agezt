@@ -104,12 +104,13 @@ func TestTheDaemonKeepsItsOwnResumeKeys(t *testing.T) {
 // TestTheDaemonAsksTheModuleForTheRunsVocabulary pins the direction of the
 // move: the daemon READS the run's dispatch through the module, it does not
 // re-implement it.
+//
+// The check is over the daemon's WHOLE package, not one file: W3.76k retired
+// the two forwarding copies the daemon kept (RunTimeoutFromCtx and
+// MergeAutoApproveCapabilities), so the readers that use the module's names
+// are the ones that drive a run — the run's own path and the resume path —
+// and a file-scoped check would have pinned a door that no longer exists.
 func TestTheDaemonAsksTheModuleForTheRunsVocabulary(t *testing.T) {
-	src, err := os.ReadFile("accessors_ctx.go")
-	if err != nil {
-		t.Fatalf("read accessors_ctx.go: %v", err)
-	}
-	text := string(src)
 	for _, want := range []string{
 		"runctx.SystemAgentFromCtx(",
 		"runctx.ModelFromCtx(",
@@ -126,8 +127,8 @@ func TestTheDaemonAsksTheModuleForTheRunsVocabulary(t *testing.T) {
 		"runctx.WithAgentProfile(",
 		"runctx.WithMaxCost(",
 	} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("accessors_ctx.go must read the run's dispatch through %s", want)
+		if !daemonPackageContains(t, want) {
+			t.Fatalf("the daemon must read the run's dispatch through %s", want)
 		}
 	}
 }
@@ -197,6 +198,30 @@ func TestTheProfileDoorBindsTheRun(t *testing.T) {
 	if got := runctx.MaxCostFromCtx(ctx); got != 321 {
 		t.Fatalf("the cost door bound nothing: %d", got)
 	}
+}
+
+// daemonPackageContains reports whether the daemon's own production sources
+// hold the given text. It reads the daemon's PRODUCTION files — the test
+// files may legitimately mention a name.
+func daemonPackageContains(t *testing.T, needle string) bool {
+	t.Helper()
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("read the daemon package: %v", err)
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
+			continue
+		}
+		src, err := os.ReadFile(e.Name())
+		if err != nil {
+			t.Fatalf("read %s: %v", e.Name(), err)
+		}
+		if strings.Contains(string(src), needle) {
+			return true
+		}
+	}
+	return false
 }
 
 // hasDaemonDeclaration reports whether the daemon's own package declares the

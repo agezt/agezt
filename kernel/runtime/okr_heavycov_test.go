@@ -40,7 +40,7 @@ func openOKRKernel(t *testing.T) *runtime.Kernel {
 
 // TestOKR_FullLifecycle drives the whole objective/key-result CRUD surface on
 // the kernel: OKR store access, CreateObjective, AddObjectiveKeyResult,
-// LinkObjectiveTask, UnlinkObjectiveTask, ObjectiveRollup, Rollup, and
+// LinkObjectiveTask, UnlinkObjectiveTask, Rollup, and
 // ArchiveObjective. This covers the previously-untested okr.go handlers.
 func TestOKR_FullLifecycle(t *testing.T) {
 	k := openOKRKernel(t)
@@ -90,22 +90,16 @@ func TestOKR_FullLifecycle(t *testing.T) {
 		t.Errorf("linked tasks = %d, want 2", got)
 	}
 
-	// ObjectiveRollup returns the objective + live progress.
-	rObj, prog, ok := k.ObjectiveRollup(obj.ID)
-	if !ok {
-		t.Fatal("ObjectiveRollup: objective not found")
-	}
-	if rObj.ID != obj.ID {
-		t.Errorf("rollup objective id = %q, want %q", rObj.ID, obj.ID)
+	// The objective's live progress. The "fetch the objective BY ID and its
+	// progress" verb went with W3.76k — it had no caller outside the daemon's
+	// own tests, and the OKR family is the work module's — so the rollup is
+	// asked of the objective the caller already holds.
+	prog := k.Rollup(obj)
+	if prog.ObjectiveID != obj.ID {
+		t.Errorf("rollup objective id = %q, want %q", prog.ObjectiveID, obj.ID)
 	}
 	if prog.Achieved {
 		t.Error("progress should not be achieved with no done tasks")
-	}
-
-	// Rollup on the objective value directly.
-	prog2 := k.Rollup(obj)
-	if prog2.ObjectiveID != obj.ID {
-		t.Errorf("Rollup objective id = %q, want %q", prog2.ObjectiveID, obj.ID)
 	}
 
 	// Unlink one task.
@@ -124,14 +118,6 @@ func TestOKR_FullLifecycle(t *testing.T) {
 	}
 	if obj.Status != okr.StatusArchived {
 		t.Errorf("status after archive = %q, want archived", obj.Status)
-	}
-}
-
-// TestOKR_RollupMissing covers ObjectiveRollup's not-found branch.
-func TestOKR_RollupMissing(t *testing.T) {
-	k := openOKRKernel(t)
-	if _, _, ok := k.ObjectiveRollup("no-such-id"); ok {
-		t.Error("ObjectiveRollup on unknown id returned ok=true, want false")
 	}
 }
 
