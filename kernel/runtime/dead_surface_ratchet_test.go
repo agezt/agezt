@@ -76,15 +76,21 @@ var retiredVerbs = []string{
 	"MCPRegistrations",
 }
 
-// daemonPublicVerbs is the ceiling W3.76k left: the daemon's public method
-// set may shrink from here, but it must not grow back over it.
+// daemonPublicVerbs is the ceiling the daemon's public method set may not
+// grow over.
 //
-// The number is a MEASUREMENT, not a wish: the daemon held 238 public verbs
-// before this slice and 220 after it (eighteen verbs retired — sixteen with
-// no caller outside the daemon, two more that were a second spelling of an
-// operation the daemon already had a door for). The ceiling is the floor it
-// reached — a new verb needs a new reason, and this file says so.
-const daemonPublicVerbs = 220
+// The number is a MEASUREMENT, not a wish: W3.76k left the ceiling at 220
+// (the daemon held 238 public verbs before that slice and 220 after it), and
+// every slice since has taken the floor DOWN — the roster, the runner, the
+// resume handshake and the objective library have each shaved verbs off the
+// host. A ceiling that stays where it was while the floor moves is a ratchet
+// that permits exactly what the program exists to remove.
+//
+// So the ceiling follows the floor: 220 -> 201 (W3.76q) -> 194 (W3.76r, when
+// the objective lifecycle left the daemon for the work module). The daemon
+// holds 194 public verbs today; a new verb needs a new reason, and this file
+// says so.
+const daemonPublicVerbs = 194
 
 // TestTheRetiredVerbsDoNotComeBack pins the retirement: none of the sixteen
 // names is a method of *Kernel any more.

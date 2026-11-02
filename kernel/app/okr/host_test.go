@@ -31,5 +31,10 @@ func withWorkboard(t *testing.T, cfg runtime.Config) runtime.Config {
 		t.Fatalf("open the okr store: %v", err)
 	}
 	cfg.OKRStore = okrStore
+	// The objective library's LIFECYCLE is the work module's (W3.76r): the
+	// BUILDER is the composition root's way of naming the module, and the
+	// kernel calls it over the store above with its own ports — the bus it
+	// publishes through and the board it asks for a task's status.
+	cfg.ObjectiveLibrary = okr.NewService
 	return cfg
 }

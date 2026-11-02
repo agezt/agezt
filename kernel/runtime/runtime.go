@@ -34,6 +34,7 @@ import (
 	"github.com/agezt/agezt/kernel/edict"
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
+	workapi "github.com/agezt/agezt/kernel/modules/work/api"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/warden"
 )
@@ -692,6 +693,20 @@ type Config struct {
 	// Nil means "no objective library": the objective surfaces report that the
 	// library is unavailable rather than calling into nothing.
 	OKRStore okrapi.Store
+
+	// ObjectiveLibrary builds the objective library's service over the
+	// dependencies the host collected (W3.76r).
+	//
+	// The OBJECTIVE LIBRARY's lifecycle is the work module's: the module keeps
+	// the goals, the key results and the rollup rule. The daemon hands over the
+	// BUILDER (it names the module) and the kernel calls it with the store the
+	// host opened and its own ports — so every objective change journals
+	// through the kernel's bus without either side naming the other's
+	// implementation.
+	//
+	// Nil means "no objective service": the objective surfaces report that the
+	// library is unavailable rather than calling into nothing.
+	ObjectiveLibrary workapi.ObjectiveServiceBuilder
 
 	// WorldStore is the world-model file the host holds — the contract's
 	// store port, not a module's store (W3.54). The daemon opens the file

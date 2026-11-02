@@ -816,6 +816,23 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The objective library's lifecycle moves into the work module.** The
+  library's *file* is the daemon's (it opens `okr/okr.json` and hands over the
+  contract's store port), but its *lifecycle* — the goals, the key results and
+  the rollup rule — belongs to the work module, and the daemon held six
+  forwarders over the module's own operations (`CreateObjective`,
+  `AddObjectiveKeyResult`, `LinkObjectiveTask`, `UnlinkObjectiveTask`,
+  `ArchiveObjective`, `Rollup`) plus the two wiring doors. Every objective
+  write ran *application → daemon → module*, and the application package had
+  to import the daemon to say so. The application now binds the **module**
+  (`kernel/app/okr` holds the work module's `ObjectiveService` and no longer
+  imports `kernel/runtime`), the daemon keeps the file and the module's face,
+  and the composition root hands over the builder that names the module. The
+  daemon's public verbs: **201 → 194**; its production lines:
+  **6,121 → 6,107**; the application packages that name the daemon:
+  **42 → 41**. The daemon's surface ceiling follows the floor now
+  (**220 → 194**), because a ceiling that stays put while the surface shrinks
+  permits exactly what this programme exists to remove.
 - **The resume handshake's vocabulary moves into the resume module.** The owned
   marker and the seeded conversation describe the resume module's ticket, so
   they live in `kernel/modules/runs/resume` now and the run engine — which

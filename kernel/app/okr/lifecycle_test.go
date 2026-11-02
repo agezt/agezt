@@ -15,49 +15,17 @@ import (
 	"time"
 )
 
-type mutationHost struct {
-	method    string
-	args      []any
-	objective objectives.Objective
-	cause     error
-}
-
-func (h *mutationHost) CreateObjective(corr string, spec objectives.CreateSpec) (objectives.Objective, error) {
-	h.method = "create"
-	h.args = []any{corr, spec}
-	return h.objective, h.cause
-}
-func (h *mutationHost) AddObjectiveKeyResult(corr, id, title string, target int) (objectives.Objective, error) {
-	h.method = "keyresult"
-	h.args = []any{corr, id, title, target}
-	return h.objective, h.cause
-}
-func (h *mutationHost) LinkObjectiveTask(corr, id, kr, task string) (objectives.Objective, error) {
-	h.method = "link"
-	h.args = []any{corr, id, kr, task}
-	return h.objective, h.cause
-}
-func (h *mutationHost) UnlinkObjectiveTask(corr, id, kr, task string) (objectives.Objective, error) {
-	h.method = "unlink"
-	h.args = []any{corr, id, kr, task}
-	return h.objective, h.cause
-}
-func (h *mutationHost) ArchiveObjective(corr, id string) (objectives.Objective, error) {
-	h.method = "archive"
-	h.args = []any{corr, id}
-	return h.objective, h.cause
-}
 func TestOKRLifecycleRetainsActualPortInputsReturnedObjectAndErrorCause(t *testing.T) {
 	for _, name := range []string{"create", "keyresult", "link", "unlink", "archive"} {
 		for _, failed := range []bool{false, true} {
 			t.Run(name+map[bool]string{false: "/success", true: "/cause"}[failed], func(t *testing.T) {
 				cause := errors.New("owned cause")
-				host := &mutationHost{objective: objectives.Objective{ID: "returned", Title: "title", Status: objectives.StatusActive, KeyResults: []objectives.KeyResult{{ID: "returned-kr"}}}}
+				library := &library{objective: objectives.Objective{ID: "returned", Title: "title", Status: objectives.StatusActive, KeyResults: []objectives.KeyResult{{ID: "returned-kr"}}}}
 				if failed {
-					host.cause = cause
+					library.cause = cause
 				}
-				progress := &rollup{progress: objectives.ObjectiveProgress{ObjectiveID: "returned", Percent: 75, Achieved: true}}
-				service := appokr.NewLifecycle(host, appokr.New(&reader{}, progress))
+				library.progress = objectives.ObjectiveProgress{ObjectiveID: "returned", Percent: 75, Achieved: true}
+				service := appokr.NewLifecycle(library, appokr.New(&reader{}, library))
 				ctx := context.Background()
 				spec := objectives.CreateSpec{Title: "raw title", Description: "description", Owner: "owner", Tenant: "team"}
 				var out appokr.ObjectiveOutput
@@ -80,17 +48,17 @@ func TestOKRLifecycleRetainsActualPortInputsReturnedObjectAndErrorCause(t *testi
 					out, err = service.Archive(ctx, appokr.ArchiveInput{CorrelationID: "corr", ID: "input"})
 					want = []any{"corr", "input"}
 				}
-				if host.method != name || !reflect.DeepEqual(host.args, want) {
-					t.Fatal(host.method, host.args, want)
+				if library.method != name || !reflect.DeepEqual(library.args, want) {
+					t.Fatal(library.method, library.args, want)
 				}
 				if failed {
-					if err != cause || !reflect.DeepEqual(out, appokr.ObjectiveOutput{}) || len(progress.calls) != 0 {
-						t.Fatal("failed mutation projected partial output", out, err, progress.calls)
+					if err != cause || !reflect.DeepEqual(out, appokr.ObjectiveOutput{}) || len(library.calls) != 0 {
+						t.Fatal("failed mutation projected partial output", out, err, library.calls)
 					}
 					return
 				}
-				if err != nil || !reflect.DeepEqual(out.Objective.Objective, host.objective) || out.Objective.Percent != 75 || !out.Objective.Achieved || out.Objective.KeyResultCount != 1 || !reflect.DeepEqual(progress.calls, []string{"returned"}) {
-					t.Fatal(out, err, progress.calls)
+				if err != nil || !reflect.DeepEqual(out.Objective.Objective, library.objective) || out.Objective.Percent != 75 || !out.Objective.Achieved || out.Objective.KeyResultCount != 1 || !reflect.DeepEqual(library.calls, []string{"returned"}) {
+					t.Fatal(out, err, library.calls)
 				}
 			})
 		}
@@ -102,10 +70,10 @@ func TestOKRLifecycleUsesActualKernelJournalingAndPreservesReturnedSnapshot(t *t
 		t.Fatal(err)
 	}
 	defer k.Close()
-	// The objective verbs live in the WORK MODULE (W3.69): this test is such a
+	// The objective verbs live in the WORK MODULE (W3.76r): this test is such a
 	// host — it builds the module's service over the library it opened.
-	k.SetObjectiveLibrary(objectives.NewService(k.OKR(), k.ObjectiveLibraryDependencies()))
-	service := appokr.NewLifecycle(k, appokr.New(k.OKR(), k))
+	library := objectiveLibrary(k)
+	service := appokr.NewLifecycle(library, appokr.New(k.OKR(), library))
 	ctx := context.Background()
 	out, err := service.Create(ctx, appokr.CreateInput{CorrelationID: "owned", Spec: objectives.CreateSpec{Title: "objective", Owner: "writer", Tenant: "team"}})
 	if err != nil {
@@ -155,5 +123,15 @@ func TestOKRLifecycleUsesActualKernelJournalingAndPreservesReturnedSnapshot(t *t
 	causeOut, cause := service.Archive(ctx, appokr.ArchiveInput{CorrelationID: "owned", ID: "missing"})
 	if !errors.Is(cause, objectives.ErrNotFound) || !reflect.DeepEqual(causeOut, appokr.ObjectiveOutput{}) {
 		t.Fatal(causeOut, cause)
+	}
+}
+
+// A daemon with no objective service refuses every write (W3.76r): the
+// application asks the MODULE, and a module that was never wired has no
+// service to ask.
+func TestOKRLifecycleRefusesWithoutTheModuleService(t *testing.T) {
+	service := appokr.NewLifecycle(nil, appokr.New(&reader{}, nil))
+	if _, err := service.Create(context.Background(), appokr.CreateInput{Spec: objectives.CreateSpec{Title: "t"}}); err == nil {
+		t.Fatal("the application wrote an objective with no module service")
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/okrapi"
+	workapi "github.com/agezt/agezt/kernel/modules/work/api"
 	"github.com/agezt/agezt/kernel/modules/work/okr"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -52,6 +53,10 @@ func TestTheOKRPortStaysNilWithoutALibrary(t *testing.T) {
 // TestTheObjectiveSurfacesRefuseWithoutALibrary: a kernel with no library
 // REFUSES the objective writes — it does not panic, and it does not answer
 // "nothing to do".
+//
+// The refusal lives where the lifecycle lives now (W3.76r): the MODULE's
+// service refuses without a store, with the CONTRACT's row, and the daemon
+// holds no service at all when it was given no builder.
 func TestTheObjectiveSurfacesRefuseWithoutALibrary(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
 	if err != nil {
@@ -59,17 +64,24 @@ func TestTheObjectiveSurfacesRefuseWithoutALibrary(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = k.Close() })
 
-	if _, err := k.CreateObjective("corr", okrapi.CreateSpec{Title: "t"}); err == nil {
-		t.Fatal("creating an objective must refuse without a library")
+	if got := k.Objectives(); got != nil {
+		t.Fatalf("a kernel with no objective builder must yield a nil service, got %v", got)
 	}
-	if _, err := k.AddObjectiveKeyResult("corr", "o-1", "kr", 1); err == nil {
-		t.Fatal("adding a key result must refuse without a library")
+	library := okr.NewService(nil, workapi.ObjectiveDependencies{})
+	if _, err := library.Create("corr", okrapi.CreateSpec{Title: "t"}); err != okrapi.ErrNoLibrary {
+		t.Errorf("Create without a store: err = %v, want the contract's refusal", err)
 	}
-	if _, err := k.LinkObjectiveTask("corr", "o-1", "kr-1", "t-1"); err == nil {
-		t.Fatal("linking a task must refuse without a library")
+	if _, err := library.AddKeyResult("corr", "o-1", "kr", 1); err != okrapi.ErrNoLibrary {
+		t.Errorf("AddKeyResult without a store: err = %v, want the contract's refusal", err)
 	}
-	if _, err := k.ArchiveObjective("corr", "o-1"); err == nil {
-		t.Fatal("archiving an objective must refuse without a library")
+	if _, err := library.LinkTask("corr", "o-1", "kr-1", "t-1"); err != okrapi.ErrNoLibrary {
+		t.Errorf("Link without a store: err = %v, want the contract's refusal", err)
+	}
+	if _, err := library.UnlinkTask("corr", "o-1", "kr-1", "t-1"); err != okrapi.ErrNoLibrary {
+		t.Errorf("Unlink without a store: err = %v, want the contract's refusal", err)
+	}
+	if _, err := library.Archive("corr", "o-1"); err != okrapi.ErrNoLibrary {
+		t.Errorf("Archive without a store: err = %v, want the contract's refusal", err)
 	}
 }
 

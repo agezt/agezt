@@ -81,3 +81,12 @@ type ObjectiveDependencies struct {
 	// counts toward a goal.
 	TaskStatus func(taskID string) (workboardapi.Status, bool)
 }
+
+// ObjectiveServiceBuilder builds the objective library's service over the
+// store the host opened and the dependencies the host collected.
+//
+// The daemon hands over the BUILDER (it names the module); the host calls it
+// with the store it opened and its own ports — so every objective change
+// journals through the host's bus without either side naming the other's
+// implementation (W3.76r).
+type ObjectiveServiceBuilder func(store okrapi.Store, deps ObjectiveDependencies) ObjectiveService

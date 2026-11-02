@@ -35,15 +35,15 @@ func okrAppFixture(t *testing.T) (*runtime.Kernel, *Server, okr.Objective, strin
 	if err != nil {
 		t.Fatal(err)
 	}
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, Workboard: board, OKRStore: okrStore})
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, Workboard: board, OKRStore: okrStore, ObjectiveLibrary: okr.NewService})
 	if err != nil {
 		t.Fatal(err)
 	}
 	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
-	// The objective verbs live in the WORK MODULE (W3.69): the daemon holds
-	// the module's face and forwards to it. This fixture is such a host — it
-	// builds the module's service over the library it opened.
-	k.SetObjectiveLibrary(okr.NewService(k.OKR(), k.ObjectiveLibraryDependencies()))
+	// The objective verbs live in the WORK MODULE (W3.76r): the daemon holds
+	// the module's face and forwards to it. The BUILDER in the config is the
+	// daemon's way of naming the module — the kernel calls it with the store
+	// this fixture opened and its own ports.
 	t.Cleanup(func() { k.Close() })
 	objective, err := k.OKR().Create(okr.CreateSpec{Title: "owned", Tenant: "team"}, 100)
 	if err != nil {

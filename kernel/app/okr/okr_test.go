@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	appokr "github.com/agezt/agezt/kernel/app/okr"
+	workapi "github.com/agezt/agezt/kernel/modules/work/api"
 	objectives "github.com/agezt/agezt/kernel/modules/work/okr"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -33,19 +34,62 @@ func (r *reader) Get(id string) (objectives.Objective, bool) {
 	return r.rows[0], r.found
 }
 
-type rollup struct {
-	calls    []string
-	progress objectives.ObjectiveProgress
+// library is a stub of the WORK MODULE's objective service — the face the
+// application binds since W3.76r (the daemon's own spellings of these verbs
+// are gone).
+type library struct {
+	calls     []string
+	progress  objectives.ObjectiveProgress
+	objective objectives.Objective
+	cause     error
+	method    string
+	args      []any
 }
 
-func (r *rollup) Rollup(o objectives.Objective) objectives.ObjectiveProgress {
-	r.calls = append(r.calls, o.ID)
-	return r.progress
+func (l *library) Create(corr string, spec objectives.CreateSpec) (objectives.Objective, error) {
+	l.method = "create"
+	l.args = []any{corr, spec}
+	return l.objective, l.cause
 }
+func (l *library) AddKeyResult(corr, id, title string, target int) (objectives.Objective, error) {
+	l.method = "keyresult"
+	l.args = []any{corr, id, title, target}
+	return l.objective, l.cause
+}
+func (l *library) LinkTask(corr, id, kr, task string) (objectives.Objective, error) {
+	l.method = "link"
+	l.args = []any{corr, id, kr, task}
+	return l.objective, l.cause
+}
+func (l *library) UnlinkTask(corr, id, kr, task string) (objectives.Objective, error) {
+	l.method = "unlink"
+	l.args = []any{corr, id, kr, task}
+	return l.objective, l.cause
+}
+func (l *library) Archive(corr, id string) (objectives.Objective, error) {
+	l.method = "archive"
+	l.args = []any{corr, id}
+	return l.objective, l.cause
+}
+func (l *library) Progress(o objectives.Objective) objectives.ObjectiveProgress {
+	l.calls = append(l.calls, o.ID)
+	return l.progress
+}
+func (l *library) ProgressOf(id string) (objectives.Objective, objectives.ObjectiveProgress, bool) {
+	return l.objective, l.progress, l.objective.ID == id
+}
+func (l *library) RecomputeForTask(corr, taskID string) {}
+
+// The work module's service over a daemon-held library and board — the shape
+// the composition root builds (W3.76r).
+func objectiveLibrary(k *runtime.Kernel) workapi.ObjectiveService {
+	return k.Objectives()
+}
+
 func TestOKRReadsPreserveFilterAndLiveProjectionShape(t *testing.T) {
 	objective := objectives.Objective{ID: "owned", Title: "title", Description: "description", Owner: "writer", Tenant: "team", Status: objectives.StatusActive, KeyResults: []objectives.KeyResult{{ID: "kr", Title: "criterion", Target: 2, TaskIDs: []string{"task"}, CreatedMS: 100}}, CreatedMS: 100, UpdatedMS: 101}
 	store := &reader{rows: []objectives.Objective{objective}, found: true}
-	progress := &rollup{progress: objectives.ObjectiveProgress{ObjectiveID: "owned", KeyResults: []objectives.KeyResultProgress{{ID: "kr", Done: 1, Total: 1, Target: 2, Percent: 50}}, Percent: 50, Achieved: false}}
+	progress := &library{progress: objectives.ObjectiveProgress{ObjectiveID: "owned", KeyResults: []objectives.KeyResultProgress{{ID: "kr", Done: 1, Total: 1, Target: 2, Percent: 50}}, Percent: 50, Achieved: false}}
 	service := appokr.New(store, progress)
 	input := appokr.ListInput{Status: "unknown", Tenant: "team", IncludeArchived: true, Limit: 3}
 	out, err := service.List(context.Background(), input)
@@ -73,7 +117,7 @@ func TestOKRReadsPreserveFilterAndLiveProjectionShape(t *testing.T) {
 }
 func TestOKRReadsPreserveEmptyArraysRequiredZeroFieldsAndErrors(t *testing.T) {
 	store := &reader{found: true}
-	progress := &rollup{progress: objectives.ObjectiveProgress{KeyResults: []objectives.KeyResultProgress{}}}
+	progress := &library{progress: objectives.ObjectiveProgress{KeyResults: []objectives.KeyResultProgress{}}}
 	service := appokr.New(store, progress)
 	out, err := service.List(context.Background(), appokr.ListInput{})
 	raw, _ := json.Marshal(out)
@@ -105,15 +149,15 @@ func TestOKRReadsUseActualStoreAndLiveWorkboardRollup(t *testing.T) {
 		t.Fatal(err)
 	}
 	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
-	// The objective verbs live in the WORK MODULE (W3.69): this test is such a
+	// The objective verbs live in the WORK MODULE (W3.76r): this test is such a
 	// host — it builds the module's service over the library it opened.
-	k.SetObjectiveLibrary(objectives.NewService(k.OKR(), k.ObjectiveLibraryDependencies()))
+	library := objectiveLibrary(k)
 	defer k.Close()
-	objective, err := k.CreateObjective("owned-corr", objectives.CreateSpec{Title: "owned", Tenant: "team"})
+	objective, err := library.Create("owned-corr", objectives.CreateSpec{Title: "owned", Tenant: "team"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	objective, err = k.AddObjectiveKeyResult("owned-corr", objective.ID, "criterion", 2)
+	objective, err = library.AddKeyResult("owned-corr", objective.ID, "criterion", 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,11 +169,11 @@ func TestOKRReadsUseActualStoreAndLiveWorkboardRollup(t *testing.T) {
 			t.Fatal(err)
 		}
 		ids = append(ids, task.ID)
-		if _, err = k.LinkObjectiveTask("owned-corr", objective.ID, kr, task.ID); err != nil {
+		if _, err = library.LinkTask("owned-corr", objective.ID, kr, task.ID); err != nil {
 			t.Fatal(err)
 		}
 	}
-	service := appokr.New(k.OKR(), k)
+	service := appokr.New(k.OKR(), library)
 	for index, want := range []int{0, 50, 100} {
 		if index > 0 {
 			if _, err = k.CompleteWorkboardTask("owned-corr", ids[index-1], "writer"); err != nil {
@@ -141,7 +185,7 @@ func TestOKRReadsUseActualStoreAndLiveWorkboardRollup(t *testing.T) {
 			t.Fatal(out, err)
 		}
 	}
-	if _, err = k.UnlinkObjectiveTask("owned-corr", objective.ID, kr, ids[1]); err != nil {
+	if _, err = library.UnlinkTask("owned-corr", objective.ID, kr, ids[1]); err != nil {
 		t.Fatal(err)
 	}
 	out, err := service.List(context.Background(), appokr.ListInput{Tenant: "team", IncludeArchived: true})

@@ -2,27 +2,39 @@
 
 package runtime
 
-// Provenance: Runtime objectives: the host's names for the objective library.
+// Provenance: Runtime objectives: the host's face for the objective library.
 //
 // The library is the WORK MODULE's: the module keeps the store, the goals and
 // the rollup rule, and the host holds the module's face
-// (kernel/modules/work/api.Service) and forwards to it.
+// (kernel/modules/work/api.ObjectiveService).
 //
-// The host's public names did not move — CreateObjective and its siblings are
-// still the daemon's verbs, and every caller outside the runtime is
-// untouched. What moved is WHERE the answer comes from: the daemon used to
-// hold the store and spell out the rollup itself, which left the module
-// keeping the DATA and the daemon keeping the OPERATIONS over it.
+// The host's public names are GONE (W3.76r). CreateObjective,
+// AddObjectiveKeyResult, LinkObjectiveTask, UnlinkObjectiveTask,
+// ArchiveObjective and Rollup used to be the daemon's verbs — six thin
+// forwarders over the module's own service. A forwarder over a module's own
+// operation is a second spelling, and the application layer was paying for it:
+// the app's objective ports were bound to the DAEMON, so the objective
+// surface reached the module through the host on every call.
 //
-// The composition root builds the module's service over the store it opened
-// and hands it over with SetObjectiveLibrary — the same shape the board and
-// the reasoning module use. Until it does, the library refuses every verb
-// with the contract's row (okrapi.ErrNoLibrary): a daemon with no library
-// answers no library.
+// Now the application binds the MODULE: kernel/app/okr holds the work module's
+// ObjectiveService, and it does not import this package at all. The daemon
+// keeps two things and no more:
+//
+//   - the STORE PORT (OKR): the library's file is the daemon's business
+//     (W3.53), and the contract's store port is the host's face over it;
+//   - the SERVICE (Objectives): the module's face, so the composition root's
+//     scope can hand it to the application.
+//
+// The composition root builds the service over the store the daemon opened and
+// the daemon's own ports, through the BUILDER in runtime.Config
+// (ObjectiveLibrary) — the same shape the roster, the MCP registry and the
+// script forge use. Until it does, the library refuses every verb with the
+// contract's row (okrapi.ErrNoLibrary): a daemon with no library answers no
+// library.
 
 import (
+	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/contract/okrapi"
-	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/event"
 	workapi "github.com/agezt/agezt/kernel/modules/work/api"
 )
@@ -34,15 +46,16 @@ import (
 // it. A host that was given no library holds a nil port.
 func (k *Kernel) OKR() okrapi.Store { return k.okr }
 
-// SetObjectiveLibrary injects the objective library the daemon drives.
+// Objectives returns the work module's objective library service.
 //
-// The library is the work module's service: the module keeps the rollup rule,
-// the daemon keeps the names. The composition root builds it over the store it
-// opened and hands it over here.
-func (k *Kernel) SetObjectiveLibrary(s workapi.ObjectiveService) {
+// It is the MODULE's face, and it is what the application layer binds (W3.76r):
+// the objective surface asks the module, not the daemon. A daemon that was
+// given no builder holds a nil service, and the objective surfaces report that
+// the library is unavailable rather than calling into nothing.
+func (k *Kernel) Objectives() workapi.ObjectiveService {
 	k.configMu.Lock()
-	k.objectives = s
-	k.configMu.Unlock()
+	defer k.configMu.Unlock()
+	return k.objectives
 }
 
 // objectiveLibrary returns the injected library, or nil.
@@ -50,101 +63,6 @@ func (k *Kernel) objectiveLibrary() workapi.ObjectiveService {
 	k.configMu.Lock()
 	defer k.configMu.Unlock()
 	return k.objectives
-}
-
-// ObjectiveLibraryDependencies are the host's ports the library needs to
-// answer a verb: the bus to publish on, and a task's live status.
-//
-// The library asks the host; it never reaches into it.
-func (k *Kernel) ObjectiveLibraryDependencies() workapi.ObjectiveDependencies {
-	return workapi.ObjectiveDependencies{
-		Publish: func(spec event.Spec) {
-			if k.bus == nil {
-				return
-			}
-			k.bus.Publish(spec)
-		},
-		TaskStatus: func(taskID string) (workboardapi.Status, bool) {
-			if k.workboard == nil {
-				return "", false
-			}
-			t, ok := k.workboard.Get(taskID)
-			if !ok {
-				return "", false
-			}
-			return t.Status, true
-		},
-	}
-}
-
-// objectiveLibraryOrRefusal returns the library the daemon drives, or the
-// refusal.
-//
-// The refusal is the contract's row: a daemon with no library answers no
-// library, whether the store was never opened or the module was never wired.
-func (k *Kernel) objectiveLibraryOrRefusal() (workapi.ObjectiveService, error) {
-	svc := k.objectiveLibrary()
-	if svc == nil {
-		return nil, okrapi.ErrNoLibrary
-	}
-	return svc, nil
-}
-
-// Rollup computes an objective's progress from the live done-status of its
-// linked workboard tasks.
-func (k *Kernel) Rollup(o okrapi.Objective) okrapi.ObjectiveProgress {
-	svc := k.objectiveLibrary()
-	if svc == nil {
-		// No library, no board, nothing counts — the same answer the daemon
-		// gave before the module was wired.
-		return o.Progress(func(string) bool { return false })
-	}
-	return svc.Progress(o)
-}
-
-// CreateObjective adds a goal to the library.
-func (k *Kernel) CreateObjective(corr string, spec okrapi.CreateSpec) (okrapi.Objective, error) {
-	svc, err := k.objectiveLibraryOrRefusal()
-	if err != nil {
-		return okrapi.Objective{}, err
-	}
-	return svc.Create(corr, spec)
-}
-
-// AddObjectiveKeyResult adds a measurable outcome under a goal.
-func (k *Kernel) AddObjectiveKeyResult(corr, objID, title string, target int) (okrapi.Objective, error) {
-	svc, err := k.objectiveLibraryOrRefusal()
-	if err != nil {
-		return okrapi.Objective{}, err
-	}
-	return svc.AddKeyResult(corr, objID, title, target)
-}
-
-// LinkObjectiveTask counts a task toward a key result.
-func (k *Kernel) LinkObjectiveTask(corr, objID, krID, taskID string) (okrapi.Objective, error) {
-	svc, err := k.objectiveLibraryOrRefusal()
-	if err != nil {
-		return okrapi.Objective{}, err
-	}
-	return svc.LinkTask(corr, objID, krID, taskID)
-}
-
-// UnlinkObjectiveTask stops counting a task.
-func (k *Kernel) UnlinkObjectiveTask(corr, objID, krID, taskID string) (okrapi.Objective, error) {
-	svc, err := k.objectiveLibraryOrRefusal()
-	if err != nil {
-		return okrapi.Objective{}, err
-	}
-	return svc.UnlinkTask(corr, objID, krID, taskID)
-}
-
-// ArchiveObjective retires a goal.
-func (k *Kernel) ArchiveObjective(corr, objID string) (okrapi.Objective, error) {
-	svc, err := k.objectiveLibraryOrRefusal()
-	if err != nil {
-		return okrapi.Objective{}, err
-	}
-	return svc.Archive(corr, objID)
 }
 
 // recomputeOKRForTask re-rolls every objective that links taskID and flips its
@@ -159,4 +77,20 @@ func (k *Kernel) recomputeOKRForTask(corr, taskID string) {
 		return
 	}
 	svc.RecomputeForTask(corr, taskID)
+}
+
+// objectivePublisher is the host's bus seen from the objective library: the
+// module publishes one event and the host drops the reply.
+//
+// The bus is the HOST's; the library only says what happened to a goal, so
+// the daemon hands over a way to ASK it — the same shape the roster and the
+// MCP registry use.
+type objectivePublisher struct{ b *bus.Bus }
+
+// Publish emits one event on the host's bus, when the host has one.
+func (p objectivePublisher) Publish(spec event.Spec) {
+	if p.b == nil {
+		return
+	}
+	_, _ = p.b.Publish(spec)
 }
