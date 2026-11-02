@@ -816,6 +816,24 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The run engine reads its own context from its own module.** The run
+  context's vocabulary — the wake's provenance, the images, the json mode, the
+  cost ceiling, the model chain, the agent's daily ceiling, the actor —
+  belongs to one package (`kernel/modules/runs/runctx`), and the daemon kept
+  fifteen forwarding copies of it. The run engine asked the host for those
+  values through its port, but the run engine lives inside the module that
+  owns the vocabulary: the hop bought nothing and cost a duplicate spelling.
+  The daemon keeps `WithAgentProfile` and `WithMaxCost` — a module that binds
+  a run must not name the runs module — while the application, which already
+  named the module for the writers, now agrees with it on the read side. The
+  fifteen daemon copies and the fifteen port entries are gone; what stays on
+  the port is the host's own state (the effective config, the resume ticket,
+  the seed, the checkpoint callback). The daemon's public verbs **220 → 205**
+  and the run engine's port **81 → 66** methods. Both sides are pinned: the
+  daemon's ratchet now requires the absence of the forwarding copies, and the
+  run engine's own ratchet requires that it reads the run's context through
+  the module.
+
 - **The daemon's dead surface dies.** The daemon's public verbs are the host's
   doors, and a door nobody opens is a second, unreachable copy of a surface —
   so the runtime's dissolution now shaves the kernel as well as moving
