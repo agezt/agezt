@@ -177,6 +177,7 @@
 - **`kernel/modules/runs/resume`** — Package resume persists a durable "ticket" per in-flight root run so the daemon can pick the work back up after a restart — whether the daemon was stopped/started, self-updated, or hard-killed.
 - **`kernel/modules/runs/retry`** — Package retry is the RUNS MODULE's retry vocabulary: how a failed run is classified, whether a policy allows another attempt, and how long the backoff waits.
 - **`kernel/modules/runs/runctx`** — Package runctx is the runs module's vocabulary: the context a run carries.
+- **`kernel/modules/runs/runner`** — Package runner owns the kernel's run engine.
 - **`kernel/modules/runs/steer`** — Package steer is the runs module's steering face: the per-run steering surface a live run exposes, and the service that drives it.
 - **`kernel/modules/skills/builtins`** — Package builtins ships the skill bundles baked into the binary — the agentskills.io shape (M847): a SKILL.md plus reference files and scripts, embedded here and materialized into the skill store by the skills module.
 - **`kernel/modules/skills/skill`** — Package skill implements "Forge v1" (SPEC-05 §4–5): the agent learns reusable, named procedures ("skills") from what it does, and those skills are governed through a journaled, reversible state machine instead of straight-to-active markdown.
@@ -213,7 +214,6 @@
 - **`kernel/reranktool`** — Package reranktool provides the agent-facing rerank tool (M997): it lets a running agent reorder a set of candidate documents by relevance to a query, using a dedicated reranking model (more accurate than embedding cosine for final ranking).
 - **`kernel/restapi`** — GET /api/v1/update — check for updates (M860) POST /api/v1/update/apply — validate and stage an update (M860) Security (SPEC-06): loopback-bound by the operator, token-authed on every request (Authorization: Bearer <token>).
 - **`kernel/runtime`** — Package runtime wires the kernel subsystems (journal + state + bus + agent loop + providers + tools) into a single Kernel that the daemon hosts and the control plane drives.
-- **`kernel/runtime/runexec`** — Package runexec owns the kernel's run engine.
 - **`kernel/scheduler`** — Package scheduler is the DAG layer that sits *above* the first-party single-agent tool-loop (DECISIONS B0d, SPEC-02 §4).
 - **`kernel/settings`** — Package settings is the file-backed config store behind the Config Center (M693): the NON-SECRET, operator-editable settings the daemon would otherwise only read from environment variables.
 - **`kernel/standing`** — Package standing implements the standing-order model and store (SPEC-16 §4).

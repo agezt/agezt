@@ -16,7 +16,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/journal"
-	"github.com/agezt/agezt/kernel/runtime/runexec"
+	"github.com/agezt/agezt/kernel/modules/runs/runner"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/warden"
@@ -60,5 +60,5 @@ func (k *Kernel) Schedules() cadenceapi.HostStore { return k.schedules }
 func (k *Kernel) Tools() map[string]toolapi.Tool { return k.tools }
 
 // ErrHalted is returned by Run when the kernel is in halt state. It is
-// runexec's sentinel re-exported (one value, one identity).
-var ErrHalted = runexec.ErrHalted
+// runner's sentinel re-exported (one value, one identity).
+var ErrHalted = runner.ErrHalted

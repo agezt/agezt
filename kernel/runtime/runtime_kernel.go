@@ -44,10 +44,10 @@ import (
 	"github.com/agezt/agezt/kernel/modules/runs/prompt"
 	"github.com/agezt/agezt/kernel/modules/runs/registry"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
+	"github.com/agezt/agezt/kernel/modules/runs/runner"
 	"github.com/agezt/agezt/kernel/modules/runs/steer"
 	workapi "github.com/agezt/agezt/kernel/modules/work/api"
 	"github.com/agezt/agezt/kernel/reflect"
-	"github.com/agezt/agezt/kernel/runtime/runexec"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/warden"
@@ -196,12 +196,12 @@ type Kernel struct {
 	// its model catalog. nil before Open().
 	loopcfg *loopcfg.Service
 
-	// runexec is the run-engine sub-manager extracted as a separate
-	// Go sub-package on Day 21. See kernel/runtime/runexec. As of
+	// runner is the run-engine sub-manager extracted as a separate
+	// Go sub-package on Day 21. See kernel/runtime/runner. As of
 	// Day 22 only the entry points (Run / RunAssured / RunWith /
 	// NewCorrelation / Why) are routed through the sub-package; the
 	// 260-line RunWith body migrates in Day 23.
-	runexec *runexec.Runner
+	runner *runner.Runner
 
 	// Fine-grained mutexes to reduce lock contention. Lock ordering to prevent
 	// deadlocks (always acquire in this order):

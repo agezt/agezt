@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package runexec
+package runner
 
 // Provenance: Runner retry + introspection + verification: RunWithRetry + Why +
 //             Causes + ParentOf + Verify + VerifyCompletion + PublishHeuristicBypass

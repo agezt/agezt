@@ -16,7 +16,7 @@ import (
 // OTHER runs' tool results (and this run's non-tool events) into the transcript,
 // corrupting the distilled memory with another run's activity. Day 32: this
 // used to be the private foldRunTools; renamed to FoldRunTools when the body
-// moved into the runexec sub-package's reach via KernelAPI.
+// moved into the runner package's reach via KernelAPI.
 func TestFoldRunTools_OnlyCountsThisCorrelationsToolResults(t *testing.T) {
 	k := openCausesKernel(t)
 	const corr, other = "run-A", "run-B"

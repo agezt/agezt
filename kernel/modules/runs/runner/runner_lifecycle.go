@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package runexec
+package runner
 
 // Provenance: Runner lifecycle + maybe-helpers: CompleteAgentLifecycle + RunAssured
 //             + MaybeDistill + MaybeForge + MaybeShadowEval. Code extracted from

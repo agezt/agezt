@@ -41,65 +41,65 @@ func (k *Kernel) PublishBusEvent(spec event.Spec) (*event.Event, error) {
 
 // ArtifactStore returns the content-addressed artifact store
 // (SPEC-04 §3.6), where the loop offloads oversized tool
-// outputs. Exposed for the runexec sub-package's KernelAPI
+// outputs. Exposed for the runner package's KernelAPI
 // (Day 22). The same pointer is reachable via the existing
 // Artifacts() method.
 func (k *Kernel) ArtifactStore() artifactapi.Blob { return k.artifacts }
 
 // Runexec sub-package delegations (Day 22 split).
 //
-// The implementations live in kernel/runtime/runexec. These
+// The implementations live in kernel/runtime/runner. These
 // methods preserve the legacy *Kernel.Run / *Kernel.RunAssured
 // / *Kernel.RunWith public surface so callers in controlplane,
 // cmd/agezt, and the runtime tests keep compiling unchanged.
 // Day 23 will move the 260-line RunWith body into the Runner.
 //
 // Note (Day 22): the legacy Run / RunAssured / RunWith /
-// CompleteAgentLifecycle methods still live in runexec.go
+// CompleteAgentLifecycle methods still live in runner.go
 // (their post-Day-11 location). They are NOT yet routed through
-// the runexec sub-package's Runner; that move is Day 23. The
+// the runner package's Runner; that move is Day 23. The
 // public wrappers below are *preparation* for that move: once
 // the body migrates into the Runner, these wrappers become
-// the public surface and the runexec.go methods become internal.
+// the public surface and the runner.go methods become internal.
 
 // DescribeImages runs the vision SIDECAR (M821). The body lives
-// in the runexec sub-package's Runner (Day 33); this wrapper
+// in the runner package's Runner (Day 33); this wrapper
 // preserves the legacy *Kernel.DescribeImages public surface.
 // runtime.ErrNoVisionModel is the same value as the Runner's
 // sentinel, so the error passes through unchanged.
 func (k *Kernel) DescribeImages(ctx context.Context, corr string, images []string, hint string) (string, error) {
-	return k.runexec.DescribeImages(ctx, corr, images, hint)
+	return k.runner.DescribeImages(ctx, corr, images, hint)
 }
 
 // MaybeDistill folds the run's journal and, if the run made
 // enough tool calls, runs one best-effort distillation. The body
-// lives in the runexec sub-package's Runner (Day 32); this wrapper
+// lives in the runner package's Runner (Day 32); this wrapper
 // preserves the legacy *Kernel.MaybeDistill public surface.
 func (k *Kernel) MaybeDistill(ctx context.Context, corr, intent, answer string) {
-	k.runexec.MaybeDistill(ctx, corr, intent, answer)
+	k.runner.MaybeDistill(ctx, corr, intent, answer)
 }
 
 // MaybeForge proposes a DRAFT skill. The body lives in the
-// runexec sub-package's Runner (Day 32); this wrapper preserves
+// runner sub-package's Runner (Day 32); this wrapper preserves
 // the legacy *Kernel.MaybeForge public surface.
 func (k *Kernel) MaybeForge(ctx context.Context, corr, intent, answer string) {
-	k.runexec.MaybeForge(ctx, corr, intent, answer)
+	k.runner.MaybeForge(ctx, corr, intent, answer)
 }
 
 // MaybeShadowEval judges shadow skills. The body lives in the
-// runexec sub-package's Runner (Day 32); this wrapper preserves
+// runner sub-package's Runner (Day 32); this wrapper preserves
 // the legacy *Kernel.MaybeShadowEval public surface.
 func (k *Kernel) MaybeShadowEval(ctx context.Context, corr, intent, answer string) {
-	k.runexec.MaybeShadowEval(ctx, corr, intent, answer)
+	k.runner.MaybeShadowEval(ctx, corr, intent, answer)
 }
 
 // VerifyCompletion asks the model whether the given ANSWER
 // fully accomplishes TASK. Returns an assureapi.Verdict with a
-// complete/gap judgement. The body lives in the runexec
+// complete/gap judgement. The body lives in the runner
 // sub-package's Runner (Day 33); this wrapper preserves the
 // legacy *Kernel.VerifyCompletion public surface.
 func (k *Kernel) VerifyCompletion(ctx context.Context, corr, task, answer string) (assureapi.Verdict, error) {
-	return k.runexec.VerifyCompletion(ctx, corr, task, answer)
+	return k.runner.VerifyCompletion(ctx, corr, task, answer)
 }
 
 // SetupRunState is the public surface of the per-run registration
@@ -165,12 +165,12 @@ func (k *Kernel) PublishContextFailureAnalysis(corr, actor string, runErr error)
 // PublishHeuristicBypass journals the deterministic-lookup hit
 // (what-time-is-it / today's-date) so the run's timeline still
 // shows the task, the bypass, and the canned answer. The body
-// lives in the runexec sub-package's Runner (Day 33); this wrapper
+// lives in the runner package's Runner (Day 33); this wrapper
 // preserves the *Kernel-side access for non-Runner callers and
 // keeps the KernelAPI contract coherent with the other publish*
 // entries.
 func (k *Kernel) PublishHeuristicBypass(ctx context.Context, corr, actor, intent, answer string) error {
-	return k.runexec.PublishHeuristicBypass(ctx, corr, actor, intent, answer)
+	return k.runner.PublishHeuristicBypass(ctx, corr, actor, intent, answer)
 }
 
 // PublishBus is the single chokepoint the lifecycle sub-package uses

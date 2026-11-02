@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package runexec
+package runner
 
 // Provenance: Runner core: New + Run + RunWith (the main entry points). Code
 //             extracted from runner.go during the Day-63 god-file split. Public API

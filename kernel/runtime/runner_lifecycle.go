@@ -1,6 +1,6 @@
 package runtime
 
-// Provenance: SPDX-License-Identifier: MIT Runtime runexec lifecycle methods:
+// Provenance: SPDX-License-Identifier: MIT Runtime runner lifecycle methods:
 //             RunWith + CompleteAgentLifecycle + setupRunState + cleanupRunState +
 //             deregisterRunSteer + ErrNoVisionModel sentinel. Split from
 //             runexec_helpers.go during Day 211 god-file refactor (#34). Public API
@@ -13,26 +13,26 @@ import (
 
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/kernel/modules/runs/runctx"
+	"github.com/agezt/agezt/kernel/modules/runs/runner"
 	"github.com/agezt/agezt/kernel/modules/runs/steer"
-	"github.com/agezt/agezt/kernel/runtime/runexec"
 	"github.com/agezt/agezt/kernel/tenantctx"
 )
 
-// verifyCompletion body moved to runexec.Runner.VerifyCompletion on
+// verifyCompletion body moved to runner.Runner.VerifyCompletion on
 // Day 33. The public wrapper (runtime.go:VerifyCompletion) delegates
 // to the Runner.
 
 // visionDescribeMaxTokens / assureVerifyMaxTokens / shadowEvalLimit
-// moved to runexec/helpers.go on Day 33.
+// moved to runner/helpers.go on Day 33.
 
 // ErrNoVisionModel is returned by DescribeImages when no
 // vision-capable model is available (checked by the daemon's
-// channel handler). It is runexec's sentinel re-exported — the
+// channel handler). It is runner's sentinel re-exported — the
 // same value, so errors.Is matches either name without a
 // translation step.
-var ErrNoVisionModel = runexec.ErrNoVisionModel
+var ErrNoVisionModel = runner.ErrNoVisionModel
 
-// DescribeImages body moved to runexec.Runner.DescribeImages on
+// DescribeImages body moved to runner.Runner.DescribeImages on
 // Day 33. Callers in this package reach it through *Kernel.DescribeImages
 // (see compose.go / research.go for the production callers).
 
@@ -41,7 +41,7 @@ var ErrNoVisionModel = runexec.ErrNoVisionModel
 // Halt is called during the Run, ctx is cancelled and RunWith returns
 // context.Canceled.
 //
-// Day 34: the body moved to runexec.Runner.RunWith. The lock-
+// Day 34: the body moved to runner.Runner.RunWith. The lock-
 // protected bits (setupRunState / cleanupRunState /
 // deregisterRunSteer) live as private methods on *Kernel and are
 // reached through SetupRunState / CleanupRunState /
@@ -51,11 +51,11 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 	if corr == "" {
 		return "", errors.New("runtime: correlation id required")
 	}
-	return k.runexec.RunWith(ctx, corr, intent)
+	return k.runner.RunWith(ctx, corr, intent)
 }
 
 // completeAgentLifecycle / shouldRetireAgentAfterComplete /
-// resetCompletedCycleTasks moved to the runexec sub-package on
+// resetCompletedCycleTasks moved to the runner package on
 // Day 33 (Runner.CompleteAgentLifecycle + helpers.go). The
 // *Kernel.CompleteAgentLifecycle public wrapper above delegates
 // to the Runner. RunWith's call site uses that wrapper.
@@ -65,10 +65,10 @@ func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, erro
 // direct tool target. RunWith calls the Runner's CompleteAgentLifecycle
 // itself; external runners should call this only after the job has
 // genuinely succeeded. Day 33: the body lives in
-// runexec.Runner.CompleteAgentLifecycle; the wrapper preserves the
+// runner.Runner.CompleteAgentLifecycle; the wrapper preserves the
 // legacy public surface.
 func (k *Kernel) CompleteAgentLifecycle(ctx context.Context, corr string) {
-	k.runexec.CompleteAgentLifecycle(ctx, corr)
+	k.runner.CompleteAgentLifecycle(ctx, corr)
 }
 
 // setupRunState is the private body behind the public
@@ -206,13 +206,13 @@ func (k *Kernel) deregisterRunSteer(corr string) {
 	k.steersMu.Unlock()
 }
 
-// publishHeuristicBypass body moved to runexec.Runner.PublishHeuristicBypass
-// on Day 33. RunWith calls it through k.runexec.PublishHeuristicBypass.
+// publishHeuristicBypass body moved to runner.Runner.PublishHeuristicBypass
+// on Day 33. RunWith calls it through k.runner.PublishHeuristicBypass.
 
-// deterministicHeuristicBypass moved to runexec/helpers.go on Day 34
+// deterministicHeuristicBypass moved to runner/helpers.go on Day 34
 // so the Runner can use it through the package boundary.
 
-// maybeDistill / maybeForge / maybeShadowEval moved to the runexec
+// maybeDistill / maybeForge / maybeShadowEval moved to the runner
 // sub-package on Day 32 — Runner.MaybeDistill / MaybeForge /
 // MaybeShadowEval hold the bodies. The *Kernel wrappers in
 // runtime.go delegate to the Runner.

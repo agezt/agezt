@@ -2,7 +2,7 @@
 
 package runtime
 
-// Provenance: Runtime runexec: Run/RunAssured/RunWithRetry + run-state setup/cleanup
+// Provenance: Runtime runner: Run/RunAssured/RunWithRetry + run-state setup/cleanup
 //             + FoldRunTools + CompleteAgentLifecycle. Code extracted from
 //             runexec.go during the Day-122 god-file split. Public API unchanged.
 
@@ -55,10 +55,10 @@ func (k *Kernel) Run(ctx context.Context, intent string) (string, string, error)
 // Every attempt reuses corr (they run sequentially and never overlap), so the
 // whole objective streams and journals under one correlation id. Returns the
 // final answer and the loop result (attempts, completion, per-attempt history).
-// Day 33: the body lives in runexec.Runner.RunAssured; this wrapper preserves
+// Day 33: the body lives in runner.Runner.RunAssured; this wrapper preserves
 // the legacy *Kernel.RunAssured public surface.
 func (k *Kernel) RunAssured(ctx context.Context, corr, intent string, maxAttempts int) (string, assureapi.Result, error) {
-	return k.runexec.RunAssured(ctx, corr, intent, maxAttempts)
+	return k.runner.RunAssured(ctx, corr, intent, maxAttempts)
 }
 
 // RunWithRetry executes one agent run using the profile's failure retry policy.
@@ -66,19 +66,19 @@ func (k *Kernel) RunAssured(ctx context.Context, corr, intent string, maxAttempt
 // (semantic completion verification): it retries the whole governed run after a
 // terminal error, journaling each retry decision under the same correlation.
 //
-// Day 23: the body lives in the runexec sub-package's Runner.
+// Day 23: the body lives in the runner package's Runner.
 // The legacy method body remains below for reference and the
 // file's lock-ordering invariant documentation; the *Kernel
 // surface delegates to the Runner for callers that already
 // hold a *Kernel.
 func (k *Kernel) RunWithRetry(ctx context.Context, corr, intent string, pol agentapi.RetryPolicy) (string, error) {
-	return k.runexec.RunWithRetry(ctx, corr, intent, pol)
+	return k.runner.RunWithRetry(ctx, corr, intent, pol)
 }
 
 // ClaimResumeTicket is the public surface for the resume-ticket
 // ownership dance. Returns the (possibly ticket-bearing) ctx and
 // whether THIS frame owns the ticket (true = caller must finalize).
-// Wraps claimResumeTicket in resume.go so the runexec sub-package
+// Wraps claimResumeTicket in resume.go so the runner package
 // can drive it through KernelAPI (Day 23).
 func (k *Kernel) ClaimResumeTicket(ctx context.Context, corr, intent, kind string, assureBudget int) (context.Context, bool) {
 	return k.claimResumeTicket(ctx, corr, intent, kind, assureBudget)

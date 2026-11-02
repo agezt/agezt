@@ -1,6 +1,6 @@
 package runtime
 
-// Provenance: SPDX-License-Identifier: MIT Runtime runexec retry helpers:
+// Provenance: SPDX-License-Identifier: MIT Runtime runner retry helpers:
 //             retryReason / agentRetryable / retryDelay. Split from
 //             runexec_helpers.go during Day 211 god-file refactor (#34). Public API
 //             unchanged.
@@ -21,7 +21,7 @@ import (
 // The vocabulary moved to the RUNS MODULE's retry package in W3.76f: the
 // delegation engine needed the same three helpers and could not reach the
 // daemon's unexported copies. The daemon keeps these thin wrappers so its own
-// callers — and the runexec sub-package's API — are unchanged.
+// callers — and the runner package's API — are unchanged.
 func retryReason(err error) string {
 	return retry.Reason(err, ErrHalted)
 }

@@ -45,7 +45,7 @@ func (k *Kernel) MemoryDistill() bool { return k.cfg.MemoryDistill }
 
 // MemoryDistillMinTools returns the tool-call threshold that
 // triggers a post-run distillation. 0 / unset = the run engine
-// uses its own default of 4. Wraps the config field so the runexec
+// uses its own default of 4. Wraps the config field so the runner
 // sub-package can read it through KernelAPI (Day 32).
 func (k *Kernel) MemoryDistillMinTools() int { return k.cfg.MemoryDistillMinTools }
 
@@ -58,13 +58,13 @@ func (k *Kernel) SkillForge() bool { return k.cfg.SkillForge }
 // SkillForgeMinTools returns the tool-call threshold that
 // triggers a post-run skill proposal. 0 / unset = the run engine
 // uses its own default of 4. Wraps the config field so the
-// runexec sub-package can read it through KernelAPI (Day 32).
+// runner sub-package can read it through KernelAPI (Day 32).
 func (k *Kernel) SkillForgeMinTools() int { return k.cfg.SkillForgeMinTools }
 
 // SystemAgentFromCtx reports whether the current run is operating
 // in system-agent mode (bypasses post-run distillation / forge /
 // shadow-eval). Wraps the package-level runctx.SystemAgentFromCtx so
-// the runexec sub-package can read it through KernelAPI (Day 34).
+// the runner package can read it through KernelAPI (Day 34).
 func (k *Kernel) SystemAgentFromCtx(ctx context.Context) bool { return runctx.SystemAgentFromCtx(ctx) }
 
 // AgentDailyMcFromCtx returns the named agent's daily USD-microcent
@@ -83,7 +83,7 @@ func (k *Kernel) ModelChainFromCtx(ctx context.Context) []string {
 
 // WakeContextSource returns the run provenance "source" field
 // (e.g. "schedule", "channel", "standing"). Wraps the
-// package-level runctx.WakeContextFromCtx so the runexec sub-package
+// package-level runctx.WakeContextFromCtx so the runner package
 // can read individual fields through KernelAPI (Day 34) without
 // importing the WakeContext type across the package boundary.
 func (k *Kernel) WakeContextSource(ctx context.Context) string {
@@ -177,7 +177,7 @@ func (k *Kernel) DisableHeuristicBypass(ctx context.Context) bool {
 
 // ResumeCheckpointFn returns the per-iteration checkpoint callback
 // for a resumed run (M1002). Wraps the package-level resume.go
-// helper so the runexec sub-package can drive it through KernelAPI.
+// helper so the runner package can drive it through KernelAPI.
 func (k *Kernel) ResumeCheckpointFn(corr string) func(int, []llm.Message) {
 	return k.resumeCheckpointFn(corr)
 }
@@ -204,7 +204,7 @@ func (k *Kernel) MergeAutoApproveCapabilities(ctx context.Context, from map[stri
 // WithActorCorrelation stamps the actor + correlation IDs onto a
 // context for downstream consumers (agent.PolicyHook, the
 // in-process memory tool). Wraps the run context's actor +
-// correlation writes so the runexec sub-package can decorate a
+// correlation writes so the runner package can decorate a
 // runCtx without importing the runtime ctx key types (Day 34).
 func (k *Kernel) WithActorCorrelation(ctx context.Context, actor, corr string) context.Context {
 	return runctx.WithActor(ctx, actor, corr)
