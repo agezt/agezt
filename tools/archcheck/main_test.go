@@ -44,8 +44,8 @@ func TestMatch(t *testing.T) {
 		ok           bool
 		capture      string
 	}{
-		{"kernel/agent", "kernel/agent", true, ""},
-		{"kernel/agent", "kernel/agent/sub", false, ""},
+		{"kernel/modules/runs/agent", "kernel/modules/runs/agent", true, ""},
+		{"kernel/modules/runs/agent", "kernel/modules/runs/agent/sub", false, ""},
 		{"kernel/runtime/...", "kernel/runtime", true, ""},
 		{"kernel/runtime/...", "kernel/runtime/runexec", true, ""},
 		{"kernel/runtime/...", "kernel/runtimex", false, ""},
@@ -331,7 +331,7 @@ func TestRepoLayerMapIsValid(t *testing.T) {
 	}
 	// Spot-check placements the roadmap depends on.
 	want := map[string]Class{
-		"kernel/agent":                      {Layer: LayerModule, Module: "runs"},
+		"kernel/modules/runs/agent":         {Layer: LayerModule, Module: "runs"},
 		"kernel/runtime/runexec":            {Layer: LayerModule, Module: "runs"},
 		"kernel/modules/knowledge/memory":   {Layer: LayerModule, Module: "knowledge"},
 		"kernel/modules/skills/skill":       {Layer: LayerModule, Module: "skills"},

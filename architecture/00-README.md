@@ -20,7 +20,7 @@ page, then open the area document you need.
 | 01 | [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md) | `cmd/agezt` composition root, the 50-step boot sequence, every `AGEZT_*` env var, `AGEZT_HOME` layout, `daemonconfig`, `internal/*`, Makefile/scripts/installers, `tools/*` gates, CI workflow | ~690 lines |
 | 02 | [02-cli-cmd-agt.md](02-cli-cmd-agt.md) | `agt` CLI: dispatch/router/help, how it dials the daemon, offline vs daemon commands, complete command table, all 233 files | ~700 lines |
 | 03 | [03-control-plane-and-http.md](03-control-plane-and-http.md) | `kernel/controlplane` protocol and all **321 ops**, `httpserver`, Web UI Go side (198 routes), REST, OpenAI-compatible API, `agentgw`, `auth`, `streamlimit`, `tunnel`, outbound `webhook`; HTTP-edge security; SSE path | ~1300 lines |
-| 04 | [04-agent-runtime.md](04-agent-runtime.md) | `kernel/agent` loop, `kernel/runtime` (+`runexec`, `lifecycle`, `accessors`, `compose`, `types`), policy hook, delegation, steering/intervention, compaction, resume, planner, assure/proof, tool registry | ~730 lines |
+| 04 | [04-agent-runtime.md](04-agent-runtime.md) | the loop (`kernel/modules/runs/agent`), `kernel/runtime` (+`runexec`, `lifecycle`, `accessors`, `compose`, `types`), policy hook, delegation, steering/intervention, compaction, resume, planner, assure/proof, tool registry | ~730 lines |
 | 05 | [05-governance-routing-security.md](05-governance-routing-security.md) | `governor` routing/budgets/breakers, `catalog`, `creds` vault + `sigv4`, `chatgptauth`, `settings`, `configcenter`, `executionprofile`, **Edict** policy, `warden`, `netguard`, `envscrub`, `redact`, `approval`, `seat`, `tenant`, `tenantctx`, `state` | ~720 lines |
 | 06 | [06-data-memory-state.md](06-data-memory-state.md) | `event` (170 kinds, registry closed — W1.6), `journal` (BLAKE3 chain), `bus`, `ulid`, `filestore`, `memory`, `worldmodel`, `datalake`, `artifact`, `board`, `workboard`, `okr`, `taste`, `anomaly`, `alerter`; the store table | ~680 lines |
 | 07 | [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md) | `roster`, `cadence`(+`systemtasks`), `scheduler`, `standing`, `pulse`, `selfrepair`, `skill`, `market`, `plugin`, `mcp`, `acp`, `acpcatalog`, `workflow`, `workflowexec`, `update`, `toolbox`, `channel`, `channelwire`, `stt`, `voicetool`, `imagetool`, `reranktool`; how wakes become governed runs | ~1860 lines |
@@ -137,7 +137,7 @@ Tool allowlists, execution profiles and agent resolution remain control-plane fe
 ```
 
 Verified with `go list` (internal edges only):
-- **Highest fan-in** (most imported): `kernel/agent` (67 importers), `kernel/event` (61), `kernel/bus` (55),
+- **Highest fan-in** (most imported): `kernel/modules/runs/agent` (67 importers; the loop, moved out of the top-level `kernel/agent` in W3.76h), `kernel/event` (61), `kernel/bus` (55),
   `kernel/ulid` (46), `kernel/edict` (46), `kernel/channel` (31), `internal/brand` (21), `kernel/netguard` (17),
   `kernel/runtime` (14), `internal/atomicfile` (14), `kernel/platform/filestore` (13).
 - **Highest fan-out:** `cmd/agezt` (59 internal imports), `kernel/controlplane` (49), `kernel/runtime` (48),
@@ -149,7 +149,7 @@ Verified with `go list` (internal edges only):
   and the daemon injects it.
 - **Other upward or unusual edges:**
   - `kernel/toolreg` → `kernel/runtime`.
-  - `kernel/governor`, `kernel/modules/knowledge/memory` and `kernel/modules/knowledge/worldmodel` → `kernel/agent` (the data layer depends on the loop types). Since W1.1 the types they use live in `kernel/contract/{llm,toolapi}` (aliased in `kernel/agent`); W1.2 repointed the importers: `governor` and `worldmodel` no longer import the loop; `memory` still does, for `GenerateObject` only (a model-gateway helper, moves with `platform/modelgw`).
+  - `kernel/governor`, `kernel/modules/knowledge/memory` and `kernel/modules/knowledge/worldmodel` → `kernel/modules/runs/agent` (the data layer depends on the loop types; the loop moved there in W3.76h). Since W1.1 the types they use live in `kernel/contract/{llm,toolapi}` (aliased in the loop package); W1.2 repointed the importers: `governor` and `worldmodel` no longer import the loop; `memory` still does, for `GenerateObject` only (a model-gateway helper, moves with `platform/modelgw`).
   - `workboard → proof → assure` puts verifier types into the on-disk task format.
   - `cmd/agezt` imports `plugins/tools/codeexec` only for a banner line.
   - `cmd/agt` imports `plugins/tools/peer` for doctor checks.
@@ -413,7 +413,7 @@ other; the board is the best-known case of this.
 | Invariant | Where enforced |
 |---|---|
 | Nothing is journaled unscrubbed: the redactor is installed on the bus before any run | `cmd/agezt` boot step 21; [01](01-daemon-boot-cmd-agezt.md) |
-| `policy.decision` precedes every `tool.invoked`; exactly one terminal event per run; panic firewall in the loop | `kernel/agent`; [04](04-agent-runtime.md) |
+| `policy.decision` precedes every `tool.invoked`; exactly one terminal event per run; panic firewall in the loop | `kernel/modules/runs/agent`; [04](04-agent-runtime.md) |
 | **Default-allow** posture: every known capability is L4 by default; restriction is opt-out. Hard denies, SSRF guards, budgets and explicit HITL stay | `kernel/edict`; [05](05-governance-routing-security.md) |
 | **Unmapped tool ⇒ unknown capability ⇒ default-deny** (unless `AGEZT_ALLOW_ALL`); guard tests turn this into a test failure | `plugins/builtintools` guards; [10](10-tools.md) |
 | No default provider/model: `unconfigured` sentinel until `AGEZT_PROVIDER`/catalog keys exist | `kernel/modules/providers/boot`; [08](08-providers.md) |

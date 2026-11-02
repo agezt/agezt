@@ -5,7 +5,6 @@
 226 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
-- **`kernel/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
 - **`kernel/agentgw`** — Package agentgw provides a secure gateway for AI agent subprocess code to communicate with the AGEZT kernel.
 - **`kernel/alerter`** — Package alerter pushes warning/critical alerts to the configured channels (M782).
 - **`kernel/anomaly`** — Package anomaly is the autonomous-operation circuit breaker (SPEC-06 §5): it watches for runaway signals and, on a spike, auto-engages a halt so a looping or runaway agent cannot burn budget or take repeated action unsupervised.
@@ -168,6 +167,7 @@
 - **`kernel/modules/providers/chatgptauth`** — Package chatgptauth manages the OAuth tokens for the "Sign in with ChatGPT" provider — the same subscription auth Codex CLI uses.
 - **`kernel/modules/reasoning`** — Package reasoning is the reasoning module: the Council of Elders (a multi-model panel that deliberates and reconciles), the Conductor (a verify-driven Thinker→Worker→Verifier loop) and the deep-research harness.
 - **`kernel/modules/reasoning/api`** — Package api is the reasoning module's public vocabulary: the rows and results the council, the conductor and the research harness produce, and the pure helpers both sides share.
+- **`kernel/modules/runs/agent`** — Package agent is the canonical first-party single-agent tool-loop (DECISIONS B0d) — the orchestration core that the rest of the kernel builds on.
 - **`kernel/modules/runs/delegation`** — Package delegation is the RUNS MODULE's delegation engine: the policy that decides WHO may delegate WHAT, under WHICH limits, and with WHICH identity.
 - **`kernel/modules/runs/intervention`** — Package intervention defines the protocol grammar for safe live changes to a running agent.
 - **`kernel/modules/runs/lifecycle`** — Package lifecycle is the runs module's run-lifecycle surface: Halt, Resume, CancelRun, DrainAndHalt, plus the read-side queries (IsHalted, ActiveRuns, ActiveRunIDs, NewCorrelation, SubjectForRun).

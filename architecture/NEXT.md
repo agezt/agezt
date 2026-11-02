@@ -12877,3 +12877,72 @@ func main() {
   exit** — `kernel/runtime` and `kernel/controlplane` dissolved, the daemon
   reduced to a host. Evidence:
   `architecture/280-w376g-the-loop-configuration-moves-into-the-runs-module-evidence.md`
+- W3.76h (the loop moves into the runs module) is the **sixteenth** slice of the
+  runtime's dissolution and the **eighth** slice of the **run engine** programme
+  (W3.76). W3.76a took the durable tickets, W3.76b the steering, W3.76c the run
+  context, W3.76d the run registry, W3.76e the prompt, W3.76f the delegation
+  engine, W3.76g the loop configuration; this one takes the **loop** itself —
+  the engine every governed run runs on.
+
+  The family was already a module in everything but its **address**: its rules
+  (the segment arithmetic, the auto-continue budget, the observation trust
+  rules, the causal window, the loop guard, the memo) all describe *a run*,
+  its dependencies are all contract or platform rows, and it owns no store, no
+  bus and no clock. What it lacked was the tree's own word for it:
+  `kernel/agent` sat at the top level, so `tools/archcheck/layers.json`
+  carried a hand-written rule for it.
+
+  The slice is a **move** (`git mv kernel/agent kernel/modules/runs/agent`, 51
+  files) and the measurement says so: `kernel/agent` **20 files / 2,629 lines
+  → 0 / 0**, `kernel/modules/runs` **43 / 4,608 → 63 / 7,264**, `kernel/runtime`
+  **54 / 6,281 → 54 / 6,281** (+0), the daemon's public verbs **238 → 238**,
+  the contract's new rows **0**, the application layer **+0**, the control
+  plane **+0**. The family's own count went up by exactly **27** lines — all of
+  them in the package's own `doc.go`, which now says **why the loop lives in
+  the runs module**; the code is byte-for-byte the same code. **45** files
+  changed their import path (seven production packages, five test-only) and
+  were reformatted, because `gofmt` reorders an import block when the path's
+  segment count changes.
+
+  The package name **stayed** `agent` (every caller writes `agent.Run`), and
+  the address is **not** `modules/runs/internal/loop`: the loop is imported
+  from outside the runs module — the daemon's run engine, `kernel/runtime` and
+  `kernel/runtime/runexec`, the scheduler, `cmd/agezt`, and the module's own
+  `delegation`, `loopcfg` and `steer` — and `internal/` means *importable only
+  from inside the tree*. The `Steerer`/`Directive` ports **stayed in the
+  loop** (the consumer names the port — the W3.76f `delegation.Host` seam).
+  The classifier's hand-written rule is **gone**; the checker still places
+  **335** packages with **one** allowlisted import violation (the parallel
+  session's `kernel/modules/agents/selfrepair -> kernel/runtime` edge) and
+  **zero** remaining allowlisted call sites.
+
+  The module now carries **139** test functions (115 moved, **24** new) in 34
+  files: **4** ratchet tests (the loop lives in the runs module; the old path
+  appears **nowhere** in the tree, scanned repo-wide with the needle closed by
+  a quote so `kernel/agentgw` cannot trip it; the loop never names the
+  daemon; the contract aliases survive) and **20** calibration tests that
+  close the loop's rules from the side they were not closed on. **62
+  mutations, 62 caught** in two independent passes with **byte-identical**
+  logs (SHA-256 `74189F5CCE83A32128E0E6F9EB3E9E94E5391930058D14A80F0E43F8C82582CA`);
+  the calibration recorded **six** survivors, every one either a gap in the
+  **tests** (the empty actor — the event layer says "actor required" too; the
+  segment arithmetic — a continuation must grant a full `MaxIter`; the
+  selector's intent — the intent is in the conversation too; the memo store;
+  the trusted rendering — the loop only calls the renderer for untrusted
+  boundaries; the taint merge — the policy reads the causal window) or a
+  fault in the **mutation** (a removed error check the memo's own `Set`
+  already made — an equivalent mutation). Two findings belonged to the
+  **harness**: a `-run` pattern that matches no test exits **0** (the W3.76f
+  finding, reproduced — the harness now runs `go test -v`, so a wrong test
+  name is the mutation's fault), and **Windows keeping a user-mapped section**
+  on a source file right after a `go test` that compiled it, which made the
+  restore write fail and left a **mutated file on disk**; the restore now
+  retries.
+
+  **What is left**: the runs module now holds **every** family the target
+  architecture gives it. What remains of W3.76 is mechanical — the alias
+  block (`agent.go`, **53** lines, ~1,403 internal uses of `agent.X`) — and
+  then the **W3 exit** (`kernel/runtime` and `kernel/controlplane` dissolved,
+  the daemon reduced to a host), which is what finally makes
+  `modules/runs/internal/loop` reachable. Evidence:
+  `architecture/281-w376h-the-loop-moves-into-the-runs-module-evidence.md`

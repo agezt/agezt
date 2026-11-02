@@ -11,11 +11,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/assureapi"
 	"github.com/agezt/agezt/kernel/event"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
+	"github.com/agezt/agezt/kernel/modules/runs/agent"
 )
 
 // The live-run registry is the RUNS MODULE's store (W3.76d:

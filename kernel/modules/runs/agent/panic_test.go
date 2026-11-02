@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
+	"github.com/agezt/agezt/kernel/modules/runs/agent"
 )
 
 // nilRespProvider violates the Provider contract by returning (nil, nil) — the
