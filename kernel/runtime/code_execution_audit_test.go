@@ -80,7 +80,7 @@ func codeAuditFlow() workflow.Workflow {
 func callCodeAudit(t *testing.T, k *runtime.Kernel, ctx context.Context, path, corr string) (failed, ran bool, output any) {
 	t.Helper()
 	if path == "conductor" {
-		res, err := k.Conduct(ctx, corr, runtime.ConductorConfig{Task: "compute", Thinker: "thinker", Worker: "worker", Verifier: "verifier", MaxRounds: 1})
+		res, err := k.ReasoningService().Conduct(ctx, corr, runtime.ConductorConfig{Task: "compute", Thinker: "thinker", Worker: "worker", Verifier: "verifier", MaxRounds: 1})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -241,7 +241,7 @@ func TestCodeExecutionRetryAudit(t *testing.T) {
 			k := newCodeAuditKernel(t, r, nil)
 			ctx := context.Background()
 			if path == "conductor" {
-				res, err := k.Conduct(ctx, "retry-code", runtime.ConductorConfig{Task: "compute", Thinker: "thinker", Worker: "worker", Verifier: "verifier", MaxRounds: 2})
+				res, err := k.ReasoningService().Conduct(ctx, "retry-code", runtime.ConductorConfig{Task: "compute", Thinker: "thinker", Worker: "worker", Verifier: "verifier", MaxRounds: 2})
 				if err != nil || !res.Passed || res.Rounds != 2 {
 					t.Fatalf("retry result=%+v error=%v", res, err)
 				}

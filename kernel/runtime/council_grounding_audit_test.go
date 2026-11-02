@@ -62,7 +62,7 @@ func TestCouncilGroundingApproval(t *testing.T) {
 			}
 			done := make(chan outcome, 1)
 			go func() {
-				result, err := k.Council(ctx, "council-approval", "test question", []runtime.CouncilMember{{Seat: "one", Model: "mock-model"}}, 1)
+				result, err := k.ReasoningService().Council(ctx, "council-approval", "test question", []runtime.CouncilMember{{Seat: "one", Model: "mock-model"}}, 1)
 				done <- outcome{result, err}
 			}()
 			req := waitForPending(t, reg)
@@ -122,7 +122,7 @@ func TestCouncilGroundingDistinctSearchIDs(t *testing.T) {
 	wireReasoning(t, k)
 	t.Cleanup(func() { k.Close() })
 	for range 2 {
-		if _, err := k.Council(context.Background(), "shared-corr", "test question", []runtime.CouncilMember{{Seat: "one", Model: "mock-model"}}, 1); err != nil {
+		if _, err := k.ReasoningService().Council(context.Background(), "shared-corr", "test question", []runtime.CouncilMember{{Seat: "one", Model: "mock-model"}}, 1); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -214,7 +214,7 @@ func TestCouncilGroundingAudit(t *testing.T) {
 				ctx = runctx.WithTrustCeiling(ctx, edict.LevelDeny)
 			}
 			const corr = "council-audit"
-			result, err := k.Council(ctx, corr, strings.Repeat("ğ", 360), []runtime.CouncilMember{{Seat: "one", Model: "mock-model"}}, 1)
+			result, err := k.ReasoningService().Council(ctx, corr, strings.Repeat("ğ", 360), []runtime.CouncilMember{{Seat: "one", Model: "mock-model"}}, 1)
 			if err != nil || result.Consensus != "agreed." || result.AsOf == "" {
 				t.Fatalf("Council result=%+v error=%v", result, err)
 			}

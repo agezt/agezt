@@ -55,7 +55,7 @@ func TestCouncil_DeliberatesAndSynthesizes(t *testing.T) {
 	members := []CouncilMember{{Seat: "Alpha", Model: "model-a"}, {Seat: "Beta", Model: "model-b"}}
 	k := openCouncilKernel(t, members)
 
-	res, err := k.Council(context.Background(), "corr-council", "ship or wait?", nil, 1)
+	res, err := k.ReasoningService().Council(context.Background(), "corr-council", "ship or wait?", nil, 1)
 	if err != nil {
 		t.Fatalf("Council: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestCouncil_DeliberatesAndSynthesizes(t *testing.T) {
 func TestCouncil_UsesDefaultMembershipAndRejectsEmpty(t *testing.T) {
 	// Default membership supplied by cfg.CouncilMembers (members arg nil).
 	k := openCouncilKernel(t, []CouncilMember{{Seat: "Solo", Model: "model-x"}})
-	res, err := k.Council(context.Background(), "c1", "q", nil, 0)
+	res, err := k.ReasoningService().Council(context.Background(), "c1", "q", nil, 0)
 	if err != nil {
 		t.Fatalf("Council with default membership: %v", err)
 	}
@@ -111,11 +111,11 @@ func TestCouncil_UsesDefaultMembershipAndRejectsEmpty(t *testing.T) {
 
 	// No members anywhere → a clear error, not a panic.
 	empty := openCouncilKernel(t, nil)
-	if _, err := empty.Council(context.Background(), "c2", "q", nil, 1); err == nil {
+	if _, err := empty.ReasoningService().Council(context.Background(), "c2", "q", nil, 1); err == nil {
 		t.Error("empty council should error")
 	}
 	// Empty question → error.
-	if _, err := k.Council(context.Background(), "c3", "   ", nil, 1); err == nil {
+	if _, err := k.ReasoningService().Council(context.Background(), "c3", "   ", nil, 1); err == nil {
 		t.Error("empty question should error")
 	}
 }
@@ -198,7 +198,7 @@ func TestCouncil_GroundsWithDateAndBrief(t *testing.T) {
 	members := []CouncilMember{{Seat: "Alpha", Model: "model-a"}, {Seat: "Beta", Model: "model-b"}}
 	k := openGroundedCouncil(t, prov, members, map[string]toolapi.Tool{"web_search": tool}, true)
 
-	res, err := k.Council(context.Background(), "corr-ground", "is there water on mars?", nil, 1)
+	res, err := k.ReasoningService().Council(context.Background(), "corr-ground", "is there water on mars?", nil, 1)
 	if err != nil {
 		t.Fatalf("Council: %v", err)
 	}
@@ -239,7 +239,7 @@ func TestCouncil_DateOnlyWhenSearchDisabled(t *testing.T) {
 	tool := &fakeSearchTool{}
 	k := openGroundedCouncil(t, prov, []CouncilMember{{Seat: "Solo", Model: "model-x"}}, map[string]toolapi.Tool{"web_search": tool}, false)
 
-	res, err := k.Council(context.Background(), "c-off", "q", nil, 0)
+	res, err := k.ReasoningService().Council(context.Background(), "c-off", "q", nil, 0)
 	if err != nil {
 		t.Fatalf("Council: %v", err)
 	}

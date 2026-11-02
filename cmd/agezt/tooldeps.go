@@ -183,11 +183,22 @@ func boardPort(st *board.Store) boardapi.Store {
 // an interface parameter is a NON-NIL interface, and the three tools would
 // bind a runner that is not there instead of reporting that reasoning is
 // unavailable.
+//
+// The runner is the REASONING MODULE's face under the contract's port
+// (W3.76v): the daemon used to spell the module's operations out itself
+// (`Council`, `Conduct` and `Research`) and the tools called the daemon. The
+// module's operations are the module's, and the module answers in the
+// contract's names — the module's service satisfies the contract's runner port
+// directly, with no adapter in between.
 func reasoningPort(k *runtime.Kernel) reasoningapi.Runner {
 	if k == nil {
 		return nil
 	}
-	return k
+	svc := k.ReasoningService()
+	if svc == nil {
+		return nil
+	}
+	return svc
 }
 
 // workflowPort hands the workflow engine to the tool registry as the

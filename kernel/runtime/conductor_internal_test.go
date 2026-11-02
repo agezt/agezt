@@ -100,7 +100,7 @@ func TestConduct_ExecRetryLoopAndDefaults(t *testing.T) {
 	exec := &fakeExec{ok: []bool{false, true}} // fail first, pass on retry
 	k := openConductorKernel(t, threeMembers(), prov, exec)
 
-	res, err := k.Conduct(context.Background(), "c-exec", ConductorConfig{Task: "write add()", MaxRounds: 2})
+	res, err := k.ReasoningService().Conduct(context.Background(), "c-exec", ConductorConfig{Task: "write add()", MaxRounds: 2})
 	if err != nil {
 		t.Fatalf("Conduct: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestConduct_CritiqueRetryThenPass(t *testing.T) {
 	prov := &fakeConductorProvider{workerOut: "the answer is 4", verdicts: []string{"FAIL: not shown", "PASS: good"}}
 	k := openConductorKernel(t, threeMembers(), prov, nil) // no executor → critique path
 
-	res, err := k.Conduct(context.Background(), "c-crit", ConductorConfig{Task: "what is 2+2?", MaxRounds: 3})
+	res, err := k.ReasoningService().Conduct(context.Background(), "c-crit", ConductorConfig{Task: "what is 2+2?", MaxRounds: 3})
 	if err != nil {
 		t.Fatalf("Conduct: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestConduct_ChainRoutingAndExplicitRoles(t *testing.T) {
 	prov := &fakeConductorProvider{workerOut: "prose", verdicts: []string{"PASS: ok"}}
 	k := openConductorKernel(t, threeMembers(), prov, nil)
 
-	_, err := k.Conduct(context.Background(), "c-chain", ConductorConfig{
+	_, err := k.ReasoningService().Conduct(context.Background(), "c-chain", ConductorConfig{
 		Task: "x", Thinker: "model-t", Worker: "@fast", Verifier: "model-v", MaxRounds: 1,
 	})
 	if err != nil {
@@ -212,7 +212,7 @@ func TestConduct_PlanTailorsRoleBriefs(t *testing.T) {
 	}
 	k := openConductorKernel(t, threeMembers(), prov, nil)
 
-	res, err := k.Conduct(context.Background(), "c-plan", ConductorConfig{Task: "x", MaxRounds: 1, Plan: true})
+	res, err := k.ReasoningService().Conduct(context.Background(), "c-plan", ConductorConfig{Task: "x", MaxRounds: 1, Plan: true})
 	if err != nil {
 		t.Fatalf("Conduct: %v", err)
 	}
@@ -233,16 +233,16 @@ func TestConduct_PlanTailorsRoleBriefs(t *testing.T) {
 func TestConduct_NoModelsAndEmptyTask(t *testing.T) {
 	// No members, no explicit roles → error.
 	k := openConductorKernel(t, nil, &fakeConductorProvider{}, nil)
-	if _, err := k.Conduct(context.Background(), "c1", ConductorConfig{Task: "x"}); err == nil {
+	if _, err := k.ReasoningService().Conduct(context.Background(), "c1", ConductorConfig{Task: "x"}); err == nil {
 		t.Error("expected error with no available models")
 	}
 	// Empty task → error.
-	if _, err := k.Conduct(context.Background(), "c2", ConductorConfig{Task: "  "}); err == nil {
+	if _, err := k.ReasoningService().Conduct(context.Background(), "c2", ConductorConfig{Task: "  "}); err == nil {
 		t.Error("expected error with empty task")
 	}
 	// One member fills all three roles.
 	k2 := openConductorKernel(t, []CouncilMember{{Seat: "Solo", Model: "m"}}, &fakeConductorProvider{workerOut: "p", verdicts: []string{"PASS: y"}}, nil)
-	res, err := k2.Conduct(context.Background(), "c3", ConductorConfig{Task: "x", MaxRounds: 1})
+	res, err := k2.ReasoningService().Conduct(context.Background(), "c3", ConductorConfig{Task: "x", MaxRounds: 1})
 	if err != nil {
 		t.Fatalf("Conduct: %v", err)
 	}

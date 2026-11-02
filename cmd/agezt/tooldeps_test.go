@@ -20,6 +20,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/modules/board/board"
+	"github.com/agezt/agezt/kernel/modules/reasoning"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -454,14 +455,38 @@ func TestBoardPortAnswersTheLiveStore(t *testing.T) {
 }
 
 // TestToolKernelDepsSuppliesTheReasoningPort: the council, conductor and
-// research tools drive the daemon's reasoning surface through the contract's
-// port (W3.39b). The port is supplied HERE — at the composition root — so a
+// research tools drive the REASONING MODULE through the contract's port
+// (W3.39b, W3.76v). The port is supplied HERE — at the composition root — so a
 // daemon that dropped it would leave three tools answering "unavailable" on
 // every live box, while every test that built the tool by hand stayed
 // green. This test is the only one that sees that wiring, so it asserts it
-// directly: the port must be present AND it must be the live kernel's
-// reasoning surface.
+// directly: the port must be present AND it must be the MODULE's face.
 func TestToolKernelDepsSuppliesTheReasoningPort(t *testing.T) {
+	k, err := runtime.Open(withMemory(t, withRoster(t, withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { k.Close() })
+	k.SetReasoning(reasoning.New(k.ReasoningDependencies()))
+
+	deps := toolKernelDeps(k, t.TempDir(), io.Discard)
+	if deps.Reasoning == nil {
+		t.Fatal("the daemon must supply the reasoning port")
+	}
+	if deps.Reasoning != k.ReasoningService() {
+		t.Fatal("the reasoning port must be the live kernel's reasoning surface")
+	}
+}
+
+// TestToolKernelDepsLeavesTheReasoningPortNilWithoutTheModule: a daemon that
+// holds no reasoning module hands over a NIL port, not a port wrapping a nil
+// implementation.
+//
+// The port is the MODULE's face (W3.76v), so a daemon with no module has no
+// face to hand over. The tools then answer "unavailable" themselves — which
+// is the answer a caller wants — instead of binding a runner that is not there
+// and panicking on the first question.
+func TestToolKernelDepsLeavesTheReasoningPortNilWithoutTheModule(t *testing.T) {
 	k, err := runtime.Open(withMemory(t, withRoster(t, withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -469,11 +494,8 @@ func TestToolKernelDepsSuppliesTheReasoningPort(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 
 	deps := toolKernelDeps(k, t.TempDir(), io.Discard)
-	if deps.Reasoning == nil {
-		t.Fatal("the daemon must supply the reasoning port")
-	}
-	if deps.Reasoning != k {
-		t.Fatal("the reasoning port must be the live kernel's reasoning surface")
+	if deps.Reasoning != nil {
+		t.Fatal("a daemon with no reasoning module must hand over a nil port")
 	}
 }
 
