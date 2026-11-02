@@ -34,14 +34,14 @@ func TestTheRootWiresTheObjectiveLibraryModule(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	goal, err := k.CreateObjective("corr", okrapi.CreateSpec{Title: "wired"})
+	goal, err := k.Objectives().Create("corr", okrapi.CreateSpec{Title: "wired"})
 	if err != nil {
 		t.Fatalf("the root did not wire the objective library module: %v", err)
 	}
 	if goal.Title != "wired" {
 		t.Fatalf("the library did not take the goal: %+v", goal)
 	}
-	if _, err := k.AddObjectiveKeyResult("corr", goal.ID, "criterion", 1); err != nil {
+	if _, err := k.Objectives().AddKeyResult("corr", goal.ID, "criterion", 1); err != nil {
 		t.Fatalf("the root did not wire the objective library module: %v", err)
 	}
 	if _, err := filepath.Glob(filepath.Join(dir, "okr", "*.json")); err != nil {

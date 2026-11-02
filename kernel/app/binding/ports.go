@@ -161,7 +161,7 @@ func ScopeFromKernel(k *runtime.Kernel, baseDir string) Scope {
 		LifecyclePorts:      applifecycle.PortsFromKernel(k),
 		MarketPorts:         appmarket.PortsFromKernel(k),
 		MemoryPorts:         appmemory.PortsFromKernel(k),
-		OkrPorts:            appokr.PortsFromKernel(k),
+		OkrPorts:            appokr.PortsFromLibrary(k.Objectives(), k.OKR()),
 		PersonaPorts:        apppersona.PortsFromKernel(k),
 		PlanRunnerPorts:     appruns.PlanRunnerPortsFromKernel(k),
 		PluginPorts:         appplugins.PortsFromKernel(k),

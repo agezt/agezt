@@ -230,6 +230,14 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 		}
 		cfg.OKRStore = store
 	}
+	// The objective library's LIFECYCLE is the work module's (W3.76r): the
+	// module keeps the goals, the key results and the rollup rule. The
+	// composition root hands the kernel the BUILDER (it names the module), and
+	// the kernel calls it with the store above and its own ports — so every
+	// objective change journals through the kernel's bus.
+	if cfg.ObjectiveLibrary == nil {
+		cfg.ObjectiveLibrary = okr.NewService
+	}
 	if cfg.WorldStore == nil {
 		// The world-model file (W3.54) — the contract's store port. The daemon
 		// opens the file (worldmodel/worldmodel.json) and hands the kernel the
@@ -438,10 +446,5 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 	// store the daemon opened and over the host's own ports (the bus and the
 	// objective rollup) — because the ports are the kernel's own.
 	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
-	// The OBJECTIVE LIBRARY is the same module's (W3.69): the module keeps the
-	// goals, the key results and the rollup rule, and the daemon holds the
-	// module's face and forwards to it. The service is built HERE — over the
-	// store the daemon opened — because the store is the daemon's file.
-	k.SetObjectiveLibrary(okr.NewService(k.OKR(), k.ObjectiveLibraryDependencies()))
 	return k, nil
 }

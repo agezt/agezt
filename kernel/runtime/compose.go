@@ -24,6 +24,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
+	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
@@ -39,6 +40,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
 	"github.com/agezt/agezt/kernel/modules/runs/runner"
 	"github.com/agezt/agezt/kernel/modules/runs/steer"
+	workapi "github.com/agezt/agezt/kernel/modules/work/api"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/scheduler"
@@ -287,6 +289,36 @@ func Open(cfg Config) (*Kernel, error) {
 		})
 	}
 
+	// The OBJECTIVE LIBRARY's LIFECYCLE is the work module's (W3.76r) — the
+	// module keeps the goals, the key results and the rollup rule. The daemon
+	// hands over the BUILDER (it names the module), and the kernel calls it with
+	// the store the host opened and its own ports — so every objective change
+	// journals through the kernel's bus without either side naming the other's
+	// implementation.
+	//
+	// The rollup reads a task's live status off the BOARD the host holds: the
+	// board's file is the host's business, and the library asks for a STATUS
+	// rather than reaching for the board.
+	//
+	// A host that was given neither holds no service: the objective surfaces
+	// report that the library is unavailable rather than calling into nothing.
+	var objectiveSvc workapi.ObjectiveService
+	if cfg.OKRStore != nil && cfg.ObjectiveLibrary != nil {
+		objectiveSvc = cfg.ObjectiveLibrary(cfg.OKRStore, workapi.ObjectiveDependencies{
+			Publish: objectivePublisher{b: kbus}.Publish,
+			TaskStatus: func(taskID string) (workboardapi.Status, bool) {
+				if cfg.Workboard == nil {
+					return "", false
+				}
+				t, ok := cfg.Workboard.Get(taskID)
+				if !ok {
+					return "", false
+				}
+				return t.Status, true
+			},
+		})
+	}
+
 	// The workflow store is NOT opened here (W3.48): the store file is the
 	// composition root's business (cmd/agezt), and the kernel holds the
 	// contract's read port. The ENGINE is the host's too — it is built over
@@ -413,6 +445,7 @@ func Open(cfg Config) (*Kernel, error) {
 		workflows:    cfg.Workflows,
 		workboard:    cfg.Workboard,
 		okr:          cfg.OKRStore,
+		objectives:   objectiveSvc,
 		taste:        cfg.TasteStore,
 		seat:         cfg.Seats,
 		artifacts:    cfg.Artifacts,

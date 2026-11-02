@@ -6,30 +6,47 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/agezt/agezt/kernel/contract/okrapi"
+	workapi "github.com/agezt/agezt/kernel/modules/work/api"
 )
 
 // errNoObjectiveLibrary is the answer the objective app layer gives when it
 // holds no library.
 //
-// The objective library is the DAEMON's (W3.53): the kernel holds the
+// The objective library is the DAEMON's FILE (W3.53): the kernel holds the
 // contract's port, and a host that was given none holds a nil port. The
 // refusal is the answer — not a panic, and not a silent "nothing to do".
 var errNoObjectiveLibrary = errors.New("okr: the objective library is not available on this daemon")
 
+// Reader reads the objective library.
+//
+// It is the CONTRACT's store port: the daemon opens the file and hands the
+// port over. It is NIL when the daemon holds no objective library — the
+// application refuses rather than reading into nothing.
 type Reader interface {
 	List(okrapi.Filter) []okrapi.Objective
 	Get(string) (okrapi.Objective, bool)
 }
-type Rollupper interface {
-	Rollup(okrapi.Objective) okrapi.ObjectiveProgress
-}
+
+// Service is the objective application's read side: the list and the show.
+//
+// It holds the library's READ port and the work MODULE's service (W3.76r) —
+// the rollup is the module's rule, so the app asks the module for it instead
+// of asking the daemon to spell it out.
 type Service struct {
-	reader Reader
-	rollup Rollupper
+	reader  Reader
+	library workapi.ObjectiveService
 }
 
-func New(reader Reader, rollup Rollupper) *Service { return &Service{reader: reader, rollup: rollup} }
+// New binds the read side: the store to read from and the module's service
+// for the rollup.
+//
+// A nil library is a daemon with no objective service: the rollup answers
+// "nothing counts", and the writes refuse.
+func New(reader Reader, library workapi.ObjectiveService) *Service {
+	return &Service{reader: reader, library: library}
+}
 
 type Record struct {
 	okrapi.Objective
@@ -40,7 +57,10 @@ type Record struct {
 }
 
 func (s *Service) Project(objective okrapi.Objective) Record {
-	progress := s.rollup.Rollup(objective)
+	var progress okrapi.ObjectiveProgress
+	if s.library != nil {
+		progress = s.library.Progress(objective)
+	}
 	return Record{Objective: objective, Progress: progress, Percent: progress.Percent, Achieved: progress.Achieved, KeyResultCount: len(objective.KeyResults)}
 }
 
