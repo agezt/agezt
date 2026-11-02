@@ -3,8 +3,8 @@
 package agent_test
 
 import (
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/internal/testfixtures"
+	"github.com/agezt/agezt/kernel/modules/runs/agent"
 )
 
 // testWithUsage sets the usage on a CompletionResponse.

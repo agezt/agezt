@@ -6,12 +6,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
+	"github.com/agezt/agezt/kernel/modules/runs/agent"
 )
 
 // Config is the run's EFFECTIVE configuration, projected into the knobs the

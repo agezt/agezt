@@ -7,10 +7,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/agezt/agezt/kernel/agent"
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/bus"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
+	"github.com/agezt/agezt/kernel/modules/runs/agent"
 )
 
 // LoopRunner is the kernel-side hook that runs one agent tool-loop end
