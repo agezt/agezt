@@ -816,6 +816,21 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The agent loop moves into the runs module.** The single-agent tool loop
+  used to be a top-level package, `kernel/agent`; it is now
+  `kernel/modules/runs/agent`, the runs module's own subtree. The package
+  name stays `agent`, so every caller (`agent.Run`, `agent.LoopConfig`,
+  `agent.Provider`) is unchanged, and the behaviour is unchanged: the
+  daemon's line count, its public verbs (238) and the contract's rows do not
+  move. The address is deliberately **not** `modules/runs/internal/loop` yet,
+  because the loop is imported from outside the runs module — the daemon's
+  run engine, the scheduler, `cmd/agezt` and the module's own delegation,
+  loop-configuration and steering packages — and `internal/` means
+  importable only from inside the tree. That address becomes reachable when
+  the daemon is dissolved. The layer classifier's hand-written rule for the
+  old path is gone: the tree now says which module the loop belongs to by
+  itself.
+
 - **The roster's rows move to the contract layer.** The agent profile row (and
   the policies that hang off it, and the repair outcome) and the board's
   message row live in the contract layer now, because the tools that steer the
