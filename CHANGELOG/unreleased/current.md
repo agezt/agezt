@@ -816,6 +816,23 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The roster's operations move into the agents module.** The roster is the
+  agents module's, and its data was already there — the store, the
+  normalization, the validation and the row — while its operations were the
+  daemon's: `kernel/runtime/accessors_roster.go` held the store, applied the
+  write, published the event and knew that a shipped guardian may be paused or
+  retired but never removed. The module now owns a service over the contract's
+  port, and the daemon keeps the names — `AddProfile`, `UpdateProfile`,
+  `RemoveProfile`, `SetProfileEnabled`, `SetProfileRetired` — and forwards.
+  The reads stayed with the host (they are the nil-safe view over the
+  contract's port) and so did `AgentImpact`, whose answer comes from another
+  domain's rows. The refusal moved to the contract as
+  `agentapi.ErrNoRoster`, and the composition root hands the kernel the
+  module's builder (`cfg.RosterService`) the way it already does for the MCP
+  registry, the script forge and the skill curator. The daemon's public verbs
+  are unchanged at **203**; its roster accessor file shrank **163 → 121**
+  lines, the agents module grew **4,035 → 4,291**, and the host's wiring
+  costs 43 lines — which is where the wiring lives.
 - **The run engine's last two context doors.** The tail of the run context's
   move out of the host: `AgentSlugFromCtx` and `AgentRetryPolicyFromCtx` were
   pure forwarding copies of the runs module's own names, entries of the
