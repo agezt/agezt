@@ -305,7 +305,7 @@ Also: `toolCaps` (read-only after Open); `startTime`. The `suspending atomic.Boo
 
 Goroutines started by the runtime: one per async sub-agent (the delegation engine's `Spawn`), the drain waiters in `Close`/`DrainAndHalt`, and the tool fan-out workers inside `agent.Run`. Everything else runs on the caller's goroutine. The **agentgw listener is not one of them** (W3.67): the gateway is the **daemon's** transport, so the daemon starts it.
 
-**The daemon's public surface — 205 verbs (W3.76l).** The Kernel's exported
+**The daemon's public surface — 203 verbs (W3.76m).** The Kernel's exported
 methods are the host's **doors**: the verbs the layers above call and the
 verbs the daemon's own production paths open. A public verb that nobody
 calls is a second, unreachable copy of a surface, and the target architecture
@@ -325,12 +325,14 @@ family itself is the knowledge module's. W3.76l retired **fifteen** more: the
 run context's vocabulary (the wake's fields, the images, the json mode, the
 cost ceiling, the model chain, the agent's daily ceiling, the actor) is the
 **runs module's**, and the run engine — which lives inside that module — was
-asking the host for it through the port. The daemon keeps the doors a
-**module** needs without naming the runs module (`WithAgentProfile`,
-`WithMaxCost`) and the host's own state (the effective config, the resume
-ticket, the seed). The surface is **pinned**:
+asking the host for it through the port; W3.76m retired the **last two**
+(`AgentSlugFromCtx`, `AgentRetryPolicyFromCtx`), so the run engine's context
+doors are all gone and the host's port carries no run-context vocabulary at
+all. The daemon keeps the doors a **module** needs without naming the runs
+module (`WithAgentProfile`, `WithMaxCost`) and the host's own state (the
+effective config, the resume ticket, the seed). The surface is **pinned**:
 `kernel/runtime/dead_surface_ratchet_test.go` fails if a retired name comes
-back or if the public surface grows past 205, and the run engine's own
+back or if the public surface grows past 203, and the run engine's own
 ratchet requires that it reads the run's context through the module.
 
 ### 4.2 Composition: `Open(cfg Config) (*Kernel, error)` (compose.go)

@@ -164,7 +164,7 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// Run identity + root-run-only concerns layered on the shared base.
 	lc.TaskType = "chat"       // M703: main agent loop → "chat" routing target
 	lc.ModelChain = modelChain // M787 agent fallbacks, or the explicit pick (M931)
-	lc.Agent = r.k.AgentSlugFromCtx(runCtx)
+	lc.Agent = runctx.AgentSlugFromCtx(runCtx)
 	lc.AgentDailyCeilingMc = runctx.AgentDailyMcFromCtx(runCtx)
 	wake := runctx.WakeContextFromCtx(runCtx)
 	lc.WakeSource = wake.Source

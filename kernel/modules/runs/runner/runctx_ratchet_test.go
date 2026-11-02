@@ -44,6 +44,8 @@ func TestTheRunnerReadsTheRunContextFromTheModule(t *testing.T) {
 		"runctx.ImagesFromCtx(",
 		"runctx.JSONModeFromCtx(",
 		"runctx.MaxCostFromCtx(",
+		"runctx.AgentSlugFromCtx(",
+		"runctx.AgentRetryPolicyFromCtx(",
 	} {
 		if !runnerPackageContains(t, want) {
 			t.Errorf("the run engine must read the run's context through %s", want)
@@ -76,6 +78,8 @@ func TestThePortCarriesNoRunContextVocabulary(t *testing.T) {
 		"MaxCostFromCtx(ctx context.Context)",
 		"WithActorCorrelation(ctx context.Context",
 		"ActorFromCtx(ctx context.Context)",
+		"AgentSlugFromCtx(ctx context.Context)",
+		"AgentRetryPolicyFromCtx(ctx context.Context)",
 	} {
 		if strings.Contains(text, gone) {
 			t.Errorf("the host's port still promises %s — the run context's vocabulary is the module's", gone)

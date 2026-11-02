@@ -105,9 +105,19 @@ func TestTheHostStillImplementsThePort(t *testing.T) {
 	}
 	// The runner's entry points must be reachable through the port: a host
 	// that does not carry them cannot drive a run.
-	for _, name := range []string{"ClaimResumeTicket", "FinalizeResumeTicket", "AgentSlugFromCtx"} {
+	//
+	// AgentSlugFromCtx is NOT one of them any more (W3.76m): it was the run
+	// context's vocabulary, and the run context's vocabulary is the module's.
+	// The run engine reads it through the module, and the host's port no
+	// longer promises it — see the runner's own runctx ratchet.
+	for _, name := range []string{"ClaimResumeTicket", "FinalizeResumeTicket"} {
 		if _, ok := port.MethodByName(name); !ok {
 			t.Fatalf("the KernelAPI port has no %s method", name)
+		}
+	}
+	for _, gone := range []string{"AgentSlugFromCtx", "AgentRetryPolicyFromCtx"} {
+		if _, ok := port.MethodByName(gone); ok {
+			t.Errorf("the KernelAPI port has a %s method again — the run context's vocabulary is the module's", gone)
 		}
 	}
 }

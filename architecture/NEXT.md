@@ -13217,3 +13217,60 @@ func main() {
   family (7 files, **965**) and the control plane (`kernel/controlplane`,
   7,570). Evidence:
   `architecture/285-w376l-the-run-engine-reads-its-own-context-evidence.md`
+- W3.76m (the run engine's last two context doors) is the **twenty-first** slice
+  of the runtime's dissolution, and the tail of W3.76l's family.
+
+  W3.76l moved the run context's read vocabulary out of the host. Two doors of
+  the same kind were left behind, because they sat in a different file and
+  nobody looked at them together: `AgentSlugFromCtx` (the named agent's slug
+  on the run context) and `AgentRetryPolicyFromCtx` (the named agent's retry
+  policy). Both were **pure forwarding copies** of the module's names
+  (`runctx.AgentSlugFromCtx`, `runctx.AgentRetryPolicyFromCtx`), both were
+  entries of the host's port, and both were read **only** by the run engine —
+  which lives inside the module that owns the vocabulary.
+
+  Now the run engine reads them through the module, the two daemon copies are
+  gone, and the two port entries are gone: **the run engine's context doors
+  are all gone**, and the host's port carries no run-context vocabulary at
+  all.
+
+  The measurement: the daemon's public verbs **205 → 203**, its production
+  lines **6,124 → 6,113**, its files **54 → 54**, the run engine's port
+  **66 → 64** methods, the contract's rows **+0**, the control plane **+0**
+  production files, the application layer **+0** production files. Since
+  W3.76k the daemon's public surface has gone **238 → 203** verbs and
+  **6,281 → 6,113** production lines, and the run engine's port **81 → 64**.
+
+  The scan also found the family that stays **on purpose**: the doors whose
+  **state** is the host's — `BuildLoopConfig` (the daemon projects its
+  effective configuration and wires its live collaborators; the module holds
+  the rule, W3.76g), `BuildRunPrompt` / `InjectHostEnvironment` (the same
+  shape for the prompt module, W3.76e), `WithAgentProfile` / `WithMaxCost`
+  (the doors a module binds a run through without naming the runs module) and
+  the resume and effective-config state. The distinction is the one the
+  W3.76l evidence drew: the **vocabulary** is the module's, the **state** is
+  the host's — a door that answers from the host's state is a real door, a
+  door that forwards to the module's own function is a second spelling.
+
+  The daemon's ratchet now watches its **whole package** for the eleven
+  vocabulary doors (the check was file-scoped, and the vocabulary's doors were
+  split over two files — a file-scoped check would have watched only one of
+  them), and the run engine's ratchet grew the two names into both of its
+  lists. **A third ratchet changed honestly**: the W3.76j ratchet that pins
+  the port's shape listed `AgentSlugFromCtx` among the runner's entry points —
+  it was, until this slice; it now keeps the two resume doors and pins the
+  two vocabulary names' absence. **The probe fired**: putting
+  `AgentSlugFromCtx` back into the host's port made the port's ratchet fail.
+
+  **No mutation run**: this slice redirects two calls and removes two port
+  entries, and there is no rule whose reversal a mutation could expose. The
+  evidence is the compiler, the ratchets and their probe, and the full suite.
+
+  **What is left**: the daemon holds **203** public verbs and **6,113**
+  production lines; its public surface has **no dead verb** and **no
+  vocabulary door** left — every public verb is a door somebody opens, and
+  the ones that stay open from the host's own state. The rest of the W3 exit
+  is unchanged: the daemon's composition root (`compose.go`, 497 lines), its
+  `Kernel` (`runtime.go`, 665), the accessors family (7 files, **965**) and
+  the control plane (`kernel/controlplane`, 7,570). Evidence:
+  `architecture/286-w376m-the-run-engines-last-two-context-doors-evidence.md`

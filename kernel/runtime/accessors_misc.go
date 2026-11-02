@@ -3,9 +3,12 @@
 package runtime
 
 // Provenance: Kernel accessors: misc
-//             (ShadowEval/VisionModel/StandingList/SkillStore/AgentSlug/AgentRetryPolicy/BaseDir/ConfigCenter/Model/SetModel)
+//             (ShadowEval/VisionModel/StandingList/SkillStore/BaseDir/ConfigCenter/Model/SetModel)
 //             + council + catalog + reload + loop/plan. Code extracted from
-//             accessors.go during the Day-56 god-file split. Public API unchanged.
+//             accessors.go during the Day-56 god-file split. The AgentSlug and
+//             AgentRetryPolicy doors went with W3.76m: the run context's
+//             vocabulary is the runs module's, and the run engine — which
+//             lives inside that module — reads it there.
 
 import (
 	"context"
@@ -14,12 +17,10 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/configcenter"
-	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/governor"
-	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -43,20 +44,6 @@ func (k *Kernel) StandingList() []standingapi.Order {
 		return nil
 	}
 	return k.standing.List()
-}
-
-// AgentSlugFromCtx returns the named agent's slug attached to a
-// run context by runctx.WithAgentProfile (or "" when unset). Wraps the
-// package-level runctx.AgentSlugFromCtx so the run engine can reach it
-// through the runner.KernelAPI interface (Day 23).
-func (k *Kernel) AgentSlugFromCtx(ctx context.Context) string { return runctx.AgentSlugFromCtx(ctx) }
-
-// AgentRetryPolicyFromCtx returns the named agent's retry policy
-// attached to a run context by runctx.WithAgentProfile (or zero + false
-// when unset). Wraps the package-level runctx.AgentRetryPolicyFromCtx
-// for the same reason as AgentSlugFromCtx (Day 23).
-func (k *Kernel) AgentRetryPolicyFromCtx(ctx context.Context) (agentapi.RetryPolicy, bool) {
-	return runctx.AgentRetryPolicyFromCtx(ctx)
 }
 
 // BaseDir returns the kernel's base directory — the root under
