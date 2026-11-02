@@ -13069,3 +13069,83 @@ func main() {
   once the daemon, the scheduler and `cmd/agezt` stop importing the loop,
   `modules/runs/internal/loop` becomes reachable. Evidence:
   `architecture/283-w376j-the-run-engine-moves-into-the-runs-module-evidence.md`
+- W3.76k (the daemon's dead surface dies) is the **nineteenth** slice of the
+  runtime's dissolution — and the first one that shaves the daemon's surface
+  instead of moving a family out of it. The target architecture dissolves the
+  kernel (`kernel/runtime`, 284 methods → **dissolved**), and the walk so far
+  moved whole families (W3.76h the loop, W3.76j the run engine); this one
+  shaves what the moves left behind: the **public verbs on `*Kernel` that no
+  caller reaches**.
+
+  The measurement: the daemon held **238** public verbs, and **nineteen** of
+  them had no caller outside the daemon — **sixteen** of them are dead, three
+  turned out to be *port entries* rather than verbs, and **two** more were a
+  second spelling of an operation the daemon already had a door for. The
+  retired eighteen: the artifact-store getter and the scheduler getter (the
+  run engine's `KernelAPI` port listed them; the engine never asked), the bus
+  publisher the deleted `Accessor` sub-package owned (dead since W3.40 — its
+  own evidence doc said so), the daemon's two forwarding copies of the runs
+  module's vocabulary (`RunTimeoutFromCtx`, `MergeAutoApproveCapabilities` —
+  both also port entries), the daemon's six unread memory operations (the
+  memory family is the knowledge module's), its second spelling of the two
+  distill operations (`MemoryDistillBrain` beside `DistillBrain` — one
+  operation, one name), the OKR rollup-by-id verb (the OKR family is the
+  work module's), the two wiring setters the composition root replaced with
+  `Config.ForgeBuilder` / `Config.MCPBuilder` (their only caller was the
+  daemon's own test), and the daemon's own two MCP readers (the row surface
+  above them answers the same rows).
+
+  Two traps had to be dodged. **Interface satisfaction is a caller**: the scan
+  said four verbs were dead, but the **compiler** disagreed — `*Kernel` did
+  not satisfy `runner.KernelAPI` without them — so the port lost four methods
+  and the daemon lost four verbs. And **a name can be a field, not a call**
+  (`cfg.ToolForge` looks like `k.ToolForge()`), so every candidate was
+  verified one by one against production callers, test callers and *string*
+  occurrences (reflection, route tables) before anything was deleted.
+
+  The measurement: the daemon's public verbs **238 → 220**, its production
+  lines **6,281 → 6,200**, its files **54 → 54**, the run engine's port
+  **~85 → ~81** methods, the contract's rows **+0**, the application layer
+  **+0** production files, the control plane **+0**. The daemon keeps the
+  **port** over the memory (`k.Memory()`), the count the app layer reads and
+  the two **distill doors** it calls — it keeps the port of a family it does
+  not own and does not keep a verb per operation of that family. After the
+  slice, **no public verb of the daemon is dead any more**: the scan's last
+  one (`DescribeImages`) is a door the daemon opens itself.
+
+  The tests moved with the code: the memory port test asks the **port**
+  instead of the daemon's per-operation verbs, the OKR tests ask for the
+  rollup of the objective they already hold, and the forge / MCP module tests
+  now hand their fake over the way the composition root hands it over —
+  `runtime.Config.ForgeBuilder` / `runtime.Config.MCPBuilder` — so they
+  exercise the **production wiring** instead of a test-only setter, which is
+  a strictly better test than the one it replaces.
+
+  The **ratchet** (`kernel/runtime/dead_surface_ratchet_test.go`) pins the
+  slice: the eighteen retired names are not methods of `*Kernel` any more
+  (read from the package's own sources with `go/ast`), the public surface
+  does not grow past **220**, and the daemon does not speak for the families
+  it does not own. **Both probes fire** — putting `PublishBusEvent` back
+  made the retired-names ratchet *and* the ceiling ratchet fail in one run (a
+  ratchet that is never probed never fires — the lesson W3.76i paid for).
+
+  Two of the daemon's own ratchets changed honestly: the accessor surface
+  (pinned by name) lost `Scheduler` and `PublishBusEvent` and now pins their
+  **absence** next to `ConfigMu` and `AgentGateway`, which went the same way
+  in W3.40 and W3.67; and the run-context ratchet, which was file-scoped to
+  `accessors_ctx.go`, became **package-scoped** — the two forwarding copies
+  this slice retired lived in that file, and a file-scoped check would have
+  pinned a door that no longer exists.
+
+  **No mutation run**: this slice deletes code and moves callers, and there
+  is no rule whose reversal a mutation could expose. The evidence of a
+  deletion is the compiler (every caller and every port type-checked), the
+  call-site scan, the ratchet and its probe, and the full suite — the same
+  four legs W3.76i and W3.76j stood on.
+
+  **What is left**: the daemon holds **220** public verbs and **6,200**
+  production lines, and none of its public verbs is dead. The rest of the W3
+  exit is unchanged: the daemon's composition root (`compose.go`, 497 lines),
+  its `Kernel` (`runtime.go`, 665), the accessors family (7 files, **965**)
+  and the control plane (`kernel/controlplane`, 7,570). Evidence:
+  `architecture/284-w376k-the-daemons-dead-surface-dies-evidence.md`
