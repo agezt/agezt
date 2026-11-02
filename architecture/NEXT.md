@@ -13581,3 +13581,81 @@ func main() {
   module instead of the daemon.
   Evidence:
   `architecture/291-w376r-the-objective-librarys-lifecycle-moves-into-the-work-module-evidence.md`
+- W3.76s (the task board's runner moves into the work module) is the
+  **twenty-seventh** slice of the runtime's dissolution, and the **biggest
+  single drop** of the daemon's surface since the dissolution began:
+  **fifteen verbs** in one slice.
+
+  The board's **data** has been the work module's for a long time and the
+  board's **file** the host's (W3.47), but the daemon still held **sixteen
+  forwarders** over the module's own operations — `CreateWorkboardTask`,
+  `ClaimWorkboardTask`, `HeartbeatWorkboardTask`, `CommentWorkboardTask`,
+  `BlockWorkboardTask`, `FailWorkboardTask`, `UnblockWorkboardTask`,
+  `SetWorkboardRetryPolicy`, `CompleteWorkboardTask`, `ReviewWorkboardTask`,
+  `ArchiveWorkboardTask`, `LinkWorkboardTask`, `AddWorkboardDependency`,
+  `ReclaimStaleWorkboardTask`, `SweepStaleWorkboardClaims` and `ProveTask` (in
+  a file of its own) — each doing the same three lines: take the module's
+  service out of the daemon, call the module, return the module's answer. A
+  forwarder over a module's own operation is a **second spelling** of it, and
+  the daemon held a second copy of the whole board surface, sixteen doors
+  wide, for the application layer and the plugin to call through.
+
+  The **contract** already named that surface (`workboardapi.Runner` — "claim a
+  workboard task", "comment a workboard task"), so the port was never the
+  daemon's to implement: the **module** implements the contract's port over its
+  own service (`kernel/modules/work/workboard/runner.go`, 83 lines), and the
+  three verbs the contract does not name but the application needs — the
+  review, the stale sweep and the proof — live on the module's new
+  `BoardRunner` port. **No caller outside the daemon had to be rewritten**: the
+  application layer's contracts already spoke the contract's names, and the
+  plugin already spoke the contract's port.
+
+  The daemon keeps three things and no more: the board's **FILE**
+  (`Workboard`), the board's **WIRING** (`WorkboardDependencies` — the bus, the
+  completion judge, the model, the artifact index, the journal) and the
+  module's **FACE** (`BoardRunner` / `SetBoardRunner`). The application binds
+  the runner — `kernel/app/workboard` no longer imports `kernel/runtime` at
+  all, the **second** application package to stop naming the daemon — and the
+  plugin binds the module's runner too (`workboardPort(k)` answers
+  `k.BoardRunner()`).
+
+  One thing split on the way: the dispatcher needed a correlation to name an
+  operation with, and that is the **host's** capability, not the board's, so it
+  left the dispatch host interface and became its own narrow port
+  (`Correlator.Mint()`) — a port may not carry the name of the kernel verb it
+  stands for.
+
+  The measurement: the daemon's public verbs **194 → 179**, its production
+  lines **6,107 → 5,979**, its files **55 → 54**, the app packages that name
+  the daemon **41 → 40**; the board module **1,469 → 1,552** lines. The
+  measurement that did **not** move: the module's lines went **up** by 83 —
+  *moving a rule moves the conditions, not the lines*; the module's lines are
+  the moved lines **plus** the port.
+
+  **Two ratchets, both probes fired**: the daemon's new board ratchet pins the
+  sixteen forwarders and the setter's absence, and that the daemon still holds
+  the file, the wiring and the face; the application's new binding ratchet
+  pins that the package's **production** files do not import `kernel/runtime`
+  again (the test files may — a test that opens a kernel to prove the daemon
+  holds nothing is a test *about* the daemon).
+
+  **The coverage moved with the subject**: the refusal of every operation
+  without a store now runs against the module's runner, and the daemon's own
+  tests pin what the daemon still does — it holds the file, it hands the
+  wiring over, and it holds no face until the composition root wires one.
+
+  **No mutation run**: the slice deletes forwarders and moves a binding, so
+  there is no rule whose reversal a mutation could expose. The evidence is the
+  compiler, the permanent tests, the ratchets and their probes, and the full
+  suite.
+
+  **What is left**: the daemon holds **179** public verbs and **5,979**
+  production lines; **forty** application packages still name it. The same
+  shape is waiting for the families that still have forwarders in the daemon:
+  the **workflow engine** (12), the **MCP registry** (12), the **standing
+  library** (9), the **roster's** remaining read doors (9) and the **script
+  forge** (8). The W3 exit criterion that no type has more than 60 methods is
+  still the daemon's own `*Kernel` that breaks it — at 179, it needs 119 more
+  verbs gone.
+  Evidence:
+  `architecture/292-w376s-the-task-boards-runner-moves-into-the-work-module-evidence.md`

@@ -305,7 +305,7 @@ Also: `toolCaps` (read-only after Open); `startTime`. The `suspending atomic.Boo
 
 Goroutines started by the runtime: one per async sub-agent (the delegation engine's `Spawn`), the drain waiters in `Close`/`DrainAndHalt`, and the tool fan-out workers inside `agent.Run`. Everything else runs on the caller's goroutine. The **agentgw listener is not one of them** (W3.67): the gateway is the **daemon's** transport, so the daemon starts it.
 
-**The daemon's public surface — 194 verbs (W3.76r).** The Kernel's exported
+**The daemon's public surface — 179 verbs (W3.76s).** The Kernel's exported
 methods are the host's **doors**: the verbs the layers above call and the
 verbs the daemon's own production paths open. A public verb that nobody
 calls is a second, unreachable copy of a surface, and the target architecture
@@ -359,14 +359,28 @@ now binds the **module** (`kernel/app/okr` holds the work module's
 the library's **file** (`OKR`, the contract's store port — W3.53) and the
 module's **face** (`Objectives`), and the composition root hands the kernel the
 **builder** (`cfg.ObjectiveLibrary`) that names the module: **201 → 194** public
-verbs, **6,121 → 6,107** production lines. The daemon
+verbs, **6,121 → 6,107** production lines. W3.76s retired **fifteen** more —
+the **task board**'s sixteen forwarders over the work module's own operations
+(`CreateWorkboardTask` … `SweepStaleWorkboardClaims` and `ProveTask`) were a
+second spelling of every board verb, and the daemon held a second copy of the
+whole board surface for the application layer and the plugin to call through.
+The **contract** already named that surface (`workboardapi.Runner` — "claim a
+workboard task"), so the **module** implements the contract's port over its own
+service (`kernel/modules/work/workboard/runner.go`) and the daemon keeps three
+things: the board's **FILE** (`Workboard`), the board's **WIRING**
+(`WorkboardDependencies`) and the module's **FACE** (`BoardRunner`). The
+application binds the runner — `kernel/app/workboard` no longer imports
+`kernel/runtime` at all — and the plugin binds the module's runner too
+(`workboardPort(k)` answers `k.BoardRunner()`): **194 → 179** public verbs,
+**6,107 → 5,979** production lines, and the app packages that name the daemon
+**41 → 40**. The daemon
 keeps the doors a **module** needs without naming the runs
 module (`WithAgentProfile`, `WithMaxCost`) and the host's own state (the
 effective config, the resume ticket, the seed). The surface is **pinned**:
 `kernel/runtime/dead_surface_ratchet_test.go` fails if a retired name comes
-back or if the public surface grows past **194** — the ceiling now FOLLOWS the
-floor (220 → 201 → 194), because a ceiling that stays put while the surface
-shrinks permits exactly what the program exists to remove — and the run
+back or if the public surface grows past **179** — the ceiling now FOLLOWS the
+floor (220 → 201 → 194 → 179), because a ceiling that stays put while the
+surface shrinks permits exactly what the program exists to remove — and the run
 engine's own ratchet requires that it reads the run's context through the
 module.
 
@@ -743,8 +757,8 @@ Root package, grouped by concern; every non-test file is listed.
 
 | File | What it does |
 |---|---|
-| `workboard.go` | Workboard state transitions with `workboard.task.*` events (create/claim/heartbeat/comment/block/fail/unblock/retry policy/complete/review/archive/link/dependency/reclaim/sweep), `assureCriteriaMaxTokens=800`. |
-| `workboard_proof.go` | `ProveTask`, `verifyCriteria`, `parseCriteriaVerdict`, `gatherProofEvidence` (artifacts plus journal seq range under corr). |
+| `workboard.go` | The daemon's face over the **task board**: the board's FILE (the contract's store port `workboardapi.HostStore` — W3.47), the board's WIRING (`WorkboardDependencies` — the bus, the completion judge, the model, the artifact index, the journal) and the module's FACE (`BoardRunner` / `SetBoardRunner`). The **lifecycle** is the work module's (W3.76s): the module implements the contract's runner port over its own service, and the daemon's sixteen forwarders are gone. |
+| `workboard_proof.go` | **Gone with the daemon's forwarders (W3.76s).** The proof CYCLE is the work module's: `kernel/modules/work/workboard/workboard_proof.go` keeps `verifyCriteria`, `parseCriteriaVerdict` and `gatherProofEvidence` (artifacts plus journal seq range under corr), and the module's runner answers the contract's `ProveTask`. |
 | `okr.go` | The daemon's face over the **objective library**: the library's FILE (the contract's store port `okrapi.Store` — W3.53), the module's FACE (`Objectives`, the work module's `ObjectiveService`) and the board's completion glue (`recomputeOKRForTask`). The **lifecycle** is the work module's (W3.76r): the daemon's six forwarders over the module's own operations are gone, and the application binds the module directly. |
 | `reasoning.go` | The runtime's face of the reasoning module: the `Council`/`Opinion`/`Conductor*`/`Research*` aliases of the module's vocabulary, `SetReasoning` (the composition root injects the module's service), `ReasoningDependencies` (the host's ports: the aux-completion funnel, the governed tool invoker, the event bus, the default panel, the sandboxed code runner) and the three delegating calls. The module itself cannot be imported from here — a module may import another module's api package and nothing else (P5) — so the kernel holds it as `api.Service` (W3.1). |
 | `workflowrun.go`, `workflowrun_graph.go`, `workflowrun_node.go`, `workflowrun_helpers.go`, `workflowtestnode.go` | Workflow execution: `RunWorkflow` (step cap 256), graph walk, per-node retry/timeout (`execNodeWithReliability`), node kinds (llm, tool, code_exec, pipeline, subflow depth ≤3, conditions/items), `TestWorkflowNode`. |
