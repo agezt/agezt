@@ -20,6 +20,12 @@ type dispatchHost struct {
 	order               []string
 }
 
+// correlator is the host's correlation mint, as the application sees it: a
+// port that mints, not a kernel verb (W3.76s).
+type correlator struct{ host *dispatchHost }
+
+func (c correlator) Mint() string { return c.host.NewCorrelation() }
+
 func (h *dispatchHost) NewCorrelation() string {
 	h.correlations++
 	h.order = append(h.order, "correlation")
@@ -65,7 +71,7 @@ func TestWorkboardDispatchAdmissionPrecedesEveryEffect(t *testing.T) {
 				agent.DirectAllowed = false
 			}
 			publishes := 0
-			service := appwork.NewDispatch(store, host, func(string) (appwork.DispatchAgent, bool) { return agent, found }, func(string, tasks.Task, string, string, string, string, string) { publishes++ })
+			service := appwork.NewDispatch(store, host, correlator{host}, func(string) (appwork.DispatchAgent, bool) { return agent, found }, func(string, tasks.Task, string, string, string, string, string) { publishes++ })
 			_, err := service.Dispatch(context.Background(), appwork.DispatchInput{ID: id})
 			if err == nil || host.correlations != 0 || host.claimArgs != nil || host.linkArgs != nil || publishes != 0 {
 				t.Fatalf("%s err=%v host=%+v published=%d", name, err, host, publishes)
@@ -93,7 +99,7 @@ func TestWorkboardDispatchRetainsAcceptedOrderAndBackgroundInputs(t *testing.T) 
 	started := make(chan run, 1)
 	resolved := ""
 	agent := appwork.DispatchAgent{Slug: "canonical-agent", Enabled: true, DirectAllowed: true, Run: func(corr string, task tasks.Task, intent, reason string) { started <- run{corr, task, intent, reason} }}
-	service := appwork.NewDispatch(store, host, func(ref string) (appwork.DispatchAgent, bool) { resolved = ref; return agent, true }, func(corr string, task tasks.Task, phase, slug, reason, answer, errText string) {
+	service := appwork.NewDispatch(store, host, correlator{host}, func(ref string) (appwork.DispatchAgent, bool) { resolved = ref; return agent, true }, func(corr string, task tasks.Task, phase, slug, reason, answer, errText string) {
 		host.order = append(host.order, "publish")
 		if corr != "owned-corr" || task.ID != "canonical" || len(task.Links) != 1 || phase != "requested" || slug != "canonical-agent" || reason != "workboard dispatch" || answer != "" || errText != "" {
 			t.Fatal("request publication changed")
@@ -123,7 +129,7 @@ func TestWorkboardDispatchReturnsMutationCausesBeforePublishAndStart(t *testing.
 			host.linkErr = cause
 		}
 		calls := 0
-		service := appwork.NewDispatch(store, host, func(string) (appwork.DispatchAgent, bool) {
+		service := appwork.NewDispatch(store, host, correlator{host}, func(string) (appwork.DispatchAgent, bool) {
 			return appwork.DispatchAgent{Slug: "writer", Enabled: true, DirectAllowed: true, Run: func(string, tasks.Task, string, string) { t.Error("failed mutation started") }}, true
 		}, func(string, tasks.Task, string, string, string, string, string) { calls++ })
 		if _, err := service.Dispatch(context.Background(), appwork.DispatchInput{ID: "owned"}); err != cause || calls != 0 {

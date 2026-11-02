@@ -203,9 +203,14 @@ func workflowPort(k *runtime.Kernel) workflowapi.Runner {
 	return k
 }
 
-// workboardPort hands the kernel's workboard to the tool registry as the
+// workboardPort hands the board's runner to the tool registry as the
 // contract's move-and-claim port (W3.39c) — the workboard tool drives the
 // durable, journaled path for typed work items through it.
+//
+// The runner is the WORK MODULE's face under the contract's port (W3.76s): the
+// daemon used to spell the board's operations out itself and the tool called
+// the daemon. The board's operations are the module's, and the module answers
+// in the contract's names.
 //
 // The same nil-port rule: a nil kernel handed to an interface parameter is a
 // non-nil interface, and the tool would bind a runner that is not there.
@@ -213,7 +218,7 @@ func workboardPort(k *runtime.Kernel) workboardapi.Runner {
 	if k == nil {
 		return nil
 	}
-	return k
+	return k.BoardRunner()
 }
 
 // mcpPort hands the kernel's MCP registry to the tool registry as the

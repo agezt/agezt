@@ -29,6 +29,6 @@ func withWorkboard(t *testing.T, cfg runtime.Config) *runtime.Kernel {
 	if err != nil {
 		t.Fatalf("open the daemon: %v", err)
 	}
-	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
+	k.SetBoardRunner(workboard.NewRunner(workboard.NewService(k.Workboard(), k.WorkboardDependencies())))
 	return k
 }

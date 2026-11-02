@@ -2,26 +2,43 @@
 
 package runtime
 
-// Provenance: Runtime workboard: the host's names for the task board.
+// Provenance: Runtime workboard: the host's face for the task board.
 //
 // The board is the WORK MODULE's: the module keeps the store, the lifecycle
-// and the retry rule, and the host holds the module's face
-// (kernel/modules/work/workapi.BoardService) and forwards to it.
+// and the retry rule.
 //
-// The host's public names did not move — ClaimWorkboardTask and its fifteen
-// siblings are still the daemon's verbs, and every caller outside the runtime
-// is untouched. What moved is WHERE the answer comes from: the daemon used
-// to hold the store and spell out the lifecycle itself, which left the
-// module keeping the DATA and the daemon keeping the OPERATIONS over it.
+// The daemon used to hold SIXTEEN forwarders over the module's own
+// operations — CreateWorkboardTask, ClaimWorkboardTask, CommentWorkboardTask,
+// BlockWorkboardTask, FailWorkboardTask, UnblockWorkboardTask,
+// SetWorkboardRetryPolicy, CompleteWorkboardTask, ReviewWorkboardTask,
+// ArchiveWorkboardTask, LinkWorkboardTask, AddWorkboardDependency,
+// ReclaimStaleWorkboardTask, SweepStaleWorkboardClaims, HeartbeatWorkboardTask
+// and CreateWorkboardTask's sibling ProveTask. A forwarder over a module's own
+// operation is a SECOND SPELLING of it, and the daemon held a second copy of
+// the whole board surface for the plugin and the application layer to call
+// through.
 //
-// The composition root builds the module's service over the store it opened
-// and hands it over with SetWorkboard — the same shape the reasoning module
-// uses. Until it does, the board refuses every verb with the contract's row
-// (workboardapi.ErrNoStore): a daemon with no board answers no board.
+// The board's operations are the module's, so the MODULE implements the
+// CONTRACT's runner port over them (kernel/modules/work/workboard/runner.go):
+// the contract (workboardapi.Runner) is the surface the agent-facing plugin
+// speaks, and its names are the names the board's users say. The module
+// answers in them; the daemon no longer spells them at all.
+//
+// What the daemon keeps is the HOST's own business:
+//
+//   - the board's FILE (Workboard): the store port the daemon opened;
+//   - the board's WIRING (WorkboardDependencies): the host's ports the module
+//     asks — the bus it publishes on, the completion judge, the model, the
+//     artifact index and the journal;
+//   - the module's FACE (BoardRunner): the runner the application layer binds.
+//
+// The composition root builds the module's service over the store the daemon
+// opened and hands the RUNNER over with SetBoardRunner. Until it does, the
+// board refuses every verb with the contract's row (workboardapi.ErrNoStore):
+// a daemon with no board answers no board.
 
 import (
 	"context"
-	"time"
 
 	"github.com/agezt/agezt/kernel/contract/assureapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
@@ -33,37 +50,42 @@ import (
 // Workboard returns the host's board store port.
 //
 // It is the port the plugins' contract speaks (workboardapi.Store); the
-// lifecycle and the proof go through the module's service.
+// lifecycle and the proof go through the module's runner.
 func (k *Kernel) Workboard() workboardapi.HostStore { return k.workboard }
 
-// SetWorkboard injects the task board the daemon drives.
+// SetBoardRunner injects the board's runner — the module's service under the
+// CONTRACT's runner port.
 //
-// The board is the work module's service: the module keeps the lifecycle, the
-// daemon keeps the names. The composition root builds it over the store it
-// opened and hands it over here.
-func (k *Kernel) SetWorkboard(s workapi.BoardService) {
-	k.configMu.Lock()
-	k.board = s
-	k.configMu.Unlock()
-}
-
-// boardService returns the injected board, or nil.
-func (k *Kernel) boardService() workapi.BoardService {
+// The composition root builds it (the module's implementation is not
+// importable from the host: a module may import another module's api package
+// and nothing else), and hands it over here. Until it does, the board refuses
+// every verb with the contract's row: a daemon with no board answers no
+// board.
+func (k *Kernel) SetBoardRunner(r workapi.BoardRunner) {
 	k.configMu.Lock()
 	defer k.configMu.Unlock()
-	return k.board
+	k.boardRunner = r
 }
 
-// WorkboardDependencies are the host's ports the board needs to answer a
-// verb: the bus to publish on, the objective rollup a completed task feeds,
-// and the judge's side of the proof cycle.
+// BoardRunner returns the board's runner — the MODULE's face under the
+// contract's port.
 //
-// The board asks the host; it never reaches into it.
+// It is what the application layer binds (W3.76s): the workboard application
+// asks the board, not the daemon. A daemon that was given no runner holds a
+// nil face, and the application refuses rather than calling into nothing.
+func (k *Kernel) BoardRunner() workapi.BoardRunner {
+	k.configMu.Lock()
+	defer k.configMu.Unlock()
+	return k.boardRunner
+}
+
+// WorkboardDependencies returns the host's ports the board needs to answer a
+// verb.
 //
-// The proof's ports (W3.70) are the HOST's machinery: the model that judges an
-// answer, the artifacts the answer rests on, the journal the proof points at,
-// and the host's own plain completion judge for a task with no criteria. The
-// board holds them as ways to ASK — never as a way to reach.
+// The wiring is the HOST's: the bus the board publishes on, the completion
+// judge the proof asks, the model the judge speaks with, the artifact index
+// and the journal the proof reads. The module holds the board's rules and
+// asks the host for these; it never reaches for them.
 func (k *Kernel) WorkboardDependencies() workapi.BoardDependencies {
 	// The journal is a CONCRETE pointer: handing a nil one to an interface
 	// would make the port look wired while it is not, and the proof would walk
@@ -98,151 +120,4 @@ func (k *Kernel) WorkboardDependencies() workapi.BoardDependencies {
 		Artifacts: k.ArtifactIndex(),
 		Journal:   scanner,
 	}
-}
-
-// boardOrRefusal returns the board the daemon drives, or the refusal.
-//
-// The refusal is the contract's row: a daemon with no board answers no board,
-// whether the store was never opened or the module was never wired.
-func (k *Kernel) boardOrRefusal() (workapi.BoardService, error) {
-	svc := k.boardService()
-	if svc == nil {
-		return nil, workboardapi.ErrNoStore
-	}
-	return svc, nil
-}
-
-// CreateWorkboardTask adds a task to the board.
-func (k *Kernel) CreateWorkboardTask(corr string, spec workboardapi.CreateSpec) (workboardapi.Task, bool, error) {
-	svc, err := k.boardOrRefusal()
-	if err != nil {
-		return workboardapi.Task{}, false, err
-	}
-	return svc.Create(corr, spec)
-}
-
-// ClaimWorkboardTask takes a task for an agent under a run.
-func (k *Kernel) ClaimWorkboardTask(corr, id, agent, runID string) (workboardapi.Task, error) {
-	svc, err := k.boardOrRefusal()
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	return svc.Claim(corr, id, agent, runID)
-}
-
-// HeartbeatWorkboardTask keeps a claim alive.
-func (k *Kernel) HeartbeatWorkboardTask(corr, id, agent, runID string) (workboardapi.Task, error) {
-	svc, err := k.boardOrRefusal()
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	return svc.Heartbeat(corr, id, agent, runID)
-}
-
-// CommentWorkboardTask adds a note to a task.
-func (k *Kernel) CommentWorkboardTask(corr, id, author, body string) (workboardapi.Task, error) {
-	svc, err := k.boardOrRefusal()
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	return svc.Comment(corr, id, author, body)
-}
-
-// BlockWorkboardTask parks a task with a reason.
-func (k *Kernel) BlockWorkboardTask(corr, id, actor, reason string) (workboardapi.Task, error) {
-	svc, err := k.boardOrRefusal()
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	return svc.Block(corr, id, actor, reason)
-}
-
-// FailWorkboardTask records a failed attempt and returns the retry decision.
-func (k *Kernel) FailWorkboardTask(corr, id, actor, reason string) (workboardapi.Task, workboardapi.RetryDecision, error) {
-	svc, err := k.boardOrRefusal()
-	if err != nil {
-		return workboardapi.Task{}, workboardapi.RetryDecision{}, err
-	}
-	return svc.Fail(corr, id, actor, reason)
-}
-
-// UnblockWorkboardTask returns a blocked task to the queue.
-func (k *Kernel) UnblockWorkboardTask(corr, id, actor string) (workboardapi.Task, error) {
-	svc, err := k.boardOrRefusal()
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	return svc.Unblock(corr, id, actor)
-}
-
-// SetWorkboardRetryPolicy sets (or clears) a task's retry budget.
-func (k *Kernel) SetWorkboardRetryPolicy(corr, id, actor string, policy *workboardapi.RetryPolicy) (workboardapi.Task, error) {
-	svc, err := k.boardOrRefusal()
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	return svc.SetRetryPolicy(corr, id, actor, policy)
-}
-
-// CompleteWorkboardTask finishes a task.
-func (k *Kernel) CompleteWorkboardTask(corr, id, actor string) (workboardapi.Task, error) {
-	svc, err := k.boardOrRefusal()
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	return svc.Complete(corr, id, actor)
-}
-
-// ReviewWorkboardTask moves a task into review.
-func (k *Kernel) ReviewWorkboardTask(corr, id, actor, summary string) (workboardapi.Task, error) {
-	svc, err := k.boardOrRefusal()
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	return svc.Review(corr, id, actor, summary)
-}
-
-// ArchiveWorkboardTask retires a task.
-func (k *Kernel) ArchiveWorkboardTask(corr, id, actor string) (workboardapi.Task, error) {
-	svc, err := k.boardOrRefusal()
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	return svc.Archive(corr, id, actor)
-}
-
-// LinkWorkboardTask connects a task to something else.
-func (k *Kernel) LinkWorkboardTask(corr, id, typ, target string) (workboardapi.Task, error) {
-	svc, err := k.boardOrRefusal()
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	return svc.Link(corr, id, typ, target)
-}
-
-// AddWorkboardDependency makes a task wait for another one.
-func (k *Kernel) AddWorkboardDependency(corr, id, dependsOn string) (workboardapi.Task, error) {
-	svc, err := k.boardOrRefusal()
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	return svc.AddDependency(corr, id, dependsOn)
-}
-
-// ReclaimStaleWorkboardTask takes a stale claim back.
-func (k *Kernel) ReclaimStaleWorkboardTask(corr, id, actor string, staleAfter time.Duration) (workboardapi.Task, error) {
-	svc, err := k.boardOrRefusal()
-	if err != nil {
-		return workboardapi.Task{}, err
-	}
-	return svc.ReclaimStale(corr, id, actor, staleAfter)
-}
-
-// SweepStaleWorkboardClaims reclaims every stale claim, up to limit.
-func (k *Kernel) SweepStaleWorkboardClaims(corr, actor string, staleAfter time.Duration, limit int) ([]workboardapi.Task, error) {
-	svc, err := k.boardOrRefusal()
-	if err != nil {
-		return nil, err
-	}
-	return svc.SweepStaleClaims(corr, actor, staleAfter, limit)
 }

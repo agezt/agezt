@@ -34,14 +34,14 @@ func TestTheRootWiresTheTaskBoardModule(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	task, created, err := k.CreateWorkboardTask("corr", workboardapi.CreateSpec{Title: "wired"})
+	task, created, err := k.BoardRunner().CreateWorkboardTask("corr", workboardapi.CreateSpec{Title: "wired"})
 	if err != nil {
 		t.Fatalf("the root did not wire the board module: %v", err)
 	}
 	if !created || task.Title != "wired" {
 		t.Fatalf("the board did not take the task: %+v", task)
 	}
-	if _, err := k.ClaimWorkboardTask("corr", task.ID, "agent", "run"); err != nil {
+	if _, err := k.BoardRunner().ClaimWorkboardTask("corr", task.ID, "agent", "run"); err != nil {
 		t.Fatalf("the root did not wire the board module: %v", err)
 	}
 	if _, err := filepath.Glob(filepath.Join(dir, "workboard", "*.json")); err != nil {

@@ -86,11 +86,11 @@ var retiredVerbs = []string{
 // host. A ceiling that stays where it was while the floor moves is a ratchet
 // that permits exactly what the program exists to remove.
 //
-// So the ceiling follows the floor: 220 -> 201 (W3.76q) -> 194 (W3.76r, when
-// the objective lifecycle left the daemon for the work module). The daemon
-// holds 194 public verbs today; a new verb needs a new reason, and this file
-// says so.
-const daemonPublicVerbs = 194
+// So the ceiling follows the floor: 220 -> 201 (W3.76q) -> 194 (W3.76r, the
+// objective lifecycle) -> 179 (W3.76s, the task board's sixteen forwarders).
+// The daemon holds 179 public verbs today; a new verb needs a new reason, and
+// this file says so.
+const daemonPublicVerbs = 179
 
 // TestTheRetiredVerbsDoNotComeBack pins the retirement: none of the sixteen
 // names is a method of *Kernel any more.

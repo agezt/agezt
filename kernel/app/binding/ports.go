@@ -181,7 +181,7 @@ func ScopeFromKernel(k *runtime.Kernel, baseDir string) Scope {
 		SystemPorts:         appsystem.PortsFromKernel(k),
 		TastePorts:          apptaste.PortsFromKernel(k),
 		ToolsPorts:          apptools.PortsFromKernel(k),
-		WorkboardPorts:      appworkboard.PortsFromKernel(k),
+		WorkboardPorts:      appworkboard.PortsFromBoard(k.BoardRunner(), k.Workboard(), k.Seats(), k.Journal(), appcorrelation.PortsFromKernel(k)),
 		WorkflowEnginePorts: appworkflow.PortsFromKernel(k),
 		WorldPorts:          appworld.PortsFromKernel(k),
 		Directory:           baseDir,

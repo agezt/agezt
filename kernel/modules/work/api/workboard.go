@@ -83,6 +83,30 @@ type BoardService interface {
 	Prove(ctx context.Context, corr, id, answer string) (workboardapi.Task, error)
 }
 
+// BoardRunner is the CONTRACT's runner port, plus the three verbs the
+// contract does not name.
+//
+// The contract's Runner (kernel/contract/workboardapi.Runner) is the surface
+// the agent-facing plugin speaks: create, claim, comment, block, fail, … —
+// the board's operations under the CONTRACT's names. The daemon used to
+// implement it, as sixteen forwarders over the module's own service; the
+// module implements it now (W3.76s), so the contract's names have ONE home
+// and the host is not the thing that spells them.
+//
+// The three extra verbs are the ones the contract does not name but the
+// application layer needs: the REVIEW, the stale SWEEP and the PROOF.
+type BoardRunner interface {
+	workboardapi.Runner
+
+	// ReviewWorkboardTask moves a task into review.
+	ReviewWorkboardTask(corr, id, actor, summary string) (workboardapi.Task, error)
+	// SweepStaleWorkboardClaims reclaims every stale claim, up to limit.
+	SweepStaleWorkboardClaims(corr, actor string, staleAfter time.Duration, limit int) ([]workboardapi.Task, error)
+	// ProveTask judges an answer against the task's acceptance criteria and
+	// records the proof on the task.
+	ProveTask(ctx context.Context, corr, id, answer string) (workboardapi.Task, error)
+}
+
 // Dependencies are the host's ports the board needs to answer a verb.
 //
 // Every port is a way to ASK, never a way to reach: the board publishes on the

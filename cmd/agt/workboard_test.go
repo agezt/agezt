@@ -43,7 +43,7 @@ func TestCmdWorkboardRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runtime.Open: %v", err)
 	}
-	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
+	k.SetBoardRunner(workboard.NewRunner(workboard.NewService(k.Workboard(), k.WorkboardDependencies())))
 	t.Cleanup(func() { _ = k.Close() })
 
 	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))
@@ -153,7 +153,7 @@ func TestCmdWorkboardPolicyAndFail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runtime.Open: %v", err)
 	}
-	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
+	k.SetBoardRunner(workboard.NewRunner(workboard.NewService(k.Workboard(), k.WorkboardDependencies())))
 	t.Cleanup(func() { _ = k.Close() })
 
 	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))
@@ -212,7 +212,7 @@ func TestCmdWorkboardDispatchAndWatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runtime.Open: %v", err)
 	}
-	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
+	k.SetBoardRunner(workboard.NewRunner(workboard.NewService(k.Workboard(), k.WorkboardDependencies())))
 	t.Cleanup(func() { _ = k.Close() })
 	if _, err := k.AddProfile(roster.Profile{Slug: "builder", Soul: "You build AGEZT tasks."}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
@@ -330,7 +330,7 @@ func TestCmdWorkboardDispatchRetriesAndEscalates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runtime.Open: %v", err)
 	}
-	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
+	k.SetBoardRunner(workboard.NewRunner(workboard.NewService(k.Workboard(), k.WorkboardDependencies())))
 	t.Cleanup(func() { _ = k.Close() })
 	if _, err := k.AddProfile(roster.Profile{Slug: "builder", Soul: "You build AGEZT tasks."}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
@@ -382,7 +382,7 @@ func TestCmdWorkboardSweepReclaimsStaleClaims(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runtime.Open: %v", err)
 	}
-	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
+	k.SetBoardRunner(workboard.NewRunner(workboard.NewService(k.Workboard(), k.WorkboardDependencies())))
 	t.Cleanup(func() { _ = k.Close() })
 
 	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))

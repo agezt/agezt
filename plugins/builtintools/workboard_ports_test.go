@@ -39,7 +39,7 @@ func TestTheWorkboardSpecWiresTheStorePort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	k.SetWorkboard(workboard.NewService(k.Workboard(), k.WorkboardDependencies()))
+	k.SetBoardRunner(workboard.NewRunner(workboard.NewService(k.Workboard(), k.WorkboardDependencies())))
 	t.Cleanup(func() { k.Close() })
 
 	if k.Workboard() == nil {
@@ -51,11 +51,11 @@ func TestTheWorkboardSpecWiresTheStorePort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{WorkboardRunner: k, Workboard: k.Workboard()}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{WorkboardRunner: k.BoardRunner(), Workboard: k.Workboard()}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
-	if _, _, err := k.CreateWorkboardTask("corr", workboardapi.CreateSpec{Title: "visible through the port"}); err != nil {
+	if _, _, err := k.BoardRunner().CreateWorkboardTask("corr", workboardapi.CreateSpec{Title: "visible through the port"}); err != nil {
 		t.Fatalf("CreateWorkboardTask: %v", err)
 	}
 
@@ -88,7 +88,7 @@ func TestTheWorkboardSpecSurvivesAMissingStorePort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{WorkboardRunner: k}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{WorkboardRunner: k.BoardRunner()}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 

@@ -118,13 +118,18 @@ type Kernel struct {
 	// it is wired.
 	reasoning api.Service
 
-	// board is the WORK MODULE's task board — the lifecycle over the store the
-	// host opened (W5.6). The module lives in kernel/modules/work; the runtime
-	// cannot import it (a module may import another module's api package and
-	// nothing else — archcheck's principle P5), so the composition root builds
-	// the service over the store and injects it here with SetWorkboard. nil
-	// until it is wired, and every board verb refuses until then.
-	board workapi.BoardService
+	// boardRunner is the WORK MODULE's task board under the CONTRACT's runner
+	// port — the lifecycle over the store the host opened (W5.6). The module
+	// lives in kernel/modules/work; the runtime cannot import it (a module may
+	// import another module's api package and nothing else — archcheck's
+	// principle P5), so the composition root builds the service over the store,
+	// wraps it in the contract's runner port and injects it here with
+	// SetBoardRunner. nil until it is wired, and every board verb refuses
+	// until then.
+	//
+	// The daemon used to hold the SIXTEEN forwarders over the module's own
+	// operations instead (W3.76s) — a second spelling of every board verb.
+	boardRunner workapi.BoardRunner
 
 	// objectives is the WORK MODULE's objective library — the goals, the key
 	// results and the rollup rule over the store the host opened (W3.69). Same

@@ -65,7 +65,7 @@ func TestTheWatchRefusesWithoutABoard(t *testing.T) {
 // directly (it claims, blocks and reads dependencies), so it must refuse
 // before it reaches for it.
 func TestTheDispatchRefusesWithoutABoard(t *testing.T) {
-	dispatch := appwork.NewDispatch(nil, nil, nil, nil)
+	dispatch := appwork.NewDispatch(nil, nil, nil, nil, nil)
 	_, err := dispatch.Dispatch(context.Background(), appwork.DispatchInput{ID: "id"})
 	if err == nil {
 		t.Fatal("the dispatch reported success without a board")
