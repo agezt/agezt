@@ -42,6 +42,13 @@ import (
 // decoration was a hop that bought nothing. What stays here is the host's
 // own state: the effective config, the resume ticket and the seed, the
 // profile lookups.
+//
+// The ROSTER's WRITES are not part of it either (W3.76o): they are the agents
+// module's operations, and the run engine — which retires an agent whose run
+// completed and advances its cycle counter — asks the MODULE for them. The
+// port kept the roster's READ (RosterGet), because a read over the contract's
+// port is the host's own state, and the two roster entries nobody in this
+// module ever opened (Roster, RosterList) are gone with them.
 type KernelAPI interface {
 	Bus() *bus.Bus
 	Journal() *journal.Journal
@@ -58,8 +65,6 @@ type KernelAPI interface {
 	ShadowEval() bool
 	FoldRunTools(corr string) (int, []string)
 	CompleteAux(ctx context.Context, corr, taskType string, req llm.CompletionRequest) (*llm.CompletionResponse, error)
-	UpdateProfile(ref string, mutate func(*agentapi.Profile)) (agentapi.Profile, bool, error)
-	SetProfileRetired(ref string, retired bool, reason ...string) (agentapi.Profile, error)
 	SetupRunState(corr string, parentCtx context.Context) (context.Context, context.CancelFunc, agent.Steerer, error)
 	CleanupRunState(corr string) []context.CancelFunc
 	DeregisterRunSteer(corr string)
@@ -81,11 +86,15 @@ type KernelAPI interface {
 	DataLake() datalakeapi.Lake
 	State() *state.FileStore
 	Schedules() cadenceapi.HostStore
-	Roster() agentapi.Store
 	// RosterGet is the NIL-SAFE roster read: a kernel with no roster has no
 	// agents, not a panic.
+	//
+	// It is the host's own state (a read over the contract's port), so it
+	// stays. The roster's WRITES left this port in W3.76o: they are the
+	// agents module's operations, and the run engine asks the module for them
+	// (see the Runner's roster field) instead of asking the host to ask the
+	// module.
 	RosterGet(ref string) (agentapi.Profile, bool)
-	RosterList() []agentapi.Profile
 	Standing() standingapi.Store
 	StandingList() []standingapi.Order
 	ConfigCenter() *configcenter.Center

@@ -13361,3 +13361,53 @@ func main() {
   whose services the module catalogue also names as the agents module's.
   Evidence:
   `architecture/287-w376n-the-rosters-operations-move-into-the-agents-module-evidence.md`
+- W3.76o (the run engine asks the agents module for the roster) is the
+  **twenty-third** slice of the runtime's dissolution, and the loop W3.76n
+  opened: the roster's operations are the agents module's now, and the run
+  engine — which writes the roster's rows — was still asking the **host** for
+  them.
+
+  The run engine writes the roster's rows: when a run completes under a named
+  agent it retires an agent whose run was its last (`RetireOnComplete`) and
+  advances a cycling agent's cycle counter. After W3.76n those writes are the
+  module's operations, so the chain ran run engine → host → agents module →
+  store, and the middle hop bought nothing — the run engine may import
+  **another module's api package**, which is what the api layer is for.
+
+  The port's five roster entries split by their measurement:
+  `UpdateProfile` (one caller) and `SetProfileRetired` (two callers) are the
+  module's operations and left the port; `Roster()` and `RosterList()` had
+  **no caller in the runs module at all** and went with them — a port entry
+  that is never opened is a promise the host does not have to keep, while the
+  daemon's own public `Roster()`/`RosterList()` verbs stay (the application
+  layer and the agent gateway call them); `RosterGet` **stayed**, because a
+  read over the contract's port is the host's own state.
+
+  The Runner now holds the agents module's roster service, which the
+  composition root injects, and a host that wired no service leaves the run
+  engine quiet rather than broken.
+
+  The measurement: the run engine's port **64 → 60** entries, the daemon's
+  public verbs **203 → 203**, its production lines **6,156 → 6,162**, the
+  runner package **883 → 931** lines, the agents module **+0**.
+
+  **The probe fired**: putting `UpdateProfile` back into the port made the
+  port's ratchet fail. The first probe attempt did **not** fire — it added
+  the method to a struct instead of to the interface, so the port's method
+  set never changed. A ratchet that watches a shape must be probed against
+  that shape.
+
+  **No mutation run**: this slice moves two calls from one owner to another
+  and deletes two port entries, so there is no rule whose reversal a mutation
+  could expose. The evidence is the compiler, the permanent tests (4), the
+  ratchet and its probe, and the full suite.
+
+  **What is left**: the daemon holds **203** public verbs and **6,162**
+  production lines; the run engine's port carries **60** entries and no roster
+  vocabulary beyond the one read. The next door in the same family is the
+  **delegation** package, which has its own `Host` port and asks the host for
+  the same `RosterGet` read. The rest of the W3 exit is unchanged: the
+  daemon's composition root (`compose.go`), its `Kernel` (`runtime.go`), the
+  accessors family and the control plane (`kernel/controlplane`, 7,570).
+  Evidence:
+  `architecture/288-w376o-the-run-engine-asks-the-agents-module-for-the-roster-evidence.md`

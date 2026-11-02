@@ -328,7 +328,15 @@ cost ceiling, the model chain, the agent's daily ceiling, the actor) is the
 asking the host for it through the port; W3.76m retired the **last two**
 (`AgentSlugFromCtx`, `AgentRetryPolicyFromCtx`), so the run engine's context
 doors are all gone and the host's port carries no run-context vocabulary at
-all. The daemon keeps the doors a **module** needs without naming the runs
+all. W3.76o retired **four** more from the run engine's port: the roster's two
+**writes** (`UpdateProfile`, `SetProfileRetired`) are the **agents module's**
+operations, and the run engine — which retires an agent whose run completed
+and advances the agent's cycle counter — now asks the **module** for them
+instead of asking the host to ask the module; the two roster entries nobody in
+the runs module ever opened (`Roster`, `RosterList`) went with them, so the
+run engine's port carries **60** entries. The roster's **read** stayed
+(`RosterGet`): a read over the contract's port is the host's own state. The daemon
+keeps the doors a **module** needs without naming the runs
 module (`WithAgentProfile`, `WithMaxCost`) and the host's own state (the
 effective config, the resume ticket, the seed). The surface is **pinned**:
 `kernel/runtime/dead_surface_ratchet_test.go` fails if a retired name comes

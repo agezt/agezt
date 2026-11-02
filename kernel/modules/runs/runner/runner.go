@@ -15,6 +15,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
+	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
 	"github.com/agezt/agezt/kernel/modules/runs/runctx"
@@ -51,11 +52,26 @@ import (
 // for a future slice.
 type Runner struct {
 	k KernelAPI
+
+	// roster is the AGENTS MODULE's roster service (W3.76o).
+	//
+	// The run engine writes the roster's rows — it retires an agent whose run
+	// completed and advances the agent's cycle counter — and those writes are
+	// the agents module's operations, not the host's. Asking the host to ask
+	// the module was a hop that bought nothing: the run engine may import
+	// another module's api package, so it asks the module itself.
+	//
+	// nil means the host wired no roster service: the run engine simply has
+	// no roster to write, which is the same answer the host gave.
+	roster agentsapi.RosterService
 }
 
 // New constructs the Runner. k is the host kernel; the Runner
 // is a stateless value around it.
-func New(k KernelAPI) *Runner { return &Runner{k: k} }
+//
+// roster is the agents module's roster service — the module the run engine
+// asks when it writes the roster (W3.76o).
+func New(k KernelAPI, roster agentsapi.RosterService) *Runner { return &Runner{k: k, roster: roster} }
 
 // Run executes one tool-loop end-to-end and returns (answer,
 // corr, err). It mints a correlation ID internally; for the

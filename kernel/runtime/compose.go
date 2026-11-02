@@ -548,7 +548,13 @@ func Open(cfg Config) (*Kernel, error) {
 	// Wire the runner sub-manager (Day 22 split). The Runner holds
 	// a KernelAPI reference; Day 23 will move the 260-line RunWith
 	// body here. For now Runner just delegates back to *Kernel.
-	k.runner = runner.New(k)
+	//
+	// The runner also holds the AGENTS MODULE's roster service (W3.76o): the
+	// run engine writes the roster's rows (it retires an agent whose run
+	// completed and advances the agent's cycle counter), and those writes are
+	// the module's operations — so the run engine asks the module, not the
+	// host.
+	k.runner = runner.New(k, rosterSvc)
 
 	return k, nil
 }
