@@ -82,6 +82,15 @@ var retiredVerbs = []string{
 	"RequestToolPromotion",
 	"QuarantineScriptTool",
 	"RemoveScriptTool",
+	// The daemon's eight forwarders over the workflows module's engine.
+	"SaveWorkflow",
+	"RestoreWorkflow",
+	"SetWorkflowEnabled",
+	"RemoveWorkflow",
+	"RunWorkflow",
+	"TestWorkflowNode",
+	"DraftWorkflow",
+	"RefineWorkflow",
 }
 
 // daemonPublicVerbs is the ceiling the daemon's public method set may not
@@ -96,10 +105,11 @@ var retiredVerbs = []string{
 //
 // So the ceiling follows the floor: 220 -> 201 (W3.76q) -> 194 (W3.76r, the
 // objective lifecycle) -> 179 (W3.76s, the task board's sixteen forwarders) ->
-// 173 (W3.76t, the script forge's seven forwarders).
-// The daemon holds 173 public verbs today; a new verb needs a new reason, and
+// 173 (W3.76t, the script forge's seven forwarders) -> 166 (W3.76u, the
+// workflow engine's eight forwarders).
+// The daemon holds 166 public verbs today; a new verb needs a new reason, and
 // this file says so.
-const daemonPublicVerbs = 173
+const daemonPublicVerbs = 166
 
 // TestTheRetiredVerbsDoNotComeBack pins the retirement: none of the sixteen
 // names is a method of *Kernel any more.

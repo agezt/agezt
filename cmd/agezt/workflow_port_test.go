@@ -57,7 +57,7 @@ func TestOpenAppKernelWiresTheWorkflowLibrary(t *testing.T) {
 
 	// The engine must be wired too: the refusal is the answer only for a
 	// kernel that was opened WITHOUT one.
-	if _, _, err := k.SaveWorkflow("corr", workflowapi.Workflow{
+	if _, _, err := k.WorkflowEngine().Save("corr", workflowapi.Workflow{
 		Name:  "wired",
 		Nodes: []workflowapi.Node{{ID: "start", Type: workflowapi.NodeTrigger}},
 	}); err != nil {
@@ -90,7 +90,7 @@ func TestTheWorkflowEngineIsBuiltOverTheInjectedLibrary(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, _, err := k.SaveWorkflow("corr", workflowapi.Workflow{
+	if _, _, err := k.WorkflowEngine().Save("corr", workflowapi.Workflow{
 		Name:  "injected",
 		Nodes: []workflowapi.Node{{ID: "start", Type: workflowapi.NodeTrigger}},
 	}); err != nil {

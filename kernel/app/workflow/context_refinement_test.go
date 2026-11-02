@@ -233,9 +233,9 @@ func TestWorkflowInflightCancellationReachesDesignerAndRunPorts(t *testing.T) {
 
 type blockingDesigner struct{ wait func(context.Context) error }
 
-func (p *blockingDesigner) DraftWorkflow(ctx context.Context, _ string, _ string, _ string) (graphs.Workflow, error) {
+func (p *blockingDesigner) Draft(ctx context.Context, _ string, _ string, _ string) (graphs.Workflow, error) {
 	return graphs.Workflow{}, p.wait(ctx)
 }
-func (p *blockingDesigner) RefineWorkflow(ctx context.Context, _ string, _ graphs.Workflow, _ string) (graphs.Workflow, error) {
+func (p *blockingDesigner) Refine(ctx context.Context, _ string, _ graphs.Workflow, _ string) (graphs.Workflow, error) {
 	return graphs.Workflow{}, p.wait(ctx)
 }

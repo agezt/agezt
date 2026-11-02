@@ -253,15 +253,15 @@ func TestWorkflowExecutionUsesOwnedActualRuntimeTransformAndProbe(t *testing.T) 
 	provider := mock.New()
 	k := openWorkflowKernel(t, runtime.Config{BaseDir: t.TempDir(), Provider: provider})
 	defer k.Close()
-	graph, _, err := k.SaveWorkflow("", graphs.Workflow{Name: "owned", Nodes: []graphs.Node{{ID: "start", Type: graphs.NodeTrigger}, {ID: "format", Type: graphs.NodeTransform, Config: json.RawMessage(`{"template":"{{trigger.payload}}"}`)}}, Edges: []graphs.Edge{{From: "start", To: "format"}}})
+	graph, _, err := k.WorkflowEngine().Save("", graphs.Workflow{Name: "owned", Nodes: []graphs.Node{{ID: "start", Type: graphs.NodeTrigger}, {ID: "format", Type: graphs.NodeTransform, Config: json.RawMessage(`{"template":"{{trigger.payload}}"}`)}}, Edges: []graphs.Edge{{From: "start", To: "format"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	s := NewExecution(k.Workflows(), ExecutionHost{Correlation: k.NewCorrelation, Run: func(ctx context.Context, corr, ref string, payload any) (RunResult, error) {
-		res, err := k.RunWorkflow(ctx, corr, ref, payload)
+		res, err := k.WorkflowEngine().Run(ctx, corr, ref, payload)
 		return RunResult{Executed: res.Executed, Outputs: res.Outputs}, err
 	}, TestNode: func(ctx context.Context, corr string, w graphs.Workflow, node string, data map[string]any, payload any) (NodeResult, error) {
-		res, err := k.TestWorkflowNode(ctx, corr, w, node, data, payload)
+		res, err := k.WorkflowEngine().TestNode(ctx, corr, w, node, data, payload)
 		return NodeResult{Output: res.Output, Port: res.Port, Attempts: res.Attempts}, err
 	}})
 	out, err := s.Run(context.Background(), RunInput{Ref: "owned", Payload: "owned payload"})

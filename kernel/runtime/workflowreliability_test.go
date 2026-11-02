@@ -106,7 +106,7 @@ func watchNodeEvents(t *testing.T, k *runtime.Kernel, name string) func() []map[
 func TestWorkflowRetry_TransientFailureRecovers(t *testing.T) {
 	tool := &flakyTool{failUntil: 2}
 	k := openReliabilityKernel(t, tool)
-	if _, _, err := k.SaveWorkflow("", workflow.Workflow{
+	if _, _, err := k.WorkflowEngine().Save("", workflow.Workflow{
 		Name: "retry-flow",
 		Nodes: []workflow.Node{
 			{ID: "start", Type: workflow.NodeTrigger},
@@ -119,7 +119,7 @@ func TestWorkflowRetry_TransientFailureRecovers(t *testing.T) {
 	}
 	collect := watchNodeEvents(t, k, "retry-flow")
 
-	res, err := k.RunWorkflow(context.Background(), k.NewCorrelation(), "retry-flow", nil)
+	res, err := k.WorkflowEngine().Run(context.Background(), k.NewCorrelation(), "retry-flow", nil)
 	if err != nil {
 		t.Fatalf("RunWorkflow: %v", err)
 	}
@@ -149,7 +149,7 @@ func TestWorkflowRetry_TransientFailureRecovers(t *testing.T) {
 func TestWorkflowRetry_ExhaustionFailsThenErrorPortRescues(t *testing.T) {
 	tool := &flakyTool{failUntil: 99}
 	k := openReliabilityKernel(t, tool)
-	if _, _, err := k.SaveWorkflow("", workflow.Workflow{
+	if _, _, err := k.WorkflowEngine().Save("", workflow.Workflow{
 		Name: "rescue-flow",
 		Nodes: []workflow.Node{
 			{ID: "start", Type: workflow.NodeTrigger},
@@ -166,7 +166,7 @@ func TestWorkflowRetry_ExhaustionFailsThenErrorPortRescues(t *testing.T) {
 		t.Fatalf("save: %v", err)
 	}
 
-	res, err := k.RunWorkflow(context.Background(), k.NewCorrelation(), "rescue-flow", nil)
+	res, err := k.WorkflowEngine().Run(context.Background(), k.NewCorrelation(), "rescue-flow", nil)
 	if err != nil {
 		t.Fatalf("RunWorkflow (rescued) err: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestWorkflowRetry_ExhaustionFailsThenErrorPortRescues(t *testing.T) {
 func TestWorkflowTimeout_BoundsOneAttempt(t *testing.T) {
 	tool := &flakyTool{block: true}
 	k := openReliabilityKernel(t, tool)
-	if _, _, err := k.SaveWorkflow("", workflow.Workflow{
+	if _, _, err := k.WorkflowEngine().Save("", workflow.Workflow{
 		Name: "timeout-flow",
 		Nodes: []workflow.Node{
 			{ID: "start", Type: workflow.NodeTrigger},
@@ -197,7 +197,7 @@ func TestWorkflowTimeout_BoundsOneAttempt(t *testing.T) {
 	}
 
 	startAt := time.Now()
-	_, err := k.RunWorkflow(context.Background(), k.NewCorrelation(), "timeout-flow", nil)
+	_, err := k.WorkflowEngine().Run(context.Background(), k.NewCorrelation(), "timeout-flow", nil)
 	if err == nil || !strings.Contains(err.Error(), "node timeout after 1s") {
 		t.Fatalf("err = %v", err)
 	}
@@ -259,7 +259,7 @@ func TestWorkflowTestNode(t *testing.T) {
 	}
 
 	collect := watchNodeEvents(t, k, "probe-flow")
-	res, err := k.TestWorkflowNode(context.Background(), k.NewCorrelation(), w, "shape",
+	res, err := k.WorkflowEngine().TestNode(context.Background(), k.NewCorrelation(), w, "shape",
 		map[string]any{"fetch": map[string]any{"output": map[string]any{"status": 200}}},
 		map[string]any{"who": "ersin"})
 	if err != nil {
@@ -270,17 +270,17 @@ func TestWorkflowTestNode(t *testing.T) {
 	}
 
 	// The trigger refuses; an unknown node is an honest error.
-	if _, err := k.TestWorkflowNode(context.Background(), "", w, "start", nil, nil); err == nil {
+	if _, err := k.WorkflowEngine().TestNode(context.Background(), "", w, "start", nil, nil); err == nil {
 		t.Fatal("trigger test accepted")
 	}
-	if _, err := k.TestWorkflowNode(context.Background(), "", w, "ghost", nil, nil); err == nil {
+	if _, err := k.WorkflowEngine().TestNode(context.Background(), "", w, "ghost", nil, nil); err == nil {
 		t.Fatal("ghost node accepted")
 	}
 
 	// Policy still gates: the flaky tool is default-denied on a fresh edict
 	// level... it was set to allow in openReliabilityKernel; flip to deny.
 	k.Edict().SetLevel("flaky", edict.LevelDeny)
-	if _, err := k.TestWorkflowNode(context.Background(), "", w, "call", nil, nil); err == nil {
+	if _, err := k.WorkflowEngine().TestNode(context.Background(), "", w, "call", nil, nil); err == nil {
 		t.Fatal("denied tool ran in a node test")
 	}
 

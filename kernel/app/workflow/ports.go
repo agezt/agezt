@@ -4,6 +4,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 
 	graphs "github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -47,11 +48,14 @@ type Ports struct {
 	// name is a verb the adapter may name.
 	Events Journal
 
-	// Writer writes the workflows: the kernel's save, restore, enable and
-	// remove verbs.
+	// Writer writes the workflows: save, restore, enable and remove.
+	//
+	// It is the MODULE's engine (W3.76u) — the application speaks the
+	// contract's engine vocabulary, so the module's face binds here directly
+	// and there is no adapter in between.
 	Writer Writer
 
-	// Designer drafts and refines a workflow: the kernel's two verbs.
+	// Designer drafts and refines a workflow: the module's engine too.
 	Designer Designer
 
 	// Correlation mints a correlation for a run that arrives without one.
@@ -80,18 +84,31 @@ type Ports struct {
 // handle.
 func PortsFromKernel(k *runtime.Kernel) Ports {
 	store := k.Workflows()
+	engine := k.WorkflowEngine()
 	return Ports{
 		Reader:      store,
 		Events:      k.Journal(),
-		Writer:      k,
-		Designer:    k,
+		Writer:      engine,
+		Designer:    engine,
 		Correlation: k.NewCorrelation,
 		Run: func(ctx context.Context, corr, ref string, payload any) (RunResult, error) {
-			res, err := k.RunWorkflow(ctx, corr, ref, payload)
+			if engine == nil {
+				return RunResult{}, graphs.ErrNoEngine
+			}
+			res, err := engine.Run(ctx, corr, ref, payload)
+			if errors.Is(err, graphs.ErrHalted) {
+				return RunResult{}, runtime.ErrHalted
+			}
 			return RunResult{Executed: res.Executed, Outputs: res.Outputs}, err
 		},
 		TestNode: func(ctx context.Context, corr string, w graphs.Workflow, node string, data map[string]any, payload any) (NodeResult, error) {
-			res, err := k.TestWorkflowNode(ctx, corr, w, node, data, payload)
+			if engine == nil {
+				return NodeResult{}, graphs.ErrNoEngine
+			}
+			res, err := engine.TestNode(ctx, corr, w, node, data, payload)
+			if errors.Is(err, graphs.ErrHalted) {
+				return NodeResult{}, runtime.ErrHalted
+			}
 			return NodeResult{Output: res.Output, Port: res.Port, Attempts: res.Attempts}, err
 		},
 		Entries: func() []graphs.Workflow {

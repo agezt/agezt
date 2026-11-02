@@ -28,7 +28,7 @@ func TestWorkflowAllNineAppMutationsJoinOwnedAuditAndDomainIdentity(t *testing.T
 			if cmd == CmdWorkflowWebhook {
 				config = json.RawMessage(`{"kind":"webhook","secret":"owned fixture credential"}`)
 			}
-			graph, _, err := k.SaveWorkflow("", workflow.Workflow{Name: "owned", Nodes: []workflow.Node{{ID: "start", Type: workflow.NodeTrigger, Config: config}, {ID: "work", Type: workflow.NodeTransform, Config: json.RawMessage(`{"template":"{{trigger.payload}}"}`)}}, Edges: []workflow.Edge{{From: "start", To: "work"}}})
+			graph, _, err := k.WorkflowEngine().Save("", workflow.Workflow{Name: "owned", Nodes: []workflow.Node{{ID: "start", Type: workflow.NodeTrigger, Config: config}, {ID: "work", Type: workflow.NodeTransform, Config: json.RawMessage(`{"template":"{{trigger.payload}}"}`)}}, Edges: []workflow.Edge{{From: "start", To: "work"}}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -84,7 +84,7 @@ func TestWorkflowDispatcherInflightCancellationSettlesJoinedAuditWithoutProvider
 	provider := mock.New()
 	k := openWorkflowKernel(t, runtime.Config{BaseDir: dir, Provider: provider})
 	defer k.Close()
-	graph, _, err := k.SaveWorkflow("", workflow.Workflow{Name: "owned", Nodes: []workflow.Node{{ID: "start", Type: workflow.NodeTrigger}, {ID: "wait", Type: workflow.NodeDelay, Config: json.RawMessage(`{"seconds":60}`)}}, Edges: []workflow.Edge{{From: "start", To: "wait"}}})
+	graph, _, err := k.WorkflowEngine().Save("", workflow.Workflow{Name: "owned", Nodes: []workflow.Node{{ID: "start", Type: workflow.NodeTrigger}, {ID: "wait", Type: workflow.NodeDelay, Config: json.RawMessage(`{"seconds":60}`)}}, Edges: []workflow.Edge{{From: "start", To: "wait"}}})
 	if err != nil {
 		t.Fatal(err)
 	}

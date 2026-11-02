@@ -57,7 +57,7 @@ func TestTheWorkflowSpecWiresTheLibraryPort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{WorkflowRunner: k, Workflows: k.Workflows()}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{WorkflowRunner: k.WorkflowEngine(), Workflows: k.Workflows()}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
@@ -99,7 +99,7 @@ func TestTheWorkflowSpecSurvivesAMissingLibraryPort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{WorkflowRunner: k}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{WorkflowRunner: k.WorkflowEngine()}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 

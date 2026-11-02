@@ -27,7 +27,7 @@ type designerPort struct {
 	check  func(designCall)
 }
 
-func (p *designerPort) DraftWorkflow(ctx context.Context, corr, name, description string) (graphs.Workflow, error) {
+func (p *designerPort) Draft(ctx context.Context, corr, name, description string) (graphs.Workflow, error) {
 	call := designCall{Method: "draft", Corr: corr, Name: name, Text: description, Ctx: ctx}
 	p.calls = append(p.calls, call)
 	if p.check != nil {
@@ -35,7 +35,7 @@ func (p *designerPort) DraftWorkflow(ctx context.Context, corr, name, descriptio
 	}
 	return p.result, p.cause
 }
-func (p *designerPort) RefineWorkflow(ctx context.Context, corr string, base graphs.Workflow, instruction string) (graphs.Workflow, error) {
+func (p *designerPort) Refine(ctx context.Context, corr string, base graphs.Workflow, instruction string) (graphs.Workflow, error) {
 	call := designCall{Method: "refine", Corr: corr, Base: base, Text: instruction, Ctx: ctx}
 	p.calls = append(p.calls, call)
 	if p.check != nil {
@@ -150,12 +150,12 @@ func TestWorkflowCopilotUsesActualRuntimeMockAndReturnsUnsavedGraphs(t *testing.
 	provider := mock.New(mock.FinalText(raw), mock.FinalText(raw))
 	k := openWorkflowKernel(t, runtime.Config{BaseDir: t.TempDir(), Provider: provider})
 	defer k.Close()
-	base, _, err := k.SaveWorkflow("", graphs.Workflow{Name: "stored", Nodes: []graphs.Node{{ID: "start", Type: graphs.NodeTrigger}}})
+	base, _, err := k.WorkflowEngine().Save("", graphs.Workflow{Name: "stored", Nodes: []graphs.Node{{ID: "start", Type: graphs.NodeTrigger}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	before := k.Workflows().List()
-	s := NewCopilot(k.Workflows(), k, k.NewCorrelation)
+	s := NewCopilot(k.Workflows(), k.WorkflowEngine(), k.NewCorrelation)
 	drafted, err := s.Draft(context.Background(), DraftInput{Name: "owned-draft", Description: "design owned graph"})
 	if err != nil || drafted.CorrelationID == "" || drafted.Workflow.Name != "owned-draft" || drafted.Workflow.NodeCount != 1 {
 		t.Fatal(drafted, err)

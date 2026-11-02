@@ -34,7 +34,7 @@ func workflowAppFixture(t *testing.T) (*runtime.Kernel, *Server, workflow.Workfl
 	}
 	k.SetWorkflowEngine(workflow.NewEngine(wfstore, k.WorkflowPorts()))
 	t.Cleanup(func() { k.Close() })
-	graph, _, err := k.SaveWorkflow("", workflow.Workflow{Name: "owned", Nodes: []workflow.Node{{ID: "start", Type: workflow.NodeTrigger}, {ID: "work", Type: workflow.NodeLLM, Config: json.RawMessage(`{"prompt":"owned"}`)}}, Edges: []workflow.Edge{{From: "start", To: "work"}}})
+	graph, _, err := k.WorkflowEngine().Save("", workflow.Workflow{Name: "owned", Nodes: []workflow.Node{{ID: "start", Type: workflow.NodeTrigger}, {ID: "work", Type: workflow.NodeLLM, Config: json.RawMessage(`{"prompt":"owned"}`)}}, Edges: []workflow.Edge{{From: "start", To: "work"}}})
 	if err != nil {
 		t.Fatal(err)
 	}

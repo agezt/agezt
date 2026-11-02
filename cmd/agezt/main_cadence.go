@@ -18,6 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/cadence/systemtasks"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
@@ -99,7 +100,11 @@ func buildCadence(ctx context.Context, k *kernelruntime.Kernel, store *cadence.S
 				Payload:       scheduleFiredEventPayload(id, intent, model, ent, prof),
 			})
 			return runScheduledTrackedTarget(mctx, k, corr, ent, intent, func(ctx context.Context) (string, error) {
-				res, err := k.RunWorkflow(ctx, corr, ent.Workflow, payload)
+				engine := k.WorkflowEngine()
+				if engine == nil {
+					return "", fmt.Errorf("schedule %s: %w", id, workflowapi.ErrNoEngine)
+				}
+				res, err := engine.Run(ctx, corr, ent.Workflow, payload)
 				if err != nil {
 					return "", err
 				}

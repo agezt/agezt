@@ -36,7 +36,7 @@ func TestTheAdapterBindsTheWorkflowPortsToItsOwnKernel(t *testing.T) {
 	defer k.Close()
 	k.SetWorkflowEngine(graphs.NewEngine(store, k.WorkflowPorts()))
 
-	saved, _, err := k.SaveWorkflow("", graphs.Workflow{
+	saved, _, err := k.WorkflowEngine().Save("", graphs.Workflow{
 		Name:  "owned",
 		Nodes: []graphs.Node{{ID: "start", Type: graphs.NodeTrigger}},
 	})

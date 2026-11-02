@@ -93,19 +93,22 @@ func TestTheHostStoreIsWiderThanTheReadPort(t *testing.T) {
 	}
 }
 
-// TestTheHostPortsCarryTheTenCapabilities: the engine calls out to exactly ten
-// host capabilities, and every one of them is the host's OWN governed path —
-// the module holds no provider, no tool registry and no bus of its own, so a
-// workflow run keeps the host's policy checks, its audit arc and its spend
+// TestTheHostPortsCarryTheElevenCapabilities: the engine calls out to exactly
+// eleven host capabilities, and every one of them is the host's OWN governed
+// path — the module holds no provider, no tool registry and no bus of its own,
+// so a workflow run keeps the host's policy checks, its audit arc and its spend
 // attribution.
 //
 // The set is pinned here because it is the shape of the host's surface: a port
 // that lost a capability would refuse the node that needs it, and a port that
 // grew one would let the module reach past the host's governance.
-func TestTheHostPortsCarryTheTenCapabilities(t *testing.T) {
+//
+// The eleventh is the PROVENANCE (W3.76u): the wake context is the host's own,
+// so the host reads it and the module asks.
+func TestTheHostPortsCarryTheElevenCapabilities(t *testing.T) {
 	typ := reflect.TypeOf(Ports{})
-	if typ.NumField() != 10 {
-		t.Fatalf("the host ports carry %d capabilities, want 10", typ.NumField())
+	if typ.NumField() != 11 {
+		t.Fatalf("the host ports carry %d capabilities, want 11", typ.NumField())
 	}
 	want := map[string]reflect.Type{
 		"Publish": reflect.TypeOf(func(eventapi.Spec) {}),
@@ -124,6 +127,7 @@ func TestTheHostPortsCarryTheTenCapabilities(t *testing.T) {
 		"DefaultModel":      reflect.TypeOf(func(context.Context) string { return "" }),
 		"HasProvider":       reflect.TypeOf(func() bool { return false }),
 		"Halted":            reflect.TypeOf(func() bool { return false }),
+		"Provenance":        reflect.TypeOf(func(context.Context) Provenance { return Provenance{} }),
 	}
 	for i := 0; i < typ.NumField(); i++ {
 		f := typ.Field(i)
@@ -232,7 +236,7 @@ func (fakeEngine) Restore(string, Workflow, string) (Workflow, bool, error) {
 }
 func (fakeEngine) SetEnabled(string, string, bool) (Workflow, error) { return Workflow{}, nil }
 func (fakeEngine) Remove(string, string) (bool, error)               { return false, nil }
-func (fakeEngine) Run(context.Context, string, string, any, Provenance) (RunResult, error) {
+func (fakeEngine) Run(context.Context, string, string, any) (RunResult, error) {
 	return RunResult{}, nil
 }
 func (fakeEngine) TestNode(context.Context, string, Workflow, string, map[string]any, any) (NodeTestResult, error) {

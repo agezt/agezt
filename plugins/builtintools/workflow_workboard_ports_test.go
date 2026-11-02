@@ -28,18 +28,18 @@ type fakeWorkflowRunner struct {
 	ran     bool
 }
 
-func (f *fakeWorkflowRunner) SaveWorkflow(_ string, w workflowapi.Workflow) (workflowapi.Workflow, bool, error) {
+func (f *fakeWorkflowRunner) Save(_ string, w workflowapi.Workflow) (workflowapi.Workflow, bool, error) {
 	f.saved = true
 	w.Name = "daily"
 	return w, true, nil
 }
 
-func (f *fakeWorkflowRunner) SetWorkflowEnabled(_ string, _ string, enabled bool) (workflowapi.Workflow, error) {
+func (f *fakeWorkflowRunner) SetEnabled(_ string, _ string, enabled bool) (workflowapi.Workflow, error) {
 	f.enabled = enabled
 	return workflowapi.Workflow{Name: "daily", Enabled: enabled}, nil
 }
 
-func (f *fakeWorkflowRunner) RunWorkflow(_ context.Context, _, _ string, _ any) (workflowapi.RunResult, error) {
+func (f *fakeWorkflowRunner) Run(_ context.Context, _, _ string, _ any) (workflowapi.RunResult, error) {
 	f.ran = true
 	return workflowapi.RunResult{}, nil
 }

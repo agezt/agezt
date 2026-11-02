@@ -13738,3 +13738,89 @@ func main() {
   own `*Kernel` that breaks it — at 173, it needs 113 more verbs gone.
   Evidence:
   `architecture/293-w376t-the-script-forges-lifecycle-moves-into-the-extensions-module-evidence.md`
+- W3.76u (the workflow engine's lifecycle moves into the workflows module) is the
+  **twenty-ninth** slice of the runtime's dissolution.
+
+  The engine is the **workflows module's** — its `*Engine` has answered the
+  contract's `workflowapi.Engine` port since W3.48 — but the daemon still held
+  **eight forwarders** over the engine's own operations: `SaveWorkflow`,
+  `RestoreWorkflow`, `SetWorkflowEnabled`, `RemoveWorkflow`, `RunWorkflow`,
+  `TestWorkflowNode`, `DraftWorkflow` and `RefineWorkflow`. Each did the same
+  three lines: take the engine out of the daemon, call it, return its answer.
+
+  The **contract** had named this family **twice** — `workflowapi.Engine` (the
+  wide port, eight verbs: `Save`, `Restore`, `SetEnabled`, `Remove`, `Run`,
+  `TestNode`, `Draft`, `Refine`) and `workflowapi.Runner` (the narrow port the
+  plugin drives, three verbs, with the **long** names) — and the daemon added a
+  third copy of the long ones. **One vocabulary, two widths** is the shape the
+  contract has now: the **widest** port's spelling is the family's, and the
+  narrow port is a **subset** of it (`Runner` embeds into `Engine` rather than
+  restating it). The module's engine answers both without an adapter.
+
+  The one thing that could **not** move as a parameter is the run's
+  **provenance** — why the run exists. That row is filled from the host's
+  **wake context**, and a module may not read another package's context keys
+  (P5), so the host has to hand it over. It became a **port**:
+  `workflowapi.Ports` gained `Provenance func(ctx) Provenance` (the eleventh
+  host capability), and the daemon fills it with the mapping it already had.
+  The engine's `Run` therefore lost its parameter — and the daemon's
+  `RunWorkflow` forwarder, which had hidden the mapping, is gone with it.
+
+  The daemon keeps three things and no more: the library's **FILE**
+  (`Workflows`), the engine's **WIRING** (`WorkflowPorts` — the host's bus,
+  governor, tool runner and approvals) and the module's **FACE**
+  (`WorkflowEngine`). Its own trigger path (`FireWorkflow`) stays: the wake
+  context is the host's, so the host runs the trigger's workflow. The
+  application binds the module's engine (`PortsFromKernel` fills `Writer` and
+  `Designer` with `k.WorkflowEngine()`, and a daemon with no engine holds no
+  writer — the application then refuses with the contract's row
+  `workflowapi.ErrNoEngine`), and the plugin binds the module's engine too
+  (`workflowPort(k)` answers `k.WorkflowEngine()`).
+
+  The measurement: the daemon's public verbs **173 → 166**, its production
+  lines **5,899 → 5,813**, its files **54 → 54**; the workflows module
+  **1,951 → 1,972** lines, the workflow contract **893 → 924**, the workflow
+  application **1,215 → 1,285**. The measurement that did **not** move: the
+  app packages that name the daemon stay at **forty** — `kernel/app/workflow`
+  still names the daemon for the library's file, the journal and the
+  correlation mint, so the engine's binding was narrowed, not the package's.
+
+  **Two ratchets, both probes fired**: the daemon's new workflow ratchet pins
+  the eight forwarders' absence and that the daemon still holds the file, the
+  wiring and the face; the application's new binding ratchet pins that the
+  workflow package does not bind the **daemon** as the engine's writer again.
+  The daemon's own surface ceiling followed the floor again: **173 → 166**
+  (220 → 201 → 194 → 179 → 173 → 166). **Probe A** put the eight long-named
+  forwarders back: the retired-verb ratchet, the surface ceiling (174 > 166)
+  and the workflow ratchet all went red at once. **Probe B** gave the daemon
+  the engine's short names and bound it as the application's writer: the
+  application's binding ratchet went red. Between the two probes is a sharper
+  fact: with the forwarders gone, binding the daemon as the application's
+  writer **does not compile** — the daemon cannot satisfy the application's
+  port, and the type system says so before any test runs.
+
+  **The coverage moved with the subject**: the contract's own tests pin the
+  family (the runner port has three methods, the engine port has eight, the
+  runner is a **subset** of the engine, and the host's ports carry **eleven**
+  capabilities); the daemon's tests pin what the daemon still does — it holds
+  the file, the wiring and the face, and it holds **no** verb per operation;
+  and the application's tests pin the refusal (a daemon with no engine holds
+  no writer, and every service — save, arm, run, test a node, draft — refuses
+  with the contract's row).
+
+  **No mutation run**: the slice deletes forwarders and moves a binding, so
+  there is no rule whose reversal a mutation could expose. The evidence is the
+  compiler, the permanent tests, the ratchets and their probes, and the full
+  suite.
+
+  **What is left**: the daemon holds **166** public verbs and **5,813**
+  production lines; **forty** application packages still name it. The same
+  shape is waiting for the families that still have forwarders in the daemon:
+  the **MCP registry** (12), the **standing library** (9) and the **roster's**
+  remaining read doors (9). The MCP registry is the mixed one: the registry's
+  lifecycle is the module's, but the **attach/detach** verbs are the host's
+  (they hold live child processes). The W3 exit criterion that no type has
+  more than 60 methods is still the daemon's own `*Kernel` that breaks it — at
+  166, it needs 106 more verbs gone.
+  Evidence:
+  `architecture/294-w376u-the-workflow-engines-lifecycle-moves-into-the-workflows-module-evidence.md`

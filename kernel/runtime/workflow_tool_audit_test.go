@@ -45,7 +45,7 @@ func TestRunTool_ApprovalCarriesRunIdentity(t *testing.T) {
 					_, err = k.RunTool(ctx, "approval-corr", "call", "approvalprobe", json.RawMessage(`{}`))
 				} else {
 					w := workflow.Workflow{Name: "approval-flow", Nodes: []workflow.Node{{ID: "start", Type: workflow.NodeTrigger}, {ID: "call", Type: workflow.NodeTool, Config: json.RawMessage(`{"tool":"approvalprobe","args":{}}`)}}, Edges: []workflow.Edge{{From: "start", To: "call"}}}
-					_, err = k.TestWorkflowNode(ctx, "approval-corr", w, "call", nil, nil)
+					_, err = k.WorkflowEngine().TestNode(ctx, "approval-corr", w, "call", nil, nil)
 				}
 				done <- err
 			}()
@@ -96,7 +96,7 @@ func TestRunTool_UsesDeclaredCapabilityAxis(t *testing.T) {
 				_, err = k.RunTool(context.Background(), "axis-corr", "write", "axis", json.RawMessage(`{"op":"write"}`))
 			} else {
 				saveFlow(t, k, workflow.Workflow{Name: "axis-flow", Nodes: []workflow.Node{{ID: "start", Type: workflow.NodeTrigger}, {ID: "write", Type: workflow.NodeTool, Config: json.RawMessage(`{"tool":"axis","args":{"op":"write"}}`)}}, Edges: []workflow.Edge{{From: "start", To: "write"}}})
-				_, err = k.RunWorkflow(context.Background(), "axis-corr", "axis-flow", nil)
+				_, err = k.WorkflowEngine().Run(context.Background(), "axis-corr", "axis-flow", nil)
 			}
 			if err == nil || tool.calls != 0 {
 				t.Fatalf("declared write axis was not denied: error=%v calls=%d", err, tool.calls)
@@ -195,7 +195,7 @@ func TestWorkflowToolAudit_RetryHasDistinctCallIDs(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 	saveFlow(t, k, workflow.Workflow{Name: "retry-audit", Nodes: []workflow.Node{{ID: "start", Type: workflow.NodeTrigger}, {ID: "call", Type: workflow.NodeTool, Retries: 1, Config: json.RawMessage(`{"tool":"audit","args":{}}`)}}, Edges: []workflow.Edge{{From: "start", To: "call"}}})
-	if _, err := k.RunWorkflow(context.Background(), "retry-corr", "retry-audit", nil); err != nil {
+	if _, err := k.WorkflowEngine().Run(context.Background(), "retry-corr", "retry-audit", nil); err != nil {
 		t.Fatal(err)
 	}
 	calls := map[string]map[event.Kind]int{}
@@ -258,10 +258,10 @@ func TestWorkflowToolAudit(t *testing.T) {
 				w := workflow.Workflow{Name: "audit-flow", Nodes: []workflow.Node{{ID: "start", Type: workflow.NodeTrigger}, node}, Edges: []workflow.Edge{{From: "start", To: "call"}}}
 				const corr = "workflow-audit"
 				if path == "canvas" {
-					_, err = k.TestWorkflowNode(context.Background(), corr, w, "call", nil, nil)
+					_, err = k.WorkflowEngine().TestNode(context.Background(), corr, w, "call", nil, nil)
 				} else {
 					saveFlow(t, k, w)
-					_, err = k.RunWorkflow(context.Background(), corr, w.Name, nil)
+					_, err = k.WorkflowEngine().Run(context.Background(), corr, w.Name, nil)
 				}
 				if (err != nil) != (mode != "allow") {
 					t.Fatalf("error=%v mode=%s", err, mode)

@@ -15,18 +15,26 @@ import "context"
 // The port is EIGHT verbs wide because its holder drives all eight: the
 // canvas saves and restores graphs, arms and disarms them, removes them, runs
 // them, tests a single node, and asks the copilot to draft or refine one.
+//
+// Its spelling is the family's (W3.76u): the contract named the family twice
+// — this port with the short names and `Runner` with the long ones — and the
+// daemon added a third copy. The widest port's spelling wins: `Runner` is now
+// a subset of this one, so there is one vocabulary and two widths.
 type Engine interface {
-	// Save upserts a workflow by name; the bool is false when the reference
-	// already names another workflow.
-	Save(corr string, w Workflow) (Workflow, bool, error)
+	// Runner is the narrow face the agent-facing plugin drives: save, arm
+	// and run.
+	Runner
 	// Restore restores a checkpointed workflow.
 	Restore(corr string, w Workflow, reason string) (Workflow, bool, error)
-	// SetEnabled arms or disarms a workflow's triggers.
-	SetEnabled(corr, ref string, enabled bool) (Workflow, error)
 	// Remove deletes a workflow; the bool is false when there was none.
 	Remove(corr, ref string) (bool, error)
 	// Run executes one stored workflow under corr with the given payload.
-	Run(ctx context.Context, corr, ref string, payload any, prov Provenance) (RunResult, error)
+	//
+	// The run's PROVENANCE — why it exists — comes from the host through the
+	// ports (`Ports.Provenance`), not from a parameter: the wake context is
+	// the host's own, and a module may not read another package's context
+	// keys (archcheck's principle P5).
+	Run(ctx context.Context, corr, ref string, payload any) (RunResult, error)
 	// TestNode executes one node of w against the supplied data map.
 	TestNode(ctx context.Context, corr string, w Workflow, nodeID string, data map[string]any, payload any) (NodeTestResult, error)
 	// Draft asks the configured provider to design a workflow.

@@ -23,70 +23,26 @@ func triggerFlow(name string) workflowapi.Workflow {
 	}
 }
 
-// TestTheWorkflowRefusesWithoutAnEngine: the engine is the DAEMON's (W3.48) —
-// the kernel holds the contract's port, and a kernel opened without one says
-// so instead of calling into nothing.
+// TestTheWorkflowHoldsNoEngineWithoutOne: the engine is the MODULE's
+// (W3.48/W3.76u) — the kernel holds the contract's port, and a kernel opened
+// without one holds NO engine at all.
 //
 // The refusal is the answer, not a panic: a missing port must never take the
-// daemon down, and the message must name the reason ("the workflow engine is
-// not available on this daemon") so an operator can tell an unwired daemon
-// from a broken one.
-func TestTheWorkflowRefusesWithoutAnEngine(t *testing.T) {
+// daemon down. The refusal itself belongs to the layer that asks — the
+// application binds the engine's face and says so (the contract's row,
+// workflowapi.ErrNoEngine) instead of calling into nothing.
+func TestTheWorkflowHoldsNoEngineWithoutOne(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { _ = k.Close() })
 
-	ctx := context.Background()
-	flow := triggerFlow("no-engine")
-
-	checks := []struct {
-		name string
-		call func() error
-	}{
-		{"SaveWorkflow", func() error {
-			_, _, err := k.SaveWorkflow("corr", flow)
-			return err
-		}},
-		{"RestoreWorkflow", func() error {
-			_, _, err := k.RestoreWorkflow("corr", flow, "rollback")
-			return err
-		}},
-		{"SetWorkflowEnabled", func() error {
-			_, err := k.SetWorkflowEnabled("corr", "no-engine", true)
-			return err
-		}},
-		{"RemoveWorkflow", func() error {
-			_, err := k.RemoveWorkflow("corr", "no-engine")
-			return err
-		}},
-		{"RunWorkflow", func() error {
-			_, err := k.RunWorkflow(ctx, "corr", "no-engine", nil)
-			return err
-		}},
-		{"TestWorkflowNode", func() error {
-			_, err := k.TestWorkflowNode(ctx, "corr", flow, "start", nil, nil)
-			return err
-		}},
-		{"DraftWorkflow", func() error {
-			_, err := k.DraftWorkflow(ctx, "corr", "draft", "a greeting flow")
-			return err
-		}},
-		{"RefineWorkflow", func() error {
-			_, err := k.RefineWorkflow(ctx, "corr", flow, "add a step")
-			return err
-		}},
+	if k.WorkflowEngine() != nil {
+		t.Fatal("a kernel opened without an engine must hold no engine face")
 	}
-	for _, c := range checks {
-		err := c.call()
-		if err == nil {
-			t.Errorf("%s accepted the call on a kernel without an engine", c.name)
-			continue
-		}
-		if !strings.Contains(err.Error(), "not available on this daemon") {
-			t.Errorf("%s refused for the wrong reason: %v", c.name, err)
-		}
+	if err := workflowapi.ErrNoEngine; !strings.Contains(err.Error(), "not available on this daemon") {
+		t.Errorf("the refusal must name the reason: %v", err)
 	}
 }
 
@@ -108,7 +64,7 @@ func TestTheWorkflowEngineDrivesTheHostPort(t *testing.T) {
 		t.Fatal("the kernel holds no workflow library")
 	}
 
-	saved, created, err := k.SaveWorkflow("corr", triggerFlow("driven"))
+	saved, created, err := k.WorkflowEngine().Save("corr", triggerFlow("driven"))
 	if err != nil {
 		t.Fatalf("SaveWorkflow: %v", err)
 	}
@@ -123,7 +79,7 @@ func TestTheWorkflowEngineDrivesTheHostPort(t *testing.T) {
 	}
 
 	// The enable/disable verb drives the same row.
-	disabled, err := k.SetWorkflowEnabled("corr", "driven", false)
+	disabled, err := k.WorkflowEngine().SetEnabled("corr", "driven", false)
 	if err != nil {
 		t.Fatalf("SetWorkflowEnabled: %v", err)
 	}
@@ -135,7 +91,7 @@ func TestTheWorkflowEngineDrivesTheHostPort(t *testing.T) {
 	}
 
 	// The remove verb answers what it removed.
-	removed, err := k.RemoveWorkflow("corr", "driven")
+	removed, err := k.WorkflowEngine().Remove("corr", "driven")
 	if err != nil {
 		t.Fatalf("RemoveWorkflow: %v", err)
 	}
@@ -216,7 +172,7 @@ func TestTheWorkflowRunCarriesTheHostProvenance(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = k.Close() })
 
-	if _, _, err := k.SaveWorkflow("corr", workflowapi.Workflow{
+	if _, _, err := k.WorkflowEngine().Save("corr", workflowapi.Workflow{
 		Name: "provenance",
 		Nodes: []workflowapi.Node{
 			{ID: "start", Type: workflowapi.NodeTrigger},
@@ -231,7 +187,7 @@ func TestTheWorkflowRunCarriesTheHostProvenance(t *testing.T) {
 		Source: "cron",
 		Reason: "cron interval",
 	})
-	if _, err := k.RunWorkflow(ctx, k.NewCorrelation(), "provenance", nil); err != nil {
+	if _, err := k.WorkflowEngine().Run(ctx, k.NewCorrelation(), "provenance", nil); err != nil {
 		t.Fatalf("RunWorkflow: %v", err)
 	}
 }

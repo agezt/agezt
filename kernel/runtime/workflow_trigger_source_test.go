@@ -98,7 +98,7 @@ func TestRunWorkflow_WithoutATriggerStaysManual(t *testing.T) {
 		},
 		Edges: []workflow.Edge{{From: "start", To: "shape"}},
 	})
-	if _, err := k.RunWorkflow(context.Background(), k.NewCorrelation(), "hand-run-flow", nil); err != nil {
+	if _, err := k.WorkflowEngine().Run(context.Background(), k.NewCorrelation(), "hand-run-flow", nil); err != nil {
 		t.Fatalf("RunWorkflow: %v", err)
 	}
 	started := workflowStartedPayload(t, k, "hand-run-flow")

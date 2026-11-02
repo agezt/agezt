@@ -305,7 +305,7 @@ Also: `toolCaps` (read-only after Open); `startTime`. The `suspending atomic.Boo
 
 Goroutines started by the runtime: one per async sub-agent (the delegation engine's `Spawn`), the drain waiters in `Close`/`DrainAndHalt`, and the tool fan-out workers inside `agent.Run`. Everything else runs on the caller's goroutine. The **agentgw listener is not one of them** (W3.67): the gateway is the **daemon's** transport, so the daemon starts it.
 
-**The daemon's public surface — 173 verbs (W3.76t).** The Kernel's exported
+**The daemon's public surface — 166 verbs (W3.76u).** The Kernel's exported
 methods are the host's **doors**: the verbs the layers above call and the
 verbs the daemon's own production paths open. A public verb that nobody
 calls is a second, unreachable copy of a surface, and the target architecture
@@ -388,13 +388,33 @@ The application binds the module's face — `PortsFromKernel` fills
 `ForgeWriter` with `k.ForgeRunner()`, and a daemon with no forge holds no
 writer at all — and the plugin binds the module's runner too
 (`forgeRunnerPort(k)` answers `k.ForgeRunner()`): **179 → 173** public verbs,
-**5,979 → 5,899** production lines. The daemon
+**5,979 → 5,899** production lines. W3.76u retired **seven** more — the
+**workflow engine**'s eight forwarders over the workflows module's own
+operations (`SaveWorkflow`, `RestoreWorkflow`, `SetWorkflowEnabled`,
+`RemoveWorkflow`, `RunWorkflow`, `TestWorkflowNode`, `DraftWorkflow`,
+`RefineWorkflow`) were a second spelling of every engine verb, and the
+**contract** had named the family TWICE: `workflowapi.Engine` (eight verbs:
+`Save`, `Restore`, `SetEnabled`, `Remove`, `Run`, `TestNode`, `Draft`,
+`Refine`) and `workflowapi.Runner` (three verbs, with the long names). One
+vocabulary now: the **widest** port's spelling is the family's and the narrow
+port is a **subset** of it (`Runner` embeds into `Engine`). The run's
+**provenance** — why it exists — is filled from the host's wake context, which
+a module may not read, so it became a **port** (`Ports.Provenance`, the
+eleventh host capability) instead of a parameter. The daemon keeps three
+things: the library's **FILE** (`Workflows`), the engine's **WIRING**
+(`WorkflowPorts`) and the module's **FACE** (`WorkflowEngine`); the
+application binds the module's engine (`PortsFromKernel` fills `Writer` and
+`Designer` with `k.WorkflowEngine()`, and a daemon with no engine holds no
+writer — the application then refuses with the contract's row
+`workflowapi.ErrNoEngine`), and the plugin binds the module's engine too
+(`workflowPort(k)` answers `k.WorkflowEngine()`): **173 → 166** public verbs,
+**5,899 → 5,813** production lines. The daemon
 keeps the doors a **module** needs without naming the runs
 module (`WithAgentProfile`, `WithMaxCost`) and the host's own state (the
 effective config, the resume ticket, the seed). The surface is **pinned**:
 `kernel/runtime/dead_surface_ratchet_test.go` fails if a retired name comes
-back or if the public surface grows past **173** — the ceiling now FOLLOWS the
-floor (220 → 201 → 194 → 179 → 173), because a ceiling that stays put while the
+back or if the public surface grows past **166** — the ceiling now FOLLOWS the
+floor (220 → 201 → 194 → 179 → 173 → 166), because a ceiling that stays put while the
 surface shrinks permits exactly what the program exists to remove — and the run
 engine's own ratchet requires that it reads the run's context through the
 module.
