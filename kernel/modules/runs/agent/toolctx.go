@@ -6,11 +6,12 @@ import (
 	"context"
 
 	"github.com/agezt/agezt/kernel/contract/policyapi"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/platform/policyctx"
 )
 
 // PolicyToolDefFromContext forwards the resolved tool metadata context contract.
-func PolicyToolDefFromContext(ctx context.Context) (ToolDef, bool) {
+func PolicyToolDefFromContext(ctx context.Context) (toolapi.ToolDef, bool) {
 	return policyctx.PolicyToolDefFromContext(ctx)
 }
 

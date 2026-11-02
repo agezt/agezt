@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -20,16 +22,16 @@ import (
 
 type admissionProbe struct{ calls atomic.Int32 }
 
-func (*admissionProbe) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "probe", InputSchema: json.RawMessage(`{"type":"object","properties":{"n":{"type":"integer"}},"required":["n"]}`), Effect: agent.ToolEffect{Class: agent.EffectReadOnly}}
+func (*admissionProbe) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "probe", InputSchema: json.RawMessage(`{"type":"object","properties":{"n":{"type":"integer"}},"required":["n"]}`), Effect: toolapi.ToolEffect{Class: toolapi.EffectReadOnly}}
 }
 
 func TestRun_PolicyAuditFailureStopsWholeBatch(t *testing.T) {
 	b, j := newTestBus(t)
 	tool := &admissionProbe{}
 	policyCalls := 0
-	prov := mock.New(agent.CompletionResponse{Message: agent.Message{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "c1", Name: "probe", Input: json.RawMessage(`{"n":1}`)}, {ID: "c2", Name: "probe", Input: json.RawMessage(`{"n":2}`)}}}, StopReason: agent.StopToolUse}, mock.FinalText("must not run"))
-	_, err := agent.Run(context.Background(), agent.LoopConfig{Provider: prov, Tools: map[string]agent.Tool{"probe": tool}, Bus: b, Actor: "actor", CorrelationID: "corr", Policy: func(context.Context, agent.ToolCall) agent.PolicyVerdict {
+	prov := mock.New(llm.CompletionResponse{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "c1", Name: "probe", Input: json.RawMessage(`{"n":1}`)}, {ID: "c2", Name: "probe", Input: json.RawMessage(`{"n":2}`)}}}, StopReason: llm.StopToolUse}, mock.FinalText("must not run"))
+	_, err := agent.Run(context.Background(), agent.LoopConfig{Provider: prov, Tools: map[string]toolapi.Tool{"probe": tool}, Bus: b, Actor: "actor", CorrelationID: "corr", Policy: func(context.Context, llm.ToolCall) agent.PolicyVerdict {
 		policyCalls++
 		if policyCalls == 2 {
 			b.Close()
@@ -57,9 +59,9 @@ func TestRun_PolicyAuditFailureStopsWholeBatch(t *testing.T) {
 		t.Errorf("policy=%d invoked=%d result=%d", policyRecords, invoked, result)
 	}
 }
-func (p *admissionProbe) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
+func (p *admissionProbe) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
 	p.calls.Add(1)
-	return agent.Result{Output: "ok"}, nil
+	return toolapi.Result{Output: "ok"}, nil
 }
 
 func TestRun_BatchAdmissionPrecedesEffects(t *testing.T) {
@@ -71,10 +73,10 @@ func TestRun_BatchAdmissionPrecedesEffects(t *testing.T) {
 				entered, release := make(chan struct{}), make(chan struct{})
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				prov := mock.New(agent.CompletionResponse{Message: agent.Message{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "c1", Name: "probe", Input: json.RawMessage(`{"n":1}`)}, {ID: "c2", Name: "probe", Input: json.RawMessage(`{"n":2}`)}}}, StopReason: agent.StopToolUse}, mock.FinalText("done"))
+				prov := mock.New(llm.CompletionResponse{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "c1", Name: "probe", Input: json.RawMessage(`{"n":1}`)}, {ID: "c2", Name: "probe", Input: json.RawMessage(`{"n":2}`)}}}, StopReason: llm.StopToolUse}, mock.FinalText("done"))
 				done := make(chan error, 1)
 				go func() {
-					_, err := agent.Run(ctx, agent.LoopConfig{Provider: prov, Tools: map[string]agent.Tool{"probe": tool}, Bus: b, Actor: "actor", CorrelationID: "corr", MaxParallelTools: parallel, Policy: func(ctx context.Context, tc agent.ToolCall) agent.PolicyVerdict {
+					_, err := agent.Run(ctx, agent.LoopConfig{Provider: prov, Tools: map[string]toolapi.Tool{"probe": tool}, Bus: b, Actor: "actor", CorrelationID: "corr", MaxParallelTools: parallel, Policy: func(ctx context.Context, tc llm.ToolCall) agent.PolicyVerdict {
 						if tc.ID == "c2" {
 							close(entered)
 							select {
@@ -164,9 +166,9 @@ func TestRun_MemoDoesNotBypassLaterPolicy(t *testing.T) {
 	tool := &admissionProbe{}
 	policyCalls := 0
 	prov := mock.New(testToolUse("c1", "probe", map[string]any{"n": 1}), testToolUse("c2", "probe", map[string]any{"n": 1}), mock.FinalText("done"))
-	_, err := agent.Run(context.Background(), agent.LoopConfig{Provider: prov, Tools: map[string]agent.Tool{"probe": tool}, Bus: b, Actor: "actor", CorrelationID: "corr", ToolMemo: agent.NewToolMemo(time.Minute, 8), Policy: func(context.Context, agent.ToolCall) agent.PolicyVerdict {
+	_, err := agent.Run(context.Background(), agent.LoopConfig{Provider: prov, Tools: map[string]toolapi.Tool{"probe": tool}, Bus: b, Actor: "actor", CorrelationID: "corr", ToolMemo: agent.NewToolMemo(time.Minute, 8), Policy: func(context.Context, llm.ToolCall) agent.PolicyVerdict {
 		policyCalls++
-		return agent.PolicyVerdict{Allow: policyCalls == 1, Reason: "later denial", EffectClass: string(agent.EffectReadOnly)}
+		return agent.PolicyVerdict{Allow: policyCalls == 1, Reason: "later denial", EffectClass: string(toolapi.EffectReadOnly)}
 	}}, "run")
 	if err != nil {
 		t.Fatal(err)

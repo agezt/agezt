@@ -52,7 +52,7 @@ type SearchFilter = overseerapi.SearchFilter
 // module owns the vocabulary.
 type RepairResult = agentapi.RepairResult
 
-// Tool implements agent.Tool. Created unbound via New(); Bind wires the live
+// Tool implements toolapi.Tool. Created unbound via New(); Bind wires the live
 // kernel Source after the daemon opens.
 type Tool struct {
 	mu  sync.RWMutex

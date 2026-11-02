@@ -5,6 +5,9 @@ package agent
 import (
 	"context"
 	"fmt"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // Run's prologue, extracted (refactor Phase 3.2). Every function here is pure or
@@ -38,7 +41,7 @@ func normalizeLoopConfig(cfg *LoopConfig) {
 		cfg.AutoContinueWait = DefaultAutoContinueWait
 	}
 	if cfg.Tools == nil {
-		cfg.Tools = map[string]Tool{}
+		cfg.Tools = map[string]toolapi.Tool{}
 	}
 }
 
@@ -91,19 +94,19 @@ func taskReceivedPayload(cfg LoopConfig, userIntent string) map[string]any {
 // The snapshot already opens with the original intent turn, so it is adopted
 // as-is rather than prepended to — and it is COPIED so the loop's appends never
 // mutate the caller's backing array.
-func initialMessages(cfg LoopConfig, userIntent string) []Message {
+func initialMessages(cfg LoopConfig, userIntent string) []llm.Message {
 	if len(cfg.PriorMessages) > 0 {
-		return append([]Message(nil), cfg.PriorMessages...)
+		return append([]llm.Message(nil), cfg.PriorMessages...)
 	}
-	return []Message{{Role: RoleUser, Content: userIntent, Images: cfg.Images}}
+	return []llm.Message{{Role: llm.RoleUser, Content: userIntent, Images: cfg.Images}}
 }
 
 // buildToolDefs lints every configured tool's schema once, up front, and returns
 // the definitions to offer the model. Linting here (before task.received's
 // sibling work) means a malformed schema fails the run immediately instead of
 // surfacing as a provider 400 several iterations in.
-func buildToolDefs(tools map[string]Tool) ([]ToolDef, error) {
-	defs := make([]ToolDef, 0, len(tools))
+func buildToolDefs(tools map[string]toolapi.Tool) ([]toolapi.ToolDef, error) {
+	defs := make([]toolapi.ToolDef, 0, len(tools))
 	for name, t := range tools {
 		def := t.Definition()
 		if err := LintToolSchema(def); err != nil {

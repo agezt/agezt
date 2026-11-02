@@ -31,7 +31,7 @@ type boardStore = boardapi.Store
 // corr is the posting run's correlation id (may be empty).
 type PostNotifier func(m boardapi.Message, corr string)
 
-// Tool implements agent.Tool. Created unbound via New(); BindStore wires the store.
+// Tool implements toolapi.Tool. Created unbound via New(); BindStore wires the store.
 type Tool struct {
 	mu     sync.RWMutex
 	store  boardStore

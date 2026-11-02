@@ -5,15 +5,17 @@ package agent
 import (
 	"context"
 	"strings"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // CompleteFunc is the non-streaming provider call as a plain function, so
 // middleware can wrap it. It mirrors Provider.Complete.
-type CompleteFunc func(context.Context, CompletionRequest) (*CompletionResponse, error)
+type CompleteFunc func(context.Context, llm.CompletionRequest) (*llm.CompletionResponse, error)
 
 // StreamFunc is the streaming provider call as a plain function. It mirrors
 // StreamingProvider.CompleteStream.
-type StreamFunc func(context.Context, CompletionRequest, func(Chunk) error) (*CompletionResponse, error)
+type StreamFunc func(context.Context, llm.CompletionRequest, func(llm.Chunk) error) (*llm.CompletionResponse, error)
 
 // Middleware is a composable wrapper around a provider call (M997), analogous to
 // the Vercel AI SDK's wrapLanguageModel middleware. Every field is optional; a
@@ -30,7 +32,7 @@ type StreamFunc func(context.Context, CompletionRequest, func(Chunk) error) (*Co
 //     Wrap manufactures a stream that emits the final answer as a single chunk.
 type Middleware struct {
 	Name             string
-	TransformRequest func(*CompletionRequest)
+	TransformRequest func(*llm.CompletionRequest)
 	WrapComplete     func(next CompleteFunc) CompleteFunc
 	WrapStream       func(next StreamFunc) StreamFunc
 	SynthesizeStream bool
@@ -40,13 +42,13 @@ type Middleware struct {
 // StreamingProvider when p does, or when any middleware sets SynthesizeStream;
 // otherwise it is a plain Provider (preserving p's streaming posture by
 // default). An empty mws list returns p unchanged.
-func Wrap(p Provider, mws ...Middleware) Provider {
+func Wrap(p llm.Provider, mws ...Middleware) llm.Provider {
 	if len(mws) == 0 {
 		return p
 	}
 
 	// Combined request transform, applied in list order before the call.
-	transform := func(req *CompletionRequest) {
+	transform := func(req *llm.CompletionRequest) {
 		for _, m := range mws {
 			if m.TransformRequest != nil {
 				m.TransformRequest(req)
@@ -62,12 +64,12 @@ func Wrap(p Provider, mws ...Middleware) Provider {
 			complete = mws[i].WrapComplete(complete)
 		}
 	}
-	finalComplete := func(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
+	finalComplete := func(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 		transform(&req)
 		return complete(ctx, req)
 	}
 
-	sp, native := p.(StreamingProvider)
+	sp, native := p.(llm.StreamingProvider)
 	synth := false
 	for _, m := range mws {
 		if m.SynthesizeStream {
@@ -94,7 +96,7 @@ func Wrap(p Provider, mws ...Middleware) Provider {
 			stream = mws[i].WrapStream(stream)
 		}
 	}
-	finalStream := func(ctx context.Context, req CompletionRequest, onChunk func(Chunk) error) (*CompletionResponse, error) {
+	finalStream := func(ctx context.Context, req llm.CompletionRequest, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 		transform(&req)
 		return stream(ctx, req, onChunk)
 	}
@@ -107,7 +109,7 @@ type wrapped struct {
 }
 
 func (w *wrapped) Name() string { return w.name }
-func (w *wrapped) Complete(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
+func (w *wrapped) Complete(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	return w.complete(ctx, req)
 }
 
@@ -116,34 +118,34 @@ type streamWrapped struct {
 	stream StreamFunc
 }
 
-func (w *streamWrapped) CompleteStream(ctx context.Context, req CompletionRequest, onChunk func(Chunk) error) (*CompletionResponse, error) {
+func (w *streamWrapped) CompleteStream(ctx context.Context, req llm.CompletionRequest, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 	return w.stream(ctx, req, onChunk)
 }
 
 // synthesizeStream turns a non-streaming call into a streaming one by emitting
 // the final reasoning + answer as one chunk each, then returning the response.
 func synthesizeStream(complete CompleteFunc) StreamFunc {
-	return func(ctx context.Context, req CompletionRequest, onChunk func(Chunk) error) (*CompletionResponse, error) {
+	return func(ctx context.Context, req llm.CompletionRequest, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 		resp, err := complete(ctx, req)
 		if err != nil {
 			return nil, err
 		}
 		if resp.ReasoningContent != "" {
-			if cerr := onChunk(Chunk{ReasoningDelta: resp.ReasoningContent}); cerr != nil {
+			if cerr := onChunk(llm.Chunk{ReasoningDelta: resp.ReasoningContent}); cerr != nil {
 				return nil, cerr
 			}
 		}
 		if resp.Message.Content != "" {
-			if cerr := onChunk(Chunk{TextDelta: resp.Message.Content}); cerr != nil {
+			if cerr := onChunk(llm.Chunk{TextDelta: resp.Message.Content}); cerr != nil {
 				return nil, cerr
 			}
 		}
 		for _, tc := range resp.Message.ToolCalls {
 			call := tc
-			if cerr := onChunk(Chunk{ToolUseStart: &call}); cerr != nil {
+			if cerr := onChunk(llm.Chunk{ToolUseStart: &call}); cerr != nil {
 				return nil, cerr
 			}
-			if cerr := onChunk(Chunk{ToolUseStop: call.ID}); cerr != nil {
+			if cerr := onChunk(llm.Chunk{ToolUseStop: call.ID}); cerr != nil {
 				return nil, cerr
 			}
 		}
@@ -161,7 +163,7 @@ func synthesizeStream(complete CompleteFunc) StreamFunc {
 // and the assembled response of a stream — streamed chunks pass through
 // unchanged, so the tag text may still flash in a live view.
 func ExtractReasoningMiddleware(openTag, closeTag string) Middleware {
-	rewrite := func(resp *CompletionResponse) {
+	rewrite := func(resp *llm.CompletionResponse) {
 		if resp == nil || resp.ReasoningContent != "" {
 			return
 		}
@@ -175,7 +177,7 @@ func ExtractReasoningMiddleware(openTag, closeTag string) Middleware {
 	return Middleware{
 		Name: "extract-reasoning",
 		WrapComplete: func(next CompleteFunc) CompleteFunc {
-			return func(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
+			return func(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 				resp, err := next(ctx, req)
 				if err == nil {
 					rewrite(resp)
@@ -184,7 +186,7 @@ func ExtractReasoningMiddleware(openTag, closeTag string) Middleware {
 			}
 		},
 		WrapStream: func(next StreamFunc) StreamFunc {
-			return func(ctx context.Context, req CompletionRequest, onChunk func(Chunk) error) (*CompletionResponse, error) {
+			return func(ctx context.Context, req llm.CompletionRequest, onChunk func(llm.Chunk) error) (*llm.CompletionResponse, error) {
 				resp, err := next(ctx, req, onChunk)
 				if err == nil {
 					rewrite(resp)
@@ -226,10 +228,10 @@ func SimulateStreamingMiddleware() Middleware {
 // DefaultParamsMiddleware fills in sampling params and provider options that the
 // caller left unset, without overriding any explicitly-set value. It is the
 // composable home for per-provider generation defaults.
-func DefaultParamsMiddleware(defaults Params) Middleware {
+func DefaultParamsMiddleware(defaults llm.Params) Middleware {
 	return Middleware{
 		Name: "default-params",
-		TransformRequest: func(req *CompletionRequest) {
+		TransformRequest: func(req *llm.CompletionRequest) {
 			p := &req.Params
 			if p.Temperature == nil {
 				p.Temperature = defaults.Temperature

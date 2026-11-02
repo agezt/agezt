@@ -8,7 +8,7 @@ Related docs: kernel-side contract and registry plumbing (`kernel/agent`, `kerne
 
 ## Responsibilities at a glance
 
-- **Tool contract.** Every tool implements `agent.Tool` (`kernel/agent/agent.go:205`): `Definition() agent.ToolDef` + `Invoke(ctx, json.RawMessage) (agent.Result, error)`. `ToolDef` carries model-facing `Name/Description/InputSchema` plus two **governance-only** fields that never reach the provider wire: `Effect agent.ToolEffect` (reversibility class + predicted effects, used for HITL decision bundles) and `Capability agent.ToolCapability` (the Edict axis the call is gated on).
+- **Tool contract.** Every tool implements `toolapi.Tool` (`kernel/contract/toolapi/toolapi.go:24`): `Definition() toolapi.ToolDef` + `Invoke(ctx, json.RawMessage) (toolapi.Result, error)`. `ToolDef` carries model-facing `Name/Description/InputSchema` plus two **governance-only** fields that never reach the provider wire: `Effect toolapi.ToolEffect` (reversibility class + predicted effects, used for HITL decision bundles) and `Capability toolapi.ToolCapability` (the Edict axis the call is gated on).
 - **Registration.** `builtintools.RegisterAll()` registers 32 ordered `toolregapi.Spec`s into the package-level `kernel/contract/toolregapi` registry; `cmd/agezt/boot_tools.go:buildTools` calls `toolregapi.BuildAll` and drives the resulting `*toolregapi.Set` through four lifecycle phases (Build → PreOpen → Configure → ConfigureLate). Kernel-owned tools (`memory`, `world`, `delegate`, `delegate_await`, `market`, `voice`, `image_generate`, `rerank`) are registered by `kernel/runtime`, NOT here.
 - **Governance.** Each tool call is resolved to an Edict capability (declared `ToolDef.Capability` first → plugin manifest caps → `edict.CapabilityForToolCall` name switch) and decided by Edict. An **unknown capability is default-DENIED**; guard tests make that a build-time failure. Every governed capability is **Allow by default** (owner's default-allow posture).
 - **Safety floors that are NOT policy:** netguard SSRF guard on network tools (loopback/RFC1918/metadata refused), host allowlists per redirect hop, file-tool root jail with symlink/TOCTOU defense, secret-scrubbed child environments for shell/code_exec/browser driver/ACP/coding, warden-mediated process execution with output caps and timeouts, notify/send_media recipient pinning, overseer refusal to edit/repair `System` guardians.
@@ -24,13 +24,13 @@ Defined in `kernel/agent` (full detail in 04-agent-runtime.md):
 
 | Type | Fields / methods | Notes |
 |---|---|---|
-| `agent.Tool` | `Definition() ToolDef`, `Invoke(ctx, json.RawMessage) (Result, error)` | `Invoke` must honour ctx. A returned `error` is a transport failure; tool-level failures should be `Result{IsError:true}` so the model can retry. |
-| `agent.ToolDef` | `Name`, `Description`, `InputSchema json.RawMessage`, `Effect ToolEffect` (`json:"-"`), `Capability ToolCapability` (`json:"-"`) | Effect/Capability are governance metadata only. |
-| `agent.ToolCapability` | `Name string` (fallback axis), `Field string` (top-level input key that selects the axis, e.g. `op`, `method`, `operation`), `ByValue map[string]string` | `For(input)` (`kernel/contract/toolapi`): unparseable input / missing field / unknown value → `Name`. Lookup lower-cases+trims. `IsZero()` = no Name and no ByValue. |
-| `agent.ToolEffect` | `Class EffectClass` (`read_only`/`reversible`/`compensable`/`irreversible`), `PredictedEffects`, `AffectedResources`, `RollbackNotes`, `Confidence` | `plugins/tools/tool_effects_test.go` requires every first-party tool to fill all five. |
-| `agent.Result` | `Output`, `IsError`, `ObservationTrust` (`ObservationUntrusted` for external content), `ObservationSource` | Untrusted observations are rendered as data, not instructions (prompt-injection guard). |
+| `toolapi.Tool` | `Definition() ToolDef`, `Invoke(ctx, json.RawMessage) (Result, error)` | `Invoke` must honour ctx. A returned `error` is a transport failure; tool-level failures should be `Result{IsError:true}` so the model can retry. |
+| `toolapi.ToolDef` | `Name`, `Description`, `InputSchema json.RawMessage`, `Effect ToolEffect` (`json:"-"`), `Capability ToolCapability` (`json:"-"`) | Effect/Capability are governance metadata only. |
+| `toolapi.ToolCapability` | `Name string` (fallback axis), `Field string` (top-level input key that selects the axis, e.g. `op`, `method`, `operation`), `ByValue map[string]string` | `For(input)` (`kernel/contract/toolapi`): unparseable input / missing field / unknown value → `Name`. Lookup lower-cases+trims. `IsZero()` = no Name and no ByValue. |
+| `toolapi.ToolEffect` | `Class EffectClass` (`read_only`/`reversible`/`compensable`/`irreversible`), `PredictedEffects`, `AffectedResources`, `RollbackNotes`, `Confidence` | `plugins/tools/tool_effects_test.go` requires every first-party tool to fill all five. |
+| `toolapi.Result` | `Output`, `IsError`, `ObservationTrust` (`ObservationUntrusted` for external content), `ObservationSource` | Untrusted observations are rendered as data, not instructions (prompt-injection guard). |
 
-Context helpers tools read: `agent.CorrelationFromContext`, `agent.AgentFromContext` (acting agent slug), `agent.WorkdirFromContext` (per-agent workdir, M792), `warden.CorrelationFrom`, `warden.ProfileOverrideFrom`, `executionprofile.{SSH,K8s,Modal,Daytona}OverrideFrom`, `tenantctx.Tenant`.
+Context helpers tools read: `agent.CorrelationFromContext`, `toolapi.AgentFromContext` (acting agent slug), `agent.WorkdirFromContext` (per-agent workdir, M792), `warden.CorrelationFrom`, `warden.ProfileOverrideFrom`, `executionprofile.{SSH,K8s,Modal,Daytona}OverrideFrom`, `tenantctx.Tenant`.
 
 ### Capability resolution order (`kernel/runtime/policy.go:capabilityFor`)
 
@@ -61,7 +61,7 @@ Then `policyHook` calls `edict.Decide` (or `DecideWithCeiling` under an initiati
 | `Netguard bool` | Configure wires `NetguardPublish(name)` into every built instance implementing `toolregapi.NetguardAware` (`SetOnBlock`) | — | `http`, `browser.read`, `browser.action`, `web_search`, `fetch` |
 | `YieldOnConflict bool` | BuildAll drops a colliding name with a warning instead of erroring | — | `plugins` only |
 
-`Built{Tool, Extra map[string]agent.Tool, Desc, Caps map[string]string, Infos []runtime.PluginInfo}`. `buildTools` returns `set.Tools()`, the Set, `set.PluginManifest()`, `set.ToolCapabilities()` and the joined banner `Descs()`, and warns (does not fail) if `set.NetguardGaps()` is non-empty.
+`Built{Tool, Extra map[string]toolapi.Tool, Desc, Caps map[string]string, Infos []runtime.PluginInfo}`. `buildTools` returns `set.Tools()`, the Set, `set.PluginManifest()`, `set.ToolCapabilities()` and the joined banner `Descs()`, and warns (does not fail) if `set.NetguardGaps()` is non-empty.
 
 Every hook closes over the concrete instance its own Build produced (`var ce *codeexec.Tool` captured in the spec closure) — no string-keyed downcasts. Consequence: each `RegisterAll()` generation configures only its own instances.
 
@@ -530,13 +530,13 @@ Tests: `builtinmarket_test.go`, `resolveversion_test.go`.
 
 ## 9. Extension points — how to add a new first-party tool
 
-1. **Create** `plugins/tools/<pkg>/` implementing `agent.Tool`. In `Definition()` set `Name`, `Description`, `InputSchema`, a full `Effect` (all five fields — otherwise `tool_effects_test` fails), and **`Capability`** joining an existing Edict axis. For multi-axis tools set `Field` + `ByValue` and choose the fallback `Name` deliberately (readers fall back to the read axis; installers to the gated axis; `file` intentionally has none so unknown ops default-deny).
+1. **Create** `plugins/tools/<pkg>/` implementing `toolapi.Tool`. In `Definition()` set `Name`, `Description`, `InputSchema`, a full `Effect` (all five fields — otherwise `tool_effects_test` fails), and **`Capability`** joining an existing Edict axis. For multi-axis tools set `Field` + `ByValue` and choose the fallback `Name` deliberately (readers fall back to the read axis; installers to the gated axis; `file` intentionally has none so unknown ops default-deny).
 2. **If a genuinely new axis is required**: add the `Cap*` constant in `kernel/edict/edict.go`, include it in `AllCapabilities()` / defaults (`edict_defaults.go`) at **Allow** (owner decision needed otherwise — `TestGovernedCapabilities_AllowedByDefault` will fail), and add the name case in `kernel/edict/toolmap.go` (still the fallback and what the guard's resolution test reads — `TestBootTools_ResolveToGovernedCapabilities` calls the switch directly, so a tool known only via its declaration still fails it).
 3. **Register a spec** in `plugins/builtintools` (choose the file by lifecycle: `envgated.go`/`tools_helpers.go` for Build-only, `inject.go`/`kernelbound.go` for Configure, `latebound.go` for Late). Close over the concrete instance; mark `Netguard: true` and implement `SetOnBlock` if it dials out (build the client with `netout.Egress{...}.Client` — it re-checks the host allowlist on every redirect hop; archcheck rejects a hand-built `http.Client`).
 4. **Insert the name in `RegisterAll()`** in its banner position (never after `plugins`) and in `ratchet_test.go:bootSpecNames` at the same position.
 5. **If the schema has a steering field**, add every enumerated value to `opProbes` in `capability_guard_test.go` (the `file` op=glob bug was a missing branch). If env-gated, switch it on in `tool_effects_test.go`'s permissive env and add it to that test's `want` list.
 6. **New `AGEZT_*` env vars** read via `BuildDeps.Get` that are operator-facing must be added (alphabetically) to `kernel/controlplane/config.go` `configEnvVars`; document them in Config Center schema if editable.
-7. If the tool runs processes: route through `warden.Engine` (as shell/code_exec do), or build the child with `kernel/platform/sandbox` (`Command`/`CommandContext` preset `IsolatedEnv`; archcheck rejects a raw `exec.Command`). Never raw `os.Environ()`; if it returns external content set `ObservationTrust: agent.ObservationUntrusted`.
+7. If the tool runs processes: route through `warden.Engine` (as shell/code_exec do), or build the child with `kernel/platform/sandbox` (`Command`/`CommandContext` preset `IsolatedEnv`; archcheck rejects a raw `exec.Command`). Never raw `os.Environ()`; if it returns external content set `ObservationTrust: toolapi.ObservationUntrusted`.
 8. If the console catalog should show the risky axis of an input-branching tool, add a probe to `kernel/controlplane/tool.go:catalogProbe`.
 9. Run the source package's tests plus `go test ./plugins/builtintools/ ./plugins/tools/ ./kernel/edict/ ./kernel/runtime/` (GOMAXPROCS≤4).
 

@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -49,11 +51,11 @@ func (f *fakeSteerer) Drain() []agent.Directive {
 // tool call and proceed to a second iteration (where steering is observed).
 type steerNoopTool struct{}
 
-func (steerNoopTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "noop", Description: "does nothing", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (steerNoopTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "noop", Description: "does nothing", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
-func (steerNoopTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
-	return agent.Result{Output: "ok"}, nil
+func (steerNoopTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
+	return toolapi.Result{Output: "ok"}, nil
 }
 
 // TestSteer_DirectiveFoldedAsUserTurn: a directive queued before the run is
@@ -65,7 +67,7 @@ func TestSteer_DirectiveFoldedAsUserTurn(t *testing.T) {
 	prov := mock.New(testToolUse("t1", "noop", map[string]any{}), mock.FinalText("done"))
 	var sawDirective bool
 	var mu sync.Mutex
-	prov.OnRequest = func(req agent.CompletionRequest) {
+	prov.OnRequest = func(req llm.CompletionRequest) {
 		for _, m := range req.Messages {
 			if strings.Contains(m.Content, "[operator steering] focus on the database") {
 				mu.Lock()
@@ -83,7 +85,7 @@ func TestSteer_DirectiveFoldedAsUserTurn(t *testing.T) {
 		CorrelationID: "corr-steer",
 		Model:         "test",
 		MaxIter:       5,
-		Tools:         map[string]agent.Tool{"noop": steerNoopTool{}},
+		Tools:         map[string]toolapi.Tool{"noop": steerNoopTool{}},
 		Steer:         st,
 	}, "do the thing")
 	if err != nil {
@@ -128,7 +130,7 @@ func TestSteer_NoteUsesSofterPrefix(t *testing.T) {
 	prov := mock.New(testToolUse("t1", "noop", map[string]any{}), mock.FinalText("done"))
 	var sawNote, sawSteerPrefix bool
 	var mu sync.Mutex
-	prov.OnRequest = func(req agent.CompletionRequest) {
+	prov.OnRequest = func(req llm.CompletionRequest) {
 		for _, m := range req.Messages {
 			if strings.Contains(m.Content, "operator note") && strings.Contains(m.Content, "check the cache too") {
 				mu.Lock()
@@ -145,7 +147,7 @@ func TestSteer_NoteUsesSofterPrefix(t *testing.T) {
 	st := &fakeSteerer{directives: []agent.Directive{{Text: "check the cache too", Note: true}}}
 	if _, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider: prov, Bus: b, Actor: "a", CorrelationID: "corr-note", Model: "test", MaxIter: 5,
-		Tools: map[string]agent.Tool{"noop": steerNoopTool{}}, Steer: st,
+		Tools: map[string]toolapi.Tool{"noop": steerNoopTool{}}, Steer: st,
 	}, "do the thing"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}

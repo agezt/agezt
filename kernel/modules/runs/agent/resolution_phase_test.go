@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -18,17 +20,17 @@ func TestRun_ResolutionRejectionsPreserveBatchOrder(t *testing.T) {
 	b, j := newTestBus(t)
 	tool := &admissionProbe{}
 	policyCalls, hooks := 0, 0
-	calls := []agent.ToolCall{
+	calls := []llm.ToolCall{
 		{ID: "missing", Name: "missing", Input: json.RawMessage(`{`)},
 		{ID: "invalid", Name: "probe", Input: json.RawMessage(`{}`)},
 		{ID: "valid", Name: "probe", Input: json.RawMessage(`{"n":1}`)},
 		{ID: "guard", Name: "probe", Input: json.RawMessage(`{"n":1}`)},
 	}
-	prov := mock.New(agent.CompletionResponse{Message: agent.Message{Role: agent.RoleAssistant, ToolCalls: calls}, StopReason: agent.StopToolUse}, mock.FinalText("done"))
-	_, err := agent.Run(context.Background(), agent.LoopConfig{Provider: prov, Tools: map[string]agent.Tool{"probe": tool}, Bus: b, Actor: "actor", CorrelationID: "corr", MaxIdenticalToolCalls: 1, Policy: func(context.Context, agent.ToolCall) agent.PolicyVerdict {
+	prov := mock.New(llm.CompletionResponse{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: calls}, StopReason: llm.StopToolUse}, mock.FinalText("done"))
+	_, err := agent.Run(context.Background(), agent.LoopConfig{Provider: prov, Tools: map[string]toolapi.Tool{"probe": tool}, Bus: b, Actor: "actor", CorrelationID: "corr", MaxIdenticalToolCalls: 1, Policy: func(context.Context, llm.ToolCall) agent.PolicyVerdict {
 		policyCalls++
 		return agent.PolicyVerdict{Allow: true}
-	}, ToolResultHook: func(context.Context, agent.ToolCall, agent.Result) { hooks++ }}, "run")
+	}, ToolResultHook: func(context.Context, llm.ToolCall, toolapi.Result) { hooks++ }}, "run")
 	if err != nil || policyCalls != 1 || tool.calls.Load() != 1 || hooks != 1 {
 		t.Fatalf("error=%v policy=%d backend=%d hooks=%d", err, policyCalls, tool.calls.Load(), hooks)
 	}

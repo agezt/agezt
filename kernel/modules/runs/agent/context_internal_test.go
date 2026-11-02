@@ -5,6 +5,8 @@ package agent
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // TestContextSize_ByRole verifies the SPEC-10 §3.5 context-size accounting:
@@ -12,11 +14,11 @@ import (
 // image attachments excluded (separate modality).
 func TestContextSize_ByRole(t *testing.T) {
 	const system = "system-prompt" // 13
-	msgs := []Message{
-		{Role: RoleUser, Content: "the task"}, // 8
-		{Role: RoleAssistant, Content: "ok", ToolCalls: []ToolCall{{Input: json.RawMessage(`{"x":1}`)}}}, // 2 + 7 = 9
-		{Role: RoleTool, Content: "tool-output-here"},                                                    // 16
-		{Role: RoleUser, Content: "more", Images: []string{"data:image/png;base64,AAAA"}},                // 4 (image excluded)
+	msgs := []llm.Message{
+		{Role: llm.RoleUser, Content: "the task"}, // 8
+		{Role: llm.RoleAssistant, Content: "ok", ToolCalls: []llm.ToolCall{{Input: json.RawMessage(`{"x":1}`)}}}, // 2 + 7 = 9
+		{Role: llm.RoleTool, Content: "tool-output-here"},                                                        // 16
+		{Role: llm.RoleUser, Content: "more", Images: []string{"data:image/png;base64,AAAA"}},                    // 4 (image excluded)
 	}
 	total, byRole := contextSize(system, msgs)
 

@@ -12,12 +12,13 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/platform/toolaudit"
 )
 
-func (s *runState) gateToolCalls(ctx context.Context, calls []ToolCall, iter int) ([]*toolJob, error) {
+func (s *runState) gateToolCalls(ctx context.Context, calls []llm.ToolCall, iter int) ([]*toolJob, error) {
 	jobs := make([]*toolJob, 0, len(calls))
 	memoPending := map[string]*toolJob{}
 	for _, tc := range calls {
@@ -32,14 +33,14 @@ func (s *runState) gateToolCalls(ctx context.Context, calls []ToolCall, iter int
 			return tool, ok
 		})
 		if !resolved.Found {
-			job.result = Result{
+			job.result = toolapi.Result{
 				Output:  fmt.Sprintf("tool %q is not available", tc.Name),
 				IsError: true,
 			}
 			continue
 		}
 		if err := resolved.InputError; err != nil {
-			job.result = Result{
+			job.result = toolapi.Result{
 				Output:  "tool call rejected by schema: " + err.Error(),
 				IsError: true,
 			}
@@ -58,7 +59,7 @@ func (s *runState) gateToolCalls(ctx context.Context, calls []ToolCall, iter int
 			callKey := tc.Name + "\x00" + string(tc.Input)
 			s.callCounts[callKey]++
 			if s.callCounts[callKey] > s.cfg.MaxIdenticalToolCalls {
-				job.result = Result{
+				job.result = toolapi.Result{
 					Output:  fmt.Sprintf("loop guard: %q was already called with this exact input %d times in this run; the result will not change. Use different input or stop and give your answer.", tc.Name, s.cfg.MaxIdenticalToolCalls),
 					IsError: true,
 				}
@@ -78,13 +79,13 @@ func (s *runState) gateToolCalls(ctx context.Context, calls []ToolCall, iter int
 			policyCtx = WithUntrustedObservationTaint(policyCtx, scopedTaint)
 		}
 		decision, err := s.cfg.ToolPhases.Decide(policyCtx, tc, def,
-			func(policyCtx context.Context, call ToolCall) PolicyVerdict {
+			func(policyCtx context.Context, call llm.ToolCall) PolicyVerdict {
 				if s.cfg.Policy == nil {
 					return PolicyVerdict{Allow: true, Capability: call.Name, Reason: "no policy configured"}
 				}
 				return s.cfg.Policy(policyCtx, call)
 			},
-			func(call ToolCall, verdict PolicyVerdict) error {
+			func(call llm.ToolCall, verdict PolicyVerdict) error {
 				_, err := s.publish(event.KindPolicyDecision, "policy", policyDecisionPayload(call, verdict))
 				return err
 			})
@@ -101,13 +102,13 @@ func (s *runState) gateToolCalls(ctx context.Context, calls []ToolCall, iter int
 			} else {
 				s.toolDenials[tc.Name]++
 			}
-			job.result = Result{
+			job.result = toolapi.Result{
 				Output:  "tool call denied by policy: " + verdict.Reason,
 				IsError: true,
 			}
 			continue // skip tool.invoked when the call never runs
 		}
-		if s.cfg.ToolMemo != nil && (verdict.EffectClass == string(EffectReadOnly) || def.Effect.Class == EffectReadOnly) {
+		if s.cfg.ToolMemo != nil && (verdict.EffectClass == string(toolapi.EffectReadOnly) || def.Effect.Class == toolapi.EffectReadOnly) {
 			if cached, ok := s.cfg.ToolMemo.Get(tc.Name, tc.Input); ok {
 				job.result = cached
 				job.memoHit = true
@@ -134,7 +135,7 @@ func (s *runState) gateToolCalls(ctx context.Context, calls []ToolCall, iter int
 }
 
 // policyDecisionPayload forwards the unchanged loop journal representation.
-func policyDecisionPayload(tc ToolCall, v PolicyVerdict) map[string]any {
+func policyDecisionPayload(tc llm.ToolCall, v PolicyVerdict) map[string]any {
 	return toolaudit.PolicyDecisionPayload(tc, v)
 }
 
@@ -167,7 +168,7 @@ func executeToolJobs(ctx context.Context, cfg LoopConfig, jobs []*toolJob) {
 				// Settle admitted later calls without performing their effects.
 				for _, pending := range toExec[i+1:] {
 					pending.skipped = true
-					pending.result = Result{Output: "tool call not executed after an earlier tool panic", IsError: true}
+					pending.result = toolapi.Result{Output: "tool call not executed after an earlier tool panic", IsError: true}
 				}
 				return
 			}
@@ -220,7 +221,7 @@ func invokeToolJob(ctx context.Context, cfg LoopConfig, job *toolJob) {
 // run-terminal conditions (a tool panic, the run context ending, a failed
 // journal publish); a tool that merely failed becomes an error Result the model
 // can react to, and the run continues.
-func (s *runState) finalizeToolJobs(ctx context.Context, jobs []*toolJob, iter int, messages []Message) ([]Message, error) {
+func (s *runState) finalizeToolJobs(ctx context.Context, jobs []*toolJob, iter int, messages []llm.Message) ([]llm.Message, error) {
 	// Executed parallel siblings have already completed. A run-terminal failure
 	// must settle the whole admitted batch before task.failed, and must not
 	// trigger runtime bookkeeping/automation on the way out.
@@ -243,7 +244,7 @@ func (s *runState) finalizeToolJobs(ctx context.Context, jobs []*toolJob, iter i
 		if job.tool != nil {
 			switch {
 			case job.panicked:
-				job.result = Result{Output: job.invokeErr.Error(), IsError: true}
+				job.result = toolapi.Result{Output: job.invokeErr.Error(), IsError: true}
 			case job.invokeErr == nil:
 				// job.result already holds the tool's output.
 			case ctx.Err() != nil:
@@ -251,16 +252,16 @@ func (s *runState) finalizeToolJobs(ctx context.Context, jobs []*toolJob, iter i
 				// M31 per-run deadline) — a run-level terminal, not a tool fault.
 				// Propagate so the run fails with the correct reason instead of
 				// limping on.
-				job.result = Result{Output: ctx.Err().Error(), IsError: true}
+				job.result = toolapi.Result{Output: ctx.Err().Error(), IsError: true}
 			case job.toolTimedOut:
 				// The tool overran its own budget while the run is fine: hand the
 				// model a clear error and keep the run going.
-				job.result = Result{
+				job.result = toolapi.Result{
 					Output:  fmt.Sprintf("tool %q exceeded its %s timeout", job.tc.Name, s.cfg.ToolTimeout),
 					IsError: true,
 				}
 			default:
-				job.result = Result{Output: job.invokeErr.Error(), IsError: true}
+				job.result = toolapi.Result{Output: job.invokeErr.Error(), IsError: true}
 			}
 			if job.memoEligible && !job.result.IsError {
 				s.cfg.ToolMemo.Set(job.tc.Name, job.tc.Input, job.result)
@@ -281,7 +282,7 @@ func (s *runState) finalizeToolJobs(ctx context.Context, jobs []*toolJob, iter i
 		}
 
 		observationBoundary := ObservationBoundaryForTool(job.tc.Name, job.result, modelOutput)
-		if observationBoundary.Trust == ObservationUntrusted {
+		if observationBoundary.Trust == toolapi.ObservationUntrusted {
 			s.untrustedTaint = MergeUntrustedObservationTaint(s.untrustedTaint, observationBoundary)
 			if observationBoundary.DirectiveLike {
 				// Remember WHEN the directive-like observation arrived so the gate
@@ -331,8 +332,8 @@ func (s *runState) finalizeToolJobs(ctx context.Context, jobs []*toolJob, iter i
 			s.cfg.ToolResultHook(ctx, job.tc, job.result)
 		}
 
-		messages = append(messages, Message{
-			Role:       RoleTool,
+		messages = append(messages, llm.Message{
+			Role:       llm.RoleTool,
 			Content:    modelOutput,
 			ToolCallID: job.tc.ID,
 		})

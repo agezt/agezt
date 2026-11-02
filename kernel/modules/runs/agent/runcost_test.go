@@ -8,6 +8,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -24,7 +25,7 @@ func TestRun_PerRunCostCap_Terminates(t *testing.T) {
 	b, j := newTestBus(t)
 	// One scripted final response carrying 2000 tokens of usage.
 	prov := mock.New(testWithUsage(mock.FinalText("done"),
-		agent.Usage{InputTokens: 1200, OutputTokens: 800, Model: "mock"}))
+		llm.Usage{InputTokens: 1200, OutputTokens: 800, Model: "mock"}))
 
 	_, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider: prov, Bus: b, Actor: "agent-1", CorrelationID: "corr-cap",
@@ -68,7 +69,7 @@ func TestRun_PerRunCostCap_Terminates(t *testing.T) {
 func TestRun_PerRunCostCap_ExactlyAtCap(t *testing.T) {
 	b, _ := newTestBus(t)
 	prov := mock.New(testWithUsage(mock.FinalText("done"),
-		agent.Usage{InputTokens: 1000, OutputTokens: 500, Model: "mock"})) // 1500 tokens → 1500 microcents
+		llm.Usage{InputTokens: 1000, OutputTokens: 500, Model: "mock"})) // 1500 tokens → 1500 microcents
 	_, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider: prov, Bus: b, Actor: "agent-1", CorrelationID: "corr-exact",
 		MaxRunCostMicrocents: 1500, // spend == cap exactly → inclusive → exceeded
@@ -84,7 +85,7 @@ func TestRun_PerRunCostCap_ExactlyAtCap(t *testing.T) {
 func TestRun_PerRunCostCap_UnderBudget(t *testing.T) {
 	b, _ := newTestBus(t)
 	prov := mock.New(testWithUsage(mock.FinalText("ok"),
-		agent.Usage{InputTokens: 100, OutputTokens: 50, Model: "mock"}))
+		llm.Usage{InputTokens: 100, OutputTokens: 50, Model: "mock"}))
 
 	ans, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider: prov, Bus: b, Actor: "agent-1", CorrelationID: "corr-under",
@@ -103,9 +104,9 @@ func TestRun_PerRunCostCap_UnderBudget(t *testing.T) {
 // wired (or the cap is 0): the run completes regardless of usage (M166).
 func TestRun_PerRunCostCap_InertWithoutCostFn(t *testing.T) {
 	b, _ := newTestBus(t)
-	mk := func() agent.Provider {
+	mk := func() llm.Provider {
 		return mock.New(testWithUsage(mock.FinalText("ok"),
-			agent.Usage{InputTokens: 1_000_000, OutputTokens: 1_000_000, Model: "mock"}))
+			llm.Usage{InputTokens: 1_000_000, OutputTokens: 1_000_000, Model: "mock"}))
 	}
 
 	// Cap set, but CostFn nil → inert.

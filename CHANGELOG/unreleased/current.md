@@ -819,8 +819,8 @@ This file holds the active `[Unreleased]` working set.
 - **The agent loop moves into the runs module.** The single-agent tool loop
   used to be a top-level package, `kernel/agent`; it is now
   `kernel/modules/runs/agent`, the runs module's own subtree. The package
-  name stays `agent`, so every caller (`agent.Run`, `agent.LoopConfig`,
-  `agent.Provider`) is unchanged, and the behaviour is unchanged: the
+  name stays `agent`, so every caller (`agent.Run`, `agent.LoopConfig`) is
+  unchanged, and the behaviour is unchanged: the
   daemon's line count, its public verbs (238) and the contract's rows do not
   move. The address is deliberately **not** `modules/runs/internal/loop` yet,
   because the loop is imported from outside the runs module — the daemon's
@@ -830,6 +830,18 @@ This file holds the active `[Unreleased]` working set.
   the daemon is dissolved. The layer classifier's hand-written rule for the
   old path is gone: the tree now says which module the loop belongs to by
   itself.
+
+- **The loop no longer re-exports the provider and tool contracts.** The
+  single-agent loop used to publish a block of aliases so a caller could
+  write `agent.Provider` or `agent.Tool` and never import the contract
+  packages. Those rows live in `kernel/contract/llm` and
+  `kernel/contract/toolapi`, and the tree now names them there and only
+  there — one spelling of every row, in the whole repository. The loop's own
+  API is unchanged: `agent.Run`, `agent.LoopConfig`, the tool selectors, the
+  read-only tool memo, the steering and policy ports, the provider
+  middleware and the structured-output helper all stay where they are, and
+  no type changed identity — an alias and its target were always the same
+  type. Every caller was repointed at the contract directly.
 
 - **The roster's rows move to the contract layer.** The agent profile row (and
   the policies that hang off it, and the repair outcome) and the board's

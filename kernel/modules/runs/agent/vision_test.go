@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -15,9 +16,9 @@ import (
 func TestRun_ImagesReachProvider(t *testing.T) {
 	var gotImages []string
 	prov := mock.New(mock.FinalText("done"))
-	prov.OnRequest = func(req agent.CompletionRequest) {
+	prov.OnRequest = func(req llm.CompletionRequest) {
 		for _, m := range req.Messages {
-			if m.Role == agent.RoleUser {
+			if m.Role == llm.RoleUser {
 				gotImages = m.Images
 			}
 		}

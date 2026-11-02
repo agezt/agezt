@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -17,18 +19,18 @@ import (
 
 // multiToolUse scripts one assistant turn that fans out n calls to the same
 // tool, with call IDs c0..c(n-1).
-func multiToolUse(toolName string, n int) agent.CompletionResponse {
-	calls := make([]agent.ToolCall, 0, n)
+func multiToolUse(toolName string, n int) llm.CompletionResponse {
+	calls := make([]llm.ToolCall, 0, n)
 	for i := range n {
-		calls = append(calls, agent.ToolCall{
+		calls = append(calls, llm.ToolCall{
 			ID:    "c" + string(rune('0'+i)),
 			Name:  toolName,
 			Input: json.RawMessage(`{}`),
 		})
 	}
-	return agent.CompletionResponse{
-		Message:    agent.Message{Role: agent.RoleAssistant, ToolCalls: calls},
-		StopReason: agent.StopToolUse,
+	return llm.CompletionResponse{
+		Message:    llm.Message{Role: llm.RoleAssistant, ToolCalls: calls},
+		StopReason: llm.StopToolUse,
 	}
 }
 
@@ -46,21 +48,21 @@ func newBarrierTool(want int) *barrierTool {
 	return &barrierTool{want: int32(want), release: make(chan struct{})}
 }
 
-func (b *barrierTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "barrier", Description: "test", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (b *barrierTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "barrier", Description: "test", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
-func (b *barrierTool) Invoke(ctx context.Context, _ json.RawMessage) (agent.Result, error) {
+func (b *barrierTool) Invoke(ctx context.Context, _ json.RawMessage) (toolapi.Result, error) {
 	if b.arrived.Add(1) >= b.want {
 		b.once.Do(func() { close(b.release) })
 	}
 	select {
 	case <-b.release:
-		return agent.Result{Output: "ok"}, nil
+		return toolapi.Result{Output: "ok"}, nil
 	case <-time.After(3 * time.Second):
-		return agent.Result{Output: "no overlap", IsError: true}, nil
+		return toolapi.Result{Output: "no overlap", IsError: true}, nil
 	case <-ctx.Done():
-		return agent.Result{}, ctx.Err()
+		return toolapi.Result{}, ctx.Err()
 	}
 }
 
@@ -70,11 +72,11 @@ type concTool struct {
 	cur, max int
 }
 
-func (c *concTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "conc", Description: "test", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (c *concTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "conc", Description: "test", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
-func (c *concTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
+func (c *concTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
 	c.mu.Lock()
 	c.cur++
 	if c.cur > c.max {
@@ -85,7 +87,7 @@ func (c *concTool) Invoke(context.Context, json.RawMessage) (agent.Result, error
 	c.mu.Lock()
 	c.cur--
 	c.mu.Unlock()
-	return agent.Result{Output: "done"}, nil
+	return toolapi.Result{Output: "done"}, nil
 }
 
 // TestRun_ParallelToolDispatch_Overlap (M880): three tool calls issued in ONE
@@ -100,7 +102,7 @@ func TestRun_ParallelToolDispatch_Overlap(t *testing.T) {
 	got, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider:      prov,
 		Bus:           b,
-		Tools:         map[string]agent.Tool{"barrier": tool},
+		Tools:         map[string]toolapi.Tool{"barrier": tool},
 		Actor:         "agent-par",
 		CorrelationID: "corr-par",
 	}, "fan out")
@@ -154,7 +156,7 @@ func TestRun_ParallelToolDispatch_CapBoundsConcurrency(t *testing.T) {
 		prov := mock.New(multiToolUse("conc", 4), mock.FinalText("done"))
 		if _, err := agent.Run(context.Background(), agent.LoopConfig{
 			Provider: prov, Bus: b,
-			Tools:            map[string]agent.Tool{"conc": tool},
+			Tools:            map[string]toolapi.Tool{"conc": tool},
 			MaxParallelTools: 2,
 			Actor:            "agent-cap", CorrelationID: "corr-cap",
 		}, "go"); err != nil {
@@ -170,7 +172,7 @@ func TestRun_ParallelToolDispatch_CapBoundsConcurrency(t *testing.T) {
 		prov := mock.New(multiToolUse("conc", 3), mock.FinalText("done"))
 		if _, err := agent.Run(context.Background(), agent.LoopConfig{
 			Provider: prov, Bus: b,
-			Tools:            map[string]agent.Tool{"conc": tool},
+			Tools:            map[string]toolapi.Tool{"conc": tool},
 			MaxParallelTools: -1,
 			Actor:            "agent-seq", CorrelationID: "corr-seq",
 		}, "go"); err != nil {
@@ -187,11 +189,11 @@ func TestRun_ParallelToolDispatch_CapBoundsConcurrency(t *testing.T) {
 // whole process, not just fail the run).
 type panicTool struct{}
 
-func (panicTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "boom", Description: "test", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (panicTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "boom", Description: "test", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
-func (panicTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
+func (panicTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
 	panic("kaboom")
 }
 
@@ -200,7 +202,7 @@ func TestRun_ParallelToolDispatch_PanicFailsRunNotProcess(t *testing.T) {
 	prov := mock.New(multiToolUse("boom", 2), mock.FinalText("unreachable"))
 	_, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider: prov, Bus: b,
-		Tools: map[string]agent.Tool{"boom": panicTool{}},
+		Tools: map[string]toolapi.Tool{"boom": panicTool{}},
 		Actor: "agent-boom", CorrelationID: "corr-boom",
 	}, "go")
 	if err == nil {

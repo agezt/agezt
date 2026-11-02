@@ -43,7 +43,7 @@
 - **`plugins/providers/google`** — Package google is the in-process Google Gemini Provider, talking to the Generative Language API at generativelanguage.googleapis.com.
 - **`plugins/providers/image`** — Package image is the OpenAI-compatible image-generation client (M997) — the image-modality sibling of plugins/providers/embed and plugins/providers/voice.
 - **`plugins/providers/internal/httpread`** — Package httpread provides a size-bounded reader for provider HTTP response bodies (M189).
-- **`plugins/providers/internal/provopts`** — Package provopts holds shared helpers for applying per-request generation knobs (agent.Params) and provider-specific extras (CompletionRequest.
+- **`plugins/providers/internal/provopts`** — Package provopts holds shared helpers for applying per-request generation knobs (llm.Params) and provider-specific extras (CompletionRequest.
 - **`plugins/providers/internal/retry`** — Package retry provides exponential-backoff retry logic for provider HTTP calls.
 - **`plugins/providers/internal/toolname`** — Package toolname conforms agent tool names to the strict pattern that LLM provider APIs validate function/tool names against, and reverses the change on the response so a tool_call still routes to the real tool.
 - **`plugins/providers/mock`** — Package mock is an offline Provider for tests and demos when no real LLM is available.

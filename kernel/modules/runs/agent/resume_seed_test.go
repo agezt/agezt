@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -18,20 +20,20 @@ import (
 func TestResume_SeedsPriorMessagesWithoutDuplicatingIntent(t *testing.T) {
 	b, _ := newTestBus(t)
 	prov := mock.New(mock.FinalText("continued"))
-	var got []agent.Message
+	var got []llm.Message
 	var mu sync.Mutex
-	prov.OnRequest = func(req agent.CompletionRequest) {
+	prov.OnRequest = func(req llm.CompletionRequest) {
 		mu.Lock()
 		if got == nil { // capture the FIRST request only
-			got = append([]agent.Message(nil), req.Messages...)
+			got = append([]llm.Message(nil), req.Messages...)
 		}
 		mu.Unlock()
 	}
 
-	prior := []agent.Message{
-		{Role: agent.RoleUser, Content: "do the thing"},
-		{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{{ID: "c1", Name: "noop", Input: []byte(`{}`)}}},
-		{Role: agent.RoleTool, ToolCallID: "c1", Content: "step done"},
+	prior := []llm.Message{
+		{Role: llm.RoleUser, Content: "do the thing"},
+		{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{ID: "c1", Name: "noop", Input: []byte(`{}`)}}},
+		{Role: llm.RoleTool, ToolCallID: "c1", Content: "step done"},
 	}
 
 	answer, err := agent.Run(context.Background(), agent.LoopConfig{
@@ -60,7 +62,7 @@ func TestResume_SeedsPriorMessagesWithoutDuplicatingIntent(t *testing.T) {
 	// Exactly one user turn bearing the intent — not a duplicated one.
 	intentTurns := 0
 	for _, m := range got {
-		if m.Role == agent.RoleUser && m.Content == "do the thing" {
+		if m.Role == llm.RoleUser && m.Content == "do the thing" {
 			intentTurns++
 		}
 	}
@@ -68,7 +70,7 @@ func TestResume_SeedsPriorMessagesWithoutDuplicatingIntent(t *testing.T) {
 		t.Fatalf("intent turn appears %d times, want exactly 1 (no duplication)", intentTurns)
 	}
 	// The prior tool result must survive so the model has its earlier work.
-	if got[2].Role != agent.RoleTool || got[2].Content != "step done" {
+	if got[2].Role != llm.RoleTool || got[2].Content != "step done" {
 		t.Fatalf("prior tool result not preserved: %+v", got[2])
 	}
 }
@@ -84,7 +86,7 @@ func TestResume_CheckpointFiresAtSettledBoundary(t *testing.T) {
 
 	type snap struct {
 		iter int
-		msgs []agent.Message
+		msgs []llm.Message
 	}
 	var snaps []snap
 	var mu sync.Mutex
@@ -96,10 +98,10 @@ func TestResume_CheckpointFiresAtSettledBoundary(t *testing.T) {
 		CorrelationID: "corr-ckpt",
 		Model:         "test",
 		MaxIter:       5,
-		Tools:         map[string]agent.Tool{"noop": steerNoopTool{}},
-		Checkpoint: func(iter int, messages []agent.Message) {
+		Tools:         map[string]toolapi.Tool{"noop": steerNoopTool{}},
+		Checkpoint: func(iter int, messages []llm.Message) {
 			mu.Lock()
-			snaps = append(snaps, snap{iter: iter, msgs: append([]agent.Message(nil), messages...)})
+			snaps = append(snaps, snap{iter: iter, msgs: append([]llm.Message(nil), messages...)})
 			mu.Unlock()
 		},
 	}, "do the thing")
@@ -125,14 +127,14 @@ func TestResume_CheckpointFiresAtSettledBoundary(t *testing.T) {
 	// carrying unanswered tool calls (which would be a dangling tool_call).
 	for _, s := range snaps {
 		last := s.msgs[len(s.msgs)-1]
-		if last.Role == agent.RoleAssistant && len(last.ToolCalls) > 0 {
+		if last.Role == llm.RoleAssistant && len(last.ToolCalls) > 0 {
 			t.Fatalf("snapshot at iter %d ends on unanswered tool calls: %+v", s.iter, last)
 		}
 	}
 	// The second snapshot must include the tool result from iteration one.
 	sawToolResult := false
 	for _, m := range snaps[1].msgs {
-		if m.Role == agent.RoleTool && m.ToolCallID == "c1" {
+		if m.Role == llm.RoleTool && m.ToolCallID == "c1" {
 			sawToolResult = true
 		}
 	}

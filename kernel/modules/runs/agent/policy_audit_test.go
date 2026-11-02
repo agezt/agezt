@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -16,9 +18,9 @@ func TestRun_PolicyAuditRetainsSharedDetails(t *testing.T) {
 	b, j := newTestBus(t)
 	tool := &countingTool{}
 	_, err := agent.Run(context.Background(), agent.LoopConfig{
-		Bus: b, Actor: "actor", CorrelationID: "policy-corr", Tools: map[string]agent.Tool{"echo": tool},
+		Bus: b, Actor: "actor", CorrelationID: "policy-corr", Tools: map[string]toolapi.Tool{"echo": tool},
 		Provider: mock.New(testToolUse("policy-call", "echo", map[string]any{}), mock.FinalText("done")),
-		Policy: func(context.Context, agent.ToolCall) agent.PolicyVerdict {
+		Policy: func(context.Context, llm.ToolCall) agent.PolicyVerdict {
 			return agent.PolicyVerdict{Allow: true, Capability: "file.read", Reason: "allowed", AffectedResources: []string{"file:one"}, EpistemicConfidence: 0.75, ObservationSources: []string{"web:one"}, ObservationDirectiveLike: true}
 		},
 	}, "run")

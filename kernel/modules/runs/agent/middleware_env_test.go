@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // envGet returns a config reader backed by a plain map — an isolated
@@ -37,7 +38,7 @@ func TestMiddlewareFromEnv_Defaults(t *testing.T) {
 	if mws[0].Name != "default-params" {
 		t.Errorf("Name = %q, want default-params", mws[0].Name)
 	}
-	req := &CompletionRequest{}
+	req := &llm.CompletionRequest{}
 	for _, mw := range mws {
 		if mw.TransformRequest != nil {
 			mw.TransformRequest(req)
@@ -98,7 +99,7 @@ func TestMiddlewareFromEnv_NilGetUsesTheProcessEnv(t *testing.T) {
 	if len(mws) != 1 {
 		t.Fatalf("stack = %d middlewares, want 1 (the process env knob is set)", len(mws))
 	}
-	req := &CompletionRequest{}
+	req := &llm.CompletionRequest{}
 	for _, mw := range mws {
 		if mw.TransformRequest != nil {
 			mw.TransformRequest(req)

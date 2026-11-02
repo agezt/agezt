@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-// Package governor is the LLM routing brain. It implements agent.Provider,
+// Package governor is the LLM routing brain. It implements llm.Provider,
 // so every call from the agent loop transparently flows through selection,
 // fallback, budget tracking, and per-task caps without the rest of the kernel
 // knowing it exists.

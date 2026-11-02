@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -27,17 +29,20 @@ func TestGateInvocationAnnouncementBoundary(t *testing.T) {
 		{"audit-failure", false, false, false, true, []string{"policy.decision:c1", "tool.invoked:c1", "policy.decision:c2"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			tool := &stubTool{def: ToolDef{Name: "probe", InputSchema: objSchema(), Effect: ToolEffect{Class: EffectReadOnly}}}
-			calls := []ToolCall{{ID: "c1", Name: "probe", Input: json.RawMessage(`{}`)}, {ID: "c2", Name: "probe", Input: json.RawMessage(`{"n":2}`)}}
+			tool := &stubTool{def: toolapi.ToolDef{Name: "probe", InputSchema: objSchema(), Effect: toolapi.ToolEffect{Class: toolapi.EffectReadOnly}}}
+			calls := []llm.ToolCall{{ID: "c1", Name: "probe", Input: json.RawMessage(`{}`)}, {ID: "c2", Name: "probe", Input: json.RawMessage(`{"n":2}`)}}
 			if tc.duplicate {
 				calls[1].Input = calls[0].Input
 			}
 			memo := NewToolMemo(time.Minute, 8)
 			if tc.cached {
-				memo.Set("probe", calls[0].Input, Result{Output: "cached"})
+				memo.Set("probe", calls[0].Input, toolapi.Result{Output: "cached"})
 			}
 			policyCalls, invoked := 0, 0
-			s := testState(LoopConfig{Tools: map[string]Tool{"probe": tool}, ToolMemo: memo, Policy: func(context.Context, ToolCall) PolicyVerdict { policyCalls++; return PolicyVerdict{Allow: !tc.deny} }})
+			s := testState(LoopConfig{Tools: map[string]toolapi.Tool{"probe": tool}, ToolMemo: memo, Policy: func(context.Context, llm.ToolCall) PolicyVerdict {
+				policyCalls++
+				return PolicyVerdict{Allow: !tc.deny}
+			}})
 			cause := errors.New("invocation audit unavailable")
 			var arc []string
 			s.publish = func(kind event.Kind, suffix string, payload any) (*event.Event, error) {

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
@@ -19,7 +20,7 @@ import (
 type nilRespProvider struct{}
 
 func (nilRespProvider) Name() string { return "nilresp" }
-func (nilRespProvider) Complete(context.Context, agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (nilRespProvider) Complete(context.Context, llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	return nil, nil
 }
 
@@ -27,7 +28,7 @@ func (nilRespProvider) Complete(context.Context, agent.CompletionRequest) (*agen
 type panicProvider struct{}
 
 func (panicProvider) Name() string { return "panicky" }
-func (panicProvider) Complete(context.Context, agent.CompletionRequest) (*agent.CompletionResponse, error) {
+func (panicProvider) Complete(context.Context, llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	panic("boom from a misbehaving provider")
 }
 

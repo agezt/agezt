@@ -6,23 +6,24 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
-func bigToolMsg(id string, n int) Message {
-	return Message{Role: RoleTool, Content: strings.Repeat("x", n), ToolCallID: id}
+func bigToolMsg(id string, n int) llm.Message {
+	return llm.Message{Role: llm.RoleTool, Content: strings.Repeat("x", n), ToolCallID: id}
 }
 
-func compactMessages(system string, messages []Message, budget, protectLast, protectFirst int, summarize func(string) string) (out []Message, elided, reclaimed int) {
+func compactMessages(system string, messages []llm.Message, budget, protectLast, protectFirst int, summarize func(string) string) (out []llm.Message, elided, reclaimed int) {
 	out, stats := compactMessagesDetailed(system, messages, budget, protectLast, protectFirst, summarize, nil)
 	return out, stats.Elided, stats.Reclaimed
 }
 
 // convo builds a realistic-ish transcript: user, then K (assistant, tool) pairs.
-func convo(toolBytes int, pairs int) []Message {
-	msgs := []Message{{Role: RoleUser, Content: "do the thing"}}
+func convo(toolBytes int, pairs int) []llm.Message {
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "do the thing"}}
 	for i := 0; i < pairs; i++ {
-		msgs = append(msgs, Message{Role: RoleAssistant, Content: "calling tool"})
+		msgs = append(msgs, llm.Message{Role: llm.RoleAssistant, Content: "calling tool"})
 		msgs = append(msgs, bigToolMsg("call-"+strings.Repeat("a", i+1), toolBytes))
 	}
 	return msgs
@@ -77,11 +78,11 @@ func TestCompactMessages_ElidesOldestToolOutputsFirst(t *testing.T) {
 }
 
 func TestCompactMessages_NeverElidesNonTool(t *testing.T) {
-	msgs := []Message{
-		{Role: RoleUser, Content: strings.Repeat("u", 5000)},
-		{Role: RoleAssistant, Content: strings.Repeat("a", 5000)},
+	msgs := []llm.Message{
+		{Role: llm.RoleUser, Content: strings.Repeat("u", 5000)},
+		{Role: llm.RoleAssistant, Content: strings.Repeat("a", 5000)},
 		bigToolMsg("call-1", 5000),
-		{Role: RoleAssistant, Content: "final"},
+		{Role: llm.RoleAssistant, Content: "final"},
 		bigToolMsg("call-2", 50),
 	}
 	out, _, _ := compactMessages("sys", msgs, 100, 0, 0, nil)
@@ -136,13 +137,13 @@ func TestCompactMessages_StubKeepsHeadPreview(t *testing.T) {
 	// A recognisable multi-line tool output so we can see the preview is extracted
 	// and that newlines are collapsed (the stub must stay single-line).
 	output := "FILE: deploy.yaml\nreplicas: 3\nimage: app:v2\n" + strings.Repeat("padding ", 200)
-	msgs := []Message{
-		{Role: RoleUser, Content: "inspect the deploy"},
-		{Role: RoleAssistant, Content: "reading"},
-		{Role: RoleTool, Content: output, ToolCallID: "c1"},
-		{Role: RoleAssistant, Content: "calling again"},
+	msgs := []llm.Message{
+		{Role: llm.RoleUser, Content: "inspect the deploy"},
+		{Role: llm.RoleAssistant, Content: "reading"},
+		{Role: llm.RoleTool, Content: output, ToolCallID: "c1"},
+		{Role: llm.RoleAssistant, Content: "calling again"},
 		bigToolMsg("c2", 1000),
-		{Role: RoleAssistant, Content: "calling again"},
+		{Role: llm.RoleAssistant, Content: "calling again"},
 		bigToolMsg("c3", 1000),
 	}
 	before, _ := contextSize("sys", msgs)
@@ -174,13 +175,13 @@ func TestCompactMessages_StubKeepsHeadPreview(t *testing.T) {
 // An empty summary falls back to the head snippet.
 func TestCompactMessages_AbstractiveSummary(t *testing.T) {
 	output := strings.Repeat("verbose log line; ", 200) // large, droppable
-	msgs := []Message{
-		{Role: RoleUser, Content: "do it"},
-		{Role: RoleAssistant, Content: "calling"},
-		{Role: RoleTool, Content: output, ToolCallID: "c1"},
-		{Role: RoleAssistant, Content: "calling"},
+	msgs := []llm.Message{
+		{Role: llm.RoleUser, Content: "do it"},
+		{Role: llm.RoleAssistant, Content: "calling"},
+		{Role: llm.RoleTool, Content: output, ToolCallID: "c1"},
+		{Role: llm.RoleAssistant, Content: "calling"},
 		bigToolMsg("c2", 1000),
-		{Role: RoleAssistant, Content: "calling"},
+		{Role: llm.RoleAssistant, Content: "calling"},
 		bigToolMsg("c3", 1000),
 	}
 	before, _ := contextSize("sys", msgs)
@@ -218,14 +219,14 @@ func TestCompactMessages_AbstractiveSummary(t *testing.T) {
 func TestCompactMessages_RescuesMarkedToolOutputs(t *testing.T) {
 	rescued := `{"_agezt_context_rescue":"skill_resource","content":"` + strings.Repeat("S", 1000) + `"}`
 	ordinary := strings.Repeat("O", 1000)
-	msgs := []Message{
-		{Role: RoleUser, Content: "use the skill docs"},
-		{Role: RoleAssistant, Content: "reading skill resource"},
-		{Role: RoleTool, Content: rescued, ToolCallID: "skill-read"},
-		{Role: RoleAssistant, Content: "reading logs"},
-		{Role: RoleTool, Content: ordinary, ToolCallID: "log-read"},
-		{Role: RoleAssistant, Content: "reading more logs"},
-		{Role: RoleTool, Content: ordinary, ToolCallID: "log-read-2"},
+	msgs := []llm.Message{
+		{Role: llm.RoleUser, Content: "use the skill docs"},
+		{Role: llm.RoleAssistant, Content: "reading skill resource"},
+		{Role: llm.RoleTool, Content: rescued, ToolCallID: "skill-read"},
+		{Role: llm.RoleAssistant, Content: "reading logs"},
+		{Role: llm.RoleTool, Content: ordinary, ToolCallID: "log-read"},
+		{Role: llm.RoleAssistant, Content: "reading more logs"},
+		{Role: llm.RoleTool, Content: ordinary, ToolCallID: "log-read-2"},
 	}
 	before, _ := contextSize("sys", msgs)
 	out, stats := compactMessagesDetailed("sys", msgs, before-900, 2, 0, nil, []string{toolapi.DefaultContextRescueMarker})

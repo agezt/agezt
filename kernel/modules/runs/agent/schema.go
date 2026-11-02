@@ -5,6 +5,7 @@ package agent
 import (
 	"encoding/json"
 
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
@@ -14,6 +15,6 @@ func ValidateJSON(def, value json.RawMessage) error {
 }
 
 // LintToolSchema forwards the unchanged registration-time schema lint.
-func LintToolSchema(def ToolDef) error {
+func LintToolSchema(def toolapi.ToolDef) error {
 	return schema.LintToolSchema(def)
 }

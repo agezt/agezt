@@ -55,7 +55,7 @@ type Request struct {
 	// Capability is the Edict capability the tool wants (e.g. "shell",
 	// "file.delete").
 	Capability string
-	// ToolName is the agent.Tool's Name() (e.g. "shell", "file").
+	// ToolName is the toolapi.Tool's Name() (e.g. "shell", "file").
 	ToolName string
 	// Input is the JSON the model passed to the tool. Kept verbatim so
 	// the operator can inspect *exactly* what was about to run.

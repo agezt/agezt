@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -18,17 +20,17 @@ type changingObservationTool struct {
 	calls   int
 }
 
-func (t *changingObservationTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "watch", Description: "observe state", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (t *changingObservationTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "watch", Description: "observe state", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
-func (t *changingObservationTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
+func (t *changingObservationTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
 	if t.calls >= len(t.outputs) {
-		return agent.Result{Output: t.outputs[len(t.outputs)-1]}, nil
+		return toolapi.Result{Output: t.outputs[len(t.outputs)-1]}, nil
 	}
 	out := t.outputs[t.calls]
 	t.calls++
-	return agent.Result{Output: out}, nil
+	return toolapi.Result{Output: out}, nil
 }
 
 func TestDiffObservation_LineDelta(t *testing.T) {
@@ -52,9 +54,9 @@ func TestRun_ObservationDeltasFeedsDeltaButJournalsRaw(t *testing.T) {
 		testToolUse("c2", "watch", map[string]any{}),
 		mock.FinalText("done"),
 	)
-	prov.OnRequest = func(req agent.CompletionRequest) {
+	prov.OnRequest = func(req llm.CompletionRequest) {
 		for i := len(req.Messages) - 1; i >= 0; i-- {
-			if req.Messages[i].Role == agent.RoleTool {
+			if req.Messages[i].Role == llm.RoleTool {
 				lastToolContent = req.Messages[i].Content
 				return
 			}
@@ -62,7 +64,7 @@ func TestRun_ObservationDeltasFeedsDeltaButJournalsRaw(t *testing.T) {
 	}
 	if _, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider:          prov,
-		Tools:             map[string]agent.Tool{"watch": tool},
+		Tools:             map[string]toolapi.Tool{"watch": tool},
 		ObservationDeltas: true,
 		Bus:               b,
 		Actor:             "agent-observe",

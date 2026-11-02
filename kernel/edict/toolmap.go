@@ -8,7 +8,7 @@ import (
 )
 
 // CapabilityForToolCall returns the Edict capability for one canonical
-// agent.ToolCall (name + input bytes). It's the runtime's single source
+// llm.ToolCall (name + input bytes). It's the runtime's single source
 // of truth for "which capability does THIS specific call exercise?" so
 // the trust ladder can be checked once per call.
 //

@@ -7,15 +7,18 @@ package agent
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/bus"
-	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"time"
+
+	"github.com/agezt/agezt/kernel/bus"
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 )
 
 // LoopConfig configures one tool-loop run.
 type LoopConfig struct {
-	Provider Provider
-	Tools    map[string]Tool
+	Provider llm.Provider
+	Tools    map[string]toolapi.Tool
 	// ToolPhases is the injected invocation service for batch-aware tool calls.
 	// Nil keeps standalone agent.Run compatible with the shared platform engine.
 	ToolPhases toolphaseapi.Phases
@@ -56,7 +59,7 @@ type LoopConfig struct {
 	// seed, stop, penalties, reasoning effort) applied to every provider call of
 	// the run (M997). Zero value leaves the request unchanged. Flows to
 	// CompletionRequest.Params.
-	Params Params
+	Params llm.Params
 	// TaskType is the per-run routing hint (M703) carried into every
 	// CompletionRequest of the run, so the Governor's per-task-type model
 	// chains / overrides / routes apply. The main chat loop sets "chat";
@@ -112,7 +115,7 @@ type LoopConfig struct {
 	// before that result is appended back to the model. It is best-effort
 	// runtime bookkeeping; implementations must not panic.
 	// Run-terminal batches settle audit without invoking this hook.
-	ToolResultHook func(context.Context, ToolCall, Result)
+	ToolResultHook func(context.Context, llm.ToolCall, toolapi.Result)
 	// Actor is the journaling actor for emitted events (e.g. "agent-01H").
 	Actor string
 	// CorrelationID ties every event in this run together.
@@ -203,7 +206,7 @@ type LoopConfig struct {
 	// tool-call/result pairing stays consistent. Its first element is already the
 	// original user-intent turn, so it REPLACES that turn (the loop does not
 	// prepend a second). nil (the default) is a normal fresh run.
-	PriorMessages []Message
+	PriorMessages []llm.Message
 	// StartIter is the iteration number a resumed run continues from, so journal
 	// iter numbers keep climbing and the resumed run gets a full fresh MaxIter
 	// budget from that point. 0 for a fresh run.
@@ -215,7 +218,7 @@ type LoopConfig struct {
 	// non-blocking, and MUST copy the slice if it retains it (the loop keeps
 	// appending to the passed messages). nil disables checkpointing with zero
 	// overhead.
-	Checkpoint func(iter int, messages []Message)
+	Checkpoint func(iter int, messages []llm.Message)
 }
 
 // Steerer is the optional per-run control surface the loop consults at the top

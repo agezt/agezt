@@ -6,7 +6,7 @@ internal/toolname), `kernel/modules/providers/boot`, `plugins/sdk` (+ `example/g
 
 Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md) (who calls
 `boot.Boot`/`Reload`, AWS credential chain, daemonconfig) · [04-agent-runtime.md](04-agent-runtime.md)
-(`kernel/agent` loop, middleware, GenerateObject) · [05-governance-routing-security.md](05-governance-routing-security.md)
+(`kernel/modules/runs/agent` loop, middleware, GenerateObject) · [05-governance-routing-security.md](05-governance-routing-security.md)
 (governor routing/chains/budgets, catalog, creds, sigv4, chatgptauth, netguard) ·
 [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md) (kernel/modules/extensions/plugin host, kernel/modules/extensions/mcp in-kernel MCP,
 voicetool/imagetool/reranktool) · [02-cli-cmd-agt.md](02-cli-cmd-agt.md) (`agt check`, `agt plugin new`) ·
@@ -18,8 +18,8 @@ voicetool/imagetool/reranktool) · [02-cli-cmd-agt.md](02-cli-cmd-agt.md) (`agt 
 
 | Area | What it does |
 |---|---|
-| **LLM wire adapters** (`anthropic`, `openai`, `openairesponses`, `google`, `vertex`, `bedrock`, `cohere`, `ollama`) | Translate the canonical, dialect-free `agent.CompletionRequest` / `agent.CompletionResponse` (defined in `kernel/agent`) to/from one vendor wire format. Each implements `agent.Provider`; all except `openairesponses` also implement `agent.StreamingProvider`. |
-| **`compat`** | The *only* factory that turns a `catalog.Provider` entry (models.dev-derived) + model id + credential lookup into a live `agent.Provider`, dispatching on `catalog.Family`. Wraps the result so `Name()` = catalog provider id. |
+| **LLM wire adapters** (`anthropic`, `openai`, `openairesponses`, `google`, `vertex`, `bedrock`, `cohere`, `ollama`) | Translate the canonical, dialect-free `llm.CompletionRequest` / `llm.CompletionResponse` (defined in `kernel/contract/llm`) to/from one vendor wire format. Each implements `llm.Provider`; all except `openairesponses` also implement `llm.StreamingProvider`. |
+| **`compat`** | The *only* factory that turns a `catalog.Provider` entry (models.dev-derived) + model id + credential lookup into a live `llm.Provider`, dispatching on `catalog.Family`. Wraps the result so `Name()` = catalog provider id. |
 | **`providers/boot`** | Daemon provider bootstrap: primary selection (`AGEZT_PROVIDER`), alternate registration (every other credentialed catalog provider + ChatGPT), the middleware stack (M997, asked for through a port), governor construction from env, and hot reload — Boot and Reload share one registration path. Also ChatGPT model discovery + catalog seeding. The engine of the `providers` module: it drives the wire adapters through `providers/api.Ports`, so it imports no plugin. |
 | **Shared internals** (`internal/httpread`, `retry`, `provopts`, `toolname`) | Bounded body reads (64 MiB), exponential-backoff retry honouring `Retry-After`, `Params`/`ProviderOptions` application helpers, injective tool-name sanitisation + reversal. |
 | **Non-chat modality clients** (`embed`, `image`, `rerank`, `voice`) | OpenAI-compatible (plus native ElevenLabs/Deepgram/Cartesia for voice) clients that satisfy *kernel-side seams structurally* (memory.Embedder, runtime ImageGen/Reranker/Voice) without the kernel importing them. Constructed in `cmd/agezt/main.go` from `AGEZT_EMBED_*`, `AGEZT_IMAGE_*`, `AGEZT_RERANK_*`, `AGEZT_STT_*`/`AGEZT_TTS_*`. |
@@ -27,20 +27,20 @@ voicetool/imagetool/reranktool) · [02-cli-cmd-agt.md](02-cli-cmd-agt.md) (`agt 
 | **`plugins/sdk`** | Stdlib-only Go kit for out-of-process *tool* plugins speaking the kernel's line-delimited JSON plugin protocol (initialize / tool/invoke / shutdown / host/invoke / progress). |
 | **`plugins/external/mcpbridge`** | Standalone binary: an agezt plugin (plugin protocol on its stdio) that fronts one MCP server (JSON-RPC 2.0 over stdio or legacy HTTP+SSE). Predates and is superseded for most uses by the in-kernel `kernel/modules/extensions/mcp`. |
 
-Layering: everything here sits **above** the kernel. `plugins/providers/*` import `kernel/agent` (types),
+Layering: everything here sits **above** the kernel. `plugins/providers/*` import `kernel/contract/llm` (types),
 `kernel/contract/catalogapi` (the catalog's rows — compat only), `kernel/netguard` (embed, voice, openairesponses), `kernel/creds/sigv4` (bedrock).
 The kernel never imports any of these packages (verified: only `cmd/agezt`, `cmd/agt` and test files import them).
 `plugins/sdk` and `plugins/external/mcpbridge` import nothing from the kernel except `mcpbridge → kernel/netguard`.
 
 ---
 
-## 1. The provider contract (defined in `kernel/agent`, not here)
+## 1. The provider contract (defined in `kernel/contract/llm`, not here)
 
-All adapters target the contract in `kernel/contract/llm` (aliased in `kernel/agent/agent.go` since W1.1) plus `kernel/agent` (`middleware.go`,
+All adapters target the contract in `kernel/contract/llm` (W1.1; the loop's alias block that re-exported it was removed in W3.76i) plus the loop (`kernel/modules/runs/agent`, `middleware.go`,
 `generate.go`). Details of the agent loop are in 04; the wire-relevant contract:
 
 ```go
-// kernel/agent/agent.go:194
+// kernel/contract/llm/llm.go
 type Provider interface {
     Name() string
     Complete(ctx context.Context, req CompletionRequest) (*CompletionResponse, error)
@@ -77,7 +77,7 @@ type StreamingProvider interface {
   are display-only. Providers that receive whole tool calls (Gemini, Vertex, Ollama) **synthesise** the
   Start→JSONDelta→Stop triple.
 
-### Composition helpers used by the boot engine (defined in kernel/agent)
+### Composition helpers used by the boot engine (defined in kernel/modules/runs/agent)
 
 * `agent.Wrap(p, mws...)` (`middleware.go`) — applies `Middleware{TransformRequest, WrapComplete, WrapStream,
   SynthesizeStream}`; returns a `StreamingProvider` only if `p` streams or a middleware synthesises.
@@ -193,7 +193,7 @@ provider's arm of a fallback chain.
 * `RestoreCalls(resp, rev)` / `Reverse(tools)` — rewrite response tool-call names back to originals.
 
 Invariant: live stream chunks carry *wire* names (display only); dispatch uses the assembled, restored response.
-Depends on `kernel/agent`.
+Depends on `kernel/modules/runs/agent`.
 
 | File | What it does |
 |---|---|
@@ -389,7 +389,7 @@ Local-model floor (DECISIONS C2). `Provider{Endpoint, BaseURL, Model, HTTP}`, `N
 
 ### 3.13 `plugins/providers/compat` — catalog entry → live provider
 
-`Build(p *catalog.Provider, modelID string, lookup CredLookup) (agent.Provider, string, error)`:
+`Build(p *catalog.Provider, modelID string, lookup CredLookup) (llm.Provider, string, error)`:
 
 1. Reject nil entry / empty model / model not in `p.Models` (`ErrModelUnknown` — strict, no guessing).
 2. Credentials: for each `p.Env` name, try `catalog.ProviderCredentialLookupNames(p.ID, name)` =
@@ -601,7 +601,7 @@ Tests: `boot_test.go`, `reconcile_providers_test.go` (boot/reload parity, sentin
 
 ## 5. `plugins/sdk` — writing an out-of-process tool plugin
 
-Stdlib-only (deliberately does not import `kernel/modules/extensions/plugin` or `kernel/agent`, DECISIONS B0). Its wire structs are
+Stdlib-only (deliberately does not import `kernel/modules/extensions/plugin` or `kernel/modules/runs/agent`, DECISIONS B0). Its wire structs are
 independent copies of `kernel/modules/extensions/plugin/protocol.go` (host side; see 07).
 
 ### Protocol (newline-delimited JSON over the plugin's stdin/stdout)
@@ -713,7 +713,7 @@ Tests: `main_test.go`, `mcp_m428_test.go` (panic/wedge regression), `limits_test
    send via `retry.DoHTTP` with a per-attempt `build` closure; map `*retry.HTTPError` → `*APIError`; decode to canonical
    (stop reason, usage with **total** input tokens, cached/cache-write subsets, `ReasoningContent`, images from
    `data:` URLs); `toolname.RestoreCalls(resp, toolname.Reverse(req.Tools))`.
-4. Optionally implement `CompleteStream` with `retry.DoHTTPStream`; emit chunks per the `agent.Chunk` contract and
+4. Optionally implement `CompleteStream` with `retry.DoHTTPStream`; emit chunks per the `llm.Chunk` contract and
    return the same assembled response; synthesise Start/Delta/Stop if tool calls arrive whole.
 5. Add a `catalogapi.Family` constant + `FamilyFromNPM` case (`kernel/contract/catalogapi`, 05), and
    `FamilySupportsNativeJSONMode` if applicable.
@@ -729,8 +729,8 @@ Tests: `main_test.go`, `mcp_m428_test.go` (panic/wedge regression), `limits_test
 
 ### Other extension points
 
-* New sampling knob → `agent.Params` + every adapter's `applyParams` (zero must stay byte-identical).
-* New middleware → `agent.Middleware` in `kernel/agent`, opt-in env in `agent.MiddlewareFromEnv`
+* New sampling knob → `llm.Params` + every adapter's `applyParams` (zero must stay byte-identical).
+* New middleware → `agent.Middleware` in `kernel/modules/runs/agent`, opt-in env in `agent.MiddlewareFromEnv`
   (new `AGEZT_*` env read in cmd/agezt must also be listed in controlplane `configEnvVars` — see 01/03 guard).
 * New modality client → mirror `embed`/`image`: stdlib-typed method satisfying a kernel seam structurally,
   constructed in `cmd/agezt/main.go`, netguard client with explicit loopback/private allowance if local servers are
@@ -746,7 +746,7 @@ Tests: `main_test.go`, `mcp_m428_test.go` (panic/wedge regression), `limits_test
 1. **Default-preserving wire.** Every M997 addition (`Params`, `ProviderOptions`, `JSONMode`, thinking) must leave
    the request byte-identical when unset; tests pin this (`params_test.go`, `Merge` returns the same bytes).
 2. **`ProviderOptions` is keyed by dialect, not registry name.** Adapters read only `anthropic`, `openai`, `google`,
-   `vertex`, `bedrock`, `cohere`, `ollama`. The `agent.CompletionRequest` doc says "family or registry name" but a
+   `vertex`, `bedrock`, `cohere`, `ollama`. The `llm.CompletionRequest` doc says "family or registry name" but a
    `groq`/`deepseek` key is ignored. Mistral, Azure, every openai-compatible vendor **and** the ChatGPT Responses
    adapter all read `"openai"` — an option meant for Chat Completions is also merged into the Responses body.
 3. **No default provider/model.** Empty `AGEZT_PROVIDER` boots the `unconfigured` sentinel; `FirstModelID` is only a

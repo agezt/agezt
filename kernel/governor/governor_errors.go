@@ -43,7 +43,7 @@ func (e *ErrNoProviders) Unwrap() error { return e.Last }
 // Returns the routed chain, or a non-nil error if any gate refuses the call.
 //
 // Routing hints can be smuggled via the request: not exposed at the
-// agent.Provider boundary in M1.b. The future Planner will pass options
+// llm.Provider boundary in M1.b. The future Planner will pass options
 // through a richer interface.
 // preflightAndRoute runs the pre-dispatch cascade (see preflight.go) and, if
 // nothing refuses the call, picks the provider chain to serve it.

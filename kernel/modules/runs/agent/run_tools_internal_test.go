@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -18,19 +20,19 @@ import (
 
 // stubTool is a minimal Tool whose output and error are fixtures.
 type stubTool struct {
-	def    ToolDef
+	def    toolapi.ToolDef
 	output string
 	err    error
 	calls  int
 }
 
-func (s *stubTool) Definition() ToolDef { return s.def }
-func (s *stubTool) Invoke(_ context.Context, _ json.RawMessage) (Result, error) {
+func (s *stubTool) Definition() toolapi.ToolDef { return s.def }
+func (s *stubTool) Invoke(_ context.Context, _ json.RawMessage) (toolapi.Result, error) {
 	s.calls++
 	if s.err != nil {
-		return Result{}, s.err
+		return toolapi.Result{}, s.err
 	}
-	return Result{Output: s.output}, nil
+	return toolapi.Result{Output: s.output}, nil
 }
 
 func objSchema() json.RawMessage {
@@ -87,13 +89,13 @@ func TestResolveDirectiveWindow_DefaultsWhenUnset(t *testing.T) {
 // bug this signature exists to make impossible.
 func TestFinalizeToolJobs_AppendsToTheCallersConversation(t *testing.T) {
 	s := testState(LoopConfig{})
-	prior := []Message{
-		{Role: RoleUser, Content: "do it"},
-		{Role: RoleAssistant, Content: "calling a tool"},
+	prior := []llm.Message{
+		{Role: llm.RoleUser, Content: "do it"},
+		{Role: llm.RoleAssistant, Content: "calling a tool"},
 	}
 	jobs := []*toolJob{
-		{tc: ToolCall{ID: "c1", Name: "alpha"}, result: Result{Output: "A"}},
-		{tc: ToolCall{ID: "c2", Name: "beta"}, result: Result{Output: "B"}},
+		{tc: llm.ToolCall{ID: "c1", Name: "alpha"}, result: toolapi.Result{Output: "A"}},
+		{tc: llm.ToolCall{ID: "c2", Name: "beta"}, result: toolapi.Result{Output: "B"}},
 	}
 
 	out, err := s.finalizeToolJobs(context.Background(), jobs, 0, prior)
@@ -108,10 +110,10 @@ func TestFinalizeToolJobs_AppendsToTheCallersConversation(t *testing.T) {
 		t.Errorf("prior turns lost or reordered: %+v", out[:2])
 	}
 	// Tool results follow in the ORIGINAL call order, keyed to their call ids.
-	if out[2].Role != RoleTool || out[2].ToolCallID != "c1" || out[2].Content != "A" {
+	if out[2].Role != llm.RoleTool || out[2].ToolCallID != "c1" || out[2].Content != "A" {
 		t.Errorf("first tool turn = %+v", out[2])
 	}
-	if out[3].Role != RoleTool || out[3].ToolCallID != "c2" || out[3].Content != "B" {
+	if out[3].Role != llm.RoleTool || out[3].ToolCallID != "c2" || out[3].Content != "B" {
 		t.Errorf("second tool turn = %+v", out[3])
 	}
 }
@@ -121,8 +123,8 @@ func TestFinalizeToolJobs_AppendsToTheCallersConversation(t *testing.T) {
 func TestFinalizeToolJobs_ToolErrorIsFedBackNotFatal(t *testing.T) {
 	s := testState(LoopConfig{})
 	jobs := []*toolJob{{
-		tc:        ToolCall{ID: "c1", Name: "alpha"},
-		tool:      &stubTool{def: ToolDef{Name: "alpha", InputSchema: objSchema()}},
+		tc:        llm.ToolCall{ID: "c1", Name: "alpha"},
+		tool:      &stubTool{def: toolapi.ToolDef{Name: "alpha", InputSchema: objSchema()}},
 		invokeErr: errors.New("boom"),
 	}}
 	out, err := s.finalizeToolJobs(context.Background(), jobs, 0, nil)
@@ -137,8 +139,8 @@ func TestFinalizeToolJobs_ToolErrorIsFedBackNotFatal(t *testing.T) {
 func TestFinalizeToolJobs_PanicIsRunTerminal(t *testing.T) {
 	s := testState(LoopConfig{})
 	jobs := []*toolJob{{
-		tc:        ToolCall{ID: "c1", Name: "alpha"},
-		tool:      &stubTool{def: ToolDef{Name: "alpha", InputSchema: objSchema()}},
+		tc:        llm.ToolCall{ID: "c1", Name: "alpha"},
+		tool:      &stubTool{def: toolapi.ToolDef{Name: "alpha", InputSchema: objSchema()}},
 		panicked:  true,
 		invokeErr: ErrPanic,
 	}}
@@ -151,7 +153,7 @@ func TestFinalizeToolJobs_PanicIsRunTerminal(t *testing.T) {
 // immediately, a softly-refused one after maxToolDenials refusals.
 func TestOfferedTools_DropsRepeatedlyRefusedTools(t *testing.T) {
 	s := testState(LoopConfig{})
-	all := []ToolDef{{Name: "alpha"}, {Name: "beta"}, {Name: "gamma"}}
+	all := []toolapi.ToolDef{{Name: "alpha"}, {Name: "beta"}, {Name: "gamma"}}
 
 	// Nothing refused yet: the caller's slice comes back untouched.
 	if got := s.offeredTools(all); len(got) != 3 {
@@ -178,12 +180,12 @@ func TestOfferedTools_DropsRepeatedlyRefusedTools(t *testing.T) {
 // executing anything, and synthesizes the message the model will see.
 func TestGateToolCalls_RefusalsShortCircuitExecution(t *testing.T) {
 	known := &stubTool{
-		def:    ToolDef{Name: "alpha", InputSchema: json.RawMessage(`{"type":"object","properties":{"n":{"type":"number"}},"required":["n"]}`)},
+		def:    toolapi.ToolDef{Name: "alpha", InputSchema: json.RawMessage(`{"type":"object","properties":{"n":{"type":"number"}},"required":["n"]}`)},
 		output: "ok",
 	}
-	s := testState(LoopConfig{Tools: map[string]Tool{"alpha": known}})
+	s := testState(LoopConfig{Tools: map[string]toolapi.Tool{"alpha": known}})
 
-	jobs, err := s.gateToolCalls(context.Background(), []ToolCall{
+	jobs, err := s.gateToolCalls(context.Background(), []llm.ToolCall{
 		{ID: "c1", Name: "nope", Input: json.RawMessage(`{}`)},
 		{ID: "c2", Name: "alpha", Input: json.RawMessage(`{}`)}, // missing required "n"
 		{ID: "c3", Name: "alpha", Input: json.RawMessage(`{"n":1}`)},
@@ -215,15 +217,15 @@ func TestGateToolCalls_RefusalsShortCircuitExecution(t *testing.T) {
 // the model why, instead of letting it burn iterations on a call whose result
 // cannot change.
 func TestGateToolCalls_LoopGuardRefusesIdenticalRepeat(t *testing.T) {
-	tool := &stubTool{def: ToolDef{Name: "alpha", InputSchema: objSchema()}, output: "ok"}
+	tool := &stubTool{def: toolapi.ToolDef{Name: "alpha", InputSchema: objSchema()}, output: "ok"}
 	s := testState(LoopConfig{
-		Tools:                 map[string]Tool{"alpha": tool},
+		Tools:                 map[string]toolapi.Tool{"alpha": tool},
 		MaxIdenticalToolCalls: 2,
 	})
-	call := ToolCall{ID: "c", Name: "alpha", Input: json.RawMessage(`{"same":true}`)}
+	call := llm.ToolCall{ID: "c", Name: "alpha", Input: json.RawMessage(`{"same":true}`)}
 
 	for i := 1; i <= 2; i++ {
-		jobs, err := s.gateToolCalls(context.Background(), []ToolCall{call}, i)
+		jobs, err := s.gateToolCalls(context.Background(), []llm.ToolCall{call}, i)
 		if err != nil {
 			t.Fatalf("call %d: %v", i, err)
 		}
@@ -231,7 +233,7 @@ func TestGateToolCalls_LoopGuardRefusesIdenticalRepeat(t *testing.T) {
 			t.Fatalf("call %d must be allowed (cap is 2)", i)
 		}
 	}
-	jobs, err := s.gateToolCalls(context.Background(), []ToolCall{call}, 3)
+	jobs, err := s.gateToolCalls(context.Background(), []llm.ToolCall{call}, 3)
 	if err != nil {
 		t.Fatalf("third call: %v", err)
 	}

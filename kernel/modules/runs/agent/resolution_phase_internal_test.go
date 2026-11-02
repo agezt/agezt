@@ -9,18 +9,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
 type resolutionProbe struct {
-	def                ToolDef
+	def                toolapi.ToolDef
 	definitions, calls int
 }
 
-func (p *resolutionProbe) Definition() ToolDef { p.definitions++; return p.def }
-func (p *resolutionProbe) Invoke(context.Context, json.RawMessage) (Result, error) {
+func (p *resolutionProbe) Definition() toolapi.ToolDef { p.definitions++; return p.def }
+func (p *resolutionProbe) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
 	p.calls++
-	return Result{Output: "ok"}, nil
+	return toolapi.Result{Output: "ok"}, nil
 }
 
 func TestGateResolutionPrecedesGuardAndPolicy(t *testing.T) {
@@ -37,11 +39,11 @@ func TestGateResolutionPrecedesGuardAndPolicy(t *testing.T) {
 		{"allow", "probe", `{"n":1}`, "", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			def := ToolDef{Name: "implementation", Description: "registry alias", InputSchema: json.RawMessage(`{"type":"object","properties":{"n":{"type":"integer"}},"required":["n"]}`), Capability: ToolCapability{Name: "introspect"}, Effect: ToolEffect{Class: EffectReadOnly}}
+			def := toolapi.ToolDef{Name: "implementation", Description: "registry alias", InputSchema: json.RawMessage(`{"type":"object","properties":{"n":{"type":"integer"}},"required":["n"]}`), Capability: toolapi.ToolCapability{Name: "introspect"}, Effect: toolapi.ToolEffect{Class: toolapi.EffectReadOnly}}
 			tool := &resolutionProbe{def: def}
 			policyCalls := 0
-			call := ToolCall{ID: "call", Name: tc.tool, Input: json.RawMessage(tc.input)}
-			s := testState(LoopConfig{Tools: map[string]Tool{"probe": tool}, MaxIdenticalToolCalls: 1, Policy: func(ctx context.Context, got ToolCall) PolicyVerdict {
+			call := llm.ToolCall{ID: "call", Name: tc.tool, Input: json.RawMessage(tc.input)}
+			s := testState(LoopConfig{Tools: map[string]toolapi.Tool{"probe": tool}, MaxIdenticalToolCalls: 1, Policy: func(ctx context.Context, got llm.ToolCall) PolicyVerdict {
 				policyCalls++
 				resolved, ok := PolicyToolDefFromContext(ctx)
 				if !ok || !reflect.DeepEqual(resolved, def) || !reflect.DeepEqual(got, call) {
@@ -58,7 +60,7 @@ func TestGateResolutionPrecedesGuardAndPolicy(t *testing.T) {
 				records = append(records, kind)
 				return nil, nil
 			}
-			jobs, err := s.gateToolCalls(context.Background(), []ToolCall{call}, 0)
+			jobs, err := s.gateToolCalls(context.Background(), []llm.ToolCall{call}, 0)
 			if err != nil || len(jobs) != 1 || tool.calls != 0 {
 				t.Fatalf("jobs=%v error=%v effects=%d", jobs, err, tool.calls)
 			}
