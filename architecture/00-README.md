@@ -20,7 +20,7 @@ page, then open the area document you need.
 | 01 | [01-daemon-boot-cmd-agezt.md](01-daemon-boot-cmd-agezt.md) | `cmd/agezt` composition root, the 50-step boot sequence, every `AGEZT_*` env var, `AGEZT_HOME` layout, `daemonconfig`, `internal/*`, Makefile/scripts/installers, `tools/*` gates, CI workflow | ~690 lines |
 | 02 | [02-cli-cmd-agt.md](02-cli-cmd-agt.md) | `agt` CLI: dispatch/router/help, how it dials the daemon, offline vs daemon commands, complete command table, all 233 files | ~700 lines |
 | 03 | [03-control-plane-and-http.md](03-control-plane-and-http.md) | `kernel/controlplane` protocol and all **321 ops**, `httpserver`, Web UI Go side (198 routes), REST, OpenAI-compatible API, `agentgw`, `auth`, `streamlimit`, `tunnel`, outbound `webhook`; HTTP-edge security; SSE path | ~1300 lines |
-| 04 | [04-agent-runtime.md](04-agent-runtime.md) | the loop (`kernel/modules/runs/agent`), `kernel/runtime` (+`runexec`, `lifecycle`, `accessors`, `compose`, `types`), policy hook, delegation, steering/intervention, compaction, resume, planner, assure/proof, tool registry | ~730 lines |
+| 04 | [04-agent-runtime.md](04-agent-runtime.md) | the loop (`kernel/modules/runs/agent`), the run engine (`kernel/modules/runs/runner`), `kernel/runtime` (+`lifecycle`, `accessors`, `compose`, `types`), policy hook, delegation, steering/intervention, compaction, resume, planner, assure/proof, tool registry | ~730 lines |
 | 05 | [05-governance-routing-security.md](05-governance-routing-security.md) | `governor` routing/budgets/breakers, `catalog`, `creds` vault + `sigv4`, `chatgptauth`, `settings`, `configcenter`, `executionprofile`, **Edict** policy, `warden`, `netguard`, `envscrub`, `redact`, `approval`, `seat`, `tenant`, `tenantctx`, `state` | ~720 lines |
 | 06 | [06-data-memory-state.md](06-data-memory-state.md) | `event` (170 kinds, registry closed — W1.6), `journal` (BLAKE3 chain), `bus`, `ulid`, `filestore`, `memory`, `worldmodel`, `datalake`, `artifact`, `board`, `workboard`, `okr`, `taste`, `anomaly`, `alerter`; the store table | ~680 lines |
 | 07 | [07-autonomy-and-extensibility.md](07-autonomy-and-extensibility.md) | `roster`, `cadence`(+`systemtasks`), `scheduler`, `standing`, `pulse`, `selfrepair`, `skill`, `market`, `plugin`, `mcp`, `acp`, `acpcatalog`, `workflow`, `workflowexec`, `update`, `toolbox`, `channel`, `channelwire`, `stt`, `voicetool`, `imagetool`, `reranktool`; how wakes become governed runs | ~1860 lines |
@@ -78,7 +78,7 @@ Agents wake from schedules, standing orders, Pulse observations, workflows, chan
  (runtime/control.addr/.token)   321 ops, NDJSON       │                                                    │
                                                        ▼                                                    │
  Browser ──HTTP :8787──▶ webui ──dials control port──▶ (same ops)          ┌──────────── runtime.Kernel ─────┐ │
-          ◀──SSE /events── bus subscriber                                  │ runexec.Runner → agent.Run loop │ │
+          ◀──SSE /events── bus subscriber                                  │ runner.Runner → agent.Run loop │ │
  OpenAI clients/IDEs ──▶ openaiapi  ──────(direct kernel iface)──────────▶ │   ├─ governor ─▶ providers      │ │
  REST SDKs (py/ts/rs) ──▶ restapi   ──────(direct kernel iface)──────────▶ │   ├─ policyHook ─▶ Edict/approval│ │
  Agent subprocesses ──▶ agentgw (unix sock, HMAC caps) ─────────────────▶ │   └─ tools (toolreg/plugins/MCP)│ │
@@ -171,7 +171,7 @@ Every Go package, one line each, with the document that covers it in depth.
 |---|---|
 | `agent` | **The** single model→tool loop (`agent.Run`). Defines `Provider`, `Tool`, `CompletionRequest/Response`, `ToolEffect`. Depends only on `bus` + `event`; pricing, policy and steering are injected. |
 | `runtime` | `Kernel`: wires journal + state + bus + loop + providers + tools. Owns the policy hook, delegation rails, MCP attach, lock order. The **run registry** is no longer among them: it moved into the runs module in W3.76d (`kernel/modules/runs/registry`), and the daemon holds the store handle. |
-| `runtime/runexec` | The run engine: `Runner.RunWith` (state setup → prompt build → loop config → resume ticket → `agent.Run` → post-run distill/forge/lifecycle). |
+| `modules/runs/runner` | The run engine: `Runner.RunWith` (state setup → prompt build → loop config → resume ticket → `agent.Run` → post-run distill/forge/lifecycle). |
 | `modules/runs/registry`, `modules/runs/lifecycle` | The runs module's **live-run store** and the halt/resume/cancel surface over it (W3.76d, moved out of `kernel/runtime`). `accessors` is constructed but unused and `compose` has no importers; see findings. |
 | `modules/runs/prompt` | The runs module's **prompt assembly** (W3.76e, moved out of `kernel/runtime`): what a run knows before it starts — the live identity, the operator profile, the taste exemplars, the recalled memory, the resolved world entities, the activated skills — plus the host-environment preamble. The daemon keeps two doors and a three-verb host port. |
 | `modules/runs/delegation`, `modules/runs/retry` | The runs module's **delegation engine** (W3.76f, moved out of `kernel/runtime` and `kernel/delegation`): who may delegate what, under which bounds (depth, fan-out, tree total, spend), with which identity, on which model, with which retry policy — plus the async spawn handles and the `delegate` / `delegate_await` tools. The daemon keeps fourteen doors (`kernel/runtime/subagent_doors.go`) and the child loop it asks the engine to run. `modules/runs/retry` holds the retry vocabulary both the engine and the daemon's root-run retry use. |
@@ -314,7 +314,7 @@ Every Go package, one line each, with the document that covers it in depth.
 1. **Entry:** control-plane `run` op (CLI/Web UI), REST/OpenAI engine, channel `InboundHandler`, cadence,
    standing order, workboard dispatch, selfrepair, overseer, or the boot resumer. All of them reach
    `Kernel.RunWith` / `RunAssured` / `RunWithRetry`.
-2. **`runexec.Runner.RunWith`:**
+2. **`runner.Runner.RunWith`:**
    1. Registers the run under a correlation id.
    2. Frames the intent.
    3. Builds the system prompt from the agent profile/soul, operator profile, taste, memory, world model and
@@ -485,7 +485,7 @@ backlog. Details and file references are in the linked documents.
 ### 9.3 Drift, dead code, docs
 | Finding | Area |
 |---|---|
-| ✅ **Resolved (W3.8, W3.15):** the kernel→plugins edge `kernel/controlplane`, `kernel/selfrepair` → `plugins/tools/overseertool` is gone — the repair engine moved to the app layer behind a contract port. Module→adapter edge: `kernel/runtime` (+`accessors`, `runexec`) → `kernel/agentgw`. All forbidden edges are now tracked by `tools/archcheck` (ratchet). | §4.1, [20](20-target-architecture.md) |
+| ✅ **Resolved (W3.8, W3.15):** the kernel→plugins edge `kernel/controlplane`, `kernel/selfrepair` → `plugins/tools/overseertool` is gone — the repair engine moved to the app layer behind a contract port. Module→adapter edge: `kernel/runtime` (+`accessors`) → `kernel/agentgw`. All forbidden edges are now tracked by `tools/archcheck` (ratchet). | §4.1, [20](20-target-architecture.md) |
 | ✅ **Removed (W0.5, W3.40):** `kernel/workflowexec` and `kernel/runtime/compose` had no importers. Open: `acpcatalog.ResolveLaunch` and plugin host callbacks/`Reload` have no production caller. `delegation` tool types duplicate runtime's. `ErrHalted`/`ErrNoVisionModel` are each defined twice. — **`runtime/accessors` was constructed but unused and is now deleted (W3.40):** it was a second, unreachable copy of the kernel's read surface, and it carried eleven allowlisted edges that bought nothing (the kernel's module reach was counted twice). The ratchet went 77 → **66**. | [04](04-agent-runtime.md) |
 | ✅ **Fixed (W0.5):** `contract/gen` CI drift check could never fail (gitignored output + `git diff`); it now builds the package. Open: `sdkparity` only checks report freshness. Fixtures are self-validating only. | [12](12-sdks-and-contract.md) |
 | `designsystem.test.ts` scans only `components/`, not `features/`. 9 frontend modules are used only by their tests. Monaco loads from a CDN the CSP blocks. Fake file tree on 404. Observe badge never clears. | [11](11-frontend-console.md) |

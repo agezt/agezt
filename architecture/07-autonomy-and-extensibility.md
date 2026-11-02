@@ -40,14 +40,14 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 
 | Package | Imports (internal) | Imported by (non-test) |
 |---|---|---|
-| `roster` | edict, filestore, ulid | cmd/agezt, agentgw, app/{roster, routing, runs, schedule, standing}, controlplane, modules/agents/{api, reaper, selfrepair}, runtime (+accessors, runexec) |
-| `cadence` | bus, event, filestore, ulid | cmd/agezt, cmd/agt, app/{roster, schedule}, cadence/systemtasks, controlplane, runtime (+accessors, runexec) |
+| `roster` | edict, filestore, ulid | cmd/agezt, agentgw, app/{roster, routing, runs, schedule, standing}, controlplane, modules/agents/{api, reaper, selfrepair}, runtime (+accessors) |
+| `cadence` | bus, event, filestore, ulid | cmd/agezt, cmd/agt, app/{roster, schedule}, cadence/systemtasks, controlplane, runtime (+accessors) |
 | `cadence/systemtasks` | brand, cadence, event, contract/{cadenceapi,catalogapi,journalapi} | cmd/agezt only |
-| `scheduler` | agent, approval, bus, event, intent, ulid | controlplane, runtime (+accessors, runexec) |
-| `standing` | bus, filestore, ulid | cmd/agezt, app/{roster, standing}, controlplane, runtime (+accessors, runexec) |
+| `scheduler` | agent, approval, bus, event, intent, ulid | controlplane, runtime (+accessors) |
+| `standing` | bus, filestore, ulid | cmd/agezt, app/{roster, standing}, controlplane, runtime (+accessors) |
 | `pulse` | agent, bus, event, state, ulid, warden | cmd/agezt, alerter, channelwire, builtinchannels |
 | `selfrepair` | brand, strutil, board, bus, event, roster, runtime | cmd/agezt only |
-| `skill` | agent, bus, contract/skillapi, event, filestore | cmd/agezt, cmd/agt, contextselect, controlplane, market, runtime (+accessors, runexec), builtinskills |
+| `skill` | agent, bus, contract/skillapi, event, filestore | cmd/agezt, cmd/agt, contextselect, controlplane, market, runtime (+accessors), builtinskills |
 | `market` | atomicfile, agent, contract/marketapi, edict, mcp, netguard, skill | cmd/agezt, cmd/agt, controlplane, runtime (+accessors) |
 | `plugin` | agent, contract/pluginapi, contract/toolapi, platform/sandbox | cmd/agt |
 | `mcp` | filestore, netguard, ulid | controlplane, market, runtime (+compose) |
@@ -57,11 +57,11 @@ Sibling docs: [00-README.md](00-README.md) · [01-daemon-boot-cmd-agezt.md](01-d
 | `workflowexec` | — | **nobody** (dead; see §16.5) |
 | `update` | brand, contract/updateapi, netguard | cmd/agezt (the daemon hands over the port) |
 | `toolbox` | contract/toolboxapi | cmd/agezt (the daemon hands over the port) |
-| `toolforge` | contract/toolforgeapi, filestore, ulid | cmd/agezt, controlplane, runtime (+runexec) |
+| `toolforge` | contract/toolforgeapi, filestore, ulid | cmd/agezt, controlplane, runtime |
 | `channel` | strutil, bus, event | cmd/agezt, channelwire, controlplane, builtinchannels, every plugins/channels/*, tools/sendmedia |
 | `channelwire` | bus, channel, pulse, settings | cmd/agezt, builtinchannels |
 | `stt` | — | cmd/agezt, cmd/agt |
-| `voicetool` / `imagetool` / `reranktool` | agent, edict | runtime (+compose, runexec) |
+| `voicetool` / `imagetool` / `reranktool` | agent, edict | runtime (+compose) |
 | `internal/testfixtures` | agent | test files only (agent, controlplane, runtime `mock_helpers_test.go`) |
 
 Layering note: the kernel→plugins edges are **gone**. The control plane and the
@@ -225,7 +225,7 @@ with identity, budget, trust and provenance, then calls the same kernel entry po
         │                         │                                                               │
         └─────────────┬───────────┴───────────────────────────────────────────────────────────────┘
                       ▼
-      kernel/runtime  RunWith → runexec.RunWith  (see 04-agent-runtime.md)
+      kernel/runtime  RunWith → runner.RunWith  (see 04-agent-runtime.md)
         SetupRunState: halted? duplicate corr? register k.runs[corr] (Halt/Cancel), deadline
         intent frame → intent.interpreted; BuildRunPrompt (soul, memory, world, skills, operator profile)
         ResolveRunModel / model chain → governor (routing, budgets, per-run & per-agent daily caps)
@@ -898,7 +898,7 @@ There are two layers:
 
 ### 9.3 Injection path
 
-1. `runexec/runner.go:103` parses the activation directive.
+1. `modules/runs/runner/runner.go:103` parses the activation directive.
 2. `runtime/prompt_run.go:120-175` (`BuildRunPrompt`), only when `SkillInject` is on and the agent is not a system agent:
    - Calls `ActivateExplicitFor` (if a directive named skills) or `ActivateFor`, with topK 3.
    - `injectSkills` prepends "Applicable skills (learned procedures; follow if relevant):" followed by `## name — description`, the body, and hints about bundled resources.

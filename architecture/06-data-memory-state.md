@@ -43,12 +43,12 @@ From `internal-deps.txt`:
 | `event` | — (leaf; only `lukechampine.com/blake3`) | ~60 packages: virtually all of `kernel/*`, every `plugins/channels/*`, `cmd/agezt`, `cmd/agt`, `sdk` |
 | `ulid` | — (leaf, stdlib only) | journal, artifact, board, datalake, okr, taste, workboard, approval, cadence, controlplane, mcp, openaiapi, pulse, roster, runtime(+lifecycle), scheduler, standing, toolforge, workflow, agentgw, every channel plugin, cmd/agezt |
 | `filestore` | `internal/atomicfile` | board, cadence, mcp, memory, okr, roster, skill, standing, taste, toolforge, workboard, workflow, worldmodel |
-| `journal` | event, ulid | bus, agentgw, controlplane, reflect, runtime(+accessors, runexec), toolreg, cmd/agt |
+| `journal` | event, ulid | bus, agentgw, controlplane, reflect, runtime(+accessors), toolreg, cmd/agt |
 | `bus` | event, journal | ~45 packages (all event producers/consumers, every channel plugin, codeexec) |
-| `memory` | **agent**, bus, **edict**, event, filestore | cmd/agezt, agentgw, contextselect, controlplane, runtime(+accessors, runexec) |
-| `worldmodel` | **agent**, bus, **edict**, event, filestore | contextselect, controlplane, reflect, runtime(+accessors, runexec) |
-| `datalake` | atomicfile, contract/datalakeapi, ulid | controlplane, runtime(+accessors, runexec) |
-| `artifact` | atomicfile, ulid | cmd/agezt, controlplane, runtime(+accessors, runexec), toolreg (the browser, the code executor, the fetch tool and the artifacts tool name the contract row, not the module) |
+| `memory` | **agent**, bus, **edict**, event, filestore | cmd/agezt, agentgw, contextselect, controlplane, runtime(+accessors) |
+| `worldmodel` | **agent**, bus, **edict**, event, filestore | contextselect, controlplane, reflect, runtime(+accessors) |
+| `datalake` | atomicfile, contract/datalakeapi, ulid | controlplane, runtime(+accessors) |
+| `artifact` | atomicfile, ulid | cmd/agezt, controlplane, runtime(+accessors), toolreg (the browser, the code executor, the fetch tool and the artifacts tool name the contract row, not the module) |
 | `board` | filestore, ulid | cmd/agezt, controlplane, restapi, selfrepair, toolreg, kernel/app/overseer (the board tool takes the store through the contract's port) |
 | `workboard` | filestore, contract/workboardapi, ulid | controlplane, runtime |
 | `okr` | filestore, ulid | controlplane, runtime |
@@ -180,7 +180,7 @@ All constants live in `kernel/event/kinds.go` (append-only; "never renumber or r
 
 `publishMarket`/`publishToolbox` take an `event.Kind`. Seven never-emitted kinds were deleted: `agent.spawned/suspended/resumed/died/crashed`, `worldmodel.superseded` and `journal.segment_rotated`. `config.access` was reserved until W1.8 journaled every config-center read. `TestKindRegistryIsClosed` (`kernel/event/registry_guard_test.go`) fails on an `event.Kind("…")` literal in production code and on a declared kind nothing references. Deleting a constant does not affect old journals (the kind is a string), but a deleted string must never be reused for a different meaning. `webhook.test` is an HTTP header value for probe deliveries, not a bus kind.
 
-**Kind misuse to know about:** `runexec.Runner.MaybeDistill` reports a distillation failure as `Kind: memory.written` with subject `memory.distill_failed` and payload `{action:"distill_failed"}` — consumers filtering on `KindMemoryWritten` see failures too.
+**Kind misuse to know about:** `runner.Runner.MaybeDistill` reports a distillation failure as `Kind: memory.written` with subject `memory.distill_failed` and payload `{action:"distill_failed"}` — consumers filtering on `KindMemoryWritten` see failures too.
 
 ---
 
@@ -410,7 +410,7 @@ All Manager events use subject `memory.<suffix-of-kind>` and actor `memory`.
 
 | Pass | Entry point | Trigger | Effect / events |
 |---|---|---|---|
-| Per-run distill | `Manager.Distill(ctx, corr, provider, model, intent, transcript)` | `runexec.Runner.MaybeDistill` after a run whose folded tool count ≥ `MemoryDistillMinTools` (`AGEZT_MEMORY_DISTILL_MIN_TOOLS`, daemonconfig default 6, runner fallback 4) | One `TaskType:"distill"` completion; ≤3 facts JSON; **subject-level dedupe (M993)**: if an active `source=distill` record exists for `(type, normalized subject, scope)` it is reinforced instead of adding a near-duplicate. Facts tagged `source=distill` (+scope). Non-JSON answer = no-op. |
+| Per-run distill | `Manager.Distill(ctx, corr, provider, model, intent, transcript)` | `runner.Runner.MaybeDistill` after a run whose folded tool count ≥ `MemoryDistillMinTools` (`AGEZT_MEMORY_DISTILL_MIN_TOOLS`, daemonconfig default 6, runner fallback 4) | One `TaskType:"distill"` completion; ≤3 facts JSON; **subject-level dedupe (M993)**: if an active `source=distill` record exists for `(type, normalized subject, scope)` it is reinforced instead of adding a near-duplicate. Facts tagged `source=distill` (+scope). Non-JSON answer = no-op. |
 | Retro dedupe | `DedupeDistilled(corr, dryRun)` | `agt memory tidy`/controlplane, cadence systemtask | Groups active distill notes by `distillKey`, keeps the strongest (confidence, then recency), **Forgets** (tombstones) the rest. |
 | Brain consolidation | `DistillBrain(ctx, corr, provider, model)` | `AGEZT_BRAIN_DISTILL_EVERY` ticker (`cmd/agezt/main_pulse.go`, corr `brain-distill-<ulid>`), `agt memory consolidate` | Clusters (≥3 records, cosine ≥0.55, same scope), merges ≤4 clusters/pass (≤12 records each) through `agent.GenerateObject`, writes a `source=brain-distill` record, supersedes originals (`memory.superseded`), then one `memory.consolidated`. Provider error aborts the pass; unusable answer skips the cluster. |
 | Operator profile | `DistillProfile(ctx, corr, provider, model)` | `AGEZT_USER_PROFILE` (default on, requires memory) daily ticker (`AGEZT_USER_PROFILE_EVERY`, default 24h), cadence systemtask, `agt memory profile` | Reads ≤60 freshest shared non-profile records + current facets; writes each facet as a `TypePreference` record, subject `operator profile: <facet>`, tags `{scope:"", source:"profile"}`, `Force:true`; **supersedes the previous version of the facet** (a record's identity is its CONTENT, so a changed facet would otherwise leave the old one active forever — two conflicting versions injected into every run); publishes `memory.profiled` and `memory.superseded`. |
