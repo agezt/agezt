@@ -13508,3 +13508,76 @@ func main() {
   doors still carry the protocol's mechanics while the module keeps its rules.
   Evidence:
   `architecture/290-w376q-the-resume-handshakes-vocabulary-moves-into-the-resume-module-evidence.md`
+- W3.76r (the objective library's lifecycle moves into the work module) is the
+  **twenty-sixth** slice of the runtime's dissolution, and the first one in the
+  programme where an **application package stopped naming the daemon**.
+
+  The objective library's **file** has been the daemon's since W3.53 — it
+  opens `okr/okr.json`, holds the contract's store port and hands it over.
+  That never moved and did not move now. The library's **lifecycle**, on the
+  other hand, was the daemon's too, and it should not have been: the **work
+  module** keeps the goals, the key results and the rollup rule, and it
+  already knew how to refuse without a store, how to publish what happened to
+  a goal and how to roll a goal up from the board's live statuses.
+
+  So the daemon held **six forwarders over the module's own operations**
+  (`CreateObjective`, `AddObjectiveKeyResult`, `LinkObjectiveTask`,
+  `UnlinkObjectiveTask`, `ArchiveObjective`, `Rollup`) plus the two wiring
+  doors (`SetObjectiveLibrary`, `ObjectiveLibraryDependencies`). A forwarder
+  over a module's own operation is a **second spelling** of it — and this one
+  cost a hop: the **application** asked the daemon for the objectives and the
+  daemon asked the module, so every objective write ran *application → daemon →
+  module*, and `kernel/app/okr` had to import `kernel/runtime` to say so.
+
+  Now the **application binds the module** (`kernel/app/okr` holds the work
+  module's `ObjectiveService`; its own `MutationHost` and `Rollupper`
+  interfaces are gone — one operation has one name, and the name is the
+  module's), the daemon keeps the library's **file** (`OKR`, the contract's
+  store port) and the **module's face** (`Objectives`), and the composition
+  root hands the kernel the **builder** (`cfg.ObjectiveLibrary`, the emblemi
+  the roster, the MCP registry and the script forge already use) that names the
+  module. `compose.go` calls it over the store the daemon opened and its own
+  ports — the bus it publishes through, and the board it asks for a task's
+  **status** (a port, not a reach: the board's file is the host's business).
+
+  The measurement: the daemon's public verbs **201 → 194**, its production
+  lines **6,121 → 6,107**, the application packages that import
+  `kernel/runtime` **42 → 41**.
+
+  **The ceiling followed the floor**: `dead_surface_ratchet_test.go` had
+  pinned the daemon's surface at **220** since W3.76k while the surface fell
+  to 201 — a ratchet that permits **26 verbs of growth** in a program whose
+  point is that the host's surface shrinks. The ceiling is now **220 → 201 →
+  194**, because a ceiling that stays put while the surface shrinks permits
+  exactly what the program exists to remove.
+
+  **Three ratchets, two probes fired**: the daemon's new objective ratchet
+  pins the six forwarders and the two wiring doors' absence, pins that the
+  daemon does not write the library's rows itself, and pins that the daemon
+  still holds `OKR` and `Objectives`; the application's new binding ratchet
+  pins that `kernel/app/okr`'s production files do not import `kernel/runtime`
+  again (the test files may — a test that opens a kernel to prove the daemon
+  holds nothing is a test *about* the daemon). Putting `CreateObjective` back
+  on `*Kernel` fails the first; putting the daemon import back into the
+  application fails the second.
+
+  **The coverage moved with the subject**: the daemon's objective CRUD
+  coverage went to `kernel/modules/work/okr/lifecycle_test.go`, next to the
+  code it exercises.
+
+  **No mutation run**: the slice deletes forwarders and moves a binding, so
+  there is no rule whose reversal a mutation could expose. The evidence is the
+  compiler, the permanent tests, the ratchets and their probes, and the full
+  suite.
+
+  **What is left**: the daemon holds **194** public verbs and **6,107**
+  production lines; **forty-one** application packages still name it. The
+  same shape is waiting for the families that still have forwarders in the
+  daemon: the **task board** (18 verbs — the biggest single block), the
+  **workflow engine** (12), the **MCP registry** (12), the **standing
+  library** (9), the **roster's** remaining read doors (9) and the **script
+  forge** (8). Each is the same three moves: the module keeps the lifecycle,
+  the composition root hands over the builder, and the application binds the
+  module instead of the daemon.
+  Evidence:
+  `architecture/291-w376r-the-objective-librarys-lifecycle-moves-into-the-work-module-evidence.md`
