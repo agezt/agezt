@@ -30,7 +30,7 @@ func (r *Runner) CompleteAgentLifecycle(ctx context.Context, corr string) {
 	}
 	lifecycle := current.Lifecycle
 	if shouldRetireAgentAfterComplete(lifecycle) {
-		_, _ = r.k.SetProfileRetired(slug, true, "completed run "+corr)
+		r.retireAgent(slug, "completed run "+corr)
 		return
 	}
 	if strings.TrimSpace(lifecycle.Mode) != agentapi.LifecycleCycle && lifecycle.MaxCycles <= 0 {
@@ -38,7 +38,7 @@ func (r *Runner) CompleteAgentLifecycle(ctx context.Context, corr string) {
 	}
 	var completed, max int
 	var advanced bool
-	_, found, err := r.k.UpdateProfile(slug, func(p *agentapi.Profile) {
+	_, found, err := r.updateAgent(slug, func(p *agentapi.Profile) {
 		// Idempotency: one logical run (correlation) advances the cycle
 		// exactly once. RunAssured/RunWithRetry re-invoke RunWith
 		// under the SAME corr (re-running until the work verifies
@@ -82,8 +82,34 @@ func (r *Runner) CompleteAgentLifecycle(ctx context.Context, corr string) {
 		},
 	})
 	if max > 0 && completed >= max {
-		_, _ = r.k.SetProfileRetired(slug, true, fmt.Sprintf("completed %d/%d cycles on run %s", completed, max, corr))
+		r.retireAgent(slug, fmt.Sprintf("completed %d/%d cycles on run %s", completed, max, corr))
 	}
+}
+
+// retireAgent moves an agent to the graveyard through the AGENTS MODULE's
+// roster service (W3.76o).
+//
+// The write is the module's operation; the run engine asks the module for it.
+// A host that wired no roster service has no roster to retire — the run
+// engine's own business (the run finished) is done either way.
+func (r *Runner) retireAgent(slug, reason string) {
+	if r.roster == nil {
+		return
+	}
+	_, _ = r.roster.SetRetired(slug, true, reason)
+}
+
+// updateAgent edits an agent's profile through the AGENTS MODULE's roster
+// service (W3.76o).
+//
+// The second result says whether the agent was there at all (the standing
+// pattern: an unknown ref is no row, no problem) and the error is the
+// module's.
+func (r *Runner) updateAgent(slug string, mutate func(*agentapi.Profile)) (agentapi.Profile, bool, error) {
+	if r.roster == nil {
+		return agentapi.Profile{}, false, nil
+	}
+	return r.roster.Update(slug, mutate)
 }
 
 // RunAssured is the "do-it-for-sure" loop (M651). Body migrated

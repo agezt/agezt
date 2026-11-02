@@ -10,6 +10,7 @@ package runtime_test
 // answers every call, and the daemon no longer decides what a call means.
 
 import (
+	"context"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -17,6 +18,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -140,5 +142,31 @@ func TestTheDaemonStillAsksWhatDependsOnAnAgent(t *testing.T) {
 	}
 	if got := k.AgentImpact("  "); got != nil {
 		t.Errorf("AgentImpact(blank) = %v, want nothing", got)
+	}
+}
+
+// TestTheRunEngineWritesTheRosterThroughTheModule: the composition root
+// wires the agents module's roster service into the run engine, so a run
+// that completes retires its agent THROUGH the module (W3.76o) — the run
+// engine does not ask the host to ask the module.
+func TestTheRunEngineWritesTheRosterThroughTheModule(t *testing.T) {
+	k, store := openWithRoster(t, true)
+
+	if _, err := k.AddProfile(agentapi.Profile{
+		Slug:      "worker",
+		Lifecycle: agentapi.AgentLifecycle{RetireOnComplete: true},
+	}); err != nil {
+		t.Fatalf("AddProfile: %v", err)
+	}
+
+	ctx := runctx.WithAgentIdent(context.Background(), "worker", 0)
+	k.CompleteAgentLifecycle(ctx, "corr-1")
+
+	got, ok := store.Get("worker")
+	if !ok {
+		t.Fatal("the agent is gone from the roster")
+	}
+	if !got.Retired {
+		t.Error("the agent was not retired — the run engine did not reach the roster")
 	}
 }

@@ -120,6 +120,16 @@ func TestTheHostStillImplementsThePort(t *testing.T) {
 			t.Errorf("the KernelAPI port has a %s method again — the run context's vocabulary is the module's", gone)
 		}
 	}
+	// The ROSTER's WRITES left the port in W3.76o: they are the agents
+	// module's operations, and the run engine asks the module for them (see
+	// the Runner's roster field). The two roster entries nobody in this
+	// module ever opened went with them — a port entry that is never opened
+	// is a promise the host does not have to keep.
+	for _, gone := range []string{"UpdateProfile", "SetProfileRetired", "Roster", "RosterList"} {
+		if _, ok := port.MethodByName(gone); ok {
+			t.Errorf("the KernelAPI port has a %s method again — the roster's writes are the agents module's, and nobody in this module opened the store", gone)
+		}
+	}
 }
 
 // repoRoot walks up from the package's directory to the repository root (the
