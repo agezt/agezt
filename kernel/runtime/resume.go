@@ -27,57 +27,16 @@ import (
 // (a root run carries a ticket), the resumability rule (a per-run override
 // cannot be reconstructed) and the termination rule (a run interrupted by a
 // restart keeps its ticket) are the module's, and the daemon asks.
+//
+// The handshake's two CONTEXT facts — the owned marker and the seeded
+// conversation — are the module's vocabulary too (W3.76q): they live in
+// kernel/modules/runs/resume, and the run engine reads them from there
+// instead of asking the host for a copy.
 
 // ResumeStore returns the durable ticket store (nil when resume is disabled) so
 // the daemon's boot-time resumer can enumerate suspended runs. (Named to avoid
 // clashing with Resume(), which clears the halt flag.)
 func (k *Kernel) ResumeStore() *resume.Store { return k.resume }
-
-// The daemon keeps its OWN context keys for the resume handshake: the seed and
-// the owned marker are the daemon's boot/resume protocol, not the run's
-// vocabulary (the run context's keys live in the runs module).
-type resumeCtxKey int
-
-const (
-	ctxKeyResumeOwned resumeCtxKey = iota // M1002: a resume ticket for this corr is already owned by an outer frame
-	ctxKeyResumeSeed                      // M1002: prior conversation + iter to seed a resumed run
-)
-
-// WithResumeSeed carries a suspended run's prior conversation and iteration into
-// a resume dispatch, so RunWith continues the interrupted loop instead of
-// starting fresh. Set by the daemon's resumer; read only by RunWith.
-func WithResumeSeed(ctx context.Context, messages []llm.Message, iter int) context.Context {
-	if len(messages) == 0 {
-		return ctx
-	}
-	return context.WithValue(ctx, ctxKeyResumeSeed, resumeSeed{messages: messages, iter: iter})
-}
-
-// WithResumeOwned marks that a ticket for this corr already exists and is owned
-// by an outer frame — a governed wrapper (RunAssured/RunWithRetry) or the
-// resumer. RunWith then neither creates nor deletes the ticket; it only refreshes
-// the snapshot for a message-bearing (Kind=run) resume.
-func WithResumeOwned(ctx context.Context, kind string) context.Context {
-	return context.WithValue(ctx, ctxKeyResumeOwned, kind)
-}
-
-type resumeSeed struct {
-	messages []llm.Message
-	iter     int
-}
-
-func resumeSeedFromCtx(ctx context.Context) ([]llm.Message, int, bool) {
-	s, ok := ctx.Value(ctxKeyResumeSeed).(resumeSeed)
-	if !ok || len(s.messages) == 0 {
-		return nil, 0, false
-	}
-	return s.messages, s.iter, true
-}
-
-func resumeOwnedKind(ctx context.Context) (string, bool) {
-	kind, ok := ctx.Value(ctxKeyResumeOwned).(string)
-	return kind, ok
-}
 
 // resumeActive reports whether this ctx describes a run eligible to carry a
 // resume ticket: the feature is on and it is a ROOT run. Sub-agents carry a
@@ -97,7 +56,7 @@ func (k *Kernel) claimResumeTicket(ctx context.Context, corr, intent, kind strin
 	if !k.resumeActive(ctx) {
 		return ctx, false
 	}
-	if _, already := resumeOwnedKind(ctx); already {
+	if _, already := resume.OwnedKindFromCtx(ctx); already {
 		return ctx, false
 	}
 	t := k.buildResumeTicket(ctx, corr, intent, kind, assureBudget)
@@ -106,7 +65,7 @@ func (k *Kernel) claimResumeTicket(ctx context.Context, corr, intent, kind strin
 		k.publishResumeAnomaly("ticket_write_failed", corr, err)
 		return ctx, false
 	}
-	return WithResumeOwned(ctx, kind), true
+	return resume.WithOwned(ctx, kind), true
 }
 
 // buildResumeTicket stores the agent slug (the profile is reloaded on boot) and

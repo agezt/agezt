@@ -114,8 +114,9 @@ func TestResume_TicketDeletedOnOperatorCancel(t *testing.T) {
 
 // TestResume_ReDispatchSeedsConversationAndClears exercises the resumer's exact
 // dispatch contract (what buildResumer does): a suspended ticket is re-dispatched
-// with WithResumeOwned + WithResumeSeed, the run continues from the saved
-// conversation, and the ticket is cleared on clean completion via ResumeFinalize.
+// with the resume module's handshake (WithOwned + WithSeed), the run continues
+// from the saved conversation, and the ticket is cleared on clean completion via
+// ResumeFinalize.
 func TestResume_ReDispatchSeedsConversationAndClears(t *testing.T) {
 	prov := mock.New(mock.FinalText("resumed-done"))
 	var seen []llm.Message
@@ -147,8 +148,8 @@ func TestResume_ReDispatchSeedsConversationAndClears(t *testing.T) {
 	}
 
 	// Re-dispatch exactly as buildResumer does.
-	ctx := runtime.WithResumeOwned(context.Background(), resume.KindRun)
-	ctx = runtime.WithResumeSeed(ctx, prior, 2)
+	ctx := resume.WithOwned(context.Background(), resume.KindRun)
+	ctx = resume.WithSeed(ctx, prior, 2)
 	ans, err := k.RunWith(ctx, "corr-redispatch", "orig intent")
 	k.ResumeFinalize("corr-redispatch", err)
 	if err != nil {

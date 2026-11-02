@@ -130,6 +130,14 @@ func TestTheHostStillImplementsThePort(t *testing.T) {
 			t.Errorf("the KernelAPI port has a %s method again — the roster's writes are the agents module's, and nobody in this module opened the store", gone)
 		}
 	}
+	// W3.76q: the RESUME HANDSHAKE left the port too. The owned marker and
+	// the seeded conversation are the resume module's vocabulary, and the run
+	// engine — which lives next to that module — reads them from there.
+	for _, gone := range []string{"ResumeOwnedKindFromCtx", "ResumeSeedFromCtx"} {
+		if _, ok := port.MethodByName(gone); ok {
+			t.Errorf("the KernelAPI port has a %s method again — the resume handshake's vocabulary is the resume module's", gone)
+		}
+	}
 	// W3.76p: thirteen more promises died. Nobody in this module ever opened
 	// them — the daemon keeps every one of those verbs for its other callers
 	// (the application layer, the composition root, the plugins), but a PORT

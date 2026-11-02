@@ -71,19 +71,11 @@ func (k *Kernel) SkillForge() bool { return k.cfg.SkillForge }
 // runner sub-package can read it through KernelAPI (Day 32).
 func (k *Kernel) SkillForgeMinTools() int { return k.cfg.SkillForgeMinTools }
 
-// ResumeOwnedKindFromCtx returns (kind, true) if the run context
-// carries a resume-ticket owned by an outer wrapper (assure /
-// retry / resumer). Wraps the package-level resumeOwnedKind (Day 34).
-func (k *Kernel) ResumeOwnedKindFromCtx(ctx context.Context) (string, bool) {
-	return resumeOwnedKind(ctx)
-}
-
-// ResumeSeedFromCtx returns (prior messages, start iter, true) if
-// the run context carries a seeded conversation snapshot (resumed
-// run). Wraps the package-level resumeSeedFromCtx (Day 34).
-func (k *Kernel) ResumeSeedFromCtx(ctx context.Context) ([]llm.Message, int, bool) {
-	return resumeSeedFromCtx(ctx)
-}
+// The resume handshake's two CONTEXT facts — the owned marker and the seeded
+// conversation — are the runs module's vocabulary (W3.76q). They live in
+// kernel/modules/runs/resume, and the run engine reads them from there
+// instead of asking the host for a copy: the daemon's ResumeOwnedKindFromCtx
+// and ResumeSeedFromCtx doors are gone with them.
 
 // DisableHeuristicBypass reports whether THIS run's effective
 // config disables the deterministic heuristic bypass (time/date

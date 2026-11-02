@@ -99,7 +99,7 @@ func buildResumer(ctx context.Context, k *kernelruntime.Kernel) string {
 
 		// Rebuild the run context from the ticket's resolved fields. The resumer
 		// OWNS the ticket, so mark it owned to stop the inner RunWith recreating it.
-		rctx := kernelruntime.WithResumeOwned(ctx, t.Kind)
+		rctx := resume.WithOwned(ctx, t.Kind)
 		if prof != nil {
 			rctx = runctx.WithAgentProfile(rctx, *prof)
 		}
@@ -125,7 +125,7 @@ func buildResumer(ctx context.Context, k *kernelruntime.Kernel) string {
 		// Continue the interrupted conversation for a message-bearing run; assured/
 		// retry re-run from the top (cheap re-verification), so they carry no seed.
 		if t.Kind == resume.KindRun && len(t.Messages) > 0 {
-			rctx = kernelruntime.WithResumeSeed(rctx, t.Messages, t.Iter)
+			rctx = resume.WithSeed(rctx, t.Messages, t.Iter)
 		}
 
 		resumed++

@@ -89,6 +89,12 @@ func TestThePortCarriesNoRunContextVocabulary(t *testing.T) {
 
 // TestThePortStillCarriesTheHostsOwnState pins what the port is FOR: the
 // host's own answers, which the module cannot give.
+//
+// The resume HANDSHAKE left the list in W3.76q: the owned marker and the
+// seeded conversation are the resume module's vocabulary, and the run engine
+// — which lives next to that module — reads them from there. What stays is
+// the host's own state: the checkpoint callback, the resolved model and the
+// run's effective configuration.
 func TestThePortStillCarriesTheHostsOwnState(t *testing.T) {
 	src, err := os.ReadFile("api.go")
 	if err != nil {
@@ -96,14 +102,20 @@ func TestThePortStillCarriesTheHostsOwnState(t *testing.T) {
 	}
 	text := string(src)
 	for _, keep := range []string{
-		"ResumeOwnedKindFromCtx(ctx context.Context)",
-		"ResumeSeedFromCtx(ctx context.Context)",
 		"ResumeCheckpointFn(corr string)",
 		"ResolveRunModel(ctx context.Context)",
 		"DisableHeuristicBypass(ctx context.Context)",
 	} {
 		if !strings.Contains(text, keep) {
 			t.Errorf("the host's port lost %s — the host owns that state", keep)
+		}
+	}
+	for _, gone := range []string{
+		"ResumeOwnedKindFromCtx(ctx context.Context)",
+		"ResumeSeedFromCtx(ctx context.Context)",
+	} {
+		if strings.Contains(text, gone) {
+			t.Errorf("the host's port still promises %s — the resume handshake's vocabulary is the resume module's", gone)
 		}
 	}
 }
