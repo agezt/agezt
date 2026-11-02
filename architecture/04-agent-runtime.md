@@ -342,7 +342,13 @@ promising them — **60 → 47** entries. The daemon keeps all thirteen verbs (t
 application layer, the composition root and the plugins call them): a **port
 entry** is a promise to *this* module, a **public verb** is the host's face to
 everyone else. The roster's **read** stayed
-(`RosterGet`): a read over the contract's port is the host's own state. The daemon
+(`RosterGet`): a read over the contract's port is the host's own state. W3.76q moved
+the **resume handshake** out of the host too: the owned marker and the seeded
+conversation are the **resume module's** vocabulary (they describe its ticket),
+so they live in `kernel/modules/runs/resume` and the run engine — which lives
+next to that module — reads them from there. The daemon's two readers went with
+them: **203 → 201** public verbs, **6,162 → 6,121** production lines, and the
+run engine's port **47 → 45**. The daemon
 keeps the doors a **module** needs without naming the runs
 module (`WithAgentProfile`, `WithMaxCost`) and the host's own state (the
 effective config, the resume ticket, the seed). The surface is **pinned**:

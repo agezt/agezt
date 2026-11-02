@@ -13460,3 +13460,51 @@ func main() {
   daemon's face still exists.
   Evidence:
   `architecture/289-w376p-the-run-engines-dead-port-promises-die-evidence.md`
+- W3.76q (the resume handshake's vocabulary moves into the resume module) is
+  the **twenty-fifth** slice of the runtime's dissolution, and the first one
+  in a while where the daemon **shrank**.
+
+  The resume handshake is two facts a run carries in its context: the **owned
+  marker** (an outer frame already holds this run's ticket) and the **seed**
+  (the conversation a suspended run must continue from). Both lived in the
+  daemon — the context keys, the setters the resumer called, the readers the
+  run engine asked the host for. Both are the **resume module's** vocabulary:
+  the module owns the ticket, its kinds, its dispositions and its snapshot, so
+  the word that says which ticket kind an outer frame holds, and the one that
+  carries the conversation that ticket saved, are the ticket owner's words. The
+  module's own package doc admitted the misplacement in one sentence: "the
+  resumer (in the daemon, **where the context builders live**)".
+
+  The resume module gained the handshake (`handshake.go`, 66 lines); the daemon
+  lost the keys, the two private readers, the two package-level setters (the
+  resumer in `cmd/agezt` calls the module now) and the two public readers; the
+  run engine reads the handshake from the module it lives next to. What stayed
+  in the host is the host's own state: the checkpoint callback, the resolved
+  model, the run's effective configuration.
+
+  The measurement: the daemon's public verbs **203 → 201**, its production
+  lines **6,162 → 6,121**, the run engine's port **47 → 45**, the resume
+  module **569 → 635** lines.
+
+  **Two ratchets changed honestly**: the run engine's port-shape ratchet pins
+  the two handshake names' absence, and the daemon's own ratchet **flipped** —
+  `TestTheDaemonKeepsItsOwnResumeKeys` used to *require* the daemon's
+  `ctxKeyResumeOwned`/`ctxKeyResumeSeed` (the W3.76l/m decision) and is now
+  `TestTheDaemonKeepsNoResumeKeysOfItsOwn`, pinning their absence over the
+  daemon's whole package. **Both probes fired.**
+
+  **No mutation run**: the slice moves a vocabulary and deletes the doors that
+  spoke it, so there is no rule whose reversal a mutation could expose. The
+  evidence is the compiler, the permanent tests, the ratchets and their
+  probes, and the full suite.
+
+  **What is left**: the daemon holds **201** public verbs and **6,121**
+  production lines; the run engine's port carries **45** entries. The W3 exit
+  criterion that no type has more than 60 methods is met by the port with room
+  to spare, and the daemon's own `*Kernel` (201 verbs) is still the type that
+  breaks it. The next doors in the same family: the runner's port still
+  promises `RunWith` and `RunWithRetry` (the engine delegates the child's run
+  back to the host — the documented "Day 23 gap"), and the daemon's ticket
+  doors still carry the protocol's mechanics while the module keeps its rules.
+  Evidence:
+  `architecture/290-w376q-the-resume-handshakes-vocabulary-moves-into-the-resume-module-evidence.md`

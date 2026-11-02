@@ -816,6 +816,14 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The resume handshake's vocabulary moves into the resume module.** The owned
+  marker and the seeded conversation describe the resume module's ticket, so
+  they live in `kernel/modules/runs/resume` now and the run engine — which
+  lives next to that module — reads them from there. The daemon's two readers
+  and its two context keys went with them: **203 → 201** public verbs,
+  **6,162 → 6,121** production lines, and the run engine's port **47 → 45**.
+  The host keeps the handshake's state (the checkpoint callback, the resolved
+  model), not its words.
 - **The run engine's dead port promises die.** Thirteen of the run engine's
   port entries were promises nobody kept: nobody in the runs module ever
   opened `Approvals`, `ArtifactIndex`, `CatalogStore`, `ConfigCenter`,
