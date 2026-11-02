@@ -6,14 +6,18 @@ package runtime
 //             (Roster/AddProfile/SetProfileEnabled/SetProfileRetired/AgentImpact/UpdateProfile/RemoveProfile).
 //             Code extracted from accessors.go during the Day-56 god-file split.
 //             Public API unchanged.
+//
+// W3.76n: the roster's WRITES are the agents module's. The module keeps the
+// lifecycle, the events and the guardian rule; the daemon keeps the names and
+// forwards. The READS stayed here: they are the host's nil-safe view over the
+// contract's port (the shape W3.58 established), and a read over a port is
+// the host's face.
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
-	"github.com/agezt/agezt/kernel/event"
 )
 
 // Roster returns the roster store port.
@@ -46,73 +50,46 @@ func (k *Kernel) RosterList() []agentapi.Profile {
 	return k.roster.List()
 }
 
-// errNoRoster is the answer the roster writes give when the kernel holds no
-// roster.
-var errNoRoster = errors.New("roster: the roster is not available on this daemon")
-
 // AddProfile validates and persists a named agent profile, journaling
 // roster.created so the agent's birth is auditable.
+//
+// The write is the MODULE's: the daemon forwards and hands back the answer.
 func (k *Kernel) AddProfile(p agentapi.Profile) (agentapi.Profile, error) {
-	if k.roster == nil {
-		return agentapi.Profile{}, errNoRoster
+	svc := k.rosterService()
+	if svc == nil {
+		return agentapi.Profile{}, agentapi.ErrNoRoster
 	}
-	saved, err := k.roster.Add(p)
-	if err != nil {
-		return agentapi.Profile{}, err
-	}
-	_, _ = k.bus.Publish(event.Spec{
-		Subject: "roster." + saved.Slug, Kind: event.KindRosterCreated, Actor: "roster",
-		Payload: map[string]any{"id": saved.ID, "slug": saved.Slug, "name": saved.Name, "model": saved.Model},
-	})
-	return saved, nil
+	return svc.Add(p)
 }
 
 // SetProfileEnabled pauses/resumes an agent profile, journaling roster.updated.
 func (k *Kernel) SetProfileEnabled(ref string, enabled bool) (agentapi.Profile, error) {
-	if k.roster == nil {
-		return agentapi.Profile{}, errNoRoster
+	svc := k.rosterService()
+	if svc == nil {
+		return agentapi.Profile{}, agentapi.ErrNoRoster
 	}
-	p, err := k.roster.SetEnabled(ref, enabled)
-	if err != nil {
-		return agentapi.Profile{}, err
-	}
-	state := "paused"
-	if enabled {
-		state = "resumed"
-	}
-	_, _ = k.bus.Publish(event.Spec{
-		Subject: "roster." + p.Slug, Kind: event.KindRosterUpdated, Actor: "roster",
-		Payload: map[string]any{"id": p.ID, "slug": p.Slug, "enabled": enabled, "action": state},
-	})
-	return p, nil
+	return svc.SetEnabled(ref, enabled)
 }
 
 // SetProfileRetired moves an agent to the graveyard (true) or revives it (false)
 // by ref, journaling roster.updated. Retiring also pauses the agent so it stops
 // firing (M846). A graveyard agent is excluded from delegation (runSubAgent).
 func (k *Kernel) SetProfileRetired(ref string, retired bool, reason ...string) (agentapi.Profile, error) {
-	if k.roster == nil {
-		return agentapi.Profile{}, errNoRoster
+	svc := k.rosterService()
+	if svc == nil {
+		return agentapi.Profile{}, agentapi.ErrNoRoster
 	}
-	p, err := k.roster.SetRetired(ref, retired, reason...)
-	if err != nil {
-		return agentapi.Profile{}, err
-	}
-	action := "revived"
-	if retired {
-		action = "retired"
-	}
-	_, _ = k.bus.Publish(event.Spec{
-		Subject: "roster." + p.Slug, Kind: event.KindRosterUpdated, Actor: "roster",
-		Payload: map[string]any{"id": p.ID, "slug": p.Slug, "retired": retired, "reason": p.RetiredReason, "action": action},
-	})
-	return p, nil
+	return svc.SetRetired(ref, retired, reason...)
 }
 
 // AgentImpact reports what depends on an agent before it is retired/removed
 // (M846) — the standing orders that fire AS it. The operator sees this in the
 // retire confirmation so the "etkileri" are explicit, not a surprise. Returns the
 // affected orders as "name (id)" strings, or nil when nothing references it.
+//
+// This read stayed with the host (W3.76n): the standing orders are ANOTHER
+// domain's rows, and a module may not name another module's data. The roster
+// module knows the roster; the host knows what stands behind it.
 func (k *Kernel) AgentImpact(slug string) []string {
 	slug = strings.TrimSpace(slug)
 	if slug == "" || k.standing == nil {
@@ -135,43 +112,23 @@ func (k *Kernel) AgentImpact(slug string) []string {
 // roster.updated (action "edited"). Identity/lifecycle fields are protected by
 // the store. Returns false + nil error for an unknown ref (standing pattern).
 func (k *Kernel) UpdateProfile(ref string, mutate func(*agentapi.Profile)) (agentapi.Profile, bool, error) {
-	if k.roster == nil {
-		return agentapi.Profile{}, false, errNoRoster
+	svc := k.rosterService()
+	if svc == nil {
+		return agentapi.Profile{}, false, agentapi.ErrNoRoster
 	}
-	p, err := k.roster.Update(ref, mutate)
-	if errors.Is(err, agentapi.ErrNotFound) {
-		return agentapi.Profile{}, false, nil
-	}
-	if err != nil {
-		return agentapi.Profile{}, false, err
-	}
-	_, _ = k.bus.Publish(event.Spec{
-		Subject: "roster." + p.Slug, Kind: event.KindRosterUpdated, Actor: "roster",
-		Payload: map[string]any{"id": p.ID, "slug": p.Slug, "action": "edited"},
-	})
-	return p, true, nil
+	return svc.Update(ref, mutate)
 }
 
 // RemoveProfile deletes an agent profile, journaling roster.removed when it
 // existed. Returns whether it existed.
+//
+// A shipped guardian (System) is protected from a hard delete (M961) — that
+// rule is the MODULE's now: the roster knows which of its rows are the
+// daemon's own self-healing fleet.
 func (k *Kernel) RemoveProfile(ref string) (bool, error) {
-	if k.roster == nil {
-		return false, errNoRoster
+	svc := k.rosterService()
+	if svc == nil {
+		return false, agentapi.ErrNoRoster
 	}
-	// Shipped guardians (System) are protected from hard delete (M961): they are
-	// the daemon's own self-healing fleet. They can still be paused or retired.
-	if p, ok := k.roster.Get(ref); ok && p.System {
-		return false, fmt.Errorf("agent %q is a protected system guardian — pause or retire it instead of removing", p.Slug)
-	}
-	gone, ok, err := k.roster.Remove(ref)
-	if err != nil {
-		return false, err
-	}
-	if ok {
-		_, _ = k.bus.Publish(event.Spec{
-			Subject: "roster." + gone.Slug, Kind: event.KindRosterRemoved, Actor: "roster",
-			Payload: map[string]any{"id": gone.ID, "slug": gone.Slug, "name": gone.Name},
-		})
-	}
-	return ok, nil
+	return svc.Remove(ref)
 }

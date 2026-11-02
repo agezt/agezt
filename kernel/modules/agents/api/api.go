@@ -21,7 +21,6 @@ package api
 import (
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/event"
-	"github.com/agezt/agezt/kernel/modules/agents/roster"
 )
 
 // The finding rows below are the reaper's rows: one declaration per finding,
@@ -100,7 +99,11 @@ type ReaperPorts struct {
 	// retry, provider-fallback and doctor events it needs from it.
 	Journal func(func(*event.Event) error) error
 	// Profiles lists the fleet the scan judges.
-	Profiles func() []roster.Profile
+	//
+	// The row is the CONTRACT's (agentapi.Profile): the reaper names the
+	// contract row directly, so this package does not have to name the
+	// module's implementation to hand it over.
+	Profiles func() []agentapi.Profile
 	// RuntimeConfigIssues reports the malformed runtime overrides on a
 	// profile (the doctor calls it too, so the two never disagree).
 	RuntimeConfigIssues func(overrides map[string]string) []ConfigIssue

@@ -13274,3 +13274,90 @@ func main() {
   `Kernel` (`runtime.go`, 665), the accessors family (7 files, **965**) and
   the control plane (`kernel/controlplane`, 7,570). Evidence:
   `architecture/286-w376m-the-run-engines-last-two-context-doors-evidence.md`
+- W3.76n (the roster's operations move into the agents module) is the
+  **twenty-second** slice of the runtime's dissolution, and the first one to
+  move a family's OPERATIONS where the family already keeps its DATA.
+
+  The roster is the agents module's — the target architecture's module
+  catalogue says so in one line — and its data was already there: the store,
+  the normalization, the validation and the row live in
+  `kernel/modules/agents/roster`, and the daemon holds the contract's port
+  over the file it opened (W3.56). Its OPERATIONS were the daemon's:
+  `kernel/runtime/accessors_roster.go` (163 lines) held the store, applied
+  the write, published the event and knew the two rules that make a roster a
+  roster — what a roster change SAYS (`roster.created`, `roster.updated` with
+  `paused`/`resumed`/`retired`/`revived`/`edited`, `roster.removed`) and that a
+  shipped guardian may be paused or retired but never removed (M961).
+
+  The shape of the candidate cut BOTH ways, the same way W3.71 and W3.72 cut
+  it: the READS are the host's nil-safe view over the contract's port
+  (W3.58), so they stayed with the host; the WRITES are the module's, so they
+  moved down. The module now owns a service
+  (`kernel/modules/agents/roster/service.go`, 167 lines) over the contract's
+  port, and its face (`kernel/modules/agents/api/roster.go`, 84 lines): the
+  `RosterService` (the five writes), the `RosterDependencies` (the store and
+  the bus) and the `RosterServiceBuilder`.
+
+  The daemon keeps the NAMES — `AddProfile`, `UpdateProfile`, `RemoveProfile`,
+  `SetProfileEnabled`, `SetProfileRetired` are still the daemon's verbs, and
+  no caller outside the runtime changed — and forwards. The refusal moved to
+  the contract: the daemon's local `errNoRoster` is now
+  `agentapi.ErrNoRoster`, the same message with one home. A cycle was broken
+  honestly: the module's api package used to name the module's implementation
+  (`roster.Profile` in the reaper's ports), so the reaper's port now speaks
+  the CONTRACT's row (`agentapi.Profile`) — which `roster.Profile` already
+  was, an alias.
+
+  The wiring is the builder the composition root hands over
+  (`cfg.RosterService`) and the kernel calls while opening itself — the shape
+  the MCP registry (W3.71), the script forge (W3.72) and the skill curator
+  already use — because the daemon may not name the module's implementation
+  (P5). `cmd/agezt` and the test hosts set it; a host that hands over no
+  builder has no roster lifecycle and the writes refuse with the contract's
+  row.
+
+  The measurement: the daemon's public verbs **203 → 203**, its production
+  lines **6,113 → 6,156** and its files **54 → 55**; the agents module's
+  production lines **4,035 → 4,291** and its files **30 → 32**; the daemon's
+  roster accessor file **163 → 121**; the contract's production lines **+7**;
+  the app layer **+0** and the control plane **+0** production files.
+
+  **The daemon grew, and that is the honest result**: the roster's BODY
+  shrank by 42 lines and the module grew by 256, but the host's WIRING — the
+  builder field, the publisher adapter, the private accessor, the composition
+  root's call — costs 43 lines, and the host is where the wiring lives. The
+  three kinds of line now have three homes: the DECISION (what a roster change
+  says, that a guardian is protected) is the module's, the WIRING (who builds
+  the service, over which store, on which bus) is the host's, and the NAME is
+  the host's, because every caller above the daemon still calls it.
+
+  The daemon still keeps the reads and `AgentImpact` — the latter because the
+  standing orders it reads are another domain's rows, and a module may not
+  name another module's data: the same "vocabulary vs. state" line the
+  W3.76l evidence drew.
+
+  **The ratchet fired**: the daemon's package must not hold the roster's event
+  kinds, the guardian rule or a direct store write, and it must keep all nine
+  roster names; putting the lifecycle back into the daemon made it fail.
+  **A guard changed honestly**: the control plane's guard reads the daemon's
+  roster accessor file for its PUBLIC verbs and reads every method in it,
+  private ones included — so the private accessor moved out to
+  `kernel/runtime/roster_service.go`, beside the module's face.
+
+  **No mutation run**: this slice redirects five calls and moves a body, and
+  there is no rule whose reversal a mutation could expose. The evidence is the
+  compiler, the permanent tests (13), the ratchet and its probe, and the full
+  suite.
+
+  **What is left**: the daemon holds **203** public verbs and **6,156**
+  production lines. The roster family is now split the way the target
+  architecture splits it: the module keeps the roster, the host keeps the
+  port, the bus and the names. The rest of the W3 exit is unchanged: the
+  daemon's composition root (`compose.go`, 497 lines), its `Kernel`
+  (`runtime.go`, 665), the accessors family (7 files, **965**) and the control
+  plane (`kernel/controlplane`, 7,570). The next roster slice is the
+  **application** layer's roster (`kernel/app/roster`, 6,665 production lines
+  in 30 files) — the typed `agent_*` operations the control plane drives —
+  whose services the module catalogue also names as the agents module's.
+  Evidence:
+  `architecture/287-w376n-the-rosters-operations-move-into-the-agents-module-evidence.md`

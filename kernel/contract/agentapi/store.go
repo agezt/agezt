@@ -25,6 +25,14 @@ var ErrNotFound = errors.New("roster: profile not found")
 // The sentinel lives in the contract for the same reason as ErrNotFound.
 var ErrRetired = errors.New("roster: profile is retired")
 
+// ErrNoRoster is the refusal the roster's WRITES give when the host holds no
+// roster.
+//
+// The sentinel lives in the contract for the same reason as ErrNotFound: the
+// roster's writes are the module's (W3.76n) and the host forwards them, so
+// the answer a caller compares against must not live in either of them.
+var ErrNoRoster = errors.New("roster: the roster is not available on this daemon")
+
 // Store is the roster's file-backed surface: the named agent profiles and the
 // lifecycle transitions over them.
 //

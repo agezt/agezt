@@ -3459,7 +3459,15 @@ func TestAgentList_CursorPaginatesByCreatedMSSlugDesc(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open roster store: %v", err)
 	}
-	_, _, c, _ := startPairWithConfig(t, runtime.Config{BaseDir: dir, Provider: mock.New(mock.FinalText("ok")), Roster: store})
+	_, _, c, _ := startPairWithConfig(t, runtime.Config{
+		BaseDir:  dir,
+		Provider: mock.New(mock.FinalText("ok")),
+		Roster:   store,
+		// The roster's WRITES are the agents module's (W3.76n): the module
+		// keeps the lifecycle, so the host hands the kernel the module's
+		// builder too.
+		RosterService: roster.NewService,
+	})
 	ctx := context.Background()
 
 	// Five agents with deterministic CreatedMS values so the cursor

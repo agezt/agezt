@@ -29,6 +29,7 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/journal"
+	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	"github.com/agezt/agezt/kernel/modules/runs/delegation"
 	"github.com/agezt/agezt/kernel/modules/runs/lifecycle"
@@ -268,6 +269,24 @@ func Open(cfg Config) (*Kernel, error) {
 		})
 	}
 
+	// The ROSTER's LIFECYCLE is the agents module's (W3.76n) — the module keeps
+	// the profile writes, the events they publish and the rule that a shipped
+	// guardian may be paused or retired but never removed. The daemon keeps the
+	// names and forwards, and the daemon hands over the BUILDER (it names the
+	// module), and the kernel calls it with the store the host opened and its
+	// own publisher — so every roster change journals through the kernel's bus
+	// without either side naming the other's implementation.
+	//
+	// A host that was given neither holds no service: the roster writes refuse
+	// and the reads answer "no agents".
+	var rosterSvc agentsapi.RosterService
+	if cfg.Roster != nil && cfg.RosterService != nil {
+		rosterSvc = cfg.RosterService(agentsapi.RosterDependencies{
+			Store:   cfg.Roster,
+			Publish: rosterPublisher{b: kbus}.Publish,
+		})
+	}
+
 	// The workflow store is NOT opened here (W3.48): the store file is the
 	// composition root's business (cmd/agezt), and the kernel holds the
 	// contract's read port. The ENGINE is the host's too — it is built over
@@ -386,6 +405,7 @@ func Open(cfg Config) (*Kernel, error) {
 		standing:     cfg.Standing,
 		resume:       rsstore,
 		roster:       cfg.Roster,
+		rosterSvc:    rosterSvc,
 		toolForge:    cfg.ToolForge,
 		mcpStore:     cfg.MCPStore,
 		mcp:          mcpSvc,

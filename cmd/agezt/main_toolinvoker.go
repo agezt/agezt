@@ -204,6 +204,15 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 		}
 		cfg.Roster = store
 	}
+	// The roster's LIFECYCLE is the agents module's (W3.76n): the module keeps
+	// the profile writes, the events they publish and the rule that a shipped
+	// guardian may be paused or retired but never removed. The composition root
+	// hands the kernel the BUILDER (it names the module), and the kernel calls
+	// it with the store above and its own publisher — so every roster change
+	// journals through the kernel's bus.
+	if cfg.RosterService == nil {
+		cfg.RosterService = roster.NewService
+	}
 	if cfg.OKRStore == nil {
 		// The objective library (W3.53) — the contract's store port. The daemon
 		// opens the file (okr/okr.json) and hands the kernel the port; the

@@ -32,6 +32,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/edict"
+	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/warden"
@@ -736,6 +737,19 @@ type Config struct {
 	// Nil means "no roster": the roster reads answer "no agents" and the
 	// roster writes refuse, rather than calling into nothing.
 	Roster agentapi.Store
+
+	// RosterService builds the roster's service over the dependencies the
+	// host collected (W3.76n).
+	//
+	// The roster's LIFECYCLE is the agents module's: the module keeps the
+	// writes, the events they publish and the rule that a shipped guardian
+	// may be paused or retired but never removed — so every roster change
+	// journals through the kernel's bus without either side naming the
+	// other's implementation.
+	//
+	// Nil means no service: the roster writes refuse and the reads answer
+	// "no agents".
+	RosterService agentsapi.RosterServiceBuilder
 }
 
 // Kernel is the running Agezt instance.
