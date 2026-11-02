@@ -816,6 +816,20 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The run engine's last two context doors.** The tail of the run context's
+  move out of the host: `AgentSlugFromCtx` and `AgentRetryPolicyFromCtx` were
+  pure forwarding copies of the runs module's own names, entries of the
+  host's port, and read only by the run engine — which lives inside that
+  module. The engine reads them through the module now, the two daemon copies
+  and the two port entries are gone, and the host's port carries no run
+  context vocabulary at all. The daemon's public verbs **205 → 203** and the
+  run engine's port **66 → 64** methods; since the dead-surface slice the
+  daemon is down to **203** verbs from **238**, and the run engine's port to
+  **64** methods from **81**. The doors that stay are the ones whose state is
+  the host's — the effective configuration, the live collaborators, the resume
+  ticket — and the distinction is pinned by the daemon's ratchet and by the
+  run engine's own.
+
 - **The run engine reads its own context from its own module.** The run
   context's vocabulary — the wake's provenance, the images, the json mode, the
   cost ceiling, the model chain, the agent's daily ceiling, the actor —
