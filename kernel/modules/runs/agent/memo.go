@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"sync"
 	"time"
+
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // DefaultToolMemoTTL bounds per-run read-only tool memoization.
@@ -29,7 +31,7 @@ type ToolMemo struct {
 }
 
 type memoEntry struct {
-	result    Result
+	result    toolapi.Result
 	expiresAt time.Time
 }
 
@@ -50,9 +52,9 @@ func NewToolMemo(ttl time.Duration, max int) *ToolMemo {
 	}
 }
 
-func (m *ToolMemo) Get(tool string, input json.RawMessage) (Result, bool) {
+func (m *ToolMemo) Get(tool string, input json.RawMessage) (toolapi.Result, bool) {
 	if m == nil {
-		return Result{}, false
+		return toolapi.Result{}, false
 	}
 	key := memoKey(tool, input)
 	now := m.now()
@@ -60,17 +62,17 @@ func (m *ToolMemo) Get(tool string, input json.RawMessage) (Result, bool) {
 	defer m.mu.Unlock()
 	entry, ok := m.entries[key]
 	if !ok {
-		return Result{}, false
+		return toolapi.Result{}, false
 	}
 	if !entry.expiresAt.After(now) {
 		delete(m.entries, key)
 		m.removeOrderKey(key)
-		return Result{}, false
+		return toolapi.Result{}, false
 	}
 	return entry.result, true
 }
 
-func (m *ToolMemo) Set(tool string, input json.RawMessage, result Result) {
+func (m *ToolMemo) Set(tool string, input json.RawMessage, result toolapi.Result) {
 	if m == nil || result.IsError {
 		return
 	}

@@ -321,7 +321,7 @@ func TestBridge_UnknownToolError(t *testing.T) {
 
 // ----- helpers ---------------------------------------------------
 
-// keys returns the keys of a map[string]agent.Tool. We accept the
+// keys returns the keys of a map[string]toolapi.Tool. We accept the
 // generic shape to avoid an extra agent import line in callers.
 func keys[V any](m map[string]V) []string {
 	out := make([]string, 0, len(m))

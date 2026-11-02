@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // scriptedProvider returns a queued sequence of assistant contents, one per
@@ -17,15 +19,15 @@ type scriptedProvider struct {
 }
 
 func (s *scriptedProvider) Name() string { return "scripted" }
-func (s *scriptedProvider) Complete(_ context.Context, _ CompletionRequest) (*CompletionResponse, error) {
+func (s *scriptedProvider) Complete(_ context.Context, _ llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	i := s.calls
 	s.calls++
 	if i >= len(s.replies) {
 		i = len(s.replies) - 1
 	}
-	return &CompletionResponse{
-		Message: Message{Role: RoleAssistant, Content: s.replies[i]},
-		Usage:   Usage{InputTokens: 10, OutputTokens: 5, Model: "scripted"},
+	return &llm.CompletionResponse{
+		Message: llm.Message{Role: llm.RoleAssistant, Content: s.replies[i]},
+		Usage:   llm.Usage{InputTokens: 10, OutputTokens: 5, Model: "scripted"},
 	}, nil
 }
 
@@ -37,7 +39,7 @@ func TestGenerateObject_Success(t *testing.T) {
 		Name string `json:"name"`
 		Age  int    `json:"age"`
 	}
-	u, err := GenerateObject(context.Background(), p, CompletionRequest{}, personSchema, &got)
+	u, err := GenerateObject(context.Background(), p, llm.CompletionRequest{}, personSchema, &got)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +57,7 @@ func TestGenerateObject_Success(t *testing.T) {
 func TestGenerateObject_FenceAndProse(t *testing.T) {
 	p := &scriptedProvider{replies: []string{"Here you go:\n```json\n{\"name\":\"Bo\",\"age\":7}\n```\nHope that helps!"}}
 	var got map[string]any
-	if _, err := GenerateObject(context.Background(), p, CompletionRequest{}, personSchema, &got); err != nil {
+	if _, err := GenerateObject(context.Background(), p, llm.CompletionRequest{}, personSchema, &got); err != nil {
 		t.Fatal(err)
 	}
 	if got["name"] != "Bo" {
@@ -72,7 +74,7 @@ func TestGenerateObject_Repair(t *testing.T) {
 	var got struct {
 		Age int `json:"age"`
 	}
-	u, err := GenerateObject(context.Background(), p, CompletionRequest{}, personSchema, &got)
+	u, err := GenerateObject(context.Background(), p, llm.CompletionRequest{}, personSchema, &got)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +92,7 @@ func TestGenerateObject_Repair(t *testing.T) {
 func TestGenerateObject_GivesUp(t *testing.T) {
 	p := &scriptedProvider{replies: []string{`not json at all`}}
 	var got map[string]any
-	_, err := GenerateObject(context.Background(), p, CompletionRequest{}, personSchema, &got)
+	_, err := GenerateObject(context.Background(), p, llm.CompletionRequest{}, personSchema, &got)
 	if !errors.Is(err, ErrNoObjectGenerated) {
 		t.Fatalf("expected ErrNoObjectGenerated, got %v", err)
 	}

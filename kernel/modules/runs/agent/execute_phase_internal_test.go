@@ -11,11 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 type executeJobProbe struct {
-	invoke func(context.Context, json.RawMessage) (Result, error)
+	invoke func(context.Context, json.RawMessage) (toolapi.Result, error)
 }
 
 type executionContextPanic struct{ ctx context.Context }
@@ -27,8 +28,8 @@ func (p executionContextPanic) Error() string {
 	return "before-cancel"
 }
 
-func (executeJobProbe) Definition() ToolDef { panic("execution must not repeat admission") }
-func (p executeJobProbe) Invoke(ctx context.Context, input json.RawMessage) (Result, error) {
+func (executeJobProbe) Definition() toolapi.ToolDef { panic("execution must not repeat admission") }
+func (p executeJobProbe) Invoke(ctx context.Context, input json.RawMessage) (toolapi.Result, error) {
 	return p.invoke(ctx, input)
 }
 
@@ -41,10 +42,10 @@ func TestInvokeToolJobRetainsExecutionContract(t *testing.T) {
 			ctx = toolapi.WithWorkdir(ctx, "isolated-workspace")
 			input := json.RawMessage(" {\n \"n\": 1 } ")
 			cause := errors.New("opaque backend cause")
-			partial := Result{Output: "partial", IsError: true}
+			partial := toolapi.Result{Output: "partial", IsError: true}
 			calls := 0
 			var captured context.Context
-			tool := executeJobProbe{invoke: func(got context.Context, raw json.RawMessage) (Result, error) {
+			tool := executeJobProbe{invoke: func(got context.Context, raw json.RawMessage) (toolapi.Result, error) {
 				captured = got
 				calls++
 				if toolapi.AgentFromContext(got) != "actor" || toolapi.WorkdirFromContext(got) != "isolated-workspace" || toolapi.CorrelationFromContext(got) != "corr" || !reflect.DeepEqual(raw, input) {
@@ -64,7 +65,7 @@ func TestInvokeToolJobRetainsExecutionContract(t *testing.T) {
 				case "error":
 					return partial, cause
 				}
-				return Result{Output: "ok"}, nil
+				return toolapi.Result{Output: "ok"}, nil
 			}}
 			timeout := time.Minute
 			if mode == "disabled" {
@@ -76,7 +77,7 @@ func TestInvokeToolJobRetainsExecutionContract(t *testing.T) {
 			if mode == "timeout" {
 				timeout = 10 * time.Millisecond
 			}
-			job := &toolJob{tool: tool, tc: ToolCall{ID: "call", Name: "probe", Input: input}}
+			job := &toolJob{tool: tool, tc: llm.ToolCall{ID: "call", Name: "probe", Input: input}}
 			invokeToolJob(ctx, LoopConfig{CorrelationID: "corr", ToolTimeout: timeout}, job)
 			if calls != 1 || captured == nil || job.toolTimedOut != (mode == "timeout") || job.panicked != (mode == "panic" || mode == "context-panic") {
 				t.Fatalf("calls=%d job=%+v", calls, job)

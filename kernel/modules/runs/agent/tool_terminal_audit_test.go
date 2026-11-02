@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -24,11 +26,11 @@ type terminalAuditTool struct {
 	ctx    context.Context
 }
 
-func (x *terminalAuditTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: x.name, InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (x *terminalAuditTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: x.name, InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
-func (x *terminalAuditTool) Invoke(ctx context.Context, _ json.RawMessage) (agent.Result, error) {
+func (x *terminalAuditTool) Invoke(ctx context.Context, _ json.RawMessage) (toolapi.Result, error) {
 	x.calls.Add(1)
 	x.ctx = ctx
 	if x.mode == "panic" {
@@ -36,9 +38,9 @@ func (x *terminalAuditTool) Invoke(ctx context.Context, _ json.RawMessage) (agen
 	}
 	if x.mode == "cancel" {
 		x.cancel()
-		return agent.Result{}, fmt.Errorf("backend: %w", ctx.Err())
+		return toolapi.Result{}, fmt.Errorf("backend: %w", ctx.Err())
 	}
-	return agent.Result{Output: "finished"}, nil
+	return toolapi.Result{Output: "finished"}, nil
 }
 
 func TestRun_ToolTerminalsAreAudited(t *testing.T) {
@@ -52,12 +54,12 @@ func TestRun_ToolTerminalsAreAudited(t *testing.T) {
 					tools := []*terminalAuditTool{{name: "first", cancel: cancel}, {name: "second", cancel: cancel}}
 					tools[faultIndex].mode = mode
 					var hooks atomic.Int32
-					prov := mock.New(agent.CompletionResponse{Message: agent.Message{Role: agent.RoleAssistant, ToolCalls: []agent.ToolCall{
+					prov := mock.New(llm.CompletionResponse{Message: llm.Message{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{
 						{ID: "one", Name: "first", Input: json.RawMessage(`{}`)},
 						{ID: "two", Name: "second", Input: json.RawMessage(`{}`)},
-					}}, StopReason: agent.StopToolUse})
-					_, err := agent.Run(ctx, agent.LoopConfig{Provider: prov, Bus: b, Actor: "ops", CorrelationID: "terminal-run", Tools: map[string]agent.Tool{"first": tools[0], "second": tools[1]}, MaxParallelTools: parallel, ToolTimeout: time.Minute,
-						ToolResultHook: func(context.Context, agent.ToolCall, agent.Result) { hooks.Add(1) }}, "test")
+					}}, StopReason: llm.StopToolUse})
+					_, err := agent.Run(ctx, agent.LoopConfig{Provider: prov, Bus: b, Actor: "ops", CorrelationID: "terminal-run", Tools: map[string]toolapi.Tool{"first": tools[0], "second": tools[1]}, MaxParallelTools: parallel, ToolTimeout: time.Minute,
+						ToolResultHook: func(context.Context, llm.ToolCall, toolapi.Result) { hooks.Add(1) }}, "test")
 					want := agent.ErrPanic
 					reason := "panic"
 					if mode == "cancel" {

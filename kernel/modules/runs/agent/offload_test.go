@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
@@ -17,11 +18,11 @@ import (
 // bigTool returns a fixed, large output so the loop's artifact offload triggers.
 type bigTool struct{ out string }
 
-func (b bigTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: "dump", Description: "emit a large blob", InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (b bigTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: "dump", Description: "emit a large blob", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
-func (b bigTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
-	return agent.Result{Output: b.out}, nil
+func (b bigTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
+	return toolapi.Result{Output: b.out}, nil
 }
 
 // TestRun_OffloadsLargeToolOutput: with an artifact store configured, a tool
@@ -42,7 +43,7 @@ func TestRun_OffloadsLargeToolOutput(t *testing.T) {
 	)
 	if _, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider:      prov,
-		Tools:         map[string]agent.Tool{"dump": bigTool{out: big}},
+		Tools:         map[string]toolapi.Tool{"dump": bigTool{out: big}},
 		Bus:           b,
 		Actor:         "agent-1",
 		CorrelationID: "corr-offload",
@@ -99,7 +100,7 @@ func TestRun_SmallToolOutputStaysInline(t *testing.T) {
 	)
 	if _, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider:      prov,
-		Tools:         map[string]agent.Tool{"dump": bigTool{out: "small result"}},
+		Tools:         map[string]toolapi.Tool{"dump": bigTool{out: "small result"}},
 		Bus:           b,
 		Actor:         "agent-1",
 		CorrelationID: "corr-inline",

@@ -11,8 +11,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/agezt/agezt/kernel/event"
 	"time"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/event"
 )
 
 func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string, runErr error) {
@@ -142,7 +144,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				case <-t.C:
 				}
 			}
-			messages = append(messages, Message{Role: RoleUser, Content: autoContinuePrompt})
+			messages = append(messages, llm.Message{Role: llm.RoleUser, Content: autoContinuePrompt})
 			segmentEnd += cfg.MaxIter
 		}
 		if err := ctx.Err(); err != nil {
@@ -175,7 +177,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 				if d.Note {
 					prefix, mode = noteSteeringPrefix, "note"
 				}
-				messages = append(messages, Message{Role: RoleUser, Content: prefix + d.Text})
+				messages = append(messages, llm.Message{Role: llm.RoleUser, Content: prefix + d.Text})
 				if _, err := publish(event.KindRunSteered, "steer", map[string]any{
 					"iter":      iter,
 					"directive": d.Text,
@@ -290,7 +292,7 @@ func Run(ctx context.Context, cfg LoopConfig, userIntent string) (answer string,
 		messages = append(messages, resp.Message)
 
 		// 2d. final answer?
-		if resp.StopReason != StopToolUse || len(resp.Message.ToolCalls) == 0 {
+		if resp.StopReason != llm.StopToolUse || len(resp.Message.ToolCalls) == 0 {
 			// Journal the answer text (M51) so `agt runs show` can display what
 			// the run produced — the renderers expected it but it was never
 			// emitted. The bus redactor scrubs secrets from the payload before it

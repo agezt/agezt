@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
 )
 
 // AutoContextBudgetChars derives a char budget from a model's token context
@@ -61,7 +63,7 @@ type compactionStats struct {
 	RescuedChars int
 }
 
-func compactMessagesDetailed(system string, messages []Message, budget, protectLast, protectFirst int, summarize func(string) string, rescueMarkers []string) (out []Message, stats compactionStats) {
+func compactMessagesDetailed(system string, messages []llm.Message, budget, protectLast, protectFirst int, summarize func(string) string, rescueMarkers []string) (out []llm.Message, stats compactionStats) {
 	if budget <= 0 {
 		return messages, stats
 	}
@@ -75,13 +77,13 @@ func compactMessagesDetailed(system string, messages []Message, budget, protectL
 	if protectFirst < 0 {
 		protectFirst = 0
 	}
-	out = make([]Message, len(messages))
+	out = make([]llm.Message, len(messages))
 	copy(out, messages)
 	limit := len(out) - protectLast // indices [start,limit) are elidable
 	start := protectFirst           // indices [0,start) are protected grounding
 	for i := start; i < limit && total > budget; i++ {
 		m := out[i]
-		if m.Role != RoleTool || m.Content == "" || strings.HasPrefix(m.Content, elidedStubPrefix) {
+		if m.Role != llm.RoleTool || m.Content == "" || strings.HasPrefix(m.Content, elidedStubPrefix) {
 			continue
 		}
 		if rescuedToolOutput(m.Content, rescueMarkers) {
@@ -201,13 +203,13 @@ var ErrUnknownTool = errors.New("agent: unknown tool")
 // goal is relative visibility into how big the context is and where it comes from
 // (the basis of the context inspector and "what was in its context?"), not exact
 // token billing — that lands on llm.response from the provider's real usage.
-func contextSize(system string, messages []Message) (total int, byRole map[string]int) {
+func contextSize(system string, messages []llm.Message) (total int, byRole map[string]int) {
 	byRole = make(map[string]int)
 	if len(system) > 0 {
 		// The system prompt is sent separately from the message list
 		// (CompletionRequest.System), but it is still context that occupies the
 		// window, so it counts under the "system" source.
-		byRole[string(RoleSystem)] = len(system)
+		byRole[string(llm.RoleSystem)] = len(system)
 		total = len(system)
 	}
 	for _, m := range messages {

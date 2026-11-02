@@ -7,6 +7,9 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // ToolSelectionRequest is the context a discovery layer receives before each
@@ -16,13 +19,13 @@ import (
 type ToolSelectionRequest struct {
 	Intent   string
 	Iter     int
-	Messages []Message
-	Tools    []ToolDef
+	Messages []llm.Message
+	Tools    []toolapi.ToolDef
 }
 
 // ToolSelector chooses which registered tools should be offered on a provider
 // call. Nil means "offer every available tool" (the historical behaviour).
-type ToolSelector func(ctx context.Context, req ToolSelectionRequest) ([]ToolDef, error)
+type ToolSelector func(ctx context.Context, req ToolSelectionRequest) ([]toolapi.ToolDef, error)
 
 // LexicalToolSelector returns a deterministic capability/semantic selector that
 // ranks tools by overlap between the task text and each tool's name,
@@ -51,26 +54,26 @@ func lexicalToolSelector(max int, pinned []string, fallbackAll bool) ToolSelecto
 			pinnedSet[name] = true
 		}
 	}
-	return func(_ context.Context, req ToolSelectionRequest) ([]ToolDef, error) {
+	return func(_ context.Context, req ToolSelectionRequest) ([]toolapi.ToolDef, error) {
 		if len(req.Tools) <= max {
-			return append([]ToolDef(nil), req.Tools...), nil
+			return append([]toolapi.ToolDef(nil), req.Tools...), nil
 		}
 		query := req.Intent
 		for _, m := range req.Messages {
-			if m.Role == RoleUser {
+			if m.Role == llm.RoleUser {
 				query += " " + m.Content
 			}
 		}
 		q := tokenSet(query)
 		if len(q) == 0 {
 			if fallbackAll {
-				return append([]ToolDef(nil), req.Tools...), nil
+				return append([]toolapi.ToolDef(nil), req.Tools...), nil
 			}
 			return pinnedTools(req.Tools, pinnedSet), nil
 		}
 
 		type scored struct {
-			def   ToolDef
+			def   toolapi.ToolDef
 			score int
 			index int
 		}
@@ -96,7 +99,7 @@ func lexicalToolSelector(max int, pinned []string, fallbackAll bool) ToolSelecto
 		})
 		if rows[0].score <= 0 {
 			if fallbackAll {
-				return append([]ToolDef(nil), req.Tools...), nil
+				return append([]toolapi.ToolDef(nil), req.Tools...), nil
 			}
 			return pinnedOut, nil
 		}
@@ -104,7 +107,7 @@ func lexicalToolSelector(max int, pinned []string, fallbackAll bool) ToolSelecto
 		if limit > len(rows) {
 			limit = len(rows)
 		}
-		out := make([]ToolDef, 0, len(pinnedOut)+limit)
+		out := make([]toolapi.ToolDef, 0, len(pinnedOut)+limit)
 		out = append(out, pinnedOut...)
 		selected := 0
 		for _, row := range rows {
@@ -118,11 +121,11 @@ func lexicalToolSelector(max int, pinned []string, fallbackAll bool) ToolSelecto
 	}
 }
 
-func pinnedTools(tools []ToolDef, pinned map[string]bool) []ToolDef {
+func pinnedTools(tools []toolapi.ToolDef, pinned map[string]bool) []toolapi.ToolDef {
 	if len(pinned) == 0 {
 		return nil
 	}
-	out := make([]ToolDef, 0, len(pinned))
+	out := make([]toolapi.ToolDef, 0, len(pinned))
 	for _, t := range tools {
 		if pinned[t.Name] {
 			out = append(out, t)
@@ -131,12 +134,12 @@ func pinnedTools(tools []ToolDef, pinned map[string]bool) []ToolDef {
 	return out
 }
 
-func normalizeSelectedTools(available, selected []ToolDef) []ToolDef {
-	byName := make(map[string]ToolDef, len(available))
+func normalizeSelectedTools(available, selected []toolapi.ToolDef) []toolapi.ToolDef {
+	byName := make(map[string]toolapi.ToolDef, len(available))
 	for _, t := range available {
 		byName[t.Name] = t
 	}
-	out := make([]ToolDef, 0, len(selected))
+	out := make([]toolapi.ToolDef, 0, len(selected))
 	seen := map[string]bool{}
 	for _, t := range selected {
 		if seen[t.Name] {
@@ -150,7 +153,7 @@ func normalizeSelectedTools(available, selected []ToolDef) []ToolDef {
 	return out
 }
 
-func toolScore(query map[string]bool, t ToolDef) int {
+func toolScore(query map[string]bool, t toolapi.ToolDef) int {
 	name := strings.ToLower(t.Name)
 	desc := strings.ToLower(t.Description)
 	score := 0

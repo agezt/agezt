@@ -31,7 +31,7 @@ func TestRun_ContextBudgetCompacts(t *testing.T) {
 	)
 	if _, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider:           prov,
-		Tools:              map[string]agent.Tool{"dump": bigTool{out: big}},
+		Tools:              map[string]toolapi.Tool{"dump": bigTool{out: big}},
 		Bus:                b,
 		Actor:              "agent-1",
 		CorrelationID:      "corr-ctx",
@@ -81,7 +81,7 @@ func TestRun_EventOrderPolicyResultBeforeCompaction(t *testing.T) {
 	)
 	if _, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider:           prov,
-		Tools:              map[string]agent.Tool{"dump": bigTool{out: big}},
+		Tools:              map[string]toolapi.Tool{"dump": bigTool{out: big}},
 		Bus:                b,
 		Actor:              "agent-order",
 		CorrelationID:      "corr-order",
@@ -147,7 +147,7 @@ func TestRun_ContextCompactionPayloadReportsSkillRescue(t *testing.T) {
 	)
 	if _, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider:             prov,
-		Tools:                map[string]agent.Tool{"skillread": bigTool{out: marked}, "dump": bigTool{out: plain}},
+		Tools:                map[string]toolapi.Tool{"skillread": bigTool{out: marked}, "dump": bigTool{out: plain}},
 		Bus:                  b,
 		Actor:                "agent-1",
 		CorrelationID:        "corr-rescue",
@@ -185,7 +185,7 @@ func TestRun_NoContextBudgetNoCompaction(t *testing.T) {
 	)
 	if _, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider:      prov,
-		Tools:         map[string]agent.Tool{"dump": bigTool{out: big}},
+		Tools:         map[string]toolapi.Tool{"dump": bigTool{out: big}},
 		Bus:           b,
 		Actor:         "agent-1",
 		CorrelationID: "corr-nobudget",

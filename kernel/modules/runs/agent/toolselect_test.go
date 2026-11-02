@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -17,16 +19,16 @@ type discoveryTool struct {
 	desc string
 }
 
-func (t discoveryTool) Definition() agent.ToolDef {
-	return agent.ToolDef{Name: t.name, Description: t.desc, InputSchema: json.RawMessage(`{"type":"object"}`)}
+func (t discoveryTool) Definition() toolapi.ToolDef {
+	return toolapi.ToolDef{Name: t.name, Description: t.desc, InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
-func (t discoveryTool) Invoke(context.Context, json.RawMessage) (agent.Result, error) {
-	return agent.Result{Output: t.name + " ok"}, nil
+func (t discoveryTool) Invoke(context.Context, json.RawMessage) (toolapi.Result, error) {
+	return toolapi.Result{Output: t.name + " ok"}, nil
 }
 
 func TestLexicalToolSelector_PicksRelevantTools(t *testing.T) {
-	tools := []agent.ToolDef{
+	tools := []toolapi.ToolDef{
 		{Name: "calendar", Description: "Create and inspect calendar events", InputSchema: json.RawMessage(`{"type":"object"}`)},
 		{Name: "file", Description: "Read, write, and search files in the workspace", InputSchema: json.RawMessage(`{"type":"object"}`)},
 		{Name: "notify", Description: "Send a message to a person", InputSchema: json.RawMessage(`{"type":"object"}`)},
@@ -45,7 +47,7 @@ func TestLexicalToolSelector_PicksRelevantTools(t *testing.T) {
 }
 
 func TestLexicalToolSelector_NoMatchReturnsAll(t *testing.T) {
-	tools := []agent.ToolDef{
+	tools := []toolapi.ToolDef{
 		{Name: "calendar", Description: "Create calendar events", InputSchema: json.RawMessage(`{"type":"object"}`)},
 		{Name: "notify", Description: "Send a message", InputSchema: json.RawMessage(`{"type":"object"}`)},
 	}
@@ -60,7 +62,7 @@ func TestLexicalToolSelector_NoMatchReturnsAll(t *testing.T) {
 }
 
 func TestDeferredLexicalToolSelector_PinsSearchAndHidesNoMatch(t *testing.T) {
-	tools := []agent.ToolDef{
+	tools := []toolapi.ToolDef{
 		{Name: "tool_search", Description: "Search deferred tool catalog", InputSchema: json.RawMessage(`{"type":"object"}`)},
 		{Name: "calendar", Description: "Create calendar events", InputSchema: json.RawMessage(`{"type":"object"}`)},
 		{Name: "notify", Description: "Send a message", InputSchema: json.RawMessage(`{"type":"object"}`)},
@@ -76,7 +78,7 @@ func TestDeferredLexicalToolSelector_PinsSearchAndHidesNoMatch(t *testing.T) {
 }
 
 func TestDeferredLexicalToolSelector_PinsSearchWithRelevantTool(t *testing.T) {
-	tools := []agent.ToolDef{
+	tools := []toolapi.ToolDef{
 		{Name: "tool_search", Description: "Search deferred tool catalog", InputSchema: json.RawMessage(`{"type":"object"}`)},
 		{Name: "calendar", Description: "Create calendar events", InputSchema: json.RawMessage(`{"type":"object"}`)},
 		{Name: "file", Description: "Read and write files", InputSchema: json.RawMessage(`{"type":"object"}`)},
@@ -93,14 +95,14 @@ func TestDeferredLexicalToolSelector_PinsSearchWithRelevantTool(t *testing.T) {
 
 func TestRun_ToolSelectorFiltersProviderRequest(t *testing.T) {
 	b, j := newTestBus(t)
-	var offered []agent.ToolDef
+	var offered []toolapi.ToolDef
 	prov := mock.New(mock.FinalText("done"))
-	prov.OnRequest = func(req agent.CompletionRequest) {
-		offered = append([]agent.ToolDef(nil), req.Tools...)
+	prov.OnRequest = func(req llm.CompletionRequest) {
+		offered = append([]toolapi.ToolDef(nil), req.Tools...)
 	}
 	if _, err := agent.Run(context.Background(), agent.LoopConfig{
 		Provider: prov,
-		Tools: map[string]agent.Tool{
+		Tools: map[string]toolapi.Tool{
 			"calendar": discoveryTool{name: "calendar", desc: "Create calendar events"},
 			"file":     discoveryTool{name: "file", desc: "Read and write files"},
 		},
@@ -136,7 +138,7 @@ func TestRun_ToolSelectorFiltersProviderRequest(t *testing.T) {
 	}
 }
 
-func toolDefNames(defs []agent.ToolDef) []string {
+func toolDefNames(defs []toolapi.ToolDef) []string {
 	out := make([]string, len(defs))
 	for i, d := range defs {
 		out[i] = d.Name

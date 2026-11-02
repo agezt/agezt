@@ -165,7 +165,7 @@ func New(cfg Config) (*Governor, error) {
 	return g, nil
 }
 
-// Name implements agent.Provider.
+// Name implements llm.Provider.
 func (g *Governor) Name() string { return "governor" }
 
 // Registry returns the underlying registry for read access. Mutating

@@ -3,13 +3,13 @@
 package agent
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/agezt/agezt/kernel/contract/llm"
-	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 // The loop is the RUNS MODULE's engine (W3.76h). It used to live at
@@ -128,22 +128,59 @@ func TestTheLoopNeverNamesTheDaemon(t *testing.T) {
 	}
 }
 
-// TestTheLoopKeepsItsContractAliases pins the contract half: the aliases
-// here are the CONTRACT rows, with identical types. The contract half moved
-// to kernel/contract/llm and kernel/contract/toolapi in W1.1; the loop keeps
-// the aliases so every agent.X reference still compiles, but the identity
-// must never drift.
-func TestTheLoopKeepsItsContractAliases(t *testing.T) {
-	var (
-		_ Provider           = llm.Provider(nil)
-		_ StreamingProvider  = llm.StreamingProvider(nil)
-		_ Message            = llm.Message{}
-		_ CompletionRequest  = llm.CompletionRequest{}
-		_ CompletionResponse = llm.CompletionResponse{}
-		_ Usage              = llm.Usage{}
-		_ Tool               = toolapi.Tool(nil)
-		_ ToolDef            = toolapi.ToolDef{}
-		_ Result             = toolapi.Result{}
-		_ ObservationTrust   = toolapi.ObservationTrust("")
-	)
+// TestTheLoopNoLongerReExportsTheContract pins the W3.76i rule: the loop's
+// public surface must NOT re-export the contract's rows.
+//
+// The contract half moved to kernel/contract/llm and kernel/contract/toolapi
+// in W1.1, and the loop kept an alias block (agent.go) so that every
+// `agent.X` reference compiled. W3.76i removed that block: a caller that
+// wants the provider contract now names `llm.Provider`, and a caller that
+// wants the tool contract names `toolapi.Tool`. The loop's own API —
+// `agent.Run`, `agent.LoopConfig`, the selectors, the memo — stays, because
+// those are the LOOP's names.
+//
+// The aliases that REMAIN are the platform's forwards (the policy rows, the
+// artifact port, the schema helpers), and this test does not touch them.
+func TestTheLoopNoLongerReExportsTheContract(t *testing.T) {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("read the loop's directory: %v", err)
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") {
+			continue
+		}
+		if strings.HasSuffix(e.Name(), "_test.go") {
+			continue
+		}
+		fset := token.NewFileSet()
+		file, perr := parser.ParseFile(fset, e.Name(), nil, 0)
+		if perr != nil {
+			t.Fatalf("parse %s: %v", e.Name(), perr)
+		}
+		for _, decl := range file.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.TYPE {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				ts, ok := spec.(*ast.TypeSpec)
+				if !ok || !ts.Assign.IsValid() {
+					continue // not an alias
+				}
+				sel, ok := ts.Type.(*ast.SelectorExpr)
+				if !ok {
+					continue
+				}
+				pkg, ok := sel.X.(*ast.Ident)
+				if !ok {
+					continue
+				}
+				if pkg.Name == "llm" || pkg.Name == "toolapi" {
+					t.Fatalf("%s re-exports the contract row %s = %s.%s; the loop's public surface must not re-export the contract",
+						e.Name(), ts.Name.Name, pkg.Name, sel.Sel.Name)
+				}
+			}
+		}
+	}
 }

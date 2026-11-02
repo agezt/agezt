@@ -3,9 +3,8 @@
 // Package agent is the canonical first-party single-agent tool-loop
 // (DECISIONS B0d) — the orchestration core that the rest of the
 // kernel builds on. It runs the two interfaces every adapter in the
-// system implements — Provider for LLM adapters and Tool for tool
-// adapters, declared in kernel/contract/llm and kernel/contract/toolapi
-// and aliased here — in the Run loop that wires them: model request → tool
+// system implements — llm.Provider for LLM adapters and toolapi.Tool for
+// tool adapters — in the Run loop that wires them: model request → tool
 // dispatch (with Edict policy gate + Warden sandbox) → observation
 // → next iteration. The loop is interleaved, not plan-then-execute;
 // the DAG scheduler (kernel/scheduler) is a separate layer that
@@ -23,10 +22,11 @@
 //
 // The split follows the shape the family already had:
 //
-//   - the CONTRACT half (Provider, Tool, ToolDef, Result, Message) lives in
-//     kernel/contract/llm and kernel/contract/toolapi (W1.1). The aliases
-//     here keep every agent.X reference compiling with identical types; new
-//     code should import the contract packages directly.
+//   - the CONTRACT half (llm.Provider, toolapi.Tool, toolapi.ToolDef,
+//     toolapi.Result, llm.Message) lives in kernel/contract/llm and
+//     kernel/contract/toolapi (W1.1). The loop does NOT re-export it
+//     (W3.76i): a caller names llm.Provider or toolapi.Tool directly, so
+//     there is one spelling of every row in the tree.
 //
 //   - the LOOP is here: the Run entry point, the context assembly and
 //     compaction, the observation trust rules, the tool gate, the tool memo

@@ -25,7 +25,7 @@ var ErrNoObjectGenerated = llm.ErrNoObjectGenerated
 // and the underlying cause (a validation error, or ErrNoObjectGenerated).
 type ObjectError struct {
 	LastText string
-	Usage    Usage
+	Usage    llm.Usage
 	Err      error
 }
 
@@ -52,17 +52,17 @@ const DefaultObjectRepairs = 2
 // times. The returned Usage is the sum across all attempts.
 //
 // schema may be empty to accept any JSON value. out must be a non-nil pointer.
-func GenerateObject(ctx context.Context, p Provider, req CompletionRequest, schema json.RawMessage, out any) (Usage, error) {
+func GenerateObject(ctx context.Context, p llm.Provider, req llm.CompletionRequest, schema json.RawMessage, out any) (llm.Usage, error) {
 	if p == nil {
-		return Usage{}, errors.New("generate object: nil provider")
+		return llm.Usage{}, errors.New("generate object: nil provider")
 	}
 	if out == nil {
-		return Usage{}, errors.New("generate object: nil out")
+		return llm.Usage{}, errors.New("generate object: nil out")
 	}
 	req.JSONMode = true
 	req.System = appendSchemaInstruction(req.System, schema)
 
-	var total Usage
+	var total llm.Usage
 	var lastText string
 	var lastErr error
 	for attempt := 0; attempt <= DefaultObjectRepairs; attempt++ {
@@ -94,8 +94,8 @@ func GenerateObject(ctx context.Context, p Provider, req CompletionRequest, sche
 		}
 		// Repair turn: show the model its output and the precise problem.
 		req.Messages = append(req.Messages,
-			Message{Role: RoleAssistant, Content: resp.Message.Content},
-			Message{Role: RoleUser, Content: fmt.Sprintf(
+			llm.Message{Role: llm.RoleAssistant, Content: resp.Message.Content},
+			llm.Message{Role: llm.RoleUser, Content: fmt.Sprintf(
 				"That response was not valid against the required schema: %v. "+
 					"Reply again with ONLY the corrected JSON value and no other text.", lastErr)},
 		)
@@ -200,7 +200,7 @@ func balancedSpan(s string) (string, bool) {
 }
 
 // addUsage sums two Usage records field-wise, preserving the latest model id.
-func addUsage(a, b Usage) Usage {
+func addUsage(a, b llm.Usage) llm.Usage {
 	a.InputTokens += b.InputTokens
 	a.OutputTokens += b.OutputTokens
 	a.CachedInputTokens += b.CachedInputTokens

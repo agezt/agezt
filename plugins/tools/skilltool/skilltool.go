@@ -29,7 +29,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 )
 
-// Tool implements agent.Tool. Created unbound via New(); Bind wires the Forge
+// Tool implements toolapi.Tool. Created unbound via New(); Bind wires the Forge
 // and the bundle store.
 type Tool struct {
 	mu      sync.RWMutex

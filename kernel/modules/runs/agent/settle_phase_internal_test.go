@@ -8,24 +8,26 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
 func TestFinalizeSettlementRetainsRepresentation(t *testing.T) {
 	for _, mode := range []string{"success", "reported-error", "memo", "skipped", "untrusted-offload"} {
 		t.Run(mode, func(t *testing.T) {
-			result := Result{Output: "finished", ObservationTrust: ObservationTrusted, ObservationSource: "fixture"}
+			result := toolapi.Result{Output: "finished", ObservationTrust: toolapi.ObservationTrusted, ObservationSource: "fixture"}
 			if mode == "reported-error" || mode == "skipped" {
 				result.IsError = true
 			}
 			if mode == "untrusted-offload" {
 				result.Output = strings.Repeat("external data ", 2000)
-				result.ObservationTrust = ObservationUntrusted
+				result.ObservationTrust = toolapi.ObservationUntrusted
 			}
 			store := &recordingPutter{}
 			hooks := 0
 			var record map[string]any
-			s := newRunState(LoopConfig{Artifacts: store, ArtifactThreshold: 64, ToolResultHook: func(_ context.Context, call ToolCall, got Result) {
+			s := newRunState(LoopConfig{Artifacts: store, ArtifactThreshold: 64, ToolResultHook: func(_ context.Context, call llm.ToolCall, got toolapi.Result) {
 				hooks++
 				if call.ID != "call" || call.Name != "alias" || !reflect.DeepEqual(got, result) {
 					t.Errorf("hook call=%+v result=%+v", call, got)
@@ -37,7 +39,7 @@ func TestFinalizeSettlementRetainsRepresentation(t *testing.T) {
 				record = payload.(map[string]any)
 				return nil, nil
 			})
-			job := &toolJob{tc: ToolCall{ID: "call", Name: "alias"}, tool: &stubTool{}, result: result, memoHit: mode == "memo", skipped: mode == "skipped"}
+			job := &toolJob{tc: llm.ToolCall{ID: "call", Name: "alias"}, tool: &stubTool{}, result: result, memoHit: mode == "memo", skipped: mode == "skipped"}
 			if mode == "memo" {
 				job.tool = nil
 			}

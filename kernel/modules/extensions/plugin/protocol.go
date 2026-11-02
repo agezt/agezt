@@ -46,7 +46,7 @@ type Response struct {
 }
 
 // ToolDef describes a tool the plugin exposes. Mirrors
-// agent.ToolDef but lives here so plugin authors can target this
+// toolapi.ToolDef but lives here so plugin authors can target this
 // package without importing kernel/agent.
 type ToolDef struct {
 	Name        string          `json:"name"`
@@ -84,7 +84,7 @@ type InvokeParams struct {
 }
 
 // InvokeResult is the payload of a tool/invoke response.
-// Mirrors agent.Result.
+// Mirrors toolapi.Result.
 type InvokeResult struct {
 	Output  string `json:"output"`
 	IsError bool   `json:"is_error,omitempty"`

@@ -19,7 +19,7 @@ func TestFirstSentence(t *testing.T) {
 		{"collapses whitespace", "  Package   foo.  ", "Package foo."},
 		{"no period", "Package foo has no period", "Package foo has no period"},
 		{"multi-line", "Package foo\ndoes bar and baz.", "Package foo does bar and baz."},
-		{"period inside path", "uses kernel/agent.Tool interface (DECISIONS B0d).", "uses kernel/agent.Tool interface (DECISIONS B0d)."},
+		{"period inside path", "uses kernel/toolapi.Tool interface (DECISIONS B0d).", "uses kernel/toolapi.Tool interface (DECISIONS B0d)."},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

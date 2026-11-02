@@ -189,7 +189,7 @@ const (
 	//   - count: int
 	// Source-of-tool ("in-process" vs "plugin: <name>") is not
 	// distinguished at the kernel boundary — tools all satisfy
-	// the same agent.Tool interface by the time they reach the
+	// the same toolapi.Tool interface by the time they reach the
 	// loop. The CLI surfaces the description so plugin tools that
 	// follow the convention of prefixing their description ("[via
 	// plugin foo] ...") remain self-identifying.

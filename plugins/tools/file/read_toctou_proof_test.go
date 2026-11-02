@@ -72,7 +72,7 @@ func TestReadSymlinkTOCTOU_Rejected(t *testing.T) {
 		t.Logf("FIXED: through-symlink read refused via error (as expected): %v", err)
 	case result.IsError:
 		// Refused via the result channel — the tool reports refusals as
-		// agent.Result{IsError: true} (e.g. resolve()'s containment check),
+		// toolapi.Result{IsError: true} (e.g. resolve()'s containment check),
 		// not as a Go error. The message names the resolved path; the FILE
 		// CONTENTS must still not appear.
 		if strings.Contains(result.Output, secret) {

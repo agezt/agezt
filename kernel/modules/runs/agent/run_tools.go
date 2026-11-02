@@ -8,6 +8,8 @@ package agent
 //             Day-127 god-file split. Public API unchanged.
 
 import (
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
@@ -42,9 +44,9 @@ const maxToolDenials = 2
 // A nil `tool` after gating means the call was refused/short-circuited and its
 // synthesized `result` is already final — execute skips it, finalize journals it.
 type toolJob struct {
-	tc           ToolCall
-	tool         Tool // non-nil ⇒ execute runs it
-	result       Result
+	tc           llm.ToolCall
+	tool         toolapi.Tool // non-nil ⇒ execute runs it
+	result       toolapi.Result
 	invokeErr    error
 	toolTimedOut bool
 	panicked     bool
@@ -130,11 +132,11 @@ func (s *runState) directiveActive(iter int) bool {
 // offeredTools drops the tools the policy has repeatedly refused this run
 // (M605). A no-op until a tool crosses the threshold, so the common case
 // allocates nothing and returns the caller's slice unchanged.
-func (s *runState) offeredTools(tools []ToolDef) []ToolDef {
+func (s *runState) offeredTools(tools []toolapi.ToolDef) []toolapi.ToolDef {
 	if len(s.toolDenials) == 0 {
 		return tools
 	}
-	filtered := make([]ToolDef, 0, len(tools))
+	filtered := make([]toolapi.ToolDef, 0, len(tools))
 	for _, t := range tools {
 		if s.toolDenials[t.Name] >= maxToolDenials {
 			continue

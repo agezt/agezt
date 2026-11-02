@@ -89,7 +89,7 @@ func TestBuild_UsesTheDeferredSelectorAboveTheThreshold(t *testing.T) {
 	if lc.ToolSelector == nil {
 		t.Fatal("ToolSelector = nil, want a selector")
 	}
-	var defs []agent.ToolDef
+	var defs []toolapi.ToolDef
 	for name, tl := range lc.Tools {
 		defs = append(defs, tl.Definition())
 		_ = name
@@ -115,7 +115,7 @@ func TestBuild_KeepsTheFullSelectorBelowTheThreshold(t *testing.T) {
 	if lc.ToolSelector == nil {
 		t.Fatal("ToolSelector = nil, want a selector")
 	}
-	var defs []agent.ToolDef
+	var defs []toolapi.ToolDef
 	for _, tl := range lc.Tools {
 		defs = append(defs, tl.Definition())
 	}

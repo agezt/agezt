@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 func TestToolMemo_ExpiredKeyDoesNotEvictFreshReplacement(t *testing.T) {
@@ -15,19 +17,19 @@ func TestToolMemo_ExpiredKeyDoesNotEvictFreshReplacement(t *testing.T) {
 
 	inputA := json.RawMessage(`{"x":1}`)
 	inputB := json.RawMessage(`{"x":2}`)
-	m.Set("read", inputA, Result{Output: "old-a"})
+	m.Set("read", inputA, toolapi.Result{Output: "old-a"})
 
 	now = now.Add(2 * time.Second)
 	if _, ok := m.Get("read", inputA); ok {
 		t.Fatal("expired memo entry unexpectedly returned")
 	}
 
-	m.Set("read", inputA, Result{Output: "new-a"})
+	m.Set("read", inputA, toolapi.Result{Output: "new-a"})
 	if got, ok := m.Get("read", inputA); !ok || got.Output != "new-a" {
 		t.Fatalf("fresh replacement = {%q,%v}, want new-a,true", got.Output, ok)
 	}
 
-	m.Set("read", inputB, Result{Output: "b"})
+	m.Set("read", inputB, toolapi.Result{Output: "b"})
 	if got, ok := m.Get("read", inputB); !ok || got.Output != "b" {
 		t.Fatalf("newest entry = {%q,%v}, want b,true", got.Output, ok)
 	}
@@ -36,7 +38,7 @@ func TestToolMemo_ExpiredKeyDoesNotEvictFreshReplacement(t *testing.T) {
 func TestToolMemo_DoesNotCacheErrorResults(t *testing.T) {
 	m := NewToolMemo(time.Minute, 8)
 	input := json.RawMessage(`{}`)
-	m.Set("read", input, Result{Output: "boom", IsError: true})
+	m.Set("read", input, toolapi.Result{Output: "boom", IsError: true})
 	if _, ok := m.Get("read", input); ok {
 		t.Fatal("error result was cached")
 	}

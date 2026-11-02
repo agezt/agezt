@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -28,7 +30,7 @@ import (
 // contract guarantees same-response semantics, so an error there is a real
 // upstream problem worth surfacing rather than papering over with a second
 // (billable) call.
-func callProvider(ctx context.Context, cfg LoopConfig, req CompletionRequest, iter int) (*CompletionResponse, error) {
+func callProvider(ctx context.Context, cfg LoopConfig, req llm.CompletionRequest, iter int) (*llm.CompletionResponse, error) {
 	// streamEphemeral publishes one live-only event for this run. Failures are
 	// ignored by design: a dropped live frame must never fail a run whose
 	// durable record is published separately.
@@ -42,9 +44,9 @@ func callProvider(ctx context.Context, cfg LoopConfig, req CompletionRequest, it
 		})
 	}
 
-	var resp *CompletionResponse
-	if sp, ok := cfg.Provider.(StreamingProvider); ok {
-		r, err := sp.CompleteStream(ctx, req, func(c Chunk) error {
+	var resp *llm.CompletionResponse
+	if sp, ok := cfg.Provider.(llm.StreamingProvider); ok {
+		r, err := sp.CompleteStream(ctx, req, func(c llm.Chunk) error {
 			// Reasoning delta (M317): a reasoning model's chain of thought is
 			// visible live (agt pulse, the ACP relay) without bloating the
 			// hash-chained journal.
@@ -90,8 +92,8 @@ func callProvider(ctx context.Context, cfg LoopConfig, req CompletionRequest, it
 // loop's config and the current conversation. Every routing/accounting field the
 // governor and the ledgers rely on is threaded here in one place, so a new one
 // cannot be added to the config and silently forgotten on the wire.
-func completionRequestFor(cfg LoopConfig, messages []Message, offered []ToolDef) CompletionRequest {
-	return CompletionRequest{
+func completionRequestFor(cfg LoopConfig, messages []llm.Message, offered []toolapi.ToolDef) llm.CompletionRequest {
+	return llm.CompletionRequest{
 		Model:               cfg.Model,
 		System:              cfg.System,
 		Messages:            messages,

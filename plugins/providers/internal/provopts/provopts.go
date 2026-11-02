@@ -1,5 +1,5 @@
 // Package provopts holds shared helpers for applying per-request generation
-// knobs (agent.Params) and provider-specific extras (CompletionRequest.
+// knobs (llm.Params) and provider-specific extras (CompletionRequest.
 // ProviderOptions) onto an adapter's outbound wire request.
 //
 // The two helpers here are dialect-agnostic:

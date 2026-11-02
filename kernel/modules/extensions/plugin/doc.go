@@ -6,7 +6,7 @@
 // have to compile against the agezt binary. The plugin host
 // spawns subprocesses, communicates over line-delimited JSON on
 // stdio, and exposes each remote tool through the standard
-// `agent.Tool` interface so the rest of the kernel doesn't need
+// `toolapi.Tool` interface so the rest of the kernel doesn't need
 // to know whether a tool is in-process or out-of-process.
 //
 // **Why not gRPC.** Three reasons:

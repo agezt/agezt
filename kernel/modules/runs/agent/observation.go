@@ -5,6 +5,8 @@ package agent
 import (
 	"fmt"
 	"strings"
+
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 )
 
 const observationDeltaMaxLines = 24
@@ -21,7 +23,7 @@ const DefaultDirectiveTaintWindow = 1
 // ObservationBoundary is the audit record produced when a tool result crosses
 // from the world/tool layer into the model's context.
 type ObservationBoundary struct {
-	Trust         ObservationTrust
+	Trust         toolapi.ObservationTrust
 	Source        string
 	DirectiveLike bool
 	Matches       []string
@@ -30,13 +32,13 @@ type ObservationBoundary struct {
 // ObservationBoundaryForTool classifies a tool result before it is appended to
 // the conversation. Tool implementations can set Result.ObservationTrust
 // explicitly; otherwise known world-reading tools default to untrusted.
-func ObservationBoundaryForTool(toolName string, result Result, modelOutput string) ObservationBoundary {
+func ObservationBoundaryForTool(toolName string, result toolapi.Result, modelOutput string) ObservationBoundary {
 	trust := result.ObservationTrust
-	if trust == ObservationTrustDefault {
+	if trust == toolapi.ObservationTrustDefault {
 		if defaultUntrustedObservationTool(toolName) && !result.IsError {
-			trust = ObservationUntrusted
+			trust = toolapi.ObservationUntrusted
 		} else {
-			trust = ObservationTrusted
+			trust = toolapi.ObservationTrusted
 		}
 	}
 	source := strings.TrimSpace(result.ObservationSource)
@@ -44,7 +46,7 @@ func ObservationBoundaryForTool(toolName string, result Result, modelOutput stri
 		source = toolName
 	}
 	out := ObservationBoundary{Trust: trust, Source: source}
-	if trust == ObservationUntrusted {
+	if trust == toolapi.ObservationUntrusted {
 		out.Matches = directiveLikeMatches(modelOutput)
 		out.DirectiveLike = len(out.Matches) > 0
 	}
@@ -55,7 +57,7 @@ func ObservationBoundaryForTool(toolName string, result Result, modelOutput stri
 // is not the only defense; it is the parser/transport boundary made explicit in
 // the model-visible transcript.
 func RenderObservationForModel(toolName string, boundary ObservationBoundary, content string) string {
-	if boundary.Trust != ObservationUntrusted {
+	if boundary.Trust != toolapi.ObservationUntrusted {
 		return content
 	}
 	var b strings.Builder
@@ -82,7 +84,7 @@ func RenderObservationForModel(toolName string, boundary ObservationBoundary, co
 // MergeUntrustedObservationTaint accumulates external-observation provenance for
 // policy decisions later in the run.
 func MergeUntrustedObservationTaint(prev UntrustedObservationTaint, boundary ObservationBoundary) UntrustedObservationTaint {
-	if boundary.Trust != ObservationUntrusted {
+	if boundary.Trust != toolapi.ObservationUntrusted {
 		return prev
 	}
 	prev.Sources = appendUnique(prev.Sources, boundary.Source)
