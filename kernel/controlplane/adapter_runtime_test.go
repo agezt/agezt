@@ -13,14 +13,19 @@ import (
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
-// The COUNCIL's verbs, which the APPLICATION owns. The council's panel, its
-// seating, its convening and its conductor are the application's business: the
-// host hands over the kernel handle, and the application decides what the
-// council reads and how it answers.
+// The COUNCIL's verbs, which the APPLICATION owns. The council's seating is
+// the application's business: the host hands over the kernel handle, and the
+// application decides what the council reads and how it answers.
 //
 // The gate cannot hold this — it counts packages, not verbs — so the test
 // does: the host must not call these on the handle itself.
-var councilOwnedVerbs = []string{"Council", "CouncilDefaultMembers", "SetCouncilMembers", "Conduct"}
+//
+// The council's CONVENING verbs are no longer here (W3.76v): the panel, the
+// conductor and the research harness are the REASONING MODULE's operations,
+// and the daemon holds the module's face instead of three forwarders over
+// them. The kernel has no such verbs to guard — and the daemon's own retired
+// verb ratchet keeps `Council`, `Conduct` and `Research` from coming back.
+var councilOwnedVerbs = []string{"CouncilDefaultMembers", "SetCouncilMembers"}
 
 // rosterAccessor finds the kernel's roster verbs in the file that declares
 // them.

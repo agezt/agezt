@@ -305,7 +305,7 @@ Also: `toolCaps` (read-only after Open); `startTime`. The `suspending atomic.Boo
 
 Goroutines started by the runtime: one per async sub-agent (the delegation engine's `Spawn`), the drain waiters in `Close`/`DrainAndHalt`, and the tool fan-out workers inside `agent.Run`. Everything else runs on the caller's goroutine. The **agentgw listener is not one of them** (W3.67): the gateway is the **daemon's** transport, so the daemon starts it.
 
-**The daemon's public surface — 166 verbs (W3.76u).** The Kernel's exported
+**The daemon's public surface — 164 verbs (W3.76v).** The Kernel's exported
 methods are the host's **doors**: the verbs the layers above call and the
 verbs the daemon's own production paths open. A public verb that nobody
 calls is a second, unreachable copy of a surface, and the target architecture
@@ -408,13 +408,34 @@ application binds the module's engine (`PortsFromKernel` fills `Writer` and
 writer — the application then refuses with the contract's row
 `workflowapi.ErrNoEngine`), and the plugin binds the module's engine too
 (`workflowPort(k)` answers `k.WorkflowEngine()`): **173 → 166** public verbs,
-**5,899 → 5,813** production lines. The daemon
+**5,899 → 5,813** production lines. W3.76v retired **two** more — the
+**reasoning capability** is the **reasoning module's** (the Council of Elders,
+the Conductor and the deep-research harness), and the daemon held three
+forwarders over the module's own operations (`Council`, `Conduct`, `Research`):
+a second spelling of every verb the **contract** already named in four widths
+(`reasoningapi.CouncilRunner`, `ConductorRunner`, `ResearchRunner` and their
+union `Runner`). The module's service has answered that port all along —
+`var _ reasoningapi.Runner = (*Service)(nil)` — so the daemon's copy was never
+the port's to implement. The daemon keeps three things: the module's
+**WIRING** (`ReasoningDependencies` — the host's own governed paths), the
+**SETTER** the composition root injects with (`SetReasoning`) and the module's
+**FACE** (`ReasoningService`). The **application** binds the module's face
+(`EnginesFromKernel` asks `k.ReasoningService()` and drives `Council` and
+`Conduct` on it; the research application asks the same face for `Research`),
+and a daemon with no module holds **no** face — the applications then refuse
+with the contract's row (`reasoningapi.ErrNoService`) instead of calling into
+nothing; the plugin binds the module's face too (`reasoningPort(k)` answers
+`k.ReasoningService()`, and a daemon with no module hands over a nil port, so
+the three tools answer "unavailable" themselves). The daemon's own **read**
+over the panel (`CouncilDefaultMembers`) stayed — a read over the host's own
+configuration is the host's: **166 → 164** public verbs, **5,813 → 5,796**
+production lines. The daemon
 keeps the doors a **module** needs without naming the runs
 module (`WithAgentProfile`, `WithMaxCost`) and the host's own state (the
 effective config, the resume ticket, the seed). The surface is **pinned**:
 `kernel/runtime/dead_surface_ratchet_test.go` fails if a retired name comes
-back or if the public surface grows past **166** — the ceiling now FOLLOWS the
-floor (220 → 201 → 194 → 179 → 173 → 166), because a ceiling that stays put while the
+back or if the public surface grows past **164** — the ceiling now FOLLOWS the
+floor (220 → 201 → 194 → 179 → 173 → 166 → 164), because a ceiling that stays put while the
 surface shrinks permits exactly what the program exists to remove — and the run
 engine's own ratchet requires that it reads the run's context through the
 module.
@@ -615,9 +636,9 @@ All of these use `completeAux(ctx, corr, taskType, req)`, the single funnel that
 |---|---|---|---|
 | Completion verify | `Runner.VerifyCompletion` | `verify` | `assure.verdict` |
 | Criteria proof | `ProveTask`/`verifyCriteria` | `verify` | `assure.verdict`, `workboard.task.proved/unproven` |
-| Council of Elders | `Council` → the reasoning module (`kernel/modules/reasoning`: `councilRound`, `councilSynthesize`, `councilGrounding` → shared `RunTool(web_search)` with unique search IDs). Refusal/failure yields date-only grounding | per seat model | `council.started/brief/convened/opinion/consensus`; correlated policy/tool search audit and approvals |
-| Conductor | `Conduct` → the reasoning module (`conductor`: thinker/worker/verifier; verifier may run code via `CodeExecutor.RunScript`) | `conductor` | `conductor.started/step/done` |
-| Deep research | `Research` → the reasoning module (`research`: plan → `RunTool(web_search)` → `RunTool(browser.read)` → synth → `verifyResearchClaims`) | `research` | tool events via toolexec, plus its own |
+| Council of Elders | `Council` → the reasoning module (`kernel/modules/reasoning`: `councilRound`, `councilSynthesize`, `councilGrounding` → shared `RunTool(web_search)` with unique search IDs). Reached through the module's **face** (`Kernel.ReasoningService()`) since W3.76v — the daemon holds no `Council` verb. Refusal/failure yields date-only grounding | per seat model | `council.started/brief/convened/opinion/consensus`; correlated policy/tool search audit and approvals |
+| Conductor | `Conduct` → the reasoning module (`conductor`: thinker/worker/verifier; verifier may run code via `CodeExecutor.RunScript`), through the module's **face** (`Kernel.ReasoningService()`) since W3.76v | `conductor` | `conductor.started/step/done` |
+| Deep research | `Research` → the reasoning module (`research`: plan → `RunTool(web_search)` → `RunTool(browser.read)` → synth → `verifyResearchClaims`), through the module's **face** (`Kernel.ReasoningService()`) since W3.76v | `research` | tool events via toolexec, plus its own |
 | Workflows | `RunWorkflow`/`runWorkflowGraph`/`execWorkflowNode`/`TestWorkflowNode`; `DraftWorkflow`/`RefineWorkflow` | `workflow` | `workflow.started/node/completed/failed/drafted/saved/...` |
 | Image admission / vision sidecar | `Kernel.AdmitImages` shared by control-plane, REST/OpenAI and channels → `Runner.DescribeImages` (`VisionModel()`; `ErrNoVisionModel`). Confirm primary vision or caption; empty/failed caption rejects; cancelled context stays cancelled | vision | `capability.rerouted`; correlated `capability.rejected` |
 | Elision summary | `makeElidedSummarizer` | — | — |
@@ -634,11 +655,11 @@ The Council of Elders, the Conductor and the deep-research harness moved out of 
 
 Wiring, in one line each:
 
-- The **host** (`kernel/runtime/reasoning.go`) keeps its public names as aliases of the module's vocabulary and holds the module as `api.Service`. It cannot import the module's implementation (L3 → L3 across modules), so it talks to it through the api package only.
+- The **host** (`kernel/runtime/reasoning.go`) keeps its public names as aliases of the module's vocabulary and holds the module as `api.Service`. It cannot import the module's implementation (L3 → L3 across modules), so it talks to it through the api package only. Since W3.76v the host holds **no verb per operation**: the daemon's `Council`, `Conduct` and `Research` forwarders are gone, and the host hands over the module's **face** (`ReasoningService`) instead — the application layer and the plugin bind that.
 - The **ports** (`api.Dependencies`): `Complete` (the host's aux-completion funnel — every aux call still carries its correlation id and task type), `HasProvider`, `RunTool` (the governed tool invoker — the council's grounding and the research searches/fetches keep their policy checks, approvals and audit arcs), `ToolAvailable`, `Publish` (the host's bus), `Members` (the default panel), `WebSearch`, `CodeExecAvailable` and `RunCode` (the sandboxed code runner, through the host's governed path).
 - The **composition root** (`cmd/agezt/main_toolinvoker.go: openAppKernel`) builds the service over the host's ports and injects it with `SetReasoning`. The primary kernel and every tenant kernel go through the same function, so both are wired.
 
-Behaviour is unchanged: the same error texts ("council: question required", "research: no provider configured", …), the same event subjects and kinds (`council.<corr>`, `conductor.<corr>`), the same token budgets, the same audit arcs and the same wire JSON. The only new string is the host's guard for a kernel whose composition root forgot the wiring ("runtime: reasoning module not wired").
+Behaviour is unchanged: the same error texts ("council: question required", "research: no provider configured", …), the same event subjects and kinds (`council.<corr>`, `conductor.<corr>`), the same token budgets, the same audit arcs and the same wire JSON. The one string that moved is the refusal for a daemon that holds no module: it was the host's private guard ("runtime: reasoning module not wired"), and it is now the **contract's row** (`reasoningapi.ErrNoService` — "reasoning: the reasoning capability is not available on this daemon"), raised by the layer that asks (the applications) — because the daemon holds no reasoning verb to raise it with.
 
 ---
 
@@ -795,7 +816,7 @@ Root package, grouped by concern; every non-test file is listed.
 | `workboard.go` | The daemon's face over the **task board**: the board's FILE (the contract's store port `workboardapi.HostStore` — W3.47), the board's WIRING (`WorkboardDependencies` — the bus, the completion judge, the model, the artifact index, the journal) and the module's FACE (`BoardRunner` / `SetBoardRunner`). The **lifecycle** is the work module's (W3.76s): the module implements the contract's runner port over its own service, and the daemon's sixteen forwarders are gone. |
 | `workboard_proof.go` | **Gone with the daemon's forwarders (W3.76s).** The proof CYCLE is the work module's: `kernel/modules/work/workboard/workboard_proof.go` keeps `verifyCriteria`, `parseCriteriaVerdict` and `gatherProofEvidence` (artifacts plus journal seq range under corr), and the module's runner answers the contract's `ProveTask`. |
 | `okr.go` | The daemon's face over the **objective library**: the library's FILE (the contract's store port `okrapi.Store` — W3.53), the module's FACE (`Objectives`, the work module's `ObjectiveService`) and the board's completion glue (`recomputeOKRForTask`). The **lifecycle** is the work module's (W3.76r): the daemon's six forwarders over the module's own operations are gone, and the application binds the module directly. |
-| `reasoning.go` | The runtime's face of the reasoning module: the `Council`/`Opinion`/`Conductor*`/`Research*` aliases of the module's vocabulary, `SetReasoning` (the composition root injects the module's service), `ReasoningDependencies` (the host's ports: the aux-completion funnel, the governed tool invoker, the event bus, the default panel, the sandboxed code runner) and the three delegating calls. The module itself cannot be imported from here — a module may import another module's api package and nothing else (P5) — so the kernel holds it as `api.Service` (W3.1). |
+| `reasoning.go` | The runtime's face of the reasoning module: the `Council`/`Opinion`/`Conductor*`/`Research*` aliases of the module's vocabulary, `SetReasoning` (the composition root injects the module's service), `ReasoningDependencies` (the host's ports: the aux-completion funnel, the governed tool invoker, the event bus, the default panel, the sandboxed code runner) and the module's **FACE** (`ReasoningService` — the port the application layer and the plugin bind). Since W3.76v the file holds **no verb per operation**: the daemon's `Council`, `Conduct` and `Research` forwarders are gone, and the module answers in the contract's names (`reasoningapi.Runner`). The module itself cannot be imported from here — a module may import another module's api package and nothing else (P5) — so the kernel holds it as `api.Service` (W3.1). |
 | `workflowrun.go`, `workflowrun_graph.go`, `workflowrun_node.go`, `workflowrun_helpers.go`, `workflowtestnode.go` | Workflow execution: `RunWorkflow` (step cap 256), graph walk, per-node retry/timeout (`execNodeWithReliability`), node kinds (llm, tool, code_exec, pipeline, subflow depth ≤3, conditions/items), `TestWorkflowNode`. |
 | `workflowdraft.go` | Workflow copilot `DraftWorkflow`/`RefineWorkflow` (one repair round; returned unsaved), `autoLayoutWorkflow`. |
 | `braindistill.go` | `DistillBrain`, `DistillProfile` wrappers over kernel/memory. |

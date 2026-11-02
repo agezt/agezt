@@ -19,10 +19,20 @@ import (
 	"errors"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/reasoningapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/reasoning/api"
 )
+
+// The module's service answers the CONTRACT's reasoning port.
+//
+// The compiler says so, not a comment: the council, the conductor and the
+// research harness are the contract's three one-verb ports, and the wide port
+// the registry hands to the agent-facing tools is their union. The daemon used
+// to hold a second copy of this vocabulary (W3.76v) — this line is the proof
+// that it never needed to.
+var _ reasoningapi.Runner = (*Service)(nil)
 
 // The rows the module produces are the api package's types; the aliases below
 // keep the module's own code reading like the vocabulary it publishes.
