@@ -5,6 +5,7 @@ package correlation
 import (
 	"context"
 
+	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/runtime"
 )
 
@@ -16,9 +17,13 @@ import (
 // application is what knows who asks for one; the host hands over the handle
 // and nothing else.
 //
-// The port holds the kernel's own two surfaces as CAPABILITIES — the mint and
+// The port holds the host's own two surfaces as CAPABILITIES — the mint and
 // the actor decoration — so a family that asks for a correlation never names
 // the kernel's verb to get it.
+//
+// The actor decoration is the RUN CONTEXT's own writer (W3.76l): the daemon
+// kept a forwarding copy of it, and the copy had no reason to exist — the
+// application already decorates runs through the runs module.
 //
 // The kernel may be absent, and the port answers for that case: there is no
 // correlation to mint, and a context that carries no actor is the context it
@@ -37,7 +42,7 @@ func PortsFromKernel(k *runtime.Kernel) Ports {
 	}
 	return Ports{
 		mint:  k.NewCorrelation,
-		actor: k.WithActorCorrelation,
+		actor: runctx.WithActor,
 	}
 }
 

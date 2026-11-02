@@ -59,7 +59,7 @@ func (k *Kernel) RunToolWithLookup(ctx context.Context, corr, callID, toolName s
 	if actor == "" {
 		actor = "tool"
 	}
-	ctx = k.WithActorCorrelation(ctx, actor, corr)
+	ctx = runctx.WithActor(ctx, actor, corr)
 	cfg := k.effectiveConfig(ctx)
 	return k.toolInvoker.Invoke(ctx, toolapi.Invocation{
 		CorrelationID: corr, CallID: callID, Name: toolName, Input: args, Lookup: lookup,

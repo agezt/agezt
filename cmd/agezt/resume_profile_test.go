@@ -149,7 +149,7 @@ func TestBuildResumer_ProfileRunSurvivesRestart(t *testing.T) {
 			finisher := resumeProviderFunc(func(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 				ticket, _, err := restarted.ResumeStore().Get(corr)
 				verdict := restarted.CheckPolicy(ctx, llm.ToolCall{Name: "shell", Input: []byte(`{"command":"echo probe"}`)})
-				observed <- observation{req: req, ticket: ticket, err: err, cost: restarted.MaxCostFromCtx(ctx), ceilingDenied: !verdict.Allow && strings.Contains(verdict.Reason, "ceiling")}
+				observed <- observation{req: req, ticket: ticket, err: err, cost: runctx.MaxCostFromCtx(ctx), ceilingDenied: !verdict.Allow && strings.Contains(verdict.Reason, "ceiling")}
 				response := mock.FinalText("resumed")
 				return &response, nil
 			})

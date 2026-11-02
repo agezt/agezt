@@ -110,20 +110,20 @@ func TestTheDaemonKeepsItsOwnResumeKeys(t *testing.T) {
 // MergeAutoApproveCapabilities), so the readers that use the module's names
 // are the ones that drive a run — the run's own path and the resume path —
 // and a file-scoped check would have pinned a door that no longer exists.
+//
+// W3.76l shrank the list again, and honestly: the run context's READ
+// vocabulary (the wake fields, the images, the json mode, the cost ceiling,
+// the model chain, the agent's daily ceiling, the actor) is the MODULE's, and
+// the run engine — which lives inside the module — reads it there. What the
+// daemon still reads is the host's own side of the run: the model the run
+// falls back to, the actor it stamps, the profile and the ceiling it binds,
+// the timeout and the auto-approve merge.
 func TestTheDaemonAsksTheModuleForTheRunsVocabulary(t *testing.T) {
 	for _, want := range []string{
-		"runctx.SystemAgentFromCtx(",
 		"runctx.ModelFromCtx(",
-		"runctx.AgentDailyMcFromCtx(",
-		"runctx.ModelChainFromCtx(",
-		"runctx.WakeContextFromCtx(",
-		"runctx.ImagesFromCtx(",
-		"runctx.JSONModeFromCtx(",
-		"runctx.MaxCostFromCtx(",
 		"runctx.RunTimeoutFromCtx(",
 		"runctx.MergeAutoApproveCapabilities(",
 		"runctx.WithActor(",
-		"runctx.ActorFromCtx(",
 		"runctx.WithAgentProfile(",
 		"runctx.WithMaxCost(",
 	} {
@@ -137,6 +137,11 @@ func TestTheDaemonAsksTheModuleForTheRunsVocabulary(t *testing.T) {
 // move: the Kernel accessors stay (they are the doors), the package-level
 // setters are gone (the hosts name the module directly — one spelling, no
 // facade).
+//
+// W3.76l narrowed the doors: the run context's read vocabulary is the
+// module's, and the daemon kept only the doors a MODULE needs without
+// naming the runs module (the profile and the ceiling — the self-repair
+// module binds a run through them).
 func TestTheDaemonKeepsTheDoorsAndNothingMore(t *testing.T) {
 	src, err := os.ReadFile("accessors_ctx.go")
 	if err != nil {
@@ -144,14 +149,28 @@ func TestTheDaemonKeepsTheDoorsAndNothingMore(t *testing.T) {
 	}
 	text := string(src)
 	for _, door := range []string{
-		"func (k *Kernel) SystemAgentFromCtx(",
-		"func (k *Kernel) ActorFromCtx(",
-		"func (k *Kernel) WithActorCorrelation(",
 		"func (k *Kernel) WithAgentProfile(",
 		"func (k *Kernel) WithMaxCost(",
 	} {
 		if !strings.Contains(text, door) {
 			t.Fatalf("the daemon must keep the door %q", door)
+		}
+	}
+	// The read vocabulary is the module's: the daemon keeps no forwarding
+	// copy of it (W3.76l).
+	for _, gone := range []string{
+		"func (k *Kernel) SystemAgentFromCtx(",
+		"func (k *Kernel) ActorFromCtx(",
+		"func (k *Kernel) WithActorCorrelation(",
+		"func (k *Kernel) AgentDailyMcFromCtx(",
+		"func (k *Kernel) ModelChainFromCtx(",
+		"func (k *Kernel) WakeContextSource(",
+		"func (k *Kernel) ImagesFromCtx(",
+		"func (k *Kernel) JSONModeFromCtx(",
+		"func (k *Kernel) MaxCostFromCtx(",
+	} {
+		if strings.Contains(text, gone) {
+			t.Errorf("the daemon kept %q — the run context's vocabulary is the module's", gone)
 		}
 	}
 	// The daemon's own package-level setter is gone: a host names the module.
