@@ -48,7 +48,11 @@ func TestTheKernelHoldsOnlyTheSubManagersItCalls(t *testing.T) {
 	}
 	sort.Strings(subs)
 
-	want := []string{"runexec"}
+	// W3.76j moved the run executor out of the daemon's package tree: the
+	// runner is the runs module's now (kernel/modules/runs/runner), so the
+	// daemon holds NO sub-manager of its own. A field that points into the
+	// module is the module's, not a second copy of a surface.
+	want := []string{}
 	if len(subs) != len(want) {
 		t.Fatalf("the kernel holds the sub-managers %v, want exactly %v — a sub-manager that nobody calls is a second copy of the surface, and it is counted twice in the ratchet", subs, want)
 	}

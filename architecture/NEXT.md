@@ -13002,3 +13002,70 @@ func main() {
   `cmd/agezt` all import the loop, and `internal/` means *importable only from
   inside the tree*. Evidence:
   `architecture/282-w376i-the-loop-stops-re-exporting-the-contract-evidence.md`
+- W3.76j (the run engine moves into the runs module) is the **eighteenth** slice of
+  the runtime's dissolution and the **tenth** slice of the **run engine**
+  programme (W3.76). W3.76a took the durable tickets, W3.76b the steering,
+  W3.76c the run context, W3.76d the run registry, W3.76e the prompt, W3.76f
+  the delegation engine, W3.76g the loop configuration, W3.76h the loop,
+  W3.76i the loop's alias block; this one takes the **run engine** — the thing
+  that executes a run.
+
+  The family was **892** non-blank lines in six production files plus **387**
+  lines of doors and state in the daemon — **1,279** lines in all. The slice
+  did **not** have to invent a seam: the engine was extracted from the daemon
+  early with a **port** between them (`runexec.KernelAPI`), the runner never
+  imports the daemon, and the daemon implements the interface. The move is
+  therefore a move of a package that already had the right seam — the same
+  shape as W3.76f's `delegation.Host` and W3.76g's `loopcfg.Deps`.
+
+  `git mv kernel/runtime/runexec kernel/modules/runs/runner`. The package name
+  changed from `runexec` to `runner`, because the runs module names its parts
+  by role (registry, lifecycle, prompt, loopcfg, delegation, retry, steer) and
+  "the run engine" is the role; the daemon's four door files were renamed
+  with it, so the tree speaks one word.
+
+  The measurement: the daemon's **public verbs stayed at 238** and its own
+  level stayed at **54 files / 6,281 lines**, but its **recursive** size fell
+  from **7,173 to 6,281** — the engine is no longer under it — while the
+  module grew **8,123 → 9,017** (+894 = the engine's 892 and **+2** lines of
+  package documentation). The contract's rows, the application layer and the
+  control plane are all **+0**; the project's own total moved by **+2**. The
+  runner's imports are **eleven** kernel packages, **fourteen** contract rows
+  and **two** module packages (`modules/runs/agent`, `modules/runs/resume`) —
+  **no module outside the runs module**, so the move creates no cross-module
+  edge and the archcheck allowlist stays at **one** entry.
+
+  The daemon's own ratchets show the move honestly:
+  `TestTheKernelHoldsOnlyTheSubManagersItCalls` used to expect the daemon to
+  hold exactly one sub-manager (`runexec`) and now expects **none** — a field
+  that points into a module is the module's, not a second copy of a surface —
+  and `TestTheDaemonTalksToTheModuleThroughTheRegistry` now watches
+  `runner_lifecycle.go` by its new name.
+
+  The new **ratchet** (`kernel/modules/runs/runner/home_internal_test.go`) holds
+  the move: the runner lives in the runs module; the old path is gone from the
+  whole tree (a repository-wide scan whose needle is closed by a quote, with
+  the ratchet itself excluded); the runner never names the daemon; and the
+  host still implements the port. **Both probes fire** — putting the old
+  import path or a daemon import back makes a test fail (a ratchet that is
+  never probed never fires — the lesson W3.76i paid for).
+
+  This slice carries **no mutation run**: no rule changed, the engine's code
+  is byte-for-byte the same code and its port the same port. The evidence of
+  a move is the compiler (every import and call site type-checked), the
+  repository scan, the port probe, the daemon's two structural ratchets, the
+  full test suite and the thirteen gates.
+
+  The living codemap was corrected row by row, including the **fan-in
+  tables**: the packages the runner imports now list the module's runner
+  beside the daemon, and the packages it does not simply lose `runexec`. The
+  **historical** records were left alone on purpose.
+
+  **What is left**: the daemon now holds **no sub-manager of its own** and its
+  sub-tree equals its own level. What remains of the exit is the daemon's
+  composition root (`compose.go`, 497 lines), its Kernel (`runtime.go`, 665
+  lines), the accessors family (7 files, **965** lines) and the control plane
+  (`kernel/controlplane`, 7,570 lines) — and then the loop's address, because
+  once the daemon, the scheduler and `cmd/agezt` stop importing the loop,
+  `modules/runs/internal/loop` becomes reachable. Evidence:
+  `architecture/283-w376j-the-run-engine-moves-into-the-runs-module-evidence.md`

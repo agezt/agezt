@@ -17,7 +17,7 @@
 //
 // The package is large by design — it is the composition root — and is
 // internally split into sub-packages that own distinct concerns:
-// runexec (the Runner and the 42-entry KernelAPI interface), lifecycle
+// runner (the Runner and the 42-entry KernelAPI interface), lifecycle
 // (Halt/Resume/Cancel/Drain), accessors (read-only getters), compose
 // (store opening), and types (shared value types). The god-file split into
 // those sub-packages is recorded in .project/SPRINT-2026-09-REFACTOR-REPORT.md

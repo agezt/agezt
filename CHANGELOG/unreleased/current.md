@@ -831,6 +831,17 @@ This file holds the active `[Unreleased]` working set.
   old path is gone: the tree now says which module the loop belongs to by
   itself.
 
+- **The run engine moves into the runs module.** The thing that executes a
+  run — it registers the run, stamps the context, frames the intent, builds
+  the system prompt, assembles the loop's configuration, claims the resume
+  ticket, calls the loop and then does the post-run work — lived in a
+  sub-package of the daemon. It now lives in `kernel/modules/runs/runner`,
+  with the runs module, and the daemon keeps the doors: `Run`, `RunAssured`,
+  `RunWith`, `RunWithRetry` and the run-state setup are unchanged, and the
+  daemon's public surface did not change by a single verb. The engine speaks
+  to its host through the same port it always used, so the seam — and every
+  rule behind it — is untouched.
+
 - **The loop no longer re-exports the provider and tool contracts.** The
   single-agent loop used to publish a block of aliases so a caller could
   write `agent.Provider` or `agent.Tool` and never import the contract

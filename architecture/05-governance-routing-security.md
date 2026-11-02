@@ -31,23 +31,23 @@ All source read from the working tree (disk), 2026-10-02.
 | Package | Depends on (internal) | Imported by |
 |---|---|---|
 | `kernel/governor` | kernel/modules/runs/agent, kernel/bus, kernel/modules/providers/catalog, kernel/event | cmd/agezt, cmd/agt, kernel/controlplane, kernel/runtime, kernel/modules/providers/boot |
-| `kernel/modules/providers/catalog` | internal/atomicfile, kernel/netguard | cmd/agezt, cmd/agt, cmd/agt/providerlookup, kernel/cadence/systemtasks, kernel/controlplane, kernel/governor, kernel/runtime(+accessors, runexec), kernel/modules/providers/boot (the compatibility adapters name the contract's rows, not the module) |
+| `kernel/modules/providers/catalog` | internal/atomicfile, kernel/netguard | cmd/agezt, cmd/agt, cmd/agt/providerlookup, kernel/cadence/systemtasks, kernel/controlplane, kernel/governor, kernel/runtime(+accessors), kernel/modules/runs/runner, kernel/modules/providers/boot (the compatibility adapters name the contract's rows, not the module) |
 | `kernel/creds` | internal/atomicfile, internal/strutil, kernel/creds/sigv4, kernel/envscrub | cmd/agezt, cmd/agt, cmd/agt/providerlookup, kernel/modules/providers/chatgptauth, kernel/controlplane, kernel/executionprofile, plugins/tools/config |
 | `kernel/creds/sigv4` | — | cmd/agezt, kernel/creds, plugins/providers/bedrock |
 | `kernel/modules/providers/chatgptauth` | internal/brand, kernel/creds, kernel/netguard | kernel/controlplane, kernel/modules/providers/boot |
 | `kernel/settings` | internal/atomicfile | cmd/agezt, kernel/platform/channelwire, kernel/controlplane, kernel/app/overseer, plugins/tools/config |
-| `kernel/configcenter` | kernel/approval | cmd/agt, kernel/agentgw, kernel/controlplane, kernel/runtime(+accessors, runexec) |
+| `kernel/configcenter` | kernel/approval | cmd/agt, kernel/agentgw, kernel/controlplane, kernel/runtime(+accessors), kernel/modules/runs/runner |
 | `kernel/executionprofile` | kernel/creds, kernel/warden | kernel/controlplane, plugins/tools/codeexec, plugins/tools/shell |
-| `kernel/edict` | internal/atomicfile | ~45 importers: cmd/agezt, daemonconfig, agentgw, controlplane, delegation, imagetool, market, memory, reranktool, roster, runtime(+accessors, compose, runexec), voicetool, worldmodel, and essentially every `plugins/tools/*` package |
-| `kernel/warden` | kernel/bus, kernel/event | cmd/agezt, kernel/controlplane, kernel/executionprofile, kernel/pulse, kernel/runtime(+accessors, compose, runexec), plugins/tools/codeexec, plugins/tools/shell |
+| `kernel/edict` | internal/atomicfile | ~45 importers: cmd/agezt, daemonconfig, agentgw, controlplane, delegation, imagetool, market, memory, reranktool, roster, runtime(+accessors, compose), modules/runs/runner, voicetool, worldmodel, and essentially every `plugins/tools/*` package |
+| `kernel/warden` | kernel/bus, kernel/event | cmd/agezt, kernel/controlplane, kernel/executionprofile, kernel/pulse, kernel/runtime(+accessors, compose), kernel/modules/runs/runner, plugins/tools/codeexec, plugins/tools/shell |
 | `kernel/netguard` | — | cmd/agezt, cmd/agt, catalog, chatgptauth, controlplane, market, mcp, update, plugins/channels/onebot, plugins/external/mcpbridge, plugins/providers/{embed,openairesponses,voice}, plugins/tools/{browser,fetch,http,websearch} |
 | `kernel/envscrub` | — | kernel/creds, plugins/tools/{acpagent,browser,coding} |
 | `kernel/redact` | — | cmd/agezt, kernel/controlplane, kernel/openaiapi, plugins/builtintools |
-| `kernel/approval` | kernel/bus, kernel/event, kernel/ulid | kernel/configcenter, kernel/controlplane, kernel/runtime(+accessors, runexec), kernel/scheduler, plugins/tools/forgetool |
+| `kernel/approval` | kernel/bus, kernel/event, kernel/ulid | kernel/configcenter, kernel/controlplane, kernel/runtime(+accessors), kernel/modules/runs/runner, kernel/scheduler, plugins/tools/forgetool |
 | `kernel/modules/work/seat` | internal/atomicfile | kernel/controlplane, kernel/runtime |
 | `kernel/tenant` | — | cmd/agezt, kernel/controlplane |
 | `kernel/tenantctx` | — | kernel/runtime, plugins/tools/peer |
-| `kernel/state` | internal/atomicfile | cmd/agezt, kernel/pulse, kernel/runtime(+accessors, runexec) |
+| `kernel/state` | internal/atomicfile | cmd/agezt, kernel/pulse, kernel/runtime(+accessors), kernel/modules/runs/runner |
 
 Layering notes: `governor` imports `kernel/modules/runs/agent` (it *is* a `llm.Provider`) and `kernel/modules/providers/catalog` (pricing only; capability lookups are injected as funcs to stay decoupled). `edict` and `netguard`, `envscrub`, `redact`, `tenant`, `tenantctx`, `sigv4` are leaf packages. `edict` is the most widely imported kernel package in this area because tools declare their capability via `edict.Capability`.
 
@@ -674,7 +674,7 @@ Files: `tenant/tenant.go`, `tenantctx/tenantctx.go`. Tests: `tenant_test.go`, `t
 
 ## F.3 `kernel/state`
 
-`Store` interface (`Get`, `Set`, `Delete`, `Keys`, `Close`) exposed to plugins as `kernel.stateGet/stateSet` (contract §3). `FileStore` (`Open(<base>/state)`): loads every valid `<ns>.json` at open (foreign/invalid names skipped), `RWMutex`, every mutation rewrites the whole namespace atomically (0644); empty namespace deletes its file; `Namespaces()` for `agt state list`. Namespace chars `[A-Za-z0-9_.-]`, not `.`/`..`. `toRawMessage` validates pre-serialized `json.RawMessage` (M426: an invalid value used to wedge the namespace). Opened by `runtime/compose.go`; used by pulse, runtime accessors/runexec. Single file `state.go`; test `state_test.go`.
+`Store` interface (`Get`, `Set`, `Delete`, `Keys`, `Close`) exposed to plugins as `kernel.stateGet/stateSet` (contract §3). `FileStore` (`Open(<base>/state)`): loads every valid `<ns>.json` at open (foreign/invalid names skipped), `RWMutex`, every mutation rewrites the whole namespace atomically (0644); empty namespace deletes its file; `Namespaces()` for `agt state list`. Namespace chars `[A-Za-z0-9_.-]`, not `.`/`..`. `toRawMessage` validates pre-serialized `json.RawMessage` (M426: an invalid value used to wedge the namespace). Opened by `runtime/compose.go`; used by pulse, the runtime accessors and the runs module's runner. Single file `state.go`; test `state_test.go`.
 
 ---
 

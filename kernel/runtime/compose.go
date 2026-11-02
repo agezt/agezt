@@ -36,10 +36,10 @@ import (
 	"github.com/agezt/agezt/kernel/modules/runs/prompt"
 	"github.com/agezt/agezt/kernel/modules/runs/registry"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
+	"github.com/agezt/agezt/kernel/modules/runs/runner"
 	"github.com/agezt/agezt/kernel/modules/runs/steer"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
 	"github.com/agezt/agezt/kernel/reflect"
-	"github.com/agezt/agezt/kernel/runtime/runexec"
 	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/toolexec"
@@ -525,14 +525,14 @@ func Open(cfg Config) (*Kernel, error) {
 	// itself (Suspend, PublishBus).
 	k.lifecycle = lifecycle.New(k.registry, k)
 
-	// Wire the runexec sub-manager (Day 22 split). The Runner holds
+	// Wire the runner sub-manager (Day 22 split). The Runner holds
 	// a KernelAPI reference; Day 23 will move the 260-line RunWith
 	// body here. For now Runner just delegates back to *Kernel.
-	k.runexec = runexec.New(k)
+	k.runner = runner.New(k)
 
 	return k, nil
 }
 
-var _ runexec.KernelAPI = (*Kernel)(nil)
+var _ runner.KernelAPI = (*Kernel)(nil)
 
 // Close stops the bus, then closes state and the journal. Pending runs are

@@ -72,7 +72,7 @@ func (k *Kernel) loopcfgDeps() loopcfg.Deps {
 //
 // It is the daemon's DOOR over the runs module's rule (W3.76g): the module
 // owns the shape, the daemon owns the state the shape is built from. The
-// public surface is unchanged — the runexec sub-package's KernelAPI and the
+// public surface is unchanged — the runner package's KernelAPI and the
 // delegation engine's BaseLoopConfig door both call this.
 func (k *Kernel) BuildLoopConfig(runCtx context.Context, corr, model string) agent.LoopConfig {
 	// The service is wired at Open(); the nil fallback keeps the door safe

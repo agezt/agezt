@@ -48,7 +48,7 @@ func (k *Kernel) StandingList() []standingapi.Order {
 // AgentSlugFromCtx returns the named agent's slug attached to a
 // run context by runctx.WithAgentProfile (or "" when unset). Wraps the
 // package-level runctx.AgentSlugFromCtx so the run engine can reach it
-// through the runexec.KernelAPI interface (Day 23).
+// through the runner.KernelAPI interface (Day 23).
 func (k *Kernel) AgentSlugFromCtx(ctx context.Context) string { return runctx.AgentSlugFromCtx(ctx) }
 
 // AgentRetryPolicyFromCtx returns the named agent's retry policy

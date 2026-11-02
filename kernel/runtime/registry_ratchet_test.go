@@ -102,7 +102,7 @@ func TestTheDaemonKeepsTheLifecycleDoors(t *testing.T) {
 // move: the daemon's run state is registered in the module's store, never in
 // a map of its own.
 func TestTheDaemonTalksToTheModuleThroughTheRegistry(t *testing.T) {
-	for _, f := range []string{"runexec_lifecycle.go", "accessors_misc.go"} {
+	for _, f := range []string{"runner_lifecycle.go", "accessors_misc.go"} {
 		src, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatalf("read %s: %v", f, err)

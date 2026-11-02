@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-package runexec
+package runner
 
 import (
 	"context"
