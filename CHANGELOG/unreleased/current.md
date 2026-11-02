@@ -816,6 +816,16 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The workflow engine's lifecycle moves into the workflows module.** The daemon
+  held eight forwarders over the workflows module's own engine operations — a
+  second spelling of every engine verb — and the contract had named the family
+  twice, in two spellings. There is one vocabulary now: the widest port's
+  spelling is the family's, and the narrow port is a subset of it. The run's
+  provenance — why the run exists — became a port, because the wake context is
+  the host's own and a module may not read it. The daemon keeps the library's
+  file, the engine's wiring and the module's face; the application and the
+  plugin bind the module's engine. The daemon's public verbs: **173 → 166**;
+  its production lines: **5,899 → 5,813**.
 - **The script forge's lifecycle moves into the extensions module.** The daemon
   held seven forwarders over the extensions module's own forge operations — a
   second spelling of every forge verb, and a second copy of the whole forge
