@@ -473,7 +473,7 @@ Op names are `controlplane.Cmd*` constants with their wire string in parentheses
 | `check_helpers.go` | `runCheckSingle`, `runCheckCaps`, `emitCapsHuman`. |
 | `check_all.go` | `runCheckAll` over credentialed providers, `runProbe` (builds via `compat.Build`, `Complete` "pong" probe). |
 | `check_all_caps.go` | Network-free capability matrix `runCheckCapsAll`, `renderCapsTable`. |
-| `check_all_stream.go` | Streaming probe (`agent.StreamingProvider`) `runStreamProbe`. |
+| `check_all_stream.go` | Streaming probe (`llm.StreamingProvider`) `runStreamProbe`. |
 | `check_bench.go` | `runBench` N-probe loop, `computeLatencyStats` (p50/p95), `toCheckRow`. |
 | `check_json.go` | JSON output + `autoPickFromCatalog`, `computeCostMicrocents`, `formatMicrocentsUSD`, `truncate`. |
 | `check_render.go` | `checkRow` human renderers and aligned tables. |

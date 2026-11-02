@@ -12,7 +12,7 @@ All source read from the working tree (disk), 2026-10-02.
 
 | Concern | Package(s) | One-line role |
 |---|---|---|
-| Model routing + spend | `governor` | Implements `agent.Provider`; every LLM call: response cache → model-chain walk → pre-flight cascade (overrides, capability, rate, budgets, pricing) → provider chain (cost-ordered, breaker-filtered) → in-place retry → fallback → usage/cost accounting in integer microcents. |
+| Model routing + spend | `governor` | Implements `llm.Provider`; every LLM call: response cache → model-chain walk → pre-flight cascade (overrides, capability, rate, budgets, pricing) → provider chain (cost-ordered, breaker-filtered) → in-place retry → fallback → usage/cost accounting in integer microcents. |
 | Model/provider data | `catalog` | models.dev-shaped registry merged from `api.json` < `local.json` < `custom.json`; prices, capabilities (tool_call, vision, strict args, JSON mode family), Ollama discovery, SSRF-guarded sync. |
 | Credentials | `creds`, `creds/sigv4` | `creds.json` vault (AES-256-GCM, PBKDF2, machine-bound by default), multi-key keyring (`NAME#label`), lookup chaining, full AWS credential chain (env/shared file/credential_process/IMDSv2/STS AssumeRole/SSO/Web identity), SigV4 signer. |
 | ChatGPT subscription OAuth | `chatgptauth` | PKCE + token refresh for the unofficial Codex/ChatGPT OAuth client; token blob stored as one vault secret `AGEZT_CHATGPT_OAUTH`. |
@@ -30,7 +30,7 @@ All source read from the working tree (disk), 2026-10-02.
 
 | Package | Depends on (internal) | Imported by |
 |---|---|---|
-| `kernel/governor` | kernel/agent, kernel/bus, kernel/modules/providers/catalog, kernel/event | cmd/agezt, cmd/agt, kernel/controlplane, kernel/runtime, kernel/modules/providers/boot |
+| `kernel/governor` | kernel/modules/runs/agent, kernel/bus, kernel/modules/providers/catalog, kernel/event | cmd/agezt, cmd/agt, kernel/controlplane, kernel/runtime, kernel/modules/providers/boot |
 | `kernel/modules/providers/catalog` | internal/atomicfile, kernel/netguard | cmd/agezt, cmd/agt, cmd/agt/providerlookup, kernel/cadence/systemtasks, kernel/controlplane, kernel/governor, kernel/runtime(+accessors, runexec), kernel/modules/providers/boot (the compatibility adapters name the contract's rows, not the module) |
 | `kernel/creds` | internal/atomicfile, internal/strutil, kernel/creds/sigv4, kernel/envscrub | cmd/agezt, cmd/agt, cmd/agt/providerlookup, kernel/modules/providers/chatgptauth, kernel/controlplane, kernel/executionprofile, plugins/tools/config |
 | `kernel/creds/sigv4` | — | cmd/agezt, kernel/creds, plugins/providers/bedrock |
@@ -49,7 +49,7 @@ All source read from the working tree (disk), 2026-10-02.
 | `kernel/tenantctx` | — | kernel/runtime, plugins/tools/peer |
 | `kernel/state` | internal/atomicfile | cmd/agezt, kernel/pulse, kernel/runtime(+accessors, runexec) |
 
-Layering notes: `governor` imports `kernel/agent` (it *is* an `agent.Provider`) and `kernel/modules/providers/catalog` (pricing only; capability lookups are injected as funcs to stay decoupled). `edict` and `netguard`, `envscrub`, `redact`, `tenant`, `tenantctx`, `sigv4` are leaf packages. `edict` is the most widely imported kernel package in this area because tools declare their capability via `edict.Capability`.
+Layering notes: `governor` imports `kernel/modules/runs/agent` (it *is* a `llm.Provider`) and `kernel/modules/providers/catalog` (pricing only; capability lookups are injected as funcs to stay decoupled). `edict` and `netguard`, `envscrub`, `redact`, `tenant`, `tenantctx`, `sigv4` are leaf packages. `edict` is the most widely imported kernel package in this area because tools declare their capability via `edict.Capability`.
 
 ---
 
@@ -75,7 +75,7 @@ Layering notes: `governor` imports `kernel/agent` (it *is* an `agent.Provider`) 
 
 ## A.1 `kernel/governor`
 
-**Purpose.** The LLM routing brain. `*Governor` implements `agent.Provider` (`Name()=="governor"`, `Complete`) and `agent.StreamingProvider` (`CompleteStream`), so the agent loop calls it like any provider while it transparently applies model-chain fallback, provider ordering, gates, retries, breaker and accounting.
+**Purpose.** The LLM routing brain. `*Governor` implements `llm.Provider` (`Name()=="governor"`, `Complete`) and `llm.StreamingProvider` (`CompleteStream`), so the agent loop calls it like any provider while it transparently applies model-chain fallback, provider ordering, gates, retries, breaker and accounting.
 
 **Key exported API**
 
@@ -285,7 +285,7 @@ Tests: `catalog_test.go`, `downroute_test.go`, `sync_test.go`, `fuzz_test.go` (P
 
 ```mermaid
 flowchart TD
-  RUN[run ctx: agent profile model + fallbacks / seat chain / task type] --> REQ[agent.CompletionRequest\nModel, ModelChain, TaskType, Agent, AgentDailyCeilingMc]
+  RUN[run ctx: agent profile model + fallbacks / seat chain / task type] --> REQ[llm.CompletionRequest\nModel, ModelChain, TaskType, Agent, AgentDailyCeilingMc]
   REQ --> GOV[Governor.completeChained -> preflight -> routeChain]
   GOV --> PI[ProviderInfo chosen\n(Name, AuthMode, Models from catalog)]
   PI --> AD[provider adapter (plugins/providers/*)\nbuilt by the boot engine from catalog Provider:\nFamily from NPM, base URL from API]

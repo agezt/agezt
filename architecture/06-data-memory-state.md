@@ -57,7 +57,7 @@ From `internal-deps.txt`:
 | `alerter` | bus, event, **pulse** | cmd/agezt only |
 
 Layering notes:
-- `memory` and `worldmodel` import `kernel/agent` (for `agent.Tool`, `agent.Provider`, `agent.GenerateObject`, `agent.AgentFromContext`) and `kernel/edict` (capability names `CapMemory`/`CapWorld`). The "pure store" half of each package is clean; the tool + LLM-distillation half drags the agent loop's types into the data layer.
+- `memory` and `worldmodel` import `kernel/modules/runs/agent` (for `toolapi.Tool`, `llm.Provider`, `agent.GenerateObject`, `toolapi.AgentFromContext`) and `kernel/edict` (capability names `CapMemory`/`CapWorld`). The "pure store" half of each package is clean; the tool + LLM-distillation half drags the agent loop's types into the data layer.
 - `workboard` → `contract/workboardapi` → `contract/proofapi` → `contract/assureapi`: the task store embeds the verifier's verdict type in its on-disk shape. The rows live in the contract layer now (W3.31), so the `workboard` tool takes the store through the contract's **port** and no longer reaches the module.
 - `alerter` → `pulse` for `pulse.QuietHours` (the quiet-hours rule stays in the module) and for the briefing rows `pulse.BriefSink`, `pulse.Brief`, `pulse.DispAlert` — which are now **aliases** of the contract's rows (`kernel/contract/pulseapi`, W3.34), so one row and one spelling of it.
 

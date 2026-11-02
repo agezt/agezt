@@ -92,7 +92,7 @@ Layering notes:
 changed **no** behaviour: the daemon's line count, its public verbs (**238**)
 and the contract's rows are all unchanged. The package name **stayed**
 `agent`, because the name is what every caller writes (`agent.Run`,
-`agent.LoopConfig`, `agent.Provider`).
+`agent.LoopConfig`, `llm.Provider`).
 
 The address is **not** `modules/runs/internal/loop` (the target architecture's
 name for it) because the loop is imported from **outside** the runs module:
@@ -113,7 +113,7 @@ The **`Steerer` and `Directive` ports stay in the loop** (W3.76h): they are the
 controller and the steering module implements it. This is the same seam
 W3.76f drew for the delegation engine (`delegation.Host`).
 
-### 3.2 Key types (agent.go, agent_loop.go, agent_steer.go, agent_context_policy.go)
+### 3.2 Key types (agent_loop.go, agent_steer.go, agent_context_policy.go)
 
 | Type | Fields / methods (real names) |
 |---|---|
@@ -259,7 +259,7 @@ W2.3u shares terminal kind/core fields and mandatory publication. Caller observa
 | File | What it does |
 |---|---|
 | `doc.go` | Package doc: canonical loop, Provider/Tool interfaces, panic containment. |
-| `agent.go` | Type aliases only (W1.1). The provider contract (Role, Message, ToolCall, CompletionRequest/Response, StopReason, Usage, Params, Provider, StreamingProvider, Chunk) lives in `kernel/contract/llm`; the tool contract (Tool, ToolDef, ToolCapability + `For`, EffectClass, ToolEffect, Result, ObservationTrust) in `kernel/contract/toolapi`. New code imports those directly. |
+| ~~`agent.go`~~ | **Gone (W3.76i).** The file held type aliases only (W1.1): the provider contract (Role, Message, ToolCall, CompletionRequest/Response, StopReason, Usage, Params, Provider, StreamingProvider, Chunk) lives in `kernel/contract/llm`; the tool contract (Tool, ToolDef, ToolCapability + `For`, EffectClass, ToolEffect, Result, ObservationTrust) in `kernel/contract/toolapi`. The loop no longer re-exports either — a caller names `llm.Provider` or `toolapi.Tool` directly, and the loop's own API (`agent.Run`, `agent.LoopConfig`, the selectors, the memo) is what it still exports. |
 | `agent_loop.go` | `LoopConfig` (every knob documented) and the start of the `Steerer` doc. |
 | `agent_steer.go` | `Steerer`, `Directive`, compaction constants (`DefaultContextProtectLast/First`, `ContextCharsPerToken=4`, `DefaultCompressFraction=0.5`). |
 | `agent_run.go` | `Run`, the main loop driver, plus `failureReason`. |
@@ -350,7 +350,7 @@ sequenceDiagram
     participant P as Kernel.policyHook
     participant E as edict.Engine
     participant AP as approval.Registry
-    participant T as agent.Tool
+    participant T as toolapi.Tool
     participant B as bus → journal
 
     C->>K: NewCorrelation() → "run-<ulid>"; ctx = With*(…)
@@ -484,7 +484,7 @@ The durable ticket and the three rules that judge it moved into the **runs modul
 - Cross-node delegation (`remote_run` / mesh) is a different mechanism: `kernel/meshctx` hop counter (section 11).
 
 ### 4.10 The Tool interface: registration, description to models, execution
-1. **Contract**: `agent.Tool{Definition() ToolDef; Invoke(ctx, json.RawMessage) (Result, error)}`. Declare `ToolDef.Capability` (a missing or unknown capability means DEFAULT-DENY via the Edict fallback). Declare `ToolDef.Effect` for HITL bundles, memo eligibility (read-only) and the injection guard (non-read-only).
+1. **Contract**: `toolapi.Tool{Definition() ToolDef; Invoke(ctx, json.RawMessage) (Result, error)}`. Declare `ToolDef.Capability` (a missing or unknown capability means DEFAULT-DENY via the Edict fallback). Declare `ToolDef.Effect` for HITL bundles, memo eligibility (read-only) and the injection guard (non-read-only).
 2. **Boot registration** (`kernel/contract/toolregapi`): each first-party tool package calls `toolregapi.Register(Spec{Name, Build, PreOpen, Configure, Late, Netguard, YieldOnConflict})` (from `plugins/builtintools`). The daemon calls `BuildAll(BuildDeps)`, which aborts on a name collision unless the later spec is `YieldOnConflict` (the plugin host loses to in-process). Then `Set.Tools()` → `runtime.Config.Tools`, `Set.ApplyPreOpen(port)` — the daemon's configuration wrapped in the contract's port by the composition root (`cmd/agezt`'s `applyPreOpen`) —, `Set.ToolCapabilities()` → `Config.ToolCapabilities`, `Set.PluginManifest()` → `Config.Plugins`; after `Open`, `Set.Configure(KernelDeps)` (wires `NetguardAware.SetOnBlock`) and `Set.ConfigureLate(LateDeps)` (channels, board).
 3. **Kernel-registered tools** at `Open`: `memory`, `world`, `delegate`, `delegate_await`, `market`. The **voice, image_generate and rerank tools are the host's** (W3.44): the daemon's composition root builds them over its own adapter seams and hands them over in `cfg.Tools`, so they arrive like any other tool.
 4. **Per-run dynamic tools** (`buildLoopConfig`): `mergeScriptTools` adds every ACTIVE toolforge script as `forge_<name>` (`forgedTool`, executed through `cfg.ScriptRunner`, capability `code.exec`). `mergeMCPTools` adds live MCP attachments as `mcp_<server>_<tool>` (`bridgedMCPTool`, name sanitized and capped at 64 chars), or one `mcp_<server>` `lazyMCPDispatch` when the server is `Lazy`, honouring per-server `ToolAllow`. Then the agent tool policy, noise policy and allowlist filters apply, then `tool_search` injection.
@@ -780,8 +780,8 @@ Everything else reaches `runtime.Config` through `cmd/agezt/internal/daemonconfi
 
 ## 13. Extension points
 
-- **Add a tool**: implement `agent.Tool`; set `ToolDef.Capability` (multi-axis via `Field`/`ByValue`, with a safe fallback `Name`) and `ToolDef.Effect`; set `Result.ObservationTrust=untrusted` for external-world content. Register a `toolregapi.Spec` in `plugins/builtintools` (and update its ratchet test). Add `NetguardAware` if it makes outbound connections. If the capability is new, add it to Edict (see 05); an undeclared or unknown capability is default-denied.
-- **Add a provider**: implement `agent.Provider` (optionally `StreamingProvider`; must return the same response). Honour `Params`, `JSONMode`, `ProviderOptions[family]`. Never read the Governor-only hints. See 08.
+- **Add a tool**: implement `toolapi.Tool`; set `ToolDef.Capability` (multi-axis via `Field`/`ByValue`, with a safe fallback `Name`) and `ToolDef.Effect`; set `Result.ObservationTrust=untrusted` for external-world content. Register a `toolregapi.Spec` in `plugins/builtintools` (and update its ratchet test). Add `NetguardAware` if it makes outbound connections. If the capability is new, add it to Edict (see 05); an undeclared or unknown capability is default-denied.
+- **Add a provider**: implement `llm.Provider` (optionally `StreamingProvider`; must return the same response). Honour `Params`, `JSONMode`, `ProviderOptions[family]`. Never read the Governor-only hints. See 08.
 - **Add a per-run knob**: add a field to `runtime.Config`, thread it in `buildLoopConfig` (shared by root and sub-agent; never only in `RunWith`), and if it is per-agent tunable, add an `agentOverrides` row. New `AGEZT_*` read in cmd/agezt must be listed in controlplane `configEnvVars`.
 - **Add a run-context value**: add a `ctxKey` constant plus `WithX`/`XFromCtx` in the runs module's `runctx` package (`kernel/modules/runs/runctx`, W3.76c — the daemon holds no context key of its own for the run's dispatch). If resume must reconstruct it, add it to `resume.Facts`/`resume.Build`, otherwise mark the ticket `Resumable=false`, and handle it in the boot resumer.
 - **Add a policy guard**: implement it in `policyHook` after the Edict decision, set `guardRaised` so auto-approve cannot satisfy it, and add fields to `contract/policyapi.PolicyVerdict` and `platform/toolaudit.PolicyDecisionPayload` if they must be audited (both loop and direct paths use that renderer).

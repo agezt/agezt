@@ -1075,7 +1075,7 @@ Tests: `installguard`, `librarydefensive`, `librarypick`, `libraryversion`, `lis
 
 - The host spawns an executable and talks to it with **line-delimited JSON** on stdin/stdout.
 - This is **not JSON-RPC 2.0**. `doc.go:12-31` explains why gRPC and MCP were rejected.
-- Each tool the plugin advertises becomes an `agent.Tool` (`remoteTool`), so the rest of the kernel cannot tell in-process from out-of-process tools.
+- Each tool the plugin advertises becomes a `toolapi.Tool` (`remoteTool`), so the rest of the kernel cannot tell in-process from out-of-process tools.
 - "In-process plugins" are the compiled `plugins/tools/*`. The plugin spec is registered last with `YieldOnConflict`, so **an in-process tool wins any name collision**.
 
 ### 11.1 Protocol (`ProtocolVersion=1`)
@@ -1636,7 +1636,7 @@ Tests: `channel_test`, `coverage_test`, `guard_test`, `history_test`, `registry_
 
 **Purpose.** Each channel kind registers a `Factory` that builds its configured instances: the default account plus every `#label` account. The daemon then runs one loop over `channel.Manifests()` instead of 27 hand-written builders.
 
-The package sits **above** `kernel/channel` because factories return a `pulseapi.BriefSink` (the briefing row lives in the contract layer — W3.34). Importing the pulse module into `kernel/channel` would drag `kernel/agent` into every transport plugin (`channelwire.go:14-18`).
+The package sits **above** `kernel/channel` because factories return a `pulseapi.BriefSink` (the briefing row lives in the contract layer — W3.34). Importing the pulse module into `kernel/channel` would drag `kernel/modules/runs/agent` into every transport plugin (`channelwire.go:14-18`).
 
 It lives in the **platform** layer (W3.36): the factory layer is the seam between the daemon — which owns the bus, the inbound handler and the configuration — and the channel plugins, which build their transports against it. It depends only on the contract and the platform layers, and that placement is what lets a channel plugin name it: a plugin may reach the contract and the platform, and nothing else.
 
@@ -1835,7 +1835,7 @@ Tests: `update_test`, `update_cov_test`, `signature_test` (defines the test-only
 
 # Part VII — `kernel/internal/testfixtures`
 
-`helpers.go` provides `WithUsage(resp, usage)` and `ToolUse(callID, toolName, input)`. `ToolUse` builds an assistant `agent.CompletionResponse` with one tool call and `StopToolUse`. The package doc says it is "only imported by _test.go files". Its consumers are `kernel/agent`, `kernel/controlplane` and `kernel/runtime` `mock_helpers_test.go`.
+`helpers.go` provides `WithUsage(resp, usage)` and `ToolUse(callID, toolName, input)`. `ToolUse` builds an assistant `llm.CompletionResponse` with one tool call and `StopToolUse`. The package doc says it is "only imported by _test.go files". Its consumers are `kernel/modules/runs/agent`, `kernel/controlplane` and `kernel/runtime` `mock_helpers_test.go`.
 
 It is excluded from the env-var inventory guard (`controlplane/config_inventory_test.go:55`) and allowlisted in deadcodecheck (`tools/deadcodecheck/main.go:153`). It is test-only by design, not dead code (see the "test-only ≠ dead code" lesson).
 

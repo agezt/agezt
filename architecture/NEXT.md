@@ -12946,3 +12946,59 @@ func main() {
   the daemon reduced to a host), which is what finally makes
   `modules/runs/internal/loop` reachable. Evidence:
   `architecture/281-w376h-the-loop-moves-into-the-runs-module-evidence.md`
+- W3.76i (the loop stops re-exporting the contract) is the **seventeenth** slice
+  of the runtime's dissolution and the **ninth** slice of the **run engine**
+  programme (W3.76) — and the last one W3.76 had open. W3.76h moved the loop;
+  this one removes the shim the **W1.1** contract move left behind.
+
+  `kernel/modules/runs/agent/agent.go` (**53** non-blank lines) held nothing
+  but **18** type aliases and **15** constants, every one of them an alias
+  for a row in `kernel/contract/llm` or `kernel/contract/toolapi`:
+  `agent.Provider` **was** `llm.Provider` — the same type, the same identity.
+  The block let a caller write `agent.Provider` and never import the
+  contract, which left the tree with **two spellings** for every provider and
+  tool row and only the package's documentation saying which one to use. A
+  rule that only documentation can enforce is not a rule.
+
+  The rewrite was mechanical but wide: **617** bare-name uses inside the
+  module (47 files — 15 production, 32 test) and **22** uses in **17** files
+  outside it now name the contract directly. The **loop's own API stays**
+  (`agent.Run`, `agent.LoopConfig`, the selectors, the memo, the
+  `Steerer`/`Policy` ports, `GenerateObject`, the middleware), and so do the
+  **platform's forwards** (`agent_context_policy.go`,
+  `agent_context_offload.go`, `schema.go`, `toolctx.go`) — the loop's
+  compatibility with the **platform** (W2.3h/j/k), a different seam.
+
+  The measurement: `kernel/modules/runs` **63 files / 7,264 → 62 / 7,229**
+  (the loop module **20 / 2,656 → 19 / 2,621** — the block's **53** lines
+  minus the **18** the qualified names cost), `kernel/runtime` **6,281 →
+  6,281** (+0), the daemon's public verbs **238 → 238**, the contract **+0**,
+  the application layer **+0**, the control plane **+0**. **No type changed
+  identity**, which is why the slice carries **no mutation run**: a mutation
+  cannot distinguish an alias from its target. The instrument that fits is the
+  **type-checker** — all 639 renamings are checked by `go build ./...` and
+  `go vet ./...`, the full test suite passes, and the ratchet is **probed**.
+
+  The ratchet is the inverse of W3.76h's:
+  `TestTheLoopNoLongerReExportsTheContract` parses the package's own
+  production files and fails if any declares a type alias to `llm` or
+  `toolapi`. A probe (one line, `type AliasProbe = llm.Provider`) shows it
+  firing — and caught the first version of it, whose alias check was
+  **inverted** (it skipped the declarations it was meant to catch). A ratchet
+  that is never probed is a ratchet that never fires.
+
+  The rewrite was done by a purpose-built **AST-position** tool: it refuses
+  to touch declaration names, struct field names, composite-literal keys and
+  selector fields, and it edits the original bytes, so comments and string
+  literals stay byte-for-byte identical. The living documents were corrected
+  in the same slice; the **historical** records (the W3.76h evidence and the
+  roadmap's W3.76h row) were left alone on purpose — they describe the tree
+  as it was when the aliases still existed.
+
+  **What is left**: W3.76 is now **complete**. The next step is the **W3
+  exit** (`kernel/runtime` and `kernel/controlplane` dissolved, the daemon
+  reduced to a host) — which is what finally makes `modules/runs/internal/loop`
+  reachable, because today the daemon, the scheduler, the runner and
+  `cmd/agezt` all import the loop, and `internal/` means *importable only from
+  inside the tree*. Evidence:
+  `architecture/282-w376i-the-loop-stops-re-exporting-the-contract-evidence.md`

@@ -195,7 +195,7 @@ Every Go package, one line each, with the document that covers it in depth.
 ### 5.2 `kernel/` — governance, routing, security → [05](05-governance-routing-security.md)
 | Package | Role |
 |---|---|
-| `governor` | LLM routing brain: model→provider resolution, `@chain` expansion, per-task/agent chains, budgets (µ¢), rate limits, circuit breaker, retries, response cache, cost accounting. Itself an `agent.Provider`. |
+| `governor` | LLM routing brain: model→provider resolution, `@chain` expansion, per-task/agent chains, budgets (µ¢), rate limits, circuit breaker, retries, response cache, cost accounting. Itself a `llm.Provider`. |
 | `catalog` | Live provider/model registry (models.dev sync; `api.json`/`custom.json`/`local.json`). |
 | `creds` (+`sigv4`) | Machine-bound AES-256-GCM vault for provider env vars, multi-key keyring `NAME#label`, AWS credential chain; SigV4 signer. |
 | `chatgptauth` | OAuth tokens for "Sign in with ChatGPT" (Codex subscription auth). |
@@ -271,7 +271,7 @@ Every Go package, one line each, with the document that covers it in depth.
 ### 5.6 `plugins/`
 | Package(s) | Role | Doc |
 |---|---|---|
-| `providers/{anthropic,bedrock,cohere,google,ollama,openai,openairesponses,vertex}` | Wire adapters implementing `agent.Provider` (+ streaming) | [08](08-providers.md) |
+| `providers/{anthropic,bedrock,cohere,google,ollama,openai,openairesponses,vertex}` | Wire adapters implementing `llm.Provider` (+ streaming) | [08](08-providers.md) |
 | `providers/compat` | The **only** factory: catalog entry → live provider (10 families via `npm` field) | [08](08-providers.md) |
 | `providers/{embed,voice,image,rerank}` | Modality sidecars (embeddings, STT/TTS, image gen, rerank) | [08](08-providers.md) |
 | `providers/mock` | Offline echo provider (tests, `AGEZT_DEMO_ECHO=1`) | [08](08-providers.md) |
@@ -502,7 +502,7 @@ backlog. Details and file references are in the linked documents.
 |---|---|
 | **Kernel** | `runtime.Kernel`, the in-process aggregate of journal, bus, stores, loop, governor and tools that a daemon (or tenant) hosts. |
 | **Run / correlation id** | One governed execution of an intent. Every event of a run (and its sub-agents, policy decisions, tool calls) shares the correlation id. |
-| **Governor** | Routing/budget layer in front of every model call; itself an `agent.Provider`. |
+| **Governor** | Routing/budget layer in front of every model call; itself a `llm.Provider`. |
 | **Chain / `@name`** | Ordered model fallback ladder (per task, per agent, named and reusable); expanded at one point in the governor. |
 | **Edict** | Policy engine. Capability + trust level (L0–L4) → allow / ask / deny. |
 | **Capability** | Policy axis a tool call maps to (e.g. `shell`, `http.post`, `code.exec`, `mcp.call`). |
