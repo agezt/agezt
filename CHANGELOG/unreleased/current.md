@@ -816,6 +816,16 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The run engine asks the agents module for the roster.** The roster's
+  operations are the agents module's, and the run engine — which retires an
+  agent whose run completed and advances a cycling agent's cycle counter —
+  was still asking the host for them. It asks the module now: the run engine
+  may import another module's api package, so the hop through the host bought
+  nothing. The port's roster entries split by their measurement — two writes
+  that belong to the module, two that nobody in the runs module ever opened,
+  and one read that stays because a read over the contract's port is the
+  host's own state. The run engine's port carries **60** entries now
+  (**64 → 60**), and the daemon's public verbs are unchanged at **203**.
 - **The roster's operations move into the agents module.** The roster is the
   agents module's, and its data was already there — the store, the
   normalization, the validation and the row — while its operations were the
