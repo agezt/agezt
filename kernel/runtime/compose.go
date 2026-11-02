@@ -255,7 +255,7 @@ func Open(cfg Config) (*Kernel, error) {
 	//
 	// A host that was given neither holds no service: the forge writes
 	// refuse and the reads answer "no tools".
-	var forgeSvc extapi.ForgeService
+	var forgeSvc extapi.ForgeRunner
 	if cfg.ToolForge != nil && cfg.ForgeBuilder != nil {
 		forgeSvc = cfg.ForgeBuilder(extapi.ForgeDependencies{
 			Store:        cfg.ToolForge,

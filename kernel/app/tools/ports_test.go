@@ -51,8 +51,14 @@ func TestTheToolsPortsReachTheKernelTools(t *testing.T) {
 	if ports.MCPLifecycle == nil {
 		t.Error("the MCP lifecycle port is nil — the application cannot drive the MCP servers")
 	}
-	if ports.ForgeWriter == nil {
-		t.Error("the forge writer port is nil — the application cannot drive the forge")
+	// The forge writer is the EXTENSIONS MODULE's face: this daemon holds no
+	// forge, so it holds no writer — and the application refuses rather than
+	// calling into nothing.
+	if ports.ForgeWriter != nil {
+		t.Error("a daemon with no forge must hold no forge writer")
+	}
+	if _, err := NewForgeLifecycle(ports.ForgeWriter).Draft(context.Background(), ForgeDraftInput{}); err == nil {
+		t.Error("driving the forge on a daemon that has none must refuse")
 	}
 
 	// The registry port sees the kernel's tools.
@@ -193,7 +199,7 @@ func TestTheToolsPortsReachTheKernelForge(t *testing.T) {
 		t.Fatalf("toolforge.Open: %v", err)
 	}
 	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New(), ToolForge: store,
-		ForgeBuilder: func(deps extapi.ForgeDependencies) extapi.ForgeService {
+		ForgeBuilder: func(deps extapi.ForgeDependencies) extapi.ForgeRunner {
 			return toolforge.NewService(deps)
 		},
 	})

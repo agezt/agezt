@@ -305,7 +305,7 @@ Also: `toolCaps` (read-only after Open); `startTime`. The `suspending atomic.Boo
 
 Goroutines started by the runtime: one per async sub-agent (the delegation engine's `Spawn`), the drain waiters in `Close`/`DrainAndHalt`, and the tool fan-out workers inside `agent.Run`. Everything else runs on the caller's goroutine. The **agentgw listener is not one of them** (W3.67): the gateway is the **daemon's** transport, so the daemon starts it.
 
-**The daemon's public surface — 179 verbs (W3.76s).** The Kernel's exported
+**The daemon's public surface — 173 verbs (W3.76t).** The Kernel's exported
 methods are the host's **doors**: the verbs the layers above call and the
 verbs the daemon's own production paths open. A public verb that nobody
 calls is a second, unreachable copy of a surface, and the target architecture
@@ -373,13 +373,28 @@ application binds the runner — `kernel/app/workboard` no longer imports
 `kernel/runtime` at all — and the plugin binds the module's runner too
 (`workboardPort(k)` answers `k.BoardRunner()`): **194 → 179** public verbs,
 **6,107 → 5,979** production lines, and the app packages that name the daemon
-**41 → 40**. The daemon
+**41 → 40**. W3.76t retired **six** more — the **script forge**'s seven
+forwarders over the extensions module's own operations (`DraftScriptTool`,
+`UpdateScriptTool`, `TestScriptTool`, `PromoteScriptTool`,
+`RequestToolPromotion`, `QuarantineScriptTool`, `RemoveScriptTool`) were a
+second spelling of every forge verb. The **contract** already named that
+surface (`toolforgeapi.Runner` — "draft a script tool", "test a script
+tool"), so the **module** answers in the contract's names and the daemon
+spells none of them: the module's own port (`extapi.ForgeRunner`) **embeds**
+the contract's `Runner` and adds the three verbs the contract does not name
+(promote, quarantine, remove) plus the bridge. The daemon keeps two things:
+the forge's **FILE** (`ToolForge`) and the module's **FACE** (`ForgeRunner`).
+The application binds the module's face — `PortsFromKernel` fills
+`ForgeWriter` with `k.ForgeRunner()`, and a daemon with no forge holds no
+writer at all — and the plugin binds the module's runner too
+(`forgeRunnerPort(k)` answers `k.ForgeRunner()`): **179 → 173** public verbs,
+**5,979 → 5,899** production lines. The daemon
 keeps the doors a **module** needs without naming the runs
 module (`WithAgentProfile`, `WithMaxCost`) and the host's own state (the
 effective config, the resume ticket, the seed). The surface is **pinned**:
 `kernel/runtime/dead_surface_ratchet_test.go` fails if a retired name comes
-back or if the public surface grows past **179** — the ceiling now FOLLOWS the
-floor (220 → 201 → 194 → 179), because a ceiling that stays put while the
+back or if the public surface grows past **173** — the ceiling now FOLLOWS the
+floor (220 → 201 → 194 → 179 → 173), because a ceiling that stays put while the
 surface shrinks permits exactly what the program exists to remove — and the run
 engine's own ratchet requires that it reads the run's context through the
 module.
@@ -743,7 +758,7 @@ Root package, grouped by concern; every non-test file is listed.
 | `toolrun.go` | `LookupTool`, `CheckPolicy`, `PublishEvent`, `NotifyNoise` (toolexec interfaces), `RunTool`, private `runToolWithLookup` for runner adapters. |
 | `code_execution.go` | The host's code-execution port: the `CodeExecutor` interface and `SetConductorExec` (the injection point the daemon uses, unchanged), plus the invocation-local `code_exec` adapter around the existing `CodeExecutor`/`ScriptRunner`; trusted code.exec capability/effects, shared invoker and unique IDs, actual executor-entry marker for Conductor `Ran`. Does not register/replace a tool or change sandbox/network settings. The reasoning module reaches it through its `RunCode` port, so the run keeps the host's policy checks and audit arc (W3.1). |
 | `toolsearch.go` | `tool_search` deferred-catalog tool (`withToolSearch`, lexical scoring; default 8, max 20 results). |
-| `scripttool.go` | Toolforge lifecycle with `scripttool.*` events (`DraftScriptTool`, `UpdateScriptTool`, `TestScriptTool`, `PromoteScriptTool`, `RequestToolPromotion` via approval capability `toolforge.promote`, `QuarantineScriptTool`, `RemoveScriptTool`), `mergeScriptTools`, `forgedTool`. |
+| `scripttool.go` | The daemon's face over the **script-tool forge**: the forge's FILE (the contract's store port `toolforgeapi.HostStore` — W3.45) and the module's FACE (`ForgeRunner`). The **lifecycle** is the extensions module's (W3.76t): the module answers in the contract's names (`DraftScriptTool`, `UpdateScriptTool`, `TestScriptTool`, `RequestToolPromotion`, `PromoteScriptTool`, `QuarantineScriptTool`, `RemoveScriptTool` — with `scripttool.*` events and the `toolforge.promote` approval capability) and the daemon's seven forwarders are gone. `mergeScriptTools` folds the promoted scripts into a run's tool map. |
 | `mcptool.go` | MCP lifecycle: `AddMCPServer`, `SetMCPServerEnabled`, `AttachMCPServer` (through the **injected** `mcpapi.Dialer` / `mcpapi.HTTPDialer` seams — the module's clients, which the kernel may not name; a kernel with no dialer refuses), `DetachMCPServer`, `RemoveMCPServer`, `AttachEnabledMCPServers`, `MCPAttached`, `MCPReader`, `closeMCPConns`. |
 | `mcptool_bridge.go` | `mcpToolName`, `mergeMCPTools`, `bridgedMCPTool`, `lazyMCPDispatch`. |
 | `subagent.go` | `subAgentTool` struct (run/spawn closures). |

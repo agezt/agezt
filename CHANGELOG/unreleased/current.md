@@ -816,6 +816,17 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The script forge's lifecycle moves into the extensions module.** The daemon
+  held seven forwarders over the extensions module's own forge operations — a
+  second spelling of every forge verb, and a second copy of the whole forge
+  surface for the application layer and the plugin to call through. The
+  contract already named that surface, so the **module** answers in the
+  contract's names now, and the daemon keeps two things: the forge's file and
+  the module's face. The application binds the module's face — and a daemon
+  with no forge holds no writer at all, so the application refuses with the
+  contract's row instead of calling into nothing — and the `tool_forge` plugin
+  binds the module's runner too. The daemon's public verbs: **179 → 173**; its
+  production lines: **5,979 → 5,899**.
 - **The task board's runner moves into the work module.** The daemon held
   sixteen forwarders over the work module's own board operations — a second
   spelling of every board verb, and a second copy of the whole board surface

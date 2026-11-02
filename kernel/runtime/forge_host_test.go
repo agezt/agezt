@@ -19,9 +19,9 @@ import (
 
 // forgeServiceBuilder is the extensions module's builder, handed to the
 // kernel the way the daemon hands it over (W3.72): the module keeps the
-// forge's lifecycle, the daemon keeps the names.
+// forge's lifecycle, the daemon keeps the store's file.
 func forgeServiceBuilder() extapi.ForgeBuilder {
-	return func(deps extapi.ForgeDependencies) extapi.ForgeService {
+	return func(deps extapi.ForgeDependencies) extapi.ForgeRunner {
 		return toolforge.NewService(deps)
 	}
 }

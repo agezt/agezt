@@ -27,7 +27,7 @@ import (
 )
 
 // The compile-time assertion: the service IS the module's face.
-var _ extapi.ForgeService = (*Service)(nil)
+var _ extapi.ForgeRunner = (*Service)(nil)
 
 // recorder collects the events the service publishes.
 type recorder struct{ specs []event.Spec }
@@ -88,19 +88,19 @@ func draftTool() toolforgeapi.ScriptTool {
 // nothing.
 func TestTheForgeRefusesWithoutAStore(t *testing.T) {
 	svc := NewService(extapi.ForgeDependencies{})
-	if _, err := svc.Draft("corr", draftTool()); !errors.Is(err, toolforgeapi.ErrNoStore) {
+	if _, err := svc.DraftScriptTool("corr", draftTool()); !errors.Is(err, toolforgeapi.ErrNoStore) {
 		t.Fatalf("draft without a store must refuse, got %v", err)
 	}
-	if _, _, err := svc.Update("corr", "greet", func(*toolforgeapi.ScriptTool) {}); !errors.Is(err, toolforgeapi.ErrNoStore) {
+	if _, _, err := svc.UpdateScriptTool("corr", "greet", func(*toolforgeapi.ScriptTool) {}); !errors.Is(err, toolforgeapi.ErrNoStore) {
 		t.Fatalf("update without a store must refuse, got %v", err)
 	}
-	if _, err := svc.Promote("corr", "greet"); !errors.Is(err, toolforgeapi.ErrNoStore) {
+	if _, err := svc.PromoteScriptTool("corr", "greet"); !errors.Is(err, toolforgeapi.ErrNoStore) {
 		t.Fatalf("promote without a store must refuse, got %v", err)
 	}
-	if _, err := svc.Quarantine("corr", "greet", "why"); !errors.Is(err, toolforgeapi.ErrNoStore) {
+	if _, err := svc.QuarantineScriptTool("corr", "greet", "why"); !errors.Is(err, toolforgeapi.ErrNoStore) {
 		t.Fatalf("quarantine without a store must refuse, got %v", err)
 	}
-	if _, err := svc.Remove("corr", "greet"); !errors.Is(err, toolforgeapi.ErrNoStore) {
+	if _, err := svc.RemoveScriptTool("corr", "greet"); !errors.Is(err, toolforgeapi.ErrNoStore) {
 		t.Fatalf("remove without a store must refuse, got %v", err)
 	}
 }
@@ -112,7 +112,7 @@ func TestDraftRegistersTheToolAndJournalsIt(t *testing.T) {
 	rec := &recorder{}
 	svc, store := newForge(t, rec, nil)
 
-	saved, err := svc.Draft("corr-1", draftTool())
+	saved, err := svc.DraftScriptTool("corr-1", draftTool())
 	if err != nil {
 		t.Fatalf("Draft: %v", err)
 	}
@@ -139,14 +139,14 @@ func TestDraftRegistersTheToolAndJournalsIt(t *testing.T) {
 func TestTheEditDemotesTheToolAndClearsItsTest(t *testing.T) {
 	rec := &recorder{}
 	svc, _ := newForge(t, rec, nil)
-	drafted, err := svc.Draft("corr", draftTool())
+	drafted, err := svc.DraftScriptTool("corr", draftTool())
 	if err != nil {
 		t.Fatalf("Draft: %v", err)
 	}
 	if _, err := svc.store.RecordTest(drafted.ID, true); err != nil {
 		t.Fatalf("record the test: %v", err)
 	}
-	edited, ok, err := svc.Update("corr-2", drafted.ID, func(st *toolforgeapi.ScriptTool) {
+	edited, ok, err := svc.UpdateScriptTool("corr-2", drafted.ID, func(st *toolforgeapi.ScriptTool) {
 		st.Code = "print('bye')"
 	})
 	if err != nil || !ok {
@@ -167,7 +167,7 @@ func TestTheEditDemotesTheToolAndClearsItsTest(t *testing.T) {
 // no error.
 func TestTheEditOfAnUnknownToolIsNotAnError(t *testing.T) {
 	svc, _ := newForge(t, nil, nil)
-	if _, ok, err := svc.Update("corr", "ghost", func(*toolforgeapi.ScriptTool) {}); err != nil || ok {
+	if _, ok, err := svc.UpdateScriptTool("corr", "ghost", func(*toolforgeapi.ScriptTool) {}); err != nil || ok {
 		t.Fatalf("an unknown ref must answer false and no error, got ok=%v err=%v", ok, err)
 	}
 }
@@ -178,12 +178,12 @@ func TestTheTestRunsTheSandboxAndRecordsTheVerdict(t *testing.T) {
 	rec := &recorder{}
 	runner := &stubRunner{out: "hello"}
 	svc, _ := newForge(t, rec, runner)
-	drafted, err := svc.Draft("corr", draftTool())
+	drafted, err := svc.DraftScriptTool("corr", draftTool())
 	if err != nil {
 		t.Fatalf("Draft: %v", err)
 	}
 
-	rec2, out, err := svc.Test(context.Background(), "corr-2", drafted.ID, `{"name":"ersin"}`)
+	rec2, out, err := svc.TestScriptTool(context.Background(), "corr-2", drafted.ID, `{"name":"ersin"}`)
 	if err != nil {
 		t.Fatalf("Test: %v", err)
 	}
@@ -206,11 +206,11 @@ func TestTheTestRunsTheSandboxAndRecordsTheVerdict(t *testing.T) {
 func TestAFailingTestIsRecordedAsAFailure(t *testing.T) {
 	runner := &stubRunner{out: "boom", isErr: true}
 	svc, _ := newForge(t, nil, runner)
-	drafted, err := svc.Draft("corr", draftTool())
+	drafted, err := svc.DraftScriptTool("corr", draftTool())
 	if err != nil {
 		t.Fatalf("Draft: %v", err)
 	}
-	rec, _, err := svc.Test(context.Background(), "corr", drafted.ID, "")
+	rec, _, err := svc.TestScriptTool(context.Background(), "corr", drafted.ID, "")
 	if err != nil {
 		t.Fatalf("Test: %v", err)
 	}
@@ -227,11 +227,11 @@ func TestAFailingTestIsRecordedAsAFailure(t *testing.T) {
 // func value.
 func TestTheTestRefusesWithoutASandbox(t *testing.T) {
 	svc, _ := newForge(t, nil, nil)
-	drafted, err := svc.Draft("corr", draftTool())
+	drafted, err := svc.DraftScriptTool("corr", draftTool())
 	if err != nil {
 		t.Fatalf("Draft: %v", err)
 	}
-	_, _, err = svc.Test(context.Background(), "corr", drafted.ID, "{}")
+	_, _, err = svc.TestScriptTool(context.Background(), "corr", drafted.ID, "{}")
 	if err == nil || !strings.Contains(err.Error(), "no sandbox runner") {
 		t.Fatalf("the test must refuse with the sandbox's absence, got %v", err)
 	}
@@ -250,15 +250,15 @@ func TestThePromotionAsksTheOperator(t *testing.T) {
 		}
 		return approvalapi.Outcome{Decision: approvalapi.DecisionGrant, Reason: "the operator said yes"}
 	}
-	drafted, err := svc.Draft("corr", draftTool())
+	drafted, err := svc.DraftScriptTool("corr", draftTool())
 	if err != nil {
 		t.Fatalf("Draft: %v", err)
 	}
-	if _, _, err := svc.Test(context.Background(), "corr", drafted.ID, "{}"); err != nil {
+	if _, _, err := svc.TestScriptTool(context.Background(), "corr", drafted.ID, "{}"); err != nil {
 		t.Fatalf("Test: %v", err)
 	}
 
-	promoted, decision, reason, err := svc.RequestPromotion(context.Background(), "corr-2", drafted.ID)
+	promoted, decision, reason, err := svc.RequestToolPromotion(context.Background(), "corr-2", drafted.ID)
 	if err != nil {
 		t.Fatalf("RequestPromotion: %v", err)
 	}
@@ -284,14 +284,14 @@ func TestADeniedPromotionIsAVerdictNotAFailure(t *testing.T) {
 	svc.approve = func(context.Context, approvalapi.SubmitSpec) approvalapi.Outcome {
 		return approvalapi.Outcome{Decision: approvalapi.DecisionDeny, Reason: "not now"}
 	}
-	drafted, err := svc.Draft("corr", draftTool())
+	drafted, err := svc.DraftScriptTool("corr", draftTool())
 	if err != nil {
 		t.Fatalf("Draft: %v", err)
 	}
-	if _, _, err := svc.Test(context.Background(), "corr", drafted.ID, "{}"); err != nil {
+	if _, _, err := svc.TestScriptTool(context.Background(), "corr", drafted.ID, "{}"); err != nil {
 		t.Fatalf("Test: %v", err)
 	}
-	st, decision, reason, err := svc.RequestPromotion(context.Background(), "corr", drafted.ID)
+	st, decision, reason, err := svc.RequestToolPromotion(context.Background(), "corr", drafted.ID)
 	if err != nil {
 		t.Fatalf("a denied promotion must not be an error, got %v", err)
 	}
@@ -312,11 +312,11 @@ func TestAnUntestedToolNeverReachesTheOperator(t *testing.T) {
 		asked++
 		return approvalapi.Outcome{Decision: approvalapi.DecisionGrant}
 	}
-	drafted, err := svc.Draft("corr", draftTool())
+	drafted, err := svc.DraftScriptTool("corr", draftTool())
 	if err != nil {
 		t.Fatalf("Draft: %v", err)
 	}
-	if _, _, _, err := svc.RequestPromotion(context.Background(), "corr", drafted.ID); !errors.Is(err, toolforgeapi.ErrUntested) {
+	if _, _, _, err := svc.RequestToolPromotion(context.Background(), "corr", drafted.ID); !errors.Is(err, toolforgeapi.ErrUntested) {
 		t.Fatalf("an untested tool must refuse, got %v", err)
 	}
 	if asked != 0 {
@@ -337,14 +337,14 @@ func TestTheAutoPromotePromotesWithoutTheOperator(t *testing.T) {
 		asked++
 		return approvalapi.Outcome{Decision: approvalapi.DecisionGrant}
 	}
-	drafted, err := svc.Draft("corr", draftTool())
+	drafted, err := svc.DraftScriptTool("corr", draftTool())
 	if err != nil {
 		t.Fatalf("Draft: %v", err)
 	}
-	if _, _, err := svc.Test(context.Background(), "corr", drafted.ID, "{}"); err != nil {
+	if _, _, err := svc.TestScriptTool(context.Background(), "corr", drafted.ID, "{}"); err != nil {
 		t.Fatalf("Test: %v", err)
 	}
-	promoted, decision, reason, err := svc.RequestPromotion(context.Background(), "corr", drafted.ID)
+	promoted, decision, reason, err := svc.RequestToolPromotion(context.Background(), "corr", drafted.ID)
 	if err != nil {
 		t.Fatalf("RequestPromotion: %v", err)
 	}
@@ -365,17 +365,17 @@ func TestTheQuarantineIsTheKillSwitch(t *testing.T) {
 	rec := &recorder{}
 	runner := &stubRunner{out: "ok"}
 	svc, _ := newForge(t, rec, runner)
-	drafted, err := svc.Draft("corr", draftTool())
+	drafted, err := svc.DraftScriptTool("corr", draftTool())
 	if err != nil {
 		t.Fatalf("Draft: %v", err)
 	}
-	if _, _, err := svc.Test(context.Background(), "corr", drafted.ID, "{}"); err != nil {
+	if _, _, err := svc.TestScriptTool(context.Background(), "corr", drafted.ID, "{}"); err != nil {
 		t.Fatalf("Test: %v", err)
 	}
-	if _, err := svc.Promote("corr", drafted.ID); err != nil {
+	if _, err := svc.PromoteScriptTool("corr", drafted.ID); err != nil {
 		t.Fatalf("Promote: %v", err)
 	}
-	quarantined, err := svc.Quarantine("corr-2", drafted.ID, "  it misbehaved  ")
+	quarantined, err := svc.QuarantineScriptTool("corr-2", drafted.ID, "  it misbehaved  ")
 	if err != nil {
 		t.Fatalf("Quarantine: %v", err)
 	}
@@ -396,11 +396,11 @@ func TestTheQuarantineIsTheKillSwitch(t *testing.T) {
 func TestTheRemoveTakesTheRowAndJournalsIt(t *testing.T) {
 	rec := &recorder{}
 	svc, store := newForge(t, rec, nil)
-	drafted, err := svc.Draft("corr", draftTool())
+	drafted, err := svc.DraftScriptTool("corr", draftTool())
 	if err != nil {
 		t.Fatalf("Draft: %v", err)
 	}
-	removed, err := svc.Remove("corr-2", drafted.ID)
+	removed, err := svc.RemoveScriptTool("corr-2", drafted.ID)
 	if err != nil {
 		t.Fatalf("Remove: %v", err)
 	}

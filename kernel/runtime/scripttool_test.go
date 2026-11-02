@@ -14,6 +14,7 @@ import (
 	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
+	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -62,9 +63,10 @@ func openForgeKernel(t *testing.T, prov llm.Provider, runner toolforge.Runner) *
 // TestTheForgeRefusesWithoutAStore: the store is the HOST's file (W3.45), so
 // a kernel CAN be opened without one.
 //
-// Every forge operation must then say so. A panic would take the daemon down
-// over a missing file — and the panic is what the first version of this
-// kernel did, until the slice taught it to refuse.
+// The daemon then holds no forge at all — neither the store's file nor the
+// module's face — and the refusal belongs to the layer that asks: the
+// application says so rather than calling into nothing. A panic would take
+// the daemon down over a missing file.
 func TestTheForgeRefusesWithoutAStore(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
 	if err != nil {
@@ -75,35 +77,28 @@ func TestTheForgeRefusesWithoutAStore(t *testing.T) {
 	if k.ToolForge() != nil {
 		t.Fatal("a kernel opened without a store must hold a nil port")
 	}
+	if k.ForgeRunner() != nil {
+		t.Fatal("a kernel opened without a store must hold no forge runner")
+	}
 	ctx := context.Background()
+	ports := apptools.PortsFromKernel(k)
+	lc := apptools.NewForgeLifecycle(ports.ForgeWriter)
 	tool := toolforge.ScriptTool{Name: "echo", Description: "echoes", Language: "python", Code: "print(1)"}
-	if _, err := k.DraftScriptTool("", tool); err == nil {
-		t.Error("drafting without a store must refuse")
+	if _, err := lc.Draft(ctx, apptools.ForgeDraftInput{Tool: tool}); !errors.Is(err, toolforgeapi.ErrNoStore) {
+		t.Errorf("drafting without a store must refuse, got %v", err)
 	}
-	if _, _, err := k.UpdateScriptTool("", "echo", func(*toolforge.ScriptTool) {}); err == nil {
-		t.Error("editing without a store must refuse")
+	if _, err := lc.Promote(ctx, apptools.ForgeRefInput{Ref: "echo"}); !errors.Is(err, toolforgeapi.ErrNoStore) {
+		t.Errorf("promoting without a store must refuse, got %v", err)
 	}
-	if _, _, err := k.TestScriptTool(ctx, "", "echo", "{}"); err == nil {
-		t.Error("testing without a store must refuse")
-	}
-	if _, err := k.PromoteScriptTool("", "echo"); err == nil {
-		t.Error("promoting without a store must refuse")
-	}
-	if _, _, _, err := k.RequestToolPromotion(ctx, "", "echo"); err == nil {
-		t.Error("requesting a promotion without a store must refuse")
-	}
-	if _, err := k.QuarantineScriptTool("", "echo", ""); err == nil {
-		t.Error("quarantining without a store must refuse")
-	}
-	if _, err := k.RemoveScriptTool("", "echo"); err == nil {
-		t.Error("removing without a store must refuse")
+	if _, err := lc.Remove(ctx, apptools.ForgeRefInput{Ref: "echo"}); !errors.Is(err, toolforgeapi.ErrNoStore) {
+		t.Errorf("removing without a store must refuse, got %v", err)
 	}
 }
 
 // promoteEcho drafts + test-passes + promotes one script tool named "echo".
 func promoteEcho(t *testing.T, k *runtime.Kernel, runner *stubRunner) toolforge.ScriptTool {
 	t.Helper()
-	st, err := k.DraftScriptTool("", toolforge.ScriptTool{
+	st, err := k.ForgeRunner().DraftScriptTool("", toolforge.ScriptTool{
 		Name:        "echo",
 		Description: "echoes its input back",
 		Language:    "python",
@@ -113,14 +108,14 @@ func promoteEcho(t *testing.T, k *runtime.Kernel, runner *stubRunner) toolforge.
 		t.Fatalf("DraftScriptTool: %v", err)
 	}
 	runner.out, runner.isErr = "test-ok", false
-	rec, out, err := k.TestScriptTool(context.Background(), "", st.ID, `{"sample":1}`)
+	rec, out, err := k.ForgeRunner().TestScriptTool(context.Background(), "", st.ID, `{"sample":1}`)
 	if err != nil || !rec.TestedOK || out != "test-ok" {
 		t.Fatalf("TestScriptTool = %v/%v/%q", rec.TestedOK, err, out)
 	}
 	if runner.input != `{"sample":1}` {
 		t.Fatalf("test input = %q, want the sample payload", runner.input)
 	}
-	if _, err := k.PromoteScriptTool("", st.ID); err != nil {
+	if _, err := k.ForgeRunner().PromoteScriptTool("", st.ID); err != nil {
 		t.Fatalf("PromoteScriptTool: %v", err)
 	}
 	return st
@@ -187,7 +182,7 @@ func TestRunWith_DraftAndQuarantineNeverOffered(t *testing.T) {
 	runner := &stubRunner{}
 	k := openForgeKernel(t, prov, runner)
 
-	st, err := k.DraftScriptTool("", toolforge.ScriptTool{
+	st, err := k.ForgeRunner().DraftScriptTool("", toolforge.ScriptTool{
 		Name: "echo", Description: "d", Language: "python", Code: "print(1)",
 	})
 	if err != nil {
@@ -201,13 +196,13 @@ func TestRunWith_DraftAndQuarantineNeverOffered(t *testing.T) {
 	}
 
 	runner.out = "ok"
-	if _, _, err := k.TestScriptTool(context.Background(), "", st.ID, ""); err != nil {
+	if _, _, err := k.ForgeRunner().TestScriptTool(context.Background(), "", st.ID, ""); err != nil {
 		t.Fatalf("TestScriptTool: %v", err)
 	}
-	if _, err := k.PromoteScriptTool("", st.ID); err != nil {
+	if _, err := k.ForgeRunner().PromoteScriptTool("", st.ID); err != nil {
 		t.Fatalf("Promote: %v", err)
 	}
-	if _, err := k.QuarantineScriptTool("", st.ID, "smoke"); err != nil {
+	if _, err := k.ForgeRunner().QuarantineScriptTool("", st.ID, "smoke"); err != nil {
 		t.Fatalf("Quarantine: %v", err)
 	}
 	if _, err := k.RunWith(context.Background(), k.NewCorrelation(), "hi again"); err != nil {
@@ -253,20 +248,20 @@ func TestTestScriptTool_FailureRecordedAndPromoteRefused(t *testing.T) {
 	runner := &stubRunner{out: "Traceback ...", isErr: true}
 	k := openForgeKernel(t, prov, runner)
 
-	st, err := k.DraftScriptTool("", toolforge.ScriptTool{
+	st, err := k.ForgeRunner().DraftScriptTool("", toolforge.ScriptTool{
 		Name: "broken", Description: "d", Language: "python", Code: "boom(",
 	})
 	if err != nil {
 		t.Fatalf("DraftScriptTool: %v", err)
 	}
-	rec, out, err := k.TestScriptTool(context.Background(), "", st.Name, "")
+	rec, out, err := k.ForgeRunner().TestScriptTool(context.Background(), "", st.Name, "")
 	if err != nil {
 		t.Fatalf("TestScriptTool: %v", err)
 	}
 	if rec.TestedOK || !strings.Contains(out, "Traceback") {
 		t.Fatalf("failure not recorded: ok=%v out=%q", rec.TestedOK, out)
 	}
-	if _, err := k.PromoteScriptTool("", st.ID); err == nil {
+	if _, err := k.ForgeRunner().PromoteScriptTool("", st.ID); err == nil {
 		t.Fatal("promote accepted after a FAILED test")
 	}
 }
@@ -296,7 +291,7 @@ func TestRequestToolPromotion(t *testing.T) {
 	runner := &stubRunner{}
 	k := openForgeKernel(t, mock.New(mock.FinalText("unused")), runner)
 
-	st, err := k.DraftScriptTool("", toolforge.ScriptTool{
+	st, err := k.ForgeRunner().DraftScriptTool("", toolforge.ScriptTool{
 		Name: "greet", Description: "says hi", Language: "python", Code: "print('hi')",
 	})
 	if err != nil {
@@ -304,11 +299,11 @@ func TestRequestToolPromotion(t *testing.T) {
 	}
 
 	// Untested → refused without touching the registry.
-	if _, _, _, err := k.RequestToolPromotion(context.Background(), "", st.Name); !errors.Is(err, toolforge.ErrUntested) {
+	if _, _, _, err := k.ForgeRunner().RequestToolPromotion(context.Background(), "", st.Name); !errors.Is(err, toolforge.ErrUntested) {
 		t.Fatalf("untested err = %v", err)
 	}
 	runner.out = "ok"
-	if _, _, err := k.TestScriptTool(context.Background(), "", st.Name, "{}"); err != nil {
+	if _, _, err := k.ForgeRunner().TestScriptTool(context.Background(), "", st.Name, "{}"); err != nil {
 		t.Fatalf("test: %v", err)
 	}
 
@@ -332,7 +327,7 @@ func TestRequestToolPromotion(t *testing.T) {
 
 	// Denied: the verdict rides back, the draft stays a draft.
 	go resolve(approval.DecisionDeny, "needs validation")
-	_, decision, reason, err := k.RequestToolPromotion(context.Background(), "", "greet")
+	_, decision, reason, err := k.ForgeRunner().RequestToolPromotion(context.Background(), "", "greet")
 	if err != nil || decision != approval.DecisionDeny || reason != "needs validation" {
 		t.Fatalf("deny: %v/%v/%v", decision, reason, err)
 	}
@@ -342,16 +337,16 @@ func TestRequestToolPromotion(t *testing.T) {
 
 	// Granted: ACTIVE via the same path the operator CLI uses.
 	go resolve(approval.DecisionGrant, "lgtm")
-	promoted, decision, _, err := k.RequestToolPromotion(context.Background(), "", "greet")
+	promoted, decision, _, err := k.ForgeRunner().RequestToolPromotion(context.Background(), "", "greet")
 	if err != nil || decision != approval.DecisionGrant || promoted.Status != toolforge.StatusActive {
 		t.Fatalf("grant: %+v %v %v", promoted, decision, err)
 	}
 
 	// Already active / ghost → refused up front.
-	if _, _, _, err := k.RequestToolPromotion(context.Background(), "", "greet"); err == nil {
+	if _, _, _, err := k.ForgeRunner().RequestToolPromotion(context.Background(), "", "greet"); err == nil {
 		t.Fatal("re-promoting an active tool accepted")
 	}
-	if _, _, _, err := k.RequestToolPromotion(context.Background(), "", "ghost"); err == nil {
+	if _, _, _, err := k.ForgeRunner().RequestToolPromotion(context.Background(), "", "ghost"); err == nil {
 		t.Fatal("ghost accepted")
 	}
 }
@@ -377,20 +372,20 @@ func TestRequestToolPromotion_AutoPromote(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	st, err := k.DraftScriptTool("", toolforge.ScriptTool{
+	st, err := k.ForgeRunner().DraftScriptTool("", toolforge.ScriptTool{
 		Name: "fast", Description: "fast path", Language: "python", Code: "print('ok')",
 	})
 	if err != nil {
 		t.Fatalf("draft: %v", err)
 	}
-	if _, _, _, err := k.RequestToolPromotion(context.Background(), "", st.Name); !errors.Is(err, toolforge.ErrUntested) {
+	if _, _, _, err := k.ForgeRunner().RequestToolPromotion(context.Background(), "", st.Name); !errors.Is(err, toolforge.ErrUntested) {
 		t.Fatalf("untested err = %v", err)
 	}
-	if _, _, err := k.TestScriptTool(context.Background(), "", st.Name, "{}"); err != nil {
+	if _, _, err := k.ForgeRunner().TestScriptTool(context.Background(), "", st.Name, "{}"); err != nil {
 		t.Fatalf("test: %v", err)
 	}
 
-	promoted, decision, reason, err := k.RequestToolPromotion(context.Background(), "", st.Name)
+	promoted, decision, reason, err := k.ForgeRunner().RequestToolPromotion(context.Background(), "", st.Name)
 	if err != nil {
 		t.Fatalf("auto promote: %v", err)
 	}

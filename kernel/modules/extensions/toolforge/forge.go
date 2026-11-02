@@ -9,9 +9,12 @@ package toolforge
 //             the journaling) into the extensions module, which owns the
 //             forge.
 //
-// The daemon keeps its own names as forwarders, so every caller outside the
-// runtime is untouched. What moved is WHERE the answer comes from: the
-// forge's OPERATIONS live with the forge's CATALOGUE now.
+// The daemon used to keep its own names as forwarders over these operations.
+// It does not any more (W3.76t): the forge's vocabulary is the CONTRACT's
+// (kernel/contract/toolforgeapi.Runner already named four of these the way
+// the forge's users say them), so the module answers in the contract's names
+// and the daemon spells none of them. The daemon keeps the store's FILE and
+// the module's FACE.
 //
 // The rule of the lifecycle is unchanged by the move: only TESTED code goes
 // live, any edit demotes the tool back to draft with its test record
@@ -47,7 +50,7 @@ type Service struct {
 
 // NewService builds the forge service over the host's dependencies.
 //
-// The service satisfies the module's api (extapi.ForgeService); the
+// The service satisfies the module's api (extapi.ForgeRunner); the
 // constructor returns the concrete type so the host can hold either.
 func NewService(deps extapi.ForgeDependencies) *Service {
 	return &Service{
@@ -67,9 +70,9 @@ func (s *Service) emit(spec event.Spec) {
 	s.publish(spec)
 }
 
-// Draft validates and persists a new DRAFT script tool, journaling
+// DraftScriptTool validates and persists a new DRAFT script tool, journaling
 // scripttool.created so the tool's birth is auditable.
-func (s *Service) Draft(corr string, st toolforgeapi.ScriptTool) (toolforgeapi.ScriptTool, error) {
+func (s *Service) DraftScriptTool(corr string, st toolforgeapi.ScriptTool) (toolforgeapi.ScriptTool, error) {
 	if s.store == nil {
 		return toolforgeapi.ScriptTool{}, toolforgeapi.ErrNoStore
 	}
@@ -85,12 +88,12 @@ func (s *Service) Draft(corr string, st toolforgeapi.ScriptTool) (toolforgeapi.S
 	return saved, nil
 }
 
-// Update edits a script tool's mutable fields via mutate, journaling
+// UpdateScriptTool edits a script tool's mutable fields via mutate, journaling
 // scripttool.updated. The store demotes the tool to draft and clears its test
 // record when the code/language changed — the payload says so, so `agt why`
 // can explain why a live tool went dark. Returns false + nil error for an
 // unknown ref (standing pattern).
-func (s *Service) Update(corr, ref string, mutate func(*toolforgeapi.ScriptTool)) (toolforgeapi.ScriptTool, bool, error) {
+func (s *Service) UpdateScriptTool(corr, ref string, mutate func(*toolforgeapi.ScriptTool)) (toolforgeapi.ScriptTool, bool, error) {
 	if s.store == nil {
 		return toolforgeapi.ScriptTool{}, false, toolforgeapi.ErrNoStore
 	}
@@ -114,7 +117,7 @@ func (s *Service) Update(corr, ref string, mutate func(*toolforgeapi.ScriptTool)
 // the verdict on the tool (promotion requires a pass), and journals
 // scripttool.tested. The sandbox output comes back verbatim so the author can
 // iterate.
-func (s *Service) Test(ctx context.Context, corr, ref, input string) (toolforgeapi.ScriptTool, string, error) {
+func (s *Service) TestScriptTool(ctx context.Context, corr, ref, input string) (toolforgeapi.ScriptTool, string, error) {
 	if s.runner == nil {
 		return toolforgeapi.ScriptTool{}, "", errors.New("toolforge: script tools are not available on this daemon (no sandbox runner)")
 	}
@@ -145,10 +148,10 @@ func (s *Service) Test(ctx context.Context, corr, ref, input string) (toolforgea
 	return rec, out, nil
 }
 
-// Promote moves a tested draft/quarantined tool to ACTIVE — from the next run
+// PromoteScriptTool moves a tested draft/quarantined tool to ACTIVE — from the next run
 // on, every agent is offered it as forge_<name>. Journals
 // scripttool.promoted.
-func (s *Service) Promote(corr, ref string) (toolforgeapi.ScriptTool, error) {
+func (s *Service) PromoteScriptTool(corr, ref string) (toolforgeapi.ScriptTool, error) {
 	if s.store == nil {
 		return toolforgeapi.ScriptTool{}, toolforgeapi.ErrNoStore
 	}
@@ -164,14 +167,14 @@ func (s *Service) Promote(corr, ref string) (toolforgeapi.ScriptTool, error) {
 	return st, nil
 }
 
-// RequestPromotion asks the OPERATOR to take the tool at ref live: the
+// RequestToolPromotion asks the OPERATOR to take the tool at ref live: the
 // promotion queue. The request blocks on the HITL approval registry (it
 // shows up in `agt approvals` and the console's Approvals view); a grant
 // promotes through the exact path the operator CLI uses, a deny/timeout comes
 // back as the decision, not an error. The "only tested code goes live"
 // invariant is checked up front so an untested draft never even reaches the
 // operator's queue.
-func (s *Service) RequestPromotion(ctx context.Context, corr, ref string) (toolforgeapi.ScriptTool, approvalapi.Decision, string, error) {
+func (s *Service) RequestToolPromotion(ctx context.Context, corr, ref string) (toolforgeapi.ScriptTool, approvalapi.Decision, string, error) {
 	if s.store == nil {
 		return toolforgeapi.ScriptTool{}, "", "", toolforgeapi.ErrNoStore
 	}
@@ -186,7 +189,7 @@ func (s *Service) RequestPromotion(ctx context.Context, corr, ref string) (toolf
 		return toolforgeapi.ScriptTool{}, "", "", toolforgeapi.ErrUntested
 	}
 	if s.autoPromote {
-		promoted, err := s.Promote(corr, st.Name)
+		promoted, err := s.PromoteScriptTool(corr, st.Name)
 		if err != nil {
 			return st, approvalapi.DecisionGrant, "auto-promote enabled", err
 		}
@@ -206,16 +209,16 @@ func (s *Service) RequestPromotion(ctx context.Context, corr, ref string) (toolf
 	if out.Decision != approvalapi.DecisionGrant {
 		return st, out.Decision, out.Reason, nil // a verdict, not a failure
 	}
-	promoted, err := s.Promote(corr, st.Name)
+	promoted, err := s.PromoteScriptTool(corr, st.Name)
 	if err != nil {
 		return st, out.Decision, out.Reason, err
 	}
 	return promoted, out.Decision, out.Reason, nil
 }
 
-// Quarantine pulls an active tool from production — the kill switch. Journals
-// scripttool.quarantined with the operator's reason.
-func (s *Service) Quarantine(corr, ref, reason string) (toolforgeapi.ScriptTool, error) {
+// QuarantineScriptTool pulls an active tool from production — the kill switch.
+// Journals scripttool.quarantined with the operator's reason.
+func (s *Service) QuarantineScriptTool(corr, ref, reason string) (toolforgeapi.ScriptTool, error) {
 	if s.store == nil {
 		return toolforgeapi.ScriptTool{}, toolforgeapi.ErrNoStore
 	}
@@ -235,9 +238,9 @@ func (s *Service) Quarantine(corr, ref, reason string) (toolforgeapi.ScriptTool,
 	return st, nil
 }
 
-// Remove deletes a script tool, journaling scripttool.removed when it
+// RemoveScriptTool deletes a script tool, journaling scripttool.removed when it
 // existed. Returns whether it existed.
-func (s *Service) Remove(corr, ref string) (bool, error) {
+func (s *Service) RemoveScriptTool(corr, ref string) (bool, error) {
 	if s.store == nil {
 		return false, toolforgeapi.ErrNoStore
 	}

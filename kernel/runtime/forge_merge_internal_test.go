@@ -37,7 +37,7 @@ func (s forgeStubTool) Invoke(context.Context, json.RawMessage) (toolapi.Result,
 // The embedded interface is nil on purpose: a verb the daemon must not reach
 // for panics instead of silently answering.
 type countingForge struct {
-	extapi.ForgeService
+	extapi.ForgeRunner
 	merged int
 }
 

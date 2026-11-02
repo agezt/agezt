@@ -39,7 +39,7 @@ func TestForgeLifecycleServiceOwnStoreJournalAndContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	k, err := runtime.Open(runtime.Config{BaseDir: base, Provider: provider, ScriptRunner: runner, ToolForge: store,
-		ForgeBuilder: func(deps extapi.ForgeDependencies) extapi.ForgeService {
+		ForgeBuilder: func(deps extapi.ForgeDependencies) extapi.ForgeRunner {
 			return toolforge.NewService(deps)
 		},
 	})
@@ -47,7 +47,7 @@ func TestForgeLifecycleServiceOwnStoreJournalAndContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	s := apptools.NewForgeLifecycle(k)
+	s := apptools.NewForgeLifecycle(k.ForgeRunner())
 	ctx := opapi.WithCorrelation(context.Background(), "owned-correlation")
 	head, _ := k.Journal().Head()
 	drafted, err := s.Draft(ctx, apptools.ForgeDraftInput{CorrelationID: "untrusted", Tool: toolforge.ScriptTool{ID: "poison", Name: "owned", Description: "desc", Language: "python", Code: "never executed code", Status: toolforge.StatusActive, TestedOK: true, CreatedMS: 1}})

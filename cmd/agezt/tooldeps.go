@@ -333,20 +333,23 @@ func forgeStore(k *runtime.Kernel) toolforgeapi.Store {
 	return k.ToolForge()
 }
 
-// forgeRunnerPort turns the live kernel into the contract's forge runner.
+// forgeRunnerPort hands the live forge runner to the tool registry as the
+// contract's port.
 //
-// The kernel's own forge methods already speak the contract's rows (the
-// script tool and the approval verdict are aliases of the contract's), so
-// the kernel satisfies the port DIRECTLY — there is no adapter in between,
-// and the wire is the same row all the way down.
+// The runner is the EXTENSIONS MODULE's face (W3.76t): the module keeps the
+// lifecycle and the kernel keeps only the store's file, so the kernel hands
+// the module's runner over as the contract's port — directly, because the
+// module already answers in the contract's names. There is no adapter in
+// between, and the wire is the same row all the way down.
 //
 // A nil kernel must stay a NIL PORT: the tool_forge tool then reports that
-// the forge is unavailable instead of calling into nothing.
+// the forge is unavailable instead of calling into nothing. The same holds
+// for a daemon that holds no forge at all.
 func forgeRunnerPort(k *runtime.Kernel) toolforgeapi.Runner {
 	if k == nil {
 		return nil
 	}
-	return k
+	return k.ForgeRunner()
 }
 
 // conductorExecPort returns the closure that installs the Verifier's code

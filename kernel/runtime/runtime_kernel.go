@@ -159,7 +159,7 @@ type Kernel struct {
 	//
 	// The name says SCRIPT forge because the kernel's `forge` field is the
 	// SKILLS' forge (the curator) — two forges, two fields.
-	scriptForge extapi.ForgeService
+	scriptForge extapi.ForgeRunner
 
 	// reaperScanner is the agents module's reaper (the read-only fleet health
 	// scan). The module lives in kernel/modules/agents/reaper; the runtime
