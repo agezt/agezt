@@ -13659,3 +13659,82 @@ func main() {
   verbs gone.
   Evidence:
   `architecture/292-w376s-the-task-boards-runner-moves-into-the-work-module-evidence.md`
+- W3.76t (the script forge's lifecycle moves into the extensions module) is the
+  **twenty-eighth** slice of the runtime's dissolution, and the one that
+  finished the forge family.
+
+  The forge's **catalogue** has been the extensions module's since W3.72 and
+  the forge's **file** is the host's (W3.45), but the daemon still held
+  **seven forwarders** over the module's own operations — `DraftScriptTool`,
+  `UpdateScriptTool`, `TestScriptTool`, `PromoteScriptTool`,
+  `RequestToolPromotion`, `QuarantineScriptTool` and `RemoveScriptTool` — each
+  doing the same three lines: take the module's service out of the daemon, call
+  the module, return the module's answer. A forwarder over a module's own
+  operation is a **second spelling** of it, and the daemon held a second copy of
+  the whole forge surface, seven doors wide, for the application layer and the
+  plugin to call through.
+
+  The **contract** already named that surface (`toolforgeapi.Runner` — "draft a
+  script tool", "test a script tool", "request tool promotion"), so the port was
+  never the daemon's to implement: the **module** answers in the contract's
+  names now, and the module's own port (`extapi.ForgeRunner`) **embeds** the
+  contract's `Runner` and adds the three verbs the contract does not name
+  (promote, quarantine, remove) plus the bridge (`MergeTools`). The
+  application's own contract already spoke those names (`kernel/app/tools`'s
+  `ForgeWriter` port listed the six long names), so the application binds the
+  module's face **directly** — no adapter was needed, and none was written.
+
+  The daemon keeps two things and no more: the forge's **FILE** (`ToolForge`)
+  and the module's **FACE** (`ForgeRunner`). The application binds the module's
+  face (`PortsFromKernel` fills `ForgeWriter` with `k.ForgeRunner()`, and a
+  daemon with no forge holds no writer at all — the application then refuses
+  with the contract's row `toolforgeapi.ErrNoStore` instead of calling into
+  nothing), and the plugin binds the module's runner too (`forgeRunnerPort(k)`
+  answers `k.ForgeRunner()`).
+
+  The measurement: the daemon's public verbs **179 → 173**, its production
+  lines **5,979 → 5,899**, its files **54 → 54**; the forge module
+  **916 → 923** lines. The measurement that did **not** move: the app packages
+  that name the daemon stay at **forty** — `kernel/app/tools` still names the
+  daemon for the families it owns besides the forge (the tool registry, the MCP
+  registrations and attachments, the tool invocation), so the forge's binding
+  was narrowed, not the package's.
+
+  **Two ratchets, both probes fired**: the daemon's new forge ratchet pins the
+  seven forwarders' absence and that the daemon still holds `ToolForge` and
+  `ForgeRunner`; the application's new binding ratchet pins that the tools
+  package does not bind the **daemon** as its forge writer again (it is
+  narrower than the workboard's ratchet on purpose — that one pins the whole
+  package's import away). The daemon's own surface ceiling followed the floor
+  again: **179 → 173** (220 → 201 → 194 → 179 → 173).
+
+  The **first** probe attempt failed even earlier than the ratchets: with the
+  verbs gone from the daemon, `ForgeWriter: k` does not **compile** — the daemon
+  can no longer satisfy the application's port, and the type system says so
+  before any test runs. With the verbs put back, all three ratchets went red
+  at once (the retired-verb ratchet, the surface ceiling at 179 > 173, and the
+  application's binding ratchet).
+
+  **The coverage moved with the subject**: the module's own tests exercise the
+  module's service under the contract's names; the daemon's tests pin what the
+  daemon still does — it holds the file, it holds the module's face, and it
+  holds **no** verb per operation (`TestTheDaemonKeepsNoForgeVerbsOfItsOwn`);
+  and the refusal of every operation without a store now runs against the
+  **application** layer, because the refusal belongs to the layer that asks.
+
+  **No mutation run**: the slice deletes forwarders and moves a binding, so
+  there is no rule whose reversal a mutation could expose. The evidence is the
+  compiler, the permanent tests, the ratchets and their probes, and the full
+  suite.
+
+  **What is left**: the daemon holds **173** public verbs and **5,899**
+  production lines; **forty** application packages still name it. The same
+  shape is waiting for the families that still have forwarders in the daemon:
+  the **workflow engine** (12), the **MCP registry** (12), the **standing
+  library** (9) and the **roster's** remaining read doors (9). The MCP registry
+  is the mixed one: the registry's lifecycle is the module's, but the
+  **attach/detach** verbs are the host's (they hold live child processes). The
+  W3 exit criterion that no type has more than 60 methods is still the daemon's
+  own `*Kernel` that breaks it — at 173, it needs 113 more verbs gone.
+  Evidence:
+  `architecture/293-w376t-the-script-forges-lifecycle-moves-into-the-extensions-module-evidence.md`
