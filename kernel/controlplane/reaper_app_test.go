@@ -54,7 +54,15 @@ func TestReaperNativeScan(t *testing.T) {
 		t.Fatal(err)
 	}
 	store.SetNowForTest(func() time.Time { return time.Now().Add(-10 * 24 * time.Hour) })
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), Roster: store})
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:  dir,
+		Provider: mock.New(),
+		Roster:   store,
+		// The roster's WRITES are the agents module's (W3.76n): the module
+		// keeps the lifecycle, so the host hands the kernel the module's
+		// builder too.
+		RosterService: roster.NewService,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +78,12 @@ func TestReaperNativeScan(t *testing.T) {
 			return nil, terr
 		}
 		tstore.SetNowForTest(func() time.Time { return time.Now().Add(-10 * 24 * time.Hour) })
-		return runtime.Open(runtime.Config{BaseDir: baseDir, Provider: mock.New(), Roster: tstore})
+		return runtime.Open(runtime.Config{
+			BaseDir:       baseDir,
+			Provider:      mock.New(),
+			Roster:        tstore,
+			RosterService: roster.NewService,
+		})
 	})
 	if err != nil {
 		t.Fatal(err)

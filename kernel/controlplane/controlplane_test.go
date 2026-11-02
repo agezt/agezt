@@ -185,6 +185,10 @@ func startPairWithConfigAndDeps(t *testing.T, cfg runtime.Config, deps func(dir 
 			t.Fatalf("open roster store: %v", rerr)
 		}
 		cfg.Roster = rosterStore
+		// The roster's WRITES are the agents module's (W3.76n): the module
+		// keeps the lifecycle, so the host hands the kernel the module's
+		// builder too.
+		cfg.RosterService = roster.NewService
 	}
 	// The world-model file is the composition root's too (W3.54): the kernel
 	// holds the contract's ports, and the root opens the file.

@@ -36,5 +36,8 @@ func withRoster(t *testing.T, cfg kernelruntime.Config) kernelruntime.Config {
 		t.Fatalf("roster.Open: %v", err)
 	}
 	cfg.Roster = store
+	// The roster's WRITES are the agents module's (W3.76n): the module keeps
+	// the lifecycle, so the host hands the kernel the module's builder too.
+	cfg.RosterService = roster.NewService
 	return cfg
 }

@@ -64,16 +64,26 @@ type Kernel struct {
 	approvals *approval.Registry
 	scheduler *scheduler.Executor
 
-	memory       memoryapi.Manager   // the memory manager — the contract's port (W3.57)
-	memoryStore  memoryapi.Store     // the memory's file — the contract's store port (W3.57)
-	world        worldmodelapi.Graph // the world-model graph — the contract's port (W3.54)
-	worldStore   worldmodelapi.Store // the world-model file — the contract's store port (W3.54)
-	forge        skillapi.Curator    // the skill curator — the contract's port (W3.55)
-	skillStore   skillapi.Store      // the skill library's file — the contract's store port (W3.55)
-	marketMgr    marketapi.Manager
-	standing     standingapi.Store // the standing-order library — the contract's store port (W3.50)
-	resume       *resume.Store     // durable in-flight-run tickets for restart resume (M1002); nil when disabled
-	roster       agentapi.Store
+	memory      memoryapi.Manager   // the memory manager — the contract's port (W3.57)
+	memoryStore memoryapi.Store     // the memory's file — the contract's store port (W3.57)
+	world       worldmodelapi.Graph // the world-model graph — the contract's port (W3.54)
+	worldStore  worldmodelapi.Store // the world-model file — the contract's store port (W3.54)
+	forge       skillapi.Curator    // the skill curator — the contract's port (W3.55)
+	skillStore  skillapi.Store      // the skill library's file — the contract's store port (W3.55)
+	marketMgr   marketapi.Manager
+	standing    standingapi.Store // the standing-order library — the contract's store port (W3.50)
+	resume      *resume.Store     // durable in-flight-run tickets for restart resume (M1002); nil when disabled
+	roster      agentapi.Store
+
+	// rosterSvc is the AGENTS MODULE's roster service — the profile
+	// lifecycle, the events and the guardian rule (W3.76n). The module keeps
+	// the operations over the roster; the daemon keeps the names and forwards.
+	// The composition root hands the BUILDER over (see
+	// runtime.Config.RosterService) and the kernel calls it while opening
+	// itself — so the daemon never needs a setter for it. nil until it is
+	// wired, and every roster write refuses until then.
+	rosterSvc agentsapi.RosterService
+
 	toolForge    toolforgeapi.HostStore
 	mcpStore     mcpapi.Registry
 	workflows    workflowapi.Store

@@ -35,7 +35,11 @@ func TestTheProfilePortsReachTheKernelProfiles(t *testing.T) {
 		BaseDir:  dir,
 		Provider: mock.New(),
 		Roster:   store,
-		Standing: standingStore,
+		// The roster's WRITES are the agents module's (W3.76n): the module
+		// keeps the lifecycle, so the host hands the kernel the module's
+		// builder too.
+		RosterService: core.NewService,
+		Standing:      standingStore,
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
