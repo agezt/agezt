@@ -6,29 +6,19 @@ import (
 	"context"
 	"time"
 
-	"github.com/agezt/agezt/kernel/approval"
 	"github.com/agezt/agezt/kernel/bus"
-	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
-	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/assureapi"
-	"github.com/agezt/agezt/kernel/contract/cadenceapi"
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
-	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
-	"github.com/agezt/agezt/kernel/contract/mediaapi"
 	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
-	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
-	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
-	"github.com/agezt/agezt/kernel/reflect"
 	"github.com/agezt/agezt/kernel/state"
-	"github.com/agezt/agezt/kernel/warden"
 )
 
 // KernelAPI is the surface the run engine needs from its host
@@ -56,7 +46,6 @@ type KernelAPI interface {
 	Tools() map[string]toolapi.Tool
 	MaxDuration() time.Duration
 	Model() string
-	Voice() mediaapi.Voice
 	VisionModel() func() (string, bool)
 	MemoryDistill() bool
 	MemoryDistillMinTools() int
@@ -75,17 +64,10 @@ type KernelAPI interface {
 	InjectHostEnvironment(system string, tools map[string]toolapi.Tool) string
 	ResumeCheckpointFn(corr string) func(int, []llm.Message)
 	ResolveRunModel(ctx context.Context) (string, bool)
-	Edict() *edict.Engine
-	Warden() warden.Engine
-	Approvals() *approval.Registry
 	Memory() memoryapi.Manager
 	World() worldmodelapi.Graph
-	Reflect() *reflect.Engine
 	Forge() skillapi.Curator
-	ArtifactIndex() artifactapi.HostIndex
-	DataLake() datalakeapi.Lake
 	State() *state.FileStore
-	Schedules() cadenceapi.HostStore
 	// RosterGet is the NIL-SAFE roster read: a kernel with no roster has no
 	// agents, not a panic.
 	//
@@ -95,11 +77,7 @@ type KernelAPI interface {
 	// (see the Runner's roster field) instead of asking the host to ask the
 	// module.
 	RosterGet(ref string) (agentapi.Profile, bool)
-	Standing() standingapi.Store
-	StandingList() []standingapi.Order
-	ConfigCenter() *configcenter.Center
 	Catalog() *catalogapi.Catalog
-	CatalogStore() catalogapi.Store
 	PublishIntentInterpreted(corr, actor string, frame intent.Frame)
 	PublishContextFailureAnalysis(corr, actor string, err error)
 	PublishHeuristicBypass(ctx context.Context, corr, actor, intent, answer string) error
@@ -112,7 +90,6 @@ type KernelAPI interface {
 	// Day 22 entry points. Day 23 will move the body of RunWith
 	// into Runner; for now the Runner just delegates back so the
 	// public surface is consistent.
-	RunAssured(ctx context.Context, corr, intent string, maxAttempts int) (string, assureapi.Result, error)
 	RunWith(ctx context.Context, corr, intent string) (string, error)
 	RunWithRetry(ctx context.Context, corr, intent string, pol agentapi.RetryPolicy) (string, error)
 	NewCorrelation() string

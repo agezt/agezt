@@ -130,6 +130,19 @@ func TestTheHostStillImplementsThePort(t *testing.T) {
 			t.Errorf("the KernelAPI port has a %s method again — the roster's writes are the agents module's, and nobody in this module opened the store", gone)
 		}
 	}
+	// W3.76p: thirteen more promises died. Nobody in this module ever opened
+	// them — the daemon keeps every one of those verbs for its other callers
+	// (the application layer, the composition root, the plugins), but a PORT
+	// entry is a promise to THIS module, and this module never asked.
+	for _, gone := range []string{
+		"Approvals", "ArtifactIndex", "CatalogStore", "ConfigCenter", "DataLake",
+		"Edict", "Reflect", "RunAssured", "Schedules", "Standing", "StandingList",
+		"Voice", "Warden",
+	} {
+		if _, ok := port.MethodByName(gone); ok {
+			t.Errorf("the KernelAPI port has a %s method again — the run engine never opened it, so the host never had to promise it", gone)
+		}
+	}
 }
 
 // repoRoot walks up from the package's directory to the repository root (the
