@@ -10,7 +10,6 @@ package runtime
 import (
 	"context"
 
-	"github.com/agezt/agezt/kernel/contract/assureapi"
 	"github.com/agezt/agezt/kernel/event"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
@@ -41,45 +40,24 @@ import (
 // the body migrates into the Runner, these wrappers become
 // the public surface and the runner.go methods become internal.
 
-// DescribeImages runs the vision SIDECAR (M821). The body lives
-// in the runner package's Runner (Day 33); this wrapper
-// preserves the legacy *Kernel.DescribeImages public surface.
-// runtime.ErrNoVisionModel is the same value as the Runner's
-// sentinel, so the error passes through unchanged.
-func (k *Kernel) DescribeImages(ctx context.Context, corr string, images []string, hint string) (string, error) {
-	return k.runner.DescribeImages(ctx, corr, images, hint)
-}
-
-// MaybeDistill folds the run's journal and, if the run made
-// enough tool calls, runs one best-effort distillation. The body
-// lives in the runner package's Runner (Day 32); this wrapper
-// preserves the legacy *Kernel.MaybeDistill public surface.
-func (k *Kernel) MaybeDistill(ctx context.Context, corr, intent, answer string) {
-	k.runner.MaybeDistill(ctx, corr, intent, answer)
-}
-
-// MaybeForge proposes a DRAFT skill. The body lives in the
-// runner sub-package's Runner (Day 32); this wrapper preserves
-// the legacy *Kernel.MaybeForge public surface.
-func (k *Kernel) MaybeForge(ctx context.Context, corr, intent, answer string) {
-	k.runner.MaybeForge(ctx, corr, intent, answer)
-}
-
-// MaybeShadowEval judges shadow skills. The body lives in the
-// runner sub-package's Runner (Day 32); this wrapper preserves
-// the legacy *Kernel.MaybeShadowEval public surface.
-func (k *Kernel) MaybeShadowEval(ctx context.Context, corr, intent, answer string) {
-	k.runner.MaybeShadowEval(ctx, corr, intent, answer)
-}
-
-// VerifyCompletion asks the model whether the given ANSWER
-// fully accomplishes TASK. Returns an assureapi.Verdict with a
-// complete/gap judgement. The body lives in the runner
-// sub-package's Runner (Day 33); this wrapper preserves the
-// legacy *Kernel.VerifyCompletion public surface.
-func (k *Kernel) VerifyCompletion(ctx context.Context, corr, task, answer string) (assureapi.Verdict, error) {
-	return k.runner.VerifyCompletion(ctx, corr, task, answer)
-}
+// The RUN ENGINE's own operations live in the runner package's Runner, and
+// the daemon spells NONE of them (W3.76ab).
+//
+// The daemon used to hold six wrappers over the run engine's own body —
+// DescribeImages, MaybeDistill, MaybeForge, MaybeShadowEval,
+// VerifyCompletion and PublishHeuristicBypass — and the run engine asked the
+// HOST for them through its port, and the host asked the run engine back.
+// A port entry that is a round trip is a promise the host never had to keep,
+// and a wrapper nobody calls outside the daemon is a door to nowhere.
+//
+// The run engine now calls its own methods, and the daemon calls the module
+// where the module's body is (k.runner) — the host holds the run engine, so
+// the host names it, but the host does not ANSWER for it a second time.
+//
+// What stayed in the daemon is the HOST's own: the run's setup and cleanup
+// (SetupRunState, CleanupRunState), the publish helpers, and the doors that
+// the callers above use to start a run (Run, RunWith, RunWithRetry,
+// RunAssured) and to close its lifecycle (CompleteAgentLifecycle).
 
 // SetupRunState is the public surface of the per-run registration
 // logic. The Runner calls this in place of the inline runsMu +
@@ -139,17 +117,6 @@ func (k *Kernel) PublishIntentInterpreted(corr, actor string, frame intentmodel.
 // in context_selection.go.
 func (k *Kernel) PublishContextFailureAnalysis(corr, actor string, runErr error) {
 	k.publishContextFailureAnalysis(corr, actor, runErr)
-}
-
-// PublishHeuristicBypass journals the deterministic-lookup hit
-// (what-time-is-it / today's-date) so the run's timeline still
-// shows the task, the bypass, and the canned answer. The body
-// lives in the runner package's Runner (Day 33); this wrapper
-// preserves the *Kernel-side access for non-Runner callers and
-// keeps the KernelAPI contract coherent with the other publish*
-// entries.
-func (k *Kernel) PublishHeuristicBypass(ctx context.Context, corr, actor, intent, answer string) error {
-	return k.runner.PublishHeuristicBypass(ctx, corr, actor, intent, answer)
 }
 
 // PublishBus is the single chokepoint the lifecycle sub-package uses

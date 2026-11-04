@@ -8,7 +8,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
-	"github.com/agezt/agezt/kernel/contract/assureapi"
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/contract/memoryapi"
@@ -82,20 +81,20 @@ type KernelAPI interface {
 	Catalog() *catalogapi.Catalog
 	PublishIntentInterpreted(corr, actor string, frame intent.Frame)
 	PublishContextFailureAnalysis(corr, actor string, err error)
-	PublishHeuristicBypass(ctx context.Context, corr, actor, intent, answer string) error
-	CompleteAgentLifecycle(ctx context.Context, corr string)
-	MaybeDistill(ctx context.Context, corr, intent, answer string)
-	MaybeForge(ctx context.Context, corr, intent, answer string)
-	MaybeShadowEval(ctx context.Context, corr, intent, answer string)
 	BuildLoopConfig(ctx context.Context, corr, model string) agent.LoopConfig
 
-	// Day 22 entry points. Day 23 will move the body of RunWith
-	// into Runner; for now the Runner just delegates back so the
-	// public surface is consistent.
-	RunWith(ctx context.Context, corr, intent string) (string, error)
-	RunWithRetry(ctx context.Context, corr, intent string, pol agentapi.RetryPolicy) (string, error)
+	// The run engine's OWN operations are not in this port (W3.76ab).
+	//
+	// PublishHeuristicBypass, MaybeDistill, MaybeForge, MaybeShadowEval,
+	// RunWith, RunWithRetry and CompleteAgentLifecycle used to sit here, and
+	// the run engine asked the HOST for them — and the host asked the run
+	// engine back. A port entry that is a round trip is a promise the host
+	// never had to keep: the module has the body, so the module calls it.
+	//
+	// What stayed in the port is what the HOST owns: the run's setup and
+	// cleanup, the prompt, the loop configuration, the resume handshake, the
+	// retry policy and the host's own state.
 	NewCorrelation() string
-	VerifyCompletion(ctx context.Context, corr, task, answer string) (assureapi.Verdict, error)
 	ClaimResumeTicket(ctx context.Context, corr, intent, kind string, assureBudget int) (context.Context, bool)
 	FinalizeResumeTicket(corr string, runErr error)
 	RetryReason(err error) string

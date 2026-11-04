@@ -25,7 +25,7 @@ import (
 func (r *Runner) RunWithRetry(ctx context.Context, corr, intent string, pol agentapi.RetryPolicy) (string, error) {
 	max := pol.MaxAttempts
 	if max <= 1 {
-		return r.k.RunWith(ctx, corr, intent)
+		return r.RunWith(ctx, corr, intent)
 	}
 	if max > 10 {
 		max = 10
@@ -44,7 +44,7 @@ func (r *Runner) RunWithRetry(ctx context.Context, corr, intent string, pol agen
 	}
 	var lastErr error
 	for attempt := 1; attempt <= max; attempt++ {
-		ans, err = r.k.RunWith(ctx, corr, intent)
+		ans, err = r.RunWith(ctx, corr, intent)
 		if err == nil {
 			return ans, nil
 		}

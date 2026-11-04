@@ -42,7 +42,7 @@ func (k *Kernel) AdmitImages(ctx context.Context, corr, model, intent string, im
 			return admission, nil
 		}
 	}
-	caption, err := k.DescribeImages(ctx, corr, images, "")
+	caption, err := k.runner.DescribeImages(ctx, corr, images, "")
 	if err == nil && strings.TrimSpace(caption) != "" {
 		admission.Caption = caption
 		admission.Intent += "\n\n[Image description (analyzed by a vision model):\n" + caption + "\n]"

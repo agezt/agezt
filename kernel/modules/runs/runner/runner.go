@@ -8,6 +8,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
@@ -92,6 +93,13 @@ func (r *Runner) Run(ctx context.Context, intent string) (string, string, error)
 // delegates so callers targeting the new surface compile
 // unchanged.
 func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, error) {
+	// A run without a correlation id cannot be steered, observed or
+	// resumed, so the run engine refuses it here — at the implementation.
+	// The daemon's own door checks it too (the host's door for the callers
+	// above), and the run engine no longer asks the host for this.
+	if corr == "" {
+		return "", errors.New("runner: correlation id required")
+	}
 	runCtx, cancel, steer, err := r.k.SetupRunState(corr, ctx)
 	if err != nil {
 		return "", err
@@ -135,10 +143,10 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 
 	if !r.k.DisableHeuristicBypass(runCtx) {
 		if answer, ok := deterministicHeuristicBypass(intent, time.Now()); ok {
-			if err := r.k.PublishHeuristicBypass(runCtx, corr, actor, intent, answer); err != nil {
+			if err := r.PublishHeuristicBypass(runCtx, corr, actor, intent, answer); err != nil {
 				return "", err
 			}
-			r.k.CompleteAgentLifecycle(runCtx, corr)
+			r.CompleteAgentLifecycle(runCtx, corr)
 			return answer, nil
 		}
 	}
@@ -223,17 +231,17 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 
 	// Auto-distillation: after a multi-tool run, extract durable facts.
 	if r.k.MemoryDistill() && !systemAgent {
-		r.k.MaybeDistill(runCtx, corr, intent, answer)
+		r.MaybeDistill(runCtx, corr, intent, answer)
 	}
 	// Forge proposal: propose a DRAFT skill.
 	if r.k.SkillForge() && !systemAgent {
-		r.k.MaybeForge(runCtx, corr, intent, answer)
+		r.MaybeForge(runCtx, corr, intent, answer)
 	}
 	// Shadow-evaluate relevant shadow skills.
 	if r.k.ShadowEval() && !systemAgent && r.k.Forge() != nil {
-		r.k.MaybeShadowEval(runCtx, corr, intent, answer)
+		r.MaybeShadowEval(runCtx, corr, intent, answer)
 	}
-	r.k.CompleteAgentLifecycle(runCtx, corr)
+	r.CompleteAgentLifecycle(runCtx, corr)
 	return answer, nil
 }
 

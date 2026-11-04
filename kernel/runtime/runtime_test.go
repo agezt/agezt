@@ -542,10 +542,14 @@ func TestKernel_Model_LiveSwap(t *testing.T) {
 	}
 }
 
-// TestKernel_DescribeImages_RoutesToVisionModel (M821) — the vision sidecar
+// TestKernel_AdmitImages_RoutesToVisionModel (M821) — the vision sidecar
 // sends the images to the injected vision model and returns its description; the
 // request carries the images and is routed to the vision model id.
-func TestKernel_DescribeImages_RoutesToVisionModel(t *testing.T) {
+//
+// The sidecar is the RUN ENGINE's operation (W3.76ab), so the daemon does
+// not spell it any more: the image admission — the host's own door for every
+// image ingress adapter — asks the module, and this test asks the door.
+func TestKernel_AdmitImages_RoutesToVisionModel(t *testing.T) {
 	prov := mock.New()
 	var gotModel string
 	var gotImages []string
@@ -570,12 +574,12 @@ func TestKernel_DescribeImages_RoutesToVisionModel(t *testing.T) {
 	}
 	defer k.Close()
 
-	caption, err := k.DescribeImages(context.Background(), "corr-vis", []string{"data:image/png;base64,AAAA"}, "")
+	admission, err := k.AdmitImages(context.Background(), "corr-vis", "text-only-model", "describe", []string{"data:image/png;base64,AAAA"})
 	if err != nil {
-		t.Fatalf("DescribeImages: %v", err)
+		t.Fatalf("AdmitImages: %v", err)
 	}
-	if caption != "a photo of a cat on a sofa" {
-		t.Errorf("caption = %q", caption)
+	if admission.Caption != "a photo of a cat on a sofa" {
+		t.Errorf("caption = %q", admission.Caption)
 	}
 	if gotModel != "vision-model" {
 		t.Errorf("request model = %q, want vision-model (not the text-only default)", gotModel)
@@ -585,9 +589,11 @@ func TestKernel_DescribeImages_RoutesToVisionModel(t *testing.T) {
 	}
 }
 
-// TestKernel_DescribeImages_NoVisionModel — with no vision model configured the
-// sidecar reports ErrNoVisionModel so the caller can fall back to a clear error.
-func TestKernel_DescribeImages_NoVisionModel(t *testing.T) {
+// TestKernel_AdmitImages_NoVisionModel — with no vision model configured the
+// sidecar cannot caption, so the admission REJECTS the images with a clear
+// error and a correlated capability-rejected record. The run keeps the refs
+// it cannot caption, and the caller learns why.
+func TestKernel_AdmitImages_NoVisionModel(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(mock.FinalText("x")),
@@ -599,8 +605,19 @@ func TestKernel_DescribeImages_NoVisionModel(t *testing.T) {
 	}
 	defer k.Close()
 
-	if _, err := k.DescribeImages(context.Background(), "c", []string{"data:image/png;base64,AAAA"}, ""); !errors.Is(err, runtime.ErrNoVisionModel) {
-		t.Fatalf("err = %v, want ErrNoVisionModel", err)
+	images := []string{"data:image/png;base64,AAAA"}
+	admission, err := k.AdmitImages(context.Background(), "c", "text-only-model", "describe", images)
+	if err == nil {
+		t.Fatal("the admission accepted images with no vision model")
+	}
+	if !strings.Contains(err.Error(), "does not support vision") {
+		t.Errorf("err = %v, want the missing-vision-capability error", err)
+	}
+	if admission.Caption != "" {
+		t.Errorf("caption = %q, want none (no vision model)", admission.Caption)
+	}
+	if len(admission.Images) != 1 {
+		t.Errorf("images = %d, want 1 (the run keeps the refs it cannot caption)", len(admission.Images))
 	}
 }
 

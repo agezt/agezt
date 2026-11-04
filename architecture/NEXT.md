@@ -14345,3 +14345,89 @@ func main() {
   is a path move (four production importers), not a lifecycle one.
   Evidence:
   `architecture/300-w376aa-the-run-lifecycles-names-move-into-the-runs-module-evidence.md`
+- W3.76ab (the run engine's self-round-trip promises die) is the
+  **thirty-sixth** slice of the runtime's dissolution.
+
+  The **run engine** is the runs module's: `kernel/modules/runs/runner` holds
+  the run's body — the loop, the post-run distill and forge, the shadow
+  judgement, the completion verification and the vision sidecar — and the
+  daemon **holds** it (the host builds the engine while opening itself),
+  which is right: the host may name the module. What the host must not do is
+  **answer for the engine a second time**.
+
+  The daemon carried six **wrappers** over the module's own body —
+  `DescribeImages`, `MaybeDistill`, `MaybeForge`, `MaybeShadowEval`,
+  `VerifyCompletion`, `PublishHeuristicBypass` — each one a forwarding copy
+  (`k.MaybeDistill(…)` was `k.runner.MaybeDistill(…)` and nothing else), and
+  **nobody outside the daemon called them**.
+
+  What made them a copy rather than a door was the **direction**: the run
+  engine asked the **host** for them through its `KernelAPI` port, and the
+  host asked the engine back.
+
+      r.k.MaybeDistill(runCtx, corr, intent, answer)      // the engine asks the host
+          → k.MaybeDistill(ctx, corr, intent, answer)     // the host answers
+              → k.runner.MaybeDistill(ctx, corr, …)       // the host asks the engine back
+
+  **A port entry that is a round trip is a promise the host never had to
+  keep.** The module has the body; the module calls it.
+
+  The port carried **eight** entries of the run engine's own operations — the
+  six above plus `RunWith`, `RunWithRetry` and `CompleteAgentLifecycle`; and
+  `VerifyCompletion` was a promise nobody opened. The run engine's host port
+  carries **37 entries** now (it carried 45). What stayed is what the **host**
+  owns: the run's setup and cleanup, the prompt, the loop configuration, the
+  resume handshake, the retry policy and the host's own state.
+
+  The daemon still **names** the engine where it needs it — the image
+  admission asks the module for the vision sidecar, the workboard's proof asks
+  the module for the verification — because naming the module is the host's
+  business and answering for it twice is not. And the host's own doors stayed:
+  `Run`, `RunWith`, `RunWithRetry`, `RunAssured` and `CompleteAgentLifecycle`
+  are how the callers above start and close a run.
+
+  One guard moved with the body: the daemon's `RunWith` rejected an empty
+  correlation id, and the engine's own `RunWith` now does too — the check
+  belongs with the implementation once the host's copy is gone.
+
+  The measurement: the daemon's public verbs **135 → 129**, its production
+  lines **5,648 → 5,622** (the wrappers' bodies and their account left
+  together), its files **55 → 55**; the app packages that name the daemon stay
+  at **forty**; the run engine's host port **45 → 37** entries — the first
+  time a slice took a **port** down rather than a verb, and the port is the W3
+  exit criterion's real weight.
+
+  Two **new** ratchets: the daemon's (`kernel/runtime/runner_engine_ratchet_test.go`)
+  pins that the daemon holds no verb per run engine operation and does not
+  grow a wrapper for one; the module's
+  (`kernel/modules/runs/runner/selfcall_ratchet_test.go`) pins that the port
+  carries none of the run engine's own operations (the check looks at the
+  **declaration**, so the file's own history stays out of the ratchet) and
+  that the engine's production files do not ask the host for them. The
+  daemon's own surface ceiling followed the floor again: **135 → 129** (220 →
+  201 → 194 → 179 → 173 → 166 → 164 → 156 → 152 → 148 → 143 → 135 → 129).
+
+  **The probe** put the daemon's `MaybeDistill` wrapper back, put the port
+  entry back and had the engine ask the host for it again: the retired-verb
+  ratchet, the surface ceiling (130 > 129), the daemon's two run-engine
+  ratchets **and** the module's two port ratchets all went red at once —
+  **five** ratchets in one shot; the probe was reverted and the suites went
+  green again.
+
+  The daemon's vision tests now go through the host's own door
+  (`AdmitImages`) instead of the wrapper that is gone.
+
+  **What is left**: the daemon holds **129** public verbs and **5,622**
+  production lines; **forty** application packages still name it; the run
+  engine's host port still carries **37** entries. The next block is the
+  **host's own run doors** — `Run`, `RunWith`, `RunWithRetry`, `RunAssured`,
+  `CompleteAgentLifecycle` — the seam where the daemon's public surface and
+  the run engine's port meet, and the largest thing left in the daemon's run
+  family. The **standing package** itself still lives at `kernel/standing`,
+  and its **eventual** home is the **triggers module**
+  (`kernel/modules/triggers`) — the architecture gate already places both
+  `kernel/cadence` and `kernel/standing` in that module, so the family's
+  boundary is drawn; the module's directory does not exist yet, and the move
+  is a path move (four production importers), not a lifecycle one.
+  Evidence:
+  `architecture/301-w376ab-the-run-engines-self-round-trip-promises-die-evidence.md`
