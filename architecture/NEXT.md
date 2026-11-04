@@ -14431,3 +14431,86 @@ func main() {
   is a path move (four production importers), not a lifecycle one.
   Evidence:
   `architecture/301-w376ab-the-run-engines-self-round-trip-promises-die-evidence.md`
+- W3.76ac (the host's run doors move into the run engine's face) is the
+  **thirty-seventh** slice of the runtime's dissolution.
+
+  The **run engine** is the runs module's, and W3.76ab left the daemon with the
+  **host's own run doors** — `Run`, `RunWith`, `RunWithRetry`, `RunAssured` and
+  `CompleteAgentLifecycle`. They were the same second spelling one slice later:
+  the engine already answered `RunWith`, `RunWithRetry`, `RunAssured` and
+  `CompleteAgentLifecycle` in exactly those names, and `Run` (which minted a
+  correlation and ran) had **no production caller at all** — only the tests.
+
+  The daemon holds the module's **FACE** now:
+
+      func (k *Kernel) RunnerService() api.RunnerService { return k.runner }
+
+  The port lives in the runs module's own api package
+  (`kernel/modules/runs/api/runner.go` — `api.RunnerService`: `RunWith`,
+  `RunWithRetry`, `RunAssured`, `CompleteAgentLifecycle`), and the engine says
+  it **is** that port (`var _ api.RunnerService = (*Runner)(nil)`), so the face
+  and the body cannot drift apart.
+
+  Every caller above asks the module now: the **runs application** (the launch,
+  the retry launch and the assured loop), the **loop runner**, the **child
+  lifecycle's close**, the **self-repair wake** and the **command** (the
+  cadence, the channels, the standing runner, the OpenAI adaptör).
+
+  What stayed with the host is the run's **identity**: the correlation id a run
+  carries is still minted at the host's own door (`NewCorrelation`), because the
+  name of a run is the host's vocabulary — the same rule W3.76aa wrote down for
+  the run lifecycle.
+
+  The control plane's guard learned the new verb: `RunnerService` joined the
+  **runs** family, and the daemon's own `RunAssured` left it — the loop is the
+  module's now, and the daemon answers `RunnerService`.
+
+  The measurement: the daemon's public verbs **129 → 125**, its production
+  lines **5,622 → 5,579** (the doors' bodies and their account left together),
+  its files **55 → 55**; the app packages that name the daemon stay at
+  **forty**; the runs module's api package **2 files / 86 lines → 3 files /
+  122 lines** (the new port), the run engine's package **917 → 922**, and the
+  run engine's host port stays at **37** entries — W3.76ab already took the
+  engine's own operations out of it, and what stayed is what the **host** owns.
+
+  Three **new** ratchets: the daemon's
+  (`kernel/runtime/run_door_ratchet_test.go`) pins that the daemon holds no
+  verb per run engine operation, that it **keeps** the face, that its production
+  files declare no door and that its runner file says where the engine's
+  operations live; the module's
+  (`kernel/modules/runs/runner/runner_face_ratchet_test.go`) pins that the
+  port carries the engine's four operations **and nothing else** and that the
+  engine carries the port's evidence; the application's
+  (`kernel/app/runs/binding_ratchet_test.go`) pins that the port asks the
+  **face** and not a verb of the daemon's — the verb names are the same on
+  both sides, so the ratchet looks at the **shape**. The daemon's own surface
+  ceiling followed the floor again: **129 → 125** (220 → 201 → 194 → 179 → 173
+  → 166 → 164 → 156 → 152 → 148 → 143 → 135 → 129 → 125).
+
+  **The probe** put the daemon's `RunWith` back, had the application call the
+  daemon's door directly, put an operation the engine does not own into the
+  port and took the port's evidence away: the retired-verb ratchet, the
+  surface ceiling (126 > 125), the daemon's two run-door ratchets, the
+  application's binding ratchet and the module's two face ratchets all went
+  red at once — **seven** ratchets in one shot; the probe was reverted and the
+  suites went green again.
+
+  The daemon's `Run` door is gone, and its **tests** were its only callers: the
+  two test packages that used it (`runtime_test` and `controlplane_test`) now
+  mint the correlation id at the host's own door and run through the face
+  (`runForTest`).
+
+  **What is left**: the daemon holds **125** public verbs and **5,579**
+  production lines; **forty** application packages still name it; the run
+  engine's host port still carries **37** entries. What is left in the daemon's
+  run family is the run's **own machinery** rather than its verbs —
+  `runtime_lifecycle.go`'s living verbs, the plan runner, the resume handshake
+  and the prompt doors: the surface a run touches on its way through the host.
+  The **standing package** itself still lives at `kernel/standing`,
+  and its **eventual** home is the **triggers module**
+  (`kernel/modules/triggers`) — the architecture gate already places both
+  `kernel/cadence` and `kernel/standing` in that module, so the family's
+  boundary is drawn; the module's directory does not exist yet, and the move
+  is a path move (four production importers), not a lifecycle one.
+  Evidence:
+  `architecture/302-w376ac-the-hosts-run-doors-move-into-the-run-engines-face-evidence.md`
