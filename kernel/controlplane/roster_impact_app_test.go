@@ -56,7 +56,7 @@ func TestAgentImpactTombstoneNativeWire(t *testing.T) {
 	}
 	defer k.Close()
 	for _, p := range []roster.Profile{{Slug: "lead", Soul: "s"}, {Slug: "child", Soul: "s", ParentAgent: "lead"}} {
-		if _, err := k.AddProfile(p); err != nil {
+		if _, err := k.RosterService().Add(p); err != nil {
 			t.Fatal(err)
 		}
 	}

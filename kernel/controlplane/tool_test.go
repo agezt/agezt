@@ -176,7 +176,7 @@ func TestAgentPermissions_ReturnsEffectiveToolPolicy(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { k.Close() })
-	if _, err := k.AddProfile(roster.Profile{
+	if _, err := k.RosterService().Add(roster.Profile{
 		Slug:         "guarded",
 		ToolAllow:    []string{"alpha"},
 		ToolDeny:     []string{"beta"},
@@ -185,7 +185,7 @@ func TestAgentPermissions_ReturnsEffectiveToolPolicy(t *testing.T) {
 		t.Fatalf("AddProfile: %v", err)
 	}
 	directFalse := false
-	if _, err := k.AddProfile(roster.Profile{
+	if _, err := k.RosterService().Add(roster.Profile{
 		Slug:           "worker",
 		ParentAgent:    "guarded",
 		DirectCallable: &directFalse,
@@ -338,7 +338,7 @@ func TestAgentCapabilities_PatchesResourceAuthority(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { k.Close() })
-	if _, err := k.AddProfile(roster.Profile{Slug: "builder"}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "builder"}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
 	srv := controlplane.NewServer(binding.ScopeFromKernel(k, dir))

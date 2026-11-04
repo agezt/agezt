@@ -317,7 +317,7 @@ func TestRunAnswerStaysBareWhenTheFoldIsUnknown(t *testing.T) {
 // the caller overrides it.
 func TestRunResolveUsesTheAgentsModel(t *testing.T) {
 	k := runKernel(t)
-	if _, err := k.AddProfile(roster.Profile{Slug: "modeled", Model: "agent-model"}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "modeled", Model: "agent-model"}); err != nil {
 		t.Fatal(err)
 	}
 	service := NewRunService(RunPortsFromKernel(k))
@@ -394,7 +394,7 @@ func TestRunDryRunReportsTheModelOverride(t *testing.T) {
 // profile applies to a direct run too — an explicit argument still wins.
 func TestRunResolveUsesTheAgentsExecutionProfile(t *testing.T) {
 	k := runKernel(t)
-	if _, err := k.AddProfile(roster.Profile{Slug: "ssh-agent", ExecutionProfile: "ssh"}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "ssh-agent", ExecutionProfile: "ssh"}); err != nil {
 		t.Fatal(err)
 	}
 	service := NewRunService(RunPortsFromKernel(k))
@@ -419,7 +419,7 @@ func TestRunResolveUsesTheAgentsExecutionProfile(t *testing.T) {
 func TestRunResolveRejectsAManagedSubAgent(t *testing.T) {
 	k := runKernel(t)
 	no := false
-	if _, err := k.AddProfile(roster.Profile{
+	if _, err := k.RosterService().Add(roster.Profile{
 		Slug:           "worker",
 		ParentAgent:    "lead",
 		DirectCallable: &no,
@@ -443,10 +443,10 @@ func TestRunResolveRejectsAManagedSubAgent(t *testing.T) {
 // now is a usage error, not a silent run as the default identity.
 func TestRunResolveRejectsARetiredOrPausedAgent(t *testing.T) {
 	k := runKernel(t)
-	if _, err := k.AddProfile(roster.Profile{Slug: "retired-one", Retired: true}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "retired-one", Retired: true}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := k.AddProfile(roster.Profile{Slug: "paused-one"}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "paused-one"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := k.Roster().SetEnabled("paused-one", false); err != nil {

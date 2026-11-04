@@ -46,7 +46,7 @@ func TestBuildResumer_QuarantinesUnsafeProfileTickets(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { k.Close() })
-			if _, err := k.AddProfile(roster.Profile{Slug: "ops", Soul: "ops soul", Model: "ops-model"}); err != nil {
+			if _, err := k.RosterService().Add(roster.Profile{Slug: "ops", Soul: "ops soul", Model: "ops-model"}); err != nil {
 				t.Fatal(err)
 			}
 			ticket := &resume.Ticket{Corr: "unsafe", AgentSlug: "ops", Intent: "task", Kind: resume.KindRun, Resumable: true, Status: resume.StatusSuspended}
@@ -107,7 +107,7 @@ func TestBuildResumer_ProfileRunSurvivesRestart(t *testing.T) {
 			if kind != "soul" {
 				profile.Model = "agent-model"
 			}
-			profile, err = k.AddProfile(profile)
+			profile, err = k.RosterService().Add(profile)
 			if err != nil {
 				t.Fatal(err)
 			}

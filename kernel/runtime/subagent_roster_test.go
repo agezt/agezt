@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
+	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/modules/runs/runctx"
@@ -36,7 +37,7 @@ func TestDelegate_AsNamedAgent(t *testing.T) {
 	prov.OnRequest = func(req llm.CompletionRequest) { reqs = append(reqs, req) }
 	k := openSubAgentKernel(t, prov, 1)
 
-	if _, err := k.AddProfile(roster.Profile{
+	if _, err := k.RosterService().Add(roster.Profile{
 		Slug:         "researcher",
 		Soul:         "You are Researcher. Cite sources.",
 		Model:        "agent-model",
@@ -126,7 +127,7 @@ func TestDelegate_NamedAgentToolPolicyFiltersChildTools(t *testing.T) {
 	prov.OnRequest = func(req llm.CompletionRequest) { reqs = append(reqs, req) }
 	k := openSubAgentKernel(t, prov, 1)
 
-	if _, err := k.AddProfile(roster.Profile{
+	if _, err := k.RosterService().Add(roster.Profile{
 		Slug:     "worker",
 		Soul:     "Restricted worker.",
 		Model:    "worker-model",
@@ -178,7 +179,7 @@ func TestDelegate_NamedAgentNoiseNotifyCompletesCooldown(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, err := k.AddProfile(roster.Profile{
+	if _, err := k.RosterService().Add(roster.Profile{
 		Slug:  "worker",
 		Model: "worker-model",
 		NoisePolicy: &roster.NoisePolicy{
@@ -212,7 +213,7 @@ func TestDelegate_NamedAgentCycleLifecycleCompletes(t *testing.T) {
 		mock.FinalText("lead done"),
 	)
 	k := openSubAgentKernel(t, prov, 1)
-	if _, err := k.AddProfile(roster.Profile{
+	if _, err := k.RosterService().Add(roster.Profile{
 		Slug:      "worker",
 		Lifecycle: roster.AgentLifecycle{Mode: roster.LifecycleCycle, MaxCycles: 1},
 		TaskList: []roster.AgentTask{
@@ -256,12 +257,12 @@ func TestDelegate_ManagedSubAgentRequiresParent(t *testing.T) {
 		mock.FinalText("lead done"),
 	)
 	k := openSubAgentKernel(t, prov, 1)
-	if _, err := k.AddProfile(roster.Profile{
+	if _, err := k.RosterService().Add(roster.Profile{
 		Slug: "lead", Soul: "Lead the workers.",
 	}); err != nil {
 		t.Fatalf("AddProfile lead: %v", err)
 	}
-	if _, err := k.AddProfile(roster.Profile{
+	if _, err := k.RosterService().Add(roster.Profile{
 		Slug: "worker", Soul: "Do worker tasks.", ParentAgent: "lead", DirectCallable: &directFalse,
 	}); err != nil {
 		t.Fatalf("AddProfile worker: %v", err)
@@ -281,10 +282,10 @@ func TestDelegate_ManagedSubAgentRequiresParent(t *testing.T) {
 		mock.FinalText("other done"),
 	)
 	k2 := openSubAgentKernel(t, prov2, 1)
-	if _, err := k2.AddProfile(roster.Profile{Slug: "lead"}); err != nil {
+	if _, err := k2.RosterService().Add(roster.Profile{Slug: "lead"}); err != nil {
 		t.Fatalf("AddProfile lead k2: %v", err)
 	}
-	if _, err := k2.AddProfile(roster.Profile{
+	if _, err := k2.RosterService().Add(roster.Profile{
 		Slug: "worker", ParentAgent: "lead", DirectCallable: &directFalse,
 	}); err != nil {
 		t.Fatalf("AddProfile worker k2: %v", err)
@@ -309,12 +310,12 @@ func TestDelegate_ManagedSubAgentAllowsOwner(t *testing.T) {
 		mock.FinalText("owner done"),
 	)
 	k := openSubAgentKernel(t, prov, 1)
-	if _, err := k.AddProfile(roster.Profile{
+	if _, err := k.RosterService().Add(roster.Profile{
 		Slug: "owner", Soul: "Own the workers.",
 	}); err != nil {
 		t.Fatalf("AddProfile owner: %v", err)
 	}
-	if _, err := k.AddProfile(roster.Profile{
+	if _, err := k.RosterService().Add(roster.Profile{
 		Slug: "worker", Soul: "Do worker tasks.", OwnerAgent: "owner", DirectCallable: &directFalse,
 	}); err != nil {
 		t.Fatalf("AddProfile worker: %v", err)
@@ -334,10 +335,10 @@ func TestDelegate_ManagedSubAgentAllowsOwner(t *testing.T) {
 		mock.FinalText("other done"),
 	)
 	k2 := openSubAgentKernel(t, prov2, 1)
-	if _, err := k2.AddProfile(roster.Profile{Slug: "owner"}); err != nil {
+	if _, err := k2.RosterService().Add(roster.Profile{Slug: "owner"}); err != nil {
 		t.Fatalf("AddProfile owner k2: %v", err)
 	}
-	if _, err := k2.AddProfile(roster.Profile{
+	if _, err := k2.RosterService().Add(roster.Profile{
 		Slug: "worker", OwnerAgent: "owner", DirectCallable: &directFalse,
 	}); err != nil {
 		t.Fatalf("AddProfile worker k2: %v", err)
@@ -363,7 +364,7 @@ func TestDelegate_ManagedSubAgentRequiresLiveParent(t *testing.T) {
 			name: "paused parent",
 			mutate: func(k *runtime.Kernel, t *testing.T) {
 				t.Helper()
-				if _, err := k.SetProfileEnabled("lead", false); err != nil {
+				if _, err := k.RosterService().SetEnabled("lead", false); err != nil {
 					t.Fatalf("pause lead: %v", err)
 				}
 			},
@@ -372,7 +373,7 @@ func TestDelegate_ManagedSubAgentRequiresLiveParent(t *testing.T) {
 			name: "retired parent",
 			mutate: func(k *runtime.Kernel, t *testing.T) {
 				t.Helper()
-				if _, err := k.SetProfileRetired("lead", true, "manager retired"); err != nil {
+				if _, err := k.RosterService().SetRetired("lead", true, "manager retired"); err != nil {
 					t.Fatalf("retire lead: %v", err)
 				}
 			},
@@ -385,10 +386,10 @@ func TestDelegate_ManagedSubAgentRequiresLiveParent(t *testing.T) {
 				mock.FinalText("lead done"),
 			)
 			k := openSubAgentKernel(t, prov, 1)
-			if _, err := k.AddProfile(roster.Profile{Slug: "lead", Soul: "Lead the workers."}); err != nil {
+			if _, err := k.RosterService().Add(roster.Profile{Slug: "lead", Soul: "Lead the workers."}); err != nil {
 				t.Fatalf("AddProfile lead: %v", err)
 			}
-			if _, err := k.AddProfile(roster.Profile{
+			if _, err := k.RosterService().Add(roster.Profile{
 				Slug: "worker", Soul: "Do worker tasks.", ParentAgent: "lead", DirectCallable: &directFalse,
 			}); err != nil {
 				t.Fatalf("AddProfile worker: %v", err)
@@ -418,7 +419,7 @@ func TestDelegate_ManagedSubAgentRequiresLiveOwner(t *testing.T) {
 			name: "paused owner",
 			mutate: func(k *runtime.Kernel, t *testing.T) {
 				t.Helper()
-				if _, err := k.SetProfileEnabled("owner", false); err != nil {
+				if _, err := k.RosterService().SetEnabled("owner", false); err != nil {
 					t.Fatalf("pause owner: %v", err)
 				}
 			},
@@ -427,7 +428,7 @@ func TestDelegate_ManagedSubAgentRequiresLiveOwner(t *testing.T) {
 			name: "retired owner",
 			mutate: func(k *runtime.Kernel, t *testing.T) {
 				t.Helper()
-				if _, err := k.SetProfileRetired("owner", true, "manager retired"); err != nil {
+				if _, err := k.RosterService().SetRetired("owner", true, "manager retired"); err != nil {
 					t.Fatalf("retire owner: %v", err)
 				}
 			},
@@ -440,10 +441,10 @@ func TestDelegate_ManagedSubAgentRequiresLiveOwner(t *testing.T) {
 				mock.FinalText("owner done"),
 			)
 			k := openSubAgentKernel(t, prov, 1)
-			if _, err := k.AddProfile(roster.Profile{Slug: "owner", Soul: "Own the workers."}); err != nil {
+			if _, err := k.RosterService().Add(roster.Profile{Slug: "owner", Soul: "Own the workers."}); err != nil {
 				t.Fatalf("AddProfile owner: %v", err)
 			}
-			if _, err := k.AddProfile(roster.Profile{
+			if _, err := k.RosterService().Add(roster.Profile{
 				Slug: "worker", Soul: "Do worker tasks.", OwnerAgent: "owner", DirectCallable: &directFalse,
 			}); err != nil {
 				t.Fatalf("AddProfile worker: %v", err)
@@ -493,7 +494,7 @@ func TestDelegate_AgentMemoryScopeFollowsChild(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("remember: %v", err)
 	}
-	if _, err := k.AddProfile(roster.Profile{Slug: "researcher"}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "researcher"}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
 
@@ -544,7 +545,7 @@ func TestDelegate_NamedAgentInjectsMemoryAndSkills(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, err := k.AddProfile(roster.Profile{Slug: "researcher"}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "researcher"}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
 	if _, _, err := k.Memory().Remember("seed", memory.RememberSpec{
@@ -599,7 +600,7 @@ func TestDelegate_AgentModelChainFollowsChild(t *testing.T) {
 		}
 	}
 	k := openSubAgentKernel(t, prov, 1)
-	if _, err := k.AddProfile(roster.Profile{
+	if _, err := k.RosterService().Add(roster.Profile{
 		Slug: "researcher", Model: "agent-model",
 		Fallbacks: []string{"agent-model", "backup-1"}, // dupe of primary must be skipped
 	}); err != nil {
@@ -632,7 +633,7 @@ func TestDelegate_AgentConfigOverrideModelFollowsChild(t *testing.T) {
 		}
 	}
 	k := openSubAgentKernel(t, prov, 1)
-	if _, err := k.AddProfile(roster.Profile{
+	if _, err := k.RosterService().Add(roster.Profile{
 		Slug: "researcher",
 		ConfigOverrides: map[string]string{
 			"AGEZT_MODEL": "override-model",
@@ -665,7 +666,7 @@ func TestDelegate_ExplicitModelWinsOverConfigOverride(t *testing.T) {
 	var models []string
 	prov.OnRequest = func(req llm.CompletionRequest) { models = append(models, req.Model) }
 	k := openSubAgentKernel(t, prov, 1)
-	if _, err := k.AddProfile(roster.Profile{
+	if _, err := k.RosterService().Add(roster.Profile{
 		Slug: "researcher",
 		ConfigOverrides: map[string]string{
 			"AGEZT_MODEL": "override-model",
@@ -701,7 +702,7 @@ func TestDelegate_ExplicitModelWinsOverProfile(t *testing.T) {
 	var models []string
 	prov.OnRequest = func(req llm.CompletionRequest) { models = append(models, req.Model) }
 	k := openSubAgentKernel(t, prov, 1)
-	if _, err := k.AddProfile(roster.Profile{Slug: "researcher", Model: "agent-model"}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "researcher", Model: "agent-model"}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
 	if _, _, err := k.Run(context.Background(), "lead task"); err != nil {
@@ -728,21 +729,15 @@ func TestDelegate_ExplicitModelWinsOverProfile(t *testing.T) {
 func TestDelegate_UnknownOrPausedAgentRefused(t *testing.T) {
 	cases := []struct {
 		name  string
-		setup func(t *testing.T, k interface {
-			AddProfile(roster.Profile) (roster.Profile, error)
-			SetProfileEnabled(string, bool) (roster.Profile, error)
-		})
+		setup func(t *testing.T, svc agentsapi.RosterService)
 	}{
 		{"unknown agent", nil},
-		{"paused agent", func(t *testing.T, k interface {
-			AddProfile(roster.Profile) (roster.Profile, error)
-			SetProfileEnabled(string, bool) (roster.Profile, error)
-		}) {
-			if _, err := k.AddProfile(roster.Profile{Slug: "ghost"}); err != nil {
-				t.Fatalf("AddProfile: %v", err)
+		{"paused agent", func(t *testing.T, svc agentsapi.RosterService) {
+			if _, err := svc.Add(roster.Profile{Slug: "ghost"}); err != nil {
+				t.Fatalf("Add: %v", err)
 			}
-			if _, err := k.SetProfileEnabled("ghost", false); err != nil {
-				t.Fatalf("SetProfileEnabled: %v", err)
+			if _, err := svc.SetEnabled("ghost", false); err != nil {
+				t.Fatalf("SetEnabled: %v", err)
 			}
 		}},
 	}
@@ -754,7 +749,7 @@ func TestDelegate_UnknownOrPausedAgentRefused(t *testing.T) {
 			)
 			k := openSubAgentKernel(t, prov, 1)
 			if tc.setup != nil {
-				tc.setup(t, k)
+				tc.setup(t, k.RosterService())
 			}
 			col := &collector{}
 			col.watch(k)

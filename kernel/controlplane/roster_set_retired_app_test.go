@@ -70,7 +70,7 @@ func TestAgentRetireReviveNativePorts(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	if _, err := k.AddProfile(roster.Profile{Slug: "lead", Soul: "s"}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "lead", Soul: "s"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := k.StandingService().AddStanding(standing.Order{Name: "watch", Triggers: []standing.Trigger{{Type: standing.TriggerEvent, Subject: "x.y"}}, Agent: "lead", Plan: "do"}); err != nil {

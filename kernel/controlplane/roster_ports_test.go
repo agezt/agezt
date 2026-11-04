@@ -28,7 +28,7 @@ func TestTheAdapterBindsTheRosterPortsToItsOwnKernel(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 	defer k.Close()
-	if _, err := k.AddProfile(roster.Profile{Slug: "lead", Enabled: true}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "lead", Enabled: true}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
 

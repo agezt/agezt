@@ -1340,7 +1340,7 @@ func configAgentListHas(values []string, slug string) bool {
 func TestAgentRemove_RejectsSystemAgents(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	if _, err := k.AddProfile(roster.Profile{
+	if _, err := k.RosterService().Add(roster.Profile{
 		Slug:    "guardian-health",
 		Name:    "Guardian Health",
 		Model:   "m",

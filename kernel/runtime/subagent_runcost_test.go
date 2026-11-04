@@ -30,7 +30,7 @@ func TestDelegate_NamedAgentPerRunCostCeilingEnforced(t *testing.T) {
 	)
 	k := openSpendKernel(t, prov, 0) // 0 = no tree-wide spend cap; the per-run ceiling is under test
 
-	if _, err := k.AddProfile(roster.Profile{
+	if _, err := k.RosterService().Add(roster.Profile{
 		Slug:      "spender",
 		MaxCostMc: 1000, // $0.000001-scale ceiling: any priced usage exceeds it
 	}); err != nil {

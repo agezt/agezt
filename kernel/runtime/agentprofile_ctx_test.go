@@ -266,7 +266,7 @@ func TestWithAgentProfile_RetireOnCompleteMovesAgentToGraveyard(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	p, err := k.AddProfile(roster.Profile{
+	p, err := k.RosterService().Add(roster.Profile{
 		Slug:      "one-shot",
 		Lifecycle: roster.AgentLifecycle{Mode: roster.LifecycleRetireOnComplete},
 	})
@@ -295,7 +295,7 @@ func TestWithAgentProfile_CycleLifecycleIncrementsAndRetiresAtMax(t *testing.T) 
 	}
 	t.Cleanup(func() { k.Close() })
 
-	p, err := k.AddProfile(roster.Profile{
+	p, err := k.RosterService().Add(roster.Profile{
 		Slug:      "cycler",
 		Lifecycle: roster.AgentLifecycle{Mode: roster.LifecycleCycle, MaxCycles: 2},
 		TaskList: []roster.AgentTask{
@@ -378,7 +378,7 @@ func TestCompleteAgentLifecycle_IdempotentPerCorrelation(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	p, err := k.AddProfile(roster.Profile{
+	p, err := k.RosterService().Add(roster.Profile{
 		Slug:      "cycler",
 		Lifecycle: roster.AgentLifecycle{Mode: roster.LifecycleCycle, MaxCycles: 3},
 	})
@@ -443,7 +443,7 @@ func TestWithAgentProfile_LifecycleDoesNotCompleteOnFailedRun(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	oneShot, err := k.AddProfile(roster.Profile{
+	oneShot, err := k.RosterService().Add(roster.Profile{
 		Slug:      "one-shot-failed",
 		Lifecycle: roster.AgentLifecycle{Mode: roster.LifecycleRetireOnComplete},
 	})
@@ -461,7 +461,7 @@ func TestWithAgentProfile_LifecycleDoesNotCompleteOnFailedRun(t *testing.T) {
 		t.Fatalf("failed one-shot run must not retire or pause the agent: %+v", got)
 	}
 
-	cycler, err := k.AddProfile(roster.Profile{
+	cycler, err := k.RosterService().Add(roster.Profile{
 		Slug:      "cycler-failed",
 		Lifecycle: roster.AgentLifecycle{Mode: roster.LifecycleCycle, MaxCycles: 2},
 	})

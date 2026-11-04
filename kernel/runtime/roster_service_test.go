@@ -11,7 +11,6 @@ package runtime_test
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
 	"testing"
 
@@ -50,7 +49,7 @@ func openWithRoster(t *testing.T, wire bool) (*runtime.Kernel, agentapi.Store) {
 func TestTheDaemonForwardsTheRosterWrites(t *testing.T) {
 	k, store := openWithRoster(t, true)
 
-	saved, err := k.AddProfile(agentapi.Profile{Slug: "worker"})
+	saved, err := k.RosterService().Add(agentapi.Profile{Slug: "worker"})
 	if err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
@@ -75,26 +74,16 @@ func TestTheDaemonForwardsTheRosterWrites(t *testing.T) {
 	}
 }
 
-// TestTheDaemonRefusesTheWritesWithoutAService: a host that handed over no
-// builder has no roster lifecycle. The refusal is the contract's row, and the
-// daemon's reads still answer "no agents" rather than panicking.
-func TestTheDaemonRefusesTheWritesWithoutAService(t *testing.T) {
+// TestTheDaemonHoldsNoFaceWithoutAService: a host that handed over no
+// builder has no roster lifecycle. The daemon holds NO FACE — the roster's
+// lifecycle is the agents module's (W3.76y), and the callers above refuse in
+// its place with the contract's row — and the daemon's reads still answer "no
+// agents" rather than panicking.
+func TestTheDaemonHoldsNoFaceWithoutAService(t *testing.T) {
 	k, _ := openWithRoster(t, false)
 
-	if _, err := k.AddProfile(agentapi.Profile{Slug: "worker"}); !errors.Is(err, agentapi.ErrNoRoster) {
-		t.Errorf("AddProfile error = %v, want %v", err, agentapi.ErrNoRoster)
-	}
-	if _, err := k.SetProfileEnabled("worker", false); !errors.Is(err, agentapi.ErrNoRoster) {
-		t.Errorf("SetProfileEnabled error = %v, want %v", err, agentapi.ErrNoRoster)
-	}
-	if _, err := k.SetProfileRetired("worker", true); !errors.Is(err, agentapi.ErrNoRoster) {
-		t.Errorf("SetProfileRetired error = %v, want %v", err, agentapi.ErrNoRoster)
-	}
-	if _, _, err := k.UpdateProfile("worker", func(p *agentapi.Profile) {}); !errors.Is(err, agentapi.ErrNoRoster) {
-		t.Errorf("UpdateProfile error = %v, want %v", err, agentapi.ErrNoRoster)
-	}
-	if _, err := k.RemoveProfile("worker"); !errors.Is(err, agentapi.ErrNoRoster) {
-		t.Errorf("RemoveProfile error = %v, want %v", err, agentapi.ErrNoRoster)
+	if k.RosterService() != nil {
+		t.Error("a kernel with no roster service must hold no face — the callers above refuse in its place")
 	}
 
 	// The READS are the host's nil-safe view over the contract's port: they
@@ -112,7 +101,7 @@ func TestTheDaemonRefusesTheWritesWithoutAService(t *testing.T) {
 func TestTheDaemonStillReadsTheRosterItself(t *testing.T) {
 	k, store := openWithRoster(t, true)
 
-	if _, err := k.AddProfile(agentapi.Profile{Slug: "worker"}); err != nil {
+	if _, err := k.RosterService().Add(agentapi.Profile{Slug: "worker"}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
 	got, ok := k.RosterGet("worker")
@@ -152,7 +141,7 @@ func TestTheDaemonStillAsksWhatDependsOnAnAgent(t *testing.T) {
 func TestTheRunEngineWritesTheRosterThroughTheModule(t *testing.T) {
 	k, store := openWithRoster(t, true)
 
-	if _, err := k.AddProfile(agentapi.Profile{
+	if _, err := k.RosterService().Add(agentapi.Profile{
 		Slug:      "worker",
 		Lifecycle: agentapi.AgentLifecycle{RetireOnComplete: true},
 	}); err != nil {

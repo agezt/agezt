@@ -64,10 +64,10 @@ func TestAgentPermissionsNativeRouting(t *testing.T) {
 	}
 	tk := entry.Kernel.(*runtime.Kernel)
 	tenantToken, _ := reg.Token("acme")
-	if _, err := k.AddProfile(roster.Profile{Slug: "builder"}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "builder"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tk.AddProfile(roster.Profile{Slug: "builder", TrustCeiling: "L1"}); err != nil {
+	if _, err := tk.RosterService().Add(roster.Profile{Slug: "builder", TrustCeiling: "L1"}); err != nil {
 		t.Fatal(err)
 	}
 	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{Tenants: reg})

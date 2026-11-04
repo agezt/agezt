@@ -709,7 +709,7 @@ func TestParseAutoRepairResolution_RejectsUnknownResolution(t *testing.T) {
 
 func TestApplyAutoRepairResolution_PausesAgent(t *testing.T) {
 	k := newAutoRepairKernel(t, mock.New(mock.FinalText("ok")))
-	if _, err := k.AddProfile(roster.Profile{Slug: "builder", Enabled: true, SelfRepairPolicy: &roster.SelfRepairPolicy{Enabled: true}}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "builder", Enabled: true, SelfRepairPolicy: &roster.SelfRepairPolicy{Enabled: true}}); err != nil {
 		t.Fatalf("add profile: %v", err)
 	}
 	coord := newAutoRepairCoordinator(time.Hour)
@@ -731,7 +731,7 @@ func TestApplyAutoRepairResolution_PausesAgent(t *testing.T) {
 
 func TestApplyAutoRepairResolution_RetiresAgent(t *testing.T) {
 	k := newAutoRepairKernel(t, mock.New(mock.FinalText("ok")))
-	if _, err := k.AddProfile(roster.Profile{Slug: "builder", Enabled: true, SelfRepairPolicy: &roster.SelfRepairPolicy{Enabled: true}}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "builder", Enabled: true, SelfRepairPolicy: &roster.SelfRepairPolicy{Enabled: true}}); err != nil {
 		t.Fatalf("add profile: %v", err)
 	}
 	coord := newAutoRepairCoordinator(time.Hour)
@@ -753,10 +753,10 @@ func TestApplyAutoRepairResolution_RetiresAgent(t *testing.T) {
 
 func TestApplyAutoRepairResolution_DelegatesViaMailbox(t *testing.T) {
 	k := newAutoRepairKernel(t, mock.New(mock.FinalText("ok")))
-	if _, err := k.AddProfile(roster.Profile{Slug: "builder", Enabled: true, SelfRepairPolicy: &roster.SelfRepairPolicy{Enabled: true}}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "builder", Enabled: true, SelfRepairPolicy: &roster.SelfRepairPolicy{Enabled: true}}); err != nil {
 		t.Fatalf("add builder: %v", err)
 	}
-	if _, err := k.AddProfile(roster.Profile{Slug: "infra-lead", Enabled: true}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "infra-lead", Enabled: true}); err != nil {
 		t.Fatalf("add infra-lead: %v", err)
 	}
 	coord := newAutoRepairCoordinator(time.Hour)
@@ -934,10 +934,10 @@ func TestApplyAutoRepairResolution_ExhaustedRoutingRejectsSameForcedChain(t *tes
 
 func TestApplyAutoRepairResolution_DelegationCarriesIncidentTreeIDs(t *testing.T) {
 	k := newAutoRepairKernel(t, mock.New(mock.FinalText("ok")))
-	if _, err := k.AddProfile(roster.Profile{Slug: "builder", Enabled: true, SelfRepairPolicy: &roster.SelfRepairPolicy{Enabled: true}}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "builder", Enabled: true, SelfRepairPolicy: &roster.SelfRepairPolicy{Enabled: true}}); err != nil {
 		t.Fatalf("add builder: %v", err)
 	}
-	if _, err := k.AddProfile(roster.Profile{Slug: "infra-lead", Enabled: true}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "infra-lead", Enabled: true}); err != nil {
 		t.Fatalf("add infra-lead: %v", err)
 	}
 	coord := newAutoRepairCoordinator(time.Hour)
@@ -994,13 +994,13 @@ func TestApplyAutoRepairResolution_DelegationCarriesIncidentTreeIDs(t *testing.T
 
 func TestApplyAutoRepairResolution_DelegationFailureIsJournaled(t *testing.T) {
 	k := newAutoRepairKernel(t, mock.New(mock.FinalText("ok")))
-	if _, err := k.AddProfile(roster.Profile{Slug: "builder", Enabled: true, SelfRepairPolicy: &roster.SelfRepairPolicy{Enabled: true}}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "builder", Enabled: true, SelfRepairPolicy: &roster.SelfRepairPolicy{Enabled: true}}); err != nil {
 		t.Fatalf("add builder: %v", err)
 	}
-	if _, err := k.AddProfile(roster.Profile{Slug: "infra-lead"}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "infra-lead"}); err != nil {
 		t.Fatalf("add infra-lead: %v", err)
 	}
-	if _, err := k.SetProfileEnabled("infra-lead", false); err != nil {
+	if _, err := k.RosterService().SetEnabled("infra-lead", false); err != nil {
 		t.Fatalf("pause infra-lead: %v", err)
 	}
 	coord := newAutoRepairCoordinator(time.Hour)

@@ -237,7 +237,7 @@ func TestRunScheduledTrackedTargetCompletesAgentLifecycle(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	p, err := k.AddProfile(roster.Profile{
+	p, err := k.RosterService().Add(roster.Profile{
 		Slug:      "cycler",
 		Lifecycle: roster.AgentLifecycle{Mode: roster.LifecycleCycle, MaxCycles: 2},
 		TaskList:  []roster.AgentTask{{Title: "cycle check", Scope: "cycle", Status: "done"}},
@@ -277,7 +277,7 @@ func TestRunScheduledTrackedTargetDoesNotCompleteLifecycleOnFailure(t *testing.T
 	}
 	t.Cleanup(func() { k.Close() })
 
-	p, err := k.AddProfile(roster.Profile{
+	p, err := k.RosterService().Add(roster.Profile{
 		Slug:      "cycler-failed",
 		Lifecycle: roster.AgentLifecycle{Mode: roster.LifecycleCycle, MaxCycles: 2},
 	})
@@ -316,7 +316,7 @@ func TestRunScheduledTrackedTargetHonorsAgentToolPolicy(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	p, err := k.AddProfile(roster.Profile{
+	p, err := k.RosterService().Add(roster.Profile{
 		Slug:     "locked",
 		ToolDeny: []string{"probe"},
 	})

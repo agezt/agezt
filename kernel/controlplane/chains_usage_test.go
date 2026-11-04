@@ -39,13 +39,13 @@ func TestChainsGet_Usage(t *testing.T) {
 
 	// Two agents reference @fast (one as model, one as a fallback); one agent
 	// references a deleted chain @gone.
-	if _, err := k.AddProfile(roster.Profile{Slug: "researcher", Model: "@fast"}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "researcher", Model: "@fast"}); err != nil {
 		t.Fatalf("AddProfile researcher: %v", err)
 	}
-	if _, err := k.AddProfile(roster.Profile{Slug: "coder", Model: "real-model", Fallbacks: []string{"@fast"}}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "coder", Model: "real-model", Fallbacks: []string{"@fast"}}); err != nil {
 		t.Fatalf("AddProfile coder: %v", err)
 	}
-	if _, err := k.AddProfile(roster.Profile{Slug: "ghost", Model: "@gone"}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "ghost", Model: "@gone"}); err != nil {
 		t.Fatalf("AddProfile ghost: %v", err)
 	}
 

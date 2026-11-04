@@ -56,7 +56,7 @@ func TestTheAdapterBindsTheConfigCenterPortsToItsOwnKernel(t *testing.T) {
 
 	// The permission picture asks the config center family for the entries —
 	// the roster does not reach for the kernel to find them.
-	if _, err := k.AddProfile(agentapi.Profile{Slug: "owned", Name: "Owned", Enabled: true}); err != nil {
+	if _, err := k.RosterService().Add(agentapi.Profile{Slug: "owned", Name: "Owned", Enabled: true}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
 	picture := callAppHost(t, s, Request{ID: "p", Cmd: CmdAgentPermissions, Token: "primary", Args: map[string]any{"ref": "owned"}})[0]

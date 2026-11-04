@@ -3,7 +3,7 @@
 package runtime
 
 // Provenance: Kernel accessors: roster CRUD
-//             (Roster/AddProfile/SetProfileEnabled/SetProfileRetired/AgentImpact/UpdateProfile/RemoveProfile).
+//             (Roster/RosterGet/RosterList/AgentImpact/RosterService).
 //             Code extracted from accessors.go during the Day-56 god-file split.
 //             Public API unchanged.
 //
@@ -12,12 +12,20 @@ package runtime
 // forwards. The READS stayed here: they are the host's nil-safe view over the
 // contract's port (the shape W3.58 established), and a read over a port is
 // the host's face.
+//
+// W3.76y: the daemon holds NO verb per roster operation any more. The module's
+// service already answered the contract's names (Add, SetEnabled, SetRetired,
+// Update, Remove), so the daemon's five forwarders (AddProfile, UpdateProfile,
+// RemoveProfile, SetProfileEnabled, SetProfileRetired) were a THIRD spelling of
+// one family. The daemon hands over the module's FACE now, and the READS stay:
+// they are the host's nil-safe view, and a read over a port is the host's.
 
 import (
 	"fmt"
 	"strings"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 )
 
 // Roster returns the roster store port.
@@ -50,37 +58,19 @@ func (k *Kernel) RosterList() []agentapi.Profile {
 	return k.roster.List()
 }
 
-// AddProfile validates and persists a named agent profile, journaling
-// roster.created so the agent's birth is auditable.
+// RosterService returns the AGENTS MODULE's roster service — the roster's
+// lifecycle.
 //
-// The write is the MODULE's: the daemon forwards and hands back the answer.
-func (k *Kernel) AddProfile(p agentapi.Profile) (agentapi.Profile, error) {
-	svc := k.rosterService()
-	if svc == nil {
-		return agentapi.Profile{}, agentapi.ErrNoRoster
-	}
-	return svc.Add(p)
-}
-
-// SetProfileEnabled pauses/resumes an agent profile, journaling roster.updated.
-func (k *Kernel) SetProfileEnabled(ref string, enabled bool) (agentapi.Profile, error) {
-	svc := k.rosterService()
-	if svc == nil {
-		return agentapi.Profile{}, agentapi.ErrNoRoster
-	}
-	return svc.SetEnabled(ref, enabled)
-}
-
-// SetProfileRetired moves an agent to the graveyard (true) or revives it (false)
-// by ref, journaling roster.updated. Retiring also pauses the agent so it stops
-// firing (M846). A graveyard agent is excluded from delegation (runSubAgent).
-func (k *Kernel) SetProfileRetired(ref string, retired bool, reason ...string) (agentapi.Profile, error) {
-	svc := k.rosterService()
-	if svc == nil {
-		return agentapi.Profile{}, agentapi.ErrNoRoster
-	}
-	return svc.SetRetired(ref, retired, reason...)
-}
+// The daemon holds no verb per roster operation any more (W3.76y): the module
+// keeps the lifecycle, the events and the guardian rule, and the daemon hands
+// over the module's FACE. The verbs are the CONTRACT's names (Add, SetEnabled,
+// SetRetired, Update, Remove), so one operation has one name.
+//
+// The face is NIL when the host holds no roster — a daemon that was given
+// neither the file nor the module's builder holds nothing, and the callers
+// above refuse in its place (the contract's row: agentapi.ErrNoRoster) rather
+// than calling into nothing.
+func (k *Kernel) RosterService() agentsapi.RosterService { return k.rosterService() }
 
 // AgentImpact reports what depends on an agent before it is retired/removed
 // (M846) — the standing orders that fire AS it. The operator sees this in the
@@ -106,29 +96,4 @@ func (k *Kernel) AgentImpact(slug string) []string {
 		}
 	}
 	return out
-}
-
-// UpdateProfile edits a profile's mutable fields via mutate, journaling
-// roster.updated (action "edited"). Identity/lifecycle fields are protected by
-// the store. Returns false + nil error for an unknown ref (standing pattern).
-func (k *Kernel) UpdateProfile(ref string, mutate func(*agentapi.Profile)) (agentapi.Profile, bool, error) {
-	svc := k.rosterService()
-	if svc == nil {
-		return agentapi.Profile{}, false, agentapi.ErrNoRoster
-	}
-	return svc.Update(ref, mutate)
-}
-
-// RemoveProfile deletes an agent profile, journaling roster.removed when it
-// existed. Returns whether it existed.
-//
-// A shipped guardian (System) is protected from a hard delete (M961) — that
-// rule is the MODULE's now: the roster knows which of its rows are the
-// daemon's own self-healing fleet.
-func (k *Kernel) RemoveProfile(ref string) (bool, error) {
-	svc := k.rosterService()
-	if svc == nil {
-		return false, agentapi.ErrNoRoster
-	}
-	return svc.Remove(ref)
 }

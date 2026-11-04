@@ -39,7 +39,7 @@ func TestOpenAppKernelWiresTheRoster(t *testing.T) {
 	if fi, err := os.Stat(filepath.Join(dir, "roster")); err != nil || !fi.IsDir() {
 		t.Fatalf("the daemon must open the roster's directory: %v", err)
 	}
-	if _, err := k.AddProfile(agentapi.Profile{Slug: "ops", Name: "Ops"}); err != nil {
+	if _, err := k.RosterService().Add(agentapi.Profile{Slug: "ops", Name: "Ops"}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "roster", "roster.json")); err != nil {
@@ -69,7 +69,7 @@ func TestTheRosterIsTheInjectedOne(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = k.Close() })
 
-	if _, err := k.AddProfile(agentapi.Profile{Slug: "injected-agent"}); err != nil {
+	if _, err := k.RosterService().Add(agentapi.Profile{Slug: "injected-agent"}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
 	got, found := store.Get("injected-agent")
