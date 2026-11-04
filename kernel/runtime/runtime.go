@@ -32,6 +32,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/edict"
+	"github.com/agezt/agezt/kernel/event"
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	workapi "github.com/agezt/agezt/kernel/modules/work/api"
@@ -155,6 +156,20 @@ type Config struct {
 	// Nil means no service: the registry writes refuse and the reads answer
 	// "no servers".
 	MCPBuilder extapi.MCPRegistryBuilder
+
+	// StandingBuilder builds the standing library's SERVICE over the store the
+	// host collected (W3.76x).
+	//
+	// The standing library's LIFECYCLE is the standing package's: the package
+	// keeps the rules and the operations, and the daemon keeps the names. The
+	// daemon hands over the BUILDER (it names the package), and the kernel
+	// calls it with the store and its own publisher — so every standing
+	// transition journals through the kernel's bus without either side naming
+	// the other's implementation.
+	//
+	// Nil means no service: the standing writes refuse and the reads answer
+	// "no orders".
+	StandingBuilder func(standingapi.Store, func(event.Spec)) standingapi.Lifecycle
 
 	// Model is the default model name passed to the provider.
 	Model string

@@ -12,6 +12,7 @@ import (
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
+	"github.com/agezt/agezt/kernel/internal/testfixtures"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -35,10 +36,13 @@ func TestTheGuardianPortsReachTheDaemon(t *testing.T) {
 		t.Fatalf("cadence.OpenStore: %v", err)
 	}
 	k, err := runtime.Open(withRoster(t, runtime.Config{
-		BaseDir:   dir,
-		Provider:  mock.New(),
-		Standing:  standingStore,
-		Schedules: scheduleStore,
+		BaseDir:  dir,
+		Provider: mock.New(),
+		Standing: standingStore,
+		// The standing library's LIFECYCLE is the standing package's
+		// (W3.76x): the host hands the kernel the library's builder too.
+		StandingBuilder: testfixtures.StandingBuilder,
+		Schedules:       scheduleStore,
 	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -136,14 +140,14 @@ func TestTheGuardianPortsRefuseForAHostWithNoDaemon(t *testing.T) {
 	if got := ports.Orders(); got != nil {
 		t.Fatalf("a host with no daemon holds standing orders: %v", got)
 	}
-	if _, err := ports.AddOrder(standingapi.Order{ID: "order-1", Triggers: []standingapi.Trigger{{Type: standingapi.TriggerEvent, Subject: "deploy.*"}}}); !errors.Is(err, errNoStandingLibrary) {
-		t.Errorf("the standing write answered %v, want %v", err, errNoStandingLibrary)
+	if _, err := ports.AddOrder(standingapi.Order{ID: "order-1", Triggers: []standingapi.Trigger{{Type: standingapi.TriggerEvent, Subject: "deploy.*"}}}); !errors.Is(err, standingapi.ErrNoLibrary) {
+		t.Errorf("the standing write answered %v, want %v", err, standingapi.ErrNoLibrary)
 	}
-	if _, _, err := ports.EditOrder("order-1", func(*standingapi.Order) {}); !errors.Is(err, errNoStandingLibrary) {
-		t.Errorf("the standing edit answered %v, want %v", err, errNoStandingLibrary)
+	if _, _, err := ports.EditOrder("order-1", func(*standingapi.Order) {}); !errors.Is(err, standingapi.ErrNoLibrary) {
+		t.Errorf("the standing edit answered %v, want %v", err, standingapi.ErrNoLibrary)
 	}
-	if _, err := ports.SetOrderEnabled("order-1", false); !errors.Is(err, errNoStandingLibrary) {
-		t.Errorf("the standing pause answered %v, want %v", err, errNoStandingLibrary)
+	if _, err := ports.SetOrderEnabled("order-1", false); !errors.Is(err, standingapi.ErrNoLibrary) {
+		t.Errorf("the standing pause answered %v, want %v", err, standingapi.ErrNoLibrary)
 	}
 	if got := ports.Entries(); got != nil {
 		t.Fatalf("a host with no daemon holds schedules: %v", got)
@@ -197,14 +201,14 @@ func TestTheGuardianPortsRefuseForADaemonWithoutItsLibraries(t *testing.T) {
 	if got := ports.Orders(); got != nil {
 		t.Fatalf("a daemon with no standing library holds orders: %v", got)
 	}
-	if _, err := ports.AddOrder(standingapi.Order{Name: "watch", Triggers: []standingapi.Trigger{{Type: standingapi.TriggerEvent, Subject: "deploy.*"}}}); !errors.Is(err, errNoStandingLibrary) {
-		t.Errorf("the standing write answered %v, want %v", err, errNoStandingLibrary)
+	if _, err := ports.AddOrder(standingapi.Order{Name: "watch", Triggers: []standingapi.Trigger{{Type: standingapi.TriggerEvent, Subject: "deploy.*"}}}); !errors.Is(err, standingapi.ErrNoLibrary) {
+		t.Errorf("the standing write answered %v, want %v", err, standingapi.ErrNoLibrary)
 	}
-	if _, _, err := ports.EditOrder("order-1", func(*standingapi.Order) {}); !errors.Is(err, errNoStandingLibrary) {
-		t.Errorf("the standing edit answered %v, want %v", err, errNoStandingLibrary)
+	if _, _, err := ports.EditOrder("order-1", func(*standingapi.Order) {}); !errors.Is(err, standingapi.ErrNoLibrary) {
+		t.Errorf("the standing edit answered %v, want %v", err, standingapi.ErrNoLibrary)
 	}
-	if _, err := ports.SetOrderEnabled("order-1", false); !errors.Is(err, errNoStandingLibrary) {
-		t.Errorf("the standing pause answered %v, want %v", err, errNoStandingLibrary)
+	if _, err := ports.SetOrderEnabled("order-1", false); !errors.Is(err, standingapi.ErrNoLibrary) {
+		t.Errorf("the standing pause answered %v, want %v", err, standingapi.ErrNoLibrary)
 	}
 
 	// The schedule half refuses.

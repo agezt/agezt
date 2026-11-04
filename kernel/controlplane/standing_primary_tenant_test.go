@@ -20,7 +20,7 @@ func TestStandingPrimaryOperationsSocketTenantDenialPreservesStateAndCallback(t 
 		}}
 	})
 	token := mustTenant(t, registry, "acme")
-	entry, err := k.AddStanding(standing.Order{Name: "primary-private", Triggers: []standing.Trigger{{Type: standing.TriggerEvent, Subject: "fixture"}}})
+	entry, err := k.StandingService().AddStanding(standing.Order{Name: "primary-private", Triggers: []standing.Trigger{{Type: standing.TriggerEvent, Subject: "fixture"}}})
 	if err != nil {
 		t.Fatal(err)
 	}

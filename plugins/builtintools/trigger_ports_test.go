@@ -12,18 +12,23 @@ import (
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolregapi"
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/standingtool"
 )
 
-// The kernel IS the standing tool's host: the tool speaks the contract's rows
-// and the daemon hands it the live kernel. A compile-time assertion — if the
-// kernel stopped answering the port, the wiring site breaks instead of the
-// tool.
-var _ standingtool.Host = (*runtime.Kernel)(nil)
+// The standing tool's host is the CONTRACT's port, and the standing
+// library's face answers it (W3.76x): the daemon used to BE the tool's
+// host — it held the library's operations itself — and the library's face
+// is what the tool binds now. A compile-time assertion — if the library's
+// lifecycle stopped answering the port, the wiring site breaks instead of
+// the tool.
+var _ standingtool.Host = standingapi.Lifecycle(nil)
 
 // The kernel's cadence store IS the contract's store port: the schedule tool
 // drives it through the contract, never through the module.
@@ -34,7 +39,22 @@ var _ cadenceapi.Store = (*cadence.Store)(nil)
 // has to be real. A managed sub-agent must still be refused, with its
 // manager named, when the daemon configures the spec against a live kernel.
 func TestStandingSpecWiresTheRosterLookup(t *testing.T) {
-	k, err := runtime.Open(withRoster(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))
+	dir := t.TempDir()
+	// The standing library's LIFECYCLE is the standing package's (W3.76x):
+	// the tool binds the library's FACE, and the daemon holds it — the same
+	// way the composition root wires it.
+	standingStore, err := standing.Open(filepath.Join(dir, "standing"))
+	if err != nil {
+		t.Fatalf("standing.Open: %v", err)
+	}
+	k, err := runtime.Open(withRoster(t, runtime.Config{
+		BaseDir:  dir,
+		Provider: mock.New(),
+		Standing: standingStore,
+		StandingBuilder: func(store standingapi.Store, publish func(event.Spec)) standingapi.Lifecycle {
+			return standing.NewService(standing.Dependencies{Store: store, Publish: publish})
+		},
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -50,7 +70,7 @@ func TestStandingSpecWiresTheRosterLookup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{Standing: k, AgentLookup: k.Roster().Get}); err != nil {
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{Standing: k.StandingService(), AgentLookup: k.Roster().Get}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 

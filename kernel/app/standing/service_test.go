@@ -8,6 +8,7 @@ import (
 	"errors"
 	appstanding "github.com/agezt/agezt/kernel/app/standing"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/internal/testfixtures"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 	orders "github.com/agezt/agezt/kernel/standing"
@@ -233,12 +234,20 @@ func TestStandingServiceUsesActualRuntimeFacadeStoreAndLifecycleJournal(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, Standing: store})
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:  dir,
+		Provider: provider,
+		Standing: store,
+		// The standing library's LIFECYCLE is the standing package's
+		// (W3.76x): the daemon holds the library's FACE, and the face is
+		// what journals every transition.
+		StandingBuilder: testfixtures.StandingBuilder,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	service := appstanding.New(k.Standing(), k, appstanding.Host{})
+	service := appstanding.New(k.Standing(), k.StandingService(), appstanding.Host{})
 	added, err := service.Add(context.Background(), appstanding.AddInput{Order: orders.Order{Name: "owned", Enabled: false, ID: "client-id", CreatedMS: 1, UpdatedMS: 1, Triggers: []orders.Trigger{{Type: orders.TriggerEvent, Subject: "fixture"}}, CooldownSec: 60}})
 	if err != nil || added.Order.ID == "client-id" || !added.Order.Enabled || added.Order.CreatedMS == 1 || added.Order.FrequencyWarning == "" {
 		t.Fatal(added, err)

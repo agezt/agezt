@@ -53,21 +53,72 @@ type Ports struct {
 
 // PortsFromKernel fills the standing application's ports from the kernel
 // handle.
+//
+// The WRITER is the standing library's SERVICE (W3.76x): the library's
+// lifecycle is the library's, and the daemon hands over the library's face.
+// The daemon used to be the writer here — which meant it held a forwarder per
+// standing operation — and that copy is gone.
+//
+// A daemon that holds no library holds no face: the writer then REFUSES with
+// the contract's row (standingapi.ErrNoLibrary) instead of calling into
+// nothing.
 func PortsFromKernel(k *runtime.Kernel) Ports {
 	store := k.Standing()
+	svc := k.StandingService()
 	return Ports{
 		Reader: store,
-		Writer: k,
+		Writer: writerOf(svc),
 		Orders: func() []standingapi.Order {
 			if store == nil {
 				return nil
 			}
 			return store.List()
 		},
-		Remove: k.RemoveStanding,
+		Remove: func(id string) (bool, error) {
+			if svc == nil {
+				return false, standingapi.ErrNoLibrary
+			}
+			return svc.RemoveStanding(id)
+		},
 		SetEnabled: func(id string, enabled bool) error {
-			_, err := k.SetStandingEnabled(id, enabled)
+			if svc == nil {
+				return standingapi.ErrNoLibrary
+			}
+			_, err := svc.SetStandingEnabled(id, enabled)
 			return err
 		},
 	}
+}
+
+// writerOf answers the writer port for a library service — the service
+// itself, or the refusal when the daemon holds no library.
+func writerOf(svc standingapi.Lifecycle) Writer {
+	if svc == nil {
+		return refusingWriter{}
+	}
+	return svc
+}
+
+// refusingWriter is the application's refusal when the daemon holds no
+// standing library (W3.76x).
+//
+// The refusal is the CONTRACT's row (standingapi.ErrNoLibrary): the missing
+// library is one fact, and the library raises the same row — so a caller
+// compares with errors.Is and both sides say the same thing.
+type refusingWriter struct{}
+
+func (refusingWriter) AddStanding(standingapi.Order) (standingapi.Order, error) {
+	return standingapi.Order{}, standingapi.ErrNoLibrary
+}
+
+func (refusingWriter) UpdateStanding(string, func(*standingapi.Order)) (standingapi.Order, bool, error) {
+	return standingapi.Order{}, false, standingapi.ErrNoLibrary
+}
+
+func (refusingWriter) SetStandingEnabled(string, bool) (standingapi.Order, error) {
+	return standingapi.Order{}, standingapi.ErrNoLibrary
+}
+
+func (refusingWriter) RemoveStanding(string) (bool, error) {
+	return false, standingapi.ErrNoLibrary
 }

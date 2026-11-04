@@ -403,7 +403,7 @@ func TestAgentRemove_SubagentCascadeRetiresAndPausesChildTriggers(t *testing.T) 
 	}); err != nil {
 		t.Fatalf("worker add: %v", err)
 	}
-	workerStanding, err := k.AddStanding(standing.Order{
+	workerStanding, err := k.StandingService().AddStanding(standing.Order{
 		Name:     "worker inbox",
 		Triggers: []standing.Trigger{{Type: standing.TriggerEvent, Subject: "board.dm.worker"}},
 		Agent:    "worker",
@@ -747,7 +747,7 @@ func TestAgentRemove_CascadeDeletesPrivateOwnedResourcesOnly(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(workspaceRoot, "shared", "keep.md"), []byte("shared"), 0o644); err != nil {
 		t.Fatalf("shared workspace file: %v", err)
 	}
-	if _, err := k.AddStanding(standing.Order{
+	if _, err := k.StandingService().AddStanding(standing.Order{
 		Name:     "Research standing",
 		Triggers: []standing.Trigger{{Type: standing.TriggerEvent, Subject: "x.y"}},
 		Agent:    "researcher",
@@ -755,7 +755,7 @@ func TestAgentRemove_CascadeDeletesPrivateOwnedResourcesOnly(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("standing add: %v", err)
 	}
-	if _, err := k.AddStanding(standing.Order{
+	if _, err := k.StandingService().AddStanding(standing.Order{
 		Name:     "Worker standing",
 		Triggers: []standing.Trigger{{Type: standing.TriggerEvent, Subject: "worker.y"}},
 		Agent:    "research-worker",
@@ -1232,7 +1232,7 @@ func TestAgentRemove_CascadeIncludesNestedSubagents(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(workspaceRoot, "lead", "worker", "scout", "notes.md"), []byte("scout notes"), 0o644); err != nil {
 		t.Fatalf("scout workspace file: %v", err)
 	}
-	if _, err := k.AddStanding(standing.Order{
+	if _, err := k.StandingService().AddStanding(standing.Order{
 		Name:     "Scout standing",
 		Triggers: []standing.Trigger{{Type: standing.TriggerEvent, Subject: "scout.wake"}},
 		Agent:    "scout",

@@ -18,7 +18,6 @@ import (
 
 	"github.com/agezt/agezt/kernel/configcenter"
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
-	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/scheduler"
@@ -31,20 +30,6 @@ import (
 // Returns nil when the daemon did not wire one — the vision
 // sidecar is then disabled.
 func (k *Kernel) VisionModel() func() (string, bool) { return k.cfg.VisionModel }
-
-// StandingList returns the current standing orders (read-only
-// snapshot). Read-only — callers must not mutate the slice. The
-// run engine and the control plane's `agt standing list` both
-// use this; nil is fine when no standing library is configured.
-//
-// The rows are the CONTRACT's (W3.50): the layers above the kernel
-// name the contract, not the module the library lives in.
-func (k *Kernel) StandingList() []standingapi.Order {
-	if k.standing == nil {
-		return nil
-	}
-	return k.standing.List()
-}
 
 // BaseDir returns the kernel's base directory — the root under
 // which journal/, state/, runtime/, catalog/, and vault data

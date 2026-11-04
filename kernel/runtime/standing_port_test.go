@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/standingapi"
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -20,6 +21,10 @@ import (
 //
 // The kernel opens no library of its own any more — a kernel opened without
 // one holds a nil port and every standing surface says so.
+//
+// The library's LIFECYCLE is the standing package's (W3.76x), so the
+// composition root hands over the BUILDER as well: the kernel calls it with
+// the store and its own publisher, and holds the library's FACE.
 func openStandingKernel(t *testing.T, cfg runtime.Config) *runtime.Kernel {
 	t.Helper()
 	store, err := standing.Open(filepath.Join(cfg.BaseDir, "standing"))
@@ -27,6 +32,9 @@ func openStandingKernel(t *testing.T, cfg runtime.Config) *runtime.Kernel {
 		t.Fatalf("open the standing store: %v", err)
 	}
 	cfg.Standing = store
+	cfg.StandingBuilder = func(store standingapi.Store, publish func(event.Spec)) standingapi.Lifecycle {
+		return standing.NewService(standing.Dependencies{Store: store, Publish: publish})
+	}
 	k, err := runtime.Open(cfg)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -69,6 +77,23 @@ func TestTheStandingFaceIsTheStorePort(t *testing.T) {
 	}
 }
 
+// TestTheStandingServiceFaceIsTheLibrarysPort: the daemon's other standing
+// face is the LIBRARY'S service — the contract's lifecycle port.
+//
+// The daemon holds no verb per standing operation any more (W3.76x): the
+// library's rules and its lifecycle live together, and the daemon hands over
+// the library's face. The width is checked STATICALLY, like the store port's.
+func TestTheStandingServiceFaceIsTheLibrarysPort(t *testing.T) {
+	k := openStandingKernel(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	t.Cleanup(func() { _ = k.Close() })
+
+	got := reflect.TypeOf(k.StandingService).Out(0)
+	want := reflect.TypeOf((*standingapi.Lifecycle)(nil)).Elem()
+	if got != want {
+		t.Fatalf("the kernel's standing service face is %v, want the lifecycle port %v", got, want)
+	}
+}
+
 // TestTheStandingPortAnswersTheLiveLibrary: the port is not a shape — it
 // answers the LIVE rows. An order added through the port has to be in the
 // library the daemon opened.
@@ -98,47 +123,66 @@ func TestTheStandingPortAnswersTheLiveLibrary(t *testing.T) {
 	}
 }
 
-// TestTheKernelRefusesWithoutALibrary: a kernel with no library answers the
-// standing surfaces with "not available" — not a panic, and not a silent
-// "nothing to do".
-func TestTheKernelRefusesWithoutALibrary(t *testing.T) {
+// TestTheDaemonHoldsNoStandingFaceWithoutALibrary: a kernel with no library
+// holds NO face.
+//
+// The library's lifecycle is the library's (W3.76x): the daemon used to hold
+// the four writes over the library's own operations, and it holds none now. A
+// daemon with no library therefore holds no face — and the layers above (the
+// applications, the agent-facing tool) refuse in its place.
+func TestTheDaemonHoldsNoStandingFaceWithoutALibrary(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { _ = k.Close() })
 
-	if _, err := k.AddStanding(standingapi.Order{Name: "x"}); err == nil {
-		t.Fatal("adding an order without a library must refuse")
+	if k.StandingService() != nil {
+		t.Fatal("a kernel with no library must hold no standing face")
 	}
-	if _, err := k.SetStandingEnabled("any", false); err == nil {
-		t.Fatal("pausing an order without a library must refuse")
-	}
-	if _, _, err := k.UpdateStanding("any", func(*standingapi.Order) {}); err == nil {
-		t.Fatal("editing an order without a library must refuse")
-	}
-	if _, err := k.RemoveStanding("any"); err == nil {
-		t.Fatal("removing an order without a library must refuse")
-	}
-	if got := k.StandingList(); got != nil {
-		t.Fatalf("a kernel with no library lists %v", got)
+	if got := k.Standing(); got != nil {
+		t.Fatalf("a kernel with no library must hold a nil store port, got %v", got)
 	}
 }
 
-// TestTheKernelEditOfAnUnknownOrderIsNotFound: the kernel turns the library's
+// TestTheStandingFaceAnswersTheLibrary: the face answers the LIVE library —
+// an order added through the face is in the library the daemon opened.
+func TestTheStandingFaceAnswersTheLibrary(t *testing.T) {
+	k := openStandingKernel(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	t.Cleanup(func() { _ = k.Close() })
+
+	added, err := k.StandingService().AddStanding(standingapi.Order{
+		Name:     "watch the deploys",
+		Triggers: []standingapi.Trigger{{Type: standingapi.TriggerEvent, Subject: "deploy.*"}},
+	})
+	if err != nil {
+		t.Fatalf("AddStanding: %v", err)
+	}
+	if added.ID == "" {
+		t.Fatal("the face must answer a row with an id")
+	}
+	if got := k.Standing().List(); len(got) != 1 || got[0].Name != "watch the deploys" {
+		t.Fatalf("the face must answer the live library, got %v", got)
+	}
+	if got := k.StandingService().StandingList(); len(got) != 1 {
+		t.Fatalf("the face must list the live library, got %v", got)
+	}
+}
+
+// TestTheKernelEditOfAnUnknownOrderIsNotFound: the library turns its own
 // "not found" into "the order does not exist" — the edit path reports
 // updated=false with no error, the way the schedule edit path does.
 func TestTheKernelEditOfAnUnknownOrderIsNotFound(t *testing.T) {
 	k := openStandingKernel(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
 	t.Cleanup(func() { _ = k.Close() })
 
-	_, found, err := k.UpdateStanding("missing", func(*standingapi.Order) {})
+	_, found, err := k.StandingService().UpdateStanding("missing", func(*standingapi.Order) {})
 	if err != nil || found {
 		t.Fatalf("editing an unknown order must report not-found, got found=%v err=%v", found, err)
 	}
 }
 
-// TestTheKernelForwardsTheLibrarysError: the kernel does not swallow the
+// TestTheKernelForwardsTheLibrarysError: the daemon does not swallow the
 // library's own error — a caller that asks about an unknown id through the
 // store port sees the contract's ErrNotFound.
 func TestTheKernelForwardsTheLibrarysError(t *testing.T) {

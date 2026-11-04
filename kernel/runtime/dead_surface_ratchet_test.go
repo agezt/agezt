@@ -105,6 +105,12 @@ var retiredVerbs = []string{
 	"MCPAttached",
 	"MCPServers",
 	"MCPServer",
+	// The daemon's five verbs over the standing library's lifecycle and rows.
+	"AddStanding",
+	"SetStandingEnabled",
+	"UpdateStanding",
+	"RemoveStanding",
+	"StandingList",
 }
 
 // daemonPublicVerbs is the ceiling the daemon's public method set may not
@@ -122,10 +128,11 @@ var retiredVerbs = []string{
 // 173 (W3.76t, the script forge's seven forwarders) -> 166 (W3.76u, the
 // workflow engine's eight forwarders) -> 164 (W3.76v, the reasoning module's
 // three forwarders) -> 156 (W3.76w, the MCP registry's seven forwarders and
-// two readers).
-// The daemon holds 156 public verbs today; a new verb needs a new reason, and
+// two readers) -> 152 (W3.76x, the standing library's four forwarders and one
+// reader).
+// The daemon holds 152 public verbs today; a new verb needs a new reason, and
 // this file says so.
-const daemonPublicVerbs = 156
+const daemonPublicVerbs = 152
 
 // TestTheRetiredVerbsDoNotComeBack pins the retirement: none of the sixteen
 // names is a method of *Kernel any more.

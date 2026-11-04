@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/cadence"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -30,7 +32,18 @@ func TestSeedBuiltInGuardiansSeedsTheLiveFleet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open the standing store: %v", err)
 	}
-	k, err := runtime.Open(withRoster(t, runtime.Config{BaseDir: dir, Provider: mock.New(), Schedules: sched, Standing: standingStore}))
+	k, err := runtime.Open(withRoster(t, runtime.Config{
+		BaseDir:   dir,
+		Provider:  mock.New(),
+		Schedules: sched,
+		Standing:  standingStore,
+		// The standing library's LIFECYCLE is the standing package's
+		// (W3.76x): the seeder writes through the library's face, so the
+		// host hands the kernel the builder the way the daemon does.
+		StandingBuilder: func(store standingapi.Store, publish func(event.Spec)) standingapi.Lifecycle {
+			return standing.NewService(standing.Dependencies{Store: store, Publish: publish})
+		},
+	}))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

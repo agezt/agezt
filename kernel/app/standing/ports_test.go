@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/standingapi"
+	"github.com/agezt/agezt/kernel/internal/testfixtures"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -26,7 +27,15 @@ func TestTheStandingPortsReachTheKernelOrders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("standing.Open: %v", err)
 	}
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New(), Standing: store})
+	k, err := runtime.Open(runtime.Config{
+		BaseDir:  dir,
+		Provider: mock.New(),
+		Standing: store,
+		// The standing library's LIFECYCLE is the standing package's
+		// (W3.76x): the host hands the kernel the library's builder too, so
+		// the daemon holds the library's FACE.
+		StandingBuilder: testfixtures.StandingBuilder,
+	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

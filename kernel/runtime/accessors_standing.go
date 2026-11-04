@@ -2,18 +2,18 @@
 
 package runtime
 
-// Provenance: Kernel accessors: data (DataLake, ConfigCenter) + standing CRUD
-//             (AddStanding/SetStandingEnabled/UpdateStanding/RemoveStanding). Code
-//             extracted from accessors.go during the Day-56 god-file split. Public
-//             API unchanged.
+// Provenance: Kernel accessors: data (DataLake, ConfigCenter) + the standing
+//             library's FACE. Code extracted from accessors.go during the
+//             Day-56 god-file split. Public API unchanged.
+//
+// The standing library's lifecycle left the daemon with W3.76x: the standing
+// package owns the library's operations, and the daemon holds the file port
+// (Standing) and the library's face (StandingService).
 
 import (
-	"errors"
-
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/standingapi"
-	"github.com/agezt/agezt/kernel/event"
 )
 
 // Artifacts returns the content-addressed artifact store (SPEC-04 §3.6), where
@@ -36,13 +36,15 @@ func (k *Kernel) ArtifactIndex() artifactapi.HostIndex { return k.artIndex }
 // collections agents build and share, surfaced by the `db` tool and the Web UI.
 func (k *Kernel) DataLake() datalakeapi.Lake { return k.lake }
 
-// errNoStandingLibrary is the answer the kernel gives when the host holds no
-// standing-order library.
+// The standing library's LIFECYCLE is the standing package's (W3.76x): the
+// daemon used to hold the four writes over the store it kept the file port of
+// — the library's rules in one place, its lifecycle in another — and it holds
+// the library's FACE now.
 //
-// The library is the DAEMON's file (W3.50): the kernel holds the contract's
-// store port, and a host that was given none holds a nil port. The refusal
-// is the answer — not a panic, and not a silent "nothing to do".
-var errNoStandingLibrary = errors.New("runtime: the standing library is not available on this daemon")
+// The refusal for a daemon with no library is the CONTRACT's row
+// (standingapi.ErrNoLibrary): the library raises it (it is the library's
+// absence), the applications raise it (they are the ones that notice), and a
+// caller compares with errors.Is — so every side says the same thing.
 
 // Standing returns the standing-order library (SPEC-16 §4), backing `agt
 // standing`.
@@ -54,83 +56,17 @@ var errNoStandingLibrary = errors.New("runtime: the standing library is not avai
 // into nothing.
 func (k *Kernel) Standing() standingapi.Store { return k.standing }
 
-// AddStanding validates and persists a standing order, journaling
-// standing.created so the lifecycle is auditable (SPEC-16 §4).
-func (k *Kernel) AddStanding(o standingapi.Order) (standingapi.Order, error) {
-	if k.standing == nil {
-		return standingapi.Order{}, errNoStandingLibrary
-	}
-	saved, err := k.standing.Add(o)
-	if err != nil {
-		return standingapi.Order{}, err
-	}
-	_, _ = k.bus.Publish(event.Spec{
-		Subject: "standing." + saved.ID, Kind: event.KindStandingCreated, Actor: "standing",
-		Payload: map[string]any{"id": saved.ID, "name": saved.Name, "triggers": len(saved.Triggers)},
-	})
-	return saved, nil
-}
-
-// SetStandingEnabled pauses/resumes a standing order, journaling standing.updated.
-func (k *Kernel) SetStandingEnabled(id string, enabled bool) (standingapi.Order, error) {
-	if k.standing == nil {
-		return standingapi.Order{}, errNoStandingLibrary
-	}
-	o, err := k.standing.SetEnabled(id, enabled)
-	if err != nil {
-		return standingapi.Order{}, err
-	}
-	state := "paused"
-	if enabled {
-		state = "resumed"
-	}
-	_, _ = k.bus.Publish(event.Spec{
-		Subject: "standing." + id, Kind: event.KindStandingUpdated, Actor: "standing",
-		Payload: map[string]any{"id": id, "name": o.Name, "enabled": enabled, "action": state},
-	})
-	return o, nil
-}
-
-// UpdateStanding edits a standing order's mutable fields via mutate, journaling
-// standing.updated (action "edited") on success. Identity/lifecycle fields are
-// protected by the store. Returns the updated order and whether the id existed
-// (false + nil error for an unknown id, mirroring the schedule-edit path).
-func (k *Kernel) UpdateStanding(id string, mutate func(*standingapi.Order)) (standingapi.Order, bool, error) {
-	if k.standing == nil {
-		return standingapi.Order{}, false, errNoStandingLibrary
-	}
-	o, err := k.standing.Update(id, mutate)
-	if errors.Is(err, standingapi.ErrNotFound) {
-		return standingapi.Order{}, false, nil
-	}
-	if err != nil {
-		return standingapi.Order{}, false, err
-	}
-	_, _ = k.bus.Publish(event.Spec{
-		Subject: "standing." + id, Kind: event.KindStandingUpdated, Actor: "standing",
-		Payload: map[string]any{"id": id, "name": o.Name, "action": "edited"},
-	})
-	return o, true, nil
-}
-
-// RemoveStanding deletes a standing order, journaling standing.removed when it
-// existed. Returns whether it existed.
-func (k *Kernel) RemoveStanding(id string) (bool, error) {
-	if k.standing == nil {
-		return false, errNoStandingLibrary
-	}
-	o, _ := k.standing.Get(id)
-	ok, err := k.standing.Remove(id)
-	if err != nil {
-		return false, err
-	}
-	if ok {
-		_, _ = k.bus.Publish(event.Spec{
-			Subject: "standing." + id, Kind: event.KindStandingRemoved, Actor: "standing",
-			Payload: map[string]any{"id": id, "name": o.Name},
-		})
-	}
-	return ok, nil
-}
+// StandingService returns the standing library's SERVICE — the face of the
+// standing package, which owns the library's lifecycle (W3.76x).
+//
+// It is the port the standing application, the guardians' orders and the
+// agent-facing standing-orders tool bind, and it is nil when the daemon
+// holds no library: the callers refuse then, rather than calling into
+// nothing.
+//
+// The daemon does not speak FOR the library: it used to hold four writes
+// over the library's own operations — a second spelling of every verb the
+// contract's lifecycle port already names — and it holds none now.
+func (k *Kernel) StandingService() standingapi.Lifecycle { return k.standingSvc }
 
 // Roster returns the durable agent-profile store (M783). Always non-nil after Open.

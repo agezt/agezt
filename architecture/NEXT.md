@@ -14002,3 +14002,91 @@ func main() {
   doors (five forwarders, and the config plugin's port has to be split).
   Evidence:
   `architecture/296-w376w-the-mcp-registrys-vocabulary-moves-into-the-extensions-module-evidence.md`
+- W3.76x (the standing library's lifecycle moves into the standing package) is
+  the **thirty-second** slice of the runtime's dissolution.
+
+  The standing library is the family whose **data and its meaning belong
+  together** — the orders, the rules that validate them, the ids the store
+  assigns and the transitions it journals. Since W3.50 the library's **file**
+  has been the host's (the kernel holds the contract's store port,
+  `cfg.Standing`, and the composition root opens `standing/standing.json`), but
+  the daemon still held the library's **lifecycle** in five verbs: four
+  forwarders over the package's own operations (`AddStanding`,
+  `SetStandingEnabled`, `UpdateStanding`, `RemoveStanding`) and one reader of
+  its own (`StandingList`).
+
+  The **contract** now names the family once: `standingapi.Lifecycle` — the
+  tool's three verbs (`AddStanding`, `RemoveStanding`, `StandingList`) plus the
+  pause and the edit the layers that own standing orders need. The contract
+  grew by **32** lines (215 → 247): the port and the **refusal row**
+  (`standingapi.ErrNoLibrary`), because the library's absence is one fact that
+  the library, the applications and the callers all have to name — and one row
+  has one home.
+
+  The **standing package** answers in the contract's names now
+  (`var _ standingapi.Lifecycle = (*Service)(nil)`): a new `Service` over the
+  store port and the host's publisher, with the daemon's exact semantics
+  (payload fields included). The package grew by **139** lines (614 → 753).
+
+  The **daemon** lost the five verbs and keeps two things: the library's
+  **FILE** (`Standing`) and the library's **FACE** (`StandingService`). The
+  composition root hands the kernel the library's **builder**
+  (`cfg.StandingBuilder`) — the MCP registry's and the roster's shape — so the
+  kernel holds a face without naming the package's implementation.
+
+  The **application** (`kernel/app/standing`) binds the face — its own `Writer`
+  port already spoke the **contract's** names, so **no adapter was written** —
+  and became **nil-safe**: a daemon with no library holds no face, and the
+  application refuses with the **contract's row** through a refusing writer
+  instead of calling into nothing. The **guardians' seeder** binds the same
+  face and writes through it — which closed the bug the slice was built on,
+  because it used to plant its orders straight into the store, so their
+  transitions never reached the journal. The **plugin** binds the face too
+  (`standingPort(k)` answers `k.StandingService()`, nil-safe: a daemon with no
+  library hands over a **nil** port).
+
+  Two refusals went with them: the daemon's `errNoStandingLibrary` and the
+  guardians application's own spelling of the same row. The missing library is
+  one fact, and a second spelling of it is exactly what this program removes.
+
+  The measurement: the daemon's public verbs **156 → 152**, its production
+  lines **5,704 → 5,657**, its files **54 → 54**; the standing package
+  **614 → 753**, the standing contract **215 → 247**, the standing application
+  **567 → 612**. The app package count did **not** move (**forty**) — the
+  standing application still names the daemon for the library's file, so the
+  standing **binding** was narrowed, not the package's.
+
+  **Three ratchets, one probe firing all of them**: the daemon's new standing
+  ratchet pins that the five verbs do not come back and that the daemon still
+  holds the file and the face; the standing application's new binding ratchet
+  pins that the application does not write through the daemon's **file port**
+  (a write around the lifecycle skips the journal) and does not bind the daemon
+  handle as its writer; the guardian seeder's new binding ratchet pins the same
+  for the seeder. The daemon's own surface ceiling followed the floor again:
+  **156 → 152** (220 → 201 → 194 → 179 → 173 → 166 → 164 → 156 → 152).
+
+  **The probe** put the daemon's `AddStanding` verb back and wrote through the
+  file port in both applications: the retired-verb ratchet, the surface ceiling
+  (153 > 152), the daemon's standing ratchet **and** the two applications'
+  binding ratchets all went red at once — **five** ratchets in one shot; the
+  probe was reverted and the suites went green again.
+
+  **The coverage moved with the subject**: the standing package keeps its own
+  tests (the lifecycle's refusal without a store, the four writes and the
+  transitions they journal, the unknown id, the lifecycle that needs no
+  publisher); the daemon's tests pin what the daemon still does (it holds the
+  file, it holds the face, it holds **no** verb per operation, and a daemon
+  with no library holds **no** face); the applications' and the plugin's tests
+  pin the wiring and the refusal.
+
+  **What is left**: the daemon holds **152** public verbs and **5,657**
+  production lines; **forty** application packages still name it. The same
+  shape is waiting for the families that still have forwarders in the daemon:
+  the **roster's** remaining write doors (five forwarders — `AddProfile`,
+  `SetProfileEnabled`, `SetProfileRetired`, `UpdateProfile`, `RemoveProfile` —
+  and the **config plugin's port has to be split** before they can move). The
+  **standing package** itself still lives at `kernel/standing` rather than
+  `kernel/modules/standing`; the move is cheap (three production importers)
+  and is its own slice.
+  Evidence:
+  `architecture/297-w376x-the-standing-librarys-lifecycle-moves-into-the-standing-package-evidence.md`
