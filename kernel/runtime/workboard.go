@@ -115,7 +115,9 @@ func (k *Kernel) WorkboardDependencies() workapi.BoardDependencies {
 			return k.Model()
 		},
 		VerifyCompletion: func(ctx context.Context, corr, task, answer string) (assureapi.Verdict, error) {
-			return k.VerifyCompletion(ctx, corr, task, answer)
+			// The verification is the RUN ENGINE's operation (W3.76ab): the
+			// workboard asks the host, and the host names the run engine.
+			return k.runner.VerifyCompletion(ctx, corr, task, answer)
 		},
 		Artifacts: k.ArtifactIndex(),
 		Journal:   scanner,

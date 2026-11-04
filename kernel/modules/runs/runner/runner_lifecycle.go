@@ -123,9 +123,9 @@ func (r *Runner) RunAssured(ctx context.Context, corr, intent string, maxAttempt
 	res, err := assureapi.Until(ctx, intent, maxAttempts,
 		func(ctx context.Context, _ int, task string) (string, error) {
 			if pol, ok := runctx.AgentRetryPolicyFromCtx(ctx); ok && pol.MaxAttempts > 1 {
-				return r.k.RunWithRetry(ctx, corr, task, pol)
+				return r.RunWithRetry(ctx, corr, task, pol)
 			}
-			return r.k.RunWith(ctx, corr, task)
+			return r.RunWith(ctx, corr, task)
 		},
 		func(ctx context.Context, task, answer string) (assureapi.Verdict, error) {
 			return r.VerifyCompletion(ctx, corr, task, answer)
