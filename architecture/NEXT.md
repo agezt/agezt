@@ -14085,9 +14085,12 @@ func main() {
   the **roster's** remaining write doors (five forwarders — `AddProfile`,
   `SetProfileEnabled`, `SetProfileRetired`, `UpdateProfile`, `RemoveProfile` —
   and the **config plugin's port has to be split** before they can move). The
-  **standing package** itself still lives at `kernel/standing` rather than
-  `kernel/modules/standing`; the move is cheap (three production importers)
-  and is its own slice.
+  **standing package** itself still lives at `kernel/standing`, and its
+  **eventual** home is the **triggers module** (`kernel/modules/triggers`) —
+  the architecture gate already places both `kernel/cadence` and
+  `kernel/standing` in that module (`tools/archcheck/layers.json`), so the
+  family's boundary is drawn; the module's directory does not exist yet, and
+  the move is a path move (four production importers), not a lifecycle one.
   Evidence:
   `architecture/297-w376x-the-standing-librarys-lifecycle-moves-into-the-standing-package-evidence.md`
 - W3.76y (the roster's lifecycle moves into the agents module) is the
@@ -14168,7 +14171,92 @@ func main() {
   engine's own verbs are the next large block — and they are the W3 exit
   criterion's real weight: no type may have more than sixty methods, and the
   daemon is the type that breaks it. The **standing package** itself still
-  lives at `kernel/standing` rather than `kernel/modules/standing`; the move
-  is cheap (three production importers) and is its own slice.
+  lives at `kernel/standing`, and its **eventual** home is the **triggers
+  module** (`kernel/modules/triggers`) — the architecture gate already places
+  both `kernel/cadence` and `kernel/standing` in that module, so the family's
+  boundary is drawn; the module's directory does not exist yet, and the move
+  is a path move (four production importers), not a lifecycle one.
   Evidence:
   `architecture/298-w376y-the-rosters-lifecycle-moves-into-the-agents-module-evidence.md`
+- W3.76z (the steering family's names move into the runs module) is the
+  **thirty-fourth** slice of the runtime's dissolution.
+
+  The **steering** family is the live control of a run already in flight —
+  pause, resume, step, steer, observe, intervene — and the target
+  architecture gives it to the **runs module**. W3.76b moved the **operations**
+  down (the service, the per-run control surface and the intervention
+  grammar) and left the daemon a **second spelling** of one family:
+
+  | where | the names |
+  |---|---|
+  | the **module**'s service (`steer.Service`) | `Pause`, `Resume`, `Step`, `Steer`, `State`, `Intervene` |
+  | the **daemon**'s forwarders | `PauseRun`, `ResumeRun`, `StepRun`, `SteerRun`, `RunControlState`, `InterveneRun` |
+
+  The module already answered in its own names; the daemon re-answered the
+  same six operations under names of its own, and every caller above had to
+  learn the second spelling. The slice took it away: the daemon holds **no**
+  verb per steering operation any more.
+
+  This family had **no contract** to lean on — there is no `runsapi` in
+  `kernel/contract` and the steering verbs were never a contract row — so the
+  module grew **its own port package** (`kernel/modules/runs/api`, the
+  **sixth** module with an `api` package after agents, extensions,
+  providers, reasoning and work; a module may import another module's **api**
+  package and nothing else, P5). `api.SteeringService` is the family's one
+  vocabulary, and the compiler says so, not a comment:
+  `var _ api.SteeringService = (*Service)(nil)`.
+
+  The daemon keeps the **doors**: the module's **FACE** (`SteeringService`)
+  and the live run the module steers (`controlFor`). The module reaches the
+  live runs, the bus and the cancel through its own ports and never names
+  the daemon.
+
+  The **application** binds the face and speaks the module's vocabulary:
+  `kernel/app/steer`'s `Runs` port now carries the daemon's own `CancelRun`
+  — cancelling a run stops the run *and* the daemon's own bookkeeping, so it
+  stays the host's verb — **plus** the module's `api.SteeringService`
+  (embedded), and the adapter answers the six steering verbs from the
+  module's face; a daemon that does not exist yields `refusingRuns`, which
+  refuses rather than calling into nothing.
+
+  This is the one family so far where the slice needed **no** refusal row:
+  the port answers with **what happened**, never with "the daemon is not
+  there", so nothing had to move.
+
+  The measurement: the daemon's public verbs **148 → 143**, its production
+  lines **5,635 → 5,635** (the six forwarders' lines were the six names the
+  module already answered in, and the account of the move took exactly their
+  place — a host's surface is read from the **verb** count, not the line
+  count), its files **54 → 54**; the app packages that name the daemon stay at
+  **forty**; the runs module's api package is **new** (43 lines), the steering
+  package **428 → 433**, the steering application **302 → 346**.
+
+  The daemon's own steering ratchet **turned around**: it used to pin that
+  the daemon *holds* the six names, and it now pins that it holds **none** of
+  them and does not grow the operation back into its own file. A **new**
+  binding ratchet in the steering application pins that the port speaks the
+  module's vocabulary and does not bind the daemon **handle** as its port
+  (both regexes look for a **parenthesis** and for the value **being** the
+  handle, so the file's own history cannot turn the ratchet red). The
+  daemon's own surface ceiling followed the floor again: **148 → 143** (220 →
+  201 → 194 → 179 → 173 → 166 → 164 → 156 → 152 → 148 → 143).
+
+  **The probe** put the daemon's `PauseRun` verb back and wrote the daemon's
+  verbs (and the daemon handle) into the application's port: the retired-verb
+  ratchet, the surface ceiling (144 > 143), the daemon's steering ratchet
+  (both halves) **and** the application's binding ratchet (both halves) all
+  went red at once — **five** ratchets in one shot; the probe was reverted and
+  the suites went green again.
+
+  **What is left**: the daemon holds **143** public verbs and **5,635**
+  production lines; **forty** application packages still name it. The run
+  engine's own verbs are the next large block — and they are the W3 exit
+  criterion's real weight: no type may have more than sixty methods, and the
+  daemon is the type that breaks it. The **standing package** itself still
+  lives at `kernel/standing`, and its **eventual** home is the **triggers
+  module** (`kernel/modules/triggers`) — the architecture gate already places
+  both `kernel/cadence` and `kernel/standing` in that module, so the family's
+  boundary is drawn; the module's directory does not exist yet, and the move
+  is a path move (four production importers), not a lifecycle one.
+  Evidence:
+  `architecture/299-w376z-the-steering-familys-names-move-into-the-runs-module-evidence.md`
