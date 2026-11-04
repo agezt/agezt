@@ -44,7 +44,7 @@ func TestAgentTaskUpdateNativeWire(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	if _, err := k.AddProfile(roster.Profile{Slug: "ops", Soul: "s"}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "ops", Soul: "s"}); err != nil {
 		t.Fatal(err)
 	}
 	s := NewServer(binding.ScopeFromKernel(k, dir))

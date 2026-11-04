@@ -41,7 +41,7 @@ func TestRun_AsAgent_ResumeEligibility(t *testing.T) {
 			}
 			var c *controlplane.Client
 			k, _, c, _ = startPairWithConfig(t, runtime.Config{Provider: prov, ResumeEnabled: true})
-			if _, err := k.AddProfile(roster.Profile{Slug: "ops", Soul: "agent-soul", Model: "agent-model"}); err != nil {
+			if _, err := k.RosterService().Add(roster.Profile{Slug: "ops", Soul: "agent-soul", Model: "agent-model"}); err != nil {
 				t.Fatal(err)
 			}
 			args := map[string]any{"agent": "ops", "intent": "do the task"}

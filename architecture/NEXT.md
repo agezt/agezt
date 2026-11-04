@@ -14090,3 +14090,85 @@ func main() {
   and is its own slice.
   Evidence:
   `architecture/297-w376x-the-standing-librarys-lifecycle-moves-into-the-standing-package-evidence.md`
+- W3.76y (the roster's lifecycle moves into the agents module) is the
+  **thirty-third** slice of the runtime's dissolution.
+
+  The roster is the agent list — the durable agent profiles, the rules around
+  them and the guardian rule. Since W3.56 its **file** has been the host's
+  (the kernel holds the contract's store port, `cfg.Roster`, and the
+  composition root opens `roster/roster.json`), and W3.76n moved its
+  **lifecycle** down to the agents module.
+
+  What stayed behind was a **third spelling** of one family:
+
+  | where | the names |
+  |---|---|
+  | the contract's **file** port (`agentapi.Store`) | `Add`, `SetEnabled`, `SetRetired`, `Update`, `Remove`, `Get`, `List`, `Count` |
+  | the module's **lifecycle** port (`agentsapi.RosterService`) | `Add`, `SetEnabled`, `SetRetired`, `Update`, `Remove` |
+  | the **daemon**'s forwarders | `AddProfile`, `SetProfileEnabled`, `SetProfileRetired`, `UpdateProfile`, `RemoveProfile` |
+
+  The contract and the module already agreed — the module's service answers
+  the **contract's** names. The daemon's five were the odd ones out, and every
+  caller above had to learn the third spelling. The slice took it away: the
+  daemon holds **no** verb per roster operation any more.
+
+  The **contract did not move at all** (603 lines before and after) — it
+  already named the family, and the refusal row (`agentapi.ErrNoRoster`) was
+  already there. The **module** did not move either (1,016 lines): the agents
+  module already kept the lifecycle, the events and the guardian rule. This
+  slice was about the daemon's third spelling, and the two below it were
+  already right.
+
+  The daemon keeps the roster's **FILE** (`Roster`), its **read gates**
+  (`RosterGet`, `RosterList` — the host's nil-safe view) and the read that
+  answers what depends on an agent (`AgentImpact` — the standing orders are
+  another domain's rows, so that read stayed with the host), and it hands over
+  the module's **FACE** (`RosterService`).
+
+  The **applications** bind the face: the roster application (the control
+  plane's roster handlers), the **overseer** (the fleet's supervision), the
+  **config tool's adapter** (the agent-scoped write path the plugin reaches —
+  the plugin's own port `configapi.Kernel.UpdateProfile` did **not** change,
+  because a plugin may not name the module and the adapter is the layer that
+  may) and the **guardian seeder**. They became **nil-safe**: a daemon with no
+  roster holds no face, and the writes refuse with the contract's row instead
+  of calling into nothing. The agents module's own **self-repair** asks the
+  same face.
+
+  The measurement: the daemon's public verbs **152 → 148**, its production
+  lines **5,657 → 5,635**, its files **54 → 54**; the app packages that name
+  the daemon stay at **forty**; the agents module **1,016 → 1,016** and the
+  agent contract **603 → 603**; the roster application **6,665 → 6,724**, the
+  overseer **1,281 → 1,312**, the config adapter **119 → 132**, the guardian
+  seeder **311 → 322**.
+
+  The daemon's own roster ratchet **grew** rather than being replaced: it now
+  pins that the daemon holds **no** verb per roster operation, that it still
+  holds the reads and the face, and that it does not write through the
+  roster's **file port** (in either shape — `k.Roster().Add(…)` and
+  `store.Add(…)`). A **new** binding ratchet in the roster application pins
+  the same for the application. The daemon's own surface ceiling followed the
+  floor again: **152 → 148** (220 → 201 → 194 → 179 → 173 → 166 → 164 → 156 →
+  152 → 148).
+
+  **The probe** put the daemon's `AddProfile` verb back and wrote through the
+  file port in the application: the retired-verb ratchet, the surface ceiling
+  (149 > 148), the daemon's roster ratchet (both halves) **and** the
+  application's binding ratchet all went red at once — **five** ratchets in one
+  shot; the probe was reverted and the suites went green again.
+
+  **The coverage moved with the subject**: the daemon's tests pin what the
+  daemon still does (it holds the file, the read gates, the impact read and
+  the module's face, it holds **no** verb per operation, and a daemon with no
+  roster holds **no** face); the roster application's tests pin the wiring and
+  the refusal.
+
+  **What is left**: the daemon holds **148** public verbs and **5,635**
+  production lines; **forty** application packages still name it. The run
+  engine's own verbs are the next large block — and they are the W3 exit
+  criterion's real weight: no type may have more than sixty methods, and the
+  daemon is the type that breaks it. The **standing package** itself still
+  lives at `kernel/standing` rather than `kernel/modules/standing`; the move
+  is cheap (three production importers) and is its own slice.
+  Evidence:
+  `architecture/298-w376y-the-rosters-lifecycle-moves-into-the-agents-module-evidence.md`

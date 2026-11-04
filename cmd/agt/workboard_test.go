@@ -214,7 +214,7 @@ func TestCmdWorkboardDispatchAndWatch(t *testing.T) {
 	}
 	k.SetBoardRunner(workboard.NewRunner(workboard.NewService(k.Workboard(), k.WorkboardDependencies())))
 	t.Cleanup(func() { _ = k.Close() })
-	if _, err := k.AddProfile(roster.Profile{Slug: "builder", Soul: "You build AGEZT tasks."}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "builder", Soul: "You build AGEZT tasks."}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
 
@@ -332,7 +332,7 @@ func TestCmdWorkboardDispatchRetriesAndEscalates(t *testing.T) {
 	}
 	k.SetBoardRunner(workboard.NewRunner(workboard.NewService(k.Workboard(), k.WorkboardDependencies())))
 	t.Cleanup(func() { _ = k.Close() })
-	if _, err := k.AddProfile(roster.Profile{Slug: "builder", Soul: "You build AGEZT tasks."}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "builder", Soul: "You build AGEZT tasks."}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
 

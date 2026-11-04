@@ -3,6 +3,7 @@
 package roster
 
 import (
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -152,5 +153,50 @@ func TestTheProfilePortsReachTheKernelProfiles(t *testing.T) {
 	}
 	if _, ok := ports.Get("lead"); ok {
 		t.Error("Get(lead) = found after Remove, want gone")
+	}
+}
+
+// TestTheProfilePortsRefuseWithoutARoster: a host with no roster holds no
+// roster face, and the application refuses in its place.
+//
+// The refusal is the CONTRACT's row (agentapi.ErrNoRoster) — the daemon holds
+// no verb per roster operation any more (W3.76y), so the answer to "the roster
+// is not there" belongs to the layer that asks. A write that answered "no
+// error" would plant a profile in a roster that is not there.
+func TestTheProfilePortsRefuseWithoutARoster(t *testing.T) {
+	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer k.Close()
+
+	if k.RosterService() != nil {
+		t.Fatal("a kernel with no roster must hold no roster face")
+	}
+	ports := ProfilePortsFromKernel(k)
+
+	if _, err := ports.Add(agentapi.Profile{Slug: "lead"}); !errors.Is(err, agentapi.ErrNoRoster) {
+		t.Errorf("Add error = %v, want %v", err, agentapi.ErrNoRoster)
+	}
+	if _, _, err := ports.Update("lead", func(*agentapi.Profile) {}); !errors.Is(err, agentapi.ErrNoRoster) {
+		t.Errorf("Update error = %v, want %v", err, agentapi.ErrNoRoster)
+	}
+	if _, err := ports.Remove("lead"); !errors.Is(err, agentapi.ErrNoRoster) {
+		t.Errorf("Remove error = %v, want %v", err, agentapi.ErrNoRoster)
+	}
+	if _, err := ports.SetEnabled("lead", false); !errors.Is(err, agentapi.ErrNoRoster) {
+		t.Errorf("SetEnabled error = %v, want %v", err, agentapi.ErrNoRoster)
+	}
+	if _, err := ports.SetRetired("lead", true); !errors.Is(err, agentapi.ErrNoRoster) {
+		t.Errorf("SetRetired error = %v, want %v", err, agentapi.ErrNoRoster)
+	}
+
+	// The READS are the host's nil-safe view over the contract's port: they
+	// need no face and they answer.
+	if _, ok := ports.Get("lead"); ok {
+		t.Error("Get(lead) = found in a roster that has none")
+	}
+	if got := ports.List(); len(got) != 0 {
+		t.Errorf("List = %v, want no agents", got)
 	}
 }

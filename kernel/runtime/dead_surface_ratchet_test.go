@@ -111,6 +111,12 @@ var retiredVerbs = []string{
 	"UpdateStanding",
 	"RemoveStanding",
 	"StandingList",
+	// The daemon's five verbs over the roster's lifecycle (W3.76y).
+	"AddProfile",
+	"SetProfileEnabled",
+	"SetProfileRetired",
+	"UpdateProfile",
+	"RemoveProfile",
 }
 
 // daemonPublicVerbs is the ceiling the daemon's public method set may not
@@ -129,10 +135,10 @@ var retiredVerbs = []string{
 // workflow engine's eight forwarders) -> 164 (W3.76v, the reasoning module's
 // three forwarders) -> 156 (W3.76w, the MCP registry's seven forwarders and
 // two readers) -> 152 (W3.76x, the standing library's four forwarders and one
-// reader).
-// The daemon holds 152 public verbs today; a new verb needs a new reason, and
+// reader) -> 148 (W3.76y, the roster's five forwarders).
+// The daemon holds 148 public verbs today; a new verb needs a new reason, and
 // this file says so.
-const daemonPublicVerbs = 152
+const daemonPublicVerbs = 148
 
 // TestTheRetiredVerbsDoNotComeBack pins the retirement: none of the sixteen
 // names is a method of *Kernel any more.

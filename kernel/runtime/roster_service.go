@@ -3,13 +3,18 @@
 package runtime
 
 // Provenance: the daemon's face over the AGENTS MODULE's roster service
-//             (W3.76n).
+//             (W3.76n, W3.76y).
 //
 // The roster's WRITES are the module's: the module keeps the profile
 // lifecycle, the events those writes publish and the rule that a shipped
-// guardian may be paused or retired but never removed. The daemon keeps the
-// names — AddProfile, UpdateProfile, RemoveProfile, SetProfileEnabled and
-// SetProfileRetired are still the daemon's verbs — and forwards.
+// guardian may be paused or retired but never removed.
+//
+// The daemon used to keep the names too — AddProfile, UpdateProfile,
+// RemoveProfile, SetProfileEnabled and SetProfileRetired were the daemon's
+// verbs, and it forwarded. W3.76y took the names away: the module's service
+// already answered the CONTRACT's names (Add, SetEnabled, SetRetired, Update,
+// Remove), so the daemon's five verbs were a third spelling of one family.
+// The daemon hands over the module's FACE (RosterService) now.
 //
 // The accessor lives HERE, beside the module's face, and not in
 // accessors_roster.go: that file holds the roster's PUBLIC verbs, and the
@@ -25,9 +30,13 @@ import (
 // rosterService returns the injected roster service, or nil.
 //
 // The service is the AGENTS MODULE's: the module keeps the lifecycle, the
-// daemon keeps the names. The composition root hands the BUILDER over (see
+// daemon hands over the face. The composition root hands the BUILDER over (see
 // runtime.Config.RosterService) and the kernel calls it while opening itself
 // — so the daemon never needs a setter for it.
+//
+// The public accessor (RosterService) lives in accessors_roster.go, beside the
+// roster's other public verbs: this one is private because the application
+// layer binds the face, not the daemon's internals.
 func (k *Kernel) rosterService() agentsapi.RosterService {
 	k.configMu.Lock()
 	defer k.configMu.Unlock()

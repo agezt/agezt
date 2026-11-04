@@ -39,7 +39,7 @@ func TestKernelSourceAnswersThePortFromTheLiveKernel(t *testing.T) {
 	if got := src.Agents(); len(got) != 0 {
 		t.Fatalf("agents on an empty roster = %d, want 0", len(got))
 	}
-	if _, err := k.AddProfile(agentapi.Profile{Slug: "scout", Name: "Scout", Enabled: true}); err != nil {
+	if _, err := k.RosterService().Add(agentapi.Profile{Slug: "scout", Name: "Scout", Enabled: true}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
 
@@ -104,7 +104,7 @@ func TestKernelSourceProtectsSystemGuardians(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 	src := NewKernelSource(PortsFromKernel(k), dir)
 
-	if _, err := k.AddProfile(agentapi.Profile{Slug: "guardian", System: true}); err != nil {
+	if _, err := k.RosterService().Add(agentapi.Profile{Slug: "guardian", System: true}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
 
@@ -144,7 +144,7 @@ func TestKernelSourceEditAppliesOnlyProvidedFields(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 	src := NewKernelSource(PortsFromKernel(k), dir)
 
-	if _, err := k.AddProfile(agentapi.Profile{Slug: "scout", Name: "Scout", Soul: "stay sharp"}); err != nil {
+	if _, err := k.RosterService().Add(agentapi.Profile{Slug: "scout", Name: "Scout", Soul: "stay sharp"}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
 	edited, err := src.EditAgent("scout", agentapi.Profile{Name: "Renamed"})

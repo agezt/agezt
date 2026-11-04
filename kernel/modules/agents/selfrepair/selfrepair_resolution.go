@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/strutil"
+	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/boardapi"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 )
@@ -108,7 +109,11 @@ func (c *autoRepairCoordinator) applyAutoRepairResolution(ctx context.Context, k
 		if k == nil {
 			return nil, fmt.Errorf("paused resolution requires kernel access")
 		}
-		_, err := k.SetProfileEnabled(cand.Slug, false)
+		roster := k.RosterService()
+		if roster == nil {
+			return nil, agentapi.ErrNoRoster
+		}
+		_, err := roster.SetEnabled(cand.Slug, false)
 		if err != nil {
 			return nil, err
 		}
@@ -117,11 +122,15 @@ func (c *autoRepairCoordinator) applyAutoRepairResolution(ctx context.Context, k
 		if k == nil {
 			return nil, fmt.Errorf("retired resolution requires kernel access")
 		}
+		roster := k.RosterService()
+		if roster == nil {
+			return nil, agentapi.ErrNoRoster
+		}
 		reason := strings.TrimSpace(wake.Resolution.Summary)
 		if reason == "" {
 			reason = "retired by escalation resolution"
 		}
-		_, err := k.SetProfileRetired(cand.Slug, true, reason)
+		_, err := roster.SetRetired(cand.Slug, true, reason)
 		if err != nil {
 			return nil, err
 		}

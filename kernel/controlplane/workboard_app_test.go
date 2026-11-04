@@ -34,7 +34,7 @@ func workboardAppFixture(t *testing.T) (*runtime.Kernel, *Server, workboard.Task
 	}
 	k.SetBoardRunner(workboard.NewRunner(workboard.NewService(k.Workboard(), k.WorkboardDependencies())))
 	t.Cleanup(func() { k.Close() })
-	if _, err := k.AddProfile(roster.Profile{Slug: "writer"}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "writer"}); err != nil {
 		t.Fatal(err)
 	}
 	task, _, err := k.Workboard().Create(workboard.CreateSpec{Title: "owned", Status: workboard.StatusReady, Assignee: "writer"}, time.UnixMilli(100))

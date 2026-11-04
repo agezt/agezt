@@ -66,8 +66,15 @@ func TestTheKernelNeverOpensARosterOfItsOwn(t *testing.T) {
 }
 
 // TestAKernelWithoutARosterAnswersNoAgents: the missing-roster case is
-// answered ONCE, in the kernel: the reads say "no agents" and the writes
-// refuse. Neither may panic, and neither may pretend the write succeeded.
+// answered ONCE, in the kernel: the reads say "no agents" and the daemon
+// holds NO FACE. Neither may panic, and neither may pretend the write
+// succeeded.
+//
+// The daemon holds no verb per roster operation any more (W3.76y): the roster's
+// lifecycle is the AGENTS MODULE's, and a host with no roster holds no module
+// service. The refusal lives with the callers above (the application layer
+// answers with the contract's row, agentapi.ErrNoRoster) — the daemon's job is
+// to hold no face rather than a face that calls into nothing.
 func TestAKernelWithoutARosterAnswersNoAgents(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
 	if err != nil {
@@ -81,20 +88,8 @@ func TestAKernelWithoutARosterAnswersNoAgents(t *testing.T) {
 	if got := k.RosterList(); len(got) != 0 {
 		t.Fatalf("a kernel with no roster lists no agents, got %d", len(got))
 	}
-	if _, err := k.AddProfile(agentapi.Profile{Slug: "ops"}); err == nil {
-		t.Fatal("a kernel with no roster must REFUSE the write, not swallow it")
-	}
-	if _, err := k.SetProfileEnabled("ops", false); err == nil {
-		t.Fatal("a kernel with no roster must REFUSE the pause, not swallow it")
-	}
-	if _, err := k.SetProfileRetired("ops", true); err == nil {
-		t.Fatal("a kernel with no roster must REFUSE the retire, not swallow it")
-	}
-	if _, _, err := k.UpdateProfile("ops", func(*agentapi.Profile) {}); err == nil {
-		t.Fatal("a kernel with no roster must REFUSE the edit, not swallow it")
-	}
-	if _, err := k.RemoveProfile("ops"); err == nil {
-		t.Fatal("a kernel with no roster must REFUSE the removal, not swallow it")
+	if k.RosterService() != nil {
+		t.Fatal("a kernel with no roster must hold no roster face — the callers above refuse in its place")
 	}
 }
 
@@ -108,7 +103,7 @@ func TestTheInjectedRosterIsTheLiveOne(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = k.Close() })
 
-	saved, err := k.AddProfile(agentapi.Profile{Slug: "ops", Name: "Ops"})
+	saved, err := k.RosterService().Add(agentapi.Profile{Slug: "ops", Name: "Ops"})
 	if err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}

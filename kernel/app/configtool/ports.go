@@ -43,12 +43,25 @@ type Ports struct {
 //
 // The handle may be nil: a host that holds no daemon holds no daemon to
 // answer for.
+//
+// The agent-scoped write goes to the AGENTS MODULE's service (W3.76y): the
+// roster's lifecycle is the module's, and the daemon hands over the module's
+// FACE. The daemon used to forward a verb of its own here (UpdateProfile);
+// it was a third spelling of one family, and one operation has one name. A
+// host with no roster holds no face, and the write refuses with the
+// contract's row (agentapi.ErrNoRoster).
 func PortsFromKernel(k *runtime.Kernel) Ports {
 	if k == nil {
 		return Ports{}
 	}
+	roster := k.RosterService()
 	return Ports{
-		profile: k.UpdateProfile,
+		profile: func(ref string, mutate func(*agentapi.Profile)) (agentapi.Profile, bool, error) {
+			if roster == nil {
+				return agentapi.Profile{}, false, agentapi.ErrNoRoster
+			}
+			return roster.Update(ref, mutate)
+		},
 		reload: func() error {
 			_, _, err := k.Reload()
 			return err

@@ -316,7 +316,7 @@ func TestToolKernelDepsSuppliesTheConfigPort(t *testing.T) {
 
 	// The port must answer the LIVE roster — a profile added to the kernel
 	// is the profile the port edits.
-	if _, err := k.AddProfile(agentapi.Profile{Slug: "researcher"}); err != nil {
+	if _, err := k.RosterService().Add(agentapi.Profile{Slug: "researcher"}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
 	got, found, err := deps.Config.UpdateProfile("researcher", func(p *agentapi.Profile) {
@@ -622,7 +622,7 @@ func TestToolKernelDepsSuppliesTheMCPAndStandingPorts(t *testing.T) {
 	if deps.AgentLookup == nil {
 		t.Fatal("the daemon must supply the agent lookup")
 	}
-	if _, err := k.AddProfile(agentapi.Profile{Slug: "scout"}); err != nil {
+	if _, err := k.RosterService().Add(agentapi.Profile{Slug: "scout"}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
 	profile, ok := deps.AgentLookup("scout")

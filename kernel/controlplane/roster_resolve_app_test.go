@@ -98,7 +98,7 @@ func TestAgentResolveNativePorts(t *testing.T) {
 	}
 	defer k.Close()
 	for _, p := range []roster.Profile{{Slug: "ops", Soul: "s"}, {Slug: "peer", Soul: "s"}} {
-		if _, err := k.AddProfile(p); err != nil {
+		if _, err := k.RosterService().Add(p); err != nil {
 			t.Fatal(err)
 		}
 	}

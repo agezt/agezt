@@ -61,7 +61,7 @@ func TestStandingSpecWiresTheRosterLookup(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 
 	no := false
-	if _, err := k.AddProfile(agentapi.Profile{Slug: "worker", ParentAgent: "lead", DirectCallable: &no}); err != nil {
+	if _, err := k.RosterService().Add(agentapi.Profile{Slug: "worker", ParentAgent: "lead", DirectCallable: &no}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
 

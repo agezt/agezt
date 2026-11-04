@@ -73,10 +73,21 @@ func PortsFromKernel(k *runtime.Kernel) Ports {
 	if k == nil {
 		return Ports{}
 	}
+	roster := k.RosterService()
 	return Ports{
-		agents:    k.RosterList,
-		addAgent:  k.AddProfile,
-		editAgent: k.UpdateProfile,
+		agents: k.RosterList,
+		addAgent: func(p agentapi.Profile) (agentapi.Profile, error) {
+			if roster == nil {
+				return agentapi.Profile{}, agentapi.ErrNoRoster
+			}
+			return roster.Add(p)
+		},
+		editAgent: func(ref string, mutate func(*agentapi.Profile)) (agentapi.Profile, bool, error) {
+			if roster == nil {
+				return agentapi.Profile{}, false, agentapi.ErrNoRoster
+			}
+			return roster.Update(ref, mutate)
+		},
 		orders: func() []standingapi.Order {
 			if k.Standing() == nil {
 				return nil

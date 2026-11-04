@@ -27,7 +27,7 @@ func TestTheConfigSpecWiresTheLivePort(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, err := k.AddProfile(agentapi.Profile{Slug: "researcher"}); err != nil {
+	if _, err := k.RosterService().Add(agentapi.Profile{Slug: "researcher"}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
 

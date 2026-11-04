@@ -33,7 +33,7 @@ func TestTheRunPortsReachTheDaemon(t *testing.T) {
 	}
 
 	// The roster half: the agent a run runs as.
-	if _, err := k.AddProfile(agentapi.Profile{Slug: "scout", Name: "Scout", Enabled: true}); err != nil {
+	if _, err := k.RosterService().Add(agentapi.Profile{Slug: "scout", Name: "Scout", Enabled: true}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
 	got, found := ports.Profile("scout")

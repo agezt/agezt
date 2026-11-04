@@ -35,7 +35,7 @@ func TestRoutingBindsTheKernel(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	if _, err := k.AddProfile(roster.Profile{Slug: "amy", Model: "m", Fallbacks: []string{"@fast"}}); err != nil {
+	if _, err := k.RosterService().Add(roster.Profile{Slug: "amy", Model: "m", Fallbacks: []string{"@fast"}}); err != nil {
 		t.Fatal(err)
 	}
 	base := t.TempDir()

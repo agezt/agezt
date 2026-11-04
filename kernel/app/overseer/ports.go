@@ -28,6 +28,13 @@ import (
 // routing edits. Those are asked of the families that own them, so a verb is
 // never named twice.
 //
+// The fleet's WRITES go to the AGENTS MODULE's service (W3.76y): the roster's
+// lifecycle is the module's, and the daemon hands over the module's FACE. The
+// daemon used to forward five verbs of its own here; they were a third
+// spelling of one family, and one operation has one name. A host with no
+// roster holds no face, and the writes refuse with the contract's row
+// (agentapi.ErrNoRoster).
+//
 // Two verbs belong to NOBODY at all: CANCEL RUN and the RUN IDS. The overseer
 // is the only family that reads them, so the overseer OWNS them, and the
 // guard says so by name (the rule is by whole name, and it is held in both
@@ -84,6 +91,7 @@ func PortsFromKernel(k *runtime.Kernel) Ports {
 	provider := appprovider.PortsFromKernel(k)
 	reaper := appreaper.PortsFromKernel(k)
 	runs := appruns.PortsFromKernel(k)
+	roster := k.RosterService()
 	return Ports{
 		stopped:      k.IsHalted,
 		runningIDs:   k.ActiveRunIDs,
@@ -93,17 +101,40 @@ func PortsFromKernel(k *runtime.Kernel) Ports {
 		stopRun:      runs.Cancel,
 		haltDaemon:   func(reason string) { k.HaltWith(reason) },
 		resumeDaemon: func(reason string) { k.ResumeWith(reason) },
-		enableAgent:  k.SetProfileEnabled,
-		retireAgent: func(ref string, retired bool, reason string) (agentapi.Profile, error) {
-			if reason == "" {
-				return k.SetProfileRetired(ref, retired)
+		enableAgent: func(ref string, enabled bool) (agentapi.Profile, error) {
+			if roster == nil {
+				return agentapi.Profile{}, agentapi.ErrNoRoster
 			}
-			return k.SetProfileRetired(ref, retired, reason)
+			return roster.SetEnabled(ref, enabled)
 		},
-		editProfile:   k.UpdateProfile,
-		createProfile: k.AddProfile,
-		deleteProfile: k.RemoveProfile,
-		correlation:   correlation.Mint,
+		retireAgent: func(ref string, retired bool, reason string) (agentapi.Profile, error) {
+			if roster == nil {
+				return agentapi.Profile{}, agentapi.ErrNoRoster
+			}
+			if reason == "" {
+				return roster.SetRetired(ref, retired)
+			}
+			return roster.SetRetired(ref, retired, reason)
+		},
+		editProfile: func(ref string, mutate func(*agentapi.Profile)) (agentapi.Profile, bool, error) {
+			if roster == nil {
+				return agentapi.Profile{}, false, agentapi.ErrNoRoster
+			}
+			return roster.Update(ref, mutate)
+		},
+		createProfile: func(p agentapi.Profile) (agentapi.Profile, error) {
+			if roster == nil {
+				return agentapi.Profile{}, agentapi.ErrNoRoster
+			}
+			return roster.Add(p)
+		},
+		deleteProfile: func(ref string) (bool, error) {
+			if roster == nil {
+				return false, agentapi.ErrNoRoster
+			}
+			return roster.Remove(ref)
+		},
+		correlation: correlation.Mint,
 		launch: func(ctx context.Context, corr, intent string, retry *agentapi.RetryPolicy) (string, error) {
 			return runs.Launch(ctx, corr, intent, retry)
 		},

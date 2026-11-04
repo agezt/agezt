@@ -22,7 +22,7 @@ func TestSkillAppSocketRequiresAuditBeforeMutations(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer k.Close()
-			if _, err := k.AddProfile(roster.Profile{Slug: "reviewer"}); err != nil {
+			if _, err := k.RosterService().Add(roster.Profile{Slug: "reviewer"}); err != nil {
 				t.Fatal(err)
 			}
 			sk, _, err := k.Forge().Create("seed", skill.CreateSpec{Name: "fixture", Body: "body", Agent: "writer", Resources: map[string][]byte{"ref.md": []byte("owned")}})
