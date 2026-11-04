@@ -18,6 +18,7 @@ import (
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
+	"github.com/agezt/agezt/kernel/modules/runs/api"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
 	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/warden"
@@ -66,6 +67,11 @@ type Runner struct {
 	// no roster to write, which is the same answer the host gave.
 	roster agentsapi.RosterService
 }
+
+// The run engine answers the module's own PORT (W3.76ac): the run engine is
+// the runs module's, and the port names it once. The compiler says so, not a
+// comment.
+var _ api.RunnerService = (*Runner)(nil)
 
 // New constructs the Runner. k is the host kernel; the Runner
 // is a stateless value around it.

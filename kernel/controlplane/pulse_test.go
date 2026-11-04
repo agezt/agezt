@@ -49,7 +49,7 @@ func TestPulse_StreamsEvents(t *testing.T) {
 	// Without this, the run can publish before the subscription is
 	// active and pulse misses the events.
 	time.Sleep(50 * time.Millisecond)
-	if _, _, err := k.Run(ctx, "say hi via pulse"); err != nil {
+	if _, _, err := runForTest(k, ctx, "say hi via pulse"); err != nil {
 		t.Fatalf("kernel.Run: %v", err)
 	}
 
@@ -123,7 +123,7 @@ func TestPulse_FiltersByKind(t *testing.T) {
 			})
 	}()
 	time.Sleep(50 * time.Millisecond)
-	if _, _, err := k.Run(ctx, "filter test"); err != nil {
+	if _, _, err := runForTest(k, ctx, "filter test"); err != nil {
 		t.Fatalf("kernel.Run: %v", err)
 	}
 
@@ -199,7 +199,7 @@ func TestPulse_DefaultPatternMatchesAll(t *testing.T) {
 			})
 	}()
 	time.Sleep(50 * time.Millisecond)
-	if _, _, err := k.Run(ctx, "default pattern test"); err != nil {
+	if _, _, err := runForTest(k, ctx, "default pattern test"); err != nil {
 		t.Fatalf("kernel.Run: %v", err)
 	}
 	select {

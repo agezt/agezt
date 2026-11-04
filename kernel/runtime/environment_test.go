@@ -54,7 +54,7 @@ func TestEnvironmentInject_ReachesSystemPrompt(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, _, err := k.Run(context.Background(), "do something"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "do something"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	mu.Lock()
@@ -94,7 +94,7 @@ func TestEnvironmentInject_OffByConfig(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { k.Close() })
-	if _, _, err := k.Run(context.Background(), "hi"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "hi"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if strings.Contains(system, "Runtime environment") {

@@ -38,7 +38,7 @@ func TestResume_TicketDeletedOnCleanCompletion(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = k.Close() })
 
-	if _, err := k.RunWith(context.Background(), "corr-clean", "do the thing"); err != nil {
+	if _, err := k.RunnerService().RunWith(context.Background(), "corr-clean", "do the thing"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	if _, ok, _ := k.ResumeStore().Get("corr-clean"); ok {
@@ -60,7 +60,7 @@ func TestResume_TicketKeptWhenInterruptedBySuspend(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		_, e := k.RunWith(ctx, "corr-suspend", "long task")
+		_, e := k.RunnerService().RunWith(ctx, "corr-suspend", "long task")
 		done <- e
 	}()
 	waitForTicket(t, k, "corr-suspend")
@@ -97,7 +97,7 @@ func TestResume_TicketDeletedOnOperatorCancel(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		_, e := k.RunWith(context.Background(), "corr-cancel", "long task")
+		_, e := k.RunnerService().RunWith(context.Background(), "corr-cancel", "long task")
 		done <- e
 	}()
 	waitForTicket(t, k, "corr-cancel")
@@ -150,7 +150,7 @@ func TestResume_ReDispatchSeedsConversationAndClears(t *testing.T) {
 	// Re-dispatch exactly as buildResumer does.
 	ctx := resume.WithOwned(context.Background(), resume.KindRun)
 	ctx = resume.WithSeed(ctx, prior, 2)
-	ans, err := k.RunWith(ctx, "corr-redispatch", "orig intent")
+	ans, err := k.RunnerService().RunWith(ctx, "corr-redispatch", "orig intent")
 	k.ResumeFinalize("corr-redispatch", err)
 	if err != nil {
 		t.Fatalf("resumed RunWith: %v", err)

@@ -52,7 +52,7 @@ func TestMemoryInjectedIntoSystemPrompt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, _, err := k.Run(context.Background(), "tell me about lictor agezt"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "tell me about lictor agezt"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -83,7 +83,7 @@ func TestMemoryInjectionOffByDefault(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 
 	_, _, _ = k.Memory().Remember("seed", memory.RememberSpec{Subject: "x", Content: "secret fact about agezt"})
-	if _, _, err := k.Run(context.Background(), "agezt"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "agezt"); err != nil {
 		t.Fatal(err)
 	}
 	if gotSystem != "base" {
@@ -146,7 +146,7 @@ func TestAutoDistillAfterMultiToolRun(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, _, err := k.Run(context.Background(), "what is this project?"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "what is this project?"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -169,7 +169,7 @@ func TestNoDistillBelowThreshold(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, _, err := k.Run(context.Background(), "hi"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "hi"); err != nil {
 		t.Fatal(err)
 	}
 	if n := k.Memory().Count(); n != 0 {

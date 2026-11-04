@@ -70,7 +70,7 @@ func TestRun_AutoContextBudgetFromCatalog(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, _, err := k.Run(context.Background(), "dump repeatedly"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "dump repeatedly"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -122,7 +122,7 @@ func TestRun_ContextProtectFirstPlumbsThrough(t *testing.T) {
 		t.Fatalf("Open control: %v", err)
 	}
 	t.Cleanup(func() { kc.Close() })
-	if _, _, err := kc.Run(context.Background(), "dump"); err != nil {
+	if _, _, err := runForTest(kc, context.Background(), "dump"); err != nil {
 		t.Fatalf("Run control: %v", err)
 	}
 	if compactedCount(kc) == 0 {
@@ -138,7 +138,7 @@ func TestRun_ContextProtectFirstPlumbsThrough(t *testing.T) {
 		t.Fatalf("Open protected: %v", err)
 	}
 	t.Cleanup(func() { kp.Close() })
-	if _, _, err := kp.Run(context.Background(), "dump"); err != nil {
+	if _, _, err := runForTest(kp, context.Background(), "dump"); err != nil {
 		t.Fatalf("Run protected: %v", err)
 	}
 	if got := compactedCount(kp); got != 0 {
@@ -185,7 +185,7 @@ func TestRun_ContextSummarizeEmbedsAbstractiveSummary(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, _, err := k.Run(context.Background(), "dump"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "dump"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if !sawSummaryInContext {
@@ -215,7 +215,7 @@ func TestRun_AutoBudgetOffForUnknownModel(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, _, err := k.Run(context.Background(), "dump"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "dump"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	n := 0
@@ -277,7 +277,7 @@ func TestRun_ContextSummarizeReasoningHeadroom(t *testing.T) {
 			}
 			t.Cleanup(func() { k.Close() })
 
-			if _, _, err := k.Run(context.Background(), "dump repeatedly"); err != nil {
+			if _, _, err := runForTest(k, context.Background(), "dump repeatedly"); err != nil {
 				t.Fatalf("Run: %v", err)
 			}
 			if gotMax != tc.wantMax {

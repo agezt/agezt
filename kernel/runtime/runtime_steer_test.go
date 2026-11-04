@@ -77,7 +77,7 @@ func TestSteerRun_PauseInjectResume(t *testing.T) {
 		err error
 	}, 1)
 	go func() {
-		ans, e := k.RunWith(context.Background(), corr, "loop until steered")
+		ans, e := k.RunnerService().RunWith(context.Background(), corr, "loop until steered")
 		done <- struct {
 			ans string
 			err error
@@ -216,7 +216,7 @@ func TestSteerRun_SubAgentIndividuallySteerable(t *testing.T) {
 		err error
 	}, 1)
 	go func() {
-		ans, e := k.RunWith(context.Background(), leadCorr, "lead-task: delegate then report")
+		ans, e := k.RunnerService().RunWith(context.Background(), leadCorr, "lead-task: delegate then report")
 		done <- struct {
 			ans string
 			err error
@@ -307,7 +307,7 @@ func TestInterveneRun_ThroughTheDaemonDoor(t *testing.T) {
 	}
 
 	corr := k.NewCorrelation()
-	go func() { _, _ = k.RunWith(context.Background(), corr, "loop until halted") }()
+	go func() { _, _ = k.RunnerService().RunWith(context.Background(), corr, "loop until halted") }()
 	time.Sleep(60 * time.Millisecond)
 
 	res, err = k.SteeringService().Intervene(intervention.Request{

@@ -30,7 +30,7 @@ func TestRunWith_HeuristicBypassAnswersTimeWithoutProvider(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	ans, corr, err := k.Run(context.Background(), "saat kaç?")
+	ans, corr, err := runForTest(k, context.Background(), "saat kaç?")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}

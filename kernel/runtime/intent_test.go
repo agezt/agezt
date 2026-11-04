@@ -41,7 +41,7 @@ func TestRunWith_IntentRegretGateRoutesAmbiguousHighRegretActionToApproval(t *te
 
 	done := make(chan error, 1)
 	go func() {
-		_, _, err := k.Run(context.Background(), "clean files")
+		_, _, err := runForTest(k, context.Background(), "clean files")
 		done <- err
 	}()
 
@@ -86,7 +86,7 @@ func TestRunWith_IntentInterpretationIsJournaledWithoutRawUtterance(t *testing.T
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, _, err := k.Run(context.Background(), "dosyaları temizle"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "dosyaları temizle"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 

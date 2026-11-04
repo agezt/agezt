@@ -56,7 +56,7 @@ func TestRunWith_ExplicitModelBeatsTaskChain(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 
 	// No override → the chat chain serves (pre-M931 behaviour, unchanged).
-	if _, err := k.RunWith(context.Background(), k.NewCorrelation(), "hi"); err != nil {
+	if _, err := k.RunnerService().RunWith(context.Background(), k.NewCorrelation(), "hi"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	if len(served) == 0 || served[0] != "chain-primary" {
@@ -66,7 +66,7 @@ func TestRunWith_ExplicitModelBeatsTaskChain(t *testing.T) {
 	// Explicit pick → exactly that model, not the chain.
 	served = nil
 	ctx := runctx.WithModel(context.Background(), "my-explicit-pick")
-	if _, err := k.RunWith(ctx, k.NewCorrelation(), "hi again"); err != nil {
+	if _, err := k.RunnerService().RunWith(ctx, k.NewCorrelation(), "hi again"); err != nil {
 		t.Fatalf("RunWith with override: %v", err)
 	}
 	if len(served) == 0 {

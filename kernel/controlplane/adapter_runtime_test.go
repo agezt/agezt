@@ -904,10 +904,15 @@ func reaperOwnedVerbs(t *testing.T) []string {
 //
 // And FOUR verbs belong to the runs family by an EXACT name: `AdmitImages`,
 // the vision gate a run asks before it looks at anything; `SubjectForRun`,
-// the run's own subject on the bus; `RunAssured`, the loop that runs the
-// intent until the answer is assured; and `MaxDuration`, the daemon's own run
-// ceiling. None of them was guarded until this slice, and none of them carries
-// "Run" AND "With" — a word rule cannot find them.
+// the run's own subject on the bus; `MaxDuration`, the daemon's own run
+// ceiling. None of them carries "Run" AND "With" — a word rule cannot find
+// them.
+//
+// `RunAssured` was one of them until the W3.76ac slice: the daemon's own copy
+// of the assurance loop is gone, and the LOOP itself is the runs module's —
+// the daemon answers `RunnerService` now, and the module runs under it. The
+// face is named here in the family's place, because a verb the kernel has and
+// the guard does not name is a verb nobody guards.
 //
 // `CancelRun` joined them: it was the OVERSEER's by name since the W5.4ba
 // slice, but the RUNS family reads it too — a run that outlives the
@@ -942,7 +947,7 @@ func runsOwnedVerbs(t *testing.T) []string {
 		}
 		verbs = append(verbs, name)
 	}
-	for _, name := range []string{"AdmitImages", "SubjectForRun", "RunAssured", "MaxDuration", "LoopRunner", "RunPlan"} {
+	for _, name := range []string{"AdmitImages", "SubjectForRun", "MaxDuration", "LoopRunner", "RunPlan", "RunnerService"} {
 		if _, ok := kernel.MethodByName(name); !ok {
 			t.Fatalf("the kernel has no %s verb — the runs family's verbs moved?", name)
 		}

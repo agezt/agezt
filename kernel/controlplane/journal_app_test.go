@@ -64,7 +64,7 @@ func TestJournalNativeRouting(t *testing.T) {
 	}
 	tk := entry.Kernel.(*runtime.Kernel)
 	tenantToken, _ := reg.Token("acme")
-	if _, _, err := k.Run(context.Background(), "primary work"); err != nil {
+	if _, err := k.RunnerService().RunWith(context.Background(), k.NewCorrelation(), "primary work"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := k.Bus().Publish(event.Spec{Subject: "policy", Kind: event.KindPolicyChanged, Actor: "test", Payload: map[string]any{"rule": "deny shell"}}); err != nil {

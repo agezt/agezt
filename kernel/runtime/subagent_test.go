@@ -78,7 +78,7 @@ func TestSubAgent_SpendGuard(t *testing.T) {
 	col := &collector{}
 	col.watch(k)
 
-	ans, _, err := k.Run(context.Background(), "spend out")
+	ans, _, err := runForTest(k, context.Background(), "spend out")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestSubAgent_SpendUnboundedByDefault(t *testing.T) {
 	col := &collector{}
 	col.watch(k)
 
-	if _, _, err := k.Run(context.Background(), "spend out"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "spend out"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	time.Sleep(50 * time.Millisecond)
@@ -183,7 +183,7 @@ func TestSubAgent_DelegationFlow(t *testing.T) {
 	col := &collector{}
 	col.watch(k)
 
-	ans, corr, err := k.Run(context.Background(), "what is this project's module?")
+	ans, corr, err := runForTest(k, context.Background(), "what is this project's module?")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -255,7 +255,7 @@ func TestSubAgent_DepthGuard(t *testing.T) {
 	col := &collector{}
 	col.watch(k)
 
-	ans, _, err := k.Run(context.Background(), "go")
+	ans, _, err := runForTest(k, context.Background(), "go")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -299,7 +299,7 @@ func TestSubAgent_FanoutGuard(t *testing.T) {
 	col := &collector{}
 	col.watch(k)
 
-	ans, _, err := k.Run(context.Background(), "fan out")
+	ans, _, err := runForTest(k, context.Background(), "fan out")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -330,7 +330,7 @@ func TestSubAgent_FanoutUnboundedByDefault(t *testing.T) {
 	col := &collector{}
 	col.watch(k)
 
-	if _, _, err := k.Run(context.Background(), "fan out"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "fan out"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	time.Sleep(50 * time.Millisecond)
@@ -371,7 +371,7 @@ func TestSubAgent_TotalGuard_BoundsWholeTreeAcrossDepths(t *testing.T) {
 	col := &collector{}
 	col.watch(k)
 
-	ans, _, err := k.Run(context.Background(), "go deep")
+	ans, _, err := runForTest(k, context.Background(), "go deep")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -430,7 +430,7 @@ func TestSubAgent_TotalUnboundedByDefault(t *testing.T) {
 	col := &collector{}
 	col.watch(k)
 
-	if _, _, err := k.Run(context.Background(), "go deep"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "go deep"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	time.Sleep(50 * time.Millisecond)
@@ -459,7 +459,7 @@ func TestWithModel_OverridesPerRun(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 
 	ctx := runctx.WithModel(context.Background(), "requested-model")
-	if _, err := k.RunWith(ctx, k.NewCorrelation(), "hi"); err != nil {
+	if _, err := k.RunnerService().RunWith(ctx, k.NewCorrelation(), "hi"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	if sawModel != "requested-model" {
@@ -475,7 +475,7 @@ func TestWithModel_OverridesPerRun(t *testing.T) {
 		Tools: map[string]toolapi.Tool{"shell": shell.NewWithWarden(warden.New(nil))},
 	}))
 	t.Cleanup(func() { k2.Close() })
-	if _, err := k2.RunWith(context.Background(), k2.NewCorrelation(), "hi"); err != nil {
+	if _, err := k2.RunnerService().RunWith(context.Background(), k2.NewCorrelation(), "hi"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	if sawModel != "default-model" {
@@ -515,7 +515,7 @@ func TestSubAgent_ModelOverride(t *testing.T) {
 	col := &collector{}
 	col.watch(k)
 
-	ans, _, err := k.Run(context.Background(), "go")
+	ans, _, err := runForTest(k, context.Background(), "go")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -595,7 +595,7 @@ func TestSubAgent_ModelDefaults(t *testing.T) {
 	col := &collector{}
 	col.watch(k)
 
-	if _, _, err := k.Run(context.Background(), "go"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "go"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	time.Sleep(50 * time.Millisecond)
@@ -662,7 +662,7 @@ func TestSubAgent_ModelFollowsLiveDefault(t *testing.T) {
 
 	col := &collector{}
 	col.watch(k)
-	if _, _, err := k.Run(context.Background(), "go"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "go"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	time.Sleep(50 * time.Millisecond)
@@ -721,7 +721,7 @@ func TestSubAgent_SystemFollowsLivePersona(t *testing.T) {
 
 	k.SetSystem("live persona")
 
-	if _, _, err := k.Run(context.Background(), "go"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "go"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	time.Sleep(50 * time.Millisecond)
@@ -820,7 +820,7 @@ func TestSubAgent_SpendGuardCountsTransitiveDescendants(t *testing.T) {
 	col := &collector{}
 	col.watch(k)
 
-	ans, _, err := k.Run(context.Background(), "nested spend")
+	ans, _, err := runForTest(k, context.Background(), "nested spend")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}

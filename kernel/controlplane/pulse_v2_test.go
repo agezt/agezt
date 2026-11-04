@@ -28,10 +28,10 @@ func TestPulse_HistoricalReplay(t *testing.T) {
 
 	// Run two tasks first → populate journal with their events.
 	ctx0 := context.Background()
-	if _, _, err := k.Run(ctx0, "first task"); err != nil {
+	if _, _, err := runForTest(k, ctx0, "first task"); err != nil {
 		t.Fatalf("run 1: %v", err)
 	}
-	if _, _, err := k.Run(ctx0, "second task"); err != nil {
+	if _, _, err := runForTest(k, ctx0, "second task"); err != nil {
 		t.Fatalf("run 2: %v", err)
 	}
 
@@ -73,7 +73,7 @@ func TestPulse_HistoricalReplay(t *testing.T) {
 
 	// Trigger a third task — live stream should deliver its events
 	// without duplicating any of the replayed seqs.
-	if _, _, err := k.Run(ctx, "third task"); err != nil {
+	if _, _, err := runForTest(k, ctx, "third task"); err != nil {
 		t.Fatalf("run 3: %v", err)
 	}
 	time.Sleep(200 * time.Millisecond)
@@ -103,7 +103,7 @@ func TestPulse_HistoricalReplay(t *testing.T) {
 func TestPulse_HistoricalReplay_HighSinceSkipsOlderEvents(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok"), mock.FinalText("ok2")))
 
-	if _, _, err := k.Run(context.Background(), "first"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "first"); err != nil {
 		t.Fatalf("run 1: %v", err)
 	}
 
@@ -134,7 +134,7 @@ func TestPulse_HistoricalReplay_HighSinceSkipsOlderEvents(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Live run — these events should arrive.
-	if _, _, err := k.Run(ctx, "second"); err != nil {
+	if _, _, err := runForTest(k, ctx, "second"); err != nil {
 		t.Fatalf("run 2: %v", err)
 	}
 	time.Sleep(200 * time.Millisecond)
@@ -166,7 +166,7 @@ func TestPulse_HistoricalReplay_HighSinceSkipsOlderEvents(t *testing.T) {
 // noon" should not see other kinds polluting the replay.
 func TestPulse_HistoricalReplay_HonoursKindFilter(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	if _, _, err := k.Run(context.Background(), "populate"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "populate"); err != nil {
 		t.Fatalf("populate: %v", err)
 	}
 
@@ -235,7 +235,7 @@ func TestPulse_DroppedNoticeDoesNotFireWithoutDrops(t *testing.T) {
 			})
 	}()
 	time.Sleep(100 * time.Millisecond)
-	if _, _, err := k.Run(ctx, "normal load"); err != nil {
+	if _, _, err := runForTest(k, ctx, "normal load"); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 	// Wait > 1s so the dropTicker fires at least once.

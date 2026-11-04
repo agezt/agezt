@@ -339,10 +339,10 @@ func TestRegistry_RealKernelsAreIsolated(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if _, _, err := kernels["alpha"].Run(ctx, "alpha-secret-intent"); err != nil {
+	if _, err := kernels["alpha"].RunnerService().RunWith(ctx, kernels["alpha"].NewCorrelation(), "alpha-secret-intent"); err != nil {
 		t.Fatalf("alpha run: %v", err)
 	}
-	if _, _, err := kernels["beta"].Run(ctx, "beta-secret-intent"); err != nil {
+	if _, err := kernels["beta"].RunnerService().RunWith(ctx, kernels["beta"].NewCorrelation(), "beta-secret-intent"); err != nil {
 		t.Fatalf("beta run: %v", err)
 	}
 

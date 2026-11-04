@@ -30,7 +30,7 @@ func TestRunWith_ContextSelectionJournalsChosenAndRejectedMemory(t *testing.T) {
 	_, _, _ = k.Memory().Remember("seed", memory.RememberSpec{Type: memory.TypeFact, Subject: "alpha", Content: "alpha context chosen release"})
 	_, _, _ = k.Memory().Remember("seed", memory.RememberSpec{Type: memory.TypeFact, Subject: "alpha", Content: "alpha context rejected deployment"})
 
-	if _, _, err := k.Run(context.Background(), "alpha context"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "alpha context"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -83,7 +83,7 @@ func TestRunWith_ContextFailureAnalysisUsesRejectedSet(t *testing.T) {
 	_, _, _ = k.Memory().Remember("seed", memory.RememberSpec{Type: memory.TypeFact, Subject: "alpha", Content: "alpha context chosen release"})
 	_, _, _ = k.Memory().Remember("seed", memory.RememberSpec{Type: memory.TypeFact, Subject: "alpha", Content: "alpha context rejected deployment"})
 
-	if _, _, err := k.Run(context.Background(), "alpha context"); err == nil {
+	if _, _, err := runForTest(k, context.Background(), "alpha context"); err == nil {
 		t.Fatal("Run succeeded; want provider failure")
 	}
 

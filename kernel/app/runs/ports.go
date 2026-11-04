@@ -74,10 +74,10 @@ func PortsFromKernel(k *runtime.Kernel) Ports {
 	}
 	return Ports{
 		launch: func(ctx context.Context, corr, intent string) (string, error) {
-			return k.RunWith(ctx, corr, intent)
+			return k.RunnerService().RunWith(ctx, corr, intent)
 		},
 		launchWithRetry: func(ctx context.Context, corr, intent string, pol agentapi.RetryPolicy) (string, error) {
-			return k.RunWithRetry(ctx, corr, intent, pol)
+			return k.RunnerService().RunWithRetry(ctx, corr, intent, pol)
 		},
 		cancel: k.LifecycleService().CancelRun,
 	}
@@ -205,7 +205,7 @@ func RunPortsFromKernel(k *runtime.Kernel) RunPorts {
 		identity:      identity,
 		bus:           bus,
 		launcher:      PortsFromKernel(k),
-		assured:       k.RunAssured,
+		assured:       k.RunnerService().RunAssured,
 		subjectForRun: k.SubjectForRun,
 		ceiling:       k.MaxDuration,
 		publishRemote: func(corr string, kind event.Kind, suffix string, payload any) error {

@@ -66,7 +66,7 @@ func TestToolCapabilities_DeclaredAxisGoverns(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, _, err := k.Run(context.Background(), "exercise the plugin tools"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "exercise the plugin tools"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 

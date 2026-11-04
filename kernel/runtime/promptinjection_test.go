@@ -65,7 +65,7 @@ func TestRunWith_PromptInjectionGuardRoutesEffectfulFollowupToApproval(t *testin
 
 	done := make(chan error, 1)
 	go func() {
-		_, _, err := k.Run(context.Background(), "summarize the page")
+		_, _, err := runForTest(k, context.Background(), "summarize the page")
 		done <- err
 	}()
 

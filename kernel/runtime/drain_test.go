@@ -60,7 +60,7 @@ func TestClose_DrainsInFlightRun(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_, _, _ = k.Run(context.Background(), "hold the line")
+		_, _, _ = runForTest(k, context.Background(), "hold the line")
 	}()
 	<-tool.started
 
@@ -96,7 +96,7 @@ func TestClose_DrainTimeoutBounds(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_, _, _ = k.Run(context.Background(), "wedge")
+		_, _, _ = runForTest(k, context.Background(), "wedge")
 	}()
 	<-tool.started
 

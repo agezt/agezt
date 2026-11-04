@@ -150,11 +150,11 @@ func buildStandingRunner(ctx context.Context, k *kernelruntime.Kernel, store *st
 		// event/cron-triggered order actually gets its task done.
 		var answer string
 		if o.Assure > 0 {
-			answer, _, _ = k.RunAssured(rctx, corr, intent, o.Assure)
+			answer, _, _ = k.RunnerService().RunAssured(rctx, corr, intent, o.Assure)
 		} else if prof != nil && prof.RetryPolicy != nil && prof.RetryPolicy.MaxAttempts > 1 {
-			answer, _ = k.RunWithRetry(rctx, corr, intent, *prof.RetryPolicy)
+			answer, _ = k.RunnerService().RunWithRetry(rctx, corr, intent, *prof.RetryPolicy)
 		} else {
-			answer, _ = k.RunWith(rctx, corr, intent)
+			answer, _ = k.RunnerService().RunWith(rctx, corr, intent)
 		}
 		// Brief the result to the order's configured channel (SPEC-16 §4 briefing).
 		if text, ok := standing.BriefText(o, answer); ok && brief != nil {

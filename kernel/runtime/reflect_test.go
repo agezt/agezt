@@ -22,7 +22,7 @@ func TestReflectThroughKernel(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 
 	// A run produces task.received/completed for the fold to observe.
-	if _, _, err := k.Run(context.Background(), "hello"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "hello"); err != nil {
 		t.Fatal(err)
 	}
 

@@ -64,11 +64,11 @@ func TestRunsNativeReadsTheCallersKernel(t *testing.T) {
 	}
 	tk := entry.Kernel.(*runtime.Kernel)
 	tenantToken, _ := reg.Token("acme")
-	if _, _, err := k.Run(context.Background(), "primary work"); err != nil {
+	if _, err := k.RunnerService().RunWith(context.Background(), k.NewCorrelation(), "primary work"); err != nil {
 		t.Fatal(err)
 	}
 	for _, intent := range []string{"tenant work", "tenant chore"} {
-		if _, _, err := tk.Run(context.Background(), intent); err != nil {
+		if _, err := tk.RunnerService().RunWith(context.Background(), tk.NewCorrelation(), intent); err != nil {
 			t.Fatal(err)
 		}
 	}

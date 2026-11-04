@@ -8,7 +8,6 @@ package runtime
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
@@ -36,40 +35,11 @@ var ErrNoVisionModel = runner.ErrNoVisionModel
 // Day 33. Callers in this package reach it through *Kernel.DescribeImages
 // (see compose.go / research.go for the production callers).
 
-// RunWith executes one tool-loop using the supplied correlation ID.
-// If the kernel is halted before this Run starts, returns ErrHalted. If
-// Halt is called during the Run, ctx is cancelled and RunWith returns
-// context.Canceled.
-//
-// Day 34: the body moved to runner.Runner.RunWith. The lock-
-// protected bits (setupRunState / cleanupRunState /
-// deregisterRunSteer) live as private methods on *Kernel and are
-// reached through SetupRunState / CleanupRunState /
-// DeregisterRunSteer KernelAPI wrappers; *Kernel.RunWith just
-// delegates so callers compile unchanged.
-func (k *Kernel) RunWith(ctx context.Context, corr, intent string) (string, error) {
-	if corr == "" {
-		return "", errors.New("runtime: correlation id required")
-	}
-	return k.runner.RunWith(ctx, corr, intent)
-}
-
-// completeAgentLifecycle / shouldRetireAgentAfterComplete /
-// resetCompletedCycleTasks moved to the runner package on
-// Day 33 (Runner.CompleteAgentLifecycle + helpers.go). The
-// *Kernel.CompleteAgentLifecycle public wrapper above delegates
-// to the Runner. RunWith's call site uses that wrapper.
-
-// CompleteAgentLifecycle advances the durable lifecycle for a successful
-// non-loop job that ran under an agent profile, such as a scheduled workflow or
-// direct tool target. RunWith calls the Runner's CompleteAgentLifecycle
-// itself; external runners should call this only after the job has
-// genuinely succeeded. Day 33: the body lives in
-// runner.Runner.CompleteAgentLifecycle; the wrapper preserves the
-// legacy public surface.
-func (k *Kernel) CompleteAgentLifecycle(ctx context.Context, corr string) {
-	k.runner.CompleteAgentLifecycle(ctx, corr)
-}
+// The RUN ENGINE's operations are the runs module's (W3.76ac): the daemon
+// hands over the module's face (RunnerService) and the callers above ask the
+// module. What stays in the daemon is the HOST's own: the run's setup and
+// cleanup (setupRunState / cleanupRunState / deregisterRunSteer) and the
+// correlation id a run carries.
 
 // setupRunState is the private body behind the public
 // SetupRunState wrapper (Day 34). Returns the decorated runCtx,

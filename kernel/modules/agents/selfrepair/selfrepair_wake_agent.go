@@ -45,9 +45,9 @@ func autoRepairWakeAgent(ctx context.Context, k *kernelruntime.Kernel, cand auto
 		answer string
 	)
 	if p.RetryPolicy != nil && p.RetryPolicy.MaxAttempts > 1 {
-		answer, err = k.RunWithRetry(rctx, corr, intent, *p.RetryPolicy)
+		answer, err = k.RunnerService().RunWithRetry(rctx, corr, intent, *p.RetryPolicy)
 	} else {
-		answer, err = k.RunWith(rctx, corr, intent)
+		answer, err = k.RunnerService().RunWith(rctx, corr, intent)
 	}
 	return autoRepairWakeResult{
 		Target:      p.Slug,

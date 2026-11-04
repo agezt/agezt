@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
-	"github.com/agezt/agezt/kernel/contract/assureapi"
+	"github.com/agezt/agezt/kernel/modules/runs/api"
 )
 
 // This file is the kernel's run engine: the entry points an external
@@ -35,45 +35,28 @@ import (
 // follows the rule (steersMu acquired AFTER runsMu is released — see
 // the comment at runtime.go:910-919 for the full history).
 
-// Run executes one tool-loop end-to-end and returns (answer, corr, err).
-// It mints a correlation ID internally; for the subscribe-then-run flow
-// the control plane uses, see NewCorrelation + RunWith.
-func (k *Kernel) Run(ctx context.Context, intent string) (string, string, error) {
-	corr := k.NewCorrelation()
-	ans, err := k.RunWith(ctx, corr, intent)
-	return ans, corr, err
-}
-
-// assureVerifyMaxTokens used to bound the verifier completion — it only emits
-// a tiny JSON verdict, so a small cap kept the completion check cheap. It is
-// gone: the cap was never applied at the call site, and an unused const is a
-// promise the code does not keep.
-
-// RunAssured is the "do-it-for-sure" loop (M651): it runs the intent, asks a
-// verifier whether the task was actually accomplished, and retries with the gap
-// fed back — up to maxAttempts, stopping the moment the task is judged complete.
-// Every attempt reuses corr (they run sequentially and never overlap), so the
-// whole objective streams and journals under one correlation id. Returns the
-// final answer and the loop result (attempts, completion, per-attempt history).
-// Day 33: the body lives in runner.Runner.RunAssured; this wrapper preserves
-// the legacy *Kernel.RunAssured public surface.
-func (k *Kernel) RunAssured(ctx context.Context, corr, intent string, maxAttempts int) (string, assureapi.Result, error) {
-	return k.runner.RunAssured(ctx, corr, intent, maxAttempts)
-}
-
-// RunWithRetry executes one agent run using the profile's failure retry policy.
-// This is distinct from provider retry (one LLM request) and RunAssured
-// (semantic completion verification): it retries the whole governed run after a
-// terminal error, journaling each retry decision under the same correlation.
+// The RUN ENGINE is the runs module's, and the daemon holds it (W3.76ac).
 //
-// Day 23: the body lives in the runner package's Runner.
-// The legacy method body remains below for reference and the
-// file's lock-ordering invariant documentation; the *Kernel
-// surface delegates to the Runner for callers that already
-// hold a *Kernel.
-func (k *Kernel) RunWithRetry(ctx context.Context, corr, intent string, pol agentapi.RetryPolicy) (string, error) {
-	return k.runner.RunWithRetry(ctx, corr, intent, pol)
-}
+// The run engine's own operations live in the runner package
+// (kernel/modules/runs/runner); the daemon used to answer for them under
+// names of its own: Run, RunWith, RunWithRetry, RunAssured and
+// CompleteAgentLifecycle were five verbs over the module's own body — the run
+// engine already answered in exactly these names, so the daemon's five were a
+// second spelling of one family, and every caller above had to learn the
+// daemon's.
+//
+// The daemon hands over the module's FACE (RunnerService) instead, and the
+// callers above ask the module. The daemon keeps what is the HOST's own: the
+// correlation id a run carries (NewCorrelation) and the run's own setup and
+// cleanup.
+
+// RunnerService returns the RUNS MODULE's run engine — the module's face.
+//
+// The daemon holds no verb per run operation any more (W3.76ac): the run
+// engine's body is the module's, and the daemon hands the module over
+// instead of answering for it. The verbs are the MODULE's names, so one
+// operation has one name.
+func (k *Kernel) RunnerService() api.RunnerService { return k.runner }
 
 // ClaimResumeTicket is the public surface for the resume-ticket
 // ownership dance. Returns the (possibly ticket-bearing) ctx and

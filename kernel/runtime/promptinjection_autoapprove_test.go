@@ -67,7 +67,7 @@ func TestPromptInjectionGuard_AutoApproveDoesNotSatisfyGuard(t *testing.T) {
 		mock.FinalText("done"),
 	)
 	k := guardedAutoApproveKernel(t, prov, &invoked, runtime.PromptInjectionOn)
-	_, _, _ = k.Run(context.Background(), "act now")
+	_, _, _ = runForTest(k, context.Background(), "act now")
 	if got := atomic.LoadInt32(&invoked); got != 0 {
 		t.Fatalf("probe executed %d times, want 0: an auto-approve grant must not satisfy the prompt-injection guard", got)
 	}
@@ -98,7 +98,7 @@ func TestPromptInjectionGuard_AutoApproveStillSatisfiesAskAxis(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, _, err := k.Run(context.Background(), "probe"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "probe"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if got := atomic.LoadInt32(&invoked); got != 1 {

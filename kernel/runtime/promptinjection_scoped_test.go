@@ -73,7 +73,7 @@ func TestPromptInjectionGuard_DecaysAfterWindow(t *testing.T) {
 		mock.FinalText("done"),
 	)
 	k, _ := injectionKernel(t, prov, &invoked, runtime.PromptInjectionOn)
-	if _, _, err := k.Run(context.Background(), "research then act"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "research then act"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if got := atomic.LoadInt32(&invoked); got != 1 {
@@ -93,7 +93,7 @@ func TestPromptInjectionGuard_GatedWithinWindow(t *testing.T) {
 		mock.FinalText("done"),
 	)
 	k, _ := injectionKernel(t, prov, &invoked, runtime.PromptInjectionOn)
-	_, _, _ = k.Run(context.Background(), "act now") // probe gated → approval times out → denied
+	_, _, _ = runForTest(k, context.Background(), "act now") // probe gated → approval times out → denied
 	if got := atomic.LoadInt32(&invoked); got != 0 {
 		t.Fatalf("probe executed %d times, want 0 (action in the window must be gated)", got)
 	}
@@ -109,7 +109,7 @@ func TestPromptInjectionGuard_WarnModeDoesNotBlock(t *testing.T) {
 		mock.FinalText("done"),
 	)
 	k, _ := injectionKernel(t, prov, &invoked, runtime.PromptInjectionWarn)
-	if _, _, err := k.Run(context.Background(), "act now"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "act now"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if got := atomic.LoadInt32(&invoked); got != 1 {
@@ -129,7 +129,7 @@ func TestPromptInjectionGuard_TrustedRunDoesNotBlock(t *testing.T) {
 	)
 	k, _ := injectionKernel(t, prov, &invoked, runtime.PromptInjectionOn)
 	ctx := runctx.WithTrustedObservations(context.Background())
-	if _, _, err := k.Run(ctx, "act now"); err != nil {
+	if _, _, err := runForTest(k, ctx, "act now"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if got := atomic.LoadInt32(&invoked); got != 1 {

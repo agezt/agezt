@@ -73,7 +73,7 @@ func TestKernel_StampsTenantOnRunContext(t *testing.T) {
 		if err != nil {
 			t.Fatalf("TenantID=%q: Open: %v", tc.id, err)
 		}
-		if _, _, err := k.Run(context.Background(), "go"); err != nil {
+		if _, _, err := runForTest(k, context.Background(), "go"); err != nil {
 			k.Close()
 			t.Fatalf("TenantID=%q: Run: %v", tc.id, err)
 		}

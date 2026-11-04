@@ -151,15 +151,15 @@ func buildResumer(ctx context.Context, k *kernelruntime.Kernel) string {
 				if budget <= 0 {
 					budget = 1
 				}
-				_, _, rerr = k.RunAssured(rctx, t.Corr, t.Intent, budget)
+				_, _, rerr = k.RunnerService().RunAssured(rctx, t.Corr, t.Intent, budget)
 			case resume.KindRetry:
 				if prof != nil && prof.RetryPolicy != nil && prof.RetryPolicy.MaxAttempts > 1 {
-					_, rerr = k.RunWithRetry(rctx, t.Corr, t.Intent, *prof.RetryPolicy)
+					_, rerr = k.RunnerService().RunWithRetry(rctx, t.Corr, t.Intent, *prof.RetryPolicy)
 				} else {
-					_, rerr = k.RunWith(rctx, t.Corr, t.Intent)
+					_, rerr = k.RunnerService().RunWith(rctx, t.Corr, t.Intent)
 				}
 			default:
-				_, rerr = k.RunWith(rctx, t.Corr, t.Intent)
+				_, rerr = k.RunnerService().RunWith(rctx, t.Corr, t.Intent)
 			}
 			// The resumer owns the ticket: clear it on a clean/failed terminal, keep
 			// it if a NEW shutdown interrupted the resumed run.

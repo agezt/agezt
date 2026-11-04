@@ -34,7 +34,7 @@ func TestPulse_ReplayRate_AbortsOnContextCancel(t *testing.T) {
 	// Stuff the journal with enough events that a low replay rate
 	// guarantees a sleep is in flight when we cancel.
 	for i := 0; i < 4; i++ {
-		if _, _, err := k.Run(context.Background(), "warm-up"); err != nil {
+		if _, err := k.RunnerService().RunWith(context.Background(), k.NewCorrelation(), "warm-up"); err != nil {
 			t.Fatalf("run %d: %v", i, err)
 		}
 	}
@@ -100,10 +100,10 @@ func TestPulse_ReplayRate_PacesEvents(t *testing.T) {
 		mock.FinalText("a"),
 		mock.FinalText("b"),
 	))
-	if _, _, err := k.Run(context.Background(), "x"); err != nil {
+	if _, err := k.RunnerService().RunWith(context.Background(), k.NewCorrelation(), "x"); err != nil {
 		t.Fatalf("run 1: %v", err)
 	}
-	if _, _, err := k.Run(context.Background(), "y"); err != nil {
+	if _, err := k.RunnerService().RunWith(context.Background(), k.NewCorrelation(), "y"); err != nil {
 		t.Fatalf("run 2: %v", err)
 	}
 	head, _ := k.Journal().Head()
@@ -168,7 +168,7 @@ func TestPulse_ReplayRate_PacesEvents(t *testing.T) {
 // delay — preserves existing v2/v3 behaviour.
 func TestPulse_ReplayRate_ZeroIsUnlimited(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("a")))
-	if _, _, err := k.Run(context.Background(), "x"); err != nil {
+	if _, err := k.RunnerService().RunWith(context.Background(), k.NewCorrelation(), "x"); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 	head, _ := k.Journal().Head()

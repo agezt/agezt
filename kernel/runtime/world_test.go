@@ -40,7 +40,7 @@ func TestWorldEntitiesInjectedIntoSystemPrompt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, _, err := k.Run(context.Background(), "check the portfolio please"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "check the portfolio please"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -71,7 +71,7 @@ func TestWorldInjectionOffByDefault(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 
 	_, _, _ = k.World().Upsert("seed", worldmodel.UpsertSpec{Kind: worldmodel.KindProject, Name: "Lictor"})
-	if _, _, err := k.Run(context.Background(), "Lictor"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "Lictor"); err != nil {
 		t.Fatal(err)
 	}
 	if gotSystem != "base" {

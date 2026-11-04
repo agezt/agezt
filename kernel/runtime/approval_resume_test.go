@@ -48,7 +48,7 @@ func TestApprovalWaitSurvivesShutdownAsReAsk(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		_, e := k.RunWith(ctx, "corr-appr", "do the probe")
+		_, e := k.RunnerService().RunWith(ctx, "corr-appr", "do the probe")
 		done <- e
 	}()
 	waitForPending(t, reg)

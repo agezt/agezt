@@ -106,7 +106,7 @@ func (h delegationHost) BaseLoopConfig(ctx context.Context, corr, model string) 
 // CompleteChildLifecycle advances the durable lifecycle of a finished child
 // run.
 func (h delegationHost) CompleteChildLifecycle(ctx context.Context, corr string) {
-	h.k.CompleteAgentLifecycle(ctx, corr)
+	h.k.RunnerService().CompleteAgentLifecycle(ctx, corr)
 }
 
 // delegationConfig is the LIVE delegation policy the engine reads on every

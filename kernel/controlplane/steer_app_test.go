@@ -55,7 +55,7 @@ func blockedRun(t *testing.T, k *runtime.Kernel, prov *mock.Provider) (string, c
 		<-release
 	}
 	corr := k.NewCorrelation()
-	go func() { defer close(done); _, _ = k.RunWith(context.Background(), corr, "work") }()
+	go func() { defer close(done); _, _ = k.RunnerService().RunWith(context.Background(), corr, "work") }()
 	select {
 	case <-entered:
 	case <-time.After(5 * time.Second):
