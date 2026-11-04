@@ -75,7 +75,7 @@ func TestRunWith_EpistemicSignalsJournaledWithoutEscalation(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, _, err := k.Run(context.Background(), "check latest release"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "check latest release"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if atomic.LoadInt32(&calls) != 1 {
@@ -143,7 +143,7 @@ func TestRunWith_EpistemicConfidenceFallsBackToThePlatformRow(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, _, err := k.Run(context.Background(), "read the notes"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "read the notes"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -199,7 +199,7 @@ func TestRunWith_EpistemicEscalationRoutesLowConfidenceToApproval(t *testing.T) 
 
 	done := make(chan error, 1)
 	go func() {
-		_, _, err := k.Run(context.Background(), "run risky probe")
+		_, _, err := runForTest(k, context.Background(), "run risky probe")
 		done <- err
 	}()
 
@@ -252,7 +252,7 @@ func TestRunWith_EpistemicEscalationMatchesHistoricalFailureConditions(t *testin
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, _, err := k.Run(context.Background(), "first historical run"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "first historical run"); err != nil {
 		t.Fatalf("first Run: %v", err)
 	}
 	if atomic.LoadInt32(&calls) != 1 {
@@ -261,7 +261,7 @@ func TestRunWith_EpistemicEscalationMatchesHistoricalFailureConditions(t *testin
 
 	done := make(chan error, 1)
 	go func() {
-		_, _, err := k.Run(context.Background(), "second historical run")
+		_, _, err := runForTest(k, context.Background(), "second historical run")
 		done <- err
 	}()
 	req := waitForPending(t, reg)

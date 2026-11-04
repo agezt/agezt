@@ -49,7 +49,7 @@ func TestRunWithRetry_ProfilePolicyRetriesWholeRun(t *testing.T) {
 
 	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{Slug: "healer"})
 	policy := roster.RetryPolicy{MaxAttempts: 2, Backoff: "exponential", BaseDelaySec: 0, MaxDelaySec: 5, RetryOn: []string{"error", "timeout"}}
-	ans, err := k.RunWithRetry(ctx, "corr-retry", "do the thing", policy)
+	ans, err := k.RunnerService().RunWithRetry(ctx, "corr-retry", "do the thing", policy)
 	if err != nil {
 		t.Fatalf("RunWithRetry: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestRunAssured_UsesAgentProfileRetryPolicyInsideSemanticAttempts(t *testing
 			RetryOn:     []string{"error", "timeout"},
 		},
 	})
-	ans, assured, err := k.RunAssured(ctx, "corr-assured-retry", "do the thing", 1)
+	ans, assured, err := k.RunnerService().RunAssured(ctx, "corr-assured-retry", "do the thing", 1)
 	if err != nil {
 		t.Fatalf("RunAssured: %v", err)
 	}

@@ -107,7 +107,7 @@ func TestRunWith_ApprovalGrantedRunsTool(t *testing.T) {
 	}
 	done := make(chan result, 1)
 	go func() {
-		ans, _, err := k.Run(context.Background(), "go")
+		ans, _, err := runForTest(k, context.Background(), "go")
 		done <- result{ans, err}
 	}()
 
@@ -167,7 +167,7 @@ func TestRunWith_ApprovalBundleUsesFirstPartyToolEffect(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		_, _, err := k.Run(context.Background(), "try shell")
+		_, _, err := runForTest(k, context.Background(), "try shell")
 		done <- err
 	}()
 
@@ -218,7 +218,7 @@ func TestRunWith_ApprovalDeniedBlocksTool(t *testing.T) {
 	}
 	done := make(chan result, 1)
 	go func() {
-		ans, _, err := k.Run(context.Background(), "go")
+		ans, _, err := runForTest(k, context.Background(), "go")
 		done <- result{ans, err}
 	}()
 
@@ -262,7 +262,7 @@ func TestRunWith_ApprovalTimeoutBlocksTool(t *testing.T) {
 	}
 	done := make(chan result, 1)
 	go func() {
-		ans, _, err := k.Run(context.Background(), "go")
+		ans, _, err := runForTest(k, context.Background(), "go")
 		done <- result{ans, err}
 	}()
 

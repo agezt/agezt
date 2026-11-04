@@ -108,7 +108,7 @@ func TestSubAgent_AsyncSpawnAndAwait(t *testing.T) {
 	col := &collector{}
 	col.watch(k)
 
-	ans, _, err := k.Run(context.Background(), "fan out async")
+	ans, _, err := runForTest(k, context.Background(), "fan out async")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestSubAgent_AsyncOrphanCancelledAtRunEnd(t *testing.T) {
 	col := &collector{}
 	col.watch(k)
 
-	ans, _, err := k.Run(context.Background(), "spawn and forget")
+	ans, _, err := runForTest(k, context.Background(), "spawn and forget")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}

@@ -51,7 +51,7 @@ func runScheduledTrackedTarget(ctx context.Context, k *kernelruntime.Kernel, cor
 		})
 		return err
 	}
-	k.CompleteAgentLifecycle(ctx, corr)
+	k.RunnerService().CompleteAgentLifecycle(ctx, corr)
 	_, _ = k.Bus().Publish(event.Spec{
 		Subject:       "schedule.task",
 		Kind:          event.KindTaskCompleted,

@@ -105,7 +105,7 @@ func TestRunWith_ConfigAutoApproveCapabilitiesSatisfiesPromptMode(t *testing.T) 
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, _, err := k.Run(context.Background(), "probe"); err != nil {
+	if _, err := k.RunnerService().RunWith(context.Background(), k.NewCorrelation(), "probe"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if got := atomic.LoadInt32(&invoked); got != 1 {

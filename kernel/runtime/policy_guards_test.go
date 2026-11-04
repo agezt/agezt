@@ -48,7 +48,7 @@ func TestThePromptInjectionGuardIsThePlatformsRule(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		_, _, err := k.Run(context.Background(), "summarize the page")
+		_, _, err := runForTest(k, context.Background(), "summarize the page")
 		done <- err
 	}()
 
@@ -112,7 +112,7 @@ func TestTheGuardIsJournaledAsAnAsk(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		_, _, err := k.Run(context.Background(), "summarize the page")
+		_, _, err := runForTest(k, context.Background(), "summarize the page")
 		done <- err
 	}()
 	req := waitForPending(t, reg)
@@ -187,7 +187,7 @@ func TestThePromptInjectionGuardJournalsItsWarning(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, _, err := k.Run(context.Background(), "summarize the page"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "summarize the page"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if got := atomic.LoadInt32(&invoked); got != 1 {
@@ -250,7 +250,7 @@ func TestTheIntentGateJournalsItsConfirmationRequest(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		_, _, err := k.Run(context.Background(), "clean files")
+		_, _, err := runForTest(k, context.Background(), "clean files")
 		done <- err
 	}()
 	req := waitForPending(t, reg)

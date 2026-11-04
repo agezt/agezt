@@ -55,7 +55,7 @@ func TestActiveSkillInjectedIntoSystemPrompt(t *testing.T) {
 	}
 	promoteToActive(t, k.Forge(), sk.ID)
 
-	if _, _, err := k.Run(context.Background(), "my CI build keeps failing"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "my CI build keeps failing"); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(gotSystem, "read the logs") {
@@ -84,7 +84,7 @@ func TestDraftSkillNotInjected(t *testing.T) {
 
 	// A draft (never promoted) must not reach a run.
 	_, _, _ = k.Forge().Create("seed", skillapi.CreateSpec{Name: "x", Description: "deploy app", Body: "secret steps"})
-	if _, _, err := k.Run(context.Background(), "deploy the app"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "deploy the app"); err != nil {
 		t.Fatal(err)
 	}
 	if gotSystem != "base" {
@@ -124,7 +124,7 @@ func TestExplicitSkillDirectiveActivatesNamedSkill(t *testing.T) {
 	}
 	promoteToActive(t, k.Forge(), sk.ID)
 
-	if _, _, err := k.Run(context.Background(), "/skill diagnose-ci\nplease help with this flaky build"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "/skill diagnose-ci\nplease help with this flaky build"); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(gotSystem, "inspect the CI log artifact") {
@@ -167,7 +167,7 @@ func TestForgeProposesAfterMultiToolRun(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, _, err := k.Run(context.Background(), "do a multi-step task"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "do a multi-step task"); err != nil {
 		t.Fatal(err)
 	}
 	all, _ := k.Forge().List()
@@ -188,7 +188,7 @@ func TestForgeAndSkillOffByDefault(t *testing.T) {
 
 	sk, _, _ := k.Forge().Create("seed", skillapi.CreateSpec{Name: "x", Description: "y", Body: "b"})
 	promoteToActive(t, k.Forge(), sk.ID)
-	if _, _, err := k.Run(context.Background(), "x y"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "x y"); err != nil {
 		t.Fatal(err)
 	}
 	if gotSystem != "base" {

@@ -143,7 +143,7 @@ func TestRunWith_OffersAndExecutesForgedTool(t *testing.T) {
 
 	runner.out, runner.isErr = "echoed: merhaba", false
 	calls := runner.calls
-	if _, err := k.RunWith(context.Background(), k.NewCorrelation(), "echo something"); err != nil {
+	if _, err := k.RunnerService().RunWith(context.Background(), k.NewCorrelation(), "echo something"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 
@@ -188,7 +188,7 @@ func TestRunWith_DraftAndQuarantineNeverOffered(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DraftScriptTool: %v", err)
 	}
-	if _, err := k.RunWith(context.Background(), k.NewCorrelation(), "hi"); err != nil {
+	if _, err := k.RunnerService().RunWith(context.Background(), k.NewCorrelation(), "hi"); err != nil {
 		t.Fatalf("RunWith(draft): %v", err)
 	}
 	if names := toolNames(req.Tools); contains(names, "forge_echo") {
@@ -205,7 +205,7 @@ func TestRunWith_DraftAndQuarantineNeverOffered(t *testing.T) {
 	if _, err := k.ForgeRunner().QuarantineScriptTool("", st.ID, "smoke"); err != nil {
 		t.Fatalf("Quarantine: %v", err)
 	}
-	if _, err := k.RunWith(context.Background(), k.NewCorrelation(), "hi again"); err != nil {
+	if _, err := k.RunnerService().RunWith(context.Background(), k.NewCorrelation(), "hi again"); err != nil {
 		t.Fatalf("RunWith(quarantined): %v", err)
 	}
 	if names := toolNames(req.Tools); contains(names, "forge_echo") {
@@ -225,7 +225,7 @@ func TestRunWith_ToolAllowlistGatesForgedTools(t *testing.T) {
 	promoteEcho(t, k, runner)
 
 	ctx := runctx.WithTools(context.Background(), []string{"memory"}) // not forge_echo
-	if _, err := k.RunWith(ctx, k.NewCorrelation(), "restricted"); err != nil {
+	if _, err := k.RunnerService().RunWith(ctx, k.NewCorrelation(), "restricted"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	if names := toolNames(req.Tools); contains(names, "forge_echo") {
@@ -233,7 +233,7 @@ func TestRunWith_ToolAllowlistGatesForgedTools(t *testing.T) {
 	}
 
 	ctx = runctx.WithTools(context.Background(), []string{"forge_echo"})
-	if _, err := k.RunWith(ctx, k.NewCorrelation(), "allowed"); err != nil {
+	if _, err := k.RunnerService().RunWith(ctx, k.NewCorrelation(), "allowed"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	if names := toolNames(req.Tools); !contains(names, "forge_echo") {

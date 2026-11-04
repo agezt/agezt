@@ -40,7 +40,7 @@ func TestDelegate_NamedAgentPerRunCostCeilingEnforced(t *testing.T) {
 	col := &collector{}
 	col.watch(k)
 
-	if _, _, err := k.Run(context.Background(), "do the expensive thing"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "do the expensive thing"); err != nil {
 		t.Fatalf("parent Run: %v", err)
 	}
 

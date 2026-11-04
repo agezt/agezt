@@ -66,7 +66,7 @@ func TestTheLifecyclePortsReportADrainThatGaveUp(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 	defer k.Close()
-	go func() { _, _ = k.RunWith(context.Background(), k.NewCorrelation(), "hang") }()
+	go func() { _, _ = k.RunnerService().RunWith(context.Background(), k.NewCorrelation(), "hang") }()
 	select {
 	case <-started:
 	case <-time.After(10 * time.Second):

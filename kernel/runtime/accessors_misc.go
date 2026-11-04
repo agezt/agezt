@@ -214,7 +214,7 @@ func (k *Kernel) ReloadCatalog() (*catalogapi.Catalog, error) {
 // correlation ID so events stay linked under `agt why`.
 func (k *Kernel) LoopRunner() scheduler.LoopRunner {
 	return func(ctx context.Context, intent, corr string) (string, error) {
-		return k.RunWith(ctx, corr, intent)
+		return k.RunnerService().RunWith(ctx, corr, intent)
 	}
 }
 

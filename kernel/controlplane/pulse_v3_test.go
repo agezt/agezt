@@ -24,7 +24,7 @@ func TestPulse_SinceTSMs_ReplaysOnlyRecent(t *testing.T) {
 	))
 
 	// First run — these events should be EXCLUDED by the cutoff.
-	if _, _, err := k.Run(context.Background(), "old task"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "old task"); err != nil {
 		t.Fatalf("run 1: %v", err)
 	}
 	// Sleep so the cutoff falls strictly between runs.
@@ -33,7 +33,7 @@ func TestPulse_SinceTSMs_ReplaysOnlyRecent(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Second run — these events should be INCLUDED.
-	if _, _, err := k.Run(context.Background(), "new task"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "new task"); err != nil {
 		t.Fatalf("run 2: %v", err)
 	}
 
@@ -82,7 +82,7 @@ func TestPulse_SinceTSMs_ReplaysOnlyRecent(t *testing.T) {
 // replay rather than misbehaving.
 func TestPulse_SinceTSMs_FutureCutoffSkipsAll(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok"), mock.FinalText("ok2")))
-	if _, _, err := k.Run(context.Background(), "before"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "before"); err != nil {
 		t.Fatalf("run 1: %v", err)
 	}
 
@@ -116,7 +116,7 @@ func TestPulse_SinceTSMs_FutureCutoffSkipsAll(t *testing.T) {
 	// Live event after subscribe — must still arrive (the future
 	// cutoff disables replay only; the live stream is unaffected
 	// by `since_ts_ms` filtering).
-	if _, _, err := k.Run(ctx, "after"); err != nil {
+	if _, _, err := runForTest(k, ctx, "after"); err != nil {
 		t.Fatalf("run 2: %v", err)
 	}
 	time.Sleep(200 * time.Millisecond)
@@ -140,10 +140,10 @@ func TestPulse_SinceTSMs_ComposesWithSince(t *testing.T) {
 		mock.FinalText("a"),
 		mock.FinalText("b"),
 	))
-	if _, _, err := k.Run(context.Background(), "run a"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "run a"); err != nil {
 		t.Fatalf("run a: %v", err)
 	}
-	if _, _, err := k.Run(context.Background(), "run b"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "run b"); err != nil {
 		t.Fatalf("run b: %v", err)
 	}
 

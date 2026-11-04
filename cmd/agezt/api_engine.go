@@ -60,7 +60,7 @@ func (e kernelAPIEngine) RunModel(ctx context.Context, corr, intent, model strin
 		return "", err
 	}
 	ctx = runctx.WithImages(ctx, admission.Images)
-	return e.k.RunWith(ctx, corr, admission.Intent)
+	return e.k.RunnerService().RunWith(ctx, corr, admission.Intent)
 }
 
 // UsageFor implements openaiapi.UsageReporter (M282): sum the REAL provider

@@ -15,7 +15,7 @@ Sibling docs: governor, Edict, approvals, warden: [05-governance-routing-securit
 | Single-agent tool loop | `kernel/modules/runs/agent.Run` | model request, then tool gate/execute/finalize, then repeat. Panic firewall, iteration and cost caps, auto-continue, compaction, steering, checkpoint. |
 | Provider and Tool contracts | `kernel/modules/runs/agent` (`Provider`, `StreamingProvider`, `Tool`, `ToolDef`, `Result`) | Every LLM adapter and every tool in the repo implements these. |
 | Composition root | `runtime.Open` (`compose.go`) | Opens ~20 stores under `AGEZT_HOME`, builds `*Kernel`, registers in-process tools (memory/world/delegate), starts the agentgw listener. The daemon's own composition root (`cmd/agezt`'s `openAppKernel`) adds the voice/image/rerank/market tools and the seats, lake and artifact ports on top (W3.41–W3.46). |
-| Run engine | `runner.Runner.RunWith` (+ `RunAssured`, `RunWithRetry`) | Run registration, ctx stamping, intent framing, heuristic bypass, system-prompt assembly, model resolution, LoopConfig, resume ticket, post-run hooks (distill/forge/shadow-eval/lifecycle). |
+| Run engine | `runner.Runner.RunWith` (+ `RunAssured`, `RunWithRetry`) | Run registration, ctx stamping, intent framing, heuristic bypass, system-prompt assembly, model resolution, LoopConfig, resume ticket, post-run hooks (distill/forge/shadow-eval/lifecycle). **W3.76ac** moved the daemon's five doors over those operations away: the daemon hands over the module's **FACE** (`RunnerService`, the port `api.RunnerService` in the runs module's own api package) and the run identity (`NewCorrelation`) stays with the host. |
 | Tool-call policy | `(*Kernel).policyHook` (`policy.go`) | Adapts Edict to `agent.Policy`: capability resolution, trust ceiling, per-agent tool policy, epistemic gate, intent/regret gate, prompt-injection guard, auto-approve grant, live HITL via `approval.Registry.Submit`. |
 | Halt / cancel / drain | `kernel/modules/runs/lifecycle.Manager` (over `kernel/modules/runs/registry.Registry`) | `Halt`, `HaltWith`, `CancelRun`, `DrainAndHalt`, `Resume`, `NewCorrelation` (`run-<ulid>`). W3.76d moved the manager and the store it holds into the runs module; the daemon keeps the two side effects the module cannot perform itself (`Suspend`, `PublishBus`). **W3.76aa** moved the daemon's nine verbs over those operations away too: the daemon hands over the module's **FACE** (`LifecycleService`) and the run identity (`NewCorrelation`, `SubjectForRun`) stays with the host. |
 | Live steering | `kernel/modules/runs/steer` + `kernel/modules/runs/intervention` | pause / step / resume / steer / BTW note / lease-bounded intervene, applied at the loop's iteration boundary. |
@@ -305,7 +305,7 @@ Also: `toolCaps` (read-only after Open); `startTime`. The `suspending atomic.Boo
 
 Goroutines started by the runtime: one per async sub-agent (the delegation engine's `Spawn`), the drain waiters in `Close`/`DrainAndHalt`, and the tool fan-out workers inside `agent.Run`. Everything else runs on the caller's goroutine. The **agentgw listener is not one of them** (W3.67): the gateway is the **daemon's** transport, so the daemon starts it.
 
-**The daemon's public surface — 129 verbs (W3.76ab).** The Kernel's exported
+**The daemon's public surface — 125 verbs (W3.76ac).** The Kernel's exported
 methods are the host's **doors**: the verbs the layers above call and the
 verbs the daemon's own production paths open. A public verb that nobody
 calls is a second, unreachable copy of a surface, and the target architecture
@@ -557,13 +557,27 @@ naming the module is the host's business, answering for it twice is not. The
 and `CompleteAgentLifecycle` are how the callers above start and close a
 run. **135 → 129** public verbs; the daemon's production lines went **5,648 →
 5,622** (the wrappers' bodies and their account left with them) and its
-files stayed at **55**. The daemon
+files stayed at **55**. W3.76ac retired **five** more — the **host's own run
+doors** were the same second spelling one slice later: the run engine already
+answered `RunWith`, `RunWithRetry`, `RunAssured` and `CompleteAgentLifecycle`
+in exactly those names, and `Run` (which minted a correlation and ran) had **no
+production caller at all** — only the tests. The daemon holds the module's
+**FACE** now (`RunnerService` — `api.RunnerService`, the runs module's own port
+package, and the engine says it *is* that port), and every caller above asks
+the module: the **runs application** (the launch, the retry launch and the
+assured loop), the **loop runner**, the **child lifecycle's close**, the
+**self-repair wake** and the **command** (the cadence, the channels, the
+standing runner, the OpenAI adaptör). What stayed with the host is the run's
+**identity**: the correlation id a run carries is still minted at the host's own
+door (`NewCorrelation`), because the name of a run is the host's vocabulary.
+**129 → 125** public verbs; the daemon's production lines went **5,622 → 5,579**
+and its files stayed at **55**. The daemon
 keeps the doors a **module** needs without naming the runs
 module (`WithAgentProfile`, `WithMaxCost`) and the host's own state (the
 effective config, the resume ticket, the seed). The surface is **pinned**:
 `kernel/runtime/dead_surface_ratchet_test.go` fails if a retired name comes
-back or if the public surface grows past **129** — the ceiling now FOLLOWS the
-floor (220 → 201 → 194 → 179 → 173 → 166 → 164 → 156 → 152 → 148 → 143 → 135 → 129), because a ceiling that stays put while the
+back or if the public surface grows past **125** — the ceiling now FOLLOWS the
+floor (220 → 201 → 194 → 179 → 173 → 166 → 164 → 156 → 152 → 148 → 143 → 135 → 129 → 125), because a ceiling that stays put while the
 surface shrinks permits exactly what the program exists to remove — and the run
 engine's own ratchet requires that it reads the run's context through the
 module.
@@ -591,12 +605,14 @@ Order (each store registers a closer; `fail()` unwinds them in reverse):
 
 | Entry | Body | Callers |
 |---|---|---|
-| `(*Kernel).Run(ctx, intent)` | mints corr, then RunWith | tests, simple callers |
-| `(*Kernel).RunWith(ctx, corr, intent)` | rejects empty corr, then `runner.Runner.RunWith` | controlplane `handleRun` (socket/console; REST `POST /api/v1/runs` reaches it via `kernelAPIEngine.RunModel` in `cmd/agezt/api_engine.go`), channel inbound (`makeChannelHandler`), cadence (`buildCadence`), standing orders (`buildStandingRunner`), workboard dispatch, roster escalation, selfrepair wake, overseer tool, `LoopRunner()` (scheduler DAG `loop` nodes), boot resumer |
-| `RunAssured(ctx, corr, intent, n)` | `Runner.RunAssured` → `assureapi.Until(run=RunWith/RunWithRetry, verify=VerifyCompletion)` | controlplane (`assure` arg), cadence, standing, resumer |
-| `RunWithRetry(ctx, corr, intent, roster.RetryPolicy)` | `Runner.RunWithRetry`: up to `min(MaxAttempts,10)` RunWith attempts, `agent.retry` events, backoff via `retryDelay` | the same callers when a roster profile has a `RetryPolicy` |
+| `(*Kernel).RunnerService()` | the **runs module's** run engine, under the module's own port `api.RunnerService` (W3.76ac) | every caller below, and the applications and the command that start or close a run |
+| `(*Kernel).RunWith(ctx, corr, intent)` (on the module's face) | rejects empty corr, then `runner.Runner.RunWith` | controlplane `handleRun` (socket/console; REST `POST /api/v1/runs` reaches it via `kernelAPIEngine.RunModel` in `cmd/agezt/api_engine.go`), channel inbound (`makeChannelHandler`), cadence (`buildCadence`), standing orders (`buildStandingRunner`), workboard dispatch, roster escalation, selfrepair wake, overseer tool, `LoopRunner()` (scheduler DAG `loop` nodes), boot resumer |
+| `RunAssured(ctx, corr, intent, n)` (on the module's face) | `Runner.RunAssured` → `assureapi.Until(run=RunWith/RunWithRetry, verify=VerifyCompletion)` | controlplane (`assure` arg), cadence, standing, resumer |
+| `RunWithRetry(ctx, corr, intent, roster.RetryPolicy)` (on the module's face) | `Runner.RunWithRetry`: up to `min(MaxAttempts,10)` RunWith attempts, `agent.retry` events, backoff via `retryDelay` | the same callers when a roster profile has a `RetryPolicy` |
 | `RunPlan(ctx, plan, planID)` | registers `plan-<ulid>` in the run registry, then the scheduler | controlplane `plan` |
 | `RunTool(ctx, corr, callID, name, args)` | `toolexec.Run`; stamps runtime actor/corr for approvals, resolves merged forge/MCP tools, carries the trusted ToolDef to policy | controlplane direct tool calls, research, workflow tool/HTTP/pipeline and canvas-node calls, Council web grounding |
+
+The daemon's **own** five run doors (`Run`, `RunWith`, `RunWithRetry`, `RunAssured`, `CompleteAgentLifecycle`) are **gone** (W3.76ac): the run engine already answered in exactly those names, so the daemon's five were a second spelling of one family. The daemon hands over the module's **FACE** (`RunnerService` — `api.RunnerService`, in the runs module's own api package) and keeps the **identity**: the correlation id a run carries is still the host's (`NewCorrelation`).
 
 Callers stamp the run context before calling, using the exported helpers of the **runs module's** `runctx` package (`kernel/modules/runs/runctx`, W3.76c): `WithAgentProfile`, `WithAgentIdent`, `WithWakeContext`, `WithModel`, `WithModelChain`, `WithSystem`, `WithTools` (allowlist), `WithImages`, `WithJSONMode`, `WithRunTimeout`, `WithMaxCost`, `WithTrustCeiling`, `WithAutoApproveCapabilities`, `WithTrustedObservations`. The **resume** handshake (`WithResumeSeed`, `WithResumeOwned`) stays in the daemon (`runtime/resume.go`): it is the boot protocol, not the run's vocabulary. The daemon exposes the same binding as **doors** on the kernel handle (`k.WithAgentProfile`, `k.WithMaxCost`, `k.WithActorCorrelation`) for the hosts that hold a handle rather than the module.
 
@@ -855,7 +871,7 @@ Subjects for loop events are `agent.<actor>.<suffix>`, with actor `agent-<corr>`
 
 | Package | Files | Status / role |
 |---|---|---|
-| `modules/runs/runner` | `doc.go`, `api.go` (`KernelAPI`, **37 entries** — the host's capabilities), `runner.go` (`Runner`, `New`, `Run`, **`RunWith` — the real run body**), `runner_lifecycle.go` (`CompleteAgentLifecycle`, `RunAssured`, `MaybeDistill/Forge/ShadowEval`), `runner_retry.go` (`RunWithRetry`, `Why/Causes/ParentOf/Verify`, `VerifyCompletion`, `PublishHeuristicBypass`, `DescribeImages`, `ErrNoVisionModel` duplicate), `helpers.go` (`ErrHalted` duplicate, `shadowEvalLimit=2`, `assureVerifyMaxTokens=400`, `visionDescribeMaxTokens=1024`, `buildTranscript`, `deterministicHeuristicBypass`, `shouldRetireAgentAfterComplete`, `resetCompletedCycleTasks`) | Live. Never imports kernel/runtime; reaches the kernel through public wrapper methods (`SetupRunState`, `BuildRunPrompt`, `ClaimResumeTicket`, …). **W3.76ab**: the run engine's **own** operations left its host port — `PublishHeuristicBypass`, `MaybeDistill`, `MaybeForge`, `MaybeShadowEval`, `RunWith`, `RunWithRetry`, `CompleteAgentLifecycle` and `VerifyCompletion` were eight **round trips** (the engine asked the host, the host asked the engine back), so the port carries **37** entries and the engine calls its own methods. Test: `helpers_test.go`. |
+| `modules/runs/runner` | `doc.go`, `api.go` (`KernelAPI`, **37 entries** — the host's capabilities), `runner.go` (`Runner`, `New`, `Run`, **`RunWith` — the real run body**), `runner_lifecycle.go` (`CompleteAgentLifecycle`, `RunAssured`, `MaybeDistill/Forge/ShadowEval`), `runner_retry.go` (`RunWithRetry`, `Why/Causes/ParentOf/Verify`, `VerifyCompletion`, `PublishHeuristicBypass`, `DescribeImages`, `ErrNoVisionModel` duplicate), `helpers.go` (`ErrHalted` duplicate, `shadowEvalLimit=2`, `assureVerifyMaxTokens=400`, `visionDescribeMaxTokens=1024`, `buildTranscript`, `deterministicHeuristicBypass`, `shouldRetireAgentAfterComplete`, `resetCompletedCycleTasks`) | Live. Never imports kernel/runtime; reaches the kernel through public wrapper methods (`SetupRunState`, `BuildRunPrompt`, `ClaimResumeTicket`, …). **W3.76ab**: the run engine's **own** operations left its host port — `PublishHeuristicBypass`, `MaybeDistill`, `MaybeForge`, `MaybeShadowEval`, `RunWith`, `RunWithRetry`, `CompleteAgentLifecycle` and `VerifyCompletion` were eight **round trips** (the engine asked the host, the host asked the engine back), so the port carries **37** entries and the engine calls its own methods. Test: `helpers_test.go`. **W3.76ac**: the module's own **face** (`api.RunnerService` — `RunWith`, `RunWithRetry`, `RunAssured`, `CompleteAgentLifecycle`) is what the daemon hands over; the daemon's five doors over these operations are gone. |
 | `modules/runs/registry` | `registry.go` (`Registry`: `New`, `Lock/Unlock`, `Halted/SetHalted`, `Running`, `Register/Unregister/Cancel`, `Count/IDs/Cancels`, `HaltAll`, `Add/Done/Wait`, `Suspending`) | Live. The runs module's **live-run store** (W3.76d), moved down from the daemon: the live correlations and their cancels, the halt latch, the drain waitgroup and the suspend latch. The lock discipline is the store's — the daemon's compound cleanups hold it across the fan-out, tree, steer and spawn locks, so it is the **outermost** lock. Test: `registry_test.go`. |
 | `modules/runs/lifecycle` | `doc.go`, `api.go` (`Host`: `Suspend/PublishBus`), `manager.go` (`Manager`: `New`, `IsHalted`, `Halt/HaltWith`, `DrainAndHalt`, `CancelRun`, `Resume/ResumeWith`, `ActiveRuns/ActiveRunIDs`, `NewCorrelation`, `SubjectForRun`) | Live (section 4.6). **Moved from `kernel/runtime/lifecycle` in W3.76d**: the manager holds the module's own registry directly and reaches the daemon only through the two-verb `Host` interface, so the daemon's six public verbs (`Halted/SetHalted/Runs/RunsMu/RunWG/Suspending`) are gone. **W3.76aa**: the manager answers the module's own **PORT** (`api.LifecycleService`) and is nil-receiver safe, and the daemon's nine verbs over it are gone too — the daemon hands over the module's face. Test: `manager_test.go`. |
 | `runtime/accessors` | — | **Deleted (W3.40).** It was constructed in Open (`k.accessors = accessors.New(k)`) and read by **nobody**: `*Kernel`'s own `accessors_*.go` methods kept the bodies (they read the fields directly — an Accessor dispatching back through the implicit `KernelAPI` would recurse). 48 functions, a 413-line test file, and **eleven allowlisted edges that bought nothing**: the package was a second, unreachable copy of the read surface, so the kernel's module reach was counted twice. The two copies journalled the same events, so nothing was lost — and the shape test in `submanager_test.go` now pins the kernel's sub-manager set and its accessor surface by name, so a second copy cannot reappear quietly. |
@@ -891,8 +907,8 @@ Root package, grouped by concern; every non-test file is listed.
 
 | File | What it does |
 |---|---|
-| `runner.go` | `Run`, `RunAssured`, `RunWithRetry` wrappers; `ClaimResumeTicket`, `FinalizeResumeTicket`, `RetryReason`, `AgentRetryable`, `RetryDelay` KernelAPI wrappers. |
-| `runner_lifecycle.go` | `RunWith` (corr check, delegates to the Runner), `CompleteAgentLifecycle`, `setupRunState`, `cleanupRunState` (5-mutex release, orphan spawn cancels, `registry.Done`), `deregisterRunSteer`, `ErrNoVisionModel`. |
+| `runner.go` | The runs module's **FACE** (`RunnerService` — W3.76ac: the daemon's five doors over the run engine's operations are gone, and the module's own port `api.RunnerService` carries them), plus `ClaimResumeTicket`, `FinalizeResumeTicket`, `RetryReason`, `AgentRetryable`, `RetryDelay` KernelAPI wrappers. |
+| `runner_lifecycle.go` | `setupRunState`, `cleanupRunState` (5-mutex release, orphan spawn cancels, `registry.Done`), `deregisterRunSteer`, `ErrNoVisionModel`. The daemon's own `RunWith` and `CompleteAgentLifecycle` are gone (W3.76ac) — the run engine's body is the module's, and the module answers them. |
 | `runner_helpers.go` | `retryReason`, `agentRetryable` (default RetryOn `error`,`timeout`), `retryDelay`, the elided-summary constants, `makeElidedSummarizer`. |
 | `runner_delegates.go` | `FoldRunTools` (journal scan for tool.result), `Why`, `Causes`, `ParentOf`, `Verify`. |
 | `loopconfig.go` | `BuildLoopConfig`/`buildLoopConfig`: the shared LoopConfig base for root and sub-agent runs. |

@@ -87,7 +87,7 @@ func TestWithAgentProfile_AppliesIdentityToRun(t *testing.T) {
 		Model: "agent-model", Fallbacks: []string{"agent-model", "backup-1"},
 		MaxDailyMc: 5_000_000_000,
 	})
-	if _, err := k.RunWith(ctx, k.NewCorrelation(), "what about the target?"); err != nil {
+	if _, err := k.RunnerService().RunWith(ctx, k.NewCorrelation(), "what about the target?"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 
@@ -134,7 +134,7 @@ func TestWithAgentProfile_WorkdirConfinesFileTool(t *testing.T) {
 	if got := toolapi.WorkdirFromContext(ctx); got != "research" {
 		t.Fatalf("context workdir = %q, want research", got)
 	}
-	if _, err := k.RunWith(ctx, k.NewCorrelation(), "take a note"); err != nil {
+	if _, err := k.RunnerService().RunWith(ctx, k.NewCorrelation(), "take a note"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	b, err := os.ReadFile(filepath.Join(ws, "research", "notes.txt"))
@@ -195,7 +195,7 @@ func TestWithAgentProfile_SystemAgentSkipsAutomaticLearningLayers(t *testing.T) 
 		Slug: "guardian-health", Soul: "You are Guardian Health.", System: true,
 		MemoryScope: "system/guardian-health",
 	})
-	if _, err := k.RunWith(ctx, k.NewCorrelation(), "check health"); err != nil {
+	if _, err := k.RunnerService().RunWith(ctx, k.NewCorrelation(), "check health"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	if prov.CallCount() != 2 {
@@ -243,7 +243,7 @@ func TestWithAgentProfile_IncludesInstructionsAndTasks(t *testing.T) {
 			{Title: "old task", Scope: "total", Status: "done"},
 		},
 	})
-	if _, err := k.RunWith(ctx, k.NewCorrelation(), "wake"); err != nil {
+	if _, err := k.RunnerService().RunWith(ctx, k.NewCorrelation(), "wake"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	for _, want := range []string{"You are Ops.", "Standing instructions", "Stay quiet", "Cycle tasks", "scan mailbox", "Total tasks", "finish cleanup"} {
@@ -273,7 +273,7 @@ func TestWithAgentProfile_RetireOnCompleteMovesAgentToGraveyard(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
-	if _, err := k.RunWith(runctx.WithAgentProfile(context.Background(), p), k.NewCorrelation(), "finish once"); err != nil {
+	if _, err := k.RunnerService().RunWith(runctx.WithAgentProfile(context.Background(), p), k.NewCorrelation(), "finish once"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	got, ok := k.Roster().Get("one-shot")
@@ -308,7 +308,7 @@ func TestWithAgentProfile_CycleLifecycleIncrementsAndRetiresAtMax(t *testing.T) 
 		t.Fatalf("AddProfile: %v", err)
 	}
 	ctx := runctx.WithAgentProfile(context.Background(), p)
-	if _, err := k.RunWith(ctx, k.NewCorrelation(), "cycle once"); err != nil {
+	if _, err := k.RunnerService().RunWith(ctx, k.NewCorrelation(), "cycle once"); err != nil {
 		t.Fatalf("RunWith first cycle: %v", err)
 	}
 	got, ok := k.Roster().Get("cycler")
@@ -346,7 +346,7 @@ func TestWithAgentProfile_CycleLifecycleIncrementsAndRetiresAtMax(t *testing.T) 
 		t.Fatal("cycle completion event was not journaled")
 	}
 
-	if _, err := k.RunWith(ctx, k.NewCorrelation(), "cycle twice"); err != nil {
+	if _, err := k.RunnerService().RunWith(ctx, k.NewCorrelation(), "cycle twice"); err != nil {
 		t.Fatalf("RunWith second cycle: %v", err)
 	}
 	got, ok = k.Roster().Get("cycler")
@@ -388,9 +388,9 @@ func TestCompleteAgentLifecycle_IdempotentPerCorrelation(t *testing.T) {
 	ctx := runctx.WithAgentProfile(context.Background(), p)
 
 	corr1 := k.NewCorrelation()
-	k.CompleteAgentLifecycle(ctx, corr1)
-	k.CompleteAgentLifecycle(ctx, corr1) // same logical run: must NOT advance again
-	k.CompleteAgentLifecycle(ctx, corr1)
+	k.RunnerService().CompleteAgentLifecycle(ctx, corr1)
+	k.RunnerService().CompleteAgentLifecycle(ctx, corr1) // same logical run: must NOT advance again
+	k.RunnerService().CompleteAgentLifecycle(ctx, corr1)
 	got, ok := k.Roster().Get("cycler")
 	if !ok {
 		t.Fatal("cycler missing")
@@ -404,7 +404,7 @@ func TestCompleteAgentLifecycle_IdempotentPerCorrelation(t *testing.T) {
 
 	// A genuinely new logical run (new correlation) advances again.
 	corr2 := k.NewCorrelation()
-	k.CompleteAgentLifecycle(ctx, corr2)
+	k.RunnerService().CompleteAgentLifecycle(ctx, corr2)
 	got, _ = k.Roster().Get("cycler")
 	if got.Lifecycle.CompletedCycles != 2 {
 		t.Fatalf("new correlation advanced cycle to %d, want 2", got.Lifecycle.CompletedCycles)
@@ -413,8 +413,8 @@ func TestCompleteAgentLifecycle_IdempotentPerCorrelation(t *testing.T) {
 	// Reaching max retires the agent — and a duplicate of the maxing correlation
 	// does not resurrect or re-advance it.
 	corr3 := k.NewCorrelation()
-	k.CompleteAgentLifecycle(ctx, corr3)
-	k.CompleteAgentLifecycle(ctx, corr3)
+	k.RunnerService().CompleteAgentLifecycle(ctx, corr3)
+	k.RunnerService().CompleteAgentLifecycle(ctx, corr3)
 	got, _ = k.Roster().Get("cycler")
 	if got.Lifecycle.CompletedCycles != 3 {
 		t.Fatalf("third correlation advanced cycle to %d, want 3", got.Lifecycle.CompletedCycles)
@@ -450,7 +450,7 @@ func TestWithAgentProfile_LifecycleDoesNotCompleteOnFailedRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddProfile one-shot: %v", err)
 	}
-	if _, err := k.RunWith(runctx.WithAgentProfile(context.Background(), oneShot), k.NewCorrelation(), "finish once"); err == nil {
+	if _, err := k.RunnerService().RunWith(runctx.WithAgentProfile(context.Background(), oneShot), k.NewCorrelation(), "finish once"); err == nil {
 		t.Fatal("RunWith one-shot should fail with exhausted mock provider")
 	}
 	got, ok := k.Roster().Get("one-shot-failed")
@@ -468,7 +468,7 @@ func TestWithAgentProfile_LifecycleDoesNotCompleteOnFailedRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddProfile cycler: %v", err)
 	}
-	if _, err := k.RunWith(runctx.WithAgentProfile(context.Background(), cycler), k.NewCorrelation(), "cycle once"); err == nil {
+	if _, err := k.RunnerService().RunWith(runctx.WithAgentProfile(context.Background(), cycler), k.NewCorrelation(), "cycle once"); err == nil {
 		t.Fatal("RunWith cycler should fail with exhausted mock provider")
 	}
 	got, ok = k.Roster().Get("cycler-failed")
@@ -503,7 +503,7 @@ func TestWithAgentProfile_ToolPermissionsApply(t *testing.T) {
 		ToolAllow: []string{"shell", "memory"},
 		ToolDeny:  []string{"shell"},
 	})
-	if _, err := k.RunWith(ctx, k.NewCorrelation(), "hello"); err != nil {
+	if _, err := k.RunnerService().RunWith(ctx, k.NewCorrelation(), "hello"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	if len(req.Tools) != 1 || req.Tools[0].Name != "memory" {
@@ -535,7 +535,7 @@ func TestWithAgentProfile_NoisePolicyDisablesMemoryTool(t *testing.T) {
 			DisableMemoryWrites: true,
 		},
 	})
-	if _, err := k.RunWith(ctx, k.NewCorrelation(), "hello"); err != nil {
+	if _, err := k.RunnerService().RunWith(ctx, k.NewCorrelation(), "hello"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	for _, tdef := range req.Tools {
@@ -714,7 +714,7 @@ func TestWithAgentProfile_ConfigOverrideChangesModel(t *testing.T) {
 			"AGEZT_MODEL": "override-model",
 		},
 	})
-	if _, err := k.RunWith(ctx, k.NewCorrelation(), "hello"); err != nil {
+	if _, err := k.RunnerService().RunWith(ctx, k.NewCorrelation(), "hello"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	if req.Model != "override-model" {
@@ -739,7 +739,7 @@ func TestWithAgentProfile_ConfigOverrideCanDisableHeuristicBypass(t *testing.T) 
 			"AGEZT_DISABLE_HEURISTIC_BYPASS": "on",
 		},
 	})
-	answer, err := k.RunWith(ctx, k.NewCorrelation(), "what time is it")
+	answer, err := k.RunnerService().RunWith(ctx, k.NewCorrelation(), "what time is it")
 	if err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}

@@ -172,11 +172,11 @@ func buildCadence(ctx context.Context, k *kernelruntime.Kernel, store *cadence.S
 		var ans string
 		var err error
 		if ent.Assure > 0 {
-			ans, _, err = k.RunAssured(mctx, corr, intent, ent.Assure)
+			ans, _, err = k.RunnerService().RunAssured(mctx, corr, intent, ent.Assure)
 		} else if prof != nil && prof.RetryPolicy != nil && prof.RetryPolicy.MaxAttempts > 1 {
-			ans, err = k.RunWithRetry(mctx, corr, intent, *prof.RetryPolicy)
+			ans, err = k.RunnerService().RunWithRetry(mctx, corr, intent, *prof.RetryPolicy)
 		} else {
-			ans, err = k.RunWith(mctx, corr, intent)
+			ans, err = k.RunnerService().RunWith(mctx, corr, intent)
 		}
 		// Deliver the scheduled run's answer to the operator's channels when
 		// AGEZT_SCHEDULE_NOTIFY is on (M152): a proactive morning digest reaches

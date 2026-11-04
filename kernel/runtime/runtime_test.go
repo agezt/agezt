@@ -39,7 +39,7 @@ func newKernel(t *testing.T, prov llm.Provider) *runtime.Kernel {
 
 func TestRun_Simple(t *testing.T) {
 	k := newKernel(t, mock.New(mock.FinalText("done")))
-	ans, corr, err := k.Run(context.Background(), "hi")
+	ans, corr, err := runForTest(k, context.Background(), "hi")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestHalt_PreventsNewRuns(t *testing.T) {
 	if !k.LifecycleService().IsHalted() {
 		t.Error("IsHalted should be true after Halt")
 	}
-	_, _, err := k.Run(context.Background(), "hi")
+	_, _, err := runForTest(k, context.Background(), "hi")
 	if !errors.Is(err, runtime.ErrHalted) {
 		t.Errorf("got err=%v, want ErrHalted", err)
 	}
@@ -67,7 +67,7 @@ func TestHalt_PreventsNewRuns(t *testing.T) {
 	}
 	// After resume, a new mock run works.
 	k2 := newKernel(t, mock.New(mock.FinalText("again")))
-	if _, _, err := k2.Run(context.Background(), "hi"); err != nil {
+	if _, _, err := runForTest(k2, context.Background(), "hi"); err != nil {
 		t.Fatalf("Run after Resume: %v", err)
 	}
 }
@@ -79,7 +79,7 @@ func TestHalt_CancelsInflightRun(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		_, _, err := k.Run(context.Background(), "hang")
+		_, _, err := runForTest(k, context.Background(), "hang")
 		done <- err
 	}()
 
@@ -112,7 +112,7 @@ func TestRunWith_TimesOut(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 
 	start := time.Now()
-	_, corr, runErr := k.Run(context.Background(), "hang forever")
+	_, corr, runErr := runForTest(k, context.Background(), "hang forever")
 	if !errors.Is(runErr, context.DeadlineExceeded) {
 		t.Fatalf("got err=%v, want context.DeadlineExceeded", runErr)
 	}
@@ -155,7 +155,7 @@ func TestRunWith_PerRunTimeoutOverride(t *testing.T) {
 
 	start := time.Now()
 	ctx := runctx.WithRunTimeout(context.Background(), 30*time.Millisecond)
-	_, runErr := k.RunWith(ctx, "to-corr", "hang forever")
+	_, runErr := k.RunnerService().RunWith(ctx, "to-corr", "hang forever")
 	if !errors.Is(runErr, context.DeadlineExceeded) {
 		t.Fatalf("got err=%v, want context.DeadlineExceeded from the per-run override", runErr)
 	}
@@ -182,7 +182,7 @@ func TestRunWith_HaltBeatsTimeout(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		_, _, e := k.Run(context.Background(), "hang")
+		_, _, e := runForTest(k, context.Background(), "hang")
 		done <- e
 	}()
 	time.Sleep(50 * time.Millisecond)
@@ -215,7 +215,7 @@ func TestRunWith_CompletesUnderTimeout(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	ans, _, runErr := k.Run(context.Background(), "hi")
+	ans, _, runErr := runForTest(k, context.Background(), "hi")
 	if runErr != nil {
 		t.Fatalf("Run under generous timeout: %v", runErr)
 	}
@@ -242,7 +242,7 @@ func TestCancelRun_CancelsOneRunNotKernel(t *testing.T) {
 	corr := k.NewCorrelation()
 	done := make(chan error, 1)
 	go func() {
-		_, e := k.RunWith(context.Background(), corr, "hang")
+		_, e := k.RunnerService().RunWith(context.Background(), corr, "hang")
 		done <- e
 	}()
 	time.Sleep(50 * time.Millisecond)
@@ -286,7 +286,7 @@ func TestCancelRun_CancelsOneRunNotKernel(t *testing.T) {
 	corr2 := k.NewCorrelation()
 	done2 := make(chan error, 1)
 	go func() {
-		_, e := k.RunWith(context.Background(), corr2, "hang again")
+		_, e := k.RunnerService().RunWith(context.Background(), corr2, "hang again")
 		done2 <- e
 	}()
 	time.Sleep(50 * time.Millisecond)
@@ -304,7 +304,7 @@ func TestCancelRun_UnknownReturnsFalse(t *testing.T) {
 		t.Error("CancelRun returned true for an unknown correlation")
 	}
 	// A completed run is no longer live, so cancelling it also reports false.
-	_, corr, err := k.Run(context.Background(), "hi")
+	_, corr, err := runForTest(k, context.Background(), "hi")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -340,7 +340,7 @@ func TestWhy_ReturnsCorrelationGroup(t *testing.T) {
 		testToolUse("c1", "shell", map[string]string{"command": "echo ok"}),
 		mock.FinalText("ok printed"),
 	))
-	ans, _, err := k.Run(context.Background(), "list things")
+	ans, _, err := runForTest(k, context.Background(), "list things")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,7 +376,7 @@ func TestWhy_ReturnsCorrelationGroup(t *testing.T) {
 
 func TestVerify_AfterRun_IsClean(t *testing.T) {
 	k := newKernel(t, mock.New(mock.FinalText("done")))
-	if _, _, err := k.Run(context.Background(), "x"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "x"); err != nil {
 		t.Fatal(err)
 	}
 	if err := k.Verify(); err != nil {
@@ -393,7 +393,7 @@ func TestConcurrentRuns_HaveDistinctCorrelations(t *testing.T) {
 	var wg sync.WaitGroup
 	for range n {
 		wg.Go(func() {
-			_, c, err := k.Run(context.Background(), "x")
+			_, c, err := runForTest(k, context.Background(), "x")
 			if err != nil {
 				t.Errorf("Run: %v", err)
 				corrs <- ""
@@ -517,7 +517,7 @@ func TestKernel_Model_LiveSwap(t *testing.T) {
 		t.Fatalf("Model() = %q, want seeded model-a", got)
 	}
 
-	if _, _, err := k.Run(context.Background(), "first"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "first"); err != nil {
 		t.Fatalf("Run #1: %v", err)
 	}
 
@@ -527,7 +527,7 @@ func TestKernel_Model_LiveSwap(t *testing.T) {
 		t.Fatalf("Model() after SetModel = %q, want model-b", got)
 	}
 
-	if _, _, err := k.Run(context.Background(), "second"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "second"); err != nil {
 		t.Fatalf("Run #2: %v", err)
 	}
 
@@ -664,7 +664,7 @@ func TestRunWith_RejectsDuplicateCorrelation(t *testing.T) {
 	k := newKernel(t, prov)
 
 	done := make(chan struct{})
-	go func() { _, _ = k.RunWith(context.Background(), "dup", "first"); close(done) }()
+	go func() { _, _ = k.RunnerService().RunWith(context.Background(), "dup", "first"); close(done) }()
 
 	select {
 	case <-started:
@@ -675,7 +675,7 @@ func TestRunWith_RejectsDuplicateCorrelation(t *testing.T) {
 
 	// The first run is registered and in-flight; a second RunWith with the same id
 	// must be refused.
-	_, err := k.RunWith(context.Background(), "dup", "second")
+	_, err := k.RunnerService().RunWith(context.Background(), "dup", "second")
 	if err == nil || !strings.Contains(err.Error(), "already running") {
 		close(release)
 		t.Fatalf("duplicate correlation must be rejected, got err=%v", err)

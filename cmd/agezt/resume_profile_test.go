@@ -118,7 +118,7 @@ func TestBuildResumer_ProfileRunSurvivesRestart(t *testing.T) {
 			ctx = runctx.WithMaxCost(ctx, 321)
 			const corr = "profile-restart"
 			done := make(chan error, 1)
-			go func() { _, err := k.RunWith(ctx, corr, "continue the task"); done <- err }()
+			go func() { _, err := k.RunnerService().RunWith(ctx, corr, "continue the task"); done <- err }()
 			select {
 			case <-prov.started:
 			case <-time.After(3 * time.Second):

@@ -65,7 +65,7 @@ func makeChannelHandler(k *kernelruntime.Kernel) channel.InboundHandler {
 			}
 			persistInboundAudio(k, msg, corr)
 		}
-		text, rerr := k.RunWith(hctx, corr, intent)
+		text, rerr := k.RunnerService().RunWith(hctx, corr, intent)
 		reply := channel.Reply{Text: text}
 		// Voice-in → voice-out: if the user sent a voice message and TTS is
 		// configured, speak the answer back as an audio attachment so the

@@ -81,7 +81,7 @@ func TestKernelLoopUsesBoundPhasesAndIsolatesPolicy(t *testing.T) {
 			if deny {
 				k.Edict().SetLevel(edict.CapIntrospect, edict.LevelDeny)
 			}
-			if got, err := k.RunWith(context.Background(), "phase-run", "use probe"); err != nil || got != "done" {
+			if got, err := k.RunnerService().RunWith(context.Background(), "phase-run", "use probe"); err != nil || got != "done" {
 				t.Fatalf("answer=%q error=%v", got, err)
 			}
 			want := []int32{1, 1, 1, 1, 1}
@@ -134,7 +134,7 @@ func TestDelegatedLoopUsesSameBoundPhases(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
-	if got, err := k.RunWith(context.Background(), "parent-run", "delegate the probe"); err != nil || got != "parent done" {
+	if got, err := k.RunnerService().RunWith(context.Background(), "parent-run", "delegate the probe"); err != nil || got != "parent done" {
 		t.Fatalf("answer=%q error=%v", got, err)
 	}
 	if !reflect.DeepEqual(observed.totals(), []int32{2, 2, 2, 2, 2}) || tool.calls != 1 {
@@ -163,7 +163,7 @@ func TestOneShotFactoryKeepsCanonicalLoopCompatibility(t *testing.T) {
 	if one == nil || one != two {
 		t.Fatal("compatibility phase service is not bound once per kernel")
 	}
-	if _, err := k.RunWith(context.Background(), "compat-run", "use probe"); err != nil {
+	if _, err := k.RunnerService().RunWith(context.Background(), "compat-run", "use probe"); err != nil {
 		t.Fatal(err)
 	}
 	if tool.calls != 1 || calls.Load() != 0 {

@@ -22,10 +22,10 @@ func TestPulse_Until_TerminatesAfterReplay(t *testing.T) {
 		mock.FinalText("run2"),
 	))
 
-	if _, _, err := k.Run(context.Background(), "run 1"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "run 1"); err != nil {
 		t.Fatalf("run 1: %v", err)
 	}
-	if _, _, err := k.Run(context.Background(), "run 2"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "run 2"); err != nil {
 		t.Fatalf("run 2: %v", err)
 	}
 
@@ -95,7 +95,7 @@ func TestPulse_Until_ExclusiveBound(t *testing.T) {
 		mock.FinalText("c"),
 	))
 	for i := range 3 {
-		if _, _, err := k.Run(context.Background(), "run"); err != nil {
+		if _, _, err := runForTest(k, context.Background(), "run"); err != nil {
 			t.Fatalf("run %d: %v", i, err)
 		}
 	}

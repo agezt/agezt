@@ -149,7 +149,7 @@ func TestTheRunEngineWritesTheRosterThroughTheModule(t *testing.T) {
 	}
 
 	ctx := runctx.WithAgentIdent(context.Background(), "worker", 0)
-	k.CompleteAgentLifecycle(ctx, "corr-1")
+	k.RunnerService().CompleteAgentLifecycle(ctx, "corr-1")
 
 	got, ok := store.Get("worker")
 	if !ok {

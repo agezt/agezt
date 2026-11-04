@@ -88,7 +88,7 @@ func TestAttach_OffersAndForwardsBridgedTool(t *testing.T) {
 		t.Fatalf("dials = %d", *dials)
 	}
 
-	if _, err := k.RunWith(context.Background(), k.NewCorrelation(), "greet ersin"); err != nil {
+	if _, err := k.RunnerService().RunWith(context.Background(), k.NewCorrelation(), "greet ersin"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	var offered bool
@@ -180,7 +180,7 @@ func TestAttach_ToolAllowFilters(t *testing.T) {
 	if _, _, err := k.MCPRegistryService().AttachMCPServer(context.Background(), "", "fake"); err != nil {
 		t.Fatalf("Attach: %v", err)
 	}
-	if _, err := k.RunWith(context.Background(), k.NewCorrelation(), "hi"); err != nil {
+	if _, err := k.RunnerService().RunWith(context.Background(), k.NewCorrelation(), "hi"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	var hasGreet, hasShout bool
@@ -230,7 +230,7 @@ func TestAttach_LazyCollapsesToDispatcher(t *testing.T) {
 	if _, _, err := k.MCPRegistryService().AttachMCPServer(context.Background(), "", "fake"); err != nil {
 		t.Fatalf("Attach: %v", err)
 	}
-	if _, err := k.RunWith(context.Background(), k.NewCorrelation(), "greet ersin"); err != nil {
+	if _, err := k.RunnerService().RunWith(context.Background(), k.NewCorrelation(), "greet ersin"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 
@@ -287,7 +287,7 @@ func TestDetach_KillSwitch(t *testing.T) {
 	if err := k.MCPRegistryService().DetachMCPServer("", "fake"); err == nil {
 		t.Fatal("detaching a non-attached server accepted")
 	}
-	if _, err := k.RunWith(context.Background(), k.NewCorrelation(), "hi"); err != nil {
+	if _, err := k.RunnerService().RunWith(context.Background(), k.NewCorrelation(), "hi"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	if contains(toolNames(req.Tools), "mcp_fake_greet") {
@@ -342,14 +342,14 @@ func TestAllowlistGatesBridgedTools(t *testing.T) {
 	}
 
 	ctx := runctx.WithTools(context.Background(), []string{"memory"})
-	if _, err := k.RunWith(ctx, k.NewCorrelation(), "restricted"); err != nil {
+	if _, err := k.RunnerService().RunWith(ctx, k.NewCorrelation(), "restricted"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	if contains(toolNames(req.Tools), "mcp_fake_greet") {
 		t.Fatal("allowlist did not gate the bridged tool")
 	}
 	ctx = runctx.WithTools(context.Background(), []string{"mcp_fake_greet"})
-	if _, err := k.RunWith(ctx, k.NewCorrelation(), "allowed"); err != nil {
+	if _, err := k.RunnerService().RunWith(ctx, k.NewCorrelation(), "allowed"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	if !contains(toolNames(req.Tools), "mcp_fake_greet") {
@@ -372,7 +372,7 @@ func TestBridgedToolNameSanitized(t *testing.T) {
 	if _, names, err := k.MCPRegistryService().AttachMCPServer(context.Background(), "", "fake"); err != nil || len(names) != 1 {
 		t.Fatalf("Attach: %v / %v", err, names)
 	}
-	if _, err := k.RunWith(context.Background(), k.NewCorrelation(), "hi"); err != nil {
+	if _, err := k.RunnerService().RunWith(context.Background(), k.NewCorrelation(), "hi"); err != nil {
 		t.Fatalf("RunWith: %v", err)
 	}
 	var got string

@@ -54,7 +54,7 @@ func TestDelegate_AsNamedAgent(t *testing.T) {
 	col := &collector{}
 	col.watch(k)
 
-	ans, _, err := k.Run(context.Background(), "lead task")
+	ans, _, err := runForTest(k, context.Background(), "lead task")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestDelegate_NamedAgentToolPolicyFiltersChildTools(t *testing.T) {
 		t.Fatalf("AddProfile: %v", err)
 	}
 
-	if _, _, err := k.Run(context.Background(), "lead task"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "lead task"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -190,7 +190,7 @@ func TestDelegate_NamedAgentNoiseNotifyCompletesCooldown(t *testing.T) {
 		t.Fatalf("AddProfile: %v", err)
 	}
 
-	if _, _, err := k.Run(context.Background(), "lead task"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "lead task"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -224,7 +224,7 @@ func TestDelegate_NamedAgentCycleLifecycleCompletes(t *testing.T) {
 		t.Fatalf("AddProfile: %v", err)
 	}
 
-	if _, _, err := k.Run(context.Background(), "lead task"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "lead task"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -269,7 +269,7 @@ func TestDelegate_ManagedSubAgentRequiresParent(t *testing.T) {
 	}
 
 	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{Slug: "lead", Soul: "Lead the workers."})
-	ans, _, err := k.Run(ctx, "lead task")
+	ans, _, err := runForTest(k, ctx, "lead task")
 	if err != nil {
 		t.Fatalf("Run as lead: %v", err)
 	}
@@ -293,7 +293,7 @@ func TestDelegate_ManagedSubAgentRequiresParent(t *testing.T) {
 	col := &collector{}
 	col.watch(k2)
 	ctx = runctx.WithAgentProfile(context.Background(), roster.Profile{Slug: "other"})
-	if _, _, err := k2.Run(ctx, "other task"); err != nil {
+	if _, _, err := runForTest(k2, ctx, "other task"); err != nil {
 		t.Fatalf("Run as other: %v", err)
 	}
 	time.Sleep(50 * time.Millisecond)
@@ -322,7 +322,7 @@ func TestDelegate_ManagedSubAgentAllowsOwner(t *testing.T) {
 	}
 
 	ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{Slug: "owner", Soul: "Own the workers."})
-	ans, _, err := k.Run(ctx, "owner task")
+	ans, _, err := runForTest(k, ctx, "owner task")
 	if err != nil {
 		t.Fatalf("Run as owner: %v", err)
 	}
@@ -346,7 +346,7 @@ func TestDelegate_ManagedSubAgentAllowsOwner(t *testing.T) {
 	col := &collector{}
 	col.watch(k2)
 	ctx = runctx.WithAgentProfile(context.Background(), roster.Profile{Slug: "other"})
-	if _, _, err := k2.Run(ctx, "other task"); err != nil {
+	if _, _, err := runForTest(k2, ctx, "other task"); err != nil {
 		t.Fatalf("Run as other: %v", err)
 	}
 	time.Sleep(50 * time.Millisecond)
@@ -399,7 +399,7 @@ func TestDelegate_ManagedSubAgentRequiresLiveParent(t *testing.T) {
 			col := &collector{}
 			col.watch(k)
 			ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{Slug: "lead", Soul: "Lead the workers."})
-			if _, _, err := k.Run(ctx, "lead task"); err != nil {
+			if _, _, err := runForTest(k, ctx, "lead task"); err != nil {
 				t.Fatalf("Run as lead: %v", err)
 			}
 			time.Sleep(50 * time.Millisecond)
@@ -454,7 +454,7 @@ func TestDelegate_ManagedSubAgentRequiresLiveOwner(t *testing.T) {
 			col := &collector{}
 			col.watch(k)
 			ctx := runctx.WithAgentProfile(context.Background(), roster.Profile{Slug: "owner", Soul: "Own the workers."})
-			if _, _, err := k.Run(ctx, "owner task"); err != nil {
+			if _, _, err := runForTest(k, ctx, "owner task"); err != nil {
 				t.Fatalf("Run as owner: %v", err)
 			}
 			time.Sleep(50 * time.Millisecond)
@@ -500,7 +500,7 @@ func TestDelegate_AgentMemoryScopeFollowsChild(t *testing.T) {
 
 	col := &collector{}
 	col.watch(k)
-	if _, _, err := k.Run(context.Background(), "lead task"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "lead task"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	time.Sleep(50 * time.Millisecond)
@@ -568,7 +568,7 @@ func TestDelegate_NamedAgentInjectsMemoryAndSkills(t *testing.T) {
 	}
 	promoteToActive(t, k.Forge(), sk.ID)
 
-	if _, _, err := k.Run(context.Background(), "lead task"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "lead task"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if !strings.Contains(childSystem, "project atlas uses the neon CI lane") {
@@ -606,7 +606,7 @@ func TestDelegate_AgentModelChainFollowsChild(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
-	if _, _, err := k.Run(context.Background(), "lead task"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "lead task"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if len(chains) == 0 {
@@ -642,7 +642,7 @@ func TestDelegate_AgentConfigOverrideModelFollowsChild(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
-	if _, _, err := k.Run(context.Background(), "lead task"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "lead task"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	for _, m := range models {
@@ -674,7 +674,7 @@ func TestDelegate_ExplicitModelWinsOverConfigOverride(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
-	if _, _, err := k.Run(context.Background(), "lead task"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "lead task"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	for _, m := range models {
@@ -705,7 +705,7 @@ func TestDelegate_ExplicitModelWinsOverProfile(t *testing.T) {
 	if _, err := k.RosterService().Add(roster.Profile{Slug: "researcher", Model: "agent-model"}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
-	if _, _, err := k.Run(context.Background(), "lead task"); err != nil {
+	if _, _, err := runForTest(k, context.Background(), "lead task"); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	for _, m := range models {
@@ -753,7 +753,7 @@ func TestDelegate_UnknownOrPausedAgentRefused(t *testing.T) {
 			}
 			col := &collector{}
 			col.watch(k)
-			ans, _, err := k.Run(context.Background(), "lead task")
+			ans, _, err := runForTest(k, context.Background(), "lead task")
 			if err != nil {
 				t.Fatalf("Run: %v", err)
 			}
