@@ -13913,3 +13913,92 @@ func main() {
   breaks it — at 164, it needs 104 more verbs gone.
   Evidence:
   `architecture/295-w376v-the-reasoning-capabilitys-lifecycle-moves-into-the-reasoning-module-evidence.md`
+- W3.76w (the MCP registry's vocabulary moves into the extensions module) is the
+  **thirty-first** slice of the runtime's dissolution.
+
+  W3.71 had already moved the MCP registry's **lifecycle and the bridge** into
+  the extensions module — the data and the operations finally live together —
+  but the **vocabulary** stayed in the daemon: **nine** verbs over the same
+  ground (the contract's seven plus `SetMCPServerEnabled` and
+  `AttachEnabledMCPServers`), while the **module** spoke a *third* spelling
+  (`Add`, `SetEnabled`, `Attach`, `Detach`, `Remove`, `AttachEnabled`,
+  `Attached`, with two **private** reads — `registrations()` and
+  `registration(ref)` — where the contract named two **public** ones).
+
+  Three spellings of one family became one. The **contract** already named the
+  agent-facing surface in `mcpapi.Runner` — the seven verbs in the names the
+  users say them — and the contract **did not move at all** (289 lines before
+  and after).
+
+  The **module** answers in the contract's names now: `Add` →
+  `AddMCPServer`, `SetEnabled` → `SetMCPServerEnabled`, `Attach` →
+  `AttachMCPServer`, `Detach` → `DetachMCPServer`, `Remove` →
+  `RemoveMCPServer`, `AttachEnabled` → `AttachEnabledMCPServers`, `Attached` →
+  `MCPAttached`, and the two private reads became the contract's two public
+  ones (nil-safe over the registry port the module already holds). The
+  module's port (`extapi.MCPRegistryService`) **embeds** the contract's runner
+  and adds the four verbs the contract does not name — the W3.76t forge shape,
+  verbatim: **the module's port is the contract's port plus what the host
+  still needs**. The api package even got **seven lines narrower** (221 → 214).
+
+  The **daemon** lost the nine verbs and holds four things: the registry's
+  **FILE** (`MCPStore` — the contract's store port; the composition root opens
+  it), its nil-safe **READ GATES** (`MCPReader`, `MCPRegistrationCount` — a
+  read over the host's own store is the host's), and the module's **FACE**
+  (`MCPRegistryService`).
+
+  The **application** (`kernel/app/tools`) binds the module's face — its own
+  `MCPLifecycleWriter` port already spoke the **contract's** names, so **no
+  adapter was written** — and became **nil-safe**: a daemon with no module
+  holds no writer, and the lifecycle refuses with the **contract's row**
+  (`mcpapi.ErrNoRegistry`) through a refusing writer instead of calling into
+  nothing. The **plugin** binds the module's face too (`mcpPort(k)` answers
+  `k.MCPRegistryService()`, nil-safe: a daemon with no module hands over a
+  **nil** port and the tool answers "unavailable" itself), and the
+  **composition root** asks the same face for the **boot path**
+  (`AttachEnabledMCPServers`) and gives the **marketplace** the module's face
+  as its MCP installer.
+
+  The daemon's own alias `runtime.ErrNoMCPRegistry` went with it: the daemon
+  raises no refusal of its own any more, and a second spelling of a row it
+  does not own is exactly what this program removes.
+
+  The measurement: the daemon's public verbs **164 → 156**, its production
+  lines **5,796 → 5,714**, its files **54 → 54**; the extensions module's MCP
+  package **1,323 → 1,326**, its api package **221 → 214**, the MCP contract
+  **289 → 289**, the tools application **1,669 → 1,708**. The app package
+  count did **not** move (**forty**) — the tools application still names the
+  daemon for the tool registry and the registry's read gate, so the MCP
+  **binding** was narrowed, not the packages'.
+
+  **Two ratchets, one probe firing all of them**: the daemon's new MCP
+  ratchet pins that the nine verbs do not come back and that the daemon still
+  holds the file, the read gates and the face; the tools application's new
+  binding ratchet pins that the application does not take the MCP lifecycle (or
+  the attachment status) from the **daemon** — it matches the *shape*
+  `Attachment: k` (the handle itself), not a call on it. The daemon's own
+  surface ceiling followed the floor again: **164 → 156** (220 → 201 → 194 →
+  179 → 173 → 166 → 164 → 156).
+
+  **The probe** put the daemon's `MCPAttached` verb back and bound the daemon
+  as the application's attachment port: the retired-verb ratchet, the surface
+  ceiling (157 > 156), the daemon's MCP ratchet **and** the application's
+  binding ratchet all went red at once; the probe was reverted and the suites
+  went green again.
+
+  **The coverage moved with the subject**: the module keeps its own tests (the
+  registry's refusal without a store, the lifecycle's transitions, the bridge's
+  rule) and they now run against the **contract's** names; the daemon's tests
+  pin what the daemon still does (it holds the file, the read gates and the
+  face, it holds **no** verb per operation, and a daemon with no module holds
+  **no** face at all); the application's tests pin the refusal; the
+  composition root's and the plugin's tests pin the wiring.
+
+  **What is left**: the daemon holds **156** public verbs and **5,714**
+  production lines; **forty** application packages still name it. The same
+  shape is waiting for the families that still have forwarders in the daemon:
+  the **standing library** (nine verbs, and **no module home** yet — it needs
+  one before its four writes can move) and the **roster's** remaining write
+  doors (five forwarders, and the config plugin's port has to be split).
+  Evidence:
+  `architecture/296-w376w-the-mcp-registrys-vocabulary-moves-into-the-extensions-module-evidence.md`
