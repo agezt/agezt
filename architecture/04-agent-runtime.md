@@ -452,7 +452,7 @@ row (`mcpapi.ErrNoRegistry`); the **plugin** binds the module's face too
 hands over a nil port); the **boot path** and the **marketplace** ask the same
 face. The daemon's own alias `runtime.ErrNoMCPRegistry` went with it — the
 daemon raises no refusal of its own, and one row has one home:
-**164 → 156** public verbs, **5,796 → 5,714** production lines. The daemon
+**164 → 156** public verbs, **5,796 → 5,704** production lines. The daemon
 keeps the doors a **module** needs without naming the runs
 module (`WithAgentProfile`, `WithMaxCost`) and the host's own state (the
 effective config, the resume ticket, the seed). The surface is **pinned**:
