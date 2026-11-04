@@ -128,10 +128,10 @@ func TestSteerNativeRoutesToTheCallersKernel(t *testing.T) {
 			t.Fatalf("%s %v: %s", c.cmd, c.args, line)
 		}
 	}
-	if paused, _, ok := k.RunControlState(pCorr); !ok || !paused {
+	if paused, _, ok := k.SteeringService().State(pCorr); !ok || !paused {
 		t.Fatal("primary run should be paused")
 	}
-	if paused, pending, ok := tk.RunControlState(tCorr); !ok || paused || pending != 1 {
+	if paused, pending, ok := tk.SteeringService().State(tCorr); !ok || paused || pending != 1 {
 		t.Fatalf("tenant run paused=%v pending=%d ok=%v", paused, pending, ok)
 	}
 	k.CancelRun(pCorr)

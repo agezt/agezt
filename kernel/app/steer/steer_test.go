@@ -31,17 +31,25 @@ func (f *fakeRuns) act(name, corr string) bool {
 	return f.known[corr]
 }
 func (f *fakeRuns) CancelRun(corr string) bool { return f.act("cancel", corr) }
-func (f *fakeRuns) PauseRun(corr string) bool  { return f.act("pause", corr) }
-func (f *fakeRuns) ResumeRun(corr string) bool { return f.act("resume", corr) }
-func (f *fakeRuns) StepRun(corr string) bool   { return f.act("step", corr) }
-func (f *fakeRuns) SteerRun(corr, directive string, note bool) bool {
+func (f *fakeRuns) Pause(corr string) bool     { return f.act("pause", corr) }
+func (f *fakeRuns) Resume(corr string) bool    { return f.act("resume", corr) }
+func (f *fakeRuns) Step(corr string) bool      { return f.act("step", corr) }
+func (f *fakeRuns) Steer(corr, directive string, note bool) bool {
 	f.calls = append(f.calls, fmt.Sprintf("steer:%s:%s:%v", corr, directive, note))
 	return f.known[corr]
 }
-func (f *fakeRuns) InterveneRun(req intervention.Request) (intervention.Result, error) {
+func (f *fakeRuns) Intervene(req intervention.Request) (intervention.Result, error) {
 	f.calls = append(f.calls, "intervene")
 	f.got = req
 	return f.result, f.err
+}
+
+// State answers the run's live steering state — the module's port carries it
+// (W3.76z), so the fake answers it too.
+func (f *fakeRuns) State(corr string) (bool, int, bool) {
+	f.calls = append(f.calls, "state:"+corr)
+	ok := f.known[corr]
+	return false, 0, ok
 }
 
 func decode[T any](t *testing.T, raw string) T {

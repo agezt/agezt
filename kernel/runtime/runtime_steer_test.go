@@ -86,18 +86,18 @@ func TestSteerRun_PauseInjectResume(t *testing.T) {
 
 	// Let the run get going, then pause it.
 	time.Sleep(60 * time.Millisecond)
-	if !k.PauseRun(corr) {
+	if !k.SteeringService().Pause(corr) {
 		t.Fatal("PauseRun returned false for a live run")
 	}
-	if paused, _, ok := k.RunControlState(corr); !ok || !paused {
+	if paused, _, ok := k.SteeringService().State(corr); !ok || !paused {
 		t.Fatalf("RunControlState = (paused=%v ok=%v) want paused & ok", paused, ok)
 	}
 
 	// Inject the directive that ends the run, then resume so the loop folds it.
-	if !k.SteerRun(corr, "finish now", false) {
+	if !k.SteeringService().Steer(corr, "finish now", false) {
 		t.Fatal("SteerRun returned false for a live run")
 	}
-	if !k.ResumeRun(corr) {
+	if !k.SteeringService().Resume(corr) {
 		t.Fatal("ResumeRun returned false for a paused run")
 	}
 
@@ -247,16 +247,16 @@ func TestSteerRun_SubAgentIndividuallySteerable(t *testing.T) {
 	}
 
 	// The SUB-AGENT — addressed by its own correlation — must be steerable.
-	if !k.PauseRun(childCorr) {
+	if !k.SteeringService().Pause(childCorr) {
 		t.Fatal("PauseRun returned false for the live sub-agent (control not registered?)")
 	}
-	if paused, _, ok := k.RunControlState(childCorr); !ok || !paused {
+	if paused, _, ok := k.SteeringService().State(childCorr); !ok || !paused {
 		t.Fatalf("sub-agent RunControlState = (paused=%v ok=%v), want paused & ok", paused, ok)
 	}
-	if !k.SteerRun(childCorr, "finish now", false) {
+	if !k.SteeringService().Steer(childCorr, "finish now", false) {
 		t.Fatal("SteerRun returned false for the live sub-agent")
 	}
-	if !k.ResumeRun(childCorr) {
+	if !k.SteeringService().Resume(childCorr) {
 		t.Fatal("ResumeRun returned false for the paused sub-agent")
 	}
 
@@ -295,7 +295,7 @@ func TestSteerRun_SubAgentIndividuallySteerable(t *testing.T) {
 func TestInterveneRun_ThroughTheDaemonDoor(t *testing.T) {
 	k := newKernel(t, steerLoopProvider{})
 
-	res, err := k.InterveneRun(intervention.Request{
+	res, err := k.SteeringService().Intervene(intervention.Request{
 		Primitive:     intervention.PrimitiveHalt,
 		CorrelationID: "nope",
 	})
@@ -310,7 +310,7 @@ func TestInterveneRun_ThroughTheDaemonDoor(t *testing.T) {
 	go func() { _, _ = k.RunWith(context.Background(), corr, "loop until halted") }()
 	time.Sleep(60 * time.Millisecond)
 
-	res, err = k.InterveneRun(intervention.Request{
+	res, err = k.SteeringService().Intervene(intervention.Request{
 		Primitive:     intervention.PrimitiveHalt,
 		CorrelationID: corr,
 		Lease:         time.Minute,
@@ -324,7 +324,7 @@ func TestInterveneRun_ThroughTheDaemonDoor(t *testing.T) {
 	if res.LeaseExpires.IsZero() {
 		t.Fatalf("the halt = %+v want a lease expiry", res)
 	}
-	if paused, _, ok := k.RunControlState(corr); !ok || !paused {
+	if paused, _, ok := k.SteeringService().State(corr); !ok || !paused {
 		t.Fatalf("RunControlState = (paused=%v ok=%v) want paused & ok", paused, ok)
 	}
 }
@@ -333,13 +333,13 @@ func TestInterveneRun_ThroughTheDaemonDoor(t *testing.T) {
 // reporting false, never a panic.
 func TestSteerRun_UnknownReturnsFalse(t *testing.T) {
 	k := newKernel(t, steerLoopProvider{})
-	if k.PauseRun("nope") || k.ResumeRun("nope") || k.StepRun("nope") || k.SteerRun("nope", "x", false) {
+	if k.SteeringService().Pause("nope") || k.SteeringService().Resume("nope") || k.SteeringService().Step("nope") || k.SteeringService().Steer("nope", "x", false) {
 		t.Error("steering an unknown correlation must return false")
 	}
-	if _, _, ok := k.RunControlState("nope"); ok {
+	if _, _, ok := k.SteeringService().State("nope"); ok {
 		t.Error("RunControlState for an unknown correlation must report ok=false")
 	}
-	if k.SteerRun("nope", "", false) {
+	if k.SteeringService().Steer("nope", "", false) {
 		t.Error("an empty directive must be rejected")
 	}
 }
