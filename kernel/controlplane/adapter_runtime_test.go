@@ -772,38 +772,21 @@ func hasWord(words []string, want string) bool {
 // lifecycleOwnedVerbs are the kernel's LIFECYCLE verbs: the drain that
 // cancels the runs in flight, waits for them and halts the daemon.
 //
-// The rule is by WORD: a kernel verb whose name carries "Drain" as a whole word
-// is the lifecycle family's business.
-//
-// The daemon's OTHER lifecycle verbs — the halt and the suspend, the halted
-// flag, the runs in flight — are asked for by the daemon's own overview, and
-// they are named there and not here: this slice moves the drain, and the
-// overview's own asks are the phase after it.
+// There are NONE any more (W3.76aa): the drain is the RUNS MODULE's
+// operation — it lives in the module's lifecycle manager, over the module's
+// own live-run registry — and the daemon holds the module's FACE instead of
+// a verb per operation. The family asks the module through that face.
 func lifecycleOwnedVerbs(t *testing.T) []string {
 	t.Helper()
-	kernel := reflect.TypeOf(&runtime.Kernel{})
-	var verbs []string
-	for i := 0; i < kernel.NumMethod(); i++ {
-		name := kernel.Method(i).Name
-		for _, word := range camelWords(name) {
-			if word == "Drain" {
-				verbs = append(verbs, name)
-				break
-			}
-		}
-	}
-	if len(verbs) == 0 {
-		t.Fatal("no lifecycle verbs found — the kernel's lifecycle verbs are gone?")
-	}
-	return verbs
+	return nil
 }
 
 // daemonOwnedVerbs are the kernel's DAEMON verbs: the daemon's own state —
-// when it started, the ceilings its delegation runs under, whether it has
-// halted and how many runs are in flight — and the gate it stops and starts
-// itself with.
+// when it started, the ceilings its delegation runs under — the journal's
+// hash-chain check, and the FACE it hands over to the runs module's run
+// lifecycle.
 //
-// The rule is BY NAME, and it answers to seven EXACT names.
+// The rule is BY NAME, and it answers to four EXACT names.
 //
 // It cannot be a word rule, and the reason is worth writing down: the daemon's
 // verbs share no word. A "Halt" rule would take the drain from the LIFECYCLE
@@ -812,18 +795,18 @@ func lifecycleOwnedVerbs(t *testing.T) []string {
 // family's verbs is a rule that makes two families claim the same verb, and
 // the sharp test below is exactly there to stop that.
 //
-// The names are the daemon's own: the overview reports them, and the
-// daemon's gate is the halt, the resume and the journal's hash-chain check.
+// The names are the daemon's own: the overview reports them, and the daemon's
+// gate is the journal's hash-chain check. The LIFECYCLE verbs the daemon held
+// until W3.76aa — IsHalted, ActiveRuns, HaltWith, ResumeWith — are GONE: the
+// run lifecycle is the runs module's, and the daemon holds the module's face
+// (LifecycleService) instead of a verb per operation.
 func daemonOwnedVerbs(t *testing.T) []string {
 	t.Helper()
 	kernel := reflect.TypeOf(&runtime.Kernel{})
 	want := []string{
 		"StartTime",
 		"SubAgentLimits",
-		"IsHalted",
-		"ActiveRuns",
-		"HaltWith",
-		"ResumeWith",
+		"LifecycleService",
 		"Verify",
 	}
 	verbs := make([]string, 0, len(want))
@@ -859,18 +842,11 @@ func daemonOwnedVerbs(t *testing.T) []string {
 // run by asking the family that owns runs.
 func overseerOwnedVerbs(t *testing.T) []string {
 	t.Helper()
-	kernel := reflect.TypeOf(&runtime.Kernel{})
-	want := []string{
-		"ActiveRunIDs",
-	}
-	verbs := make([]string, 0, len(want))
-	for _, name := range want {
-		if _, ok := kernel.MethodByName(name); !ok {
-			t.Fatalf("the kernel has no %s verb — the overseer family's verbs moved?", name)
-		}
-		verbs = append(verbs, name)
-	}
-	return verbs
+	// The overseer family holds NO kernel verb any more (W3.76aa): the live
+	// runs it supervises are the runs module's, and the daemon holds the
+	// module's face instead of a verb per operation. The supervisor asks the
+	// module through that face — the family owns no door of its own.
+	return nil
 }
 
 // execProfileOwnedVerbs are the kernel's EXECUTION PROFILE verbs: the warden
@@ -966,7 +942,7 @@ func runsOwnedVerbs(t *testing.T) []string {
 		}
 		verbs = append(verbs, name)
 	}
-	for _, name := range []string{"AdmitImages", "SubjectForRun", "RunAssured", "MaxDuration", "CancelRun", "LoopRunner", "RunPlan"} {
+	for _, name := range []string{"AdmitImages", "SubjectForRun", "RunAssured", "MaxDuration", "LoopRunner", "RunPlan"} {
 		if _, ok := kernel.MethodByName(name); !ok {
 			t.Fatalf("the kernel has no %s verb — the runs family's verbs moved?", name)
 		}
@@ -3007,8 +2983,8 @@ func TestTheGuardNamesEveryLifecycleVerbTheKernelHas(t *testing.T) {
 			t.Errorf("the kernel's lifecycle verb %s is not named by the guard — the lifecycle family's business belongs to the application", name)
 		}
 	}
-	if found == 0 {
-		t.Fatal("no lifecycle verbs found — the kernel's lifecycle verbs are gone?")
+	if found != 0 {
+		t.Errorf("the kernel has %d drain verbs — the drain is the runs module's operation (W3.76aa)", found)
 	}
 }
 
@@ -3021,7 +2997,6 @@ func TestTheGuardNamesEveryLifecycleVerbTheKernelHas(t *testing.T) {
 // rule that only ever grows is a rule that eventually guards the whole kernel,
 // and a guard that guards the whole kernel guards nothing.
 func TestTheLifecycleFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
-	kernel := reflect.TypeOf(&runtime.Kernel{})
 	others := map[string]bool{}
 	for _, list := range [][]string{
 		councilOwnedVerbs,
@@ -3063,16 +3038,13 @@ func TestTheLifecycleFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 		}
 	}
 	lifecycle := lifecycleOwnedVerbs(t)
-	if len(lifecycle) == 0 {
-		t.Fatal("the lifecycle family names no verb — the lifecycle family's business belongs to the application")
-	}
+	// The lifecycle family holds NO kernel verb (W3.76aa) — the drain is the
+	// runs module's operation and the daemon hands over the module's face.
+	// So the check here is that it claims no verb of ANOTHER family either.
 	for _, verb := range lifecycle {
 		if others[verb] {
 			t.Errorf("the lifecycle family claims the kernel's %s — that verb is another family's business", verb)
 		}
-	}
-	if len(lifecycle) == kernel.NumMethod() {
-		t.Errorf("the lifecycle family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
 	}
 }
 
@@ -3139,9 +3111,9 @@ func TestTheDaemonFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	}
 }
 
-// And the guard names EVERY daemon verb: the daemon's own state and its gate
-// are named here, one by one, and a verb the guard misses is a verb the
-// adapter may name.
+// And the guard names EVERY daemon verb: the daemon's own state, its face to
+// the runs module's run lifecycle and its gate are named here, one by one,
+// and a verb the guard misses is a verb the adapter may name.
 //
 // The expectation is written HERE, in the test's own words, and not taken
 // from the helper the guard runs: a test that asks the helper what the
@@ -3154,10 +3126,7 @@ func TestTheGuardNamesEveryDaemonVerbTheKernelHas(t *testing.T) {
 	for _, verb := range []string{
 		"StartTime",
 		"SubAgentLimits",
-		"IsHalted",
-		"ActiveRuns",
-		"HaltWith",
-		"ResumeWith",
+		"LifecycleService",
 		"Verify",
 	} {
 		if !guarded[verb] {
@@ -3339,7 +3308,6 @@ func TestTheGuardianPortsNameNoKernelVerbTheGuardMisses(t *testing.T) {
 // The rule is held in BOTH directions: broad (the guard names the overseer's
 // two verbs) and sharp (the family claims no other family's verb).
 func TestTheOverseerFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
-	kernel := reflect.TypeOf(&runtime.Kernel{})
 	others := map[string]bool{}
 	for _, list := range [][]string{
 		councilOwnedVerbs,
@@ -3382,25 +3350,20 @@ func TestTheOverseerFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 		}
 	}
 	family := overseerOwnedVerbs(t)
-	if len(family) == 0 {
-		t.Fatal("the overseer family names no verb — the supervision of the live fleet belongs to the application")
-	}
+	// The overseer family holds NO kernel verb (W3.76aa) — the live runs it
+	// supervises are the runs module's, and the daemon hands over the
+	// module's face. So the check here is that it claims no verb of ANOTHER
+	// family either.
 	for _, verb := range family {
 		if others[verb] {
 			t.Errorf("the overseer family claims the kernel's %s — that verb is another family's business", verb)
 		}
 	}
-	if len(family) == kernel.NumMethod() {
-		t.Errorf("the overseer family claims all %d kernel verbs — a family that claims everything claims nothing", kernel.NumMethod())
-	}
 }
 
-// And the guard names EVERY overseer verb: the two verbs that belong to nobody
-// else are named here, and a verb the guard misses is a verb the adapter may
-// name.
-//
-// The expectation is written HERE, in the test's own words, and not taken
-// from the helper the guard runs.
+// And the guard names EVERY overseer verb: the live runs the supervisor reads
+// are the RUNS MODULE's (W3.76aa), so the overseer family holds NO kernel
+// verb — and the guard must name none of the ones that are gone.
 func TestTheGuardNamesEveryOverseerVerbTheKernelHas(t *testing.T) {
 	guarded := map[string]bool{}
 	for _, verb := range applicationOwnedVerbs(t) {
@@ -3410,8 +3373,8 @@ func TestTheGuardNamesEveryOverseerVerbTheKernelHas(t *testing.T) {
 		"CancelRun",
 		"ActiveRunIDs",
 	} {
-		if !guarded[verb] {
-			t.Errorf("the kernel's overseer verb %s is not named by the guard — the supervision of the live fleet belongs to the application", verb)
+		if guarded[verb] {
+			t.Errorf("the guard names %s — the run lifecycle is the runs module's, and the daemon holds the module's face", verb)
 		}
 	}
 }

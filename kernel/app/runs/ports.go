@@ -79,7 +79,7 @@ func PortsFromKernel(k *runtime.Kernel) Ports {
 		launchWithRetry: func(ctx context.Context, corr, intent string, pol agentapi.RetryPolicy) (string, error) {
 			return k.RunWithRetry(ctx, corr, intent, pol)
 		},
-		cancel: k.CancelRun,
+		cancel: k.LifecycleService().CancelRun,
 	}
 }
 

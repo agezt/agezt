@@ -53,16 +53,16 @@ func TestRun_Simple(t *testing.T) {
 
 func TestHalt_PreventsNewRuns(t *testing.T) {
 	k := newKernel(t, mock.New(mock.FinalText("done")))
-	k.Halt()
-	if !k.IsHalted() {
+	k.LifecycleService().Halt()
+	if !k.LifecycleService().IsHalted() {
 		t.Error("IsHalted should be true after Halt")
 	}
 	_, _, err := k.Run(context.Background(), "hi")
 	if !errors.Is(err, runtime.ErrHalted) {
 		t.Errorf("got err=%v, want ErrHalted", err)
 	}
-	k.Resume()
-	if k.IsHalted() {
+	k.LifecycleService().Resume()
+	if k.LifecycleService().IsHalted() {
 		t.Error("IsHalted should be false after Resume")
 	}
 	// After resume, a new mock run works.
@@ -84,7 +84,7 @@ func TestHalt_CancelsInflightRun(t *testing.T) {
 	}()
 
 	time.Sleep(50 * time.Millisecond)
-	k.Halt()
+	k.LifecycleService().Halt()
 
 	select {
 	case err := <-done:
@@ -186,7 +186,7 @@ func TestRunWith_HaltBeatsTimeout(t *testing.T) {
 		done <- e
 	}()
 	time.Sleep(50 * time.Millisecond)
-	k.Halt()
+	k.LifecycleService().Halt()
 
 	select {
 	case e := <-done:
@@ -247,7 +247,7 @@ func TestCancelRun_CancelsOneRunNotKernel(t *testing.T) {
 	}()
 	time.Sleep(50 * time.Millisecond)
 
-	if !k.CancelRun(corr) {
+	if !k.LifecycleService().CancelRun(corr) {
 		t.Fatal("CancelRun returned false for a live run")
 	}
 	select {
@@ -260,7 +260,7 @@ func TestCancelRun_CancelsOneRunNotKernel(t *testing.T) {
 	}
 
 	// The kernel must NOT be halted — CancelRun is targeted, not global.
-	if k.IsHalted() {
+	if k.LifecycleService().IsHalted() {
 		t.Error("CancelRun must not halt the kernel")
 	}
 
@@ -290,7 +290,7 @@ func TestCancelRun_CancelsOneRunNotKernel(t *testing.T) {
 		done2 <- e
 	}()
 	time.Sleep(50 * time.Millisecond)
-	if !k.CancelRun(corr2) {
+	if !k.LifecycleService().CancelRun(corr2) {
 		t.Error("second run was not live — kernel may have been wrongly halted")
 	}
 	<-done2
@@ -300,7 +300,7 @@ func TestCancelRun_CancelsOneRunNotKernel(t *testing.T) {
 // run is a no-op that reports false (already finished / never existed).
 func TestCancelRun_UnknownReturnsFalse(t *testing.T) {
 	k := newKernel(t, mock.New(mock.FinalText("ok")))
-	if k.CancelRun("run-does-not-exist") {
+	if k.LifecycleService().CancelRun("run-does-not-exist") {
 		t.Error("CancelRun returned true for an unknown correlation")
 	}
 	// A completed run is no longer live, so cancelling it also reports false.
@@ -308,7 +308,7 @@ func TestCancelRun_UnknownReturnsFalse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if k.CancelRun(corr) {
+	if k.LifecycleService().CancelRun(corr) {
 		t.Error("CancelRun returned true for an already-finished run")
 	}
 }

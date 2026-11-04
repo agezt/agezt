@@ -44,7 +44,7 @@ func buildAnomaly(ctx context.Context, k *kernelruntime.Kernel, stdout io.Writer
 	}
 	started := anomaly.Start(ctx, k.Bus(), anomaly.Config{MaxToolCalls: max, Window: window}, func(reason string) {
 		fmt.Fprintf(stdout, "  ⚠ anomaly auto-halt engaged: %s\n", reason)
-		k.HaltWith(reason)
+		k.LifecycleService().HaltWith(reason)
 	})
 	if !started {
 		return "disabled"

@@ -15,8 +15,8 @@ import (
 // cancelled via Halt, then given a bounded drain window (M883) so a run
 // mid-journal-write finishes cleanly instead of racing store teardown.
 func (k *Kernel) Close() error {
-	k.Suspend("close") // M1002: classify in-flight runs as resumable before Halt cancels them
-	k.Halt()           // cancel any in-flight runs first
+	k.Suspend("close")          // M1002: classify in-flight runs as resumable before Halt cancels them
+	k.LifecycleService().Halt() // cancel any in-flight runs first
 	// Drain: cancelled runs still need to unwind — publish their terminal
 	// task.failed, release fan-out tallies, return from tools that honour the
 	// cancel late. Wait bounded; a run wedged in a cancel-ignoring tool must

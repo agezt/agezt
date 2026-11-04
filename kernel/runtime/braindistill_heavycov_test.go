@@ -23,7 +23,7 @@ func TestDistillBrain_Halted(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	k.Halt()
+	k.LifecycleService().Halt()
 
 	if _, err := k.DistillBrain(context.Background(), "corr"); !errors.Is(err, runtime.ErrHalted) {
 		t.Errorf("DistillBrain halted err = %v, want ErrHalted", err)

@@ -39,7 +39,7 @@ func TestMemoryDistillationNativeNoOpAndHalt(t *testing.T) {
 			}
 		}
 	}
-	k.Halt()
+	k.LifecycleService().Halt()
 	for _, command := range []string{controlplane.CmdMemoryConsolidate, controlplane.CmdProfileRebuild} {
 		if _, err := client.Call(context.Background(), command, nil); err == nil || err.Error() != "controlplane: "+runtime.ErrHalted.Error() {
 			t.Errorf("%s halted error=%v", command, err)

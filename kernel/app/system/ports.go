@@ -86,6 +86,28 @@ type Ports struct {
 	gate       func() Gate
 }
 
+// gateOver is the daemon's GATE: the halt that stops new runs, the resume
+// that lets them start again, and the journal's hash-chain check.
+//
+// The daemon holds no verb per lifecycle operation any more (W3.76aa): the
+// halt and the resume are the RUNS MODULE's operations, and the gate is an
+// adapter over the module's face — not the daemon handle. The verification
+// stays with the host: it reads the daemon's own journal.
+type gateOver struct {
+	haltWith   func(reason string)
+	resumeWith func(reason string)
+	verify     func() error
+}
+
+// HaltWith stops new runs, recording why.
+func (g gateOver) HaltWith(reason string) { g.haltWith(reason) }
+
+// ResumeWith lets new runs start again, recording why.
+func (g gateOver) ResumeWith(reason string) { g.resumeWith(reason) }
+
+// Verify checks the daemon's journal hash chain.
+func (g gateOver) Verify() error { return g.verify() }
+
 // PortsFromKernel fills the daemon overview's ports from the kernel handle.
 //
 // The handle may be nil: a host that holds no daemon holds no daemon to
@@ -94,6 +116,7 @@ func PortsFromKernel(k *runtime.Kernel) Ports {
 	if k == nil {
 		return Ports{}
 	}
+	lifecycle := k.LifecycleService()
 	return Ports{
 		events:  k.Journal,
 		started: k.StartTime,
@@ -136,13 +159,19 @@ func PortsFromKernel(k *runtime.Kernel) Ports {
 			return curator.Count()
 		},
 		model:   k.Model,
-		stopped: k.IsHalted,
-		active:  k.ActiveRuns,
+		stopped: lifecycle.IsHalted,
+		active:  lifecycle.ActiveRuns,
 		tools: func() int {
 			return len(k.Tools())
 		},
 		records: k.MemoryCount,
-		gate:    func() Gate { return k },
+		gate: func() Gate {
+			return gateOver{
+				haltWith:   lifecycle.HaltWith,
+				resumeWith: lifecycle.ResumeWith,
+				verify:     k.Verify,
+			}
+		},
 	}
 }
 

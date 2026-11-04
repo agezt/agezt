@@ -13,6 +13,7 @@ import (
 	"github.com/agezt/agezt/internal/paths"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/runs/api"
 	kernelruntime "github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/update"
 )
@@ -73,12 +74,32 @@ func runUpdate(stdout, stderr io.Writer) int {
 	return 0
 }
 
-// updateDrainer is the slice of the kernel an update needs: stop new work and
+// updateDrainer is the slice of the run lifecycle an update needs: stop new work and
 // unwind in-flight runs, and undo that when the update does not happen.
+//
+// The verbs are the RUNS MODULE's (W3.76aa): the daemon used to answer them
+// under names of its own, and the update flow asked the daemon.
 type updateDrainer interface {
 	DrainAndHalt(timeout time.Duration) (bool, int)
 	ResumeWith(reason string)
 }
+
+// lifecycleDrainer is the update flow's drain over the RUNS MODULE's
+// lifecycle face.
+//
+// The daemon holds no verb per lifecycle operation any more (W3.76aa), so
+// the update flow asks the module — through the face the daemon hands over.
+type lifecycleDrainer struct {
+	lifecycle api.LifecycleService
+}
+
+// DrainAndHalt cancels the runs in flight and waits for them to unwind.
+func (d lifecycleDrainer) DrainAndHalt(timeout time.Duration) (bool, int) {
+	return d.lifecycle.DrainAndHalt(timeout)
+}
+
+// ResumeWith lets new runs start again, recording why.
+func (d lifecycleDrainer) ResumeWith(reason string) { d.lifecycle.ResumeWith(reason) }
 
 // updateApplyFunc is update.Service.Apply.
 type updateApplyFunc func(ctx context.Context, info *update.UpdateInfo, drain func(context.Context, time.Duration) update.DrainResult) error
@@ -148,7 +169,7 @@ func startUpdateChecker(ctx context.Context, k *kernelruntime.Kernel, svc *updat
 			Payload: map[string]any{"current_version": result.Current, "new_version": info.Version, "url": info.URL},
 		})
 		publish := func(s event.Spec) { _, _ = k.Bus().Publish(s) }
-		if applyAvailableUpdate(ctx, k, svc.Apply, info, publish, stdout, stderr) {
+		if applyAvailableUpdate(ctx, lifecycleDrainer{lifecycle: k.LifecycleService()}, svc.Apply, info, publish, stdout, stderr) {
 			os.Exit(0)
 		}
 	}

@@ -20,19 +20,20 @@ import (
 
 // Runs is the routed kernel's live-run control surface.
 //
-// Two families answer it, and the port says which is which:
+// Two faces of the RUNS MODULE answer it, and the port says which is which:
 //
-//   - the CANCEL is the DAEMON's own: cancelling a run stops the run and the
-//     daemon's own bookkeeping with it, so the host keeps that verb;
-//   - the STEERING is the RUNS MODULE's (W3.76z): pause, resume, step, steer,
-//     state and intervene belong to the module, and the port carries the
-//     module's own vocabulary (api.SteeringService) instead of six verbs
-//     spelled the daemon's way.
+//   - the CANCEL is the module's LIFECYCLE operation (W3.76aa) — cancelling
+//     a run stops the run and the live-run registry's own bookkeeping with
+//     it, and the registry is the module's;
+//   - the STEERING is the module's steering surface (W3.76z) — pause, resume,
+//     step, steer, state and intervene belong to the module, and the port
+//     carries the module's own vocabulary (api.SteeringService) instead of
+//     six verbs spelled the daemon's way.
 //
-// The daemon used to answer the steering under names of its own — PauseRun,
+// The daemon used to answer both under names of its own — PauseRun,
 // ResumeRun, StepRun, SteerRun, InterveneRun — and the application bound the
 // daemon HANDLE as this port. Both are gone: the module keeps the operations
-// and the application binds the module's face.
+// and the application binds the module's faces.
 type Runs interface {
 	// CancelRun cancels a live run.
 	CancelRun(corr string) bool

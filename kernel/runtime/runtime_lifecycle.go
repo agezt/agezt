@@ -2,19 +2,19 @@
 
 package runtime
 
-// Provenance: *Kernel methods: halt/resume/cancel/drain lifecycle, runs map, publish
-//             helpers, run-state setup/cleanup, Maybe* helpers, VerifyCompletion,
-//             SubjectForRun, NewCorrelation. Code extracted from runtime.go during
-//             the Day-41 god-file split. Public API unchanged.
+// Provenance: *Kernel methods: publish helpers, run-state setup/cleanup,
+//             Maybe* helpers, VerifyCompletion, and the runs module's
+//             lifecycle FACE. Code extracted from runtime.go during the Day-41
+//             god-file split. Public API unchanged.
 
 import (
 	"context"
-	"time"
 
 	"github.com/agezt/agezt/kernel/contract/assureapi"
 	"github.com/agezt/agezt/kernel/event"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
+	"github.com/agezt/agezt/kernel/modules/runs/api"
 )
 
 // The live-run registry is the RUNS MODULE's store (W3.76d:
@@ -159,55 +159,33 @@ func (k *Kernel) PublishBus(spec event.Spec) (*event.Event, error) {
 	return k.bus.Publish(spec)
 }
 
-// Lifecycle sub-package delegations (Day 12 split).
+// The RUN LIFECYCLE is the runs module's (W3.76aa): the halt latch, the
+// drain, the cancel and the read-side queries over the module's live-run
+// registry live in kernel/modules/runs/lifecycle, and the module's manager
+// answers them under the module's own names.
 //
-// The implementations live in kernel/runtime/lifecycle. These
-// methods preserve the legacy *Kernel.Halt / *Kernel.Resume public
-// surface so callers in controlplane, cmd/agezt, cmd/agt, and the
-// runtime tests keep compiling unchanged. The behaviour is identical
-// to the pre-split bodies — they just live in a different file.
+// The daemon used to hold ELEVEN verbs over the module's own operations —
+// IsHalted, Halt, HaltWith, DrainAndHalt, CancelRun, Resume, ResumeWith,
+// ActiveRuns, ActiveRunIDs, NewCorrelation and SubjectForRun — a second
+// spelling of one family. Those are gone: the daemon hands over the module's
+// FACE (LifecycleService) and every caller above asks the module.
+//
+// The daemon keeps the registry itself (k.registry): the run-start path
+// registers and unregisters the live runs, and that bookkeeping is the
+// host's own.
 
-// IsHalted reports whether Run will refuse to start.
-func (k *Kernel) IsHalted() bool { return k.lifecycle.IsHalted() }
-
-// Halt cancels every in-flight run and prevents new ones.
-func (k *Kernel) Halt() { k.lifecycle.Halt() }
-
-// HaltWith is Halt plus a free-text reason recorded on kernel.halt.
-func (k *Kernel) HaltWith(reason string) { k.lifecycle.HaltWith(reason) }
-
-// DrainAndHalt cancels all in-flight runs and waits for them to
-// unwind, bounded by timeout.
-func (k *Kernel) DrainAndHalt(timeout time.Duration) (bool, int) {
-	return k.lifecycle.DrainAndHalt(timeout)
-}
-
-// CancelRun cancels a single in-flight run by correlation id.
-func (k *Kernel) CancelRun(corr string) bool { return k.lifecycle.CancelRun(corr) }
-
-// Resume clears the halt flag, allowing new runs.
-func (k *Kernel) Resume() { k.lifecycle.Resume() }
-
-// ResumeWith is Resume plus a free-text reason recorded on
-// kernel.resume.
-func (k *Kernel) ResumeWith(reason string) { k.lifecycle.ResumeWith(reason) }
-
-// ActiveRuns returns the number of in-flight Run / RunPlan
-// invocations.
-func (k *Kernel) ActiveRuns() int { return k.lifecycle.ActiveRuns() }
-
-// ActiveRunIDs returns the correlation ids of the runs in flight
-// right now, sorted for determinism.
-func (k *Kernel) ActiveRunIDs() []string { return k.lifecycle.ActiveRunIDs() }
-
-// NewCorrelation mints a fresh correlation ID suitable for RunWith.
-func (k *Kernel) NewCorrelation() string { return k.lifecycle.NewCorrelation() }
-
-// SubjectForRun returns the bus subject pattern that matches every
-// event emitted by the agent.Run identified by corr.
-func (k *Kernel) SubjectForRun(corr string) string {
-	return k.lifecycle.SubjectForRun(corr)
-}
+// LifecycleService returns the RUNS MODULE's run-lifecycle surface — the
+// runs module's face.
+//
+// The daemon holds no verb per lifecycle operation any more (W3.76aa): the
+// module keeps the halt latch, the drain, the cancel and the queries over
+// its own registry, and the daemon hands over the module's FACE. The verbs
+// are the MODULE's names, so one operation has one name.
+//
+// The face is never absent: the daemon builds the manager while opening
+// itself (it hands the module its own doors), and the module's manager
+// answers safely even when it was never built.
+func (k *Kernel) LifecycleService() api.LifecycleService { return k.lifecycle }
 
 // Accessors sub-package delegations (Day 13 split).
 //

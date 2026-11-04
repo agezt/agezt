@@ -31,7 +31,7 @@ func TestTheAdapterBindsTheLifecyclePortsToTheDaemon(t *testing.T) {
 	if timedOut || active != 0 {
 		t.Fatalf("the daemon's drain answered %v/%d, want a clean drain", timedOut, active)
 	}
-	if !root.IsHalted() {
+	if !root.LifecycleService().IsHalted() {
 		t.Fatal("the daemon's drain did not halt the daemon")
 	}
 }

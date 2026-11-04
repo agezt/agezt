@@ -31,7 +31,7 @@ func TestHalt_RecordsReasonInJournal(t *testing.T) {
 	if got, _ := res["reason"].(string); got != reason {
 		t.Errorf("response reason = %q want %q", got, reason)
 	}
-	if !k.IsHalted() {
+	if !k.LifecycleService().IsHalted() {
 		t.Error("kernel should be halted")
 	}
 
@@ -68,7 +68,7 @@ func TestHalt_NoReasonOmitsPayloadField(t *testing.T) {
 	if _, err := c.Call(context.Background(), controlplane.CmdHalt, nil); err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if !k.IsHalted() {
+	if !k.LifecycleService().IsHalted() {
 		t.Error("kernel should be halted")
 	}
 
@@ -93,7 +93,7 @@ func TestHalt_NoReasonOmitsPayloadField(t *testing.T) {
 // TestResume_RecordsReason — symmetric to Halt, but on resume.
 func TestResume_RecordsReason(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	k.Halt()
+	k.LifecycleService().Halt()
 
 	const reason = "deploy finished, traffic green"
 	res, err := c.Call(context.Background(), controlplane.CmdResume, map[string]any{
@@ -105,7 +105,7 @@ func TestResume_RecordsReason(t *testing.T) {
 	if got, _ := res["reason"].(string); got != reason {
 		t.Errorf("response reason = %q want %q", got, reason)
 	}
-	if k.IsHalted() {
+	if k.LifecycleService().IsHalted() {
 		t.Error("kernel should be resumed")
 	}
 

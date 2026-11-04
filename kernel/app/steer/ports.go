@@ -12,10 +12,12 @@ import (
 
 // RunsFromKernel returns the run controls from the daemon's own kernel.
 //
-// Two families answer the port, and the adapter says which is which: the
-// CANCEL is the daemon's own verb, and the STEERING is the RUNS MODULE's face
-// (W3.76z) — the daemon used to answer it under names of its own and the
-// application bound the daemon HANDLE as this port.
+// Two faces of the RUNS MODULE answer the port, and the adapter says which
+// is which: the CANCEL is the module's LIFECYCLE face (W3.76aa — the daemon
+// used to answer it under a name of its own), and the STEERING is the
+// module's steering face (W3.76z — the daemon used to answer that under
+// names of its own too, and the application bound the daemon HANDLE as this
+// port).
 //
 // A daemon that does not exist yields controls that REFUSE — a run is not
 // steered by nobody.
@@ -23,17 +25,20 @@ func RunsFromKernel(k *runtime.Kernel) Runs {
 	if k == nil {
 		return refusingRuns{}
 	}
-	return runsFromKernel{k: k, steering: k.SteeringService()}
+	return runsFromKernel{
+		steering:  k.SteeringService(),
+		lifecycle: k.LifecycleService(),
+	}
 }
 
-// runsFromKernel answers the port from the daemon and the module's face.
+// runsFromKernel answers the port from the module's two faces.
 type runsFromKernel struct {
-	k        *runtime.Kernel
-	steering api.SteeringService
+	steering  api.SteeringService
+	lifecycle api.LifecycleService
 }
 
-// CancelRun cancels a live run — the daemon's own verb.
-func (r runsFromKernel) CancelRun(corr string) bool { return r.k.CancelRun(corr) }
+// CancelRun cancels a live run — the RUNS MODULE's operation (W3.76aa).
+func (r runsFromKernel) CancelRun(corr string) bool { return r.lifecycle.CancelRun(corr) }
 
 // Pause parks a running agent at its next iteration boundary.
 func (r runsFromKernel) Pause(corr string) bool { return r.steering.Pause(corr) }

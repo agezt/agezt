@@ -53,7 +53,7 @@ func (h delegationHost) Model() string { return h.k.Model() }
 func (h delegationHost) System() string { return h.k.System() }
 
 // Halted reports whether the daemon is halted.
-func (h delegationHost) Halted() bool { return h.k.IsHalted() }
+func (h delegationHost) Halted() bool { return h.k.LifecycleService().IsHalted() }
 
 // HaltedError is the daemon's own halt error, so a halted delegation fails
 // with the same error identity the daemon used before the move.

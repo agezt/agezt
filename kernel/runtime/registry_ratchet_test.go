@@ -72,28 +72,53 @@ func TestTheDaemonHoldsNoRegistryAccessor(t *testing.T) {
 	}
 }
 
-// TestTheDaemonKeepsTheLifecycleDoors pins the daemon's HALF of the move:
-// the halt/resume/cancel verbs stay (they are the doors), and the Kernel
-// keeps holding the module's lifecycle manager.
-func TestTheDaemonKeepsTheLifecycleDoors(t *testing.T) {
+// TestTheDaemonHoldsNoLifecycleForwarder pins the daemon's HALF of the
+// W3.76aa move.
+//
+// W3.76d moved the run registry AND the lifecycle manager into the runs
+// module, and the daemon kept NINE verbs over the manager's own operations
+// — IsHalted, Halt, HaltWith, Resume, ResumeWith, CancelRun, DrainAndHalt,
+// ActiveRuns and ActiveRunIDs — as forwarding copies.
+//
+// W3.76aa took them away: the daemon holds the module's FACE
+// (LifecycleService) and speaks no verb per lifecycle operation any more.
+//
+// The ratchet turns around: what it pinned as "the doors the daemon must
+// keep" is now "the verbs the daemon must not grow back".
+func TestTheDaemonHoldsNoLifecycleForwarder(t *testing.T) {
+	methods := daemonMethodSet(t)
+	for _, name := range []string{
+		"IsHalted", "Halt", "HaltWith", "Resume", "ResumeWith",
+		"CancelRun", "DrainAndHalt", "ActiveRuns", "ActiveRunIDs",
+	} {
+		if methods[name] {
+			t.Errorf("*Kernel has the %s verb again — the run lifecycle is the runs module's, and one operation has one name (W3.76aa)", name)
+		}
+	}
+	if !methods["LifecycleService"] {
+		t.Error("*Kernel lost the LifecycleService verb — the daemon hands over the runs module's face")
+	}
+}
+
+// TestTheDaemonKeepsTheLifecycleFace pins that the face is the module's
+// PORT and not the daemon handle: the daemon's lifecycle file hands over the
+// module's service and spells out none of the operations.
+func TestTheDaemonKeepsTheLifecycleFace(t *testing.T) {
 	src, err := os.ReadFile("runtime_lifecycle.go")
 	if err != nil {
 		t.Fatalf("read runtime_lifecycle.go: %v", err)
 	}
 	text := string(src)
-	for _, door := range []string{
-		"func (k *Kernel) IsHalted()",
-		"func (k *Kernel) Halt()",
-		"func (k *Kernel) HaltWith(",
-		"func (k *Kernel) Resume()",
-		"func (k *Kernel) ResumeWith(",
-		"func (k *Kernel) CancelRun(",
-		"func (k *Kernel) DrainAndHalt(",
-		"func (k *Kernel) ActiveRuns()",
-		"func (k *Kernel) ActiveRunIDs()",
+	if !strings.Contains(text, "func (k *Kernel) LifecycleService() api.LifecycleService") {
+		t.Fatal("the daemon must hand over the runs module's lifecycle face")
+	}
+	for _, operation := range []string{
+		"k.lifecycle.IsHalted(", "k.lifecycle.Halt(", "k.lifecycle.HaltWith(",
+		"k.lifecycle.Resume(", "k.lifecycle.ResumeWith(", "k.lifecycle.CancelRun(",
+		"k.lifecycle.DrainAndHalt(", "k.lifecycle.ActiveRuns(", "k.lifecycle.ActiveRunIDs(",
 	} {
-		if !strings.Contains(text, door) {
-			t.Fatalf("the daemon must keep the door %q", door)
+		if strings.Contains(text, operation) {
+			t.Errorf("the daemon grew the lifecycle operation %q back; the operations are the module's", operation)
 		}
 	}
 }

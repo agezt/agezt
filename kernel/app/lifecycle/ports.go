@@ -49,7 +49,7 @@ func PortsFromKernel(k *runtime.Kernel) Ports {
 		return Ports{}
 	}
 	return Ports{drain: func(timeout time.Duration) (bool, int) {
-		return k.DrainAndHalt(timeout)
+		return k.LifecycleService().DrainAndHalt(timeout)
 	}}
 }
 
