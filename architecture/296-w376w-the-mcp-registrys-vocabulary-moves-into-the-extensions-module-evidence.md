@@ -88,7 +88,7 @@ nine, and the module's seven-plus-two-private. The slice leaves **one**.
 | what | before | after |
 |---|---|---|
 | the daemon's public verbs | 164 | **156** |
-| the daemon's production lines | 5,796 | **5,714** |
+| the daemon's production lines | 5,796 | **5,704** |
 | the daemon's production files | 54 | **54** |
 | the app packages that import `kernel/runtime` | 40 | **40** |
 | the extensions module's MCP package | 1,323 | **1,326** |
@@ -98,6 +98,12 @@ nine, and the module's seven-plus-two-private. The slice leaves **one**.
 
 **Eight verbs off the daemon's surface in one slice** — nine forwarders and
 readers gone, the module's face added.
+
+The daemon's line count includes the **alias** that went with them: the
+daemon's `runtime.ErrNoMCPRegistry` (ten lines with its comment) was measured
+before it was removed, so the code commit's message carries 5,714 and the
+committed tree holds **5,704**. The number in the table above is the one the
+committed tree measures — `git ls-tree` over `HEAD`, production files only.
 
 The **contract did not move at all**: it already named the family in the words
 the users say. The **module** moved by three lines (the renamed verbs and the

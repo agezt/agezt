@@ -13964,7 +13964,7 @@ func main() {
   does not own is exactly what this program removes.
 
   The measurement: the daemon's public verbs **164 → 156**, its production
-  lines **5,796 → 5,714**, its files **54 → 54**; the extensions module's MCP
+  lines **5,796 → 5,704**, its files **54 → 54**; the extensions module's MCP
   package **1,323 → 1,326**, its api package **221 → 214**, the MCP contract
   **289 → 289**, the tools application **1,669 → 1,708**. The app package
   count did **not** move (**forty**) — the tools application still names the
@@ -13994,7 +13994,7 @@ func main() {
   **no** face at all); the application's tests pin the refusal; the
   composition root's and the plugin's tests pin the wiring.
 
-  **What is left**: the daemon holds **156** public verbs and **5,714**
+  **What is left**: the daemon holds **156** public verbs and **5,704**
   production lines; **forty** application packages still name it. The same
   shape is waiting for the families that still have forwarders in the daemon:
   the **standing library** (nine verbs, and **no module home** yet — it needs
