@@ -106,10 +106,10 @@ func TestTheIntrospectPortsReachTheDaemon(t *testing.T) {
 	if got, want := ports.Delegation(), k.SubAgentLimits(); got != want {
 		t.Errorf("the port's delegation limits = %+v, want the daemon's %+v", got, want)
 	}
-	if got, want := ports.ActiveRunCount(), k.ActiveRuns(); got != want {
+	if got, want := ports.ActiveRunCount(), k.LifecycleService().ActiveRuns(); got != want {
 		t.Errorf("the port's active runs = %d, want the daemon's %d", got, want)
 	}
-	if got, want := ports.Stopped(), k.IsHalted(); got != want {
+	if got, want := ports.Stopped(), k.LifecycleService().IsHalted(); got != want {
 		t.Errorf("the port's stopped = %v, want the daemon's %v", got, want)
 	}
 	if got, want := ports.WorldEntities(), k.World().Count(); got != want || want == 0 {

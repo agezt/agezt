@@ -104,10 +104,10 @@ func TestTheDaemonOverviewPortsReachTheDaemon(t *testing.T) {
 	if got, want := ports.Delegation(), k.SubAgentLimits(); got != want {
 		t.Errorf("the port reports the delegation ceilings %+v, want %+v", got, want)
 	}
-	if ports.Stopped() != k.IsHalted() {
-		t.Errorf("the port reports stopped=%v, want %v", ports.Stopped(), k.IsHalted())
+	if ports.Stopped() != k.LifecycleService().IsHalted() {
+		t.Errorf("the port reports stopped=%v, want %v", ports.Stopped(), k.LifecycleService().IsHalted())
 	}
-	if got, want := ports.ActiveRunCount(), k.ActiveRuns(); got != want {
+	if got, want := ports.ActiveRunCount(), k.LifecycleService().ActiveRuns(); got != want {
 		t.Errorf("the port reports %d active runs, want %d", got, want)
 	}
 	if got, want := ports.Pending(), pendingCount(k); got != want {
@@ -183,11 +183,11 @@ func TestTheDaemonOverviewGateReachesTheDaemon(t *testing.T) {
 		t.Fatal("the gate is missing")
 	}
 	gate.HaltWith("test")
-	if !k.IsHalted() {
+	if !k.LifecycleService().IsHalted() {
 		t.Fatal("the gate halted nothing")
 	}
 	gate.ResumeWith("test")
-	if k.IsHalted() {
+	if k.LifecycleService().IsHalted() {
 		t.Fatal("the gate resumed nothing")
 	}
 	if err := gate.Verify(); err != nil {
@@ -243,7 +243,7 @@ func TestTheDaemonOverviewLifecycleHaltsTheDaemon(t *testing.T) {
 	if !out.OK || !out.Halted {
 		t.Fatalf("the halt reported %+v", out)
 	}
-	if !k.IsHalted() {
+	if !k.LifecycleService().IsHalted() {
 		t.Fatal("the halt halted nothing")
 	}
 
@@ -254,7 +254,7 @@ func TestTheDaemonOverviewLifecycleHaltsTheDaemon(t *testing.T) {
 	if !resumed.OK {
 		t.Fatalf("the resume reported %+v", resumed)
 	}
-	if k.IsHalted() {
+	if k.LifecycleService().IsHalted() {
 		t.Fatal("the resume resumed nothing")
 	}
 }
@@ -276,11 +276,11 @@ func TestTheDaemonOverviewPortAsksWhenItIsAsked(t *testing.T) {
 	if ports.Stopped() {
 		t.Fatal("the daemon is not halted yet")
 	}
-	k.Halt()
+	k.LifecycleService().Halt()
 	if !ports.Stopped() {
 		t.Fatal("the port answered from the moment it was filled, not from the daemon now")
 	}
-	if ports.ActiveRunCount() != k.ActiveRuns() {
+	if ports.ActiveRunCount() != k.LifecycleService().ActiveRuns() {
 		t.Fatal("the port's run count does not follow the daemon")
 	}
 }

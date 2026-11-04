@@ -270,7 +270,7 @@ func TestStatus_ReflectsHaltAndJournalGrowth(t *testing.T) {
 
 	// Halt via direct kernel access — exercises the same code path
 	// CmdHalt would, without the overhead of a second round-trip.
-	k.Halt()
+	k.LifecycleService().Halt()
 
 	// Publish one event so journal_head moves off zero. This is the
 	// same path real bus publishers take, so it journals normally

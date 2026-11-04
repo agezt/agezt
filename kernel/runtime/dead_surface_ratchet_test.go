@@ -124,6 +124,16 @@ var retiredVerbs = []string{
 	"SteerRun",
 	"RunControlState",
 	"InterveneRun",
+	// The daemon's nine verbs over the run lifecycle (W3.76aa).
+	"IsHalted",
+	"Halt",
+	"HaltWith",
+	"Resume",
+	"ResumeWith",
+	"CancelRun",
+	"DrainAndHalt",
+	"ActiveRuns",
+	"ActiveRunIDs",
 }
 
 // daemonPublicVerbs is the ceiling the daemon's public method set may not
@@ -143,10 +153,11 @@ var retiredVerbs = []string{
 // three forwarders) -> 156 (W3.76w, the MCP registry's seven forwarders and
 // two readers) -> 152 (W3.76x, the standing library's four forwarders and one
 // reader) -> 148 (W3.76y, the roster's five forwarders) -> 143 (W3.76z, the
-// steering family's six forwarders).
-// The daemon holds 143 public verbs today; a new verb needs a new reason, and
+// steering family's six forwarders) -> 135 (W3.76aa, the run lifecycle's nine
+// verbs).
+// The daemon holds 135 public verbs today; a new verb needs a new reason, and
 // this file says so.
-const daemonPublicVerbs = 143
+const daemonPublicVerbs = 135
 
 // TestTheRetiredVerbsDoNotComeBack pins the retirement: none of the sixteen
 // names is a method of *Kernel any more.

@@ -483,8 +483,13 @@ func Open(cfg Config) (*Kernel, error) {
 			return rc, rc != nil
 		},
 		Publish: func(spec event.Spec) { _, _ = kbus.Publish(spec) },
-		Cancel:  k.CancelRun,
-		Now:     time.Now,
+		// The cancel is the runs MODULE's operation (W3.76aa), so the
+		// steering service asks the module's face. The closure resolves it
+		// at CALL time: the lifecycle manager is wired later in this
+		// function, and a method value taken now would bind a manager that
+		// does not exist yet.
+		Cancel: func(corr string) bool { return k.LifecycleService().CancelRun(corr) },
+		Now:    time.Now,
 	})
 	// The delegation engine is the RUNS MODULE's (W3.76f): it owns the
 	// delegation policy — the bounds, the identity resolution, the spawn

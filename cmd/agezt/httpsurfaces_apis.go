@@ -150,7 +150,7 @@ func buildRESTAPI(ctx context.Context, k *kernelruntime.Kernel, reg *tenant.Regi
 		if draining.Load() {
 			return false, "draining"
 		}
-		if k.IsHalted() {
+		if k.LifecycleService().IsHalted() {
 			return false, "halted"
 		}
 		return true, ""
@@ -304,9 +304,9 @@ func restMetrics(k *kernelruntime.Kernel) []restapi.Metric {
 	}
 	return []restapi.Metric{
 		{Name: "up", Help: "1 if the daemon is serving", Value: 1},
-		{Name: "halted", Help: "1 if the daemon is halted", Value: boolf(k.IsHalted())},
+		{Name: "halted", Help: "1 if the daemon is halted", Value: boolf(k.LifecycleService().IsHalted())},
 		{Name: "uptime_seconds", Help: "seconds since the daemon started", Value: time.Since(k.StartTime()).Seconds()},
-		{Name: "active_runs", Help: "runs currently in flight", Value: float64(k.ActiveRuns())},
+		{Name: "active_runs", Help: "runs currently in flight", Value: float64(k.LifecycleService().ActiveRuns())},
 		{Name: "journal_head_seq", Help: "latest journal sequence number", Value: float64(headSeq)},
 		{Name: "memory_records", Help: "live memory records", Value: float64(k.Memory().Count())},
 		{Name: "world_entities", Help: "live world-model entities", Value: float64(worldEntities)},

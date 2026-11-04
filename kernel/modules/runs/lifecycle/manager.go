@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/runs/api"
 	"github.com/agezt/agezt/kernel/modules/runs/registry"
 	"github.com/agezt/agezt/kernel/ulid"
 )
@@ -18,6 +19,16 @@ import (
 // the Manager does not reach back to the host for it. The two side effects
 // it cannot perform itself — suspending the daemon and publishing to the
 // bus — come through the Host interface.
+//
+// The Manager answers the module's own PORT (W3.76aa): the run lifecycle is
+// the runs module's, and the port names it once. The compiler says so, not a
+// comment.
+//
+// Every verb is NIL-RECEIVER SAFE: a daemon that holds no manager holds no
+// runs, and the port answers with what happened rather than panicking. A
+// nil interface's method call is a panic, and a panic is not an answer.
+var _ api.LifecycleService = (*Manager)(nil)
+
 type Manager struct {
 	reg  *registry.Registry
 	host Host
@@ -30,6 +41,9 @@ func New(reg *registry.Registry, host Host) *Manager {
 
 // IsHalted reports whether Run will refuse to start.
 func (m *Manager) IsHalted() bool {
+	if m == nil {
+		return false
+	}
 	m.reg.Lock()
 	defer m.reg.Unlock()
 	return m.reg.Halted()
@@ -46,6 +60,9 @@ func (m *Manager) Halt() { m.HaltWith("") }
 // "why was the daemon halted at 14:32?". Empty reason is fine and
 // rendered as omitted in the payload.
 func (m *Manager) HaltWith(reason string) {
+	if m == nil {
+		return
+	}
 	m.reg.Lock()
 	if m.reg.Halted() {
 		m.reg.Unlock()
@@ -83,6 +100,9 @@ func (m *Manager) HaltWith(reason string) {
 // the drain completed within the timeout, e.g. for update vs.
 // shutdown decisions.
 func (m *Manager) DrainAndHalt(timeout time.Duration) (timedOut bool, activeRuns int) {
+	if m == nil {
+		return false, 0
+	}
 	m.host.Suspend("drain") // M1002: classify in-flight runs as resumable BEFORE cancelling them
 	m.Halt()                // cancel and mark halted; no-op if already halted
 	m.reg.Lock()
@@ -112,6 +132,9 @@ func (m *Manager) DrainAndHalt(timeout time.Duration) (timedOut bool, activeRuns
 // is no such active run (already finished, never existed, or wrong
 // id).
 func (m *Manager) CancelRun(corr string) bool {
+	if m == nil {
+		return false
+	}
 	m.reg.Lock()
 	cancel, ok := m.reg.Cancel(corr)
 	m.reg.Unlock()
@@ -131,6 +154,9 @@ func (m *Manager) Resume() { m.ResumeWith("") }
 // kernel.resume event. Symmetric with HaltWith for postmortem
 // reconstruction.
 func (m *Manager) ResumeWith(reason string) {
+	if m == nil {
+		return
+	}
 	m.reg.Lock()
 	if !m.reg.Halted() {
 		m.reg.Unlock()
@@ -154,6 +180,9 @@ func (m *Manager) ResumeWith(reason string) {
 // the kernel. Takes the same lock as Halt, so it is safe under
 // concurrent run starts/completes.
 func (m *Manager) ActiveRuns() int {
+	if m == nil {
+		return 0
+	}
 	m.reg.Lock()
 	defer m.reg.Unlock()
 	return m.reg.Count()
@@ -163,6 +192,9 @@ func (m *Manager) ActiveRuns() int {
 // right now — the live keys of the cancel registry, sorted for
 // determinism. Safe under concurrent run starts/completes.
 func (m *Manager) ActiveRunIDs() []string {
+	if m == nil {
+		return nil
+	}
 	m.reg.Lock()
 	ids := m.reg.IDs()
 	m.reg.Unlock()
@@ -176,10 +208,20 @@ func (m *Manager) ActiveRunIDs() []string {
 // Implemented here so the format is co-located with the rest of
 // the lifecycle surface; the actual ULID generation is delegated
 // to kernel/ulid.
-func (m *Manager) NewCorrelation() string { return "run-" + ulid.New() }
+func (m *Manager) NewCorrelation() string {
+	if m == nil {
+		return ""
+	}
+	return "run-" + ulid.New()
+}
 
 // SubjectForRun returns the bus subject pattern that matches every
 // event emitted by the agent.Run identified by corr. Use with
 // bus.Subscribe to stream a single run's events without seeing
 // others.
-func (m *Manager) SubjectForRun(corr string) string { return "agent.agent-" + corr + ".>" }
+func (m *Manager) SubjectForRun(corr string) string {
+	if m == nil {
+		return ""
+	}
+	return "agent.agent-" + corr + ".>"
+}

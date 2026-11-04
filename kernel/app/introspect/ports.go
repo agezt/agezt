@@ -108,8 +108,8 @@ func PortsFromKernel(k *runtime.Kernel) Ports {
 			return names
 		},
 		defaultModel:      k.Model,
-		stopped:           k.IsHalted,
-		activeRunCount:    k.ActiveRuns,
+		stopped:           k.LifecycleService().IsHalted,
+		activeRunCount:    k.LifecycleService().ActiveRuns,
 		memoryRecordCount: k.MemoryCount,
 		fleetScan: func(idleCutoffMS int64) agentapi.ReaperReport {
 			return appreaper.PortsFromKernel(k).Scan(idleCutoffMS, idleCutoffMS)

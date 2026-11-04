@@ -40,7 +40,7 @@ func TestTheLifecyclePortsDrainTheDaemon(t *testing.T) {
 	if active != 0 {
 		t.Fatalf("the drain reported %d runs still active, want none", active)
 	}
-	if !k.IsHalted() {
+	if !k.LifecycleService().IsHalted() {
 		t.Fatal("the drain did not halt the daemon")
 	}
 }

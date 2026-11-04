@@ -1922,12 +1922,13 @@ func runDaemon(stdout, stderr io.Writer) int {
 		}
 	}
 	if k != nil && drainTimeout > 0 {
-		if n := k.ActiveRuns(); n > 0 {
+		lifecycle := k.LifecycleService()
+		if n := lifecycle.ActiveRuns(); n > 0 {
 			fmt.Fprintf(stdout, "  draining: waiting up to %s for %d in-flight run(s)...\n", drainTimeout, n)
-			if drainWait(k.ActiveRuns, drainTimeout) {
+			if drainWait(lifecycle.ActiveRuns, drainTimeout) {
 				fmt.Fprintf(stdout, "  drained: all in-flight runs completed\n")
 			} else {
-				fmt.Fprintf(stdout, "  drain timeout: %d run(s) still in flight — cancelling\n", k.ActiveRuns())
+				fmt.Fprintf(stdout, "  drain timeout: %d run(s) still in flight — cancelling\n", lifecycle.ActiveRuns())
 			}
 		}
 	}
@@ -1935,8 +1936,8 @@ func runDaemon(stdout, stderr io.Writer) int {
 	cancel()
 	// Give any still-in-flight runs a moment to react to halt.
 	deadline := time.Now().Add(2 * time.Second)
-	for k != nil && !k.IsHalted() && time.Now().Before(deadline) {
-		k.Halt()
+	for k != nil && !k.LifecycleService().IsHalted() && time.Now().Before(deadline) {
+		k.LifecycleService().Halt()
 		time.Sleep(50 * time.Millisecond)
 	}
 	return 0

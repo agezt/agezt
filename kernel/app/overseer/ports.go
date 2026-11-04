@@ -92,15 +92,16 @@ func PortsFromKernel(k *runtime.Kernel) Ports {
 	reaper := appreaper.PortsFromKernel(k)
 	runs := appruns.PortsFromKernel(k)
 	roster := k.RosterService()
+	lifecycle := k.LifecycleService()
 	return Ports{
-		stopped:      k.IsHalted,
-		runningIDs:   k.ActiveRunIDs,
+		stopped:      lifecycle.IsHalted,
+		runningIDs:   lifecycle.ActiveRunIDs,
 		profiles:     k.RosterList,
 		profile:      k.RosterGet,
 		impact:       k.AgentImpact,
 		stopRun:      runs.Cancel,
-		haltDaemon:   func(reason string) { k.HaltWith(reason) },
-		resumeDaemon: func(reason string) { k.ResumeWith(reason) },
+		haltDaemon:   func(reason string) { lifecycle.HaltWith(reason) },
+		resumeDaemon: func(reason string) { lifecycle.ResumeWith(reason) },
 		enableAgent: func(ref string, enabled bool) (agentapi.Profile, error) {
 			if roster == nil {
 				return agentapi.Profile{}, agentapi.ErrNoRoster

@@ -509,14 +509,14 @@ func TestHaltViaControlPlane(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !k.IsHalted() {
+	if !k.LifecycleService().IsHalted() {
 		t.Error("kernel should be halted")
 	}
 	_, err = c.Call(context.Background(), controlplane.CmdResume, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if k.IsHalted() {
+	if k.LifecycleService().IsHalted() {
 		t.Error("kernel should be resumed")
 	}
 }
@@ -574,7 +574,7 @@ func TestCancelRunViaControlPlane(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("cancelled run did not return to the client")
 	}
-	if k.IsHalted() {
+	if k.LifecycleService().IsHalted() {
 		t.Error("a targeted cancel must not halt the kernel")
 	}
 }
@@ -686,7 +686,7 @@ func TestCancelOnDisconnect_DisabledByDefault(t *testing.T) {
 		t.Errorf("run was cancelled on disconnect with the feature off (reason=%q)", reason)
 	}
 	// The run must still be live — cancel it ourselves to unblock + clean up.
-	if !k.CancelRun(corr) {
+	if !k.LifecycleService().CancelRun(corr) {
 		t.Error("run was not live after disconnect (feature off should leave it running)")
 	}
 }

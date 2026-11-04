@@ -14260,3 +14260,88 @@ func main() {
   is a path move (four production importers), not a lifecycle one.
   Evidence:
   `architecture/299-w376z-the-steering-familys-names-move-into-the-runs-module-evidence.md`
+- W3.76aa (the run lifecycle's names move into the runs module) is the
+  **thirty-fifth** slice of the runtime's dissolution.
+
+  The **run lifecycle** — the halt latch, the drain, the cancel and the
+  queries over the live-run registry — is the **runs module's**: the module
+  owns the runs, so it owns the runs' control. W3.76d moved the **registry**
+  and the **lifecycle manager** down into the module, but the daemon kept
+  **nine** verbs over the module's own operations:
+
+  | where | the names |
+  |---|---|
+  | the **module**'s manager (`lifecycle.Manager`) | `IsHalted`, `Halt`, `HaltWith`, `Resume`, `ResumeWith`, `CancelRun`, `DrainAndHalt`, `ActiveRuns`, `ActiveRunIDs` |
+  | the **daemon**'s forwarders | the very same nine |
+
+  The module's manager already answered in exactly these names, so the
+  daemon's nine were a second spelling of one family, and every caller above
+  had to learn the daemon's. The slice took them away: the daemon holds the
+  module's **FACE** (`LifecycleService`) and speaks **no** verb per lifecycle
+  operation any more.
+
+  The module's own **PORT** grew for it: `api.LifecycleService` in
+  `kernel/modules/runs/api` — the runs module's port package, which W3.76z
+  opened for the steering family. The manager says so to the compiler, not to
+  a comment:
+
+      var _ api.LifecycleService = (*Manager)(nil)
+
+  And the manager is **nil-receiver safe**: a daemon that was never opened
+  answers "nothing is halted, no runs are in flight" instead of panicking.
+
+  Every caller above now asks the module: the **daemon-lifecycle
+  application** (the drain the update flow needs), the **overseer** (the live
+  fleet it supervises), the **overview** (the daemon's own gate — the halt,
+  the resume and the journal's hash-chain check, now an adapter over the
+  face), the **introspector** (the halted flag and the run count) and the
+  **runs application** (the cancel).
+
+  The **run identity** stayed with the host: `NewCorrelation` and
+  `SubjectForRun` are the daemon's own doors
+  (`kernel/runtime/run_identity.go`), because the adapters subscribe to a run
+  by its subject and the run engine asks the host for the id of a run it
+  starts. The module mints the same ids, but the *name* of a run is the
+  host's vocabulary. The daemon's **store** door stayed too (`k.registry`):
+  the run-start path registers and unregisters the live runs, and that
+  bookkeeping is the host's own.
+
+  The measurement: the daemon's public verbs **143 → 135**, its production
+  lines **5,635 → 5,648** and its files **54 → 55** — the nine one-line
+  forwarders gave way to the face, to the identity door and to the account of
+  the move, so the surface shrank while the lines grew; the app packages that
+  name the daemon stay at **forty**; the runs module's api package **43 → 86**
+  (the new port), its lifecycle package **205 → 246** (the port assertion and
+  the nil guards), the daemon-lifecycle application **65 → 65**, the overseer
+  **1,312 → 1,313** and the overview **689 → 714** (the gate adapter).
+
+  The daemon's own registry ratchet **turned around**: it used to pin that the
+  daemon KEEPS the halt/resume/cancel verbs, and it now pins that it holds
+  **no** verb per lifecycle operation and that it does not grow the operation
+  back into its own file. A **new** binding ratchet in the daemon-lifecycle
+  application pins that the port asks the module's face and not a verb of the
+  daemon's — the verb names are the same on both sides (that is the point of
+  one operation having one name), so the ratchet looks at the **shape**: the
+  call must not be made on the daemon itself. The daemon's own surface ceiling
+  followed the floor again: **143 → 135** (220 → 201 → 194 → 179 → 173 → 166 →
+  164 → 156 → 152 → 148 → 143 → 135).
+
+  **The probe** put the daemon's `IsHalted` and `DrainAndHalt` verbs back and
+  had the application ask the daemon for the drain again: the retired-verb
+  ratchet, the surface ceiling (137 > 135), the daemon's registry ratchet
+  (both halves) **and** the application's binding ratchet all went red at
+  once — **five** ratchets in one shot; the probe was reverted and the suites
+  went green again.
+
+  **What is left**: the daemon holds **135** public verbs and **5,648**
+  production lines; **forty** application packages still name it. The run
+  engine's own verbs are the next large block — and they are the W3 exit
+  criterion's real weight: no type may have more than sixty methods, and the
+  daemon is the type that breaks it. The **standing package** itself still
+  lives at `kernel/standing`, and its **eventual** home is the **triggers
+  module** (`kernel/modules/triggers`) — the architecture gate already places
+  both `kernel/cadence` and `kernel/standing` in that module, so the family's
+  boundary is drawn; the module's directory does not exist yet, and the move
+  is a path move (four production importers), not a lifecycle one.
+  Evidence:
+  `architecture/300-w376aa-the-run-lifecycles-names-move-into-the-runs-module-evidence.md`

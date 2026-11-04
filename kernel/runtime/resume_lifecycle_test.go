@@ -102,7 +102,7 @@ func TestResume_TicketDeletedOnOperatorCancel(t *testing.T) {
 	}()
 	waitForTicket(t, k, "corr-cancel")
 
-	if !k.CancelRun("corr-cancel") {
+	if !k.LifecycleService().CancelRun("corr-cancel") {
 		t.Fatal("CancelRun found no live run")
 	}
 	<-done
