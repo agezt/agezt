@@ -1,6 +1,6 @@
 # 04 — Agent Runtime (kernel/runtime, the loop in kernel/modules/runs/agent, tool execution, delegation, resume, proof)
 
-**Scope:** `kernel/runtime` (61 non-test files); the agent loop `kernel/modules/runs/agent` (W3.76h moved it out of the top-level `kernel/agent`); the run engine `kernel/modules/runs/runner` (W3.76j moved it out of the daemon's `kernel/runtime/runexec`); and the satellite packages `kernel/toolexec`, `kernel/modules/extensions/toolforge`, `kernel/contextselect`, `kernel/delegation`, `kernel/intent`, `kernel/planner`, `kernel/reflect`, `kernel/modules/runs/resume`, `kernel/modules/runs/steer`, `kernel/modules/runs/intervention`, `kernel/modules/runs/runctx`, `kernel/modules/runs/registry`, `kernel/modules/runs/lifecycle`, `kernel/modules/runs/prompt`, `kernel/meshctx`, `kernel/modules/work/proof` and the contract rows they now hold (`kernel/contract/proofapi`, `kernel/contract/assureapi`). The **seat catalog** (`kernel/modules/work/seat`) is the composition root's file; the kernel holds its port (`kernel/contract/seatapi`, W3.41). The tool registry is **no longer among them**: it moved down to the contract layer in W3.39h (`kernel/contract/toolregapi`) and is described in [10-tools.md](10-tools.md). The **run context** — the vocabulary a run carries — moved into the runs module in W3.76c (`kernel/modules/runs/runctx`); the daemon keeps the doors and its own resume handshake. The **run registry** — the live-run store, the halt latch and the drain accounting — moved into the runs module in W3.76d (`kernel/modules/runs/registry`), together with the halt/resume/cancel surface over it (`kernel/modules/runs/lifecycle`); the daemon keeps only the store handle and the two side effects the module cannot perform itself. The **prompt assembly** — what a run knows before it starts: the live identity, the operator profile, the taste exemplars, the recalled memory, the resolved world entities, the activated skills and the host-environment preamble — moved into the runs module in W3.76e (`kernel/modules/runs/prompt`); the daemon keeps the two doors and the three-verb host port (the live identity, the bus, the clock).
+**Scope:** `kernel/runtime` (61 non-test files); the agent loop `kernel/modules/runs/agent` (W3.76h moved it out of the top-level `kernel/agent`); the run engine `kernel/modules/runs/runner` (W3.76j moved it out of the daemon's `kernel/runtime/runexec`); and the satellite packages `kernel/toolexec`, `kernel/modules/extensions/toolforge`, `kernel/contextselect`, `kernel/delegation`, `kernel/intent`, `kernel/planner`, `kernel/reflect`, `kernel/modules/runs/resume`, `kernel/modules/runs/api` (W3.76z — the runs module's vocabulary and ports), `kernel/modules/runs/steer`, `kernel/modules/runs/intervention`, `kernel/modules/runs/runctx`, `kernel/modules/runs/registry`, `kernel/modules/runs/lifecycle`, `kernel/modules/runs/prompt`, `kernel/meshctx`, `kernel/modules/work/proof` and the contract rows they now hold (`kernel/contract/proofapi`, `kernel/contract/assureapi`). The **seat catalog** (`kernel/modules/work/seat`) is the composition root's file; the kernel holds its port (`kernel/contract/seatapi`, W3.41). The tool registry is **no longer among them**: it moved down to the contract layer in W3.39h (`kernel/contract/toolregapi`) and is described in [10-tools.md](10-tools.md). The **run context** — the vocabulary a run carries — moved into the runs module in W3.76c (`kernel/modules/runs/runctx`); the daemon keeps the doors and its own resume handshake. The **run registry** — the live-run store, the halt latch and the drain accounting — moved into the runs module in W3.76d (`kernel/modules/runs/registry`), together with the halt/resume/cancel surface over it (`kernel/modules/runs/lifecycle`); the daemon keeps only the store handle and the two side effects the module cannot perform itself. The **prompt assembly** — what a run knows before it starts: the live identity, the operator profile, the taste exemplars, the recalled memory, the resolved world entities, the activated skills and the host-environment preamble — moved into the runs module in W3.76e (`kernel/modules/runs/prompt`); the daemon keeps the two doors and the three-verb host port (the live identity, the bus, the clock).
 
 Everything below was read from the working tree on disk (2026-10-02), not from `docs/`. Where a code comment contradicts the code, the code wins and the discrepancy is listed under "Gotchas".
 
@@ -305,7 +305,7 @@ Also: `toolCaps` (read-only after Open); `startTime`. The `suspending atomic.Boo
 
 Goroutines started by the runtime: one per async sub-agent (the delegation engine's `Spawn`), the drain waiters in `Close`/`DrainAndHalt`, and the tool fan-out workers inside `agent.Run`. Everything else runs on the caller's goroutine. The **agentgw listener is not one of them** (W3.67): the gateway is the **daemon's** transport, so the daemon starts it.
 
-**The daemon's public surface — 148 verbs (W3.76y).** The Kernel's exported
+**The daemon's public surface — 143 verbs (W3.76z).** The Kernel's exported
 methods are the host's **doors**: the verbs the layers above call and the
 verbs the daemon's own production paths open. A public verb that nobody
 calls is a second, unreachable copy of a surface, and the target architecture
@@ -495,13 +495,33 @@ adapter (the agent-scoped write path the plugin reaches) and the guardian
 seeder — and they became **nil-safe**: a daemon with no roster holds no face,
 and the writes refuse with the contract's row instead of calling into nothing;
 the agents module's own **self-repair** asks the same face. **156 → 148**
-public verbs, **5,657 → 5,635** production lines. The daemon
+public verbs, **5,657 → 5,635** production lines. W3.76z retired **six** more
+— the **steering family's** names are the **runs module's** (the target
+architecture gives the module the "steering/interventions": pause, resume,
+step, steer, observe, intervene), and the daemon held **six** verbs over the
+module's own operations (`PauseRun`, `ResumeRun`, `StepRun`, `SteerRun`,
+`RunControlState`, `InterveneRun`) — a second spelling of one family, because
+the module's service already answered in the module's names (`Pause`, `Resume`,
+`Step`, `Steer`, `State`, `Intervene`). This time there was **no contract** to
+lean on: the steering family had no contract row at all, so the module grew
+**its own port package** (`kernel/modules/runs/api` — the sixth module with an
+`api` package, after agents, extensions, providers, reasoning and work), and
+the daemon hands over the module's **FACE** (`SteeringService`). The daemon
+keeps the **doors**: the live runs the module steers (`controlFor`), the bus it
+publishes on and the cancel it asks for — the module never names the daemon.
+The **application** binds the face and speaks the module's vocabulary
+(`kernel/app/steer`'s `Runs` port carries the module's six verbs plus the
+daemon's own `CancelRun`), and a daemon with no steering service holds **no**
+face — the module's service answers "nothing was steered" instead of calling
+into nothing. **148 → 143** public verbs; the daemon's production lines stayed
+at **5,635** (the six forwarders' lines were the six names the module already
+answered in — the account of the move took their place). The daemon
 keeps the doors a **module** needs without naming the runs
 module (`WithAgentProfile`, `WithMaxCost`) and the host's own state (the
 effective config, the resume ticket, the seed). The surface is **pinned**:
 `kernel/runtime/dead_surface_ratchet_test.go` fails if a retired name comes
-back or if the public surface grows past **148** — the ceiling now FOLLOWS the
-floor (220 → 201 → 194 → 179 → 173 → 166 → 164 → 156 → 152 → 148), because a ceiling that stays put while the
+back or if the public surface grows past **143** — the ceiling now FOLLOWS the
+floor (220 → 201 → 194 → 179 → 173 → 166 → 164 → 156 → 152 → 148 → 143), because a ceiling that stays put while the
 surface shrinks permits exactly what the program exists to remove — and the run
 engine's own ratchet requires that it reads the run's context through the
 module.
@@ -649,7 +669,7 @@ Numbered narrative with the real function names:
 
 ### 4.7 Live steering, queue and BTW (kernel/modules/runs/steer, kernel/modules/runs/intervention)
 - The steering surface is the runs module's `steer.Control`: `mu`, `paused`, `pauseUntil` (lease), `stepOnce`, `directives []agent.Directive`, a `wake` channel (closed and replaced to broadcast), and idempotency `results`.
-- The steering OPERATIONS are the runs module's too (`steer.Service`): the daemon keeps the doors — `PauseRun` (`run.paused`), `ResumeRun` (`run.resumed`), `StepRun` (`run.stepped`, one iteration then re-block), `SteerRun(corr, text, note)` (queued; the loop publishes `run.steered{mode:steer|note}` when folded in), `RunControlState`, and `InterveneRun(intervention.Request)` — and the module reaches the live runs, the bus and the cancel through four ports.
+- The steering OPERATIONS are the runs module's too (`steer.Service`), and since W3.76z the daemon spells **none** of them: the module's own **port** (`kernel/modules/runs/api` — `SteeringService`: `Pause`, `Resume`, `Step`, `Steer`, `State`, `Intervene`) is the family's one vocabulary, the daemon hands over the module's **FACE** (`SteeringService()`) and keeps the doors — the live runs the module steers, the bus it publishes on and the cancel it asks for — and the module reaches the live runs, the bus and the cancel through four ports. The events are the module's too (`run.paused`, `run.resumed`, `run.stepped` — one iteration then re-block — `run.steered{mode:steer|note}` when a queued directive is folded in, and `run.intervention`).
 - `kernel/modules/runs/intervention` is the wire grammar only. Primitives: `halt` (lease-bounded pause, default `DefaultLease=5m`), `abort` (→ `CancelRun`), `redirect` (forceful steer), `adjust` (note/BTW), `query`. Idempotency key replay returns the prior `Result`. Publishes `run.intervention`.
 - Directives are applied **only at the next iteration boundary**. A run blocked in a long tool call sees them after the tool returns. Steering exists for root runs (`setupRunState`) and each sub-agent (the delegation engine registers `steers[childCorr]` through the daemon's door, M631).
 - `Suspend` injects a shutdown note into every live run as a `Note` directive.

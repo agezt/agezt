@@ -8,8 +8,14 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/modules/runs/api"
 	"github.com/agezt/agezt/kernel/modules/runs/intervention"
 )
+
+// The service answers the module's own PORT (W3.76z): the steering family is
+// the runs module's, and the port names it once. The compiler says so, not a
+// comment.
+var _ api.SteeringService = (*Service)(nil)
 
 // Dependencies are the host's doors. The module owns the steering; the host
 // owns the live runs, the bus and the cancel. The service asks through these

@@ -3,7 +3,7 @@
 package runtime
 
 import (
-	"github.com/agezt/agezt/kernel/modules/runs/intervention"
+	"github.com/agezt/agezt/kernel/modules/runs/api"
 	"github.com/agezt/agezt/kernel/modules/runs/steer"
 )
 
@@ -13,33 +13,28 @@ import (
 // kernel/modules/runs/steer, and the per-run steering surface (the Control)
 // lives there too.
 //
-// The daemon keeps the DOORS: the verbs the application layer's port calls,
-// and the live runs those verbs steer. The module asks for the live run
-// through a port, so it never names the daemon.
+// W3.76z took the daemon's NAMES away as well. The daemon held six verbs over
+// the module's own operations (PauseRun, ResumeRun, StepRun, SteerRun,
+// RunControlState, InterveneRun) — a second spelling of one family, because
+// the module's service already answered in its own names. The daemon hands
+// over the module's FACE now, and the application layer binds that.
+//
+// The daemon keeps the DOORS: the live runs the module steers (the Lookup
+// below), the bus it publishes on, and the cancel it asks for. The module
+// never names the daemon.
 
-// PauseRun parks a running agent at its next iteration boundary (M608).
-func (k *Kernel) PauseRun(corr string) bool { return k.steerSvc.Pause(corr) }
-
-// ResumeRun lets a paused agent run freely again (M608).
-func (k *Kernel) ResumeRun(corr string) bool { return k.steerSvc.Resume(corr) }
-
-// StepRun advances a run by exactly one iteration then re-pauses it (M608).
-func (k *Kernel) StepRun(corr string) bool { return k.steerSvc.Step(corr) }
-
-// SteerRun injects an operator directive into a running agent (M608).
-func (k *Kernel) SteerRun(corr, directive string, note bool) bool {
-	return k.steerSvc.Steer(corr, directive, note)
-}
-
-// RunControlState reports a run's live steering state for the operator UI.
-func (k *Kernel) RunControlState(corr string) (paused bool, pending int, ok bool) {
-	return k.steerSvc.State(corr)
-}
-
-// InterveneRun applies one protocolized live intervention.
-func (k *Kernel) InterveneRun(req intervention.Request) (intervention.Result, error) {
-	return k.steerSvc.Intervene(req)
-}
+// SteeringService returns the RUNS MODULE's steering service — the runs
+// module's face.
+//
+// The daemon holds no verb per steering operation any more (W3.76z): the
+// module keeps the steering and the interventions, and the daemon hands over
+// the module's FACE. The verbs are the MODULE's names (Pause, Resume, Step,
+// Steer, State, Intervene), so one operation has one name.
+//
+// The face is never absent: the daemon builds the service while opening
+// itself (it hands the module its own doors), so a caller never has to guard
+// against nothing.
+func (k *Kernel) SteeringService() api.SteeringService { return k.steerSvc }
 
 // controlFor returns the steering surface for a live run, or nil if there is no
 // such active run (finished, never existed, wrong id).

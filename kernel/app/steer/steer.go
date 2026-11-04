@@ -13,18 +13,31 @@ import (
 
 	"github.com/agezt/agezt/kernel/app"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/modules/runs/api"
 	"github.com/agezt/agezt/kernel/modules/runs/intervention"
 	"github.com/agezt/agezt/kernel/platform/schema"
 )
 
 // Runs is the routed kernel's live-run control surface.
+//
+// Two families answer it, and the port says which is which:
+//
+//   - the CANCEL is the DAEMON's own: cancelling a run stops the run and the
+//     daemon's own bookkeeping with it, so the host keeps that verb;
+//   - the STEERING is the RUNS MODULE's (W3.76z): pause, resume, step, steer,
+//     state and intervene belong to the module, and the port carries the
+//     module's own vocabulary (api.SteeringService) instead of six verbs
+//     spelled the daemon's way.
+//
+// The daemon used to answer the steering under names of its own — PauseRun,
+// ResumeRun, StepRun, SteerRun, InterveneRun — and the application bound the
+// daemon HANDLE as this port. Both are gone: the module keeps the operations
+// and the application binds the module's face.
 type Runs interface {
+	// CancelRun cancels a live run.
 	CancelRun(corr string) bool
-	PauseRun(corr string) bool
-	ResumeRun(corr string) bool
-	StepRun(corr string) bool
-	SteerRun(corr, directive string, note bool) bool
-	InterveneRun(intervention.Request) (intervention.Result, error)
+	// Steering is the runs module's steering surface.
+	api.SteeringService
 }
 
 // RunRequest names one in-flight run. Arguments stay raw so the legacy strict
@@ -132,15 +145,15 @@ func (s *Service) control(in RunRequest, act func(string) bool) (ControlOutput, 
 }
 
 func (s *Service) Pause(_ context.Context, in RunRequest) (ControlOutput, error) {
-	return s.control(in, s.runs.PauseRun)
+	return s.control(in, s.runs.Pause)
 }
 
 func (s *Service) Resume(_ context.Context, in RunRequest) (ControlOutput, error) {
-	return s.control(in, s.runs.ResumeRun)
+	return s.control(in, s.runs.Resume)
 }
 
 func (s *Service) Step(_ context.Context, in RunRequest) (ControlOutput, error) {
-	return s.control(in, s.runs.StepRun)
+	return s.control(in, s.runs.Step)
 }
 
 // Cancel stops one in-flight run and leaves the kernel un-halted and every
@@ -172,7 +185,7 @@ func (s *Service) Steer(_ context.Context, in SteerRequest) (SteerOutput, error)
 		return SteerOutput{}, err
 	}
 	note := mode == "note"
-	out := SteerOutput{Correlation: corr, Mode: "steer", Accepted: s.runs.SteerRun(corr, directive, note)}
+	out := SteerOutput{Correlation: corr, Mode: "steer", Accepted: s.runs.Steer(corr, directive, note)}
 	if note {
 		out.Mode = "note"
 	}
@@ -203,7 +216,7 @@ func (s *Service) Intervene(_ context.Context, in InterveneRequest) (InterveneOu
 			lease = time.Duration(ms) * time.Millisecond
 		}
 	}
-	res, err := s.runs.InterveneRun(intervention.Request{
+	res, err := s.runs.Intervene(intervention.Request{
 		Primitive:      intervention.Primitive(fields[0]),
 		CorrelationID:  corr,
 		Directive:      fields[1],

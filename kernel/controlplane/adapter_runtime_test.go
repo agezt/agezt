@@ -719,10 +719,14 @@ func personaOwnedVerbs(t *testing.T) []string {
 // The rule is by WORD: a kernel verb whose name carries "State" as a whole
 // word is the state family's business.
 //
-// THREE verbs carry it and are NOT the state family's: "CleanupRunState",
-// "SetupRunState" and "RunControlState" are the RUN family's business — the
-// state a run leaves behind and the control that stops it. A rule that swept
-// them in would make the state family claim three other families' verbs.
+// TWO verbs carry it and are NOT the state family's: "CleanupRunState" and
+// "SetupRunState" are the RUN family's business — the state a run leaves
+// behind and the control that stops it. A rule that swept them in would make
+// the state family claim two other families' verbs.
+//
+// The third one — "RunControlState" — is GONE (W3.76z): the steering family
+// is the runs module's, and the daemon held no verb per steering operation
+// any more.
 func stateOwnedVerbs(t *testing.T) []string {
 	t.Helper()
 	kernel := reflect.TypeOf(&runtime.Kernel{})
@@ -739,7 +743,7 @@ func stateOwnedVerbs(t *testing.T) []string {
 			continue
 		}
 		switch name {
-		case "CleanupRunState", "SetupRunState", "RunControlState":
+		case "CleanupRunState", "SetupRunState":
 			continue
 		}
 		verbs = append(verbs, name)
@@ -2427,7 +2431,7 @@ func TestTheGuardNamesEveryStateVerbTheKernelHas(t *testing.T) {
 			continue
 		}
 		switch name {
-		case "CleanupRunState", "SetupRunState", "RunControlState":
+		case "CleanupRunState", "SetupRunState":
 			continue
 		}
 		found++
@@ -2494,7 +2498,11 @@ func TestTheStateFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	// And the RUN's state verbs are the run's own: the state a run leaves
 	// behind and the control that stops it are the run family's business, and
 	// the state family's rule says so out loud.
-	for _, verb := range []string{"CleanupRunState", "SetupRunState", "RunControlState"} {
+	//
+	// "RunControlState" is not in the list any more: the steering family is
+	// the runs module's (W3.76z), and the daemon held no verb per steering
+	// operation.
+	for _, verb := range []string{"CleanupRunState", "SetupRunState"} {
 		for _, claimed := range state {
 			if claimed == verb {
 				t.Errorf("the state family claims the kernel's %s — that verb is the RUN family's business", verb)
