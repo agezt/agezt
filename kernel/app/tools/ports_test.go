@@ -4,6 +4,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"testing"
 
@@ -45,11 +46,17 @@ func TestTheToolsPortsReachTheKernelTools(t *testing.T) {
 	if ports.MCP == nil {
 		t.Error("the MCP port is nil — the application cannot read the MCP servers")
 	}
-	if ports.Attachment == nil {
-		t.Error("the attachment port is nil — the application cannot read the attachments")
+	// The MCP LIFECYCLE and the ATTACHMENT status are the EXTENSIONS MODULE's
+	// (W3.76w): this daemon holds no module, so it holds no ports for them —
+	// and the application refuses rather than calling into nothing.
+	if ports.Attachment != nil {
+		t.Error("a daemon with no MCP module must hold no attachment port")
 	}
-	if ports.MCPLifecycle == nil {
-		t.Error("the MCP lifecycle port is nil — the application cannot drive the MCP servers")
+	if ports.MCPLifecycle != nil {
+		t.Error("a daemon with no MCP module must hold no MCP lifecycle port")
+	}
+	if _, err := NewMCPLifecycle(ports.MCPLifecycle, ports.Attachment).Add(context.Background(), MCPAddInput{}); !errors.Is(err, mcpapi.ErrNoRegistry) {
+		t.Error("driving the MCP lifecycle on a daemon that has none must refuse with the contract's row")
 	}
 	// The forge writer is the EXTENSIONS MODULE's face: this daemon holds no
 	// forge, so it holds no writer — and the application refuses rather than

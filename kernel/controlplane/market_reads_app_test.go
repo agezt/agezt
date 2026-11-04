@@ -9,6 +9,7 @@ import (
 	"github.com/agezt/agezt/kernel/app/binding"
 	appmarket "github.com/agezt/agezt/kernel/app/market"
 	"github.com/agezt/agezt/kernel/contract/opapi"
+	"github.com/agezt/agezt/kernel/internal/testfixtures"
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -114,7 +115,7 @@ func TestMarketTypedNativeLargeIntegersRemainExact(t *testing.T) {
 		})
 	}
 	after, afterHash := k.Journal().Head()
-	if head != after || hash != afterHash || p.CallCount() != 0 || len(k.MCPAttached()) != 0 {
+	if head != after || hash != afterHash || p.CallCount() != 0 || len(testfixtures.MCPAttachments(k.MCPRegistryService())) != 0 {
 		t.Fatal(head, after, p.CallCount())
 	}
 }

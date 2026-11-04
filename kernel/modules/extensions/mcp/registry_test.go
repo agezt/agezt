@@ -77,19 +77,19 @@ func newService(t *testing.T, rec *recorder, dialer mcpapi.Dialer, httpDialer mc
 // nothing.
 func TestTheRegistryRefusesWithoutAStore(t *testing.T) {
 	svc := NewService(extapi.MCPRegistryDependencies{})
-	if _, err := svc.Add("corr", mcpapi.Server{Name: "owned", Command: "never-executed"}); !errors.Is(err, mcpapi.ErrNoRegistry) {
+	if _, err := svc.AddMCPServer("corr", mcpapi.Server{Name: "owned", Command: "never-executed"}); !errors.Is(err, mcpapi.ErrNoRegistry) {
 		t.Fatalf("add without a registry must refuse, got %v", err)
 	}
-	if _, err := svc.SetEnabled("corr", "owned", true); !errors.Is(err, mcpapi.ErrNoRegistry) {
+	if _, err := svc.SetMCPServerEnabled("corr", "owned", true); !errors.Is(err, mcpapi.ErrNoRegistry) {
 		t.Fatalf("set-enabled without a registry must refuse, got %v", err)
 	}
-	if _, _, err := svc.Attach(context.Background(), "corr", "owned"); !errors.Is(err, mcpapi.ErrNoRegistry) {
+	if _, _, err := svc.AttachMCPServer(context.Background(), "corr", "owned"); !errors.Is(err, mcpapi.ErrNoRegistry) {
 		t.Fatalf("attach without a registry must refuse, got %v", err)
 	}
-	if _, err := svc.Remove("corr", "owned"); !errors.Is(err, mcpapi.ErrNoRegistry) {
+	if _, err := svc.RemoveMCPServer("corr", "owned"); !errors.Is(err, mcpapi.ErrNoRegistry) {
 		t.Fatalf("remove without a registry must refuse, got %v", err)
 	}
-	if rows := svc.registrations(); rows != nil {
+	if rows := svc.MCPServers(); rows != nil {
 		t.Fatalf("a service with no registry must list no servers, got %v", rows)
 	}
 }
@@ -101,7 +101,7 @@ func TestAddRegistersTheServerAndJournalsIt(t *testing.T) {
 	rec := &recorder{}
 	svc, store := newService(t, rec, nil, nil)
 
-	saved, err := svc.Add("corr-1", mcpapi.Server{Name: "owned", Command: "never-executed"})
+	saved, err := svc.AddMCPServer("corr-1", mcpapi.Server{Name: "owned", Command: "never-executed"})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
@@ -129,7 +129,7 @@ func TestAddRegistersTheServerAndJournalsIt(t *testing.T) {
 func TestARemoteRegistrationIsJournalledAsHTTP(t *testing.T) {
 	rec := &recorder{}
 	svc, _ := newService(t, rec, nil, nil)
-	if _, err := svc.Add("corr", mcpapi.Server{Name: "remote", URL: "https://mcp.example.com/v1"}); err != nil {
+	if _, err := svc.AddMCPServer("corr", mcpapi.Server{Name: "remote", URL: "https://mcp.example.com/v1"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 	if rec.specs[0].Payload.(map[string]any)["transport"] != "http" {
@@ -142,11 +142,11 @@ func TestARemoteRegistrationIsJournalledAsHTTP(t *testing.T) {
 func TestSetEnabledFlipsTheFlagAndJournalsIt(t *testing.T) {
 	rec := &recorder{}
 	svc, store := newService(t, rec, nil, nil)
-	saved, err := svc.Add("corr", mcpapi.Server{Name: "owned", Command: "never-executed"})
+	saved, err := svc.AddMCPServer("corr", mcpapi.Server{Name: "owned", Command: "never-executed"})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	flipped, err := svc.SetEnabled("corr-2", saved.ID, false)
+	flipped, err := svc.SetMCPServerEnabled("corr-2", saved.ID, false)
 	if err != nil {
 		t.Fatalf("SetEnabled: %v", err)
 	}
@@ -176,11 +176,11 @@ func TestAttachDialsDiscoversAndJournals(t *testing.T) {
 		return conn, nil
 	}
 	svc, _ := newService(t, rec, dialer, nil)
-	if _, err := svc.Add("corr", mcpapi.Server{Name: "fake", Command: "never-executed"}); err != nil {
+	if _, err := svc.AddMCPServer("corr", mcpapi.Server{Name: "fake", Command: "never-executed"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 
-	srv, names, err := svc.Attach(context.Background(), "corr-2", "fake")
+	srv, names, err := svc.AttachMCPServer(context.Background(), "corr-2", "fake")
 	if err != nil {
 		t.Fatalf("Attach: %v", err)
 	}
@@ -211,7 +211,7 @@ func TestAttachRefusesAnUnknownServer(t *testing.T) {
 		return &fakeConn{}, nil
 	}
 	svc, _ := newService(t, nil, dialer, nil)
-	if _, _, err := svc.Attach(context.Background(), "corr", "ghost"); !errors.Is(err, mcpapi.ErrNotFound) {
+	if _, _, err := svc.AttachMCPServer(context.Background(), "corr", "ghost"); !errors.Is(err, mcpapi.ErrNotFound) {
 		t.Fatalf("attaching an unknown server must refuse, got %v", err)
 	}
 	if dials != 0 {
@@ -229,13 +229,13 @@ func TestAttachRefusesADoubleAttach(t *testing.T) {
 		return &fakeConn{}, nil
 	}
 	svc, _ := newService(t, nil, dialer, nil)
-	if _, err := svc.Add("corr", mcpapi.Server{Name: "fake", Command: "never-executed"}); err != nil {
+	if _, err := svc.AddMCPServer("corr", mcpapi.Server{Name: "fake", Command: "never-executed"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, _, err := svc.Attach(context.Background(), "corr", "fake"); err != nil {
+	if _, _, err := svc.AttachMCPServer(context.Background(), "corr", "fake"); err != nil {
 		t.Fatalf("the first attach must succeed: %v", err)
 	}
-	_, _, err := svc.Attach(context.Background(), "corr", "fake")
+	_, _, err := svc.AttachMCPServer(context.Background(), "corr", "fake")
 	if err == nil || !strings.Contains(err.Error(), "already attached") {
 		t.Fatalf("the second attach must refuse, got %v", err)
 	}
@@ -257,16 +257,16 @@ func TestTheRemoteRegistrationDialsOverHTTP(t *testing.T) {
 		return &fakeConn{}, nil
 	}
 	svc, _ := newService(t, nil, dialer, httpDialer)
-	if _, err := svc.Add("corr", mcpapi.Server{Name: "local", Command: "never-executed"}); err != nil {
+	if _, err := svc.AddMCPServer("corr", mcpapi.Server{Name: "local", Command: "never-executed"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, err := svc.Add("corr", mcpapi.Server{Name: "remote", URL: "https://mcp.example.com/v1"}); err != nil {
+	if _, err := svc.AddMCPServer("corr", mcpapi.Server{Name: "remote", URL: "https://mcp.example.com/v1"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, _, err := svc.Attach(context.Background(), "corr", "local"); err != nil {
+	if _, _, err := svc.AttachMCPServer(context.Background(), "corr", "local"); err != nil {
 		t.Fatalf("the stdio attach: %v", err)
 	}
-	if _, _, err := svc.Attach(context.Background(), "corr", "remote"); err != nil {
+	if _, _, err := svc.AttachMCPServer(context.Background(), "corr", "remote"); err != nil {
 		t.Fatalf("the http attach: %v", err)
 	}
 	if stdioDials != 1 || httpDials != 1 {
@@ -279,17 +279,17 @@ func TestTheRemoteRegistrationDialsOverHTTP(t *testing.T) {
 // func value.
 func TestTheAttachRefusesWithoutADialer(t *testing.T) {
 	svc, _ := newService(t, nil, nil, nil)
-	if _, err := svc.Add("corr", mcpapi.Server{Name: "local", Command: "never-executed"}); err != nil {
+	if _, err := svc.AddMCPServer("corr", mcpapi.Server{Name: "local", Command: "never-executed"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, err := svc.Add("corr", mcpapi.Server{Name: "remote", URL: "https://mcp.example.com/v1"}); err != nil {
+	if _, err := svc.AddMCPServer("corr", mcpapi.Server{Name: "remote", URL: "https://mcp.example.com/v1"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, _, err := svc.Attach(context.Background(), "corr", "local"); err == nil ||
+	if _, _, err := svc.AttachMCPServer(context.Background(), "corr", "local"); err == nil ||
 		!strings.Contains(err.Error(), "no stdio MCP dialer is configured") {
 		t.Fatalf("the stdio attach must refuse with the dialer's absence, got %v", err)
 	}
-	if _, _, err := svc.Attach(context.Background(), "corr", "remote"); err == nil ||
+	if _, _, err := svc.AttachMCPServer(context.Background(), "corr", "remote"); err == nil ||
 		!strings.Contains(err.Error(), "no HTTP MCP dialer is configured") {
 		t.Fatalf("the http attach must refuse with the dialer's absence, got %v", err)
 	}
@@ -304,13 +304,13 @@ func TestDetachIsTheKillSwitch(t *testing.T) {
 		return conn, nil
 	}
 	svc, _ := newService(t, rec, dialer, nil)
-	if _, err := svc.Add("corr", mcpapi.Server{Name: "fake", Command: "never-executed"}); err != nil {
+	if _, err := svc.AddMCPServer("corr", mcpapi.Server{Name: "fake", Command: "never-executed"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, _, err := svc.Attach(context.Background(), "corr", "fake"); err != nil {
+	if _, _, err := svc.AttachMCPServer(context.Background(), "corr", "fake"); err != nil {
 		t.Fatalf("Attach: %v", err)
 	}
-	if err := svc.Detach("corr-2", "fake"); err != nil {
+	if err := svc.DetachMCPServer("corr-2", "fake"); err != nil {
 		t.Fatalf("Detach: %v", err)
 	}
 	if !conn.closed {
@@ -319,7 +319,7 @@ func TestDetachIsTheKillSwitch(t *testing.T) {
 	if got := rec.kinds(); len(got) != 3 || got[2] != string(event.KindMCPDetached) {
 		t.Fatalf("the detach must be journaled as mcp.detached, got %v", got)
 	}
-	if err := svc.Detach("corr-3", "fake"); err == nil || !strings.Contains(err.Error(), "is not attached") {
+	if err := svc.DetachMCPServer("corr-3", "fake"); err == nil || !strings.Contains(err.Error(), "is not attached") {
 		t.Fatalf("the second detach must refuse, got %v", err)
 	}
 }
@@ -333,13 +333,13 @@ func TestRemoveDetachesALiveServerFirst(t *testing.T) {
 		return conn, nil
 	}
 	svc, store := newService(t, rec, dialer, nil)
-	if _, err := svc.Add("corr", mcpapi.Server{Name: "fake", Command: "never-executed"}); err != nil {
+	if _, err := svc.AddMCPServer("corr", mcpapi.Server{Name: "fake", Command: "never-executed"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, _, err := svc.Attach(context.Background(), "corr", "fake"); err != nil {
+	if _, _, err := svc.AttachMCPServer(context.Background(), "corr", "fake"); err != nil {
 		t.Fatalf("Attach: %v", err)
 	}
-	removed, err := svc.Remove("corr-2", "fake")
+	removed, err := svc.RemoveMCPServer("corr-2", "fake")
 	if err != nil {
 		t.Fatalf("Remove: %v", err)
 	}
@@ -367,20 +367,20 @@ func TestAttachEnabledSkipsTheDisabledAndReportsFailures(t *testing.T) {
 		return &fakeConn{}, nil
 	}
 	svc, _ := newService(t, nil, dialer, nil)
-	if _, err := svc.Add("corr", mcpapi.Server{Name: "good", Command: "good"}); err != nil {
+	if _, err := svc.AddMCPServer("corr", mcpapi.Server{Name: "good", Command: "good"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, err := svc.Add("corr", mcpapi.Server{Name: "broken", Command: "broken"}); err != nil {
+	if _, err := svc.AddMCPServer("corr", mcpapi.Server{Name: "broken", Command: "broken"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, err := svc.Add("corr", mcpapi.Server{Name: "off", Command: "good"}); err != nil {
+	if _, err := svc.AddMCPServer("corr", mcpapi.Server{Name: "off", Command: "good"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, err := svc.SetEnabled("corr", "off", false); err != nil {
+	if _, err := svc.SetMCPServerEnabled("corr", "off", false); err != nil {
 		t.Fatalf("SetEnabled: %v", err)
 	}
 
-	attached, failures := svc.AttachEnabled(context.Background())
+	attached, failures := svc.AttachEnabledMCPServers(context.Background())
 	if len(attached) != 1 || attached[0] != "good" {
 		t.Fatalf("the boot path attached the wrong servers: %v", attached)
 	}
@@ -397,16 +397,16 @@ func TestAttachedCountsTheTools(t *testing.T) {
 		return conn, nil
 	}
 	svc, _ := newService(t, nil, dialer, nil)
-	if _, err := svc.Add("corr", mcpapi.Server{Name: "fake", Command: "never-executed"}); err != nil {
+	if _, err := svc.AddMCPServer("corr", mcpapi.Server{Name: "fake", Command: "never-executed"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if got := svc.Attached(); len(got) != 0 {
+	if got := svc.MCPAttached(); len(got) != 0 {
 		t.Fatalf("nothing is attached yet, got %v", got)
 	}
-	if _, _, err := svc.Attach(context.Background(), "corr", "fake"); err != nil {
+	if _, _, err := svc.AttachMCPServer(context.Background(), "corr", "fake"); err != nil {
 		t.Fatalf("Attach: %v", err)
 	}
-	got := svc.Attached()
+	got := svc.MCPAttached()
 	if len(got) != 1 || got["fake"] != 2 {
 		t.Fatalf("the attached surface does not count the tools: %v", got)
 	}
@@ -419,17 +419,17 @@ func TestCloseDetachesEverything(t *testing.T) {
 		return conn, nil
 	}
 	svc, _ := newService(t, nil, dialer, nil)
-	if _, err := svc.Add("corr", mcpapi.Server{Name: "fake", Command: "never-executed"}); err != nil {
+	if _, err := svc.AddMCPServer("corr", mcpapi.Server{Name: "fake", Command: "never-executed"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, _, err := svc.Attach(context.Background(), "corr", "fake"); err != nil {
+	if _, _, err := svc.AttachMCPServer(context.Background(), "corr", "fake"); err != nil {
 		t.Fatalf("Attach: %v", err)
 	}
 	svc.Close()
 	if !conn.closed {
 		t.Fatal("the close did not detach the live server")
 	}
-	if got := svc.Attached(); len(got) != 0 {
+	if got := svc.MCPAttached(); len(got) != 0 {
 		t.Fatalf("the close left an attachment behind: %v", got)
 	}
 }

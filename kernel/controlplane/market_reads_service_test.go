@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/internal/testfixtures"
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"reflect"
@@ -46,7 +47,7 @@ func TestMarketReadNativeUnavailablePrecedesNameAndReadShapesHaveNoEffects(t *te
 	after, afterHash := k.Journal().Head()
 	installed, _ := store.Installed()
 	srcs, _ := store.Sources()
-	if head != after || hash != afterHash || len(installed) != 0 || len(srcs) != 0 || p.CallCount() != 0 || len(k.MCPAttached()) != 0 {
+	if head != after || hash != afterHash || len(installed) != 0 || len(srcs) != 0 || p.CallCount() != 0 || len(testfixtures.MCPAttachments(k.MCPRegistryService())) != 0 {
 		t.Fatal(head, after, p.CallCount())
 	}
 }
@@ -71,7 +72,7 @@ func TestMarketReadNativeThreeTenantDenialsPreserveManagerAndJournal(t *testing.
 	rows, _ := store.Installed()
 	a, _ := json.Marshal(before)
 	b, _ := json.Marshal(rows)
-	if head != after || hash != afterHash || !reflect.DeepEqual(a, b) || p.CallCount() != 0 || len(k.MCPAttached()) != 0 {
+	if head != after || hash != afterHash || !reflect.DeepEqual(a, b) || p.CallCount() != 0 || len(testfixtures.MCPAttachments(k.MCPRegistryService())) != 0 {
 		t.Fatal(head, after, p.CallCount())
 	}
 }

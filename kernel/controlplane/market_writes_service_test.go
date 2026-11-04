@@ -4,6 +4,7 @@ package controlplane_test
 import (
 	"context"
 	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/internal/testfixtures"
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"reflect"
@@ -42,7 +43,7 @@ func TestMarketWriteNativeFiveTenantDenialsPreserveOwnedStoreAndJournal(t *testi
 	after, afterHash := k.Journal().Head()
 	newInstalled, _ := store.Installed()
 	newSources, _ := store.Sources()
-	if head != after || hash != afterHash || !reflect.DeepEqual(installed, newInstalled) || !reflect.DeepEqual(sources, newSources) || p.CallCount() != 0 || len(k.MCPAttached()) != 0 {
+	if head != after || hash != afterHash || !reflect.DeepEqual(installed, newInstalled) || !reflect.DeepEqual(sources, newSources) || p.CallCount() != 0 || len(testfixtures.MCPAttachments(k.MCPRegistryService())) != 0 {
 		t.Fatal(head, after, p.CallCount())
 	}
 }
@@ -64,7 +65,7 @@ func TestMarketWriteNativeUnavailableBeforeRequiredArguments(t *testing.T) {
 		}
 	}
 	after, afterHash := k.Journal().Head()
-	if after-head != 10 || afterHash == hash || p.CallCount() != 0 || len(k.MCPAttached()) != 0 {
+	if after-head != 10 || afterHash == hash || p.CallCount() != 0 || len(testfixtures.MCPAttachments(k.MCPRegistryService())) != 0 {
 		t.Fatal("legacy mutation failure audit pairs changed", head, after, p.CallCount())
 	}
 }

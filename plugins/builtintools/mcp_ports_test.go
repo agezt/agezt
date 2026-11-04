@@ -30,12 +30,15 @@ func TestMCPSpecWiresTheLiveKernel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{MCP: k}); err != nil {
+	// The tool is a PLUGIN (L6): it may not name the registry, so it asks for
+	// the CONTRACT's runner port — and since W3.76w that port is the
+	// extensions module's face, not the daemon's handle.
+	if err := spec.Configure(built.Tool, toolregapi.KernelDeps{MCP: k.MCPRegistryService()}); err != nil {
 		t.Fatalf("Configure: %v", err)
 	}
 
 	// A server registered in the kernel's own registry.
-	if _, err := k.AddMCPServer("corr-1", mcpapi.Server{
+	if _, err := k.MCPRegistryService().AddMCPServer("corr-1", mcpapi.Server{
 		Name: "github", Command: "npx", Args: []string{"-y", "@modelcontextprotocol/server-github"},
 	}); err != nil {
 		t.Fatalf("AddMCPServer: %v", err)
@@ -57,9 +60,9 @@ func TestMCPSpecWiresTheLiveKernel(t *testing.T) {
 		`{"op":"add","name":"fetch","command":"uvx","args":["mcp-server-fetch"]}`)); err != nil {
 		t.Fatalf("Invoke add: %v", err)
 	}
-	srv, found := k.MCPServer("fetch")
+	srv, found := k.MCPRegistryService().MCPServer("fetch")
 	if !found {
-		t.Fatalf("the server the tool added is not in the kernel's registry: %+v", k.MCPServers())
+		t.Fatalf("the server the tool added is not in the kernel's registry: %+v", k.MCPRegistryService().MCPServers())
 	}
 	if srv.Command != "uvx" {
 		t.Fatalf("the stored server = %+v", srv)

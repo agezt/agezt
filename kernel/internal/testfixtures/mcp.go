@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 
 	"github.com/agezt/agezt/kernel/contract/mcpapi"
+	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 )
 
@@ -25,4 +26,17 @@ func MCPRegistry(dir string) (mcpapi.Registry, error) {
 		return nil, err
 	}
 	return store, nil
+}
+
+// MCPAttachments answers the attachment status of a registry service.
+//
+// The attachments are the EXTENSIONS MODULE's (W3.76w): a daemon that holds
+// no registry module holds no face to answer with — and a daemon with no
+// module has no attachments. The helper says so instead of calling into
+// nothing.
+func MCPAttachments(svc extapi.MCPRegistryService) map[string]int {
+	if svc == nil {
+		return nil
+	}
+	return svc.MCPAttached()
 }

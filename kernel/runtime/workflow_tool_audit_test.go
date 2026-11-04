@@ -131,10 +131,10 @@ func TestRunTool_DynamicLookup(t *testing.T) {
 				} else {
 					conn := &fakeMCPConn{tools: []mcp.ToolDef{{Name: "greet"}}, out: "done"}
 					k, _ = openMCPKernel(t, mock.New(), conn)
-					if _, err := k.AddMCPServer("", mcp.Server{Name: "fake", Command: "unused"}); err != nil {
+					if _, err := k.MCPRegistryService().AddMCPServer("", mcp.Server{Name: "fake", Command: "unused"}); err != nil {
 						t.Fatal(err)
 					}
-					if _, _, err := k.AttachMCPServer(context.Background(), "", "fake"); err != nil {
+					if _, _, err := k.MCPRegistryService().AttachMCPServer(context.Background(), "", "fake"); err != nil {
 						t.Fatal(err)
 					}
 					didInvoke = func() bool { return conn.lastTool != "" }

@@ -6,12 +6,12 @@ package runtime_test
 //
 //	registry's FILE is the daemon's business: the kernel holds the contract's
 //	port and never opens a registry of its own. These tests pin that split —
-//	a kernel with no registry answers "no servers" and refuses the writes, and
-//	a kernel NEVER creates a registry file behind the host's back.
+//	a kernel with no registry answers "no servers" and holds no registry face
+//	(the operations are the module's, W3.76w), and a kernel NEVER creates a
+//	registry file behind the host's back.
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -116,40 +116,29 @@ func TestKernelNeverOpensARegistryOfItsOwn(t *testing.T) {
 	}
 }
 
-// TestKernelWithoutARegistryAnswersNoServersAndRefusesWrites: a host that
-// handed over no registry gets a daemon with no MCP servers — the reads say
-// so, and the writes REFUSE with the kernel's own error rather than calling
-// into nothing.
-func TestKernelWithoutARegistryAnswersNoServersAndRefusesWrites(t *testing.T) {
+// TestKernelWithoutARegistryAnswersNoServersAndHoldsNoFace: a host that
+// handed over no registry gets a daemon with no MCP servers — the READ gates
+// say so.
+//
+// The WRITES are the MODULE's now (W3.76w): the daemon holds no verb per
+// registry operation, so a daemon with no registry module holds no face at
+// all — and the layers above refuse in its place (the application with the
+// contract's row, the module itself when it is wired without a registry).
+func TestKernelWithoutARegistryAnswersNoServersAndHoldsNoFace(t *testing.T) {
 	k, err := runtime.Open(runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if rows := k.MCPServers(); len(rows) != 0 {
-		t.Fatalf("a kernel with no registry must answer no servers, got %v", rows)
-	}
 	if n := k.MCPRegistrationCount(); n != 0 {
 		t.Fatalf("a kernel with no registry must answer zero, got %d", n)
-	}
-	if _, found := k.MCPServer("ghost"); found {
-		t.Fatal("a kernel with no registry invented a row")
 	}
 	if rows := k.MCPReader().List(); len(rows) != 0 {
 		t.Fatalf("the reader must answer no servers, got %v", rows)
 	}
-	if _, _, err := k.AttachMCPServer(context.Background(), "corr", "ghost"); !errors.Is(err, runtime.ErrNoMCPRegistry) {
-		t.Fatalf("attach without a registry must refuse, got %v", err)
-	}
-	if _, err := k.AddMCPServer("corr", mcpapi.Server{Name: "owned", Command: "never-executed"}); !errors.Is(err, runtime.ErrNoMCPRegistry) {
-		t.Fatalf("add without a registry must refuse, got %v", err)
-	}
-	if _, err := k.SetMCPServerEnabled("corr", "owned", true); !errors.Is(err, runtime.ErrNoMCPRegistry) {
-		t.Fatalf("set_enabled without a registry must refuse, got %v", err)
-	}
-	if _, err := k.RemoveMCPServer("corr", "owned"); !errors.Is(err, runtime.ErrNoMCPRegistry) {
-		t.Fatalf("remove without a registry must refuse, got %v", err)
+	if k.MCPRegistryService() != nil {
+		t.Fatal("a kernel with no registry module must hold no registry face")
 	}
 }
 
@@ -169,13 +158,13 @@ func TestKernelHoldsTheRegistryItWasGiven(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, err := k.AddMCPServer("corr", mcpapi.Server{Name: "owned", Command: "never-executed"}); err != nil {
+	if _, err := k.MCPRegistryService().AddMCPServer("corr", mcpapi.Server{Name: "owned", Command: "never-executed"}); err != nil {
 		t.Fatalf("AddMCPServer: %v", err)
 	}
 	if registry.Count() != 1 {
 		t.Fatalf("the kernel wrote to a registry of its own, not the injected one: %d", registry.Count())
 	}
-	if rows := k.MCPServers(); len(rows) != 1 || rows[0].Name != "owned" {
+	if rows := k.MCPRegistryService().MCPServers(); len(rows) != 1 || rows[0].Name != "owned" {
 		t.Fatalf("the kernel's reads do not see the injected registry: %v", rows)
 	}
 	if n := k.MCPRegistrationCount(); n != 1 {
@@ -194,17 +183,17 @@ func TestAttachWithoutADialerRefusesInsteadOfPanicking(t *testing.T) {
 	}
 	t.Cleanup(func() { k.Close() })
 
-	if _, err := k.AddMCPServer("corr", mcpapi.Server{Name: "stdio", Command: "never-executed"}); err != nil {
+	if _, err := k.MCPRegistryService().AddMCPServer("corr", mcpapi.Server{Name: "stdio", Command: "never-executed"}); err != nil {
 		t.Fatalf("AddMCPServer: %v", err)
 	}
-	if _, err := k.AddMCPServer("corr", mcpapi.Server{Name: "remote", URL: "https://mcp.example.com/v1"}); err != nil {
+	if _, err := k.MCPRegistryService().AddMCPServer("corr", mcpapi.Server{Name: "remote", URL: "https://mcp.example.com/v1"}); err != nil {
 		t.Fatalf("AddMCPServer: %v", err)
 	}
-	if _, _, err := k.AttachMCPServer(context.Background(), "corr", "stdio"); err == nil ||
+	if _, _, err := k.MCPRegistryService().AttachMCPServer(context.Background(), "corr", "stdio"); err == nil ||
 		!strings.Contains(err.Error(), "no stdio MCP dialer is configured") {
 		t.Fatalf("the stdio attach must refuse with the dialer's absence, got %v", err)
 	}
-	if _, _, err := k.AttachMCPServer(context.Background(), "corr", "remote"); err == nil ||
+	if _, _, err := k.MCPRegistryService().AttachMCPServer(context.Background(), "corr", "remote"); err == nil ||
 		!strings.Contains(err.Error(), "no HTTP MCP dialer is configured") {
 		t.Fatalf("the http attach must refuse with the dialer's absence, got %v", err)
 	}
