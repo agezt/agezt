@@ -74,10 +74,10 @@ func TestAttach_OffersAndForwardsBridgedTool(t *testing.T) {
 	}
 	k, dials := openMCPKernel(t, prov, conn)
 
-	if _, err := k.AddMCPServer("", mcp.Server{Name: "fake", Command: "python", Args: []string{"server.py"}}); err != nil {
+	if _, err := k.MCPRegistryService().AddMCPServer("", mcp.Server{Name: "fake", Command: "python", Args: []string{"server.py"}}); err != nil {
 		t.Fatalf("AddMCPServer: %v", err)
 	}
-	srv, names, err := k.AttachMCPServer(context.Background(), "", "fake")
+	srv, names, err := k.MCPRegistryService().AttachMCPServer(context.Background(), "", "fake")
 	if err != nil || srv.Name != "fake" {
 		t.Fatalf("Attach: %v / %+v", err, srv)
 	}
@@ -141,10 +141,10 @@ func TestAttach_RemoteRoutesThroughHTTPDialer(t *testing.T) {
 		URL:     "https://mcp.example.com/v1",
 		Headers: map[string]string{"Authorization": "Bearer tok"},
 	}
-	if _, err := k.AddMCPServer("", reg); err != nil {
+	if _, err := k.MCPRegistryService().AddMCPServer("", reg); err != nil {
 		t.Fatalf("AddMCPServer: %v", err)
 	}
-	_, names, err := k.AttachMCPServer(context.Background(), "", "remote")
+	_, names, err := k.MCPRegistryService().AttachMCPServer(context.Background(), "", "remote")
 	if err != nil {
 		t.Fatalf("Attach: %v", err)
 	}
@@ -172,12 +172,12 @@ func TestAttach_ToolAllowFilters(t *testing.T) {
 	}
 	conn := &fakeMCPConn{tools: []mcp.ToolDef{{Name: "greet"}, {Name: "shout"}}}
 	k, _ := openMCPKernel(t, prov, conn)
-	if _, err := k.AddMCPServer("", mcp.Server{
+	if _, err := k.MCPRegistryService().AddMCPServer("", mcp.Server{
 		Name: "fake", Command: "python", Args: []string{"s.py"}, ToolAllow: []string{"greet"},
 	}); err != nil {
 		t.Fatalf("AddMCPServer: %v", err)
 	}
-	if _, _, err := k.AttachMCPServer(context.Background(), "", "fake"); err != nil {
+	if _, _, err := k.MCPRegistryService().AttachMCPServer(context.Background(), "", "fake"); err != nil {
 		t.Fatalf("Attach: %v", err)
 	}
 	if _, err := k.RunWith(context.Background(), k.NewCorrelation(), "hi"); err != nil {
@@ -222,12 +222,12 @@ func TestAttach_LazyCollapsesToDispatcher(t *testing.T) {
 	}
 	k, _ := openMCPKernel(t, prov, conn)
 	// Lazy + an allowlist: only greet/shout are exposed, collapsed into one tool.
-	if _, err := k.AddMCPServer("", mcp.Server{
+	if _, err := k.MCPRegistryService().AddMCPServer("", mcp.Server{
 		Name: "fake", Command: "python", Lazy: true, ToolAllow: []string{"greet", "shout"},
 	}); err != nil {
 		t.Fatalf("AddMCPServer: %v", err)
 	}
-	if _, _, err := k.AttachMCPServer(context.Background(), "", "fake"); err != nil {
+	if _, _, err := k.MCPRegistryService().AttachMCPServer(context.Background(), "", "fake"); err != nil {
 		t.Fatalf("Attach: %v", err)
 	}
 	if _, err := k.RunWith(context.Background(), k.NewCorrelation(), "greet ersin"); err != nil {
@@ -269,22 +269,22 @@ func TestDetach_KillSwitch(t *testing.T) {
 	conn := &fakeMCPConn{tools: []mcp.ToolDef{{Name: "greet"}}}
 	k, _ := openMCPKernel(t, prov, conn)
 
-	if _, err := k.AddMCPServer("", mcp.Server{Name: "fake", Command: "python"}); err != nil {
+	if _, err := k.MCPRegistryService().AddMCPServer("", mcp.Server{Name: "fake", Command: "python"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, _, err := k.AttachMCPServer(context.Background(), "", "fake"); err != nil {
+	if _, _, err := k.MCPRegistryService().AttachMCPServer(context.Background(), "", "fake"); err != nil {
 		t.Fatalf("Attach: %v", err)
 	}
-	if _, _, err := k.AttachMCPServer(context.Background(), "", "fake"); err == nil {
+	if _, _, err := k.MCPRegistryService().AttachMCPServer(context.Background(), "", "fake"); err == nil {
 		t.Fatal("double attach accepted")
 	}
-	if err := k.DetachMCPServer("", "fake"); err != nil {
+	if err := k.MCPRegistryService().DetachMCPServer("", "fake"); err != nil {
 		t.Fatalf("Detach: %v", err)
 	}
 	if !conn.closed {
 		t.Fatal("detach did not close the connection")
 	}
-	if err := k.DetachMCPServer("", "fake"); err == nil {
+	if err := k.MCPRegistryService().DetachMCPServer("", "fake"); err == nil {
 		t.Fatal("detaching a non-attached server accepted")
 	}
 	if _, err := k.RunWith(context.Background(), k.NewCorrelation(), "hi"); err != nil {
@@ -301,27 +301,27 @@ func TestRemoveAndAttachEnabled(t *testing.T) {
 	conn := &fakeMCPConn{tools: []mcp.ToolDef{{Name: "greet"}}}
 	k, dials := openMCPKernel(t, prov, conn)
 
-	if _, err := k.AddMCPServer("", mcp.Server{Name: "fake", Command: "python"}); err != nil {
+	if _, err := k.MCPRegistryService().AddMCPServer("", mcp.Server{Name: "fake", Command: "python"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 	// Boot path: enabled servers attach; disabled ones don't.
-	attached, failures := k.AttachEnabledMCPServers(context.Background())
+	attached, failures := k.MCPRegistryService().AttachEnabledMCPServers(context.Background())
 	if len(attached) != 1 || len(failures) != 0 || *dials != 1 {
 		t.Fatalf("AttachEnabled = %v / %v / dials=%d", attached, failures, *dials)
 	}
-	if n := k.MCPAttached()["fake"]; n != 1 {
-		t.Fatalf("MCPAttached = %v", k.MCPAttached())
+	if n := k.MCPRegistryService().MCPAttached()["fake"]; n != 1 {
+		t.Fatalf("MCPAttached = %v", k.MCPRegistryService().MCPAttached())
 	}
 
 	// Remove detaches first, then deletes the registration.
-	ok, err := k.RemoveMCPServer("", "fake")
+	ok, err := k.MCPRegistryService().RemoveMCPServer("", "fake")
 	if err != nil || !ok {
 		t.Fatalf("Remove = %v/%v", ok, err)
 	}
 	if !conn.closed {
 		t.Fatal("remove did not detach/close first")
 	}
-	if k.MCPStore().Count() != 0 || len(k.MCPAttached()) != 0 {
+	if k.MCPStore().Count() != 0 || len(k.MCPRegistryService().MCPAttached()) != 0 {
 		t.Fatal("registration or attachment survived remove")
 	}
 }
@@ -334,10 +334,10 @@ func TestAllowlistGatesBridgedTools(t *testing.T) {
 	prov.OnRequest = func(r llm.CompletionRequest) { req = r }
 	conn := &fakeMCPConn{tools: []mcp.ToolDef{{Name: "greet"}}}
 	k, _ := openMCPKernel(t, prov, conn)
-	if _, err := k.AddMCPServer("", mcp.Server{Name: "fake", Command: "python"}); err != nil {
+	if _, err := k.MCPRegistryService().AddMCPServer("", mcp.Server{Name: "fake", Command: "python"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, _, err := k.AttachMCPServer(context.Background(), "", "fake"); err != nil {
+	if _, _, err := k.MCPRegistryService().AttachMCPServer(context.Background(), "", "fake"); err != nil {
 		t.Fatalf("Attach: %v", err)
 	}
 
@@ -366,10 +366,10 @@ func TestBridgedToolNameSanitized(t *testing.T) {
 	long := strings.Repeat("x", 80)
 	conn := &fakeMCPConn{tools: []mcp.ToolDef{{Name: "weird/tool name!" + long}}}
 	k, _ := openMCPKernel(t, prov, conn)
-	if _, err := k.AddMCPServer("", mcp.Server{Name: "fake", Command: "python"}); err != nil {
+	if _, err := k.MCPRegistryService().AddMCPServer("", mcp.Server{Name: "fake", Command: "python"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if _, names, err := k.AttachMCPServer(context.Background(), "", "fake"); err != nil || len(names) != 1 {
+	if _, names, err := k.MCPRegistryService().AttachMCPServer(context.Background(), "", "fake"); err != nil || len(names) != 1 {
 		t.Fatalf("Attach: %v / %v", err, names)
 	}
 	if _, err := k.RunWith(context.Background(), k.NewCorrelation(), "hi"); err != nil {

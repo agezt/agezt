@@ -20,6 +20,8 @@ import (
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
 	"github.com/agezt/agezt/kernel/modules/board/board"
+	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
+	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/modules/reasoning"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
@@ -569,8 +571,22 @@ func TestTheWorkflowAndWorkboardPortsStayNilWithoutAKernel(t *testing.T) {
 // answering "not available" on every live box, while every test that built
 // the tool by hand stayed green. This test is the only one that sees that
 // wiring, so it asserts it directly.
+//
+// The MCP port is the EXTENSIONS MODULE's face under the contract's runner
+// port (W3.76w) — the daemon holds no verb per registry operation any more.
 func TestToolKernelDepsSuppliesTheMCPAndStandingPorts(t *testing.T) {
-	k, err := runtime.Open(withMemory(t, withRoster(t, withArtifacts(t, runtime.Config{BaseDir: t.TempDir(), Provider: mock.New()}))))
+	store, err := mcp.OpenStore(filepath.Join(t.TempDir(), "mcp"))
+	if err != nil {
+		t.Fatalf("open the MCP registry: %v", err)
+	}
+	k, err := runtime.Open(withMemory(t, withRoster(t, withArtifacts(t, runtime.Config{
+		BaseDir:  t.TempDir(),
+		Provider: mock.New(),
+		MCPStore: store,
+		MCPBuilder: func(deps extapi.MCPRegistryDependencies) extapi.MCPRegistryService {
+			return mcp.NewService(deps)
+		},
+	}))))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -580,8 +596,8 @@ func TestToolKernelDepsSuppliesTheMCPAndStandingPorts(t *testing.T) {
 	if deps.MCP == nil {
 		t.Fatal("the daemon must supply the mcp port")
 	}
-	if deps.MCP != k {
-		t.Fatal("the mcp port must be the live kernel's")
+	if deps.MCP != k.MCPRegistryService() {
+		t.Fatal("the mcp port must be the live kernel's registry surface")
 	}
 	if deps.Standing == nil {
 		t.Fatal("the daemon must supply the standing port")

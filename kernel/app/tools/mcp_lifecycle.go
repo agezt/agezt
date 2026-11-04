@@ -22,8 +22,44 @@ type MCPLifecycle struct {
 	catalog *MCPCatalog
 }
 
+// NewMCPLifecycle binds the lifecycle writer and the attachment reader.
+//
+// A daemon with no registry MODULE has no writer (W3.76w) — the lifecycle is
+// the module's, and the application binds the module's face. The lifecycle
+// then REFUSES with the contract's row rather than calling into nothing.
 func NewMCPLifecycle(writer MCPLifecycleWriter, attached MCPAttachmentReader) *MCPLifecycle {
+	if writer == nil {
+		writer = refusingMCPLifecycle{}
+	}
 	return &MCPLifecycle{writer: writer, catalog: NewMCPCatalog(nil, attached)}
+}
+
+// refusingMCPLifecycle is the application's refusal when the daemon holds no
+// MCP registry module.
+//
+// The refusal is the CONTRACT's row (mcpapi.ErrNoRegistry): the missing
+// registry is one fact, and the daemon's own writes raise the same row — so a
+// caller compares with errors.Is and both sides say the same thing.
+type refusingMCPLifecycle struct{}
+
+func (refusingMCPLifecycle) AddMCPServer(string, mcpapi.Server) (mcpapi.Server, error) {
+	return mcpapi.Server{}, mcpapi.ErrNoRegistry
+}
+
+func (refusingMCPLifecycle) AttachMCPServer(context.Context, string, string) (mcpapi.Server, []string, error) {
+	return mcpapi.Server{}, nil, mcpapi.ErrNoRegistry
+}
+
+func (refusingMCPLifecycle) DetachMCPServer(string, string) error {
+	return mcpapi.ErrNoRegistry
+}
+
+func (refusingMCPLifecycle) SetMCPServerEnabled(string, string, bool) (mcpapi.Server, error) {
+	return mcpapi.Server{}, mcpapi.ErrNoRegistry
+}
+
+func (refusingMCPLifecycle) RemoveMCPServer(string, string) (bool, error) {
+	return false, mcpapi.ErrNoRegistry
 }
 
 type MCPAddInput struct {

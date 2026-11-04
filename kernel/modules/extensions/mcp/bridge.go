@@ -76,7 +76,7 @@ func (s *Service) MergeTools(tools map[string]toolapi.Tool) map[string]toolapi.T
 		lazy := false
 		// The nil-safe read: this is the HOT PATH (every run merges its tool
 		// map), so it must never panic on a service with no registry.
-		if srv, ok := s.registration(lc.name); ok {
+		if srv, ok := s.MCPServer(lc.name); ok {
 			if len(srv.ToolAllow) > 0 {
 				filter = make(map[string]bool, len(srv.ToolAllow))
 				for _, t := range srv.ToolAllow {
@@ -117,9 +117,9 @@ func (s *Service) MergeTools(tools map[string]toolapi.Tool) map[string]toolapi.T
 	return out
 }
 
-// registration returns one registered server by id or name — the nil-safe
+// MCPServer returns one registered server by id or name — the nil-safe
 // read the bridge uses to learn a server's per-server config.
-func (s *Service) registration(ref string) (mcpapi.Server, bool) {
+func (s *Service) MCPServer(ref string) (mcpapi.Server, bool) {
 	if s.registry == nil {
 		return mcpapi.Server{}, false
 	}

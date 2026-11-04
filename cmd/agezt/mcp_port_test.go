@@ -42,7 +42,7 @@ func TestOpenAppKernelWiresTheMCPRegistry(t *testing.T) {
 	if fi, err := os.Stat(filepath.Join(dir, "mcp")); err != nil || !fi.IsDir() {
 		t.Fatalf("the daemon must open the registry's directory: %v", err)
 	}
-	if _, err := k.AddMCPServer("corr", mcpapi.Server{Name: "owned", Command: "never-executed"}); err != nil {
+	if _, err := k.MCPRegistryService().AddMCPServer("corr", mcpapi.Server{Name: "owned", Command: "never-executed"}); err != nil {
 		t.Fatalf("AddMCPServer: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "mcp", "servers.json")); err != nil {
@@ -73,7 +73,7 @@ func TestTheMCPRegistryIsTheInjectedOne(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = k.Close() })
 
-	if _, err := k.AddMCPServer("corr", mcpapi.Server{Name: "owned", Command: "never-executed"}); err != nil {
+	if _, err := k.MCPRegistryService().AddMCPServer("corr", mcpapi.Server{Name: "owned", Command: "never-executed"}); err != nil {
 		t.Fatalf("AddMCPServer: %v", err)
 	}
 	if store.Count() != 1 {
@@ -98,10 +98,10 @@ func TestTheDaemonWiresTheDialers(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = k.Close() })
 
-	if _, err := k.AddMCPServer("corr", mcpapi.Server{Name: "owned", Command: "never-executed-binary"}); err != nil {
+	if _, err := k.MCPRegistryService().AddMCPServer("corr", mcpapi.Server{Name: "owned", Command: "never-executed-binary"}); err != nil {
 		t.Fatalf("AddMCPServer: %v", err)
 	}
-	_, _, err = k.AttachMCPServer(context.Background(), "corr", "owned")
+	_, _, err = k.MCPRegistryService().AttachMCPServer(context.Background(), "corr", "owned")
 	if err == nil {
 		t.Fatal("attaching a server that does not exist must fail")
 	}

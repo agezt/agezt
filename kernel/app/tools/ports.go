@@ -90,14 +90,23 @@ type Ports struct {
 }
 
 // PortsFromKernel fills the tools application's ports from the kernel handle.
+//
+// The MCP lifecycle and the attachment status are the EXTENSIONS MODULE's
+// (W3.76w): the module keeps the registry's operations and the live
+// attachments, and the application binds the module's FACE — the port the
+// daemon hands over. The daemon used to be the writer here, which meant it
+// held a forwarder per operation; that copy is gone.
+//
+// The registry's READS stay on the daemon (`MCP`): a read over the host's own
+// store is the host's, and the reader is nil-safe.
 func PortsFromKernel(k *runtime.Kernel) Ports {
 	return Ports{
 		Registry:     kernelRegistry{k: k},
 		ScriptForge:  k.ToolForge(),
 		ForgeWriter:  k.ForgeRunner(),
 		MCP:          k.MCPReader(),
-		Attachment:   k,
-		MCPLifecycle: k,
+		Attachment:   k.MCPRegistryService(),
+		MCPLifecycle: k.MCPRegistryService(),
 		Invoke:       k.RunTool,
 	}
 }

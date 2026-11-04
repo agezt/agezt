@@ -238,17 +238,29 @@ func workboardPort(k *runtime.Kernel) workboardapi.Runner {
 	return k.BoardRunner()
 }
 
-// mcpPort hands the kernel's MCP registry to the tool registry as the
-// contract's port (W3.39d) — the MCP tool adds, attaches, detaches and
-// removes servers through it.
+// mcpPort hands the MCP registry to the tool registry as the contract's port
+// (W3.39d) — the MCP tool adds, attaches, detaches and removes servers
+// through it.
 //
-// The same nil-port rule: a nil kernel handed to an interface parameter is a
-// non-nil interface, and the tool would bind a runner that is not there.
+// The runner is the EXTENSIONS MODULE's face under the contract's port
+// (W3.76w): the daemon used to spell the registry's operations out itself
+// (`AddMCPServer`, `AttachMCPServer`, …) and the tool called the daemon. The
+// registry's operations are the module's, and the module answers in the
+// contract's names — the module's service satisfies the contract's runner port
+// directly, with no adapter in between.
+//
+// The same nil-port rule: a nil kernel — or a daemon with no registry module —
+// handed to an interface parameter is a non-nil interface, and the tool would
+// bind a runner that is not there.
 func mcpPort(k *runtime.Kernel) mcpapi.Runner {
 	if k == nil {
 		return nil
 	}
-	return k
+	svc := k.MCPRegistryService()
+	if svc == nil {
+		return nil
+	}
+	return svc
 }
 
 // standingPort hands the kernel's standing orders to the tool registry as

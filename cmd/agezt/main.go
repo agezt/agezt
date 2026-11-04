@@ -1645,7 +1645,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 					Library: builtinMarketLibrary(marketStore),
 					Store:   marketStore,
 					Skills:  fg,
-					MCP:     k,
+					MCP:     k.MCPRegistryService(),
 					Now:     func() int64 { return time.Now().UnixMilli() },
 					Verify:  func(p market.Pack) (bool, error) { return market.VerifyPack(p, "") },
 					Syncer:  market.NewSyncer(),
@@ -1727,13 +1727,21 @@ func runDaemon(stdout, stderr io.Writer) int {
 			// Configure hook; auto-attach every ENABLED registered server here (it
 			// needs the daemon ctx). Per-server failures are reported, never fatal
 			// — one broken server must not take the daemon down.
+			//
+			// The attachments are the EXTENSIONS MODULE's (W3.76w): the boot path
+			// asks the module's face, and a daemon with no module has nothing to
+			// attach.
 			name: "mcp servers",
 			run: func() (string, error) {
 				registered := k.MCPRegistrationCount()
 				if registered == 0 {
 					return "  mcp self-install : enabled (the agent can attach MCP servers at runtime; Edict mcp.install gates it)", nil
 				}
-				attached, failures := k.AttachEnabledMCPServers(ctx)
+				svc := k.MCPRegistryService()
+				if svc == nil {
+					return "  mcp servers      : registered but no registry module to attach them with", nil
+				}
+				attached, failures := svc.AttachEnabledMCPServers(ctx)
 				fmt.Fprintf(stdout, "  mcp servers      : %d attached of %d registered\n", len(attached), registered)
 				for name, aerr := range failures {
 					fmt.Fprintf(stdout, "    %s: attach failed: %v\n", name, aerr)

@@ -5,9 +5,10 @@
 // drives.
 //
 // It exists because another module may import a module's api package and
-// nothing else (archcheck's principle P5). The runtime keeps its own names as
-// forwarders, so the host's public API is unchanged while the implementation
-// lives in the module.
+// nothing else (archcheck's principle P5). The runtime used to keep its own
+// names as forwarders over the registry's operations; it does not any more
+// (W3.76w): the registry's vocabulary is the CONTRACT's, so the module
+// answers in the contract's names and the daemon spells none of them.
 //
 // The ROWS live in the contract layer (kernel/contract/mcpapi): the tools and
 // the marketplace that name them are plugins, and a plugin may reach the
@@ -39,33 +40,25 @@ import (
 // attachments that answer it. A second service would be a second owner of the
 // same connections.
 //
+// The CONTRACT's runner is EMBEDDED (W3.76w): the vocabulary the agent-facing
+// MCP tool drives — add, attach, detach, remove, list, get and the attachment
+// status — is the contract's (`mcpapi.Runner`), and the module answers in
+// those names. The verbs the contract does not name — the enable flag, the
+// boot path's attach-all, the bridge and the shutdown — are added here, so
+// the module's own port is the contract's port plus what the host still needs.
+//
 // The verbs are the REGISTRY's own: a host that holds a service can register
 // a server, attach it, detach it and remove it, and it can never reach past
 // the registry into the daemon's machinery.
 type MCPRegistryService interface {
-	// Add validates and persists a new MCP server registration, journaling
-	// mcp.added. Registration alone spawns nothing — attach does.
-	Add(corr string, srv mcpapi.Server) (mcpapi.Server, error)
-	// SetEnabled flips a server's auto-attach-at-start flag, journaling
-	// mcp.updated. It does not touch a live attachment.
-	SetEnabled(corr, ref string, enabled bool) (mcpapi.Server, error)
-	// Attach spawns a registered server, completes the MCP handshake,
-	// discovers its tools, and journals mcp.attached with the discovered tool
-	// names. Attaching an already-attached server is an error (detach first).
-	Attach(ctx context.Context, corr, ref string) (mcpapi.Server, []string, error)
-	// Detach closes a live attachment — the kill switch: its tools vanish
-	// from the next run on. Journals mcp.detached.
-	Detach(corr, ref string) error
-	// Remove deletes a registration (detaching it first when live),
-	// journaling mcp.removed. Returns whether it existed.
-	Remove(corr, ref string) (bool, error)
-	// AttachEnabled attaches every enabled registration — the daemon's boot
-	// path. Failures are per-server and reported, never fatal: one broken
-	// server must not take the others (or the daemon) down.
-	AttachEnabled(ctx context.Context) (attached []string, failures map[string]error)
-	// Attached returns the names of currently-attached servers with their
-	// bridged tool counts.
-	Attached() map[string]int
+	mcpapi.Runner
+	// SetMCPServerEnabled flips a server's auto-attach-at-start flag,
+	// journaling mcp.updated. It does not touch a live attachment.
+	SetMCPServerEnabled(corr, ref string, enabled bool) (mcpapi.Server, error)
+	// AttachEnabledMCPServers attaches every enabled registration — the
+	// daemon's boot path. Failures are per-server and reported, never fatal:
+	// one broken server must not take the others (or the daemon) down.
+	AttachEnabledMCPServers(ctx context.Context) (attached []string, failures map[string]error)
 	// MergeTools returns the run's tool map extended with every live
 	// attachment's tools. Registered tools win a name collision; the input
 	// map comes back untouched when nothing is attached.

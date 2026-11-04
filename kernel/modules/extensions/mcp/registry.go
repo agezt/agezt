@@ -9,9 +9,12 @@ package mcp
 //             live connections and the bridge itself) into the extensions
 //             module, which owns the MCP registry.
 //
-// The daemon keeps its own names as forwarders, so every caller outside the
-// runtime is untouched. What moved is WHERE the answer comes from: the
-// registry's OPERATIONS live with the registry's DATA now.
+// The daemon used to keep its own names as forwarders over these operations.
+// It does not any more (W3.76w): the registry's vocabulary is the CONTRACT's
+// (kernel/contract/mcpapi.Runner already named them the way the registry's
+// users say them), so the module answers in the contract's names and the
+// daemon spells none of them. The daemon keeps the registry's FILE and its
+// nil-safe READ GATES, and hands over the module's FACE.
 
 import (
 	"context"
@@ -64,9 +67,9 @@ func (s *Service) emit(spec event.Spec) {
 	s.publish(spec)
 }
 
-// Add validates and persists a new MCP server registration, journaling
+// AddMCPServer validates and persists a new MCP server registration, journaling
 // mcp.added. Registration alone spawns nothing — attach does.
-func (s *Service) Add(corr string, srv mcpapi.Server) (mcpapi.Server, error) {
+func (s *Service) AddMCPServer(corr string, srv mcpapi.Server) (mcpapi.Server, error) {
 	if s.registry == nil {
 		return mcpapi.Server{}, mcpapi.ErrNoRegistry
 	}
@@ -86,9 +89,9 @@ func (s *Service) Add(corr string, srv mcpapi.Server) (mcpapi.Server, error) {
 	return saved, nil
 }
 
-// SetEnabled flips a server's auto-attach-at-start flag, journaling
+// SetMCPServerEnabled flips a server's auto-attach-at-start flag, journaling
 // mcp.updated. It does not touch a live attachment.
-func (s *Service) SetEnabled(corr, ref string, enabled bool) (mcpapi.Server, error) {
+func (s *Service) SetMCPServerEnabled(corr, ref string, enabled bool) (mcpapi.Server, error) {
 	if s.registry == nil {
 		return mcpapi.Server{}, mcpapi.ErrNoRegistry
 	}
@@ -104,12 +107,12 @@ func (s *Service) SetEnabled(corr, ref string, enabled bool) (mcpapi.Server, err
 	return srv, nil
 }
 
-// Attach spawns a registered server, completes the MCP handshake,
+// AttachMCPServer spawns a registered server, completes the MCP handshake,
 // discovers its tools, and journals mcp.attached with the discovered tool
 // names — from the next run on, every agent is offered them as
 // mcp_<name>_<tool>. Attaching an already-attached server is an error
 // (detach first).
-func (s *Service) Attach(ctx context.Context, corr, ref string) (mcpapi.Server, []string, error) {
+func (s *Service) AttachMCPServer(ctx context.Context, corr, ref string) (mcpapi.Server, []string, error) {
 	if s.registry == nil {
 		return mcpapi.Server{}, nil, mcpapi.ErrNoRegistry
 	}
@@ -172,9 +175,9 @@ func (s *Service) dial(ctx context.Context, srv mcpapi.Server) (mcpapi.Conn, err
 	return s.dialer(ctx, srv.Command, srv.Args, srv.Env)
 }
 
-// Detach closes a live attachment — the kill switch: its tools vanish from
+// DetachMCPServer closes a live attachment — the kill switch: its tools vanish from
 // the next run on. Journals mcp.detached.
-func (s *Service) Detach(corr, ref string) error {
+func (s *Service) DetachMCPServer(corr, ref string) error {
 	// Resolve a registry ref (id or name) to the live-connection key, but
 	// also accept the bare name of a connection whose registry row is gone.
 	name := ref
@@ -199,9 +202,9 @@ func (s *Service) Detach(corr, ref string) error {
 	return nil
 }
 
-// Remove deletes a registration (detaching it first when live), journaling
+// RemoveMCPServer deletes a registration (detaching it first when live), journaling
 // mcp.removed. Returns whether it existed.
-func (s *Service) Remove(corr, ref string) (bool, error) {
+func (s *Service) RemoveMCPServer(corr, ref string) (bool, error) {
 	if s.registry == nil {
 		return false, mcpapi.ErrNoRegistry
 	}
@@ -210,7 +213,7 @@ func (s *Service) Remove(corr, ref string) (bool, error) {
 		_, live := s.conns[srv.Name]
 		s.mu.Unlock()
 		if live {
-			_ = s.Detach(corr, srv.Name)
+			_ = s.DetachMCPServer(corr, srv.Name)
 		}
 	}
 	gone, ok, err := s.registry.Remove(ref)
@@ -227,16 +230,16 @@ func (s *Service) Remove(corr, ref string) (bool, error) {
 	return ok, nil
 }
 
-// AttachEnabled attaches every enabled registration — the daemon's boot
+// AttachEnabledMCPServers attaches every enabled registration — the daemon's boot
 // path. Failures are per-server and reported, never fatal: one broken server
 // must not take the others (or the daemon) down.
-func (s *Service) AttachEnabled(ctx context.Context) (attached []string, failures map[string]error) {
+func (s *Service) AttachEnabledMCPServers(ctx context.Context) (attached []string, failures map[string]error) {
 	failures = map[string]error{}
-	for _, srv := range s.registrations() {
+	for _, srv := range s.MCPServers() {
 		if !srv.Enabled {
 			continue
 		}
-		if _, _, err := s.Attach(ctx, "", srv.Name); err != nil {
+		if _, _, err := s.AttachMCPServer(ctx, "", srv.Name); err != nil {
 			failures[srv.Name] = err
 			continue
 		}
@@ -245,18 +248,18 @@ func (s *Service) AttachEnabled(ctx context.Context) (attached []string, failure
 	return attached, failures
 }
 
-// registrations returns every registered server — the nil-safe read.
-func (s *Service) registrations() []mcpapi.Server {
+// MCPServers returns every registered server — the nil-safe read.
+func (s *Service) MCPServers() []mcpapi.Server {
 	if s.registry == nil {
 		return nil
 	}
 	return s.registry.List()
 }
 
-// Attached returns the names of currently-attached servers with their
+// MCPAttached returns the names of currently-attached servers with their
 // bridged tool counts — the status surface for `agt mcp list` and the
 // console.
-func (s *Service) Attached() map[string]int {
+func (s *Service) MCPAttached() map[string]int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make(map[string]int, len(s.conns))

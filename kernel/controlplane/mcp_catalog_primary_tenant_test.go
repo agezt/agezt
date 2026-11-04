@@ -13,7 +13,7 @@ import (
 func TestMCPCatalogNativeTenantDenialPreservesStoreAndJournal(t *testing.T) {
 	p := mock.New()
 	k, _, _, dir, registry := startPairWithTenants(t, p)
-	srv, err := k.AddMCPServer("owned-seed", mcp.Server{Name: "owned", Command: "owned-never-spawned", Env: map[string]string{"OWNED": "owned-private-value"}})
+	srv, err := k.MCPRegistryService().AddMCPServer("owned-seed", mcp.Server{Name: "owned", Command: "owned-never-spawned", Env: map[string]string{"OWNED": "owned-private-value"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +25,7 @@ func TestMCPCatalogNativeTenantDenialPreservesStoreAndJournal(t *testing.T) {
 	}
 	after, afterHash := k.Journal().Head()
 	got, found := k.MCPStore().Get(srv.ID)
-	if head != after || hash != afterHash || !found || got.Env["OWNED"] != "owned-private-value" || len(k.MCPAttached()) != 0 || p.CallCount() != 0 {
+	if head != after || hash != afterHash || !found || got.Env["OWNED"] != "owned-private-value" || len(k.MCPRegistryService().MCPAttached()) != 0 || p.CallCount() != 0 {
 		t.Fatal(head, after, found, p.CallCount())
 	}
 }

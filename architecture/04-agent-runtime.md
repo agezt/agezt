@@ -305,7 +305,7 @@ Also: `toolCaps` (read-only after Open); `startTime`. The `suspending atomic.Boo
 
 Goroutines started by the runtime: one per async sub-agent (the delegation engine's `Spawn`), the drain waiters in `Close`/`DrainAndHalt`, and the tool fan-out workers inside `agent.Run`. Everything else runs on the caller's goroutine. The **agentgw listener is not one of them** (W3.67): the gateway is the **daemon's** transport, so the daemon starts it.
 
-**The daemon's public surface — 164 verbs (W3.76v).** The Kernel's exported
+**The daemon's public surface — 156 verbs (W3.76w).** The Kernel's exported
 methods are the host's **doors**: the verbs the layers above call and the
 verbs the daemon's own production paths open. A public verb that nobody
 calls is a second, unreachable copy of a surface, and the target architecture
@@ -429,13 +429,36 @@ nothing; the plugin binds the module's face too (`reasoningPort(k)` answers
 the three tools answer "unavailable" themselves). The daemon's own **read**
 over the panel (`CouncilDefaultMembers`) stayed — a read over the host's own
 configuration is the host's: **166 → 164** public verbs, **5,813 → 5,796**
-production lines. The daemon
+production lines. W3.76w retired **eight** more — the **MCP registry's**
+vocabulary is the **contract's** (`mcpapi.Runner` already named the seven verbs
+the agent-facing MCP tool drives: `AddMCPServer`, `AttachMCPServer`,
+`DetachMCPServer`, `RemoveMCPServer`, `MCPServers`, `MCPServer`,
+`MCPAttached`), and the daemon held **nine** verbs over the same ground
+(the seven plus `SetMCPServerEnabled` and `AttachEnabledMCPServers`) while the
+**module** spoke a third spelling (`Add`, `SetEnabled`, `Attach`, … with two
+*private* reads where the contract named two public ones). Three spellings
+became one: the **module** answers in the contract's names now, its port
+(`extapi.MCPRegistryService`) **embeds** the contract's runner and adds the
+four verbs the contract does not name, and the daemon's nine verbs are gone.
+The daemon keeps four things: the registry's **FILE** (`MCPStore`, the
+contract's store port — the composition root opens it), its nil-safe **READ
+GATES** (`MCPReader`, `MCPRegistrationCount` — a read over the host's own store
+is the host's) and the module's **FACE** (`MCPRegistryService`). The
+**application** binds the module's face (its own port already spoke the
+contract's names, so no adapter was written) and became **nil-safe**: a daemon
+with no module holds no writer, and the lifecycle refuses with the contract's
+row (`mcpapi.ErrNoRegistry`); the **plugin** binds the module's face too
+(`mcpPort(k)` answers `k.MCPRegistryService()`, and a daemon with no module
+hands over a nil port); the **boot path** and the **marketplace** ask the same
+face. The daemon's own alias `runtime.ErrNoMCPRegistry` went with it — the
+daemon raises no refusal of its own, and one row has one home:
+**164 → 156** public verbs, **5,796 → 5,714** production lines. The daemon
 keeps the doors a **module** needs without naming the runs
 module (`WithAgentProfile`, `WithMaxCost`) and the host's own state (the
 effective config, the resume ticket, the seed). The surface is **pinned**:
 `kernel/runtime/dead_surface_ratchet_test.go` fails if a retired name comes
-back or if the public surface grows past **164** — the ceiling now FOLLOWS the
-floor (220 → 201 → 194 → 179 → 173 → 166 → 164), because a ceiling that stays put while the
+back or if the public surface grows past **156** — the ceiling now FOLLOWS the
+floor (220 → 201 → 194 → 179 → 173 → 166 → 164 → 156), because a ceiling that stays put while the
 surface shrinks permits exactly what the program exists to remove — and the run
 engine's own ratchet requires that it reads the run's context through the
 module.
@@ -800,7 +823,7 @@ Root package, grouped by concern; every non-test file is listed.
 | `code_execution.go` | The host's code-execution port: the `CodeExecutor` interface and `SetConductorExec` (the injection point the daemon uses, unchanged), plus the invocation-local `code_exec` adapter around the existing `CodeExecutor`/`ScriptRunner`; trusted code.exec capability/effects, shared invoker and unique IDs, actual executor-entry marker for Conductor `Ran`. Does not register/replace a tool or change sandbox/network settings. The reasoning module reaches it through its `RunCode` port, so the run keeps the host's policy checks and audit arc (W3.1). |
 | `toolsearch.go` | `tool_search` deferred-catalog tool (`withToolSearch`, lexical scoring; default 8, max 20 results). |
 | `scripttool.go` | The daemon's face over the **script-tool forge**: the forge's FILE (the contract's store port `toolforgeapi.HostStore` — W3.45) and the module's FACE (`ForgeRunner`). The **lifecycle** is the extensions module's (W3.76t): the module answers in the contract's names (`DraftScriptTool`, `UpdateScriptTool`, `TestScriptTool`, `RequestToolPromotion`, `PromoteScriptTool`, `QuarantineScriptTool`, `RemoveScriptTool` — with `scripttool.*` events and the `toolforge.promote` approval capability) and the daemon's seven forwarders are gone. `mergeScriptTools` folds the promoted scripts into a run's tool map. |
-| `mcptool.go` | MCP lifecycle: `AddMCPServer`, `SetMCPServerEnabled`, `AttachMCPServer` (through the **injected** `mcpapi.Dialer` / `mcpapi.HTTPDialer` seams — the module's clients, which the kernel may not name; a kernel with no dialer refuses), `DetachMCPServer`, `RemoveMCPServer`, `AttachEnabledMCPServers`, `MCPAttached`, `MCPReader`, `closeMCPConns`. |
+| `mcptool.go` | The daemon's face over the **MCP registry**: the registry's FILE (the contract's store port `mcpapi.Registry` — the composition root opens it, W3.58), its nil-safe READ GATES (`MCPReader`, `MCPRegistrationCount`) and the module's FACE (`MCPRegistryService`). The **lifecycle** is the extensions module's (W3.71, W3.76w): the module answers in the contract's names (`AddMCPServer`, `SetMCPServerEnabled`, `AttachMCPServer` — through the **injected** `mcpapi.Dialer` / `mcpapi.HTTPDialer` seams, the module's clients, which the kernel may not name; a kernel with no dialer refuses — `DetachMCPServer`, `RemoveMCPServer`, `AttachEnabledMCPServers`, `MCPAttached`, `MCPServers`, `MCPServer`) and the daemon's nine forwarders and readers are gone. `closeMCPConns` asks the module to close every live attachment. |
 | `mcptool_bridge.go` | `mcpToolName`, `mergeMCPTools`, `bridgedMCPTool`, `lazyMCPDispatch`. |
 | `subagent.go` | `subAgentTool` struct (run/spawn closures). |
 | `subagent_tool.go` | `delegate`/`delegate_await` Definition and Invoke, `spawnHandle`, `subAgentPrep`. |

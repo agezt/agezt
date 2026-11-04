@@ -82,7 +82,7 @@ func mcpLifecycleNativeFixture(t *testing.T, cmd string) (*runtime.Kernel, *Serv
 	}
 	t.Cleanup(func() { k.Close() })
 	if cmd == CmdMCPDetach || cmd == CmdMCPRemove {
-		if _, _, err := k.AttachMCPServer(context.Background(), "seed", "owned"); err != nil {
+		if _, _, err := k.MCPRegistryService().AttachMCPServer(context.Background(), "seed", "owned"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -128,14 +128,14 @@ func TestMCPLifecycleNativeAuditFailureBlocksAllFiveEffects(t *testing.T) {
 		t.Run(cmd, func(t *testing.T) {
 			k, s, d, p, args, file := mcpLifecycleNativeFixture(t, cmd)
 			rows := k.MCPStore().List()
-			attached := k.MCPAttached()
+			attached := k.MCPRegistryService().MCPAttached()
 			disk, _ := os.ReadFile(file)
 			if err := k.Journal().Close(); err != nil {
 				t.Fatal(err)
 			}
 			reply := mcpLifecycleNativeReply(t, context.Background(), s, cmd, args)
 			after, _ := os.ReadFile(file)
-			if reply.Type != RespError || !strings.Contains(reply.Error, "journal") || !reflect.DeepEqual(rows, k.MCPStore().List()) || !reflect.DeepEqual(attached, k.MCPAttached()) || !bytes.Equal(disk, after) || d.calls != 0 || d.peer.closed || d.peer.calls != 0 || p.CallCount() != 0 {
+			if reply.Type != RespError || !strings.Contains(reply.Error, "journal") || !reflect.DeepEqual(rows, k.MCPStore().List()) || !reflect.DeepEqual(attached, k.MCPRegistryService().MCPAttached()) || !bytes.Equal(disk, after) || d.calls != 0 || d.peer.closed || d.peer.calls != 0 || p.CallCount() != 0 {
 				t.Fatalf("EXPECTED:audit admission blocks every effect ACTUAL:reply=%+v dial=%d closed=%v", reply, d.calls, d.peer.closed)
 			}
 		})
@@ -146,7 +146,7 @@ func TestMCPLifecycleNativeCanceledAdmissionBlocksAllFiveEffects(t *testing.T) {
 		t.Run(cmd, func(t *testing.T) {
 			k, s, d, p, args, file := mcpLifecycleNativeFixture(t, cmd)
 			rows := k.MCPStore().List()
-			attached := k.MCPAttached()
+			attached := k.MCPRegistryService().MCPAttached()
 			disk, _ := os.ReadFile(file)
 			seq, hash := k.Journal().Head()
 			ctx, cancel := context.WithCancel(context.Background())
@@ -154,7 +154,7 @@ func TestMCPLifecycleNativeCanceledAdmissionBlocksAllFiveEffects(t *testing.T) {
 			reply := mcpLifecycleNativeReply(t, ctx, s, cmd, args)
 			after, _ := os.ReadFile(file)
 			newSeq, newHash := k.Journal().Head()
-			if reply.Type != RespError || !strings.Contains(reply.Error, "context canceled") || !reflect.DeepEqual(rows, k.MCPStore().List()) || !reflect.DeepEqual(attached, k.MCPAttached()) || !bytes.Equal(disk, after) || d.calls != 0 || d.peer.closed || d.peer.calls != 0 || p.CallCount() != 0 || seq != newSeq || hash != newHash {
+			if reply.Type != RespError || !strings.Contains(reply.Error, "context canceled") || !reflect.DeepEqual(rows, k.MCPStore().List()) || !reflect.DeepEqual(attached, k.MCPRegistryService().MCPAttached()) || !bytes.Equal(disk, after) || d.calls != 0 || d.peer.closed || d.peer.calls != 0 || p.CallCount() != 0 || seq != newSeq || hash != newHash {
 				t.Fatalf("EXPECTED:canceled admission blocks every effect ACTUAL:reply=%+v dial=%d closed=%v seq=%d/%d", reply, d.calls, d.peer.closed, seq, newSeq)
 			}
 		})
@@ -234,8 +234,8 @@ func TestMCPLifecycleNativeAttachDeadlineStopsBeforeAttachment(t *testing.T) {
 	defer cancel()
 	reply := mcpLifecycleNativeReply(t, ctx, s, CmdMCPAttach, args)
 	after, _ := os.ReadFile(file)
-	if reply.Type != RespError || !strings.Contains(reply.Error, "context deadline exceeded") || d.calls != 1 || d.peer.closed || !reflect.DeepEqual(before, k.MCPStore().List()) || !bytes.Equal(disk, after) || len(k.MCPAttached()) != 0 || p.CallCount() != 0 {
-		t.Fatal(reply, d.calls, k.MCPAttached())
+	if reply.Type != RespError || !strings.Contains(reply.Error, "context deadline exceeded") || d.calls != 1 || d.peer.closed || !reflect.DeepEqual(before, k.MCPStore().List()) || !bytes.Equal(disk, after) || len(k.MCPRegistryService().MCPAttached()) != 0 || p.CallCount() != 0 {
+		t.Fatal(reply, d.calls, k.MCPRegistryService().MCPAttached())
 	}
 	rows, _ := k.Journal().Tail(100)
 	var events []*event.Event
