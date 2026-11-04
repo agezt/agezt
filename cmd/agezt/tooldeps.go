@@ -263,17 +263,29 @@ func mcpPort(k *runtime.Kernel) mcpapi.Runner {
 	return svc
 }
 
-// standingPort hands the kernel's standing orders to the tool registry as
-// the contract's port (W3.39d) — the standing-orders tool journals, removes
+// standingPort hands the standing library to the tool registry as the
+// contract's port (W3.39d) — the standing-orders tool journals, removes
 // and lists them through it.
 //
-// The same nil-port rule: a nil kernel handed to an interface parameter is a
-// non-nil interface, and the tool would bind a host that is not there.
+// The port is the STANDING LIBRARY's SERVICE under the contract's port
+// (W3.76x): the daemon used to spell the library's operations out itself
+// (`AddStanding`, `RemoveStanding`, `StandingList`) and the tool called the
+// daemon. The library's operations are the library's, and the library
+// answers in the contract's names — so the library's service satisfies the
+// contract's port directly, with no adapter in between.
+//
+// The same nil-port rule: a nil kernel — or a daemon that holds no standing
+// library — handed to an interface parameter is a non-nil interface, and the
+// tool would bind a host that is not there.
 func standingPort(k *runtime.Kernel) standingapi.Host {
 	if k == nil {
 		return nil
 	}
-	return k
+	svc := k.StandingService()
+	if svc == nil {
+		return nil
+	}
+	return svc
 }
 
 // agentLookup hands the daemon's roster lookup to the tool registry as a

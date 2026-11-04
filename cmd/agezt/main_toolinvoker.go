@@ -10,7 +10,9 @@ import (
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/kernel/modules/agents/reaper"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
@@ -149,6 +151,19 @@ func openAppKernel(cfg kernelruntime.Config) (*kernelruntime.Kernel, error) {
 			return nil, err
 		}
 		cfg.Standing = store
+	}
+	if cfg.StandingBuilder == nil {
+		// The standing library's SERVICE (W3.76x) — the library's lifecycle.
+		//
+		// The library's rules and its operations live in the standing
+		// package; the daemon holds the library's FACE. The daemon hands over
+		// the BUILDER (it names the package), and the kernel calls it with the
+		// store above and its own publisher — so every standing transition
+		// journals through the kernel's bus without either side naming the
+		// other's implementation.
+		cfg.StandingBuilder = func(store standingapi.Store, publish func(event.Spec)) standingapi.Lifecycle {
+			return standing.NewService(standing.Dependencies{Store: store, Publish: publish})
+		}
 	}
 	if cfg.CatalogStore == nil {
 		// The catalog directory (W3.51) — the contract's store port. The

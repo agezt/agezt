@@ -478,7 +478,7 @@ func TestStandingFire(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("worker add: %v", err)
 	}
-	if _, _, err := k.UpdateStanding(id, func(o *standing.Order) {
+	if _, _, err := k.StandingService().UpdateStanding(id, func(o *standing.Order) {
 		o.Agent = "worker"
 	}); err != nil {
 		t.Fatalf("force corrupt standing agent: %v", err)

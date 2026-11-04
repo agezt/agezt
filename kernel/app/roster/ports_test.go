@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/internal/testfixtures"
 	core "github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/standing"
@@ -40,6 +41,9 @@ func TestTheProfilePortsReachTheKernelProfiles(t *testing.T) {
 		// builder too.
 		RosterService: core.NewService,
 		Standing:      standingStore,
+		// The standing library's LIFECYCLE is the standing package's
+		// (W3.76x): the host hands the kernel the library's builder too.
+		StandingBuilder: testfixtures.StandingBuilder,
 	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -122,7 +126,7 @@ func TestTheProfilePortsReachTheKernelProfiles(t *testing.T) {
 	}
 
 	// What depends on the agent: the standing orders that fire as it.
-	if _, err := k.AddStanding(standing.Order{
+	if _, err := k.StandingService().AddStanding(standing.Order{
 		Name:     "watch",
 		Triggers: []standing.Trigger{{Type: standing.TriggerEvent, Subject: "x.y"}},
 		Agent:    "lead",

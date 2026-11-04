@@ -21,6 +21,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/internal/testfixtures"
 	"github.com/agezt/agezt/kernel/modules/agents/reaper"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
@@ -265,6 +266,13 @@ func startPairWithConfigAndDeps(t *testing.T, cfg runtime.Config, deps func(dir 
 			t.Fatalf("open the standing store: %v", err)
 		}
 		cfg.Standing = standingstore
+	}
+	// The standing library's LIFECYCLE is the standing package's (W3.76x):
+	// the daemon holds the library's FACE, and the face is what journals
+	// every standing transition. The host hands the kernel the builder the
+	// way the composition root does.
+	if cfg.StandingBuilder == nil {
+		cfg.StandingBuilder = testfixtures.StandingBuilder
 	}
 	// The memory's file is the composition root's too (W3.57): the kernel
 	// holds the contract's ports, and the root opens the file and names the

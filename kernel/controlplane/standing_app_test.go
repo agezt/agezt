@@ -6,6 +6,7 @@ import (
 	"github.com/agezt/agezt/kernel/app/binding"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/internal/testfixtures"
 	"github.com/agezt/agezt/kernel/platform/schema"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/standing"
@@ -33,12 +34,12 @@ func standingAppFixture(t *testing.T) (*runtime.Kernel, *Server, string, *mock.P
 	if err != nil {
 		t.Fatal(err)
 	}
-	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, Standing: store})
+	k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: provider, Standing: store, StandingBuilder: testfixtures.StandingBuilder})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
-	order, err := k.AddStanding(standing.Order{Name: "owned", Triggers: []standing.Trigger{{Type: standing.TriggerEvent, Subject: "fixture"}}})
+	order, err := k.StandingService().AddStanding(standing.Order{Name: "owned", Triggers: []standing.Trigger{{Type: standing.TriggerEvent, Subject: "fixture"}}})
 	if err != nil {
 		t.Fatal(err)
 	}

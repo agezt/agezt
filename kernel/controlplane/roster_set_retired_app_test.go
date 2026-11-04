@@ -16,6 +16,7 @@ import (
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
+	"github.com/agezt/agezt/kernel/internal/testfixtures"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/standing"
@@ -58,7 +59,13 @@ func TestAgentRetireReviveNativePorts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	k, err := runtime.Open(withRoster(t, runtime.Config{BaseDir: dir, Provider: mock.New(), Schedules: sched, Standing: standingStore}))
+	k, err := runtime.Open(withRoster(t, runtime.Config{
+		BaseDir:         dir,
+		Provider:        mock.New(),
+		Schedules:       sched,
+		Standing:        standingStore,
+		StandingBuilder: testfixtures.StandingBuilder,
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +73,7 @@ func TestAgentRetireReviveNativePorts(t *testing.T) {
 	if _, err := k.AddProfile(roster.Profile{Slug: "lead", Soul: "s"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := k.AddStanding(standing.Order{Name: "watch", Triggers: []standing.Trigger{{Type: standing.TriggerEvent, Subject: "x.y"}}, Agent: "lead", Plan: "do"}); err != nil {
+	if _, err := k.StandingService().AddStanding(standing.Order{Name: "watch", Triggers: []standing.Trigger{{Type: standing.TriggerEvent, Subject: "x.y"}}, Agent: "lead", Plan: "do"}); err != nil {
 		t.Fatal(err)
 	}
 	// Distinct counts (one standing order, two schedules) keep the ports apart.

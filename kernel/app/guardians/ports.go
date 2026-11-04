@@ -25,17 +25,14 @@ import (
 //
 // The refusals are written **once**, here, and the host does not spell them
 // again.
+//
+// The STANDING refusal is the CONTRACT's row (standingapi.ErrNoLibrary): the
+// standing library's absence is one fact, and the library raises the same row
+// (W3.76x) — so the seeder and the library say the same thing and a caller
+// compares with errors.Is. The SCHEDULE refusal stays here: the schedule
+// library has no contract row of its own yet.
 
 var (
-	// errNoStandingLibrary is the answer the guardian host gives when the
-	// daemon holds no standing library.
-	//
-	// The standing library is the daemon's file (W3.50): the kernel holds
-	// the contract's store port, and a daemon that was given none holds a nil
-	// port. The refusal is the answer — not a panic, and not a silent
-	// "nothing to do".
-	errNoStandingLibrary = errors.New("guardians: the standing library is not available on this daemon")
-
 	// errNoScheduleLibrary is the answer the guardian host gives when the
 	// daemon holds no schedule library.
 	//
@@ -87,22 +84,25 @@ func PortsFromKernel(k *runtime.Kernel) Ports {
 			return k.Standing().List()
 		},
 		addOrder: func(o standingapi.Order) (standingapi.Order, error) {
-			if k.Standing() == nil {
-				return standingapi.Order{}, errNoStandingLibrary
+			svc := k.StandingService()
+			if svc == nil {
+				return standingapi.Order{}, standingapi.ErrNoLibrary
 			}
-			return k.Standing().Add(o)
+			return svc.AddStanding(o)
 		},
 		editOrder: func(id string, mutate func(*standingapi.Order)) (standingapi.Order, bool, error) {
-			if k.Standing() == nil {
-				return standingapi.Order{}, false, errNoStandingLibrary
+			svc := k.StandingService()
+			if svc == nil {
+				return standingapi.Order{}, false, standingapi.ErrNoLibrary
 			}
-			return k.UpdateStanding(id, mutate)
+			return svc.UpdateStanding(id, mutate)
 		},
 		setOrder: func(id string, enabled bool) (standingapi.Order, error) {
-			if k.Standing() == nil {
-				return standingapi.Order{}, errNoStandingLibrary
+			svc := k.StandingService()
+			if svc == nil {
+				return standingapi.Order{}, standingapi.ErrNoLibrary
 			}
-			return k.SetStandingEnabled(id, enabled)
+			return svc.SetStandingEnabled(id, enabled)
 		},
 		entries: func() []cadenceapi.Entry {
 			if k.Schedules() == nil {
@@ -188,7 +188,7 @@ func (p Ports) Orders() []standingapi.Order {
 // AddOrder creates a standing order.
 func (p Ports) AddOrder(order standingapi.Order) (standingapi.Order, error) {
 	if p.addOrder == nil {
-		return standingapi.Order{}, errNoStandingLibrary
+		return standingapi.Order{}, standingapi.ErrNoLibrary
 	}
 	return p.addOrder(order)
 }
@@ -196,7 +196,7 @@ func (p Ports) AddOrder(order standingapi.Order) (standingapi.Order, error) {
 // EditOrder edits the order named by id.
 func (p Ports) EditOrder(id string, mutate func(*standingapi.Order)) (standingapi.Order, bool, error) {
 	if p.editOrder == nil {
-		return standingapi.Order{}, false, errNoStandingLibrary
+		return standingapi.Order{}, false, standingapi.ErrNoLibrary
 	}
 	return p.editOrder(id, mutate)
 }
@@ -204,7 +204,7 @@ func (p Ports) EditOrder(id string, mutate func(*standingapi.Order)) (standingap
 // SetOrderEnabled pauses or resumes an order.
 func (p Ports) SetOrderEnabled(id string, enabled bool) (standingapi.Order, error) {
 	if p.setOrder == nil {
-		return standingapi.Order{}, errNoStandingLibrary
+		return standingapi.Order{}, standingapi.ErrNoLibrary
 	}
 	return p.setOrder(id, enabled)
 }

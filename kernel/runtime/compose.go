@@ -22,6 +22,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/memoryapi"
 	"github.com/agezt/agezt/kernel/contract/skillapi"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolphaseapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
@@ -199,6 +200,16 @@ func Open(cfg Config) (*Kernel, error) {
 	// standing surfaces report that the library is unavailable rather than
 	// calling into nothing. The daemon's own residents (the event runner and
 	// the cron ticker) are built over that very store after Open.
+	//
+	// The library's LIFECYCLE is the standing package's (W3.76x): the daemon
+	// hands over the BUILDER (it names the package), and the kernel calls it
+	// with the store above and its own publisher — so every standing
+	// transition journals through the kernel's bus without either side naming
+	// the other's implementation.
+	var standingSvc standingapi.Lifecycle
+	if cfg.Standing != nil && cfg.StandingBuilder != nil {
+		standingSvc = cfg.StandingBuilder(cfg.Standing, mcpPublisher{b: kbus}.Publish)
+	}
 
 	// Durable in-flight-run tickets (M1002): opened only when resume is enabled so
 	// a disabled daemon writes nothing. The store just prepares a directory, so a
@@ -435,6 +446,7 @@ func Open(cfg Config) (*Kernel, error) {
 		forge:        forge,
 		skillStore:   cfg.SkillStore,
 		standing:     cfg.Standing,
+		standingSvc:  standingSvc,
 		resume:       rsstore,
 		roster:       cfg.Roster,
 		rosterSvc:    rosterSvc,

@@ -15,10 +15,12 @@ import (
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/contract/datalakeapi"
 	"github.com/agezt/agezt/kernel/contract/remoteapi"
+	"github.com/agezt/agezt/kernel/contract/standingapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/toolforgeapi"
 	"github.com/agezt/agezt/kernel/contract/workboardapi"
 	"github.com/agezt/agezt/kernel/contract/workflowapi"
+	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	extapi "github.com/agezt/agezt/kernel/modules/extensions/api"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
@@ -26,6 +28,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/kernel/modules/workflows/workflow"
 	"github.com/agezt/agezt/kernel/runtime"
+	"github.com/agezt/agezt/kernel/standing"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"github.com/agezt/agezt/plugins/tools/introspecttool"
 )
@@ -579,12 +582,23 @@ func TestToolKernelDepsSuppliesTheMCPAndStandingPorts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open the MCP registry: %v", err)
 	}
+	// The standing library's LIFECYCLE is the standing package's (W3.76x):
+	// the daemon holds the library's FACE, and the face is what the tool
+	// binds — the composition root's wiring, done by hand here.
+	standingStore, err := standing.Open(filepath.Join(t.TempDir(), "standing"))
+	if err != nil {
+		t.Fatalf("open the standing library: %v", err)
+	}
 	k, err := runtime.Open(withMemory(t, withRoster(t, withArtifacts(t, runtime.Config{
 		BaseDir:  t.TempDir(),
 		Provider: mock.New(),
 		MCPStore: store,
 		MCPBuilder: func(deps extapi.MCPRegistryDependencies) extapi.MCPRegistryService {
 			return mcp.NewService(deps)
+		},
+		Standing: standingStore,
+		StandingBuilder: func(store standingapi.Store, publish func(event.Spec)) standingapi.Lifecycle {
+			return standing.NewService(standing.Dependencies{Store: store, Publish: publish})
 		},
 	}))))
 	if err != nil {
@@ -602,8 +616,8 @@ func TestToolKernelDepsSuppliesTheMCPAndStandingPorts(t *testing.T) {
 	if deps.Standing == nil {
 		t.Fatal("the daemon must supply the standing port")
 	}
-	if deps.Standing != k {
-		t.Fatal("the standing port must be the live kernel's")
+	if deps.Standing != k.StandingService() {
+		t.Fatal("the standing port must be the live kernel's standing library face")
 	}
 	if deps.AgentLookup == nil {
 		t.Fatal("the daemon must supply the agent lookup")
