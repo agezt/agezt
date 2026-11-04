@@ -305,7 +305,7 @@ Also: `toolCaps` (read-only after Open); `startTime`. The `suspending atomic.Boo
 
 Goroutines started by the runtime: one per async sub-agent (the delegation engine's `Spawn`), the drain waiters in `Close`/`DrainAndHalt`, and the tool fan-out workers inside `agent.Run`. Everything else runs on the caller's goroutine. The **agentgw listener is not one of them** (W3.67): the gateway is the **daemon's** transport, so the daemon starts it.
 
-**The daemon's public surface — 152 verbs (W3.76x).** The Kernel's exported
+**The daemon's public surface — 148 verbs (W3.76y).** The Kernel's exported
 methods are the host's **doors**: the verbs the layers above call and the
 verbs the daemon's own production paths open. A public verb that nobody
 calls is a second, unreachable copy of a surface, and the target architecture
@@ -476,13 +476,32 @@ port); the **composition root** hands the kernel the library's **builder**
 package's implementation. The daemon's own alias `errNoStandingLibrary` went
 with them, and so did the guardians application's own spelling of the same
 refusal — the missing library is one fact, and one row has one home:
-**156 → 152** public verbs, **5,704 → 5,657** production lines. The daemon
+**156 → 152** public verbs, **5,704 → 5,657** production lines. W3.76y retired
+**five** more — the **roster's** lifecycle is the **agents module's**, and the
+daemon held **five** verbs over the module's own operations (`AddProfile`,
+`SetProfileEnabled`, `SetProfileRetired`, `UpdateProfile`, `RemoveProfile`):
+a third spelling of one family, because the module's service already answered
+the **contract's** names (`Add`, `SetEnabled`, `SetRetired`, `Update`,
+`Remove`). The daemon keeps the roster's **FILE** (`Roster` — the contract's
+store port), its **read gates** (`RosterGet`, `RosterList` — the host's
+nil-safe view) and the read that answers what depends on an agent
+(`AgentImpact` — the standing orders are another domain's rows, so that read
+stayed with the host), and it hands over the module's **FACE**
+(`RosterService`). The **contract did not move at all**: it already named the
+family, and the refusal row (`agentapi.ErrNoRoster`) was already there. The
+**applications** bind the face — the roster application (the control plane's
+roster handlers), the overseer (the fleet's supervision), the config tool's
+adapter (the agent-scoped write path the plugin reaches) and the guardian
+seeder — and they became **nil-safe**: a daemon with no roster holds no face,
+and the writes refuse with the contract's row instead of calling into nothing;
+the agents module's own **self-repair** asks the same face. **156 → 148**
+public verbs, **5,657 → 5,635** production lines. The daemon
 keeps the doors a **module** needs without naming the runs
 module (`WithAgentProfile`, `WithMaxCost`) and the host's own state (the
 effective config, the resume ticket, the seed). The surface is **pinned**:
 `kernel/runtime/dead_surface_ratchet_test.go` fails if a retired name comes
-back or if the public surface grows past **152** — the ceiling now FOLLOWS the
-floor (220 → 201 → 194 → 179 → 173 → 166 → 164 → 156 → 152), because a ceiling that stays put while the
+back or if the public surface grows past **148** — the ceiling now FOLLOWS the
+floor (220 → 201 → 194 → 179 → 173 → 166 → 164 → 156 → 152 → 148), because a ceiling that stays put while the
 surface shrinks permits exactly what the program exists to remove — and the run
 engine's own ratchet requires that it reads the run's context through the
 module.
@@ -797,7 +816,7 @@ Root package, grouped by concern; every non-test file is listed.
 | `compose_close.go` | `Close` (Suspend, Halt, bounded drain, MCP detach, store close), `closeAll`. |
 | `runtime_accessors.go` | Simple getters (Journal, Bus, State, Edict, Warden, Approvals, Scheduler, Provider, Memory, AgentGateway, Schedules, Tools), `ErrHalted`. |
 | `runtime_lifecycle.go` | KernelAPI wrappers for lifecycle/runner (`Halted`, `RunsMu`, `RunWG`, `SetupRunState`, `CleanupRunState`, `DeregisterRunSteer`, `PublishBus`, …) and the public lifecycle API (`Halt`, `HaltWith`, `DrainAndHalt`, `CancelRun`, `Resume`, `ActiveRuns`, `NewCorrelation`, `SubjectForRun`). |
-| `accessors.go`, `accessors_ctx.go`, `accessors_misc.go`, `accessors_roster.go`, `accessors_standing.go` | Read/mutate surface: schedule engine, world/forge/market, ctx-derived getters for the run engine (`WakeContext*`, `ImagesFromCtx`, `ResumeSeedFromCtx`, …), `Model/SetModel`, `System/SetSystem` (live, configMu), `Catalog/ReloadCatalog/Reload` (calls `OnReload`), `LoopRunner`, `RunPlan`, `SubAgentLimits`, roster CRUD (`AddProfile`, `UpdateProfile`, `SetProfileRetired`, `AgentImpact`) with `roster.*` events, and the daemon's face over the **standing library**: its FILE (`Standing` — the contract's store port) and the library's FACE (`StandingService`). The library's **lifecycle is the standing package's** (W3.76x) — the package answers in the contract's names (`AddStanding`, `SetStandingEnabled`, `UpdateStanding`, `RemoveStanding`, `StandingList` — with the `standing.*` events) and the daemon's five verbs are gone. |
+| `accessors.go`, `accessors_ctx.go`, `accessors_misc.go`, `accessors_roster.go`, `accessors_standing.go` | Read/mutate surface: schedule engine, world/forge/market, ctx-derived getters for the run engine (`WakeContext*`, `ImagesFromCtx`, `ResumeSeedFromCtx`, …), `Model/SetModel`, `System/SetSystem` (live, configMu), `Catalog/ReloadCatalog/Reload` (calls `OnReload`), `LoopRunner`, `RunPlan`, `SubAgentLimits`, roster reads (`RosterGet`, `RosterList`, `AgentImpact`) and the daemon's face over the **standing library**: its FILE (`Standing` — the contract's store port) and the library's FACE (`StandingService`). The library's **lifecycle is the standing package's** (W3.76x) — the package answers in the contract's names (`AddStanding`, `SetStandingEnabled`, `UpdateStanding`, `RemoveStanding`, `StandingList` — with the `standing.*` events) and the daemon's five verbs are gone. The **roster's** half of the file is the same shape (W3.76y): the roster's FILE (`Roster` — the contract's store port), its read gates (`RosterGet`, `RosterList`), the impact read (`AgentImpact`) and the agents module's FACE (`RosterService`); the roster's lifecycle is the module's — it publishes the `roster.*` events — and the daemon's five verbs (`AddProfile`, `SetProfileEnabled`, `SetProfileRetired`, `UpdateProfile`, `RemoveProfile`) are gone. |
 | `toolseams.go` | Aliases `Reranker`, `ImageGen`, `Voice` to the contract's seam rows (`kernel/contract/mediaapi` — W3.44). |
 | `taste.go` | `Taste()` (the contract's `tasteapi.Store` port — W3.52) and `Seats()` getters. |
 | `world_publisher.go` | The adapter that turns the kernel's bus into the contract's publisher port (W3.54) — it answers with the event's id, which is the graph's provenance. |
