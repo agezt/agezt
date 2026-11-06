@@ -19,13 +19,23 @@
 // *Kernel.Run / RunAssured / RunWith / RunWithRetry entry points and the
 // run-state setup — and the module keeps the engine.
 //
+// W3.76ac moved the run doors themselves into the module's own face
+// (api.RunnerService), and W3.76ae moved the run's live STATE — the
+// steering registry and the per-run setup and cleanup — into the module's
+// own state package (kernel/modules/runs/state). What is left of the seam
+// is what the HOST owns: the correlation id a run carries, the resume
+// handshake, the prompt assembly and the retry policy reads.
+//
 // The lock-ordering invariant documented on Kernel is the load-bearing
 // constraint: any new locking site added in this package MUST respect
 //
-//	configMu (light config) < runsMu < fanoutMu < treeMu < steersMu < spawnsMu
+//	registry lock < configMu < the live-run state's own lock
 //
-// The deferred cleanup in RunWith takes all five (runsMu → fanoutMu → treeMu
-// → steersMu → spawnsMu) in this exact order and releases them in reverse.
+// The live-run state's own lock is the module's own (W3.76ae): the steering
+// registry and the per-run registration live in kernel/modules/runs/state,
+// and that package takes its lock INSIDE the registry's lock. The deferred
+// cleanup in RunWith releases the run's live state through the module's
+// state package, in that order.
 //
 // Circular-import guard: like the loop, the runner does not import the
 // daemon. Every method the Runner calls has a counterpart on the host's

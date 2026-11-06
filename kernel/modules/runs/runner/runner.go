@@ -21,6 +21,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/runs/api"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
 	"github.com/agezt/agezt/kernel/modules/runs/runctx"
+	"github.com/agezt/agezt/kernel/modules/runs/state"
 	"github.com/agezt/agezt/kernel/warden"
 )
 
@@ -31,27 +32,19 @@ import (
 // Lock-ordering invariant: every site that takes a mutex must
 // honour the order documented on the Kernel struct
 //
-//	configMu < runsMu < fanoutMu < treeMu < steersMu < spawnsMu
+//	registry lock < configMu < the live-run state's own lock
 //
-// Day 22's Run / RunAssured don't take any of those mutexes
-// directly. Day 23 adds RunWithRetry (no mutex — just ctx /
-// journal / bus / resume-ticket calls, all reachable through
-// KernelAPI) and the journal re-exports (Why / Causes /
-// ParentOf / Verify, all delegations to the host's journal).
+// The live-run state's own lock is the MODULE's own (W3.76ae): the
+// steering registry and the per-run registration live in
+// kernel/modules/runs/state, and that package takes its lock INSIDE the
+// registry's lock. The engine asks the module's state package for the
+// run's setup and cleanup; it does not ask the host for them.
 //
-// RunWith body stays on *Kernel for Day 23. The body needs
-// ~30 private field/method accesses (k.halted, k.runs, k.runsMu,
-// k.steers, k.fanout, k.tree, k.spawns and the matching mutexes,
-// k.claimResumeTicket, k.completeAux, k.buildLoopConfig, the
-// ctxKey* values, the runctx helpers, etc.). The runexec
-// package cannot import kernel/runtime (cycle — kernel/runtime
-// already imports runexec for Runner construction), so the
-// only paths to move RunWith are (a) bloat the KernelAPI
-// interface to ~80 metot, or (b) break the cycle by relocating
-// the construction site out of compose.go. Both are out of
-// scope for Day 23's lock-ordering refactor; the day ships
-// the methods that are reachable today and records the gap
-// for a future slice.
+// The engine's body needs the host's own bookkeeping through KernelAPI
+// (the resume ticket, the prompt assembly, the roster, the retry policy)
+// and the module's own state for the run's live state. That split is
+// deliberate: the host keeps what is the HOST's vocabulary, the module
+// keeps what is the MODULE's.
 type Runner struct {
 	k KernelAPI
 
@@ -66,6 +59,17 @@ type Runner struct {
 	// nil means the host wired no roster service: the run engine simply has
 	// no roster to write, which is the same answer the host gave.
 	roster agentsapi.RosterService
+
+	// runState is the RUNS MODULE's live-run state (W3.76ae): the steering
+	// registry and the per-run registration.
+	//
+	// The run's setup and cleanup used to be the host's own verbs, and the
+	// engine asked the host for them through its port — a round trip inside
+	// one module. The state is the module's, so the engine asks the module.
+	//
+	// nil means the host wired no live-run state: the engine cannot start a
+	// run, and it says so instead of registering nothing.
+	runState *state.State
 }
 
 // The run engine answers the module's own PORT (W3.76ac): the run engine is
@@ -77,8 +81,12 @@ var _ api.RunnerService = (*Runner)(nil)
 // is a stateless value around it.
 //
 // roster is the agents module's roster service — the module the run engine
-// asks when it writes the roster (W3.76o).
-func New(k KernelAPI, roster agentsapi.RosterService) *Runner { return &Runner{k: k, roster: roster} }
+// asks when it writes the roster (W3.76o). runState is the module's own
+// live-run state — the module the run engine asks when it registers and
+// releases a run (W3.76ae).
+func New(k KernelAPI, roster agentsapi.RosterService, runState *state.State) *Runner {
+	return &Runner{k: k, roster: roster, runState: runState}
+}
 
 // Run executes one tool-loop end-to-end and returns (answer,
 // corr, err). It mints a correlation ID internally; for the
@@ -106,17 +114,20 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	if corr == "" {
 		return "", errors.New("runner: correlation id required")
 	}
-	runCtx, cancel, steer, err := r.k.SetupRunState(corr, ctx)
+	if r.runState == nil {
+		return "", errors.New("runner: the live-run state is not available")
+	}
+	runCtx, cancel, steer, err := r.runState.SetupRunState(corr, ctx)
 	if err != nil {
 		return "", err
 	}
 	_ = steer // wired into LoopConfig.Steer further down
 
 	// Deferred cleanup (Day 34): the 5-mutex dance is encapsulated
-	// in r.k.CleanupRunState; we just iterate the orphan cancels
+	// in the module's live-run state; we just iterate the orphan cancels
 	// and call the runCtx cancel.
 	defer func() {
-		orphans := r.k.CleanupRunState(corr)
+		orphans := r.runState.CleanupRunState(corr)
 		for _, c := range orphans {
 			c()
 		}
@@ -223,7 +234,7 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	}
 
 	// Deregister the steering control the instant the agent loop returns.
-	r.k.DeregisterRunSteer(corr)
+	r.runState.DeregisterRunSteer(corr)
 
 	// Attribute the run's outcome to the skills it activated.
 	if r.k.Forge() != nil && len(activatedSkillIDs) > 0 {

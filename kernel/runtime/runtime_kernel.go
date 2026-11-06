@@ -45,6 +45,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/runs/registry"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
 	"github.com/agezt/agezt/kernel/modules/runs/runner"
+	runstate "github.com/agezt/agezt/kernel/modules/runs/state"
 	"github.com/agezt/agezt/kernel/modules/runs/steer"
 	workapi "github.com/agezt/agezt/kernel/modules/work/api"
 	"github.com/agezt/agezt/kernel/reflect"
@@ -221,26 +222,35 @@ type Kernel struct {
 
 	// Fine-grained mutexes to reduce lock contention. Lock ordering to prevent
 	// deadlocks (always acquire in this order):
-	//   configMu (light config) < registry.Lock < steersMu
+	//   configMu (light config) < registry.Lock < the live-run state's lock
 	//
 	// The delegation engine's own tallies (fan-out, tree total, async spawn
 	// handles) moved to the runs module in W3.76f; its lock is a LEAF — the
 	// module never calls back into the daemon while holding it.
 	configMu sync.Mutex // guards: system, model, cfg, catalog, schedEngine, mcp
-	steersMu sync.Mutex
 
 	// registry is the runs module's live-run registry (W3.76d): the running
 	// correlations, their cancels, the halt latch, the drain accounting and
 	// the suspend latch. It is the module's own store — the target
 	// architecture gives "run registry" to the runs module — and its lock is
 	// the OUTERMOST of the daemon's: the compound cleanups below hold it
-	// across the fan-out, tree, steer and spawn locks.
+	// across the delegation engine's leaf locks.
 	registry *registry.Registry
 
-	system   string                    // live daemon default identity / system prompt (M710); seeded from cfg.System, editable at runtime
-	model    string                    // live default model id (M816); seeded from cfg.Model, hot-swapped on provider reload
-	steers   map[string]*steer.Control // correlation_id → live-steering control surface (M608)
-	steerSvc *steer.Service            // the runs module's steering service (W3.76b)
+	// runState is the RUNS MODULE's live-run state (W3.76ae,
+	// kernel/modules/runs/state): the steering registry (the live control of
+	// every run in flight) and the per-run registration the run engine asks
+	// for. The daemon held both — the `steers` map behind its own mutex, and
+	// the three verbs that created and released it — while the run engine,
+	// which lives inside that module, asked the host for them through its
+	// port. The module owns them now; the daemon holds the state to wire the
+	// module's steering service, the delegation engine's child runs and the
+	// shutdown broadcast to it.
+	runState *runstate.State
+
+	system   string         // live daemon default identity / system prompt (M710); seeded from cfg.System, editable at runtime
+	model    string         // live default model id (M816); seeded from cfg.Model, hot-swapped on provider reload
+	steerSvc *steer.Service // the runs module's steering service (W3.76b)
 
 	// toolCaps is the validated declared-capability overlay (M900): tool name
 	// → Edict capability, consulted by policyHook before the built-in
@@ -254,4 +264,6 @@ type Kernel struct {
 // The run-lifecycle surface (Halt/Resume/Cancel/Drain) is the runs module's
 // (kernel/modules/runs/lifecycle), and the live-run registry it manages is
 // the module's store (kernel/modules/runs/registry). The daemon keeps only
-// the DOORS over them: the verbs below and the Kernel's own run state.
+// the DOORS over them: the verbs below and the store handle the module
+// registers the live runs through. The run's live STATE is the module's own
+// (kernel/modules/runs/state, W3.76ae).

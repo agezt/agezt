@@ -719,10 +719,15 @@ func personaOwnedVerbs(t *testing.T) []string {
 // The rule is by WORD: a kernel verb whose name carries "State" as a whole
 // word is the state family's business.
 //
-// TWO verbs carry it and are NOT the state family's: "CleanupRunState" and
-// "SetupRunState" are the RUN family's business — the state a run leaves
+// TWO verbs carried it and were NOT the state family's: "CleanupRunState" and
+// "SetupRunState" were the RUN family's business — the state a run leaves
 // behind and the control that stops it. A rule that swept them in would make
 // the state family claim two other families' verbs.
+//
+// Both are GONE now (W3.76ae): the run's live state is the runs module's own
+// (kernel/modules/runs/state), and the daemon holds no verb per run-state
+// operation. The exclusion stays written down — a verb that comes back must
+// not fall into the state family's lap either.
 //
 // The third one — "RunControlState" — is GONE (W3.76z): the steering family
 // is the runs module's, and the daemon held no verb per steering operation
@@ -2482,6 +2487,11 @@ func TestTheStateFamilyClaimsNoOtherFamilysVerbs(t *testing.T) {
 	// And the RUN's state verbs are the run's own: the state a run leaves
 	// behind and the control that stops it are the run family's business, and
 	// the state family's rule says so out loud.
+	//
+	// Both verbs are GONE (W3.76ae): the run's live state is the runs
+	// module's own, and the daemon holds no verb per run-state operation. The
+	// check stays: a verb that comes back must not fall into the state
+	// family's lap.
 	//
 	// "RunControlState" is not in the list any more: the steering family is
 	// the runs module's (W3.76z), and the daemon held no verb per steering

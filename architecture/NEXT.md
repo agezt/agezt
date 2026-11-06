@@ -14584,3 +14584,94 @@ func main() {
   is a path move (four production importers), not a lifecycle one.
   Evidence:
   `architecture/303-w376ad-the-journals-provenance-walks-lose-their-second-and-third-spellings-evidence.md`
+- W3.76ae (the run's live state moves into the runs module) is the
+  **thirty-ninth** slice of the runtime's dissolution.
+
+  A run in flight has a **live state**: it is registered in the live-run
+  registry, it holds a cancel func, a drain ticket and a **steering control**
+  an operator can pause, step or steer from another goroutine.
+
+  That state was the **daemon's**: the `k.steers` map behind the daemon's own
+  `steersMu`, and the three verbs that created and released it
+  (`SetupRunState`, `CleanupRunState`, `DeregisterRunSteer`) with their bodies
+  in the daemon's `runner_lifecycle.go`. And the run engine — which lives
+  **inside** the runs module — asked the **host** for all three through its
+  `KernelAPI` port: a **round trip inside one module**, a promise the host
+  never had to keep. Worse, the objects were the module's own: the live
+  steering controls are `steer.Control` — the runs module's type — and the
+  module's **own steering service** asked the **host** for them back.
+
+  The slice moved them into a new package, **`kernel/modules/runs/state`** —
+  the runs module's live-run state: the steering registry, the per-run
+  registration (the halted check, the duplicate-correlation guard, the tenant
+  and auto-approve decoration, the run's deadline, the registry entry, the
+  drain accounting), the per-run cleanup, the child runs' steering
+  registration and the shutdown broadcast.
+
+  The daemon keeps the **store handle** (`k.registry`) and hands the module
+  its own configuration (the tenant, the operator's auto-approve grant, the
+  run ceiling); the module reaches the delegation engine through a
+  `Delegation` **port** — it does not import the delegation package, so there
+  is no cycle. The daemon's three verbs and its steering map are gone, and
+  the run engine asks the module: `r.runState.SetupRunState(corr, ctx)`.
+
+  The port lost **three** entries — the engine's host port carries **34** now
+  (it carried **37**). The sentinel follows: `ErrHalted` lives with the state
+  that refuses the run (`state.ErrHalted`), and `runner.ErrHalted` and
+  `runtime.ErrHalted` are aliases of the **same value**.
+
+  The control plane's guard keeps the **state** family's exclusion written
+  down: `CleanupRunState` and `SetupRunState` stay out of the state family's
+  lap — if a verb comes back it must not land there either.
+
+  The measurement: the daemon's public verbs **121 → 118**, its production
+  lines **5,571 → 5,418** (its biggest line drop yet — the bodies and the
+  account of them left together), its files **55 → 55**; the app packages
+  that name the daemon stay at **forty**; the run engine's package
+  **908 → 935**; the runs module's live-run state is **new: 1 file / 279
+  lines**.
+
+  Three **new** ratchets: the daemon's
+  (`kernel/runtime/run_state_ratchet_test.go`) pins that the daemon holds no
+  verb per run-state operation, that its production files declare none and
+  that it holds no steering registry (no map, no mutex); the module's
+  (`kernel/modules/runs/state/state_ratchet_test.go`) pins that the state
+  holds the steering registry, that it registers and releases the run in the
+  module's own store and that the daemon holds none of it; the engine's
+  (`kernel/modules/runs/runner/runner_state_ratchet_test.go`) pins that the
+  engine's host port carries no run-state entry, that the engine holds the
+  module's state and that a host that wired none leaves the engine quiet.
+
+  Two ratchets that watched the daemon's own files learned the move: the
+  **registry ratchet** now watches the module's state file for the
+  registration and pins that the daemon's runner lifecycle file registers
+  **nothing** any more; the **run-context ratchet** now watches the module's
+  state file for the auto-approve merge.
+
+  The daemon's own surface ceiling followed the floor again: **121 → 118**
+  (220 → 201 → 194 → 179 → 173 → 166 → 164 → 156 → 152 → 148 → 143 → 135 →
+  129 → 125 → 121 → 118).
+
+  **The probe** put the daemon's `SetupRunState` and `DeregisterRunSteer`
+  back, gave the steering registry back to the daemon and put the run-state
+  entry back into the engine's port: the retired-verb ratchet, the surface
+  ceiling (120 > 118), the daemon's three run-state ratchets, the module's
+  daemon-half ratchet and the engine's port ratchet all went red at once —
+  **seven** ratchets in one shot; the probe was reverted and the suites went
+  green again.
+
+  **What is left**: the daemon holds **118** public verbs and **5,418**
+  production lines; **forty** application packages still name it; the run
+  engine's host port carries **34** entries. What is left in the daemon is
+  the run's **remaining machinery** rather than its verbs — the publish
+  helpers (`PublishIntentInterpreted`, `PublishContextFailureAnalysis`), the
+  plan runner's registration, the resume handshake and the prompt doors: the
+  surface a run touches on its way through the host. The **standing
+  package** itself still lives at `kernel/standing`, and its **eventual**
+  home is the **triggers module** (`kernel/modules/triggers`) — the
+  architecture gate already places both `kernel/cadence` and
+  `kernel/standing` in that module, so the family's boundary is drawn; the
+  module's directory does not exist yet, and the move is a path move (four
+  production importers), not a lifecycle one.
+  Evidence:
+  `architecture/304-w376ae-the-runs-live-state-moves-into-the-runs-module-evidence.md`

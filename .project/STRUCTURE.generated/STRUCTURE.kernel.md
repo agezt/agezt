@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-227 package(s):
+228 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agentgw`** — Package agentgw provides a secure gateway for AI agent subprocess code to communicate with the AGEZT kernel.
@@ -179,6 +179,7 @@
 - **`kernel/modules/runs/retry`** — Package retry is the RUNS MODULE's retry vocabulary: how a failed run is classified, whether a policy allows another attempt, and how long the backoff waits.
 - **`kernel/modules/runs/runctx`** — Package runctx is the runs module's vocabulary: the context a run carries.
 - **`kernel/modules/runs/runner`** — Package runner owns the kernel's run engine.
+- **`kernel/modules/runs/state`** — Package state is the RUNS MODULE's LIVE-RUN STATE (W3.76ae).
 - **`kernel/modules/runs/steer`** — Package steer is the runs module's steering face: the per-run steering surface a live run exposes, and the service that drives it.
 - **`kernel/modules/skills/builtins`** — Package builtins ships the skill bundles baked into the binary — the agentskills.io shape (M847): a SKILL.md plus reference files and scripts, embedded here and materialized into the skill store by the skills module.
 - **`kernel/modules/skills/skill`** — Package skill implements "Forge v1" (SPEC-05 §4–5): the agent learns reusable, named procedures ("skills") from what it does, and those skills are governed through a journaled, reversible state machine instead of straight-to-active markdown.

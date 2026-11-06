@@ -3,19 +3,22 @@
 package runner
 
 import (
-	"errors"
 	"strings"
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/modules/runs/state"
 )
 
 // ErrHalted is the sentinel returned when a run hits a halted kernel.
-// This is the ONE definition: runtime.ErrHalted is this same value
-// (re-exported), so errors.Is matches whichever package a caller
-// names. It used to be a second errors.New with the same text — two
+//
+// This is NOT a definition but an ALIAS: the sentinel lives with the live-run
+// state that refuses a run on a halted daemon (W3.76ae), and the run engine
+// re-exports it — so `runtime.ErrHalted`, `runner.ErrHalted` and
+// `state.ErrHalted` are ONE value and errors.Is matches whichever package a
+// caller names. It used to be a second errors.New with the same text — two
 // identities that errors.Is told apart.
-var ErrHalted = errors.New("runtime: kernel is halted")
+var ErrHalted = state.ErrHalted
 
 // shadowEvalLimit bounds how many shadow candidates are judged per
 // run, so the extra (opt-in) provider calls stay bounded

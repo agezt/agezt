@@ -4,7 +4,6 @@ package runtime
 
 import (
 	"github.com/agezt/agezt/kernel/modules/runs/api"
-	"github.com/agezt/agezt/kernel/modules/runs/steer"
 )
 
 // The steering OPERATIONS moved to the runs module in W3.76b: the target
@@ -19,9 +18,9 @@ import (
 // the module's service already answered in its own names. The daemon hands
 // over the module's FACE now, and the application layer binds that.
 //
-// The daemon keeps the DOORS: the live runs the module steers (the Lookup
-// below), the bus it publishes on, and the cancel it asks for. The module
-// never names the daemon.
+// The daemon keeps the DOORS: the live runs the module steers (the live-run
+// state's own registry, W3.76ae), the bus it publishes on, and the cancel it
+// asks for. The module never names the daemon.
 
 // SteeringService returns the RUNS MODULE's steering service — the runs
 // module's face.
@@ -35,11 +34,3 @@ import (
 // itself (it hands the module its own doors), so a caller never has to guard
 // against nothing.
 func (k *Kernel) SteeringService() api.SteeringService { return k.steerSvc }
-
-// controlFor returns the steering surface for a live run, or nil if there is no
-// such active run (finished, never existed, wrong id).
-func (k *Kernel) controlFor(corr string) *steer.Control {
-	k.steersMu.Lock()
-	defer k.steersMu.Unlock()
-	return k.steers[corr]
-}

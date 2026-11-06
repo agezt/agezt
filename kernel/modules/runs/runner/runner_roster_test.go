@@ -86,7 +86,7 @@ func TestTheRunEngineAsksTheAgentsModuleToRetireTheAgent(t *testing.T) {
 		Lifecycle: agentapi.AgentLifecycle{RetireOnComplete: true},
 	}}
 	roster := &stubRoster{}
-	r := New(k, roster)
+	r := New(k, roster, testState())
 
 	ctx := runctx.WithAgentIdent(context.Background(), "worker", 0)
 	r.CompleteAgentLifecycle(ctx, "corr-1")
@@ -104,7 +104,7 @@ func TestTheRunEngineStaysQuietWithoutARosterService(t *testing.T) {
 		Slug:      "worker",
 		Lifecycle: agentapi.AgentLifecycle{RetireOnComplete: true},
 	}}
-	r := New(k, nil)
+	r := New(k, nil, testState())
 
 	ctx := runctx.WithAgentIdent(context.Background(), "worker", 0)
 	r.CompleteAgentLifecycle(ctx, "corr-1")
@@ -115,7 +115,7 @@ func TestTheRunEngineStaysQuietWithoutARosterService(t *testing.T) {
 func TestTheRunEngineLeavesAnUnknownAgentAlone(t *testing.T) {
 	k := &stubKernel{}
 	roster := &stubRoster{}
-	r := New(k, roster)
+	r := New(k, roster, testState())
 
 	ctx := runctx.WithAgentIdent(context.Background(), "ghost", 0)
 	r.CompleteAgentLifecycle(ctx, "corr-1")
