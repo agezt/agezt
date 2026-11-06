@@ -782,11 +782,10 @@ func lifecycleOwnedVerbs(t *testing.T) []string {
 }
 
 // daemonOwnedVerbs are the kernel's DAEMON verbs: the daemon's own state —
-// when it started, the ceilings its delegation runs under — the journal's
-// hash-chain check, and the FACE it hands over to the runs module's run
-// lifecycle.
+// when it started, the ceilings its delegation runs under — and the FACE it
+// hands over to the runs module's run lifecycle.
 //
-// The rule is BY NAME, and it answers to four EXACT names.
+// The rule is BY NAME, and it answers to three EXACT names.
 //
 // It cannot be a word rule, and the reason is worth writing down: the daemon's
 // verbs share no word. A "Halt" rule would take the drain from the LIFECYCLE
@@ -795,11 +794,16 @@ func lifecycleOwnedVerbs(t *testing.T) []string {
 // family's verbs is a rule that makes two families claim the same verb, and
 // the sharp test below is exactly there to stop that.
 //
-// The names are the daemon's own: the overview reports them, and the daemon's
-// gate is the journal's hash-chain check. The LIFECYCLE verbs the daemon held
-// until W3.76aa — IsHalted, ActiveRuns, HaltWith, ResumeWith — are GONE: the
-// run lifecycle is the runs module's, and the daemon holds the module's face
-// (LifecycleService) instead of a verb per operation.
+// The names are the daemon's own: the overview reports them. The LIFECYCLE
+// verbs the daemon held until W3.76aa — IsHalted, ActiveRuns, HaltWith,
+// ResumeWith — are GONE: the run lifecycle is the runs module's, and the
+// daemon holds the module's face (LifecycleService) instead of a verb per
+// operation.
+//
+// The daemon's journal hash-chain check (`Verify`) is GONE too (W3.76ad): the
+// check is the JOURNAL's own operation — the event log is the host's file —
+// and the daemon held a copy of it, and the run engine re-exported it, so one
+// family had three spellings. The daemon-overview's gate asks the journal now.
 func daemonOwnedVerbs(t *testing.T) []string {
 	t.Helper()
 	kernel := reflect.TypeOf(&runtime.Kernel{})
@@ -807,7 +811,6 @@ func daemonOwnedVerbs(t *testing.T) []string {
 		"StartTime",
 		"SubAgentLimits",
 		"LifecycleService",
-		"Verify",
 	}
 	verbs := make([]string, 0, len(want))
 	for _, name := range want {
@@ -3132,7 +3135,6 @@ func TestTheGuardNamesEveryDaemonVerbTheKernelHas(t *testing.T) {
 		"StartTime",
 		"SubAgentLimits",
 		"LifecycleService",
-		"Verify",
 	} {
 		if !guarded[verb] {
 			t.Errorf("the kernel's daemon verb %s is not named by the guard — the daemon's own business belongs to the application", verb)

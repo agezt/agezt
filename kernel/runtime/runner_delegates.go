@@ -1,9 +1,8 @@
 package runtime
 
 // Provenance: SPDX-License-Identifier: MIT Runtime runner public delegate wrappers:
-//             FoldRunTools + Why + Causes + ParentOf + Verify (one-line passthroughs
-//             to the runner package's Runner). Split from runexec_helpers.go
-//             during Day 211 god-file refactor (#34). Public API unchanged.
+//             FoldRunTools. Split from runexec_helpers.go during Day 211
+//             god-file refactor (#34). Public API unchanged.
 
 import (
 	"encoding/json"
@@ -41,23 +40,13 @@ func (k *Kernel) FoldRunTools(corr string) (int, []string) {
 // (runner/helpers.go). The Runner uses it for MaybeDistill /
 // MaybeForge / MaybeShadowEval transcripts.
 
-// Why returns every event with the same correlation_id as the named event,
-// in seq order (the M0.5 form of `agt why`). Delegates to the runner
-// sub-package's Runner, which routes to the journal's provenance scan
-// (Phase 3.1 C, Day 23).
-func (k *Kernel) Why(eventID string) ([]*event.Event, error) { return k.runner.Why(eventID) }
-
-// Causes returns the causation ancestry of an event, root-first — the
-// provenance walk SPEC-01 §7.1 describes. Delegates to the runner
-// sub-package's Runner (Day 23).
-func (k *Kernel) Causes(eventID string) ([]*event.Event, error) { return k.runner.Causes(eventID) }
-
-// ParentOf returns the lead run's correlation for a sub-agent run, or "" if
-// childCorr was not spawned via delegation (M42). Delegates to the runner
-// sub-package's Runner (Day 23).
-func (k *Kernel) ParentOf(childCorr string) string { return k.runner.ParentOf(childCorr) }
-
-// Verify replays every event and confirms the BLAKE3 chain is intact.
-// Returns nil on success. Delegates to the runner package's
-// Runner (Day 23).
-func (k *Kernel) Verify() error { return k.runner.Verify() }
+// The JOURNAL's provenance walks are the journal's own (W3.76ad): `Why`,
+// `Causes`, `ParentOf` and `Verify` answer over the event log, and the event
+// log is the host's own file (kernel/journal). The daemon used to carry four
+// verbs over them — and the run engine re-exported the same four, so one
+// family had THREE spellings: the journal's methods, the engine's re-exports
+// and the daemon's copies.
+//
+// The daemon holds no verb per journal operation any more: a caller that
+// needs the provenance walk asks the journal, through the daemon's own
+// journal door (`k.Journal().Why(…)`).

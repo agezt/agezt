@@ -2,10 +2,10 @@
 
 package runner
 
-// Provenance: Runner retry + introspection + verification: RunWithRetry + Why +
-//             Causes + ParentOf + Verify + VerifyCompletion + PublishHeuristicBypass
-//             + DescribeImages. Code extracted from runner.go during the Day-63
-//             god-file split. Public API unchanged.
+// Provenance: Runner retry + introspection + verification: RunWithRetry +
+//             VerifyCompletion + PublishHeuristicBypass + DescribeImages. Code
+//             extracted from runner.go during the Day-63 god-file split.
+//             Public API unchanged.
 
 import (
 	"context"
@@ -97,29 +97,12 @@ func (r *Runner) RunWithRetry(ctx context.Context, corr, intent string, pol agen
 	return "", lastErr
 }
 
-// Why returns every event with the same correlation_id as the
-// named event, in seq order (the M0.5 form of `agt why`).
-func (r *Runner) Why(eventID string) ([]*event.Event, error) {
-	return r.k.Journal().Why(eventID)
-}
-
-// Causes returns the causation ancestry of an event, root-first
-// — the provenance walk SPEC-01 §7.1 describes.
-func (r *Runner) Causes(eventID string) ([]*event.Event, error) {
-	return r.k.Journal().Causes(eventID)
-}
-
-// ParentOf returns the lead run's correlation for a sub-agent
-// run, or "" if childCorr was not spawned via delegation (M42).
-func (r *Runner) ParentOf(childCorr string) string {
-	return r.k.Journal().ParentOf(childCorr)
-}
-
-// Verify replays every event and confirms the BLAKE3 chain is
-// intact. Returns nil on success.
-func (r *Runner) Verify() error {
-	return r.k.Journal().Verify()
-}
+// The JOURNAL's provenance walks are not the engine's (W3.76ad): `Why`,
+// `Causes`, `ParentOf` and `Verify` answer over the event log, and the event
+// log is the host's own file. The engine used to re-export all four — and the
+// daemon copied them again, so one family had THREE spellings. The engine asks
+// the host's journal for them now (`r.k.Journal().Why(…)`), and it holds no
+// verb of its own for them.
 
 // VerifyCompletion asks the model whether the given ANSWER
 // fully accomplishes TASK. Returns an assureapi.Verdict with a

@@ -169,7 +169,10 @@ func PortsFromKernel(k *runtime.Kernel) Ports {
 			return gateOver{
 				haltWith:   lifecycle.HaltWith,
 				resumeWith: lifecycle.ResumeWith,
-				verify:     k.Verify,
+				// The hash-chain check is the JOURNAL's own operation (W3.76ad):
+				// the daemon holds no verb over it, and the gate asks the
+				// daemon's journal door.
+				verify: k.Journal().Verify,
 			}
 		},
 	}
