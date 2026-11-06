@@ -55,7 +55,7 @@ func TestCauses_DelegatesToJournal(t *testing.T) {
 		t.Fatalf("publish initiative: %v", err)
 	}
 
-	whyEvents, err := k.Why(initiative.ID)
+	whyEvents, err := k.Journal().Why(initiative.ID)
 	if err != nil {
 		t.Fatalf("Why: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestCauses_DelegatesToJournal(t *testing.T) {
 		t.Fatal("Why returned no events for a bus-published id")
 	}
 
-	chain, err := k.Causes(initiative.ID)
+	chain, err := k.Journal().Causes(initiative.ID)
 	if err != nil {
 		t.Fatalf("Causes: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestCauses_DelegatesToJournal(t *testing.T) {
 		t.Fatalf("Causes delegation broken: got %d events, want tick → initiative", len(chain))
 	}
 
-	if got := k.ParentOf("no-such-child"); got != "" {
+	if got := k.Journal().ParentOf("no-such-child"); got != "" {
 		t.Errorf("ParentOf(no-such-child) = %q want empty", got)
 	}
 }

@@ -149,6 +149,12 @@ var retiredVerbs = []string{
 	"RunWithRetry",
 	"RunAssured",
 	"CompleteAgentLifecycle",
+	// The daemon's four verbs over the journal's own provenance walks
+	// (W3.76ad).
+	"Why",
+	"Causes",
+	"ParentOf",
+	"Verify",
 }
 
 // daemonPublicVerbs is the ceiling the daemon's public method set may not
@@ -170,10 +176,11 @@ var retiredVerbs = []string{
 // reader) -> 148 (W3.76y, the roster's five forwarders) -> 143 (W3.76z, the
 // steering family's six forwarders) -> 135 (W3.76aa, the run lifecycle's nine
 // verbs) -> 129 (W3.76ab, the run engine's six wrappers) -> 125 (W3.76ac, the
-// run engine's five doors — the daemon hands the module's face over instead).
-// The daemon holds 125 public verbs today; a new verb needs a new reason, and
+// run engine's five doors — the daemon hands the module's face over instead)
+// -> 121 (W3.76ad, the journal's four provenance walks).
+// The daemon holds 121 public verbs today; a new verb needs a new reason, and
 // this file says so.
-const daemonPublicVerbs = 125
+const daemonPublicVerbs = 121
 
 // TestTheRetiredVerbsDoNotComeBack pins the retirement: none of the sixteen
 // names is a method of *Kernel any more.

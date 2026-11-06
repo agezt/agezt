@@ -324,13 +324,13 @@ func TestParentOf(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if got := k.ParentOf("c1"); got != "p1" {
+	if got := k.Journal().ParentOf("c1"); got != "p1" {
 		t.Errorf("ParentOf(c1) = %q want p1", got)
 	}
-	if got := k.ParentOf("unknown"); got != "" {
+	if got := k.Journal().ParentOf("unknown"); got != "" {
 		t.Errorf("ParentOf(unknown) = %q want empty", got)
 	}
-	if got := k.ParentOf(""); got != "" {
+	if got := k.Journal().ParentOf(""); got != "" {
 		t.Errorf("ParentOf(\"\") = %q want empty", got)
 	}
 }
@@ -359,7 +359,7 @@ func TestWhy_ReturnsCorrelationGroup(t *testing.T) {
 	if someID == "" {
 		t.Fatal("test setup: no tool.invoked event found")
 	}
-	events, err := k.Why(someID)
+	events, err := k.Journal().Why(someID)
 	if err != nil {
 		t.Fatalf("Why: %v", err)
 	}
@@ -379,7 +379,7 @@ func TestVerify_AfterRun_IsClean(t *testing.T) {
 	if _, _, err := runForTest(k, context.Background(), "x"); err != nil {
 		t.Fatal(err)
 	}
-	if err := k.Verify(); err != nil {
+	if err := k.Journal().Verify(); err != nil {
 		t.Errorf("Verify: %v", err)
 	}
 }
