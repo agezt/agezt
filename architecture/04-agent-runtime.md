@@ -305,7 +305,7 @@ Also: `toolCaps` (read-only after Open); `startTime`. The `suspending atomic.Boo
 
 Goroutines started by the runtime: one per async sub-agent (the delegation engine's `Spawn`), the drain waiters in `Close`/`DrainAndHalt`, and the tool fan-out workers inside `agent.Run`. Everything else runs on the caller's goroutine. The **agentgw listener is not one of them** (W3.67): the gateway is the **daemon's** transport, so the daemon starts it.
 
-**The daemon's public surface — 125 verbs (W3.76ac).** The Kernel's exported
+**The daemon's public surface — 121 verbs (W3.76ad).** The Kernel's exported
 methods are the host's **doors**: the verbs the layers above call and the
 verbs the daemon's own production paths open. A public verb that nobody
 calls is a second, unreachable copy of a surface, and the target architecture
@@ -526,7 +526,8 @@ second spelling of one family. The daemon holds the module's **FACE**
 (`LifecycleService`) now, and every caller above asks the module — the
 **daemon-lifecycle application** (the drain the update flow needs), the
 **overseer** (the live fleet it supervises), the **overview** (the daemon's
-own gate: the halt, the resume and the journal's hash-chain check), the
+own gate: the halt, the resume and the journal's hash-chain check — the check
+is the **journal's** operation since W3.76ad), the
 **introspector** (the halted flag and the run count) and the **runs
 application** (the cancel). The **run identity** stayed with the host:
 `NewCorrelation` and `SubjectForRun` are the daemon's own doors (the adapters
@@ -571,13 +572,26 @@ standing runner, the OpenAI adaptör). What stayed with the host is the run's
 **identity**: the correlation id a run carries is still minted at the host's own
 door (`NewCorrelation`), because the name of a run is the host's vocabulary.
 **129 → 125** public verbs; the daemon's production lines went **5,622 → 5,579**
-and its files stayed at **55**. The daemon
+and its files stayed at **55**. W3.76ad retired **four** more — the **journal's
+provenance walks** (`Why`, `Causes`, `ParentOf`, `Verify`) are the **event
+log's** own operations: the log is the host's file, and it answers them in its
+own names. The run engine re-exported all four (each one a one-line
+passthrough to `r.k.Journal().…`) and the daemon copied them again, so one
+family had **three** spellings. Three of the daemon's four had **no
+production caller at all** — only the daemon's own tests — and the fourth, the
+journal's hash-chain check, had exactly one: the **daemon-overview's gate**.
+The daemon holds **no** verb per journal operation now; the gate asks the
+journal through the daemon's own journal door (`k.Journal().Verify`), and the
+engine asks the journal through its port. The control plane's guard learned
+the change: `Verify` left the **daemon** family. **125 → 121** public verbs;
+the daemon's production lines went **5,579 → 5,571** and its files stayed at
+**55**. The daemon
 keeps the doors a **module** needs without naming the runs
 module (`WithAgentProfile`, `WithMaxCost`) and the host's own state (the
 effective config, the resume ticket, the seed). The surface is **pinned**:
 `kernel/runtime/dead_surface_ratchet_test.go` fails if a retired name comes
-back or if the public surface grows past **125** — the ceiling now FOLLOWS the
-floor (220 → 201 → 194 → 179 → 173 → 166 → 164 → 156 → 152 → 148 → 143 → 135 → 129 → 125), because a ceiling that stays put while the
+back or if the public surface grows past **121** — the ceiling now FOLLOWS the
+floor (220 → 201 → 194 → 179 → 173 → 166 → 164 → 156 → 152 → 148 → 143 → 135 → 129 → 125 → 121), because a ceiling that stays put while the
 surface shrinks permits exactly what the program exists to remove — and the run
 engine's own ratchet requires that it reads the run's context through the
 module.
@@ -871,7 +885,7 @@ Subjects for loop events are `agent.<actor>.<suffix>`, with actor `agent-<corr>`
 
 | Package | Files | Status / role |
 |---|---|---|
-| `modules/runs/runner` | `doc.go`, `api.go` (`KernelAPI`, **37 entries** — the host's capabilities), `runner.go` (`Runner`, `New`, `Run`, **`RunWith` — the real run body**), `runner_lifecycle.go` (`CompleteAgentLifecycle`, `RunAssured`, `MaybeDistill/Forge/ShadowEval`), `runner_retry.go` (`RunWithRetry`, `Why/Causes/ParentOf/Verify`, `VerifyCompletion`, `PublishHeuristicBypass`, `DescribeImages`, `ErrNoVisionModel` duplicate), `helpers.go` (`ErrHalted` duplicate, `shadowEvalLimit=2`, `assureVerifyMaxTokens=400`, `visionDescribeMaxTokens=1024`, `buildTranscript`, `deterministicHeuristicBypass`, `shouldRetireAgentAfterComplete`, `resetCompletedCycleTasks`) | Live. Never imports kernel/runtime; reaches the kernel through public wrapper methods (`SetupRunState`, `BuildRunPrompt`, `ClaimResumeTicket`, …). **W3.76ab**: the run engine's **own** operations left its host port — `PublishHeuristicBypass`, `MaybeDistill`, `MaybeForge`, `MaybeShadowEval`, `RunWith`, `RunWithRetry`, `CompleteAgentLifecycle` and `VerifyCompletion` were eight **round trips** (the engine asked the host, the host asked the engine back), so the port carries **37** entries and the engine calls its own methods. Test: `helpers_test.go`. **W3.76ac**: the module's own **face** (`api.RunnerService` — `RunWith`, `RunWithRetry`, `RunAssured`, `CompleteAgentLifecycle`) is what the daemon hands over; the daemon's five doors over these operations are gone. |
+| `modules/runs/runner` | `doc.go`, `api.go` (`KernelAPI`, **37 entries** — the host's capabilities), `runner.go` (`Runner`, `New`, `Run`, **`RunWith` — the real run body**), `runner_lifecycle.go` (`CompleteAgentLifecycle`, `RunAssured`, `MaybeDistill/Forge/ShadowEval`), `runner_retry.go` (`RunWithRetry`, `VerifyCompletion`, `PublishHeuristicBypass`, `DescribeImages`, `ErrNoVisionModel` duplicate), `helpers.go` (`ErrHalted` duplicate, `shadowEvalLimit=2`, `assureVerifyMaxTokens=400`, `visionDescribeMaxTokens=1024`, `buildTranscript`, `deterministicHeuristicBypass`, `shouldRetireAgentAfterComplete`, `resetCompletedCycleTasks`) | Live. Never imports kernel/runtime; reaches the kernel through public wrapper methods (`SetupRunState`, `BuildRunPrompt`, `ClaimResumeTicket`, …). **W3.76ab**: the run engine's **own** operations left its host port — `PublishHeuristicBypass`, `MaybeDistill`, `MaybeForge`, `MaybeShadowEval`, `RunWith`, `RunWithRetry`, `CompleteAgentLifecycle` and `VerifyCompletion` were eight **round trips** (the engine asked the host, the host asked the engine back), so the port carries **37** entries and the engine calls its own methods. Test: `helpers_test.go`. **W3.76ac**: the module's own **face** (`api.RunnerService` — `RunWith`, `RunWithRetry`, `RunAssured`, `CompleteAgentLifecycle`) is what the daemon hands over; the daemon's five doors over these operations are gone. **W3.76ad**: the engine re-exports **none** of the journal's provenance walks (`Why`, `Causes`, `ParentOf`, `Verify`) — the event log is the host's file, and the engine asks it. |
 | `modules/runs/registry` | `registry.go` (`Registry`: `New`, `Lock/Unlock`, `Halted/SetHalted`, `Running`, `Register/Unregister/Cancel`, `Count/IDs/Cancels`, `HaltAll`, `Add/Done/Wait`, `Suspending`) | Live. The runs module's **live-run store** (W3.76d), moved down from the daemon: the live correlations and their cancels, the halt latch, the drain waitgroup and the suspend latch. The lock discipline is the store's — the daemon's compound cleanups hold it across the fan-out, tree, steer and spawn locks, so it is the **outermost** lock. Test: `registry_test.go`. |
 | `modules/runs/lifecycle` | `doc.go`, `api.go` (`Host`: `Suspend/PublishBus`), `manager.go` (`Manager`: `New`, `IsHalted`, `Halt/HaltWith`, `DrainAndHalt`, `CancelRun`, `Resume/ResumeWith`, `ActiveRuns/ActiveRunIDs`, `NewCorrelation`, `SubjectForRun`) | Live (section 4.6). **Moved from `kernel/runtime/lifecycle` in W3.76d**: the manager holds the module's own registry directly and reaches the daemon only through the two-verb `Host` interface, so the daemon's six public verbs (`Halted/SetHalted/Runs/RunsMu/RunWG/Suspending`) are gone. **W3.76aa**: the manager answers the module's own **PORT** (`api.LifecycleService`) and is nil-receiver safe, and the daemon's nine verbs over it are gone too — the daemon hands over the module's face. Test: `manager_test.go`. |
 | `runtime/accessors` | — | **Deleted (W3.40).** It was constructed in Open (`k.accessors = accessors.New(k)`) and read by **nobody**: `*Kernel`'s own `accessors_*.go` methods kept the bodies (they read the fields directly — an Accessor dispatching back through the implicit `KernelAPI` would recurse). 48 functions, a 413-line test file, and **eleven allowlisted edges that bought nothing**: the package was a second, unreachable copy of the read surface, so the kernel's module reach was counted twice. The two copies journalled the same events, so nothing was lost — and the shape test in `submanager_test.go` now pins the kernel's sub-manager set and its accessor surface by name, so a second copy cannot reappear quietly. |
@@ -910,7 +924,7 @@ Root package, grouped by concern; every non-test file is listed.
 | `runner.go` | The runs module's **FACE** (`RunnerService` — W3.76ac: the daemon's five doors over the run engine's operations are gone, and the module's own port `api.RunnerService` carries them), plus `ClaimResumeTicket`, `FinalizeResumeTicket`, `RetryReason`, `AgentRetryable`, `RetryDelay` KernelAPI wrappers. |
 | `runner_lifecycle.go` | `setupRunState`, `cleanupRunState` (5-mutex release, orphan spawn cancels, `registry.Done`), `deregisterRunSteer`, `ErrNoVisionModel`. The daemon's own `RunWith` and `CompleteAgentLifecycle` are gone (W3.76ac) — the run engine's body is the module's, and the module answers them. |
 | `runner_helpers.go` | `retryReason`, `agentRetryable` (default RetryOn `error`,`timeout`), `retryDelay`, the elided-summary constants, `makeElidedSummarizer`. |
-| `runner_delegates.go` | `FoldRunTools` (journal scan for tool.result), `Why`, `Causes`, `ParentOf`, `Verify`. |
+| `runner_delegates.go` | `FoldRunTools` (journal scan for tool.result). **W3.76ad**: the daemon holds **no** verb over the journal's own provenance walks — `Why`, `Causes`, `ParentOf` and `Verify` are the journal's operations, and the run engine re-exported all four, so one family had three spellings. |
 | `loopconfig.go` | `BuildLoopConfig`/`buildLoopConfig`: the shared LoopConfig base for root and sub-agent runs. |
 | `agentconfig.go` | `agentOverrides` table, `applyAgentOverrides`, `agentRuntimeConfigIssues`, `effectiveConfig`, `resolveRunModel`. |
 | `agentconfig_helpers.go` | `overrideString/Int/Bool/Duration` setter adapters. |

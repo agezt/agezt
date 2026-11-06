@@ -14514,3 +14514,73 @@ func main() {
   is a path move (four production importers), not a lifecycle one.
   Evidence:
   `architecture/302-w376ac-the-hosts-run-doors-move-into-the-run-engines-face-evidence.md`
+- W3.76ad (the journal's provenance walks lose their second and third
+  spellings) is the **thirty-eighth** slice of the runtime's dissolution.
+
+  The **event log** is the host's own file (`kernel/journal`) and it answers
+  four provenance operations in its own names: `Why` (the events of a
+  correlation), `Causes` (the causation ancestry), `ParentOf` (a sub-agent's
+  lead run) and `Verify` (the BLAKE3 hash-chain check).
+
+  One family had **three** spellings: the journal's methods, the run engine's
+  re-exports (`Runner.Why`, `Runner.Causes`, `Runner.ParentOf`,
+  `Runner.Verify` — every one a one-line passthrough to `r.k.Journal().…`) and
+  the daemon's copies (`k.Why`, `k.Causes`, `k.ParentOf`, `k.Verify`).
+
+  The daemon holds **no** verb per journal operation now, and the run engine
+  re-exports **none** of them — the engine asks the host's journal, which its
+  port already carries. Three of the daemon's four had **no production caller
+  at all** (only the daemon's own tests); the fourth — the hash-chain check —
+  had exactly one: the **daemon-overview's gate** (`kernel/app/system`), whose
+  gate binds the journal's own check now (`k.Journal().Verify`).
+
+  The control plane's guard learned the change: `Verify` left the **daemon**
+  family (it was named there as "the journal's hash-chain check"), and the
+  daemon family is now three names — `StartTime`, `SubAgentLimits`,
+  `LifecycleService`.
+
+  The measurement: the daemon's public verbs **125 → 121**, its production
+  lines **5,579 → 5,571**, its files **55 → 55**; the app packages that name
+  the daemon stay at **forty**; the run engine's package **922 → 908**, the
+  daemon-overview **714 → 717**, and the run engine's host port stays at
+  **37** entries.
+
+  Three **new** ratchets: the daemon's
+  (`kernel/runtime/journal_provenance_ratchet_test.go`) pins that the daemon
+  holds no verb per journal operation, that its production files declare none
+  and that its delegate file says where the walks live; the module's
+  (`kernel/modules/runs/runner/journal_reexport_ratchet_test.go`) pins that
+  the engine re-exports none of the journal's operations and does not ask the
+  host for a verb of its own; the application's
+  (`kernel/app/system/binding_ratchet_test.go`) pins that the gate does not
+  bind a verb of the daemon's and does reach the journal (the check looks at
+  the **shape**). The daemon's own surface ceiling followed the floor again:
+  **125 → 121** (220 → 201 → 194 → 179 → 173 → 166 → 164 → 156 → 152 → 148 →
+  143 → 135 → 129 → 125 → 121).
+
+  **The probe** put the daemon's `Why` and `Verify` back, had the engine
+  re-export `Why` again and had the gate bind the daemon's own verb: the
+  retired-verb ratchet, the surface ceiling (123 > 121), the daemon's two
+  journal ratchets, the module's re-export ratchet **and** the application's
+  binding ratchet all went red at once — **six** ratchets in one shot; the
+  probe was reverted and the suites went green again.
+
+  The coverage moved with the subject: the daemon's four verbs were the
+  daemon's own tests' only callers, and the tests now ask the journal through
+  the daemon's journal door.
+
+  **What is left**: the daemon holds **121** public verbs and **5,571**
+  production lines; **forty** application packages still name it; the run
+  engine's host port still carries **37** entries. What is left in the daemon
+  is the run's **own machinery** rather than its verbs — `runtime_lifecycle.go`'s
+  living verbs (`SetupRunState`, `CleanupRunState`, `DeregisterRunSteer` — the
+  host's own bookkeeping), the plan runner, the resume handshake and the
+  prompt doors: the surface a run touches on its way through the host. The
+  **standing package** itself still lives at `kernel/standing`,
+  and its **eventual** home is the **triggers module**
+  (`kernel/modules/triggers`) — the architecture gate already places both
+  `kernel/cadence` and `kernel/standing` in that module, so the family's
+  boundary is drawn; the module's directory does not exist yet, and the move
+  is a path move (four production importers), not a lifecycle one.
+  Evidence:
+  `architecture/303-w376ad-the-journals-provenance-walks-lose-their-second-and-third-spellings-evidence.md`
