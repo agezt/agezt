@@ -2,17 +2,14 @@
 
 package runtime
 
-// Provenance: *Kernel methods: publish helpers, run-state setup/cleanup,
-//             Maybe* helpers, VerifyCompletion, and the runs module's
-//             lifecycle FACE. Code extracted from runtime.go during the Day-41
+// Provenance: *Kernel methods: publish helpers, the runs module's
+//             lifecycle FACE, and the run engine's own operations (retired
+//             W3.76ab/ac). Code extracted from runtime.go during the Day-41
 //             god-file split. Public API unchanged.
 
 import (
-	"context"
-
 	"github.com/agezt/agezt/kernel/event"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
-	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/kernel/modules/runs/api"
 )
 
@@ -54,56 +51,13 @@ import (
 // where the module's body is (k.runner) — the host holds the run engine, so
 // the host names it, but the host does not ANSWER for it a second time.
 //
-// What stayed in the daemon is the HOST's own: the run's setup and cleanup
-// (SetupRunState, CleanupRunState), the publish helpers, and the doors that
-// the callers above use to start a run (Run, RunWith, RunWithRetry,
-// RunAssured) and to close its lifecycle (CompleteAgentLifecycle).
-
-// SetupRunState is the public surface of the per-run registration
-// logic. The Runner calls this in place of the inline runsMu +
-// steersMu dance that RunWith used to do (Day 34). The method
-// encapsulates:
-//   - the halted check (returns ErrHalted if set)
-//   - the duplicate-corr guard (returns "correlation already running")
-//   - the tenant + auto-approve + timeout ctx decoration
-//   - the registry's Register(corr, cancel) call
-//   - the runWG.Add(1) drain accounting
-//   - the steersMu-locked k.steers[corr] = newRunControl() registration
+// What stayed in the daemon is the HOST's own: the publish helpers, and the
+// doors that the callers above use to start a run and to close its lifecycle.
 //
-// The lock-ordering invariant `runsMu → steersMu` is documented
-// on the Kernel struct and re-checked whenever this method
-// changes; the live-steering slot acquisition sits AFTER
-// runsMu is released (see runtime.go:~640-650 for the history).
-//
-// Returns the decorated run context, the cancel func (caller
-// invokes on completion), the steer interface (caller wires
-// into LoopConfig.Steer), and an error.
-func (k *Kernel) SetupRunState(corr string, parentCtx context.Context) (context.Context, context.CancelFunc, agent.Steerer, error) {
-	return k.setupRunState(corr, parentCtx)
-}
-
-// CleanupRunState is the public surface of the deferred 5-mutex
-// cleanup. The Runner calls this in place of the inline deferred
-// block that RunWith used to do. The method encapsulates the
-// lock-ordering invariant `runsMu → fanoutMu → treeMu → steersMu
-// → spawnsMu` and the runWG.Done() call. Returns the orphan
-// cancel funcs (child spawns that were still in flight when the
-// run finished); the caller invokes them, then invokes the
-// runCtx's cancel func.
-func (k *Kernel) CleanupRunState(corr string) []context.CancelFunc {
-	return k.cleanupRunState(corr)
-}
-
-// DeregisterRunSteer removes the steer handle for corr without
-// acquiring runsMu. Used post-run to free the steering slot the
-// instant the agent loop returns — BEFORE the deferred
-// CleanupRunState runs (which would also delete it, but later in
-// the post-processing pipeline; an operator pausing/steering in
-// that window would otherwise get a false success against a loop
-// that has already finished, M608).
-func (k *Kernel) DeregisterRunSteer(corr string) {
-	k.deregisterRunSteer(corr)
-}
+// The run's LIVE STATE is the runs module's (W3.76ae,
+// kernel/modules/runs/state): the steering registry and the per-run
+// registration live there, and the run engine — which lives inside that
+// module — asks the module for them.
 
 // PublishIntentInterpreted publishes the intent.interpreted
 // journal event. Wraps the private publishIntentInterpreted in

@@ -155,6 +155,10 @@ var retiredVerbs = []string{
 	"Causes",
 	"ParentOf",
 	"Verify",
+	// The daemon's three verbs over the run's own live state (W3.76ae).
+	"SetupRunState",
+	"CleanupRunState",
+	"DeregisterRunSteer",
 }
 
 // daemonPublicVerbs is the ceiling the daemon's public method set may not
@@ -177,10 +181,11 @@ var retiredVerbs = []string{
 // steering family's six forwarders) -> 135 (W3.76aa, the run lifecycle's nine
 // verbs) -> 129 (W3.76ab, the run engine's six wrappers) -> 125 (W3.76ac, the
 // run engine's five doors — the daemon hands the module's face over instead)
-// -> 121 (W3.76ad, the journal's four provenance walks).
-// The daemon holds 121 public verbs today; a new verb needs a new reason, and
+// -> 121 (W3.76ad, the journal's four provenance walks) -> 118 (W3.76ae, the
+// run's three live-state verbs).
+// The daemon holds 118 public verbs today; a new verb needs a new reason, and
 // this file says so.
-const daemonPublicVerbs = 121
+const daemonPublicVerbs = 118
 
 // TestTheRetiredVerbsDoNotComeBack pins the retirement: none of the sixteen
 // names is a method of *Kernel any more.

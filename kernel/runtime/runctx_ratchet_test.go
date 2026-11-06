@@ -124,17 +124,36 @@ func TestTheDaemonKeepsNoResumeKeysOfItsOwn(t *testing.T) {
 // daemon still reads is the host's own side of the run: the model the run
 // falls back to, the actor it stamps, the profile and the ceiling it binds,
 // the timeout and the auto-approve merge.
+//
+// W3.76ae shrank it once more: the run's REGISTRATION moved into the module's
+// live-run state, and the auto-approve merge went with it — the daemon no
+// longer decorates a run's context, the module does. The daemon keeps the
+// timeout read (the resume path asks for the run's own deadline) and the
+// model's read.
 func TestTheDaemonAsksTheModuleForTheRunsVocabulary(t *testing.T) {
 	for _, want := range []string{
 		"runctx.ModelFromCtx(",
 		"runctx.RunTimeoutFromCtx(",
-		"runctx.MergeAutoApproveCapabilities(",
 		"runctx.WithActor(",
 		"runctx.WithAgentProfile(",
 		"runctx.WithMaxCost(",
 	} {
 		if !daemonPackageContains(t, want) {
 			t.Fatalf("the daemon must read the run's dispatch through %s", want)
+		}
+	}
+	// The auto-approve merge is the MODULE's: the live-run state decorates
+	// the run's context, and it reads the run context's vocabulary there.
+	state, err := os.ReadFile(filepath.Join("..", "modules", "runs", "state", "state.go"))
+	if err != nil {
+		t.Fatalf("read the live-run state: %v", err)
+	}
+	for _, want := range []string{
+		"runctx.MergeAutoApproveCapabilities(",
+		"runctx.RunTimeoutFromCtx(",
+	} {
+		if !strings.Contains(string(state), want) {
+			t.Errorf("the live-run state must read the run's dispatch through %s", want)
 		}
 	}
 }

@@ -40,6 +40,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/runs/registry"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
 	"github.com/agezt/agezt/kernel/modules/runs/runner"
+	runstate "github.com/agezt/agezt/kernel/modules/runs/state"
 	"github.com/agezt/agezt/kernel/modules/runs/steer"
 	workapi "github.com/agezt/agezt/kernel/modules/work/api"
 	"github.com/agezt/agezt/kernel/platform/toolpipeline"
@@ -469,7 +470,6 @@ func Open(cfg Config) (*Kernel, error) {
 		system:       cfg.System,
 		model:        cfg.Model,
 		registry:     registry.New(),
-		steers:       make(map[string]*steer.Control),
 		toolCaps:     validatedToolCaps(cfg.ToolCapabilities), // M900
 		startTime:    time.Now(),
 	}
@@ -478,8 +478,12 @@ func Open(cfg Config) (*Kernel, error) {
 	// steering and the interventions, and the daemon hands it the doors — the
 	// live runs, the bus and the cancel. The module never names the daemon.
 	k.steerSvc = steer.NewService(steer.Dependencies{
+		// The live steering controls are the RUNS MODULE's own (W3.76ae): they
+		// live in the module's live-run state, so the module looks them up
+		// there instead of asking the host for them. The closure resolves at
+		// CALL time — the state is wired later in this function.
 		Lookup: func(corr string) (*steer.Control, bool) {
-			rc := k.controlFor(corr)
+			rc := k.runState.Control(corr)
 			return rc, rc != nil
 		},
 		Publish: func(spec event.Spec) { _, _ = kbus.Publish(spec) },
@@ -579,6 +583,23 @@ func Open(cfg Config) (*Kernel, error) {
 		awaitTool.Await = k.delegation.Await
 	}
 
+	// The LIVE-RUN STATE is the RUNS MODULE's (W3.76ae,
+	// kernel/modules/runs/state): the steering registry — the live control of
+	// every run in flight — and the per-run registration the run engine asks
+	// for. The daemon held both (the `steers` map behind its own mutex and
+	// the three verbs that created and released it) while the run engine,
+	// which lives inside that module, asked the host for them through its
+	// port. The module owns them now; the daemon hands the module its own
+	// configuration (the tenant, the operator's auto-approve grant and the
+	// run ceiling) and keeps the store handle.
+	k.runState = runstate.New(runstate.Dependencies{
+		Registry:                k.registry,
+		Delegation:              k.delegation,
+		TenantID:                k.cfg.TenantID,
+		AutoApproveCapabilities: k.cfg.AutoApproveCapabilities,
+		MaxDuration:             k.cfg.MaxDuration,
+	})
+
 	// The loop configuration is the RUNS MODULE's (W3.76g): it owns the shape
 	// every governed run's loop must have — the tool surface, the tool
 	// selector, the context budget, the artifact offload, the cost function
@@ -603,8 +624,10 @@ func Open(cfg Config) (*Kernel, error) {
 	// run engine writes the roster's rows (it retires an agent whose run
 	// completed and advances the agent's cycle counter), and those writes are
 	// the module's operations — so the run engine asks the module, not the
-	// host.
-	k.runner = runner.New(k, rosterSvc)
+	// host. And it holds the module's LIVE-RUN STATE (W3.76ae): the run's
+	// registration and cleanup are the module's own, so the engine asks the
+	// module for them instead of asking the host through its port.
+	k.runner = runner.New(k, rosterSvc, k.runState)
 
 	return k, nil
 }

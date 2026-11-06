@@ -42,6 +42,13 @@ import (
 // The RESUME HANDSHAKE is not part of it either (W3.76q): the owned marker
 // and the seeded conversation are the resume module's vocabulary, and the run
 // engine — which lives next to that module — reads them from there.
+//
+// The run's LIVE STATE is not part of it either (W3.76ae): the steering
+// registry and the per-run registration are the RUNS MODULE's own
+// (kernel/modules/runs/state), and the run engine — which lives inside that
+// module — asks the module for them. The host held three verbs for them
+// (SetupRunState, CleanupRunState, DeregisterRunSteer) and the module asked
+// the host: a round trip inside one module.
 type KernelAPI interface {
 	Bus() *bus.Bus
 	Journal() *journal.Journal
@@ -57,9 +64,6 @@ type KernelAPI interface {
 	ShadowEval() bool
 	FoldRunTools(corr string) (int, []string)
 	CompleteAux(ctx context.Context, corr, taskType string, req llm.CompletionRequest) (*llm.CompletionResponse, error)
-	SetupRunState(corr string, parentCtx context.Context) (context.Context, context.CancelFunc, agent.Steerer, error)
-	CleanupRunState(corr string) []context.CancelFunc
-	DeregisterRunSteer(corr string)
 	DisableHeuristicBypass(ctx context.Context) bool
 	BuildRunPrompt(runCtx context.Context, corr, actor, intent string, systemAgent bool, skillDirective skillapi.ActivationDirective) (string, []string)
 	InjectHostEnvironment(system string, tools map[string]toolapi.Tool) string

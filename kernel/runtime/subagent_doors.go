@@ -74,19 +74,15 @@ func (h delegationHost) RangeJournal(fn func(*event.Event) error) error {
 }
 
 // RegisterSteer publishes a child's live-steering control surface in the
-// daemon's shared steering registry, so an operator can steer an INDIVIDUAL
+// runs module's live-run state, so an operator can steer an INDIVIDUAL
 // sub-agent (M631).
 func (h delegationHost) RegisterSteer(corr string, rc *steer.Control) {
-	h.k.steersMu.Lock()
-	h.k.steers[corr] = rc
-	h.k.steersMu.Unlock()
+	h.k.runState.RegisterSteer(corr, rc)
 }
 
 // UnregisterSteer removes a child's steering control surface.
 func (h delegationHost) UnregisterSteer(corr string) {
-	h.k.steersMu.Lock()
-	delete(h.k.steers, corr)
-	h.k.steersMu.Unlock()
+	h.k.runState.UnregisterSteer(corr)
 }
 
 // RecordSkillOutcome reports the child run's outcome for the skills it

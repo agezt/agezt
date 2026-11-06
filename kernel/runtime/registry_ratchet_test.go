@@ -126,8 +126,14 @@ func TestTheDaemonKeepsTheLifecycleFace(t *testing.T) {
 // TestTheDaemonTalksToTheModuleThroughTheRegistry pins the direction of the
 // move: the daemon's run state is registered in the module's store, never in
 // a map of its own.
+//
+// W3.76ae moved the RUN's registration into the module: the daemon's own
+// runner lifecycle file registers nothing any more — the runs module's live-run
+// state does, through the very same store. What the daemon still registers is
+// the PLAN (the plan runner is the daemon's own bookkeeping), and that one
+// goes through the module's store too.
 func TestTheDaemonTalksToTheModuleThroughTheRegistry(t *testing.T) {
-	for _, f := range []string{"runner_lifecycle.go", "accessors_misc.go"} {
+	for _, f := range []string{"accessors_misc.go"} {
 		src, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatalf("read %s: %v", f, err)
@@ -140,14 +146,35 @@ func TestTheDaemonTalksToTheModuleThroughTheRegistry(t *testing.T) {
 			t.Fatalf("%s must register through the module's store", f)
 		}
 	}
+	// The RUN's own registration is the module's (W3.76ae): the live-run state
+	// registers and releases the run in the module's own store.
+	mod, err := os.ReadFile(filepath.Join("..", "modules", "runs", "state", "state.go"))
+	if err != nil {
+		t.Fatalf("read the live-run state: %v", err)
+	}
+	text := string(mod)
+	for _, call := range []string{"reg.Register(", "reg.Unregister(", "reg.Add(", "reg.Done()"} {
+		if !strings.Contains(text, call) {
+			t.Errorf("the live-run state must %s in the module's store", call)
+		}
+	}
+	// The daemon's runner lifecycle file registers nothing: the run's
+	// registration is the module's own.
+	daemon, err := os.ReadFile("runner_lifecycle.go")
+	if err != nil {
+		t.Fatalf("read runner_lifecycle.go: %v", err)
+	}
+	if strings.Contains(string(daemon), "k.registry.") {
+		t.Error("the daemon's runner lifecycle file registers a run again — the run's live state is the module's (W3.76ae)")
+	}
 	// The async delegation registers its child in the same store. The code
 	// moved to the runs module's delegation engine in W3.76f, so the ratchet
 	// watches the module's file now.
-	mod, err := os.ReadFile(filepath.Join("..", "modules", "runs", "delegation", "exec.go"))
+	exec, err := os.ReadFile(filepath.Join("..", "modules", "runs", "delegation", "exec.go"))
 	if err != nil {
 		t.Fatalf("read the delegation engine: %v", err)
 	}
-	text := string(mod)
+	text = string(exec)
 	if !strings.Contains(text, "reg.Register(") {
 		t.Fatal("the delegation engine must register an async child in the module's store")
 	}

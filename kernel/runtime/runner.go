@@ -2,8 +2,8 @@
 
 package runtime
 
-// Provenance: Runtime runner: Run/RunAssured/RunWithRetry + run-state setup/cleanup
-//             + FoldRunTools + CompleteAgentLifecycle. Code extracted from
+// Provenance: Runtime runner: the resume-ticket and retry-policy doors over
+//             the runs module's run engine. Code extracted from
 //             runexec.go during the Day-122 god-file split. Public API unchanged.
 
 import (
@@ -14,26 +14,29 @@ import (
 	"github.com/agezt/agezt/kernel/modules/runs/api"
 )
 
-// This file is the kernel's run engine: the entry points an external
-// caller drives (Run / RunAssured / RunWithRetry / RunWith), the
+// This file USED TO be the kernel's run engine: the entry points an external
+// caller drove (Run / RunAssured / RunWithRetry / RunWith), the
 // post-run hook trio (maybeShadowEval / maybeForge / maybeDistill), the
 // deterministic heuristic bypass, and the journal re-exports
 // (Why / Causes / ParentOf / Verify). Pulled out of runtime.go as the
 // fourth step of the Day 9 split (after lifecycle.go, compose.go,
 // accessors.go).
 //
+// The run engine's BODY is the runs module's now (W3.76ac): this file keeps
+// only the doors the daemon still owns — the module's FACE (`RunnerService`)
+// and the four wrappers over the host's own bookkeeping (the resume ticket
+// and the retry policy reads).
+//
 // The single piece that requires extra care here is the lock-ordering
 // invariant documented on Kernel:
 //
-//   configMu (light config) < runsMu < fanoutMu < treeMu < steersMu < spawnsMu
+//   registry lock < configMu < the live-run state's own lock
 //
-// The deferred cleanup at the bottom of RunWith takes all five
-// (runsMu → fanoutMu → treeMu → steersMu → spawnsMu) in this exact
-// order and releases them in reverse. Any new locking site added in
-// this file MUST respect the same order, or `go test -race` will trip.
-// The Live-steering registration right after the runsMu unlock also
-// follows the rule (steersMu acquired AFTER runsMu is released — see
-// the comment at runtime.go:910-919 for the full history).
+// The live-run state's own lock is the runs module's (W3.76ae): the steering
+// controls and the per-run registration live in kernel/modules/runs/state,
+// and the module takes that lock INSIDE the registry's lock. Any new locking
+// site added in this file MUST respect the same order, or `go test -race`
+// will trip.
 
 // The RUN ENGINE is the runs module's, and the daemon holds it (W3.76ac).
 //
@@ -47,8 +50,10 @@ import (
 //
 // The daemon hands over the module's FACE (RunnerService) instead, and the
 // callers above ask the module. The daemon keeps what is the HOST's own: the
-// correlation id a run carries (NewCorrelation) and the run's own setup and
-// cleanup.
+// correlation id a run carries (NewCorrelation) and the store handle the
+// module registers the live runs through. The run's live STATE — the steering
+// registry and the per-run setup and cleanup — is the module's own now
+// (W3.76ae, kernel/modules/runs/state).
 
 // RunnerService returns the RUNS MODULE's run engine — the module's face.
 //
