@@ -6,7 +6,9 @@ package runtime
 //             ctx helpers (Resume* +
 //             ResumeCheckpointFn/ResolveRunModel/WithAgentProfile/WithMaxCost).
 //             The prompt doors (BuildRunPrompt/InjectHostEnvironment) moved to the
-//             runs module's prompt service in W3.76e; they live in prompt.go now.
+//             runs module's prompt service in W3.76e, and they are GONE since
+//             W3.76af: the run engine holds the module's service and asks the
+//             module for its own prompt.
 //             The RunTimeout and MergeAutoApproveCapabilities doors went with
 //             W3.76k: the run's callers read the run context through the module
 //             (runctx.RunTimeoutFromCtx / runctx.MergeAutoApproveCapabilities)

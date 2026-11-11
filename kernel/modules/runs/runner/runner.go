@@ -19,6 +19,7 @@ import (
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/kernel/modules/runs/api"
+	"github.com/agezt/agezt/kernel/modules/runs/prompt"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
 	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/modules/runs/state"
@@ -70,6 +71,23 @@ type Runner struct {
 	// nil means the host wired no live-run state: the engine cannot start a
 	// run, and it says so instead of registering nothing.
 	runState *state.State
+
+	// prompt is the RUNS MODULE's prompt assembly (W3.76af): the layer that
+	// decides what a run knows before it starts — the live identity, the
+	// operator profile, the taste exemplars, the recalled memory, the
+	// resolved world entities and the activated skills — plus the
+	// host-environment preamble.
+	//
+	// The daemon held two verbs over it (BuildRunPrompt,
+	// InjectHostEnvironment) and the run engine asked the HOST for them
+	// through its port — a round trip inside ONE module: the assembly was
+	// already the module's, and the delegation engine (which lives next to
+	// the run engine) held the very same service. The engine asks the module
+	// now.
+	//
+	// nil means the host wired no prompt service: the engine cannot assemble
+	// a prompt, and it says so instead of running a bare one.
+	prompt *prompt.Service
 }
 
 // The run engine answers the module's own PORT (W3.76ac): the run engine is
@@ -83,9 +101,10 @@ var _ api.RunnerService = (*Runner)(nil)
 // roster is the agents module's roster service — the module the run engine
 // asks when it writes the roster (W3.76o). runState is the module's own
 // live-run state — the module the run engine asks when it registers and
-// releases a run (W3.76ae).
-func New(k KernelAPI, roster agentsapi.RosterService, runState *state.State) *Runner {
-	return &Runner{k: k, roster: roster, runState: runState}
+// releases a run (W3.76ae). promptSvc is the module's own prompt assembly —
+// the module the run engine asks when it builds a run's prompt (W3.76af).
+func New(k KernelAPI, roster agentsapi.RosterService, runState *state.State, promptSvc *prompt.Service) *Runner {
+	return &Runner{k: k, roster: roster, runState: runState, prompt: promptSvc}
 }
 
 // Run executes one tool-loop end-to-end and returns (answer,
@@ -116,6 +135,14 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	}
 	if r.runState == nil {
 		return "", errors.New("runner: the live-run state is not available")
+	}
+	// The prompt assembly is the MODULE's own (W3.76af): the engine holds the
+	// module's service and asks it. A host that wired none leaves the engine
+	// quiet — it says the assembly is missing instead of running a bare
+	// prompt — and it says it BEFORE the run is registered, so a run that
+	// cannot be assembled leaves no live-run state behind.
+	if r.prompt == nil {
+		return "", errors.New("runner: the prompt assembly is not available")
 	}
 	runCtx, cancel, steer, err := r.runState.SetupRunState(corr, ctx)
 	if err != nil {
@@ -169,8 +196,12 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	}
 
 	// System-prompt assembly: per-run override or live default, then
-	// profile/taste/memory/world/skill injection (buildRunPrompt).
-	system, activatedSkillIDs := r.k.BuildRunPrompt(runCtx, corr, actor, intent, systemAgent, skillDirective)
+	// profile/taste/memory/world/skill injection.
+	//
+	// The assembly is the RUNS MODULE's own (W3.76af): the engine holds the
+	// module's prompt service and asks it, instead of asking the host for a
+	// verb over the module's own body.
+	system, activatedSkillIDs := r.prompt.Build(runCtx, corr, actor, intent, systemAgent, skillDirective)
 
 	model, modelExplicit := r.k.ResolveRunModel(runCtx)
 	// An EXPLICIT pick must actually serve the run (M931): carry the pick as
@@ -185,8 +216,8 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// accounting, compaction, or tool policy (LD-1).
 	lc := r.k.BuildLoopConfig(runCtx, corr, model)
 
-	// Host-environment preamble (M609) — see injectHostEnvironment.
-	system = r.k.InjectHostEnvironment(system, lc.Tools)
+	// Host-environment preamble (M609) — the module's own assembly.
+	system = r.prompt.BuildEnvironment(system, lc.Tools)
 
 	// Durable resume (M1002): a root run owns a ticket unless a governed wrapper
 	// (RunAssured/RunWithRetry) or the resumer already created one for this corr.
