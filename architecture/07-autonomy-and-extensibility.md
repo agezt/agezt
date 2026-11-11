@@ -227,7 +227,7 @@ with identity, budget, trust and provenance, then calls the same kernel entry po
                       ▼
       kernel/runtime  RunWith → runner.RunWith  (see 04-agent-runtime.md)
         SetupRunState: halted? duplicate corr? register k.runs[corr] (Halt/Cancel), deadline
-        intent frame → intent.interpreted; BuildRunPrompt (soul, memory, world, skills, operator profile)
+        intent frame → intent.interpreted; the module's prompt service assembles the prompt (soul, memory, world, skills, operator profile)
         ResolveRunModel / model chain → governor (routing, budgets, per-run & per-agent daily caps)
         agent.Run loop: every tool call → k.policyHook:
             trust ceiling from ctx → edict.DecideWithCeiling (never loosened by delegation)
@@ -899,11 +899,11 @@ There are two layers:
 ### 9.3 Injection path
 
 1. `modules/runs/runner/runner.go:103` parses the activation directive.
-2. `runtime/prompt_run.go:120-175` (`BuildRunPrompt`), only when `SkillInject` is on and the agent is not a system agent:
+2. `modules/runs/prompt/service.go` (`Build` — the module's own prompt assembly, W3.76e; the run engine asks the module directly since W3.76af), only when `SkillInject` is on and the agent is not a system agent:
    - Calls `ActivateExplicitFor` (if a directive named skills) or `ActivateFor`, with topK 3.
    - `injectSkills` prepends "Applicable skills (learned procedures; follow if relevant):" followed by `## name — description`, the body, and hints about bundled resources.
    - Publishes a `contextselect` manifest with phase `skill`.
-3. Sub-agents use the same path via `runtime/subagent_inject.go`.
+3. Sub-agents use the same path through the module's prompt service (`BuildSubagent`).
 4. After the run:
    - `RecordOutcome` (`runner.go:197`).
    - `MaybeForge` calls `Propose` when the run made at least 4 tool calls (`runner_lifecycle.go:153`).

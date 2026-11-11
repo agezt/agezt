@@ -14675,3 +14675,83 @@ func main() {
   production importers), not a lifecycle one.
   Evidence:
   `architecture/304-w376ae-the-runs-live-state-moves-into-the-runs-module-evidence.md`
+- W3.76af (the run engine assembles its own prompt) is the **fortieth**
+  slice of the runtime's dissolution.
+
+  Before a run starts, the **prompt assembly** decides what the run knows —
+  the live identity, the operator profile, the taste exemplars, the recalled
+  memory, the resolved world entities and the activated skills — plus the
+  host-environment preamble.
+
+  That assembly is the runs module's since W3.76e
+  (`kernel/modules/runs/prompt`), and the daemon kept two **doors** over it
+  (`BuildRunPrompt`, `InjectHostEnvironment`) — one-line wrappers over the
+  module's own body. And the **run engine**, which lives *inside* the runs
+  module, asked the **host** for both of them through its `KernelAPI` port:
+  a **round trip inside one module**, a promise the host never had to keep.
+
+  The proof that the wiring was wrong was already in the tree: the
+  **delegation engine** — one package over, in the same module — held the
+  very same service (`Prompt *prompt.Service`), so two neighbours in one
+  module, one holding the service and one asking the host for it.
+
+  The slice fixed it: the run engine holds the module's prompt service now,
+  exactly the way the delegation engine holds it, and asks the module.
+
+  The daemon's two doors are gone, the two port entries are gone, and the
+  daemon's file was renamed with the doors it lost (`prompt_doors.go` →
+  `prompt_host.go`): it keeps the **service**, the three-verb host port the
+  module asks for (the live identity, the bus, the clock) and **one** call
+  of its own — the context-selection manifest it derives from the run's
+  journal.
+
+  A host that wired **no** prompt service leaves the engine quiet: it says
+  `runner: the prompt assembly is not available` **before** the run is
+  registered, so a run that cannot be assembled leaves no live-run state
+  behind.
+
+  The measurement: the daemon's public verbs **118 → 116**, its production
+  lines **5,418 → 5,417** (the two door bodies left; the engine's own
+  refusal and the account of the move arrived in the module), its files
+  **55 → 55**; the app packages that name the daemon stay at **forty**; the
+  run engine's host port **34 → 32** entries; the run engine's package
+  **935 → 970**; the prompt module's package stays **6 files / 756 lines**.
+
+  Two **ratchet** files: the daemon's
+  (`kernel/runtime/prompt_ratchet_test.go`) — the ratchet that pinned "the
+  daemon KEEPS the doors" now pins the opposite, and no production file of
+  the daemon may call `k.prompt.Build(` or `k.prompt.BuildEnvironment(`;
+  the module's
+  (`kernel/modules/runs/runner/runner_prompt_ratchet_test.go`, new) — the
+  port carries **no** prompt entry, the engine **holds** the module's
+  service, and a host that wired none leaves the engine quiet instead of
+  running a bare prompt.
+
+  The daemon's own surface ceiling followed the floor again: **118 → 116**
+  (220 → 201 → 194 → 179 → 173 → 166 → 164 → 156 → 152 → 148 → 143 → 135 →
+  129 → 125 → 121 → 118 → 116).
+
+  **The probe** put the daemon's two doors back, put the two entries back
+  into the engine's port and made the engine ask the host again — the world
+  before this slice: the retired-verb ratchet, the surface ceiling
+  (118 > 116), the daemon's prompt-door ratchet, the module's port ratchet,
+  the module's wiring ratchet and the module's refusal ratchet all went red
+  at once — **six** ratchets in one shot, and nothing else broke; the probe
+  was reverted and the suites went green again.
+
+  **What is left**: the daemon holds **116** public verbs and **5,417**
+  production lines; **forty** application packages still name it; the run
+  engine's host port carries **32** entries. What is left in the daemon is
+  the run's **remaining machinery**: the publish helpers
+  (`PublishIntentInterpreted`, `PublishContextFailureAnalysis`), the plan
+  runner's registration, the resume handshake and the prompt doors' last
+  host-side siblings — `ResolveRunModel` and `BuildLoopConfig`, the two
+  doors the run engine still opens for the host's own state. The **standing
+  package** itself still lives at `kernel/standing`, and its **eventual**
+  home is the **triggers module** (`kernel/modules/triggers`) — the
+  architecture gate already places both `kernel/cadence` and
+  `kernel/standing` in that module, so the family's boundary is drawn; the
+  module's directory does not exist yet, and the move is a path move (four
+  production importers), not a lifecycle one.
+  Evidence:
+  `architecture/305-w376af-the-run-engine-assembles-its-own-prompt-evidence.md`
