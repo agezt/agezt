@@ -7,27 +7,14 @@ import (
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 )
 
-func (k *Kernel) publishIntentInterpreted(corr, actor string, frame intentmodel.Frame) {
-	if k == nil || k.bus == nil {
-		return
-	}
-	_, _ = k.bus.Publish(event.Spec{
-		Subject:       "intent.interpreted",
-		Kind:          event.KindIntentInterpreted,
-		Actor:         actor,
-		CorrelationID: corr,
-		Payload: map[string]any{
-			"user_utterance_hash": frame.UserUtteranceHash,
-			"canonical_intent":    frame.CanonicalIntent,
-			"assumptions":         frame.Assumptions,
-			"explicit_exclusions": frame.ExplicitExclusions,
-			"candidate_plans":     frame.CandidatePlans,
-			"harmful_reading":     frame.HarmfulReading,
-			"ambiguity_score":     frame.AmbiguityScore,
-			"underdetermined":     frame.Underdetermined,
-		},
-	})
-}
+// The daemon's own POLICY events live here — the intent confirmation, the
+// session-scoped auto-approve, the prompt-injection warning. They are the
+// daemon's policy path's events, not a run's.
+//
+// The run's OWN reading — `intent.interpreted` — is the runs module's
+// (W3.76ag, kernel/modules/runs/publish): the run engine interprets the
+// utterance and asks the module to publish the reading, and the daemon held
+// two verbs over it for no reason a caller can name.
 
 func (k *Kernel) publishIntentConfirmationRequired(corr, actor string, frame intentmodel.Frame, axes intentmodel.RegretAxes, prompt string) {
 	if k == nil || k.bus == nil {

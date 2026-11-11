@@ -14,7 +14,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/skillapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
-	"github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/kernel/state"
@@ -56,6 +55,13 @@ import (
 // service the delegation engine holds. The host held two verbs over it
 // (BuildRunPrompt, InjectHostEnvironment) and the module asked the host: a
 // round trip inside one module, twice.
+//
+// The run's PUBLISH SURFACE is not part of it either (W3.76ag): what a run
+// says about itself — the reading it made of the user's utterance and the
+// analysis of what its context selection left out — is the RUNS MODULE's own
+// (kernel/modules/runs/publish). The host held two verbs over them
+// (PublishIntentInterpreted, PublishContextFailureAnalysis) and the module
+// asked the host: a round trip inside one module, twice more.
 type KernelAPI interface {
 	Bus() *bus.Bus
 	Journal() *journal.Journal
@@ -88,8 +94,6 @@ type KernelAPI interface {
 	// module.
 	RosterGet(ref string) (agentapi.Profile, bool)
 	Catalog() *catalogapi.Catalog
-	PublishIntentInterpreted(corr, actor string, frame intent.Frame)
-	PublishContextFailureAnalysis(corr, actor string, err error)
 	BuildLoopConfig(ctx context.Context, corr, model string) agent.LoopConfig
 
 	// The run engine's OWN operations are not in this port (W3.76ab).

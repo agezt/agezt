@@ -162,6 +162,9 @@ var retiredVerbs = []string{
 	// The daemon's two doors over the run's own prompt assembly (W3.76af).
 	"BuildRunPrompt",
 	"InjectHostEnvironment",
+	// The daemon's two verbs over the run's own publish surface (W3.76ag).
+	"PublishIntentInterpreted",
+	"PublishContextFailureAnalysis",
 }
 
 // daemonPublicVerbs is the ceiling the daemon's public method set may not
@@ -185,10 +188,11 @@ var retiredVerbs = []string{
 // verbs) -> 129 (W3.76ab, the run engine's six wrappers) -> 125 (W3.76ac, the
 // run engine's five doors — the daemon hands the module's face over instead)
 // -> 121 (W3.76ad, the journal's four provenance walks) -> 118 (W3.76ae, the
-// run's three live-state verbs) -> 116 (W3.76af, the run's two prompt doors).
-// The daemon holds 116 public verbs today; a new verb needs a new reason, and
+// run's three live-state verbs) -> 116 (W3.76af, the run's two prompt doors)
+// -> 114 (W3.76ag, the run's two publish verbs).
+// The daemon holds 114 public verbs today; a new verb needs a new reason, and
 // this file says so.
-const daemonPublicVerbs = 116
+const daemonPublicVerbs = 114
 
 // TestTheRetiredVerbsDoNotComeBack pins the retirement: none of the sixteen
 // names is a method of *Kernel any more.

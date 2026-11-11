@@ -20,11 +20,15 @@
 // WHAT STAYED IN THE DAEMON, AND WHY:
 //   - the prompt-injection MODE (kernel/runtime/promptinjection.go): it is
 //     the platform's rule (W3.74), and the daemon keeps the name;
-//   - the failure ANALYSIS (publishContextFailureAnalysis): it reads the
-//     run's journal, which is the daemon's, so the daemon keeps it and asks
-//     this module to publish the manifest it derives;
 //   - the sub-agent SPEND walk (subAgentSpendMicrocents): it belongs to the
 //     delegation family's budget rule, not to the prompt.
+//
+// AND WHAT LEFT THE DAEMON AGAIN (W3.76ag): the failure ANALYSIS moved to the
+// module's own publish surface (kernel/modules/runs/publish). The reason it
+// stayed here — "it reads the run's journal, which is the daemon's" — no
+// longer holds: the module reaches the journal through the run engine's own
+// port, and the analysis is about a run, so the run's module keeps it and
+// asks THIS module to publish the manifest it derives.
 //
 // THE PORT SET is four verbs wide, and each one is a thing this module
 // cannot do for itself: the live IDENTITY (who the daemon is right now), the

@@ -257,10 +257,15 @@ func journalOwnedVerbs(t *testing.T) []string {
 // publish is the event bus family's business, and a verb that lands in the
 // kernel is guarded the day it lands.
 //
-// The "Publish" name sweeps in the runtime's own publishes — the intent
-// interpretation, the heuristic bypass, the context failure analysis. They
-// publish through the bus, so the adapter must not name them either: the
-// adapter publishes by ASKING the family, never by reaching for the kernel.
+// The "Publish" name sweeps in the runtime's own publishes — the heuristic
+// bypass and the run engine's own publish surface. They publish through the
+// bus, so the adapter must not name them either: the adapter publishes by
+// ASKING the family, never by reaching for the kernel.
+//
+// TWO verbs left this family with W3.76ag: the intent interpretation and the
+// context failure analysis are the RUNS MODULE's own
+// (kernel/modules/runs/publish), and the daemon held no verb per run-publish
+// operation any more.
 func busOwnedVerbs(t *testing.T) []string {
 	t.Helper()
 	return kernelVerbsNamed(t, "Bus", "Event", "Publish")

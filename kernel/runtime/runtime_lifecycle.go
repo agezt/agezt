@@ -6,10 +6,13 @@ package runtime
 //             lifecycle FACE, and the run engine's own operations (retired
 //             W3.76ab/ac). Code extracted from runtime.go during the Day-41
 //             god-file split. Public API unchanged.
+//
+// W3.76ag: the run's OWN publish helpers left this file — the intent
+// interpretation and the context failure analysis are the runs module's
+// (kernel/modules/runs/publish), and the run engine asks the module.
 
 import (
 	"github.com/agezt/agezt/kernel/event"
-	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/modules/runs/api"
 )
 
@@ -59,19 +62,13 @@ import (
 // registration live there, and the run engine — which lives inside that
 // module — asks the module for them.
 
-// PublishIntentInterpreted publishes the intent.interpreted
-// journal event. Wraps the private publishIntentInterpreted in
-// intent.go.
-func (k *Kernel) PublishIntentInterpreted(corr, actor string, frame intentmodel.Frame) {
-	k.publishIntentInterpreted(corr, actor, frame)
-}
-
-// PublishContextFailureAnalysis publishes the context-failure
-// journal event. Wraps the private publishContextFailureAnalysis
-// in context_selection.go.
-func (k *Kernel) PublishContextFailureAnalysis(corr, actor string, runErr error) {
-	k.publishContextFailureAnalysis(corr, actor, runErr)
-}
+// The run's PUBLISH SURFACE is the RUNS MODULE's (W3.76ag,
+// kernel/modules/runs/publish): what a run says about itself — the reading
+// it made of the user's utterance, and the analysis of what its context
+// selection left out. The daemon held two verbs over them
+// (PublishIntentInterpreted, PublishContextFailureAnalysis) and the run
+// engine — which lives inside that module — asked the host for them: a
+// round trip inside one module. The engine asks the module now.
 
 // PublishBus is the single chokepoint the lifecycle sub-package uses
 // to emit kernel.halt / kernel.resume events. Returns whatever the

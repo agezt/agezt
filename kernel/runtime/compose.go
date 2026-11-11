@@ -37,6 +37,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/runs/lifecycle"
 	"github.com/agezt/agezt/kernel/modules/runs/loopcfg"
 	"github.com/agezt/agezt/kernel/modules/runs/prompt"
+	"github.com/agezt/agezt/kernel/modules/runs/publish"
 	"github.com/agezt/agezt/kernel/modules/runs/registry"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
 	"github.com/agezt/agezt/kernel/modules/runs/runner"
@@ -562,6 +563,23 @@ func Open(cfg Config) (*Kernel, error) {
 		Skills: k.forge,
 	})
 
+	// The RUNS MODULE's publish surface (W3.76ag,
+	// kernel/modules/runs/publish): what a run says about itself — the
+	// reading it made of the user's utterance, and the analysis of what its
+	// context selection left out.
+	//
+	// The daemon held two verbs over them (PublishIntentInterpreted,
+	// PublishContextFailureAnalysis) and the run engine — which lives INSIDE
+	// that module — asked the host for them: a round trip inside one module.
+	//
+	// The publisher asks for three narrow ports: the bus the events travel
+	// on, the journal the failure analysis scans, and the prompt module's
+	// manifest publisher (the module knows what a manifest is).
+	runPublisher := publish.New(publish.Dependencies{
+		Bus:       kbus,
+		Journal:   j,
+		Selection: k.prompt,
+	})
 	// The delegation engine is the RUNS MODULE's (W3.76f): it owns the
 	// delegation policy — the bounds, the identity resolution, the spawn
 	// journal, the retry policy and the async spawn handles — and reaches
@@ -632,7 +650,11 @@ func Open(cfg Config) (*Kernel, error) {
 	// builds the run's prompt through the module's own service — the same
 	// service the delegation engine holds — instead of asking the host for
 	// a verb over the module's own body.
-	k.runner = runner.New(k, rosterSvc, k.runState, k.prompt)
+	//
+	// And it holds the module's PUBLISH SURFACE (W3.76ag): what the run says
+	// about itself is the module's own, and the engine asks the module for
+	// it instead of asking the host for a verb over the module's own body.
+	k.runner = runner.New(k, rosterSvc, k.runState, k.prompt, runPublisher)
 
 	return k, nil
 }
