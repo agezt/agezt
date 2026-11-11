@@ -2,7 +2,7 @@
 
 > Do not edit by hand. Re-run `make structure-md` to refresh.
 
-228 package(s):
+229 package(s):
 
 - **`kernel/acp`** — Package acp implements an Agent Client Protocol server (SPEC-15 §3): Agezt as an agent backend that IDEs (Zed, and other ACP clients) drive over JSON-RPC 2.0 on stdio.
 - **`kernel/agentgw`** — Package agentgw provides a secure gateway for AI agent subprocess code to communicate with the AGEZT kernel.
@@ -174,6 +174,7 @@
 - **`kernel/modules/runs/lifecycle`** — Package lifecycle is the runs module's run-lifecycle surface: Halt, Resume, CancelRun, DrainAndHalt, plus the read-side queries (IsHalted, ActiveRuns, ActiveRunIDs, NewCorrelation, SubjectForRun).
 - **`kernel/modules/runs/loopcfg`** — Package loopcfg is the RUNS MODULE's loop-configuration rule: the shape every governed run's loop must have, whether it is a root run or a delegated child.
 - **`kernel/modules/runs/prompt`** — Package prompt assembles a run's system prompt.
+- **`kernel/modules/runs/publish`** — Package publish is the RUNS MODULE's publish surface: what a run says about itself.
 - **`kernel/modules/runs/registry`** — Package registry owns the live-run registry: the correlations that are running right now, their cancel functions, the halt latch, the drain accounting that lets the daemon wait for them to settle, and the suspend latch that says the daemon is on its way out.
 - **`kernel/modules/runs/resume`** — Package resume persists a durable "ticket" per in-flight root run so the daemon can pick the work back up after a restart — whether the daemon was stopped/started, self-updated, or hard-killed.
 - **`kernel/modules/runs/retry`** — Package retry is the RUNS MODULE's retry vocabulary: how a failed run is classified, whether a policy allows another attempt, and how long the backoff waits.

@@ -49,7 +49,7 @@ func testState() *state.State {
 // holds the module's state, not a host door.
 func TestTheRunEngineAsksTheModulesLiveRunState(t *testing.T) {
 	st := testState()
-	r := New(&stubKernel{}, nil, st, testPrompt())
+	r := New(&stubKernel{}, nil, st, testPrompt(), testPublisher())
 	if r.runState != st {
 		t.Fatal("the run engine does not hold the module's live-run state")
 	}
@@ -59,7 +59,7 @@ func TestTheRunEngineAsksTheModulesLiveRunState(t *testing.T) {
 // wired no state leaves the engine quiet — it says the state is missing
 // instead of registering nothing.
 func TestTheRunEngineRefusesWithoutALiveRunState(t *testing.T) {
-	r := New(&stubKernel{}, nil, nil, testPrompt())
+	r := New(&stubKernel{}, nil, nil, testPrompt(), testPublisher())
 	if _, err := r.RunWith(t.Context(), "corr-1", "do the thing"); err == nil {
 		t.Fatal("the engine ran without a live-run state")
 	}

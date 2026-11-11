@@ -20,6 +20,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/kernel/modules/runs/api"
 	"github.com/agezt/agezt/kernel/modules/runs/prompt"
+	"github.com/agezt/agezt/kernel/modules/runs/publish"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
 	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/modules/runs/state"
@@ -88,6 +89,19 @@ type Runner struct {
 	// nil means the host wired no prompt service: the engine cannot assemble
 	// a prompt, and it says so instead of running a bare one.
 	prompt *prompt.Service
+
+	// publish is the RUNS MODULE's publish surface (W3.76ag): what the run
+	// says about itself — the reading it made of the user's utterance, and
+	// the analysis of what its context selection left out.
+	//
+	// The daemon held two verbs over them (PublishIntentInterpreted,
+	// PublishContextFailureAnalysis) and the run engine asked the HOST for
+	// them through its port — a round trip inside ONE module. The engine asks
+	// the module now.
+	//
+	// nil means the host wired no publisher: the engine cannot say anything
+	// about itself, and it says so instead of running silently.
+	publish *publish.Publisher
 }
 
 // The run engine answers the module's own PORT (W3.76ac): the run engine is
@@ -103,8 +117,10 @@ var _ api.RunnerService = (*Runner)(nil)
 // live-run state — the module the run engine asks when it registers and
 // releases a run (W3.76ae). promptSvc is the module's own prompt assembly —
 // the module the run engine asks when it builds a run's prompt (W3.76af).
-func New(k KernelAPI, roster agentsapi.RosterService, runState *state.State, promptSvc *prompt.Service) *Runner {
-	return &Runner{k: k, roster: roster, runState: runState, prompt: promptSvc}
+// publisher is the module's own publish surface — the module the run engine
+// asks when it says something about itself (W3.76ag).
+func New(k KernelAPI, roster agentsapi.RosterService, runState *state.State, promptSvc *prompt.Service, publisher *publish.Publisher) *Runner {
+	return &Runner{k: k, roster: roster, runState: runState, prompt: promptSvc, publish: publisher}
 }
 
 // Run executes one tool-loop end-to-end and returns (answer,
@@ -144,6 +160,14 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	if r.prompt == nil {
 		return "", errors.New("runner: the prompt assembly is not available")
 	}
+	// The PUBLISH SURFACE is the MODULE's own (W3.76ag): the engine holds the
+	// module's publisher and asks it, instead of asking the host for a verb
+	// over the module's own body. A host that wired none leaves the engine
+	// quiet — and it says so BEFORE the run is registered, so a run that
+	// cannot say anything about itself leaves no live-run state behind.
+	if r.publish == nil {
+		return "", errors.New("runner: the publish surface is not available")
+	}
 	runCtx, cancel, steer, err := r.runState.SetupRunState(corr, ctx)
 	if err != nil {
 		return "", err
@@ -179,7 +203,7 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 		intentFrame = intentmodel.Interpret(intent)
 		runCtx = intentmodel.WithFrame(runCtx, intentFrame)
 	}
-	r.k.PublishIntentInterpreted(corr, actor, intentFrame)
+	r.publish.IntentInterpreted(corr, actor, intentFrame)
 	// So warden-backed tools (shell) stamp this run's correlation onto their
 	// warden.executed events — making the isolation profile show up in the run's
 	// timeline and walkable by `agt why`.
@@ -273,7 +297,7 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	}
 
 	if err != nil {
-		r.k.PublishContextFailureAnalysis(corr, actor, err)
+		r.publish.ContextFailureAnalysis(corr, actor, err)
 		return answer, err
 	}
 

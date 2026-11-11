@@ -14755,3 +14755,87 @@ func main() {
   production importers), not a lifecycle one.
   Evidence:
   `architecture/305-w376af-the-run-engine-assembles-its-own-prompt-evidence.md`
+- W3.76ag (the run's own words move into the runs module) is the
+  **forty-first** slice of the runtime's dissolution.
+
+  A run is not silent: it publishes **two** things about itself — the
+  **reading** it made of the user's utterance (`intent.interpreted`: the
+  hash, the canonical intent, the assumptions, the ambiguity, and never the
+  raw words) and the **analysis** of what its context selection left out (a
+  `context.selection` manifest with the phase `failure_analysis`, published
+  when the run fails).
+
+  Both were the **daemon's**: two public verbs over two private helpers, and
+  the **run engine** — which lives *inside* the runs module — asked the
+  **host** for both through its `KernelAPI` port: a **round trip inside one
+  module**, a promise the host never had to keep. The reading makes it
+  plain — the run engine **interprets** the utterance itself
+  (`intentmodel.Interpret(intent)`) and then asked the host to publish the
+  reading it had just made.
+
+  The slice moved them into a new package, **`kernel/modules/runs/publish`**
+  — the runs module's publish surface — with narrow ports and never the
+  host's implementations: `Bus` (the bus the events travel on), `Journal`
+  (the event log the failure analysis scans) and `Selection` (the prompt
+  module's manifest publisher — the module knows what a context selection
+  manifest is).
+
+  The daemon keeps the bus and the journal it already had and hands them to
+  the module; the daemon's `context_selection.go` went with the analysis (the
+  file held nothing else), and `intent.go` keeps only the daemon's **policy**
+  events — the intent confirmation, the session-scoped auto-approve, the
+  prompt-injection warning — because those are the daemon's policy path's
+  events, not a run's.
+
+  The port lost **two** entries: the engine's host port carries **30** now
+  (it carried **32**).
+
+  The control plane's **bus** family is derived from the kernel's own method
+  set, so the two names left it with the verbs; the family's comment says so
+  out loud, because a rule that claims a verb nobody has claims nothing.
+
+  The measurement: the daemon's public verbs **116 → 114**, its production
+  lines **5,417 → 5,372**, its files **55 → 54**; the app packages that
+  name the daemon stay at **forty**; the run engine's package **970 → 997**;
+  the runs module's publish surface is **new: 1 file / 131 lines**; the
+  prompt module's package **756 → 760** (its doc says why the analysis left
+  the daemon).
+
+  Two **ratchet** files: the daemon's
+  (`kernel/runtime/publish_ratchet_test.go`) pins that the daemon holds no
+  verb per run-publish operation, that its production files declare none and
+  that the bodies — the reading's own shape and the journal walk — do not
+  come back under a new name; the module's
+  (`kernel/modules/runs/runner/runner_publish_ratchet_test.go`, new) pins
+  that the port carries **no** publish entry, that the engine **holds** the
+  module's publisher and that a host which wired none leaves the engine
+  quiet instead of running silently.
+
+  The daemon's own surface ceiling followed the floor again: **116 → 114**
+  (220 → 201 → 194 → 179 → 173 → 166 → 164 → 156 → 152 → 148 → 143 → 135 →
+  129 → 125 → 121 → 118 → 116 → 114).
+
+  **The probe** put the daemon's two verbs back — with their real bodies, so
+  the world before this slice is the world that works — put the two entries
+  back into the engine's port and made the engine ask the host again: the
+  retired-verb ratchet, the surface ceiling (116 > 114), the daemon's three
+  publish ratchets, the module's port ratchet, the module's wiring ratchet
+  and the module's refusal ratchet all went red at once — **eight** ratchets
+  in one shot, and nothing else broke; the probe was reverted and the suites
+  went green again.
+
+  **What is left**: the daemon holds **114** public verbs and **5,372**
+  production lines; **forty** application packages still name it; the run
+  engine's host port carries **30** entries. What is left in the daemon is
+  the run's **remaining machinery**: the plan runner's registration
+  (`RunPlan`), the resume handshake (`ClaimResumeTicket`/`FinalizeResumeTicket`)
+  and the two doors the run engine still opens for the host's own state
+  (`ResolveRunModel`, `BuildLoopConfig`). The **standing package** itself
+  still lives at `kernel/standing`, and its **eventual** home is the
+  **triggers module** (`kernel/modules/triggers`) — the architecture gate
+  already places both `kernel/cadence` and `kernel/standing` in that module,
+  so the family's boundary is drawn; the module's directory does not exist
+  yet, and the move is a path move (four production importers), not a
+  lifecycle one.
+  Evidence:
+  `architecture/306-w376ag-the-runs-own-words-move-into-the-runs-module-evidence.md`

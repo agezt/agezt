@@ -49,7 +49,7 @@ func TestTheRunEnginePortCarriesNoPromptEntry(t *testing.T) {
 // holds the module's service, not a host door.
 func TestTheRunEngineAsksTheModulesPromptAssembly(t *testing.T) {
 	p := testPrompt()
-	r := New(&stubKernel{}, nil, testState(), p)
+	r := New(&stubKernel{}, nil, testState(), p, testPublisher())
 	if r.prompt != p {
 		t.Fatal("the run engine does not hold the module's prompt assembly")
 	}
@@ -59,7 +59,7 @@ func TestTheRunEngineAsksTheModulesPromptAssembly(t *testing.T) {
 // that wired no prompt service leaves the engine quiet — it says the
 // assembly is missing instead of running a bare prompt.
 func TestTheRunEngineRefusesWithoutAPromptAssembly(t *testing.T) {
-	r := New(&stubKernel{}, nil, testState(), nil)
+	r := New(&stubKernel{}, nil, testState(), nil, testPublisher())
 	if _, err := r.RunWith(t.Context(), "corr-1", "do the thing"); err == nil {
 		t.Fatal("the engine ran without a prompt assembly")
 	}
