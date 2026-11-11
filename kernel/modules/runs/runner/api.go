@@ -49,6 +49,13 @@ import (
 // module — asks the module for them. The host held three verbs for them
 // (SetupRunState, CleanupRunState, DeregisterRunSteer) and the module asked
 // the host: a round trip inside one module.
+//
+// The PROMPT ASSEMBLY is not part of it either (W3.76af): the layer that
+// decides what a run knows before it starts is the RUNS MODULE's own
+// (kernel/modules/runs/prompt), and the run engine holds the very same
+// service the delegation engine holds. The host held two verbs over it
+// (BuildRunPrompt, InjectHostEnvironment) and the module asked the host: a
+// round trip inside one module, twice.
 type KernelAPI interface {
 	Bus() *bus.Bus
 	Journal() *journal.Journal
@@ -65,8 +72,6 @@ type KernelAPI interface {
 	FoldRunTools(corr string) (int, []string)
 	CompleteAux(ctx context.Context, corr, taskType string, req llm.CompletionRequest) (*llm.CompletionResponse, error)
 	DisableHeuristicBypass(ctx context.Context) bool
-	BuildRunPrompt(runCtx context.Context, corr, actor, intent string, systemAgent bool, skillDirective skillapi.ActivationDirective) (string, []string)
-	InjectHostEnvironment(system string, tools map[string]toolapi.Tool) string
 	ResumeCheckpointFn(corr string) func(int, []llm.Message)
 	ResolveRunModel(ctx context.Context) (string, bool)
 	Memory() memoryapi.Manager

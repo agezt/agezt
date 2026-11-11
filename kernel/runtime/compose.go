@@ -627,7 +627,12 @@ func Open(cfg Config) (*Kernel, error) {
 	// host. And it holds the module's LIVE-RUN STATE (W3.76ae): the run's
 	// registration and cleanup are the module's own, so the engine asks the
 	// module for them instead of asking the host through its port.
-	k.runner = runner.New(k, rosterSvc, k.runState)
+	//
+	// And it holds the module's PROMPT ASSEMBLY (W3.76af): the run engine
+	// builds the run's prompt through the module's own service — the same
+	// service the delegation engine holds — instead of asking the host for
+	// a verb over the module's own body.
+	k.runner = runner.New(k, rosterSvc, k.runState, k.prompt)
 
 	return k, nil
 }

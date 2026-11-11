@@ -3,11 +3,8 @@
 package runtime
 
 import (
-	"context"
 	"time"
 
-	"github.com/agezt/agezt/kernel/contract/skillapi"
-	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/runs/prompt"
 )
@@ -18,17 +15,19 @@ import (
 // memory, the resolved world entities and the activated skills — plus the
 // host-environment preamble that tells the model which machine it is on.
 //
-// The daemon keeps the DOORS: BuildRunPrompt and InjectHostEnvironment are
-// the two verbs the run executor calls, and the sub-agent path calls the
-// module's BuildSubagent. The bodies live in the module; nothing here
-// assembles a prompt.
+// The daemon holds the SERVICE and the host port that feeds it, and nothing
+// else: the run engine asks the module for its own prompt (W3.76af), and the
+// delegation engine — which lives in the same module — has always held the
+// very same service. The daemon's own use of it is one call: the
+// context-selection manifest it derives from the run's journal
+// (context_selection.go).
 //
-// The file is named prompt_doors.go, NOT prompt.go: the daemon's prompt.go
-// was the run context's profile renderer, and it moved to the runs module in
+// The file is named prompt_host.go, NOT prompt.go: the daemon's prompt.go was
+// the run context's profile renderer, and it moved to the runs module in
 // W3.76c (kernel/modules/runs/runctx/profile.go). The ratchet in
 // runctx_ratchet_test.go watches that name, and it should keep watching it:
 // "the daemon has no prompt.go" is a true statement about the run context's
-// home, whatever else the daemon's doors are called.
+// home, whatever else the daemon's prompt files are called.
 //
 // The module reaches the daemon through a THREE-verb Host port — the live
 // identity, the bus and the clock — and reads the four stores through the
@@ -67,18 +66,4 @@ func promptConfig(cfg Config) prompt.Config {
 		EnvironmentInject: cfg.EnvironmentInject,
 		WorkspaceRoot:     cfg.WorkspaceRoot,
 	}
-}
-
-// BuildRunPrompt assembles the system prompt (live default +
-// profile/taste/memory/world/skill injection) for a run. The body lives in
-// the runs module (W3.76e); this is the door the run executor calls.
-func (k *Kernel) BuildRunPrompt(runCtx context.Context, corr, actor, intent string, systemAgent bool, skillDirective skillapi.ActivationDirective) (string, []string) {
-	return k.prompt.Build(runCtx, corr, actor, intent, systemAgent, skillDirective)
-}
-
-// InjectHostEnvironment prepends the host-environment preamble to
-// the system prompt when Config.EnvironmentInject is set. The body lives in
-// the runs module (W3.76e); this is the door the run executor calls.
-func (k *Kernel) InjectHostEnvironment(system string, tools map[string]toolapi.Tool) string {
-	return k.prompt.BuildEnvironment(system, tools)
 }

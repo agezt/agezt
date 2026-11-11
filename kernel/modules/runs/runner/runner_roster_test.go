@@ -18,6 +18,8 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
+	"github.com/agezt/agezt/kernel/contract/skillapi"
+	"github.com/agezt/agezt/kernel/contract/toolapi"
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
@@ -37,6 +39,16 @@ func (s *stubKernel) RosterGet(ref string) (agentapi.Profile, bool) {
 		return agentapi.Profile{}, false
 	}
 	return s.profile, true
+}
+
+// BuildRunPrompt answers the host's prompt door (PROBE).
+func (s *stubKernel) BuildRunPrompt(runCtx context.Context, corr, actor, intent string, systemAgent bool, skillDirective skillapi.ActivationDirective) (string, []string) {
+	return "probe", nil
+}
+
+// InjectHostEnvironment answers the host's environment door (PROBE).
+func (s *stubKernel) InjectHostEnvironment(system string, tools map[string]toolapi.Tool) string {
+	return system
 }
 
 // stubRoster is the AGENTS MODULE's roster service, seen from the run
@@ -86,7 +98,7 @@ func TestTheRunEngineAsksTheAgentsModuleToRetireTheAgent(t *testing.T) {
 		Lifecycle: agentapi.AgentLifecycle{RetireOnComplete: true},
 	}}
 	roster := &stubRoster{}
-	r := New(k, roster, testState())
+	r := New(k, roster, testState(), testPrompt())
 
 	ctx := runctx.WithAgentIdent(context.Background(), "worker", 0)
 	r.CompleteAgentLifecycle(ctx, "corr-1")
@@ -104,7 +116,7 @@ func TestTheRunEngineStaysQuietWithoutARosterService(t *testing.T) {
 		Slug:      "worker",
 		Lifecycle: agentapi.AgentLifecycle{RetireOnComplete: true},
 	}}
-	r := New(k, nil, testState())
+	r := New(k, nil, testState(), testPrompt())
 
 	ctx := runctx.WithAgentIdent(context.Background(), "worker", 0)
 	r.CompleteAgentLifecycle(ctx, "corr-1")
@@ -115,7 +127,7 @@ func TestTheRunEngineStaysQuietWithoutARosterService(t *testing.T) {
 func TestTheRunEngineLeavesAnUnknownAgentAlone(t *testing.T) {
 	k := &stubKernel{}
 	roster := &stubRoster{}
-	r := New(k, roster, testState())
+	r := New(k, roster, testState(), testPrompt())
 
 	ctx := runctx.WithAgentIdent(context.Background(), "ghost", 0)
 	r.CompleteAgentLifecycle(ctx, "corr-1")

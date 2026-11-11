@@ -189,9 +189,14 @@ type Kernel struct {
 	// W3.76e): it assembles what a run knows before it starts — the live
 	// identity, the operator profile, the taste exemplars, the recalled
 	// memory, the resolved world entities, the activated skills — and the
-	// host-environment preamble. The daemon keeps the doors (BuildRunPrompt,
-	// InjectHostEnvironment) and the three-verb host port the module asks
-	// for (the live identity, the bus, the clock).
+	// host-environment preamble.
+	//
+	// The daemon keeps the SERVICE and the three-verb host port the module
+	// asks for (the live identity, the bus, the clock). It holds no verb
+	// over the assembly (W3.76af): the run engine holds the very same
+	// service and asks the module for its own prompt, and the daemon's own
+	// use of it is one call — the context-selection manifest it derives
+	// from the run's journal.
 	prompt *prompt.Service
 
 	// delegation is the RUNS MODULE's delegation engine
