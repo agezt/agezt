@@ -19,6 +19,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
+	"github.com/agezt/agezt/kernel/modules/runs/retry"
 	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
@@ -49,11 +50,18 @@ func (r *Runner) RunWithRetry(ctx context.Context, corr, intent string, pol agen
 			return ans, nil
 		}
 		lastErr = err
-		reason := r.k.RetryReason(err)
-		if attempt >= max || !r.k.AgentRetryable(reason, pol.RetryOn) {
+		// The RETRY RULES are the runs module's own (kernel/modules/runs/retry,
+		// W3.76f): how a failure is classified, whether the policy allows
+		// another attempt and how long the backoff waits. The daemon held
+		// three verbs over them (RetryReason, AgentRetryable, RetryDelay) and
+		// the engine asked the HOST for them — the host forwarded to the very
+		// package next door. The engine asks the module now, the way the
+		// delegation engine always has.
+		reason := retry.Reason(err, ErrHalted)
+		if attempt >= max || !retry.Retryable(reason, pol.RetryOn) {
 			return "", err
 		}
-		delay := r.k.RetryDelay(pol, attempt)
+		delay := retry.Delay(pol, attempt)
 		agentSlug := runctx.AgentSlugFromCtx(ctx)
 		subject := "agent.retry"
 		if agentSlug != "" {

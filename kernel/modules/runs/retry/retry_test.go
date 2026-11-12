@@ -43,6 +43,14 @@ func TestReason_WithoutAHaltSentinel(t *testing.T) {
 	}
 }
 
+// TestReason_ANilErrorIsAnError pins the shape the agent-retry event payload
+// depends on: a run that failed with no error at all is still an "error".
+func TestReason_ANilErrorIsAnError(t *testing.T) {
+	if got := Reason(nil, errHalted); got != "error" {
+		t.Errorf("Reason(nil) = %q, want error", got)
+	}
+}
+
 func TestRetryable_WithoutAPolicy(t *testing.T) {
 	// The default policy retries errors and timeouts — never a halted or
 	// cancelled run.
@@ -117,4 +125,55 @@ func TestDelay_TheCapIsAppliedInsideTheGrowthLoop(t *testing.T) {
 	if got < 0 {
 		t.Errorf("Delay = %v, want a positive duration (the cap is applied inside the loop)", got)
 	}
+}
+
+// TestDelay_NoOverflow pins the F1 regression: exponential growth must never
+// wrap time.Duration's int64 backing to a negative value, even when the
+// attempt count is far beyond the validated MaxAttempts=10. Without the
+// in-loop cap, base=1s overflows at attempt=35 and base=60s at attempt=29;
+// the post-loop MaxDelaySec clamp `if delay > max` does not catch a wrapped
+// negative duration, and the caller (time.NewTimer) fires immediately,
+// silently destroying the backoff.
+//
+// The daemon kept these cases for its forwarding wrappers until W3.76ai; the
+// rule they pin is the MODULE's, so the rule's tests live here.
+func TestDelay_NoOverflow(t *testing.T) {
+	t.Run("with cap, very large attempt", func(t *testing.T) {
+		pol := agentapi.RetryPolicy{BaseDelaySec: 1, Backoff: "exponential", MaxDelaySec: 60}
+		cap := time.Duration(pol.MaxDelaySec) * time.Second
+		for _, attempt := range []int{33, 34, 35, 40, 64, 100, 1000} {
+			d := Delay(pol, attempt)
+			if d < 0 {
+				t.Errorf("Delay overflow: attempt=%d returned %v (negative)", attempt, d)
+			}
+			if d != cap {
+				t.Errorf("Delay overflow: attempt=%d returned %v, want cap=%v", attempt, d, cap)
+			}
+		}
+	})
+	t.Run("with cap, larger base", func(t *testing.T) {
+		pol := agentapi.RetryPolicy{BaseDelaySec: 60, Backoff: "exponential", MaxDelaySec: 86400}
+		cap := time.Duration(pol.MaxDelaySec) * time.Second
+		for _, attempt := range []int{28, 29, 30, 35, 100, 1000} {
+			d := Delay(pol, attempt)
+			if d < 0 {
+				t.Errorf("Delay overflow: attempt=%d returned %v (negative)", attempt, d)
+			}
+			if d != cap {
+				t.Errorf("Delay overflow: attempt=%d returned %v, want cap=%v", attempt, d, cap)
+			}
+		}
+	})
+	t.Run("without cap, very large attempt", func(t *testing.T) {
+		// No MaxDelaySec configured: must saturate, never wrap to
+		// negative or zero. The pre-fix code returned 0 at attempt=64
+		// (int64 wrap of 2^63) and negative values for 35..63.
+		pol := agentapi.RetryPolicy{BaseDelaySec: 1, Backoff: "exponential"}
+		for _, attempt := range []int{50, 63, 64, 100, 1000} {
+			d := Delay(pol, attempt)
+			if d <= 0 {
+				t.Errorf("Delay overflow: attempt=%d returned %v, want positive duration", attempt, d)
+			}
+		}
+	})
 }

@@ -2,14 +2,14 @@
 
 package runtime
 
-// Provenance: Runtime runner: the resume-ticket and retry-policy doors over
-//             the runs module's run engine. Code extracted from
-//             runexec.go during the Day-122 god-file split. Public API unchanged.
+// Provenance: Runtime runner: the doors over the runs module's run engine.
+//             Code extracted from runexec.go during the Day-122 god-file
+//             split. The resume-ticket doors (ClaimResumeTicket,
+//             FinalizeResumeTicket) left in W3.76ah and the retry-policy doors
+//             (RetryReason, AgentRetryable, RetryDelay) left in W3.76ai —
+//             both are the runs module's own.
 
 import (
-	"time"
-
-	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/modules/runs/api"
 )
 
@@ -70,24 +70,11 @@ func (k *Kernel) RunnerService() api.RunnerService { return k.runner }
 // asked the host for them through its port: a round trip inside one module,
 // three times. The daemon keeps its own two duties over the tickets — the
 // boot-time resumer and the shutdown protocol (see resume.go).
-
-// RetryReason classifies a Run/RunWith terminal error for the
-// agent-retry event payload. Used by Runner.RunWithRetry and
-// subagent.go's retry loop; both reach the implementation
-// through the public method (the package-level helper stays
-// available for the in-package subagent.go call site).
-func (k *Kernel) RetryReason(err error) string { return retryReason(err) }
-
-// AgentRetryable reports whether the given reason matches the
-// policy's RetryOn allowlist. Empty RetryOn = default ("error"
-// and "timeout" only — never auto-retry a halted/cancelled run).
-func (k *Kernel) AgentRetryable(reason string, retryOn []string) bool {
-	return agentRetryable(reason, retryOn)
-}
-
-// RetryDelay computes the wait between attempts. Exponential
-// backoff doubles each attempt; MaxDelaySec caps the result.
-// Zero base delay = no wait (try immediately).
-func (k *Kernel) RetryDelay(pol agentapi.RetryPolicy, attempt int) time.Duration {
-	return retryDelay(pol, attempt)
-}
+//
+// The RETRY RULES are the RUNS MODULE's too (W3.76ai): how a failed run is
+// classified, whether the policy allows another attempt and how long the
+// backoff waits live in kernel/modules/runs/retry (W3.76f moved them there for
+// the delegation engine). The daemon held three verbs over them
+// (RetryReason, AgentRetryable, RetryDelay) and forwarded to the very
+// package next door, so the run engine asked the host for a rule the module
+// keeps: a round trip inside one module, three times more.

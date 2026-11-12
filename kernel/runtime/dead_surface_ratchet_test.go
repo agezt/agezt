@@ -169,6 +169,10 @@ var retiredVerbs = []string{
 	"ClaimResumeTicket",
 	"FinalizeResumeTicket",
 	"ResumeCheckpointFn",
+	// The daemon's three verbs over the run's own retry rules (W3.76ai).
+	"RetryReason",
+	"AgentRetryable",
+	"RetryDelay",
 }
 
 // daemonPublicVerbs is the ceiling the daemon's public method set may not
@@ -194,10 +198,11 @@ var retiredVerbs = []string{
 // -> 121 (W3.76ad, the journal's four provenance walks) -> 118 (W3.76ae, the
 // run's three live-state verbs) -> 116 (W3.76af, the run's two prompt doors)
 // -> 114 (W3.76ag, the run's two publish verbs) -> 111 (W3.76ah, the run's
-// three ticket-lifecycle verbs).
-// The daemon holds 111 public verbs today; a new verb needs a new reason, and
+// three ticket-lifecycle verbs) -> 108 (W3.76ai, the run's three retry-rule
+// verbs).
+// The daemon holds 108 public verbs today; a new verb needs a new reason, and
 // this file says so.
-const daemonPublicVerbs = 111
+const daemonPublicVerbs = 108
 
 // TestTheRetiredVerbsDoNotComeBack pins the retirement: none of the sixteen
 // names is a method of *Kernel any more.

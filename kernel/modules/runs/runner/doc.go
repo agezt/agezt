@@ -40,9 +40,12 @@
 // Circular-import guard: like the loop, the runner does not import the
 // daemon. Every method the Runner calls has a counterpart on the host's
 // KernelAPI implementation — added as wrappers when the Runner was
-// extracted (ClaimResumeTicket, FinalizeResumeTicket, AgentSlugFromCtx,
-// AgentRetryPolicyFromCtx, RetryReason, AgentRetryable, RetryDelay,
-// RunWithRetry).
+// extracted (RunWithRetry).
+//
+// The rules the engine used to ask the host for are the module's own now:
+// the resume handshake's vocabulary (W3.76q), the ticket's lifecycle
+// (W3.76ah) and the retry rules (W3.76ai) all live next door, and the
+// engine asks them directly.
 //
 // History: extracted from kernel/runtime as part of the Day 12-23
 // sub-package split: lifecycle (Day 12) → accessors (Day 13-19) → types
