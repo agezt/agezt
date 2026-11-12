@@ -17,8 +17,8 @@ import (
 // bus appends to, so `agt why` sees bus-published events.
 
 // openCausesKernel spins a real kernel over a temp journal. Shared by the
-// delegation test below and other white-box tests (reaper, foldRunTools)
-// that need a kernel without the rest of the agent loop.
+// delegation test below and other white-box tests (reaper) that need a
+// kernel without the rest of the agent loop.
 func openCausesKernel(t *testing.T) *Kernel {
 	t.Helper()
 	k, err := Open(withRoster(t, Config{

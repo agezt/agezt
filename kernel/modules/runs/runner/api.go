@@ -77,6 +77,13 @@ import (
 // verbs over them (RetryReason, AgentRetryable, RetryDelay) and forwarded to
 // the very package next door, so the engine asked the host for a rule the
 // module keeps: a round trip inside one module, three times more.
+//
+// The RUN'S TOOL FOLD is not part of it either (W3.76aj): counting the tool
+// results of one run is a walk over the EVENT LOG, so it is the JOURNAL's own
+// (kernel/journal) — the same place the provenance walks live since W3.76ad.
+// The host held one verb over it (FoldRunTools) and the engine asked the host
+// for a fold the log answers directly. The port already carries the journal
+// itself (Journal()), so the engine asks the log and the hop is gone.
 type KernelAPI interface {
 	Bus() *bus.Bus
 	Journal() *journal.Journal
@@ -90,7 +97,6 @@ type KernelAPI interface {
 	SkillForge() bool
 	SkillForgeMinTools() int
 	ShadowEval() bool
-	FoldRunTools(corr string) (int, []string)
 	CompleteAux(ctx context.Context, corr, taskType string, req llm.CompletionRequest) (*llm.CompletionResponse, error)
 	DisableHeuristicBypass(ctx context.Context) bool
 	ResolveRunModel(ctx context.Context) (string, bool)

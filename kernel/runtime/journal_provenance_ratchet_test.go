@@ -79,14 +79,16 @@ func TestTheDaemonDoesNotDeclareAJournalProvenanceWalk(t *testing.T) {
 }
 
 // TestTheDaemonSaysWhereTheProvenanceWalksLive pins the daemon's own word:
-// the file that lost the four verbs says where they live, so the next reader
-// does not have to guess.
+// the daemon says where the walks live, so the next reader does not have to
+// guess. The file that lost the four verbs (runner_delegates.go) is gone
+// since W3.76aj — the daemon holds no delegate wrapper at all — so the note
+// lives in the package's own doc.
 func TestTheDaemonSaysWhereTheProvenanceWalksLive(t *testing.T) {
-	src, err := os.ReadFile("runner_delegates.go")
+	src, err := os.ReadFile("doc.go")
 	if err != nil {
-		t.Fatalf("read runner_delegates.go: %v", err)
+		t.Fatalf("read doc.go: %v", err)
 	}
 	if !strings.Contains(strings.ToLower(string(src)), "the journal's provenance walks are the journal's own") {
-		t.Error("the daemon's delegate file must say where the provenance walks live")
+		t.Error("the daemon must say where the provenance walks live")
 	}
 }

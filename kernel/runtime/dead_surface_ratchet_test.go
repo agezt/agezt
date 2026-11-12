@@ -173,6 +173,8 @@ var retiredVerbs = []string{
 	"RetryReason",
 	"AgentRetryable",
 	"RetryDelay",
+	// The daemon's one verb over the run's own tool fold (W3.76aj).
+	"FoldRunTools",
 }
 
 // daemonPublicVerbs is the ceiling the daemon's public method set may not
@@ -199,10 +201,10 @@ var retiredVerbs = []string{
 // run's three live-state verbs) -> 116 (W3.76af, the run's two prompt doors)
 // -> 114 (W3.76ag, the run's two publish verbs) -> 111 (W3.76ah, the run's
 // three ticket-lifecycle verbs) -> 108 (W3.76ai, the run's three retry-rule
-// verbs).
-// The daemon holds 108 public verbs today; a new verb needs a new reason, and
+// verbs) -> 107 (W3.76aj, the run's one tool-fold verb).
+// The daemon holds 107 public verbs today; a new verb needs a new reason, and
 // this file says so.
-const daemonPublicVerbs = 108
+const daemonPublicVerbs = 107
 
 // TestTheRetiredVerbsDoNotComeBack pins the retirement: none of the sixteen
 // names is a method of *Kernel any more.
