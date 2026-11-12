@@ -14920,3 +14920,77 @@ func main() {
   production importers), not a lifecycle one.
   Evidence:
   `architecture/307-w376ah-the-runs-ticket-lifecycle-moves-into-the-runs-module-evidence.md`
+- W3.76ai (the run's retry rules move into the runs module) is the
+  **forty-third** slice of the runtime's dissolution.
+
+  A failed run is **classified**, the policy decides whether **another
+  attempt** is allowed, and the backoff says **how long** to wait. Those three
+  rules moved into the runs module in **W3.76f**
+  (`kernel/modules/runs/retry`) — the delegation engine needed them and could
+  not reach the daemon's unexported copies.
+
+  What stayed in the daemon was a **forwarding desk**: three private wrappers
+  over three public verbs (`RetryReason`, `AgentRetryable`, `RetryDelay`) —
+  and the **run engine**, which lives inside the runs module, asked the
+  **host** for all three through its `KernelAPI` port, only to be forwarded
+  to the very package next door: a round trip inside one module, three times
+  more.
+
+  The daemon's copy of the rules was a copy of nothing: the module's bodies
+  were the only bodies, and the daemon's file held three one-line calls plus
+  the tests that repeated the module's. So the desk goes — the engine calls
+  `retry.Reason(err, ErrHalted)`, `retry.Retryable(reason, pol.RetryOn)` and
+  `retry.Delay(pol, attempt)` itself, the way the delegation engine always
+  has.
+
+  The halt sentinel is the module's own (`state.ErrHalted` — the daemon's
+  alias points at the same value), so a halted run is classified exactly as
+  the daemon classifies it.
+
+  The daemon's `runner_helpers.go` is gone and its test file with it: the
+  F1 overflow regression moved to the module's own test, next to the rule it
+  pins.
+
+  The port lost **three** entries: the engine's host port carries **24** now
+  (it carried **27**).
+
+  The measurement: the daemon's public verbs **111 → 108**, its production
+  lines **5,277 → 5,246**, its files **54 → 53**; the run engine's package
+  **1,025 → 1,040**; the retry package **1 file / 91 lines** (unchanged — the
+  rules were already the module's; this slice removed the desk, not the
+  rules); the app packages that name the daemon stay at **forty**.
+
+  Two **ratchet** files: the daemon's
+  (`kernel/runtime/retry_ratchet_test.go`, new) pins that the daemon holds no
+  verb per retry rule, no forwarding wrapper and no name for the module's
+  rules; the module's
+  (`kernel/modules/runs/runner/runner_retry_ratchet_test.go`, new) pins that
+  the port carries **no** retry entry, that the engine **calls** the module's
+  rules, and that the module's halt sentinel classifies as halted.
+
+  The daemon's own surface ceiling followed the floor again: **111 → 108**
+  (220 → 201 → 194 → 179 → 173 → 166 → 164 → 156 → 152 → 148 → 143 → 135 →
+  129 → 125 → 121 → 118 → 116 → 114 → 111 → 108).
+
+  **The probe** put the world back before this slice — the daemon's three
+  verbs with their real bodies, the three entries back into the engine's port
+  and the engine asking the host again: the retired-verb ratchet, the surface
+  ceiling (111 > 108), the daemon's four retry ratchets and the module's two
+  retry ratchets all went red at once — **eight** ratchets in one shot, and
+  nothing else broke; the probe was reverted and the suites went green again.
+
+  **What is left**: the daemon holds **108** public verbs and **5,246**
+  production lines; **forty** application packages still name it; the run
+  engine's host port carries **24** entries. What is left in the daemon is
+  the run's **remaining machinery**: the plan runner's registration
+  (`RunPlan`), the two doors the run engine still opens for the host's own
+  state (`ResolveRunModel`, `BuildLoopConfig`) and the `FoldRunTools` port
+  entry (the daemon's journal walk behind a port the engine already holds).
+  The **standing package** itself still lives at `kernel/standing`, and its
+  **eventual** home is the **triggers module** (`kernel/modules/triggers`) —
+  the architecture gate already places both `kernel/cadence` and
+  `kernel/standing` in that module, so the family's boundary is drawn; the
+  module's directory does not exist yet, and the move is a path move (four
+  production importers), not a lifecycle one.
+  Evidence:
+  `architecture/308-w376ai-the-runs-retry-rules-move-into-the-runs-module-evidence.md`
