@@ -14994,3 +14994,79 @@ func main() {
   production importers), not a lifecycle one.
   Evidence:
   `architecture/308-w376ai-the-runs-retry-rules-move-into-the-runs-module-evidence.md`
+- W3.76aj (the run's tool fold moves into the journal) is the **forty-fourth**
+  slice of the runtime's dissolution.
+
+  A run's transcript is built by folding the event log over one correlation:
+  how many tools the run called, and which ones, in order. That fold is a
+  **walk over the event log** — the same family as the provenance walks the
+  journal already owns (`Why`, `Causes`, `ParentOf`, `Verify`), and the event
+  log is the host's own file (`kernel/journal`).
+
+  What stayed in the daemon was a **second spelling** of that walk
+  (`FoldRunTools`, a copy of the journal's fold over the daemon's own journal
+  handle), and the **run engine**, which lives inside the runs module, asked
+  the **host** for it through its `KernelAPI` port: one family, two spellings,
+  and a hop the host never had to keep. The W3.76ad slice had already taken the
+  four provenance walks the same way — the fold was the last verb in that row.
+
+  The fold's body moved into the journal (`kernel/journal/fold.go`,
+  `Journal().FoldTools(corr)`), next to the walks it belongs with, and the
+  engine asks the log through the journal the port **already** carried
+  (`Journal() *journal.Journal`) — so the fold costs no new port entry and the
+  port loses one.
+
+  The daemon keeps no verb, no copy of the body and no name for the journal's
+  fold: its delegate file (`runner_delegates.go`) held nothing else and is
+  **gone**. The note that says where the walks live moved to the daemon's
+  package doc, and the W3.76ad ratchet was re-aimed to read it there — the
+  invariant is unchanged.
+
+  The **coverage moved with the subject**: the daemon's own test, which pinned
+  the cross-run isolation (a `||`→`&&` regression would have folded another
+  run's tool results into the transcript), moved to the journal's own test file
+  next to the walk it pins, together with two new cases (a tool call whose
+  payload carries no name still **counts**; an unused correlation folds to
+  nothing).
+
+  The measurement: the daemon's public verbs **108 → 107**, its production
+  lines **5,246 → 5,213**, its files **53 → 52**; the run engine's host port
+  **24 → 23**; the run engine's package **1,040 → 1,046**; the journal package
+  **8 files / 1,070 lines → 9 / 1,117**; the app packages that name the daemon
+  stay at **forty**.
+
+  Two **ratchet** files: the daemon's (`kernel/runtime/fold_ratchet_test.go`,
+  new) pins that the daemon holds no verb for the fold, no copy of its body
+  (the shape `CorrelationID != corr || e.Kind != event.KindToolResult`) and
+  does not even **call** the journal's fold (the check reads the daemon's
+  *code*, comments stripped); the module's
+  (`kernel/modules/runs/runner/runner_fold_ratchet_test.go`, new) pins that the
+  port carries **no** fold entry, that the engine asks the **journal** for its
+  fold and that it keeps no copy of the walk either.
+
+  The daemon's own surface ceiling followed the floor again: **108 → 107**
+  (220 → 201 → 194 → 179 → 173 → 166 → 164 → 156 → 152 → 148 → 143 → 135 →
+  129 → 125 → 121 → 118 → 116 → 114 → 111 → 108 → 107).
+
+  **The probe** put the world back before this slice — the daemon's verb with
+  its real body, the entry back into the engine's port and the engine asking
+  the host again: the retired-verb ratchet, the surface ceiling (108 > 107),
+  the daemon's two fold ratchets and the module's two fold ratchets all went
+  red at once — **six** ratchets in one shot, and nothing else broke; the probe
+  was reverted and the suites went green again.
+
+  **What is left**: the daemon holds **107** public verbs and **5,213**
+  production lines; **forty** application packages still name it; the run
+  engine's host port carries **23** entries. What is left in the daemon is
+  the run's **remaining machinery**: the plan runner's registration
+  (`RunPlan`) and the two doors the run engine still opens for the host's own
+  state (`ResolveRunModel`, `BuildLoopConfig` — the latter already the
+  daemon's door over the module's rule since W3.76g).
+  The **standing package** itself still lives at `kernel/standing`, and its
+  **eventual** home is the **triggers module** (`kernel/modules/triggers`) —
+  the architecture gate already places both `kernel/cadence` and
+  `kernel/standing` in that module, so the family's boundary is drawn; the
+  module's directory does not exist yet, and the move is a path move (four
+  production importers), not a lifecycle one.
+  Evidence:
+  `architecture/309-w376aj-the-runs-tool-fold-moves-into-the-journal-evidence.md`
