@@ -74,7 +74,7 @@ type Kernel struct {
 	marketMgr   marketapi.Manager
 	standing    standingapi.Store     // the standing-order library — the contract's store port (W3.50)
 	standingSvc standingapi.Lifecycle // the standing library's SERVICE — the standing package's face (W3.76x)
-	resume      *resume.Store         // durable in-flight-run tickets for restart resume (M1002); nil when disabled
+	tickets     *resume.Service       // the RUNS MODULE's ticket lifecycle — the durable in-flight-run tickets and their claim/refresh/finalize (W3.76ah)
 	roster      agentapi.Store
 
 	// rosterSvc is the AGENTS MODULE's roster service — the profile

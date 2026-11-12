@@ -7,7 +7,6 @@ package runtime
 //             runexec.go during the Day-122 god-file split. Public API unchanged.
 
 import (
-	"context"
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
@@ -63,22 +62,14 @@ import (
 // operation has one name.
 func (k *Kernel) RunnerService() api.RunnerService { return k.runner }
 
-// ClaimResumeTicket is the public surface for the resume-ticket
-// ownership dance. Returns the (possibly ticket-bearing) ctx and
-// whether THIS frame owns the ticket (true = caller must finalize).
-// Wraps claimResumeTicket in resume.go so the runner package
-// can drive it through KernelAPI (Day 23).
-func (k *Kernel) ClaimResumeTicket(ctx context.Context, corr, intent, kind string, assureBudget int) (context.Context, bool) {
-	return k.claimResumeTicket(ctx, corr, intent, kind, assureBudget)
-}
-
-// FinalizeResumeTicket is the public surface for clearing or
-// keeping a resume ticket on run exit. Honours the registry's suspend latch so
-// shutdown-interrupted runs keep their ticket. Wraps
-// finalizeResumeTicket in resume.go (Day 23).
-func (k *Kernel) FinalizeResumeTicket(corr string, runErr error) {
-	k.finalizeResumeTicket(corr, runErr)
-}
+// The RESUME TICKET's lifecycle is the RUNS MODULE's (W3.76ah): who owns the
+// durable ticket, when it is refreshed and when it is deleted live in
+// kernel/modules/runs/resume, next to the tickets themselves. The daemon held
+// three verbs over them (ClaimResumeTicket, FinalizeResumeTicket,
+// ResumeCheckpointFn) and the run engine — which lives inside that module —
+// asked the host for them through its port: a round trip inside one module,
+// three times. The daemon keeps its own two duties over the tickets — the
+// boot-time resumer and the shutdown protocol (see resume.go).
 
 // RetryReason classifies a Run/RunWith terminal error for the
 // agent-retry event payload. Used by Runner.RunWithRetry and

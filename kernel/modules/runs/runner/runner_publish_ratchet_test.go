@@ -48,7 +48,7 @@ func TestTheRunEnginePortCarriesNoPublishEntry(t *testing.T) {
 // holds the module's publisher, not a host door.
 func TestTheRunEngineAsksTheModulesPublishSurface(t *testing.T) {
 	p := testPublisher()
-	r := New(&stubKernel{}, nil, testState(), testPrompt(), p)
+	r := New(&stubKernel{}, nil, testState(), testPrompt(), p, testTickets())
 	if r.publish != p {
 		t.Fatal("the run engine does not hold the module's publish surface")
 	}
@@ -58,7 +58,7 @@ func TestTheRunEngineAsksTheModulesPublishSurface(t *testing.T) {
 // that wired no publisher leaves the engine quiet — it says the surface is
 // missing instead of running silently.
 func TestTheRunEngineRefusesWithoutAPublishSurface(t *testing.T) {
-	r := New(&stubKernel{}, nil, testState(), testPrompt(), nil)
+	r := New(&stubKernel{}, nil, testState(), testPrompt(), nil, testTickets())
 	if _, err := r.RunWith(t.Context(), "corr-1", "do the thing"); err == nil {
 		t.Fatal("the engine ran without a publish surface")
 	}

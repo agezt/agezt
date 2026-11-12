@@ -12,13 +12,20 @@
 // termination. If the daemon dies with the ticket still present, the boot-time
 // resumer re-dispatches it.
 //
-// The package is deliberately dependency-light: it imports only kernel/contract
-// llm (for the serialized Message slice) and internal/atomicfile. Everything
-// else a run needs at resume time — trust ceiling, cost cap, wake context — is
-// flattened to primitives so this package never imports kernel/runtime (which
-// imports it), avoiding an import cycle. The runtime assembles a Ticket from
-// its context values; the resumer (in the daemon, where the context builders
-// live) rebuilds a run context from the flattened fields.
+// The package is deliberately dependency-light: it imports kernel/contract llm
+// (for the serialized Message slice), internal/atomicfile, the run context's
+// own vocabulary (kernel/modules/runs/runctx) and the event spec
+// (kernel/event). Everything else a run needs at resume time — trust ceiling,
+// cost cap, wake context — is flattened to primitives so this package never
+// imports kernel/runtime (which imports it), avoiding an import cycle.
+//
+// The package owns the ticket's LIFECYCLE too (service.go, W3.76ah): the
+// claim, the per-iteration snapshot, the finalization and the suspend
+// transition. Those operations used to sit in the daemon, which held three
+// public verbs for them and let the run engine — which lives inside this
+// module — ask the host for them: a round trip inside one module. The host
+// keeps its own two duties: the boot-time resumer, which enumerates the
+// suspended tickets and re-dispatches them, and the shutdown protocol.
 //
 // # Why this package is the runs module's
 //

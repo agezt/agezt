@@ -93,8 +93,13 @@ func TestThePortCarriesNoRunContextVocabulary(t *testing.T) {
 // The resume HANDSHAKE left the list in W3.76q: the owned marker and the
 // seeded conversation are the resume module's vocabulary, and the run engine
 // — which lives next to that module — reads them from there. What stays is
-// the host's own state: the checkpoint callback, the resolved model and the
-// run's effective configuration.
+// the host's own state: the resolved model and the run's effective
+// configuration.
+//
+// W3.76ah shrank it once more: the CHECKPOINT CALLBACK left the port with the
+// ticket's lifecycle — the ticket is the run's own durable state, so the
+// snapshot that refreshes it is the resume module's operation, and the run
+// engine asks the module for it.
 func TestThePortStillCarriesTheHostsOwnState(t *testing.T) {
 	src, err := os.ReadFile("api.go")
 	if err != nil {
@@ -102,7 +107,6 @@ func TestThePortStillCarriesTheHostsOwnState(t *testing.T) {
 	}
 	text := string(src)
 	for _, keep := range []string{
-		"ResumeCheckpointFn(corr string)",
 		"ResolveRunModel(ctx context.Context)",
 		"DisableHeuristicBypass(ctx context.Context)",
 	} {
@@ -113,9 +117,10 @@ func TestThePortStillCarriesTheHostsOwnState(t *testing.T) {
 	for _, gone := range []string{
 		"ResumeOwnedKindFromCtx(ctx context.Context)",
 		"ResumeSeedFromCtx(ctx context.Context)",
+		"ResumeCheckpointFn(corr string)",
 	} {
 		if strings.Contains(text, gone) {
-			t.Errorf("the host's port still promises %s — the resume handshake's vocabulary is the resume module's", gone)
+			t.Errorf("the host's port still promises %s — the ticket's lifecycle is the resume module's", gone)
 		}
 	}
 }

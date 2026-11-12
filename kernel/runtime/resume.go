@@ -3,143 +3,48 @@
 package runtime
 
 // Provenance: Durable run resume (M1002). The durable ticket and the rules
-//             that judge it moved to kernel/modules/runs/resume in W3.76a; the
-//             daemon keeps the doors — it reads the run's context, hands the
-//             facts to the module, and publishes the events.
+//             that judge it moved to kernel/modules/runs/resume in W3.76a, and
+//             the ticket's LIFECYCLE moved with them in W3.76ah: the daemon
+//             keeps the doors it needs for its own boot and shutdown, and the
+//             module keeps the operations.
 
 import (
-	"context"
-
-	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
-	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 )
 
 // Durable run resume (M1002). See package kernel/modules/runs/resume for the
-// on-disk ticket format, the ticket rows and the rules that judge them. This
-// file is the kernel-side integration: it decides which runs get a ticket,
-// keeps each run's conversation snapshot fresh, and — when the daemon is going
-// down — flips tickets to "suspended" so the resumer re-dispatches them on the
-// next boot instead of the work being cancelled and lost.
+// on-disk ticket format, the ticket rows, the rules that judge them and the
+// ticket's lifecycle — the claim, the per-iteration snapshot and the
+// finalization.
 //
-// The daemon keeps the DOORS and the module keeps the RULES: the scope rule
-// (a root run carries a ticket), the resumability rule (a per-run override
-// cannot be reconstructed) and the termination rule (a run interrupted by a
-// restart keeps its ticket) are the module's, and the daemon asks.
+// The daemon keeps TWO duties over the tickets, and only two:
 //
-// The handshake's two CONTEXT facts — the owned marker and the seeded
-// conversation — are the module's vocabulary too (W3.76q): they live in
-// kernel/modules/runs/resume, and the run engine reads them from there
-// instead of asking the host for a copy.
+//   - the BOOT-TIME RESUMER: it enumerates the suspended tickets and
+//     re-dispatches them. That is the host's boot protocol, so the daemon
+//     asks the module for the store and drives the resumption itself.
+//   - the SHUTDOWN PROTOCOL: when the daemon goes down, the live tickets are
+//     flipped to "suspended" so the resumer picks them up on the next boot
+//     instead of the work being cancelled and lost.
+//
+// Everything else — who owns a ticket, when it is written, when it is
+// refreshed and when it is deleted — is the module's, and the run engine asks
+// the module for it (W3.76ah). The daemon used to answer for those operations
+// through three verbs (ClaimResumeTicket, FinalizeResumeTicket,
+// ResumeCheckpointFn) and the run engine — which lives INSIDE that module —
+// asked the host for them: a round trip inside one module, three times.
 
 // ResumeStore returns the durable ticket store (nil when resume is disabled) so
 // the daemon's boot-time resumer can enumerate suspended runs. (Named to avoid
 // clashing with Resume(), which clears the halt flag.)
-func (k *Kernel) ResumeStore() *resume.Store { return k.resume }
-
-// resumeActive reports whether this ctx describes a run eligible to carry a
-// resume ticket: the feature is on and it is a ROOT run. Sub-agents carry a
-// ParentCorrelation (and never reach RunWith anyway), so their work is re-driven
-// by resuming the root rather than persisted separately.
-func (k *Kernel) resumeActive(ctx context.Context) bool {
-	return k.resume != nil && k.cfg.ResumeEnabled &&
-		resume.CarriesTicket(runctx.WakeContextFromCtx(ctx).ParentCorrelation)
-}
-
-// claimResumeTicket writes a fresh ticket for a root run and returns a context
-// carrying the owned marker plus owns=true — UNLESS an outer frame already owns a
-// ticket for this corr, resume is off, or this isn't a root run, in which case it
-// returns the ctx unchanged with owns=false. Whoever receives owns=true must call
-// finalizeResumeTicket when the run terminates.
-func (k *Kernel) claimResumeTicket(ctx context.Context, corr, intent, kind string, assureBudget int) (context.Context, bool) {
-	if !k.resumeActive(ctx) {
-		return ctx, false
-	}
-	if _, already := resume.OwnedKindFromCtx(ctx); already {
-		return ctx, false
-	}
-	t := k.buildResumeTicket(ctx, corr, intent, kind, assureBudget)
-	if err := k.resume.Put(t); err != nil {
-		// Best-effort: a failed ticket write must never block or fail the run.
-		k.publishResumeAnomaly("ticket_write_failed", corr, err)
-		return ctx, false
-	}
-	return resume.WithOwned(ctx, kind), true
-}
-
-// buildResumeTicket stores the agent slug (the profile is reloaded on boot) and
-// resolved governance ceilings, so resume cannot silently regain authority.
 //
-// Explicit model/system/tools overrides are not stored yet and remain
-// non-resumable. Profile-sourced defaults are reconstructible, even when set.
-func (k *Kernel) buildResumeTicket(ctx context.Context, corr, intent, kind string, assureBudget int) *resume.Ticket {
-	facts := resume.Facts{
-		Corr:         corr,
-		Intent:       intent,
-		Kind:         kind,
-		AssureBudget: assureBudget,
-		AgentSlug:    runctx.AgentSlugFromCtx(ctx),
-		MaxCostMc:    runctx.MaxCostFromCtx(ctx),
-		Wake:         runctx.WakeContextFromCtx(ctx),
-	}
-	if lvl, ok := runctx.TrustCeilingFromCtx(ctx); ok {
-		v := int(lvl)
-		facts.TrustCeiling = &v
-	}
-	if d := runctx.RunTimeoutFromCtx(ctx); d > 0 {
-		facts.RunTimeoutMs = d.Milliseconds()
-	}
-	facts.System = resumeSetting(runctx.SystemSetting(ctx))
-	facts.Model = resumeSetting(runctx.ModelSetting(ctx))
-	if _, ok := runctx.ToolsFromCtx(ctx); ok {
-		facts.ToolsOverridden = true
-	}
-	return resume.Build(facts)
-}
-
-// resumeSetting reads one resolved run setting (the system prompt or the
-// model) and reports where it came from: the agent profile that supplied it
-// (reconstructible on boot) or an explicit per-run override (not).
-func resumeSetting(s runctx.RunStringSetting) resume.Setting {
-	return resume.Setting{Set: s.Value != "", SourceProfile: s.ProfileSlug}
-}
-
-// resumeCheckpointFn returns the closure the agent loop calls at each safe
-// iteration boundary to refresh the conversation snapshot. It copies the slice
-// (the loop keeps appending after this returns) and is a no-op once the ticket is
-// gone (clean completion deleted it). Returns nil when resume is disabled, so the
-// loop pays zero overhead.
-func (k *Kernel) resumeCheckpointFn(corr string) func(int, []llm.Message) {
-	if k.resume == nil {
+// The store is the MODULE's object (kernel/modules/runs/resume): the daemon
+// asks the module for it rather than holding a second handle of its own.
+func (k *Kernel) ResumeStore() *resume.Store {
+	if k.tickets == nil {
 		return nil
 	}
-	return func(iter int, messages []llm.Message) {
-		snap := append([]llm.Message(nil), messages...)
-		if err := k.resume.Snapshot(corr, snap, iter); err != nil {
-			k.publishResumeAnomaly("snapshot_failed", corr, err)
-		}
-	}
-}
-
-// finalizeResumeTicket deletes a run's ticket on any terminal outcome EXCEPT an
-// interruption by shutdown: a run cancelled while the daemon is suspending is a
-// resume candidate, so its ticket is kept for the restart. A clean finish, a
-// genuine failure, an operator cancel, or a per-run timeout all delete it — none
-// of those should re-run on the next boot.
-//
-// The keep/delete rule is the MODULE's (resume.TerminalOutcome); the daemon
-// applies it.
-func (k *Kernel) finalizeResumeTicket(corr string, runErr error) {
-	if k.resume == nil {
-		return
-	}
-	if resume.TerminalOutcome(runErr, k.registry.Suspending().Load()) == resume.DispositionKeep {
-		return // interrupted by shutdown → keep for resume
-	}
-	if err := k.resume.Delete(corr); err != nil {
-		k.publishResumeAnomaly("ticket_delete_failed", corr, err)
-	}
+	return k.tickets.Store()
 }
 
 // ResumeFinalize clears a resumed run's ticket after it terminates, keeping it
@@ -147,14 +52,20 @@ func (k *Kernel) finalizeResumeTicket(corr string, runErr error) {
 // owns the ticket lifecycle for runs it re-dispatches (it marks them owned so the
 // inner RunWith/wrapper neither recreates the ticket — which would reset the
 // crash-loop attempt counter — nor deletes it), so it calls this when the run
-// returns. Same keep/delete rule as finalizeResumeTicket.
-func (k *Kernel) ResumeFinalize(corr string, runErr error) { k.finalizeResumeTicket(corr, runErr) }
+// returns. Same keep/delete rule as the module's own finalization.
+func (k *Kernel) ResumeFinalize(corr string, runErr error) {
+	if k.tickets == nil {
+		return
+	}
+	k.tickets.Finalize(corr, runErr)
+}
 
 // Suspend flips every live run's ticket to "suspended" — the durable signal that
 // these runs were interrupted by a restart, not completed — and notifies the
-// running agents. It latches the registry's suspend latch so finalizeResumeTicket keeps (rather
-// than deletes) any ticket whose run is then cancelled. Idempotent: a second call
-// is a no-op. Returns the number of tickets marked.
+// running agents. It latches the registry's suspend latch so the module's
+// finalization keeps (rather than deletes) any ticket whose run is then
+// cancelled. Idempotent: a second call is a no-op. Returns the number of
+// tickets marked.
 //
 // Correctness does NOT depend on the agent obeying the notice — a SIGKILL gives
 // no grace at all. The continuous per-iteration checkpoint is what actually
@@ -162,7 +73,7 @@ func (k *Kernel) ResumeFinalize(corr string, runErr error) { k.finalizeResumeTic
 // wrap up its current step. Call it BEFORE any cancel on the shutdown path, or a
 // cancelled run's ticket is misclassified as operator-cancelled and deleted.
 func (k *Kernel) Suspend(reason string) int {
-	if k.resume == nil {
+	if k.tickets == nil {
 		return 0
 	}
 	if !k.registry.Suspending().CompareAndSwap(false, true) {
@@ -173,10 +84,9 @@ func (k *Kernel) Suspend(reason string) int {
 	// broadcast asks the module's live-run state.
 	k.runState.BroadcastShutdown("The daemon is shutting down and will resume this run on restart. Wrap up the current step if you can; do not start new long-running work.")
 
-	n, err := k.resume.MarkSuspendedAll()
-	if err != nil {
-		k.publishResumeAnomaly("mark_suspended_failed", "", err)
-	}
+	// The SUSPEND TRANSITION is the ticket's own (W3.76ah): the module's
+	// lifecycle marks the tickets and publishes the anomaly if it cannot.
+	n, _ := k.tickets.SuspendAll()
 	payload := map[string]any{"suspended_runs": n}
 	if reason != "" {
 		payload["reason"] = reason
@@ -188,20 +98,4 @@ func (k *Kernel) Suspend(reason string) int {
 		Payload: payload,
 	})
 	return n
-}
-
-func (k *Kernel) publishResumeAnomaly(kind, corr string, err error) {
-	payload := map[string]any{"anomaly": kind, "severity": "warning"}
-	if corr != "" {
-		payload["correlation_id"] = corr
-	}
-	if err != nil {
-		payload["error"] = err.Error()
-	}
-	_, _ = k.bus.Publish(event.Spec{
-		Subject: "run.resume.anomaly",
-		Kind:    event.KindAnomalyDetected,
-		Actor:   "kernel",
-		Payload: payload,
-	})
 }

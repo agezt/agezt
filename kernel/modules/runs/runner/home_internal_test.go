@@ -110,14 +110,18 @@ func TestTheHostStillImplementsThePort(t *testing.T) {
 	// context's vocabulary, and the run context's vocabulary is the module's.
 	// The run engine reads it through the module, and the host's port no
 	// longer promises it — see the runner's own runctx ratchet.
-	for _, name := range []string{"ClaimResumeTicket", "FinalizeResumeTicket"} {
-		if _, ok := port.MethodByName(name); !ok {
-			t.Fatalf("the KernelAPI port has no %s method", name)
-		}
-	}
 	for _, gone := range []string{"AgentSlugFromCtx", "AgentRetryPolicyFromCtx"} {
 		if _, ok := port.MethodByName(gone); ok {
 			t.Errorf("the KernelAPI port has a %s method again — the run context's vocabulary is the module's", gone)
+		}
+	}
+	// W3.76ah: the TICKET LIFECYCLE left the port too. Who owns the durable
+	// ticket, when it is refreshed and when it is deleted is the resume
+	// module's own — the tickets, the store and the rules live there — and the
+	// run engine asks the module for it.
+	for _, gone := range []string{"ClaimResumeTicket", "FinalizeResumeTicket", "ResumeCheckpointFn"} {
+		if _, ok := port.MethodByName(gone); ok {
+			t.Errorf("the KernelAPI port has a %s method again — the ticket's lifecycle is the resume module's", gone)
 		}
 	}
 	// The ROSTER's WRITES left the port in W3.76o: they are the agents
