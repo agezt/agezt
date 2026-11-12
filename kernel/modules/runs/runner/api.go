@@ -69,6 +69,14 @@ import (
 // over it (ClaimResumeTicket, FinalizeResumeTicket, ResumeCheckpointFn) and
 // the module asked the host: a round trip inside one module, three times
 // more.
+//
+// The RETRY RULES are not part of it either (W3.76ai): how a failed run is
+// classified, whether the policy allows another attempt and how long the
+// backoff waits are the RUNS MODULE's own (kernel/modules/runs/retry —
+// W3.76f moved them there for the delegation engine). The host held three
+// verbs over them (RetryReason, AgentRetryable, RetryDelay) and forwarded to
+// the very package next door, so the engine asked the host for a rule the
+// module keeps: a round trip inside one module, three times more.
 type KernelAPI interface {
 	Bus() *bus.Bus
 	Journal() *journal.Journal
@@ -111,10 +119,6 @@ type KernelAPI interface {
 	// never had to keep: the module has the body, so the module calls it.
 	//
 	// What stayed in the port is what the HOST owns: the run's setup and
-	// cleanup, the prompt, the loop configuration, the retry policy and the
-	// host's own state.
+	// cleanup, the prompt, the loop configuration and the host's own state.
 	NewCorrelation() string
-	RetryReason(err error) string
-	AgentRetryable(reason string, retryOn []string) bool
-	RetryDelay(pol agentapi.RetryPolicy, attempt int) time.Duration
 }
