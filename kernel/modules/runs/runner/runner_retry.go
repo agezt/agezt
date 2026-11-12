@@ -36,11 +36,11 @@ func (r *Runner) RunWithRetry(ctx context.Context, corr, intent string, pol agen
 	// reads the final named err, so a shutdown-interrupted
 	// retry keeps its ticket while a genuine give-up deletes it.
 	var owns bool
-	ctx, owns = r.k.ClaimResumeTicket(ctx, corr, intent, resume.KindRetry, 0)
+	ctx, owns = r.tickets.Claim(ctx, corr, intent, resume.KindRetry, 0)
 	var ans string
 	var err error
 	if owns {
-		defer func() { r.k.FinalizeResumeTicket(corr, err) }()
+		defer func() { r.tickets.Finalize(corr, err) }()
 	}
 	var lastErr error
 	for attempt := 1; attempt <= max; attempt++ {

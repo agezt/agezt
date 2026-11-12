@@ -119,7 +119,7 @@ func (r *Runner) updateAgent(slug string, mutate func(*agentapi.Profile)) (agent
 // RunWith, which still lives on the host — Day 23+ documented
 // gap).
 func (r *Runner) RunAssured(ctx context.Context, corr, intent string, maxAttempts int) (string, assureapi.Result, error) {
-	ctx, owns := r.k.ClaimResumeTicket(ctx, corr, intent, resume.KindAssured, maxAttempts)
+	ctx, owns := r.tickets.Claim(ctx, corr, intent, resume.KindAssured, maxAttempts)
 	res, err := assureapi.Until(ctx, intent, maxAttempts,
 		func(ctx context.Context, _ int, task string) (string, error) {
 			if pol, ok := runctx.AgentRetryPolicyFromCtx(ctx); ok && pol.MaxAttempts > 1 {
@@ -132,7 +132,7 @@ func (r *Runner) RunAssured(ctx context.Context, corr, intent string, maxAttempt
 		},
 	)
 	if owns {
-		r.k.FinalizeResumeTicket(corr, err)
+		r.tickets.Finalize(corr, err)
 	}
 	return res.Answer, res, err
 }

@@ -62,6 +62,13 @@ import (
 // (kernel/modules/runs/publish). The host held two verbs over them
 // (PublishIntentInterpreted, PublishContextFailureAnalysis) and the module
 // asked the host: a round trip inside one module, twice more.
+//
+// The TICKET LIFECYCLE is not part of it either (W3.76ah): who owns the
+// durable resume ticket, when it is refreshed and when it is deleted is the
+// RUNS MODULE's own (kernel/modules/runs/resume). The host held three verbs
+// over it (ClaimResumeTicket, FinalizeResumeTicket, ResumeCheckpointFn) and
+// the module asked the host: a round trip inside one module, three times
+// more.
 type KernelAPI interface {
 	Bus() *bus.Bus
 	Journal() *journal.Journal
@@ -78,7 +85,6 @@ type KernelAPI interface {
 	FoldRunTools(corr string) (int, []string)
 	CompleteAux(ctx context.Context, corr, taskType string, req llm.CompletionRequest) (*llm.CompletionResponse, error)
 	DisableHeuristicBypass(ctx context.Context) bool
-	ResumeCheckpointFn(corr string) func(int, []llm.Message)
 	ResolveRunModel(ctx context.Context) (string, bool)
 	Memory() memoryapi.Manager
 	World() worldmodelapi.Graph
@@ -105,11 +111,9 @@ type KernelAPI interface {
 	// never had to keep: the module has the body, so the module calls it.
 	//
 	// What stayed in the port is what the HOST owns: the run's setup and
-	// cleanup, the prompt, the loop configuration, the resume handshake, the
-	// retry policy and the host's own state.
+	// cleanup, the prompt, the loop configuration, the retry policy and the
+	// host's own state.
 	NewCorrelation() string
-	ClaimResumeTicket(ctx context.Context, corr, intent, kind string, assureBudget int) (context.Context, bool)
-	FinalizeResumeTicket(corr string, runErr error)
 	RetryReason(err error) string
 	AgentRetryable(reason string, retryOn []string) bool
 	RetryDelay(pol agentapi.RetryPolicy, attempt int) time.Duration

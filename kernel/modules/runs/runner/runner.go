@@ -102,6 +102,20 @@ type Runner struct {
 	// nil means the host wired no publisher: the engine cannot say anything
 	// about itself, and it says so instead of running silently.
 	publish *publish.Publisher
+
+	// tickets is the RUNS MODULE's ticket lifecycle (W3.76ah): who owns the
+	// durable resume ticket, when it is refreshed and when it is deleted.
+	//
+	// The daemon held three verbs over it (ClaimResumeTicket,
+	// FinalizeResumeTicket, ResumeCheckpointFn) and the run engine asked the
+	// HOST for them through its port — a round trip inside ONE module: the
+	// tickets, the store and the rules that judge them are the module's own.
+	// The engine asks the module now.
+	//
+	// nil means the host wired no ticket lifecycle: the engine cannot say
+	// whether this run carries a ticket, and it says so instead of running a
+	// run whose ticket it does not own.
+	tickets *resume.Service
 }
 
 // The run engine answers the module's own PORT (W3.76ac): the run engine is
@@ -118,9 +132,11 @@ var _ api.RunnerService = (*Runner)(nil)
 // releases a run (W3.76ae). promptSvc is the module's own prompt assembly —
 // the module the run engine asks when it builds a run's prompt (W3.76af).
 // publisher is the module's own publish surface — the module the run engine
-// asks when it says something about itself (W3.76ag).
-func New(k KernelAPI, roster agentsapi.RosterService, runState *state.State, promptSvc *prompt.Service, publisher *publish.Publisher) *Runner {
-	return &Runner{k: k, roster: roster, runState: runState, prompt: promptSvc, publish: publisher}
+// asks when it says something about itself (W3.76ag). ticketSvc is the
+// module's own ticket lifecycle — the module the run engine asks when it
+// claims, refreshes and finalizes the run's durable ticket (W3.76ah).
+func New(k KernelAPI, roster agentsapi.RosterService, runState *state.State, promptSvc *prompt.Service, publisher *publish.Publisher, ticketSvc *resume.Service) *Runner {
+	return &Runner{k: k, roster: roster, runState: runState, prompt: promptSvc, publish: publisher, tickets: ticketSvc}
 }
 
 // Run executes one tool-loop end-to-end and returns (answer,
@@ -167,6 +183,14 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// cannot say anything about itself leaves no live-run state behind.
 	if r.publish == nil {
 		return "", errors.New("runner: the publish surface is not available")
+	}
+	// The TICKET LIFECYCLE is the MODULE's own (W3.76ah): the engine holds
+	// the module's service and asks it, instead of asking the host for a verb
+	// over the module's own body. A host that wired none leaves the engine
+	// quiet — and it says so BEFORE the run is registered, so a run whose
+	// ticket cannot be owned leaves no live-run state behind.
+	if r.tickets == nil {
+		return "", errors.New("runner: the ticket lifecycle is not available")
 	}
 	runCtx, cancel, steer, err := r.runState.SetupRunState(corr, ctx)
 	if err != nil {
@@ -245,13 +269,14 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 
 	// Durable resume (M1002): a root run owns a ticket unless a governed wrapper
 	// (RunAssured/RunWithRetry) or the resumer already created one for this corr.
+	// The lifecycle is the MODULE's own (W3.76ah): the engine asks the module.
 	var ownedHere bool
-	runCtx, ownedHere = r.k.ClaimResumeTicket(runCtx, corr, intent, resume.KindRun, 0)
+	runCtx, ownedHere = r.tickets.Claim(runCtx, corr, intent, resume.KindRun, 0)
 	var resumeCheckpoint func(int, []llm.Message)
 	var resumePriorMessages []llm.Message
 	var resumeStartIter int
 	if kind, owned := resume.OwnedKindFromCtx(runCtx); ownedHere || (owned && kind == resume.KindRun) {
-		resumeCheckpoint = r.k.ResumeCheckpointFn(corr)
+		resumeCheckpoint = r.tickets.CheckpointFn(corr)
 		if msgs, it, ok := resume.SeedFromCtx(runCtx); ok {
 			resumePriorMessages, resumeStartIter = msgs, it
 		}
@@ -285,7 +310,7 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// Resume ticket (M1002): clear it on a clean/failed/cancelled terminal, but
 	// keep it if the run was interrupted by shutdown.
 	if ownedHere {
-		r.k.FinalizeResumeTicket(corr, err)
+		r.tickets.Finalize(corr, err)
 	}
 
 	// Deregister the steering control the instant the agent loop returns.

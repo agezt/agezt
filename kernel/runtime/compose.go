@@ -449,7 +449,6 @@ func Open(cfg Config) (*Kernel, error) {
 		skillStore:   cfg.SkillStore,
 		standing:     cfg.Standing,
 		standingSvc:  standingSvc,
-		resume:       rsstore,
 		roster:       cfg.Roster,
 		rosterSvc:    rosterSvc,
 		toolForge:    cfg.ToolForge,
@@ -474,6 +473,29 @@ func Open(cfg Config) (*Kernel, error) {
 		toolCaps:     validatedToolCaps(cfg.ToolCapabilities), // M900
 		startTime:    time.Now(),
 	}
+
+	// The TICKET LIFECYCLE is the RUNS MODULE's (W3.76ah,
+	// kernel/modules/runs/resume): the durable in-flight-run ticket, the rules
+	// that judge it and the operations over it — who owns a ticket, when it is
+	// refreshed, when it is deleted.
+	//
+	// The daemon held three verbs over those operations (ClaimResumeTicket,
+	// FinalizeResumeTicket, ResumeCheckpointFn) and the run engine — which
+	// lives INSIDE that module — asked the host for them through its port: a
+	// round trip inside one module. The module owns them now.
+	//
+	// The lifecycle asks for three narrow ports: the host's config (is
+	// resume on?), the host's bus (the anomalies travel on it) and the
+	// module's own registry latch (is the daemon going down?). The store is
+	// the module's own object, opened here only when resume is enabled.
+	k.tickets = resume.New(resume.Dependencies{
+		Store: rsstore,
+		// The config is the host's own state and it is read per run: the
+		// operator may turn resume off while the daemon runs.
+		Enabled:    func() bool { return k.cfg.ResumeEnabled },
+		Publish:    func(spec event.Spec) (*event.Event, error) { return kbus.Publish(spec) },
+		Suspending: func() bool { return k.registry.Suspending().Load() },
+	})
 
 	// The steering SERVICE is the runs module's (W3.76b): the module owns the
 	// steering and the interventions, and the daemon hands it the doors — the
@@ -654,7 +676,11 @@ func Open(cfg Config) (*Kernel, error) {
 	// And it holds the module's PUBLISH SURFACE (W3.76ag): what the run says
 	// about itself is the module's own, and the engine asks the module for
 	// it instead of asking the host for a verb over the module's own body.
-	k.runner = runner.New(k, rosterSvc, k.runState, k.prompt, runPublisher)
+	//
+	// And it holds the module's TICKET LIFECYCLE (W3.76ah): the durable
+	// resume ticket is the run's own state, so the engine claims, refreshes
+	// and finalizes it through the module — not through the host.
+	k.runner = runner.New(k, rosterSvc, k.runState, k.prompt, runPublisher, k.tickets)
 
 	return k, nil
 }

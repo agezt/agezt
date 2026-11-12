@@ -3,12 +3,15 @@
 package runtime
 
 // Provenance: Kernel accessors: Reflect + StartTime + Plugins + memory/skill flags +
-//             ctx helpers (Resume* +
-//             ResumeCheckpointFn/ResolveRunModel/WithAgentProfile/WithMaxCost).
+//             ctx helpers (Resume* + ResolveRunModel/WithAgentProfile/WithMaxCost).
 //             The prompt doors (BuildRunPrompt/InjectHostEnvironment) moved to the
 //             runs module's prompt service in W3.76e, and they are GONE since
 //             W3.76af: the run engine holds the module's service and asks the
 //             module for its own prompt.
+//             The ResumeCheckpointFn door went with W3.76ah: the ticket's
+//             lifecycle is the runs module's own (kernel/modules/runs/resume), and
+//             the run engine — which lives INSIDE that module — was asking the
+//             host for a verb over the module's own body.
 //             The RunTimeout and MergeAutoApproveCapabilities doors went with
 //             W3.76k: the run's callers read the run context through the module
 //             (runctx.RunTimeoutFromCtx / runctx.MergeAutoApproveCapabilities)
@@ -28,7 +31,6 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
-	"github.com/agezt/agezt/kernel/contract/llm"
 	"github.com/agezt/agezt/kernel/modules/runs/runctx"
 	"github.com/agezt/agezt/kernel/reflect"
 )
@@ -86,13 +88,6 @@ func (k *Kernel) SkillForgeMinTools() int { return k.cfg.SkillForgeMinTools }
 // boundary (Day 34).
 func (k *Kernel) DisableHeuristicBypass(ctx context.Context) bool {
 	return k.effectiveConfig(ctx).DisableHeuristicBypass
-}
-
-// ResumeCheckpointFn returns the per-iteration checkpoint callback
-// for a resumed run (M1002). Wraps the package-level resume.go
-// helper so the runner package can drive it through KernelAPI.
-func (k *Kernel) ResumeCheckpointFn(corr string) func(int, []llm.Message) {
-	return k.resumeCheckpointFn(corr)
 }
 
 // ResolveRunModel picks the per-request model from the run ctx
