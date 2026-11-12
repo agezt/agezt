@@ -14839,3 +14839,84 @@ func main() {
   lifecycle one.
   Evidence:
   `architecture/306-w376ag-the-runs-own-words-move-into-the-runs-module-evidence.md`
+- W3.76ah (the run's ticket lifecycle moves into the runs module) is the
+  **forty-second** slice of the runtime's dissolution.
+
+  A durable ticket is the run's own state. The **rules** that judge it — the
+  scope rule (a root run carries a ticket), the resumability rule (a per-run
+  override cannot be reconstructed) and the keep/delete rule (a run
+  interrupted by a restart keeps its ticket) — moved into the runs module in
+  W3.76a, next to the rows and the store. What stayed in the daemon were the
+  **operations** over them: the claim, the per-iteration snapshot, the
+  finalization and the suspend transition, behind **three** public verbs
+  (`ClaimResumeTicket`, `FinalizeResumeTicket`, `ResumeCheckpointFn`).
+
+  The run engine — which lives *inside* the runs module — asked the **host**
+  for all three through its `KernelAPI` port: a round trip inside one module,
+  three times more. The engine did not even need the host to reach its own
+  module's object: the ticket, its store and its rules were already in
+  `kernel/modules/runs/resume`, next door.
+
+  The slice added the ticket's **lifecycle** to that package
+  (`kernel/modules/runs/resume/service.go`) over three narrow ports and never
+  the host's implementations: `Enabled` (is resume on? the host's config, read
+  per run), `Publish` (the host's bus, where the lifecycle's anomalies travel)
+  and `Suspending` (the module's own registry latch: is the daemon going
+  down?). The store is the module's own object, so the daemon holds **no**
+  second handle of it — the daemon's `ResumeStore()` asks the module.
+
+  The daemon keeps **two** duties over the tickets and only two: the
+  **boot-time resumer** (which enumerates the suspended tickets and
+  re-dispatches them) and the **shutdown protocol** (`Suspend`). Both ask the
+  module for the operation; neither keeps a copy of it.
+
+  The engine holds the module's service and asks it (`r.tickets.Claim`,
+  `r.tickets.CheckpointFn`, `r.tickets.Finalize`). A host that wired none
+  leaves the engine quiet — it says the lifecycle is missing **before** the
+  run is registered, so a run whose ticket it cannot own leaves no live-run
+  state behind.
+
+  The port lost **three** entries: the engine's host port carries **27** now
+  (it carried **30**).
+
+  The measurement: the daemon's public verbs **114 → 111**, its production
+  lines **5,372 → 5,277**, its files **54** (same); the run engine's package
+  **997 → 1,025**; the resume package **7 files / 635 lines → 8 / 849**; the
+  app packages that name the daemon stay at **forty**.
+
+  Two **ratchet** files: the daemon's
+  (`kernel/runtime/resume_ratchet_test.go`, new) pins that the daemon holds no
+  verb per ticket operation, no ticket-lifecycle body and no copy of the
+  module's rules, and that it asks the module for the two duties it keeps;
+  the module's (`kernel/modules/runs/runner/runner_resume_ratchet_test.go`,
+  new) pins that the port carries **no** ticket entry, that the engine
+  **holds** the module's service and **calls** it, and that a host which wired
+  none leaves the engine quiet.
+
+  The daemon's own surface ceiling followed the floor again: **114 → 111**
+  (220 → 201 → 194 → 179 → 173 → 166 → 164 → 156 → 152 → 148 → 143 → 135 →
+  129 → 125 → 121 → 118 → 116 → 114 → 111).
+
+  **The probe** put the world back before this slice — the daemon's three
+  verbs with their real bodies, the three entries back into the engine's port
+  and the engine asking the host again: the retired-verb ratchet, the surface
+  ceiling (114 > 111), the daemon's four ticket ratchets, the module's three
+  ticket ratchets and the two pre-existing port expectations all went red at
+  once — **eleven** ratchets in one shot, and nothing else broke; the probe
+  was reverted and the suites went green again.
+
+  **What is left**: the daemon holds **111** public verbs and **5,277**
+  production lines; **forty** application packages still name it; the run
+  engine's host port carries **27** entries. What is left in the daemon is
+  the run's **remaining machinery**: the plan runner's registration
+  (`RunPlan`), the two doors the run engine still opens for the host's own
+  state (`ResolveRunModel`, `BuildLoopConfig`) and the `FoldRunTools` port
+  entry (the daemon's journal walk behind a port the engine already holds).
+  The **standing package** itself still lives at `kernel/standing`, and its
+  **eventual** home is the **triggers module** (`kernel/modules/triggers`) —
+  the architecture gate already places both `kernel/cadence` and
+  `kernel/standing` in that module, so the family's boundary is drawn; the
+  module's directory does not exist yet, and the move is a path move (four
+  production importers), not a lifecycle one.
+  Evidence:
+  `architecture/307-w376ah-the-runs-ticket-lifecycle-moves-into-the-runs-module-evidence.md`
