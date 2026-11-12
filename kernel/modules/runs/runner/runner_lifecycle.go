@@ -148,7 +148,7 @@ func (r *Runner) MaybeDistill(ctx context.Context, corr, intent, answer string) 
 	if minTools <= 0 {
 		minTools = 4
 	}
-	toolCount, names := r.k.FoldRunTools(corr)
+	toolCount, names := r.k.Journal().FoldTools(corr)
 	if toolCount < minTools {
 		return
 	}
@@ -179,7 +179,7 @@ func (r *Runner) MaybeForge(ctx context.Context, corr, intent, answer string) {
 	if minTools <= 0 {
 		minTools = 4
 	}
-	toolCount, names := r.k.FoldRunTools(corr)
+	toolCount, names := r.k.Journal().FoldTools(corr)
 	if toolCount < minTools {
 		return
 	}
