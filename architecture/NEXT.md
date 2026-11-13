@@ -15156,3 +15156,77 @@ func main() {
   production importers), not a lifecycle one.
   Evidence:
   `architecture/310-w376ak-the-plan-runner-moves-into-the-runs-module-evidence.md`
+
+## W3.76al — the model's resolution moves into the run context
+
+The **forty-sixth** slice of the runtime's dissolution.
+
+A run's **model** is the run context's own vocabulary: the operator can pin
+one for a single run (`runctx.WithModel`), and the run engine — which lives
+**inside** the runs module — reads it back off the context it carries. The
+**rule** that decides the answer was in the **daemon**, which answered the
+module's question for the module's own context (`ResolveRunModel`) — a round
+trip inside one module for a decision the context already held — and the
+daemon held a **private copy** of the same rule for the agent-profile path
+(`resolveRunModel`), so the same decision was written **twice**.
+
+The rule is the run context's now (**`kernel/modules/runs/runctx/model.go`**):
+`ResolveModel(ctx, defaultModel)` — the per-run pick is the package's own
+vocabulary, and the **default** is asked **lazily**, because a run that
+carries its own model never needs the host's config at all, and the host's
+config is a copy taken under a lock.
+
+The daemon keeps the **host's own state** and only that — the live default
+model (hot-swappable, M816) retuned by the running agent's own overrides
+(M783) — under one verb, `EffectiveModel(ctx)`. The private copy is gone:
+there is one written answer to the question. The **port** carries the host's
+state, not the rule (`EffectiveModel(ctx) string`), and the **run engine**
+asks the module's rule and asks the host for the default only if the rule
+needs it.
+
+The measurement: the daemon's public verbs **106 → 106** (the honest number:
+one verb left, one arrived — the daemon still answers the *host's* question,
+but no longer the **module's** question, and no longer answers it twice), its
+production lines **5,213 → 5,213**, its files **52 → 52**; the app packages
+that name the daemon stay at **forty**; the run engine's host port **23 → 23**;
+the run context's package **7 files / 692 lines → 8 / 716**; the run engine's
+package **1,046 → 1,064**.
+
+Two ratchet files: the daemon's (`kernel/runtime/model_ratchet_test.go`, new)
+pins that it holds no verb per model resolution, carries no private copy of
+the rule, holds the host's default and asks the **module** for the rule; the
+module's (`kernel/modules/runs/runner/runner_model_ratchet_test.go`, new) pins
+that the port carries the **host's state** and not the rule, and that the
+engine asks the module's rule and the host's default.
+
+The daemon's own surface ceiling **did not move**: **106 → 106**, and the
+retired name joined the retired-verb list. **One earlier ratchet was
+re-aimed**, not replaced: the run engine's port ratchet named the **resolved
+model** — the rule — and now names the **effective default**, the host's
+state the rule asks for. The **control plane's** runs family changed too:
+`ResolveRunModel` belonged to **no** family (a verb the kernel had and no
+guard named), and `EffectiveModel` is the **persona/identity** family's
+business.
+
+**The probe** put the world back before this slice — the daemon's verb with
+its **real** body, the daemon's private copy and the engine asking the host
+to apply the context's own pick: the retired-verb ratchet, the daemon's four
+model ratchets, the re-aimed port ratchet and the engine-asks-the-module
+ratchet all went red at once — **seven** ratchets in one shot, and nothing
+else broke; the probe was reverted and the suites went green again.
+
+**What is left**: the daemon holds **106** public verbs and **5,213**
+production lines; **forty** application packages still name it; the run
+engine's host port carries **23** entries. What is left in the daemon is the
+run's **remaining machinery**, and it is small: one more door the run engine
+still opens for the **host's own state** (`BuildLoopConfig` — the module's
+rule built from the daemon's live state), and the host's own identity
+(`NewCorrelation`, `SubjectForRun`).
+The **standing package** itself still lives at `kernel/standing`, and its
+**eventual** home is the **triggers module** (`kernel/modules/triggers`) — the
+architecture gate already places both `kernel/cadence` and `kernel/standing`
+in that module, so the family's boundary is drawn; the module's directory does
+not exist yet, and the move is a path move (four production importers), not a
+lifecycle one.
+Evidence:
+`architecture/311-w376al-the-runs-model-resolution-moves-into-the-run-context-evidence.md`

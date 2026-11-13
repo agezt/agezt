@@ -680,13 +680,18 @@ func tasteOwnedVerbs(t *testing.T) []string {
 // family is the owner's chat defaults, and the daemon's default identity is
 // its business.
 //
-// FOUR verbs carry those words and are NOT the identity's: "ResolveRunModel"
-// and "currentTaskModelChain" are the ROUTING's business — which model a run
+// THREE verbs carry those words and are NOT the identity's:
+// "currentTaskModelChain" is the ROUTING's business — which model a run
 // resolves — "SystemTaskPorts" is the SYSTEM TASK family's, and
 // "VisionModel" is the daemon's vision SIDECAR — the model that captions
 // images for a run whose active model cannot see them. A rule that swept them
-// in would make the persona family claim four other families' verbs, and a
+// in would make the persona family claim three other families' verbs, and a
 // family that claims everything claims nothing.
+//
+// "ResolveRunModel" left the kernel in W3.76al — the model's RESOLUTION is the
+// run context's own rule now (`runctx.ResolveModel`), and the daemon keeps only
+// the effective default ("EffectiveModel"), which IS the persona family's
+// business: the live default with the agent's own overrides applied.
 //
 // The CONTEXT helpers are not the identity's either: the system agent from the
 // context is the roster's business, and the model chain from the context is
@@ -707,7 +712,7 @@ func personaOwnedVerbs(t *testing.T) []string {
 			continue
 		}
 		switch name {
-		case "ResolveRunModel", "currentTaskModelChain", "SystemTaskPorts", "VisionModel":
+		case "currentTaskModelChain", "SystemTaskPorts", "VisionModel":
 			continue
 		}
 		verbs = append(verbs, name)
@@ -2338,7 +2343,7 @@ func TestTheGuardNamesEveryPersonaVerbTheKernelHas(t *testing.T) {
 			continue
 		}
 		switch name {
-		case "ResolveRunModel", "currentTaskModelChain", "SystemTaskPorts", "VisionModel":
+		case "currentTaskModelChain", "SystemTaskPorts", "VisionModel":
 			continue
 		}
 		found++

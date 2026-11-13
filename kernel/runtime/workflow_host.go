@@ -72,7 +72,7 @@ func (k *Kernel) WorkflowPorts() workflowapi.Ports {
 			return k.approvals.Submit(ctx, spec)
 		},
 		Model: func(ctx context.Context) string {
-			model, _ := resolveRunModel(ctx, k.effectiveConfig(ctx))
+			model, _ := runctx.ResolveModel(ctx, func() string { return k.EffectiveModel(ctx) })
 			return model
 		},
 		DefaultModel: func(ctx context.Context) string { return k.effectiveConfig(ctx).Model },

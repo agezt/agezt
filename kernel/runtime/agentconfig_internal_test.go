@@ -127,22 +127,12 @@ func TestEffectiveConfig_LayersBootThenLiveThenAgent(t *testing.T) {
 	}
 }
 
-// A per-run runctx.WithModel pick beats both the live default and the agent's override,
-// and is the only one reported EXPLICIT — that flag is what stops the governor's
-// per-task chain from rerouting an operator's deliberate choice (M931).
-func TestResolveRunModel_PerRunPickWinsAndIsExplicit(t *testing.T) {
-	cfg := Config{Model: "effective-model"}
-
-	model, explicit := resolveRunModel(context.Background(), cfg)
-	if model != "effective-model" || explicit {
-		t.Errorf("no per-run pick = (%q, %v), want (effective-model, false)", model, explicit)
-	}
-
-	model, explicit = resolveRunModel(runctx.WithModel(context.Background(), "asked-for"), cfg)
-	if model != "asked-for" || !explicit {
-		t.Errorf("per-run pick = (%q, %v), want (asked-for, true)", model, explicit)
-	}
-}
+// The model's RESOLUTION is not the daemon's any more (W3.76al): a per-run
+// runctx.WithModel pick beats both the live default and the agent's override,
+// and is the only one reported EXPLICIT — that flag is what stops the
+// governor's per-task chain from rerouting an operator's deliberate choice
+// (M931). The rule and its test live in the run context's own package
+// (kernel/modules/runs/runctx, `runctx.ResolveModel`).
 
 func TestAgentConfigDurationValue(t *testing.T) {
 	if d, ok := agentConfigDurationValue(" 1m30s "); !ok || d != 90*time.Second {

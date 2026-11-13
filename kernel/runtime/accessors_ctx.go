@@ -90,17 +90,23 @@ func (k *Kernel) DisableHeuristicBypass(ctx context.Context) bool {
 	return k.effectiveConfig(ctx).DisableHeuristicBypass
 }
 
-// ResolveRunModel picks the per-request model from the run ctx
-// (explicit > daemon default with agent-profile overrides applied).
-// Runs k.effectiveConfig internally so live daemon-default swaps
-// (M816) + per-agent overrides (M783) are reflected without the
-// Runner needing the Config type across the package boundary
-// (Day 34).
-func (k *Kernel) ResolveRunModel(ctx context.Context) (string, bool) {
-	if m := runctx.ModelFromCtx(ctx); m != "" {
-		return m, true
-	}
-	return k.effectiveConfig(ctx).Model, false
+// EffectiveModel returns the model this run would ask for if it carried no
+// per-run pick: the daemon's LIVE default (hot-swappable, M816) with the
+// running agent's own AGEZT_MODEL override applied (M783).
+//
+// It is the HOST's own state, and it is the only part of the model's
+// resolution the host keeps. The RULE — a per-run pick wins, and it is
+// reported as EXPLICIT — is the run context's own (W3.76al,
+// kernel/modules/runs/runctx): the pick is the run context's vocabulary, and
+// the run engine — which lives inside the module — used to ask the host to
+// apply it. The daemon's `ResolveRunModel` verb is gone; the engine asks the
+// module for the rule and the host for this number.
+//
+// Runs k.effectiveConfig internally so live daemon-default swaps +
+// per-agent overrides are reflected without the Runner needing the Config type
+// across the package boundary (Day 34).
+func (k *Kernel) EffectiveModel(ctx context.Context) string {
+	return k.effectiveConfig(ctx).Model
 }
 
 // WithAgentProfile binds a run context to a roster profile (M790): the soul

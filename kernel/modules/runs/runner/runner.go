@@ -251,7 +251,11 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// verb over the module's own body.
 	system, activatedSkillIDs := r.prompt.Build(runCtx, corr, actor, intent, systemAgent, skillDirective)
 
-	model, modelExplicit := r.k.ResolveRunModel(runCtx)
+	// The model's RESOLUTION is the run context's own (W3.76al): the per-run
+	// pick is the run context's vocabulary, so the engine applies it itself.
+	// The host is asked only for the DEFAULT — and only when the run carries
+	// no pick of its own.
+	model, modelExplicit := runctx.ResolveModel(runCtx, func() string { return r.k.EffectiveModel(runCtx) })
 	// An EXPLICIT pick must actually serve the run (M931): carry the pick as
 	// the per-request chain, which wins over the task chain (M787 precedence).
 	modelChain := runctx.ModelChainFromCtx(runCtx)

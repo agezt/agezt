@@ -138,15 +138,9 @@ func (k *Kernel) effectiveConfig(ctx context.Context) Config {
 	return cfg
 }
 
-// resolveRunModel picks the model a run should ask for, given its effective
-// config. A per-run runctx.WithModel override wins and is reported as EXPLICIT — the
-// caller then carries it as the per-request model chain so the governor's
-// per-task chain can't silently reroute an operator's deliberate pick (M931).
-// Otherwise the effective config already holds the live daemon default with any
-// AGEZT_MODEL profile override applied, so there is nothing left to layer.
-func resolveRunModel(ctx context.Context, cfg Config) (model string, explicit bool) {
-	if m := runctx.ModelFromCtx(ctx); m != "" {
-		return m, true
-	}
-	return cfg.Model, false
-}
+// The model's RESOLUTION is not the daemon's (W3.76al): a per-run pick wins
+// over the daemon's effective default, and the pick is the run context's own
+// vocabulary — the rule lives in kernel/modules/runs/runctx
+// (`runctx.ResolveModel`). The daemon keeps the DEFAULT (the effective
+// config's model) and nothing else; the run engine asks the module for the
+// rule and the host for the default.

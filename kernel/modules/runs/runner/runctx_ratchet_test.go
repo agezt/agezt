@@ -93,13 +93,18 @@ func TestThePortCarriesNoRunContextVocabulary(t *testing.T) {
 // The resume HANDSHAKE left the list in W3.76q: the owned marker and the
 // seeded conversation are the resume module's vocabulary, and the run engine
 // — which lives next to that module — reads them from there. What stays is
-// the host's own state: the resolved model and the run's effective
+// the host's own state: the effective default model and the run's effective
 // configuration.
 //
 // W3.76ah shrank it once more: the CHECKPOINT CALLBACK left the port with the
 // ticket's lifecycle — the ticket is the run's own durable state, so the
 // snapshot that refreshes it is the resume module's operation, and the run
 // engine asks the module for it.
+//
+// W3.76al shrank it again: the model's RESOLUTION left the port with the run
+// context's own rule. The port now carries the host's DEFAULT
+// (`EffectiveModel`) — the live default with the agent's own overrides applied
+// — and the engine applies the per-run pick itself.
 func TestThePortStillCarriesTheHostsOwnState(t *testing.T) {
 	src, err := os.ReadFile("api.go")
 	if err != nil {
@@ -107,7 +112,7 @@ func TestThePortStillCarriesTheHostsOwnState(t *testing.T) {
 	}
 	text := string(src)
 	for _, keep := range []string{
-		"ResolveRunModel(ctx context.Context)",
+		"EffectiveModel(ctx context.Context)",
 		"DisableHeuristicBypass(ctx context.Context)",
 	} {
 		if !strings.Contains(text, keep) {
@@ -118,9 +123,10 @@ func TestThePortStillCarriesTheHostsOwnState(t *testing.T) {
 		"ResumeOwnedKindFromCtx(ctx context.Context)",
 		"ResumeSeedFromCtx(ctx context.Context)",
 		"ResumeCheckpointFn(corr string)",
+		"ResolveRunModel(ctx context.Context)",
 	} {
 		if strings.Contains(text, gone) {
-			t.Errorf("the host's port still promises %s — the ticket's lifecycle is the resume module's", gone)
+			t.Errorf("the host's port still promises %s — that operation is the module's", gone)
 		}
 	}
 }
