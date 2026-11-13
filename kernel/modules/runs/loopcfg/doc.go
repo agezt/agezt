@@ -33,4 +33,13 @@
 // effective configuration is per-run (the operator's live edits plus this
 // agent's own overrides), so the daemon reads it for every run and projects
 // the knobs the loop needs into loopcfg.Config.
+//
+// Since W3.77 the ENTRY belongs to the module too: the run engine and the
+// delegation engine — both inside the runs module — hold this very service
+// and ask it (Service.Build). The daemon used to keep a door over the rule
+// (BuildLoopConfig) and the module asked the host for the shape of a run's
+// own loop: a round trip inside one module. The daemon keeps the STATE and
+// hands it over through Deps — the knobs per run (Config), the live tool
+// surface, the tool-phase service, the bus, the policy hook, the artifact
+// port and the model catalog.
 package loopcfg

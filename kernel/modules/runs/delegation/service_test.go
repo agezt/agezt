@@ -112,10 +112,6 @@ func (h *fakeHost) RecordSkillOutcome(corr string, skillIDs []string, ok bool) {
 	h.outcomes = append(h.outcomes, skillOutcome{corr: corr, skillIDs: skillIDs, ok: ok})
 }
 
-func (h *fakeHost) BaseLoopConfig(ctx context.Context, corr, model string) agent.LoopConfig {
-	return agent.LoopConfig{CorrelationID: corr, Model: model}
-}
-
 func (h *fakeHost) CompleteChildLifecycle(ctx context.Context, corr string) {
 	h.lifecycles = append(h.lifecycles, corr)
 }
@@ -144,6 +140,7 @@ func newService(t *testing.T, h *fakeHost, cfg Config) *Service {
 			return "child answer", nil
 		},
 		Prompt:   prompt.New(prompt.Config{}, promptHost{h}, prompt.Deps{}),
+		LoopCfg:  testLoopCfg(),
 		Registry: registry.New(),
 	})
 	return svc

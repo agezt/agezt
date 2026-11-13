@@ -9,6 +9,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/agentapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
+	"github.com/agezt/agezt/kernel/modules/runs/loopcfg"
 	"github.com/agezt/agezt/kernel/modules/runs/prompt"
 	"github.com/agezt/agezt/kernel/modules/runs/registry"
 	"github.com/agezt/agezt/kernel/modules/runs/steer"
@@ -20,10 +21,12 @@ import (
 //
 // The split of responsibility is deliberate: the module owns the POLICY
 // (who may delegate, under which limits, with which identity) and the daemon
-// owns the MECHANISM (how a child run is configured and executed). That is why
-// BaseLoopConfig and RunChild are doors and not module code: the child's loop
-// configuration is the runs module's rule (kernel/modules/runs/loopcfg,
-// W3.76g) and the loop itself the one after (kernel/agent).
+// owns the MECHANISM (how a child run is executed). The child's LOOP
+// CONFIGURATION is not a door any more (W3.77): the shape every governed
+// run's loop must have is the runs module's own rule
+// (kernel/modules/runs/loopcfg), and the engine holds that very service —
+// the same one the run engine holds. The loop itself is the one after
+// (kernel/agent).
 type Host interface {
 	// RosterGet resolves a roster slug to its profile. The second result is
 	// false when no such agent exists.
@@ -60,9 +63,6 @@ type Host interface {
 	// RecordSkillOutcome reports a child run's outcome for the skills it
 	// activated, so the skill forge can learn from it.
 	RecordSkillOutcome(corr string, skillIDs []string, ok bool)
-	// BaseLoopConfig returns the child's base loop configuration — the
-	// daemon's shared governance/capacity base, identical to a root run's.
-	BaseLoopConfig(ctx context.Context, corr, model string) agent.LoopConfig
 	// CompleteChildLifecycle advances the durable lifecycle of a finished
 	// child run. The daemon owns the run lifecycle; the engine owns the
 	// delegation.
@@ -84,6 +84,18 @@ type Deps struct {
 	// sub-agent's system prompt and reports the skills it activated.
 	// Required.
 	Prompt *prompt.Service
+	// LoopCfg is the RUNS MODULE's loop configuration: the shape every
+	// governed run's loop must have — the child's base, identical to a root
+	// run's (LD-1).
+	//
+	// It is the module's own rule (kernel/modules/runs/loopcfg) and the very
+	// same service the run engine holds (W3.77). The daemon used to hold a
+	// door over it and the engine asked the host for the child's base: a
+	// round trip inside one module.
+	//
+	// Required: a nil service makes the child run fail with a clear error
+	// instead of running an ungoverned loop.
+	LoopCfg *loopcfg.Service
 	// Registry is the runs module's live-run registry. The module registers
 	// an async child in it, so Halt and CancelRun reach the child exactly
 	// as they reach a root run. Required for async delegation; a nil

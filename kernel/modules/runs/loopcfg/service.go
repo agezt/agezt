@@ -19,8 +19,18 @@ var costFn = governor.CostMicrocents
 // rescueMarkers are the markers the loop uses to escape a compacted context.
 var rescueMarkers = []string{toolapi.DefaultContextRescueMarker}
 
-// Build assembles the parts of agent.LoopConfig that must be IDENTICAL for
-// every governed run — root (RunWith) or delegated (executeSubAgent).
+// Build assembles the loop configuration for a run, asking the HOST's live
+// knobs for that run's configuration.
+//
+// The knobs are the host's own state (the effective configuration, projected
+// per run), so the rule asks for them through the dependency the host wired —
+// never a snapshot taken when the service was built (W3.77).
+func (s *Service) Build(runCtx context.Context, corr, model string) agent.LoopConfig {
+	return s.BuildWith(runCtx, corr, model, s.config(runCtx))
+}
+
+// BuildWith assembles the parts of agent.LoopConfig that must be IDENTICAL
+// for every governed run — root (RunWith) or delegated (executeSubAgent).
 //
 // Before this rule existed the two sites each hand-built the config and had
 // silently diverged: delegated runs got no CostFn (which per the LoopConfig
@@ -31,7 +41,7 @@ var rescueMarkers = []string{toolapi.DefaultContextRescueMarker}
 // Run-identity fields (Model chain, Agent, Actor, CorrelationID, System,
 // Wake*, Steer, cost ceiling source) stay with the caller; everything
 // governance- and capacity-shaped lives here.
-func (s *Service) Build(runCtx context.Context, corr, model string, cfg Config) agent.LoopConfig {
+func (s *Service) BuildWith(runCtx context.Context, corr, model string, cfg Config) agent.LoopConfig {
 	// Per-run tool set: forged script tools and live MCP attachments are
 	// merged by the daemon BEFORE the allowlist filter so a restricted run
 	// only sees the dynamic tools its allowlist grants (M794/M796).

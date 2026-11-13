@@ -100,7 +100,6 @@ func TestTheDaemonKeepsTheDelegationDoors(t *testing.T) {
 		"func (h delegationHost) RegisterSteer(",
 		"func (h delegationHost) UnregisterSteer(",
 		"func (h delegationHost) RecordSkillOutcome(",
-		"func (h delegationHost) BaseLoopConfig(",
 		"func (h delegationHost) CompleteChildLifecycle(",
 		"func (h delegationHost) ProfileModel(",
 		"func delegationRunChild(",
@@ -109,6 +108,13 @@ func TestTheDaemonKeepsTheDelegationDoors(t *testing.T) {
 		if !strings.Contains(text, door) {
 			t.Fatalf("the daemon must keep the door %q", door)
 		}
+	}
+	// The child's loop configuration is the MODULE's own rule (W3.77): the
+	// delegation engine holds the module's service and asks it, the way the
+	// run engine holds it. The door that used to answer it is GONE — it was a
+	// round trip inside one module.
+	if strings.Contains(text, "func (h delegationHost) BaseLoopConfig(") {
+		t.Fatal("the daemon kept the child's loop-configuration door — the rule is the module's own (W3.77)")
 	}
 }
 

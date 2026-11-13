@@ -15,7 +15,6 @@ import (
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/contract/worldmodelapi"
 	"github.com/agezt/agezt/kernel/journal"
-	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/kernel/state"
 )
 
@@ -91,6 +90,13 @@ import (
 // port carries is the HOST's own state: the effective default model for this
 // run (the live default with the agent's own overrides applied), asked for
 // only when the run carries no pick of its own.
+//
+// The LOOP CONFIGURATION is not part of it either (W3.77): the shape every
+// governed run's loop must have — root or delegated — is the RUNS MODULE's
+// own rule (kernel/modules/runs/loopcfg), and the engine, which lives inside
+// the module, holds that very service. The daemon held a door over it
+// (BuildLoopConfig) and the engine asked the HOST for it through this port: a
+// round trip inside one module, for a rule the module already owns.
 type KernelAPI interface {
 	Bus() *bus.Bus
 	Journal() *journal.Journal
@@ -128,7 +134,6 @@ type KernelAPI interface {
 	// module.
 	RosterGet(ref string) (agentapi.Profile, bool)
 	Catalog() *catalogapi.Catalog
-	BuildLoopConfig(ctx context.Context, corr, model string) agent.LoopConfig
 
 	// The run engine's OWN operations are not in this port (W3.76ab).
 	//

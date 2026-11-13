@@ -14,6 +14,16 @@ import (
 // execute runs a prepared delegation's child loop to completion and releases
 // the child's own bookkeeping.
 func (s *Service) execute(p *Plan) (string, error) {
+	// The child's loop configuration is the MODULE's own rule (W3.77): the
+	// engine holds the very same service the run engine holds, and it asks it
+	// directly. The daemon used to hold a door over it (BaseLoopConfig) and
+	// the engine asked the host — a round trip inside one module.
+	//
+	// A host that wired none leaves the engine quiet: the child does not run
+	// an ungoverned loop.
+	if s.deps.LoopCfg == nil {
+		return "", fmt.Errorf("sub-agent %s: the loop configuration is not available", p.ChildCorr)
+	}
 	// This child may itself delegate; release its own fan-out tally and steering
 	// control when it returns so the tallies don't accumulate across a long-lived
 	// daemon.
@@ -30,7 +40,7 @@ func (s *Service) execute(p *Plan) (string, error) {
 		// root run's, so a delegated run gets the same cost accounting
 		// (CostFn — without it the per-run spend ceiling below is inert),
 		// artifact offload, context compaction, and tool policy.
-		lc := s.host.BaseLoopConfig(p.ChildCtx, p.ChildCorr, p.SubModel)
+		lc := s.deps.LoopCfg.Build(p.ChildCtx, p.ChildCorr, p.SubModel)
 		system, skills, task := s.deps.Prompt.BuildSubagent(p.ChildCtx, p.ChildCorr, p.Actor, p.Task, p.System)
 		activatedSkillIDs = AppendUniqueStrings(activatedSkillIDs, skills...)
 		lc.TaskType = p.TaskType     // M705: route the sub-agent (chain supplies fallbacks)

@@ -57,6 +57,17 @@ type Config struct {
 // Deps carries the module's collaborators: the daemon's live state, which the
 // rule needs but cannot own.
 type Deps struct {
+	// Config returns the run's EFFECTIVE configuration, projected into the
+	// knobs the loop needs.
+	//
+	// It is asked PER RUN and never snapshotted: the host's effective
+	// configuration is per-run (the daemon-wide config plus the operator's
+	// live edits plus this agent's own overrides), so a named agent's own
+	// override applies to its run and to no other.
+	//
+	// Required: the rule cannot know a run's limits without it. The HOST
+	// projects — the module never learns the host's knob names.
+	Config func(ctx context.Context) Config
 	// Tools returns the run's tool surface, already merged with the daemon's
 	// live MCP attachments and forged script tools. The module shapes it
 	// further (the allowlist, the agent policy, the noise policy, the
@@ -87,6 +98,19 @@ type Service struct {
 
 // New builds the loop-configuration service.
 func New(deps Deps) *Service { return &Service{deps: deps} }
+
+// config returns the host's live knobs for this run.
+//
+// A service wired without them falls back to the module's OWN default
+// ceiling: a zero ceiling would end every run at its first turn, and a
+// missing host is a wiring mistake the ratchets name — not a reason to run
+// with no limits at all.
+func (s *Service) config(ctx context.Context) Config {
+	if s.deps.Config == nil {
+		return Config{MaxIter: agent.DefaultMaxIter}
+	}
+	return s.deps.Config(ctx)
+}
 
 // findModel resolves the model's catalog entry, if the catalog knows it.
 func (s *Service) findModel(model string) (*catalogapi.Model, bool) {
