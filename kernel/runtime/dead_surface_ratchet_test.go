@@ -178,6 +178,8 @@ var retiredVerbs = []string{
 	// The daemon's two verbs over the plan runner's own machinery (W3.76ak).
 	"RunPlan",
 	"LoopRunner",
+	// The daemon's one verb over the run's own model resolution (W3.76al).
+	"ResolveRunModel",
 }
 
 // daemonPublicVerbs is the ceiling the daemon's public method set may not

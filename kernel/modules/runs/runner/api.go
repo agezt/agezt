@@ -84,6 +84,13 @@ import (
 // The host held one verb over it (FoldRunTools) and the engine asked the host
 // for a fold the log answers directly. The port already carries the journal
 // itself (Journal()), so the engine asks the log and the hop is gone.
+// The RUN'S MODEL RESOLUTION is not part of it either (W3.76al): a per-run
+// pick wins over the daemon's effective default, and the pick is the RUN
+// CONTEXT's own vocabulary (kernel/modules/runs/runctx) — so the engine, which
+// lives inside the module, reads it there (`runctx.ResolveModel`). What the
+// port carries is the HOST's own state: the effective default model for this
+// run (the live default with the agent's own overrides applied), asked for
+// only when the run carries no pick of its own.
 type KernelAPI interface {
 	Bus() *bus.Bus
 	Journal() *journal.Journal
@@ -99,7 +106,14 @@ type KernelAPI interface {
 	ShadowEval() bool
 	CompleteAux(ctx context.Context, corr, taskType string, req llm.CompletionRequest) (*llm.CompletionResponse, error)
 	DisableHeuristicBypass(ctx context.Context) bool
-	ResolveRunModel(ctx context.Context) (string, bool)
+	// EffectiveModel is the HOST's own state: the model this run would ask
+	// for if it carried no per-run pick (the live default with the running
+	// agent's own overrides applied).
+	//
+	// The RESOLUTION is the run context's own (W3.76al): the engine applies
+	// the per-run pick itself (`runctx.ResolveModel`) and asks the host for
+	// this number only when the run carries no pick.
+	EffectiveModel(ctx context.Context) string
 	Memory() memoryapi.Manager
 	World() worldmodelapi.Graph
 	Forge() skillapi.Curator
