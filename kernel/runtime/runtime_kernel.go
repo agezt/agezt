@@ -216,7 +216,12 @@ type Kernel struct {
 	// elided-output summarizer. The daemon keeps the state it is built
 	// from: its effective configuration, its live tool surface, its
 	// tool-phase service, its bus, its policy hook, its artifact port and
-	// its model catalog. nil before Open().
+	// its model catalog.
+	//
+	// The daemon holds no DOOR over it any more (W3.77): the run engine and
+	// the delegation engine — both inside the module that owns the rule —
+	// hold this very service and ask it directly. The daemon only wires it.
+	// nil before Open().
 	loopcfg *loopcfg.Service
 
 	// runner is the run-engine sub-manager extracted as a separate

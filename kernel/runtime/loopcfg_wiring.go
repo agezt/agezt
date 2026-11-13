@@ -2,23 +2,27 @@
 
 package runtime
 
-// Provenance: SPDX-License-Identifier: MIT The daemon's doors for the runs
+// Provenance: SPDX-License-Identifier: MIT The daemon's WIRING for the runs
 //             module's loop configuration (kernel/modules/runs/loopcfg,
-//             W3.76g). The RULE — what a governed run's loop looks like —
-//             moved to the module in W3.76g; the daemon keeps the STATE it
-//             reads: its effective configuration, its live tool surface, its
-//             tool-phase service, its bus, its policy hook, its artifact
-//             offload port and its model catalog.
+//             W3.76g; the DOOR moved to the module in W3.77). The RULE — what a
+//             governed run's loop looks like — is the module's; the daemon
+//             keeps the STATE it reads: its effective configuration, its live
+//             tool surface, its tool-phase service, its bus, its policy hook,
+//             its artifact offload port and its model catalog.
 //
-// The file is named loopcfg_doors.go: the daemon's loopconfig.go is gone with
-// the assembler it held, and the runctx ratchet from W3.76c watches the
-// names the run context left behind.
+// The daemon holds NO door over the rule any more: the run engine (which
+// lives inside the module) and the delegation engine (which lives next door
+// in the same module) hold the very same service and ask it directly. The
+// daemon only WIRES it — it never calls the rule itself.
+//
+// The file is named loopcfg_wiring.go: it used to be loopcfg_doors.go, and the
+// door it kept (BuildLoopConfig) left with the module. The runctx ratchet
+// from W3.76c watches the names the run context left behind.
 
 import (
 	"context"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/kernel/modules/runs/loopcfg"
 )
 
@@ -51,6 +55,12 @@ func loopcfgConfig(cfg Config) loopcfg.Config {
 // loopcfgDeps wires the module's collaborators: the daemon's live state.
 func (k *Kernel) loopcfgDeps() loopcfg.Deps {
 	return loopcfg.Deps{
+		// The knobs are the daemon's own state, asked PER RUN (W3.77): the
+		// effective configuration is live, and a named agent's own overrides
+		// apply to its run and to no other.
+		Config: func(ctx context.Context) loopcfg.Config {
+			return loopcfgConfig(k.effectiveConfig(ctx))
+		},
 		// Forged script tools and live MCP attachments are merged BEFORE the
 		// module's allowlist filter, so a restricted run only sees the
 		// dynamic tools its allowlist grants (M794/M796).
@@ -64,22 +74,4 @@ func (k *Kernel) loopcfgDeps() loopcfg.Deps {
 		Artifacts: k.artifacts,
 		Catalog:   k.Catalog,
 	}
-}
-
-// BuildLoopConfig assembles the parts of agent.LoopConfig that must be
-// IDENTICAL for every governed run — root (RunWith) or delegated
-// (executeSubAgent).
-//
-// It is the daemon's DOOR over the runs module's rule (W3.76g): the module
-// owns the shape, the daemon owns the state the shape is built from. The
-// public surface is unchanged — the runner package's KernelAPI and the
-// delegation engine's BaseLoopConfig door both call this.
-func (k *Kernel) BuildLoopConfig(runCtx context.Context, corr, model string) agent.LoopConfig {
-	// The service is wired at Open(); the nil fallback keeps the door safe
-	// for a caller that reaches it before the daemon was opened.
-	svc := k.loopcfg
-	if svc == nil {
-		svc = loopcfg.New(k.loopcfgDeps())
-	}
-	return svc.Build(runCtx, corr, model, loopcfgConfig(k.effectiveConfig(runCtx)))
 }

@@ -93,12 +93,6 @@ func (h delegationHost) RecordSkillOutcome(corr string, skillIDs []string, ok bo
 	}
 }
 
-// BaseLoopConfig is the child's base loop configuration: the daemon's shared
-// governance/capacity base, identical to a root run's.
-func (h delegationHost) BaseLoopConfig(ctx context.Context, corr, model string) agent.LoopConfig {
-	return h.k.BuildLoopConfig(ctx, corr, model)
-}
-
 // CompleteChildLifecycle advances the durable lifecycle of a finished child
 // run.
 func (h delegationHost) CompleteChildLifecycle(ctx context.Context, corr string) {

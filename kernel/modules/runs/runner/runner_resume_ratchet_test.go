@@ -49,7 +49,7 @@ func TestTheRunEnginePortCarriesNoTicketEntry(t *testing.T) {
 // a field that promises nothing.
 func TestTheRunEngineAsksTheModulesTicketLifecycle(t *testing.T) {
 	svc := testTickets()
-	r := New(&stubKernel{}, nil, testState(), testPrompt(), testPublisher(), svc)
+	r := New(&stubKernel{}, nil, testState(), testPrompt(), testPublisher(), svc, testLoopCfg())
 	if r.tickets != svc {
 		t.Fatal("the run engine does not hold the module's ticket lifecycle")
 	}
@@ -68,7 +68,7 @@ func TestTheRunEngineAsksTheModulesTicketLifecycle(t *testing.T) {
 // that wired no ticket lifecycle leaves the engine quiet — it says the
 // lifecycle is missing instead of running a run whose ticket it cannot own.
 func TestTheRunEngineRefusesWithoutATicketLifecycle(t *testing.T) {
-	r := New(&stubKernel{}, nil, testState(), testPrompt(), testPublisher(), nil)
+	r := New(&stubKernel{}, nil, testState(), testPrompt(), testPublisher(), nil, testLoopCfg())
 	if _, err := r.RunWith(t.Context(), "corr-1", "do the thing"); err == nil {
 		t.Fatal("the engine ran without a ticket lifecycle")
 	}

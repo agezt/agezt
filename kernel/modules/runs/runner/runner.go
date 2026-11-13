@@ -19,6 +19,7 @@ import (
 	agentsapi "github.com/agezt/agezt/kernel/modules/agents/api"
 	"github.com/agezt/agezt/kernel/modules/runs/agent"
 	"github.com/agezt/agezt/kernel/modules/runs/api"
+	"github.com/agezt/agezt/kernel/modules/runs/loopcfg"
 	"github.com/agezt/agezt/kernel/modules/runs/prompt"
 	"github.com/agezt/agezt/kernel/modules/runs/publish"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
@@ -116,6 +117,19 @@ type Runner struct {
 	// whether this run carries a ticket, and it says so instead of running a
 	// run whose ticket it does not own.
 	tickets *resume.Service
+
+	// loopCfg is the RUNS MODULE's loop configuration (W3.77): the shape
+	// every governed run's loop must have — root or delegated.
+	//
+	// The daemon held a door over it (BuildLoopConfig) and the run engine
+	// asked the HOST for it through its port — a round trip inside ONE
+	// module: the rule is the module's own (kernel/modules/runs/loopcfg),
+	// and the delegation engine (which lives next door in the same module)
+	// holds the very same service. The engine asks the module now.
+	//
+	// nil means the host wired no loop configuration: the engine cannot
+	// govern the run, and it says so instead of running an ungoverned loop.
+	loopCfg *loopcfg.Service
 }
 
 // The run engine answers the module's own PORT (W3.76ac): the run engine is
@@ -135,8 +149,10 @@ var _ api.RunnerService = (*Runner)(nil)
 // asks when it says something about itself (W3.76ag). ticketSvc is the
 // module's own ticket lifecycle — the module the run engine asks when it
 // claims, refreshes and finalizes the run's durable ticket (W3.76ah).
-func New(k KernelAPI, roster agentsapi.RosterService, runState *state.State, promptSvc *prompt.Service, publisher *publish.Publisher, ticketSvc *resume.Service) *Runner {
-	return &Runner{k: k, roster: roster, runState: runState, prompt: promptSvc, publish: publisher, tickets: ticketSvc}
+// loopCfgSvc is the module's own loop configuration — the module the run
+// engine asks when it shapes this run's loop (W3.77).
+func New(k KernelAPI, roster agentsapi.RosterService, runState *state.State, promptSvc *prompt.Service, publisher *publish.Publisher, ticketSvc *resume.Service, loopCfgSvc *loopcfg.Service) *Runner {
+	return &Runner{k: k, roster: roster, runState: runState, prompt: promptSvc, publish: publisher, tickets: ticketSvc, loopCfg: loopCfgSvc}
 }
 
 // Run executes one tool-loop end-to-end and returns (answer,
@@ -191,6 +207,16 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// ticket cannot be owned leaves no live-run state behind.
 	if r.tickets == nil {
 		return "", errors.New("runner: the ticket lifecycle is not available")
+	}
+	// The LOOP CONFIGURATION is the MODULE's own (W3.77): the shape every
+	// governed run's loop must have — the cost ceiling, the memo, the
+	// compaction, the tool policy — is the RUNS MODULE's rule, and the engine
+	// holds that very service. A host that wired none leaves the engine
+	// quiet — it says the configuration is missing instead of running an
+	// ungoverned loop — and it says it BEFORE the run is registered, so a run
+	// that cannot be governed leaves no live-run state behind.
+	if r.loopCfg == nil {
+		return "", errors.New("runner: the loop configuration is not available")
 	}
 	runCtx, cancel, steer, err := r.runState.SetupRunState(corr, ctx)
 	if err != nil {
@@ -266,7 +292,11 @@ func (r *Runner) RunWith(ctx context.Context, corr, intent string) (string, erro
 	// Governance- and capacity-shaped LoopConfig fields — shared verbatim with
 	// executeSubAgent so root and delegated runs can never diverge on cost
 	// accounting, compaction, or tool policy (LD-1).
-	lc := r.k.BuildLoopConfig(runCtx, corr, model)
+	//
+	// The shape is the MODULE's own (W3.77): the engine holds the module's
+	// loop-configuration service and asks it, instead of asking the host for
+	// a verb over the module's own body.
+	lc := r.loopCfg.Build(runCtx, corr, model)
 
 	// Host-environment preamble (M609) — the module's own assembly.
 	system = r.prompt.BuildEnvironment(system, lc.Tools)

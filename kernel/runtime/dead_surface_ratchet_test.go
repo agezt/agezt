@@ -180,6 +180,8 @@ var retiredVerbs = []string{
 	"LoopRunner",
 	// The daemon's one verb over the run's own model resolution (W3.76al).
 	"ResolveRunModel",
+	// The daemon's one verb over the run's own loop configuration (W3.77).
+	"BuildLoopConfig",
 }
 
 // daemonPublicVerbs is the ceiling the daemon's public method set may not
@@ -207,10 +209,12 @@ var retiredVerbs = []string{
 // -> 114 (W3.76ag, the run's two publish verbs) -> 111 (W3.76ah, the run's
 // three ticket-lifecycle verbs) -> 108 (W3.76ai, the run's three retry-rule
 // verbs) -> 107 (W3.76aj, the run's one tool-fold verb) -> 106 (W3.76ak, the
-// plan runner's two verbs — the daemon hands the module's face over instead).
-// The daemon holds 106 public verbs today; a new verb needs a new reason, and
+// plan runner's two verbs — the daemon hands the module's face over instead)
+// -> 105 (W3.77, the run's one loop-configuration verb — the module's
+// consumers ask the module).
+// The daemon holds 105 public verbs today; a new verb needs a new reason, and
 // this file says so.
-const daemonPublicVerbs = 106
+const daemonPublicVerbs = 105
 
 // TestTheRetiredVerbsDoNotComeBack pins the retirement: none of the sixteen
 // names is a method of *Kernel any more.

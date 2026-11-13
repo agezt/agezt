@@ -603,6 +603,16 @@ func Open(cfg Config) (*Kernel, error) {
 		Journal:   j,
 		Selection: k.prompt,
 	})
+	// The LOOP CONFIGURATION is the RUNS MODULE's (W3.76g): it owns the shape
+	// every governed run's loop must have — the tool surface, the tool
+	// selector, the context budget, the artifact offload, the cost function
+	// and the elided-output summarizer. It is wired here, before the
+	// delegation engine and the run engine, because BOTH of them hold the
+	// very same service (W3.77): the daemon used to keep a door over it and
+	// the module asked the host for the shape of a run's own loop — a round
+	// trip inside one module.
+	k.loopcfg = loopcfg.New(k.loopcfgDeps())
+
 	// The delegation engine is the RUNS MODULE's (W3.76f): it owns the
 	// delegation policy — the bounds, the identity resolution, the spawn
 	// journal, the retry policy and the async spawn handles — and reaches
@@ -614,6 +624,7 @@ func Open(cfg Config) (*Kernel, error) {
 		Config:   func() delegation.Config { return delegationConfig(k.cfg) },
 		RunChild: delegationRunChild,
 		Prompt:   k.prompt,
+		LoopCfg:  k.loopcfg,
 		Registry: k.registry,
 	})
 	if subTool != nil {
@@ -641,15 +652,8 @@ func Open(cfg Config) (*Kernel, error) {
 		MaxDuration:             k.cfg.MaxDuration,
 	})
 
-	// The loop configuration is the RUNS MODULE's (W3.76g): it owns the shape
-	// every governed run's loop must have — the tool surface, the tool
-	// selector, the context budget, the artifact offload, the cost function
-	// and the elided-output summarizer — and reaches the daemon only through
-	// the doors in loopcfg_doors.go. It is wired after the delegation engine,
-	// because the delegation engine asks the daemon for the child's loop
-	// configuration through the same door.
-	k.loopcfg = loopcfg.New(k.loopcfgDeps())
-
+	// The loop configuration is wired above, with the delegation engine and
+	// the run engine.
 	// Wire the run-lifecycle manager last so it sees the fully-built
 	// *Kernel. The Manager is the RUNS MODULE's (W3.76d): it owns the
 	// halt/resume/cancel surface over the module's live-run registry, and
@@ -681,7 +685,11 @@ func Open(cfg Config) (*Kernel, error) {
 	// And it holds the module's TICKET LIFECYCLE (W3.76ah): the durable
 	// resume ticket is the run's own state, so the engine claims, refreshes
 	// and finalizes it through the module — not through the host.
-	k.runner = runner.New(k, rosterSvc, k.runState, k.prompt, runPublisher, k.tickets)
+	//
+	// And it holds the module's LOOP CONFIGURATION (W3.77): the shape every
+	// governed run's loop must have is the module's own rule, so the engine
+	// asks the module for it — the same service the delegation engine holds.
+	k.runner = runner.New(k, rosterSvc, k.runState, k.prompt, runPublisher, k.tickets, k.loopcfg)
 
 	// And it holds the module's PLAN RUNNER (W3.76ak,
 	// kernel/modules/runs/plan): the plan's execution and its registration

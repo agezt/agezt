@@ -93,9 +93,10 @@ func TestKernelLoopUsesBoundPhasesAndIsolatesPolicy(t *testing.T) {
 			if !reflect.DeepEqual(observed.totals(), want) || tool.calls != wantCalls || factories != 1 {
 				t.Fatalf("phases=%v want=%v backend=%d factory=%d", observed.totals(), want, tool.calls, factories)
 			}
-			if k.BuildLoopConfig(context.Background(), "other", "").ToolPhases != observed {
-				t.Fatal("loop config replaced bound service")
-			}
+			// The loop configuration's OWN half — that it carries the daemon's
+			// BOUND phase service, and that the service is bound once per
+			// kernel — is the daemon's wiring to pin, and the wiring is
+			// white-box now (W3.77): see loopcfg_wiring_internal_test.go.
 			results := 0
 			if err := k.Journal().Range(func(e *event.Event) error {
 				if e.Kind == event.KindToolResult && e.CorrelationID == "phase-run" {
@@ -158,11 +159,9 @@ func TestOneShotFactoryKeepsCanonicalLoopCompatibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
-	one := k.BuildLoopConfig(context.Background(), "one", "").ToolPhases
-	two := k.BuildLoopConfig(context.Background(), "two", "").ToolPhases
-	if one == nil || one != two {
-		t.Fatal("compatibility phase service is not bound once per kernel")
-	}
+	// The compatibility phase service is bound once per kernel: the daemon's
+	// own wiring pins that (loopcfg_wiring_internal_test.go), and the loop
+	// below must run on it rather than on the one-shot factory.
 	if _, err := k.RunnerService().RunWith(context.Background(), "compat-run", "use probe"); err != nil {
 		t.Fatal(err)
 	}

@@ -71,7 +71,7 @@ func TestBuild_AppliesTheNoisePolicy(t *testing.T) {
 	ctx := runctx.WithAgentProfile(context.Background(), agentapi.Profile{
 		NoisePolicy: &agentapi.NoisePolicy{DisableMemoryWrites: true},
 	})
-	lc := svc.Build(ctx, "corr-1", "fake-model", Config{})
+	lc := svc.BuildWith(ctx, "corr-1", "fake-model", Config{})
 	if _, ok := lc.Tools["memory"]; ok {
 		t.Fatal("Tools carries memory, want the noise policy to drop it")
 	}
@@ -85,7 +85,7 @@ func TestBuild_AppliesTheNoisePolicy(t *testing.T) {
 // pinned search tool ONLY — not every schema.
 func TestBuild_UsesTheDeferredSelectorAboveTheThreshold(t *testing.T) {
 	svc := New(baseDeps(toolSet("read", "write", "shell")))
-	lc := svc.Build(context.Background(), "corr-1", "fake-model", Config{ToolDiscoveryMax: 2})
+	lc := svc.BuildWith(context.Background(), "corr-1", "fake-model", Config{ToolDiscoveryMax: 2})
 	if lc.ToolSelector == nil {
 		t.Fatal("ToolSelector = nil, want a selector")
 	}
@@ -111,7 +111,7 @@ func TestBuild_UsesTheDeferredSelectorAboveTheThreshold(t *testing.T) {
 // turn that matches nothing still offers every tool.
 func TestBuild_KeepsTheFullSelectorBelowTheThreshold(t *testing.T) {
 	svc := New(baseDeps(toolSet("read", "write", "shell")))
-	lc := svc.Build(context.Background(), "corr-1", "fake-model", Config{ToolDiscoveryMax: 10})
+	lc := svc.BuildWith(context.Background(), "corr-1", "fake-model", Config{ToolDiscoveryMax: 10})
 	if lc.ToolSelector == nil {
 		t.Fatal("ToolSelector = nil, want a selector")
 	}
@@ -152,7 +152,7 @@ func TestBuild_ProjectsTheConfigurationOntoTheLoop(t *testing.T) {
 		ContextProtectFirst: 56,
 		ArtifactThreshold:   789,
 	}
-	lc := svc.Build(context.Background(), "corr-1", "fake-model", cfg)
+	lc := svc.BuildWith(context.Background(), "corr-1", "fake-model", cfg)
 
 	if lc.MaxIter != 7 {
 		t.Fatalf("MaxIter = %d, want 7", lc.MaxIter)
@@ -190,7 +190,7 @@ func TestBuild_ProjectsTheConfigurationOntoTheLoop(t *testing.T) {
 // runs' spend ceiling a no-op: without CostFn the ceiling is inert.
 func TestBuild_AlwaysCarriesTheCostFunction(t *testing.T) {
 	svc := New(baseDeps(toolSet("read")))
-	lc := svc.Build(context.Background(), "corr-1", "fake-model", Config{})
+	lc := svc.BuildWith(context.Background(), "corr-1", "fake-model", Config{})
 	if lc.CostFn == nil {
 		t.Fatal("CostFn = nil — MaxRunCostMicrocents would be inert")
 	}
@@ -200,7 +200,7 @@ func TestBuild_AlwaysCarriesTheCostFunction(t *testing.T) {
 // one, root or delegated.
 func TestBuild_AlwaysCarriesTheToolMemo(t *testing.T) {
 	svc := New(baseDeps(toolSet("read")))
-	lc := svc.Build(context.Background(), "corr-1", "fake-model", Config{})
+	lc := svc.BuildWith(context.Background(), "corr-1", "fake-model", Config{})
 	if lc.ToolMemo == nil {
 		t.Fatal("ToolMemo = nil, want a memo")
 	}
@@ -210,7 +210,7 @@ func TestBuild_AlwaysCarriesTheToolMemo(t *testing.T) {
 // to escape a compacted context.
 func TestBuild_AlwaysCarriesTheContextRescueMarker(t *testing.T) {
 	svc := New(baseDeps(toolSet("read")))
-	lc := svc.Build(context.Background(), "corr-1", "fake-model", Config{})
+	lc := svc.BuildWith(context.Background(), "corr-1", "fake-model", Config{})
 	if len(lc.ContextRescueMarkers) != 1 || lc.ContextRescueMarkers[0] != toolapi.DefaultContextRescueMarker {
 		t.Fatalf("ContextRescueMarkers = %v, want [%s]", lc.ContextRescueMarkers, toolapi.DefaultContextRescueMarker)
 	}
@@ -221,7 +221,7 @@ func TestBuild_AlwaysCarriesTheContextRescueMarker(t *testing.T) {
 func TestBuild_AppliesTheRunAllowlist(t *testing.T) {
 	svc := New(baseDeps(toolSet("read", "write", "shell")))
 	ctx := runctx.WithTools(context.Background(), []string{"read"})
-	lc := svc.Build(ctx, "corr-1", "fake-model", Config{})
+	lc := svc.BuildWith(ctx, "corr-1", "fake-model", Config{})
 	if len(lc.Tools) != 1 {
 		t.Fatalf("Tools = %d, want 1", len(lc.Tools))
 	}
@@ -235,7 +235,7 @@ func TestBuild_AppliesTheRunAllowlist(t *testing.T) {
 func TestBuild_AppliesTheAgentProfilePolicy(t *testing.T) {
 	svc := New(baseDeps(toolSet("read", "write", "shell")))
 	ctx := runctx.WithAgentProfile(context.Background(), agentProfileDenyShell())
-	lc := svc.Build(ctx, "corr-1", "fake-model", Config{})
+	lc := svc.BuildWith(ctx, "corr-1", "fake-model", Config{})
 	if _, ok := lc.Tools["shell"]; ok {
 		t.Fatal("Tools carries shell, want it denied")
 	}
@@ -245,7 +245,7 @@ func TestBuild_AppliesTheAgentProfilePolicy(t *testing.T) {
 // rule: above the threshold the catalog is deferred behind a search tool.
 func TestBuild_DefersDiscoveryAboveTheThreshold(t *testing.T) {
 	svc := New(baseDeps(toolSet("read", "write", "shell", "notify")))
-	lc := svc.Build(context.Background(), "corr-1", "fake-model", Config{ToolDiscoveryMax: 2})
+	lc := svc.BuildWith(context.Background(), "corr-1", "fake-model", Config{ToolDiscoveryMax: 2})
 	if _, ok := lc.Tools[toolSearchName]; !ok {
 		t.Fatal("tool_search was not installed above the threshold")
 	}
@@ -255,7 +255,7 @@ func TestBuild_DefersDiscoveryAboveTheThreshold(t *testing.T) {
 // the threshold nothing is deferred and no search tool appears.
 func TestBuild_KeepsDiscoveryOffBelowTheThreshold(t *testing.T) {
 	svc := New(baseDeps(toolSet("read", "write")))
-	lc := svc.Build(context.Background(), "corr-1", "fake-model", Config{ToolDiscoveryMax: 5})
+	lc := svc.BuildWith(context.Background(), "corr-1", "fake-model", Config{ToolDiscoveryMax: 5})
 	if _, ok := lc.Tools[toolSearchName]; ok {
 		t.Fatal("tool_search was installed below the threshold")
 	}
@@ -270,7 +270,7 @@ func TestBuild_DerivesTheAutoContextBudgetFromTheCatalog(t *testing.T) {
 	deps := baseDeps(toolSet("read"))
 	deps.Catalog = func() *catalogapi.Catalog { return testCatalog(100000, false) }
 	svc := New(deps)
-	lc := svc.Build(context.Background(), "corr-1", "fake-model", Config{ContextBudgetAuto: true})
+	lc := svc.BuildWith(context.Background(), "corr-1", "fake-model", Config{ContextBudgetAuto: true})
 	want := agent.AutoContextBudgetChars(100000)
 	if lc.ContextBudget != want {
 		t.Fatalf("ContextBudget = %d, want %d", lc.ContextBudget, want)
@@ -283,7 +283,7 @@ func TestBuild_AnExplicitBudgetWinsOverAuto(t *testing.T) {
 	deps := baseDeps(toolSet("read"))
 	deps.Catalog = func() *catalogapi.Catalog { return testCatalog(100000, false) }
 	svc := New(deps)
-	lc := svc.Build(context.Background(), "corr-1", "fake-model", Config{
+	lc := svc.BuildWith(context.Background(), "corr-1", "fake-model", Config{
 		ContextBudget:     4242,
 		ContextBudgetAuto: true,
 	})
@@ -299,7 +299,7 @@ func TestBuild_AnUnknownModelLeavesCompactionOff(t *testing.T) {
 	deps := baseDeps(toolSet("read"))
 	deps.Catalog = func() *catalogapi.Catalog { return testCatalog(100000, false) }
 	svc := New(deps)
-	lc := svc.Build(context.Background(), "corr-1", "no-such-model", Config{ContextBudgetAuto: true})
+	lc := svc.BuildWith(context.Background(), "corr-1", "no-such-model", Config{ContextBudgetAuto: true})
 	if lc.ContextBudget != 0 {
 		t.Fatalf("ContextBudget = %d, want 0 for an unknown model", lc.ContextBudget)
 	}
@@ -312,7 +312,7 @@ func TestBuild_WiresTheSummarizerOnlyWhenCompactionIsActive(t *testing.T) {
 	deps := baseDeps(toolSet("read"))
 	deps.Catalog = func() *catalogapi.Catalog { return testCatalog(100000, false) }
 	svc := New(deps)
-	lc := svc.Build(context.Background(), "corr-1", "fake-model", Config{ContextSummarize: true})
+	lc := svc.BuildWith(context.Background(), "corr-1", "fake-model", Config{ContextSummarize: true})
 	if lc.SummarizeElided != nil {
 		t.Fatal("SummarizeElided was wired without an active context budget")
 	}
@@ -327,7 +327,7 @@ func TestBuild_TheSummarizerCallsTheRunsProvider(t *testing.T) {
 	cfg := Config{ContextBudget: 1000, ContextSummarize: true}
 	cfg.Provider = prov
 	svc := New(deps)
-	lc := svc.Build(context.Background(), "corr-9", "fake-model", cfg)
+	lc := svc.BuildWith(context.Background(), "corr-9", "fake-model", cfg)
 	if lc.SummarizeElided == nil {
 		t.Fatal("SummarizeElided = nil, want a summarizer")
 	}
@@ -362,7 +362,7 @@ func TestBuild_AReasoningModelGetsTheRoomySummaryCap(t *testing.T) {
 	cfg := Config{ContextBudget: 1000, ContextSummarize: true}
 	cfg.Provider = prov
 	svc := New(deps)
-	lc := svc.Build(context.Background(), "corr-1", "fake-model", cfg)
+	lc := svc.BuildWith(context.Background(), "corr-1", "fake-model", cfg)
 	if lc.SummarizeElided == nil {
 		t.Fatal("SummarizeElided = nil, want a summarizer")
 	}

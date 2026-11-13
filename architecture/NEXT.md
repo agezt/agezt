@@ -15230,3 +15230,112 @@ not exist yet, and the move is a path move (four production importers), not a
 lifecycle one.
 Evidence:
 `architecture/311-w376al-the-runs-model-resolution-moves-into-the-run-context-evidence.md`
+
+## W3.77 — the loop configuration's door moves into the runs module
+
+The **forty-seventh** slice of the runtime's dissolution.
+
+The **shape** every governed run's loop must have — root or delegated: the
+tool surface, the tool selector, the context budget, the artifact offload,
+the cost function, the elided-output summarizer — is the runs module's own
+rule (`kernel/modules/runs/loopcfg`, W3.76g). What stayed in the daemon was
+the **door** over it (`BuildLoopConfig`): the daemon projected its effective
+configuration, wired its live collaborators and called the module's own rule.
+
+And **two round trips inside one module**: the **run engine** (inside the runs
+module) asked the **host** for the shape of its own run's loop through its
+port, while the **delegation engine** (next door in the same module) asked the
+host for the child's base through a door of its own — the module had the body
+in both cases.
+
+### What moved
+
+- **The entry is the module's** — `loopcfg.Service.Build` asks the host's live
+  knobs for that run's configuration and builds; the rule's explicit form
+  lives on as `BuildWith`.
+- **The knobs arrive as a per-run provider** (`Deps.Config`) — the host's
+  effective configuration (the operator's live edits plus the agent's own
+  overrides) still lands knob for knob, and the module never learns a host
+  knob name. A service wired without the provider falls back to the
+  **module's own** default ceiling.
+- **The run engine holds the module's service** — the way it already holds the
+  prompt assembly — and asks the module. Its port loses an entry (**23 → 22**),
+  and a host that wired none leaves the engine quiet (`runner: the loop
+  configuration is not available`) instead of running an ungoverned loop.
+- **The delegation engine holds it too**, in its `Deps` beside the prompt
+  service; its host port loses the `BaseLoopConfig` door, and a child without
+  the rule does not run.
+- **The daemon keeps the wiring and nothing else** — its file is
+  `loopcfg_wiring.go` now (it was `loopcfg_doors.go`): the projection of its
+  effective configuration and the live collaborators the rule is built from.
+  The daemon **never calls the rule itself**.
+
+### The measurement
+
+| what | before | after |
+|---|---|---|
+| the daemon's public verbs | 106 | **105** |
+| the daemon's production lines | 5,213 | **5,214** |
+| the daemon's production files | 52 | **52** |
+| the app packages that import `kernel/runtime` | 40 | **40** |
+| the run engine's host port | 23 entries | **22 entries** |
+| the loop configuration's package | 6 files / 525 lines | **6 files / 566 lines** |
+| the run engine's package | 6 files / 1,064 lines | **6 files / 1,098 lines** |
+| the delegation engine's package | 10 files / 1,150 lines | **10 files / 1,174 lines** |
+
+The daemon's lines are flat and that is the honest number: the door's body
+left (`loopcfg_doors.go` 78 → `loopcfg_wiring.go` 71, `subagent_doors.go` −5)
+while the wiring's note and the two injections came in — the body **moved**,
+it did not shrink.
+
+### The guard
+
+Three ratchet files: the daemon's (`kernel/runtime/loopcfg_ratchet_test.go`,
+**re-aimed**) pins that the daemon keeps the **wiring** and holds **no** door
+— no `func (k *Kernel) BuildLoopConfig(` and no `k.loopcfg.Build`; the run
+engine's (`kernel/modules/runs/runner/runner_loopcfg_ratchet_test.go`, new)
+pins that the port carries **no** loop-configuration entry, that the engine
+holds the module's service, that it does **not** ask the host, and that a host
+which wired none leaves the engine quiet; the delegation engine's
+(`kernel/modules/runs/delegation/delegation_loopcfg_ratchet_test.go`, new)
+pins that the host port carries **no** `BaseLoopConfig` door and that the
+engine asks the module.
+
+**Two earlier ratchets were re-aimed, not replaced**: the W3.76g one demanded
+that the daemon **keep** its three doors — it now keeps the projection and the
+wiring and demands the door's **absence** — and the delegation ratchet
+demanded the `BaseLoopConfig` door — it now demands its **absence**. The
+daemon's own surface ceiling followed the floor: **106 → 105**, and the
+retired name joined the retired-verb list.
+
+**The coverage moved with the subject**: the daemon's door test file held eight
+tests — four were about the **rule** and the module's own tests already pin
+them, and the four about the **daemon's own state** stayed, white-box, in
+`kernel/runtime/loopcfg_wiring_internal_test.go`. The **control plane** needed
+no change: the retired verb belonged to no family.
+
+**The probe** put the world back before this slice — the daemon's door file
+with its **real** body, the daemon's verb, the runner's port entry and the
+engine asking the host again, the delegation door and the engine asking the
+host for the child's base: the retired-verb ratchet, the surface ceiling
+(106 > 105), the daemon's loop-configuration ratchet, the daemon's delegation
+ratchet, the run engine's two ratchets and the delegation engine's two
+ratchets all went red at once — **eleven** ratchets in one shot, and nothing
+else broke; the probe was reverted and the suites went green again.
+
+**What is left**: the daemon holds **105** public verbs and **5,214**
+production lines; **forty** application packages still name it; the run
+engine's host port carries **22** entries. The run's **rules** — the context,
+the prompt, the publish surface, the ticket lifecycle, the retry rules, the
+tool fold, the model's resolution and now the loop configuration — are all the
+module's own; what is left in the daemon is the host's own **identity**
+(`NewCorrelation`, `SubjectForRun`) and the host's own **state** the run
+engine still reads.
+The **standing package** itself still lives at `kernel/standing`, and its
+**eventual** home is the **triggers module** (`kernel/modules/triggers`) — the
+architecture gate already places both `kernel/cadence` and `kernel/standing`
+in that module, so the family's boundary is drawn; the module's directory does
+not exist yet, and the move is a path move (four production importers), not a
+lifecycle one.
+Evidence:
+`architecture/312-w377-the-loop-configuration-door-moves-into-the-runs-module-evidence.md`
