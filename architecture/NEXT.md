@@ -15070,3 +15070,89 @@ func main() {
   production importers), not a lifecycle one.
   Evidence:
   `architecture/309-w376aj-the-runs-tool-fold-moves-into-the-journal-evidence.md`
+- W3.76ak (the plan runner moves into the runs module) is the **forty-fifth**
+  slice of the runtime's dissolution.
+
+  A **plan** is the runs module's own work unit: the operator submits a plan,
+  the scheduler executes its nodes, and the plan is a **live run** while it
+  runs — the module's registry holds its cancel, the halt latch refuses new
+  plans, and the plan's id is its correlation.
+
+  Both halves of that were already the module's: the **SCHEDULER** that
+  executes a plan is the runs module's family (the architecture gate places
+  `kernel/scheduler` in the module — `tools/archcheck/layers.json`), and the
+  plan's **registration** is over the module's own live-run **registry**. What
+  stayed in the daemon was the machinery's **second handle** and two verbs in
+  the daemon's own words (`RunPlan`, `LoopRunner`): the daemon held the
+  module's registry and the module's scheduler and spoke for the family in
+  words of its own, so the application above learned two names the module
+  already had.
+
+  The slice added **`kernel/modules/runs/plan`** — the plan runner's own
+  service — over three collaborators that are all the module's objects (the
+  registry, the scheduler, the run engine); it reaches the daemon for
+  **nothing**. The daemon keeps **one** thing over the family: the module's
+  **FACE** (`PlanService` — `api.PlanService`, in the module's own names `Run`
+  and `LoopRunner`). The **application** binds the plan runner's ports from
+  that face, and the **control plane's** runs family names the face in the
+  place the two verbs held (next to `RunnerService`).
+
+  The halt refusal is the module's own sentinel now (`state.ErrHalted` — the
+  daemon's alias points at the same value), so a halted daemon refuses a plan
+  exactly as it refuses a run.
+
+  The measurement: the daemon's public verbs **107 → 106**, its production
+  lines **5,213 → 5,213** (the honest number: `accessors_misc.go` lost **20**
+  lines — the plan's body and the loop hook — while the module's face and the
+  composition root's wiring note came in; the body did not shrink, it
+  **moved**), its files **52 → 52**; the app packages that name the daemon
+  stay at **forty**; the plan runner's package is **new: 1 file / 100 lines**;
+  the runs module's api package **3 files / 122 lines → 4 / 152**.
+
+  The **scheduler did not move**: it is still `kernel/scheduler`, and the
+  slice moved the plan runner's **lifecycle** onto it — the scheduler's path
+  home is the same module's directory, and that is a **path move**, a separate
+  slice.
+
+  Two ratchet files: the daemon's (`kernel/runtime/plan_ratchet_test.go`, new)
+  pins that it holds no verb per plan operation, registers no plan of its own,
+  drives no scheduler and hands over the module's face; the module's
+  (`kernel/modules/runs/plan/plan_ratchet_test.go`, new) pins that the service
+  holds the body, answers the module's own port and never names the daemon.
+
+  **Two earlier ratchets were re-aimed, not replaced**: the W3.76ae registry
+  ratchet demanded that the daemon register *through* the module's store and
+  named the plan's registration as the daemon's last one — the plan's
+  registration is the module's now, so the ratchet demands the **absence**
+  instead (the daemon registers nothing, not a run and not a plan); and the
+  accessor-surface ratchet pinned `LoopRunner` and `RunPlan` as the kernel's
+  surface — they left the daemon, so it names the module's face and pins their
+  **absence**.
+
+  The daemon's own surface ceiling followed the floor again: **107 → 106**
+  (220 → 201 → 194 → 179 → 173 → 166 → 164 → 156 → 152 → 148 → 143 → 135 →
+  129 → 125 → 121 → 118 → 116 → 114 → 111 → 108 → 107 → 106).
+
+  **The probe** put the world back before this slice — the daemon's two verbs
+  with their real bodies and the application asking the daemon again: the
+  retired-verb ratchet, the surface ceiling, the daemon's three plan ratchets,
+  the re-aimed registry ratchet and the accessor-surface ratchet all went red
+  at once — **seven** ratchets in one shot, and nothing else broke; the probe
+  was reverted and the suites went green again.
+
+  **What is left**: the daemon holds **106** public verbs and **5,213**
+  production lines; **forty** application packages still name it; the run
+  engine's host port carries **23** entries. What is left in the daemon is the
+  run's **remaining machinery**, and it is small: the two doors the run engine
+  still opens for the **host's own state** (`ResolveRunModel` — the run
+  context's model falls back to the daemon's effective config; `BuildLoopConfig`
+  — the module's rule built from the daemon's live state), and the host's own
+  identity (`NewCorrelation`, `SubjectForRun`).
+  The **standing package** itself still lives at `kernel/standing`, and its
+  **eventual** home is the **triggers module** (`kernel/modules/triggers`) —
+  the architecture gate already places both `kernel/cadence` and
+  `kernel/standing` in that module, so the family's boundary is drawn; the
+  module's directory does not exist yet, and the move is a path move (four
+  production importers), not a lifecycle one.
+  Evidence:
+  `architecture/310-w376ak-the-plan-runner-moves-into-the-runs-module-evidence.md`
