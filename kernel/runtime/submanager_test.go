@@ -95,12 +95,24 @@ func TestTheKernelStillAnswersItsAccessorSurface(t *testing.T) {
 		// Day 18a — the configMu-guarded live mutators and the read helpers.
 		"Model", "SetModel", "System", "SetSystem", "SetCouncilMembers",
 		"CouncilMembers", "SubAgentLimits", "Plugins",
-		// Day 19 — catalog + reload + loop + plan.
-		"Catalog", "CatalogStore", "Reload", "ReloadCatalog", "LoopRunner",
-		"RunPlan",
+		// Day 19 — catalog + reload + the plan runner's face.
+		"Catalog", "CatalogStore", "Reload", "ReloadCatalog", "PlanService",
 	} {
 		if _, ok := kernelType.MethodByName(name); !ok {
 			t.Errorf("*Kernel has no method %s — the accessor surface is pinned by name, because the deleted sub-package's compile-time check is gone", name)
+		}
+	}
+
+	// The plan runner's own verbs went with W3.76ak: the plan runner is the
+	// RUNS MODULE's service (the scheduler that executes a plan and the
+	// live-run registry that holds the plan's cancel are both the module's),
+	// so the daemon holds the module's FACE (`PlanService`) and answers no
+	// verb per plan operation. Their ABSENCE is pinned, the way a retired
+	// verb's absence is: a door that comes back comes back with a second
+	// spelling of the family.
+	for _, gone := range []string{"LoopRunner", "RunPlan"} {
+		if _, ok := kernelType.MethodByName(gone); ok {
+			t.Errorf("*Kernel has the %s method again — the plan runner is the runs module's own service (W3.76ak)", gone)
 		}
 	}
 

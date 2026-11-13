@@ -936,6 +936,12 @@ func reaperOwnedVerbs(t *testing.T) []string {
 // the plan runner's own machinery — the daemon's plan loop and the daemon's
 // plan verb. The plan runner is the runs family's, so the machinery it
 // drives is the runs family's too.
+//
+// In W3.76ak the plan runner MOVED into the runs module (the scheduler that
+// executes a plan and the live-run registry that holds the plan's cancel are
+// both the module's own), so the two verbs left the kernel and the family's
+// place in the list holds the module's FACE instead — the same shape the
+// runner's own face has (`RunnerService`).
 func runsOwnedVerbs(t *testing.T) []string {
 	t.Helper()
 	kernel := reflect.TypeOf(&runtime.Kernel{})
@@ -960,7 +966,7 @@ func runsOwnedVerbs(t *testing.T) []string {
 		}
 		verbs = append(verbs, name)
 	}
-	for _, name := range []string{"AdmitImages", "SubjectForRun", "MaxDuration", "LoopRunner", "RunPlan", "RunnerService"} {
+	for _, name := range []string{"AdmitImages", "SubjectForRun", "MaxDuration", "PlanService", "RunnerService"} {
 		if _, ok := kernel.MethodByName(name); !ok {
 			t.Fatalf("the kernel has no %s verb — the runs family's verbs moved?", name)
 		}

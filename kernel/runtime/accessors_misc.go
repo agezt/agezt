@@ -4,14 +4,16 @@ package runtime
 
 // Provenance: Kernel accessors: misc
 //             (ShadowEval/VisionModel/StandingList/SkillStore/BaseDir/ConfigCenter/Model/SetModel)
-//             + council + catalog + reload + loop/plan. Code extracted from
-//             accessors.go during the Day-56 god-file split. The AgentSlug and
-//             AgentRetryPolicy doors went with W3.76m: the run context's
-//             vocabulary is the runs module's, and the run engine — which
-//             lives inside that module — reads it there.
+//             + council + catalog + reload + the plan runner's face. Code
+//             extracted from accessors.go during the Day-56 god-file split.
+//             The AgentSlug and AgentRetryPolicy doors went with W3.76m: the
+//             run context's vocabulary is the runs module's, and the run
+//             engine — which lives inside that module — reads it there. The
+//             plan runner's own verbs (RunPlan, LoopRunner) went with
+//             W3.76ak: the plan runner is the runs module's own service, and
+//             the daemon hands its face over.
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -20,8 +22,7 @@ import (
 	"github.com/agezt/agezt/kernel/contract/catalogapi"
 	"github.com/agezt/agezt/kernel/contract/types"
 	"github.com/agezt/agezt/kernel/governor"
-	"github.com/agezt/agezt/kernel/scheduler"
-	"github.com/agezt/agezt/kernel/ulid"
+	"github.com/agezt/agezt/kernel/modules/runs/api"
 )
 
 // VisionModel returns the injected vision-capable model resolver
@@ -208,39 +209,15 @@ func (k *Kernel) ReloadCatalog() (*catalogapi.Catalog, error) {
 	return cat, nil
 }
 
-// LoopRunner returns a closure suitable for scheduler.LoopNode.Runner.
-// The closure drives one agent.Run end-to-end via the kernel's
-// configured Provider/Tools/Policy hook, using the plan-derived
-// correlation ID so events stay linked under `agt why`.
-func (k *Kernel) LoopRunner() scheduler.LoopRunner {
-	return func(ctx context.Context, intent, corr string) (string, error) {
-		return k.RunnerService().RunWith(ctx, corr, intent)
-	}
-}
-
-// RunPlan executes a pre-built Plan through the kernel's scheduler.
-// Honors Halt: refuses to start when halted; in-flight nodes are
-// cancelled when Halt is called mid-plan. PlanID is the correlation
-// ID for the whole plan; if empty, the scheduler mints one.
-func (k *Kernel) RunPlan(ctx context.Context, plan scheduler.Plan, planID string) (*scheduler.PlanResult, error) {
-	k.registry.Lock()
-	if k.registry.Halted() {
-		k.registry.Unlock()
-		return nil, ErrHalted
-	}
-	if planID == "" {
-		planID = "plan-" + ulid.New()
-	}
-	runCtx, cancel := context.WithCancel(ctx)
-	k.registry.Register(planID, cancel)
-	k.registry.Unlock()
-
-	defer func() {
-		k.registry.Lock()
-		k.registry.Unregister(planID)
-		k.registry.Unlock()
-		cancel()
-	}()
-
-	return k.scheduler.Run(runCtx, plan, planID)
-}
+// PlanService returns the RUNS MODULE's plan runner (W3.76ak,
+// kernel/modules/runs/plan): the plan's execution and its registration as a
+// live run.
+//
+// The daemon used to answer for the family in its own words — `RunPlan`
+// executed the plan and `LoopRunner` handed the scheduler the hook that runs
+// a node's loop — while the machinery behind both was already the module's:
+// the SCHEDULER (the runs module's family, per the architecture gate) and the
+// module's own live-run REGISTRY. The daemon held a second handle to the
+// module's machinery and spoke for it; the module answers in its own names
+// now, and the daemon hands the face over.
+func (k *Kernel) PlanService() api.PlanService { return k.plan }
