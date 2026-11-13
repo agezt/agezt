@@ -242,7 +242,10 @@ func PlanRunnerPortsFromKernel(k *runtime.Kernel) PlanRunnerPorts {
 			},
 		}
 	}
-	return PlanRunnerPorts{LoopRunner: k.LoopRunner, RunPlan: k.RunPlan}
+	return PlanRunnerPorts{
+		LoopRunner: k.PlanService().LoopRunner,
+		RunPlan:    k.PlanService().Run,
+	}
 }
 
 // Ready reports whether the ports hold a daemon to run on.

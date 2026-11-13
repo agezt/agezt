@@ -129,9 +129,13 @@ func TestTheDaemonKeepsTheLifecycleFace(t *testing.T) {
 //
 // W3.76ae moved the RUN's registration into the module: the daemon's own
 // runner lifecycle file registers nothing any more — the runs module's live-run
-// state does, through the very same store. What the daemon still registers is
-// the PLAN (the plan runner is the daemon's own bookkeeping), and that one
-// goes through the module's store too.
+// state does, through the very same store.
+//
+// W3.76ak moved the PLAN's registration the same way: the plan runner is the
+// module's own service now (the scheduler that executes a plan and the
+// live-run registry that holds the plan's cancel are both the module's), so
+// the daemon registers NOTHING — not a run, not a plan. The plan's
+// registration is the module's, in the module's own store.
 func TestTheDaemonTalksToTheModuleThroughTheRegistry(t *testing.T) {
 	for _, f := range []string{"accessors_misc.go"} {
 		src, err := os.ReadFile(f)
@@ -142,8 +146,8 @@ func TestTheDaemonTalksToTheModuleThroughTheRegistry(t *testing.T) {
 		if strings.Contains(text, "k.runs[") || strings.Contains(text, "delete(k.runs") {
 			t.Fatalf("%s still writes the registry's map directly", f)
 		}
-		if !strings.Contains(text, "k.registry.") {
-			t.Fatalf("%s must register through the module's store", f)
+		if strings.Contains(text, "k.registry.") {
+			t.Fatalf("%s registers a run or a plan any more — the run's live state is the module's (W3.76ae) and the plan's registration is the module's (W3.76ak)", f)
 		}
 	}
 	// The RUN's own registration is the module's (W3.76ae): the live-run state

@@ -36,6 +36,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/runs/delegation"
 	"github.com/agezt/agezt/kernel/modules/runs/lifecycle"
 	"github.com/agezt/agezt/kernel/modules/runs/loopcfg"
+	"github.com/agezt/agezt/kernel/modules/runs/plan"
 	"github.com/agezt/agezt/kernel/modules/runs/prompt"
 	"github.com/agezt/agezt/kernel/modules/runs/publish"
 	"github.com/agezt/agezt/kernel/modules/runs/registry"
@@ -681,6 +682,18 @@ func Open(cfg Config) (*Kernel, error) {
 	// resume ticket is the run's own state, so the engine claims, refreshes
 	// and finalizes it through the module — not through the host.
 	k.runner = runner.New(k, rosterSvc, k.runState, k.prompt, runPublisher, k.tickets)
+
+	// And it holds the module's PLAN RUNNER (W3.76ak,
+	// kernel/modules/runs/plan): the plan's execution and its registration
+	// as a live run. The scheduler that executes a plan and the live-run
+	// registry that holds the plan's cancel are both the module's own, so
+	// the daemon hands the module's FACE over instead of answering a verb
+	// per plan operation.
+	k.plan = plan.New(plan.Dependencies{
+		Registry:  k.registry,
+		Scheduler: k.scheduler,
+		Runner:    k.runner,
+	})
 
 	return k, nil
 }

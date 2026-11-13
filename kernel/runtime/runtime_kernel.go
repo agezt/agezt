@@ -41,6 +41,7 @@ import (
 	"github.com/agezt/agezt/kernel/modules/runs/delegation"
 	"github.com/agezt/agezt/kernel/modules/runs/lifecycle"
 	"github.com/agezt/agezt/kernel/modules/runs/loopcfg"
+	"github.com/agezt/agezt/kernel/modules/runs/plan"
 	"github.com/agezt/agezt/kernel/modules/runs/prompt"
 	"github.com/agezt/agezt/kernel/modules/runs/registry"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
@@ -224,6 +225,14 @@ type Kernel struct {
 	// NewCorrelation / Why) are routed through the sub-package; the
 	// 260-line RunWith body migrates in Day 23.
 	runner *runner.Runner
+
+	// plan is the RUNS MODULE's plan runner (W3.76ak,
+	// kernel/modules/runs/plan): the plan's execution and its registration
+	// as a live run. The scheduler that executes a plan and the live-run
+	// registry that holds the plan's cancel are both the module's own, so
+	// the daemon holds the module's FACE and answers no verb per plan
+	// operation.
+	plan *plan.Service
 
 	// Fine-grained mutexes to reduce lock contention. Lock ordering to prevent
 	// deadlocks (always acquire in this order):
