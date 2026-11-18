@@ -1,6 +1,6 @@
 # 07 — Autonomy & Extensibility
 
-**Scope:** `kernel/roster`, `kernel/cadence` (+ `cadence/systemtasks`), `kernel/scheduler`, `kernel/standing`, `kernel/pulse`,
+**Scope:** `kernel/roster`, `kernel/cadence` (+ `cadence/systemtasks`), `kernel/modules/runs/scheduler`, `kernel/standing`, `kernel/pulse`,
 `kernel/selfrepair`, `kernel/modules/skills/skill` (+ `kernel/modules/skills/builtins`), `kernel/market`, `kernel/modules/extensions/plugin`, `kernel/modules/extensions/mcp`, `kernel/acp`, `kernel/platform/acpclient`, `kernel/modules/extensions/acpcatalog`,
 `kernel/workflow`, `kernel/workflowexec`, `kernel/update`, `kernel/modules/extensions/toolbox`, `kernel/channel`, `kernel/platform/channelwire`,
 `kernel/stt`, `kernel/voicetool`, `kernel/imagetool`, `kernel/reranktool`, `kernel/internal/testfixtures`.
@@ -745,7 +745,7 @@ plugin may reach the contract and the platform layers and nothing else, so the
 port has to live at the bottom and the implementation has to live above the
 modules.
 
-## 8. `kernel/scheduler` — plan DAG executor (not a timer)
+## 8. `kernel/modules/runs/scheduler` — plan DAG executor (not a timer)
 
 **Purpose.** The DAG layer above the single-agent tool loop (SPEC-02 §4). A `Plan` is a DAG of `Node`s. The `Executor`
 validates it, schedules ready nodes as their dependencies complete, runs them under a bounded worker pool, and publishes
@@ -1980,4 +1980,4 @@ Packages that read **no** env themselves: roster, standing, scheduler, market, m
 20. **Layering (resolved):** `kernel/selfrepair` and `kernel/controlplane` no longer import `plugins/tools/overseertool`; the repair engine moved to the app layer behind a contract port (§7.6).
 21. **Dead code:** `kernel/workflowexec` is an orphaned duplicate of runtime constants. `acpcatalog.ResolveLaunch` has no in-tree caller (allowlisted). `plugin.Config.HostTools` callbacks, `Reload` and progress callbacks are implemented and tested but have no production caller. The daemon keeps no `*plugin.Plugin` handle, so plugins are never `Close()`d at shutdown.
 22. **Misplaced doc comments** remain from the god-file splits across cadence, standing, scheduler, skill and acp. Godoc for those symbols is wrong; read the code.
-23. **`kernel/scheduler` is the plan DAG executor**, not a time scheduler. Time-based waking lives in `cadence` and in `standing`'s own cron. Despite a stale comment in `standing/runner.go:46-47`, standing cron does not reuse cadence.
+23. **`kernel/modules/runs/scheduler` is the plan DAG executor**, not a time scheduler (its path moved into the runs module in W3.78; the body did not move). Time-based waking lives in `cadence` and in `standing`'s own cron. Despite a stale comment in `standing/runner.go:46-47`, standing cron does not reuse cadence.
