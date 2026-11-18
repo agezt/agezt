@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/scheduler"
+	"github.com/agezt/agezt/kernel/modules/runs/scheduler"
 )
 
 // When Run is called with an empty correlation id it must generate one

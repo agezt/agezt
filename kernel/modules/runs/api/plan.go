@@ -5,7 +5,7 @@ package api
 import (
 	"context"
 
-	"github.com/agezt/agezt/kernel/scheduler"
+	"github.com/agezt/agezt/kernel/modules/runs/scheduler"
 )
 
 // PlanService is the runs module's PLAN RUNNER surface: the plan the
@@ -15,8 +15,8 @@ import (
 // The verbs are the MODULE's own names (W3.76ak). The daemon used to answer
 // them under names of its own — `RunPlan` and `LoopRunner` — while the
 // machinery behind them was already the module's: the SCHEDULER that executes
-// a plan is the runs module's family (the architecture gate places
-// `kernel/scheduler` in the runs module), and the registration that makes a
+// a plan is the runs module's own (`kernel/modules/runs/scheduler` — its path
+// moved into the module in W3.78), and the registration that makes a
 // plan a live run is over the module's own live-run registry
 // (`kernel/modules/runs/registry`). The daemon held a second handle to both
 // and spoke for the family in its own words.

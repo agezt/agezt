@@ -7,7 +7,7 @@
 // tool adapters — in the Run loop that wires them: model request → tool
 // dispatch (with Edict policy gate + Warden sandbox) → observation
 // → next iteration. The loop is interleaved, not plan-then-execute;
-// the DAG scheduler (kernel/scheduler) is a separate layer that
+// the DAG scheduler (kernel/modules/runs/scheduler) is a separate layer that
 // uses this loop as one of its node types. A panic in any provider
 // or tool is contained to the run via deferred recover(); a hostile
 // out-of-process plugin cannot crash the daemon.

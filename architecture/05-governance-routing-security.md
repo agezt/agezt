@@ -43,7 +43,7 @@ All source read from the working tree (disk), 2026-10-02.
 | `kernel/netguard` | — | cmd/agezt, cmd/agt, catalog, chatgptauth, controlplane, market, mcp, update, plugins/channels/onebot, plugins/external/mcpbridge, plugins/providers/{embed,openairesponses,voice}, plugins/tools/{browser,fetch,http,websearch} |
 | `kernel/envscrub` | — | kernel/creds, plugins/tools/{acpagent,browser,coding} |
 | `kernel/redact` | — | cmd/agezt, kernel/controlplane, kernel/openaiapi, plugins/builtintools |
-| `kernel/approval` | kernel/bus, kernel/event, kernel/ulid | kernel/configcenter, kernel/controlplane, kernel/runtime(+accessors), kernel/modules/runs/runner, kernel/scheduler, plugins/tools/forgetool |
+| `kernel/approval` | kernel/bus, kernel/event, kernel/ulid | kernel/configcenter, kernel/controlplane, kernel/runtime(+accessors), kernel/modules/runs/runner, kernel/modules/runs/scheduler, plugins/tools/forgetool |
 | `kernel/modules/work/seat` | internal/atomicfile | kernel/controlplane, kernel/runtime |
 | `kernel/tenant` | — | cmd/agezt, kernel/controlplane |
 | `kernel/tenantctx` | — | kernel/runtime, plugins/tools/peer |

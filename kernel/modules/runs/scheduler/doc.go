@@ -6,6 +6,13 @@
 // topologically, runs independent branches in parallel under a bounded
 // worker pool, and publishes node.* + plan.* events on the bus.
 //
+// The package's HOME is the runs module: it lived at kernel/scheduler until
+// W3.78, and the architecture gate had already placed it in this module long
+// before that (tools/archcheck/layers.json). The path was the last thing out
+// of place; the body, the names and the callers did not move. A plan is the
+// runs module's own work unit (kernel/modules/runs/plan), and this executor
+// is the half of it that walks the graph.
+//
 // Two Node types ship in M1.e:
 //
 //   - LoopNode  — wraps one agent.Run; the existing tool-loop becomes

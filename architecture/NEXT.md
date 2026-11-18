@@ -15339,3 +15339,96 @@ not exist yet, and the move is a path move (four production importers), not a
 lifecycle one.
 Evidence:
 `architecture/312-w377-the-loop-configuration-door-moves-into-the-runs-module-evidence.md`
+
+## W3.78 — the plan executor's path moves into the runs module
+
+The **forty-eighth** slice of the runtime's dissolution, and the third one
+that ends in a **pure path move**.
+
+The **plan executor** — the scheduler that walks a plan's DAG, publishes each
+step's events and reifies the plan's nodes into the run's own loop — had **no
+rule and no store of its own**. It executed the runs module's plan
+(`kernel/modules/runs/plan`) and produced the runs module's loop, and it lived
+at `kernel/scheduler` — a top-level package the target architecture had
+**already assigned** to the runs module.
+
+The gate said so long before the body moved: `tools/archcheck/layers.json`
+carried `{"pattern": "kernel/scheduler", "layer": 3, "module": "runs"}`. The
+family's boundary was drawn; the **path** was the last thing out of place.
+
+### What moved
+
+- **The package moved** — `git mv kernel/scheduler kernel/modules/runs/scheduler`,
+  **eight files** (five production, three test), all recorded by git as
+  **renames**. The bodies are byte-identical apart from the import path
+  inside the test files and one provenance paragraph in `doc.go`.
+- **Twelve importers followed** — the runs application and its ports, the
+  runs module's `api` and `plan` packages, the package's own tests, the
+  daemon's composition root and its kernel.
+- **The gate's rule for the old path is GONE** with the package — the
+  **fail-closed** half of the move: a package that reappears at
+  `kernel/scheduler` matches **no** placement rule and the gate says so
+  instead of waving it through.
+
+### The measurement
+
+| what | before | after |
+|---|---|---|
+| the daemon's public verbs | 105 | **105** |
+| the daemon's production lines | 5,214 | **5,214** |
+| the daemon's production files | 52 | **52** |
+| the app packages that import `kernel/runtime` | 40 | **40** |
+| the plan executor's package | 5 files / 768 lines | **5 files / 775 lines** |
+| the executor's package at its old path | 5 files / 768 lines | **0 files / 0 lines** |
+| the daemon's surface ceiling | 105 | **105** |
+
+**Nothing moved but the path.** The executor's package grew by **seven**
+lines, and those seven lines are **one comment block**: `doc.go` 26 → 33 (the
+provenance paragraph) and the four production bodies **byte-identical**
+(`nodes.go` 167, `scheduler.go` 137, `scheduler_publish.go` 157,
+`scheduler_run.go` 281).
+
+### The guard
+
+A **new** ratchet (`kernel/runtime/scheduler_ratchet_test.go`) holds three
+tests: the old path is gone and the module's path carries all five production
+files; the gate carries **no** rule for the old path; and no production file
+in the kernel imports the old path.
+
+**The needle is assembled from two pieces on purpose.** The probe rewrites
+the import path across the whole tree, and it rewrites **every literal
+spelling** of it — including the ratchet's own needle. With a single literal
+the check became a **tautology**: the needle came back rewritten into the
+path it was looking for, and the ratchet flagged six **legal** importers
+while missing the illegal one. Two pieces leave **no contiguous spelling** to
+rewrite. This is the same lesson as the W3.76i ratchet that never fires —
+except here it fired **wrongly**, which is worse.
+
+**The probe** put the world back before this slice — the package at its old
+home, every caller importing the old path again, the gate's rule back: all
+three ratchets went red at once, nothing else broke, and the suites went
+green again after the revert.
+
+The **coverage moved with the subject**: the package's own three test files
+moved with it and only their import path changed — no test rewritten, no
+assertion weakened. The **control plane** needed no change: no verb was
+retired.
+
+**A debt left on the table**: the gate still carries a rule for
+`kernel/delegation`, a package that no longer exists (dissolved in W3.76f) —
+out of this slice's scope, recorded for the next slice that touches the rule
+list.
+
+**What is left**: the daemon holds **105** public verbs and **5,214**
+production lines; **forty** application packages still name it. The remaining
+path moves are now a list — `kernel/standing` + `kernel/cadence` (18 files,
+→ **triggers**), `kernel/contextselect` (4), `kernel/planner` (5),
+`kernel/reflect` (1), `kernel/toolexec` (2), `kernel/pulse` +
+`kernel/anomaly` + `kernel/alerter` (19), `kernel/market` (14),
+`kernel/update` (4) and the media tools (3). The daemon's remaining second
+holds (workflows, reasoning, board, market, reaper, MCP, script forge) are
+not path moves: they are **lifecycle** moves, where the host gives up a door
+and keeps a face.
+Evidence:
+`architecture/313-w378-the-plan-executors-path-moves-into-the-runs-module-evidence.md`
+
