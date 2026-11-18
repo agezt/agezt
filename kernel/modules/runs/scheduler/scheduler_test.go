@@ -16,7 +16,7 @@ import (
 	"github.com/agezt/agezt/kernel/event"
 	intentmodel "github.com/agezt/agezt/kernel/intent"
 	"github.com/agezt/agezt/kernel/journal"
-	"github.com/agezt/agezt/kernel/scheduler"
+	"github.com/agezt/agezt/kernel/modules/runs/scheduler"
 )
 
 // ---- helpers ----

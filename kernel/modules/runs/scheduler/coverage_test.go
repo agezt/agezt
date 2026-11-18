@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/approval"
-	"github.com/agezt/agezt/kernel/scheduler"
+	"github.com/agezt/agezt/kernel/modules/runs/scheduler"
 )
 
 // TestContextInvariantMonitor covers the baseline monitor: it returns ctx.Err(),

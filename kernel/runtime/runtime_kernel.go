@@ -46,11 +46,11 @@ import (
 	"github.com/agezt/agezt/kernel/modules/runs/registry"
 	"github.com/agezt/agezt/kernel/modules/runs/resume"
 	"github.com/agezt/agezt/kernel/modules/runs/runner"
+	"github.com/agezt/agezt/kernel/modules/runs/scheduler"
 	runstate "github.com/agezt/agezt/kernel/modules/runs/state"
 	"github.com/agezt/agezt/kernel/modules/runs/steer"
 	workapi "github.com/agezt/agezt/kernel/modules/work/api"
 	"github.com/agezt/agezt/kernel/reflect"
-	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/state"
 	"github.com/agezt/agezt/kernel/warden"
 )

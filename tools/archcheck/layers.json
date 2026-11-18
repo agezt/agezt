@@ -40,7 +40,6 @@
     {"pattern": "kernel/delegation", "layer": 3, "module": "runs"},
     {"pattern": "kernel/contextselect", "layer": 3, "module": "runs"},
     {"pattern": "kernel/planner", "layer": 3, "module": "runs"},
-    {"pattern": "kernel/scheduler", "layer": 3, "module": "runs"},
     {"pattern": "kernel/reflect", "layer": 3, "module": "runs"},
     {"pattern": "kernel/toolexec", "layer": 3, "module": "runs", "note": "-> app/tools.Invoke (W2.3)"},
 

@@ -11,8 +11,8 @@ import (
 	"github.com/agezt/agezt/kernel/bus"
 	"github.com/agezt/agezt/kernel/journal"
 	"github.com/agezt/agezt/kernel/modules/runs/registry"
+	"github.com/agezt/agezt/kernel/modules/runs/scheduler"
 	"github.com/agezt/agezt/kernel/modules/runs/state"
-	"github.com/agezt/agezt/kernel/scheduler"
 )
 
 // fakeRunner is the run engine's face, reduced to the one operation the plan

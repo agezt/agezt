@@ -10,7 +10,7 @@
 // The daemon used to answer for the family in its own words: `RunPlan`
 // executed the plan and `LoopRunner` handed the scheduler the hook that runs
 // a node's loop. Both bodies were the module's — the SCHEDULER
-// (`kernel/scheduler`, the runs module's family per the architecture gate)
+// (`kernel/modules/runs/scheduler`, the runs module's own plan executor)
 // and the module's own live-run REGISTRY (`kernel/modules/runs/registry`) —
 // so the daemon held a second handle to the module's machinery and spoke for
 // it. The plan runner lives here now.
@@ -22,8 +22,8 @@ import (
 
 	"github.com/agezt/agezt/kernel/modules/runs/api"
 	"github.com/agezt/agezt/kernel/modules/runs/registry"
+	"github.com/agezt/agezt/kernel/modules/runs/scheduler"
 	"github.com/agezt/agezt/kernel/modules/runs/state"
-	"github.com/agezt/agezt/kernel/scheduler"
 	"github.com/agezt/agezt/kernel/ulid"
 )
 
