@@ -36,19 +36,19 @@ func ReadOperations(provider func(context.Context) *Reads) ([]app.Operation, err
 	spec := func(name string) opapi.Spec {
 		return opapi.Spec{Name: name, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: readInputSchema}
 	}
-	list, err := app.NewOperation(spec("market_list"), func(ctx context.Context, in ListRequest) (ListOutput, error) {
+	list, err := app.NewOperation(spec(opapi.MarketList), func(ctx context.Context, in ListRequest) (ListOutput, error) {
 		return provider(ctx).List(ctx, ListInput{Query: readText(in.Query)})
 	})
 	if err != nil {
 		return nil, err
 	}
-	show, err := app.NewOperation(spec("market_show"), func(ctx context.Context, in ShowRequest) (ShowOutput, error) {
+	show, err := app.NewOperation(spec(opapi.MarketShow), func(ctx context.Context, in ShowRequest) (ShowOutput, error) {
 		return provider(ctx).Show(ctx, ShowInput{Marketplace: readText(in.Marketplace), Name: readText(in.Name)})
 	})
 	if err != nil {
 		return nil, err
 	}
-	sources, err := app.NewOperation(spec("market_sources"), func(ctx context.Context, in SourcesInput) (SourcesOutput, error) {
+	sources, err := app.NewOperation(spec(opapi.MarketSources), func(ctx context.Context, in SourcesInput) (SourcesOutput, error) {
 		return provider(ctx).Sources(ctx, in)
 	})
 	if err != nil {

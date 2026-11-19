@@ -16,7 +16,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/platform/fileworkspace"
 )
 
@@ -165,7 +165,7 @@ func (s *Server) handleFileMkdir(w http.ResponseWriter, r *http.Request) {
 	}
 	rel, _ := body["path"].(string)
 	parents, _ := body["parents"].(bool)
-	s.callFileMutation(w, r, controlplane.CmdFileMkdir, map[string]any{"path": rel, "parents": parents})
+	s.callFileMutation(w, r, opapi.FileMkdir, map[string]any{"path": rel, "parents": parents})
 }
 
 // handleFileRename preserves the console's request and result contract.
@@ -180,7 +180,7 @@ func (s *Server) handleFileRename(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "from and to are required", http.StatusBadRequest)
 		return
 	}
-	s.callFileMutation(w, r, controlplane.CmdFileRename, map[string]any{"from": from, "to": to})
+	s.callFileMutation(w, r, opapi.FileRename, map[string]any{"from": from, "to": to})
 }
 
 // handleFileDelete preserves the explicit recursive opt-in.
@@ -191,7 +191,7 @@ func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	rel, _ := body["path"].(string)
 	recursive, _ := body["recursive"].(bool)
-	s.callFileMutation(w, r, controlplane.CmdFileDelete, map[string]any{"path": rel, "recursive": recursive})
+	s.callFileMutation(w, r, opapi.FileDelete, map[string]any{"path": rel, "recursive": recursive})
 }
 
 // typeOf returns "dir" or "file" for an os.DirEntry — keeping the JSON

@@ -5,6 +5,7 @@ package controlplane
 import (
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -40,22 +41,22 @@ func TestSeatsEditThePrimaryStore(t *testing.T) {
 		return string(raw), resp.Error
 	}
 	before := len(k.Seats().List())
-	if out, msg := call(CmdSeatCreate, map[string]any{"id": "ops", "tools": []any{"shell"}}); msg != "" || !strings.Contains(out, `"restrict_tools":true`) {
+	if out, msg := call(opapi.SeatCreate, map[string]any{"id": "ops", "tools": []any{"shell"}}); msg != "" || !strings.Contains(out, `"restrict_tools":true`) {
 		t.Fatal(out, msg)
 	}
 	if len(k.Seats().List()) != before+1 {
 		t.Fatal("the seat reached the primary store")
 	}
-	if out, msg := call(CmdSeatList, nil); msg != "" || !strings.Contains(out, `"id":"ops"`) {
+	if out, msg := call(opapi.SeatList, nil); msg != "" || !strings.Contains(out, `"id":"ops"`) {
 		t.Fatal(out, msg)
 	}
-	if out, msg := call(CmdSeatDelete, map[string]any{"id": "ops"}); msg != "" || out != `{"deleted":"ops"}` {
+	if out, msg := call(opapi.SeatDelete, map[string]any{"id": "ops"}); msg != "" || out != `{"deleted":"ops"}` {
 		t.Fatal(out, msg)
 	}
 	if len(k.Seats().List()) != before {
 		t.Fatal("the delete reached the primary store")
 	}
-	for cmd, read := range map[string]bool{CmdSeatList: true, CmdSeatCreate: false, CmdSeatDelete: false} {
+	for cmd, read := range map[string]bool{opapi.SeatList: true, opapi.SeatCreate: false, opapi.SeatDelete: false} {
 		if wire, exists := commandRegistry[cmd]; !exists || !wire.AppOwned || wire.ReadOnly != read || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 			t.Fatalf("%s native wire %+v", cmd, wire)
 		}

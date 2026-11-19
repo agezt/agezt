@@ -43,7 +43,7 @@ func AccountOperations(provider func(context.Context) *Accounts) ([]app.Operatio
 	if provider == nil {
 		return nil, errors.New("channel account service provider required")
 	}
-	set, err := app.NewOperation(opapi.Spec{Name: "channel_account_set", Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true,
+	set, err := app.NewOperation(opapi.Spec{Name: opapi.ChannelAccountSet, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true,
 		InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"kind":{},"label":{},"name":{},"value":{}}}`),
 		HTTP:        opapi.HTTP{Method: "POST", Path: "/api/channel/account/set"}}, func(ctx context.Context, in SetAccountRequest) (SetAccountOutput, error) {
 		kind, err := accountText(in.Kind, "kind")
@@ -67,7 +67,7 @@ func AccountOperations(provider func(context.Context) *Accounts) ([]app.Operatio
 	if err != nil {
 		return nil, err
 	}
-	remove, err := app.NewOperation(opapi.Spec{Name: "channel_account_remove", Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true,
+	remove, err := app.NewOperation(opapi.Spec{Name: opapi.ChannelAccountRemove, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true,
 		InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"kind":{},"label":{}}}`),
 		HTTP:        opapi.HTTP{Method: "POST", Path: "/api/channel/account/remove"}}, func(ctx context.Context, in RemoveAccountRequest) (RemoveAccountOutput, error) {
 		kind, err := accountText(in.Kind, "kind")

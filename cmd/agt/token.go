@@ -23,21 +23,15 @@ func cmdToken(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		return tokenUsage(stderr)
 	}
-	switch args[0] {
-	case "create":
-		return cmdTokenCreate(args[1:], stdout, stderr)
-	case "validate":
-		return cmdTokenValidate(args[1:], stdout, stderr)
-	case "help":
-		return tokenUsage(stdout)
-	default:
-		fmt.Fprintf(stderr, "%s token: unknown subcommand %q\n", brand.CLI, args[0])
-		return tokenUsage(stderr)
+	if sub, ok := cliToken.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s token: unknown subcommand %q\n", brand.CLI, args[0])
+	return tokenUsage(stderr)
 }
 
 func tokenUsage(w io.Writer) int {
-	fmt.Fprintf(w, "usage: %s token <create|validate>\n", brand.CLI)
+	fmt.Fprintf(w, "usage: %s token %s\n", brand.CLI, cliToken.synopsis())
 	fmt.Fprintf(w, "  create [--run-id ID] [--caps CAPS] [--max-rpm N] [--burst N] [--expiry DURATION]\n")
 	fmt.Fprintf(w, "                     create a scoped capability token for subprocess communication\n")
 	fmt.Fprintf(w, "  validate <TOKEN>   validate a token and show its claims\n")

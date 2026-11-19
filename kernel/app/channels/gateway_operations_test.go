@@ -86,7 +86,7 @@ func TestChannelGatewayOperationSpecsAndResultPresence(t *testing.T) {
 }
 
 func TestChannelGatewayOperationPrimaryUnauditedCancelAndLenientURL(t *testing.T) {
-	for _, command := range []string{"whatsappgw_status", "whatsappgw_qr"} {
+	for _, command := range []string{opapi.WhatsAppGatewayStatus, "whatsappgw_qr"} {
 		for _, mode := range []string{"success", "canceled", "tenant", "agent"} {
 			providers, gets := 0, 0
 			principal := opapi.Principal{Kind: opapi.Operator}

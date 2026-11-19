@@ -12,7 +12,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/extensions/plugin"
 )
 
@@ -38,29 +38,11 @@ func cmdPlugin(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s plugin: subcommand required (new|hash|list|registry)\n", brand.CLI)
 		return 2
 	}
-	switch args[0] {
-	case "new":
-		return cmdPluginNew(args[1:], stdout, stderr)
-	case "hash":
-		return cmdPluginHash(args[1:], stdout, stderr)
-	case "list":
-		return cmdPluginList(args[1:], stdout, stderr)
-	case "registry":
-		return cmdPluginRegistry(args[1:], stdout, stderr)
-	case "-h", "--help", "help":
-		fmt.Fprintf(stdout, "usage: %s plugin <subcommand>\n", brand.CLI)
-		fmt.Fprintf(stdout, "\n")
-		fmt.Fprintf(stdout, "  new <name>       scaffold a new Go tool plugin (SDK-based, buildable)\n")
-		fmt.Fprintf(stdout, "  hash <path>      print the BLAKE3-256 hex digest of a plugin binary\n")
-		fmt.Fprintf(stdout, "                   (use the output in AGEZT_PLUGIN_PINS=\"<prefix>=<hash>\")\n")
-		fmt.Fprintf(stdout, "  list [--json]    list the external plugins the daemon spawned at startup\n")
-		fmt.Fprintf(stdout, "  registry <dir|url> [--install <name>]   browse/install plugins from a\n")
-		fmt.Fprintf(stdout, "                   registry (download + BLAKE3-verify; prints the env to enable)\n")
-		return 0
-	default:
-		fmt.Fprintf(stderr, "%s plugin: unknown subcommand %q (new|hash|list|registry)\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliPlugin.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s plugin: unknown subcommand %q (new|hash|list|registry)\n", brand.CLI, args[0])
+	return 2
 }
 
 // cmdPluginList implements `agt plugin list [--json]`. Operator
@@ -89,7 +71,7 @@ func cmdPluginList(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdPluginList, nil)
+	res, err := c.Call(ctx, opapi.PluginList, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s plugin list: %v\n", brand.CLI, err)
 		return 1

@@ -4,6 +4,7 @@ package channels
 import (
 	"context"
 	"errors"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"reflect"
 	"strings"
 	"testing"
@@ -233,7 +234,7 @@ func TestChannelAccountsRemoveRequiredGlobalEnvsBothStoresCountsAndIgnoredLoads(
 }
 
 func TestChannelAccountsRemoveSaveOrderAndPartialEffects(t *testing.T) {
-	for _, phase := range []string{"config", "vault"} {
+	for _, phase := range []string{opapi.Config, "vault"} {
 		p := newAccountProbe(false)
 		sentinel := errors.New("owned failure")
 		p.config.values["AGEZT_PUBLIC#work"] = "raw"

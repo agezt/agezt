@@ -16,32 +16,14 @@ func cmdToolforge(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		return toolforgeUsage(stderr)
 	}
-	switch args[0] {
-	case "list":
-		return cmdToolforgeList(args[1:], stdout, stderr)
-	case "show":
-		return cmdToolforgeShow(args[1:], stdout, stderr)
-	case "draft", "add", "create":
-		return cmdToolforgeDraft(args[1:], stdout, stderr)
-	case "edit", "set":
-		return cmdToolforgeEdit(args[1:], stdout, stderr)
-	case "test":
-		return cmdToolforgeTest(args[1:], stdout, stderr)
-	case "promote":
-		return cmdToolforgePromote(args[1:], stdout, stderr)
-	case "quarantine":
-		return cmdToolforgeQuarantine(args[1:], stdout, stderr)
-	case "remove", "rm":
-		return cmdToolforgeRemove(args[1:], stdout, stderr)
-	case "-h", "--help", "help":
-		return toolforgeUsage(stdout)
-	default:
-		fmt.Fprintf(stderr, "%s toolforge: unknown subcommand %q\n", brand.CLI, args[0])
-		return toolforgeUsage(stderr)
+	if sub, ok := cliToolforge.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s toolforge: unknown subcommand %q\n", brand.CLI, args[0])
+	return toolforgeUsage(stderr)
 }
 func toolforgeUsage(w io.Writer) int {
-	fmt.Fprintf(w, "usage: %s toolforge <list|show|draft|edit|test|promote|quarantine|remove>\n", brand.CLI)
+	fmt.Fprintf(w, "usage: %s toolforge %s\n", brand.CLI, cliToolforge.synopsis())
 	fmt.Fprintf(w, "  list [--json]                                   show all script tools\n")
 	fmt.Fprintf(w, "  show <name|id> [--json]                         one tool's full record (incl. code)\n")
 	fmt.Fprintf(w, "  draft <name> --lang L --desc TEXT (--file PATH | --code SRC) [--schema-file PATH]\n")

@@ -8,6 +8,7 @@ package controlplane
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"strings"
 )
 
@@ -31,7 +32,7 @@ type UpdateInfo struct {
 // is available. Returns Update.Disabled=true when the daemon has no update
 // source configured.
 func (c *Client) UpdateCheck(ctx context.Context) (*UpdateCheckResult, error) {
-	out, err := c.Call(ctx, CmdUpdateCheck, nil)
+	out, err := c.Call(ctx, opapi.UpdateCheck, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +72,7 @@ func (c *Client) UpdateApply(ctx context.Context, version, sha256, url, notes st
 	if notes != "" {
 		args["notes"] = notes
 	}
-	out, err := c.Call(ctx, CmdUpdateApply, args)
+	out, err := c.Call(ctx, opapi.UpdateApply, args)
 	if err != nil {
 		return nil, err
 	}

@@ -3,7 +3,7 @@ package controlplane_test
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"reflect"
@@ -20,7 +20,7 @@ func TestStorageArtifactSocketTenantDenialPreservesPrimary(t *testing.T) {
 	}
 	before := k.ArtifactIndex().List(artifact.Filter{})
 	client := tenantClient(t, dir, token)
-	for _, cmd := range []string{controlplane.CmdStorageStats, controlplane.CmdArtifactGet, controlplane.CmdArtifactList, controlplane.CmdArtifactDelete, controlplane.CmdArtifactCollect} {
+	for _, cmd := range []string{opapi.StorageStats, opapi.ArtifactGet, opapi.ArtifactList, opapi.ArtifactDelete, opapi.ArtifactCollect} {
 		if _, err := client.Call(context.Background(), cmd, map[string]any{"id": entry.ID, "ref": entry.Ref, "dry_run": false, "tenant": "acme"}); err == nil || !strings.Contains(err.Error(), "forbidden") {
 			t.Fatal(cmd, err)
 		}

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/configcenter"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -16,7 +16,7 @@ func TestConfigCenterSet_AgentAllowDenyPoliciesRoundTrip(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	res, err := c.Call(ctx, controlplane.CmdConfigCenterSet, map[string]any{
+	res, err := c.Call(ctx, opapi.ConfigCenterSet, map[string]any{
 		"key":             "agent/ops/runtime",
 		"value":           "mode=careful",
 		"rating":          "internal",
@@ -61,7 +61,7 @@ func TestConfigCenterSet_AgentAllowDenyPoliciesRoundTrip(t *testing.T) {
 		t.Fatalf("blocked agent access unexpectedly succeeded")
 	}
 
-	list, err := c.Call(ctx, controlplane.CmdConfigCenterList, nil)
+	list, err := c.Call(ctx, opapi.ConfigCenterList, nil)
 	if err != nil {
 		t.Fatalf("configcenter list: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestConfigCenterSet_AgentAllowDenyPoliciesRoundTrip(t *testing.T) {
 		t.Fatalf("listed excluded_agents = %v, want blocked", got)
 	}
 
-	access, err := c.Call(ctx, controlplane.CmdConfigCenterSetAccess, map[string]any{
+	access, err := c.Call(ctx, opapi.ConfigCenterSetAccess, map[string]any{
 		"key":             "agent/ops/runtime",
 		"allowed_agents":  []any{"ops"},
 		"excluded_agents": []any{"blocked", "other"},

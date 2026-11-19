@@ -2,6 +2,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/artifacts/artifact"
 	"os"
 	"path/filepath"
@@ -23,7 +24,7 @@ func TestArtifactAppDeleteMetadataFailureRetainsOwnedEntryAndBlob(t *testing.T) 
 		t.Fatal(err)
 	}
 	before := k.ArtifactIndex().List(artifact.Filter{})
-	response := callAppHost(t, s, Request{ID: "delete-failure", Cmd: CmdArtifactDelete, Token: "primary", Args: map[string]any{"id": entry.ID}})[0]
+	response := callAppHost(t, s, Request{ID: "delete-failure", Cmd: opapi.ArtifactDelete, Token: "primary", Args: map[string]any{"id": entry.ID}})[0]
 	after := k.ArtifactIndex().List(artifact.Filter{})
 	_, blobErr := k.Artifacts().Get(entry.Ref)
 	if response.Type != RespError || !strings.Contains(response.Error, "remove metadata") || response.Result != nil || !reflect.DeepEqual(before, after) || blobErr != nil {

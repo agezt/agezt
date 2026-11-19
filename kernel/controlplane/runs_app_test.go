@@ -24,7 +24,7 @@ import (
 )
 
 func TestRunsNativeTypedRegistry(t *testing.T) {
-	for _, cmd := range []string{CmdRunsList, CmdRunsStats} {
+	for _, cmd := range []string{opapi.RunsList, opapi.RunsStats} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -106,12 +106,12 @@ func TestRunsNativeReadsTheCallersKernel(t *testing.T) {
 		{tenantToken, map[string]any{"tenant": "acme"}, 2, "tenant chore"},
 		{tenantToken, map[string]any{"tenant": "acme", "intent": "WORK"}, 1, "tenant work"},
 	} {
-		list := call(c.token, CmdRunsList, c.args)
+		list := call(c.token, opapi.RunsList, c.args)
 		rows, _ := list["runs"].([]any)
 		if list["count"] != c.count || len(rows) != int(c.count) || rows[0].(map[string]any)["intent"] != c.intent || rows[0].(map[string]any)["status"] != "completed" {
 			t.Fatalf("list %v: %v", c.args, list)
 		}
-		if stats := call(c.token, CmdRunsStats, c.args); stats["total"] != c.count || stats["completed"] != c.count || stats["success_rate"] != 1.0 {
+		if stats := call(c.token, opapi.RunsStats, c.args); stats["total"] != c.count || stats["completed"] != c.count || stats["success_rate"] != 1.0 {
 			t.Fatalf("stats %v: %v", c.args, stats)
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"net"
 	"testing"
 	"time"
@@ -35,7 +36,7 @@ func TestConfigCenterTypedNativeLargeIntegerLexemesAndZeroFields(t *testing.T) {
 	head, hash := k.Journal().Head()
 	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
-	for _, command := range []string{CmdConfigCenterGet, CmdConfigCenterList} {
+	for _, command := range []string{opapi.ConfigCenterGet, opapi.ConfigCenterList} {
 		a, b := net.Pipe()
 		a.SetDeadline(time.Now().Add(3 * time.Second))
 		done := make(chan struct{})
@@ -61,7 +62,7 @@ func TestConfigCenterTypedNativeLargeIntegerLexemesAndZeroFields(t *testing.T) {
 			t.Fatal(wire)
 		}
 		var entry map[string]any
-		if command == CmdConfigCenterGet {
+		if command == opapi.ConfigCenterGet {
 			entry, _ = result["entry"].(map[string]any)
 		} else {
 			rows, ok := result["entries"].([]any)

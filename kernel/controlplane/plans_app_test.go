@@ -22,7 +22,7 @@ import (
 )
 
 func TestPlanHistoryNativeTypedRegistry(t *testing.T) {
-	for _, cmd := range []string{CmdPlanHistory, CmdPlanStats} {
+	for _, cmd := range []string{opapi.PlanHistory, opapi.PlanStats} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -94,18 +94,18 @@ func TestPlanHistoryNativeRouting(t *testing.T) {
 		args       map[string]any
 		want       string
 	}{
-		{"primary", CmdPlanHistory, nil, `"plan_name":"primary-plan"`},
-		{"primary", CmdPlanHistory, map[string]any{"tenant": " acme "}, `"status":"failed"`},
-		{tenantToken, CmdPlanHistory, map[string]any{"tenant": "acme", "status": "failed"}, `"plan_name":"tenant-plan"`},
-		{"primary", CmdPlanStats, nil, `"running":1`},
-		{tenantToken, CmdPlanStats, map[string]any{"tenant": "acme"}, `"failed":1`},
-		{"primary", CmdPlanHistory, map[string]any{"status": 3}, `"error":"args.status must be a string"`},
+		{"primary", opapi.PlanHistory, nil, `"plan_name":"primary-plan"`},
+		{"primary", opapi.PlanHistory, map[string]any{"tenant": " acme "}, `"status":"failed"`},
+		{tenantToken, opapi.PlanHistory, map[string]any{"tenant": "acme", "status": "failed"}, `"plan_name":"tenant-plan"`},
+		{"primary", opapi.PlanStats, nil, `"running":1`},
+		{tenantToken, opapi.PlanStats, map[string]any{"tenant": "acme"}, `"failed":1`},
+		{"primary", opapi.PlanHistory, map[string]any{"status": 3}, `"error":"args.status must be a string"`},
 	} {
 		if line := call(c.token, c.cmd, c.args); !strings.Contains(line, c.want) {
 			t.Fatalf("%s %v: %s", c.cmd, c.args, line)
 		}
 	}
-	if line := call(tenantToken, CmdPlanHistory, map[string]any{"tenant": "acme"}); strings.Contains(line, "primary-plan") {
+	if line := call(tenantToken, opapi.PlanHistory, map[string]any{"tenant": "acme"}); strings.Contains(line, "primary-plan") {
 		t.Fatal("a tenant reads only its own plans", line)
 	}
 }

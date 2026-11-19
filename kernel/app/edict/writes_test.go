@@ -231,10 +231,10 @@ func TestWriteOperations(t *testing.T) {
 		name, path string
 		out        any
 	}{
-		{"edict_deny_add", "/api/edict/deny_add", DenyAddOutput{AppliesTo: []string{}}},
-		{"edict_deny_rm", "/api/edict/deny_rm", DenyRemoveOutput{}},
-		{"edict_set_level", "/api/edict/set_level", SetLevelOutput{}},
-		{"edict_set_mode", "/api/edict/set_mode", SetModeOutput{}},
+		{opapi.EdictDenyAdd, "/api/edict/deny_add", DenyAddOutput{AppliesTo: []string{}}},
+		{opapi.EdictDenyRemove, "/api/edict/deny_rm", DenyRemoveOutput{}},
+		{opapi.EdictSetLevel, "/api/edict/set_level", SetLevelOutput{}},
+		{opapi.EdictSetMode, "/api/edict/set_mode", SetModeOutput{}},
 	} {
 		spec := ops[i].Spec()
 		if spec.Name != w.name || spec.ReadOnly || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.HTTP != (opapi.HTTP{Method: "POST", Path: w.path}) || spec.Output != reflect.TypeOf(w.out) {

@@ -16,7 +16,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func renderEntityLine(e map[string]any) string {
@@ -60,7 +60,7 @@ func cmdWorldAudit(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdWorldList, nil)
+	res, err := c.Call(ctx, opapi.WorldList, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s world audit: %v\n", brand.CLI, err)
 		return 1

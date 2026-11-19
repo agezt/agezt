@@ -23,7 +23,7 @@ func TestRedactNativeTypedRegistry(t *testing.T) {
 	found := 0
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()
-		if spec.Name != CmdRedactTest {
+		if spec.Name != opapi.RedactTest {
 			continue
 		}
 		found++
@@ -31,7 +31,7 @@ func TestRedactNativeTypedRegistry(t *testing.T) {
 			t.Fatalf("metadata=%+v", spec)
 		}
 	}
-	wire, exists := commandRegistry[CmdRedactTest]
+	wire, exists := commandRegistry[opapi.RedactTest]
 	if found != 1 || !exists || !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 		t.Fatalf("native wire found=%d metadata=%+v", found, wire)
 	}
@@ -53,7 +53,7 @@ func TestRedactNativeLiveRedactor(t *testing.T) {
 		a.SetDeadline(time.Now().Add(3 * time.Second))
 		done := make(chan struct{})
 		go func() { defer close(done); s.handleConn(context.Background(), b) }()
-		raw, _ := json.Marshal(Request{ID: "r", Cmd: CmdRedactTest, Token: "primary", Args: args})
+		raw, _ := json.Marshal(Request{ID: "r", Cmd: opapi.RedactTest, Token: "primary", Args: args})
 		if _, err := a.Write(append(raw, 10)); err != nil {
 			t.Fatal(err)
 		}

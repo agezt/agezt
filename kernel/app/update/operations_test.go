@@ -130,7 +130,7 @@ func TestUpdateOperationsSchemasAndPrimaryMetadata(t *testing.T) {
 }
 
 func TestUpdateOperationsTerminalOwnershipAndCauses(t *testing.T) {
-	for _, name := range []string{"update_check", "update_apply"} {
+	for _, name := range []string{opapi.UpdateCheck, "update_apply"} {
 		for _, mode := range []string{"accepted", "rejected", "absent", "error", "panic", "nil-result"} {
 			t.Run(name+"/"+mode, func(t *testing.T) {
 				p := &ownershipProbe{accept: mode != "rejected"}
@@ -254,7 +254,7 @@ func TestUpdateOperationsAdmissionAndCodecPriority(t *testing.T) {
 		return nil
 	}}, "c", nil, func() {}, func(time.Duration) {})
 	ops, _ := Operations(func(context.Context) *Service { providers++; return service })
-	for _, name := range []string{"update_check", "update_apply"} {
+	for _, name := range []string{opapi.UpdateCheck, "update_apply"} {
 		for _, principal := range []opapi.Principal{{Kind: opapi.Tenant, Tenant: "acme"}, {Kind: opapi.Agent}, {Kind: opapi.System}} {
 			d, _ := app.NewDispatcher(ops, app.Dependencies{Auth: updateAuth{principal}, Router: updateRoute{}, Audit: &updateAudit{}})
 			if _, err := d.Dispatch(context.Background(), opapi.Caller{}, name, json.RawMessage(`{}`), nil); err == nil || providers != 0 || backendCalls != 0 {
@@ -270,7 +270,7 @@ func TestUpdateOperationsAdmissionAndCodecPriority(t *testing.T) {
 	audit.cause = nil
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, name := range []string{"update_check", "update_apply"} {
+	for _, name := range []string{opapi.UpdateCheck, "update_apply"} {
 		if _, err := d.Dispatch(ctx, opapi.Caller{}, name, json.RawMessage(`{}`), nil); !errors.Is(err, context.Canceled) || providers != 0 || backendCalls != 0 {
 			t.Fatal("canceled effect", name, err)
 		}
@@ -304,7 +304,7 @@ func BenchmarkUpdateDispatch(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	for _, name := range []string{"update_check", "update_apply"} {
+	for _, name := range []string{opapi.UpdateCheck, "update_apply"} {
 		b.Run(name, func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {

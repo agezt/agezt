@@ -64,6 +64,6 @@ func handleSendLifetimeOperation(s *Server, conn net.Conn, req Request) {
 	s.operationOnce.Do(func() {
 		s.operations, s.operationErr = app.NewDispatcher(channelSendOperations, app.Dependencies{Auth: oauthSnapshotAuth{}, Router: oauthSnapshotRoute{s}, Audit: sendLifetimeAudit{}})
 	})
-	req.Cmd = CmdSend
+	req.Cmd = opapi.Send
 	handleAppOperation(&DispatchCtx{S: s, Conn: conn, Req: req, Ctx: context.Background()})
 }

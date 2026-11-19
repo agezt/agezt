@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -28,7 +28,7 @@ func TestWebhookLogAndStats(t *testing.T) {
 	pub(event.KindWebhookFailed, "https://b/hook", map[string]any{"event_kind": "task.failed", "error": "connection refused", "attempts": 3})
 
 	// stats: 3 total, 1 failed, ~33%.
-	stats, err := c.Call(context.Background(), controlplane.CmdWebhookStats, nil)
+	stats, err := c.Call(context.Background(), opapi.WebhookStats, nil)
 	if err != nil {
 		t.Fatalf("webhook stats: %v", err)
 	}
@@ -40,7 +40,7 @@ func TestWebhookLogAndStats(t *testing.T) {
 	}
 
 	// log --failed: only the failure.
-	res, err := c.Call(context.Background(), controlplane.CmdWebhookLog, map[string]any{"failed": true})
+	res, err := c.Call(context.Background(), opapi.WebhookLog, map[string]any{"failed": true})
 	if err != nil {
 		t.Fatalf("webhook log: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestWebhookLogAndStats(t *testing.T) {
 	}
 
 	// log (all): 3 rows.
-	res, _ = c.Call(context.Background(), controlplane.CmdWebhookLog, nil)
+	res, _ = c.Call(context.Background(), opapi.WebhookLog, nil)
 	if rows, _ := res["deliveries"].([]any); len(rows) != 3 {
 		t.Errorf("log returned %d rows, want 3", len(rows))
 	}

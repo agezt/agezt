@@ -15,7 +15,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
@@ -102,7 +102,7 @@ func cmdRunsStats(args []string, stdout, stderr io.Writer) int {
 	if tenant != "" {
 		callArgs["tenant"] = tenant
 	}
-	res, err := c.Call(ctx, controlplane.CmdRunsStats, callArgs)
+	res, err := c.Call(ctx, opapi.RunsStats, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s runs stats: %v\n", brand.CLI, err)
 		return 1

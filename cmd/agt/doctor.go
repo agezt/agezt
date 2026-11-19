@@ -17,6 +17,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/meshctx"
 	"github.com/agezt/agezt/plugins/tools/peer"
@@ -148,7 +149,7 @@ func runDoctorChecks(opts doctorOptions) []doctorCheck {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	status, err := client.Call(ctx, controlplane.CmdStatus, nil)
+	status, err := client.Call(ctx, opapi.Status, nil)
 	if err != nil {
 		checks = append(checks, fail("daemon", "control-plane call failed: "+err.Error(),
 			fmt.Sprintf("is the daemon healthy? try `%s status`", brand.CLI)))

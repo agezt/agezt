@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	appconfig "github.com/agezt/agezt/kernel/app/config"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/platform/schema"
 	"net"
@@ -108,7 +109,7 @@ func TestCmdConfigShowNativeWireRenderingAndPrivacy(t *testing.T) {
 					t.Fatal(part, out.String(), errOut.String())
 				}
 			}
-			for _, expected := range []string{controlplane.CmdStatus, controlplane.CmdConfig} {
+			for _, expected := range []string{opapi.Status, opapi.Config} {
 				select {
 				case req := <-requests:
 					if req.Cmd != expected || req.Token != "owned-token" || req.Args != nil {

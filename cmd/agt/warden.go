@@ -14,7 +14,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdWarden dispatches `agt warden <subcommand>`. Today the only subcommand is
@@ -25,15 +25,11 @@ func cmdWarden(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s warden: subcommand required (log)\n", brand.CLI)
 		return 2
 	}
-	switch args[0] {
-	case "log":
-		return cmdWardenLog(args[1:], stdout, stderr)
-	case "stats":
-		return cmdWardenStats(args[1:], stdout, stderr)
-	default:
-		fmt.Fprintf(stderr, "%s warden: unknown subcommand %q (log, stats)\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliWarden.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s warden: unknown subcommand %q %s\n", brand.CLI, args[0], cliWarden.listNames())
+	return 2
 }
 
 // cmdWardenLog implements `agt warden log [N] [--issues] [--since <dur>]
@@ -103,7 +99,7 @@ func cmdWardenLog(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdWardenLog, withTenant(tenant, callArgs))
+	res, err := c.Call(ctx, opapi.WardenLog, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s warden log: %v\n", brand.CLI, err)
 		return 1
@@ -212,7 +208,7 @@ func cmdWardenStats(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdWardenStats, withTenant(tenant, callArgs))
+	res, err := c.Call(ctx, opapi.WardenStats, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s warden stats: %v\n", brand.CLI, err)
 		return 1

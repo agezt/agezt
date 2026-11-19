@@ -248,11 +248,11 @@ func TestOperations(t *testing.T) {
 		route string
 		out   any
 	}{
-		{"netguard_log", "/api/netguard_log", blocks},
-		{"ratelimit_log", "/api/ratelimit_log", throttles},
-		{"ratelimit_stats", "", rl},
-		{"warden_log", "/api/warden_log", execs},
-		{"warden_stats", "", ws},
+		{opapi.NetguardLog, "/api/netguard_log", blocks},
+		{opapi.RateLimitLog, "/api/ratelimit_log", throttles},
+		{opapi.RateLimitStats, "", rl},
+		{opapi.WardenLog, "/api/warden_log", execs},
+		{opapi.WardenStats, "", ws},
 	} {
 		spec := ops[i].Spec()
 		http := opapi.HTTP{}

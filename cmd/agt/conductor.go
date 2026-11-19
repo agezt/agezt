@@ -13,7 +13,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdConductor implements `agt conductor "<task>"` — run the asymmetric,
@@ -109,7 +109,7 @@ func cmdConductor(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdConductorAsk, map[string]any{
+	res, err := c.Call(ctx, opapi.ConductorAsk, map[string]any{
 		"task":       task,
 		"thinker":    thinker,
 		"worker":     worker,

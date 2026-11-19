@@ -3,7 +3,7 @@ package controlplane_test
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/work/okr"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"reflect"
@@ -20,7 +20,7 @@ func TestOKROperationsSocketTenantDenialPreservesPrimary(t *testing.T) {
 	}
 	before := primary.OKR().List(okr.Filter{IncludeArchived: true})
 	client := tenantClient(t, dir, token)
-	for _, cmd := range []string{controlplane.CmdOKRList, controlplane.CmdOKRShow, controlplane.CmdOKRCreate, controlplane.CmdOKRKeyResult, controlplane.CmdOKRLink, controlplane.CmdOKRUnlink, controlplane.CmdOKRArchive} {
+	for _, cmd := range []string{opapi.OKRList, opapi.OKRShow, opapi.OKRCreate, opapi.OKRKeyResult, opapi.OKRLink, opapi.OKRUnlink, opapi.OKRArchive} {
 		if _, err := client.Call(context.Background(), cmd, map[string]any{"id": objective.ID, "title": "tenant attempt", "tenant": "acme"}); err == nil || !strings.Contains(err.Error(), "forbidden") {
 			t.Fatal(cmd, err)
 		}

@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 )
@@ -21,7 +22,7 @@ func runJSONMode(ctx context.Context, c *controlplane.Client, runArgs map[string
 	// Compact one-object-per-line is the convention for ndjson;
 	// jq -c handles it natively. Using NewEncoder also flushes
 	// after every Encode call, so each line streams as it arrives.
-	result, err := c.Stream(ctx, controlplane.CmdRun, runArgs, func(ev *event.Event) {
+	result, err := c.Stream(ctx, opapi.Run, runArgs, func(ev *event.Event) {
 		_ = enc.Encode(map[string]any{"type": "event", "event": ev})
 	})
 	if err != nil {
@@ -34,7 +35,7 @@ func runJSONMode(ctx context.Context, c *controlplane.Client, runArgs map[string
 	return 0
 }
 func runDryRunMode(ctx context.Context, c *controlplane.Client, runArgs map[string]any, asJSON bool, stdout, stderr io.Writer) int {
-	plan, err := c.Call(ctx, controlplane.CmdRun, runArgs)
+	plan, err := c.Call(ctx, opapi.Run, runArgs)
 	if err != nil {
 		if asJSON {
 			_ = json.NewEncoder(stdout).Encode(map[string]any{"type": "error", "error": err.Error()})

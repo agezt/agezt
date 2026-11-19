@@ -150,12 +150,12 @@ func LiveOperations(provider func(context.Context) *Live) ([]app.Operation, erro
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
-			return bindPrimary(&ops, opapi.Spec{Name: "approvals", ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/approvals"}}, func(ctx context.Context, in PendingRequest) (PendingOutput, error) {
+			return bindPrimary(&ops, opapi.Spec{Name: opapi.Approvals, ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/approvals"}}, func(ctx context.Context, in PendingRequest) (PendingOutput, error) {
 				return provider(ctx).Pending(ctx, in)
 			})
 		},
 		func() error {
-			return bindPrimary(&ops, opapi.Spec{Name: "decide", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{},"decision":{},"reason":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/decide"}}, func(ctx context.Context, in DecideRequest) (DecideOutput, error) {
+			return bindPrimary(&ops, opapi.Spec{Name: opapi.Decide, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"id":{},"decision":{},"reason":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/decide"}}, func(ctx context.Context, in DecideRequest) (DecideOutput, error) {
 				return provider(ctx).Decide(ctx, in)
 			})
 		},

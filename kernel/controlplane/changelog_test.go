@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -28,7 +28,7 @@ func TestChangelog_IncludesAnomalyAutoHalt(t *testing.T) {
 		t.Fatalf("publish anomaly: %v", err)
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdChangelog, nil)
+	res, err := c.Call(context.Background(), opapi.Changelog, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestChangelog_FiltersToMaterialChanges(t *testing.T) {
 	pub(event.KindPolicyChanged, map[string]any{"change": "shell→ASK"})
 	skillID := pub(event.KindSkillPromoted, map[string]any{"skill_id": "summarize-v2"})
 
-	res, err := c.Call(context.Background(), controlplane.CmdChangelog, nil)
+	res, err := c.Call(context.Background(), opapi.Changelog, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}

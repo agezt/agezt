@@ -5,6 +5,7 @@ package controlplane
 import (
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
@@ -36,7 +37,7 @@ func skillIdentityFixture(t *testing.T) (*runtime.Kernel, *Server, string) {
 	return k, s, sk.ID
 }
 func TestSkillNativeMutationsShareOrderedOperationIdentity(t *testing.T) {
-	kinds := map[string]event.Kind{CmdSkillPromote: event.KindSkillPromoted, CmdSkillQuarantine: event.KindSkillQuarantined, CmdSkillArchive: event.KindSkillReverted, CmdSkillRevert: event.KindSkillReverted, CmdSkillRestore: event.KindSkillRestored, CmdSkillShare: event.KindSkillShared, CmdSkillReassign: event.KindSkillReassigned, CmdSkillImport: event.KindSkillCreated}
+	kinds := map[string]event.Kind{opapi.SkillPromote: event.KindSkillPromoted, opapi.SkillQuarantine: event.KindSkillQuarantined, opapi.SkillArchive: event.KindSkillReverted, opapi.SkillRevert: event.KindSkillReverted, opapi.SkillRestore: event.KindSkillRestored, opapi.SkillShare: event.KindSkillShared, opapi.SkillReassign: event.KindSkillReassigned, opapi.SkillImport: event.KindSkillCreated}
 	for cmd, kind := range kinds {
 		t.Run(cmd, func(t *testing.T) {
 			k, s, id := skillIdentityFixture(t)
@@ -84,7 +85,7 @@ func TestSkillNativeMutationsShareOrderedOperationIdentity(t *testing.T) {
 }
 func TestSkillOwnershipHistoryIncludesSharedAndReassigned(t *testing.T) {
 	k, s, id := skillIdentityFixture(t)
-	for _, cmd := range []string{CmdSkillShare, CmdSkillReassign} {
+	for _, cmd := range []string{opapi.SkillShare, opapi.SkillReassign} {
 		r := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"id": id, "agent": "reviewer"}})[0]
 		if r.Type != RespResult {
 			t.Fatal(r)
@@ -109,7 +110,7 @@ func TestSkillOwnershipHistoryIncludesSharedAndReassigned(t *testing.T) {
 	if len(want) != 2 {
 		t.Fatalf("fixture missing ownership events=%v", want)
 	}
-	r := callAppHost(t, s, Request{ID: "history", Cmd: CmdSkillHistory, Token: "primary", Args: map[string]any{"id": id}})[0]
+	r := callAppHost(t, s, Request{ID: "history", Cmd: opapi.SkillHistory, Token: "primary", Args: map[string]any{"id": id}})[0]
 	if r.Type != RespResult {
 		t.Fatal(r)
 	}

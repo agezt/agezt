@@ -14,6 +14,7 @@ package controlplane
 import (
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -46,7 +47,7 @@ func newSandboxTestServer(t *testing.T) *Server {
 
 func callSandboxFile(t *testing.T, s *Server, project, file string) Response {
 	t.Helper()
-	return callAppHost(t, s, Request{ID: "r4", Cmd: CmdSandboxFile, Token: "primary", Args: map[string]any{"project": project, "file": file}})[0]
+	return callAppHost(t, s, Request{ID: "r4", Cmd: opapi.SandboxFile, Token: "primary", Args: map[string]any{"project": project, "file": file}})[0]
 }
 
 func sandboxContent(t *testing.T, resp Response) string {

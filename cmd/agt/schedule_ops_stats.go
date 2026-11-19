@@ -15,7 +15,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdScheduleStats(args []string, stdout, stderr io.Writer) int {
@@ -82,7 +82,7 @@ func cmdScheduleStats(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdScheduleStats, withTenant(tenant, callArgs))
+	res, err := c.Call(ctx, opapi.ScheduleStats, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s schedule stats: %v\n", brand.CLI, err)
 		return 1
@@ -128,10 +128,10 @@ func cmdScheduleStats(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 func cmdScheduleRemove(args []string, stdout, stderr io.Writer) int {
-	return scheduleByID(args, stdout, stderr, "rm", controlplane.CmdScheduleRemove, "removed", "removed", "not found")
+	return scheduleByID(args, stdout, stderr, "rm", opapi.ScheduleRemove, "removed", "removed", "not found")
 }
 func cmdScheduleRun(args []string, stdout, stderr io.Writer) int {
-	return scheduleByID(args, stdout, stderr, "run", controlplane.CmdScheduleRun, "triggered", "triggered (fires on the next tick)", "not found")
+	return scheduleByID(args, stdout, stderr, "run", opapi.ScheduleRun, "triggered", "triggered (fires on the next tick)", "not found")
 }
 func scheduleByID(args []string, stdout, stderr io.Writer, verb, cmd, resultKey, okMsg, missMsg string) int {
 	asJSON := false

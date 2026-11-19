@@ -66,15 +66,15 @@ func Operations(reads func(context.Context) *Reads, writes func(context.Context)
 	spec := func(name string, read bool) opapi.Spec {
 		return opapi.Spec{Name: name, ReadOnly: read, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: settingsInputSchema}
 	}
-	schema, err := app.NewOperation(spec("config_schema", true), func(ctx context.Context, in SchemaInput) (SchemaOutput, error) { return reads(ctx).Schema(ctx, in) })
+	schema, err := app.NewOperation(spec(opapi.ConfigSchema, true), func(ctx context.Context, in SchemaInput) (SchemaOutput, error) { return reads(ctx).Schema(ctx, in) })
 	if err != nil {
 		return nil, err
 	}
-	values, err := app.NewOperation(spec("config_values", true), func(ctx context.Context, in ValuesInput) (ValuesOutput, error) { return reads(ctx).Values(ctx, in) })
+	values, err := app.NewOperation(spec(opapi.ConfigValues, true), func(ctx context.Context, in ValuesInput) (ValuesOutput, error) { return reads(ctx).Values(ctx, in) })
 	if err != nil {
 		return nil, err
 	}
-	set, err := app.NewOperation(spec("config_set", false), func(ctx context.Context, in SetRequest) (SetOutput, error) {
+	set, err := app.NewOperation(spec(opapi.ConfigSet, false), func(ctx context.Context, in SetRequest) (SetOutput, error) {
 		name, err := settingsText(in.Name, "name", true)
 		if err != nil {
 			return SetOutput{}, err
@@ -89,7 +89,7 @@ func Operations(reads func(context.Context) *Reads, writes func(context.Context)
 	if err != nil {
 		return nil, err
 	}
-	register, err := app.NewOperation(spec("config_schema_register", false), func(ctx context.Context, in RegisterRequest) (RegisterOutput, error) {
+	register, err := app.NewOperation(spec(opapi.ConfigSchemaRegister, false), func(ctx context.Context, in RegisterRequest) (RegisterOutput, error) {
 		if len(in.Section) == 0 {
 			return RegisterOutput{}, errors.New("args.section required")
 		}
@@ -102,7 +102,7 @@ func Operations(reads func(context.Context) *Reads, writes func(context.Context)
 	if err != nil {
 		return nil, err
 	}
-	unregister, err := app.NewOperation(spec("config_schema_unregister", false), func(ctx context.Context, in UnregisterRequest) (UnregisterOutput, error) {
+	unregister, err := app.NewOperation(spec(opapi.ConfigSchemaUnregister, false), func(ctx context.Context, in UnregisterRequest) (UnregisterOutput, error) {
 		id, err := settingsText(in.ID, "id", true)
 		if err != nil {
 			return UnregisterOutput{}, err

@@ -15,7 +15,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
@@ -120,7 +120,7 @@ func cmdScheduleFires(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS // M65: time window
 	}
-	res, err := c.Call(ctx, controlplane.CmdScheduleFires, withTenant(tenant, callArgs))
+	res, err := c.Call(ctx, opapi.ScheduleFires, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s schedule fires: %v\n", brand.CLI, err)
 		return 1

@@ -4,7 +4,7 @@ package controlplane_test
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/work/workboard"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"reflect"
@@ -22,7 +22,7 @@ func TestWorkboardOperationsSocketTenantDenialPreservesPrimary(t *testing.T) {
 	}
 	before := primary.Workboard().List(workboard.Filter{IncludeArchived: true})
 	client := tenantClient(t, dir, token)
-	commands := []string{controlplane.CmdWorkboardList, controlplane.CmdWorkboardLanes, controlplane.CmdWorkboardShow, controlplane.CmdWorkboardWatch, controlplane.CmdWorkboardCreate, controlplane.CmdWorkboardClaim, controlplane.CmdWorkboardHeartbeat, controlplane.CmdWorkboardComment, controlplane.CmdWorkboardBlock, controlplane.CmdWorkboardFail, controlplane.CmdWorkboardUnblock, controlplane.CmdWorkboardComplete, controlplane.CmdWorkboardProve, controlplane.CmdWorkboardSeat, controlplane.CmdWorkboardArchive, controlplane.CmdWorkboardLink, controlplane.CmdWorkboardPolicy, controlplane.CmdWorkboardDepend, controlplane.CmdWorkboardReclaim, controlplane.CmdWorkboardSweep, controlplane.CmdWorkboardDispatch}
+	commands := []string{opapi.WorkboardList, opapi.WorkboardLanes, opapi.WorkboardShow, opapi.WorkboardWatch, opapi.WorkboardCreate, opapi.WorkboardClaim, opapi.WorkboardHeartbeat, opapi.WorkboardComment, opapi.WorkboardBlock, opapi.WorkboardFail, opapi.WorkboardUnblock, opapi.WorkboardComplete, opapi.WorkboardProve, opapi.WorkboardSeat, opapi.WorkboardArchive, opapi.WorkboardLink, opapi.WorkboardPolicy, opapi.WorkboardDepend, opapi.WorkboardReclaim, opapi.WorkboardSweep, opapi.WorkboardDispatch}
 	for _, cmd := range commands {
 		if _, err := client.Call(context.Background(), cmd, map[string]any{"id": task.ID, "tenant": "acme", "title": "tenant attempt"}); err == nil || !strings.Contains(err.Error(), "forbidden") {
 			t.Fatalf("tenant %s = %v", cmd, err)

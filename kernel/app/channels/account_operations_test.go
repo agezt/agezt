@@ -79,7 +79,7 @@ func TestChannelAccountOperationTypedSpecsAndOutputPresence(t *testing.T) {
 }
 
 func TestChannelAccountOperationArgumentOrderAndAuditedValidation(t *testing.T) {
-	for _, command := range []string{"channel_account_set", "channel_account_remove"} {
+	for _, command := range []string{opapi.ChannelAccountSet, "channel_account_remove"} {
 		keys := []string{"kind", "label"}
 		if command == "channel_account_set" {
 			keys = append(keys, "name", "value")
@@ -111,7 +111,7 @@ func TestChannelAccountOperationArgumentOrderAndAuditedValidation(t *testing.T) 
 }
 
 func TestChannelAccountOperationAdmissionAndSelectedRoute(t *testing.T) {
-	for _, command := range []string{"channel_account_set", "channel_account_remove"} {
+	for _, command := range []string{opapi.ChannelAccountSet, "channel_account_remove"} {
 		for _, mode := range []string{"success", "audit-error", "audit-missing", "canceled", "tenant", "agent"} {
 			p := newAccountProbe(false)
 			p.config.values["AGEZT_PUBLIC#work"] = "before"

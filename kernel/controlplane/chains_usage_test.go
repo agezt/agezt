@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -49,7 +49,7 @@ func TestChainsGet_Usage(t *testing.T) {
 		t.Fatalf("AddProfile ghost: %v", err)
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdChainsGet, nil)
+	res, err := c.Call(context.Background(), opapi.ChainsGet, nil)
 	if err != nil {
 		t.Fatalf("chains_get: %v", err)
 	}

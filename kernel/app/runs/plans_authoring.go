@@ -145,13 +145,13 @@ func PlanAuthoringOperations(provider func(context.Context) *PlanAuthoring) ([]a
 		return nil, err
 	}
 	frames := json.RawMessage(event.WireSchema)
-	generate, err := app.NewStreamingOperation(opapi.Spec{Name: "plan_generate", Stream: opapi.StreamLive, OutputSchema: out, EmissionSchema: frames, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"intent":{},"model":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/plan/generate"}}, func(ctx context.Context, in PlanGenerateRequest, _ func(event.Event) error) (PlanOutput, error) {
+	generate, err := app.NewStreamingOperation(opapi.Spec{Name: opapi.PlanGenerate, Stream: opapi.StreamLive, OutputSchema: out, EmissionSchema: frames, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"intent":{},"model":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/plan/generate"}}, func(ctx context.Context, in PlanGenerateRequest, _ func(event.Event) error) (PlanOutput, error) {
 		return provider(ctx).Generate(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	refine, err := app.NewStreamingOperation(opapi.Spec{Name: "plan_refine", Stream: opapi.StreamLive, OutputSchema: out, EmissionSchema: frames, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"plan_json":{},"feedback":{},"model":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/plan/refine"}}, func(ctx context.Context, in PlanRefineRequest, _ func(event.Event) error) (PlanOutput, error) {
+	refine, err := app.NewStreamingOperation(opapi.Spec{Name: opapi.PlanRefine, Stream: opapi.StreamLive, OutputSchema: out, EmissionSchema: frames, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"plan_json":{},"feedback":{},"model":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/plan/refine"}}, func(ctx context.Context, in PlanRefineRequest, _ func(event.Event) error) (PlanOutput, error) {
 		return provider(ctx).Refine(ctx, in)
 	})
 	if err != nil {

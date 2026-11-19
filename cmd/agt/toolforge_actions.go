@@ -15,7 +15,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdToolforgeDraft(args []string, stdout, stderr io.Writer) int {
@@ -37,7 +37,7 @@ func cmdToolforgeDraft(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdToolforgeDraft, map[string]any{"tool": tool})
+	res, err := c.Call(ctx, opapi.ToolforgeDraft, map[string]any{"tool": tool})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s toolforge draft: %v\n", brand.CLI, err)
 		return 1
@@ -66,7 +66,7 @@ func cmdToolforgeEdit(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdToolforgeEdit, map[string]any{"ref": rest[0], "tool": tool})
+	res, err := c.Call(ctx, opapi.ToolforgeEdit, map[string]any{"ref": rest[0], "tool": tool})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s toolforge edit: %v\n", brand.CLI, err)
 		return 1
@@ -109,7 +109,7 @@ func cmdToolforgeTest(args []string, stdout, stderr io.Writer) int {
 	// give it the sandbox's own ceiling rather than the 5s management budget.
 	ctx, cancel := context.WithTimeout(context.Background(), 11*time.Minute)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdToolforgeTest, map[string]any{"ref": ref, "input": input})
+	res, err := c.Call(ctx, opapi.ToolforgeTest, map[string]any{"ref": ref, "input": input})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s toolforge test: %v\n", brand.CLI, err)
 		return 1
@@ -134,7 +134,7 @@ func cmdToolforgePromote(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdToolforgePromote, map[string]any{"ref": args[0]})
+	res, err := c.Call(ctx, opapi.ToolforgePromote, map[string]any{"ref": args[0]})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s toolforge promote: %v\n", brand.CLI, err)
 		return 1
@@ -171,7 +171,7 @@ func cmdToolforgeQuarantine(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdToolforgeQuarantine, map[string]any{"ref": ref, "reason": reason})
+	res, err := c.Call(ctx, opapi.ToolforgeQuarantine, map[string]any{"ref": ref, "reason": reason})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s toolforge quarantine: %v\n", brand.CLI, err)
 		return 1
@@ -192,7 +192,7 @@ func cmdToolforgeRemove(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdToolforgeRemove, map[string]any{"ref": args[0]})
+	res, err := c.Call(ctx, opapi.ToolforgeRemove, map[string]any{"ref": args[0]})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s toolforge remove: %v\n", brand.CLI, err)
 		return 1

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -28,7 +28,7 @@ func TestPlanGenerate_StreamsValidPlan(t *testing.T) {
 	prov := mock.New(mock.FinalText("```json\n" + plan + "\n```"))
 	_, _, c, _ := startPair(t, prov)
 
-	res, err := c.Call(context.Background(), controlplane.CmdPlanGenerate, map[string]any{
+	res, err := c.Call(context.Background(), opapi.PlanGenerate, map[string]any{
 		"intent": "do two things in order",
 	})
 	if err != nil {
@@ -46,7 +46,7 @@ func TestPlanGenerate_StreamsValidPlan(t *testing.T) {
 
 func TestPlanGenerate_RejectsMissingIntent(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New())
-	_, err := c.Call(context.Background(), controlplane.CmdPlanGenerate, map[string]any{})
+	_, err := c.Call(context.Background(), opapi.PlanGenerate, map[string]any{})
 	if err == nil || !strings.Contains(err.Error(), "intent required") {
 		t.Errorf("err = %v, want intent-required", err)
 	}
@@ -60,7 +60,7 @@ func TestPlanGenerate_SurfacesPlannerValidation(t *testing.T) {
 	prov := mock.New(mock.FinalText("```json\n" + bad + "\n```"))
 	_, _, c, _ := startPair(t, prov)
 
-	_, err := c.Call(context.Background(), controlplane.CmdPlanGenerate, map[string]any{
+	_, err := c.Call(context.Background(), opapi.PlanGenerate, map[string]any{
 		"intent": "whatever",
 	})
 	if err == nil {

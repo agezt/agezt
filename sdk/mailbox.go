@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/boardapi"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -57,7 +57,7 @@ type MailDraft struct {
 // SendMail leaves a message on the shared mailbox. See MailDraft for the
 // addressing rules.
 func (c *Client) SendMail(ctx context.Context, d MailDraft) (Mail, error) {
-	res, err := c.cp.Call(ctx, controlplane.CmdBoardSend, map[string]any{
+	res, err := c.cp.Call(ctx, opapi.BoardSend, map[string]any{
 		"from": d.From, "to": d.To, "topic": d.Topic, "reply_to": d.ReplyTo,
 		"text": d.Text, "help": d.Help,
 	})
@@ -81,7 +81,7 @@ func (c *Client) Inbox(ctx context.Context, name string, includeRead bool, limit
 	if limit > 0 {
 		args["limit"] = limit
 	}
-	res, err := c.cp.Call(ctx, controlplane.CmdBoardInbox, args)
+	res, err := c.cp.Call(ctx, opapi.BoardInbox, args)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func (c *Client) Inbox(ctx context.Context, name string, includeRead bool, limit
 // without a reply being written. Per-reader (a broadcast acked by one agent
 // still waits for the others) and idempotent.
 func (c *Client) AckMail(ctx context.Context, id, by string) error {
-	_, err := c.cp.Call(ctx, controlplane.CmdBoardAck, map[string]any{"id": id, "by": by})
+	_, err := c.cp.Call(ctx, opapi.BoardAck, map[string]any{"id": id, "by": by})
 	return err
 }
 
@@ -103,7 +103,7 @@ func (c *Client) MailReplies(ctx context.Context, id string, limit int) ([]Mail,
 	if limit > 0 {
 		args["limit"] = limit
 	}
-	res, err := c.cp.Call(ctx, controlplane.CmdBoardReplies, args)
+	res, err := c.cp.Call(ctx, opapi.BoardReplies, args)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (c *Client) MailMessages(ctx context.Context, topic string, limit int) ([]M
 	if limit > 0 {
 		args["limit"] = limit
 	}
-	res, err := c.cp.Call(ctx, controlplane.CmdBoardRead, args)
+	res, err := c.cp.Call(ctx, opapi.BoardRead, args)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +136,7 @@ func (c *Client) MailMessages(ctx context.Context, topic string, limit int) ([]M
 // work). Blocks until ctx is cancelled (returns nil) or the daemon connection
 // fails (returns the error).
 func (c *Client) WatchMail(ctx context.Context, name string, fn func(Mail)) error {
-	return c.cp.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe, map[string]any{
+	return c.cp.StreamUntilCancel(ctx, opapi.PulseSubscribe, map[string]any{
 		"pattern": "board.>",
 		"kinds":   []any{string(event.KindBoardPosted)},
 	}, func(ev *event.Event) {
@@ -156,7 +156,7 @@ func (c *Client) WatchMail(ctx context.Context, name string, fn func(Mail)) erro
 		// The event carries metadata only; fetch the body by id. Fall back to
 		// the metadata view if the message was already evicted.
 		m := Mail{ID: p.ID, Topic: p.Topic, From: p.From, To: p.To, Help: p.Help}
-		if res, err := c.cp.Call(ctx, controlplane.CmdBoardGet, map[string]any{"id": p.ID}); err == nil {
+		if res, err := c.cp.Call(ctx, opapi.BoardGet, map[string]any{"id": p.ID}); err == nil {
 			if view, ok := res["message"].(map[string]any); ok {
 				m = parseMail(view)
 			}

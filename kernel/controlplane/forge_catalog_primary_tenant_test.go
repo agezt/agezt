@@ -3,7 +3,7 @@ package controlplane_test
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/extensions/toolforge"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"strings"
@@ -22,12 +22,12 @@ func TestForgeCatalogNativePrimaryReadsAndTenantDenialDoNotMutate(t *testing.T) 
 	tenant := tenantClient(t, dir, token)
 	head, hash := k.Journal().Head()
 	ctx := context.Background()
-	for _, cmd := range []string{controlplane.CmdToolforgeList, controlplane.CmdToolforgeShow} {
+	for _, cmd := range []string{opapi.ToolforgeList, opapi.ToolforgeShow} {
 		res, err := owner.Call(ctx, cmd, map[string]any{"ref": " \t" + st.ID + " \n", "tenant": "acme", "ignored": true})
 		if err != nil {
 			t.Fatal(cmd, err)
 		}
-		if cmd == controlplane.CmdToolforgeList {
+		if cmd == opapi.ToolforgeList {
 			if res["count"] != float64(1) || res["active_count"] != float64(0) {
 				t.Fatal(res)
 			}

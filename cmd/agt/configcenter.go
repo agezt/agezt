@@ -10,37 +10,19 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdConfigCenter(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s configcenter: subcommand required (set, get, list, delete, rating, access-log, audit, health)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s configcenter: subcommand required %s\n", brand.CLI, cliConfigCenter.listNames())
 		return 2
 	}
-	switch args[0] {
-	case "set":
-		return cmdConfigCenterSet(args[1:], stdout, stderr)
-	case "get":
-		return cmdConfigCenterGet(args[1:], stdout, stderr)
-	case "list":
-		return cmdConfigCenterList(args[1:], stdout, stderr)
-	case "delete":
-		return cmdConfigCenterDelete(args[1:], stdout, stderr)
-	case "rating":
-		return cmdConfigCenterRating(args[1:], stdout, stderr)
-	case "access-log":
-		return cmdConfigCenterAccessLog(args[1:], stdout, stderr)
-	case "audit":
-		return cmdConfigCenterAudit(args[1:], stdout, stderr)
-	case "health":
-		return cmdConfigCenterHealth(args[1:], stdout, stderr)
-	case "-h", "--help":
-		return cmdConfigCenterHelp(stdout)
-	default:
-		fmt.Fprintf(stderr, "%s configcenter: unknown subcommand %q\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliConfigCenter.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s configcenter: unknown subcommand %q\n", brand.CLI, args[0])
+	return 2
 }
 
 func cmdConfigCenterHelp(stdout io.Writer) int {
@@ -91,7 +73,7 @@ func cmdConfigCenterGet(args []string, stdout, stderr io.Writer) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	res, err := c.Call(ctx, controlplane.CmdConfigCenterGet, map[string]any{"key": key})
+	res, err := c.Call(ctx, opapi.ConfigCenterGet, map[string]any{"key": key})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s configcenter get: %v\n", brand.CLI, err)
 		return 1
@@ -143,7 +125,7 @@ func cmdConfigCenterDelete(args []string, stdout, stderr io.Writer) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	res, err := c.Call(ctx, controlplane.CmdConfigCenterDelete, map[string]any{"key": key})
+	res, err := c.Call(ctx, opapi.ConfigCenterDelete, map[string]any{"key": key})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s configcenter delete: %v\n", brand.CLI, err)
 		return 1

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/modules/knowledge/memory"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -41,7 +42,7 @@ func TestMemoryOperationsSocketTenantStoreAndJournalIsolation(t *testing.T) {
 		lowIDs[id] = rec.ID
 	}
 	client := tenantClient(t, dir, token)
-	for _, command := range []string{controlplane.CmdMemoryAudit, controlplane.CmdMemoryLog, controlplane.CmdMemoryClean} {
+	for _, command := range []string{opapi.MemoryAudit, opapi.MemoryLog, opapi.MemoryClean} {
 		for _, read := range []struct {
 			client *controlplane.Client
 			args   map[string]any
@@ -68,12 +69,12 @@ func TestMemoryOperationsSocketTenantStoreAndJournalIsolation(t *testing.T) {
 			t.Fatalf("%s foreign tenant=%v", command, err)
 		}
 	}
-	if _, err := client.Call(context.Background(), controlplane.CmdMemoryList, map[string]any{"tenant": "acme"}); err == nil {
+	if _, err := client.Call(context.Background(), opapi.MemoryList, map[string]any{"tenant": "acme"}); err == nil {
 		t.Fatal("primary-only list allowed tenant token")
 	}
 	beforePrimary, _ := primary.Journal().Head()
 	beforeOther, _ := kernels["other"].Journal().Head()
-	result, err := client.Call(context.Background(), controlplane.CmdMemoryClean, map[string]any{"tenant": "acme", "dry_run": false})
+	result, err := client.Call(context.Background(), opapi.MemoryClean, map[string]any{"tenant": "acme", "dry_run": false})
 	if err != nil {
 		t.Fatal(err)
 	}

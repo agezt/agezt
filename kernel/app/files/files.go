@@ -13,14 +13,17 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/platform/fileworkspace"
 )
 
 const (
-	Mkdir  = "file_mkdir"
-	Rename = "file_rename"
-	Delete = "file_delete"
+	// The operation names come from the catalogue; the error codes below are
+	// the files family's own and are not operations.
+	Mkdir  = opapi.FileMkdir
+	Rename = opapi.FileRename
+	Delete = opapi.FileDelete
 
 	InvalidPath = "file_invalid_path"
 	NotFound    = "file_not_found"

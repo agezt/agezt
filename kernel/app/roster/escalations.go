@@ -277,7 +277,7 @@ func EscalationOperations(provider func(context.Context) *EscalationService) ([]
 	if provider == nil {
 		return nil, errors.New("roster escalations provider required")
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: "agent_escalations", ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"limit":{},"cursor":{}}}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/agents/escalations"}}, func(ctx context.Context, in EscalationRequest) (EscalationsOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentEscalations, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"limit":{},"cursor":{}}}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/agents/escalations"}}, func(ctx context.Context, in EscalationRequest) (EscalationsOutput, error) {
 		return provider(ctx).Escalations(ctx, in)
 	})
 	if err != nil {

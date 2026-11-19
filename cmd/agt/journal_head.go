@@ -21,7 +21,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdJournalHead(args []string, stdout, stderr io.Writer) int {
@@ -46,7 +46,7 @@ func cmdJournalHead(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdJournalHead, nil)
+	res, err := c.Call(ctx, opapi.JournalHead, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s journal head: %v\n", brand.CLI, err)
 		return 1

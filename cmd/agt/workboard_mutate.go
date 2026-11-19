@@ -12,7 +12,7 @@ import (
 
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdWorkboardCreate(args []string, stdout, stderr io.Writer) int {
@@ -95,7 +95,7 @@ func cmdWorkboardCreate(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s workboard create --title T [--desc D]\n", brand.CLI)
 		return 2
 	}
-	res, code := callWorkboard(controlplane.CmdWorkboardCreate, callArgs, stderr)
+	res, code := callWorkboard(opapi.WorkboardCreate, callArgs, stderr)
 	if code != 0 {
 		return code
 	}

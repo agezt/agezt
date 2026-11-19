@@ -15,7 +15,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdAgentAuthority(args []string, stdout, stderr io.Writer) int {
@@ -51,7 +51,7 @@ func cmdAgentAuthority(args []string, stdout, stderr io.Writer) int {
 	defer cancel()
 
 	// Fetch the agent profile.
-	listRes, err := c.Call(ctx, controlplane.CmdAgentList, nil)
+	listRes, err := c.Call(ctx, opapi.AgentList, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s agent authority: %v\n", brand.CLI, err)
 		return 1
@@ -72,9 +72,9 @@ func cmdAgentAuthority(args []string, stdout, stderr io.Writer) int {
 	}
 
 	// Fetch the live Edict policy snapshot (levels + hard-deny + approval mode).
-	edictRes, err := c.Call(ctx, controlplane.CmdEdictShow, nil)
+	edictRes, err := c.Call(ctx, opapi.EdictShow, nil)
 	if err != nil {
-		// The daemon might be an older version without CmdEdictShow; degrade
+		// The daemon might be an older version without opapi.EdictShow; degrade
 		// gracefully and note the policy overlay is unavailable.
 		edictRes = map[string]any{}
 	}
@@ -99,7 +99,7 @@ func cmdAgentImpact(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdAgentImpact, map[string]any{"ref": args[0]})
+	res, err := c.Call(ctx, opapi.AgentImpact, map[string]any{"ref": args[0]})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s agent impact: %v\n", brand.CLI, err)
 		return 1

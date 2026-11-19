@@ -89,7 +89,7 @@ func Operations(service func(context.Context) *Service, logs func(context.Contex
 	var operations []app.Operation
 	bindings := []func() error{
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "world_add", InputSchema: curationSchema(false), HTTP: opapi.HTTP{Method: "POST", Path: "/api/world/add"}}, func(ctx context.Context, in AddInput) (AddOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.WorldAdd, InputSchema: curationSchema(false), HTTP: opapi.HTTP{Method: "POST", Path: "/api/world/add"}}, func(ctx context.Context, in AddInput) (AddOutput, error) {
 				if strings.TrimSpace(in.Name) == "" {
 					return AddOutput{}, errors.New("args.name required")
 				}
@@ -98,7 +98,7 @@ func Operations(service func(context.Context) *Service, logs func(context.Contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "world_edit", InputSchema: curationSchema(true), HTTP: opapi.HTTP{Method: "POST", Path: "/api/world/edit"}}, func(ctx context.Context, in EditInput) (EditOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.WorldEdit, InputSchema: curationSchema(true), HTTP: opapi.HTTP{Method: "POST", Path: "/api/world/edit"}}, func(ctx context.Context, in EditInput) (EditOutput, error) {
 				if strings.TrimSpace(in.ID) == "" {
 					return EditOutput{}, errors.New("args.id required")
 				}
@@ -107,7 +107,7 @@ func Operations(service func(context.Context) *Service, logs func(context.Contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "world_relate", HTTP: opapi.HTTP{Method: "POST", Path: "/api/world/relate"}}, func(ctx context.Context, in RelateInput) (RelateOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.WorldRelate, HTTP: opapi.HTTP{Method: "POST", Path: "/api/world/relate"}}, func(ctx context.Context, in RelateInput) (RelateOutput, error) {
 				if in.From == "" || in.To == "" {
 					return RelateOutput{}, errors.New("args.from and args.to required")
 				}
@@ -115,7 +115,7 @@ func Operations(service func(context.Context) *Service, logs func(context.Contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "world_forget", HTTP: opapi.HTTP{Method: "POST", Path: "/api/world/forget"}}, func(ctx context.Context, in GetInput) (ForgetOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.WorldForget, HTTP: opapi.HTTP{Method: "POST", Path: "/api/world/forget"}}, func(ctx context.Context, in GetInput) (ForgetOutput, error) {
 				if strings.TrimSpace(in.ID) == "" {
 					return ForgetOutput{}, errors.New("args.id required")
 				}
@@ -123,7 +123,7 @@ func Operations(service func(context.Context) *Service, logs func(context.Contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "world_resolve", ReadOnly: true}, func(ctx context.Context, in ResolveRequestInput) (ResolveOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.WorldResolve, ReadOnly: true}, func(ctx context.Context, in ResolveRequestInput) (ResolveOutput, error) {
 				if strings.TrimSpace(in.Query) == "" {
 					return ResolveOutput{}, errors.New("args.query required")
 				}
@@ -138,7 +138,7 @@ func Operations(service func(context.Context) *Service, logs func(context.Contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "world_neighbors", ReadOnly: true}, func(ctx context.Context, in QueryInput) (NeighborsOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.WorldNeighbors, ReadOnly: true}, func(ctx context.Context, in QueryInput) (NeighborsOutput, error) {
 				if strings.TrimSpace(in.Query) == "" {
 					return NeighborsOutput{}, errors.New("args.query required")
 				}
@@ -146,10 +146,10 @@ func Operations(service func(context.Context) *Service, logs func(context.Contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "world_list", ReadOnly: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/world"}}, func(ctx context.Context, in ListInput) (ListOutput, error) { return service(ctx).List(ctx, in) })
+			return bind(&operations, opapi.Spec{Name: opapi.WorldList, ReadOnly: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/world"}}, func(ctx context.Context, in ListInput) (ListOutput, error) { return service(ctx).List(ctx, in) })
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "world_get", ReadOnly: true}, func(ctx context.Context, in GetInput) (GetOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.WorldGet, ReadOnly: true}, func(ctx context.Context, in GetInput) (GetOutput, error) {
 				if strings.TrimSpace(in.ID) == "" {
 					return GetOutput{}, errors.New("args.id required")
 				}
@@ -157,7 +157,7 @@ func Operations(service func(context.Context) *Service, logs func(context.Contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "world_log", ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, HTTP: opapi.HTTP{Method: "GET", Path: "/api/world_log"}}, func(ctx context.Context, in LogRequestInput) (LogOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.WorldLog, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, HTTP: opapi.HTTP{Method: "GET", Path: "/api/world_log"}}, func(ctx context.Context, in LogRequestInput) (LogOutput, error) {
 				return logs(ctx).Log(ctx, logPage(in))
 			})
 		},

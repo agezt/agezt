@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"regexp"
 	"testing"
 
@@ -25,7 +26,7 @@ func TestReflectionRunsOnThePrimaryKernel(t *testing.T) {
 	s.token = "primary"
 	corr := func() string {
 		t.Helper()
-		resp := callAppHost(t, s, Request{ID: "r", Cmd: CmdReflectRun, Token: "primary"})[0]
+		resp := callAppHost(t, s, Request{ID: "r", Cmd: opapi.ReflectRun, Token: "primary"})[0]
 		if resp.Type != RespResult {
 			t.Fatal(resp.Error)
 		}
@@ -49,11 +50,11 @@ func TestReflectionRunsOnThePrimaryKernel(t *testing.T) {
 	if journaled == 0 {
 		t.Fatal("the pass journals under its correlation in the primary kernel")
 	}
-	resp := callAppHost(t, s, Request{ID: "s", Cmd: CmdReflectShow, Token: "primary"})[0]
+	resp := callAppHost(t, s, Request{ID: "s", Cmd: opapi.ReflectShow, Token: "primary"})[0]
 	if found, _ := resp.Result["found"].(bool); !found {
 		t.Fatal("the latest report reads back", resp)
 	}
-	for cmd, read := range map[string]bool{CmdReflectRun: false, CmdReflectShow: true} {
+	for cmd, read := range map[string]bool{opapi.ReflectRun: false, opapi.ReflectShow: true} {
 		if wire, exists := commandRegistry[cmd]; !exists || !wire.AppOwned || wire.ReadOnly != read || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 			t.Fatalf("%s native wire %+v", cmd, wire)
 		}

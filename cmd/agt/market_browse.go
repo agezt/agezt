@@ -13,7 +13,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdMarketList(args []string, query string, stdout, stderr io.Writer) int {
@@ -36,7 +36,7 @@ func cmdMarketList(args []string, query string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdMarketList, map[string]any{"query": query})
+	res, err := c.Call(ctx, opapi.MarketList, map[string]any{"query": query})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s market list: %v\n", brand.CLI, err)
 		return 1
@@ -97,7 +97,7 @@ func cmdMarketShow(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdMarketShow, map[string]any{"name": name, "marketplace": marketplace})
+	res, err := c.Call(ctx, opapi.MarketShow, map[string]any{"name": name, "marketplace": marketplace})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s market show: %v\n", brand.CLI, err)
 		return 1

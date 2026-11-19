@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -34,7 +34,7 @@ func TestRun_AsAgent_AppliesWholeProfile(t *testing.T) {
 	_, _, c, _ := startPair(t, prov)
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{
 			"slug":         "scribe",
 			"soul":         "You write.",
@@ -45,7 +45,7 @@ func TestRun_AsAgent_AppliesWholeProfile(t *testing.T) {
 		t.Fatalf("agent add: %v", err)
 	}
 	// The dry-run plan is built from the same context, so it agrees.
-	plan, err := c.Call(ctx, controlplane.CmdRun,
+	plan, err := c.Call(ctx, opapi.Run,
 		map[string]any{"intent": "write a note", "agent": "scribe", "dry_run": true})
 	if err != nil {
 		t.Fatalf("dry-run as agent: %v", err)
@@ -57,7 +57,7 @@ func TestRun_AsAgent_AppliesWholeProfile(t *testing.T) {
 		}
 	}
 
-	if _, err := c.Stream(ctx, controlplane.CmdRun,
+	if _, err := c.Stream(ctx, opapi.Run,
 		map[string]any{"intent": "write a note", "agent": "scribe"},
 		func(*event.Event) {}); err != nil {
 		t.Fatalf("run as agent: %v", err)

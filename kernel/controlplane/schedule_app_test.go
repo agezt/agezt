@@ -42,10 +42,10 @@ func scheduleAppFixture(t *testing.T) (*runtime.Kernel, *Server, string, *mock.P
 	return k, s, entry.ID, provider
 }
 func TestScheduleNativeMetadataComesFromTenTypedAppSpecs(t *testing.T) {
-	reads := map[string]bool{CmdScheduleList: true, CmdScheduleSystemTasks: true, CmdScheduleTest: true, CmdScheduleFires: true, CmdScheduleStats: true}
-	tenants := map[string]bool{CmdScheduleFires: true, CmdScheduleStats: true}
+	reads := map[string]bool{opapi.ScheduleList: true, opapi.ScheduleSystemTasks: true, opapi.ScheduleTest: true, opapi.ScheduleFires: true, opapi.ScheduleStats: true}
+	tenants := map[string]bool{opapi.ScheduleFires: true, opapi.ScheduleStats: true}
 	want := map[string]bool{}
-	for _, name := range []string{CmdScheduleAdd, CmdScheduleList, CmdScheduleSystemTasks, CmdScheduleRemove, CmdScheduleRun, CmdScheduleEnable, CmdScheduleEdit, CmdScheduleTest, CmdScheduleFires, CmdScheduleStats} {
+	for _, name := range []string{opapi.ScheduleAdd, opapi.ScheduleList, opapi.ScheduleSystemTasks, opapi.ScheduleRemove, opapi.ScheduleRun, opapi.ScheduleEnable, opapi.ScheduleEdit, opapi.ScheduleTest, opapi.ScheduleFires, opapi.ScheduleStats} {
 		want[name] = reads[name]
 	}
 	seen := map[string]bool{}
@@ -70,7 +70,7 @@ func TestScheduleNativeMetadataComesFromTenTypedAppSpecs(t *testing.T) {
 	}
 }
 func TestScheduleAppRequiresActualAuditBeforeAllFiveMutations(t *testing.T) {
-	for _, cmd := range []string{CmdScheduleAdd, CmdScheduleRemove, CmdScheduleRun, CmdScheduleEnable, CmdScheduleEdit} {
+	for _, cmd := range []string{opapi.ScheduleAdd, opapi.ScheduleRemove, opapi.ScheduleRun, opapi.ScheduleEnable, opapi.ScheduleEdit} {
 		t.Run(cmd, func(t *testing.T) {
 			k, s, id, provider := scheduleAppFixture(t)
 			before := k.Schedules().List()
@@ -87,7 +87,7 @@ func TestScheduleAppRequiresActualAuditBeforeAllFiveMutations(t *testing.T) {
 }
 func TestScheduleAppReadsRetainUnauditedUnaryShapesAndMissingEditAdmission(t *testing.T) {
 	k, s, id, provider := scheduleAppFixture(t)
-	for _, cmd := range []string{CmdScheduleList, CmdScheduleSystemTasks, CmdScheduleTest, CmdScheduleFires, CmdScheduleStats} {
+	for _, cmd := range []string{opapi.ScheduleList, opapi.ScheduleSystemTasks, opapi.ScheduleTest, opapi.ScheduleFires, opapi.ScheduleStats} {
 		responses := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"id": id, "unused": true}})
 		if len(responses) != 1 || responses[0].Type != RespResult {
 			t.Fatal(cmd, responses)
@@ -105,14 +105,14 @@ func TestScheduleAppReadsRetainUnauditedUnaryShapesAndMissingEditAdmission(t *te
 	if audits != 0 || provider.CallCount() != 0 {
 		t.Fatal(audits, provider.CallCount())
 	}
-	responses := callAppHost(t, s, Request{ID: "missing", Cmd: CmdScheduleEdit, Token: "primary", Args: map[string]any{"id": "missing", "target": true, "agent": true, "interval_sec": "bad"}})
+	responses := callAppHost(t, s, Request{ID: "missing", Cmd: opapi.ScheduleEdit, Token: "primary", Args: map[string]any{"id": "missing", "target": true, "agent": true, "interval_sec": "bad"}})
 	if len(responses) != 1 || responses[0].Type != RespResult || !reflect.DeepEqual(responses[0].Result, map[string]any{"updated": false}) {
 		t.Fatal(responses)
 	}
 }
 func TestScheduleEnableOperatorActionJoinsOwnedAuditCorrelationAndIgnoresRawSpoof(t *testing.T) {
 	k, s, id, _ := scheduleAppFixture(t)
-	responses := callAppHost(t, s, Request{ID: "enable", Cmd: CmdScheduleEnable, Token: "primary", Args: map[string]any{"id": id, "enabled": "TRUE", "corr": "client-spoof", "correlation_id": "client-spoof"}})
+	responses := callAppHost(t, s, Request{ID: "enable", Cmd: opapi.ScheduleEnable, Token: "primary", Args: map[string]any{"id": id, "enabled": "TRUE", "corr": "client-spoof", "correlation_id": "client-spoof"}})
 	if len(responses) != 1 || responses[0].Type != RespResult {
 		t.Fatal(responses)
 	}
@@ -149,7 +149,7 @@ func TestScheduleEnableOperatorActionJoinsOwnedAuditCorrelationAndIgnoresRawSpoo
 
 func TestScheduleAppOutputSchemasRetainRawPayloadAndRequiredPresence(t *testing.T) {
 	_, server, id, _ := scheduleAppFixture(t)
-	responses := callAppHost(t, server, Request{ID: "add", Cmd: CmdScheduleAdd, Token: "primary", Args: map[string]any{"intent": "owned", "interval_sec": float64(60)}})
+	responses := callAppHost(t, server, Request{ID: "add", Cmd: opapi.ScheduleAdd, Token: "primary", Args: map[string]any{"intent": "owned", "interval_sec": float64(60)}})
 	if len(responses) != 1 || responses[0].Type != RespResult {
 		t.Fatal(responses)
 	}
@@ -157,10 +157,10 @@ func TestScheduleAppOutputSchemasRetainRawPayloadAndRequiredPresence(t *testing.
 	var edit json.RawMessage
 	for _, operation := range scheduleOperations {
 		spec := operation.Spec()
-		if spec.Name == CmdScheduleAdd {
+		if spec.Name == opapi.ScheduleAdd {
 			declared = spec.OutputSchema
 		}
-		if spec.Name == CmdScheduleEdit {
+		if spec.Name == opapi.ScheduleEdit {
 			edit = spec.OutputSchema
 		}
 	}
@@ -183,7 +183,7 @@ func TestScheduleAppOutputSchemasRetainRawPayloadAndRequiredPresence(t *testing.
 	if schema.ValidateJSON(edit, json.RawMessage(`{}`)) == nil {
 		t.Fatal("edit updated presence not enforced")
 	}
-	responses = callAppHost(t, server, Request{ID: "edit", Cmd: CmdScheduleEdit, Token: "primary", Args: map[string]any{"id": id}})
+	responses = callAppHost(t, server, Request{ID: "edit", Cmd: opapi.ScheduleEdit, Token: "primary", Args: map[string]any{"id": id}})
 	if len(responses) != 1 || responses[0].Type != RespResult {
 		t.Fatal(responses)
 	}

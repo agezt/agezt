@@ -443,8 +443,8 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	}
 	outputs := map[string]json.RawMessage{}
 	for name, typ := range map[string]reflect.Type{
-		"routing_get": reflect.TypeFor[RoutingOutput](), "routing_set": reflect.TypeFor[RoutingSetOutput](),
-		"chains_get": reflect.TypeFor[ChainsOutput](), "chains_set": reflect.TypeFor[ChainsSetOutput](),
+		opapi.RoutingGet: reflect.TypeFor[RoutingOutput](), opapi.RoutingSet: reflect.TypeFor[RoutingSetOutput](),
+		opapi.ChainsGet: reflect.TypeFor[ChainsOutput](), opapi.ChainsSet: reflect.TypeFor[ChainsSetOutput](),
 	} {
 		out, err := schema.FromType(typ, false)
 		if err != nil {
@@ -459,25 +459,25 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 		}
 		return s
 	}
-	routingGet, err := app.NewOperation(spec("routing_get", "GET", "/api/routing", true, ""), func(ctx context.Context, in RoutingRequest) (RoutingOutput, error) {
+	routingGet, err := app.NewOperation(spec(opapi.RoutingGet, "GET", "/api/routing", true, ""), func(ctx context.Context, in RoutingRequest) (RoutingOutput, error) {
 		return provider(ctx).Routing(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	routingSet, err := app.NewOperation(spec("routing_set", "POST", "/api/routing/set", false, `{"type":"object","additionalProperties":true,"properties":{"chains":{}}}`), func(ctx context.Context, in RoutingSetRequest) (RoutingSetOutput, error) {
+	routingSet, err := app.NewOperation(spec(opapi.RoutingSet, "POST", "/api/routing/set", false, `{"type":"object","additionalProperties":true,"properties":{"chains":{}}}`), func(ctx context.Context, in RoutingSetRequest) (RoutingSetOutput, error) {
 		return provider(ctx).SetRouting(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	chainsGet, err := app.NewOperation(spec("chains_get", "GET", "/api/chains", true, ""), func(ctx context.Context, in ChainsRequest) (ChainsOutput, error) {
+	chainsGet, err := app.NewOperation(spec(opapi.ChainsGet, "GET", "/api/chains", true, ""), func(ctx context.Context, in ChainsRequest) (ChainsOutput, error) {
 		return provider(ctx).Chains(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	chainsSet, err := app.NewOperation(spec("chains_set", "POST", "/api/chains/set", false, `{"type":"object","additionalProperties":true,"properties":{"chains":{},"default":{}}}`), func(ctx context.Context, in ChainsSetRequest) (ChainsSetOutput, error) {
+	chainsSet, err := app.NewOperation(spec(opapi.ChainsSet, "POST", "/api/chains/set", false, `{"type":"object","additionalProperties":true,"properties":{"chains":{},"default":{}}}`), func(ctx context.Context, in ChainsSetRequest) (ChainsSetOutput, error) {
 		return provider(ctx).SetChains(ctx, in)
 	})
 	if err != nil {

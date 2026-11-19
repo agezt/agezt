@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -31,7 +31,7 @@ func TestNodeRegistryListsLocalAndPeersWithoutLeakingTokens(t *testing.T) {
 	t.Setenv("AGEZT_PEERS", "nodeB="+srv.URL+"|sekrit")
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdNodeRegistry, nil)
+	res, err := c.Call(context.Background(), opapi.NodeRegistry, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

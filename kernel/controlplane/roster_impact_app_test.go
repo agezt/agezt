@@ -21,7 +21,7 @@ import (
 )
 
 func TestAgentImpactTombstoneNativeTypedRegistry(t *testing.T) {
-	for cmd, http := range map[string]opapi.HTTP{CmdAgentImpact: {Method: "GET", Path: "/api/agents/impact"}, CmdAgentTombstone: {}} {
+	for cmd, http := range map[string]opapi.HTTP{opapi.AgentImpact: {Method: "GET", Path: "/api/agents/impact"}, opapi.AgentTombstone: {}} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -86,13 +86,13 @@ func TestAgentImpactTombstoneNativeWire(t *testing.T) {
 		}
 		return string(line)
 	}
-	impact := call(CmdAgentImpact)
+	impact := call(opapi.AgentImpact)
 	for _, want := range []string{`"subagents":["child [parent]"]`, `"subagent_count":1`, `"schedules":["check disks (` + job.ID + `)"]`, `"schedule_count":1`, `"subagent_schedules":null`, `"subagent_schedule_count":0`, `"skills":null`, `"slug":"lead"`} {
 		if !strings.Contains(impact, want) {
 			t.Fatalf("impact missing %s: %s", want, impact)
 		}
 	}
-	tombstone := call(CmdAgentTombstone)
+	tombstone := call(opapi.AgentTombstone)
 	for _, want := range []string{`"result":{"tombstone":{`, `"schedules":1`, `"subagents":1`, `"retained_by_design":{"mailbox_messages":0,"workflow_refs":0}`} {
 		if !strings.Contains(tombstone, want) {
 			t.Fatalf("tombstone missing %s: %s", want, tombstone)

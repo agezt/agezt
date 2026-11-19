@@ -19,7 +19,7 @@ func TestProviderObservationMetadataComesFromTenantAppSpecs(t *testing.T) {
 			t.Fatalf("metadata = %+v %+v", spec, wire)
 		}
 	}
-	probe := commandRegistry[CmdProviderProbe]
+	probe := commandRegistry[opapi.ProviderProbe]
 	if !probe.ReadOnly || probe.TenantAllowed || probe.TenantRouted {
 		t.Fatalf("probe lost primary-only boundary: %+v", probe)
 	}

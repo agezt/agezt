@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W5.4an the state family's ports, 2026-10-29
+## Current checkpoint — W3.81 the CLI top-level vocabulary gets one home, 2026-11-19
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -15431,4 +15431,212 @@ not path moves: they are **lifecycle** moves, where the host gives up a door
 and keeps a face.
 Evidence:
 `architecture/313-w378-the-plan-executors-path-moves-into-the-runs-module-evidence.md`
+
+## W3.79 — the operation vocabulary gets one home
+
+Not a path move: a **vocabulary** move. The daemon answers to **325** command
+names, and until this slice that vocabulary was declared **twice** — as the
+`Cmd*` constants in `kernel/controlplane/protocol_commands*.go` (five files,
+1,515 lines) and again as string literals inside the operation specs across the
+application layer's 65 packages.
+
+The two lists **agreed**: the 325 constants are exactly the 324 typed operations
+plus the one native command (`whoami`). Nothing was broken. But a name that can
+be written in two places is a name that can drift, and P2's "OpSpec is the single
+source of truth" was not true of the name itself.
+
+### What moved
+
+- **The catalogue** — `kernel/contract/opapi/names*.go`, five files, **325**
+  constants, 1,543 lines. The names and the documentation that described their
+  arguments and return shapes moved verbatim; the identifiers lost the `Cmd`
+  prefix (`CmdApprovalsLog` → `opapi.ApprovalsLog`) and the **values did not
+  change**, so the wire protocol did not change.
+- **The application layer binds it** — 320 operation specs name themselves with
+  the constant, and the `kernel/app/files` family's own four operation-name
+  constants point at the catalogue too (its *error* codes stay its own).
+- **Every reference follows** — 1,162 references across 597 files: the control
+  plane's dispatch registry, the Web UI's 198 route entries, the CLI's 252
+  files, the Go SDK.
+
+### What is gone
+
+The five `kernel/controlplane/protocol_commands*.go` files and the 325 `Cmd*`
+constants. The pre-existing registry ratchet was **repointed at the catalogue,
+not deleted** — the dispatch surface is still pinned to the declared vocabulary,
+and the ratchet now covers the native command too.
+
+### The guard
+
+`kernel/controlplane/op_vocabulary_ratchet_test.go` holds three tests: the
+registry and the catalogue are the same vocabulary (the native command declared
+as an exception, with its reason); the application layer does not repeat a name
+as a literal where the constant belongs; the native exception stays honest.
+**Proved to fire** by two reverted mutations — one that renamed an operation to
+an unknown name (the vocabulary test failed, with both symptoms), one that wrote
+the same name as a literal (the source-discipline test failed, and the
+vocabulary test could not see it, which is why that second test exists).
+
+### The measurement
+
+**Moved:** `Cmd*` constants 325 → **0**; names declared in the control plane 325
+→ **0**; names declared in the contract layer 0 → **325**. **Not moved, on
+purpose:** the registry (324 typed operations before, 324 after — the same
+names), the wire protocol, and the documentation (the same words beside the same
+operation).
+
+### What is left
+
+The vocabulary has one home; the **clients** do not. The CLI, the Web UI's route
+tables and the SDKs are still hand-written mirrors of the operation set — they
+now name their operations by constant, which removes the drift risk, but a route
+table is still a table somebody maintains. The next slice can read the
+catalogue's `Spec.HTTP` hints and derive the routes from them.
+
+Evidence:
+`architecture/314-w379-the-operation-vocabulary-gets-one-home-evidence.md`
+
+## W3.80 — the CLI command vocabulary gets one home
+
+Not a path move: a **vocabulary** move, and the second half of W3.79. The
+daemon's 325 operation names got one home in `kernel/contract/opapi`; the
+CLI's **311** sub-command names across **46** domains now get one home in
+`cmd/agt/commands_dict.go`.
+
+Until this slice, every domain's list of sub-command names was written **four
+or five times** — the dispatcher's `switch args[0]`, the usage line, the
+unknown-sub-command message, the "subcommand required" guard and the help
+table — and the copies had already drifted (nine stale lists; `agt agent`'s
+own usage line was missing `authority`).
+
+The names could not be derived from the operation catalogue, and the slice
+measured why first: the `domain_sub` rule matched only 48 % of the CLI's
+names, the CLI has aliases the catalogue does not carry (`ls`, `rm`, `create`,
+`gen`, `viz`), and 33 commands drive no operation at all. The CLI's vocabulary
+is its own; it is now written **once**.
+
+### What moved
+
+- **The table** — `cmd/agt/commands_dict.go`, **46** domains, **311** commands,
+  2,286 lines. Every command carries its names (canonical first, aliases after),
+  the catalogue operations it can drive (**247** commands, named by the
+  catalogue's constants) and its runner.
+- **The dispatchers** — **44** of them no longer switch on `args[0]`; they look
+  the table up. Two were written by hand: `provider creds` opened its
+  credential store before dispatching (the store cannot be carried by a table
+  entry, so the commands grew thin wrappers) and `seats list` fell through to
+  the listing below the switch (the listing became its own function).
+- **The messages** — **35** command lists (usage lines, unknown-sub-command
+  messages, guards, the help table) now print the derived list. The derived
+  lists are correct where the copies were not.
+
+### What is gone
+
+The 44 `switch args[0]` statements and the 35 hand-written command lists. Two
+`switch args[0]` statements remain in `cmd/agt`, and both are outside the
+domain vocabulary: the root dispatch in `main.go` and the separate `keys`
+package.
+
+### The guard
+
+`cmd/agt/commands_dict_ratchet_test.go` holds four tests: no message spells a
+domain's command list out by hand; a command's operations are the operations
+its handler really reaches (and an operation a handler reaches is claimed by
+some command); no dispatcher keeps a list of its own; a domain cannot answer
+to the same name twice. **Proved to fire** by two reverted mutations — an
+operation swapped in the table (the operations test failed, with both
+symptoms) and a usage line written out by hand again (the vocabulary test
+failed, and the operations test could not see it, which is why that second
+test exists).
+
+### The measurement
+
+**Moved:** domains with a hand-written command list 46 → **0**; `switch
+args[0]` in `cmd/agt` 47 → **2** (both out of scope); hand-written command
+lists in messages 35 → **0**; commands pinned to the catalogue 0 → **247**.
+**Not moved, on purpose:** the commands (311), the domains (46), the names,
+the exit codes, and the wire protocol.
+
+### What is left
+
+The **domain** vocabulary has one home; the CLI's *top-level* vocabulary has
+not. `cmd_register.go` still declares the 66 top-level commands by hand, and
+`cmd/agt/keys` is a separate package with its own list. The next slice can
+give the top level the same treatment: one table, and a help overview derived
+from it.
+
+Evidence:
+`architecture/315-w380-the-cli-command-vocabulary-gets-one-home-evidence.md`
+
+## W3.81 — the CLI's top-level vocabulary gets one home
+
+The third and last part of the vocabulary programme. W3.79 gave the daemon's
+operation names one home, W3.80 gave the CLI's **311** sub-command names one
+home; this slice gives the CLI's **71 top-level** command names one home.
+
+The top-level names were written **three** times: `cmd/agt/cmd_register.go`
+declared the 71 commands, `cmd/agt/help_data.go` declared the same 71 names
+again with their summaries and usage blocks, and `cmd/agt/main.go`'s root
+dispatch switched on `args[0]` a third time to answer "version" and "help"
+before the registry ever saw them. Two tests kept the first two copies in
+step — a guard, not a single source.
+
+The measurement found no drift between the two copies (71 ↔ 71, one for one)
+but three things the duplication had made possible: the root dispatch kept a
+third list; the registered `version` command was a no-op stub (`return 0`) that
+only the root dispatch's own answer ever reached; and `router.Command` carried
+three fields nobody read (`Description` was written for 4 of 71 commands and
+read by nothing, `HelpLong` was never written, `HelpHandler` was read by one
+`nil` check).
+
+### What moved
+
+- **The table** — `cmd/agt/commands_top.go`, **71** commands, **9** help groups.
+  Each entry carries its name, aliases, group, summary, usage block and runner.
+  The registry is derived from it and the help overview is derived from it.
+- **The usage lines that name a domain's sub-commands** stay derived from
+  W3.80's domain tables: `"standing " + cliStanding.synopsis()`. Twelve lines
+  across eleven commands.
+- **`cmd/agt/version.go`** — `cmdVersion` prints `agt 1.1.0 (protocol v1)`,
+  the same bytes the root dispatch printed.
+
+### What is gone
+
+`cmd/agt/cmd_register.go` (162 lines), `cmd/agt/help_data.go` (357 lines), the
+root `switch args[0]`, and the router's three dead fields (`Description`,
+`HelpLong`, `HelpHandler`).
+
+### The guard
+
+`cmd/agt/commands_top_ratchet_test.go` holds six tests: no file registers a
+command outside the table; no file switches on `args[0]`; no name is answered by
+two commands; every command has a runner, a summary and a usage block; the
+registry is the table; the help overview is the table. **Proved to fire** by two
+reverted mutations — a second registration outside the table (the one-home test
+failed) and an alias that shadowed another command (the unique-names test
+failed).
+
+W3.80's ratchet was repointed, not deleted: the domain tables are now filled by
+`fillDomains()` (the top-level table's `init()` calls it, so the usage lines
+that name a domain's sub-commands are derived from filled tables — an explicit
+order rather than a matter of file order).
+
+### The measurement
+
+**Moved:** places the top-level names are written 3 → **1**; files holding the
+top-level vocabulary 2 (+ the root switch) → **1**; `router.Command` fields
+6 → **3**; root `switch args[0]` in `cmd/agt` 1 → **0**. **Not moved, on
+purpose:** the commands (71), the names, the aliases, the exit codes, the help
+output's bytes and the wire protocol.
+
+### What is left
+
+The CLI's vocabulary has one home at every level. What is still hand-written is
+the **client side of the operation vocabulary**: the Web UI's 198 route entries
+(`kernel/webui/webui_read_routes.go`, `webui_write_routes.go`) still bind the
+operation names by hand instead of being generated from the catalogue's specs.
+That is the next slice of the programme.
+
+Evidence:
+`architecture/316-w381-the-cli-top-level-vocabulary-gets-one-home-evidence.md`
 

@@ -53,25 +53,28 @@ os.Args ─► main() ─► run(args, stdout, stderr)                       mai
              │ len(args)==0            → printHelp()                  help.go
              │ args[1] ∈ {-h,--help} && helpHas(args[0])
              │                         → cmdHelp(args[:1])            (M936 uniform -h; command NEVER runs)
-             │ args[0] ∈ {-v,--version,version} → "agt <ver> (protocol vN)"
-             │ args[0] ∈ {-h,--help,help}       → cmdHelp(args[1:])
              └ default → ExecuteCommand(name, rest)                   commands.go
                            └ registry.Execute (router.Registry)
                                ├ found   → cmd.Run(rest, stdout, stderr) → exit code
                                └ missing → "agt: unknown command "x" — did you mean a, b?" + "run `agt help`…" ; exit 2
 ```
 
-- **Registration** happens in `init()` of `cmd_register.go` (`registerRunCommands`, `registerInfoCommands`,
-  `registerAgentCommands`, `registerConfigCommands`, `registerManagementCommands`). Each is
-  `Register(&Command{Name, Aliases, Run})`. `Register` (commands.go) writes both the live
-  `router.Registry` (`registry`) and a parallel exported map `CommandRegistry` (used only by tests:
+The root dispatch keeps **no list of its own**: every top-level name — "version" and
+"help" included — is answered by the registry, which is filled from the vocabulary table
+(`commands_top.go`).
+
+- **Registration** happens in the vocabulary table (`commands_top.go`): one entry per top-level command
+  (name, aliases, group, summary, usage block, runner). The table's `init()` registers every entry
+  (`Register(&Command{Name, Aliases, Run})`), so the registry and the help overview are the same
+  declaration read two ways. `Register` (commands.go) writes both the live `router.Registry`
+  (`registry`) and a parallel exported map `CommandRegistry` (used only by tests:
   `AllCommands()` in `commands_test_helpers_test.go`, help sync guards).
-- `Command = router.Command` (type alias) — fields `Name, Aliases, Description, HelpLong, HelpHandler, Run`.
-  In practice only `Name`, `Aliases`, `Run` (and `Description` for run/halt/resume) are populated; `HelpLong`
-  and `HelpHandler` are unused by the binary (help comes from `help_data.go`).
+- `Command = router.Command` (type alias) — fields `Name, Aliases, Run`. The fields `Description`,
+  `HelpLong` and `HelpHandler` were removed in W3.81: nothing read them, and the help text lives in
+  the vocabulary table.
 - Aliases at top level: `exec-profile`↔`execution-profile`; `version`(`-v`,`--version`), `help`(`-h`,`--help`)
-  — the latter two are intercepted in `run()` before dispatch, so their registered `Run` bodies are effectively dead
-  (`version`'s registered Run is an empty `return 0`).
+  — both are answered by the registry like any other command (`version` prints the client version,
+  `help` prints the overview).
 - **Subcommand dispatch** is hand-rolled per family: `cmdX(args)` does `switch args[0]` (or `if args[0]=="log"` for
   `approvals`, `budget`, `backup`, `acp`, `pulse`) and passes `args[1:]` down. Many verbs have aliases
   (`ls`/`list`, `rm`/`remove`/`delete`, `show`/`get`, `add`/`create`, …).
@@ -82,17 +85,24 @@ os.Args ─► main() ─► run(args, stdout, stderr)                       mai
   3 domain-negative answer used by scripts (`edict test` deny, `state get` absent, `budget check` exhausted,
   `conductor` unverified, `skill diff`/`schedule test` not found).
 
-### Help system (help.go, help_data.go)
+### Help system (help.go, commands_top.go)
 
-- `helpGroups()` returns `[]helpGroup{title, []commandHelp{name, summary, detail[]}}` — 9 groups in
+- The help table is the vocabulary table (`commands_top.go`): `helpGroups()` derives
+  `[]helpGroup{title, []commandHelp{name, summary, detail[]}}` from it — 9 groups in
   task-frequency order: Getting started, Run & control, Plans & automation, Providers & models,
   Memory & knowledge, Journal & audit, Console/config & data, Channels & integrations, Daemon.
 - `printHelp` (overview), `cmdHelp` (detail block; detail lines starting with a space are rendered as continuation
   lines), `helpHas` (gate for `-h` interception), `suggestCommands` (prefix/substring + `editDistance` ≤2, max 4).
   Note there are two "did you mean" engines: help-table based (`agt help typo`) and router-based (`agt typo`).
-- Guard tests (`help_test.go`): `TestHelp_CoversEveryRegisteredCommand`, `TestHelp_DocumentsOnlyRegisteredCommands`,
-  `TestHelp_EntriesAreComplete`, `TestUniformDashH`, `TestUnknownCommand_ShortErrorWithSuggestion`. The registry
-  (71 names) and the help table (71 names) are currently in exact sync.
+- A usage line that names a domain's sub-commands is **derived** from that domain's own table
+  (`commands_dict.go`): `"standing " + cliStanding.synopsis()`.
+- Guard tests (`help_test.go`, `commands_top_ratchet_test.go`): `TestHelp_CoversEveryRegisteredCommand`,
+  `TestHelp_DocumentsOnlyRegisteredCommands`, `TestHelp_EntriesAreComplete`, `TestUniformDashH`,
+  `TestUnknownCommand_ShortErrorWithSuggestion`, plus the vocabulary ratchet
+  (`TestTopLevelVocabularyHasOneHome`, `TestTopLevelNamesAreUnique`,
+  `TestEveryTopLevelCommandIsComplete`, `TestTheRegistryIsTheTable`,
+  `TestHelpOverviewIsDerivedFromTheTable`). The registry (71 names) and the help table (71 names)
+  are structurally in sync — they are the same table.
 - Per-command `-h` inside subcommands (e.g. `agt schedule add -h`) is handled by each command's own parser, not the
   table.
 
@@ -327,17 +337,18 @@ Op names are `controlplane.Cmd*` constants with their wire string in parentheses
 
 ---
 
-## 5. File-by-file table — package `main` (233 files)
+## 5. File-by-file table — package `main` (235 files)
 
 ### 5.1 Entry, dispatch, help
 | File | What it does |
 |---|---|
-| `main.go` | `main`/`run` entry (version/help handling, uniform `-h` interception), `resolveRunIntent`, `cmdRun` (`agt run` flag parsing, streaming renderer, usage footer). |
-| `cmd_register.go` | `init()` registering all 71 top-level commands in five groups; `approve`/`deny` are closures over `cmdDecide`. |
+| `main.go` | `main`/`run` entry (uniform `-h` interception), `resolveRunIntent`, `cmdRun` (`agt run` flag parsing, streaming renderer, usage footer). |
+| `commands_top.go` | The top-level vocabulary: 71 commands (name, aliases, group, summary, usage block, runner) in one table; its `init()` registers them, `helpGroups()` derives the help overview from it. |
+| `commands_dict.go` | The 46 command domains' sub-command tables (`cliAgent`, `cliMCP`, …), filled by `fillDomains()`. |
+| `version.go` | `agt version` — the client's identity and the protocol version it speaks. |
 | `commands.go` | `Command` alias of `router.Command`, `CommandRegistry` test index, `registry` dispatcher, `Register`, `ExecuteCommand` (adds the "run `agt help`" trailer on exit 2). |
 | `doc.go` | Package documentation for the registration/dispatch design. |
-| `help.go` | `printHelp`, `helpHas`, `cmdHelp`, `suggestCommands`, `editDistance`. |
-| `help_data.go` | `commandHelp`/`helpGroup` types and `helpGroups()` — the single source of truth for help text. |
+| `help.go` | `printHelp`, `helpHas`, `cmdHelp`, `suggestCommands`, `editDistance`, and the `commandHelp`/`helpGroup` types. |
 | `main_run_modes.go` | `runJSONMode` (ndjson event stream + result/error envelope) and `runDryRunMode` for `agt run`. |
 | `main_run_helpers.go` | `imageMediaType`, `loadImageDataURL` (local image → data URL), `parseUSDToMicrocents`, `toStringSlice`, `cmdSimple` (generic call-and-print-JSON helper, 30 s). |
 
@@ -651,16 +662,16 @@ Events: the CLI emits no bus/journal events itself; it consumes `event.Event` fr
 
 ## 8. Extension points
 
-- **New top-level command**: implement `func cmdX(args []string, stdout, stderr io.Writer) int` in a new file,
-  `Register(&Command{Name: "x", Run: cmdX})` in the right `register*Commands` group of `cmd_register.go`, AND add a
-  `commandHelp{"x", summary, detail}` to the right group in `help_data.go` — `help_test.go` fails otherwise
-  (both directions). `-h` then works automatically.
-- **New subcommand**: add a `case` in the family dispatcher and a usage line in its local `-h` text and in
-  `help_data.go` detail.
+- **New top-level command**: implement `func cmdX(args []string, stdout, stderr io.Writer) int` in a new file
+  and add ONE entry to the vocabulary table (`commands_top.go`): name, aliases, group, summary, usage
+  block, runner. The registry and the help overview are derived from that table, so there is no second
+  place to update. `-h` then works automatically.
+- **New subcommand**: add the command to its domain's table in `commands_dict.go`; the usage line and
+  the unknown-sub-command message are derived from that table.
 - **New daemon op**: add the `Cmd*` constant + handler in `kernel/controlplane` (see 03), then call it through
   `dialpkg.New(stderr)` + `c.Call(ctx, controlplane.CmdX, args)`; render with `jsonout.Write` for `--json`.
 - **Command-as-package**: follow `whoami/` / `haltresume/` / `keys/`: depend only on `dial`, `jsonout`, `format`,
-  `brand`, `controlplane`; register the exported `Run` from `cmd_register.go` (or the family dispatcher).
+  `brand`, `controlplane`; point the vocabulary table at the package's exported `Run` (or the family dispatcher).
 - **Reversible mutation**: call a `save*RollbackCheckpoint` helper (rollback_apply_checkpoints.go) before the
   mutating op and teach `applyRollbackCheckpoint` the new kind.
 
@@ -683,10 +694,12 @@ Events: the CLI emits no bus/journal events itself; it consumes `event.Event` fr
   with tmp+rename but no cross-process lock — concurrent CLI/daemon writes can drop a checkpoint.
 - **`schedule_test_cmd.go` is production code** (does not end in `_test.go`); naive `grep -v _test` file filters miss it.
 - **Overseer verbs have no client deadline** (`context.TODO()` in overseer*.go); every other family uses `WithTimeout`.
-- **Registered-but-unreachable bodies**: `version` and `help` registrations are shadowed by `run()`; `router.Command`
-  fields `HelpLong`/`HelpHandler` are unused.
-- **Stale comments to not trust**: `cmd_register.go` claims to be blank-imported (it is same-package `init`);
-  `dial/doc.go` describes a main-package shim that no longer exists; in `edict.go` the doc comment above
+- **The vocabulary table is filled in `init()`, not in a declaration**: it names `cmdHelp` as one of its
+  runners, `cmdHelp` reads `helpGroups()`, and `helpGroups()` reads the table — a var initializer would
+  be an initialization cycle. The table's `init()` calls `fillDomains()` first, because the usage lines
+  that name a domain's sub-commands are derived from the filled domain tables; that order is explicit
+  rather than a matter of which file the compiler saw first.
+- **Stale comments to not trust**: `dial/doc.go` describes a main-package shim that no longer exists; in `edict.go` the doc comment above
   `cmdEdictMode` describes `edict log`, and `cmdEdict`'s says "only subcommand today is show" (there are 9); in
   `webhook.go` the comment above `cmdWebhookLog` describes `webhook test`; `format.DiskWarnPct`'s comment says
   "fill percentage" but doctor uses it as a free-space threshold.

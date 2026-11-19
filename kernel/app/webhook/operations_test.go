@@ -69,7 +69,7 @@ func BenchmarkWebhookDispatch(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	for _, name := range []string{"webhook_log", "webhook_stats"} {
+	for _, name := range []string{opapi.WebhookLog, "webhook_stats"} {
 		b.Run(name, func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {

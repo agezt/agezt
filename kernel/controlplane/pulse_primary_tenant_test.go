@@ -3,6 +3,7 @@ package controlplane_test
 
 import (
 	"context"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"strings"
@@ -21,7 +22,7 @@ func TestPulseFourteenPrimaryOperationsSocketTenantDenialHasNoEffects(t *testing
 	})
 	token := mustTenant(t, registry, "acme")
 	client := tenantClient(t, dir, token)
-	for _, cmd := range []string{controlplane.CmdPulseSubscribe, controlplane.CmdPulseStatus, controlplane.CmdPulseAsks, controlplane.CmdPulseAskResolve, controlplane.CmdPulsePause, controlplane.CmdPulseResume, controlplane.CmdPulseBeat, controlplane.CmdPulseCadence, controlplane.CmdPulseDial, controlplane.CmdPulseQuiet, controlplane.CmdPulseFlush, controlplane.CmdPulseWatch, controlplane.CmdPulseProbe, controlplane.CmdPulseUnwatch} {
+	for _, cmd := range []string{opapi.PulseSubscribe, opapi.PulseStatus, opapi.PulseAsks, opapi.PulseAskResolve, opapi.PulsePause, opapi.PulseResume, opapi.PulseBeat, opapi.PulseCadence, opapi.PulseDial, opapi.PulseQuiet, opapi.PulseFlush, opapi.PulseWatch, opapi.PulseProbe, opapi.PulseUnwatch} {
 		if _, err := client.Call(context.Background(), cmd, map[string]any{"tenant": "acme", "issue_key": "owned", "seconds": 30, "path": "owned", "min_pct": 20, "name": "owned", "command": "echo owned", "dial": "quiet", "hours": "22-7"}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
 			t.Fatal(cmd, err)
 		}

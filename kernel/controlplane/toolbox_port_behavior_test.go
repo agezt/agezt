@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"strings"
 	"testing"
 
@@ -48,7 +49,7 @@ func TestToolboxOperationsWithoutAPortSaySoAndJournalNothing(t *testing.T) {
 	k, s, _, _ := pulseAppFixture(t) // a bare server: no toolbox port
 	head, _ := k.Journal().Head()
 
-	for _, cmd := range []string{CmdToolboxDetect, CmdToolboxOutdated} {
+	for _, cmd := range []string{opapi.ToolboxDetect, opapi.ToolboxOutdated} {
 		frames := callAppHost(t, s, Request{ID: "owned", Cmd: cmd, Token: "primary"})
 		last := frames[len(frames)-1]
 		if last.Type != RespError || !strings.Contains(last.Error, toolboxUnavailableMessage) {
@@ -59,7 +60,7 @@ func TestToolboxOperationsWithoutAPortSaySoAndJournalNothing(t *testing.T) {
 		}
 	}
 
-	frames := callAppHost(t, s, Request{ID: "owned", Cmd: CmdToolboxInstall, Token: "primary", Args: map[string]any{"names": []any{"owned-tool"}}})
+	frames := callAppHost(t, s, Request{ID: "owned", Cmd: opapi.ToolboxInstall, Token: "primary", Args: map[string]any{"names": []any{"owned-tool"}}})
 	last := frames[len(frames)-1]
 	if last.Type != RespError || !strings.Contains(last.Error, toolboxUnavailableMessage) {
 		t.Fatalf("EXPECTED:the install refuses too ACTUAL:%+v", last)
@@ -94,7 +95,7 @@ func TestToolboxOperationsReachTheContractPort(t *testing.T) {
 	}
 	_, s, _, _ := pulseAppFixtureWithDeps(t, Deps{Toolbox: host})
 
-	frames := callAppHost(t, s, Request{ID: "owned", Cmd: CmdToolboxDetect, Token: "primary"})
+	frames := callAppHost(t, s, Request{ID: "owned", Cmd: opapi.ToolboxDetect, Token: "primary"})
 	last := frames[len(frames)-1]
 	if last.Type != RespResult || last.Result["os"] != "owned-os" {
 		t.Fatalf("EXPECTED:the host's snapshot ACTUAL:%+v", last)
@@ -107,13 +108,13 @@ func TestToolboxOperationsReachTheContractPort(t *testing.T) {
 		t.Fatalf("EXPECTED:the host's tool row ACTUAL:%+v", row)
 	}
 
-	frames = callAppHost(t, s, Request{ID: "owned", Cmd: CmdToolboxOutdated, Token: "primary"})
+	frames = callAppHost(t, s, Request{ID: "owned", Cmd: opapi.ToolboxOutdated, Token: "primary"})
 	last = frames[len(frames)-1]
 	if last.Type != RespResult || fmt.Sprint(last.Result["count"]) != "1" {
 		t.Fatalf("EXPECTED:the host's outdated set ACTUAL:%+v", last)
 	}
 
-	frames = callAppHost(t, s, Request{ID: "owned", Cmd: CmdToolboxInstall, Token: "primary", Args: map[string]any{"names": []any{"owned-tool"}}})
+	frames = callAppHost(t, s, Request{ID: "owned", Cmd: opapi.ToolboxInstall, Token: "primary", Args: map[string]any{"names": []any{"owned-tool"}}})
 	last = frames[len(frames)-1]
 	if last.Type != RespResult {
 		t.Fatalf("EXPECTED:the install summary ACTUAL:%+v", last)
@@ -145,7 +146,7 @@ func TestToolboxDepsCarryTheContractPort(t *testing.T) {
 	s := NewServerWithDeps(binding.ScopeFromKernel(k, dir), Deps{Toolbox: host})
 	s.token = "primary"
 
-	frames := callAppHost(t, s, Request{ID: "owned", Cmd: CmdToolboxDetect, Token: "primary"})
+	frames := callAppHost(t, s, Request{ID: "owned", Cmd: opapi.ToolboxDetect, Token: "primary"})
 	last := frames[len(frames)-1]
 	if last.Type != RespResult || last.Result["os"] != "owned-deps-os" {
 		t.Fatalf("EXPECTED:the daemon's toolbox port answers ACTUAL:%+v", last)

@@ -12,45 +12,20 @@ import (
 	"time"
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
-	"github.com/agezt/agezt/cmd/agt/keys"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdProvider(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s provider: subcommand required (connect, chatgpt, creds, keys, check, reload)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s provider: subcommand required %s\n", brand.CLI, cliProvider.listNames())
 		return 2
 	}
-	switch args[0] {
-	case "creds":
-		return cmdProviderCreds(args[1:], stdout, stderr)
-	case "keys":
-		return keys.Run(args[1:], stdout, stderr)
-	case "connect":
-		return cmdProviderConnect(args[1:], stdout, stderr)
-	case "chatgpt":
-		return cmdProviderChatGPT(args[1:], stdout, stderr)
-	case "check":
-		return cmdProviderCheck(args[1:], stdout, stderr)
-	case "log":
-		return cmdProviderLog(args[1:], stdout, stderr)
-	case "stats":
-		return cmdProviderStats(args[1:], stdout, stderr)
-	case "rejections":
-		return cmdProviderRejections(args[1:], stdout, stderr)
-	case "reload":
-		return cmdProviderReload(stdout, stderr)
-	case "setup":
-		return cmdProviderSetup(args[1:], stdout, stderr)
-	case "import":
-		return cmdProviderImport(args[1:], stdout, stderr)
-	case "cost":
-		return cmdProviderCost(args[1:], stdout, stderr)
-	default:
-		fmt.Fprintf(stderr, "%s provider: unknown subcommand %q (connect, chatgpt, creds, keys, check, cost, log, reload, setup, import)\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliProvider.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s provider: unknown subcommand %q %s\n", brand.CLI, args[0], cliProvider.listNames())
+	return 2
 }
 func cmdProviderReload(stdout, stderr io.Writer) int {
 	c := dialpkg.New(stderr)
@@ -59,7 +34,7 @@ func cmdProviderReload(stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdProviderReload, nil)
+	res, err := c.Call(ctx, opapi.ProviderReload, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s provider reload: %v\n", brand.CLI, err)
 		return 1
@@ -78,22 +53,40 @@ func cmdProviderReload(stdout, stderr io.Writer) int {
 }
 func cmdProviderCreds(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s provider creds: subcommand required (list, set, rm)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s provider creds: subcommand required %s\n", brand.CLI, cliProviderCreds.listNames())
 		return 2
 	}
+	if sub, ok := cliProviderCreds.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
+	}
+	fmt.Fprintf(stderr, "%s provider creds: unknown subcommand %q %s\n", brand.CLI, args[0], cliProviderCreds.listNames())
+	return 2
+}
+
+// credsList lists the stored credentials. The store is opened here: a table
+// entry cannot carry the resource the dispatcher used to open.
+func credsList(args []string, stdout, stderr io.Writer) int {
 	store, err := openCredsStore(stderr)
 	if err != nil {
 		return 1
 	}
-	switch args[0] {
-	case "list", "ls":
-		return cmdCredsList(store, stdout, stderr)
-	case "set":
-		return cmdCredsSet(store, args[1:], stdout, stderr)
-	case "rm", "remove", "del", "delete", "unset":
-		return cmdCredsRm(store, args[1:], stdout, stderr)
-	default:
-		fmt.Fprintf(stderr, "%s provider creds: unknown subcommand %q (list, set, rm)\n", brand.CLI, args[0])
-		return 2
+	return cmdCredsList(store, stdout, stderr)
+}
+
+// credsSet stores a credential.
+func credsSet(args []string, stdout, stderr io.Writer) int {
+	store, err := openCredsStore(stderr)
+	if err != nil {
+		return 1
 	}
+	return cmdCredsSet(store, args, stdout, stderr)
+}
+
+// credsRm removes a credential.
+func credsRm(args []string, stdout, stderr io.Writer) int {
+	store, err := openCredsStore(stderr)
+	if err != nil {
+		return 1
+	}
+	return cmdCredsRm(store, args, stdout, stderr)
 }

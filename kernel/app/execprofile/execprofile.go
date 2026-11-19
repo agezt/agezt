@@ -142,9 +142,9 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 		output     reflect.Type
 		input      string
 	}{
-		{"execution_profiles", "/api/execution_profiles", reflect.TypeFor[ListOutput](), ""},
-		{"execution_profile_show", "", reflect.TypeFor[ShowOutput](), `{"type":"object","additionalProperties":true,"properties":{"id":{}}}`},
-		{"execution_profile_check", "/api/execution_profile_check", reflect.TypeFor[CheckOutput](), ""},
+		{opapi.ExecutionProfiles, "/api/execution_profiles", reflect.TypeFor[ListOutput](), ""},
+		{opapi.ExecutionProfileShow, "", reflect.TypeFor[ShowOutput](), `{"type":"object","additionalProperties":true,"properties":{"id":{}}}`},
+		{opapi.ExecutionProfileCheck, "/api/execution_profile_check", reflect.TypeFor[CheckOutput](), ""},
 	} {
 		out, err := schema.FromType(op.output, false)
 		if err != nil {

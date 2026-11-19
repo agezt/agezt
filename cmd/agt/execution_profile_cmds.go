@@ -12,7 +12,7 @@ import (
 
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdExecProfileList(args []string, stdout, stderr io.Writer) int {
@@ -41,7 +41,7 @@ func cmdExecProfileList(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	res, ok := callExecProfile(controlplane.CmdExecutionProfiles, tenantArg(tenant), stderr)
+	res, ok := callExecProfile(opapi.ExecutionProfiles, tenantArg(tenant), stderr)
 	if !ok {
 		return 1
 	}
@@ -104,7 +104,7 @@ func cmdExecProfileShow(args []string, stdout, stderr io.Writer) int {
 	}
 	argsMap := tenantArg(tenant)
 	argsMap["id"] = id
-	res, ok := callExecProfile(controlplane.CmdExecutionProfileShow, argsMap, stderr)
+	res, ok := callExecProfile(opapi.ExecutionProfileShow, argsMap, stderr)
 	if !ok {
 		return 1
 	}
@@ -167,7 +167,7 @@ func cmdExecProfileCheck(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	res, ok := callExecProfile(controlplane.CmdExecutionProfileCheck, tenantArg(tenant), stderr)
+	res, ok := callExecProfile(opapi.ExecutionProfileCheck, tenantArg(tenant), stderr)
 	if !ok {
 		return 1
 	}

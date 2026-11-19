@@ -5,6 +5,7 @@ package controlplane_test
 import (
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -50,7 +51,7 @@ func TestScheduleFiringSocketReadsRetainSelectedTenantJournalAndRunJoin(t *testi
 		identity string
 		spent    int
 	}{{owner, nil, "primary-private", 10}, {owner, map[string]any{"tenant": "acme"}, "acme-private", 20}, {client, map[string]any{"tenant": "acme"}, "acme-private", 20}} {
-		result, err := read.client.Call(context.Background(), controlplane.CmdScheduleFires, read.args)
+		result, err := read.client.Call(context.Background(), opapi.ScheduleFires, read.args)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -71,17 +72,17 @@ func TestScheduleFiringSocketReadsRetainSelectedTenantJournalAndRunJoin(t *testi
 		if row["status"] != "completed" || row["answer_preview"] != read.identity || intOf(row["spent_mc"]) != read.spent {
 			t.Fatal(row, read)
 		}
-		result, err = read.client.Call(context.Background(), controlplane.CmdScheduleStats, read.args)
+		result, err = read.client.Call(context.Background(), opapi.ScheduleStats, read.args)
 		if err != nil || intOf(result["total"]) != 1 || intOf(result["completed"]) != 1 || intOf(result["spent_microcents"]) != read.spent || intOf(result["schedules"]) != 1 {
 			t.Fatal(result, err, read)
 		}
 	}
-	for _, cmd := range []string{controlplane.CmdScheduleFires, controlplane.CmdScheduleStats} {
+	for _, cmd := range []string{opapi.ScheduleFires, opapi.ScheduleStats} {
 		if _, err := client.Call(context.Background(), cmd, map[string]any{"tenant": "other"}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
 			t.Fatal(cmd, err)
 		}
 	}
-	if _, err := client.Call(context.Background(), controlplane.CmdScheduleList, map[string]any{"tenant": "acme"}); err == nil {
+	if _, err := client.Call(context.Background(), opapi.ScheduleList, map[string]any{"tenant": "acme"}); err == nil {
 		t.Fatal("operator schedule list admitted tenant token")
 	}
 }

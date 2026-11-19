@@ -12,7 +12,7 @@ func TestAgentRepairStatusNativeTypedRegistry(t *testing.T) {
 	found := 0
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()
-		if spec.Name != CmdAgentRepairStatus {
+		if spec.Name != opapi.AgentRepairStatus {
 			continue
 		}
 		found++
@@ -20,7 +20,7 @@ func TestAgentRepairStatusNativeTypedRegistry(t *testing.T) {
 			t.Fatalf("agent_repair_status metadata=%+v", spec)
 		}
 	}
-	wire, exists := commandRegistry[CmdAgentRepairStatus]
+	wire, exists := commandRegistry[opapi.AgentRepairStatus]
 	if found != 1 || !exists || !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 		t.Fatalf("agent_repair_status native wire found=%d metadata=%+v", found, wire)
 	}

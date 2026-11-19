@@ -22,7 +22,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/platform/rollbackstore"
 )
 
@@ -93,7 +93,7 @@ func applyRollbackCheckpoint(cp rollbackCheckpoint, reason string, stderr io.Wri
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), rollbackDefaultApplyTimeout)
 		defer cancel()
-		return c.Call(ctx, controlplane.CmdSkillRestore, map[string]any{
+		return c.Call(ctx, opapi.SkillRestore, map[string]any{
 			"id": cp.SubjectID, "status": cp.BeforeStatus, "reason": reason,
 		})
 	case rollbackCheckpointKindFlow:
@@ -106,7 +106,7 @@ func applyRollbackCheckpoint(cp rollbackCheckpoint, reason string, stderr io.Wri
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), rollbackDefaultApplyTimeout)
 		defer cancel()
-		return c.Call(ctx, controlplane.CmdWorkflowRestore, map[string]any{
+		return c.Call(ctx, opapi.WorkflowRestore, map[string]any{
 			"workflow": cp.Before, "reason": reason,
 		})
 	case rollbackCheckpointKindFile:
@@ -135,7 +135,7 @@ func applyRollbackCheckpoint(cp rollbackCheckpoint, reason string, stderr io.Wri
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), rollbackDefaultApplyTimeout)
 		defer cancel()
-		return c.Call(ctx, controlplane.CmdConfigSet, map[string]any{"name": env, "value": value})
+		return c.Call(ctx, opapi.ConfigSet, map[string]any{"name": env, "value": value})
 	default:
 		return nil, fmt.Errorf("checkpoint kind %q is not supported yet", cp.Kind)
 	}

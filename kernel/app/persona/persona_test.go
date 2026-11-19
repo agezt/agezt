@@ -195,10 +195,10 @@ func TestOperations(t *testing.T) {
 		input, output      reflect.Type
 		prop               string
 	}{
-		{"persona_get", "GET", "/api/persona", true, reflect.TypeFor[GetRequest](), reflect.TypeFor[GetOutput](), ""},
-		{"persona_set", "POST", "/api/persona/set", false, reflect.TypeFor[SetRequest](), reflect.TypeFor[SetOutput](), "system"},
-		{"prompts_get", "GET", "/api/prompts", true, reflect.TypeFor[PromptsRequest](), reflect.TypeFor[PromptsOutput](), ""},
-		{"prompts_set", "POST", "/api/prompts/set", false, reflect.TypeFor[PromptsSetRequest](), reflect.TypeFor[PromptsSetOutput](), "prompts"},
+		{opapi.PersonaGet, "GET", "/api/persona", true, reflect.TypeFor[GetRequest](), reflect.TypeFor[GetOutput](), ""},
+		{opapi.PersonaSet, "POST", "/api/persona/set", false, reflect.TypeFor[SetRequest](), reflect.TypeFor[SetOutput](), "system"},
+		{opapi.PromptsGet, "GET", "/api/prompts", true, reflect.TypeFor[PromptsRequest](), reflect.TypeFor[PromptsOutput](), ""},
+		{opapi.PromptsSet, "POST", "/api/prompts/set", false, reflect.TypeFor[PromptsSetRequest](), reflect.TypeFor[PromptsSetOutput](), "prompts"},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)

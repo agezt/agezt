@@ -14,7 +14,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdApprovalsLog implements `agt approvals log [N] [--denied] [--since <dur>]
@@ -85,7 +85,7 @@ func cmdApprovalsLog(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdApprovalsLog, withTenant(tenant, callArgs))
+	res, err := c.Call(ctx, opapi.ApprovalsLog, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s approvals log: %v\n", brand.CLI, err)
 		return 1
@@ -179,7 +179,7 @@ func cmdApprovalsStats(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdApprovalsStats, withTenant(tenant, callArgs))
+	res, err := c.Call(ctx, opapi.ApprovalsStats, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s approvals stats: %v\n", brand.CLI, err)
 		return 1

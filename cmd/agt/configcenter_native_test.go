@@ -15,6 +15,7 @@ import (
 	"time"
 
 	appcenter "github.com/agezt/agezt/kernel/app/configcenter"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/platform/schema"
@@ -85,7 +86,7 @@ func centerCLIEndpoint(t *testing.T, command string, value any, failure string) 
 				}
 				requests <- req
 				reply := controlplane.Response{ID: req.ID, Type: controlplane.RespResult, Result: result}
-				if req.Cmd != controlplane.CmdStatus && req.Cmd != command {
+				if req.Cmd != opapi.Status && req.Cmd != command {
 					t.Errorf("unexpected native operation: %s want %s", req.Cmd, command)
 				}
 				if req.Cmd == command && failure != "" {
@@ -108,7 +109,7 @@ func centerCLIInvoke(args []string) (code int, out, stderr string, panicValue an
 }
 func centerCLIAssertWire(t *testing.T, requests <-chan controlplane.Request, command string, want map[string]any) {
 	t.Helper()
-	for _, expected := range []string{controlplane.CmdStatus, command} {
+	for _, expected := range []string{opapi.Status, command} {
 		select {
 		case req := <-requests:
 			if req.Cmd != expected || req.Token != "owned-token" {
@@ -139,11 +140,11 @@ func TestCmdConfigCenterNativeSecondsAuditFieldsAndFilterFlags(t *testing.T) {
 		wire     map[string]any
 		contains []string
 	}{
-		{"get-seconds", []string{"get", "owned"}, controlplane.CmdConfigCenterGet, appcenter.GetOutput{Entry: entry}, map[string]any{"key": "owned"}, []string{time.Unix(seconds, 0).Format(time.RFC3339)}},
-		{"access-seconds", []string{"access-log"}, controlplane.CmdConfigCenterAccessLog, access, nil, []string{time.Unix(seconds, 0).Format("06-01-02 15:04:05"), "owned-agent"}},
-		{"audit-schema", []string{"audit"}, controlplane.CmdConfigCenterAudit, audit, nil, []string{time.Unix(seconds, 0).Format("06-01-02 15:04:05"), "owned-agent", "decision=denied", "policy=deny", "reason=owned reason"}},
-		{"access-filter-flags", []string{"access-log", "--key", " raw ", "--agent", " Agent ", "--since", "-1h", "--json"}, controlplane.CmdConfigCenterAccessLog, access, map[string]any{"key": " raw ", "agent_id": " Agent ", "since": "-1h"}, []string{`"logs"`}},
-		{"audit-since", []string{"audit", "--since", "1h", "--json"}, controlplane.CmdConfigCenterAudit, audit, map[string]any{"since": "1h"}, []string{`"entries"`}},
+		{"get-seconds", []string{"get", "owned"}, opapi.ConfigCenterGet, appcenter.GetOutput{Entry: entry}, map[string]any{"key": "owned"}, []string{time.Unix(seconds, 0).Format(time.RFC3339)}},
+		{"access-seconds", []string{"access-log"}, opapi.ConfigCenterAccessLog, access, nil, []string{time.Unix(seconds, 0).Format("06-01-02 15:04:05"), "owned-agent"}},
+		{"audit-schema", []string{"audit"}, opapi.ConfigCenterAudit, audit, nil, []string{time.Unix(seconds, 0).Format("06-01-02 15:04:05"), "owned-agent", "decision=denied", "policy=deny", "reason=owned reason"}},
+		{"access-filter-flags", []string{"access-log", "--key", " raw ", "--agent", " Agent ", "--since", "-1h", "--json"}, opapi.ConfigCenterAccessLog, access, map[string]any{"key": " raw ", "agent_id": " Agent ", "since": "-1h"}, []string{`"logs"`}},
+		{"audit-since", []string{"audit", "--since", "1h", "--json"}, opapi.ConfigCenterAudit, audit, map[string]any{"since": "1h"}, []string{`"entries"`}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			requests := centerCLIEndpoint(t, tc.command, tc.value, "")
@@ -190,31 +191,31 @@ func TestCmdConfigCenterNativeWireRenderingEmptyAndErrorBranches(t *testing.T) {
 		contains []string
 		failure  string
 	}{
-		{"set-default", []string{"set", " raw key ", " raw value "}, controlplane.CmdConfigCenterSet, appcenter.SetOutput{Entry: public}, map[string]any{"key": " raw key ", "value": " raw value ", "rating": "internal"}, 0, []string{"rating: public"}, ""},
-		{"set-flags", []string{"set", "owned", "value", "--rating", "PUBLIC", "--description", " raw ", "--allow-agents", "First,Second", "--deny-agents", "Denied"}, controlplane.CmdConfigCenterSet, appcenter.SetOutput{Entry: public}, map[string]any{"key": "owned", "value": "value", "rating": "public", "description": " raw ", "allowed_agents": []any{"First", "Second"}, "excluded_agents": []any{"Denied"}}, 0, []string{"description:  raw description ", "allow agents: First, Second", "deny agents: Denied"}, ""},
-		{"set-secret", []string{"set", "owned", secret, "--rating", "secret"}, controlplane.CmdConfigCenterSet, appcenter.SetOutput{Entry: masked}, map[string]any{"key": "owned", "value": secret, "rating": "secret"}, 0, []string{creds.MaskValue(secret)}, ""},
-		{"get-secret", []string{"get", "owned"}, controlplane.CmdConfigCenterGet, appcenter.GetOutput{Entry: masked}, map[string]any{"key": "owned"}, 0, []string{creds.MaskValue(secret), "rating:  secret"}, ""},
-		{"list-text", []string{"list"}, controlplane.CmdConfigCenterList, list, nil, 0, []string{"4 entries", "public-a", "public-b", "********"}, ""},
-		{"list-json", []string{"list", "--rating", "secret", "--json"}, controlplane.CmdConfigCenterList, list, map[string]any{"rating": "secret"}, 0, []string{`"masked": true`}, ""},
-		{"list-positional", []string{"list", "public", "--json"}, controlplane.CmdConfigCenterList, appcenter.ListOutput{Entries: []appcenter.EntryRow{}}, map[string]any{"rating": "public"}, 0, []string{`"entries": []`}, ""},
-		{"list-empty", []string{"list"}, controlplane.CmdConfigCenterList, appcenter.ListOutput{Entries: []appcenter.EntryRow{}}, nil, 0, []string{"0 entries"}, ""},
-		{"delete", []string{"delete", " raw "}, controlplane.CmdConfigCenterDelete, appcenter.DeleteOutput{Deleted: true}, map[string]any{"key": " raw "}, 0, []string{" raw  deleted"}, ""},
-		{"delete-false", []string{"delete", "owned"}, controlplane.CmdConfigCenterDelete, appcenter.DeleteOutput{}, map[string]any{"key": "owned"}, 0, []string{"owned not found"}, ""},
-		{"rating-read", []string{"rating", "owned"}, controlplane.CmdConfigCenterGet, appcenter.GetOutput{Entry: public}, map[string]any{"key": "owned"}, 0, []string{"owned: public"}, ""},
-		{"rating-set", []string{"rating", "owned", "--rating", "secret"}, controlplane.CmdConfigCenterSetRating, appcenter.SetRatingOutput{Override: true}, map[string]any{"key": "owned", "rating": "secret"}, 0, []string{"rating set to secret", "manual override"}, ""},
-		{"rating-positional", []string{"rating", "owned", "public"}, controlplane.CmdConfigCenterSetRating, appcenter.SetRatingOutput{}, map[string]any{"key": "owned", "rating": "public"}, 0, []string{"rating set to public"}, ""},
-		{"access-empty", []string{"access-log"}, controlplane.CmdConfigCenterAccessLog, appcenter.AccessLogOutput{Logs: []appcenter.AccessLogRow{}}, nil, 0, []string{"No access logs found"}, ""},
-		{"audit-empty", []string{"audit"}, controlplane.CmdConfigCenterAudit, appcenter.AuditOutput{Entries: []appcenter.AuditRow{}}, nil, 0, []string{"No audit entries found"}, ""},
-		{"health", []string{"health"}, controlplane.CmdConfigCenterHealth, appcenter.HealthOutput{Status: "healthy", Checks: map[string]string{"store": "ok", "config_center": "ok"}, Stats: &stats}, nil, 0, []string{"Status: healthy", "store: ok", "total_entries: 0"}, ""},
-		{"health-unavailable", []string{"health", "ignored"}, controlplane.CmdConfigCenterHealth, appcenter.HealthOutput{Status: "unavailable", Checks: map[string]string{"config_center": "not configured"}}, nil, 0, []string{"Status: unavailable", "not configured"}, ""},
-		{"set-error", []string{"set", "owned", "value"}, controlplane.CmdConfigCenterSet, nil, map[string]any{"key": "owned", "value": "value", "rating": "internal"}, 1, []string{"owned failure"}, "owned failure"},
-		{"get-error", []string{"get", "owned"}, controlplane.CmdConfigCenterGet, nil, map[string]any{"key": "owned"}, 1, []string{"owned failure"}, "owned failure"},
-		{"list-error", []string{"list"}, controlplane.CmdConfigCenterList, nil, nil, 1, []string{"owned failure"}, "owned failure"},
-		{"delete-error", []string{"delete", "owned"}, controlplane.CmdConfigCenterDelete, nil, map[string]any{"key": "owned"}, 1, []string{"owned failure"}, "owned failure"},
-		{"rating-error", []string{"rating", "owned", "public"}, controlplane.CmdConfigCenterSetRating, nil, map[string]any{"key": "owned", "rating": "public"}, 1, []string{"owned failure"}, "owned failure"},
-		{"access-error", []string{"access-log"}, controlplane.CmdConfigCenterAccessLog, nil, nil, 1, []string{"owned failure"}, "owned failure"},
-		{"audit-error", []string{"audit"}, controlplane.CmdConfigCenterAudit, nil, nil, 1, []string{"owned failure"}, "owned failure"},
-		{"health-error", []string{"health"}, controlplane.CmdConfigCenterHealth, nil, nil, 1, []string{"owned failure"}, "owned failure"},
+		{"set-default", []string{"set", " raw key ", " raw value "}, opapi.ConfigCenterSet, appcenter.SetOutput{Entry: public}, map[string]any{"key": " raw key ", "value": " raw value ", "rating": "internal"}, 0, []string{"rating: public"}, ""},
+		{"set-flags", []string{"set", "owned", "value", "--rating", "PUBLIC", "--description", " raw ", "--allow-agents", "First,Second", "--deny-agents", "Denied"}, opapi.ConfigCenterSet, appcenter.SetOutput{Entry: public}, map[string]any{"key": "owned", "value": "value", "rating": "public", "description": " raw ", "allowed_agents": []any{"First", "Second"}, "excluded_agents": []any{"Denied"}}, 0, []string{"description:  raw description ", "allow agents: First, Second", "deny agents: Denied"}, ""},
+		{"set-secret", []string{"set", "owned", secret, "--rating", "secret"}, opapi.ConfigCenterSet, appcenter.SetOutput{Entry: masked}, map[string]any{"key": "owned", "value": secret, "rating": "secret"}, 0, []string{creds.MaskValue(secret)}, ""},
+		{"get-secret", []string{"get", "owned"}, opapi.ConfigCenterGet, appcenter.GetOutput{Entry: masked}, map[string]any{"key": "owned"}, 0, []string{creds.MaskValue(secret), "rating:  secret"}, ""},
+		{"list-text", []string{"list"}, opapi.ConfigCenterList, list, nil, 0, []string{"4 entries", "public-a", "public-b", "********"}, ""},
+		{"list-json", []string{"list", "--rating", "secret", "--json"}, opapi.ConfigCenterList, list, map[string]any{"rating": "secret"}, 0, []string{`"masked": true`}, ""},
+		{"list-positional", []string{"list", "public", "--json"}, opapi.ConfigCenterList, appcenter.ListOutput{Entries: []appcenter.EntryRow{}}, map[string]any{"rating": "public"}, 0, []string{`"entries": []`}, ""},
+		{"list-empty", []string{"list"}, opapi.ConfigCenterList, appcenter.ListOutput{Entries: []appcenter.EntryRow{}}, nil, 0, []string{"0 entries"}, ""},
+		{"delete", []string{"delete", " raw "}, opapi.ConfigCenterDelete, appcenter.DeleteOutput{Deleted: true}, map[string]any{"key": " raw "}, 0, []string{" raw  deleted"}, ""},
+		{"delete-false", []string{"delete", "owned"}, opapi.ConfigCenterDelete, appcenter.DeleteOutput{}, map[string]any{"key": "owned"}, 0, []string{"owned not found"}, ""},
+		{"rating-read", []string{"rating", "owned"}, opapi.ConfigCenterGet, appcenter.GetOutput{Entry: public}, map[string]any{"key": "owned"}, 0, []string{"owned: public"}, ""},
+		{"rating-set", []string{"rating", "owned", "--rating", "secret"}, opapi.ConfigCenterSetRating, appcenter.SetRatingOutput{Override: true}, map[string]any{"key": "owned", "rating": "secret"}, 0, []string{"rating set to secret", "manual override"}, ""},
+		{"rating-positional", []string{"rating", "owned", "public"}, opapi.ConfigCenterSetRating, appcenter.SetRatingOutput{}, map[string]any{"key": "owned", "rating": "public"}, 0, []string{"rating set to public"}, ""},
+		{"access-empty", []string{"access-log"}, opapi.ConfigCenterAccessLog, appcenter.AccessLogOutput{Logs: []appcenter.AccessLogRow{}}, nil, 0, []string{"No access logs found"}, ""},
+		{"audit-empty", []string{"audit"}, opapi.ConfigCenterAudit, appcenter.AuditOutput{Entries: []appcenter.AuditRow{}}, nil, 0, []string{"No audit entries found"}, ""},
+		{"health", []string{"health"}, opapi.ConfigCenterHealth, appcenter.HealthOutput{Status: "healthy", Checks: map[string]string{"store": "ok", "config_center": "ok"}, Stats: &stats}, nil, 0, []string{"Status: healthy", "store: ok", "total_entries: 0"}, ""},
+		{"health-unavailable", []string{"health", "ignored"}, opapi.ConfigCenterHealth, appcenter.HealthOutput{Status: "unavailable", Checks: map[string]string{"config_center": "not configured"}}, nil, 0, []string{"Status: unavailable", "not configured"}, ""},
+		{"set-error", []string{"set", "owned", "value"}, opapi.ConfigCenterSet, nil, map[string]any{"key": "owned", "value": "value", "rating": "internal"}, 1, []string{"owned failure"}, "owned failure"},
+		{"get-error", []string{"get", "owned"}, opapi.ConfigCenterGet, nil, map[string]any{"key": "owned"}, 1, []string{"owned failure"}, "owned failure"},
+		{"list-error", []string{"list"}, opapi.ConfigCenterList, nil, nil, 1, []string{"owned failure"}, "owned failure"},
+		{"delete-error", []string{"delete", "owned"}, opapi.ConfigCenterDelete, nil, map[string]any{"key": "owned"}, 1, []string{"owned failure"}, "owned failure"},
+		{"rating-error", []string{"rating", "owned", "public"}, opapi.ConfigCenterSetRating, nil, map[string]any{"key": "owned", "rating": "public"}, 1, []string{"owned failure"}, "owned failure"},
+		{"access-error", []string{"access-log"}, opapi.ConfigCenterAccessLog, nil, nil, 1, []string{"owned failure"}, "owned failure"},
+		{"audit-error", []string{"audit"}, opapi.ConfigCenterAudit, nil, nil, 1, []string{"owned failure"}, "owned failure"},
+		{"health-error", []string{"health"}, opapi.ConfigCenterHealth, nil, nil, 1, []string{"owned failure"}, "owned failure"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			requests := centerCLIEndpoint(t, tc.command, tc.value, tc.failure)

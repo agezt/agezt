@@ -3,7 +3,7 @@ package controlplane_test
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"strings"
 	"testing"
@@ -17,7 +17,7 @@ func TestSettingsWritesNativeTenantDenialPreservesJournalAndStores(t *testing.T)
 	for _, tc := range []struct {
 		command string
 		args    map[string]any
-	}{{controlplane.CmdConfigSet, map[string]any{"name": "AGEZT_MODEL", "value": "owned"}}, {controlplane.CmdConfigSchemaRegister, map[string]any{"section": map[string]any{"id": "owned", "name": "Owned", "fields": []any{map[string]any{"env": "AGEZT_W45B_DENIED", "type": "text"}}}}}, {controlplane.CmdConfigSchemaUnregister, map[string]any{"id": "owned", "force": true}}} {
+	}{{opapi.ConfigSet, map[string]any{"name": "AGEZT_MODEL", "value": "owned"}}, {opapi.ConfigSchemaRegister, map[string]any{"section": map[string]any{"id": "owned", "name": "Owned", "fields": []any{map[string]any{"env": "AGEZT_W45B_DENIED", "type": "text"}}}}}, {opapi.ConfigSchemaUnregister, map[string]any{"id": "owned", "force": true}}} {
 		if _, err := client.Call(context.Background(), tc.command, tc.args); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
 			t.Fatal(tc.command, err)
 		}

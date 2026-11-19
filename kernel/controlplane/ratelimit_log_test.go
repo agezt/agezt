@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -33,7 +33,7 @@ func rateLimitedGovernor(t *testing.T, perMin int) *governor.Governor {
 	if err != nil {
 		t.Fatalf("governor.New: %v", err)
 	}
-	// The daemon has no default run model, so a bare CmdRun carries an empty model
+	// The daemon has no default run model, so a bare opapi.Run carries an empty model
 	// and would be refused with ErrNoModelConfigured before the rate limiter ever
 	// runs. Give the governor a default fallback chain (the production way to
 	// resolve a model) so the throttling path is exercised.
@@ -48,10 +48,10 @@ func TestRateLimitLogAndStats(t *testing.T) {
 
 	// First run admitted; subsequent runs in the same minute get throttled.
 	for i := 0; i < 3; i++ {
-		_, _ = c.Stream(context.Background(), controlplane.CmdRun, map[string]any{"intent": "x"}, nil)
+		_, _ = c.Stream(context.Background(), opapi.Run, map[string]any{"intent": "x"}, nil)
 	}
 
-	stats, err := c.Call(context.Background(), controlplane.CmdRateLimitStats, nil)
+	stats, err := c.Call(context.Background(), opapi.RateLimitStats, nil)
 	if err != nil {
 		t.Fatalf("ratelimit stats: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestRateLimitLogAndStats(t *testing.T) {
 		t.Errorf("limit_per_min = %v, want 1", stats["limit_per_min"])
 	}
 
-	logRes, err := c.Call(context.Background(), controlplane.CmdRateLimitLog, nil)
+	logRes, err := c.Call(context.Background(), opapi.RateLimitLog, nil)
 	if err != nil {
 		t.Fatalf("ratelimit log: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestRateLimitLogAndStats(t *testing.T) {
 
 func TestRateLimitStats_Empty(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	stats, err := c.Call(context.Background(), controlplane.CmdRateLimitStats, nil)
+	stats, err := c.Call(context.Background(), opapi.RateLimitStats, nil)
 	if err != nil {
 		t.Fatalf("stats: %v", err)
 	}

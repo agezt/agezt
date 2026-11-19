@@ -28,7 +28,7 @@ func TestAgentResolveNativeTypedRegistry(t *testing.T) {
 	found := 0
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()
-		if spec.Name != CmdAgentResolve {
+		if spec.Name != opapi.AgentResolve {
 			continue
 		}
 		found++
@@ -36,7 +36,7 @@ func TestAgentResolveNativeTypedRegistry(t *testing.T) {
 			t.Fatalf("agent_resolve metadata=%+v", spec)
 		}
 	}
-	wire, exists := commandRegistry[CmdAgentResolve]
+	wire, exists := commandRegistry[opapi.AgentResolve]
 	if found != 1 || !exists || !wire.AppOwned || wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 		t.Fatalf("agent_resolve native wire found=%d metadata=%+v", found, wire)
 	}
@@ -73,7 +73,7 @@ func resolveCall(t *testing.T, s *Server, args map[string]any) string {
 	a.SetDeadline(time.Now().Add(3 * time.Second))
 	done := make(chan struct{})
 	go func() { defer close(done); s.handleConn(context.Background(), b) }()
-	raw, _ := json.Marshal(Request{ID: "resolve", Cmd: CmdAgentResolve, Token: "primary", Args: args})
+	raw, _ := json.Marshal(Request{ID: "resolve", Cmd: opapi.AgentResolve, Token: "primary", Args: args})
 	if _, err := a.Write(append(raw, 10)); err != nil {
 		t.Fatal(err)
 	}

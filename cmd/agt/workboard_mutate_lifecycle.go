@@ -11,7 +11,7 @@ import (
 
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdWorkboardClaim(args []string, stdout, stderr io.Writer) int {
@@ -19,7 +19,7 @@ func cmdWorkboardClaim(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return 2
 	}
-	res, code := callWorkboard(controlplane.CmdWorkboardClaim, map[string]any{"id": id, "agent": agent, "run_id": runID}, stderr)
+	res, code := callWorkboard(opapi.WorkboardClaim, map[string]any{"id": id, "agent": agent, "run_id": runID}, stderr)
 	return renderWorkboardMutation(res, code, asJSON, stdout)
 }
 func cmdWorkboardHeartbeat(args []string, stdout, stderr io.Writer) int {
@@ -27,7 +27,7 @@ func cmdWorkboardHeartbeat(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return 2
 	}
-	res, code := callWorkboard(controlplane.CmdWorkboardHeartbeat, map[string]any{"id": id, "agent": agent, "run_id": runID}, stderr)
+	res, code := callWorkboard(opapi.WorkboardHeartbeat, map[string]any{"id": id, "agent": agent, "run_id": runID}, stderr)
 	return renderWorkboardMutation(res, code, asJSON, stdout)
 }
 func cmdWorkboardComment(args []string, stdout, stderr io.Writer) int {
@@ -40,7 +40,7 @@ func cmdWorkboardComment(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s workboard comment: --body required\n", brand.CLI)
 		return 2
 	}
-	res, code := callWorkboard(controlplane.CmdWorkboardComment, callArgs, stderr)
+	res, code := callWorkboard(opapi.WorkboardComment, callArgs, stderr)
 	return renderWorkboardMutation(res, code, asJSON, stdout)
 }
 func cmdWorkboardBlock(args []string, stdout, stderr io.Writer) int {
@@ -53,7 +53,7 @@ func cmdWorkboardBlock(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s workboard block: --reason required\n", brand.CLI)
 		return 2
 	}
-	res, code := callWorkboard(controlplane.CmdWorkboardBlock, callArgs, stderr)
+	res, code := callWorkboard(opapi.WorkboardBlock, callArgs, stderr)
 	return renderWorkboardMutation(res, code, asJSON, stdout)
 }
 func cmdWorkboardFail(args []string, stdout, stderr io.Writer) int {
@@ -66,7 +66,7 @@ func cmdWorkboardFail(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s workboard fail: --reason required\n", brand.CLI)
 		return 2
 	}
-	res, code := callWorkboard(controlplane.CmdWorkboardFail, callArgs, stderr)
+	res, code := callWorkboard(opapi.WorkboardFail, callArgs, stderr)
 	if code != 0 {
 		return code
 	}

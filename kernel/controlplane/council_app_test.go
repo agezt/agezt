@@ -5,6 +5,7 @@ package controlplane
 import (
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
@@ -35,7 +36,7 @@ func TestCouncilMembershipBindsTheKernel(t *testing.T) {
 		raw, _ := json.Marshal(resp.Result)
 		return string(raw)
 	}
-	if got := call(CmdCouncilSet, map[string]any{"members": []any{map[string]any{"seat": "Chair", "model": "known"}, map[string]any{"model": "zz"}}}); got != `{"applied":"live","member_count":2,"saved":true,"unknown_models":["zz"]}` {
+	if got := call(opapi.CouncilSet, map[string]any{"members": []any{map[string]any{"seat": "Chair", "model": "known"}, map[string]any{"model": "zz"}}}); got != `{"applied":"live","member_count":2,"saved":true,"unknown_models":["zz"]}` {
 		t.Fatal(got)
 	}
 	members := k.CouncilDefaultMembers()
@@ -49,13 +50,13 @@ func TestCouncilMembershipBindsTheKernel(t *testing.T) {
 	if got, _ := store.Get("AGEZT_COUNCIL_MEMBERS"); got != "zz,known" {
 		t.Fatal("persisted in seat order under the server directory", got)
 	}
-	if got := call(CmdCouncilMembers, nil); got != `{"count":2,"members":[{"model":"zz","seat":"Elder 1"},{"model":"known","seat":"Chair"}]}` {
+	if got := call(opapi.CouncilMembers, nil); got != `{"count":2,"members":[{"model":"zz","seat":"Elder 1"},{"model":"known","seat":"Chair"}]}` {
 		t.Fatal(got)
 	}
-	if got := call(CmdConductorRoles, nil); got != `{"auto_filled":true,"available_models":["zz","known"],"thinker":"zz","verifier":"zz","worker":"known"}` {
+	if got := call(opapi.ConductorRoles, nil); got != `{"auto_filled":true,"available_models":["zz","known"],"thinker":"zz","verifier":"zz","worker":"known"}` {
 		t.Fatal("conductor roles follow the primary kernel's panel", got)
 	}
-	for cmd, read := range map[string]bool{CmdCouncilMembers: true, CmdCouncilSet: false, CmdConductorRoles: true} {
+	for cmd, read := range map[string]bool{opapi.CouncilMembers: true, opapi.CouncilSet: false, opapi.ConductorRoles: true} {
 		if wire, exists := commandRegistry[cmd]; !exists || !wire.AppOwned || wire.ReadOnly != read || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 			t.Fatalf("%s native wire %+v", cmd, wire)
 		}

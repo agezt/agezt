@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"os"
 	"path/filepath"
 	"strings"
@@ -351,7 +352,7 @@ func startPairWithConfigAndDeps(t *testing.T, cfg runtime.Config, deps func(dir 
 
 func TestVersion(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New())
-	res, err := c.Call(context.Background(), controlplane.CmdVersion, nil)
+	res, err := c.Call(context.Background(), opapi.Version, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -384,7 +385,7 @@ func TestRun_StreamsEventsAndResult(t *testing.T) {
 
 	var events atomic.Int64
 	var lastKind event.Kind
-	res, err := c.Stream(context.Background(), controlplane.CmdRun,
+	res, err := c.Stream(context.Background(), opapi.Run,
 		map[string]any{"intent": "say hi"},
 		func(e *event.Event) {
 			events.Add(1)
@@ -411,7 +412,7 @@ func TestRun_ResultCarriesUsage(t *testing.T) {
 	prov := mock.New(mock.FinalText("done"))
 	_, _, c, _ := startPair(t, prov)
 
-	res, err := c.Stream(context.Background(), controlplane.CmdRun,
+	res, err := c.Stream(context.Background(), opapi.Run,
 		map[string]any{"intent": "do the thing"}, nil)
 	if err != nil {
 		t.Fatalf("Stream: %v", err)
@@ -437,7 +438,7 @@ func TestRun_ModelOverride(t *testing.T) {
 	}
 	_, _, c, _ := startPair(t, prov)
 
-	if _, err := c.Stream(context.Background(), controlplane.CmdRun,
+	if _, err := c.Stream(context.Background(), opapi.Run,
 		map[string]any{"intent": "hi", "model": "custom-model-xyz"}, nil); err != nil {
 		t.Fatalf("Stream: %v", err)
 	}
@@ -460,7 +461,7 @@ func TestRun_SystemOverride(t *testing.T) {
 	_, _, c, _ := startPair(t, prov)
 
 	const sys = "You are a terse pirate."
-	if _, err := c.Stream(context.Background(), controlplane.CmdRun,
+	if _, err := c.Stream(context.Background(), opapi.Run,
 		map[string]any{"intent": "hello", "system": sys}, nil); err != nil {
 		t.Fatalf("Stream: %v", err)
 	}
@@ -477,7 +478,7 @@ func TestRun_WithToolCalls(t *testing.T) {
 	_, _, c, _ := startPair(t, prov)
 
 	var kinds []event.Kind
-	res, err := c.Stream(context.Background(), controlplane.CmdRun,
+	res, err := c.Stream(context.Background(), opapi.Run,
 		map[string]any{"intent": "echo via control plane"},
 		func(e *event.Event) {
 			kinds = append(kinds, e.Kind)
@@ -505,14 +506,14 @@ func TestRun_WithToolCalls(t *testing.T) {
 
 func TestHaltViaControlPlane(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("done")))
-	_, err := c.Call(context.Background(), controlplane.CmdHalt, nil)
+	_, err := c.Call(context.Background(), opapi.Halt, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !k.LifecycleService().IsHalted() {
 		t.Error("kernel should be halted")
 	}
-	_, err = c.Call(context.Background(), controlplane.CmdResume, nil)
+	_, err = c.Call(context.Background(), opapi.Resume, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -522,7 +523,7 @@ func TestHaltViaControlPlane(t *testing.T) {
 }
 
 // cpBlockingProvider blocks Complete until ctx is cancelled — used to keep
-// a run in-flight while a CmdCancelRun targets it.
+// a run in-flight while a opapi.CancelRun targets it.
 type cpBlockingProvider struct{}
 
 func (cpBlockingProvider) Name() string { return "cp-blocking" }
@@ -531,7 +532,7 @@ func (cpBlockingProvider) Complete(ctx context.Context, _ llm.CompletionRequest)
 	return nil, ctx.Err()
 }
 
-// TestCancelRunViaControlPlane — a targeted CmdCancelRun cancels one
+// TestCancelRunViaControlPlane — a targeted opapi.CancelRun cancels one
 // in-flight run (captured by correlation from its own event stream) and
 // leaves the kernel un-halted (M32).
 func TestCancelRunViaControlPlane(t *testing.T) {
@@ -540,7 +541,7 @@ func TestCancelRunViaControlPlane(t *testing.T) {
 	corrCh := make(chan string, 1)
 	streamDone := make(chan error, 1)
 	go func() {
-		_, err := c.Stream(context.Background(), controlplane.CmdRun,
+		_, err := c.Stream(context.Background(), opapi.Run,
 			map[string]any{"intent": "hang"},
 			func(e *event.Event) {
 				if e.Kind == event.KindTaskReceived {
@@ -560,7 +561,7 @@ func TestCancelRunViaControlPlane(t *testing.T) {
 		t.Fatal("never observed task.received for the in-flight run")
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdCancelRun,
+	res, err := c.Call(context.Background(), opapi.CancelRun,
 		map[string]any{"correlation": corr})
 	if err != nil {
 		t.Fatalf("CmdCancelRun: %v", err)
@@ -585,7 +586,7 @@ func TestCancelRunViaControlPlane(t *testing.T) {
 func TestCancelRun_UnknownAndMissingArg(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdCancelRun,
+	res, err := c.Call(context.Background(), opapi.CancelRun,
 		map[string]any{"correlation": "run-nope"})
 	if err != nil {
 		t.Fatalf("unknown correlation should not error: %v", err)
@@ -594,7 +595,7 @@ func TestCancelRun_UnknownAndMissingArg(t *testing.T) {
 		t.Error("cancelled=true for an unknown correlation")
 	}
 
-	if _, err := c.Call(context.Background(), controlplane.CmdCancelRun, nil); err == nil {
+	if _, err := c.Call(context.Background(), opapi.CancelRun, nil); err == nil {
 		t.Error("missing correlation arg should be a request error")
 	}
 }
@@ -632,7 +633,7 @@ func startDisconnectRun(t *testing.T, c *controlplane.Client) (corr string, drop
 	corrCh := make(chan string, 1)
 	done := make(chan struct{})
 	go func() {
-		_ = c.StreamUntilCancel(ctx, controlplane.CmdRun,
+		_ = c.StreamUntilCancel(ctx, opapi.Run,
 			map[string]any{"intent": "hang"},
 			func(e *event.Event) {
 				if e.Kind == event.KindTaskReceived {
@@ -698,7 +699,7 @@ func TestWhy(t *testing.T) {
 	_, _, c, _ := startPair(t, prov)
 
 	var capturedID string
-	res, err := c.Stream(context.Background(), controlplane.CmdRun,
+	res, err := c.Stream(context.Background(), opapi.Run,
 		map[string]any{"intent": "anything"}, func(e *event.Event) {
 			if capturedID == "" {
 				capturedID = e.ID
@@ -712,7 +713,7 @@ func TestWhy(t *testing.T) {
 		t.Fatalf("missing corr=%q or captured event id=%q", corr, capturedID)
 	}
 
-	whyRes, err := c.Call(context.Background(), controlplane.CmdWhy, map[string]any{"event_id": capturedID})
+	whyRes, err := c.Call(context.Background(), opapi.Why, map[string]any{"event_id": capturedID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -722,7 +723,7 @@ func TestWhy(t *testing.T) {
 	}
 }
 
-// TestWhy_CausationChainCrossesCorrelation (M364, SPEC-01 §7.1): CmdWhy now
+// TestWhy_CausationChainCrossesCorrelation (M364, SPEC-01 §7.1): opapi.Why now
 // returns a `causation_chain` that follows causation_id across correlation
 // boundaries — surfacing provenance the correlation-grouped `events` list
 // cannot. A Pulse-style tick and initiative are published under DIFFERENT
@@ -746,7 +747,7 @@ func TestWhy_CausationChainCrossesCorrelation(t *testing.T) {
 		t.Fatalf("publish initiative: %v", err)
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdWhy, map[string]any{"event_id": initiative.ID})
+	res, err := c.Call(context.Background(), opapi.Why, map[string]any{"event_id": initiative.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -770,10 +771,10 @@ func TestWhy_CausationChainCrossesCorrelation(t *testing.T) {
 
 func TestJournalVerify(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("done")))
-	if _, err := c.Stream(context.Background(), controlplane.CmdRun, map[string]any{"intent": "x"}, nil); err != nil {
+	if _, err := c.Stream(context.Background(), opapi.Run, map[string]any{"intent": "x"}, nil); err != nil {
 		t.Fatal(err)
 	}
-	res, err := c.Call(context.Background(), controlplane.CmdJournalVerify, nil)
+	res, err := c.Call(context.Background(), opapi.JournalVerify, nil)
 	if err != nil {
 		t.Fatalf("Verify: %v", err)
 	}

@@ -13,66 +13,22 @@ import (
 
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdWorkboard(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		return workboardUsage(stderr)
 	}
-	switch args[0] {
-	case "list", "ls":
-		return cmdWorkboardList(args[1:], stdout, stderr)
-	case "lanes":
-		return cmdWorkboardLanes(args[1:], stdout, stderr)
-	case "show", "get":
-		return cmdWorkboardShow(args[1:], stdout, stderr)
-	case "create", "add":
-		return cmdWorkboardCreate(args[1:], stdout, stderr)
-	case "claim":
-		return cmdWorkboardClaim(args[1:], stdout, stderr)
-	case "heartbeat", "beat":
-		return cmdWorkboardHeartbeat(args[1:], stdout, stderr)
-	case "comment":
-		return cmdWorkboardComment(args[1:], stdout, stderr)
-	case "block":
-		return cmdWorkboardBlock(args[1:], stdout, stderr)
-	case "fail":
-		return cmdWorkboardFail(args[1:], stdout, stderr)
-	case "unblock":
-		return cmdWorkboardActor(args[1:], stdout, stderr, "unblock", controlplane.CmdWorkboardUnblock)
-	case "complete", "done":
-		return cmdWorkboardActor(args[1:], stdout, stderr, "complete", controlplane.CmdWorkboardComplete)
-	case "prove":
-		return cmdWorkboardActor(args[1:], stdout, stderr, "prove", controlplane.CmdWorkboardProve)
-	case "seat":
-		return cmdWorkboardSeat(args[1:], stdout, stderr)
-	case "archive":
-		return cmdWorkboardActor(args[1:], stdout, stderr, "archive", controlplane.CmdWorkboardArchive)
-	case "link":
-		return cmdWorkboardLink(args[1:], stdout, stderr)
-	case "policy":
-		return cmdWorkboardPolicy(args[1:], stdout, stderr)
-	case "depend":
-		return cmdWorkboardDepend(args[1:], stdout, stderr)
-	case "reclaim":
-		return cmdWorkboardReclaim(args[1:], stdout, stderr)
-	case "sweep":
-		return cmdWorkboardSweep(args[1:], stdout, stderr)
-	case "dispatch":
-		return cmdWorkboardDispatch(args[1:], stdout, stderr)
-	case "watch":
-		return cmdWorkboardWatch(args[1:], stdout, stderr)
-	case "-h", "--help", "help":
-		return workboardUsage(stdout)
-	default:
-		fmt.Fprintf(stderr, "%s workboard: unknown subcommand %q\n", brand.CLI, args[0])
-		return workboardUsage(stderr)
+	if sub, ok := cliWorkboard.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s workboard: unknown subcommand %q\n", brand.CLI, args[0])
+	return workboardUsage(stderr)
 }
 
 func workboardUsage(w io.Writer) int {
-	fmt.Fprintf(w, "usage: %s workboard <list|lanes|show|create|claim|heartbeat|comment|block|fail|unblock|complete|prove|seat|archive|link|policy|depend|reclaim|sweep|dispatch|watch>\n", brand.CLI)
+	fmt.Fprintf(w, "usage: %s workboard %s\n", brand.CLI, cliWorkboard.synopsis())
 	fmt.Fprintf(w, "  list [--status S] [--assignee A] [--tenant T] [--limit N] [--archived] [--json]\n")
 	fmt.Fprintf(w, "  lanes [--status S] [--tenant T] [--limit N] [--archived] [--json]\n")
 	fmt.Fprintf(w, "  create --title T [--desc D] [--assignee A] [--priority N] [--tenant T] [--status S] [--idempotency-key K] [--max-attempts N] [--escalate-to A] [--tag X] [--criterion \"C\"] [--seat S] [--json]\n")
@@ -129,7 +85,7 @@ func cmdWorkboardList(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	res, code := callWorkboard(controlplane.CmdWorkboardList, callArgs, stderr)
+	res, code := callWorkboard(opapi.WorkboardList, callArgs, stderr)
 	if code != 0 {
 		return code
 	}
@@ -180,7 +136,7 @@ func cmdWorkboardLanes(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	res, code := callWorkboard(controlplane.CmdWorkboardLanes, callArgs, stderr)
+	res, code := callWorkboard(opapi.WorkboardLanes, callArgs, stderr)
 	if code != 0 {
 		return code
 	}
@@ -210,7 +166,7 @@ func cmdWorkboardShow(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return 2
 	}
-	res, code := callWorkboard(controlplane.CmdWorkboardShow, map[string]any{"id": id}, stderr)
+	res, code := callWorkboard(opapi.WorkboardShow, map[string]any{"id": id}, stderr)
 	if code != 0 {
 		return code
 	}

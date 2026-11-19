@@ -11,7 +11,7 @@ import (
 	"strconv"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdWorldResolve(args []string, stdout, stderr io.Writer) int {
@@ -43,7 +43,7 @@ func cmdWorldResolve(args []string, stdout, stderr io.Writer) int {
 	if limit > 0 {
 		callArgs["limit"] = limit
 	}
-	res := worldCall(controlplane.CmdWorldResolve, callArgs, "world resolve", stdout, stderr, asJSON)
+	res := worldCall(opapi.WorldResolve, callArgs, "world resolve", stdout, stderr, asJSON)
 	if res == nil {
 		return 1
 	}
@@ -84,7 +84,7 @@ func cmdWorldNeighbors(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s world neighbors: name required\n", brand.CLI)
 		return 2
 	}
-	res := worldCall(controlplane.CmdWorldNeighbors, map[string]any{"query": name}, "world neighbors", stdout, stderr, asJSON)
+	res := worldCall(opapi.WorldNeighbors, map[string]any{"query": name}, "world neighbors", stdout, stderr, asJSON)
 	if res == nil {
 		return 1
 	}

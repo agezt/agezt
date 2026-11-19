@@ -14,7 +14,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdWorkflow dispatches `agt workflow <subcommand>` — the operator surface
@@ -26,39 +26,15 @@ func cmdWorkflow(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		return workflowUsage(stderr)
 	}
-	switch args[0] {
-	case "list":
-		return cmdWorkflowList(args[1:], stdout, stderr)
-	case "show":
-		return cmdWorkflowShow(args[1:], stdout, stderr)
-	case "save", "add", "import":
-		return cmdWorkflowSave(args[1:], stdout, stderr)
-	case "run":
-		return cmdWorkflowRun(args[1:], stdout, stderr)
-	case "draft":
-		return cmdWorkflowDraft(args[1:], stdout, stderr)
-	case "refine":
-		return cmdWorkflowRefine(args[1:], stdout, stderr)
-	case "runs":
-		return cmdWorkflowRuns(args[1:], stdout, stderr)
-	case "templates":
-		return cmdWorkflowTemplates(args[1:], stdout, stderr)
-	case "enable":
-		return cmdWorkflowSetEnabled(args[1:], stdout, stderr, true)
-	case "disable":
-		return cmdWorkflowSetEnabled(args[1:], stdout, stderr, false)
-	case "remove", "rm":
-		return cmdWorkflowRemove(args[1:], stdout, stderr)
-	case "-h", "--help", "help":
-		return workflowUsage(stdout)
-	default:
-		fmt.Fprintf(stderr, "%s workflow: unknown subcommand %q\n", brand.CLI, args[0])
-		return workflowUsage(stderr)
+	if sub, ok := cliWorkflow.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s workflow: unknown subcommand %q\n", brand.CLI, args[0])
+	return workflowUsage(stderr)
 }
 
 func workflowUsage(w io.Writer) int {
-	fmt.Fprintf(w, "usage: %s workflow <list|show|save|draft|run|enable|disable|remove>\n", brand.CLI)
+	fmt.Fprintf(w, "usage: %s workflow %s\n", brand.CLI, cliWorkflow.synopsis())
 	fmt.Fprintf(w, "  list [--json]                      all workflows (name, nodes, enabled)\n")
 	fmt.Fprintf(w, "  show <name|id> [--json]            one workflow's full graph\n")
 	fmt.Fprintf(w, "  save --file GRAPH.json             create or update (upsert by name) a workflow\n")
@@ -87,7 +63,7 @@ func cmdWorkflowList(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdWorkflowList, nil)
+	res, err := c.Call(ctx, opapi.WorkflowList, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s workflow list: %v\n", brand.CLI, err)
 		return 1
@@ -156,7 +132,7 @@ func cmdWorkflowShow(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdWorkflowShow, map[string]any{"ref": ref})
+	res, err := c.Call(ctx, opapi.WorkflowShow, map[string]any{"ref": ref})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s workflow show: %v\n", brand.CLI, err)
 		return 1
@@ -216,7 +192,7 @@ func cmdWorkflowSave(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 	}
-	res, err := c.Call(ctx, controlplane.CmdWorkflowSave, map[string]any{"workflow": graph})
+	res, err := c.Call(ctx, opapi.WorkflowSave, map[string]any{"workflow": graph})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s workflow save: %v\n", brand.CLI, err)
 		return 1

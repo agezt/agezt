@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -16,7 +16,7 @@ import (
 func TestSteerCommands_UnknownRunReportsNotOk(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	for _, cmd := range []string{controlplane.CmdRunPause, controlplane.CmdRunResume, controlplane.CmdRunStep} {
+	for _, cmd := range []string{opapi.RunPause, opapi.RunResume, opapi.RunStep} {
 		res, err := c.Call(context.Background(), cmd, map[string]any{"correlation": "no-such-run"})
 		if err != nil {
 			t.Fatalf("%s: %v", cmd, err)
@@ -29,7 +29,7 @@ func TestSteerCommands_UnknownRunReportsNotOk(t *testing.T) {
 		}
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdRunSteer,
+	res, err := c.Call(context.Background(), opapi.RunSteer,
 		map[string]any{"correlation": "no-such-run", "directive": "focus"})
 	if err != nil {
 		t.Fatalf("run_steer: %v", err)
@@ -38,7 +38,7 @@ func TestSteerCommands_UnknownRunReportsNotOk(t *testing.T) {
 		t.Error("run_steer on an unknown run: accepted=true want false")
 	}
 
-	res, err = c.Call(context.Background(), controlplane.CmdRunIntervene,
+	res, err = c.Call(context.Background(), opapi.RunIntervene,
 		map[string]any{"correlation": "no-such-run", "primitive": "query"})
 	if err != nil {
 		t.Fatalf("run_intervene query: %v", err)
@@ -55,18 +55,18 @@ func TestSteerCommands_UnknownRunReportsNotOk(t *testing.T) {
 func TestSteerCommands_RejectMissingArgs(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	if _, err := c.Call(context.Background(), controlplane.CmdRunPause, nil); err == nil {
+	if _, err := c.Call(context.Background(), opapi.RunPause, nil); err == nil {
 		t.Error("run_pause without correlation should error")
 	}
-	if _, err := c.Call(context.Background(), controlplane.CmdRunSteer,
+	if _, err := c.Call(context.Background(), opapi.RunSteer,
 		map[string]any{"correlation": "r1"}); err == nil {
 		t.Error("run_steer without directive should error")
 	}
-	if _, err := c.Call(context.Background(), controlplane.CmdRunIntervene,
+	if _, err := c.Call(context.Background(), opapi.RunIntervene,
 		map[string]any{"correlation": "r1", "primitive": "redirect"}); err == nil {
 		t.Error("run_intervene redirect without directive should error")
 	}
-	if _, err := c.Call(context.Background(), controlplane.CmdRunIntervene,
+	if _, err := c.Call(context.Background(), opapi.RunIntervene,
 		map[string]any{"correlation": "r1", "primitive": "bogus"}); err == nil {
 		t.Error("run_intervene bad primitive should error")
 	}

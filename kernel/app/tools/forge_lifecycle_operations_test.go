@@ -76,7 +76,7 @@ func TestForgeLifecycleTypedMetadataAndOneMandatoryAuditPair(t *testing.T) {
 	factory := 0
 	d, ops := forgeLifecycleDispatcher(t, p, a, &factory, opapi.Operator)
 	inputs := []reflect.Type{reflect.TypeFor[ForgeDraftRequest](), reflect.TypeFor[ForgeEditRequest](), reflect.TypeFor[ForgeTestRequest](), reflect.TypeFor[ForgeRefRequest](), reflect.TypeFor[ForgeQuarantineRequest](), reflect.TypeFor[ForgeRefRequest]()}
-	names := []string{"toolforge_draft", "toolforge_edit", "toolforge_test", "toolforge_promote", "toolforge_quarantine", "toolforge_remove"}
+	names := []string{opapi.ToolforgeDraft, "toolforge_edit", "toolforge_test", "toolforge_promote", "toolforge_quarantine", "toolforge_remove"}
 	if len(ops) != 6 {
 		t.Fatal(ops)
 	}
@@ -171,7 +171,7 @@ func TestForgeLifecycleNativeCodecErrorsBeforeFactoryAndOrder(t *testing.T) {
 	if factory != 0 || len(p.calls) != 0 || a.begins != len(cases) || a.ends != len(cases) {
 		t.Fatal(factory, p, a)
 	}
-	for _, name := range []string{"toolforge_draft", "toolforge_edit"} {
+	for _, name := range []string{opapi.ToolforgeDraft, "toolforge_edit"} {
 		raw := `{"tool":null,"ref":" raw-ref "}`
 		if _, err := d.Dispatch(context.Background(), opapi.Caller{}, name, json.RawMessage(raw), nil); err != nil {
 			t.Fatal(err)

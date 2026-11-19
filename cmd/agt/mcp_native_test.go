@@ -4,6 +4,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"net"
 	"os"
@@ -54,11 +55,11 @@ func mcpCLIEndpoint(t *testing.T) <-chan controlplane.Request {
 				requests <- req
 				result := map[string]any{}
 				switch req.Cmd {
-				case controlplane.CmdMCPList:
+				case opapi.MCPList:
 					result = map[string]any{"servers": []any{map[string]any{"name": "owned", "command": "never-executed", "args": []any{" raw "}, "attached": true, "tool_count": 0, "enabled": true, "lazy": true}}, "count": 1, "attached_count": 1}
-				case controlplane.CmdMCPAttach:
+				case opapi.MCPAttach:
 					result = map[string]any{"tools": []any{"mcp_owned_second", "mcp_owned_first"}}
-				case controlplane.CmdMCPRemove:
+				case opapi.MCPRemove:
 					result = map[string]any{"removed": req.Args["ref"] != "missing"}
 				}
 				json.NewEncoder(conn).Encode(controlplane.Response{ID: req.ID, Type: controlplane.RespResult, Result: result})
@@ -77,16 +78,16 @@ func TestCmdMCPNativeRequestsAndResponses(t *testing.T) {
 		code     int
 		contains string
 	}{
-		{[]string{"list"}, controlplane.CmdMCPList, nil, 0, "ATTACHED (0 tools)"},
-		{[]string{"list", "--json"}, controlplane.CmdMCPList, nil, 0, `"attached_count": 1`},
-		{[]string{"add", "owned", "--cmd", "never-executed", "--arg", " raw ", "--desc", " raw description ", "--lazy"}, controlplane.CmdMCPAdd, map[string]any{"server": map[string]any{"name": "owned", "command": "never-executed", "args": []any{" raw "}, "description": " raw description ", "lazy": true}}, 0, "registered owned"},
-		{[]string{"register", "remote", "--cmd", "ignored", "--url", "http://127.0.0.1:1/owned", "--header", "X-Owned: owned value", "--arg", " kept "}, controlplane.CmdMCPAdd, map[string]any{"server": map[string]any{"name": "remote", "url": "http://127.0.0.1:1/owned", "headers": map[string]any{"X-Owned": "owned value"}, "args": []any{" kept "}, "description": ""}}, 0, "registered remote"},
-		{[]string{"attach", " raw-ref "}, controlplane.CmdMCPAttach, map[string]any{"ref": " raw-ref "}, 0, "mcp_owned_second"},
-		{[]string{"detach", " raw-ref "}, controlplane.CmdMCPDetach, map[string]any{"ref": " raw-ref "}, 0, "detached  raw-ref "},
-		{[]string{"enable", " raw-ref "}, controlplane.CmdMCPSetEnabled, map[string]any{"ref": " raw-ref ", "enabled": true}, 0, "will auto-attach"},
-		{[]string{"disable", " raw-ref "}, controlplane.CmdMCPSetEnabled, map[string]any{"ref": " raw-ref ", "enabled": false}, 0, "will NOT auto-attach"},
-		{[]string{"remove", " raw-ref "}, controlplane.CmdMCPRemove, map[string]any{"ref": " raw-ref "}, 0, "removed  raw-ref "},
-		{[]string{"rm", "missing"}, controlplane.CmdMCPRemove, map[string]any{"ref": "missing"}, 1, "unknown server"},
+		{[]string{"list"}, opapi.MCPList, nil, 0, "ATTACHED (0 tools)"},
+		{[]string{"list", "--json"}, opapi.MCPList, nil, 0, `"attached_count": 1`},
+		{[]string{"add", "owned", "--cmd", "never-executed", "--arg", " raw ", "--desc", " raw description ", "--lazy"}, opapi.MCPAdd, map[string]any{"server": map[string]any{"name": "owned", "command": "never-executed", "args": []any{" raw "}, "description": " raw description ", "lazy": true}}, 0, "registered owned"},
+		{[]string{"register", "remote", "--cmd", "ignored", "--url", "http://127.0.0.1:1/owned", "--header", "X-Owned: owned value", "--arg", " kept "}, opapi.MCPAdd, map[string]any{"server": map[string]any{"name": "remote", "url": "http://127.0.0.1:1/owned", "headers": map[string]any{"X-Owned": "owned value"}, "args": []any{" kept "}, "description": ""}}, 0, "registered remote"},
+		{[]string{"attach", " raw-ref "}, opapi.MCPAttach, map[string]any{"ref": " raw-ref "}, 0, "mcp_owned_second"},
+		{[]string{"detach", " raw-ref "}, opapi.MCPDetach, map[string]any{"ref": " raw-ref "}, 0, "detached  raw-ref "},
+		{[]string{"enable", " raw-ref "}, opapi.MCPSetEnabled, map[string]any{"ref": " raw-ref ", "enabled": true}, 0, "will auto-attach"},
+		{[]string{"disable", " raw-ref "}, opapi.MCPSetEnabled, map[string]any{"ref": " raw-ref ", "enabled": false}, 0, "will NOT auto-attach"},
+		{[]string{"remove", " raw-ref "}, opapi.MCPRemove, map[string]any{"ref": " raw-ref "}, 0, "removed  raw-ref "},
+		{[]string{"rm", "missing"}, opapi.MCPRemove, map[string]any{"ref": "missing"}, 1, "unknown server"},
 	}
 	for _, tc := range cases {
 		var out, errOut bytes.Buffer
@@ -94,7 +95,7 @@ func TestCmdMCPNativeRequestsAndResponses(t *testing.T) {
 		if code != tc.code || !strings.Contains(out.String()+errOut.String(), tc.contains) {
 			t.Fatal(tc.args, code, out.String(), errOut.String())
 		}
-		for _, expected := range []string{controlplane.CmdStatus, tc.cmd} {
+		for _, expected := range []string{opapi.Status, tc.cmd} {
 			select {
 			case req := <-requests:
 				if req.Cmd != expected || req.Token != "owned-token" || (expected == tc.cmd && !reflect.DeepEqual(req.Args, tc.wire)) {

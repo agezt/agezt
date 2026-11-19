@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
 
@@ -77,7 +78,7 @@ func parseWorkshopReasonArgs(args []string, cmd, defaultReason string, stdout, s
 }
 
 func workshopFetchSkill(ctx context.Context, c *controlplane.Client, id string) (map[string]any, bool, error) {
-	res, err := c.Call(ctx, controlplane.CmdSkillGet, map[string]any{"id": id})
+	res, err := c.Call(ctx, opapi.SkillGet, map[string]any{"id": id})
 	if err != nil {
 		return nil, false, err
 	}

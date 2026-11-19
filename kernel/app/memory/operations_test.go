@@ -169,7 +169,7 @@ func TestMemoryTypedAdmissionCompatibilityAndReadOnlyAudit(t *testing.T) {
 	if audit.calls != 0 {
 		t.Fatalf("read-only requests audited=%d", audit.calls)
 	}
-	for _, command := range []string{"memory_prune", "memory_tidy", "memory_clean"} {
+	for _, command := range []string{opapi.MemoryPrune, "memory_tidy", "memory_clean"} {
 		for _, tc := range []struct {
 			raw string
 			dry bool

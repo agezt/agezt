@@ -81,13 +81,13 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	run, err := app.NewOperation(opapi.Spec{Name: "reflect_run", OutputSchema: runOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in RunRequest) (RunOutput, error) {
+	run, err := app.NewOperation(opapi.Spec{Name: opapi.ReflectRun, OutputSchema: runOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in RunRequest) (RunOutput, error) {
 		return provider(ctx).Run(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	show, err := app.NewOperation(opapi.Spec{Name: "reflect_show", ReadOnly: true, OutputSchema: showOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in ShowRequest) (ShowOutput, error) {
+	show, err := app.NewOperation(opapi.Spec{Name: opapi.ReflectShow, ReadOnly: true, OutputSchema: showOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in ShowRequest) (ShowOutput, error) {
 		return provider(ctx).Show(ctx, in)
 	})
 	if err != nil {

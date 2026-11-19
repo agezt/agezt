@@ -142,22 +142,22 @@ func LifecycleOperations(provider func(context.Context) *Lifecycle) ([]app.Opera
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
-			return bindPrimary(&ops, opapi.Spec{Name: "halt", InputSchema: reasonSchema, HTTP: opapi.HTTP{Method: "POST", Path: "/api/halt"}}, func(ctx context.Context, in ReasonRequest) (GateOutput, error) {
+			return bindPrimary(&ops, opapi.Spec{Name: opapi.Halt, InputSchema: reasonSchema, HTTP: opapi.HTTP{Method: "POST", Path: "/api/halt"}}, func(ctx context.Context, in ReasonRequest) (GateOutput, error) {
 				return provider(ctx).Halt(ctx, in)
 			})
 		},
 		func() error {
-			return bindPrimary(&ops, opapi.Spec{Name: "resume", InputSchema: reasonSchema, HTTP: opapi.HTTP{Method: "POST", Path: "/api/resume"}}, func(ctx context.Context, in ReasonRequest) (GateOutput, error) {
+			return bindPrimary(&ops, opapi.Spec{Name: opapi.Resume, InputSchema: reasonSchema, HTTP: opapi.HTTP{Method: "POST", Path: "/api/resume"}}, func(ctx context.Context, in ReasonRequest) (GateOutput, error) {
 				return provider(ctx).Resume(ctx, in)
 			})
 		},
 		func() error {
-			return bindPrimary(&ops, opapi.Spec{Name: "journal_verify", ReadOnly: true, InputSchema: none}, func(ctx context.Context, in EmptyRequest) (OKOutput, error) {
+			return bindPrimary(&ops, opapi.Spec{Name: opapi.JournalVerify, ReadOnly: true, InputSchema: none}, func(ctx context.Context, in EmptyRequest) (OKOutput, error) {
 				return provider(ctx).Verify(ctx, in)
 			})
 		},
 		func() error {
-			return bindPrimary(&ops, opapi.Spec{Name: "shutdown", InputSchema: none}, func(ctx context.Context, in EmptyRequest) (OKOutput, error) {
+			return bindPrimary(&ops, opapi.Spec{Name: opapi.Shutdown, InputSchema: none}, func(ctx context.Context, in EmptyRequest) (OKOutput, error) {
 				return provider(ctx).Shutdown(ctx, in)
 			})
 		},

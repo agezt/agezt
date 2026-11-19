@@ -153,9 +153,9 @@ func TestOperations(t *testing.T) {
 		name, path    string
 		input, output reflect.Type
 	}{
-		{"execution_profiles", "/api/execution_profiles", reflect.TypeFor[ListRequest](), reflect.TypeFor[ListOutput]()},
-		{"execution_profile_show", "", reflect.TypeFor[ShowRequest](), reflect.TypeFor[ShowOutput]()},
-		{"execution_profile_check", "/api/execution_profile_check", reflect.TypeFor[CheckRequest](), reflect.TypeFor[CheckOutput]()},
+		{opapi.ExecutionProfiles, "/api/execution_profiles", reflect.TypeFor[ListRequest](), reflect.TypeFor[ListOutput]()},
+		{opapi.ExecutionProfileShow, "", reflect.TypeFor[ShowRequest](), reflect.TypeFor[ShowOutput]()},
+		{opapi.ExecutionProfileCheck, "/api/execution_profile_check", reflect.TypeFor[CheckRequest](), reflect.TypeFor[CheckOutput]()},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)

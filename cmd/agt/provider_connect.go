@@ -17,7 +17,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func connectUsage(w io.Writer) {
@@ -103,7 +103,7 @@ func cmdProviderConnect(args []string, stdout, stderr io.Writer) int {
 	defer cancel()
 
 	// 1. Register the provider (custom.json) + reload.
-	res, err := c.Call(ctx, controlplane.CmdProviderConnect, map[string]any{
+	res, err := c.Call(ctx, opapi.ProviderConnect, map[string]any{
 		"id": id, "name": name, "npm": npm, "api": url, "env": env, "model": model,
 	})
 	if err != nil {
@@ -118,7 +118,7 @@ func cmdProviderConnect(args []string, stdout, stderr io.Writer) int {
 
 	// 2. Store the key (secret path), if given.
 	if key != "" {
-		if _, err := c.Call(ctx, controlplane.CmdProviderKeyAdd, map[string]any{"provider": id, "env": env, "label": "default", "value": key, "active": true}); err != nil {
+		if _, err := c.Call(ctx, opapi.ProviderKeyAdd, map[string]any{"provider": id, "env": env, "label": "default", "value": key, "active": true}); err != nil {
 			fmt.Fprintf(stderr, "%s: provider saved, but storing the key failed: %v\n", brand.CLI, err)
 			return 1
 		}
@@ -133,12 +133,12 @@ func cmdProviderConnect(args []string, stdout, stderr io.Writer) int {
 			{brand.EnvPrefix + "PROVIDER", id},
 			{brand.EnvPrefix + "MODEL", model},
 		} {
-			if _, err := c.Call(ctx, controlplane.CmdConfigSet, map[string]any{"name": kv.name, "value": kv.value}); err != nil {
+			if _, err := c.Call(ctx, opapi.ConfigSet, map[string]any{"name": kv.name, "value": kv.value}); err != nil {
 				fmt.Fprintf(stderr, "%s: provider saved, but setting %s failed: %v\n", brand.CLI, kv.name, err)
 				return 1
 			}
 		}
-		_, _ = c.Call(ctx, controlplane.CmdProviderReload, nil)
+		_, _ = c.Call(ctx, opapi.ProviderReload, nil)
 		fmt.Fprintf(stdout, "set as the default brain (provider=%s, model=%s)\n", id, model)
 	}
 	return 0

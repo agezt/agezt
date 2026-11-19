@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -86,10 +86,10 @@ func TestDispatch_JournalsStateChangingOps(t *testing.T) {
 		args    map[string]any
 		visible map[string]any // arguments that must appear verbatim
 	}{
-		{controlplane.CmdConfigCenterSet,
+		{opapi.ConfigCenterSet,
 			map[string]any{"key": "ops/mode", "value": "careful", "rating": "internal"},
 			map[string]any{"rating": "internal"}},
-		{controlplane.CmdScheduleAdd,
+		{opapi.ScheduleAdd,
 			map[string]any{"intent": "tidy the inbox", "interval_sec": float64(3600)},
 			map[string]any{"intent": "tidy the inbox", "interval_sec": float64(3600)}},
 	} {
@@ -123,7 +123,7 @@ func TestDispatch_JournalsStateChangingOps(t *testing.T) {
 func TestDispatch_ReadOnlyOpsAreNotJournaled(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	seq, _ := k.Journal().Head()
-	for _, cmd := range []string{controlplane.CmdStatus, controlplane.CmdScheduleList, controlplane.CmdConfigCenterList} {
+	for _, cmd := range []string{opapi.Status, opapi.ScheduleList, opapi.ConfigCenterList} {
 		if _, err := c.Call(context.Background(), cmd, nil); err != nil {
 			t.Fatalf("%s: %v", cmd, err)
 		}
@@ -139,7 +139,7 @@ func TestDispatch_JournalsFailedOps(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	sub := watchOpAudit(t, k)
 	seq, _ := k.Journal().Head()
-	_, callErr := c.Call(context.Background(), controlplane.CmdScheduleAdd, map[string]any{"interval_sec": 60})
+	_, callErr := c.Call(context.Background(), opapi.ScheduleAdd, map[string]any{"interval_sec": 60})
 	if callErr == nil {
 		t.Fatal("schedule_add without an intent succeeded")
 	}
@@ -162,10 +162,10 @@ func TestDispatch_AuditNeverJournalsSecrets(t *testing.T) {
 	// Joined at run time so secret scanners do not flag a fixture literal.
 	secret := strings.Join([]string{"zq7Vb2Lr", "9Xc4Kd8M", "n3Pw6Ty1"}, "")
 	seq, _ := k.Journal().Head()
-	_, _ = c.Call(context.Background(), controlplane.CmdProviderKeyAdd,
+	_, _ = c.Call(context.Background(), opapi.ProviderKeyAdd,
 		map[string]any{"provider": "openai", "label": "spare", "value": secret})
 	awaitOpAudit(t, sub)
-	_, _ = c.Call(context.Background(), controlplane.CmdChannelAccountSet,
+	_, _ = c.Call(context.Background(), opapi.ChannelAccountSet,
 		map[string]any{"channel": "telegram", "label": "ops", "config": map[string]any{"bot": secret}})
 	awaitOpAudit(t, sub)
 	evs := opEvents(t, k, seq)

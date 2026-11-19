@@ -56,7 +56,7 @@ func TestWorkboardCommandMetadataComesFromCompleteAppRegistry(t *testing.T) {
 	if len(workboardOperations) != 21 {
 		t.Fatal("workboard operations", len(workboardOperations))
 	}
-	reads := map[string]bool{CmdWorkboardList: true, CmdWorkboardLanes: true, CmdWorkboardShow: true, CmdWorkboardWatch: true}
+	reads := map[string]bool{opapi.WorkboardList: true, opapi.WorkboardLanes: true, opapi.WorkboardShow: true, opapi.WorkboardWatch: true}
 	seen := map[string]bool{}
 	for _, operation := range workboardOperations {
 		spec := operation.Spec()
@@ -68,7 +68,7 @@ func TestWorkboardCommandMetadataComesFromCompleteAppRegistry(t *testing.T) {
 	}
 }
 func TestWorkboardAppSocketRequiresAuditBeforeEveryMutation(t *testing.T) {
-	for _, cmd := range []string{CmdWorkboardCreate, CmdWorkboardClaim, CmdWorkboardHeartbeat, CmdWorkboardComment, CmdWorkboardBlock, CmdWorkboardFail, CmdWorkboardUnblock, CmdWorkboardComplete, CmdWorkboardProve, CmdWorkboardSeat, CmdWorkboardArchive, CmdWorkboardLink, CmdWorkboardPolicy, CmdWorkboardDepend, CmdWorkboardReclaim, CmdWorkboardSweep, CmdWorkboardDispatch} {
+	for _, cmd := range []string{opapi.WorkboardCreate, opapi.WorkboardClaim, opapi.WorkboardHeartbeat, opapi.WorkboardComment, opapi.WorkboardBlock, opapi.WorkboardFail, opapi.WorkboardUnblock, opapi.WorkboardComplete, opapi.WorkboardProve, opapi.WorkboardSeat, opapi.WorkboardArchive, opapi.WorkboardLink, opapi.WorkboardPolicy, opapi.WorkboardDepend, opapi.WorkboardReclaim, opapi.WorkboardSweep, opapi.WorkboardDispatch} {
 		t.Run(cmd, func(t *testing.T) {
 			k, s, task, parent, provider := workboardAppFixture(t)
 			before := k.Workboard().List(workboard.Filter{IncludeArchived: true})
@@ -85,7 +85,7 @@ func TestWorkboardAppSocketRequiresAuditBeforeEveryMutation(t *testing.T) {
 }
 func TestWorkboardAppReadsRemainUnauditedUnarySnapshots(t *testing.T) {
 	k, s, task, _, _ := workboardAppFixture(t)
-	for _, cmd := range []string{CmdWorkboardList, CmdWorkboardLanes, CmdWorkboardShow, CmdWorkboardWatch} {
+	for _, cmd := range []string{opapi.WorkboardList, opapi.WorkboardLanes, opapi.WorkboardShow, opapi.WorkboardWatch} {
 		responses := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"id": task.ID, "unused": true}})
 		if len(responses) != 1 || responses[0].Type != RespResult {
 			t.Fatal(cmd, responses)
@@ -106,7 +106,7 @@ func TestWorkboardAppReadsRemainUnauditedUnarySnapshots(t *testing.T) {
 	if err := k.Journal().Close(); err != nil {
 		t.Fatal(err)
 	}
-	for _, cmd := range []string{CmdWorkboardList, CmdWorkboardLanes, CmdWorkboardShow, CmdWorkboardWatch} {
+	for _, cmd := range []string{opapi.WorkboardList, opapi.WorkboardLanes, opapi.WorkboardShow, opapi.WorkboardWatch} {
 		response := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"id": task.ID}})[0]
 		if response.Type != RespResult {
 			t.Fatal(cmd, response)
@@ -127,7 +127,7 @@ func TestWorkboardAppAdmissionRetainsAbsentNullAndLenientFields(t *testing.T) {
 		{map[string]any{"title": "bad seat", "seat": "missing"}, false},
 	}
 	for i, item := range cases {
-		response := callAppHost(t, s, Request{ID: "create", Cmd: CmdWorkboardCreate, Token: "primary", Args: item.args})[0]
+		response := callAppHost(t, s, Request{ID: "create", Cmd: opapi.WorkboardCreate, Token: "primary", Args: item.args})[0]
 		if (response.Type == RespResult) != item.accepted {
 			t.Fatal(item.args, response)
 		}
@@ -147,16 +147,16 @@ func TestWorkboardAppAdmissionRetainsAbsentNullAndLenientFields(t *testing.T) {
 		t.Fatal("invalid create changed store")
 	}
 	for _, args := range []map[string]any{{"id": task.ID}, {"id": task.ID, "max_attempts": nil}, {"id": task.ID, "max_attempts": true}} {
-		response := callAppHost(t, s, Request{ID: "policy", Cmd: CmdWorkboardPolicy, Token: "primary", Args: args})[0]
+		response := callAppHost(t, s, Request{ID: "policy", Cmd: opapi.WorkboardPolicy, Token: "primary", Args: args})[0]
 		if response.Type != RespError {
 			t.Fatal("missing/invalid policy maximum accepted", args, response)
 		}
 	}
-	response := callAppHost(t, s, Request{ID: "clear", Cmd: CmdWorkboardPolicy, Token: "primary", Args: map[string]any{"id": task.ID, "clear": true, "max_attempts": nil}})[0]
+	response := callAppHost(t, s, Request{ID: "clear", Cmd: opapi.WorkboardPolicy, Token: "primary", Args: map[string]any{"id": task.ID, "clear": true, "max_attempts": nil}})[0]
 	if response.Type != RespResult {
 		t.Fatal("clear did not override null maximum", response)
 	}
-	for _, cmd := range []string{CmdWorkboardList, CmdWorkboardLanes} {
+	for _, cmd := range []string{opapi.WorkboardList, opapi.WorkboardLanes} {
 		response := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"include_archived": nil}})[0]
 		if response.Type != RespError {
 			t.Fatal("null boolean accepted", response)
@@ -172,7 +172,7 @@ func TestWorkboardAppCreateOwnsOneAuditSpanAndDomainCorrelation(t *testing.T) {
 			if explicit != "" {
 				args["correlation_id"] = explicit
 			}
-			response := callAppHost(t, s, Request{ID: "create", Cmd: CmdWorkboardCreate, Token: "primary", Args: args})[0]
+			response := callAppHost(t, s, Request{ID: "create", Cmd: opapi.WorkboardCreate, Token: "primary", Args: args})[0]
 			if response.Type != RespResult {
 				t.Fatal(response)
 			}
@@ -202,7 +202,7 @@ func TestWorkboardAppCreateOwnsOneAuditSpanAndDomainCorrelation(t *testing.T) {
 }
 func TestWorkboardAppDispatchRetainsFreshOwnedRunAndAsyncReview(t *testing.T) {
 	k, s, task, _, provider := workboardAppFixture(t)
-	response := callAppHost(t, s, Request{ID: "dispatch", Cmd: CmdWorkboardDispatch, Token: "primary", Args: map[string]any{"id": task.ID, "agent": "writer", "intent": "owned intent", "correlation_id": "client-chosen"}})[0]
+	response := callAppHost(t, s, Request{ID: "dispatch", Cmd: opapi.WorkboardDispatch, Token: "primary", Args: map[string]any{"id": task.ID, "agent": "writer", "intent": "owned intent", "correlation_id": "client-chosen"}})[0]
 	if response.Type != RespResult || response.Result["accepted"] != true {
 		t.Fatal(response)
 	}

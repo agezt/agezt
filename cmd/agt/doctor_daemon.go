@@ -14,11 +14,12 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
 
 func checkSandbox(ctx context.Context, client *controlplane.Client) doctorCheck {
-	res, err := client.Call(ctx, controlplane.CmdWardenStats, nil)
+	res, err := client.Call(ctx, opapi.WardenStats, nil)
 	if err != nil {
 		return ok("sandbox (warden)", "warden stats unavailable (—)")
 	}
@@ -54,7 +55,7 @@ func sandboxCheckFromStats(res map[string]any) doctorCheck {
 // a real operational gap that belongs in the go-to diagnostic, not only in
 // `agt provider stats`. Best-effort: no routing yet, or the call failing, is OK.
 func checkProvider(ctx context.Context, client *controlplane.Client) doctorCheck {
-	res, err := client.Call(ctx, controlplane.CmdProviderStats, nil)
+	res, err := client.Call(ctx, opapi.ProviderStats, nil)
 	if err != nil {
 		return ok("provider routing", "provider stats unavailable (—)")
 	}
@@ -106,7 +107,7 @@ const catalogStaleAfter = 21 * 24 * time.Hour
 // Best-effort: a never-synced catalog (offline/mock) or an unreachable call is an
 // informational OK, never a FAIL.
 func checkCatalog(ctx context.Context, client *controlplane.Client) doctorCheck {
-	res, err := client.Call(ctx, controlplane.CmdCatalogList, nil)
+	res, err := client.Call(ctx, opapi.CatalogList, nil)
 	if err != nil {
 		return ok("catalog freshness", "catalog info unavailable (—)")
 	}
@@ -142,7 +143,7 @@ func catalogCheckFromSync(apiSyncedAt string, now time.Time) doctorCheck {
 // deployment; either way it belongs in the go-to diagnostic, not only in
 // `agt approvals stats`. Best-effort: no approvals yet, or the call failing, is OK.
 func checkApprovals(ctx context.Context, client *controlplane.Client) doctorCheck {
-	res, err := client.Call(ctx, controlplane.CmdApprovalsStats, nil)
+	res, err := client.Call(ctx, opapi.ApprovalsStats, nil)
 	if err != nil {
 		return ok("approvals (HITL)", "approvals stats unavailable (—)")
 	}
@@ -177,7 +178,7 @@ func approvalsCheckFromStats(res map[string]any) doctorCheck {
 // the sandbox/provider/approvals checks. Best-effort: no deliveries yet, or the
 // call failing, is an informational OK, never a FAIL.
 func checkWebhooks(ctx context.Context, client *controlplane.Client) doctorCheck {
-	res, err := client.Call(ctx, controlplane.CmdWebhookStats, nil)
+	res, err := client.Call(ctx, opapi.WebhookStats, nil)
 	if err != nil {
 		return ok("webhooks", "webhook stats unavailable (—)")
 	}
@@ -225,7 +226,7 @@ func topFailingWebhook(raw any) string {
 }
 
 func checkAgentHealth(ctx context.Context, client *controlplane.Client) doctorCheck {
-	res, err := client.Call(ctx, controlplane.CmdReaperScan, nil)
+	res, err := client.Call(ctx, opapi.ReaperScan, nil)
 	if err != nil {
 		return ok("agents", "agent health scan unavailable (—)")
 	}
@@ -290,7 +291,7 @@ const (
 )
 
 func checkGuardianNoise(ctx context.Context, client *controlplane.Client, repair bool) doctorCheck {
-	res, err := client.Call(ctx, controlplane.CmdAgentList, nil)
+	res, err := client.Call(ctx, opapi.AgentList, nil)
 	if err != nil {
 		return ok("guardian noise", "agent roster unavailable (—)")
 	}
@@ -306,7 +307,7 @@ func checkGuardianNoise(ctx context.Context, client *controlplane.Client, repair
 		if slug == "" {
 			continue
 		}
-		if _, err := client.Call(ctx, controlplane.CmdAgentCapabilities, guardianQuietPatch(p)); err != nil {
+		if _, err := client.Call(ctx, opapi.AgentCapabilities, guardianQuietPatch(p)); err != nil {
 			return warn("guardian noise",
 				fmt.Sprintf("%s; repair quieted %d/%d guardian profile(s)", check.Detail, repaired, len(targets)),
 				fmt.Sprintf("failed to quiet %s: %v; inspect with `%s agent show %s`", slug, err, brand.CLI, slug))
@@ -491,7 +492,7 @@ func guardianQuietPatch(p map[string]any) map[string]any {
 // shape as the webhooks check. Best-effort: no schedules, or the call failing, is
 // an informational OK, never a FAIL.
 func checkSchedules(ctx context.Context, client *controlplane.Client, status map[string]any, repair bool) doctorCheck {
-	res, err := client.Call(ctx, controlplane.CmdScheduleList, nil)
+	res, err := client.Call(ctx, opapi.ScheduleList, nil)
 	if err != nil {
 		return ok("schedules", "schedule list unavailable (—)")
 	}
@@ -505,7 +506,7 @@ func checkSchedules(ctx context.Context, client *controlplane.Client, status map
 	}
 	paused := 0
 	for _, id := range ids {
-		out, err := client.Call(ctx, controlplane.CmdScheduleEnable, map[string]any{"id": id, "enabled": false})
+		out, err := client.Call(ctx, opapi.ScheduleEnable, map[string]any{"id": id, "enabled": false})
 		if err != nil {
 			return warn("schedules",
 				fmt.Sprintf("%s; repair paused %d/%d attention schedule(s)", check.Detail, paused, len(ids)),
@@ -634,7 +635,7 @@ func scheduleTargetBlocked(row map[string]any) bool {
 }
 
 func checkStanding(ctx context.Context, client *controlplane.Client, repair bool) doctorCheck {
-	res, err := client.Call(ctx, controlplane.CmdStandingList, nil)
+	res, err := client.Call(ctx, opapi.StandingList, nil)
 	if err != nil {
 		return ok("standing", "standing order list unavailable (—)")
 	}
@@ -648,7 +649,7 @@ func checkStanding(ctx context.Context, client *controlplane.Client, repair bool
 	}
 	paused := 0
 	for _, id := range ids {
-		out, err := client.Call(ctx, controlplane.CmdStandingSetEnabled, map[string]any{"id": id, "enabled": false})
+		out, err := client.Call(ctx, opapi.StandingSetEnabled, map[string]any{"id": id, "enabled": false})
 		if err != nil {
 			return warn("standing",
 				fmt.Sprintf("%s; repair paused %d/%d attention standing order(s)", check.Detail, paused, len(ids)),

@@ -22,8 +22,8 @@ import (
 )
 
 func TestJournalNativeTypedRegistry(t *testing.T) {
-	for cmd, routed := range map[string]bool{CmdJournalHead: false, CmdJournalTail: false, CmdJournalGrep: false, CmdJournalExport: false, CmdJournalStats: true, CmdChangelog: true, CmdCacheStats: true, CmdWhy: true} {
-		tenantAllowed := cmd == CmdCacheStats || cmd == CmdWhy
+	for cmd, routed := range map[string]bool{opapi.JournalHead: false, opapi.JournalTail: false, opapi.JournalGrep: false, opapi.JournalExport: false, opapi.JournalStats: true, opapi.Changelog: true, opapi.CacheStats: true, opapi.Why: true} {
+		tenantAllowed := cmd == opapi.CacheStats || cmd == opapi.Why
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -94,24 +94,24 @@ func TestJournalNativeRouting(t *testing.T) {
 		return resp.Result, string(line)
 	}
 	acme := map[string]any{"tenant": "acme"}
-	if head, line := call("primary", CmdJournalHead, acme); head["head"] != float64(pHead) || head["hash"] != pHash {
+	if head, line := call("primary", opapi.JournalHead, acme); head["head"] != float64(pHead) || head["hash"] != pHash {
 		t.Fatal("head reads the primary journal", line)
 	}
-	tail, line := call("primary", CmdJournalTail, map[string]any{"tenant": "acme", "n": 2})
+	tail, line := call("primary", opapi.JournalTail, map[string]any{"tenant": "acme", "n": 2})
 	if events, _ := tail["events"].([]any); len(events) != 2 || tail["head"] != float64(pHead) || !strings.Contains(line, `"events":[{"id":"`) {
 		t.Fatal("tail reads the primary journal and keeps the event member order", line)
 	}
-	if stats, line := call("primary", CmdJournalStats, nil); stats["events"] != float64(pHead+1) || stats["segments"] != float64(1) {
+	if stats, line := call("primary", opapi.JournalStats, nil); stats["events"] != float64(pHead+1) || stats["segments"] != float64(1) {
 		t.Fatal(line)
 	}
-	if stats, line := call("primary", CmdJournalStats, map[string]any{"tenant": " acme "}); stats["events"] != float64(tHead+1) {
+	if stats, line := call("primary", opapi.JournalStats, map[string]any{"tenant": " acme "}); stats["events"] != float64(tHead+1) {
 		t.Fatal("stats follows the operator-named tenant", line, tHead)
 	}
-	grep, line := call("primary", CmdJournalGrep, map[string]any{"tenant": "acme", "kind": "task.received"})
+	grep, line := call("primary", opapi.JournalGrep, map[string]any{"tenant": "acme", "kind": "task.received"})
 	if events, _ := grep["events"].([]any); len(events) != 1 || grep["head"] != float64(pHead) || !strings.Contains(line, `"events":[{"id":"`) {
 		t.Fatal("grep reads the primary journal and keeps the event member order", line)
 	}
-	export, line := call("primary", CmdJournalExport, map[string]any{"tenant": "acme"})
+	export, line := call("primary", opapi.JournalExport, map[string]any{"tenant": "acme"})
 	if export["count"] != float64(pHead+1) || export["head_seq"] != float64(pHead) || export["head_hash"] != pHash || !strings.Contains(line, `"events":[{"id":"`) {
 		t.Fatal("export bundles the primary journal and keeps the event member order", line)
 	}
@@ -124,19 +124,19 @@ func TestJournalNativeRouting(t *testing.T) {
 	for time.Now().UnixMilli() <= newest[0].TSUnixMS+1 {
 		time.Sleep(time.Millisecond)
 	}
-	if recent, line := call("primary", CmdJournalExport, map[string]any{"since_ms": 1}); recent["count"] != float64(0) || recent["first_seq"] != float64(-1) {
+	if recent, line := call("primary", opapi.JournalExport, map[string]any{"since_ms": 1}); recent["count"] != float64(0) || recent["first_seq"] != float64(-1) {
 		t.Fatal("the export window is measured on the daemon clock", line)
 	}
 	if MaxJournalExportN() != 200_000 {
 		t.Fatal("the CLI names the app export cap", MaxJournalExportN())
 	}
-	if log, line := call("primary", CmdChangelog, map[string]any{"tenant": "acme"}); log["count"] != float64(0) || !strings.Contains(line, `"entries":[]`) {
+	if log, line := call("primary", opapi.Changelog, map[string]any{"tenant": "acme"}); log["count"] != float64(0) || !strings.Contains(line, `"entries":[]`) {
 		t.Fatal("the changelog follows the operator-named tenant", line)
 	}
-	if log, line := call("primary", CmdChangelog, nil); log["count"] != float64(1) || !strings.Contains(line, `"detail":"deny shell"`) {
+	if log, line := call("primary", opapi.Changelog, nil); log["count"] != float64(1) || !strings.Contains(line, `"detail":"deny shell"`) {
 		t.Fatal("the primary changelog holds the policy change", line)
 	}
-	if cache, line := call(tenantToken, CmdCacheStats, acme); cache["calls"] != float64(0) || !strings.Contains(line, `"window_ms":0`) {
+	if cache, line := call(tenantToken, opapi.CacheStats, acme); cache["calls"] != float64(0) || !strings.Contains(line, `"window_ms":0`) {
 		t.Fatal("a tenant reads its own cache statistics", line)
 	}
 	cause, err := k.Bus().Publish(event.Spec{Subject: "pulse.tick", Kind: event.KindPulseTick, Actor: "pulse", CorrelationID: "tick", Payload: map[string]any{"beat": 1}})
@@ -147,20 +147,20 @@ func TestJournalNativeRouting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if why, line := call("primary", CmdWhy, map[string]any{"event_id": effect.ID}); why["correlation"] != "act" || !strings.Contains(line, `"events":[{"id":"`+effect.ID+`"`) || !strings.Contains(line, `"causation_chain":[{"id":"`+cause.ID+`"`) {
+	if why, line := call("primary", opapi.Why, map[string]any{"event_id": effect.ID}); why["correlation"] != "act" || !strings.Contains(line, `"events":[{"id":"`+effect.ID+`"`) || !strings.Contains(line, `"causation_chain":[{"id":"`+cause.ID+`"`) {
 		t.Fatal("why walks the causation chain and keeps the event member order", line)
 	}
 	tenantEvent, err := tk.Bus().Publish(event.Spec{Subject: "chain", Kind: event.KindPulseTick, Actor: "pulse", CorrelationID: "acme-tick", Payload: map[string]any{"beat": 2}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if why, line := call(tenantToken, CmdWhy, map[string]any{"tenant": "acme", "event_id": tenantEvent.ID}); why["correlation"] != "acme-tick" {
+	if why, line := call(tenantToken, opapi.Why, map[string]any{"tenant": "acme", "event_id": tenantEvent.ID}); why["correlation"] != "acme-tick" {
 		t.Fatal("a tenant traces its own events", line)
 	}
-	if _, line := call(tenantToken, CmdWhy, map[string]any{"tenant": "acme", "event_id": effect.ID}); !strings.Contains(line, `"type":"error"`) {
+	if _, line := call(tenantToken, opapi.Why, map[string]any{"tenant": "acme", "event_id": effect.ID}); !strings.Contains(line, `"type":"error"`) {
 		t.Fatal("a tenant never traces the primary journal", line)
 	}
-	for _, cmd := range []string{CmdJournalHead, CmdJournalTail, CmdJournalGrep, CmdJournalExport, CmdJournalStats, CmdChangelog} {
+	for _, cmd := range []string{opapi.JournalHead, opapi.JournalTail, opapi.JournalGrep, opapi.JournalExport, opapi.JournalStats, opapi.Changelog} {
 		if _, line := call(tenantToken, cmd, acme); !strings.Contains(line, "forbidden") {
 			t.Fatal(cmd, line)
 		}

@@ -4,7 +4,7 @@ package controlplane_test
 import (
 	"context"
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/internal/testfixtures"
 	"github.com/agezt/agezt/kernel/market"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -24,7 +24,7 @@ func (marketReadNativeLibrary) ResolvePack(_, name, _ string) (market.Pack, erro
 func TestMarketReadNativeUnavailablePrecedesNameAndReadShapesHaveNoEffects(t *testing.T) {
 	p := mock.New()
 	k, _, client, dir := startPair(t, p)
-	for _, cmd := range []string{controlplane.CmdMarketList, controlplane.CmdMarketShow, controlplane.CmdMarketSources} {
+	for _, cmd := range []string{opapi.MarketList, opapi.MarketShow, opapi.MarketSources} {
 		if _, err := client.Call(context.Background(), cmd, map[string]any{"name": false, "unknown": true}); err == nil || !strings.Contains(err.Error(), "marketplace not available on this daemon") {
 			t.Fatal(cmd, err)
 		}
@@ -32,15 +32,15 @@ func TestMarketReadNativeUnavailablePrecedesNameAndReadShapesHaveNoEffects(t *te
 	store := market.NewStore(dir)
 	k.SetMarket(market.NewManager(market.Config{Library: marketReadNativeLibrary{}, Store: store}))
 	head, hash := k.Journal().Head()
-	list, err := client.Call(context.Background(), controlplane.CmdMarketList, map[string]any{"query": " OWNED ", "unknown": true})
+	list, err := client.Call(context.Background(), opapi.MarketList, map[string]any{"query": " OWNED ", "unknown": true})
 	if err != nil || list["count"] != float64(1) || list["packs"].([]any)[0].(map[string]any)["name"] != "owned" {
 		t.Fatal(list, err)
 	}
-	show, err := client.Call(context.Background(), controlplane.CmdMarketShow, map[string]any{"name": " owned "})
+	show, err := client.Call(context.Background(), opapi.MarketShow, map[string]any{"name": " owned "})
 	if err != nil || len(show) != 10 || show["installed"] != false || show["installed_at"] != float64(0) || show["tools"] != nil || show["skill_count"] != float64(1) || show["vet"].(map[string]any)["verdict"] != "clean" {
 		t.Fatal(show, err)
 	}
-	sources, err := client.Call(context.Background(), controlplane.CmdMarketSources, map[string]any{"unknown": true})
+	sources, err := client.Call(context.Background(), opapi.MarketSources, map[string]any{"unknown": true})
 	if err != nil || sources["count"] != float64(0) || len(sources["sources"].([]any)) != 0 {
 		t.Fatal(sources, err)
 	}
@@ -63,7 +63,7 @@ func TestMarketReadNativeThreeTenantDenialsPreserveManagerAndJournal(t *testing.
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
 	before, _ := store.Installed()
-	for _, cmd := range []string{controlplane.CmdMarketList, controlplane.CmdMarketShow, controlplane.CmdMarketSources} {
+	for _, cmd := range []string{opapi.MarketList, opapi.MarketShow, opapi.MarketSources} {
 		if _, err := client.Call(context.Background(), cmd, map[string]any{"name": "owned", "tenant": "acme"}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
 			t.Fatal(cmd, err)
 		}

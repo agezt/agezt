@@ -7,9 +7,9 @@
 // depended on the package-private `dial` and `encodeJSON`
 // helpers. After Day 5 extracted `dial` to cmd/agt/dial and
 // `encodeJSON` to cmd/agt/jsonout, the only thing keeping
-// whoami in package main was the registration line in
-// cmd_register.go — and that line is now an import +
-// `whoami.Run` reference.
+// whoami in package main was the registration line in the
+// top-level vocabulary table (cmd/agt/commands_top.go) — and
+// that line is now an import + `whoami.Run` reference.
 //
 // Why bother. The benefit is not visible for a single 70-line
 // file. It becomes visible when the same template is applied

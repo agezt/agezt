@@ -5,6 +5,7 @@ package controlplane_test
 import (
 	"context"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/toolapi"
@@ -22,7 +23,7 @@ import (
 func TestPluginList_EmptyWhenNoneConfigured(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdPluginList, nil)
+	res, err := c.Call(context.Background(), opapi.PluginList, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -88,7 +89,7 @@ func TestPluginList_ReturnsManifestSortedByPrefix(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err := client.Call(context.Background(), controlplane.CmdPluginList, nil)
+	res, err := client.Call(context.Background(), opapi.PluginList, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}

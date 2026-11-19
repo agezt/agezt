@@ -63,7 +63,7 @@ func ForgeLifecycleOperations(provider func(context.Context) *ForgeLifecycle) ([
 	spec := func(name string) opapi.Spec {
 		return opapi.Spec{Name: name, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: forgeMutationSchema}
 	}
-	draft, err := app.NewOperation(spec("toolforge_draft"), func(ctx context.Context, in ForgeDraftRequest) (ForgeMutationOutput, error) {
+	draft, err := app.NewOperation(spec(opapi.ToolforgeDraft), func(ctx context.Context, in ForgeDraftRequest) (ForgeMutationOutput, error) {
 		tool, err := forgeDecodeTool(in.Tool)
 		if err != nil {
 			return ForgeMutationOutput{}, err
@@ -73,7 +73,7 @@ func ForgeLifecycleOperations(provider func(context.Context) *ForgeLifecycle) ([
 	if err != nil {
 		return nil, err
 	}
-	edit, err := app.NewOperation(spec("toolforge_edit"), func(ctx context.Context, in ForgeEditRequest) (ForgeMutationOutput, error) {
+	edit, err := app.NewOperation(spec(opapi.ToolforgeEdit), func(ctx context.Context, in ForgeEditRequest) (ForgeMutationOutput, error) {
 		ref, err := forgeRequiredRef(in.Ref)
 		if err != nil {
 			return ForgeMutationOutput{}, err
@@ -87,7 +87,7 @@ func ForgeLifecycleOperations(provider func(context.Context) *ForgeLifecycle) ([
 	if err != nil {
 		return nil, err
 	}
-	test, err := app.NewOperation(spec("toolforge_test"), func(ctx context.Context, in ForgeTestRequest) (ForgeTestOutput, error) {
+	test, err := app.NewOperation(spec(opapi.ToolforgeTest), func(ctx context.Context, in ForgeTestRequest) (ForgeTestOutput, error) {
 		ref, err := forgeRequiredRef(in.Ref)
 		if err != nil {
 			return ForgeTestOutput{}, err
@@ -101,7 +101,7 @@ func ForgeLifecycleOperations(provider func(context.Context) *ForgeLifecycle) ([
 	if err != nil {
 		return nil, err
 	}
-	promote, err := app.NewOperation(spec("toolforge_promote"), func(ctx context.Context, in ForgeRefRequest) (ForgeMutationOutput, error) {
+	promote, err := app.NewOperation(spec(opapi.ToolforgePromote), func(ctx context.Context, in ForgeRefRequest) (ForgeMutationOutput, error) {
 		ref, err := forgeRequiredRef(in.Ref)
 		if err != nil {
 			return ForgeMutationOutput{}, err
@@ -111,7 +111,7 @@ func ForgeLifecycleOperations(provider func(context.Context) *ForgeLifecycle) ([
 	if err != nil {
 		return nil, err
 	}
-	quarantine, err := app.NewOperation(spec("toolforge_quarantine"), func(ctx context.Context, in ForgeQuarantineRequest) (ForgeMutationOutput, error) {
+	quarantine, err := app.NewOperation(spec(opapi.ToolforgeQuarantine), func(ctx context.Context, in ForgeQuarantineRequest) (ForgeMutationOutput, error) {
 		ref, err := forgeRequiredRef(in.Ref)
 		if err != nil {
 			return ForgeMutationOutput{}, err
@@ -125,7 +125,7 @@ func ForgeLifecycleOperations(provider func(context.Context) *ForgeLifecycle) ([
 	if err != nil {
 		return nil, err
 	}
-	remove, err := app.NewOperation(spec("toolforge_remove"), func(ctx context.Context, in ForgeRefRequest) (ForgeRemoveOutput, error) {
+	remove, err := app.NewOperation(spec(opapi.ToolforgeRemove), func(ctx context.Context, in ForgeRefRequest) (ForgeRemoveOutput, error) {
 		ref, err := forgeRequiredRef(in.Ref)
 		if err != nil {
 			return ForgeRemoveOutput{}, err

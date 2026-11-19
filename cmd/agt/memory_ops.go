@@ -20,7 +20,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdMemoryForget(args []string, stdout, stderr io.Writer) int {
@@ -50,7 +50,7 @@ func cmdMemoryForget(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdMemoryForget, map[string]any{"id": id})
+	res, err := c.Call(ctx, opapi.MemoryForget, map[string]any{"id": id})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s memory forget: %v\n", brand.CLI, err)
 		return 1
@@ -97,7 +97,7 @@ func cmdMemoryPromote(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdMemoryPromote, map[string]any{"id": id})
+	res, err := c.Call(ctx, opapi.MemoryPromote, map[string]any{"id": id})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s memory promote: %v\n", brand.CLI, err)
 		return 1
@@ -135,7 +135,7 @@ func cmdMemoryAudit(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdMemoryAudit, withTenant(tenant, nil))
+	res, err := c.Call(ctx, opapi.MemoryAudit, withTenant(tenant, nil))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s memory audit: %v\n", brand.CLI, err)
 		return 1
@@ -185,7 +185,7 @@ func cmdMemoryClean(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdMemoryClean, withTenant(tenant, map[string]any{"dry_run": dryRun}))
+	res, err := c.Call(ctx, opapi.MemoryClean, withTenant(tenant, map[string]any{"dry_run": dryRun}))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s memory clean: %v\n", brand.CLI, err)
 		return 1

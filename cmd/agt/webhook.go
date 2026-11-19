@@ -14,7 +14,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdWebhook dispatches `agt webhook <subcommand>` (M112) — visibility into
@@ -24,17 +24,11 @@ func cmdWebhook(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s webhook: subcommand required (test|log|stats)\n", brand.CLI)
 		return 2
 	}
-	switch args[0] {
-	case "test":
-		return cmdWebhookTest(args[1:], stdout, stderr)
-	case "log":
-		return cmdWebhookLog(args[1:], stdout, stderr)
-	case "stats":
-		return cmdWebhookStats(args[1:], stdout, stderr)
-	default:
-		fmt.Fprintf(stderr, "%s webhook: unknown subcommand %q (test|log|stats)\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliWebhook.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s webhook: unknown subcommand %q (test|log|stats)\n", brand.CLI, args[0])
+	return 2
 }
 
 // cmdWebhookTest implements `agt webhook test [<url>] [--subject <pat>]
@@ -110,7 +104,7 @@ func cmdWebhookLog(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdWebhookLog, withTenant(tenant, callArgs))
+	res, err := c.Call(ctx, opapi.WebhookLog, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s webhook log: %v\n", brand.CLI, err)
 		return 1
@@ -203,7 +197,7 @@ func cmdWebhookStats(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdWebhookStats, withTenant(tenant, callArgs))
+	res, err := c.Call(ctx, opapi.WebhookStats, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s webhook stats: %v\n", brand.CLI, err)
 		return 1

@@ -4,37 +4,40 @@ package controlplane
 
 import (
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // Registry invariants: the command registry IS the dispatch surface (handleConn
-// routes every request through it), so these tests pin it against protocol.go
-// + protocol_commands.go and enforce the tenant-isolation invariant. The
-// tenant allowlist itself is swept end-to-end by tenant_auth_test.go's
-// registry-driven exhaustive test.
+// routes every request through it), so these tests pin it against the
+// operation vocabulary in kernel/contract/opapi and enforce the tenant-isolation
+// invariant. The tenant allowlist itself is swept end-to-end by
+// tenant_auth_test.go's registry-driven exhaustive test.
 
-// cmdConstRe matches the Cmd* string constants in protocol.go /
-// protocol_commands.go, e.g.
+// cmdConstRe matches the operation-name string constants in the catalogue,
+// e.g.
 //
-//	CmdVersion       = "version"
-var cmdConstRe = regexp.MustCompile(`(?m)^\s*(Cmd\w+)\s*=\s*"([^"]+)"`)
+//	opapi.Version = "version"
+var cmdConstRe = regexp.MustCompile(`(?m)^\s*(\w+)\s*=\s*"([^"]+)"`)
 
-// protocolCommands returns constName→value for every Cmd* const declared in
-// protocol.go + the protocol_commands*.go split files (the command const block
-// has been carved into themed files: protocol_commands, _edict, _data,
-// _domains, _misc; see Day 28 + Day 43 god file splits).
+// protocolCommands returns constName→value for every operation name declared
+// in the catalogue (kernel/contract/opapi/names*.go). The vocabulary used to
+// live in this package as the Cmd* constants; it moved to the contract layer
+// when the operation vocabulary got one home (W3.79), and the names themselves
+// did not change.
 func protocolCommands(t *testing.T) map[string]string {
 	t.Helper()
 	out := map[string]string{}
-	paths := []string{
-		"protocol.go",
-		"protocol_commands.go",
-		"protocol_commands_edict.go",
-		"protocol_commands_data.go",
-		"protocol_commands_domains.go",
-		"protocol_commands_misc.go",
+	paths, err := filepath.Glob(filepath.Join("..", "contract", "opapi", "names*.go"))
+	if err != nil {
+		t.Fatalf("glob catalogue: %v", err)
+	}
+	if len(paths) == 0 {
+		t.Fatal("kernel/contract/opapi/names*.go: no operation names matched — the vocabulary lost its home")
 	}
 	for _, path := range paths {
 		src, err := os.ReadFile(path)
@@ -49,7 +52,7 @@ func protocolCommands(t *testing.T) map[string]string {
 		}
 	}
 	if len(out) == 0 {
-		t.Fatal("protocol.go + protocol_commands*.go: no Cmd* constants matched — regexp or file layout changed")
+		t.Fatal("kernel/contract/opapi/names*.go: no operation names matched — regexp or file layout changed")
 	}
 	return out
 }
@@ -63,32 +66,32 @@ func sortedKeys[V any](m map[string]V) []string {
 	return ks
 }
 
-// TestRegistry_MatchesProtocolConstants asserts set equality between the Cmd*
-// constants declared in protocol.go and the commands in commandRegistry, in
-// both directions. A new protocol command MUST be registered (add a
-// commandSpec to the owning subsystem's registerXCommands), and the registry
-// must never carry a command the protocol no longer declares.
+// TestRegistry_MatchesProtocolConstants asserts set equality between the
+// operation names declared in the catalogue and the commands in
+// commandRegistry, in both directions. A new operation MUST be registered (add
+// a commandSpec to the owning subsystem's registerXCommands), and the registry
+// must never carry a command the catalogue no longer declares.
 func TestRegistry_MatchesProtocolConstants(t *testing.T) {
 	consts := protocolCommands(t)
 	declared := map[string]string{} // value → const name
 	for name, val := range consts {
 		if prev, dup := declared[val]; dup {
-			t.Errorf("protocol.go: command string %q declared by both %s and %s", val, prev, name)
+			t.Errorf("catalogue: operation string %q declared by both %s and %s", val, prev, name)
 		}
 		declared[val] = name
 	}
 	for _, val := range sortedKeys(declared) {
 		if _, ok := commandRegistry[val]; !ok {
-			t.Errorf("protocol.go declares %s = %q but it is not registered — add a commandSpec for it in the owning subsystem's registerXCommands()", declared[val], val)
+			t.Errorf("catalogue declares %s = %q but it is not registered — add a commandSpec for it in the owning subsystem's registerXCommands()", declared[val], val)
 		}
 	}
 	for _, cmd := range sortedKeys(commandRegistry) {
 		if _, ok := declared[cmd]; !ok {
-			t.Errorf("registry contains %q which no Cmd* constant in protocol.go declares — remove the stale commandSpec", cmd)
+			t.Errorf("registry contains %q which the catalogue does not declare — remove the stale commandSpec", cmd)
 		}
 	}
 	if len(declared) != len(commandRegistry) {
-		t.Errorf("protocol.go declares %d commands, registry has %d", len(declared), len(commandRegistry))
+		t.Errorf("catalogue declares %d operations, registry has %d", len(declared), len(commandRegistry))
 	}
 }
 
@@ -107,7 +110,7 @@ func TestRegistry_TenantAllowedImpliesTenantRouted(t *testing.T) {
 		if !spec.TenantAllowed || spec.TenantRouted {
 			continue
 		}
-		if cmd == CmdWhoami {
+		if cmd == opapi.Whoami {
 			continue // identity echo — touches no kernel (see doc comment)
 		}
 		t.Errorf("%q is TenantAllowed but not TenantRouted — a tenant token would read the primary kernel's data; route the handler via kernelFor(tenantOf(req)) (or bind a typed CallerTenant operation) and set TenantRouted", cmd)

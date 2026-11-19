@@ -20,7 +20,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/kernel/configcenter"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdConfigCenterList(args []string, stdout, stderr io.Writer) int {
@@ -65,7 +65,7 @@ func cmdConfigCenterList(args []string, stdout, stderr io.Writer) int {
 		params["rating"] = rating
 	}
 
-	res, err := c.Call(ctx, controlplane.CmdConfigCenterList, params)
+	res, err := c.Call(ctx, opapi.ConfigCenterList, params)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s configcenter list: %v\n", brand.CLI, err)
 		return 1

@@ -155,6 +155,6 @@ func handleOAuthSnapshotOperation(s *Server, conn net.Conn, req Request) {
 	s.operationOnce.Do(func() {
 		s.operations, s.operationErr = app.NewDispatcher(channelOAuthOperations, app.Dependencies{Auth: oauthSnapshotAuth{}, Router: oauthSnapshotRoute{s}})
 	})
-	req.Cmd = CmdChannelOAuthStatus
+	req.Cmd = opapi.ChannelOAuthStatus
 	handleAppOperation(&DispatchCtx{S: s, Conn: conn, Req: req, Ctx: context.Background()})
 }

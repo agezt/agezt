@@ -86,32 +86,32 @@ func ControlOperations(service func(context.Context) *Controls) ([]app.Operation
 	var ops []app.Operation
 	bindings := []func() error{
 		func() error {
-			return bindControl(&ops, "pulse_status", true, func(ctx context.Context, in ControlRequest) (StatusOutput, error) {
+			return bindControl(&ops, opapi.PulseStatus, true, func(ctx context.Context, in ControlRequest) (StatusOutput, error) {
 				return service(ctx).Status(ctx, StatusInput{})
 			})
 		},
 		func() error {
-			return bindControl(&ops, "pulse_asks", true, func(ctx context.Context, in ControlRequest) (AsksOutput, error) {
+			return bindControl(&ops, opapi.PulseAsks, true, func(ctx context.Context, in ControlRequest) (AsksOutput, error) {
 				return service(ctx).Asks(ctx, AsksInput{})
 			})
 		},
 		func() error {
-			return bindControl(&ops, "pulse_pause", false, func(ctx context.Context, in ControlRequest) (PauseOutput, error) {
+			return bindControl(&ops, opapi.PulsePause, false, func(ctx context.Context, in ControlRequest) (PauseOutput, error) {
 				return service(ctx).Pause(ctx, PauseInput{})
 			})
 		},
 		func() error {
-			return bindControl(&ops, "pulse_resume", false, func(ctx context.Context, in ControlRequest) (PauseOutput, error) {
+			return bindControl(&ops, opapi.PulseResume, false, func(ctx context.Context, in ControlRequest) (PauseOutput, error) {
 				return service(ctx).Resume(ctx, PauseInput{})
 			})
 		},
 		func() error {
-			return bindControl(&ops, "pulse_beat", false, func(ctx context.Context, in ControlRequest) (BeatOutput, error) {
+			return bindControl(&ops, opapi.PulseBeat, false, func(ctx context.Context, in ControlRequest) (BeatOutput, error) {
 				return service(ctx).Beat(ctx, BeatInput{})
 			})
 		},
 		func() error {
-			return bindControl(&ops, "pulse_ask_resolve", false, func(ctx context.Context, in ControlRequest) (ResolveOutput, error) {
+			return bindControl(&ops, opapi.PulseAskResolve, false, func(ctx context.Context, in ControlRequest) (ResolveOutput, error) {
 				s := service(ctx)
 				if !s.Available() {
 					return ResolveOutput{}, ErrDisabled
@@ -124,7 +124,7 @@ func ControlOperations(service func(context.Context) *Controls) ([]app.Operation
 			})
 		},
 		func() error {
-			return bindControl(&ops, "pulse_cadence", false, func(ctx context.Context, in ControlRequest) (CadenceOutput, error) {
+			return bindControl(&ops, opapi.PulseCadence, false, func(ctx context.Context, in ControlRequest) (CadenceOutput, error) {
 				s := service(ctx)
 				if !s.Available() {
 					return CadenceOutput{}, ErrDisabled
@@ -133,7 +133,7 @@ func ControlOperations(service func(context.Context) *Controls) ([]app.Operation
 			})
 		},
 		func() error {
-			return bindControl(&ops, "pulse_dial", false, func(ctx context.Context, in ControlRequest) (DialOutput, error) {
+			return bindControl(&ops, opapi.PulseDial, false, func(ctx context.Context, in ControlRequest) (DialOutput, error) {
 				s := service(ctx)
 				if !s.Available() {
 					return DialOutput{}, ErrDisabled
@@ -146,7 +146,7 @@ func ControlOperations(service func(context.Context) *Controls) ([]app.Operation
 			})
 		},
 		func() error {
-			return bindControl(&ops, "pulse_quiet", false, func(ctx context.Context, in ControlRequest) (QuietOutput, error) {
+			return bindControl(&ops, opapi.PulseQuiet, false, func(ctx context.Context, in ControlRequest) (QuietOutput, error) {
 				s := service(ctx)
 				if !s.Available() {
 					return QuietOutput{}, ErrDisabled
@@ -159,12 +159,12 @@ func ControlOperations(service func(context.Context) *Controls) ([]app.Operation
 			})
 		},
 		func() error {
-			return bindControl(&ops, "pulse_flush", false, func(ctx context.Context, in ControlRequest) (FlushOutput, error) {
+			return bindControl(&ops, opapi.PulseFlush, false, func(ctx context.Context, in ControlRequest) (FlushOutput, error) {
 				return service(ctx).Flush(ctx, FlushInput{})
 			})
 		},
 		func() error {
-			return bindControl(&ops, "pulse_unwatch", false, func(ctx context.Context, in ControlRequest) (UnwatchOutput, error) {
+			return bindControl(&ops, opapi.PulseUnwatch, false, func(ctx context.Context, in ControlRequest) (UnwatchOutput, error) {
 				s := service(ctx)
 				if !s.Available() {
 					return UnwatchOutput{}, ErrDisabled
@@ -177,7 +177,7 @@ func ControlOperations(service func(context.Context) *Controls) ([]app.Operation
 			})
 		},
 		func() error {
-			return bindControl(&ops, "pulse_watch", false, func(ctx context.Context, in ControlRequest) (ObserverOutput, error) {
+			return bindControl(&ops, opapi.PulseWatch, false, func(ctx context.Context, in ControlRequest) (ObserverOutput, error) {
 				s := service(ctx)
 				if !s.WatchesAvailable() {
 					return ObserverOutput{}, ErrWatchesUnavailable
@@ -190,7 +190,7 @@ func ControlOperations(service func(context.Context) *Controls) ([]app.Operation
 			})
 		},
 		func() error {
-			return bindControl(&ops, "pulse_probe", false, func(ctx context.Context, in ControlRequest) (ObserverOutput, error) {
+			return bindControl(&ops, opapi.PulseProbe, false, func(ctx context.Context, in ControlRequest) (ObserverOutput, error) {
 				s := service(ctx)
 				if !s.WatchesAvailable() {
 					return ObserverOutput{}, ErrWatchesUnavailable

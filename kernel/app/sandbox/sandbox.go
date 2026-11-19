@@ -231,19 +231,19 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	list, err := app.NewOperation(opapi.Spec{Name: "sandbox_list", ReadOnly: true, OutputSchema: listOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/sandbox"}}, func(ctx context.Context, in ListRequest) (ListOutput, error) {
+	list, err := app.NewOperation(opapi.Spec{Name: opapi.SandboxList, ReadOnly: true, OutputSchema: listOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/sandbox"}}, func(ctx context.Context, in ListRequest) (ListOutput, error) {
 		return provider(ctx).List(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	file, err := app.NewOperation(opapi.Spec{Name: "sandbox_file", ReadOnly: true, OutputSchema: fileOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"project":{},"file":{}}}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/sandbox_file"}}, func(ctx context.Context, in FileRequest) (FileOutput, error) {
+	file, err := app.NewOperation(opapi.Spec{Name: opapi.SandboxFile, ReadOnly: true, OutputSchema: fileOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"project":{},"file":{}}}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/sandbox_file"}}, func(ctx context.Context, in FileRequest) (FileOutput, error) {
 		return provider(ctx).File(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	del, err := app.NewOperation(opapi.Spec{Name: "sandbox_delete", OutputSchema: deleteOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"project":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/sandbox/delete"}}, func(ctx context.Context, in DeleteRequest) (DeleteOutput, error) {
+	del, err := app.NewOperation(opapi.Spec{Name: opapi.SandboxDelete, OutputSchema: deleteOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"project":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/sandbox/delete"}}, func(ctx context.Context, in DeleteRequest) (DeleteOutput, error) {
 		return provider(ctx).Delete(ctx, in)
 	})
 	if err != nil {

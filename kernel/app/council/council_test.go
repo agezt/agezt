@@ -131,9 +131,9 @@ func TestOperations(t *testing.T) {
 		read               bool
 		input, output      reflect.Type
 	}{
-		{"council_members", "GET", "/api/council/members", true, reflect.TypeFor[MembersRequest](), reflect.TypeFor[MembersOutput]()},
-		{"council_set", "POST", "/api/council/set", false, reflect.TypeFor[SetRequest](), reflect.TypeFor[SetOutput]()},
-		{"conductor_roles", "", "", true, reflect.TypeFor[RolesRequest](), reflect.TypeFor[RolesOutput]()},
+		{opapi.CouncilMembers, "GET", "/api/council/members", true, reflect.TypeFor[MembersRequest](), reflect.TypeFor[MembersOutput]()},
+		{opapi.CouncilSet, "POST", "/api/council/set", false, reflect.TypeFor[SetRequest](), reflect.TypeFor[SetOutput]()},
+		{opapi.ConductorRoles, "", "", true, reflect.TypeFor[RolesRequest](), reflect.TypeFor[RolesOutput]()},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)

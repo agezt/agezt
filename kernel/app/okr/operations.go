@@ -98,17 +98,17 @@ func Operations(reads func(context.Context) *Service, writes func(context.Contex
 	var ops []app.Operation
 	bindings := []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "okr_list", ReadOnly: true}, func(ctx context.Context, in ListRequestInput) (ListOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.OKRList, ReadOnly: true}, func(ctx context.Context, in ListRequestInput) (ListOutput, error) {
 				return reads(ctx).List(ctx, ListInput{Status: okrapi.Status(requestText(in.Status)), Tenant: requestText(in.Tenant), IncludeArchived: in.IncludeArchived, Limit: requestLimit(in.Limit)})
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "okr_show", ReadOnly: true}, func(ctx context.Context, in ShowRequestInput) (ShowOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.OKRShow, ReadOnly: true}, func(ctx context.Context, in ShowRequestInput) (ShowOutput, error) {
 				return reads(ctx).Show(ctx, ShowInput{ID: requestText(in.ID)})
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "okr_create"}, func(ctx context.Context, in CreateRequestInput) (ObjectiveOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.OKRCreate}, func(ctx context.Context, in CreateRequestInput) (ObjectiveOutput, error) {
 				title := requestText(in.Title)
 				if title == "" {
 					return ObjectiveOutput{}, errors.New("okr_create requires title")
@@ -117,7 +117,7 @@ func Operations(reads func(context.Context) *Service, writes func(context.Contex
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "okr_keyresult"}, func(ctx context.Context, in KeyResultRequestInput) (ObjectiveOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.OKRKeyResult}, func(ctx context.Context, in KeyResultRequestInput) (ObjectiveOutput, error) {
 				id, title := requestText(in.ID), requestText(in.Title)
 				if id == "" || title == "" {
 					return ObjectiveOutput{}, errors.New("okr_keyresult requires id and title")
@@ -127,19 +127,19 @@ func Operations(reads func(context.Context) *Service, writes func(context.Contex
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "okr_link"}, func(ctx context.Context, in LinkRequestInput) (ObjectiveOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.OKRLink}, func(ctx context.Context, in LinkRequestInput) (ObjectiveOutput, error) {
 				out, err := writes(ctx).Link(ctx, LinkInput{CorrelationID: requestCorrelation(ctx, in.CorrelationID), ID: requestText(in.ID), KeyResult: requestText(in.KeyResult), Task: requestText(in.Task)})
 				return nativeResult(in.ID, out, err)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "okr_unlink"}, func(ctx context.Context, in LinkRequestInput) (ObjectiveOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.OKRUnlink}, func(ctx context.Context, in LinkRequestInput) (ObjectiveOutput, error) {
 				out, err := writes(ctx).Unlink(ctx, LinkInput{CorrelationID: requestCorrelation(ctx, in.CorrelationID), ID: requestText(in.ID), KeyResult: requestText(in.KeyResult), Task: requestText(in.Task)})
 				return nativeResult(in.ID, out, err)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "okr_archive"}, func(ctx context.Context, in ArchiveRequestInput) (ObjectiveOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.OKRArchive}, func(ctx context.Context, in ArchiveRequestInput) (ObjectiveOutput, error) {
 				out, err := writes(ctx).Archive(ctx, ArchiveInput{CorrelationID: requestCorrelation(ctx, in.CorrelationID), ID: requestText(in.ID)})
 				return nativeResult(in.ID, out, err)
 			})

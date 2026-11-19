@@ -38,13 +38,13 @@ func GatewayOperations(provider func(context.Context) *Gateway) ([]app.Operation
 			InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"url":{},"backend":{},"session":{},"key":{}}}`),
 			HTTP:        opapi.HTTP{Method: "POST", Path: path}}
 	}
-	status, err := app.NewOperation(spec("whatsappgw_status", "/api/whatsappgw/status"), func(ctx context.Context, in GatewayRequest) (GatewayStatusOutput, error) {
+	status, err := app.NewOperation(spec(opapi.WhatsAppGatewayStatus, "/api/whatsappgw/status"), func(ctx context.Context, in GatewayRequest) (GatewayStatusOutput, error) {
 		return provider(ctx).Status(ctx, in.input())
 	})
 	if err != nil {
 		return nil, err
 	}
-	qr, err := app.NewOperation(spec("whatsappgw_qr", "/api/whatsappgw/qr"), func(ctx context.Context, in GatewayRequest) (GatewayQROutput, error) {
+	qr, err := app.NewOperation(spec(opapi.WhatsAppGatewayQR, "/api/whatsappgw/qr"), func(ctx context.Context, in GatewayRequest) (GatewayQROutput, error) {
 		return provider(ctx).QR(ctx, in.input())
 	})
 	if err != nil {

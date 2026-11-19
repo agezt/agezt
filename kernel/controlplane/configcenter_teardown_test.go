@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"testing"
 
 	core "github.com/agezt/agezt/kernel/configcenter"
@@ -53,7 +54,7 @@ func TestTheAdapterDeletesTheAgentsOwnConfigEntries(t *testing.T) {
 	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 
-	removed := callAppHost(t, s, Request{ID: "rm", Cmd: CmdAgentRemove, Token: "primary", Args: map[string]any{
+	removed := callAppHost(t, s, Request{ID: "rm", Cmd: opapi.AgentRemove, Token: "primary", Args: map[string]any{
 		"ref":     "owned",
 		"cascade": map[string]any{"config": true},
 	}})[0]

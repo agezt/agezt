@@ -11,7 +11,7 @@ import (
 
 func TestTasteNativeExitCompleteTypedRegistry(t *testing.T) {
 	type expected struct{ readOnly, tenant bool }
-	want := map[string]expected{CmdTasteCreate: {}, CmdTasteDelete: {}, CmdTasteList: {readOnly: true}}
+	want := map[string]expected{opapi.TasteCreate: {}, opapi.TasteDelete: {}, opapi.TasteList: {readOnly: true}}
 	seen := map[string]bool{}
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()

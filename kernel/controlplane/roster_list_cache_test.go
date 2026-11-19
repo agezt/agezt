@@ -29,7 +29,7 @@ func TestAgentListInvalidationRejectsEmptyRosterCache(t *testing.T) {
 			s.operationOnce.Do(func() {
 				s.operations, s.operationErr = app.NewDispatcher(rosterListOperations, app.Dependencies{Auth: oauthSnapshotAuth{}, Router: oauthSnapshotRoute{s}})
 			})
-			handleAppOperation(&DispatchCtx{S: s, Conn: b, Req: Request{ID: "owned", Cmd: CmdAgentList}, Ctx: context.Background()})
+			handleAppOperation(&DispatchCtx{S: s, Conn: b, Req: Request{ID: "owned", Cmd: opapi.AgentList}, Ctx: context.Background()})
 		}()
 		line, err := bufio.NewReader(a).ReadBytes(10)
 		a.Close()
@@ -58,7 +58,7 @@ func TestAgentListNativeTypedRegistry(t *testing.T) {
 	found := 0
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()
-		if spec.Name != CmdAgentList {
+		if spec.Name != opapi.AgentList {
 			continue
 		}
 		found++
@@ -66,7 +66,7 @@ func TestAgentListNativeTypedRegistry(t *testing.T) {
 			t.Fatalf("agent_list metadata=%+v", spec)
 		}
 	}
-	wire, exists := commandRegistry[CmdAgentList]
+	wire, exists := commandRegistry[opapi.AgentList]
 	if found != 1 || !exists || !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 		t.Fatalf("agent_list native wire found=%d metadata=%+v", found, wire)
 	}

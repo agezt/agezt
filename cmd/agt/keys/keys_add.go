@@ -15,7 +15,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func addCmd(args []string, stdout, stderr io.Writer) int {
@@ -74,7 +74,7 @@ func addCmd(args []string, stdout, stderr io.Writer) int {
 	payload["label"] = label
 	payload["value"] = value
 	payload["active"] = makeActive
-	res, err := c.Call(ctx, controlplane.CmdProviderKeyAdd, payload)
+	res, err := c.Call(ctx, opapi.ProviderKeyAdd, payload)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s provider keys add: %v\n", brand.CLI, err)
 		return 1
@@ -103,7 +103,7 @@ func activateCmd(args []string, stdout, stderr io.Writer) int {
 	defer cancel()
 	payload := keyRequest(provider, args[0])
 	payload["label"] = args[1]
-	res, err := c.Call(ctx, controlplane.CmdProviderKeyActivate, payload)
+	res, err := c.Call(ctx, opapi.ProviderKeyActivate, payload)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s provider keys activate: %v\n", brand.CLI, err)
 		return 1
@@ -132,7 +132,7 @@ func removeCmd(args []string, stdout, stderr io.Writer) int {
 	defer cancel()
 	payload := keyRequest(provider, args[0])
 	payload["label"] = args[1]
-	res, err := c.Call(ctx, controlplane.CmdProviderKeyRemove, payload)
+	res, err := c.Call(ctx, opapi.ProviderKeyRemove, payload)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s provider keys rm: %v\n", brand.CLI, err)
 		return 1

@@ -44,7 +44,7 @@ type Server struct {
 	stopOnce    sync.Once
 	wg          sync.WaitGroup
 
-	// shutdownCh fires (close) when a client sends CmdShutdown. The
+	// shutdownCh fires (close) when a client sends opapi.Shutdown. The
 	// daemon's main loop selects on this alongside SIGINT/SIGTERM so
 	// programmatic shutdown shares the same orderly exit path as the
 	// signal-driven one. Closed at most once (guarded by shutdownOnce).
@@ -86,7 +86,7 @@ type Server struct {
 	// through the composition root; nil-safe.
 	configEnvPinned map[string]bool
 
-	// cancelOnDisconnect, when true, makes a streaming CmdRun cancel its run
+	// cancelOnDisconnect, when true, makes a streaming opapi.Run cancel its run
 	// if the client connection drops before the run finishes (M35). Off by
 	// default so a backgrounded `agt run &` (whose client stays alive) is
 	// unaffected; only a genuinely-gone client (Ctrl-C / killed) cancels.

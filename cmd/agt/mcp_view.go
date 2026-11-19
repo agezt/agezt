@@ -14,11 +14,11 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func mcpUsage(w io.Writer) int {
-	fmt.Fprintf(w, "usage: %s mcp <list|add|attach|detach|enable|disable|remove>\n", brand.CLI)
+	fmt.Fprintf(w, "usage: %s mcp %s\n", brand.CLI, cliMCP.synopsis())
 	fmt.Fprintf(w, "  list [--json]                              registrations + live attachment status\n")
 	fmt.Fprintf(w, "  add <name> --cmd EXE [--arg A ...] [--desc TEXT]\n")
 	fmt.Fprintf(w, "      register a stdio MCP server, e.g. %s mcp add everything --cmd npx --arg -y --arg @modelcontextprotocol/server-everything\n", brand.CLI)
@@ -44,7 +44,7 @@ func cmdMCPList(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdMCPList, nil)
+	res, err := c.Call(ctx, opapi.MCPList, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s mcp list: %v\n", brand.CLI, err)
 		return 1

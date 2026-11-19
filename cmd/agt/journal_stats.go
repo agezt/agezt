@@ -12,7 +12,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdJournalStats implements `agt journal stats [--json]` (M132) — the journal's
@@ -45,7 +45,7 @@ func cmdJournalStats(args []string, stdout, stderr io.Writer) int {
 	// A large journal can take a while to fold; give it room.
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdJournalStats, nil)
+	res, err := c.Call(ctx, opapi.JournalStats, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s journal stats: %v\n", brand.CLI, err)
 		return 1

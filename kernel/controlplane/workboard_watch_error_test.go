@@ -3,6 +3,7 @@
 package controlplane
 
 import (
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"os"
 	"path/filepath"
@@ -31,7 +32,7 @@ func TestWorkboardAppWatchRejectsActualJournalFailureWithOneErrorFrame(t *testin
 			if writeErr != nil || closeErr != nil {
 				t.Fatal(writeErr, closeErr)
 			}
-			responses := callAppHost(t, s, Request{ID: "watch-failure", Cmd: CmdWorkboardWatch, Token: "primary", Args: map[string]any{"id": task.ID}})
+			responses := callAppHost(t, s, Request{ID: "watch-failure", Cmd: opapi.WorkboardWatch, Token: "primary", Args: map[string]any{"id": task.ID}})
 			if len(responses) != 1 || responses[0].Type != RespError || responses[0].Result != nil || responses[0].Event != nil || !strings.Contains(responses[0].Error, "journal: decode") || provider.CallCount() != 0 {
 				t.Fatalf("EXPECTED: one error frame, original read cause, no snapshot/provider effect; ACTUAL: responses=%+v calls=%d", responses, provider.CallCount())
 			}

@@ -27,7 +27,7 @@ import (
 //
 // Call handles single request→response commands (every read panel, the
 // query-arg writes). Stream handles a command that emits a sequence of
-// RespEvent frames before its terminal result — currently only CmdPlan, used
+// RespEvent frames before its terminal result — currently only opapi.Plan, used
 // by Flow Studio's "Run". The streamed events are discarded here (the browser
 // already sees them live on the SSE /events firehose); Stream is driven to its
 // terminal result only so the control-plane connection stays open for the

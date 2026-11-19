@@ -137,7 +137,7 @@ func AskOperations(provider func(context.Context) Engines) ([]app.Operation, err
 		return nil, err
 	}
 	frames := json.RawMessage(event.WireSchema)
-	ask, err := app.NewStreamingOperation(opapi.Spec{Name: "research_ask", Stream: opapi.StreamLive, OutputSchema: out, EmissionSchema: frames, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"question":{},"corr":{},"max_sub_questions":{},"max_sources":{},"verify":{},"max_verify_claims":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/research/ask"}}, func(ctx context.Context, in AskRequest, _ func(event.Event) error) (AskOutput, error) {
+	ask, err := app.NewStreamingOperation(opapi.Spec{Name: opapi.ResearchAsk, Stream: opapi.StreamLive, OutputSchema: out, EmissionSchema: frames, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"question":{},"corr":{},"max_sub_questions":{},"max_sources":{},"verify":{},"max_verify_claims":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/research/ask"}}, func(ctx context.Context, in AskRequest, _ func(event.Event) error) (AskOutput, error) {
 		return provider(ctx).Ask(ctx, in)
 	})
 	if err != nil {

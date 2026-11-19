@@ -202,7 +202,7 @@ func (s *Server) jsonProxy(jr writeRoute) http.HandlerFunc {
 	}
 }
 
-// planRunProxy returns the handler for Flow Studio's Run button. CmdPlan
+// planRunProxy returns the handler for Flow Studio's Run button. opapi.Plan
 // streams RespEvent frames before its terminal result, so it cannot go through
 // Call (which reads a single response); it is driven with Stream. The streamed
 // events are discarded — the browser already receives plan.*/node.* live on the

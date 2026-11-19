@@ -12,6 +12,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
 
@@ -28,7 +29,7 @@ func cmdSkillWorkshopApply(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s skill workshop apply: id required\n", brand.CLI)
 		return 2
 	}
-	return callSkillWorkshopTransition(controlplane.CmdSkillPromote, "apply", id, "", asJSON, stdout, stderr)
+	return callSkillWorkshopTransition(opapi.SkillPromote, "apply", id, "", asJSON, stdout, stderr)
 }
 
 func cmdSkillWorkshopReject(args []string, stdout, stderr io.Writer) int {
@@ -63,7 +64,7 @@ func cmdSkillWorkshopReject(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s skill workshop reject: %s is %s, not a pending proposal; use quarantine or revert for live skills\n", brand.CLI, id, str(sk["status"]))
 		return 1
 	}
-	return callSkillWorkshopTransitionWithClient(ctx, c, controlplane.CmdSkillArchive, "reject", id, reason, asJSON, stdout, stderr)
+	return callSkillWorkshopTransitionWithClient(ctx, c, opapi.SkillArchive, "reject", id, reason, asJSON, stdout, stderr)
 }
 
 func cmdSkillWorkshopQuarantine(args []string, stdout, stderr io.Writer) int {
@@ -79,7 +80,7 @@ func cmdSkillWorkshopQuarantine(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s skill workshop quarantine: id required\n", brand.CLI)
 		return 2
 	}
-	return callSkillWorkshopTransition(controlplane.CmdSkillQuarantine, "quarantine", id, reason, asJSON, stdout, stderr)
+	return callSkillWorkshopTransition(opapi.SkillQuarantine, "quarantine", id, reason, asJSON, stdout, stderr)
 }
 
 func cmdSkillWorkshopProposeCreate(args []string, stdout, stderr io.Writer) int {

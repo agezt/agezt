@@ -13,7 +13,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdResearch implements `agt research "<question>"` — run the deep-research
@@ -118,7 +118,7 @@ func cmdResearch(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdResearchAsk, map[string]any{
+	res, err := c.Call(ctx, opapi.ResearchAsk, map[string]any{
 		"question":          question,
 		"max_sources":       maxSources,
 		"max_sub_questions": maxSubQ,

@@ -3,6 +3,7 @@ package controlplane
 
 import (
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/knowledge/taste"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -36,13 +37,13 @@ func TestTasteCommandMetadataComesFromCompleteAppRegistry(t *testing.T) {
 	for _, op := range tasteOperations {
 		spec := op.Spec()
 		wire := commandRegistry[spec.Name]
-		if !wire.AppOwned || wire.ReadOnly != (spec.Name == CmdTasteList) || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
+		if !wire.AppOwned || wire.ReadOnly != (spec.Name == opapi.TasteList) || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 			t.Fatalf("taste wire=%+v", wire)
 		}
 	}
 }
 func TestTasteAppSocketRequiresAuditBeforeMutations(t *testing.T) {
-	for _, cmd := range []string{CmdTasteCreate, CmdTasteDelete} {
+	for _, cmd := range []string{opapi.TasteCreate, opapi.TasteDelete} {
 		t.Run(cmd, func(t *testing.T) {
 			dir := t.TempDir()
 			k := openTasteKernel(t, dir)
@@ -61,7 +62,7 @@ func TestTasteAppSocketRequiresAuditBeforeMutations(t *testing.T) {
 			if r.Type != RespError || !strings.Contains(r.Error, "journal") || len(all) != 1 || all[0].ID != e.ID {
 				t.Fatalf("audit precedes effect: cmd=%s response=%+v exemplars=%+v", cmd, r, all)
 			}
-			r = callAppHost(t, s, Request{ID: "read", Cmd: CmdTasteList, Token: "primary"})[0]
+			r = callAppHost(t, s, Request{ID: "read", Cmd: opapi.TasteList, Token: "primary"})[0]
 			if r.Type != RespResult {
 				t.Fatalf("read unexpectedly audited: %+v", r)
 			}
@@ -74,7 +75,7 @@ func TestTasteNativeMutationHasOneOwnedAuditArc(t *testing.T) {
 	defer k.Close()
 	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
-	r := callAppHost(t, s, Request{ID: "create", Cmd: CmdTasteCreate, Token: "primary", Args: map[string]any{"title": "fixture", "body": "body"}})[0]
+	r := callAppHost(t, s, Request{ID: "create", Cmd: opapi.TasteCreate, Token: "primary", Args: map[string]any{"title": "fixture", "body": "body"}})[0]
 	if r.Type != RespResult {
 		t.Fatal(r)
 	}

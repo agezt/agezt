@@ -40,13 +40,13 @@ func ForgeReadOperations(provider func(context.Context) *ForgeCatalog) ([]app.Op
 	spec := func(name string) opapi.Spec {
 		return opapi.Spec{Name: name, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}
 	}
-	list, err := app.NewOperation(spec("toolforge_list"), func(ctx context.Context, in ForgeListInput) (ForgeListOutput, error) {
+	list, err := app.NewOperation(spec(opapi.ToolforgeList), func(ctx context.Context, in ForgeListInput) (ForgeListOutput, error) {
 		return provider(ctx).List(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	showSpec := spec("toolforge_show")
+	showSpec := spec(opapi.ToolforgeShow)
 	showSpec.InputSchema = forgeShowSchema
 	show, err := app.NewOperation(showSpec, func(ctx context.Context, in ForgeShowRequest) (ForgeShowOutput, error) {
 		ref, err := forgeRequiredRef(in.Ref)

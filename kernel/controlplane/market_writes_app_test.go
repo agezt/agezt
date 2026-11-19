@@ -122,7 +122,7 @@ func marketStateBytes(t *testing.T, path string) map[string][]byte {
 }
 
 func marketWriteCommands() []string {
-	return []string{CmdMarketInstall, CmdMarketUninstall, CmdMarketAddSource, CmdMarketRemoveSource, CmdMarketSync}
+	return []string{opapi.MarketInstall, opapi.MarketUninstall, opapi.MarketAddSource, opapi.MarketRemoveSource, opapi.MarketSync}
 }
 func marketWriteFixture(t *testing.T, cmd string) (*runtime.Kernel, *Server, *marketMaterializer, *marketMemoryTransport, *mock.Provider, map[string]any, string) {
 	t.Helper()
@@ -143,7 +143,7 @@ func marketWriteFixture(t *testing.T, cmd string) (*runtime.Kernel, *Server, *ma
 	if err := store.AddSource(market.Source{Name: "owned", URL: "http://remote.owned/index.json"}); err != nil {
 		t.Fatal(err)
 	}
-	if cmd == CmdMarketUninstall {
+	if cmd == opapi.MarketUninstall {
 		if err := store.RecordInstall(market.InstalledPack{Name: "owned", Version: "1.0.0", SkillIDs: []string{"owned-skill"}, MCPServers: []string{"owned"}}); err != nil {
 			t.Fatal(err)
 		}
@@ -152,7 +152,7 @@ func marketWriteFixture(t *testing.T, cmd string) (*runtime.Kernel, *Server, *ma
 	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	args := map[string]any{"name": "owned", "url": "http://remote.owned/new.json", "correlation_id": "caller-poison", "unknown": true}
-	if cmd == CmdMarketAddSource {
+	if cmd == opapi.MarketAddSource {
 		args["name"] = "new"
 	}
 	return k, s, backend, transport, p, args, filepath.Join(dir, "market")
@@ -257,7 +257,7 @@ func TestMarketWriterNativeOneOwnedDomainCorrelation(t *testing.T) {
 }
 
 func TestMarketWriterNativeBrokenProgressStopsLaterEffects(t *testing.T) {
-	for _, cmd := range []string{CmdMarketInstall, CmdMarketUninstall} {
+	for _, cmd := range []string{opapi.MarketInstall, opapi.MarketUninstall} {
 		t.Run(cmd, func(t *testing.T) {
 			k, s, b, _, p, args, path := marketWriteFixture(t, cmd)
 			before := marketStateBytes(t, path)
@@ -266,7 +266,7 @@ func TestMarketWriterNativeBrokenProgressStopsLaterEffects(t *testing.T) {
 			conn.failure = errors.New("owned market progress write failure")
 			s.handleConn(context.Background(), conn)
 			want := 0
-			if cmd == CmdMarketUninstall {
+			if cmd == opapi.MarketUninstall {
 				want = 1
 			}
 			rows, _ := k.Journal().Tail(100)
@@ -293,7 +293,7 @@ func TestMarketWriterNativeBrokenProgressStopsLaterEffects(t *testing.T) {
 }
 
 func TestMarketWriterNativeFiveTypedPoliciesAndSignatures(t *testing.T) {
-	inputs := map[string]reflect.Type{CmdMarketInstall: reflect.TypeFor[appmarket.InstallRequest](), CmdMarketUninstall: reflect.TypeFor[appmarket.WriteNameRequest](), CmdMarketAddSource: reflect.TypeFor[appmarket.AddSourceRequest](), CmdMarketRemoveSource: reflect.TypeFor[appmarket.WriteNameRequest](), CmdMarketSync: reflect.TypeFor[appmarket.WriteNameRequest]()}
+	inputs := map[string]reflect.Type{opapi.MarketInstall: reflect.TypeFor[appmarket.InstallRequest](), opapi.MarketUninstall: reflect.TypeFor[appmarket.WriteNameRequest](), opapi.MarketAddSource: reflect.TypeFor[appmarket.AddSourceRequest](), opapi.MarketRemoveSource: reflect.TypeFor[appmarket.WriteNameRequest](), opapi.MarketSync: reflect.TypeFor[appmarket.WriteNameRequest]()}
 	seen := map[string]int{}
 	for _, op := range registeredAppOperations() {
 		sp := op.Spec()
@@ -303,7 +303,7 @@ func TestMarketWriterNativeFiveTypedPoliciesAndSignatures(t *testing.T) {
 		}
 		wire, ok := commandRegistry[sp.Name]
 		stream := opapi.StreamNone
-		if sp.Name == CmdMarketInstall || sp.Name == CmdMarketUninstall {
+		if sp.Name == opapi.MarketInstall || sp.Name == opapi.MarketUninstall {
 			stream = opapi.StreamEvents
 		}
 		if !ok || !wire.AppOwned || wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamMode(stream) || sp.ReadOnly || sp.Authz != opapi.PrimaryOnly || sp.Tenancy != opapi.Primary || sp.Stream != stream || !sp.AllowUnknownInput || sp.Input != input {
@@ -321,9 +321,9 @@ func TestMarketWriterNativeFiveTypedPoliciesAndSignatures(t *testing.T) {
 	}
 }
 func TestMarketWriterNativeClosedPublicationAfterEffectsReturnsFailure(t *testing.T) {
-	k, s, b, _, p, args, path := marketWriteFixture(t, CmdMarketInstall)
+	k, s, b, _, p, args, path := marketWriteFixture(t, opapi.MarketInstall)
 	before := marketStateBytes(t, path)
-	conn := newToolboxRecordingConn(Request{ID: "owned", Cmd: CmdMarketInstall, Token: "primary", Args: args})
+	conn := newToolboxRecordingConn(Request{ID: "owned", Cmd: opapi.MarketInstall, Token: "primary", Args: args})
 	closed := false
 	conn.afterWrite = func() {
 		if !closed {

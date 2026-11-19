@@ -80,10 +80,10 @@ func Operations(reads func(context.Context) *Service, lifecycle func(context.Con
 	var operations []app.Operation
 	bindings := []func() error{
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "skill_list", ReadOnly: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/skills"}}, func(ctx context.Context, in ListInput) (ListOutput, error) { return reads(ctx).List(ctx, in) })
+			return bind(&operations, opapi.Spec{Name: opapi.SkillList, ReadOnly: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/skills"}}, func(ctx context.Context, in ListInput) (ListOutput, error) { return reads(ctx).List(ctx, in) })
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "skill_get", ReadOnly: true}, func(ctx context.Context, in GetInput) (GetOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.SkillGet, ReadOnly: true}, func(ctx context.Context, in GetInput) (GetOutput, error) {
 				if err := required(in.ID, "id"); err != nil {
 					return GetOutput{}, err
 				}
@@ -91,7 +91,7 @@ func Operations(reads func(context.Context) *Service, lifecycle func(context.Con
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "skill_history", ReadOnly: true}, func(ctx context.Context, in GetInput) (HistoryOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.SkillHistory, ReadOnly: true}, func(ctx context.Context, in GetInput) (HistoryOutput, error) {
 				if err := required(in.ID, "id"); err != nil {
 					return HistoryOutput{}, err
 				}
@@ -99,7 +99,7 @@ func Operations(reads func(context.Context) *Service, lifecycle func(context.Con
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "skill_files", ReadOnly: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/skill/files"}}, func(ctx context.Context, in GetInput) (FilesOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.SkillFiles, ReadOnly: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/skill/files"}}, func(ctx context.Context, in GetInput) (FilesOutput, error) {
 				if err := required(in.ID, "id"); err != nil {
 					return FilesOutput{}, err
 				}
@@ -107,7 +107,7 @@ func Operations(reads func(context.Context) *Service, lifecycle func(context.Con
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "skill_read_file", ReadOnly: true}, func(ctx context.Context, in ReadFileInput) (ReadFileOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.SkillReadFile, ReadOnly: true}, func(ctx context.Context, in ReadFileInput) (ReadFileOutput, error) {
 				if err := required(in.ID, "id"); err != nil {
 					return ReadFileOutput{}, err
 				}
@@ -118,12 +118,12 @@ func Operations(reads func(context.Context) *Service, lifecycle func(context.Con
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "skill_hygiene", ReadOnly: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/skills/hygiene"}}, func(ctx context.Context, in HygieneRequestInput) (HygieneOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.SkillHygiene, ReadOnly: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/skills/hygiene"}}, func(ctx context.Context, in HygieneRequestInput) (HygieneOutput, error) {
 				return observations(ctx).Hygiene(ctx, HygieneInput{IdleDays: idleDays(in.IdleDays)})
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "skill_promote", HTTP: opapi.HTTP{Method: "POST", Path: "/api/skill/promote"}}, func(ctx context.Context, in GetInput) (StatusOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.SkillPromote, HTTP: opapi.HTTP{Method: "POST", Path: "/api/skill/promote"}}, func(ctx context.Context, in GetInput) (StatusOutput, error) {
 				if err := required(in.ID, "id"); err != nil {
 					return StatusOutput{}, err
 				}
@@ -131,7 +131,7 @@ func Operations(reads func(context.Context) *Service, lifecycle func(context.Con
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "skill_quarantine", HTTP: opapi.HTTP{Method: "POST", Path: "/api/skill/quarantine"}}, func(ctx context.Context, in ReasonInput) (StatusOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.SkillQuarantine, HTTP: opapi.HTTP{Method: "POST", Path: "/api/skill/quarantine"}}, func(ctx context.Context, in ReasonInput) (StatusOutput, error) {
 				if err := required(in.ID, "id"); err != nil {
 					return StatusOutput{}, err
 				}
@@ -139,7 +139,7 @@ func Operations(reads func(context.Context) *Service, lifecycle func(context.Con
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "skill_archive", HTTP: opapi.HTTP{Method: "POST", Path: "/api/skill/archive"}}, func(ctx context.Context, in ReasonInput) (ArchiveOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.SkillArchive, HTTP: opapi.HTTP{Method: "POST", Path: "/api/skill/archive"}}, func(ctx context.Context, in ReasonInput) (ArchiveOutput, error) {
 				if err := required(in.ID, "id"); err != nil {
 					return ArchiveOutput{}, err
 				}
@@ -147,7 +147,7 @@ func Operations(reads func(context.Context) *Service, lifecycle func(context.Con
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "skill_revert", HTTP: opapi.HTTP{Method: "POST", Path: "/api/skill/revert"}}, func(ctx context.Context, in GetInput) (RevertOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.SkillRevert, HTTP: opapi.HTTP{Method: "POST", Path: "/api/skill/revert"}}, func(ctx context.Context, in GetInput) (RevertOutput, error) {
 				if err := required(in.ID, "id"); err != nil {
 					return RevertOutput{}, err
 				}
@@ -155,7 +155,7 @@ func Operations(reads func(context.Context) *Service, lifecycle func(context.Con
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "skill_restore"}, func(ctx context.Context, in RestoreInput) (RestoreOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.SkillRestore}, func(ctx context.Context, in RestoreInput) (RestoreOutput, error) {
 				if err := required(in.ID, "id"); err != nil {
 					return RestoreOutput{}, err
 				}
@@ -166,7 +166,7 @@ func Operations(reads func(context.Context) *Service, lifecycle func(context.Con
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "skill_share", HTTP: opapi.HTTP{Method: "POST", Path: "/api/skill/share"}}, func(ctx context.Context, in GetInput) (ShareOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.SkillShare, HTTP: opapi.HTTP{Method: "POST", Path: "/api/skill/share"}}, func(ctx context.Context, in GetInput) (ShareOutput, error) {
 				if err := required(in.ID, "id"); err != nil {
 					return ShareOutput{}, err
 				}
@@ -174,7 +174,7 @@ func Operations(reads func(context.Context) *Service, lifecycle func(context.Con
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "skill_reassign"}, func(ctx context.Context, in ReassignInput) (ReassignOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.SkillReassign}, func(ctx context.Context, in ReassignInput) (ReassignOutput, error) {
 				if err := required(in.ID, "id"); err != nil {
 					return ReassignOutput{}, err
 				}
@@ -182,7 +182,7 @@ func Operations(reads func(context.Context) *Service, lifecycle func(context.Con
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: "skill_import", InputSchema: importSchema(), HTTP: opapi.HTTP{Method: "POST", Path: "/api/skill/import"}}, func(ctx context.Context, in ImportRequestInput) (ImportOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.SkillImport, InputSchema: importSchema(), HTTP: opapi.HTTP{Method: "POST", Path: "/api/skill/import"}}, func(ctx context.Context, in ImportRequestInput) (ImportOutput, error) {
 				name, body := importText(in.Name), importText(in.Body)
 				if name == "" || body == "" {
 					return ImportOutput{}, errors.New("args.name and args.body required")

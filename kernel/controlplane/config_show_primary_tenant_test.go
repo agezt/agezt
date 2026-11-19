@@ -3,7 +3,7 @@ package controlplane_test
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"strings"
@@ -16,7 +16,7 @@ func TestConfigShowNativeTenantDenialPreservesConfigurationAndJournal(t *testing
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
 	model, system := k.Model(), k.System()
-	if _, err := client.Call(context.Background(), controlplane.CmdConfig, map[string]any{"tenant": "acme", "unknown": true}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
+	if _, err := client.Call(context.Background(), opapi.Config, map[string]any{"tenant": "acme", "unknown": true}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
 		t.Fatal(err)
 	}
 	after, afterHash := k.Journal().Head()
@@ -30,7 +30,7 @@ func TestConfigShowNativeLiveFieldsPresenceOnlyWithoutAudit(t *testing.T) {
 	k, _, client, _ := startPairWithConfig(t, runtime.Config{Provider: p, Model: "owned-model", System: "owned-private-prompt", Plugins: []runtime.PluginInfo{{Prefix: "owned", Path: "never-executed"}}})
 	head, hash := k.Journal().Head()
 	for i := 0; i < 2; i++ {
-		out, err := client.Call(context.Background(), controlplane.CmdConfig, map[string]any{"unknown": true})
+		out, err := client.Call(context.Background(), opapi.Config, map[string]any{"unknown": true})
 		if err != nil || out["model"] != k.Model() || out["system_prompt_set"] != (k.System() != "") || out["plugin_count"] != float64(1) || out["tool_count"] != float64(len(k.Tools())) {
 			t.Fatal(out, err)
 		}

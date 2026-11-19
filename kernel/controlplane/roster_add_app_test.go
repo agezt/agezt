@@ -12,7 +12,7 @@ func TestAgentAddNativeTypedRegistry(t *testing.T) {
 	found := 0
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()
-		if spec.Name != CmdAgentAdd {
+		if spec.Name != opapi.AgentAdd {
 			continue
 		}
 		found++
@@ -20,7 +20,7 @@ func TestAgentAddNativeTypedRegistry(t *testing.T) {
 			t.Fatalf("agent_add metadata=%+v", spec)
 		}
 	}
-	wire, exists := commandRegistry[CmdAgentAdd]
+	wire, exists := commandRegistry[opapi.AgentAdd]
 	if found != 1 || !exists || !wire.AppOwned || wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 		t.Fatalf("agent_add native wire found=%d metadata=%+v", found, wire)
 	}

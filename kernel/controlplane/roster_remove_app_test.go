@@ -12,7 +12,7 @@ func TestAgentRemoveNativeTypedRegistry(t *testing.T) {
 	found := 0
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()
-		if spec.Name != CmdAgentRemove {
+		if spec.Name != opapi.AgentRemove {
 			continue
 		}
 		found++
@@ -20,7 +20,7 @@ func TestAgentRemoveNativeTypedRegistry(t *testing.T) {
 			t.Fatalf("agent_remove metadata=%+v", spec)
 		}
 	}
-	wire, exists := commandRegistry[CmdAgentRemove]
+	wire, exists := commandRegistry[opapi.AgentRemove]
 	if found != 1 || !exists || !wire.AppOwned || wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 		t.Fatalf("agent_remove native wire found=%d metadata=%+v", found, wire)
 	}

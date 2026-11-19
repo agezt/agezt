@@ -9,7 +9,7 @@ package webui
 
 import (
 	kernelauth "github.com/agezt/agezt/kernel/auth"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/httpserver"
 	"net/http"
 	"time"
@@ -81,8 +81,8 @@ func (s *Server) routeRegistry() *httpserver.Router {
 	// per-tool progress event then a final summary as SSE.
 	router.Handle("/api/toolbox/install", streamMutation, s.toolInstallProxy())
 	// Marketplace install/uninstall stream per-item progress (skill/mcp/tool) as SSE.
-	router.Handle("/api/market/install", streamMutation, s.marketStreamProxy(controlplane.CmdMarketInstall, []string{"name", "marketplace", "version"}))
-	router.Handle("/api/market/uninstall", streamMutation, s.marketStreamProxy(controlplane.CmdMarketUninstall, []string{"name"}))
+	router.Handle("/api/market/install", streamMutation, s.marketStreamProxy(opapi.MarketInstall, []string{"name", "marketplace", "version"}))
+	router.Handle("/api/market/uninstall", streamMutation, s.marketStreamProxy(opapi.MarketUninstall, []string{"name"}))
 	// SSE token endpoint (VULN query-string-token fix): returns the ephemeral
 	// SSE-only token the SPA embeds in the EventSource URL (?st=...) instead of
 	// reusing the main console token. Requires valid WebUI data authorization.
@@ -104,7 +104,7 @@ func (s *Server) routeRegistry() *httpserver.Router {
 	router.Handle("/api/tts", ttsProtected, s.handleTTS)
 	// Binary artifact serving (M822): streams the raw bytes for a content ref with
 	// a sanitized Content-Type, so an <img src> / download link can render stored
-	// images and files. Proxies CmdArtifactGet (which re-verifies the bytes).
+	// images and files. Proxies opapi.ArtifactGet (which re-verifies the bytes).
 	artifactRead := protectedRead
 	artifactRead.Timeout = 15 * time.Second
 	router.Handle("/api/artifact/raw", artifactRead, s.handleArtifactRaw)

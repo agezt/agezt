@@ -43,7 +43,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if provider == nil {
 		return nil, errors.New("update service provider required")
 	}
-	check, err := app.NewOperation(opapi.Spec{Name: "update_check", ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, _ CheckRequest) (out CheckOutput, cause error) {
+	check, err := app.NewOperation(opapi.Spec{Name: opapi.UpdateCheck, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, _ CheckRequest) (out CheckOutput, cause error) {
 		defer func() {
 			if recover() != nil {
 				out = CheckOutput{}
@@ -56,7 +56,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	apply, err := app.NewOperation(opapi.Spec{Name: "update_apply", Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"version":{},"sha256":{},"url":{},"notes":{}}}`)}, func(ctx context.Context, in ApplyRequest) (out ApplyOutput, cause error) {
+	apply, err := app.NewOperation(opapi.Spec{Name: opapi.UpdateApply, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"version":{},"sha256":{},"url":{},"notes":{}}}`)}, func(ctx context.Context, in ApplyRequest) (out ApplyOutput, cause error) {
 		defer func() {
 			if recover() != nil {
 				out = ApplyOutput{}

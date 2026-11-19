@@ -282,13 +282,13 @@ func TestOperations(t *testing.T) {
 		input, output      reflect.Type
 		props              string
 	}{
-		{"data_collections", "GET", "/api/data/collections", true, reflect.TypeFor[CollectionsRequest](), reflect.TypeFor[CollectionsOutput](), ""},
-		{"data_records", "GET", "/api/data/records", true, reflect.TypeFor[RecordsRequest](), reflect.TypeFor[RecordsOutput](), `"collection":{},"search":{},"sort":{},"desc":{},"limit":{},"offset":{}`},
-		{"data_insert", "POST", "/api/data/insert", false, reflect.TypeFor[InsertRequest](), reflect.TypeFor[RecordOutput](), `"collection":{},"record":{}`},
-		{"data_update", "POST", "/api/data/update", false, reflect.TypeFor[UpdateRequest](), reflect.TypeFor[RecordOutput](), `"collection":{},"id":{},"record":{}`},
-		{"data_delete", "POST", "/api/data/delete", false, reflect.TypeFor[DeleteRequest](), reflect.TypeFor[DeleteOutput](), `"collection":{},"id":{}`},
-		{"data_create_collection", "", "", false, reflect.TypeFor[CreateRequest](), reflect.TypeFor[CreateOutput](), `"collection":{}`},
-		{"data_drop_collection", "", "", false, reflect.TypeFor[DropRequest](), reflect.TypeFor[DropOutput](), `"name":{}`},
+		{opapi.DataCollections, "GET", "/api/data/collections", true, reflect.TypeFor[CollectionsRequest](), reflect.TypeFor[CollectionsOutput](), ""},
+		{opapi.DataRecords, "GET", "/api/data/records", true, reflect.TypeFor[RecordsRequest](), reflect.TypeFor[RecordsOutput](), `"collection":{},"search":{},"sort":{},"desc":{},"limit":{},"offset":{}`},
+		{opapi.DataInsert, "POST", "/api/data/insert", false, reflect.TypeFor[InsertRequest](), reflect.TypeFor[RecordOutput](), `"collection":{},"record":{}`},
+		{opapi.DataUpdate, "POST", "/api/data/update", false, reflect.TypeFor[UpdateRequest](), reflect.TypeFor[RecordOutput](), `"collection":{},"id":{},"record":{}`},
+		{opapi.DataDelete, "POST", "/api/data/delete", false, reflect.TypeFor[DeleteRequest](), reflect.TypeFor[DeleteOutput](), `"collection":{},"id":{}`},
+		{opapi.DataCreateCollection, "", "", false, reflect.TypeFor[CreateRequest](), reflect.TypeFor[CreateOutput](), `"collection":{}`},
+		{opapi.DataDropCollection, "", "", false, reflect.TypeFor[DropRequest](), reflect.TypeFor[DropOutput](), `"name":{}`},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)

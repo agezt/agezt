@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -19,7 +19,7 @@ func TestChatSummarize_ReturnsBriefing(t *testing.T) {
 	prov := mock.New(mock.FinalText("Owner is planning a trip to Oslo; budget 2000 EUR; prefers trains."))
 	_, _, c, _ := startPair(t, prov)
 
-	res, err := c.Call(context.Background(), controlplane.CmdChatSummarize, map[string]any{
+	res, err := c.Call(context.Background(), opapi.ChatSummarize, map[string]any{
 		"turns": []any{
 			map[string]any{"role": "user", "text": "I want to plan a trip to Oslo."},
 			map[string]any{"role": "assistant", "text": "Great — what's your budget?"},
@@ -48,7 +48,7 @@ func TestChatSummarize_FoldsPriorSummaryAsSystem(t *testing.T) {
 	prov.OnRequest = func(r llm.CompletionRequest) { reqs = append(reqs, r) }
 	_, _, c, _ := startPair(t, prov)
 
-	if _, err := c.Call(context.Background(), controlplane.CmdChatSummarize, map[string]any{
+	if _, err := c.Call(context.Background(), opapi.ChatSummarize, map[string]any{
 		"turns": []any{
 			map[string]any{"role": "system", "text": "Previous summary: trip to Oslo, 2000 EUR."},
 			map[string]any{"role": "user", "text": "Actually make it Bergen."},
@@ -73,7 +73,7 @@ func TestChatSummarize_FoldsPriorSummaryAsSystem(t *testing.T) {
 
 func TestChatSummarize_RejectsMissingTurns(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New())
-	_, err := c.Call(context.Background(), controlplane.CmdChatSummarize, map[string]any{})
+	_, err := c.Call(context.Background(), opapi.ChatSummarize, map[string]any{})
 	if err == nil || !strings.Contains(err.Error(), "turns required") {
 		t.Errorf("err = %v, want turns-required", err)
 	}

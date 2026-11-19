@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdOKRCreate(args []string, stdout, stderr io.Writer) int {
@@ -54,7 +54,7 @@ func cmdOKRCreate(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s okr create --title T\n", brand.CLI)
 		return 2
 	}
-	res, code := callOKR(controlplane.CmdOKRCreate, callArgs, stderr)
+	res, code := callOKR(opapi.OKRCreate, callArgs, stderr)
 	return renderOKRMutation(res, code, asJSON, stdout)
 }
 
@@ -98,7 +98,7 @@ func cmdOKRKeyResult(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "usage: %s okr kr <id> --title T [--target N]\n", brand.CLI)
 		return 2
 	}
-	res, code := callOKR(controlplane.CmdOKRKeyResult, callArgs, stderr)
+	res, code := callOKR(opapi.OKRKeyResult, callArgs, stderr)
 	return renderOKRMutation(res, code, asJSON, stdout)
 }
 
@@ -146,6 +146,6 @@ func cmdOKRArchive(args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return 2
 	}
-	res, code := callOKR(controlplane.CmdOKRArchive, map[string]any{"id": id}, stderr)
+	res, code := callOKR(opapi.OKRArchive, map[string]any{"id": id}, stderr)
 	return renderOKRMutation(res, code, asJSON, stdout)
 }

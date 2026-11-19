@@ -71,18 +71,11 @@ func cmdCompare(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s compare: subcommand required (audit)\n", brand.CLI)
 		return 2
 	}
-	switch args[0] {
-	case "audit":
-		return cmdCompareAudit(args[1:], stdout, stderr)
-	case "-h", "--help", "help":
-		fmt.Fprintf(stdout, "usage: %s compare <subcommand>\n", brand.CLI)
-		fmt.Fprintf(stdout, "  audit [--target openclaw|hermes|all] [--root <repo>] [--json]\n")
-		fmt.Fprintf(stdout, "read-only local capability ledger for OpenClaw/Hermes parity claims\n")
-		return 0
-	default:
-		fmt.Fprintf(stderr, "%s compare: unknown subcommand %q (audit)\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliCompare.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s compare: unknown subcommand %q (audit)\n", brand.CLI, args[0])
+	return 2
 }
 func cmdCompareAudit(args []string, stdout, stderr io.Writer) int {
 	target := compareTargetAll

@@ -46,7 +46,7 @@ func inboxBindingWire(t *testing.T, s *Server, ctx context.Context, args map[str
 	a.SetDeadline(time.Now().Add(3 * time.Second))
 	done := make(chan struct{})
 	go func() { defer close(done); s.handleConn(ctx, b) }()
-	raw, _ := json.Marshal(Request{ID: "owned", Cmd: CmdInbox, Token: "primary", Args: args})
+	raw, _ := json.Marshal(Request{ID: "owned", Cmd: opapi.Inbox, Token: "primary", Args: args})
 	if _, err := a.Write(append(raw, 10)); err != nil {
 		t.Fatal(err)
 	}
@@ -63,10 +63,10 @@ func TestChannelInboxNativeTypedMetadata(t *testing.T) {
 		t.Fatal(channelInboxOperations)
 	}
 	s := channelInboxOperations[0].Spec()
-	wire := commandRegistry[CmdInbox]
+	wire := commandRegistry[opapi.Inbox]
 	count := 0
 	for _, op := range registeredAppOperations() {
-		if op.Spec().Name == CmdInbox {
+		if op.Spec().Name == opapi.Inbox {
 			count++
 		}
 	}

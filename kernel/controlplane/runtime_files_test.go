@@ -5,6 +5,7 @@ package controlplane
 import (
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"os"
 	"path/filepath"
 	"testing"
@@ -278,7 +279,7 @@ func TestThePromptLibraryIsReplacedNotRewritten(t *testing.T) {
 	library := filepath.Join(dir, "chat_prompts.json")
 	save := func(prompts string) {
 		t.Helper()
-		resp := callAppHost(t, s, Request{ID: "p", Cmd: CmdPromptsSet, Token: "primary", Args: map[string]any{"prompts": json.RawMessage(prompts)}})[0]
+		resp := callAppHost(t, s, Request{ID: "p", Cmd: opapi.PromptsSet, Token: "primary", Args: map[string]any{"prompts": json.RawMessage(prompts)}})[0]
 		if resp.Type != RespResult {
 			t.Fatal(resp.Error)
 		}
@@ -320,7 +321,7 @@ func TestThePromptLibraryIsWritableByItsOwner(t *testing.T) {
 	if err := os.WriteFile(library, []byte("[]"), 0o400); err != nil {
 		t.Fatal(err)
 	}
-	resp := callAppHost(t, s, Request{ID: "p", Cmd: CmdPromptsSet, Token: "primary", Args: map[string]any{"prompts": json.RawMessage(`[{"title":"a","text":"b"}]`)}})[0]
+	resp := callAppHost(t, s, Request{ID: "p", Cmd: opapi.PromptsSet, Token: "primary", Args: map[string]any{"prompts": json.RawMessage(`[{"title":"a","text":"b"}]`)}})[0]
 	if resp.Type != RespResult {
 		t.Fatal(resp.Error)
 	}
@@ -347,7 +348,7 @@ func TestThePromptLibraryIsPrivateToItsOwner(t *testing.T) {
 	if err := os.WriteFile(library, []byte("[]"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	resp := callAppHost(t, s, Request{ID: "p", Cmd: CmdPromptsSet, Token: "primary", Args: map[string]any{"prompts": json.RawMessage(`[{"title":"a","text":"b"}]`)}})[0]
+	resp := callAppHost(t, s, Request{ID: "p", Cmd: opapi.PromptsSet, Token: "primary", Args: map[string]any{"prompts": json.RawMessage(`[{"title":"a","text":"b"}]`)}})[0]
 	if resp.Type != RespResult {
 		t.Fatal(resp.Error)
 	}

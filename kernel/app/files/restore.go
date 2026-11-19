@@ -10,12 +10,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/platform/rollbackstore"
 )
 
 const (
-	RestoreOperation = "file_restore"
+	// RestoreOperation is the catalogue's name for the restore operation; the
+	// mark-failed code below is the family's own and is not an operation.
+	RestoreOperation = opapi.FileRestore
 	MarkFailed       = "file_restore_mark_failed"
 )
 

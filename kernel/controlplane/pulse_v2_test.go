@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -48,7 +48,7 @@ func TestPulse_HistoricalReplay(t *testing.T) {
 	)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- c.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe,
+		errCh <- c.StreamUntilCancel(ctx, opapi.PulseSubscribe,
 			map[string]any{"pattern": ">", "since": 0},
 			func(e *event.Event) {
 				mu.Lock()
@@ -120,7 +120,7 @@ func TestPulse_HistoricalReplay_HighSinceSkipsOlderEvents(t *testing.T) {
 	)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- c.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe,
+		errCh <- c.StreamUntilCancel(ctx, opapi.PulseSubscribe,
 			map[string]any{"pattern": ">", "since": 999999},
 			func(e *event.Event) {
 				mu.Lock()
@@ -179,7 +179,7 @@ func TestPulse_HistoricalReplay_HonoursKindFilter(t *testing.T) {
 	)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- c.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe,
+		errCh <- c.StreamUntilCancel(ctx, opapi.PulseSubscribe,
 			map[string]any{
 				"pattern": ">",
 				"since":   0,
@@ -224,7 +224,7 @@ func TestPulse_DroppedNoticeDoesNotFireWithoutDrops(t *testing.T) {
 	)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- c.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe,
+		errCh <- c.StreamUntilCancel(ctx, opapi.PulseSubscribe,
 			map[string]any{"pattern": ">"},
 			func(e *event.Event) {
 				if e.Kind == event.KindPulseDropped {

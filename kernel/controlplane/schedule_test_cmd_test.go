@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -14,14 +14,14 @@ func TestScheduleTest_PreviewsFires(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	add, err := c.Call(ctx, controlplane.CmdScheduleAdd,
+	add, err := c.Call(ctx, opapi.ScheduleAdd,
 		map[string]any{"intent": "hourly job", "interval_sec": 3600})
 	if err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	id, _ := add["id"].(string)
 
-	res, err := c.Call(ctx, controlplane.CmdScheduleTest, map[string]any{"id": id, "count": 4})
+	res, err := c.Call(ctx, opapi.ScheduleTest, map[string]any{"id": id, "count": 4})
 	if err != nil {
 		t.Fatalf("test: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestScheduleTest_PreviewsFires(t *testing.T) {
 	}
 
 	// Unknown id → found:false.
-	res, _ = c.Call(ctx, controlplane.CmdScheduleTest, map[string]any{"id": "nope"})
+	res, _ = c.Call(ctx, opapi.ScheduleTest, map[string]any{"id": "nope"})
 	if found, _ := res["found"].(bool); found {
 		t.Error("unknown schedule should be found:false")
 	}

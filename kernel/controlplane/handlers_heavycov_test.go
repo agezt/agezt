@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -17,7 +17,7 @@ import (
 func TestACPAgents_Discovery(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdACPAgents, map[string]any{})
+	res, err := c.Call(context.Background(), opapi.ACPAgents, map[string]any{})
 	if err != nil {
 		t.Fatalf("acp_agents: %v", err)
 	}
@@ -31,7 +31,7 @@ func TestACPAgents_Discovery(t *testing.T) {
 func TestCatalogList(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdCatalogList, map[string]any{})
+	res, err := c.Call(context.Background(), opapi.CatalogList, map[string]any{})
 	if err != nil {
 		t.Fatalf("catalog_list: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestCatalogDiscover_BadEndpoint(t *testing.T) {
 
 	// A syntactically valid but unreachable endpoint — Ollama /api/tags probe
 	// fails fast. We only assert the handler is exercised without panicking.
-	_, _ = c.Call(context.Background(), controlplane.CmdCatalogDiscover, map[string]any{
+	_, _ = c.Call(context.Background(), opapi.CatalogDiscover, map[string]any{
 		"endpoint": "http://127.0.0.1:1/",
 	})
 }
@@ -58,7 +58,7 @@ func TestCatalogDiscover_BadEndpoint(t *testing.T) {
 func TestAutonomyFeed(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdAutonomyFeed, map[string]any{})
+	res, err := c.Call(context.Background(), opapi.AutonomyFeed, map[string]any{})
 	if err != nil {
 		t.Fatalf("autonomy_feed: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestAutonomyFeed(t *testing.T) {
 func TestBoardHelp(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdBoardHelp, map[string]any{})
+	res, err := c.Call(context.Background(), opapi.BoardHelp, map[string]any{})
 	if err != nil {
 		t.Fatalf("board_help: %v", err)
 	}
@@ -87,20 +87,20 @@ func TestChainsSet_Errors(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
 	// Missing chains → required error.
-	if _, err := c.Call(context.Background(), controlplane.CmdChainsSet, map[string]any{}); err == nil ||
+	if _, err := c.Call(context.Background(), opapi.ChainsSet, map[string]any{}); err == nil ||
 		!strings.Contains(err.Error(), "chains") {
 		t.Errorf("missing chains: err = %v, want chains-required", err)
 	}
 
 	// Invalid chain name (upper-case) → rejected.
-	if _, err := c.Call(context.Background(), controlplane.CmdChainsSet, map[string]any{
+	if _, err := c.Call(context.Background(), opapi.ChainsSet, map[string]any{
 		"chains": map[string]any{"BadName": []any{"mock/model"}},
 	}); err == nil {
 		t.Error("invalid chain name: expected error")
 	}
 
 	// default names an undefined chain → rejected.
-	if _, err := c.Call(context.Background(), controlplane.CmdChainsSet, map[string]any{
+	if _, err := c.Call(context.Background(), opapi.ChainsSet, map[string]any{
 		"chains":  map[string]any{"fast": []any{"mock/model"}},
 		"default": "does-not-exist",
 	}); err == nil {
@@ -112,7 +112,7 @@ func TestChainsSet_Errors(t *testing.T) {
 func TestChainsSet_OK(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdChainsSet, map[string]any{
+	res, err := c.Call(context.Background(), opapi.ChainsSet, map[string]any{
 		"chains":  map[string]any{"fast": []any{"mock/model", "mock/model2"}},
 		"default": "fast",
 	})

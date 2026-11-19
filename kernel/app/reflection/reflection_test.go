@@ -99,8 +99,8 @@ func TestOperations(t *testing.T) {
 		read          bool
 		input, output reflect.Type
 	}{
-		{"reflect_run", false, reflect.TypeFor[RunRequest](), reflect.TypeFor[RunOutput]()},
-		{"reflect_show", true, reflect.TypeFor[ShowRequest](), reflect.TypeFor[ShowOutput]()},
+		{opapi.ReflectRun, false, reflect.TypeFor[RunRequest](), reflect.TypeFor[RunOutput]()},
+		{opapi.ReflectShow, true, reflect.TypeFor[ShowRequest](), reflect.TypeFor[ShowOutput]()},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -20,7 +20,7 @@ import (
 func TestConfig_ReturnsResolvedPathsAndCounts(t *testing.T) {
 	_, _, c, dir := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdConfig, nil)
+	res, err := c.Call(context.Background(), opapi.Config, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestConfig_ReturnsResolvedPathsAndCounts(t *testing.T) {
 func TestConfigSchema_ReturnsReloadBoundaries(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdConfigSchema, nil)
+	res, err := c.Call(context.Background(), opapi.ConfigSchema, nil)
 	if err != nil {
 		t.Fatalf("config_schema: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestConfigSet_PeerMeshIsSecretRestartSetting(t *testing.T) {
 	t.Setenv("AGEZT_PEERS", "")
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdConfigSet, map[string]any{
+	res, err := c.Call(context.Background(), opapi.ConfigSet, map[string]any{
 		"name":  "AGEZT_PEERS",
 		"value": "edge=https://edge.example|super-secret-token",
 	})
@@ -106,7 +106,7 @@ func TestConfigSet_PeerMeshIsSecretRestartSetting(t *testing.T) {
 		t.Fatalf("AGEZT_PEERS applied = %v, want restart; res=%+v", res["applied"], res)
 	}
 
-	values, err := c.Call(context.Background(), controlplane.CmdConfigValues, nil)
+	values, err := c.Call(context.Background(), opapi.ConfigValues, nil)
 	if err != nil {
 		t.Fatalf("config_values: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestConfigSet_ExecutionProfilePolicyAppliesLive(t *testing.T) {
 	t.Setenv("AGEZT_EXEC_SSH_TARGET", "")
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdConfigSet, map[string]any{
+	res, err := c.Call(context.Background(), opapi.ConfigSet, map[string]any{
 		"name":  "AGEZT_EXEC_PROFILE_DENY",
 		"value": "warden",
 	})
@@ -151,7 +151,7 @@ func TestConfigSet_ExecutionProfilePolicyAppliesLive(t *testing.T) {
 		t.Fatalf("policy config applied = %v, want live; res=%+v", res["applied"], res)
 	}
 
-	check, err := c.Call(context.Background(), controlplane.CmdExecutionProfileCheck, nil)
+	check, err := c.Call(context.Background(), opapi.ExecutionProfileCheck, nil)
 	if err != nil {
 		t.Fatalf("execution_profile_check: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestConfigSet_ExecutionProfilePolicyAppliesLive(t *testing.T) {
 		t.Fatalf("policy-denied warden should not be selectable: %+v", profiles)
 	}
 
-	res, err = c.Call(context.Background(), controlplane.CmdConfigSet, map[string]any{
+	res, err = c.Call(context.Background(), opapi.ConfigSet, map[string]any{
 		"name":  "AGEZT_EXEC_PROFILE_DENY",
 		"value": "",
 	})
@@ -170,7 +170,7 @@ func TestConfigSet_ExecutionProfilePolicyAppliesLive(t *testing.T) {
 	if res["applied"] != "live" {
 		t.Fatalf("cleared policy applied = %v, want live; res=%+v", res["applied"], res)
 	}
-	check, err = c.Call(context.Background(), controlplane.CmdExecutionProfileCheck, nil)
+	check, err = c.Call(context.Background(), opapi.ExecutionProfileCheck, nil)
 	if err != nil {
 		t.Fatalf("execution_profile_check after clear: %v", err)
 	}
@@ -189,7 +189,7 @@ func TestConfigSet_ExecutionProfilePolicyAppliesLive(t *testing.T) {
 		{"AGEZT_EXEC_SSH", "on"},
 		{"AGEZT_EXEC_SSH_TARGET", "deploy@example.com"},
 	} {
-		res, err = c.Call(context.Background(), controlplane.CmdConfigSet, map[string]any{
+		res, err = c.Call(context.Background(), opapi.ConfigSet, map[string]any{
 			"name":  set.name,
 			"value": set.value,
 		})
@@ -200,7 +200,7 @@ func TestConfigSet_ExecutionProfilePolicyAppliesLive(t *testing.T) {
 			t.Fatalf("%s applied = %v, want live; res=%+v", set.name, res["applied"], res)
 		}
 	}
-	check, err = c.Call(context.Background(), controlplane.CmdExecutionProfileCheck, nil)
+	check, err = c.Call(context.Background(), opapi.ExecutionProfileCheck, nil)
 	if err != nil {
 		t.Fatalf("execution_profile_check after ssh config: %v", err)
 	}
@@ -219,7 +219,7 @@ func TestConfig_EnvPresenceIsBooleanNotValue(t *testing.T) {
 	t.Setenv("AGEZT_MODEL", "test-model-id")
 
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	res, err := c.Call(context.Background(), controlplane.CmdConfig, nil)
+	res, err := c.Call(context.Background(), opapi.Config, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestConfig_EnvPresenceIsBooleanNotValue(t *testing.T) {
 // never sent.
 func TestConfig_SystemPromptPresenceOnly(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	res, err := c.Call(context.Background(), controlplane.CmdConfig, nil)
+	res, err := c.Call(context.Background(), opapi.Config, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}

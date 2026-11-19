@@ -57,7 +57,7 @@ func (d *mcpLifecycleNativeDial) dial(ctx context.Context) (mcp.Conn, error) {
 	return d.peer, nil
 }
 func mcpLifecycleNativeCommands() []string {
-	return []string{CmdMCPAdd, CmdMCPAttach, CmdMCPDetach, CmdMCPSetEnabled, CmdMCPRemove}
+	return []string{opapi.MCPAdd, opapi.MCPAttach, opapi.MCPDetach, opapi.MCPSetEnabled, opapi.MCPRemove}
 }
 func mcpLifecycleNativeFixture(t *testing.T, cmd string) (*runtime.Kernel, *Server, *mcpLifecycleNativeDial, *mock.Provider, map[string]any, string) {
 	t.Helper()
@@ -81,7 +81,7 @@ func mcpLifecycleNativeFixture(t *testing.T, cmd string) (*runtime.Kernel, *Serv
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { k.Close() })
-	if cmd == CmdMCPDetach || cmd == CmdMCPRemove {
+	if cmd == opapi.MCPDetach || cmd == opapi.MCPRemove {
 		if _, _, err := k.MCPRegistryService().AttachMCPServer(context.Background(), "seed", "owned"); err != nil {
 			t.Fatal(err)
 		}
@@ -91,7 +91,7 @@ func mcpLifecycleNativeFixture(t *testing.T, cmd string) (*runtime.Kernel, *Serv
 	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	args := map[string]any{"ref": "owned", "enabled": false, "unknown": true, "tenant": "spoof", "correlation_id": "caller-poison"}
-	if cmd == CmdMCPAdd {
+	if cmd == opapi.MCPAdd {
 		args["server"] = map[string]any{"name": "new", "command": "never-executed", "env": map[string]any{"OWNED": "owned-private-env"}}
 	}
 	return k, s, d, p, args, file
@@ -161,7 +161,7 @@ func TestMCPLifecycleNativeCanceledAdmissionBlocksAllFiveEffects(t *testing.T) {
 	}
 }
 func TestMCPLifecycleNativeOneOwnedCorrelationAndAuditPair(t *testing.T) {
-	kinds := map[string]event.Kind{CmdMCPAdd: event.KindMCPAdded, CmdMCPAttach: event.KindMCPAttached, CmdMCPDetach: event.KindMCPDetached, CmdMCPSetEnabled: event.KindMCPUpdated, CmdMCPRemove: event.KindMCPRemoved}
+	kinds := map[string]event.Kind{opapi.MCPAdd: event.KindMCPAdded, opapi.MCPAttach: event.KindMCPAttached, opapi.MCPDetach: event.KindMCPDetached, opapi.MCPSetEnabled: event.KindMCPUpdated, opapi.MCPRemove: event.KindMCPRemoved}
 	for _, cmd := range mcpLifecycleNativeCommands() {
 		t.Run(cmd, func(t *testing.T) {
 			k, s, _, p, args, _ := mcpLifecycleNativeFixture(t, cmd)
@@ -181,7 +181,7 @@ func TestMCPLifecycleNativeOneOwnedCorrelationAndAuditPair(t *testing.T) {
 				}
 			}
 			want := 3
-			if cmd == CmdMCPRemove {
+			if cmd == opapi.MCPRemove {
 				want = 4
 			}
 			if len(events) != want || events[0].Kind != event.KindOpInvoked || events[len(events)-1].Kind != event.KindOpCompleted || events[len(events)-2].Kind != kinds[cmd] {
@@ -197,10 +197,10 @@ func TestMCPLifecycleNativeOneOwnedCorrelationAndAuditPair(t *testing.T) {
 	}
 }
 func TestMCPLifecycleNativeAttachRetainsCallerContext(t *testing.T) {
-	k, s, d, _, args, _ := mcpLifecycleNativeFixture(t, CmdMCPAttach)
+	k, s, d, _, args, _ := mcpLifecycleNativeFixture(t, opapi.MCPAttach)
 	ctx, cancel := context.WithTimeout(context.WithValue(context.Background(), mcpLifecycleCallerKey{}, "owned"), time.Second)
 	defer cancel()
-	reply := mcpLifecycleNativeReply(t, ctx, s, CmdMCPAttach, args)
+	reply := mcpLifecycleNativeReply(t, ctx, s, opapi.MCPAttach, args)
 	if reply.Type != RespResult || d.calls != 1 || d.ctx == nil || d.ctx.Value(mcpLifecycleCallerKey{}) != "owned" {
 		t.Fatalf("EXPECTED:caller context reaches dial ACTUAL:reply=%+v dial=%d ctx=%v", reply, d.calls, d.ctx)
 	}
@@ -225,14 +225,14 @@ func TestMCPLifecycleNativeAttachRetainsCallerContext(t *testing.T) {
 }
 
 func TestMCPLifecycleNativeAttachDeadlineStopsBeforeAttachment(t *testing.T) {
-	k, s, d, p, args, file := mcpLifecycleNativeFixture(t, CmdMCPAttach)
+	k, s, d, p, args, file := mcpLifecycleNativeFixture(t, opapi.MCPAttach)
 	before := k.MCPStore().List()
 	disk, _ := os.ReadFile(file)
 	head, _ := k.Journal().Head()
 	d.block = true
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
 	defer cancel()
-	reply := mcpLifecycleNativeReply(t, ctx, s, CmdMCPAttach, args)
+	reply := mcpLifecycleNativeReply(t, ctx, s, opapi.MCPAttach, args)
 	after, _ := os.ReadFile(file)
 	if reply.Type != RespError || !strings.Contains(reply.Error, "context deadline exceeded") || d.calls != 1 || d.peer.closed || !reflect.DeepEqual(before, k.MCPStore().List()) || !bytes.Equal(disk, after) || len(k.MCPRegistryService().MCPAttached()) != 0 || p.CallCount() != 0 {
 		t.Fatal(reply, d.calls, k.MCPRegistryService().MCPAttached())
@@ -249,7 +249,7 @@ func TestMCPLifecycleNativeAttachDeadlineStopsBeforeAttachment(t *testing.T) {
 	}
 }
 func TestMCPLifecycleNativePolicyComesFromFiveTypedOperations(t *testing.T) {
-	inputs := map[string]reflect.Type{CmdMCPAdd: reflect.TypeFor[apptools.MCPAddRequest](), CmdMCPAttach: reflect.TypeFor[apptools.MCPRefRequest](), CmdMCPDetach: reflect.TypeFor[apptools.MCPRefRequest](), CmdMCPSetEnabled: reflect.TypeFor[apptools.MCPSetEnabledRequest](), CmdMCPRemove: reflect.TypeFor[apptools.MCPRefRequest]()}
+	inputs := map[string]reflect.Type{opapi.MCPAdd: reflect.TypeFor[apptools.MCPAddRequest](), opapi.MCPAttach: reflect.TypeFor[apptools.MCPRefRequest](), opapi.MCPDetach: reflect.TypeFor[apptools.MCPRefRequest](), opapi.MCPSetEnabled: reflect.TypeFor[apptools.MCPSetEnabledRequest](), opapi.MCPRemove: reflect.TypeFor[apptools.MCPRefRequest]()}
 	seen := map[string]int{}
 	for _, op := range registeredAppOperations() {
 		sp := op.Spec()

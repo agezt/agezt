@@ -713,13 +713,13 @@ func PermissionOperations(provider func(context.Context) *PermissionService) ([]
 	if err != nil {
 		return nil, err
 	}
-	read, err := app.NewOperation(opapi.Spec{Name: "agent_permissions", ReadOnly: true, OutputSchema: readOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{}}}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/agents/permissions"}}, func(ctx context.Context, in PermissionsRequest) (PermissionsOutput, error) {
+	read, err := app.NewOperation(opapi.Spec{Name: opapi.AgentPermissions, ReadOnly: true, OutputSchema: readOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{}}}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/agents/permissions"}}, func(ctx context.Context, in PermissionsRequest) (PermissionsOutput, error) {
 		return provider(ctx).Permissions(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	write, err := app.NewOperation(opapi.Spec{Name: "agent_capabilities", OutputSchema: writeOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"trust_ceiling":{},"tool_allow":{},"tool_deny":{},"noise_policy":{},"config_overrides":{},"memory_scope":{},"workdir":{},"max_cost_mc":{},"max_daily_mc":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/agents/capabilities"}}, func(ctx context.Context, in CapabilitiesRequest) (CapabilitiesOutput, error) {
+	write, err := app.NewOperation(opapi.Spec{Name: opapi.AgentCapabilities, OutputSchema: writeOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"trust_ceiling":{},"tool_allow":{},"tool_deny":{},"noise_policy":{},"config_overrides":{},"memory_scope":{},"workdir":{},"max_cost_mc":{},"max_daily_mc":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/agents/capabilities"}}, func(ctx context.Context, in CapabilitiesRequest) (CapabilitiesOutput, error) {
 		return provider(ctx).Capabilities(ctx, in)
 	})
 	if err != nil {

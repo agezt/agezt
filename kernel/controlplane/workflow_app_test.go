@@ -43,7 +43,7 @@ func workflowAppFixture(t *testing.T) (*runtime.Kernel, *Server, workflow.Workfl
 	return k, s, graph, provider
 }
 func TestWorkflowNativeMetadataComesFromThirteenTypedAppSpecs(t *testing.T) {
-	want := map[string]bool{CmdWorkflowList: true, CmdWorkflowShow: true, CmdWorkflowRuns: true, CmdWorkflowTemplates: true, CmdWorkflowSave: false, CmdWorkflowRestore: false, CmdWorkflowRemove: false, CmdWorkflowSetEnabled: false, CmdWorkflowRun: false, CmdWorkflowDraft: false, CmdWorkflowRefine: false, CmdWorkflowWebhook: false, CmdWorkflowTestNode: false}
+	want := map[string]bool{opapi.WorkflowList: true, opapi.WorkflowShow: true, opapi.WorkflowRuns: true, opapi.WorkflowTemplates: true, opapi.WorkflowSave: false, opapi.WorkflowRestore: false, opapi.WorkflowRemove: false, opapi.WorkflowSetEnabled: false, opapi.WorkflowRun: false, opapi.WorkflowDraft: false, opapi.WorkflowRefine: false, opapi.WorkflowWebhook: false, opapi.WorkflowTestNode: false}
 	seen := map[string]bool{}
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()
@@ -62,7 +62,7 @@ func TestWorkflowNativeMetadataComesFromThirteenTypedAppSpecs(t *testing.T) {
 	}
 }
 func TestWorkflowAppRequiresActualAuditBeforeAllNineMutations(t *testing.T) {
-	for _, cmd := range []string{CmdWorkflowSave, CmdWorkflowRestore, CmdWorkflowRemove, CmdWorkflowSetEnabled, CmdWorkflowRun, CmdWorkflowDraft, CmdWorkflowRefine, CmdWorkflowWebhook, CmdWorkflowTestNode} {
+	for _, cmd := range []string{opapi.WorkflowSave, opapi.WorkflowRestore, opapi.WorkflowRemove, opapi.WorkflowSetEnabled, opapi.WorkflowRun, opapi.WorkflowDraft, opapi.WorkflowRefine, opapi.WorkflowWebhook, opapi.WorkflowTestNode} {
 		t.Run(cmd, func(t *testing.T) {
 			k, s, graph, provider := workflowAppFixture(t)
 			before := k.Workflows().List()
@@ -78,7 +78,7 @@ func TestWorkflowAppRequiresActualAuditBeforeAllNineMutations(t *testing.T) {
 }
 func TestWorkflowAppReadAndMutationAuditPolicyJoinsLifecycleIdentity(t *testing.T) {
 	k, s, graph, provider := workflowAppFixture(t)
-	for _, cmd := range []string{CmdWorkflowList, CmdWorkflowShow, CmdWorkflowRuns, CmdWorkflowTemplates} {
+	for _, cmd := range []string{opapi.WorkflowList, opapi.WorkflowShow, opapi.WorkflowRuns, opapi.WorkflowTemplates} {
 		out := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"ref": graph.ID, "with_runs": "YES", "unused": true}})
 		if len(out) != 1 || out[0].Type != RespResult {
 			t.Fatal(cmd, out)
@@ -96,7 +96,7 @@ func TestWorkflowAppReadAndMutationAuditPolicyJoinsLifecycleIdentity(t *testing.
 	if invoked != 0 || provider.CallCount() != 0 {
 		t.Fatal(invoked, provider.CallCount())
 	}
-	out := callAppHost(t, s, Request{ID: "enable", Cmd: CmdWorkflowSetEnabled, Token: "primary", Args: map[string]any{"ref": graph.ID, "enabled": "TRUE", "correlation_id": "spoof"}})
+	out := callAppHost(t, s, Request{ID: "enable", Cmd: opapi.WorkflowSetEnabled, Token: "primary", Args: map[string]any{"ref": graph.ID, "enabled": "TRUE", "correlation_id": "spoof"}})
 	if len(out) != 1 || out[0].Type != RespResult {
 		t.Fatal(out)
 	}
@@ -127,7 +127,7 @@ func TestWorkflowAppPresenceAdmissionOrderAndCompatForms(t *testing.T) {
 		value any
 		want  bool
 	}{{true, true}, {false, false}, {"TRUE", true}, {"1", true}, {" true ", false}, {float64(1), false}, {nil, false}} {
-		out := callAppHost(t, s, Request{ID: "enable", Cmd: CmdWorkflowSetEnabled, Token: "primary", Args: map[string]any{"ref": graph.ID, "enabled": test.value}})
+		out := callAppHost(t, s, Request{ID: "enable", Cmd: opapi.WorkflowSetEnabled, Token: "primary", Args: map[string]any{"ref": graph.ID, "enabled": test.value}})
 		if len(out) != 1 || out[0].Type != RespResult || out[0].Result["workflow"].(map[string]any)["enabled"] != test.want {
 			t.Fatal(test, out)
 		}
@@ -136,7 +136,7 @@ func TestWorkflowAppPresenceAdmissionOrderAndCompatForms(t *testing.T) {
 		cmd       string
 		args      map[string]any
 		errorText string
-	}{{CmdWorkflowRestore, map[string]any{"workflow": nil, "reason": true}, "args.reason must be a string"}, {CmdWorkflowRefine, map[string]any{"instruction": " ", "workflow": true}, "args.instruction required"}, {CmdWorkflowRefine, map[string]any{"instruction": "revise", "workflow": "bad", "ref": true}, "args.workflow:"}, {CmdWorkflowTestNode, map[string]any{"workflow": "bad", "node": true, "data": nil}, "args.workflow:"}, {CmdWorkflowTestNode, map[string]any{"workflow": graph, "node": "work", "data": nil}, "args.data must be an object"}, {CmdWorkflowWebhook, map[string]any{"ref": true, "secret": true}, "webhook refused"}}
+	}{{opapi.WorkflowRestore, map[string]any{"workflow": nil, "reason": true}, "args.reason must be a string"}, {opapi.WorkflowRefine, map[string]any{"instruction": " ", "workflow": true}, "args.instruction required"}, {opapi.WorkflowRefine, map[string]any{"instruction": "revise", "workflow": "bad", "ref": true}, "args.workflow:"}, {opapi.WorkflowTestNode, map[string]any{"workflow": "bad", "node": true, "data": nil}, "args.workflow:"}, {opapi.WorkflowTestNode, map[string]any{"workflow": graph, "node": "work", "data": nil}, "args.data must be an object"}, {opapi.WorkflowWebhook, map[string]any{"ref": true, "secret": true}, "webhook refused"}}
 	for _, test := range cases {
 		out := callAppHost(t, s, Request{ID: test.cmd, Cmd: test.cmd, Token: "primary", Args: test.args})
 		if len(out) != 1 || out[0].Type != RespError || !strings.Contains(out[0].Error, test.errorText) {
@@ -152,7 +152,7 @@ func TestWorkflowAppPresenceAdmissionOrderAndCompatForms(t *testing.T) {
 		limit any
 		count float64
 	}{{"1", 20}, {float64(1.9), 1}, {nil, 20}} {
-		out := callAppHost(t, s, Request{ID: "history", Cmd: CmdWorkflowRuns, Token: "primary", Args: map[string]any{"ref": graph.ID, "limit": test.limit}})
+		out := callAppHost(t, s, Request{ID: "history", Cmd: opapi.WorkflowRuns, Token: "primary", Args: map[string]any{"ref": graph.ID, "limit": test.limit}})
 		if len(out) != 1 || out[0].Type != RespResult || out[0].Result["count"] != test.count {
 			t.Fatal(test, out)
 		}
@@ -165,7 +165,7 @@ func TestWorkflowAppGraphSchemasKeepRawConfigsAndRequiredFullFields(t *testing.T
 		spec := operation.Spec()
 		specs[spec.Name] = spec.OutputSchema
 	}
-	out := callAppHost(t, s, Request{ID: "show", Cmd: CmdWorkflowShow, Token: "primary", Args: map[string]any{"ref": graph.ID}})
+	out := callAppHost(t, s, Request{ID: "show", Cmd: opapi.WorkflowShow, Token: "primary", Args: map[string]any{"ref": graph.ID}})
 	if len(out) != 1 || out[0].Type != RespResult {
 		t.Fatal(out)
 	}
@@ -174,7 +174,7 @@ func TestWorkflowAppGraphSchemasKeepRawConfigsAndRequiredFullFields(t *testing.T
 	for _, config := range []any{nil, map[string]any{"raw": true}, []any{false, float64(0)}, "raw", float64(3)} {
 		node["config"] = config
 		raw, _ := json.Marshal(row)
-		if err := schema.ValidateJSON(specs[CmdWorkflowShow], raw); err != nil {
+		if err := schema.ValidateJSON(specs[opapi.WorkflowShow], raw); err != nil {
 			t.Fatal(config, err)
 		}
 	}
@@ -182,16 +182,16 @@ func TestWorkflowAppGraphSchemasKeepRawConfigsAndRequiredFullFields(t *testing.T
 	saved := full["nodes"]
 	delete(full, "nodes")
 	raw, _ := json.Marshal(row)
-	if err := schema.ValidateJSON(specs[CmdWorkflowShow], raw); err == nil {
+	if err := schema.ValidateJSON(specs[opapi.WorkflowShow], raw); err == nil {
 		t.Fatal("schema omitted required full nodes")
 	}
 	full["nodes"] = saved
 	raw, _ = json.Marshal(map[string]any{"workflow": full, "created": false})
-	if err := schema.ValidateJSON(specs[CmdWorkflowSave], raw); err != nil {
+	if err := schema.ValidateJSON(specs[opapi.WorkflowSave], raw); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ = json.Marshal(map[string]any{"workflow": full})
-	if err := schema.ValidateJSON(specs[CmdWorkflowSave], raw); err == nil {
+	if err := schema.ValidateJSON(specs[opapi.WorkflowSave], raw); err == nil {
 		t.Fatal("schema omitted required created:false")
 	}
 }

@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -24,7 +24,7 @@ func TestProviderLog_RoutingAndFallbacks(t *testing.T) {
 		Payload: map[string]any{"failed": "openai", "next": "mock", "reason": "429 rate limited"},
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdProviderLog, nil)
+	res, err := c.Call(context.Background(), opapi.ProviderLog, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestProviderLog_RoutingAndFallbacks(t *testing.T) {
 	}
 
 	// --fallbacks → just the fallback.
-	fres, err := c.Call(context.Background(), controlplane.CmdProviderLog,
+	fres, err := c.Call(context.Background(), opapi.ProviderLog,
 		map[string]any{"fallbacks": true})
 	if err != nil {
 		t.Fatal(err)
@@ -75,7 +75,7 @@ func TestProviderStats_Aggregates(t *testing.T) {
 	route("openai")
 	route("anthropic")
 
-	res, err := c.Call(context.Background(), controlplane.CmdProviderStats, nil)
+	res, err := c.Call(context.Background(), opapi.ProviderStats, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +112,7 @@ func TestProviderRejections_FoldsCapabilityEvents(t *testing.T) {
 		Payload: map[string]any{"from_model": "text-only", "to_model": "gpt-tools", "capability": "tool_call"},
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdProviderRejections, nil)
+	res, err := c.Call(context.Background(), opapi.ProviderRejections, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

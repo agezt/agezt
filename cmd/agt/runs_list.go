@@ -15,7 +15,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdRunsList implements `agt runs list [N] [--json]`.
@@ -162,7 +162,7 @@ func cmdRunsList(args []string, stdout, stderr io.Writer) int {
 	if maxCostMC > 0 {
 		callArgs["max_cost_mc"] = maxCostMC // M125: filter by cost ceiling
 	}
-	res, err := c.Call(ctx, controlplane.CmdRunsList, callArgs)
+	res, err := c.Call(ctx, opapi.RunsList, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s runs list: %v\n", brand.CLI, err)
 		return 1

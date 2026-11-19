@@ -3,7 +3,7 @@ package controlplane_test
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"strings"
@@ -16,7 +16,7 @@ func TestForgeLifecycleNativeTenantDenialBeforeAnyMutation(t *testing.T) {
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
 	before := k.ToolForge().Count()
-	for _, cmd := range []string{controlplane.CmdToolforgeDraft, controlplane.CmdToolforgeEdit, controlplane.CmdToolforgeTest, controlplane.CmdToolforgePromote, controlplane.CmdToolforgeQuarantine, controlplane.CmdToolforgeRemove} {
+	for _, cmd := range []string{opapi.ToolforgeDraft, opapi.ToolforgeEdit, opapi.ToolforgeTest, opapi.ToolforgePromote, opapi.ToolforgeQuarantine, opapi.ToolforgeRemove} {
 		if _, err := client.Call(context.Background(), cmd, map[string]any{"ref": "missing", "tool": nil, "tenant": "acme"}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
 			t.Fatal(cmd, err)
 		}
@@ -41,11 +41,11 @@ func TestForgeLifecycleNativeSampleReachesRunnerExactly(t *testing.T) {
 	runner := &forgeInputRunner{}
 	_, _, owner, _ := startPairWithConfig(t, runtime.Config{Provider: mock.New(), ScriptRunner: runner})
 	ctx := context.Background()
-	if _, err := owner.Call(ctx, controlplane.CmdToolforgeDraft, map[string]any{"tool": map[string]any{"name": "owned", "description": "owned fixture", "language": "python", "code": "never executed"}}); err != nil {
+	if _, err := owner.Call(ctx, opapi.ToolforgeDraft, map[string]any{"tool": map[string]any{"name": "owned", "description": "owned fixture", "language": "python", "code": "never executed"}}); err != nil {
 		t.Fatal(err)
 	}
 	for _, sample := range []string{" raw input ö \n", `{"x":1}`, ""} {
-		out, err := owner.Call(ctx, controlplane.CmdToolforgeTest, map[string]any{"ref": "owned", "input": sample})
+		out, err := owner.Call(ctx, opapi.ToolforgeTest, map[string]any{"ref": "owned", "input": sample})
 		want := sample
 		if want == "" {
 			want = "{}"

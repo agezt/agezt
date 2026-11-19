@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/contract/cadenceapi"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -64,7 +65,7 @@ func TestScheduleFires_JoinsRunOutcome(t *testing.T) {
 		CorrelationID: "manual", Payload: map[string]any{"iters": 1},
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdScheduleFires, nil)
+	res, err := c.Call(context.Background(), opapi.ScheduleFires, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -138,7 +139,7 @@ func TestScheduleFires_SystemTaskExecutionMetadata(t *testing.T) {
 		Payload:       map[string]any{"schedule_id": "sched-system", "target": cadenceapi.TargetSystemTask, "answer": "system task catalog_sync completed"},
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdScheduleFires, nil)
+	res, err := c.Call(context.Background(), opapi.ScheduleFires, nil)
 	if err != nil {
 		t.Fatalf("ScheduleFires: %v", err)
 	}
@@ -165,7 +166,7 @@ func TestScheduleList_ShowsLastFiringOutcome(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a real schedule so it appears in the list, capture its id.
-	add, err := c.Call(ctx, controlplane.CmdScheduleAdd,
+	add, err := c.Call(ctx, opapi.ScheduleAdd,
 		map[string]any{"intent": "daily brief", "interval_sec": 3600})
 	if err != nil {
 		t.Fatalf("ScheduleAdd: %v", err)
@@ -200,7 +201,7 @@ func TestScheduleList_ShowsLastFiringOutcome(t *testing.T) {
 		Payload: map[string]any{"reason": "timeout"},
 	})
 
-	res, err := c.Call(ctx, controlplane.CmdScheduleList, nil)
+	res, err := c.Call(ctx, opapi.ScheduleList, nil)
 	if err != nil {
 		t.Fatalf("ScheduleList: %v", err)
 	}
@@ -235,15 +236,15 @@ func TestScheduleAdd_WorkflowTarget(t *testing.T) {
 		},
 		"edges": []any{map[string]any{"from": "start", "to": "shape"}},
 	}
-	if _, err := c.Call(ctx, controlplane.CmdWorkflowSave, map[string]any{"workflow": graph}); err != nil {
+	if _, err := c.Call(ctx, opapi.WorkflowSave, map[string]any{"workflow": graph}); err != nil {
 		t.Fatalf("WorkflowSave: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "ops", "model": "mock-model"},
 	}); err != nil {
 		t.Fatalf("AgentAdd: %v", err)
 	}
-	add, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"target":       "workflow",
 		"workflow":     "scheduled-flow",
 		"agent":        "ops",
@@ -275,7 +276,7 @@ func TestScheduleAdd_WorkflowTarget(t *testing.T) {
 		t.Fatalf("workflow schedule execution boundary wrong: %v", add)
 	}
 
-	res, err := c.Call(ctx, controlplane.CmdScheduleList, nil)
+	res, err := c.Call(ctx, opapi.ScheduleList, nil)
 	if err != nil {
 		t.Fatalf("ScheduleList: %v", err)
 	}
@@ -318,15 +319,15 @@ func TestScheduleEdit_WorkflowTargetBackToAgentIntent(t *testing.T) {
 		},
 		"edges": []any{map[string]any{"from": "start", "to": "shape"}},
 	}
-	if _, err := c.Call(ctx, controlplane.CmdWorkflowSave, map[string]any{"workflow": graph}); err != nil {
+	if _, err := c.Call(ctx, opapi.WorkflowSave, map[string]any{"workflow": graph}); err != nil {
 		t.Fatalf("WorkflowSave: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "ops", "model": "mock-model"},
 	}); err != nil {
 		t.Fatalf("AgentAdd: %v", err)
 	}
-	add, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"target":       "workflow",
 		"workflow":     "scheduled-flow",
 		"interval_sec": float64(3600),
@@ -335,7 +336,7 @@ func TestScheduleEdit_WorkflowTargetBackToAgentIntent(t *testing.T) {
 		t.Fatalf("ScheduleAdd workflow target: %v", err)
 	}
 	id, _ := add["id"].(string)
-	edit, err := c.Call(ctx, controlplane.CmdScheduleEdit, map[string]any{
+	edit, err := c.Call(ctx, opapi.ScheduleEdit, map[string]any{
 		"id":     id,
 		"target": "",
 		"intent": "check the queue",
@@ -359,7 +360,7 @@ func TestScheduleAdd_SystemTaskTarget(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
 
-	add, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"target":       "system_task",
 		"system_task":  "catalog_sync",
 		"model":        "gpt-5",
@@ -388,7 +389,7 @@ func TestScheduleAdd_SystemTaskTarget(t *testing.T) {
 		t.Fatalf("system task schedule execution boundary wrong: %v", add)
 	}
 
-	res, err := c.Call(ctx, controlplane.CmdScheduleList, nil)
+	res, err := c.Call(ctx, opapi.ScheduleList, nil)
 	if err != nil {
 		t.Fatalf("ScheduleList: %v", err)
 	}
@@ -411,7 +412,7 @@ func TestScheduleAdd_SystemTaskTarget(t *testing.T) {
 		t.Fatalf("listed system task schedule execution boundary wrong: %v", row)
 	}
 
-	add, err = c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err = c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"target":       "system_task",
 		"system_task":  "memory_clean",
 		"interval_sec": float64(3600),
@@ -423,7 +424,7 @@ func TestScheduleAdd_SystemTaskTarget(t *testing.T) {
 		t.Fatalf("system_task = %q want memory_clean", got)
 	}
 
-	add, err = c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err = c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"target":       "system_task",
 		"system_task":  "artifact_collect",
 		"interval_sec": float64(5400),
@@ -435,7 +436,7 @@ func TestScheduleAdd_SystemTaskTarget(t *testing.T) {
 		t.Fatalf("system_task = %q want artifact_collect", got)
 	}
 
-	add, err = c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err = c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"target":       "system_task",
 		"system_task":  "memory_tidy",
 		"interval_sec": float64(7200),
@@ -447,7 +448,7 @@ func TestScheduleAdd_SystemTaskTarget(t *testing.T) {
 		t.Fatalf("system_task = %q want memory_tidy", got)
 	}
 
-	add, err = c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err = c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"target":       "system_task",
 		"system_task":  "log_clean",
 		"interval_sec": float64(86400),
@@ -463,13 +464,13 @@ func TestScheduleAdd_SystemTaskTarget(t *testing.T) {
 func TestScheduleAddAndEditContinuousCycle(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "ops", "model": "mock-model"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
 
-	add, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent":       "cycle repo-watch",
 		"agent":        "ops",
 		"cooldown_sec": float64(90),
@@ -491,7 +492,7 @@ func TestScheduleAddAndEditContinuousCycle(t *testing.T) {
 	}
 
 	id, _ := add["id"].(string)
-	edit, err := c.Call(ctx, controlplane.CmdScheduleEdit, map[string]any{
+	edit, err := c.Call(ctx, opapi.ScheduleEdit, map[string]any{
 		"id":           id,
 		"cooldown_sec": float64(120),
 	})
@@ -510,7 +511,7 @@ func TestScheduleSystemTaskRejectsPayload(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"target":       "system_task",
 		"system_task":  "catalog_sync",
 		"payload":      map[string]any{"instructions": "also run this"},
@@ -518,7 +519,7 @@ func TestScheduleSystemTaskRejectsPayload(t *testing.T) {
 	}); err == nil || !strings.Contains(err.Error(), "do not accept args.payload") {
 		t.Fatalf("ScheduleAdd system task payload err = %v, want payload rejection", err)
 	}
-	list, err := c.Call(ctx, controlplane.CmdScheduleList, nil)
+	list, err := c.Call(ctx, opapi.ScheduleList, nil)
 	if err != nil {
 		t.Fatalf("ScheduleList: %v", err)
 	}
@@ -526,7 +527,7 @@ func TestScheduleSystemTaskRejectsPayload(t *testing.T) {
 		t.Fatalf("system task payload rejection left %d schedule(s)", got)
 	}
 
-	add, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent":       "check queue",
 		"interval_sec": float64(3600),
 	})
@@ -534,7 +535,7 @@ func TestScheduleSystemTaskRejectsPayload(t *testing.T) {
 		t.Fatalf("ScheduleAdd intent target: %v", err)
 	}
 	id, _ := add["id"].(string)
-	if _, err := c.Call(ctx, controlplane.CmdScheduleEdit, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleEdit, map[string]any{
 		"id":          id,
 		"target":      "system_task",
 		"system_task": "catalog_sync",
@@ -543,7 +544,7 @@ func TestScheduleSystemTaskRejectsPayload(t *testing.T) {
 	}); err == nil || !strings.Contains(err.Error(), "do not accept args.payload") {
 		t.Fatalf("ScheduleEdit system task payload err = %v, want payload rejection", err)
 	}
-	list, err = c.Call(ctx, controlplane.CmdScheduleList, nil)
+	list, err = c.Call(ctx, opapi.ScheduleList, nil)
 	if err != nil {
 		t.Fatalf("ScheduleList after edit rejection: %v", err)
 	}
@@ -564,7 +565,7 @@ func TestScheduleEdit_InvalidBindingsAreAtomic(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
 
-	add, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent":       "check queue",
 		"model":        "base-model",
 		"interval_sec": float64(3600),
@@ -574,7 +575,7 @@ func TestScheduleEdit_InvalidBindingsAreAtomic(t *testing.T) {
 	}
 	id, _ := add["id"].(string)
 
-	if _, err := c.Call(ctx, controlplane.CmdScheduleEdit, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleEdit, map[string]any{
 		"id":     id,
 		"intent": "changed by bad agent edit",
 		"model":  "changed-model",
@@ -587,7 +588,7 @@ func TestScheduleEdit_InvalidBindingsAreAtomic(t *testing.T) {
 		t.Fatalf("missing-agent edit mutated schedule: %+v", row)
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdScheduleEdit, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleEdit, map[string]any{
 		"id":     id,
 		"intent": "changed by bad tool edit",
 		"target": "tool",
@@ -605,7 +606,7 @@ func TestScheduleEdit_InvalidCadenceIsAtomic(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
 
-	add, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent":       "check queue",
 		"model":        "base-model",
 		"interval_sec": float64(3600),
@@ -615,7 +616,7 @@ func TestScheduleEdit_InvalidCadenceIsAtomic(t *testing.T) {
 	}
 	id, _ := add["id"].(string)
 
-	if _, err := c.Call(ctx, controlplane.CmdScheduleEdit, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleEdit, map[string]any{
 		"id":           id,
 		"intent":       "changed by bad cooldown edit",
 		"model":        "changed-model",
@@ -628,7 +629,7 @@ func TestScheduleEdit_InvalidCadenceIsAtomic(t *testing.T) {
 		t.Fatalf("bad cooldown edit mutated schedule: %+v", row)
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdScheduleEdit, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleEdit, map[string]any{
 		"id":           id,
 		"intent":       "changed by bad interval edit",
 		"model":        "changed-again",
@@ -646,7 +647,7 @@ func TestScheduleSystemTasksMetadata(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
 
-	res, err := c.Call(ctx, controlplane.CmdScheduleSystemTasks, nil)
+	res, err := c.Call(ctx, opapi.ScheduleSystemTasks, nil)
 	if err != nil {
 		t.Fatalf("ScheduleSystemTasks: %v", err)
 	}
@@ -684,7 +685,7 @@ func TestScheduleListFrequencyWarnings(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
 
-	add, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"target":       "system_task",
 		"system_task":  "catalog_sync",
 		"interval_sec": float64(3600),
@@ -704,7 +705,7 @@ func TestScheduleListFrequencyWarnings(t *testing.T) {
 		t.Fatalf("system task execution boundary wrong: %v", row)
 	}
 
-	add, err = c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err = c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent":       "poll too often",
 		"interval_sec": float64(60),
 	})
@@ -716,7 +717,7 @@ func TestScheduleListFrequencyWarnings(t *testing.T) {
 		t.Fatalf("intent frequency_warning = %q, want agent wake warning", got)
 	}
 
-	add, err = c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err = c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"target":       "system_task",
 		"system_task":  "catalog_sync",
 		"interval_sec": float64(86400),
@@ -733,13 +734,13 @@ func TestScheduleListFrequencyWarnings(t *testing.T) {
 func TestScheduleAdd_ToolTarget(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "ops", "model": "mock-model"},
 	}); err != nil {
 		t.Fatalf("AgentAdd: %v", err)
 	}
 
-	add, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"target":       "tool",
 		"tool":         "shell",
 		"agent":        "ops",
@@ -770,7 +771,7 @@ func TestScheduleAdd_ToolTarget(t *testing.T) {
 		t.Fatalf("tool schedule execution boundary wrong: %v", add)
 	}
 
-	res, err := c.Call(ctx, controlplane.CmdScheduleList, nil)
+	res, err := c.Call(ctx, opapi.ScheduleList, nil)
 	if err != nil {
 		t.Fatalf("ScheduleList: %v", err)
 	}
@@ -808,7 +809,7 @@ func TestScheduleEdit_ToolTarget(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
 
-	add, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent":       "old task",
 		"interval_sec": float64(3600),
 	})
@@ -816,7 +817,7 @@ func TestScheduleEdit_ToolTarget(t *testing.T) {
 		t.Fatalf("ScheduleAdd: %v", err)
 	}
 	id, _ := add["id"].(string)
-	edit, err := c.Call(ctx, controlplane.CmdScheduleEdit, map[string]any{
+	edit, err := c.Call(ctx, opapi.ScheduleEdit, map[string]any{
 		"id":      id,
 		"target":  "tool",
 		"tool":    "shell",
@@ -852,20 +853,20 @@ func TestScheduleAdd_ToolTargetValidation(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"target":       "tool",
 		"interval_sec": float64(60),
 	}); err == nil || !strings.Contains(err.Error(), "args.tool required") {
 		t.Fatalf("missing tool err = %v, want args.tool required", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"target":       "tool",
 		"tool":         "missing",
 		"interval_sec": float64(60),
 	}); err == nil || !strings.Contains(err.Error(), "unknown tool") {
 		t.Fatalf("unknown tool err = %v, want unknown tool", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"target":       "system_task",
 		"system_task":  "catalog_sync",
 		"agent":        "ops",
@@ -878,13 +879,13 @@ func TestScheduleAdd_ToolTargetValidation(t *testing.T) {
 func TestScheduleToolTargetRespectsAgentToolPolicy(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "ops", "tool_allow": []any{"memory"}, "tool_deny": []any{"shell"}},
 	}); err != nil {
 		t.Fatalf("AgentAdd ops: %v", err)
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"target":       "tool",
 		"tool":         "shell",
 		"agent":        "ops",
@@ -893,7 +894,7 @@ func TestScheduleToolTargetRespectsAgentToolPolicy(t *testing.T) {
 	}); err == nil || !strings.Contains(err.Error(), "agent tool denylist") {
 		t.Fatalf("ScheduleAdd denied tool err = %v, want agent tool denylist", err)
 	}
-	list, err := c.Call(ctx, controlplane.CmdScheduleList, nil)
+	list, err := c.Call(ctx, opapi.ScheduleList, nil)
 	if err != nil {
 		t.Fatalf("ScheduleList: %v", err)
 	}
@@ -901,7 +902,7 @@ func TestScheduleToolTargetRespectsAgentToolPolicy(t *testing.T) {
 		t.Fatalf("denied tool schedule add left %d schedule(s)", got)
 	}
 
-	add, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent":       "check queue",
 		"agent":        "ops",
 		"interval_sec": float64(60),
@@ -910,7 +911,7 @@ func TestScheduleToolTargetRespectsAgentToolPolicy(t *testing.T) {
 		t.Fatalf("ScheduleAdd intent: %v", err)
 	}
 	id, _ := add["id"].(string)
-	if _, err := c.Call(ctx, controlplane.CmdScheduleEdit, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleEdit, map[string]any{
 		"id":      id,
 		"target":  "tool",
 		"tool":    "shell",
@@ -934,10 +935,10 @@ func TestScheduleToolTargetRespectsAgentToolPolicy(t *testing.T) {
 	if ok, err := k.Schedules().SetToolTarget(stale.ID, "shell", json.RawMessage(`{"command":"echo no"}`)); err != nil || !ok {
 		t.Fatalf("seed stale tool ok=%v err=%v", ok, err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdScheduleEnable, map[string]any{"id": stale.ID, "enabled": true}); err == nil || !strings.Contains(err.Error(), "agent tool denylist") {
+	if _, err := c.Call(ctx, opapi.ScheduleEnable, map[string]any{"id": stale.ID, "enabled": true}); err == nil || !strings.Contains(err.Error(), "agent tool denylist") {
 		t.Fatalf("ScheduleEnable denied tool err = %v, want agent tool denylist", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdScheduleRun, map[string]any{"id": stale.ID}); err == nil || !strings.Contains(err.Error(), "agent tool denylist") {
+	if _, err := c.Call(ctx, opapi.ScheduleRun, map[string]any{"id": stale.ID}); err == nil || !strings.Contains(err.Error(), "agent tool denylist") {
 		t.Fatalf("ScheduleRun denied tool err = %v, want agent tool denylist", err)
 	}
 }
@@ -965,7 +966,7 @@ func TestScheduleFires_FilterByScheduleID(t *testing.T) {
 	fire("a2", "sched-A")
 	fire("b1", "sched-B")
 
-	res, err := c.Call(context.Background(), controlplane.CmdScheduleFires,
+	res, err := c.Call(context.Background(), opapi.ScheduleFires,
 		map[string]any{"id": "sched-A"})
 	if err != nil {
 		t.Fatalf("Call: %v", err)
@@ -1018,7 +1019,7 @@ func TestScheduleStats_AggregatesFirings(t *testing.T) {
 	fire("c2", "sched-A", false, 50)
 	fire("c3", "sched-B", true, 0)
 
-	res, err := c.Call(context.Background(), controlplane.CmdScheduleStats, nil)
+	res, err := c.Call(context.Background(), opapi.ScheduleStats, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -1061,7 +1062,7 @@ func TestScheduleStats_FilterByScheduleID(t *testing.T) {
 			Payload: map[string]any{"iters": 1},
 		})
 	}
-	res, err := c.Call(context.Background(), controlplane.CmdScheduleStats,
+	res, err := c.Call(context.Background(), opapi.ScheduleStats,
 		map[string]any{"id": "sched-A"})
 	if err != nil {
 		t.Fatal(err)
@@ -1082,7 +1083,7 @@ func TestScheduleFires_EmptyWhenNoFirings(t *testing.T) {
 		Subject: "task", Kind: event.KindTaskReceived, Actor: "a",
 		CorrelationID: "r1", Payload: map[string]string{"intent": "x"},
 	})
-	res, err := c.Call(context.Background(), controlplane.CmdScheduleFires, nil)
+	res, err := c.Call(context.Background(), opapi.ScheduleFires, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1100,7 +1101,7 @@ func TestScheduleAddListRemove(t *testing.T) {
 	ctx := context.Background()
 
 	// Add
-	res, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	res, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "summarise new commits", "interval_sec": 3600, "model": "sonnet",
 	})
 	if err != nil {
@@ -1115,7 +1116,7 @@ func TestScheduleAddListRemove(t *testing.T) {
 	}
 
 	// List
-	res, err = c.Call(ctx, controlplane.CmdScheduleList, nil)
+	res, err = c.Call(ctx, opapi.ScheduleList, nil)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -1129,7 +1130,7 @@ func TestScheduleAddListRemove(t *testing.T) {
 	}
 
 	// Run now → marks it due
-	res, err = c.Call(ctx, controlplane.CmdScheduleRun, map[string]any{"id": id})
+	res, err = c.Call(ctx, opapi.ScheduleRun, map[string]any{"id": id})
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -1138,7 +1139,7 @@ func TestScheduleAddListRemove(t *testing.T) {
 	}
 
 	// Remove
-	res, err = c.Call(ctx, controlplane.CmdScheduleRemove, map[string]any{"id": id})
+	res, err = c.Call(ctx, opapi.ScheduleRemove, map[string]any{"id": id})
 	if err != nil {
 		t.Fatalf("rm: %v", err)
 	}
@@ -1147,7 +1148,7 @@ func TestScheduleAddListRemove(t *testing.T) {
 	}
 
 	// List is now empty
-	res, _ = c.Call(ctx, controlplane.CmdScheduleList, nil)
+	res, _ = c.Call(ctx, opapi.ScheduleList, nil)
 	if list, _ := res["schedules"].([]any); len(list) != 0 {
 		t.Errorf("after rm, list count = %d, want 0", len(list))
 	}
@@ -1157,7 +1158,7 @@ func TestScheduleAddList_WithRosterAgent(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{
 			"slug":         "researcher",
 			"name":         "Researcher",
@@ -1169,7 +1170,7 @@ func TestScheduleAddList_WithRosterAgent(t *testing.T) {
 		t.Fatalf("agent add: %v", err)
 	}
 
-	res, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	res, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "prepare the research brief", "interval_sec": 7200, "agent": "researcher",
 	})
 	if err != nil {
@@ -1180,7 +1181,7 @@ func TestScheduleAddList_WithRosterAgent(t *testing.T) {
 	}
 	id, _ := res["id"].(string)
 
-	res, err = c.Call(ctx, controlplane.CmdScheduleList, nil)
+	res, err = c.Call(ctx, opapi.ScheduleList, nil)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -1198,94 +1199,94 @@ func TestScheduleAgentValidation(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	if _, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "x", "interval_sec": 60, "agent": "missing",
 	}); err == nil || !strings.Contains(err.Error(), "unknown agent") {
 		t.Fatalf("unknown schedule agent err = %v, want unknown agent", err)
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "ops", "model": "mock-model"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentSetEnabled, map[string]any{"ref": "ops", "enabled": false}); err != nil {
+	if _, err := c.Call(ctx, opapi.AgentSetEnabled, map[string]any{"ref": "ops", "enabled": false}); err != nil {
 		t.Fatalf("pause agent: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "x", "interval_sec": 60, "agent": "ops",
 	}); err == nil || !strings.Contains(err.Error(), "paused") {
 		t.Fatalf("paused schedule agent err = %v, want paused", err)
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "dead", "model": "mock-model"},
 	}); err != nil {
 		t.Fatalf("dead agent add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentRetire, map[string]any{"ref": "dead"}); err != nil {
+	if _, err := c.Call(ctx, opapi.AgentRetire, map[string]any{"ref": "dead"}); err != nil {
 		t.Fatalf("retire dead: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "x", "interval_sec": 60, "agent": "dead",
 	}); err == nil || !strings.Contains(err.Error(), "retired") {
 		t.Fatalf("retired schedule agent err = %v, want retired", err)
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "lead", "model": "mock-model"},
 	}); err != nil {
 		t.Fatalf("lead add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "worker", "parent_agent": "lead", "direct_callable": false},
 	}); err != nil {
 		t.Fatalf("worker add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "x", "interval_sec": 60, "agent": "worker",
 	}); err == nil || !strings.Contains(err.Error(), "managed sub-agent") || !strings.Contains(err.Error(), "wake lead") {
 		t.Fatalf("managed schedule agent err = %v, want managed sub-agent with manager hint", err)
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "sleeper", "model": "mock-model"},
 	}); err != nil {
 		t.Fatalf("sleeper add: %v", err)
 	}
-	res, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	res, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "x", "interval_sec": 60, "agent": "sleeper",
 	})
 	if err != nil {
 		t.Fatalf("sleeper schedule add: %v", err)
 	}
 	id, _ := res["id"].(string)
-	if _, err := c.Call(ctx, controlplane.CmdScheduleEnable, map[string]any{"id": id, "enabled": false}); err != nil {
+	if _, err := c.Call(ctx, opapi.ScheduleEnable, map[string]any{"id": id, "enabled": false}); err != nil {
 		t.Fatalf("disable sleeper schedule: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentRetire, map[string]any{"ref": "sleeper"}); err != nil {
+	if _, err := c.Call(ctx, opapi.AgentRetire, map[string]any{"ref": "sleeper"}); err != nil {
 		t.Fatalf("retire sleeper: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdScheduleEnable, map[string]any{"id": id, "enabled": true}); err == nil ||
+	if _, err := c.Call(ctx, opapi.ScheduleEnable, map[string]any{"id": id, "enabled": true}); err == nil ||
 		!strings.Contains(err.Error(), "retired") {
 		t.Fatalf("enable schedule bound to retired agent err = %v, want retired", err)
 	}
 
-	res, err = c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	res, err = c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "x", "interval_sec": 60, "agent": "lead",
 	})
 	if err != nil {
 		t.Fatalf("lead schedule add: %v", err)
 	}
 	leadID, _ := res["id"].(string)
-	if _, err := c.Call(ctx, controlplane.CmdScheduleEdit, map[string]any{"id": leadID, "agent": "worker"}); err == nil ||
+	if _, err := c.Call(ctx, opapi.ScheduleEdit, map[string]any{"id": leadID, "agent": "worker"}); err == nil ||
 		!strings.Contains(err.Error(), "managed sub-agent") || !strings.Contains(err.Error(), "wake lead") {
 		t.Fatalf("edit schedule to managed agent err = %v, want managed sub-agent with manager hint", err)
 	}
 	if _, err := k.Schedules().SetAgent(leadID, "worker"); err != nil {
 		t.Fatalf("force corrupt schedule agent: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdScheduleRun, map[string]any{"id": leadID}); err == nil ||
+	if _, err := c.Call(ctx, opapi.ScheduleRun, map[string]any{"id": leadID}); err == nil ||
 		!strings.Contains(err.Error(), "managed sub-agent") || !strings.Contains(err.Error(), "wake lead") {
 		t.Fatalf("run schedule bound to managed agent err = %v, want managed sub-agent with manager hint", err)
 	}
@@ -1295,7 +1296,7 @@ func TestScheduleRunAndEnableValidateTypedTargetsStillExist(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	add, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "stale workflow", "interval_sec": 60,
 	})
 	if err != nil {
@@ -1305,12 +1306,12 @@ func TestScheduleRunAndEnableValidateTypedTargetsStillExist(t *testing.T) {
 	if _, err := k.Schedules().SetWorkflowTarget(workflowID, "missing-flow", nil); err != nil {
 		t.Fatalf("force stale workflow target: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdScheduleRun, map[string]any{"id": workflowID}); err == nil ||
+	if _, err := c.Call(ctx, opapi.ScheduleRun, map[string]any{"id": workflowID}); err == nil ||
 		!strings.Contains(err.Error(), "unknown workflow: missing-flow") {
 		t.Fatalf("run stale workflow err = %v, want unknown workflow", err)
 	}
 
-	add, err = c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err = c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "stale tool", "interval_sec": 60,
 	})
 	if err != nil {
@@ -1320,15 +1321,15 @@ func TestScheduleRunAndEnableValidateTypedTargetsStillExist(t *testing.T) {
 	if _, err := k.Schedules().SetToolTarget(toolID, "missing-tool", nil); err != nil {
 		t.Fatalf("force stale tool target: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdScheduleEnable, map[string]any{"id": toolID, "enabled": false}); err != nil {
+	if _, err := c.Call(ctx, opapi.ScheduleEnable, map[string]any{"id": toolID, "enabled": false}); err != nil {
 		t.Fatalf("disable stale tool schedule: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdScheduleEnable, map[string]any{"id": toolID, "enabled": true}); err == nil ||
+	if _, err := c.Call(ctx, opapi.ScheduleEnable, map[string]any{"id": toolID, "enabled": true}); err == nil ||
 		!strings.Contains(err.Error(), "unknown tool: missing-tool") {
 		t.Fatalf("enable stale tool err = %v, want unknown tool", err)
 	}
 
-	add, err = c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	add, err = c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "stale system task", "interval_sec": 60,
 	})
 	if err != nil {
@@ -1346,11 +1347,11 @@ func TestScheduleRunAndEnableValidateTypedTargetsStillExist(t *testing.T) {
 	// schedules that were valid when added but became stale (e.g. a workflow
 	// was deleted after the schedule was created). For system tasks, the store
 	// is the first and only gate — the entry stays as intent-target.
-	if _, err := c.Call(ctx, controlplane.CmdScheduleRun, map[string]any{"id": systemTaskID}); err != nil {
+	if _, err := c.Call(ctx, opapi.ScheduleRun, map[string]any{"id": systemTaskID}); err != nil {
 		t.Fatalf("run system task schedule (still intent-target): unexpected error: %v", err)
 	}
 
-	list, err := c.Call(ctx, controlplane.CmdScheduleList, nil)
+	list, err := c.Call(ctx, opapi.ScheduleList, nil)
 	if err != nil {
 		t.Fatalf("list stale schedules: %v", err)
 	}
@@ -1381,7 +1382,7 @@ func TestScheduleAddDailyAndPauseResume(t *testing.T) {
 	ctx := context.Background()
 
 	// Daily wall-clock schedule via at_minutes (09:30 = 570).
-	res, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	res, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "morning brief", "at_minutes": 570,
 	})
 	if err != nil {
@@ -1393,10 +1394,10 @@ func TestScheduleAddDailyAndPauseResume(t *testing.T) {
 	id, _ := res["id"].(string)
 
 	// Pause → enabled=false in the listing.
-	if _, err := c.Call(ctx, controlplane.CmdScheduleEnable, map[string]any{"id": id, "enabled": false}); err != nil {
+	if _, err := c.Call(ctx, opapi.ScheduleEnable, map[string]any{"id": id, "enabled": false}); err != nil {
 		t.Fatalf("pause: %v", err)
 	}
-	res, _ = c.Call(ctx, controlplane.CmdScheduleList, nil)
+	res, _ = c.Call(ctx, opapi.ScheduleList, nil)
 	list, _ := res["schedules"].([]any)
 	m, _ := list[0].(map[string]any)
 	if m["enabled"] != false {
@@ -1407,10 +1408,10 @@ func TestScheduleAddDailyAndPauseResume(t *testing.T) {
 	}
 
 	// Resume.
-	if _, err := c.Call(ctx, controlplane.CmdScheduleEnable, map[string]any{"id": id, "enabled": true}); err != nil {
+	if _, err := c.Call(ctx, opapi.ScheduleEnable, map[string]any{"id": id, "enabled": true}); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
-	res, _ = c.Call(ctx, controlplane.CmdScheduleList, nil)
+	res, _ = c.Call(ctx, opapi.ScheduleList, nil)
 	list, _ = res["schedules"].([]any)
 	m, _ = list[0].(map[string]any)
 	if m["enabled"] != true {
@@ -1439,7 +1440,7 @@ func TestScheduleAddDailyWithDays(t *testing.T) {
 	ctx := context.Background()
 
 	// Weekdays-only daily at 09:00. maskWeekdays = Mon..Fri = bits 1..5 = 62.
-	res, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	res, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "standup nudge", "at_minutes": 540, "days": 62,
 	})
 	if err != nil {
@@ -1452,7 +1453,7 @@ func TestScheduleAddDailyWithDays(t *testing.T) {
 		t.Errorf("days = %v, want 62", res["days"])
 	}
 
-	res, _ = c.Call(ctx, controlplane.CmdScheduleList, nil)
+	res, _ = c.Call(ctx, opapi.ScheduleList, nil)
 	list, _ := res["schedules"].([]any)
 	m, _ := list[0].(map[string]any)
 	if m["cadence"] != "Mon-Fri at 09:00" {
@@ -1465,7 +1466,7 @@ func TestScheduleAddOnce(t *testing.T) {
 	ctx := context.Background()
 
 	at := time.Now().Add(time.Hour).Unix()
-	res, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	res, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "summarise the deploy", "once_at_unix": at,
 	})
 	if err != nil {
@@ -1479,7 +1480,7 @@ func TestScheduleAddOnce(t *testing.T) {
 	}
 
 	// A one-shot in the past is rejected by the store.
-	if _, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "too late", "once_at_unix": time.Now().Add(-time.Hour).Unix(),
 	}); err == nil {
 		t.Error("a past one-shot should error")
@@ -1491,7 +1492,7 @@ func TestScheduleEdit(t *testing.T) {
 	ctx := context.Background()
 
 	// Start with an interval schedule.
-	res, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	res, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "old", "interval_sec": 3600,
 	})
 	if err != nil {
@@ -1500,7 +1501,7 @@ func TestScheduleEdit(t *testing.T) {
 	id, _ := res["id"].(string)
 
 	// Edit intent + reschedule to daily weekdays at 09:30 in one call.
-	res, err = c.Call(ctx, controlplane.CmdScheduleEdit, map[string]any{
+	res, err = c.Call(ctx, opapi.ScheduleEdit, map[string]any{
 		"id": id, "intent": "new", "at_minutes": 570, "days": 62,
 	})
 	if err != nil {
@@ -1514,7 +1515,7 @@ func TestScheduleEdit(t *testing.T) {
 	}
 
 	// Verify via list.
-	res, _ = c.Call(ctx, controlplane.CmdScheduleList, nil)
+	res, _ = c.Call(ctx, opapi.ScheduleList, nil)
 	list, _ := res["schedules"].([]any)
 	m, _ := list[0].(map[string]any)
 	if m["intent"] != "new" || m["cadence"] != "Mon-Fri at 09:30" || m["id"] != id {
@@ -1522,7 +1523,7 @@ func TestScheduleEdit(t *testing.T) {
 	}
 
 	// Editing a missing id reports updated=false (not an error).
-	res, err = c.Call(ctx, controlplane.CmdScheduleEdit, map[string]any{"id": "nope", "intent": "x"})
+	res, err = c.Call(ctx, opapi.ScheduleEdit, map[string]any{"id": "nope", "intent": "x"})
 	if err != nil {
 		t.Fatalf("edit missing: %v", err)
 	}
@@ -1536,7 +1537,7 @@ func TestScheduleAddWindow(t *testing.T) {
 	ctx := context.Background()
 
 	// Windowed interval: every 15m (900s) between 09:00–17:00 on weekdays (62).
-	res, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	res, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "poll the queue", "interval_sec": 900,
 		"window_start": 540, "window_end": 1020, "days": 62,
 	})
@@ -1547,7 +1548,7 @@ func TestScheduleAddWindow(t *testing.T) {
 		t.Errorf("mode = %v, want window", res["mode"])
 	}
 
-	res, _ = c.Call(ctx, controlplane.CmdScheduleList, nil)
+	res, _ = c.Call(ctx, opapi.ScheduleList, nil)
 	list, _ := res["schedules"].([]any)
 	m, _ := list[0].(map[string]any)
 	if m["cadence"] != "every 15m0s 09:00-17:00 Mon-Fri" {
@@ -1558,7 +1559,7 @@ func TestScheduleAddWindow(t *testing.T) {
 	}
 
 	// A window with end <= start is rejected by the store.
-	if _, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "bad", "interval_sec": 900, "window_start": 1020, "window_end": 540,
 	}); err == nil {
 		t.Error("inverted window should error")
@@ -1569,7 +1570,7 @@ func TestScheduleAddDailyWithTimezone(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	res, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	res, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "tokyo brief", "at_minutes": 540, "tz": "Asia/Tokyo",
 	})
 	if err != nil {
@@ -1579,7 +1580,7 @@ func TestScheduleAddDailyWithTimezone(t *testing.T) {
 		t.Errorf("mode = %v", res["mode"])
 	}
 
-	res, _ = c.Call(ctx, controlplane.CmdScheduleList, nil)
+	res, _ = c.Call(ctx, opapi.ScheduleList, nil)
 	list, _ := res["schedules"].([]any)
 	m, _ := list[0].(map[string]any)
 	if m["tz"] != "Asia/Tokyo" || m["cadence"] != "daily at 09:00 Asia/Tokyo" {
@@ -1587,7 +1588,7 @@ func TestScheduleAddDailyWithTimezone(t *testing.T) {
 	}
 
 	// An unknown zone is rejected by the store.
-	if _, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{
 		"intent": "bad", "at_minutes": 540, "tz": "Mars/Phobos",
 	}); err == nil {
 		t.Error("unknown timezone should error")
@@ -1597,17 +1598,17 @@ func TestScheduleAddDailyWithTimezone(t *testing.T) {
 func TestScheduleAddValidates(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{"interval_sec": 60}); err == nil {
+	if _, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{"interval_sec": 60}); err == nil {
 		t.Error("add without intent must error")
 	}
-	if _, err := c.Call(ctx, controlplane.CmdScheduleAdd, map[string]any{"intent": "x", "interval_sec": 0}); err == nil {
+	if _, err := c.Call(ctx, opapi.ScheduleAdd, map[string]any{"intent": "x", "interval_sec": 0}); err == nil {
 		t.Error("add with interval_sec < 1 must error")
 	}
 }
 
 func TestScheduleRemoveMissing(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	res, err := c.Call(context.Background(), controlplane.CmdScheduleRemove, map[string]any{"id": "nope"})
+	res, err := c.Call(context.Background(), opapi.ScheduleRemove, map[string]any{"id": "nope"})
 	if err != nil {
 		t.Fatalf("rm: %v", err)
 	}
@@ -1629,7 +1630,7 @@ func TestScheduleFires_SinceWindow(t *testing.T) {
 		Subject: "task", Kind: event.KindTaskReceived, Actor: "a", CorrelationID: "f1",
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdScheduleFires,
+	res, err := c.Call(context.Background(), opapi.ScheduleFires,
 		map[string]any{"since_ms": int64(3_600_000)})
 	if err != nil {
 		t.Fatal(err)
@@ -1639,7 +1640,7 @@ func TestScheduleFires_SinceWindow(t *testing.T) {
 	}
 
 	time.Sleep(5 * time.Millisecond)
-	res, err = c.Call(context.Background(), controlplane.CmdScheduleFires,
+	res, err = c.Call(context.Background(), opapi.ScheduleFires,
 		map[string]any{"since_ms": int64(1)})
 	if err != nil {
 		t.Fatal(err)
@@ -1664,7 +1665,7 @@ func TestScheduleFires_IntentFilter(t *testing.T) {
 	fire("s2", "hourly summary")
 	fire("s3", "deploy canary")
 
-	res, err := c.Call(context.Background(), controlplane.CmdScheduleFires,
+	res, err := c.Call(context.Background(), opapi.ScheduleFires,
 		map[string]any{"intent": "deploy"})
 	if err != nil {
 		t.Fatal(err)
@@ -1677,7 +1678,7 @@ func TestScheduleFires_IntentFilter(t *testing.T) {
 
 func scheduleRowByID(t *testing.T, c *controlplane.Client, ctx context.Context, id string) map[string]any {
 	t.Helper()
-	list, err := c.Call(ctx, controlplane.CmdScheduleList, nil)
+	list, err := c.Call(ctx, opapi.ScheduleList, nil)
 	if err != nil {
 		t.Fatalf("ScheduleList: %v", err)
 	}

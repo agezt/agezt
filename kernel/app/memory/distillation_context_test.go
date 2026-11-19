@@ -21,7 +21,7 @@ type waitingDistiller struct {
 }
 
 func TestTypedDistillationRetainsCallerCancellation(t *testing.T) {
-	for _, command := range []string{"memory_consolidate", "profile_rebuild"} {
+	for _, command := range []string{opapi.MemoryConsolidate, "profile_rebuild"} {
 		w := &waitingDistiller{entered: make(chan context.Context, 1), release: make(chan struct{})}
 		operations, err := appmemory.Operations(func(context.Context) *appmemory.Service { return nil }, func(context.Context) *appmemory.Distillation { return appmemory.NewDistillation(w) }, func(context.Context) *appmemory.LogService { return nil })
 		if err != nil {

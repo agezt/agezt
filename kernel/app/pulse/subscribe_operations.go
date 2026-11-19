@@ -105,7 +105,7 @@ func SubscribeOperations(provider func(context.Context) SubscribeHost) ([]app.Op
 	if provider == nil {
 		return nil, errors.New("pulse subscription provider required")
 	}
-	operation, err := app.NewStreamingOperation(opapi.Spec{Name: "pulse_subscribe", ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, Stream: opapi.StreamLive, AllowUnknownInput: true, InputSchema: subscribeSchema, EmissionSchema: eventSchema}, func(ctx context.Context, in SubscribeRequest, emit func(*event.Event) error) (SubscribeOutput, error) {
+	operation, err := app.NewStreamingOperation(opapi.Spec{Name: opapi.PulseSubscribe, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, Stream: opapi.StreamLive, AllowUnknownInput: true, InputSchema: subscribeSchema, EmissionSchema: eventSchema}, func(ctx context.Context, in SubscribeRequest, emit func(*event.Event) error) (SubscribeOutput, error) {
 		decoded, err := in.decode()
 		if err != nil {
 			return SubscribeOutput{}, err

@@ -15,7 +15,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -26,7 +26,7 @@ import (
 func TestSpendToday_FreshKernel(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdSpendToday, map[string]any{})
+	res, err := c.Call(context.Background(), opapi.SpendToday, map[string]any{})
 	if err != nil {
 		t.Fatalf("spend_today: %v", err)
 	}
@@ -49,7 +49,7 @@ func TestSpendToday_FreshKernel(t *testing.T) {
 func TestSpendToday_KeyShape(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdSpendToday, map[string]any{})
+	res, err := c.Call(context.Background(), opapi.SpendToday, map[string]any{})
 	if err != nil {
 		t.Fatalf("spend_today: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestSpendToday_KeyShape(t *testing.T) {
 func TestAttention_FreshKernel(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdAttention, map[string]any{})
+	res, err := c.Call(context.Background(), opapi.Attention, map[string]any{})
 	if err != nil {
 		t.Fatalf("attention: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestAttention_ArgsParsing(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			res, err := c.Call(context.Background(), controlplane.CmdAttention, tc.args)
+			res, err := c.Call(context.Background(), opapi.Attention, tc.args)
 			if err != nil {
 				t.Fatalf("attention(%v): %v", tc.args, err)
 			}

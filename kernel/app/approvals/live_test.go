@@ -100,8 +100,8 @@ func TestLiveOperations(t *testing.T) {
 		http     opapi.HTTP
 		out      any
 	}{
-		{"approvals", true, opapi.HTTP{Method: "GET", Path: "/api/approvals"}, pending},
-		{"decide", false, opapi.HTTP{Method: "POST", Path: "/api/decide"}, DecideOutput{OK: true, ID: "a1", Decision: "grant"}},
+		{opapi.Approvals, true, opapi.HTTP{Method: "GET", Path: "/api/approvals"}, pending},
+		{opapi.Decide, false, opapi.HTTP{Method: "POST", Path: "/api/decide"}, DecideOutput{OK: true, ID: "a1", Decision: "grant"}},
 	} {
 		spec := ops[i].Spec()
 		if spec.Name != w.name || spec.ReadOnly != w.readOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.HTTP != w.http || spec.Output != reflect.TypeOf(w.out) {

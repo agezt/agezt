@@ -133,9 +133,9 @@ func TestOperations(t *testing.T) {
 		input, output reflect.Type
 		props         string
 	}{
-		{"seat_list", true, reflect.TypeFor[ListRequest](), reflect.TypeFor[ListOutput](), ""},
-		{"seat_create", false, reflect.TypeFor[CreateRequest](), reflect.TypeFor[SeatOutput](), `"id":{},"name":{},"description":{},"execution_profile":{},"model_chain":{},"tools":{},"restrict_tools":{}`},
-		{"seat_delete", false, reflect.TypeFor[DeleteRequest](), reflect.TypeFor[DeleteOutput](), `"id":{}`},
+		{opapi.SeatList, true, reflect.TypeFor[ListRequest](), reflect.TypeFor[ListOutput](), ""},
+		{opapi.SeatCreate, false, reflect.TypeFor[CreateRequest](), reflect.TypeFor[SeatOutput](), `"id":{},"name":{},"description":{},"execution_profile":{},"model_chain":{},"tools":{},"restrict_tools":{}`},
+		{opapi.SeatDelete, false, reflect.TypeFor[DeleteRequest](), reflect.TypeFor[DeleteOutput](), `"id":{}`},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)

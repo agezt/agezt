@@ -4,6 +4,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"net"
 	"os"
@@ -90,7 +91,7 @@ func TestCmdPluginInventoryNativeWireAndRendering(t *testing.T) {
 					t.Fatal(part, out.String(), errOut.String())
 				}
 			}
-			for _, expected := range []string{controlplane.CmdStatus, controlplane.CmdPluginList} {
+			for _, expected := range []string{opapi.Status, opapi.PluginList} {
 				select {
 				case req := <-requests:
 					if req.Cmd != expected || req.Token != "owned-token" || req.Args != nil {

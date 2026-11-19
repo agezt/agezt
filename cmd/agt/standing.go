@@ -17,7 +17,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdStanding dispatches `agt standing <subcommand>` — the management surface for
@@ -28,31 +28,15 @@ func cmdStanding(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		return standingUsage(stderr)
 	}
-	switch args[0] {
-	case "list":
-		return cmdStandingList(args[1:], stdout, stderr)
-	case "add":
-		return cmdStandingAdd(args[1:], stdout, stderr)
-	case "edit", "set":
-		return cmdStandingEdit(args[1:], stdout, stderr)
-	case "pause":
-		return cmdStandingSetEnabled(args[1:], stdout, stderr, false)
-	case "resume":
-		return cmdStandingSetEnabled(args[1:], stdout, stderr, true)
-	case "remove", "rm":
-		return cmdStandingRemove(args[1:], stdout, stderr)
-	case "why":
-		return cmdStandingWhy(args[1:], stdout, stderr)
-	case "-h", "--help", "help":
-		return standingUsage(stdout)
-	default:
-		fmt.Fprintf(stderr, "%s standing: unknown subcommand %q\n", brand.CLI, args[0])
-		return standingUsage(stderr)
+	if sub, ok := cliStanding.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s standing: unknown subcommand %q\n", brand.CLI, args[0])
+	return standingUsage(stderr)
 }
 
 func standingUsage(w io.Writer) int {
-	fmt.Fprintf(w, "usage: %s standing <list|add|edit|pause|resume|remove>\n", brand.CLI)
+	fmt.Fprintf(w, "usage: %s standing %s\n", brand.CLI, cliStanding.synopsis())
 	fmt.Fprintf(w, "  list [--json]                                  show standing wake rules\n")
 	fmt.Fprintf(w, "  add --name N (--cron \"SCHED\" | --event SUBJ) [--plan TEXT]\n")
 	fmt.Fprintf(w, "      [--agent SLUG]  run each firing AS that named agent (soul/model/memory/budget)\n")
@@ -160,7 +144,7 @@ func cmdStandingEdit(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdStandingEdit, payload)
+	res, err := c.Call(ctx, opapi.StandingEdit, payload)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s standing edit: %v\n", brand.CLI, err)
 		return 1
@@ -198,7 +182,7 @@ func cmdStandingWhy(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdStandingWhy, map[string]any{"id": id})
+	res, err := c.Call(ctx, opapi.StandingWhy, map[string]any{"id": id})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s standing why: %v\n", brand.CLI, err)
 		return 1
@@ -242,7 +226,7 @@ func cmdStandingList(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdStandingList, nil)
+	res, err := c.Call(ctx, opapi.StandingList, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s standing list: %v\n", brand.CLI, err)
 		return 1

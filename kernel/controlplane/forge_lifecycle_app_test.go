@@ -40,7 +40,7 @@ func (r *forgeBindingRunner) RunScript(ctx context.Context, _, _, _ string) (str
 	return "owned output", false, nil
 }
 func forgeMutationCommands() []string {
-	return []string{CmdToolforgeDraft, CmdToolforgeEdit, CmdToolforgeTest, CmdToolforgePromote, CmdToolforgeQuarantine, CmdToolforgeRemove}
+	return []string{opapi.ToolforgeDraft, opapi.ToolforgeEdit, opapi.ToolforgeTest, opapi.ToolforgePromote, opapi.ToolforgeQuarantine, opapi.ToolforgeRemove}
 }
 func forgeMutationFixture(t *testing.T, cmd string) (*runtime.Kernel, *Server, *forgeBindingRunner, *mock.Provider, map[string]any, string) {
 	t.Helper()
@@ -50,7 +50,7 @@ func forgeMutationFixture(t *testing.T, cmd string) (*runtime.Kernel, *Server, *
 		t.Fatal(err)
 	}
 	status := toolforge.StatusDraft
-	if cmd == CmdToolforgeQuarantine {
+	if cmd == opapi.ToolforgeQuarantine {
 		status = toolforge.StatusActive
 	}
 	rows := []toolforge.ScriptTool{{ID: "owned", Name: "owned", Description: "owned fixture", Language: "python", Code: "never executed", Status: status, TestedOK: true, CreatedMS: 100, UpdatedMS: 100}}
@@ -80,13 +80,13 @@ func forgeMutationFixture(t *testing.T, cmd string) (*runtime.Kernel, *Server, *
 	s.token = "primary"
 	args := map[string]any{"ref": "owned", "unused": true, "correlation_id": "caller-poison", "tenant": "spoof"}
 	switch cmd {
-	case CmdToolforgeDraft:
+	case opapi.ToolforgeDraft:
 		args["tool"] = map[string]any{"name": "new", "description": "owned", "language": "python", "code": "never executed"}
-	case CmdToolforgeEdit:
+	case opapi.ToolforgeEdit:
 		args["tool"] = map[string]any{"description": "edited"}
-	case CmdToolforgeTest:
+	case opapi.ToolforgeTest:
 		args["input"] = `{"x":1}`
-	case CmdToolforgeQuarantine:
+	case opapi.ToolforgeQuarantine:
 		args["reason"] = " owned reason "
 	}
 	return k, s, runner, provider, args, file
@@ -151,7 +151,7 @@ func TestForgeLifecycleNativeCanceledAdmissionBlocksAllSixEffects(t *testing.T) 
 	}
 }
 func TestForgeLifecycleNativeOneCorrelationAndOneAuditPair(t *testing.T) {
-	want := map[string]event.Kind{CmdToolforgeDraft: event.KindScriptToolCreated, CmdToolforgeEdit: event.KindScriptToolUpdated, CmdToolforgeTest: event.KindScriptToolTested, CmdToolforgePromote: event.KindScriptToolPromoted, CmdToolforgeQuarantine: event.KindScriptToolQuarantined, CmdToolforgeRemove: event.KindScriptToolRemoved}
+	want := map[string]event.Kind{opapi.ToolforgeDraft: event.KindScriptToolCreated, opapi.ToolforgeEdit: event.KindScriptToolUpdated, opapi.ToolforgeTest: event.KindScriptToolTested, opapi.ToolforgePromote: event.KindScriptToolPromoted, opapi.ToolforgeQuarantine: event.KindScriptToolQuarantined, opapi.ToolforgeRemove: event.KindScriptToolRemoved}
 	for _, cmd := range forgeMutationCommands() {
 		t.Run(cmd, func(t *testing.T) {
 			k, s, _, p, args, _ := forgeMutationFixture(t, cmd)
@@ -181,10 +181,10 @@ func TestForgeLifecycleNativeOneCorrelationAndOneAuditPair(t *testing.T) {
 	}
 }
 func TestForgeLifecycleNativeRunnerContextRetainsValuesDeadlineIdentity(t *testing.T) {
-	k, s, r, _, args, _ := forgeMutationFixture(t, CmdToolforgeTest)
+	k, s, r, _, args, _ := forgeMutationFixture(t, opapi.ToolforgeTest)
 	ctx, cancel := context.WithTimeout(context.WithValue(context.Background(), forgeCallerKey{}, "owned-value"), time.Second)
 	defer cancel()
-	reply := forgeMutationReply(t, ctx, s, CmdToolforgeTest, args)
+	reply := forgeMutationReply(t, ctx, s, opapi.ToolforgeTest, args)
 	if reply.Type != RespResult || r.calls != 1 || r.ctx == nil || r.ctx.Value(forgeCallerKey{}) != "owned-value" {
 		t.Fatalf("EXPECTED:caller values reach runner ACTUAL:reply=%+v calls=%d", reply, r.calls)
 	}
@@ -200,7 +200,7 @@ func TestForgeLifecycleNativeRunnerContextRetainsValuesDeadlineIdentity(t *testi
 }
 
 func TestForgeLifecycleNativeRegistryComesFromAllEightTypedOperations(t *testing.T) {
-	want := map[string]bool{CmdToolforgeList: true, CmdToolforgeShow: true}
+	want := map[string]bool{opapi.ToolforgeList: true, opapi.ToolforgeShow: true}
 	for _, cmd := range forgeMutationCommands() {
 		want[cmd] = false
 	}
@@ -217,9 +217,9 @@ func TestForgeLifecycleNativeRegistryComesFromAllEightTypedOperations(t *testing
 		}
 		if !read {
 			output := reflect.TypeFor[apptools.ForgeMutationOutput]()
-			if spec.Name == CmdToolforgeTest {
+			if spec.Name == opapi.ToolforgeTest {
 				output = reflect.TypeFor[apptools.ForgeTestOutput]()
-			} else if spec.Name == CmdToolforgeRemove {
+			} else if spec.Name == opapi.ToolforgeRemove {
 				output = reflect.TypeFor[apptools.ForgeRemoveOutput]()
 			}
 			if spec.Output != output {
@@ -234,7 +234,7 @@ func TestForgeLifecycleNativeRegistryComesFromAllEightTypedOperations(t *testing
 }
 
 func TestForgeLifecycleNativeRunnerDeadlineLeavesTestRecordUnchanged(t *testing.T) {
-	k, s, r, _, args, file := forgeMutationFixture(t, CmdToolforgeTest)
+	k, s, r, _, args, file := forgeMutationFixture(t, opapi.ToolforgeTest)
 	r.block = true
 	before := k.ToolForge().List()
 	disk, _ := os.ReadFile(file)
@@ -244,7 +244,7 @@ func TestForgeLifecycleNativeRunnerDeadlineLeavesTestRecordUnchanged(t *testing.
 	// admission and audit even reached the runner.
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
-	reply := forgeMutationReply(t, ctx, s, CmdToolforgeTest, args)
+	reply := forgeMutationReply(t, ctx, s, opapi.ToolforgeTest, args)
 	after, _ := os.ReadFile(file)
 	if reply.Type != RespError || !strings.Contains(reply.Error, "context deadline exceeded") || r.calls != 1 || !reflect.DeepEqual(before, k.ToolForge().List()) || !bytes.Equal(disk, after) {
 		t.Fatal(reply, r.calls, before, k.ToolForge().List())

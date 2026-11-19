@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/agentapi"
@@ -74,7 +75,7 @@ func TestTheAdapterBindsTheToolsPortsToItsOwnKernel(t *testing.T) {
 	}
 
 	// The config's tool count is the tools family's answer, not the adapter's.
-	shown := callAppHost(t, s, Request{ID: "c", Cmd: CmdConfig, Token: "primary"})[0]
+	shown := callAppHost(t, s, Request{ID: "c", Cmd: opapi.Config, Token: "primary"})[0]
 	if shown.Type != RespResult {
 		t.Fatalf("the config: %s", shown.Error)
 	}

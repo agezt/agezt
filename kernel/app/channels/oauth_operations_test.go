@@ -21,7 +21,7 @@ func TestChannelOAuthOperationMetadataAndPresence(t *testing.T) {
 	if err != nil || len(ops) != 3 {
 		t.Fatal(ops, err)
 	}
-	names := []string{"channel_oauth_start", "channel_oauth_callback", "channel_oauth_status"}
+	names := []string{opapi.ChannelOAuthStart, "channel_oauth_callback", "channel_oauth_status"}
 	inputs := []reflect.Type{reflect.TypeFor[OAuthStartRequest](), reflect.TypeFor[OAuthCallbackRequest](), reflect.TypeFor[OAuthStatusRequest]()}
 	outputs := []reflect.Type{reflect.TypeFor[OAuthStartOutput](), reflect.TypeFor[OAuthCallbackOutput](), reflect.TypeFor[OAuthStatusOutput]()}
 	counts := []int{2, 5, 4}
@@ -97,7 +97,7 @@ func TestChannelOAuthOperationMetadataAndPresence(t *testing.T) {
 }
 
 func TestChannelOAuthOperationAdmissionBeforeProviderAndLenientInputs(t *testing.T) {
-	for _, command := range []string{"channel_oauth_start", "channel_oauth_callback", "channel_oauth_status"} {
+	for _, command := range []string{opapi.ChannelOAuthStart, "channel_oauth_callback", "channel_oauth_status"} {
 		for _, mode := range []string{"success", "canceled", "audit-error", "audit-missing", "tenant", "agent"} {
 			p := newOAuthProbe()
 			audit := &accountAudit{}

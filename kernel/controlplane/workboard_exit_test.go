@@ -8,9 +8,9 @@ import (
 )
 
 func TestWorkboardNativeExitCompleteTypedRegistry(t *testing.T) {
-	reads := map[string]bool{CmdWorkboardList: true, CmdWorkboardLanes: true, CmdWorkboardShow: true, CmdWorkboardWatch: true}
+	reads := map[string]bool{opapi.WorkboardList: true, opapi.WorkboardLanes: true, opapi.WorkboardShow: true, opapi.WorkboardWatch: true}
 	want := map[string]bool{}
-	for _, name := range []string{CmdWorkboardList, CmdWorkboardLanes, CmdWorkboardShow, CmdWorkboardCreate, CmdWorkboardClaim, CmdWorkboardHeartbeat, CmdWorkboardComment, CmdWorkboardBlock, CmdWorkboardFail, CmdWorkboardUnblock, CmdWorkboardComplete, CmdWorkboardProve, CmdWorkboardSeat, CmdWorkboardArchive, CmdWorkboardLink, CmdWorkboardPolicy, CmdWorkboardDepend, CmdWorkboardReclaim, CmdWorkboardSweep, CmdWorkboardWatch, CmdWorkboardDispatch} {
+	for _, name := range []string{opapi.WorkboardList, opapi.WorkboardLanes, opapi.WorkboardShow, opapi.WorkboardCreate, opapi.WorkboardClaim, opapi.WorkboardHeartbeat, opapi.WorkboardComment, opapi.WorkboardBlock, opapi.WorkboardFail, opapi.WorkboardUnblock, opapi.WorkboardComplete, opapi.WorkboardProve, opapi.WorkboardSeat, opapi.WorkboardArchive, opapi.WorkboardLink, opapi.WorkboardPolicy, opapi.WorkboardDepend, opapi.WorkboardReclaim, opapi.WorkboardSweep, opapi.WorkboardWatch, opapi.WorkboardDispatch} {
 		want[name] = reads[name]
 	}
 	seen := map[string]bool{}

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
-	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/warden"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -26,7 +26,7 @@ func TestExecutionProfilesInventoryAndShow(t *testing.T) {
 			"remote_run": testTool{name: "remote_run"},
 		},
 	})
-	res, err := c.Call(context.Background(), controlplane.CmdExecutionProfiles, nil)
+	res, err := c.Call(context.Background(), opapi.ExecutionProfiles, nil)
 	if err != nil {
 		t.Fatalf("execution profiles: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestExecutionProfilesInventoryAndShow(t *testing.T) {
 		t.Fatalf("expected modal planned/not routed: %+v", byID["modal"])
 	}
 
-	show, err := c.Call(context.Background(), controlplane.CmdExecutionProfileShow, map[string]any{"id": "warden"})
+	show, err := c.Call(context.Background(), opapi.ExecutionProfileShow, map[string]any{"id": "warden"})
 	if err != nil {
 		t.Fatalf("show warden: %v", err)
 	}
@@ -68,11 +68,11 @@ func TestExecutionProfilesInventoryAndShow(t *testing.T) {
 	if profile["id"] != "warden" || profile["filesystem"] == "" || profile["policy_capability"] == "" {
 		t.Fatalf("show profile wrong: %+v", profile)
 	}
-	if _, err := c.Call(context.Background(), controlplane.CmdExecutionProfileShow, map[string]any{"id": "missing"}); err == nil || !strings.Contains(err.Error(), "unknown execution profile") {
+	if _, err := c.Call(context.Background(), opapi.ExecutionProfileShow, map[string]any{"id": "missing"}); err == nil || !strings.Contains(err.Error(), "unknown execution profile") {
 		t.Fatalf("missing profile err = %v", err)
 	}
 
-	check, err := c.Call(context.Background(), controlplane.CmdExecutionProfileCheck, nil)
+	check, err := c.Call(context.Background(), opapi.ExecutionProfileCheck, nil)
 	if err != nil {
 		t.Fatalf("check execution profiles: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestExecutionProfilesReportsConfiguredSSH(t *testing.T) {
 			"shell": shell.NewWithWarden(warden.New(nil)),
 		},
 	})
-	res, err := c.Call(context.Background(), controlplane.CmdExecutionProfiles, nil)
+	res, err := c.Call(context.Background(), opapi.ExecutionProfiles, nil)
 	if err != nil {
 		t.Fatalf("execution profiles: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestExecutionProfilesReportsConfiguredSSH(t *testing.T) {
 	if byID["ssh"]["routed"] != true || byID["ssh"]["status"] != "partial" {
 		t.Fatalf("ssh profile wrong: %+v", byID["ssh"])
 	}
-	check, err := c.Call(context.Background(), controlplane.CmdExecutionProfileCheck, nil)
+	check, err := c.Call(context.Background(), opapi.ExecutionProfileCheck, nil)
 	if err != nil {
 		t.Fatalf("check execution profiles: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestExecutionProfilesReportsConfiguredK8s(t *testing.T) {
 			"shell": shell.NewWithWarden(warden.New(nil)),
 		},
 	})
-	res, err := c.Call(context.Background(), controlplane.CmdExecutionProfiles, nil)
+	res, err := c.Call(context.Background(), opapi.ExecutionProfiles, nil)
 	if err != nil {
 		t.Fatalf("execution profiles: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestExecutionProfilesReportsConfiguredK8s(t *testing.T) {
 	if byID["k8s"]["routed"] != true || byID["k8s"]["status"] != "partial" {
 		t.Fatalf("k8s profile wrong: %+v", byID["k8s"])
 	}
-	check, err := c.Call(context.Background(), controlplane.CmdExecutionProfileCheck, nil)
+	check, err := c.Call(context.Background(), opapi.ExecutionProfileCheck, nil)
 	if err != nil {
 		t.Fatalf("check execution profiles: %v", err)
 	}
@@ -187,7 +187,7 @@ func TestExecutionProfilesReportsConfiguredModalAndDaytona(t *testing.T) {
 			"shell": shell.NewWithWarden(warden.New(nil)),
 		},
 	})
-	res, err := c.Call(context.Background(), controlplane.CmdExecutionProfiles, nil)
+	res, err := c.Call(context.Background(), opapi.ExecutionProfiles, nil)
 	if err != nil {
 		t.Fatalf("execution profiles: %v", err)
 	}
@@ -203,7 +203,7 @@ func TestExecutionProfilesReportsConfiguredModalAndDaytona(t *testing.T) {
 	if byID["daytona"]["routed"] != true || byID["daytona"]["status"] != "partial" {
 		t.Fatalf("daytona profile wrong: %+v", byID["daytona"])
 	}
-	check, err := c.Call(context.Background(), controlplane.CmdExecutionProfileCheck, nil)
+	check, err := c.Call(context.Background(), opapi.ExecutionProfileCheck, nil)
 	if err != nil {
 		t.Fatalf("check execution profiles: %v", err)
 	}

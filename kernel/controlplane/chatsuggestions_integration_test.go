@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 // TestChatSuggestionsBlendsMemory exercises the full wired command path the
-// /api/suggestions HTTP route hits: seed the agent's memory via CmdMemoryAdd,
-// then call CmdChatSuggestions (tools comma-joined, as the read-args proxy
+// /api/suggestions HTTP route hits: seed the agent's memory via opapi.MemoryAdd,
+// then call opapi.ChatSuggestions (tools comma-joined, as the read-args proxy
 // forwards them) and assert memory-derived chips lead, blended with
 // tool-context suggestions and capped.
 func TestChatSuggestionsBlendsMemory(t *testing.T) {
@@ -26,12 +26,12 @@ func TestChatSuggestionsBlendsMemory(t *testing.T) {
 		{"subject": "prod region", "content": "prod is eu-west-1", "type": "FACT"},
 	}
 	for _, s := range seed {
-		if _, err := c.Call(ctx, controlplane.CmdMemoryAdd, s); err != nil {
+		if _, err := c.Call(ctx, opapi.MemoryAdd, s); err != nil {
 			t.Fatalf("memory add %v: %v", s["subject"], err)
 		}
 	}
 
-	res, err := c.Call(ctx, controlplane.CmdChatSuggestions, map[string]any{
+	res, err := c.Call(ctx, opapi.ChatSuggestions, map[string]any{
 		"session_id": "conv1",
 		"tools":      "write,bash", // comma-joined, like the HTTP proxy sends
 	})
@@ -81,7 +81,7 @@ func TestChatSuggestionsBlendsMemory(t *testing.T) {
 // command still returns tool-context suggestions (the catalog fallback).
 func TestChatSuggestionsNoMemoryFallsBack(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	res, err := c.Call(context.Background(), controlplane.CmdChatSuggestions, map[string]any{})
+	res, err := c.Call(context.Background(), opapi.ChatSuggestions, map[string]any{})
 	if err != nil {
 		t.Fatalf("chat_suggestions: %v", err)
 	}

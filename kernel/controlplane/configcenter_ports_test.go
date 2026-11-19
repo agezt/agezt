@@ -4,6 +4,7 @@ package controlplane
 import (
 	"context"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"testing"
 
 	appconfigcenter "github.com/agezt/agezt/kernel/app/configcenter"
@@ -59,7 +60,7 @@ func TestTheAdapterBindsTheConfigCenterPortsToItsOwnKernel(t *testing.T) {
 	if _, err := k.RosterService().Add(agentapi.Profile{Slug: "owned", Name: "Owned", Enabled: true}); err != nil {
 		t.Fatalf("AddProfile: %v", err)
 	}
-	picture := callAppHost(t, s, Request{ID: "p", Cmd: CmdAgentPermissions, Token: "primary", Args: map[string]any{"ref": "owned"}})[0]
+	picture := callAppHost(t, s, Request{ID: "p", Cmd: opapi.AgentPermissions, Token: "primary", Args: map[string]any{"ref": "owned"}})[0]
 	if picture.Type != RespResult {
 		t.Fatalf("the agent permissions: %s", picture.Error)
 	}

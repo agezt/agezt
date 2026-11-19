@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -16,7 +16,7 @@ import (
 func TestAgentResolve_IsOperationAudited(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{"profile": map[string]any{"slug": "resolvable", "soul": "You work."}}); err != nil {
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{"profile": map[string]any{"slug": "resolvable", "soul": "You work."}}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
 	for _, tc := range []struct {
@@ -28,7 +28,7 @@ func TestAgentResolve_IsOperationAudited(t *testing.T) {
 	} {
 		sub := watchOpAudit(t, k)
 		seq, _ := k.Journal().Head()
-		_, err := c.Call(ctx, controlplane.CmdAgentResolve, tc.args)
+		_, err := c.Call(ctx, opapi.AgentResolve, tc.args)
 		if (err == nil) != (tc.terminal == event.KindOpCompleted) {
 			t.Fatalf("%v: unexpected call result %v", tc.args, err)
 		}
@@ -37,7 +37,7 @@ func TestAgentResolve_IsOperationAudited(t *testing.T) {
 		if len(evs) != 2 || evs[0].Kind != event.KindOpInvoked || evs[1].Kind != tc.terminal || evs[0].CorrelationID == "" || evs[0].CorrelationID != evs[1].CorrelationID {
 			t.Fatalf("%v: op events = %v, want [op.invoked %s]", tc.args, kinds(evs), tc.terminal)
 		}
-		if inv := payloadOf(t, evs[0]); inv["op"] != controlplane.CmdAgentResolve || inv["caller"] != "operator" {
+		if inv := payloadOf(t, evs[0]); inv["op"] != opapi.AgentResolve || inv["caller"] != "operator" {
 			t.Fatalf("invoked payload = %v", inv)
 		}
 	}

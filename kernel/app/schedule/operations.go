@@ -180,17 +180,17 @@ func Operations(providers Providers) ([]app.Operation, error) {
 	var ops []app.Operation
 	bindings := []func() error{
 		func() error {
-			return bindSchedule(&ops, opapi.Spec{Name: "schedule_list", ReadOnly: true, OutputSchema: listSchema}, func(ctx context.Context, _ RequestInput) (ListOutput, error) {
+			return bindSchedule(&ops, opapi.Spec{Name: opapi.ScheduleList, ReadOnly: true, OutputSchema: listSchema}, func(ctx context.Context, _ RequestInput) (ListOutput, error) {
 				return providers.Reads(ctx).List(ctx, ListInput{})
 			})
 		},
 		func() error {
-			return bindSchedule(&ops, opapi.Spec{Name: "schedule_system_tasks", ReadOnly: true}, func(ctx context.Context, _ RequestInput) (SystemTasksOutput, error) {
+			return bindSchedule(&ops, opapi.Spec{Name: opapi.ScheduleSystemTasks, ReadOnly: true}, func(ctx context.Context, _ RequestInput) (SystemTasksOutput, error) {
 				return providers.Reads(ctx).SystemTasks(ctx, SystemTasksInput{})
 			})
 		},
 		func() error {
-			return bindSchedule(&ops, opapi.Spec{Name: "schedule_add", OutputSchema: recordSchema}, func(ctx context.Context, in RequestInput) (Record, error) {
+			return bindSchedule(&ops, opapi.Spec{Name: opapi.ScheduleAdd, OutputSchema: recordSchema}, func(ctx context.Context, in RequestInput) (Record, error) {
 				values, err := requestStrings(requestField{in.Intent, "intent"}, requestField{in.Model, "model"}, requestField{in.Agent, "agent"}, requestField{in.Target, "target"}, requestField{in.Workflow, "workflow"}, requestField{in.SystemTask, "system_task"}, requestField{in.Tool, "tool"})
 				if err != nil {
 					return Record{}, err
@@ -207,7 +207,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bindSchedule(&ops, opapi.Spec{Name: "schedule_rm"}, func(ctx context.Context, in RequestInput) (RemoveOutput, error) {
+			return bindSchedule(&ops, opapi.Spec{Name: opapi.ScheduleRemove}, func(ctx context.Context, in RequestInput) (RemoveOutput, error) {
 				id, err := requiredRequestString(in.ID, "id")
 				if err != nil {
 					return RemoveOutput{}, err
@@ -216,7 +216,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bindSchedule(&ops, opapi.Spec{Name: "schedule_run"}, func(ctx context.Context, in RequestInput) (RunOutput, error) {
+			return bindSchedule(&ops, opapi.Spec{Name: opapi.ScheduleRun}, func(ctx context.Context, in RequestInput) (RunOutput, error) {
 				id, err := requiredRequestString(in.ID, "id")
 				if err != nil {
 					return RunOutput{}, err
@@ -225,7 +225,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bindSchedule(&ops, opapi.Spec{Name: "schedule_enable"}, func(ctx context.Context, in RequestInput) (EnableOutput, error) {
+			return bindSchedule(&ops, opapi.Spec{Name: opapi.ScheduleEnable}, func(ctx context.Context, in RequestInput) (EnableOutput, error) {
 				id, err := requiredRequestString(in.ID, "id")
 				if err != nil {
 					return EnableOutput{}, err
@@ -241,7 +241,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bindSchedule(&ops, opapi.Spec{Name: "schedule_edit", OutputSchema: editSchema}, func(ctx context.Context, in RequestInput) (EditOutput, error) {
+			return bindSchedule(&ops, opapi.Spec{Name: opapi.ScheduleEdit, OutputSchema: editSchema}, func(ctx context.Context, in RequestInput) (EditOutput, error) {
 				id, err := requiredRequestString(in.ID, "id")
 				if err != nil {
 					return EditOutput{}, err
@@ -269,7 +269,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bindSchedule(&ops, opapi.Spec{Name: "schedule_test", ReadOnly: true}, func(ctx context.Context, in RequestInput) (TestOutput, error) {
+			return bindSchedule(&ops, opapi.Spec{Name: opapi.ScheduleTest, ReadOnly: true}, func(ctx context.Context, in RequestInput) (TestOutput, error) {
 				id, err := requiredRequestString(in.ID, "id")
 				if err != nil {
 					return TestOutput{}, err
@@ -292,7 +292,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bindSchedule(&ops, opapi.Spec{Name: "schedule_fires", ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant}, func(ctx context.Context, in RequestInput) (FiresOutput, error) {
+			return bindSchedule(&ops, opapi.Spec{Name: opapi.ScheduleFires, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant}, func(ctx context.Context, in RequestInput) (FiresOutput, error) {
 				limit := 20
 				if value, ok := rawValue(in.Limit).(float64); ok {
 					limit = int(value)
@@ -310,7 +310,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bindSchedule(&ops, opapi.Spec{Name: "schedule_stats", ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant}, func(ctx context.Context, in RequestInput) (StatsOutput, error) {
+			return bindSchedule(&ops, opapi.Spec{Name: opapi.ScheduleStats, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant}, func(ctx context.Context, in RequestInput) (StatsOutput, error) {
 				id, err := requestString(in.ID, "id")
 				if err != nil {
 					return StatsOutput{}, err

@@ -62,7 +62,7 @@ func okrAppFixture(t *testing.T) (*runtime.Kernel, *Server, okr.Objective, strin
 	return k, s, objective, objective.KeyResults[0].ID, task.ID, provider
 }
 func TestOKRAppSocketRequiresAuditBeforeEveryMutation(t *testing.T) {
-	for _, cmd := range []string{CmdOKRCreate, CmdOKRKeyResult, CmdOKRLink, CmdOKRUnlink, CmdOKRArchive} {
+	for _, cmd := range []string{opapi.OKRCreate, opapi.OKRKeyResult, opapi.OKRLink, opapi.OKRUnlink, opapi.OKRArchive} {
 		t.Run(cmd, func(t *testing.T) {
 			k, s, objective, kr, task, provider := okrAppFixture(t)
 			before := k.OKR().List(okr.Filter{IncludeArchived: true})
@@ -81,7 +81,7 @@ func TestOKRCommandMetadataComesFromCompleteAppRegistry(t *testing.T) {
 	if len(okrOperations) != 7 {
 		t.Fatal("OKR operation count", len(okrOperations))
 	}
-	reads := map[string]bool{CmdOKRList: true, CmdOKRShow: true}
+	reads := map[string]bool{opapi.OKRList: true, opapi.OKRShow: true}
 	seen := map[string]bool{}
 	for _, operation := range okrOperations {
 		spec := operation.Spec()
@@ -94,7 +94,7 @@ func TestOKRCommandMetadataComesFromCompleteAppRegistry(t *testing.T) {
 }
 func TestOKRAppReadsRetainUnaryShapeWithoutAudit(t *testing.T) {
 	k, s, objective, _, _, _ := okrAppFixture(t)
-	for _, cmd := range []string{CmdOKRList, CmdOKRShow} {
+	for _, cmd := range []string{opapi.OKRList, opapi.OKRShow} {
 		responses := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"id": objective.ID, "tenant": "team", "unused": true}})
 		if len(responses) != 1 || responses[0].Type != RespResult {
 			t.Fatal(cmd, responses)
@@ -115,7 +115,7 @@ func TestOKRAppReadsRetainUnaryShapeWithoutAudit(t *testing.T) {
 	if err := k.Journal().Close(); err != nil {
 		t.Fatal(err)
 	}
-	for _, cmd := range []string{CmdOKRList, CmdOKRShow} {
+	for _, cmd := range []string{opapi.OKRList, opapi.OKRShow} {
 		response := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"id": objective.ID}})[0]
 		if response.Type != RespResult {
 			t.Fatal(cmd, response)
@@ -130,7 +130,7 @@ func TestOKRAppCreateKeepsOneAuditAndDefaultOrExplicitDomainIdentity(t *testing.
 			if explicit != "" {
 				args["correlation_id"] = explicit
 			}
-			response := callAppHost(t, s, Request{ID: "create", Cmd: CmdOKRCreate, Token: "primary", Args: args})[0]
+			response := callAppHost(t, s, Request{ID: "create", Cmd: opapi.OKRCreate, Token: "primary", Args: args})[0]
 			if response.Type != RespResult {
 				t.Fatal(response)
 			}
@@ -165,7 +165,7 @@ func TestOKRAppCreateKeepsOneAuditAndDefaultOrExplicitDomainIdentity(t *testing.
 func TestOKRAppAdmissionRetainsLenientTargetFiltersAndStrictBoolean(t *testing.T) {
 	_, s, objective, _, _, _ := okrAppFixture(t)
 	for _, raw := range []any{float64(2.9), nil, true, "3"} {
-		response := callAppHost(t, s, Request{ID: "kr", Cmd: CmdOKRKeyResult, Token: "primary", Args: map[string]any{"id": objective.ID, "title": " criterion ", "target": raw, "unused": true}})[0]
+		response := callAppHost(t, s, Request{ID: "kr", Cmd: opapi.OKRKeyResult, Token: "primary", Args: map[string]any{"id": objective.ID, "title": " criterion ", "target": raw, "unused": true}})[0]
 		if response.Type != RespResult {
 			t.Fatal(raw, response)
 		}
@@ -181,17 +181,17 @@ func TestOKRAppAdmissionRetainsLenientTargetFiltersAndStrictBoolean(t *testing.T
 			t.Fatal(raw, last)
 		}
 	}
-	response := callAppHost(t, s, Request{ID: "list", Cmd: CmdOKRList, Token: "primary", Args: map[string]any{"status": "unknown", "limit": float64(.5)}})[0]
+	response := callAppHost(t, s, Request{ID: "list", Cmd: opapi.OKRList, Token: "primary", Args: map[string]any{"status": "unknown", "limit": float64(.5)}})[0]
 	if response.Type != RespResult || response.Result["count"] != float64(0) {
 		t.Fatal(response)
 	}
 	for _, raw := range []any{nil, "true", float64(1)} {
-		response := callAppHost(t, s, Request{ID: "bool", Cmd: CmdOKRList, Token: "primary", Args: map[string]any{"include_archived": raw}})[0]
+		response := callAppHost(t, s, Request{ID: "bool", Cmd: opapi.OKRList, Token: "primary", Args: map[string]any{"include_archived": raw}})[0]
 		if response.Type != RespError {
 			t.Fatal("invalid bool accepted", raw, response)
 		}
 	}
-	response = callAppHost(t, s, Request{ID: "missing", Cmd: CmdOKRArchive, Token: "primary", Args: map[string]any{"id": "missing"}})[0]
+	response = callAppHost(t, s, Request{ID: "missing", Cmd: opapi.OKRArchive, Token: "primary", Args: map[string]any{"id": "missing"}})[0]
 	if response.Type != RespError || response.Error != "unknown objective: missing" {
 		t.Fatal(response)
 	}

@@ -9,7 +9,7 @@ import (
 )
 
 func TestLifecycleNativeTypedRegistry(t *testing.T) {
-	for cmd, readOnly := range map[string]bool{CmdHalt: false, CmdResume: false, CmdJournalVerify: true, CmdShutdown: false} {
+	for cmd, readOnly := range map[string]bool{opapi.Halt: false, opapi.Resume: false, opapi.JournalVerify: true, opapi.Shutdown: false} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()

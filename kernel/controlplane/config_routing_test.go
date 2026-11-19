@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/governor"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
-// TestConfigSurfacesRouting verifies CmdConfig includes the effective routing
+// TestConfigSurfacesRouting verifies opapi.Config includes the effective routing
 // tables when the provider is a governor with routes configured (M108).
 func TestConfigSurfacesRouting(t *testing.T) {
 	reg := governor.NewRegistry()
@@ -35,7 +35,7 @@ func TestConfigSurfacesRouting(t *testing.T) {
 	}
 	_, _, c, _ := startPair(t, gov)
 
-	res, err := c.Call(context.Background(), controlplane.CmdConfig, nil)
+	res, err := c.Call(context.Background(), opapi.Config, nil)
 	if err != nil {
 		t.Fatalf("config: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestConfigSurfacesRouting(t *testing.T) {
 // a daemon with no routing configured (keeps default output compact).
 func TestConfigNoRoutingWhenUnconfigured(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	res, err := c.Call(context.Background(), controlplane.CmdConfig, nil)
+	res, err := c.Call(context.Background(), opapi.Config, nil)
 	if err != nil {
 		t.Fatalf("config: %v", err)
 	}

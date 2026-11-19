@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/configcenter"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -48,7 +48,7 @@ func TestConfigCenter_SecretValueMaskedOverAPI(t *testing.T) {
 	}
 
 	// Set echo.
-	res, err := c.Call(ctx, controlplane.CmdConfigCenterSet, map[string]any{
+	res, err := c.Call(ctx, opapi.ConfigCenterSet, map[string]any{
 		"key":    "service/api/key",
 		"value":  secret,
 		"rating": "secret",
@@ -60,7 +60,7 @@ func TestConfigCenter_SecretValueMaskedOverAPI(t *testing.T) {
 	assertMasked(t, "set", setEntry)
 
 	// List.
-	list, err := c.Call(ctx, controlplane.CmdConfigCenterList, nil)
+	list, err := c.Call(ctx, opapi.ConfigCenterList, nil)
 	if err != nil {
 		t.Fatalf("configcenter list: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestConfigCenter_SecretValueMaskedOverAPI(t *testing.T) {
 	assertMasked(t, "list", row)
 
 	// Single get over the API is masked too.
-	getRes, err := c.Call(ctx, controlplane.CmdConfigCenterGet, map[string]any{"key": "service/api/key"})
+	getRes, err := c.Call(ctx, opapi.ConfigCenterGet, map[string]any{"key": "service/api/key"})
 	if err != nil {
 		t.Fatalf("configcenter get: %v", err)
 	}

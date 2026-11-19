@@ -8,11 +8,11 @@ import (
 )
 
 func TestStorageArtifactNativeExitCompleteTypedRegistry(t *testing.T) {
-	want := map[string]bool{CmdStorageStats: true, CmdArtifactGet: true, CmdArtifactList: true, CmdArtifactDelete: false, CmdArtifactCollect: false}
+	want := map[string]bool{opapi.StorageStats: true, opapi.ArtifactGet: true, opapi.ArtifactList: true, opapi.ArtifactDelete: false, opapi.ArtifactCollect: false}
 	seen := map[string]bool{}
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()
-		if spec.Name != CmdStorageStats && !strings.HasPrefix(spec.Name, "artifact_") {
+		if spec.Name != opapi.StorageStats && !strings.HasPrefix(spec.Name, "artifact_") {
 			continue
 		}
 		readOnly, exists := want[spec.Name]

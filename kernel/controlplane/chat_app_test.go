@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"net"
 	"testing"
 	"time"
@@ -37,7 +38,7 @@ func TestChatSuggestionsReadThePrimaryMemory(t *testing.T) {
 	defer client.Close()
 	go s.handleConn(context.Background(), server)
 	_ = client.SetDeadline(time.Now().Add(5 * time.Second))
-	raw, _ := json.Marshal(Request{ID: "c", Cmd: CmdChatSuggestions, Token: "primary", Args: map[string]any{"session_id": "conv", "tools": "bash"}})
+	raw, _ := json.Marshal(Request{ID: "c", Cmd: opapi.ChatSuggestions, Token: "primary", Args: map[string]any{"session_id": "conv", "tools": "bash"}})
 	if _, err := client.Write(append(raw, 10)); err != nil {
 		t.Fatal(err)
 	}
@@ -49,10 +50,10 @@ func TestChatSuggestionsReadThePrimaryMemory(t *testing.T) {
 	if string(bytes.TrimSpace(line)) != want {
 		t.Fatal(string(line))
 	}
-	if resp := callAppHost(t, s, Request{ID: "c", Cmd: CmdChatSuggestions, Token: "primary", Args: map[string]any{"session_id": 5}})[0]; resp.Type != RespError || resp.Error != "args.session_id must be a string" {
+	if resp := callAppHost(t, s, Request{ID: "c", Cmd: opapi.ChatSuggestions, Token: "primary", Args: map[string]any{"session_id": 5}})[0]; resp.Type != RespError || resp.Error != "args.session_id must be a string" {
 		t.Fatal(resp)
 	}
-	if wire, exists := commandRegistry[CmdChatSuggestions]; !exists || !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
+	if wire, exists := commandRegistry[opapi.ChatSuggestions]; !exists || !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 		t.Fatalf("native wire %+v", wire)
 	}
 }
@@ -70,11 +71,11 @@ func TestChatSummarizeBindsTheKernel(t *testing.T) {
 	defer k.Close()
 	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
-	resp := callAppHost(t, s, Request{ID: "c", Cmd: CmdChatSummarize, Token: "primary", Args: map[string]any{"turns": []any{map[string]any{"role": "user", "text": "hi"}}}})[0]
+	resp := callAppHost(t, s, Request{ID: "c", Cmd: opapi.ChatSummarize, Token: "primary", Args: map[string]any{"turns": []any{map[string]any{"role": "user", "text": "hi"}}}})[0]
 	if raw, _ := json.Marshal(resp.Result); resp.Type != RespResult || string(raw) != `{"summary":"the briefing","turns":1}` || model != "kernel-model" {
 		t.Fatal(resp, model)
 	}
-	if wire, exists := commandRegistry[CmdChatSummarize]; !exists || !wire.AppOwned || wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamLive {
+	if wire, exists := commandRegistry[opapi.ChatSummarize]; !exists || !wire.AppOwned || wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamLive {
 		t.Fatalf("native wire %+v", wire)
 	}
 }

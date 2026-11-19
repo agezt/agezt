@@ -195,12 +195,12 @@ func PlanOperations(provider func(context.Context) *Plans) ([]app.Operation, err
 		return nil, errors.New("plans provider required")
 	}
 	var ops []app.Operation
-	if err := bind(&ops, opapi.Spec{Name: "plan_history", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"cursor":{},"status":{}}}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/plan_history"}}, func(ctx context.Context, in PlansRequest) (PlansOutput, error) {
+	if err := bind(&ops, opapi.Spec{Name: opapi.PlanHistory, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"cursor":{},"status":{}}}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/plan_history"}}, func(ctx context.Context, in PlansRequest) (PlansOutput, error) {
 		return provider(ctx).List(ctx, in)
 	}); err != nil {
 		return nil, err
 	}
-	if err := bind(&ops, opapi.Spec{Name: "plan_stats", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true}`)}, func(ctx context.Context, in PlanStatsRequest) (PlanStatsOutput, error) {
+	if err := bind(&ops, opapi.Spec{Name: opapi.PlanStats, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true}`)}, func(ctx context.Context, in PlanStatsRequest) (PlanStatsOutput, error) {
 		return provider(ctx).Stats(ctx, in)
 	}); err != nil {
 		return nil, err

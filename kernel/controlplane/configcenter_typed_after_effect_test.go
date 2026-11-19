@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"net"
 	"testing"
 	"time"
@@ -35,7 +36,7 @@ func (w closingCenterWriter) Delete(key string) error {
 }
 
 func TestConfigCenterTypedNativeJournalFailureAfterEffectsDoesNotRollback(t *testing.T) {
-	for _, command := range []string{CmdConfigCenterSet, CmdConfigCenterDelete, CmdConfigCenterSetRating, CmdConfigCenterSetAccess} {
+	for _, command := range []string{opapi.ConfigCenterSet, opapi.ConfigCenterDelete, opapi.ConfigCenterSetRating, opapi.ConfigCenterSetAccess} {
 		t.Run(command, func(t *testing.T) {
 			dir := t.TempDir()
 			p := mock.New()
@@ -82,13 +83,13 @@ func TestConfigCenterTypedNativeJournalFailureAfterEffectsDoesNotRollback(t *tes
 			entry, lookupErr := k.ConfigCenter().GetEntry("owned")
 			effect := false
 			switch command {
-			case CmdConfigCenterSet:
+			case opapi.ConfigCenterSet:
 				effect = lookupErr == nil && entry.Value == "replacement"
-			case CmdConfigCenterDelete:
+			case opapi.ConfigCenterDelete:
 				effect = lookupErr != nil
-			case CmdConfigCenterSetRating:
+			case opapi.ConfigCenterSetRating:
 				effect = lookupErr == nil && entry.Rating == core.RatingPublic
-			case CmdConfigCenterSetAccess:
+			case opapi.ConfigCenterSetAccess:
 				effect = lookupErr == nil && len(entry.AllowedAgents) == 1 && entry.AllowedAgents[0] == "changed"
 			}
 			if reply.Type != RespError || reply.Error == "" || !effect || p.CallCount() != 0 {
@@ -100,7 +101,7 @@ func TestConfigCenterTypedNativeJournalFailureAfterEffectsDoesNotRollback(t *tes
 			}
 			defer reopened.Close()
 			persisted, persistErr := reopened.GetEntry("owned")
-			if command == CmdConfigCenterDelete {
+			if command == opapi.ConfigCenterDelete {
 				if persistErr == nil {
 					t.Fatal("delete was rolled back on disk")
 				}

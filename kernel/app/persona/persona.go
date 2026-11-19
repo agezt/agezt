@@ -194,18 +194,18 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 		input              string
 		build              func(opapi.Spec) (app.Operation, error)
 	}{
-		{"persona_get", "GET", "/api/persona", true, reflect.TypeFor[GetOutput](), "", func(s opapi.Spec) (app.Operation, error) {
+		{opapi.PersonaGet, "GET", "/api/persona", true, reflect.TypeFor[GetOutput](), "", func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in GetRequest) (GetOutput, error) { return provider(ctx).Get(ctx, in) })
 		}},
-		{"persona_set", "POST", "/api/persona/set", false, reflect.TypeFor[SetOutput](), "system", func(s opapi.Spec) (app.Operation, error) {
+		{opapi.PersonaSet, "POST", "/api/persona/set", false, reflect.TypeFor[SetOutput](), "system", func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in SetRequest) (SetOutput, error) { return provider(ctx).Set(ctx, in) })
 		}},
-		{"prompts_get", "GET", "/api/prompts", true, reflect.TypeFor[PromptsOutput](), "", func(s opapi.Spec) (app.Operation, error) {
+		{opapi.PromptsGet, "GET", "/api/prompts", true, reflect.TypeFor[PromptsOutput](), "", func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in PromptsRequest) (PromptsOutput, error) {
 				return provider(ctx).Prompts(ctx, in)
 			})
 		}},
-		{"prompts_set", "POST", "/api/prompts/set", false, reflect.TypeFor[PromptsSetOutput](), "prompts", func(s opapi.Spec) (app.Operation, error) {
+		{opapi.PromptsSet, "POST", "/api/prompts/set", false, reflect.TypeFor[PromptsSetOutput](), "prompts", func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in PromptsSetRequest) (PromptsSetOutput, error) {
 				return provider(ctx).SetPrompts(ctx, in)
 			})

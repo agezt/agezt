@@ -25,12 +25,12 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
 
@@ -50,13 +50,11 @@ func cmdWeb(args []string, stdout, stderr io.Writer) int {
 		}
 		return 0
 	}
-	switch args[0] {
-	case "password":
-		return cmdWebPassword(args[1:], os.Stdin, stdout, stderr)
-	default:
-		fmt.Fprintf(stderr, "%s web: unknown subcommand %q (password)\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliWeb.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s web: unknown subcommand %q (password)\n", brand.CLI, args[0])
+	return 2
 }
 
 // cmdWebPassword implements set/clear/status. stdin is injected for tests.
@@ -65,59 +63,11 @@ func cmdWebPassword(args []string, stdin io.Reader, stdout, stderr io.Writer) in
 		fmt.Fprintf(stderr, "usage: %s web password <set [<value>] | clear | status>\n", brand.CLI)
 		return 2
 	}
-	switch args[0] {
-	case "set":
-		value := ""
-		if len(args) >= 2 {
-			value = strings.Join(args[1:], " ")
-		} else {
-			// Prompt + confirm so a typo'd password can't lock the console
-			// behind a string nobody knows. Line reads (like `provider creds
-			// set`) — nothing lands in shell history.
-			reader := bufio.NewReader(stdin)
-			fmt.Fprintf(stdout, "new console password: ")
-			first, err := readPromptLine(reader)
-			if err != nil {
-				fmt.Fprintf(stderr, "%s: read stdin: %v\n", brand.CLI, err)
-				return 1
-			}
-			fmt.Fprintf(stdout, "repeat password: ")
-			second, err := readPromptLine(reader)
-			if err != nil {
-				fmt.Fprintf(stderr, "%s: read stdin: %v\n", brand.CLI, err)
-				return 1
-			}
-			if first != second {
-				fmt.Fprintf(stderr, "%s: passwords do not match — nothing changed\n", brand.CLI)
-				return 1
-			}
-			value = first
-		}
-		if strings.TrimSpace(value) == "" {
-			fmt.Fprintf(stderr, "%s: password is empty (use `%s web password clear` to remove it)\n", brand.CLI, brand.CLI)
-			return 2
-		}
-		return applyWebPassword(value, stdout, stderr)
-	case "clear", "reset", "rm", "unset":
-		return applyWebPassword("", stdout, stderr)
-	case "status":
-		store, err := openCredsStore(stderr)
-		if err != nil {
-			return 1
-		}
-		if store.Has(webPasswordEnv) {
-			fmt.Fprintf(stdout, "console password: SET (stored in the vault; value never shown)\n")
-		} else {
-			fmt.Fprintf(stdout, "console password: not set — the console is token-only\n")
-			if os.Getenv(webPasswordEnv) != "" {
-				fmt.Fprintf(stdout, "note: %s is set in this shell's environment; the daemon may still enforce it if started with it\n", webPasswordEnv)
-			}
-		}
-		return 0
-	default:
-		fmt.Fprintf(stderr, "%s web password: unknown subcommand %q (set, clear, status)\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliWebPassword.lookup(args[0]); ok {
+		return sub.run(stdin, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s web password: unknown subcommand %q %s\n", brand.CLI, args[0], cliWebPassword.listNames())
+	return 2
 }
 
 // readPromptLine reads one line off a SHARED bufio.Reader (the two password
@@ -147,7 +97,7 @@ func applyWebPassword(value string, stdout, stderr io.Writer) int {
 	if base, err := paths.BaseDir(); err == nil {
 		if c, cerr := controlplane.NewClient(base); cerr == nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			res, callErr := c.Call(ctx, controlplane.CmdConfigSet, map[string]any{
+			res, callErr := c.Call(ctx, opapi.ConfigSet, map[string]any{
 				"name": webPasswordEnv, "value": value,
 			})
 			cancel()

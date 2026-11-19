@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -29,7 +29,7 @@ func TestToolAudit_JoinsWithinCorrelation(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	log, err := c.Call(context.Background(), controlplane.CmdToolLog, nil)
+	log, err := c.Call(context.Background(), opapi.ToolLog, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestToolAudit_JoinsWithinCorrelation(t *testing.T) {
 			t.Errorf("unexpected row=%v", row)
 		}
 	}
-	stats, err := c.Call(context.Background(), controlplane.CmdToolStats, nil)
+	stats, err := c.Call(context.Background(), opapi.ToolStats, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestToolAudit_SkippedBatchCallHasNoExecutionLatency(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	log, err := c.Call(context.Background(), controlplane.CmdToolLog, nil)
+	log, err := c.Call(context.Background(), opapi.ToolLog, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestToolAudit_SkippedBatchCallHasNoExecutionLatency(t *testing.T) {
 			t.Errorf("skipped row=%v", row)
 		}
 	}
-	stats, err := c.Call(context.Background(), controlplane.CmdToolStats, nil)
+	stats, err := c.Call(context.Background(), opapi.ToolStats, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

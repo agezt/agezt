@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -29,7 +30,7 @@ func TestDiskStats_ReportsJournalAndFreeSpace(t *testing.T) {
 		t.Fatalf("Publish: %v", err)
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdDiskStats, nil)
+	res, err := c.Call(context.Background(), opapi.DiskStats, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -52,7 +53,7 @@ func TestDiskStats_ReportsJournalAndFreeSpace(t *testing.T) {
 // failing (M131).
 func TestDiskStats_NoProbeReportsUnavailable(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	res, err := c.Call(context.Background(), controlplane.CmdDiskStats, nil)
+	res, err := c.Call(context.Background(), opapi.DiskStats, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}

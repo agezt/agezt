@@ -22,7 +22,7 @@ import (
 )
 
 func TestMissionControlNativeTypedRegistry(t *testing.T) {
-	for _, cmd := range []string{CmdSpendToday, CmdAttention} {
+	for _, cmd := range []string{opapi.SpendToday, opapi.Attention} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -96,14 +96,14 @@ func TestMissionControlNativeBindings(t *testing.T) {
 		}
 		return string(line)
 	}
-	if line := call(CmdSpendToday, nil); !strings.Contains(line, `"result":{"total":1050000}`) {
+	if line := call(opapi.SpendToday, nil); !strings.Contains(line, `"result":{"total":1050000}`) {
 		t.Fatal("the tile reads the governor's spend", line)
 	}
-	if line := call(CmdAttention, nil); !strings.Contains(line, `"count":1`) || !strings.Contains(line, `"summary":"shell — risky"`) {
+	if line := call(opapi.Attention, nil); !strings.Contains(line, `"count":1`) || !strings.Contains(line, `"summary":"shell — risky"`) {
 		t.Fatal("without a pulse the feed holds the pending approval", line)
 	}
 	pulsePort = askPulse{asks: []map[string]any{{"issue_key": "disk", "summary": "disk filling", "ts_unix_ms": time.Now().UnixMilli()}}}
-	if line := call(CmdAttention, map[string]any{"limit": 1}); !strings.Contains(line, `"count":1`) || !strings.Contains(line, `"href":"/jarvis#ask-disk"`) {
+	if line := call(opapi.Attention, map[string]any{"limit": 1}); !strings.Contains(line, `"count":1`) || !strings.Contains(line, `"href":"/jarvis#ask-disk"`) {
 		t.Fatal("the newest item, a fresh pulse ask, leads the feed", line)
 	}
 }

@@ -16,13 +16,13 @@ func ToolboxReadOperations(provider func(context.Context) *ToolboxReads) ([]app.
 	spec := func(name string) opapi.Spec {
 		return opapi.Spec{Name: name, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}
 	}
-	detect, err := app.NewOperation(spec("toolbox_detect"), func(ctx context.Context, in ToolboxDetectInput) (toolboxapi.Inventory, error) {
+	detect, err := app.NewOperation(spec(opapi.ToolboxDetect), func(ctx context.Context, in ToolboxDetectInput) (toolboxapi.Inventory, error) {
 		return provider(ctx).Detect(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	outdated, err := app.NewOperation(spec("toolbox_outdated"), func(ctx context.Context, in ToolboxOutdatedInput) (ToolboxOutdatedOutput, error) {
+	outdated, err := app.NewOperation(spec(opapi.ToolboxOutdated), func(ctx context.Context, in ToolboxOutdatedInput) (ToolboxOutdatedOutput, error) {
 		return provider(ctx).Outdated(ctx, in)
 	})
 	if err != nil {

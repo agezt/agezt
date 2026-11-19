@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/edict"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -31,7 +31,7 @@ func TestEdictOverlay_FoldsPolicyChanges(t *testing.T) {
 	pc(map[string]any{"action": "deny.add", "name": "r2", "substring": "secret"})
 	pc(map[string]any{"action": "deny.rm", "name": "r2"}) // removed → should not survive
 
-	res, err := c.Call(context.Background(), controlplane.CmdEdictOverlay, nil)
+	res, err := c.Call(context.Background(), opapi.EdictOverlay, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestEdictCompact_EquivalentToFullReplay(t *testing.T) {
 	pc(map[string]any{"action": "deny.add", "name": "r1", "substring": "rm -rf"})
 
 	// Compact → snapshot persisted at the kernel's runtime dir.
-	if _, err := c.Call(context.Background(), controlplane.CmdEdictCompact, nil); err != nil {
+	if _, err := c.Call(context.Background(), opapi.EdictCompact, nil); err != nil {
 		t.Fatalf("compact: %v", err)
 	}
 	snap, err := edict.LoadOverlaySnapshot(filepath.Join(k.BaseDir(), "runtime", edict.OverlaySnapshotFile))
@@ -134,7 +134,7 @@ func TestEdictCompact_JournalsBindingHash(t *testing.T) {
 	pc(map[string]any{"action": "level.set", "capability": "shell", "to": "L1"})
 	pc(map[string]any{"action": "deny.add", "name": "r1", "substring": "rm -rf"})
 
-	if _, err := c.Call(context.Background(), controlplane.CmdEdictCompact, nil); err != nil {
+	if _, err := c.Call(context.Background(), opapi.EdictCompact, nil); err != nil {
 		t.Fatalf("compact: %v", err)
 	}
 	snap, err := edict.LoadOverlaySnapshot(filepath.Join(k.BaseDir(), "runtime", edict.OverlaySnapshotFile))

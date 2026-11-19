@@ -5,7 +5,7 @@ package controlplane_test
 import (
 	"context"
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -28,12 +28,12 @@ func TestSkillOperationsSocketRetainPrimaryOnlyStore(t *testing.T) {
 		}
 	}
 	client := tenantClient(t, dir, token)
-	for _, cmd := range []string{controlplane.CmdSkillList, controlplane.CmdSkillGet, controlplane.CmdSkillHistory, controlplane.CmdSkillFiles, controlplane.CmdSkillReadFile, controlplane.CmdSkillHygiene, controlplane.CmdSkillPromote, controlplane.CmdSkillQuarantine, controlplane.CmdSkillArchive, controlplane.CmdSkillRevert, controlplane.CmdSkillRestore, controlplane.CmdSkillShare, controlplane.CmdSkillReassign, controlplane.CmdSkillImport} {
+	for _, cmd := range []string{opapi.SkillList, opapi.SkillGet, opapi.SkillHistory, opapi.SkillFiles, opapi.SkillReadFile, opapi.SkillHygiene, opapi.SkillPromote, opapi.SkillQuarantine, opapi.SkillArchive, opapi.SkillRevert, opapi.SkillRestore, opapi.SkillShare, opapi.SkillReassign, opapi.SkillImport} {
 		if _, err := client.Call(context.Background(), cmd, map[string]any{"tenant": "acme", "id": "fixture", "path": "ref.md", "status": "draft", "name": "blocked", "body": "body"}); err == nil {
 			t.Fatalf("tenant admitted %s", cmd)
 		}
 	}
-	result, err := owner.Call(context.Background(), controlplane.CmdSkillList, map[string]any{"tenant": "acme"})
+	result, err := owner.Call(context.Background(), opapi.SkillList, map[string]any{"tenant": "acme"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestSkillOperationsSocketRetainPrimaryOnlyStore(t *testing.T) {
 	if !strings.Contains(string(wire), "primary-private") || strings.Contains(string(wire), "tenant-private") {
 		t.Fatalf("primary list selected tenant store: %s", wire)
 	}
-	if _, err := owner.Call(context.Background(), controlplane.CmdSkillImport, map[string]any{"tenant": "acme", "name": "primary-only-create", "body": "body"}); err != nil {
+	if _, err := owner.Call(context.Background(), opapi.SkillImport, map[string]any{"tenant": "acme", "name": "primary-only-create", "body": "body"}); err != nil {
 		t.Fatal(err)
 	}
 	p, err := primary.Forge().List()

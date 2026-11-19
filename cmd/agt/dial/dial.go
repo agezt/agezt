@@ -11,6 +11,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
 
@@ -49,7 +50,7 @@ func NewAtBase(base string, stderr io.Writer) *controlplane.Client {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	if _, err := c.Call(ctx, controlplane.CmdStatus, nil); err != nil {
+	if _, err := c.Call(ctx, opapi.Status, nil); err != nil {
 		var serr *controlplane.ErrServerError
 		if !errors.As(err, &serr) {
 			fmt.Fprintf(stderr, "%s: daemon recorded but not responding — a stale socket from a crash?\n", brand.CLI)

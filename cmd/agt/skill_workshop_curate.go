@@ -17,7 +17,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdSkillWorkshopScan(args []string, stdout, stderr io.Writer) int {
@@ -90,7 +90,7 @@ func cmdSkillWorkshopCurate(args []string, stdout, stderr io.Writer) int {
 	if idleDays > 0 {
 		callArgs["idle_days"] = idleDays
 	}
-	res, err := c.Call(ctx, controlplane.CmdSkillHygiene, callArgs)
+	res, err := c.Call(ctx, opapi.SkillHygiene, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s skill workshop curate: %v\n", brand.CLI, err)
 		return 1
@@ -112,7 +112,7 @@ func cmdSkillWorkshopCurate(args []string, stdout, stderr io.Writer) int {
 				fmt.Fprintf(stderr, "%s skill workshop curate: checkpoint %s: %v\n", brand.CLI, id, cerr)
 				return 1
 			}
-			qres, qerr := c.Call(ctx, controlplane.CmdSkillQuarantine, map[string]any{"id": id, "reason": reason})
+			qres, qerr := c.Call(ctx, opapi.SkillQuarantine, map[string]any{"id": id, "reason": reason})
 			if qerr != nil {
 				fmt.Fprintf(stderr, "%s skill workshop curate: quarantine %s: %v\n", brand.CLI, id, qerr)
 				return 1

@@ -16,16 +16,13 @@ import (
 	"encoding/json"
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdConfigSchema(args []string, stdout, stderr io.Writer) int {
 	if len(args) >= 1 {
-		switch args[0] {
-		case "register":
-			return cmdConfigSchemaRegister(args[1:], stdout, stderr)
-		case "unregister":
-			return cmdConfigSchemaUnregister(args[1:], stdout, stderr)
+		if sub, ok := cliConfigSchema.lookup(args[0]); ok {
+			return sub.run(nil, args, stdout, stderr)
 		}
 	}
 	asJSON := false
@@ -47,7 +44,7 @@ func cmdConfigSchema(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdConfigSchema, nil)
+	res, err := c.Call(ctx, opapi.ConfigSchema, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s config schema: %v\n", brand.CLI, err)
 		return 1
@@ -123,7 +120,7 @@ func cmdConfigSchemaRegister(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdConfigSchemaRegister, map[string]any{"section": section})
+	res, err := c.Call(ctx, opapi.ConfigSchemaRegister, map[string]any{"section": section})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s config schema register: %v\n", brand.CLI, err)
 		return 1
@@ -164,7 +161,7 @@ func cmdConfigSchemaUnregister(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdConfigSchemaUnregister, map[string]any{"id": id, "force": force})
+	res, err := c.Call(ctx, opapi.ConfigSchemaUnregister, map[string]any{"id": id, "force": force})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s config schema unregister: %v\n", brand.CLI, err)
 		return 1

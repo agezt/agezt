@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdWorkboardSeat(args []string, stdout, stderr io.Writer) int {
@@ -38,7 +38,7 @@ func cmdWorkboardSeat(args []string, stdout, stderr io.Writer) int {
 	if seatID == "default" || seatID == "none" || seatID == "clear" {
 		seatID = ""
 	}
-	res, code := callWorkboard(controlplane.CmdWorkboardSeat, map[string]any{"id": id, "seat": seatID}, stderr)
+	res, code := callWorkboard(opapi.WorkboardSeat, map[string]any{"id": id, "seat": seatID}, stderr)
 	return renderWorkboardMutation(res, code, asJSON, stdout)
 }
 func cmdWorkboardActor(args []string, stdout, stderr io.Writer, name, cmd string) int {
@@ -60,6 +60,6 @@ func cmdWorkboardLink(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s workboard link: --type and --target required\n", brand.CLI)
 		return 2
 	}
-	res, code := callWorkboard(controlplane.CmdWorkboardLink, callArgs, stderr)
+	res, code := callWorkboard(opapi.WorkboardLink, callArgs, stderr)
 	return renderWorkboardMutation(res, code, asJSON, stdout)
 }

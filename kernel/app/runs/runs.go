@@ -353,12 +353,12 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 		return nil, errors.New("runs provider required")
 	}
 	var ops []app.Operation
-	if err := bind(&ops, opapi.Spec{Name: "runs_list", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"cursor":{},"status":{},"intent":{},"model":{},"min_cost_mc":{},"max_cost_mc":{}}}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/runs"}}, func(ctx context.Context, in ListRequest) (ListOutput, error) {
+	if err := bind(&ops, opapi.Spec{Name: opapi.RunsList, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"cursor":{},"status":{},"intent":{},"model":{},"min_cost_mc":{},"max_cost_mc":{}}}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/runs"}}, func(ctx context.Context, in ListRequest) (ListOutput, error) {
 		return provider(ctx).List(ctx, in)
 	}); err != nil {
 		return nil, err
 	}
-	if err := bind(&ops, opapi.Spec{Name: "runs_stats", InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{},"intent":{}}}`)}, func(ctx context.Context, in StatsRequest) (StatsOutput, error) {
+	if err := bind(&ops, opapi.Spec{Name: opapi.RunsStats, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"since_ms":{},"intent":{}}}`)}, func(ctx context.Context, in StatsRequest) (StatsOutput, error) {
 		return provider(ctx).Stats(ctx, in)
 	}); err != nil {
 		return nil, err

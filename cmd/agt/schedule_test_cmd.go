@@ -13,7 +13,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdScheduleTest implements `agt schedule test <id> [--count N] [--json]` (M120)
@@ -78,7 +78,7 @@ func cmdScheduleTest(args []string, stdout, stderr io.Writer) int {
 	if count > 0 {
 		callArgs["count"] = count
 	}
-	res, err := c.Call(ctx, controlplane.CmdScheduleTest, callArgs)
+	res, err := c.Call(ctx, opapi.ScheduleTest, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s schedule test: %v\n", brand.CLI, err)
 		return 1

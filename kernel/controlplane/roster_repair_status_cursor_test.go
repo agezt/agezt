@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -19,7 +19,7 @@ import (
 func TestAgentRepairStatus_CursorKeepsCurrentState(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("repair complete")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "paged", "model": "mock-model", "task_type": "code"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
@@ -34,11 +34,11 @@ func TestAgentRepairStatus_CursorKeepsCurrentState(t *testing.T) {
 			t.Fatalf("publish repair %d: %v", i, err)
 		}
 	}
-	first, err := c.Call(ctx, controlplane.CmdAgentRepairStatus, map[string]any{"ref": "paged", "limit": 2})
+	first, err := c.Call(ctx, opapi.AgentRepairStatus, map[string]any{"ref": "paged", "limit": 2})
 	if err != nil {
 		t.Fatalf("page 1: %v", err)
 	}
-	second, err := c.Call(ctx, controlplane.CmdAgentRepairStatus, map[string]any{"ref": "paged", "limit": 2, "cursor": first["next_cursor"]})
+	second, err := c.Call(ctx, opapi.AgentRepairStatus, map[string]any{"ref": "paged", "limit": 2, "cursor": first["next_cursor"]})
 	if err != nil {
 		t.Fatalf("page 2: %v", err)
 	}

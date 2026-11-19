@@ -5,6 +5,10 @@ package main
 // Provenance: agt help: commandHelp + helpGroup types + printHelp + helpHas +
 //             cmdHelp + suggestCommands + editDistance. Code extracted from help.go
 //             during the Day-109 god-file split. Public API unchanged.
+//
+// The table the help reads is the CLI's top-level command table
+// (cmd/agt/commands_top.go): the overview and the registry are the same
+// declaration read two ways.
 
 import (
 	"fmt"
@@ -14,6 +18,19 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 )
+
+// commandHelp is one command's help: the overview line and the detail block.
+type commandHelp struct {
+	name    string   // the dispatch token (`agt <name> …`)
+	summary string   // one line for the grouped overview
+	detail  []string // full usage lines for `agt help <name>` (without the leading "usage:")
+}
+
+// helpGroup is a titled section of the overview.
+type helpGroup struct {
+	title    string
+	commands []commandHelp
+}
 
 func printHelp(w io.Writer) {
 	fmt.Fprintf(w, "usage: %s <command> [args...]\n", brand.CLI)

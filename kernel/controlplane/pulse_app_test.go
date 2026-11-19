@@ -96,11 +96,11 @@ func pulseAppArgs() map[string]any {
 	return map[string]any{"issue_key": "owned", "approve": false, "seconds": float64(30), "path": " owned path ", "min_pct": float64(20), "name": "owned", "command": " echo owned ", "dial": "quiet", "hours": "22-7", "unused": true}
 }
 func TestPulseControlNativeMetadataComesFromThirteenTypedSpecs(t *testing.T) {
-	want := map[string]bool{CmdPulseStatus: true, CmdPulseAsks: true, CmdPulseAskResolve: false, CmdPulsePause: false, CmdPulseResume: false, CmdPulseBeat: false, CmdPulseCadence: false, CmdPulseDial: false, CmdPulseQuiet: false, CmdPulseFlush: false, CmdPulseWatch: false, CmdPulseProbe: false, CmdPulseUnwatch: false}
+	want := map[string]bool{opapi.PulseStatus: true, opapi.PulseAsks: true, opapi.PulseAskResolve: false, opapi.PulsePause: false, opapi.PulseResume: false, opapi.PulseBeat: false, opapi.PulseCadence: false, opapi.PulseDial: false, opapi.PulseQuiet: false, opapi.PulseFlush: false, opapi.PulseWatch: false, opapi.PulseProbe: false, opapi.PulseUnwatch: false}
 	seen := map[string]bool{}
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()
-		if !strings.HasPrefix(spec.Name, "pulse_") || spec.Name == CmdPulseSubscribe {
+		if !strings.HasPrefix(spec.Name, "pulse_") || spec.Name == opapi.PulseSubscribe {
 			continue
 		}
 		read, known := want[spec.Name]
@@ -115,7 +115,7 @@ func TestPulseControlNativeMetadataComesFromThirteenTypedSpecs(t *testing.T) {
 	}
 }
 func TestPulseControlAppRequiresActualAuditBeforeElevenMutations(t *testing.T) {
-	for _, cmd := range []string{CmdPulseAskResolve, CmdPulsePause, CmdPulseResume, CmdPulseBeat, CmdPulseCadence, CmdPulseDial, CmdPulseQuiet, CmdPulseFlush, CmdPulseWatch, CmdPulseProbe, CmdPulseUnwatch} {
+	for _, cmd := range []string{opapi.PulseAskResolve, opapi.PulsePause, opapi.PulseResume, opapi.PulseBeat, opapi.PulseCadence, opapi.PulseDial, opapi.PulseQuiet, opapi.PulseFlush, opapi.PulseWatch, opapi.PulseProbe, opapi.PulseUnwatch} {
 		t.Run(cmd, func(t *testing.T) {
 			k, s, port, provider := pulseAppFixture(t)
 			if err := k.Journal().Close(); err != nil {
@@ -186,7 +186,7 @@ func TestPulseControlAppReadPolicyAndPairedMutationAudit(t *testing.T) {
 		}
 	}
 	// Resolve failure keeps the same paired audit lifecycle and no provider work.
-	out := callAppHost(t, s, Request{ID: "missing", Cmd: CmdPulseAskResolve, Token: "primary", Args: map[string]any{"issue_key": "missing"}})
+	out := callAppHost(t, s, Request{ID: "missing", Cmd: opapi.PulseAskResolve, Token: "primary", Args: map[string]any{"issue_key": "missing"}})
 	if len(out) != 1 || out[0].Type != RespError || out[0].Error != "no pending ask with that issue_key (already resolved?)" {
 		t.Fatal(out)
 	}
@@ -204,10 +204,10 @@ func TestPulseControlAppAvailabilityIsSelectedAtEachDispatch(t *testing.T) {
 	_, s, port, provider := pulseAppFixture(t)
 	s.pulseProvider = nil
 	s.observersProvider = nil
-	for _, cmd := range []string{CmdPulseAskResolve, CmdPulseCadence, CmdPulseDial, CmdPulseQuiet, CmdPulseUnwatch, CmdPulseWatch, CmdPulseProbe} {
+	for _, cmd := range []string{opapi.PulseAskResolve, opapi.PulseCadence, opapi.PulseDial, opapi.PulseQuiet, opapi.PulseUnwatch, opapi.PulseWatch, opapi.PulseProbe} {
 		out := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"issue_key": true, "dial": true, "name": true, "path": true, "command": true, "hours": true}})
 		want := "pulse is disabled (AGEZT_PULSE=off)"
-		if cmd == CmdPulseWatch || cmd == CmdPulseProbe {
+		if cmd == opapi.PulseWatch || cmd == opapi.PulseProbe {
 			want = "watches are unavailable (pulse is disabled)"
 		}
 		if len(out) != 1 || out[0].Type != RespError || out[0].Error != want {
@@ -216,7 +216,7 @@ func TestPulseControlAppAvailabilityIsSelectedAtEachDispatch(t *testing.T) {
 	}
 	s.pulseProvider = func() PulseController { return port }
 	s.observersProvider = func() PulseObservers { return port }
-	out := callAppHost(t, s, Request{ID: "live", Cmd: CmdPulseBeat, Token: "primary"})
+	out := callAppHost(t, s, Request{ID: "live", Cmd: opapi.PulseBeat, Token: "primary"})
 	if len(out) != 1 || !reflect.DeepEqual(out[0].Result, map[string]any{"triggered": true}) || !reflect.DeepEqual(port.calls, []string{"beat"}) || provider.CallCount() != 0 {
 		t.Fatal(out, port.calls, provider.CallCount())
 	}
@@ -252,25 +252,25 @@ func TestPulseControlAppArgumentPresenceAndAppliedPersistence(t *testing.T) {
 		values []any
 		result map[string]any
 	}{
-		{CmdPulseAskResolve, map[string]any{"issue_key": " raw ", "approve": "TRUE"}, "", []string{"resolve"}, []any{" raw ", false}, map[string]any{"resolved": true, "approved": false, "acted": false}},
-		{CmdPulseAskResolve, map[string]any{"issue_key": "owned", "approve": "1"}, "", []string{"resolve"}, []any{"owned", true}, map[string]any{"resolved": true, "approved": true, "acted": false}},
-		{CmdPulseAskResolve, map[string]any{"issue_key": "owned", "approve": float64(1)}, "", []string{"resolve"}, []any{"owned", false}, map[string]any{"resolved": true, "approved": false, "acted": false}},
-		{CmdPulseAskResolve, map[string]any{"issue_key": nil}, "args.issue_key must be a string", nil, nil, nil},
-		{CmdPulseUnwatch, map[string]any{"name": "  "}, "args.name required", nil, nil, nil},
-		{CmdPulseCadence, map[string]any{"seconds": "0.1234567899"}, "", []string{"cadence"}, []any{time.Duration(123456789)}, map[string]any{"cadence_ms": float64(5000)}},
-		{CmdPulseCadence, map[string]any{"seconds": "wrong"}, "args.seconds must be > 0", nil, nil, nil},
-		{CmdPulseCadence, map[string]any{"seconds": true}, "args.seconds must be > 0", nil, nil, nil},
-		{CmdPulseDial, map[string]any{"dial": nil}, "args.dial must be a string", nil, nil, nil},
-		{CmdPulseDial, nil, "", []string{"dial"}, []any{""}, map[string]any{"dial": "applied-dial"}},
-		{CmdPulseQuiet, map[string]any{"hours": " raw "}, "", []string{"quiet"}, []any{" raw "}, map[string]any{"quiet": "applied-quiet"}},
-		{CmdPulseQuiet, map[string]any{"hours": true}, "args.hours must be a string", nil, nil, nil},
-		{CmdPulseWatch, map[string]any{"path": " raw path ", "min_pct": "17.25"}, "", []string{"watch"}, []any{" raw path ", 17.25}, map[string]any{"added": true, "observer": "disk-result"}},
-		{CmdPulseWatch, map[string]any{"path": "owned", "min_pct": float64(100)}, "args.min_pct must be between 0 and 100", nil, nil, nil},
-		{CmdPulseWatch, map[string]any{"path": nil, "min_pct": "wrong"}, "args.path must be a string", nil, nil, nil},
-		{CmdPulseProbe, map[string]any{"name": " raw ", "command": " echo 'two words' --flag "}, "", []string{"probe"}, []any{" raw ", []string{"echo", "'two", "words'", "--flag"}}, map[string]any{"added": true, "observer": "probe-result"}},
-		{CmdPulseProbe, map[string]any{"name": true, "command": true}, "args.name must be a string", nil, nil, nil},
-		{CmdPulseProbe, map[string]any{"name": "owned", "command": nil}, "args.command must be a string", nil, nil, nil},
-		{CmdPulseProbe, map[string]any{"name": "owned", "command": "  "}, "args.name and args.command required", nil, nil, nil},
+		{opapi.PulseAskResolve, map[string]any{"issue_key": " raw ", "approve": "TRUE"}, "", []string{"resolve"}, []any{" raw ", false}, map[string]any{"resolved": true, "approved": false, "acted": false}},
+		{opapi.PulseAskResolve, map[string]any{"issue_key": "owned", "approve": "1"}, "", []string{"resolve"}, []any{"owned", true}, map[string]any{"resolved": true, "approved": true, "acted": false}},
+		{opapi.PulseAskResolve, map[string]any{"issue_key": "owned", "approve": float64(1)}, "", []string{"resolve"}, []any{"owned", false}, map[string]any{"resolved": true, "approved": false, "acted": false}},
+		{opapi.PulseAskResolve, map[string]any{"issue_key": nil}, "args.issue_key must be a string", nil, nil, nil},
+		{opapi.PulseUnwatch, map[string]any{"name": "  "}, "args.name required", nil, nil, nil},
+		{opapi.PulseCadence, map[string]any{"seconds": "0.1234567899"}, "", []string{"cadence"}, []any{time.Duration(123456789)}, map[string]any{"cadence_ms": float64(5000)}},
+		{opapi.PulseCadence, map[string]any{"seconds": "wrong"}, "args.seconds must be > 0", nil, nil, nil},
+		{opapi.PulseCadence, map[string]any{"seconds": true}, "args.seconds must be > 0", nil, nil, nil},
+		{opapi.PulseDial, map[string]any{"dial": nil}, "args.dial must be a string", nil, nil, nil},
+		{opapi.PulseDial, nil, "", []string{"dial"}, []any{""}, map[string]any{"dial": "applied-dial"}},
+		{opapi.PulseQuiet, map[string]any{"hours": " raw "}, "", []string{"quiet"}, []any{" raw "}, map[string]any{"quiet": "applied-quiet"}},
+		{opapi.PulseQuiet, map[string]any{"hours": true}, "args.hours must be a string", nil, nil, nil},
+		{opapi.PulseWatch, map[string]any{"path": " raw path ", "min_pct": "17.25"}, "", []string{"watch"}, []any{" raw path ", 17.25}, map[string]any{"added": true, "observer": "disk-result"}},
+		{opapi.PulseWatch, map[string]any{"path": "owned", "min_pct": float64(100)}, "args.min_pct must be between 0 and 100", nil, nil, nil},
+		{opapi.PulseWatch, map[string]any{"path": nil, "min_pct": "wrong"}, "args.path must be a string", nil, nil, nil},
+		{opapi.PulseProbe, map[string]any{"name": " raw ", "command": " echo 'two words' --flag "}, "", []string{"probe"}, []any{" raw ", []string{"echo", "'two", "words'", "--flag"}}, map[string]any{"added": true, "observer": "probe-result"}},
+		{opapi.PulseProbe, map[string]any{"name": true, "command": true}, "args.name must be a string", nil, nil, nil},
+		{opapi.PulseProbe, map[string]any{"name": "owned", "command": nil}, "args.command must be a string", nil, nil, nil},
+		{opapi.PulseProbe, map[string]any{"name": "owned", "command": "  "}, "args.name and args.command required", nil, nil, nil},
 	}
 	for _, tc := range cases {
 		port.calls = nil

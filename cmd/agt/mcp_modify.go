@@ -13,7 +13,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdMCPAdd(args []string, stdout, stderr io.Writer) int {
@@ -105,7 +105,7 @@ func cmdMCPAdd(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if _, err := c.Call(ctx, controlplane.CmdMCPAdd, map[string]any{"server": server}); err != nil {
+	if _, err := c.Call(ctx, opapi.MCPAdd, map[string]any{"server": server}); err != nil {
 		fmt.Fprintf(stderr, "%s mcp add: %v\n", brand.CLI, err)
 		return 1
 	}
@@ -122,12 +122,12 @@ func cmdMCPRefAction(args []string, stdout, stderr io.Writer, action string) int
 		return 1
 	}
 	timeout := 5 * time.Second
-	cmd := controlplane.CmdMCPDetach
+	cmd := opapi.MCPDetach
 	switch action {
 	case "attach":
-		cmd, timeout = controlplane.CmdMCPAttach, 2*time.Minute
+		cmd, timeout = opapi.MCPAttach, 2*time.Minute
 	case "remove":
-		cmd = controlplane.CmdMCPRemove
+		cmd = opapi.MCPRemove
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -169,7 +169,7 @@ func cmdMCPSetEnabled(args []string, stdout, stderr io.Writer, enabled bool) int
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if _, err := c.Call(ctx, controlplane.CmdMCPSetEnabled, map[string]any{"ref": args[0], "enabled": enabled}); err != nil {
+	if _, err := c.Call(ctx, opapi.MCPSetEnabled, map[string]any{"ref": args[0], "enabled": enabled}); err != nil {
 		fmt.Fprintf(stderr, "%s mcp %s: %v\n", brand.CLI, verb, err)
 		return 1
 	}

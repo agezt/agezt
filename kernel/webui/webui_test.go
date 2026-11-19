@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/bus"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/httpserver"
 	"github.com/agezt/agezt/kernel/journal"
@@ -302,7 +302,7 @@ func firstAsset(t *testing.T, s *Server) string {
 
 // TestStatsRouteProxiesRunsStats was removed in the Day 28+ dead-route prune —
 // the /api/stats webui route no longer exists (the audit confirmed no app
-// caller). CmdRunsStats is still registered in controlplane/registry.go and
+// caller). opapi.RunsStats is still registered in controlplane/registry.go and
 // exercised directly by kernel/controlplane/*_test.go files.
 
 func TestJournalRouteForwardsCorrelationOnly(t *testing.T) {
@@ -330,7 +330,7 @@ func TestJournalRouteForwardsCorrelationOnly(t *testing.T) {
 // TestExecutionProfileRouteForwardsIDOnly was removed in the Day 28+
 // orphan-singletons prune (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2):
 // /api/execution_profile (singular) went un-wired. The
-// CmdExecutionProfileShow command remains registered for CLI/operator
+// opapi.ExecutionProfileShow command remains registered for CLI/operator
 // use, and /api/execution_profiles (plural) IS wired.
 
 func TestExecutionProfileCheckRouteProxies(t *testing.T) {
@@ -342,7 +342,7 @@ func TestExecutionProfileCheckRouteProxies(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d want 200", rec.Code)
 	}
-	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdExecutionProfileCheck {
+	if len(fc.calls) != 1 || fc.calls[0] != opapi.ExecutionProfileCheck {
 		t.Fatalf("expected execution_profile_check call, got %v", fc.calls)
 	}
 }
@@ -439,7 +439,7 @@ func TestScheduleFiresRouteForwardsAllowedFiltersOnly(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d want 200", rec.Code)
 	}
-	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdScheduleFires {
+	if len(fc.calls) != 1 || fc.calls[0] != opapi.ScheduleFires {
 		t.Fatalf("expected one schedule_fires call, got %v", fc.calls)
 	}
 	for _, k := range []string{"limit", "id", "status", "since_ms", "intent"} {
@@ -475,7 +475,7 @@ func TestConfigCenterListRouteForwardsRating(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d want 200", rec.Code)
 	}
-	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdConfigCenterList {
+	if len(fc.calls) != 1 || fc.calls[0] != opapi.ConfigCenterList {
 		t.Fatalf("calls = %v, want configcenter.list", fc.calls)
 	}
 	if fc.lastArgs["rating"] != "secret" {
@@ -496,7 +496,7 @@ func TestConfigCenterSetRouteForwardsAgentAccessLists(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d want 200 body=%s", rec.Code, rec.Body.String())
 	}
-	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdConfigCenterSet {
+	if len(fc.calls) != 1 || fc.calls[0] != opapi.ConfigCenterSet {
 		t.Fatalf("calls = %v, want configcenter.set", fc.calls)
 	}
 	if fc.lastArgs["key"] != "agent/ops/runtime" || fc.lastArgs["value"] != "mode=careful" {
@@ -511,11 +511,11 @@ func TestConfigCenterSetRouteForwardsAgentAccessLists(t *testing.T) {
 }
 
 // TestCacheRouteProxiesCacheStats was removed in the Day 28+ dead-route prune —
-// /api/cache has no app caller (audit §2). CmdCacheStats is still registered
+// /api/cache has no app caller (audit §2). opapi.CacheStats is still registered
 // and exercised by kernel/controlplane/cache_stats_test.go.
 
 // TestProvidersRouteProxiesProviderStats was removed in the Day 28+ dead-route
-// prune — /api/providers has no app caller (audit §2). CmdProviderStats is
+// prune — /api/providers has no app caller (audit §2). opapi.ProviderStats is
 // still registered and exercised by kernel/controlplane/*_test.go.
 
 func TestCatalogRouteProxiesCatalogList(t *testing.T) {
@@ -535,7 +535,7 @@ func TestCatalogRouteProxiesCatalogList(t *testing.T) {
 
 // TestToolsRouteProxiesToolStats was removed in the Day 28+ dead-route prune —
 // /api/tools has no app caller (audit §2; distinct from /api/tools_catalog
-// which IS wired). CmdToolStats is still registered and exercised by
+// which IS wired). opapi.ToolStats is still registered and exercised by
 // kernel/controlplane/*_test.go.
 
 func TestConfigRouteProxiesConfig(t *testing.T) {
@@ -644,7 +644,7 @@ func TestProviderLogRouteForwardsLimit(t *testing.T) {
 // else.
 // TestJournalSearchForwardsFullFilterSet was removed in the Day 28+
 // orphan-singletons prune (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2):
-// /api/journal_search went un-wired. The CmdJournalGrep command remains
+// /api/journal_search went un-wired. The opapi.JournalGrep command remains
 // registered for CLI/operator use.
 
 func TestJournalRouteForwardsKind(t *testing.T) {
@@ -696,7 +696,7 @@ func TestMemoryAuditRouteProxiesAudit(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d want 200", rec.Code)
 	}
-	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdMemoryAudit {
+	if len(fc.calls) != 1 || fc.calls[0] != opapi.MemoryAudit {
 		t.Fatalf("expected one memory_audit call, got %v", fc.calls)
 	}
 }
@@ -710,7 +710,7 @@ func TestMemoryCleanRouteForwardsDryRunOnly(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d want 200", rec.Code)
 	}
-	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdMemoryClean {
+	if len(fc.calls) != 1 || fc.calls[0] != opapi.MemoryClean {
 		t.Fatalf("expected one memory_clean call, got %v", fc.calls)
 	}
 	if fc.lastArgs["dry_run"] != "false" {
@@ -925,7 +925,7 @@ func TestCancelRunForwardsCorrelation(t *testing.T) {
 // forwards the allowlisted ceiling_mc and nothing else.
 // TestBudgetSetForwardsCeiling was removed in the Day 28+
 // orphan-singletons prune (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2):
-// /api/budget_set went un-wired. The CmdBudgetSet command remains
+// /api/budget_set went un-wired. The opapi.BudgetSet command remains
 // registered for CLI/operator use.
 
 // Policy control center (M610): the edict mutation routes forward only their
@@ -1042,7 +1042,7 @@ func TestRedactTestRouteForwardsBody(t *testing.T) {
 
 // TestJournalVerifyRouteProxies was removed in the Day 28+ dead-route prune —
 // /api/journal/verify has no app caller (audit §2; M759's integrity check is
-// still reachable via the CLI through CmdJournalVerify). The control plane
+// still reachable via the CLI through opapi.JournalVerify). The control plane
 // command remains registered; only the webui proxy is removed.
 
 // The edict_show read route proxies the parameterless show command (GET).
@@ -1350,7 +1350,7 @@ func TestBoardSendJSONRouteForwardsMailboxBody(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d want 200", rec.Code)
 	}
-	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdBoardSend {
+	if len(fc.calls) != 1 || fc.calls[0] != opapi.BoardSend {
 		t.Fatalf("expected one board_send call, got %v", fc.calls)
 	}
 	for k, want := range map[string]any{"from": "operator", "to": "researcher", "topic": "dm", "text": "wake up", "help": true} {
@@ -1366,7 +1366,7 @@ func TestBoardSendJSONRouteForwardsMailboxBody(t *testing.T) {
 // TestWorkboardJSONRoutesForwardAllowedBodies was removed in the Day 28+
 // removed-view-cluster prune — the workboard nav cluster was REMOVED
 // (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2) so /api/workboard/{comment,policy,dispatch}
-// no longer exist. The underlying CmdWorkboardComment/Policy/Dispatch
+// no longer exist. The underlying opapi.WorkboardComment/Policy/Dispatch
 // commands remain registered and are exercised directly by
 // kernel/controlplane/*_test.go.
 
@@ -1378,7 +1378,7 @@ func TestAgentRepairJSONRoutesForwardIncidentBody(t *testing.T) {
 	}{
 		{
 			path: "/api/agents/repair",
-			cmd:  controlplane.CmdAgentRepair,
+			cmd:  opapi.AgentRepair,
 			body: `{"ref":"builder","reason":"doctor rerun","incident_id":"inc-child","root_incident_id":"inc-root","parent_incident_id":"inc-parent","evil":"x"}`,
 		},
 	} {
@@ -1413,7 +1413,7 @@ func TestAgentWakeWriteRouteForwardsQueryArgs(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d want 200", rec.Code)
 	}
-	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdAgentWake {
+	if len(fc.calls) != 1 || fc.calls[0] != opapi.AgentWake {
 		t.Fatalf("expected one agent_wake call, got %v", fc.calls)
 	}
 	if fc.lastArgs["ref"] != "lead" {
@@ -1435,7 +1435,7 @@ func TestAgentRemoveJSONRouteForwardsCascadeBody(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d want 200", rec.Code)
 	}
-	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdAgentRemove {
+	if len(fc.calls) != 1 || fc.calls[0] != opapi.AgentRemove {
 		t.Fatalf("expected one agent_remove call, got %v", fc.calls)
 	}
 	if fc.lastArgs["ref"] != "ops" {
@@ -1461,7 +1461,7 @@ func TestStandingEditJSONRouteForwardsCooldown(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d want 200", rec.Code)
 	}
-	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdStandingEdit {
+	if len(fc.calls) != 1 || fc.calls[0] != opapi.StandingEdit {
 		t.Fatalf("expected one standing_edit call, got %v", fc.calls)
 	}
 	if fc.lastArgs["cooldown_sec"] != float64(1800) || fc.lastArgs["assure"] != float64(2) {
@@ -1483,7 +1483,7 @@ func TestScheduleJSONRouteForwardsAgentWorkflowAndSystemTaskTarget(t *testing.T)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d want 200", rec.Code)
 	}
-	if len(fc.calls) != 1 || fc.calls[0] != controlplane.CmdScheduleAdd {
+	if len(fc.calls) != 1 || fc.calls[0] != opapi.ScheduleAdd {
 		t.Fatalf("expected one schedule_add call, got %v", fc.calls)
 	}
 	if fc.lastArgs["agent"] != "ops" || fc.lastArgs["target"] != "workflow" || fc.lastArgs["workflow"] != "nightly" || fc.lastArgs["system_task"] != "catalog_sync" {
@@ -1572,7 +1572,7 @@ func TestFlowGenerateRejectsOversizedBody(t *testing.T) {
 	}
 }
 
-// Run drives CmdPlan through Stream (not Call) and forwards only plan_json.
+// Run drives opapi.Plan through Stream (not Call) and forwards only plan_json.
 func TestFlowRunStreamsPlan(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"plan_id": "plan-1", "node_outputs": map[string]any{}}}
 	s, _ := newServer(t, fc, "secret")
@@ -1796,7 +1796,7 @@ func TestRunStreamRejectsGet(t *testing.T) {
 }
 
 // TestFlowStatsProxiesPlanStats was removed in the Day 28+ dead-route prune —
-// /api/plan_stats has no app caller (audit §2). CmdPlanStats is still
+// /api/plan_stats has no app caller (audit §2). opapi.PlanStats is still
 // registered and exercised by kernel/controlplane/plan_history_test.go.
 
 // TestWorkflowHook (M809): the tokenless /hooks/<name> path — POST with a

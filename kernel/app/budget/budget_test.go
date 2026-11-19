@@ -139,8 +139,8 @@ func TestOperations(t *testing.T) {
 		read               bool
 		input              reflect.Type
 	}{
-		{"budget", "GET", "/api/budget", true, reflect.TypeFor[GetRequest]()},
-		{"budget_set", "", "", false, reflect.TypeFor[SetRequest]()},
+		{opapi.Budget, "GET", "/api/budget", true, reflect.TypeFor[GetRequest]()},
+		{opapi.BudgetSet, "", "", false, reflect.TypeFor[SetRequest]()},
 	} {
 		s := ops[i].Spec()
 		if s.Name != want.name || s.ReadOnly != want.read || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.HTTP.Method != want.method || s.HTTP.Path != want.path || s.Input != want.input || s.Output != reflect.TypeFor[Output]() || string(s.OutputSchema) != string(out) {

@@ -15,11 +15,11 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/format"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdBudget implements `agt budget` and `agt budget --json`.
-// Calls CmdBudget and renders the governor's current spend
+// Calls opapi.Budget and renders the governor's current spend
 // snapshot — global ceiling + per-task-type caps from M1.zz.
 //
 // Default output is a small table; --json passes the raw shape
@@ -54,7 +54,7 @@ func cmdBudget(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdBudget, nil)
+	res, err := c.Call(ctx, opapi.Budget, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s budget: %v\n", brand.CLI, err)
 		return 1
@@ -158,7 +158,7 @@ func cmdBudgetSet(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdBudgetSet, map[string]any{"ceiling_mc": ceilingMC})
+	res, err := c.Call(ctx, opapi.BudgetSet, map[string]any{"ceiling_mc": ceilingMC})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s budget set: %v\n", brand.CLI, err)
 		return 1

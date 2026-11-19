@@ -7,6 +7,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/runtime"
@@ -36,7 +37,7 @@ func newTenantReg(t *testing.T) controlplane.Deps {
 // hardDenied is a tiny helper: does an edict_test probe report hard_denied?
 func hardDenied(t *testing.T, c *controlplane.Client, args map[string]any) bool {
 	t.Helper()
-	res, err := c.Call(context.Background(), controlplane.CmdEdictTest, args)
+	res, err := c.Call(context.Background(), opapi.EdictTest, args)
 	if err != nil {
 		t.Fatalf("edict_test %v: %v", args, err)
 	}
@@ -52,7 +53,7 @@ func hardDenied(t *testing.T, c *controlplane.Client, args map[string]any) bool 
 func TestEdictShow_ReturnsDefaultPolicy(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdEdictShow, nil)
+	res, err := c.Call(context.Background(), opapi.EdictShow, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -104,7 +105,7 @@ func TestEdictDeny_AddListRemove(t *testing.T) {
 	ctx := context.Background()
 
 	// Add a scoped rule.
-	add, err := c.Call(ctx, controlplane.CmdEdictDenyAdd, map[string]any{"rule": "shell:kubectl delete"})
+	add, err := c.Call(ctx, opapi.EdictDenyAdd, map[string]any{"rule": "shell:kubectl delete"})
 	if err != nil {
 		t.Fatalf("deny add: %v", err)
 	}
@@ -114,7 +115,7 @@ func TestEdictDeny_AddListRemove(t *testing.T) {
 	}
 
 	// It must now appear in the list, flagged removable.
-	list, err := c.Call(ctx, controlplane.CmdEdictDenyList, nil)
+	list, err := c.Call(ctx, opapi.EdictDenyList, nil)
 	if err != nil {
 		t.Fatalf("deny list: %v", err)
 	}
@@ -134,7 +135,7 @@ func TestEdictDeny_AddListRemove(t *testing.T) {
 	}
 
 	// And it must actually fire through the engine.
-	probe, err := c.Call(ctx, controlplane.CmdEdictTest, map[string]any{
+	probe, err := c.Call(ctx, opapi.EdictTest, map[string]any{
 		"capability": "shell", "input": "kubectl delete ns prod",
 	})
 	if err != nil {
@@ -148,7 +149,7 @@ func TestEdictDeny_AddListRemove(t *testing.T) {
 	}
 
 	// Remove it.
-	rm, err := c.Call(ctx, controlplane.CmdEdictDenyRemove, map[string]any{"name": name})
+	rm, err := c.Call(ctx, opapi.EdictDenyRemove, map[string]any{"name": name})
 	if err != nil {
 		t.Fatalf("deny rm: %v", err)
 	}
@@ -157,7 +158,7 @@ func TestEdictDeny_AddListRemove(t *testing.T) {
 	}
 
 	// After removal the probe is no longer hard-denied.
-	probe2, _ := c.Call(ctx, controlplane.CmdEdictTest, map[string]any{
+	probe2, _ := c.Call(ctx, opapi.EdictTest, map[string]any{
 		"capability": "shell", "input": "kubectl delete ns prod",
 	})
 	if hd, _ := probe2["hard_denied"].(bool); hd {
@@ -170,7 +171,7 @@ func TestEdictDeny_AddListRemove(t *testing.T) {
 // surfaces an error rather than silently dropping the kernel's deny.
 func TestEdictDeny_CannotRemoveFloorRule(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	_, err := c.Call(context.Background(), controlplane.CmdEdictDenyRemove,
+	_, err := c.Call(context.Background(), opapi.EdictDenyRemove,
 		map[string]any{"name": "rm-rf-root"})
 	if err == nil {
 		t.Fatal("removing a built-in floor rule must error, not succeed")
@@ -182,11 +183,11 @@ func TestEdictDeny_CannotRemoveFloorRule(t *testing.T) {
 func TestEdictDeny_AddRejectsMultiAndEmpty(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdEdictDenyAdd,
+	if _, err := c.Call(ctx, opapi.EdictDenyAdd,
 		map[string]any{"rule": "a ; b"}); err == nil {
 		t.Error("multi-rule spec should be rejected")
 	}
-	if _, err := c.Call(ctx, controlplane.CmdEdictDenyAdd,
+	if _, err := c.Call(ctx, opapi.EdictDenyAdd,
 		map[string]any{"rule": "shell:"}); err == nil {
 		t.Error("empty-substring rule should be rejected")
 	}
@@ -199,7 +200,7 @@ func TestEdictSetLevel_RuntimeChange(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	set, err := c.Call(ctx, controlplane.CmdEdictSetLevel, map[string]any{
+	set, err := c.Call(ctx, opapi.EdictSetLevel, map[string]any{
 		"capability": "shell", "level": "L0",
 	})
 	if err != nil {
@@ -213,21 +214,21 @@ func TestEdictSetLevel_RuntimeChange(t *testing.T) {
 		t.Errorf("from = %q want L4 (shell default, allow-by-default)", from)
 	}
 
-	probe, _ := c.Call(ctx, controlplane.CmdEdictTest, map[string]any{
+	probe, _ := c.Call(ctx, opapi.EdictTest, map[string]any{
 		"capability": "shell", "input": "echo hi",
 	})
 	if d, _ := probe["decision"].(string); d != "deny" {
 		t.Errorf("after L0, shell should deny; got %q", d)
 	}
 
-	show, _ := c.Call(ctx, controlplane.CmdEdictShow, nil)
+	show, _ := c.Call(ctx, opapi.EdictShow, nil)
 	levels, _ := show["levels"].(map[string]any)
 	if lvl, _ := levels["shell"].(string); lvl != "L0" {
 		t.Errorf("edict show shell = %q want L0", lvl)
 	}
 
 	// Flip back to allow; the alias form must work too.
-	back, err := c.Call(ctx, controlplane.CmdEdictSetLevel, map[string]any{
+	back, err := c.Call(ctx, opapi.EdictSetLevel, map[string]any{
 		"capability": "shell", "level": "allow",
 	})
 	if err != nil {
@@ -243,11 +244,11 @@ func TestEdictSetLevel_RuntimeChange(t *testing.T) {
 func TestEdictSetLevel_RejectsBadInput(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdEdictSetLevel,
+	if _, err := c.Call(ctx, opapi.EdictSetLevel,
 		map[string]any{"capability": "shel", "level": "L4"}); err == nil {
 		t.Error("unknown capability should error")
 	}
-	if _, err := c.Call(ctx, controlplane.CmdEdictSetLevel,
+	if _, err := c.Call(ctx, opapi.EdictSetLevel,
 		map[string]any{"capability": "shell", "level": "L9"}); err == nil {
 		t.Error("unparseable level should error")
 	}
@@ -258,11 +259,11 @@ func TestEdictSetLevel_RejectsBadInput(t *testing.T) {
 func TestEdictSetLevel_FloorStillFires(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdEdictSetLevel,
+	if _, err := c.Call(ctx, opapi.EdictSetLevel,
 		map[string]any{"capability": "shell", "level": "L4"}); err != nil {
 		t.Fatalf("set level: %v", err)
 	}
-	probe, _ := c.Call(ctx, controlplane.CmdEdictTest, map[string]any{
+	probe, _ := c.Call(ctx, opapi.EdictTest, map[string]any{
 		"capability": "shell", "input": "rm -rf /",
 	})
 	if hd, _ := probe["hard_denied"].(bool); !hd {
@@ -279,11 +280,11 @@ func TestEdictSetMode_RuntimeChange(t *testing.T) {
 
 	// M814: every capability is allow-by-default, so nothing is ask-class
 	// out of the box — opt shell INTO ask-first to exercise mode folding.
-	if _, err := c.Call(ctx, controlplane.CmdEdictSetLevel, map[string]any{"capability": "shell", "level": "L2"}); err != nil {
+	if _, err := c.Call(ctx, opapi.EdictSetLevel, map[string]any{"capability": "shell", "level": "L2"}); err != nil {
 		t.Fatalf("opt shell into ask-first: %v", err)
 	}
 
-	set, err := c.Call(ctx, controlplane.CmdEdictSetMode, map[string]any{"mode": "deny"})
+	set, err := c.Call(ctx, opapi.EdictSetMode, map[string]any{"mode": "deny"})
 	if err != nil {
 		t.Fatalf("set mode: %v", err)
 	}
@@ -294,23 +295,23 @@ func TestEdictSetMode_RuntimeChange(t *testing.T) {
 		t.Errorf("to = %q want deny", to)
 	}
 
-	show, _ := c.Call(ctx, controlplane.CmdEdictShow, nil)
+	show, _ := c.Call(ctx, opapi.EdictShow, nil)
 	if ap, _ := show["ask_policy"].(string); ap != "deny" {
 		t.Errorf("edict show ask_policy = %q want deny", ap)
 	}
 
 	// shell is L2 (ask-class) by default; under AskDeny it must now deny.
-	probe, _ := c.Call(ctx, controlplane.CmdEdictTest, map[string]any{
+	probe, _ := c.Call(ctx, opapi.EdictTest, map[string]any{
 		"capability": "shell", "input": "echo hi",
 	})
 	if d, _ := probe["decision"].(string); d != "deny" {
 		t.Errorf("under deny mode, ask-class shell should deny; got %q", d)
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdEdictSetMode, map[string]any{"mode": "prompt"}); err != nil {
+	if _, err := c.Call(ctx, opapi.EdictSetMode, map[string]any{"mode": "prompt"}); err != nil {
 		t.Fatalf("set mode prompt: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdEdictSetMode, map[string]any{"mode": "loose"}); err == nil {
+	if _, err := c.Call(ctx, opapi.EdictSetMode, map[string]any{"mode": "loose"}); err == nil {
 		t.Error("unknown mode should error")
 	}
 }
@@ -324,7 +325,7 @@ func TestEdictDeny_PerTenantIsolation(t *testing.T) {
 	ctx := context.Background()
 
 	// Add a deny rule to tenant "alpha" only.
-	if _, err := c.Call(ctx, controlplane.CmdEdictDenyAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.EdictDenyAdd, map[string]any{
 		"tenant": "alpha", "rule": "shell:kubectl delete",
 	}); err != nil {
 		t.Fatalf("add to alpha: %v", err)
@@ -347,7 +348,7 @@ func TestEdictDeny_PerTenantIsolation(t *testing.T) {
 		if tenant != "" {
 			args["tenant"] = tenant
 		}
-		res, err := c.Call(ctx, controlplane.CmdEdictDenyList, args)
+		res, err := c.Call(ctx, opapi.EdictDenyList, args)
 		if err != nil {
 			t.Fatalf("deny list %q: %v", tenant, err)
 		}
@@ -377,7 +378,7 @@ func TestEdictLevel_PerTenantIsolation(t *testing.T) {
 	ctx := context.Background()
 
 	// Lock shell to L0 on alpha.
-	if _, err := c.Call(ctx, controlplane.CmdEdictSetLevel, map[string]any{
+	if _, err := c.Call(ctx, opapi.EdictSetLevel, map[string]any{
 		"tenant": "alpha", "capability": "shell", "level": "L0",
 	}); err != nil {
 		t.Fatalf("set level alpha: %v", err)
@@ -387,7 +388,7 @@ func TestEdictLevel_PerTenantIsolation(t *testing.T) {
 		if tenant != "" {
 			args["tenant"] = tenant
 		}
-		res, _ := c.Call(ctx, controlplane.CmdEdictShow, args)
+		res, _ := c.Call(ctx, opapi.EdictShow, args)
 		levels, _ := res["levels"].(map[string]any)
 		s, _ := levels["shell"].(string)
 		return s
@@ -407,7 +408,7 @@ func TestEdictLevel_PerTenantIsolation(t *testing.T) {
 // but multi-tenancy is disabled (no registry wired).
 func TestEdict_TenantWithoutRegistry(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	_, err := c.Call(context.Background(), controlplane.CmdEdictShow, map[string]any{"tenant": "alpha"})
+	_, err := c.Call(context.Background(), opapi.EdictShow, map[string]any{"tenant": "alpha"})
 	if err == nil {
 		t.Fatal("naming a tenant with no registry should error")
 	}
@@ -419,7 +420,7 @@ func TestEdict_TenantWithoutRegistry(t *testing.T) {
 // order flicker.
 func TestEdictShow_HardDenyRulesAreSortedByName(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	res, err := c.Call(context.Background(), controlplane.CmdEdictShow, nil)
+	res, err := c.Call(context.Background(), opapi.EdictShow, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}

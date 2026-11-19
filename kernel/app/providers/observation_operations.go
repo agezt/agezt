@@ -54,7 +54,7 @@ func ObservationOperations(provider func(context.Context) *Observations) ([]app.
 	if provider == nil {
 		return nil, errors.New("provider observation service provider required")
 	}
-	log, err := app.NewOperation(opapi.Spec{Name: "provider_log", ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/provider_log"}}, func(ctx context.Context, in ObservationLogInput) (ObservationLogOutput, error) {
+	log, err := app.NewOperation(opapi.Spec{Name: opapi.ProviderLog, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/provider_log"}}, func(ctx context.Context, in ObservationLogInput) (ObservationLogOutput, error) {
 		bounded := observationPage(in.ObservationPageInput)
 		bounded.Cursor, bounded.FallbacksOnly = in.Cursor, in.Fallbacks
 		return provider(ctx).Log(bounded)
@@ -62,13 +62,13 @@ func ObservationOperations(provider func(context.Context) *Observations) ([]app.
 	if err != nil {
 		return nil, err
 	}
-	stats, err := app.NewOperation(opapi.Spec{Name: "provider_stats", ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, AllowUnknownInput: true}, func(ctx context.Context, in ObservationStatsInput) (ObservationStatsOutput, error) {
+	stats, err := app.NewOperation(opapi.Spec{Name: opapi.ProviderStats, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, AllowUnknownInput: true}, func(ctx context.Context, in ObservationStatsInput) (ObservationStatsOutput, error) {
 		return provider(ctx).Stats(observationWindow(in.SinceMS))
 	})
 	if err != nil {
 		return nil, err
 	}
-	rejections, err := app.NewOperation(opapi.Spec{Name: "provider_rejections", ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, AllowUnknownInput: true}, func(ctx context.Context, in ObservationPageInput) (ObservationRejectionsOutput, error) {
+	rejections, err := app.NewOperation(opapi.Spec{Name: opapi.ProviderRejections, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, AllowUnknownInput: true}, func(ctx context.Context, in ObservationPageInput) (ObservationRejectionsOutput, error) {
 		return provider(ctx).Rejections(observationPage(in))
 	})
 	if err != nil {

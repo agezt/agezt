@@ -20,7 +20,7 @@ func TestProviderProbeMetadataComesFromPrimaryAppSpec(t *testing.T) {
 		t.Fatalf("operations = %d", len(probeOperations))
 	}
 	spec := probeOperations[0].Spec()
-	wire := commandRegistry[CmdProviderProbe]
+	wire := commandRegistry[opapi.ProviderProbe]
 	if !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary {
 		t.Fatalf("primary metadata = %+v %+v", spec, wire)
 	}
@@ -45,7 +45,7 @@ func TestProviderProbeAppSocketAdmissionFailureShapeAndReadOnly(t *testing.T) {
 	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
 	call := func(args map[string]any) Response {
-		responses := callAppHost(t, s, Request{ID: "probe", Cmd: CmdProviderProbe, Token: "primary", Args: args})
+		responses := callAppHost(t, s, Request{ID: "probe", Cmd: opapi.ProviderProbe, Token: "primary", Args: args})
 		return responses[len(responses)-1]
 	}
 	response := call(map[string]any{"url": endpoint.URL + "/", "key": " fixture ", "tenant": "ignored", "ignored": true})

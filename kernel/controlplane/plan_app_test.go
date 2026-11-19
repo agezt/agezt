@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"strings"
 	"testing"
 
@@ -43,7 +44,7 @@ func TestPlanRunsOnTheSharedDispatcher(t *testing.T) {
 	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
 	plan := `{"nodes":[{"id":"a","kind":"loop","intent":"say hi"}]}`
-	responses := callAppHost(t, s, Request{ID: "q1", Cmd: CmdPlan, Token: "primary", Args: map[string]any{
+	responses := callAppHost(t, s, Request{ID: "q1", Cmd: opapi.Plan, Token: "primary", Args: map[string]any{
 		"plan_json": plan,
 	}})
 	var events int
@@ -85,7 +86,7 @@ func TestPlanRefusesTheMissingPlan(t *testing.T) {
 	k := planKernel(t)
 	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
-	resp := callAppHost(t, s, Request{ID: "q1", Cmd: CmdPlan, Token: "primary", Args: map[string]any{}})[0]
+	resp := callAppHost(t, s, Request{ID: "q1", Cmd: opapi.Plan, Token: "primary", Args: map[string]any{}})[0]
 	if resp.Type != RespError || !strings.Contains(resp.Error, "args.plan_json required") {
 		t.Fatalf("response=%+v", resp)
 	}
@@ -94,7 +95,7 @@ func TestPlanRefusesTheMissingPlan(t *testing.T) {
 // TestPlanIsATypedOperation: the plan command is app-owned, primary-only and
 // streams.
 func TestPlanIsATypedOperation(t *testing.T) {
-	wire, exists := commandRegistry[CmdPlan]
+	wire, exists := commandRegistry[opapi.Plan]
 	if !exists {
 		t.Fatal("plan is not registered")
 	}
@@ -103,7 +104,7 @@ func TestPlanIsATypedOperation(t *testing.T) {
 	}
 	found := 0
 	for _, operation := range registeredAppOperations() {
-		if operation.Spec().Name == CmdPlan {
+		if operation.Spec().Name == opapi.Plan {
 			found++
 		}
 	}

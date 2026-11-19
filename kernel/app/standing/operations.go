@@ -110,12 +110,12 @@ func Operations(providers Providers) ([]app.Operation, error) {
 	var ops []app.Operation
 	bindings := []func() error{
 		func() error {
-			return bind(&ops, "standing_list", true, func(ctx context.Context, _ RequestInput) (ListOutput, error) {
+			return bind(&ops, opapi.StandingList, true, func(ctx context.Context, _ RequestInput) (ListOutput, error) {
 				return providers.Service(ctx).List(ctx, ListInput{})
 			})
 		},
 		func() error {
-			return bind(&ops, "standing_add", false, func(ctx context.Context, in RequestInput) (OrderOutput, error) {
+			return bind(&ops, opapi.StandingAdd, false, func(ctx context.Context, in RequestInput) (OrderOutput, error) {
 				if len(in.Order) == 0 {
 					return OrderOutput{}, errors.New("args.order required")
 				}
@@ -132,7 +132,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bind(&ops, "standing_edit", false, func(ctx context.Context, in RequestInput) (EditOutput, error) {
+			return bind(&ops, opapi.StandingEdit, false, func(ctx context.Context, in RequestInput) (EditOutput, error) {
 				patch, err := requestEdit(in)
 				if err != nil {
 					return EditOutput{}, err
@@ -141,7 +141,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bind(&ops, "standing_set_enabled", false, func(ctx context.Context, in RequestInput) (OrderOutput, error) {
+			return bind(&ops, opapi.StandingSetEnabled, false, func(ctx context.Context, in RequestInput) (OrderOutput, error) {
 				id, err := requestID(in.ID)
 				if err != nil {
 					return OrderOutput{}, err
@@ -152,7 +152,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bind(&ops, "standing_remove", false, func(ctx context.Context, in RequestInput) (RemoveOutput, error) {
+			return bind(&ops, opapi.StandingRemove, false, func(ctx context.Context, in RequestInput) (RemoveOutput, error) {
 				id, err := requestID(in.ID)
 				if err != nil {
 					return RemoveOutput{}, err
@@ -161,7 +161,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bind(&ops, "standing_why", true, func(ctx context.Context, in RequestInput) (WhyOutput, error) {
+			return bind(&ops, opapi.StandingWhy, true, func(ctx context.Context, in RequestInput) (WhyOutput, error) {
 				id, err := requestID(in.ID)
 				if err != nil {
 					return WhyOutput{}, err
@@ -170,7 +170,7 @@ func Operations(providers Providers) ([]app.Operation, error) {
 			})
 		},
 		func() error {
-			return bind(&ops, "standing_fire", false, func(ctx context.Context, in RequestInput) (FireOutput, error) {
+			return bind(&ops, opapi.StandingFire, false, func(ctx context.Context, in RequestInput) (FireOutput, error) {
 				id, err := requestID(in.ID)
 				if err != nil {
 					return FireOutput{}, err

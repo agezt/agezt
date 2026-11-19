@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/kernel/app/files"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/platform/rollbackstore"
 )
@@ -106,7 +107,7 @@ func (s *Server) handleRollbackApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if cp.Kind == rollbackCheckpointKindFile {
-		result, err := s.client.Call(r.Context(), controlplane.CmdFileRestore, map[string]any{"id": cp.ID})
+		result, err := s.client.Call(r.Context(), opapi.FileRestore, map[string]any{"id": cp.ID})
 		if err != nil {
 			status := http.StatusBadGateway
 			message := err.Error()

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -33,7 +33,7 @@ func TestPulse_StreamsEvents(t *testing.T) {
 	)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- c.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe,
+		errCh <- c.StreamUntilCancel(ctx, opapi.PulseSubscribe,
 			map[string]any{"pattern": ">"},
 			func(e *event.Event) {
 				if seen.Add(1) == 1 {
@@ -107,7 +107,7 @@ func TestPulse_FiltersByKind(t *testing.T) {
 	)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- c.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe,
+		errCh <- c.StreamUntilCancel(ctx, opapi.PulseSubscribe,
 			map[string]any{
 				"pattern": ">",
 				"kinds":   []any{string(event.KindTaskCompleted)},
@@ -158,7 +158,7 @@ func TestPulse_ContextCancelExitsCleanly(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- c.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe,
+		errCh <- c.StreamUntilCancel(ctx, opapi.PulseSubscribe,
 			map[string]any{"pattern": ">"},
 			func(*event.Event) {})
 	}()
@@ -189,7 +189,7 @@ func TestPulse_DefaultPatternMatchesAll(t *testing.T) {
 	got := make(chan struct{}, 1)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- c.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe,
+		errCh <- c.StreamUntilCancel(ctx, opapi.PulseSubscribe,
 			nil, // no args at all → server defaults pattern=">"
 			func(*event.Event) {
 				select {
@@ -236,7 +236,7 @@ func TestPulse_IdleStreamIsNotKilledByReadTimeout(t *testing.T) {
 	// the handler stays open and the cancel below is what ends it.
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- c.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe,
+		errCh <- c.StreamUntilCancel(ctx, opapi.PulseSubscribe,
 			map[string]any{"pattern": ">"},
 			func(e *event.Event) {})
 	}()

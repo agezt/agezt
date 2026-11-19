@@ -22,7 +22,7 @@ import (
 )
 
 func TestSteerNativeTypedRegistry(t *testing.T) {
-	for _, cmd := range []string{CmdCancelRun, CmdRunPause, CmdRunResume, CmdRunStep, CmdRunSteer, CmdRunIntervene} {
+	for _, cmd := range []string{opapi.CancelRun, opapi.RunPause, opapi.RunResume, opapi.RunStep, opapi.RunSteer, opapi.RunIntervene} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -114,15 +114,15 @@ func TestSteerNativeRoutesToTheCallersKernel(t *testing.T) {
 		args       map[string]any
 		want       string
 	}{
-		{"primary", CmdRunPause, map[string]any{"correlation": pCorr}, `"ok":true`},
-		{"primary", CmdRunPause, map[string]any{"correlation": tCorr}, `"ok":false`},
-		{"primary", CmdRunPause, map[string]any{"correlation": tCorr, "tenant": "acme"}, `"ok":true`},
-		{tenantToken, CmdRunResume, map[string]any{"correlation": tCorr, "tenant": "acme"}, `"ok":true`},
-		{tenantToken, CmdRunStep, map[string]any{"correlation": pCorr, "tenant": "acme"}, `"ok":false`},
-		{tenantToken, CmdRunSteer, map[string]any{"correlation": tCorr, "tenant": "acme", "directive": "focus", "mode": "note"}, `"accepted":true,"correlation":"` + tCorr + `","mode":"note"`},
-		{"primary", CmdRunIntervene, map[string]any{"correlation": pCorr, "primitive": "halt", "idempotency_key": "k1"}, `"accepted":true`},
-		{tenantToken, CmdCancelRun, map[string]any{"correlation": pCorr, "tenant": "acme"}, `"cancelled":false`},
-		{"primary", CmdCancelRun, map[string]any{"correlation": tCorr, "tenant": 3}, `"error":"args.tenant must be a string"`},
+		{"primary", opapi.RunPause, map[string]any{"correlation": pCorr}, `"ok":true`},
+		{"primary", opapi.RunPause, map[string]any{"correlation": tCorr}, `"ok":false`},
+		{"primary", opapi.RunPause, map[string]any{"correlation": tCorr, "tenant": "acme"}, `"ok":true`},
+		{tenantToken, opapi.RunResume, map[string]any{"correlation": tCorr, "tenant": "acme"}, `"ok":true`},
+		{tenantToken, opapi.RunStep, map[string]any{"correlation": pCorr, "tenant": "acme"}, `"ok":false`},
+		{tenantToken, opapi.RunSteer, map[string]any{"correlation": tCorr, "tenant": "acme", "directive": "focus", "mode": "note"}, `"accepted":true,"correlation":"` + tCorr + `","mode":"note"`},
+		{"primary", opapi.RunIntervene, map[string]any{"correlation": pCorr, "primitive": "halt", "idempotency_key": "k1"}, `"accepted":true`},
+		{tenantToken, opapi.CancelRun, map[string]any{"correlation": pCorr, "tenant": "acme"}, `"cancelled":false`},
+		{"primary", opapi.CancelRun, map[string]any{"correlation": tCorr, "tenant": 3}, `"error":"args.tenant must be a string"`},
 	} {
 		if line := call(c.token, c.cmd, c.args); !strings.Contains(line, c.want) {
 			t.Fatalf("%s %v: %s", c.cmd, c.args, line)

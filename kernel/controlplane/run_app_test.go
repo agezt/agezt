@@ -5,6 +5,7 @@ package controlplane
 import (
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"strings"
 	"testing"
 
@@ -40,7 +41,7 @@ func runKernel(t *testing.T) *runtime.Kernel {
 // TestRunIsATypedOperation: the run command is app-owned, audited, tenant
 // routed and streams — the same wire the native handler had.
 func TestRunIsATypedOperation(t *testing.T) {
-	wire, exists := commandRegistry[CmdRun]
+	wire, exists := commandRegistry[opapi.Run]
 	if !exists {
 		t.Fatal("run is not registered")
 	}
@@ -55,7 +56,7 @@ func TestRunIsATypedOperation(t *testing.T) {
 	}
 	found := 0
 	for _, operation := range registeredAppOperations() {
-		if operation.Spec().Name == CmdRun {
+		if operation.Spec().Name == opapi.Run {
 			found++
 		}
 	}
@@ -70,7 +71,7 @@ func TestRunDryRunAnswersWithThePlan(t *testing.T) {
 	k := runKernel(t)
 	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
-	responses := callAppHost(t, s, Request{ID: "q1", Cmd: CmdRun, Token: "primary", Args: map[string]any{
+	responses := callAppHost(t, s, Request{ID: "q1", Cmd: opapi.Run, Token: "primary", Args: map[string]any{
 		"intent":  "what is the weather",
 		"dry_run": true,
 	}})
@@ -108,7 +109,7 @@ func TestRunAnswersWithTheRun(t *testing.T) {
 	k := runKernel(t)
 	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
-	responses := callAppHost(t, s, Request{ID: "q1", Cmd: CmdRun, Token: "primary", Args: map[string]any{
+	responses := callAppHost(t, s, Request{ID: "q1", Cmd: opapi.Run, Token: "primary", Args: map[string]any{
 		"intent": "say hi",
 	}})
 	var result map[string]any
@@ -137,7 +138,7 @@ func TestRunRefusesAMissingIntent(t *testing.T) {
 	k := runKernel(t)
 	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
-	resp := callAppHost(t, s, Request{ID: "q1", Cmd: CmdRun, Token: "primary", Args: map[string]any{}})[0]
+	resp := callAppHost(t, s, Request{ID: "q1", Cmd: opapi.Run, Token: "primary", Args: map[string]any{}})[0]
 	if resp.Type != RespError || !strings.Contains(resp.Error, "args.intent required") {
 		t.Fatalf("response = %+v", resp)
 	}
@@ -149,7 +150,7 @@ func TestRunRejectsAMistypedDryRun(t *testing.T) {
 	k := runKernel(t)
 	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
-	resp := callAppHost(t, s, Request{ID: "q1", Cmd: CmdRun, Token: "primary", Args: map[string]any{
+	resp := callAppHost(t, s, Request{ID: "q1", Cmd: opapi.Run, Token: "primary", Args: map[string]any{
 		"intent":  "say hi",
 		"dry_run": "true",
 	}})[0]
@@ -164,7 +165,7 @@ func TestRunRejectsAMistypedTenant(t *testing.T) {
 	k := runKernel(t)
 	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
-	resp := callAppHost(t, s, Request{ID: "q1", Cmd: CmdRun, Token: "primary", Args: map[string]any{
+	resp := callAppHost(t, s, Request{ID: "q1", Cmd: opapi.Run, Token: "primary", Args: map[string]any{
 		"intent": "say hi",
 		"tenant": 7,
 	}})[0]
@@ -179,7 +180,7 @@ func TestRunWireShapeIsFlat(t *testing.T) {
 	k := runKernel(t)
 	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
-	responses := callAppHost(t, s, Request{ID: "q1", Cmd: CmdRun, Token: "primary", Args: map[string]any{
+	responses := callAppHost(t, s, Request{ID: "q1", Cmd: opapi.Run, Token: "primary", Args: map[string]any{
 		"intent": "say hi",
 	}})
 	var result map[string]any

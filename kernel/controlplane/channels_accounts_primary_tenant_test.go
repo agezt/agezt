@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/settings"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -17,7 +17,7 @@ func TestChannelAccountsNativeTenantDenialBeforePersistenceAuditAndProvider(t *t
 	k, _, _, dir, registry := startPairWithTenants(t, p)
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
-	for _, command := range []string{controlplane.CmdChannelAccountSet, controlplane.CmdChannelAccountRemove} {
+	for _, command := range []string{opapi.ChannelAccountSet, opapi.ChannelAccountRemove} {
 		if _, err := client.Call(context.Background(), command, map[string]any{"tenant": "acme", "kind": "email", "label": "work", "name": "AGEZT_EMAIL_SMTP_ADDR", "value": "replacement"}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
 			t.Fatal(command, err)
 		}

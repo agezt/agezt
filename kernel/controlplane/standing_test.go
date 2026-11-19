@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/standing"
@@ -21,7 +22,7 @@ func TestStanding_CRUDRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	// Add a cron-triggered order.
-	add, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.StandingAdd, map[string]any{
 		"order": map[string]any{
 			"name":       "portfolio watch",
 			"triggers":   []any{map[string]any{"type": "cron", "schedule": "0 8 * * *"}},
@@ -42,14 +43,14 @@ func TestStanding_CRUDRoundTrip(t *testing.T) {
 	}
 
 	// An invalid order is rejected.
-	if _, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.StandingAdd, map[string]any{
 		"order": map[string]any{"name": ""},
 	}); err == nil {
 		t.Error("adding an invalid order should error")
 	}
 
 	// List shows it.
-	list, err := c.Call(ctx, controlplane.CmdStandingList, nil)
+	list, err := c.Call(ctx, opapi.StandingList, nil)
 	if err != nil {
 		t.Fatalf("standing_list: %v", err)
 	}
@@ -58,7 +59,7 @@ func TestStanding_CRUDRoundTrip(t *testing.T) {
 	}
 
 	// Pause it.
-	pause, err := c.Call(ctx, controlplane.CmdStandingSetEnabled, map[string]any{"id": id, "enabled": false})
+	pause, err := c.Call(ctx, opapi.StandingSetEnabled, map[string]any{"id": id, "enabled": false})
 	if err != nil {
 		t.Fatalf("standing pause: %v", err)
 	}
@@ -68,7 +69,7 @@ func TestStanding_CRUDRoundTrip(t *testing.T) {
 	}
 
 	// Remove it.
-	rm, err := c.Call(ctx, controlplane.CmdStandingRemove, map[string]any{"id": id})
+	rm, err := c.Call(ctx, opapi.StandingRemove, map[string]any{"id": id})
 	if err != nil {
 		t.Fatalf("standing remove: %v", err)
 	}
@@ -98,7 +99,7 @@ func TestStanding_Edit(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	add, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.StandingAdd, map[string]any{
 		"order": map[string]any{
 			"name":       "watch",
 			"triggers":   []any{map[string]any{"type": "cron", "schedule": "0 8 * * *"}},
@@ -111,7 +112,7 @@ func TestStanding_Edit(t *testing.T) {
 	}
 	id, _ := add["order"].(map[string]any)["id"].(string)
 
-	edit, err := c.Call(ctx, controlplane.CmdStandingEdit, map[string]any{
+	edit, err := c.Call(ctx, opapi.StandingEdit, map[string]any{
 		"id": id, "name": "renamed", "plan": "new plan", "mode": "ask", "assure": float64(2), "cooldown_sec": float64(1800),
 	})
 	if err != nil {
@@ -139,7 +140,7 @@ func TestStanding_Edit(t *testing.T) {
 	}
 
 	// List reflects the persisted edit.
-	list, _ := c.Call(ctx, controlplane.CmdStandingList, nil)
+	list, _ := c.Call(ctx, opapi.StandingList, nil)
 	orders, _ := list["orders"].([]any)
 	if len(orders) != 1 || orders[0].(map[string]any)["name"] != "renamed" {
 		t.Errorf("list does not show the edit: %v", list)
@@ -158,7 +159,7 @@ func TestStanding_Edit(t *testing.T) {
 	}
 
 	// Editing an unknown id reports updated:false (not an error).
-	miss, err := c.Call(ctx, controlplane.CmdStandingEdit, map[string]any{"id": "nope", "name": "x"})
+	miss, err := c.Call(ctx, opapi.StandingEdit, map[string]any{"id": "nope", "name": "x"})
 	if err != nil {
 		t.Fatalf("edit unknown id errored: %v", err)
 	}
@@ -187,12 +188,12 @@ func TestStandingList_IncludesFrequencyWarnings(t *testing.T) {
 			"cooldown_sec": float64(3600),
 		},
 	} {
-		if _, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{"order": order}); err != nil {
+		if _, err := c.Call(ctx, opapi.StandingAdd, map[string]any{"order": order}); err != nil {
 			t.Fatalf("standing add %s: %v", order["name"], err)
 		}
 	}
 
-	list, err := c.Call(ctx, controlplane.CmdStandingList, nil)
+	list, err := c.Call(ctx, opapi.StandingList, nil)
 	if err != nil {
 		t.Fatalf("standing list: %v", err)
 	}
@@ -217,30 +218,30 @@ func TestStandingList_IncludesFrequencyWarnings(t *testing.T) {
 func TestStandingAgentMustBeDirectCallable(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "lead", "soul": "Lead.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("lead add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "worker", "parent_agent": "lead", "direct_callable": false},
 	}); err != nil {
 		t.Fatalf("worker add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "old", "soul": "Old.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("old add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentRetire, map[string]any{"ref": "old"}); err != nil {
+	if _, err := c.Call(ctx, opapi.AgentRetire, map[string]any{"ref": "old"}); err != nil {
 		t.Fatalf("old retire: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "paused", "soul": "Paused.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("paused add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentSetEnabled, map[string]any{"ref": "paused", "enabled": false}); err != nil {
+	if _, err := c.Call(ctx, opapi.AgentSetEnabled, map[string]any{"ref": "paused", "enabled": false}); err != nil {
 		t.Fatalf("paused disable: %v", err)
 	}
 
@@ -251,31 +252,31 @@ func TestStandingAgentMustBeDirectCallable(t *testing.T) {
 			"triggers": []any{map[string]any{"type": "cron", "schedule": "0 8 * * *"}},
 		}
 	}
-	if _, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{"order": validOrder("ghost")}); err == nil || !strings.Contains(err.Error(), "unknown standing agent") {
+	if _, err := c.Call(ctx, opapi.StandingAdd, map[string]any{"order": validOrder("ghost")}); err == nil || !strings.Contains(err.Error(), "unknown standing agent") {
 		t.Fatalf("unknown standing agent err = %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{"order": validOrder("old")}); err == nil || !strings.Contains(err.Error(), "is retired") {
+	if _, err := c.Call(ctx, opapi.StandingAdd, map[string]any{"order": validOrder("old")}); err == nil || !strings.Contains(err.Error(), "is retired") {
 		t.Fatalf("retired standing agent err = %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{"order": validOrder("paused")}); err == nil || !strings.Contains(err.Error(), "is paused") {
+	if _, err := c.Call(ctx, opapi.StandingAdd, map[string]any{"order": validOrder("paused")}); err == nil || !strings.Contains(err.Error(), "is paused") {
 		t.Fatalf("paused standing agent err = %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{"order": validOrder("worker")}); err == nil || !strings.Contains(err.Error(), "managed sub-agent") {
+	if _, err := c.Call(ctx, opapi.StandingAdd, map[string]any{"order": validOrder("worker")}); err == nil || !strings.Contains(err.Error(), "managed sub-agent") {
 		t.Fatalf("managed standing agent err = %v", err)
 	}
 
-	add, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{"order": validOrder("lead")})
+	add, err := c.Call(ctx, opapi.StandingAdd, map[string]any{"order": validOrder("lead")})
 	if err != nil {
 		t.Fatalf("standing add with direct agent: %v", err)
 	}
 	id, _ := add["order"].(map[string]any)["id"].(string)
-	if _, err := c.Call(ctx, controlplane.CmdStandingEdit, map[string]any{"id": id, "agent": "worker"}); err == nil || !strings.Contains(err.Error(), "managed sub-agent") {
+	if _, err := c.Call(ctx, opapi.StandingEdit, map[string]any{"id": id, "agent": "worker"}); err == nil || !strings.Contains(err.Error(), "managed sub-agent") {
 		t.Fatalf("edit to managed standing agent err = %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdStandingEdit, map[string]any{"id": id, "agent": "paused"}); err == nil || !strings.Contains(err.Error(), "is paused") {
+	if _, err := c.Call(ctx, opapi.StandingEdit, map[string]any{"id": id, "agent": "paused"}); err == nil || !strings.Contains(err.Error(), "is paused") {
 		t.Fatalf("edit to paused standing agent err = %v", err)
 	}
-	edit, err := c.Call(ctx, controlplane.CmdStandingEdit, map[string]any{"id": id, "agent": ""})
+	edit, err := c.Call(ctx, opapi.StandingEdit, map[string]any{"id": id, "agent": ""})
 	if err != nil {
 		t.Fatalf("edit clear standing agent: %v", err)
 	}
@@ -287,12 +288,12 @@ func TestStandingAgentMustBeDirectCallable(t *testing.T) {
 func TestStandingEnable_ValidatesBoundAgentState(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "ops", "soul": "Operate.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("agent add: %v", err)
 	}
-	add, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.StandingAdd, map[string]any{
 		"order": map[string]any{
 			"name":     "ops mailbox",
 			"agent":    "ops",
@@ -303,36 +304,36 @@ func TestStandingEnable_ValidatesBoundAgentState(t *testing.T) {
 		t.Fatalf("standing add: %v", err)
 	}
 	id, _ := add["order"].(map[string]any)["id"].(string)
-	if _, err := c.Call(ctx, controlplane.CmdStandingSetEnabled, map[string]any{"id": id, "enabled": false}); err != nil {
+	if _, err := c.Call(ctx, opapi.StandingSetEnabled, map[string]any{"id": id, "enabled": false}); err != nil {
 		t.Fatalf("standing pause: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentSetEnabled, map[string]any{"ref": "ops", "enabled": false}); err != nil {
+	if _, err := c.Call(ctx, opapi.AgentSetEnabled, map[string]any{"ref": "ops", "enabled": false}); err != nil {
 		t.Fatalf("agent pause: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdStandingSetEnabled, map[string]any{"id": id, "enabled": true}); err == nil || !strings.Contains(err.Error(), "is paused") {
+	if _, err := c.Call(ctx, opapi.StandingSetEnabled, map[string]any{"id": id, "enabled": true}); err == nil || !strings.Contains(err.Error(), "is paused") {
 		t.Fatalf("enable standing bound to paused agent err = %v, want paused", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentSetEnabled, map[string]any{"ref": "ops", "enabled": true}); err != nil {
+	if _, err := c.Call(ctx, opapi.AgentSetEnabled, map[string]any{"ref": "ops", "enabled": true}); err != nil {
 		t.Fatalf("agent resume: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentRetire, map[string]any{"ref": "ops"}); err != nil {
+	if _, err := c.Call(ctx, opapi.AgentRetire, map[string]any{"ref": "ops"}); err != nil {
 		t.Fatalf("agent retire: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdStandingSetEnabled, map[string]any{"id": id, "enabled": true}); err == nil || !strings.Contains(err.Error(), "is retired") {
+	if _, err := c.Call(ctx, opapi.StandingSetEnabled, map[string]any{"id": id, "enabled": true}); err == nil || !strings.Contains(err.Error(), "is retired") {
 		t.Fatalf("enable standing bound to retired agent err = %v, want retired", err)
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "lead", "soul": "Lead.", "model": "m"},
 	}); err != nil {
 		t.Fatalf("lead add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "worker", "parent_agent": "lead", "direct_callable": false},
 	}); err != nil {
 		t.Fatalf("worker add: %v", err)
 	}
-	managed, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{
+	managed, err := c.Call(ctx, opapi.StandingAdd, map[string]any{
 		"order": map[string]any{
 			"name":     "lead mailbox",
 			"agent":    "lead",
@@ -343,7 +344,7 @@ func TestStandingEnable_ValidatesBoundAgentState(t *testing.T) {
 		t.Fatalf("standing add lead: %v", err)
 	}
 	managedID, _ := managed["order"].(map[string]any)["id"].(string)
-	if _, err := c.Call(ctx, controlplane.CmdStandingSetEnabled, map[string]any{"id": managedID, "enabled": false}); err != nil {
+	if _, err := c.Call(ctx, opapi.StandingSetEnabled, map[string]any{"id": managedID, "enabled": false}); err != nil {
 		t.Fatalf("standing pause managed test order: %v", err)
 	}
 	if _, err := k.Standing().Update(managedID, func(o *standing.Order) {
@@ -351,10 +352,10 @@ func TestStandingEnable_ValidatesBoundAgentState(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("force corrupt standing agent: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdStandingSetEnabled, map[string]any{"id": managedID, "enabled": true}); err == nil || !strings.Contains(err.Error(), "managed sub-agent") {
+	if _, err := c.Call(ctx, opapi.StandingSetEnabled, map[string]any{"id": managedID, "enabled": true}); err == nil || !strings.Contains(err.Error(), "managed sub-agent") {
 		t.Fatalf("enable standing bound to managed sub-agent err = %v, want managed sub-agent", err)
 	}
-	list, err := c.Call(ctx, controlplane.CmdStandingList, nil)
+	list, err := c.Call(ctx, opapi.StandingList, nil)
 	if err != nil {
 		t.Fatalf("standing list: %v", err)
 	}
@@ -384,7 +385,7 @@ func TestStanding_Why(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	ctx := context.Background()
 
-	add, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.StandingAdd, map[string]any{
 		"order": map[string]any{
 			"name":     "watch",
 			"triggers": []any{map[string]any{"type": "event", "subject": "github.>"}},
@@ -395,11 +396,11 @@ func TestStanding_Why(t *testing.T) {
 	}
 	o, _ := add["order"].(map[string]any)
 	id, _ := o["id"].(string)
-	if _, err := c.Call(ctx, controlplane.CmdStandingSetEnabled, map[string]any{"id": id, "enabled": false}); err != nil {
+	if _, err := c.Call(ctx, opapi.StandingSetEnabled, map[string]any{"id": id, "enabled": false}); err != nil {
 		t.Fatalf("pause: %v", err)
 	}
 
-	why, err := c.Call(ctx, controlplane.CmdStandingWhy, map[string]any{"id": id})
+	why, err := c.Call(ctx, opapi.StandingWhy, map[string]any{"id": id})
 	if err != nil {
 		t.Fatalf("why: %v", err)
 	}
@@ -416,14 +417,14 @@ func TestStanding_Why(t *testing.T) {
 		}
 	}
 	// An unknown id yields no events.
-	none, _ := c.Call(ctx, controlplane.CmdStandingWhy, map[string]any{"id": "nope"})
+	none, _ := c.Call(ctx, opapi.StandingWhy, map[string]any{"id": "nope"})
 	if cnt, _ := none["count"].(float64); cnt != 0 {
 		t.Errorf("why for unknown id = %v events, want 0", cnt)
 	}
 }
 
 // TestStandingFire (M765) drives the on-demand fire path: with a fire callback
-// wired, CmdStandingFire looks up the order and invokes it; an unknown id is a
+// wired, opapi.StandingFire looks up the order and invokes it; an unknown id is a
 // no-op; and without a callback wired the daemon reports it unavailable.
 func TestStandingFire(t *testing.T) {
 	// The fire callback is a PROVIDER: the adapter asks when it needs one, and
@@ -435,7 +436,7 @@ func TestStandingFire(t *testing.T) {
 	ctx := context.Background()
 
 	// Seed an order to fire.
-	add, err := c.Call(ctx, controlplane.CmdStandingAdd, map[string]any{
+	add, err := c.Call(ctx, opapi.StandingAdd, map[string]any{
 		"order": map[string]any{
 			"name":     "nightly digest",
 			"triggers": []any{map[string]any{"type": "cron", "schedule": "0 8 * * *"}},
@@ -449,7 +450,7 @@ func TestStandingFire(t *testing.T) {
 	id, _ := o["id"].(string)
 
 	// Before wiring, firing reports unavailable.
-	if _, err := c.Call(ctx, controlplane.CmdStandingFire, map[string]any{"id": id}); err == nil {
+	if _, err := c.Call(ctx, opapi.StandingFire, map[string]any{"id": id}); err == nil {
 		t.Error("fire with no callback wired should error")
 	}
 
@@ -457,7 +458,7 @@ func TestStandingFire(t *testing.T) {
 	var firedID string
 	fire = func(fid string) bool { firedID = fid; return true }
 
-	res, err := c.Call(ctx, controlplane.CmdStandingFire, map[string]any{"id": id})
+	res, err := c.Call(ctx, opapi.StandingFire, map[string]any{"id": id})
 	if err != nil {
 		t.Fatalf("standing_fire: %v", err)
 	}
@@ -468,12 +469,12 @@ func TestStandingFire(t *testing.T) {
 		t.Errorf("callback got id %q, want %q", firedID, id)
 	}
 
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "lead", "model": "m"},
 	}); err != nil {
 		t.Fatalf("lead add: %v", err)
 	}
-	if _, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{
+	if _, err := c.Call(ctx, opapi.AgentAdd, map[string]any{
 		"profile": map[string]any{"slug": "worker", "parent_agent": "lead", "direct_callable": false},
 	}); err != nil {
 		t.Fatalf("worker add: %v", err)
@@ -484,7 +485,7 @@ func TestStandingFire(t *testing.T) {
 		t.Fatalf("force corrupt standing agent: %v", err)
 	}
 	firedID = ""
-	if _, err := c.Call(ctx, controlplane.CmdStandingFire, map[string]any{"id": id}); err == nil ||
+	if _, err := c.Call(ctx, opapi.StandingFire, map[string]any{"id": id}); err == nil ||
 		!strings.Contains(err.Error(), "managed sub-agent") {
 		t.Fatalf("standing fire bound to managed agent err = %v, want managed sub-agent", err)
 	}
@@ -493,7 +494,7 @@ func TestStandingFire(t *testing.T) {
 	}
 
 	// An unknown id is a no-op (fired:false), not an error.
-	res2, err := c.Call(ctx, controlplane.CmdStandingFire, map[string]any{"id": "nope"})
+	res2, err := c.Call(ctx, opapi.StandingFire, map[string]any{"id": "nope"})
 	if err != nil {
 		t.Fatalf("standing_fire(unknown): %v", err)
 	}

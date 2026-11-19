@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // TestRateLimitLog_CursorPagination proves that the route registered in
@@ -22,11 +22,11 @@ func TestRateLimitLog_CursorPagination(t *testing.T) {
 
 	// Three stream calls → at least two "rate.limited" events land in the journal.
 	for i := 0; i < 3; i++ {
-		_, _ = c.Stream(context.Background(), controlplane.CmdRun, map[string]any{"intent": "x"}, nil)
+		_, _ = c.Stream(context.Background(), opapi.Run, map[string]any{"intent": "x"}, nil)
 	}
 
 	// Page 1 (limit 1) → exactly one row + a non-empty next_cursor.
-	p1, err := c.Call(context.Background(), controlplane.CmdRateLimitLog,
+	p1, err := c.Call(context.Background(), opapi.RateLimitLog,
 		map[string]any{"limit": float64(1)})
 	if err != nil {
 		t.Fatalf("page 1 Call: %v", err)
@@ -41,7 +41,7 @@ func TestRateLimitLog_CursorPagination(t *testing.T) {
 	}
 
 	// Page 2 → page 1's same row must NOT reappear (cursor filter works).
-	p2, err := c.Call(context.Background(), controlplane.CmdRateLimitLog,
+	p2, err := c.Call(context.Background(), opapi.RateLimitLog,
 		map[string]any{"limit": float64(1), "cursor": cursor})
 	if err != nil {
 		t.Fatalf("page 2 Call: %v", err)
@@ -69,10 +69,10 @@ func TestRateLimitLog_MalformedCursorFallsBack(t *testing.T) {
 	k, _, c, _ := startPair(t, gov)
 	gov.SetBus(k.Bus())
 	for i := 0; i < 2; i++ {
-		_, _ = c.Stream(context.Background(), controlplane.CmdRun, map[string]any{"intent": "x"}, nil)
+		_, _ = c.Stream(context.Background(), opapi.Run, map[string]any{"intent": "x"}, nil)
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdRateLimitLog,
+	res, err := c.Call(context.Background(), opapi.RateLimitLog,
 		map[string]any{"cursor": "definitely-not-valid", "limit": float64(10)})
 	if err != nil {
 		t.Fatalf("Call with bad cursor errored: %v", err)

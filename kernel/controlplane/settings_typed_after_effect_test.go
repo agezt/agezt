@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
 	appsettings "github.com/agezt/agezt/kernel/app/settings"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/kernel/settings"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -48,7 +49,7 @@ func (w closingSettingsWriter) Unregister(id string, force bool) (bool, error) {
 	return existed, w.k.Journal().Close()
 }
 func TestSettingsTypedNativeJournalFailureAfterEffectsDoesNotRollback(t *testing.T) {
-	for _, command := range []string{CmdConfigSet, CmdConfigSchemaRegister, CmdConfigSchemaUnregister} {
+	for _, command := range []string{opapi.ConfigSet, opapi.ConfigSchemaRegister, opapi.ConfigSchemaUnregister} {
 		t.Run(command, func(t *testing.T) {
 			dir := t.TempDir()
 			p := mock.New()
@@ -74,11 +75,11 @@ func TestSettingsTypedNativeJournalFailureAfterEffectsDoesNotRollback(t *testing
 			}
 			args := map[string]any{}
 			switch command {
-			case CmdConfigSet:
+			case opapi.ConfigSet:
 				args = map[string]any{"name": "AGEZT_W45C_END_PUBLIC", "value": "owned"}
-			case CmdConfigSchemaRegister:
+			case opapi.ConfigSchemaRegister:
 				args = map[string]any{"section": map[string]any{"id": "owned-add", "name": "Added", "fields": []any{map[string]any{"env": "AGEZT_W45C_END_ADDED", "type": "text"}}}}
-			case CmdConfigSchemaUnregister:
+			case opapi.ConfigSchemaUnregister:
 				args = map[string]any{"id": "owned-seed"}
 			}
 			a, b := net.Pipe()
@@ -99,14 +100,14 @@ func TestSettingsTypedNativeJournalFailureAfterEffectsDoesNotRollback(t *testing
 			json.Unmarshal(line, &reply)
 			effect := false
 			switch command {
-			case CmdConfigSet:
+			case opapi.ConfigSet:
 				store := settings.NewStore(dir)
 				store.Load()
 				value, ok := store.Get("AGEZT_W45C_END_PUBLIC")
 				effect = ok && value == "owned"
-			case CmdConfigSchemaRegister:
+			case opapi.ConfigSchemaRegister:
 				_, effect = reg.FieldByEnv("AGEZT_W45C_END_ADDED")
-			case CmdConfigSchemaUnregister:
+			case opapi.ConfigSchemaUnregister:
 				_, present := reg.FieldByEnv("AGEZT_W45C_END_PUBLIC")
 				effect = !present
 			}

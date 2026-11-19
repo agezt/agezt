@@ -29,25 +29,25 @@ func TestChannelAccountNativeTypedMetadata(t *testing.T) {
 	seen := map[string]int{}
 	for _, op := range registeredAppOperations() {
 		s := op.Spec()
-		if s.Name != CmdChannelAccountSet && s.Name != CmdChannelAccountRemove {
+		if s.Name != opapi.ChannelAccountSet && s.Name != opapi.ChannelAccountRemove {
 			continue
 		}
 		seen[s.Name]++
 		wire := commandRegistry[s.Name]
 		input, output, path := reflect.TypeFor[appchannels.SetAccountRequest](), reflect.TypeFor[appchannels.SetAccountOutput](), "/api/channel/account/set"
-		if s.Name == CmdChannelAccountRemove {
+		if s.Name == opapi.ChannelAccountRemove {
 			input, output, path = reflect.TypeFor[appchannels.RemoveAccountRequest](), reflect.TypeFor[appchannels.RemoveAccountOutput](), "/api/channel/account/remove"
 		}
 		if !wire.AppOwned || wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.HTTP.Method != "POST" || s.HTTP.Path != path || s.Input != input || s.Output != output {
 			t.Fatal(s, wire)
 		}
 	}
-	if len(seen) != 2 || seen[CmdChannelAccountSet] != 1 || seen[CmdChannelAccountRemove] != 1 {
+	if len(seen) != 2 || seen[opapi.ChannelAccountSet] != 1 || seen[opapi.ChannelAccountRemove] != 1 {
 		t.Fatal(seen)
 	}
 }
 func TestChannelAccountNativeMandatoryAuditAndCanceledAdmission(t *testing.T) {
-	for _, command := range []string{CmdChannelAccountSet, CmdChannelAccountRemove} {
+	for _, command := range []string{opapi.ChannelAccountSet, opapi.ChannelAccountRemove} {
 		for _, gate := range []string{"closed-journal", "canceled"} {
 			t.Run(command+"/"+gate, func(t *testing.T) {
 				dir := t.TempDir()

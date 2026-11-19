@@ -18,7 +18,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdEdictLog(args []string, stdout, stderr io.Writer) int {
@@ -127,7 +127,7 @@ func cmdEdictLog(args []string, stdout, stderr io.Writer) int {
 	if tenant != "" {
 		callArgs["tenant"] = tenant
 	}
-	res, err := c.Call(ctx, controlplane.CmdEdictLog, callArgs)
+	res, err := c.Call(ctx, opapi.EdictLog, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s edict log: %v\n", brand.CLI, err)
 		return 1

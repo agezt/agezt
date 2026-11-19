@@ -24,7 +24,7 @@ func TestChannelACPNativeMetadataComesFromTypedSpec(t *testing.T) {
 		t.Fatal(acpInventoryOperations)
 	}
 	spec := acpInventoryOperations[0].Spec()
-	wire := commandRegistry[CmdACPAgents]
+	wire := commandRegistry[opapi.ACPAgents]
 	if !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || spec.Input != reflect.TypeFor[appchannels.ACPInput]() || spec.Output != reflect.TypeFor[appchannels.ACPOutput]() || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.HTTP.Method != "GET" || spec.HTTP.Path != "/api/acp/agents" {
 		t.Fatal(spec, wire)
 	}
@@ -60,7 +60,7 @@ func TestChannelACPNativeTypedIntegerTerminalAndCanceledAdmission(t *testing.T) 
 			a.SetDeadline(time.Now().Add(3 * time.Second))
 			done := make(chan struct{})
 			go func() { defer close(done); s.handleConn(ctx, b) }()
-			raw, _ := json.Marshal(Request{ID: "owned", Cmd: CmdACPAgents, Token: "primary", Args: map[string]any{"force": true, "unknown": 42}})
+			raw, _ := json.Marshal(Request{ID: "owned", Cmd: opapi.ACPAgents, Token: "primary", Args: map[string]any{"force": true, "unknown": 42}})
 			if _, err := a.Write(append(raw, 10)); err != nil {
 				t.Fatal(err)
 			}

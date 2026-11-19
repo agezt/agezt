@@ -16,7 +16,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdSkillWorkshop is the Forge Workshop operator surface: proposals are still
@@ -26,39 +26,15 @@ func cmdSkillWorkshop(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		return skillWorkshopUsage(stderr)
 	}
-	switch args[0] {
-	case "list", "ls":
-		return cmdSkillWorkshopList(args[1:], stdout, stderr)
-	case "inspect", "show", "get":
-		return cmdSkillWorkshopInspect(args[1:], stdout, stderr)
-	case "scan":
-		return cmdSkillWorkshopScan(args[1:], stdout, stderr)
-	case "diff":
-		return cmdSkillDiff(args[1:], stdout, stderr)
-	case "curate", "curator":
-		return cmdSkillWorkshopCurate(args[1:], stdout, stderr)
-	case "apply", "promote":
-		return cmdSkillWorkshopApply(args[1:], stdout, stderr)
-	case "reject":
-		return cmdSkillWorkshopReject(args[1:], stdout, stderr)
-	case "quarantine":
-		return cmdSkillWorkshopQuarantine(args[1:], stdout, stderr)
-	case "propose", "import":
-		return cmdSkillImport(args[1:], stdout, stderr)
-	case "propose-create", "create":
-		return cmdSkillWorkshopProposeCreate(args[1:], stdout, stderr)
-	case "propose-update", "update":
-		return cmdSkillWorkshopProposeUpdate(args[1:], stdout, stderr)
-	case "-h", "--help", "help":
-		return skillWorkshopUsage(stdout)
-	default:
-		fmt.Fprintf(stderr, "%s skill workshop: unknown subcommand %q\n", brand.CLI, args[0])
-		return skillWorkshopUsage(stderr)
+	if sub, ok := cliSkillWorkshop.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s skill workshop: unknown subcommand %q\n", brand.CLI, args[0])
+	return skillWorkshopUsage(stderr)
 }
 
 func skillWorkshopUsage(w io.Writer) int {
-	fmt.Fprintf(w, "usage: %s skill workshop <list|inspect|scan|diff|curate|apply|reject|quarantine|propose|propose-create|propose-update>\n", brand.CLI)
+	fmt.Fprintf(w, "usage: %s skill workshop %s\n", brand.CLI, cliSkillWorkshop.synopsis())
 	fmt.Fprintf(w, "  list [--json]                                      pending draft/shadow proposals\n")
 	fmt.Fprintf(w, "  inspect <id> [--json]                              proposal, lineage, resources, and lifecycle history\n")
 	fmt.Fprintf(w, "  scan <id> [--json]                                 deterministic risk scan for a proposal\n")
@@ -93,7 +69,7 @@ func cmdSkillWorkshopList(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdSkillList, nil)
+	res, err := c.Call(ctx, opapi.SkillList, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s skill workshop list: %v\n", brand.CLI, err)
 		return 1
@@ -156,7 +132,7 @@ func cmdSkillWorkshopInspect(args []string, stdout, stderr io.Writer) int {
 		}
 		return 3
 	}
-	history, err := c.Call(ctx, controlplane.CmdSkillHistory, map[string]any{"id": str(sk["id"])})
+	history, err := c.Call(ctx, opapi.SkillHistory, map[string]any{"id": str(sk["id"])})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s skill workshop inspect: history: %v\n", brand.CLI, err)
 		return 1

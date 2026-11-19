@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 
 	"github.com/agezt/agezt/kernel/cadence"
 	"github.com/agezt/agezt/kernel/contract/toolapi"
@@ -27,7 +28,7 @@ import (
 func TestStatus_ReturnsExpectedShape(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
-	res, err := c.Call(context.Background(), controlplane.CmdStatus, nil)
+	res, err := c.Call(context.Background(), opapi.Status, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -104,7 +105,7 @@ func TestStatus_SchedulesAndTenants(t *testing.T) {
 		t.Fatalf("Acquire: %v", err)
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdStatus, nil)
+	res, err := c.Call(context.Background(), opapi.Status, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -173,7 +174,7 @@ func TestStatus_SchedulesReportsRunningFirings(t *testing.T) {
 		t.Fatalf("schedule firing did not start, running=%d", eng.RunningCount())
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdStatus, nil)
+	res, err := c.Call(context.Background(), opapi.Status, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -192,7 +193,7 @@ func TestStatus_Channels(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
 	// None configured → no channels key at all.
-	res, err := c.Call(context.Background(), controlplane.CmdStatus, nil)
+	res, err := c.Call(context.Background(), opapi.Status, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -208,7 +209,7 @@ func TestStatus_Channels(t *testing.T) {
 			{Kind: "discord", Inbound: false, Addr: "127.0.0.1:8850", Allowlist: 2},
 		}}
 	})
-	res, err = wired.Call(context.Background(), controlplane.CmdStatus, nil)
+	res, err = wired.Call(context.Background(), opapi.Status, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -239,7 +240,7 @@ func TestStatus_DelegationCeilings(t *testing.T) {
 		SubAgentMaxSpendMicrocents: 500_000_000, // $0.50
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdStatus, nil)
+	res, err := c.Call(context.Background(), opapi.Status, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -269,7 +270,7 @@ func TestStatus_ReflectsHaltAndJournalGrowth(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
 	// Halt via direct kernel access — exercises the same code path
-	// CmdHalt would, without the overhead of a second round-trip.
+	// opapi.Halt would, without the overhead of a second round-trip.
 	k.LifecycleService().Halt()
 
 	// Publish one event so journal_head moves off zero. This is the
@@ -283,7 +284,7 @@ func TestStatus_ReflectsHaltAndJournalGrowth(t *testing.T) {
 		t.Fatalf("Publish: %v", err)
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdStatus, nil)
+	res, err := c.Call(context.Background(), opapi.Status, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}

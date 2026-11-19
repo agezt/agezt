@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -30,7 +30,7 @@ func TestRun_PerRunCostCap_EndToEnd(t *testing.T) {
 
 	t.Run("over cap → cost_budget failure", func(t *testing.T) {
 		k, _, c, _ := startPair(t, mkProv())
-		_, err := c.Stream(context.Background(), controlplane.CmdRun,
+		_, err := c.Stream(context.Background(), opapi.Run,
 			map[string]any{"intent": "expensive", "max_cost": float64(10_000_000)}, // $0.01
 			func(*event.Event) {})
 		if err == nil {
@@ -56,7 +56,7 @@ func TestRun_PerRunCostCap_EndToEnd(t *testing.T) {
 
 	t.Run("uncapped run completes", func(t *testing.T) {
 		_, _, c, _ := startPair(t, mkProv())
-		res, err := c.Stream(context.Background(), controlplane.CmdRun,
+		res, err := c.Stream(context.Background(), opapi.Run,
 			map[string]any{"intent": "expensive but uncapped"}, func(*event.Event) {})
 		if err != nil {
 			t.Fatalf("uncapped run errored: %v", err)
@@ -68,7 +68,7 @@ func TestRun_PerRunCostCap_EndToEnd(t *testing.T) {
 
 	t.Run("malformed max_cost is a usage error", func(t *testing.T) {
 		_, _, c, _ := startPair(t, mkProv())
-		_, err := c.Stream(context.Background(), controlplane.CmdRun,
+		_, err := c.Stream(context.Background(), opapi.Run,
 			map[string]any{"intent": "x", "max_cost": "lots"}, func(*event.Event) {})
 		if err == nil || !strings.Contains(err.Error(), "max_cost must be a number") {
 			t.Errorf("err = %v; want a max_cost type error", err)
@@ -93,7 +93,7 @@ func TestRun_CostCapInertAdvisory(t *testing.T) {
 	t.Run("unpriced model with a cap → advisory journaled", func(t *testing.T) {
 		// The offline mock is unpriced ("mock": {0,0} in the price table).
 		k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-		if _, err := c.Stream(context.Background(), controlplane.CmdRun,
+		if _, err := c.Stream(context.Background(), opapi.Run,
 			map[string]any{"intent": "x", "max_cost": float64(500_000_000)}, func(*event.Event) {}); err != nil {
 			t.Fatalf("run errored: %v", err)
 		}
@@ -104,7 +104,7 @@ func TestRun_CostCapInertAdvisory(t *testing.T) {
 
 	t.Run("no cap → no advisory", func(t *testing.T) {
 		k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-		if _, err := c.Stream(context.Background(), controlplane.CmdRun,
+		if _, err := c.Stream(context.Background(), opapi.Run,
 			map[string]any{"intent": "x"}, func(*event.Event) {}); err != nil {
 			t.Fatalf("run errored: %v", err)
 		}

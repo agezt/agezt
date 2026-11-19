@@ -14,7 +14,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdApprovals(args []string, stdout, stderr io.Writer) int {
@@ -48,7 +48,7 @@ func cmdApprovals(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdApprovals, nil)
+	res, err := c.Call(ctx, opapi.Approvals, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s approvals: %v\n", brand.CLI, err)
 		return 1
@@ -116,7 +116,7 @@ func cmdDecide(decision string, args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdDecide, map[string]any{
+	res, err := c.Call(ctx, opapi.Decide, map[string]any{
 		"id": id, "decision": decision, "reason": reason,
 	})
 	if err != nil {

@@ -22,10 +22,10 @@ func TestChannelSendNativeTypedMetadata(t *testing.T) {
 		t.Fatal(channelSendOperations)
 	}
 	s := channelSendOperations[0].Spec()
-	wire := commandRegistry[CmdSend]
+	wire := commandRegistry[opapi.Send]
 	count := 0
 	for _, op := range registeredAppOperations() {
-		if op.Spec().Name == CmdSend {
+		if op.Spec().Name == opapi.Send {
 			count++
 		}
 	}
@@ -64,7 +64,7 @@ func TestChannelSendNativeAuditAndCanceledBeforeSender(t *testing.T) {
 			a.SetDeadline(time.Now().Add(3 * time.Second))
 			done := make(chan struct{})
 			go func() { defer close(done); s.handleConn(ctx, b) }()
-			raw, _ := json.Marshal(Request{ID: "owned", Cmd: CmdSend, Token: "primary", Args: map[string]any{"channel": "slack", "to": "owned", "text": "fixture"}})
+			raw, _ := json.Marshal(Request{ID: "owned", Cmd: opapi.Send, Token: "primary", Args: map[string]any{"channel": "slack", "to": "owned", "text": "fixture"}})
 			if _, err := a.Write(append(raw, 10)); err != nil {
 				t.Fatal(err)
 			}

@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/skills/skill"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 // TestSkillGet_ReturnsBodyForDiff confirms the data path `agt skill diff` (M118)
-// relies on: CmdSkillGet returns each skill's body, so the CLI can fetch two and
+// relies on: opapi.SkillGet returns each skill's body, so the CLI can fetch two and
 // diff them. (The diff math itself is unit-tested in cmd/agt.)
 func TestSkillGet_ReturnsBodyForDiff(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
@@ -32,7 +32,7 @@ func TestSkillGet_ReturnsBodyForDiff(t *testing.T) {
 		{a.ID, "line two"},
 		{b.ID, "line three"},
 	} {
-		res, err := c.Call(ctx, controlplane.CmdSkillGet, map[string]any{"id": tc.id})
+		res, err := c.Call(ctx, opapi.SkillGet, map[string]any{"id": tc.id})
 		if err != nil {
 			t.Fatalf("get %s: %v", tc.id, err)
 		}

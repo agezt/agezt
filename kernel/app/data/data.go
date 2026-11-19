@@ -417,37 +417,37 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 		input              []string
 		build              func(opapi.Spec) (app.Operation, error)
 	}{
-		{"data_collections", "GET", "/api/data/collections", true, reflect.TypeFor[CollectionsOutput](), nil, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataCollections, "GET", "/api/data/collections", true, reflect.TypeFor[CollectionsOutput](), nil, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in CollectionsRequest) (CollectionsOutput, error) {
 				return provider(ctx).Collections(ctx, in)
 			})
 		}},
-		{"data_records", "GET", "/api/data/records", true, reflect.TypeFor[RecordsOutput](), []string{"collection", "search", "sort", "desc", "limit", "offset"}, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataRecords, "GET", "/api/data/records", true, reflect.TypeFor[RecordsOutput](), []string{"collection", "search", "sort", "desc", "limit", "offset"}, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in RecordsRequest) (RecordsOutput, error) {
 				return provider(ctx).Records(ctx, in)
 			})
 		}},
-		{"data_insert", "POST", "/api/data/insert", false, reflect.TypeFor[RecordOutput](), []string{"collection", "record"}, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataInsert, "POST", "/api/data/insert", false, reflect.TypeFor[RecordOutput](), []string{"collection", "record"}, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in InsertRequest) (RecordOutput, error) {
 				return provider(ctx).Insert(ctx, in)
 			})
 		}},
-		{"data_update", "POST", "/api/data/update", false, reflect.TypeFor[RecordOutput](), []string{"collection", "id", "record"}, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataUpdate, "POST", "/api/data/update", false, reflect.TypeFor[RecordOutput](), []string{"collection", "id", "record"}, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in UpdateRequest) (RecordOutput, error) {
 				return provider(ctx).Update(ctx, in)
 			})
 		}},
-		{"data_delete", "POST", "/api/data/delete", false, reflect.TypeFor[DeleteOutput](), []string{"collection", "id"}, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataDelete, "POST", "/api/data/delete", false, reflect.TypeFor[DeleteOutput](), []string{"collection", "id"}, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in DeleteRequest) (DeleteOutput, error) {
 				return provider(ctx).Delete(ctx, in)
 			})
 		}},
-		{"data_create_collection", "", "", false, reflect.TypeFor[CreateOutput](), []string{"collection"}, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataCreateCollection, "", "", false, reflect.TypeFor[CreateOutput](), []string{"collection"}, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in CreateRequest) (CreateOutput, error) {
 				return provider(ctx).Create(ctx, in)
 			})
 		}},
-		{"data_drop_collection", "", "", false, reflect.TypeFor[DropOutput](), []string{"name"}, func(s opapi.Spec) (app.Operation, error) {
+		{opapi.DataDropCollection, "", "", false, reflect.TypeFor[DropOutput](), []string{"name"}, func(s opapi.Spec) (app.Operation, error) {
 			return app.NewOperation(s, func(ctx context.Context, in DropRequest) (DropOutput, error) { return provider(ctx).Drop(ctx, in) })
 		}},
 	}

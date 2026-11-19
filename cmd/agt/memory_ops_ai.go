@@ -20,7 +20,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdMemoryConsolidate(args []string, stdout, stderr io.Writer) int {
@@ -37,7 +37,7 @@ func cmdMemoryConsolidate(args []string, stdout, stderr io.Writer) int {
 	// Up to a handful of provider calls; generous but bounded.
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdMemoryConsolidate, nil)
+	res, err := c.Call(ctx, opapi.MemoryConsolidate, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s memory consolidate: %v\n", brand.CLI, err)
 		return 1
@@ -74,7 +74,7 @@ func cmdMemoryProfile(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdProfileRebuild, nil)
+	res, err := c.Call(ctx, opapi.ProfileRebuild, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s memory profile: %v\n", brand.CLI, err)
 		return 1
@@ -142,7 +142,7 @@ func cmdMemoryPrune(args []string, stdout, stderr io.Writer) int {
 	if days > 0 {
 		callArgs["older_than_days"] = days
 	}
-	res, err := c.Call(ctx, controlplane.CmdMemoryPrune, withTenant(tenant, callArgs))
+	res, err := c.Call(ctx, opapi.MemoryPrune, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s memory prune: %v\n", brand.CLI, err)
 		return 1
@@ -217,7 +217,7 @@ func cmdMemoryBulkForget(args []string, stdout, stderr io.Writer) int {
 	for i, id := range ids {
 		idAnys[i] = id
 	}
-	res, err := c.Call(ctx, controlplane.CmdMemoryBulkForget, withTenant(tenant, map[string]any{"ids": idAnys}))
+	res, err := c.Call(ctx, opapi.MemoryBulkForget, withTenant(tenant, map[string]any{"ids": idAnys}))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s memory bulk-forget: %v\n", brand.CLI, err)
 		return 1
@@ -289,7 +289,7 @@ func cmdMemoryFindRelated(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdMemoryFindRelated, withTenant(tenant, map[string]any{"id": seedID, "limit": limit}))
+	res, err := c.Call(ctx, opapi.MemoryFindRelated, withTenant(tenant, map[string]any{"id": seedID, "limit": limit}))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s memory find-related: %v\n", brand.CLI, err)
 		return 1

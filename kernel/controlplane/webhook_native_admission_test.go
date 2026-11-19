@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"net"
 	"testing"
 	"time"
@@ -23,7 +24,7 @@ func TestWebhookNativeCanceledBeforeJournal(t *testing.T) {
 	defer k.Close()
 	s := NewServer(binding.ScopeFromKernel(k, t.TempDir()))
 	s.token = "primary"
-	for _, cmd := range []string{CmdWebhookLog, CmdWebhookStats} {
+	for _, cmd := range []string{opapi.WebhookLog, opapi.WebhookStats} {
 		t.Run(cmd, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()

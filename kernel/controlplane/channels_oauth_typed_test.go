@@ -25,8 +25,8 @@ func TestChannelOAuthNativeTypedMetadata(t *testing.T) {
 		t.Fatal(channelOAuthOperations)
 	}
 	seen := map[string]int{}
-	inputs := map[string]reflect.Type{CmdChannelOAuthStart: reflect.TypeFor[appchannels.OAuthStartRequest](), CmdChannelOAuthCallback: reflect.TypeFor[appchannels.OAuthCallbackRequest](), CmdChannelOAuthStatus: reflect.TypeFor[appchannels.OAuthStatusRequest]()}
-	outputs := map[string]reflect.Type{CmdChannelOAuthStart: reflect.TypeFor[appchannels.OAuthStartOutput](), CmdChannelOAuthCallback: reflect.TypeFor[appchannels.OAuthCallbackOutput](), CmdChannelOAuthStatus: reflect.TypeFor[appchannels.OAuthStatusOutput]()}
+	inputs := map[string]reflect.Type{opapi.ChannelOAuthStart: reflect.TypeFor[appchannels.OAuthStartRequest](), opapi.ChannelOAuthCallback: reflect.TypeFor[appchannels.OAuthCallbackRequest](), opapi.ChannelOAuthStatus: reflect.TypeFor[appchannels.OAuthStatusRequest]()}
+	outputs := map[string]reflect.Type{opapi.ChannelOAuthStart: reflect.TypeFor[appchannels.OAuthStartOutput](), opapi.ChannelOAuthCallback: reflect.TypeFor[appchannels.OAuthCallbackOutput](), opapi.ChannelOAuthStatus: reflect.TypeFor[appchannels.OAuthStatusOutput]()}
 	for _, op := range registeredAppOperations() {
 		s := op.Spec()
 		if _, ok := inputs[s.Name]; !ok {
@@ -34,7 +34,7 @@ func TestChannelOAuthNativeTypedMetadata(t *testing.T) {
 		}
 		seen[s.Name]++
 		wire := commandRegistry[s.Name]
-		if !wire.AppOwned || wire.ReadOnly != (s.Name == CmdChannelOAuthStatus) || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Input != inputs[s.Name] || s.Output != outputs[s.Name] {
+		if !wire.AppOwned || wire.ReadOnly != (s.Name == opapi.ChannelOAuthStatus) || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Input != inputs[s.Name] || s.Output != outputs[s.Name] {
 			t.Fatal(s, wire)
 		}
 	}
@@ -48,7 +48,7 @@ func TestChannelOAuthNativeTypedMetadata(t *testing.T) {
 	}
 }
 func TestChannelOAuthNativeAuditAndCanceledAdmissionBeforeService(t *testing.T) {
-	for _, command := range []string{CmdChannelOAuthStart, CmdChannelOAuthCallback, CmdChannelOAuthStatus} {
+	for _, command := range []string{opapi.ChannelOAuthStart, opapi.ChannelOAuthCallback, opapi.ChannelOAuthStatus} {
 		for _, gate := range []string{"closed-journal", "canceled"} {
 			t.Run(command+"/"+gate, func(t *testing.T) {
 				t.Setenv(creds.AutoEncryptEnvVar, "off")
@@ -120,7 +120,7 @@ func TestChannelOAuthNativeAuditAndCanceledAdmissionBeforeService(t *testing.T) 
 				}
 				after, _ := os.ReadFile(vault.Path)
 				flow, _ := s.channelOAuthState.Flow("owned")
-				denied := command != CmdChannelOAuthStatus || gate == "canceled"
+				denied := command != opapi.ChannelOAuthStatus || gate == "canceled"
 				if denied {
 					if reply.Type != RespError || providers != 0 || gate == "canceled" && reply.Error != "context canceled" {
 						t.Fatal(reply, providers)

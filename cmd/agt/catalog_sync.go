@@ -13,6 +13,7 @@ import (
 
 	"github.com/agezt/agezt/internal/brand"
 	"github.com/agezt/agezt/internal/paths"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
@@ -73,7 +74,7 @@ func cmdCatalogSync(args []string, stdout, stderr io.Writer) int {
 			if url != "" {
 				callArgs["url"] = url
 			}
-			res, cerr := c.Call(ctx, controlplane.CmdCatalogSync, callArgs)
+			res, cerr := c.Call(ctx, opapi.CatalogSync, callArgs)
 			cancel()
 			if cerr == nil {
 				return renderSyncResult(res, "daemon (reloaded in place)", asJSON, stdout)

@@ -26,7 +26,7 @@ func TestChannelInventoryNativeTypedMetadata(t *testing.T) {
 		t.Fatal(channelInventoryOperations)
 	}
 	spec := channelInventoryOperations[0].Spec()
-	wire := commandRegistry[CmdChannelList]
+	wire := commandRegistry[opapi.ChannelList]
 	if !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || spec.Input != reflect.TypeFor[appchannels.ListInput]() || spec.Output != reflect.TypeFor[appchannels.ListOutput]() || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.HTTP.Method != "GET" || spec.HTTP.Path != "/api/channels" {
 		t.Fatal(spec, wire)
 	}
@@ -69,7 +69,7 @@ func TestChannelInventoryNativeMediaMemberOrder(t *testing.T) {
 	a.SetDeadline(time.Now().Add(3 * time.Second))
 	done := make(chan struct{})
 	go func() { defer close(done); s.handleConn(context.Background(), b) }()
-	raw, _ := json.Marshal(Request{ID: "owned", Cmd: CmdChannelList, Token: "primary"})
+	raw, _ := json.Marshal(Request{ID: "owned", Cmd: opapi.ChannelList, Token: "primary"})
 	if _, err := a.Write(append(raw, 10)); err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestChannelInventoryNativeCanceledAdmissionBeforeSelectedReader(t *testing.
 	a.SetDeadline(time.Now().Add(3 * time.Second))
 	done := make(chan struct{})
 	go func() { defer close(done); s.handleConn(ctx, b) }()
-	raw, _ := json.Marshal(Request{ID: "owned", Cmd: CmdChannelList, Token: "primary", Args: map[string]any{"unknown": true}})
+	raw, _ := json.Marshal(Request{ID: "owned", Cmd: opapi.ChannelList, Token: "primary", Args: map[string]any{"unknown": true}})
 	if _, err := a.Write(append(raw, 10)); err != nil {
 		t.Fatal(err)
 	}

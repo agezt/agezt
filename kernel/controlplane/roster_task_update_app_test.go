@@ -23,7 +23,7 @@ func TestAgentTaskUpdateNativeTypedRegistry(t *testing.T) {
 	found := 0
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()
-		if spec.Name != CmdAgentTaskUpdate {
+		if spec.Name != opapi.AgentTaskUpdate {
 			continue
 		}
 		found++
@@ -31,7 +31,7 @@ func TestAgentTaskUpdateNativeTypedRegistry(t *testing.T) {
 			t.Fatalf("agent_task_update metadata=%+v", spec)
 		}
 	}
-	wire, exists := commandRegistry[CmdAgentTaskUpdate]
+	wire, exists := commandRegistry[opapi.AgentTaskUpdate]
 	if found != 1 || !exists || !wire.AppOwned || wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 		t.Fatalf("agent_task_update native wire found=%d metadata=%+v", found, wire)
 	}
@@ -55,7 +55,7 @@ func TestAgentTaskUpdateNativeWire(t *testing.T) {
 		a.SetDeadline(time.Now().Add(3 * time.Second))
 		done := make(chan struct{})
 		go func() { defer close(done); s.handleConn(context.Background(), b) }()
-		raw, _ := json.Marshal(Request{ID: "task", Cmd: CmdAgentTaskUpdate, Token: "primary", Args: args})
+		raw, _ := json.Marshal(Request{ID: "task", Cmd: opapi.AgentTaskUpdate, Token: "primary", Args: args})
 		if _, err := a.Write(append(raw, 10)); err != nil {
 			t.Fatal(err)
 		}

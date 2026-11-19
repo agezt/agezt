@@ -203,8 +203,8 @@ func TestPlanAuthoringOperations(t *testing.T) {
 	for i, want := range []struct {
 		name, path string
 	}{
-		{"plan_generate", "/api/plan/generate"},
-		{"plan_refine", "/api/plan/refine"},
+		{opapi.PlanGenerate, "/api/plan/generate"},
+		{opapi.PlanRefine, "/api/plan/refine"},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(reflect.TypeFor[PlanOutput](), false)

@@ -18,7 +18,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdAgentTombstone(args []string, stdout, stderr io.Writer) int {
@@ -41,7 +41,7 @@ func cmdAgentTombstone(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdAgentTombstone, map[string]any{"ref": ref})
+	res, err := c.Call(ctx, opapi.AgentTombstone, map[string]any{"ref": ref})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s agent tombstone: %v\n", brand.CLI, err)
 		return 1
@@ -140,7 +140,7 @@ func cmdAgentGraveyard(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdAgentGraveyard, reqArgs)
+	res, err := c.Call(ctx, opapi.AgentGraveyard, reqArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s agent graveyard: %v\n", brand.CLI, err)
 		return 1
@@ -190,7 +190,7 @@ func cmdAgentRetire(args []string, stdout, stderr io.Writer) int {
 	if len(args) > 1 {
 		req["reason"] = strings.Join(args[1:], " ")
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentRetire, req)
+	res, err := c.Call(ctx, opapi.AgentRetire, req)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s agent retire: %v\n", brand.CLI, err)
 		return 1
@@ -218,7 +218,7 @@ func cmdAgentRevive(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdAgentRevive, map[string]any{"ref": args[0]})
+	res, err := c.Call(ctx, opapi.AgentRevive, map[string]any{"ref": args[0]})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s agent revive: %v\n", brand.CLI, err)
 		return 1
@@ -247,10 +247,10 @@ func cmdAgentRemove(args []string, stdout, stderr io.Writer) int {
 	if len(cascade) > 0 {
 		payload["cascade"] = cascade
 	}
-	if impact, err := c.Call(ctx, controlplane.CmdAgentImpact, map[string]any{"ref": ref}); err == nil {
+	if impact, err := c.Call(ctx, opapi.AgentImpact, map[string]any{"ref": ref}); err == nil {
 		printAgentImpactSummary(stdout, impact)
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentRemove, payload)
+	res, err := c.Call(ctx, opapi.AgentRemove, payload)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s agent remove: %v\n", brand.CLI, err)
 		return 1

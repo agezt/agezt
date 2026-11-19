@@ -109,7 +109,7 @@ func RunOperations(provider func(context.Context) *RunService) ([]app.Operation,
 		"timeout":{},"tools":{},"max_cost":{},"execution_profile":{},"remote_peer":{},
 		"auto_approve_caps":{},"prompt_injection_trust":{},"assure":{},"dry_run":{}}}`)
 	run, err := app.NewStreamingOperation(opapi.Spec{
-		Name: "run", Stream: opapi.StreamEvents, OutputSchema: out, EmissionSchema: frames,
+		Name: opapi.Run, Stream: opapi.StreamEvents, OutputSchema: out, EmissionSchema: frames,
 		Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, AllowUnknownInput: true,
 		InputSchema: input,
 	}, func(ctx context.Context, in RunRequest, emit func(*event.Event) error) (RunOutput, error) {

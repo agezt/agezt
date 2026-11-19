@@ -288,32 +288,32 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "tenant_create", InputSchema: idSchema}, func(ctx context.Context, in IDRequest) (CreateOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.TenantCreate, InputSchema: idSchema}, func(ctx context.Context, in IDRequest) (CreateOutput, error) {
 				return provider(ctx).Create(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "tenant_list", ReadOnly: true, InputSchema: none}, func(ctx context.Context, in ListRequest) (ListOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.TenantList, ReadOnly: true, InputSchema: none}, func(ctx context.Context, in ListRequest) (ListOutput, error) {
 				return provider(ctx).List(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "tenant_release", InputSchema: idSchema}, func(ctx context.Context, in IDRequest) (ReleaseOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.TenantRelease, InputSchema: idSchema}, func(ctx context.Context, in IDRequest) (ReleaseOutput, error) {
 				return provider(ctx).Release(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "tenant_remove", InputSchema: idSchema}, func(ctx context.Context, in IDRequest) (RemoveOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.TenantRemove, InputSchema: idSchema}, func(ctx context.Context, in IDRequest) (RemoveOutput, error) {
 				return provider(ctx).Remove(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "tenant_token", InputSchema: idSchema}, func(ctx context.Context, in IDRequest) (TokenOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.TenantToken, InputSchema: idSchema}, func(ctx context.Context, in IDRequest) (TokenOutput, error) {
 				return provider(ctx).Token(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: "tenant_stats", ReadOnly: true, Tenancy: opapi.CallerTenant, InputSchema: none}, func(ctx context.Context, in ListRequest) (StatsOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.TenantStats, ReadOnly: true, Tenancy: opapi.CallerTenant, InputSchema: none}, func(ctx context.Context, in ListRequest) (StatsOutput, error) {
 				return provider(ctx).Stats(ctx, in)
 			})
 		},

@@ -18,11 +18,11 @@ func TestWorldCommandMetadataComesFromCompleteAppRegistry(t *testing.T) {
 	if len(worldOperations) != 9 {
 		t.Fatalf("world operation count=%d", len(worldOperations))
 	}
-	readOnly := map[string]bool{CmdWorldGet: true, CmdWorldList: true, CmdWorldResolve: true, CmdWorldNeighbors: true, CmdWorldLog: true}
+	readOnly := map[string]bool{opapi.WorldGet: true, opapi.WorldList: true, opapi.WorldResolve: true, opapi.WorldNeighbors: true, opapi.WorldLog: true}
 	for _, operation := range worldOperations {
 		spec := operation.Spec()
 		wire := commandRegistry[spec.Name]
-		tenant := spec.Name == CmdWorldLog
+		tenant := spec.Name == opapi.WorldLog
 		if !wire.AppOwned || wire.ReadOnly != readOnly[spec.Name] || wire.TenantAllowed != tenant || wire.TenantRouted != tenant || wire.Streaming != StreamNone {
 			t.Fatalf("world native metadata=%+v", wire)
 		}
@@ -41,7 +41,7 @@ func TestWorldNativeMutationSharesOperationCorrelation(t *testing.T) {
 	t.Cleanup(func() { k.Close() })
 	server := NewServer(binding.ScopeFromKernel(k, dir))
 	server.token = "primary"
-	response := callAppHost(t, server, Request{ID: "world-correlation", Cmd: CmdWorldAdd, Token: "primary", Args: map[string]any{"name": "owned correlation fixture"}})[0]
+	response := callAppHost(t, server, Request{ID: "world-correlation", Cmd: opapi.WorldAdd, Token: "primary", Args: map[string]any{"name": "owned correlation fixture"}})[0]
 	if response.Type != RespResult {
 		t.Fatalf("graph mutation=%+v", response)
 	}
@@ -70,7 +70,7 @@ func TestWorldNativeMutationSharesOperationCorrelation(t *testing.T) {
 }
 
 func TestWorldAppSocketRequiresAuditBeforeMutations(t *testing.T) {
-	for _, command := range []string{CmdWorldAdd, CmdWorldEdit, CmdWorldRelate, CmdWorldForget} {
+	for _, command := range []string{opapi.WorldAdd, opapi.WorldEdit, opapi.WorldRelate, opapi.WorldForget} {
 		t.Run(command, func(t *testing.T) {
 			dir := t.TempDir()
 			k, err := runtime.Open(withWorld(t, runtime.Config{BaseDir: dir, Provider: mock.New()}))

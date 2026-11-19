@@ -6,14 +6,14 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
 func TestInboxEmpty(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	res, err := c.Call(context.Background(), controlplane.CmdInbox, nil)
+	res, err := c.Call(context.Background(), opapi.Inbox, nil)
 	if err != nil {
 		t.Fatalf("inbox: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestInboxGroupsByCorrelation(t *testing.T) {
 		Payload: map[string]any{"channel_kind": "telegram", "channel_id": "42", "text": "hello back"},
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdInbox, nil)
+	res, err := c.Call(context.Background(), opapi.Inbox, nil)
 	if err != nil {
 		t.Fatalf("inbox: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestInboxFilterByChannel(t *testing.T) {
 	}
 
 	// Unfiltered: all three.
-	res, err := c.Call(context.Background(), controlplane.CmdInbox, nil)
+	res, err := c.Call(context.Background(), opapi.Inbox, nil)
 	if err != nil {
 		t.Fatalf("inbox: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestInboxFilterByChannel(t *testing.T) {
 	}
 
 	// Filtered to discord (case-insensitive): exactly one, the discord thread.
-	res, err = c.Call(context.Background(), controlplane.CmdInbox, map[string]any{"channel": "DISCORD"})
+	res, err = c.Call(context.Background(), opapi.Inbox, map[string]any{"channel": "DISCORD"})
 	if err != nil {
 		t.Fatalf("inbox(channel=discord): %v", err)
 	}
@@ -99,7 +99,7 @@ func TestInboxFilterByChannel(t *testing.T) {
 	}
 
 	// A channel with no messages → empty.
-	res, _ = c.Call(context.Background(), controlplane.CmdInbox, map[string]any{"channel": "matrix"})
+	res, _ = c.Call(context.Background(), opapi.Inbox, map[string]any{"channel": "matrix"})
 	if threads, _ := res["threads"].([]any); len(threads) != 0 {
 		t.Errorf("unknown channel filter should be empty, got %d", len(threads))
 	}
@@ -114,7 +114,7 @@ func TestInboxNewestFirst(t *testing.T) {
 			Payload: map[string]any{"channel_id": id, "text": id},
 		})
 	}
-	res, _ := c.Call(context.Background(), controlplane.CmdInbox, nil)
+	res, _ := c.Call(context.Background(), opapi.Inbox, nil)
 	threads, _ := res["threads"].([]any)
 	if len(threads) != 2 {
 		t.Fatalf("expected 2 threads, got %d", len(threads))
@@ -141,7 +141,7 @@ func TestInbox_CursorPaginatesByLastTSUnixMSDesc(t *testing.T) {
 		}
 	}
 
-	p1, err := c.Call(ctx, controlplane.CmdInbox, map[string]any{"limit": 2})
+	p1, err := c.Call(ctx, opapi.Inbox, map[string]any{"limit": 2})
 	if err != nil {
 		t.Fatalf("inbox p1: %v", err)
 	}
@@ -156,7 +156,7 @@ func TestInbox_CursorPaginatesByLastTSUnixMSDesc(t *testing.T) {
 		t.Fatalf("page 1 total wrong: %v", p1["total"])
 	}
 
-	p2, err := c.Call(ctx, controlplane.CmdInbox, map[string]any{
+	p2, err := c.Call(ctx, opapi.Inbox, map[string]any{
 		"limit": 2, "cursor": p1["next_cursor"],
 	})
 	if err != nil {
@@ -181,7 +181,7 @@ func TestInbox_CursorPaginatesByLastTSUnixMSDesc(t *testing.T) {
 		}
 	}
 
-	p3, err := c.Call(ctx, controlplane.CmdInbox, map[string]any{
+	p3, err := c.Call(ctx, opapi.Inbox, map[string]any{
 		"limit": 2, "cursor": p2["next_cursor"],
 	})
 	if err != nil {
@@ -208,7 +208,7 @@ func TestInbox_UnparseableCursorFallsBackToFirstPage(t *testing.T) {
 			t.Fatalf("publish: %v", err)
 		}
 	}
-	res, err := c.Call(ctx, controlplane.CmdInbox, map[string]any{
+	res, err := c.Call(ctx, opapi.Inbox, map[string]any{
 		"limit": 10, "cursor": "garbage",
 	})
 	if err != nil {

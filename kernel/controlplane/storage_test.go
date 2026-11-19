@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -27,7 +28,7 @@ func TestStorageStats_BreaksDownHomeDir(t *testing.T) {
 		t.Fatalf("Publish: %v", err)
 	}
 
-	res, err := c.Call(context.Background(), controlplane.CmdStorageStats, nil)
+	res, err := c.Call(context.Background(), opapi.StorageStats, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -62,7 +63,7 @@ func TestStorageStats_BreaksDownHomeDir(t *testing.T) {
 // works and free space is just flagged unavailable, mirroring disk_stats.
 func TestStorageStats_NoProbe(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	res, err := c.Call(context.Background(), controlplane.CmdStorageStats, nil)
+	res, err := c.Call(context.Background(), opapi.StorageStats, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}

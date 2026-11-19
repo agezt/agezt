@@ -54,10 +54,6 @@ func TestAllCommandsHelpPaths(t *testing.T) {
 				// We only assert it does not panic; exit code varies by command.
 				_ = cmd.Run([]string{flag}, &out, &errOut)
 			}
-			if cmd.HelpHandler != nil {
-				var out, errOut bytes.Buffer
-				_ = cmd.HelpHandler([]string{}, &out, &errOut)
-			}
 		})
 	}
 }

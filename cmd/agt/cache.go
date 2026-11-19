@@ -12,13 +12,13 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdCache implements `agt cache [--since <dur>] [--tenant <id>] [--json]` (M294)
 // — the prompt-cache savings view: tokens served from / written to the provider
 // cache and the microcents that saved versus paying the full input rate. The CLI
-// counterpart of the Web UI Cache panel; both proxy CmdCacheStats.
+// counterpart of the Web UI Cache panel; both proxy opapi.CacheStats.
 func cmdCache(args []string, stdout, stderr io.Writer) int {
 	tenant, args := extractTenantFlag(args)
 	asJSON := false
@@ -70,7 +70,7 @@ func cmdCache(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdCacheStats, withTenant(tenant, callArgs))
+	res, err := c.Call(ctx, opapi.CacheStats, withTenant(tenant, callArgs))
 	if err != nil {
 		fmt.Fprintf(stderr, "%s cache: %v\n", brand.CLI, err)
 		return 1

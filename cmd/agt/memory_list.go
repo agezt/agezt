@@ -19,7 +19,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdMemoryList implements `agt memory list [--json]`.
@@ -43,7 +43,7 @@ func cmdMemoryList(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdMemoryList, nil)
+	res, err := c.Call(ctx, opapi.MemoryList, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s memory list: %v\n", brand.CLI, err)
 		return 1
@@ -102,7 +102,7 @@ func cmdMemorySearch(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdMemorySearch, callArgs)
+	res, err := c.Call(ctx, opapi.MemorySearch, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s memory search: %v\n", brand.CLI, err)
 		return 1
@@ -154,7 +154,7 @@ func cmdMemoryGet(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdMemoryGet, map[string]any{"id": id})
+	res, err := c.Call(ctx, opapi.MemoryGet, map[string]any{"id": id})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s memory get: %v\n", brand.CLI, err)
 		return 1

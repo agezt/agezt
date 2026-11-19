@@ -203,12 +203,12 @@ func TestOperations(t *testing.T) {
 		tenancy  opapi.Tenancy
 		out      any
 	}{
-		{"tenant_create", false, opapi.Primary, CreateOutput{}},
-		{"tenant_list", true, opapi.Primary, ListOutput{Tenants: []Row{}}},
-		{"tenant_release", false, opapi.Primary, ReleaseOutput{}},
-		{"tenant_remove", false, opapi.Primary, RemoveOutput{}},
-		{"tenant_token", false, opapi.Primary, TokenOutput{}},
-		{"tenant_stats", true, opapi.CallerTenant, StatsOutput{Tenants: []StatsRow{{ID: "a", Error: new("x")}, {ID: "b", Runs: new(1), Completed: new(1), Failed: new(0), Active: new(0), SpentMicrocents: new(int64(2)), LastActivityUnixMS: new(int64(3))}}}},
+		{opapi.TenantCreate, false, opapi.Primary, CreateOutput{}},
+		{opapi.TenantList, true, opapi.Primary, ListOutput{Tenants: []Row{}}},
+		{opapi.TenantRelease, false, opapi.Primary, ReleaseOutput{}},
+		{opapi.TenantRemove, false, opapi.Primary, RemoveOutput{}},
+		{opapi.TenantToken, false, opapi.Primary, TokenOutput{}},
+		{opapi.TenantStats, true, opapi.CallerTenant, StatsOutput{Tenants: []StatsRow{{ID: "a", Error: new("x")}, {ID: "b", Runs: new(1), Completed: new(1), Failed: new(0), Active: new(0), SpentMicrocents: new(int64(2)), LastActivityUnixMS: new(int64(3))}}}},
 	} {
 		spec := ops[i].Spec()
 		if spec.Name != w.name || spec.ReadOnly != w.readOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != w.tenancy || !spec.AllowUnknownInput || spec.HTTP != (opapi.HTTP{}) || spec.Output != reflect.TypeOf(w.out) {

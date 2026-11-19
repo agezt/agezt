@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/artifactapi"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -35,7 +35,7 @@ func TestArtifactList_FilterAndAll(t *testing.T) {
 	putIndexed(t, k, "b.png", "image", "telegram", "corr-2", []byte("bravo"), 2000)
 
 	// Unfiltered: both entries.
-	res, err := c.Call(context.Background(), controlplane.CmdArtifactList, map[string]any{})
+	res, err := c.Call(context.Background(), opapi.ArtifactList, map[string]any{})
 	if err != nil {
 		t.Fatalf("artifact_list: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestArtifactList_FilterAndAll(t *testing.T) {
 	}
 
 	// Filter by kind.
-	res, err = c.Call(context.Background(), controlplane.CmdArtifactList, map[string]any{"kind": "image"})
+	res, err = c.Call(context.Background(), opapi.ArtifactList, map[string]any{"kind": "image"})
 	if err != nil {
 		t.Fatalf("artifact_list kind: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestArtifactList_FilterAndAll(t *testing.T) {
 	}
 
 	// Filter by source.
-	res, err = c.Call(context.Background(), controlplane.CmdArtifactList, map[string]any{"source": "run"})
+	res, err = c.Call(context.Background(), opapi.ArtifactList, map[string]any{"source": "run"})
 	if err != nil {
 		t.Fatalf("artifact_list source: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestArtifactList_FilterAndAll(t *testing.T) {
 	}
 
 	// Filter by corr.
-	res, err = c.Call(context.Background(), controlplane.CmdArtifactList, map[string]any{"corr": "corr-2"})
+	res, err = c.Call(context.Background(), opapi.ArtifactList, map[string]any{"corr": "corr-2"})
 	if err != nil {
 		t.Fatalf("artifact_list corr: %v", err)
 	}
@@ -77,14 +77,14 @@ func TestArtifactDelete_OKAndErrors(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 
 	// Missing id → error mentioning id.
-	if _, err := c.Call(context.Background(), controlplane.CmdArtifactDelete, map[string]any{}); err == nil {
+	if _, err := c.Call(context.Background(), opapi.ArtifactDelete, map[string]any{}); err == nil {
 		t.Error("delete with no id: expected error")
 	}
 
 	e := putIndexed(t, k, "gone.txt", "file", "run", "", []byte("delete-me"), 1000)
 
 	// Successful delete.
-	res, err := c.Call(context.Background(), controlplane.CmdArtifactDelete, map[string]any{"id": e.ID})
+	res, err := c.Call(context.Background(), opapi.ArtifactDelete, map[string]any{"id": e.ID})
 	if err != nil {
 		t.Fatalf("artifact_delete: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestArtifactCollect_DryRunAndReap(t *testing.T) {
 	putIndexed(t, k, "old2.txt", "tool-output", "run", "", []byte("old-two"), 2)
 
 	// Default: dry-run true, default older_than_days.
-	res, err := c.Call(context.Background(), controlplane.CmdArtifactCollect, map[string]any{})
+	res, err := c.Call(context.Background(), opapi.ArtifactCollect, map[string]any{})
 	if err != nil {
 		t.Fatalf("artifact_collect dry: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestArtifactCollect_DryRunAndReap(t *testing.T) {
 	}
 
 	// Explicit older_than_days + dry_run string form ("1").
-	res, err = c.Call(context.Background(), controlplane.CmdArtifactCollect, map[string]any{
+	res, err = c.Call(context.Background(), opapi.ArtifactCollect, map[string]any{
 		"older_than_days": float64(1), "dry_run": "true",
 	})
 	if err != nil {
@@ -130,7 +130,7 @@ func TestArtifactCollect_DryRunAndReap(t *testing.T) {
 	}
 
 	// Reap for real: dry_run=false.
-	res, err = c.Call(context.Background(), controlplane.CmdArtifactCollect, map[string]any{"dry_run": false})
+	res, err = c.Call(context.Background(), opapi.ArtifactCollect, map[string]any{"dry_run": false})
 	if err != nil {
 		t.Fatalf("artifact_collect reap: %v", err)
 	}

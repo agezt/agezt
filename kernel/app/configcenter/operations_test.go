@@ -128,7 +128,7 @@ func TestConfigCenterTypedNineMetadataContextAndAdmission(t *testing.T) {
 			t.Fatal("factory context lost")
 		}
 	}
-	if rf != 5 || wf != 4 || audit.begin != 4 || audit.end != 4 || !reflect.DeepEqual(audit.names, []string{"configcenter.set", "configcenter.delete", "configcenter.set-rating", "configcenter.access"}) {
+	if rf != 5 || wf != 4 || audit.begin != 4 || audit.end != 4 || !reflect.DeepEqual(audit.names, []string{opapi.ConfigCenterSet, "configcenter.delete", "configcenter.set-rating", "configcenter.access"}) {
 		t.Fatal(rf, wf, audit)
 	}
 	readCalls, writeCalls := len(rp.calls), len(wp.calls)

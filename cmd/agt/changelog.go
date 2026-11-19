@@ -13,7 +13,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdChangelog implements `agt changelog [N] [--since <dur>] [--json]` (SPEC-08
@@ -82,7 +82,7 @@ func cmdChangelog(args []string, stdout, stderr io.Writer) int {
 	if sinceMS > 0 {
 		callArgs["since_ms"] = sinceMS
 	}
-	res, err := c.Call(ctx, controlplane.CmdChangelog, callArgs)
+	res, err := c.Call(ctx, opapi.Changelog, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s changelog: %v\n", brand.CLI, err)
 		return 1

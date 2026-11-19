@@ -13,7 +13,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // estimateCostMicrocents returns the cost in microcents of inToks input + outToks
@@ -23,7 +23,7 @@ func estimateCostMicrocents(inMcPerMtok, outMcPerMtok, inToks, outToks int64) in
 	return (inMcPerMtok*inToks)/1_000_000 + (outMcPerMtok*outToks)/1_000_000
 }
 
-// findModelCost locates a model by id in a CmdCatalogList response, returning its
+// findModelCost locates a model by id in a opapi.CatalogList response, returning its
 // entry, the owning provider id, and whether it was found.
 func findModelCost(res map[string]any, modelID string) (entry map[string]any, provider string, found bool) {
 	provs, _ := res["providers"].([]any)
@@ -103,7 +103,7 @@ func cmdProviderCost(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdCatalogList, nil)
+	res, err := c.Call(ctx, opapi.CatalogList, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s provider cost: %v\n", brand.CLI, err)
 		return 1

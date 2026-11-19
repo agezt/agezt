@@ -35,7 +35,7 @@ func TestPluginTypedNativeCanceledAdmissionRejectsRead(t *testing.T) {
 	a.SetDeadline(time.Now().Add(3 * time.Second))
 	done := make(chan struct{})
 	go func() { defer close(done); s.handleConn(ctx, b) }()
-	raw, _ := json.Marshal(Request{ID: "owned", Cmd: CmdPluginList, Token: "primary", Args: map[string]any{"unknown": true, "tenant": "spoof"}})
+	raw, _ := json.Marshal(Request{ID: "owned", Cmd: opapi.PluginList, Token: "primary", Args: map[string]any{"unknown": true, "tenant": "spoof"}})
 	if _, err := a.Write(append(raw, 10)); err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestPluginTypedNativeOnePolicyAndSignature(t *testing.T) {
 	seen := 0
 	for _, op := range registeredAppOperations() {
 		sp := op.Spec()
-		if sp.Name != CmdPluginList {
+		if sp.Name != opapi.PluginList {
 			continue
 		}
 		wire, ok := commandRegistry[sp.Name]

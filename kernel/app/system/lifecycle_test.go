@@ -84,10 +84,10 @@ func TestLifecycleOperations(t *testing.T) {
 		http     opapi.HTTP
 		out      any
 	}{
-		{"halt", false, opapi.HTTP{Method: "POST", Path: "/api/halt"}, GateOutput{OK: true, Halted: true}},
-		{"resume", false, opapi.HTTP{Method: "POST", Path: "/api/resume"}, GateOutput{OK: true}},
-		{"journal_verify", true, opapi.HTTP{}, OKOutput{OK: true}},
-		{"shutdown", false, opapi.HTTP{}, OKOutput{OK: true}},
+		{opapi.Halt, false, opapi.HTTP{Method: "POST", Path: "/api/halt"}, GateOutput{OK: true, Halted: true}},
+		{opapi.Resume, false, opapi.HTTP{Method: "POST", Path: "/api/resume"}, GateOutput{OK: true}},
+		{opapi.JournalVerify, true, opapi.HTTP{}, OKOutput{OK: true}},
+		{opapi.Shutdown, false, opapi.HTTP{}, OKOutput{OK: true}},
 	} {
 		spec := ops[i].Spec()
 		if spec.Name != w.name || spec.ReadOnly != w.readOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.HTTP != w.http || spec.Output != reflect.TypeOf(w.out) {

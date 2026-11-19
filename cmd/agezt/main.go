@@ -1885,7 +1885,7 @@ func runDaemon(stdout, stderr io.Writer) int {
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	// Also block on the control-plane's shutdown channel so `agt
 	// shutdown` reaches the same orderly exit path as SIGTERM. The
-	// CmdShutdown handler ACKs the client first, then closes this
+	// opapi.Shutdown handler ACKs the client first, then closes this
 	// channel; main() unblocks here and drops into the existing
 	// halt-then-exit sequence.
 	select {

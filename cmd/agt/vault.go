@@ -37,24 +37,11 @@ func cmdVault(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s vault: subcommand required (status|encrypt|decrypt|rotate|migrate)\n", brand.CLI)
 		return 2
 	}
-	switch args[0] {
-	case "status":
-		return cmdVaultStatus(stdout, stderr)
-	case "encrypt":
-		return cmdVaultEncrypt(stdout, stderr)
-	case "decrypt":
-		return cmdVaultDecrypt(stdout, stderr)
-	case "rotate":
-		return cmdVaultRotate(stdout, stderr)
-	case "migrate":
-		return cmdVaultMigrate(stdout, stderr)
-	case "-h", "--help", "help":
-		printVaultHelp(stdout)
-		return 0
-	default:
-		fmt.Fprintf(stderr, "%s vault: unknown subcommand %q (status|encrypt|decrypt|rotate|migrate)\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliVault.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s vault: unknown subcommand %q (status|encrypt|decrypt|rotate|migrate)\n", brand.CLI, args[0])
+	return 2
 }
 
 func printVaultHelp(w io.Writer) {

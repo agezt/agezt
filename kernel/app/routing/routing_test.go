@@ -314,10 +314,10 @@ func TestOperations(t *testing.T) {
 		input, output      reflect.Type
 		properties         string
 	}{
-		{"routing_get", "GET", "/api/routing", true, reflect.TypeFor[RoutingRequest](), reflect.TypeFor[RoutingOutput](), ""},
-		{"routing_set", "POST", "/api/routing/set", false, reflect.TypeFor[RoutingSetRequest](), reflect.TypeFor[RoutingSetOutput](), `"chains":{}`},
-		{"chains_get", "GET", "/api/chains", true, reflect.TypeFor[ChainsRequest](), reflect.TypeFor[ChainsOutput](), ""},
-		{"chains_set", "POST", "/api/chains/set", false, reflect.TypeFor[ChainsSetRequest](), reflect.TypeFor[ChainsSetOutput](), `"chains":{},"default":{}`},
+		{opapi.RoutingGet, "GET", "/api/routing", true, reflect.TypeFor[RoutingRequest](), reflect.TypeFor[RoutingOutput](), ""},
+		{opapi.RoutingSet, "POST", "/api/routing/set", false, reflect.TypeFor[RoutingSetRequest](), reflect.TypeFor[RoutingSetOutput](), `"chains":{}`},
+		{opapi.ChainsGet, "GET", "/api/chains", true, reflect.TypeFor[ChainsRequest](), reflect.TypeFor[ChainsOutput](), ""},
+		{opapi.ChainsSet, "POST", "/api/chains/set", false, reflect.TypeFor[ChainsSetRequest](), reflect.TypeFor[ChainsSetOutput](), `"chains":{},"default":{}`},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)

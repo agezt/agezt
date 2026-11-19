@@ -5,6 +5,7 @@ package controlplane
 import (
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"strings"
 	"testing"
 	"time"
@@ -38,10 +39,10 @@ func TestDataEditsThePrimaryLake(t *testing.T) {
 		raw, _ := json.Marshal(resp.Result)
 		return string(raw), resp.Error
 	}
-	if _, msg := call(CmdDataCreateCollection, map[string]any{"collection": map[string]any{"name": "books"}}); msg != "" {
+	if _, msg := call(opapi.DataCreateCollection, map[string]any{"collection": map[string]any{"name": "books"}}); msg != "" {
 		t.Fatal(msg)
 	}
-	out, msg := call(CmdDataInsert, map[string]any{"collection": "books", "record": map[string]any{"title": "Dune"}})
+	out, msg := call(opapi.DataInsert, map[string]any{"collection": "books", "record": map[string]any{"title": "Dune"}})
 	if msg != "" || !strings.Contains(out, `"created_by":"operator"`) {
 		t.Fatal(out, msg)
 	}
@@ -57,16 +58,16 @@ func TestDataEditsThePrimaryLake(t *testing.T) {
 	if err != nil || len(recs) != 1 || recs[0].ID != inserted.Record.ID || recs[0].Fields["title"] != "Dune" {
 		t.Fatal("the insert reached the primary lake", recs, err)
 	}
-	if out, msg := call(CmdDataRecords, map[string]any{"collection": "books"}); msg != "" || !strings.Contains(out, `"count":1`) {
+	if out, msg := call(opapi.DataRecords, map[string]any{"collection": "books"}); msg != "" || !strings.Contains(out, `"count":1`) {
 		t.Fatal(out, msg)
 	}
-	if _, msg := call(CmdDataDropCollection, map[string]any{"name": "books"}); msg != "" {
+	if _, msg := call(opapi.DataDropCollection, map[string]any{"name": "books"}); msg != "" {
 		t.Fatal(msg)
 	}
 	if _, ok := k.DataLake().Schema("books"); ok {
 		t.Fatal("the drop reached the primary lake")
 	}
-	for cmd, read := range map[string]bool{CmdDataCollections: true, CmdDataRecords: true, CmdDataInsert: false, CmdDataUpdate: false, CmdDataDelete: false, CmdDataCreateCollection: false, CmdDataDropCollection: false} {
+	for cmd, read := range map[string]bool{opapi.DataCollections: true, opapi.DataRecords: true, opapi.DataInsert: false, opapi.DataUpdate: false, opapi.DataDelete: false, opapi.DataCreateCollection: false, opapi.DataDropCollection: false} {
 		if wire, exists := commandRegistry[cmd]; !exists || !wire.AppOwned || wire.ReadOnly != read || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 			t.Fatalf("%s native wire %+v", cmd, wire)
 		}
@@ -92,7 +93,7 @@ func TestTheDataSurfaceRefusesWhenTheDaemonHoldsNoLake(t *testing.T) {
 		raw, _ := json.Marshal(resp.Result)
 		return string(raw), resp.Error
 	}
-	out, msg := call(CmdDataCollections, nil)
+	out, msg := call(opapi.DataCollections, nil)
 	if msg == "" {
 		t.Fatal("the data surface answered a daemon with no lake", out)
 	}

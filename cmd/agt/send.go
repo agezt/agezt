@@ -11,7 +11,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdSend implements `agt send --channel KIND --to ID <text...>` — push a one-off
@@ -65,7 +65,7 @@ func cmdSend(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdSend, map[string]any{
+	res, err := c.Call(ctx, opapi.Send, map[string]any{
 		"channel": channel, "to": to, "text": text,
 	})
 	if err != nil {

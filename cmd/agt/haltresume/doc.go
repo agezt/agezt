@@ -7,7 +7,8 @@
 // parallel copies of the flag-parser. A single command-as-
 // package move would have sufficed for the implementation;
 // splitting Halt and Resume at the API surface is the smallest
-// change to the registration in cmd_register.go.
+// change to the registration in the top-level vocabulary table
+// (cmd/agt/commands_top.go).
 //
 // The package used to be cmd/agt/halt_resume.go in package
 // main. It depended on the package-private `dial` shim
@@ -16,8 +17,8 @@
 // in the same Day). With those helpers out of the way, the
 // move was mechanical: rename `cmdHaltResume` to the private
 // `run`, lift `reasonOrPlaceholder` alongside, expose Halt /
-// Resume as the public surface, and update two registration
-// lines in cmd_register.go.
+// Resume as the public surface, and update the two registration
+// lines in the vocabulary table.
 //
 // The `reasonOrPlaceholder` helper is the kind of UI sugar
 // that will eventually move to a `cmd/agt/format` package

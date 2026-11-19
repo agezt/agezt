@@ -21,7 +21,7 @@ import (
 )
 
 func TestStateNativeTypedRegistry(t *testing.T) {
-	for _, cmd := range []string{CmdStateList, CmdStateGet} {
+	for _, cmd := range []string{opapi.StateList, opapi.StateGet} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -86,19 +86,19 @@ func TestStateNativeRouting(t *testing.T) {
 		}
 		return string(line)
 	}
-	if line := call("primary", CmdStateList, map[string]any{"tenant": "acme"}); !strings.Contains(line, `"namespaces":["primary_ns"]`) {
+	if line := call("primary", opapi.StateList, map[string]any{"tenant": "acme"}); !strings.Contains(line, `"namespaces":["primary_ns"]`) {
 		t.Fatal("the listing reads the primary store", line)
 	}
-	if line := call("primary", CmdStateGet, map[string]any{"tenant": "acme", "namespace": "primary_ns", "key": "k"}); !strings.Contains(line, `"value":{"n":1}`) {
+	if line := call("primary", opapi.StateGet, map[string]any{"tenant": "acme", "namespace": "primary_ns", "key": "k"}); !strings.Contains(line, `"value":{"n":1}`) {
 		t.Fatal(line)
 	}
-	if line := call("primary", CmdStateGet, map[string]any{"namespace": "tenant_ns", "key": "k", "tenant": "acme"}); !strings.Contains(line, `"found":false`) {
+	if line := call("primary", opapi.StateGet, map[string]any{"namespace": "tenant_ns", "key": "k", "tenant": "acme"}); !strings.Contains(line, `"found":false`) {
 		t.Fatal("a tenant's store is never read", line)
 	}
-	if line := call("primary", CmdStateList, map[string]any{"namespace": "../x"}); !strings.Contains(line, `"type":"error"`) {
+	if line := call("primary", opapi.StateList, map[string]any{"namespace": "../x"}); !strings.Contains(line, `"type":"error"`) {
 		t.Fatal(line)
 	}
-	for _, cmd := range []string{CmdStateList, CmdStateGet} {
+	for _, cmd := range []string{opapi.StateList, opapi.StateGet} {
 		if line := call(tenantToken, cmd, map[string]any{"tenant": "acme", "namespace": "tenant_ns", "key": "k"}); !strings.Contains(line, "forbidden") {
 			t.Fatal(cmd, line)
 		}

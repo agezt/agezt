@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -23,14 +23,14 @@ func TestProviderProbeSocketTenantDenialPreventsEndpointRequest(t *testing.T) {
 	defer endpoint.Close()
 	_, _, owner, dir, registry := startPairWithTenants(t, mock.New())
 	token := mustTenant(t, registry, "acme")
-	if _, err := owner.Call(context.Background(), controlplane.CmdProviderProbe, map[string]any{"url": endpoint.URL, "tenant": "ignored"}); err != nil {
+	if _, err := owner.Call(context.Background(), opapi.ProviderProbe, map[string]any{"url": endpoint.URL, "tenant": "ignored"}); err != nil {
 		t.Fatal(err)
 	}
 	if requests.Load() != 1 {
 		t.Fatalf("primary request count = %d", requests.Load())
 	}
 	client := tenantClient(t, dir, token)
-	if _, err := client.Call(context.Background(), controlplane.CmdProviderProbe, map[string]any{"url": endpoint.URL, "tenant": "acme"}); err == nil || !strings.Contains(err.Error(), "forbidden") {
+	if _, err := client.Call(context.Background(), opapi.ProviderProbe, map[string]any{"url": endpoint.URL, "tenant": "acme"}); err == nil || !strings.Contains(err.Error(), "forbidden") {
 		t.Fatalf("tenant probe = %v", err)
 	}
 	if requests.Load() != 1 {

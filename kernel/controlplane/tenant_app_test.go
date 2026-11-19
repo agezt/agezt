@@ -23,8 +23,8 @@ import (
 
 func TestTenantNativeTypedRegistry(t *testing.T) {
 	for cmd, want := range map[string]struct{ readOnly, routed bool }{
-		CmdTenantCreate: {}, CmdTenantRelease: {}, CmdTenantRemove: {}, CmdTenantToken: {},
-		CmdTenantList: {readOnly: true}, CmdTenantStats: {readOnly: true, routed: true},
+		opapi.TenantCreate: {}, opapi.TenantRelease: {}, opapi.TenantRemove: {}, opapi.TenantToken: {},
+		opapi.TenantList: {readOnly: true}, opapi.TenantStats: {readOnly: true, routed: true},
 	} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
@@ -55,7 +55,7 @@ func TestTenantNativeDisabled(t *testing.T) {
 	defer k.Close()
 	s := NewServer(binding.ScopeFromKernel(k, dir))
 	s.token = "primary"
-	for _, cmd := range []string{CmdTenantCreate, CmdTenantList, CmdTenantRelease, CmdTenantRemove, CmdTenantToken, CmdTenantStats} {
+	for _, cmd := range []string{opapi.TenantCreate, opapi.TenantList, opapi.TenantRelease, opapi.TenantRemove, opapi.TenantToken, opapi.TenantStats} {
 		a, b := net.Pipe()
 		a.SetDeadline(time.Now().Add(3 * time.Second))
 		done := make(chan struct{})
@@ -122,7 +122,7 @@ func TestTenantNativeStats(t *testing.T) {
 	a.SetDeadline(time.Now().Add(3 * time.Second))
 	done := make(chan struct{})
 	go func() { defer close(done); s.handleConn(context.Background(), b) }()
-	raw, _ := json.Marshal(Request{ID: "t", Cmd: CmdTenantStats, Token: "primary"})
+	raw, _ := json.Marshal(Request{ID: "t", Cmd: opapi.TenantStats, Token: "primary"})
 	if _, err := a.Write(append(raw, 10)); err != nil {
 		t.Fatal(err)
 	}

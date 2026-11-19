@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/contract/llm"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/modules/agents/roster"
@@ -48,7 +49,7 @@ func TestRun_AsAgent_ResumeEligibility(t *testing.T) {
 			if tc.key != "" {
 				args[tc.key] = tc.value
 			}
-			if _, err := c.Stream(context.Background(), controlplane.CmdRun, args, func(*event.Event) {}); err != nil {
+			if _, err := c.Stream(context.Background(), opapi.Run, args, func(*event.Event) {}); err != nil {
 				t.Fatal(err)
 			}
 			ticket := <-observed

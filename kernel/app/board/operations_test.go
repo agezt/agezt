@@ -84,7 +84,7 @@ func TestBoardMutationAuditPrecedesAllFactoryEffects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"board_send", "board_ack"} {
+	for _, name := range []string{opapi.BoardSend, "board_ack"} {
 		if _, err := d.Dispatch(context.Background(), opapi.Caller{}, name, json.RawMessage(`{"id":"fixture","by":"reader","text":"owned","topic":"status"}`), nil); !errors.Is(err, cause) {
 			t.Fatalf("%s audit cause=%v", name, err)
 		}

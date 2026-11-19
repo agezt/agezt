@@ -3,7 +3,7 @@ package controlplane_test
 
 import (
 	"context"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 	"reflect"
@@ -17,7 +17,7 @@ func TestPluginInventoryNativeTenantDenialPreservesManifestAndJournal(t *testing
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
 	before := append([]runtime.PluginInfo(nil), k.Plugins()...)
-	if _, err := client.Call(context.Background(), controlplane.CmdPluginList, map[string]any{"tenant": "acme", "unknown": true}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
+	if _, err := client.Call(context.Background(), opapi.PluginList, map[string]any{"tenant": "acme", "unknown": true}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
 		t.Fatal(err)
 	}
 	after, afterHash := k.Journal().Head()

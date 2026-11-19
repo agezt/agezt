@@ -20,7 +20,7 @@ import (
 )
 
 func TestWebhookNativeTypedExit(t *testing.T) {
-	expected := map[string][2]reflect.Type{CmdWebhookLog: {reflect.TypeFor[appwebhook.LogRequest](), reflect.TypeFor[appwebhook.LogOutput]()}, CmdWebhookStats: {reflect.TypeFor[appwebhook.StatsRequest](), reflect.TypeFor[appwebhook.StatsOutput]()}}
+	expected := map[string][2]reflect.Type{opapi.WebhookLog: {reflect.TypeFor[appwebhook.LogRequest](), reflect.TypeFor[appwebhook.LogOutput]()}, opapi.WebhookStats: {reflect.TypeFor[appwebhook.StatsRequest](), reflect.TypeFor[appwebhook.StatsOutput]()}}
 	seen := map[string]int{}
 	for _, op := range registeredAppOperations() {
 		s := op.Spec()
@@ -34,7 +34,7 @@ func TestWebhookNativeTypedExit(t *testing.T) {
 		}
 		seen[s.Name]++
 	}
-	if len(webhookOperations) != 2 || len(seen) != 2 || seen[CmdWebhookLog] != 1 || seen[CmdWebhookStats] != 1 {
+	if len(webhookOperations) != 2 || len(seen) != 2 || seen[opapi.WebhookLog] != 1 || seen[opapi.WebhookStats] != 1 {
 		t.Fatal("webhook native aggregate", seen)
 	}
 }
@@ -68,7 +68,7 @@ func TestWebhookNativeExactIntegerTerminal(t *testing.T) {
 	a.SetDeadline(time.Now().Add(3 * time.Second))
 	done := make(chan struct{})
 	go func() { defer close(done); s.handleConn(context.Background(), b) }()
-	raw, _ := json.Marshal(Request{ID: "owned", Cmd: CmdWebhookLog, Token: "primary"})
+	raw, _ := json.Marshal(Request{ID: "owned", Cmd: opapi.WebhookLog, Token: "primary"})
 	if _, err := a.Write(append(raw, 10)); err != nil {
 		t.Fatal(err)
 	}

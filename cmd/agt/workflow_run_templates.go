@@ -17,7 +17,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdWorkflowTemplates(args []string, stdout, stderr io.Writer) int {
@@ -49,7 +49,7 @@ func cmdWorkflowTemplates(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdWorkflowTemplates, nil)
+	res, err := c.Call(ctx, opapi.WorkflowTemplates, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s workflow templates: %v\n", brand.CLI, err)
 		return 1
@@ -77,7 +77,7 @@ func cmdWorkflowTemplates(args []string, stdout, stderr io.Writer) int {
 			}
 			w["name"] = name
 			delete(w, "id")
-			saveRes, err := c.Call(ctx, controlplane.CmdWorkflowSave, map[string]any{"workflow": w})
+			saveRes, err := c.Call(ctx, opapi.WorkflowSave, map[string]any{"workflow": w})
 			if err != nil {
 				fmt.Fprintf(stderr, "%s workflow templates: save: %v\n", brand.CLI, err)
 				return 1

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -22,7 +23,7 @@ func TestSend_RoutesToChannel(t *testing.T) {
 		}}
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdSend, map[string]any{
+	res, err := c.Call(context.Background(), opapi.Send, map[string]any{
 		"channel": "Slack", "to": "C1", "text": "deploy finished",
 	})
 	if err != nil {
@@ -45,7 +46,7 @@ func TestSend_MissingArgs(t *testing.T) {
 	})
 
 	// Missing text → error, no send.
-	if _, err := c.Call(context.Background(), controlplane.CmdSend, map[string]any{
+	if _, err := c.Call(context.Background(), opapi.Send, map[string]any{
 		"channel": "slack", "to": "C1",
 	}); err == nil {
 		t.Error("send with no text should error")
@@ -55,7 +56,7 @@ func TestSend_MissingArgs(t *testing.T) {
 func TestSend_NoSenderConfigured(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	// No SetChannelSender → "no channels configured".
-	if _, err := c.Call(context.Background(), controlplane.CmdSend, map[string]any{
+	if _, err := c.Call(context.Background(), opapi.Send, map[string]any{
 		"channel": "slack", "to": "C1", "text": "hi",
 	}); err == nil {
 		t.Error("send with no channels configured should error")
@@ -70,7 +71,7 @@ func TestSend_PropagatesSenderError(t *testing.T) {
 			}
 		}}
 	})
-	if _, err := c.Call(context.Background(), controlplane.CmdSend, map[string]any{
+	if _, err := c.Call(context.Background(), opapi.Send, map[string]any{
 		"channel": "discord", "to": "D1", "text": "hi",
 	}); err == nil {
 		t.Error("send should surface the sender's error (unknown channel)")

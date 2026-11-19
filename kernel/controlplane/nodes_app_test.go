@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -51,7 +52,7 @@ func TestNodeRegistryBindsTheServer(t *testing.T) {
 	s.token = "primary"
 	call := func() string {
 		t.Helper()
-		resp := callAppHost(t, s, Request{ID: "n", Cmd: CmdNodeRegistry, Token: "primary"})[0]
+		resp := callAppHost(t, s, Request{ID: "n", Cmd: opapi.NodeRegistry, Token: "primary"})[0]
 		if resp.Type != RespResult {
 			t.Fatal(resp.Error)
 		}
@@ -77,7 +78,7 @@ func TestNodeRegistryBindsTheServer(t *testing.T) {
 	if got := call(); !strings.Contains(got, `"id":"peer:env"`) || strings.Contains(got, "peer:stored") {
 		t.Fatal("the environment wins", got)
 	}
-	if wire, exists := commandRegistry[CmdNodeRegistry]; !exists || !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
+	if wire, exists := commandRegistry[opapi.NodeRegistry]; !exists || !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 		t.Fatalf("native wire %+v", wire)
 	}
 }

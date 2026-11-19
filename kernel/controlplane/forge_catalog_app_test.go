@@ -80,7 +80,7 @@ func forgeNativeReply(t *testing.T, ctx context.Context, s *Server, cmd string) 
 	return out
 }
 func TestForgeCatalogNativeLargeTimestampsRemainExact(t *testing.T) {
-	for _, cmd := range []string{CmdToolforgeList, CmdToolforgeShow} {
+	for _, cmd := range []string{opapi.ToolforgeList, opapi.ToolforgeShow} {
 		t.Run(cmd, func(t *testing.T) {
 			k, s, p := forgeReadFixture(t)
 			head, hash := k.Journal().Head()
@@ -90,7 +90,7 @@ func TestForgeCatalogNativeLargeTimestampsRemainExact(t *testing.T) {
 			}
 			result := reply["result"].(map[string]any)
 			var row map[string]any
-			if cmd == CmdToolforgeList {
+			if cmd == opapi.ToolforgeList {
 				row = result["tools"].([]any)[0].(map[string]any)
 			} else {
 				row = result["tool"].(map[string]any)
@@ -108,7 +108,7 @@ func TestForgeCatalogNativeLargeTimestampsRemainExact(t *testing.T) {
 	}
 }
 func TestForgeCatalogNativeCanceledAdmissionStopsBeforeRead(t *testing.T) {
-	for _, cmd := range []string{CmdToolforgeList, CmdToolforgeShow} {
+	for _, cmd := range []string{opapi.ToolforgeList, opapi.ToolforgeShow} {
 		t.Run(cmd, func(t *testing.T) {
 			_, s, _ := forgeReadFixture(t)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -123,7 +123,7 @@ func TestForgeCatalogNativeCanceledAdmissionStopsBeforeRead(t *testing.T) {
 }
 
 func TestForgeCatalogNativePoliciesComeFromTwoTypedPrimaryReads(t *testing.T) {
-	want := map[string]reflect.Type{CmdToolforgeList: reflect.TypeFor[apptools.ForgeListOutput](), CmdToolforgeShow: reflect.TypeFor[apptools.ForgeShowOutput]()}
+	want := map[string]reflect.Type{opapi.ToolforgeList: reflect.TypeFor[apptools.ForgeListOutput](), opapi.ToolforgeShow: reflect.TypeFor[apptools.ForgeShowOutput]()}
 	seen := map[string]bool{}
 	for _, operation := range registeredAppOperations() {
 		spec := operation.Spec()
@@ -133,7 +133,7 @@ func TestForgeCatalogNativePoliciesComeFromTwoTypedPrimaryReads(t *testing.T) {
 		}
 		wire, ok := commandRegistry[spec.Name]
 		input := reflect.TypeFor[apptools.ForgeListInput]()
-		if spec.Name == CmdToolforgeShow {
+		if spec.Name == opapi.ToolforgeShow {
 			input = reflect.TypeFor[apptools.ForgeShowRequest]()
 		}
 		if seen[spec.Name] || !ok || !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.Stream != opapi.StreamNone || !spec.AllowUnknownInput || spec.Input != input || spec.Output != output {

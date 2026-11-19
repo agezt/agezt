@@ -12,7 +12,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func cmdAgentAdd(args []string, stdout, stderr io.Writer) int {
@@ -56,7 +56,7 @@ func cmdAgentAdd(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdAgentAdd, map[string]any{"profile": profile})
+	res, err := c.Call(ctx, opapi.AgentAdd, map[string]any{"profile": profile})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s agent add: %v\n", brand.CLI, err)
 		return 1
@@ -83,7 +83,7 @@ func cmdAgentSet(args []string, stdout, stderr io.Writer) int {
 	defer cancel()
 	// agent_edit applies the mutable fields WHOLESALE, so a partial edit must
 	// start from the current profile and overlay only the provided flags.
-	cur, err := c.Call(ctx, controlplane.CmdAgentList, nil)
+	cur, err := c.Call(ctx, opapi.AgentList, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s agent set: %v\n", brand.CLI, err)
 		return 1
@@ -139,7 +139,7 @@ func cmdAgentSet(args []string, stdout, stderr io.Writer) int {
 		}
 		base["fallbacks"] = fb
 	}
-	res, err := c.Call(ctx, controlplane.CmdAgentEdit, map[string]any{"ref": ref, "profile": base})
+	res, err := c.Call(ctx, opapi.AgentEdit, map[string]any{"ref": ref, "profile": base})
 	if err != nil {
 		fmt.Fprintf(stderr, "%s agent set: %v\n", brand.CLI, err)
 		return 1

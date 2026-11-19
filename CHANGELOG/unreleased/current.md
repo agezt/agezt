@@ -3188,6 +3188,15 @@ This file holds the active `[Unreleased]` working set.
   "All agents ()" lost its empty parens. Autonomy folds consecutive same-shaped events (the 16
   built-in skills promoted at boot) into one row with a ×N badge.
 
+- **The operation vocabulary has one home.** The 325 names the daemon answers to now live in
+  `kernel/contract/opapi/names*.go`, one constant each, with the documentation that used to sit
+  beside the transport's own `Cmd*` alias. The application layer binds those constants into the
+  operation's spec, and the CLI, the Web UI's route tables and the Go SDK name the same
+  constants. A name is written once in the repository instead of twice, and a ratchet
+  (`kernel/controlplane/op_vocabulary_ratchet_test.go`) fails the build when the registry and the
+  catalogue drift apart, or when the application layer repeats a name as a literal. The names and
+  their values did not change: the wire protocol is exactly what it was.
+
 ### Fixed
 
 - **The agent gateway is the daemon's transport, and it is closed before the
@@ -6412,3 +6421,56 @@ This file holds the active `[Unreleased]` working set.
   errors, each the mutation's fault, because a removed binding or import became
   unused — the two rules that could not survive that, the cost function and
   the rescue marker, are now package-level values in the module).
+
+- **The control plane's `Cmd*` constants.** The five hand-written
+  `kernel/controlplane/protocol_commands*.go` files (1,515 lines) and the 325
+  `Cmd*` string constants they declared are gone. Every reference — 1,162 of
+  them across 597 files — now names the operation through the catalogue in
+  `kernel/contract/opapi`. The values are unchanged, so nothing on the wire
+  moved; the `whoami` command stays native by design, and is now the one
+  catalogue name without a typed operation behind it. The pre-existing
+  registry ratchet was repointed at the catalogue rather than deleted, so the
+  dispatch surface is still pinned to the declared vocabulary.
+
+- **The CLI's command vocabulary has one home.** `agt`'s **46** command domains
+  and **311** sub-commands were written out **four or five times** each — the
+  dispatcher's `switch args[0]`, the usage line, the unknown-sub-command
+  message, the "subcommand required" guard and the help table — and the copies
+  had already drifted (nine stale lists; `agt agent`'s own usage line was
+  missing `authority`). The names now live in **one table per domain**,
+  `cmd/agt/commands_dict.go`, and everything else derives from it: the
+  dispatchers look the table up instead of switching, and **35** messages
+  (usage lines, unknown-sub-command messages, guards, the help table) print the
+  derived list rather than a copy of it. The table also names the catalogue
+  operation each command drives — **247** commands, by the catalogue's
+  constants, so a name the catalogue does not carry does not compile. The
+  command names, the domains, the exit codes and the wire protocol did not
+  change; the derived lists are simply correct now (`agt agent` names
+  `authority`, `rollback` names `preview` next to `dry-run`). Two domains were
+  written by hand rather than forced: `provider creds` opened its credential
+  store before dispatching, and `seats list` fell through to the listing below
+  the switch — both now point at the table like every other domain. A new
+  ratchet, `cmd/agt/commands_dict_ratchet_test.go`, proves that no message
+  spells a command list out any more, that a command's operations match the
+  handler that runs it, and that no dispatcher keeps a list of its own; it was
+  proved to fire by two reverted mutations (an operation swapped in the table,
+  and a usage line written out by hand again).
+
+- **The CLI's top-level vocabulary has one home.** The 71 top-level commands were
+  written out twice — `cmd_register.go` declared them (name, aliases, runner) and
+  `help_data.go` declared the same names again with their summaries and usage
+  blocks — and the root dispatcher switched on `args[0]` a third time to answer
+  "version" and "help" before the registry ever saw them. The names now live in
+  **one table**, `cmd/agt/commands_top.go`: the registry is derived from it and
+  the help overview is derived from it, so the two copies cannot drift. The root
+  dispatch keeps no list of its own any more; `agt version` is a real command
+  (it used to be a no-op stub the root dispatcher answered instead), and the
+  router's three dead fields — `Description`, `HelpLong`, `HelpHandler`, none of
+  which was ever read — are gone. The command names, the aliases, the exit codes
+  and the help output did not change. A new ratchet,
+  `cmd/agt/commands_top_ratchet_test.go`, proves that no file registers a command
+  outside the table, that no file switches on `args[0]`, that no name is answered
+  by two commands, that every command has a runner, a summary and a usage block,
+  and that the registry and the help overview are the table; it was proved to fire
+  by two reverted mutations (a second registration outside the table, and an alias
+  that shadowed another command).

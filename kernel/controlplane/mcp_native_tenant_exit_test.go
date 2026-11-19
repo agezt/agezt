@@ -4,7 +4,7 @@ package controlplane_test
 import (
 	"context"
 	"encoding/json"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/extensions/mcp"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -38,7 +38,7 @@ func TestMCPNativeAllSixTenantDenialsPreserveRegistrationAttachmentAndJournal(t 
 	head, hash := k.Journal().Head()
 	rows := k.MCPStore().List()
 	attached := k.MCPRegistryService().MCPAttached()
-	for _, cmd := range []string{controlplane.CmdMCPList, controlplane.CmdMCPAdd, controlplane.CmdMCPAttach, controlplane.CmdMCPDetach, controlplane.CmdMCPSetEnabled, controlplane.CmdMCPRemove} {
+	for _, cmd := range []string{opapi.MCPList, opapi.MCPAdd, opapi.MCPAttach, opapi.MCPDetach, opapi.MCPSetEnabled, opapi.MCPRemove} {
 		args := map[string]any{"ref": "owned", "enabled": false, "tenant": "acme", "server": map[string]any{"name": "new", "command": "owned-never-spawned"}}
 		if _, err := client.Call(context.Background(), cmd, args); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
 			t.Fatal(cmd, err)

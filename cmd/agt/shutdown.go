@@ -11,7 +11,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdShutdown implements `agt shutdown` and `agt shutdown --json`.
@@ -48,7 +48,7 @@ func cmdShutdown(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdShutdown, nil)
+	res, err := c.Call(ctx, opapi.Shutdown, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s shutdown: %v\n", brand.CLI, err)
 		return 1

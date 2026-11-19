@@ -16,7 +16,7 @@ import (
 
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 )
 
@@ -40,11 +40,8 @@ func cmdPulse(args []string, stdout, stderr io.Writer) int {
 	// original meaning — a live tail of the event bus — so existing
 	// scripts and the `--subject/--kind/--json` flags are unaffected.
 	if len(args) > 0 {
-		switch args[0] {
-		case "status", "pause", "resume":
-			return cmdPulseControl(args[0], args[1:], stdout, stderr)
-		case "asks":
-			return cmdPulseAsks(args[1:], stdout, stderr)
+		if sub, ok := cliPulse.lookup(args[0]); ok {
+			return sub.run(nil, args, stdout, stderr)
 		}
 	}
 
@@ -243,7 +240,7 @@ func cmdPulse(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	err := c.StreamUntilCancel(ctx, controlplane.CmdPulseSubscribe, reqArgs, func(ev *event.Event) {
+	err := c.StreamUntilCancel(ctx, opapi.PulseSubscribe, reqArgs, func(ev *event.Event) {
 		if asJSON {
 			renderEventJSON(stdout, ev)
 		} else {

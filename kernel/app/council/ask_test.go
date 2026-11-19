@@ -248,8 +248,8 @@ func TestAskOperations(t *testing.T) {
 	}{
 		// The panel has a Web UI route; the Conductor's nav cluster was
 		// removed in the Day-28 topology audit, so it has none.
-		{"council_ask", "POST", "/api/council/ask", reflect.TypeFor[AskOutput]()},
-		{"conductor_ask", "", "", reflect.TypeFor[ConductOutput]()},
+		{opapi.CouncilAsk, "POST", "/api/council/ask", reflect.TypeFor[AskOutput]()},
+		{opapi.ConductorAsk, "", "", reflect.TypeFor[ConductOutput]()},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)

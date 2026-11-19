@@ -11,7 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/agezt/agezt/kernel/contract/convoapi"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/httpserver"
 	"io"
@@ -110,7 +110,7 @@ func (s *Server) handleWorkflowHook(w http.ResponseWriter, r *http.Request) {
 	// (M812) legitimately hold until the run finishes (2m control-plane cap).
 	ctx, cancel := context.WithTimeout(r.Context(), 130*time.Second)
 	defer cancel()
-	res, err := s.client.Call(ctx, controlplane.CmdWorkflowWebhook, map[string]any{
+	res, err := s.client.Call(ctx, opapi.WorkflowWebhook, map[string]any{
 		"ref": name, "secret": secret, "payload": payload,
 	})
 	if err != nil {
@@ -144,7 +144,7 @@ func (s *Server) handleWorkflowHook(w http.ResponseWriter, r *http.Request) {
 }
 
 // runStreamProxy is the Chat view's send button: it runs a free-text intent
-// through the governed loop (controlplane.CmdRun) and streams the agent's events
+// through the governed loop (opapi.Run) and streams the agent's events
 // — llm tokens, tool calls, the final answer — straight to the browser as SSE, so
 // the conversation renders live (like any chat UI). Unlike planRunProxy (which
 // relays only a terminal result, leaning on the /events firehose), here each event
@@ -164,7 +164,7 @@ func (s *Server) runStreamProxy() http.HandlerFunc {
 		// `history`; fold them with this turn into one transcript intent — the
 		// same convo mapping the OpenAI-compatible API uses — so the governed loop
 		// (single-intent by design) sees the whole conversation. `history` is
-		// dropped from the args the control plane receives; CmdRun only ever sees
+		// dropped from the args the control plane receives; opapi.Run only ever sees
 		// the resolved intent.
 		turns := historyTurns(args["history"])
 		delete(args, "history")
@@ -183,7 +183,7 @@ func (s *Server) runStreamProxy() http.HandlerFunc {
 
 		ctx, cancel := context.WithTimeout(r.Context(), planRunTimeout)
 		defer cancel()
-		res, err := s.client.Stream(ctx, controlplane.CmdRun, args, func(ev *event.Event) {
+		res, err := s.client.Stream(ctx, opapi.Run, args, func(ev *event.Event) {
 			write(map[string]any{
 				"kind":           string(ev.Kind),
 				"subject":        ev.Subject,
@@ -200,7 +200,7 @@ func (s *Server) runStreamProxy() http.HandlerFunc {
 }
 
 // toolInstallProxy is the CLI Toolbox install button (M956): it runs the host
-// package manager for the requested tools via controlplane.CmdToolboxInstall and
+// package manager for the requested tools via opapi.ToolboxInstall and
 // streams the per-tool progress events + final summary to the browser as SSE,
 // exactly like runStreamProxy. Each event IS the install-progress payload, so
 // it's forwarded inline. Only `names` is forwarded from the body.
@@ -225,7 +225,7 @@ func (s *Server) toolInstallProxy() http.HandlerFunc {
 
 		ctx, cancel := context.WithTimeout(r.Context(), planRunTimeout)
 		defer cancel()
-		res, err := s.client.Stream(ctx, controlplane.CmdToolboxInstall, args, func(ev *event.Event) {
+		res, err := s.client.Stream(ctx, opapi.ToolboxInstall, args, func(ev *event.Event) {
 			write(map[string]any{
 				"kind":    string(ev.Kind),
 				"subject": ev.Subject,

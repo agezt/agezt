@@ -4,6 +4,7 @@ package controlplane
 
 import (
 	"github.com/agezt/agezt/kernel/app/binding"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/board/board"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
@@ -14,7 +15,7 @@ import (
 )
 
 func TestBoardAppSocketRequiresAuditBeforeStoreAndNotifier(t *testing.T) {
-	for _, cmd := range []string{CmdBoardSend, CmdBoardAck} {
+	for _, cmd := range []string{opapi.BoardSend, opapi.BoardAck} {
 		t.Run(cmd, func(t *testing.T) {
 			dir := t.TempDir()
 			k, err := runtime.Open(runtime.Config{BaseDir: dir, Provider: mock.New()})
@@ -53,7 +54,7 @@ func TestBoardCommandMetadataComesFromCompleteAppRegistry(t *testing.T) {
 	if len(boardOperations) != 7 {
 		t.Fatalf("board operations=%d", len(boardOperations))
 	}
-	reads := map[string]bool{CmdBoardRead: true, CmdBoardHelp: true, CmdBoardInbox: true, CmdBoardGet: true, CmdBoardReplies: true}
+	reads := map[string]bool{opapi.BoardRead: true, opapi.BoardHelp: true, opapi.BoardInbox: true, opapi.BoardGet: true, opapi.BoardReplies: true}
 	for _, op := range boardOperations {
 		spec := op.Spec()
 		wire := commandRegistry[spec.Name]
@@ -88,13 +89,13 @@ func TestBoardAppHostRefusesWithoutABoardAndWritesThroughTheSharedOne(t *testing
 	// control plane does not open the board's file itself (W3.59): the daemon
 	// owns that file and hands over the port, so a board that is not there
 	// says so instead of answering an empty board.
-	for _, cmd := range []string{CmdBoardRead, CmdBoardHelp, CmdBoardInbox, CmdBoardGet, CmdBoardReplies} {
+	for _, cmd := range []string{opapi.BoardRead, opapi.BoardHelp, opapi.BoardInbox, opapi.BoardGet, opapi.BoardReplies} {
 		r := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"id": m.ID, "to": "reviewer"}})[0]
 		if r.Type != RespError || !strings.Contains(r.Error, "not available") {
 			t.Fatalf("unwired read %s=%+v", cmd, r)
 		}
 	}
-	for _, cmd := range []string{CmdBoardSend, CmdBoardAck} {
+	for _, cmd := range []string{opapi.BoardSend, opapi.BoardAck} {
 		r := callAppHost(t, s, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"id": m.ID, "by": "reviewer", "text": "owned", "topic": "status"}})[0]
 		if r.Type != RespError || !strings.Contains(r.Error, "not available") {
 			t.Fatalf("unwired writer %s=%+v", cmd, r)
@@ -109,14 +110,14 @@ func TestBoardAppHostRefusesWithoutABoardAndWritesThroughTheSharedOne(t *testing
 		BoardNotify: func(_ board.Message, c string) { calls++; corr = c },
 	})
 	wired.token = "primary"
-	r := callAppHost(t, wired, Request{ID: "send", Cmd: CmdBoardSend, Token: "primary", Args: map[string]any{"text": " new ", "topic": " status ", "correlation_id": " inbound ", "unused": true}})[0]
+	r := callAppHost(t, wired, Request{ID: "send", Cmd: opapi.BoardSend, Token: "primary", Args: map[string]any{"text": " new ", "topic": " status ", "correlation_id": " inbound ", "unused": true}})[0]
 	if r.Type != RespResult || r.Result["correlation_id"] != "inbound" || calls != 1 || corr != "inbound" || len(store.Read("", 0)) != 2 {
 		t.Fatalf("shared send=%+v notify=%d/%q", r, calls, corr)
 	}
 	if err := k.Journal().Close(); err != nil {
 		t.Fatal(err)
 	}
-	for _, cmd := range []string{CmdBoardRead, CmdBoardHelp, CmdBoardInbox, CmdBoardGet, CmdBoardReplies} {
+	for _, cmd := range []string{opapi.BoardRead, opapi.BoardHelp, opapi.BoardInbox, opapi.BoardGet, opapi.BoardReplies} {
 		r := callAppHost(t, wired, Request{ID: cmd, Cmd: cmd, Token: "primary", Args: map[string]any{"id": m.ID, "to": "reviewer"}})[0]
 		if r.Type != RespResult {
 			t.Fatalf("read unexpectedly audited %s=%+v", cmd, r)

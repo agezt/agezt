@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/agezt/agezt/kernel/channel"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/creds"
 	"github.com/agezt/agezt/kernel/settings"
 	"github.com/agezt/agezt/plugins/builtinchannels"
@@ -24,13 +24,13 @@ func TestChannelAccountSetRemove(t *testing.T) {
 	ctx := context.Background()
 
 	// Non-secret field → config store at AGEZT_EMAIL_SMTP_ADDR#work.
-	if _, err := c.Call(ctx, controlplane.CmdChannelAccountSet, map[string]any{
+	if _, err := c.Call(ctx, opapi.ChannelAccountSet, map[string]any{
 		"kind": "email", "label": "work", "name": "AGEZT_EMAIL_SMTP_ADDR", "value": "smtp.work.test:587",
 	}); err != nil {
 		t.Fatalf("set smtp: %v", err)
 	}
 	// Secret field → vault at AGEZT_EMAIL_PASSWORD#work.
-	if _, err := c.Call(ctx, controlplane.CmdChannelAccountSet, map[string]any{
+	if _, err := c.Call(ctx, opapi.ChannelAccountSet, map[string]any{
 		"kind": "email", "label": "work", "name": "AGEZT_EMAIL_PASSWORD", "value": "s3cr3t",
 	}); err != nil {
 		t.Fatalf("set password: %v", err)
@@ -51,20 +51,20 @@ func TestChannelAccountSetRemove(t *testing.T) {
 	}
 
 	// Bad label rejected.
-	if _, err := c.Call(ctx, controlplane.CmdChannelAccountSet, map[string]any{
+	if _, err := c.Call(ctx, opapi.ChannelAccountSet, map[string]any{
 		"kind": "email", "label": "Bad Label", "name": "AGEZT_EMAIL_FROM", "value": "x@y.z",
 	}); err == nil {
 		t.Fatal("invalid label should be rejected")
 	}
 	// A field that isn't part of the channel's section is rejected.
-	if _, err := c.Call(ctx, controlplane.CmdChannelAccountSet, map[string]any{
+	if _, err := c.Call(ctx, opapi.ChannelAccountSet, map[string]any{
 		"kind": "email", "label": "work", "name": "AGEZT_TELEGRAM_TOKEN", "value": "x",
 	}); err == nil {
 		t.Fatal("cross-section field should be rejected")
 	}
 
 	// The channel list surfaces the new account.
-	res, err := c.Call(ctx, controlplane.CmdChannelList, nil)
+	res, err := c.Call(ctx, opapi.ChannelList, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestChannelAccountSetRemove(t *testing.T) {
 	}
 
 	// Remove deletes the account's stored fields across store + vault.
-	if _, err := c.Call(ctx, controlplane.CmdChannelAccountRemove, map[string]any{
+	if _, err := c.Call(ctx, opapi.ChannelAccountRemove, map[string]any{
 		"kind": "email", "label": "work",
 	}); err != nil {
 		t.Fatalf("remove: %v", err)
@@ -101,7 +101,7 @@ func TestChannelListIncludesProbeMatrix(t *testing.T) {
 		channel.SetLiveInstances(nil)
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdChannelList, nil)
+	res, err := c.Call(context.Background(), opapi.ChannelList, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

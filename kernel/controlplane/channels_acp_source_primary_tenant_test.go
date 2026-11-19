@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/modules/extensions/acpcatalog"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -61,7 +61,7 @@ func TestChannelACPInventoryNativeTenantDenialNoDiscoveryAuditOrProvider(t *test
 	k, _, _, dir, registry := startPairWithTenants(t, p)
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
-	if _, err := client.Call(context.Background(), controlplane.CmdACPAgents, map[string]any{"tenant": "acme", "force": true}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
+	if _, err := client.Call(context.Background(), opapi.ACPAgents, map[string]any{"tenant": "acme", "force": true}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
 		t.Fatal(err)
 	}
 	after, afterHash := k.Journal().Head()

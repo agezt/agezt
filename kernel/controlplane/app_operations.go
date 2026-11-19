@@ -1463,7 +1463,7 @@ func appCommandSpec(operation app.Operation) (commandSpec, error) {
 		Streaming: StreamMode(spec.Stream), Handler: handleAppOperation}
 	// The historical pulse wire is event-only and owns its lazy disconnect reader.
 	// Keep canonical StreamLive metadata; suppress the generic native reader/result.
-	if spec.Name == CmdPulseSubscribe {
+	if spec.Name == opapi.PulseSubscribe {
 		if spec.Stream != opapi.StreamLive || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary {
 			return commandSpec{}, errors.New("pulse native stream requires primary read-only StreamLive metadata")
 		}

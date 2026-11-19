@@ -19,7 +19,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdMemoryAdd implements `agt memory add <subject> <content> [flags]`.
@@ -137,7 +137,7 @@ func cmdMemoryAdd(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdMemoryAdd, callArgs)
+	res, err := c.Call(ctx, opapi.MemoryAdd, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s memory add: %v\n", brand.CLI, err)
 		return 1

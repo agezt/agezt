@@ -20,9 +20,9 @@ import (
 )
 
 func TestConfigCenterTypedNativeAdmissionNoEffects(t *testing.T) {
-	for _, command := range []string{CmdConfigCenterSet, CmdConfigCenterDelete, CmdConfigCenterSetRating, CmdConfigCenterSetAccess, CmdConfigCenterGet, CmdConfigCenterList, CmdConfigCenterAccessLog, CmdConfigCenterAudit, CmdConfigCenterHealth} {
+	for _, command := range []string{opapi.ConfigCenterSet, opapi.ConfigCenterDelete, opapi.ConfigCenterSetRating, opapi.ConfigCenterSetAccess, opapi.ConfigCenterGet, opapi.ConfigCenterList, opapi.ConfigCenterAccessLog, opapi.ConfigCenterAudit, opapi.ConfigCenterHealth} {
 		for _, gate := range []string{"canceled", "closed-journal"} {
-			write := command == CmdConfigCenterSet || command == CmdConfigCenterDelete || command == CmdConfigCenterSetRating || command == CmdConfigCenterSetAccess
+			write := command == opapi.ConfigCenterSet || command == opapi.ConfigCenterDelete || command == opapi.ConfigCenterSetRating || command == opapi.ConfigCenterSetAccess
 			if gate == "closed-journal" && !write {
 				continue
 			}
@@ -85,7 +85,7 @@ func TestConfigCenterTypedNativeNinePolicyAndSignatures(t *testing.T) {
 		read          bool
 	}
 	expected := map[string]signature{
-		CmdConfigCenterGet: {reflect.TypeFor[appconfigcenter.KeyRequest](), reflect.TypeFor[appconfigcenter.GetOutput](), true}, CmdConfigCenterList: {reflect.TypeFor[appconfigcenter.ListRequest](), reflect.TypeFor[appconfigcenter.ListOutput](), true}, CmdConfigCenterAccessLog: {reflect.TypeFor[appconfigcenter.AccessLogRequest](), reflect.TypeFor[appconfigcenter.AccessLogOutput](), true}, CmdConfigCenterAudit: {reflect.TypeFor[appconfigcenter.SinceRequest](), reflect.TypeFor[appconfigcenter.AuditOutput](), true}, CmdConfigCenterHealth: {reflect.TypeFor[appconfigcenter.HealthInput](), reflect.TypeFor[appconfigcenter.HealthOutput](), true}, CmdConfigCenterSet: {reflect.TypeFor[appconfigcenter.SetRequest](), reflect.TypeFor[appconfigcenter.SetOutput](), false}, CmdConfigCenterDelete: {reflect.TypeFor[appconfigcenter.KeyRequest](), reflect.TypeFor[appconfigcenter.DeleteOutput](), false}, CmdConfigCenterSetRating: {reflect.TypeFor[appconfigcenter.SetRatingRequest](), reflect.TypeFor[appconfigcenter.SetRatingOutput](), false}, CmdConfigCenterSetAccess: {reflect.TypeFor[appconfigcenter.SetAccessRequest](), reflect.TypeFor[appconfigcenter.SetAccessOutput](), false}}
+		opapi.ConfigCenterGet: {reflect.TypeFor[appconfigcenter.KeyRequest](), reflect.TypeFor[appconfigcenter.GetOutput](), true}, opapi.ConfigCenterList: {reflect.TypeFor[appconfigcenter.ListRequest](), reflect.TypeFor[appconfigcenter.ListOutput](), true}, opapi.ConfigCenterAccessLog: {reflect.TypeFor[appconfigcenter.AccessLogRequest](), reflect.TypeFor[appconfigcenter.AccessLogOutput](), true}, opapi.ConfigCenterAudit: {reflect.TypeFor[appconfigcenter.SinceRequest](), reflect.TypeFor[appconfigcenter.AuditOutput](), true}, opapi.ConfigCenterHealth: {reflect.TypeFor[appconfigcenter.HealthInput](), reflect.TypeFor[appconfigcenter.HealthOutput](), true}, opapi.ConfigCenterSet: {reflect.TypeFor[appconfigcenter.SetRequest](), reflect.TypeFor[appconfigcenter.SetOutput](), false}, opapi.ConfigCenterDelete: {reflect.TypeFor[appconfigcenter.KeyRequest](), reflect.TypeFor[appconfigcenter.DeleteOutput](), false}, opapi.ConfigCenterSetRating: {reflect.TypeFor[appconfigcenter.SetRatingRequest](), reflect.TypeFor[appconfigcenter.SetRatingOutput](), false}, opapi.ConfigCenterSetAccess: {reflect.TypeFor[appconfigcenter.SetAccessRequest](), reflect.TypeFor[appconfigcenter.SetAccessOutput](), false}}
 
 	seen := map[string]int{}
 	for _, operation := range registeredAppOperations() {

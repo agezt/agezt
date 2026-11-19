@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/runtime"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
@@ -14,7 +14,7 @@ import (
 func TestMemoryDistillationNativeNoOpAndHalt(t *testing.T) {
 	k, _, client, _ := startPair(t, mock.New(mock.FinalText("unused")))
 	seen := map[string]bool{}
-	for _, command := range []string{controlplane.CmdMemoryConsolidate, controlplane.CmdProfileRebuild} {
+	for _, command := range []string{opapi.MemoryConsolidate, opapi.ProfileRebuild} {
 		out, err := client.Call(context.Background(), command, nil)
 		if err != nil {
 			t.Fatal(err)
@@ -26,7 +26,7 @@ func TestMemoryDistillationNativeNoOpAndHalt(t *testing.T) {
 		seen[corr] = true
 		nullField := "consolidated_ids"
 		zeroFields := []string{"clusters_found", "clusters_merged", "records_superseded", "skipped_non_json", "active_before", "active_after"}
-		if command == controlplane.CmdProfileRebuild {
+		if command == opapi.ProfileRebuild {
 			nullField = "facets"
 			zeroFields = []string{"input_records", "facets_written"}
 		}
@@ -40,7 +40,7 @@ func TestMemoryDistillationNativeNoOpAndHalt(t *testing.T) {
 		}
 	}
 	k.LifecycleService().Halt()
-	for _, command := range []string{controlplane.CmdMemoryConsolidate, controlplane.CmdProfileRebuild} {
+	for _, command := range []string{opapi.MemoryConsolidate, opapi.ProfileRebuild} {
 		if _, err := client.Call(context.Background(), command, nil); err == nil || err.Error() != "controlplane: "+runtime.ErrHalted.Error() {
 			t.Errorf("%s halted error=%v", command, err)
 		}

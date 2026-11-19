@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 func (s *Server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +30,7 @@ func (s *Server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	if _, err := s.client.Call(ctx, controlplane.CmdChannelOAuthCallback, map[string]any{
+	if _, err := s.client.Call(ctx, opapi.ChannelOAuthCallback, map[string]any{
 		"code": code, "state": state,
 	}); err != nil {
 		oauthResultPage(w, false, err.Error())

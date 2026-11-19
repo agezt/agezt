@@ -85,7 +85,7 @@ func TestSkillMutationAuditPrecedesAllServiceFactories(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"skill_promote", "skill_quarantine", "skill_archive", "skill_revert", "skill_restore", "skill_share", "skill_reassign", "skill_import"} {
+	for _, name := range []string{opapi.SkillPromote, "skill_quarantine", "skill_archive", "skill_revert", "skill_restore", "skill_share", "skill_reassign", "skill_import"} {
 		if _, err := d.Dispatch(context.Background(), opapi.Caller{}, name, json.RawMessage(`{"id":"fixture","status":"draft","name":"fixture","body":"body"}`), nil); !errors.Is(err, cause) {
 			t.Fatalf("%s audit cause=%v", name, err)
 		}

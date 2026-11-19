@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 	"github.com/agezt/agezt/kernel/modules/providers/catalog"
 )
@@ -43,7 +44,7 @@ func checkExposure(status map[string]any) doctorCheck {
 const budgetWarnPct = 90.0
 
 func checkBudget(ctx context.Context, client *controlplane.Client) doctorCheck {
-	res, err := client.Call(ctx, controlplane.CmdBudget, nil)
+	res, err := client.Call(ctx, opapi.Budget, nil)
 	if err != nil {
 		return ok("budget", "unavailable ("+err.Error()+")")
 	}
@@ -133,7 +134,7 @@ func checkModelReadiness(status map[string]any, cat *catalog.Catalog) doctorChec
 }
 func checkJournal(ctx context.Context, client *controlplane.Client, status map[string]any) doctorCheck {
 	const name = "journal"
-	if _, err := client.Call(ctx, controlplane.CmdJournalVerify, nil); err != nil {
+	if _, err := client.Call(ctx, opapi.JournalVerify, nil); err != nil {
 		return fail(name, "hash chain verification failed: "+err.Error(),
 			"the audit log may be tampered or truncated — investigate before trusting it")
 	}

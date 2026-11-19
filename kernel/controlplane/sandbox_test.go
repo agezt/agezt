@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -34,7 +34,7 @@ func TestSandboxList_EnumeratesProjectsAndFiles(t *testing.T) {
 		"add.py":  "def add(a,b): return a+b\n",
 	})
 
-	res, err := c.Call(context.Background(), controlplane.CmdSandboxList, nil)
+	res, err := c.Call(context.Background(), opapi.SandboxList, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestSandboxList_EnumeratesProjectsAndFiles(t *testing.T) {
 
 func TestSandboxList_EmptyWhenNoProjects(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	res, err := c.Call(context.Background(), controlplane.CmdSandboxList, nil)
+	res, err := c.Call(context.Background(), opapi.SandboxList, nil)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestSandboxFile_ReadsContent(t *testing.T) {
 	k, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
 	seedProject(t, k.BaseDir(), "calc", map[string]string{"add.py": "def add(a,b): return a+b\n"})
 
-	res, err := c.Call(context.Background(), controlplane.CmdSandboxFile, map[string]any{"project": "calc", "file": "add.py"})
+	res, err := c.Call(context.Background(), opapi.SandboxFile, map[string]any{"project": "calc", "file": "add.py"})
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestSandboxFile_RejectsTraversal(t *testing.T) {
 		{"..", "creds.json"},
 		{"calc", "/etc/passwd"},
 	} {
-		_, err := c.Call(context.Background(), controlplane.CmdSandboxFile, map[string]any{"project": tc.project, "file": tc.file})
+		_, err := c.Call(context.Background(), opapi.SandboxFile, map[string]any{"project": tc.project, "file": tc.file})
 		if err == nil {
 			t.Errorf("traversal project=%q file=%q should be rejected, got no error", tc.project, tc.file)
 		}
@@ -107,7 +107,7 @@ func TestSandboxFile_RejectsTraversal(t *testing.T) {
 
 func TestSandboxFile_RequiresArgs(t *testing.T) {
 	_, _, c, _ := startPair(t, mock.New(mock.FinalText("ok")))
-	if _, err := c.Call(context.Background(), controlplane.CmdSandboxFile, map[string]any{"project": "calc"}); err == nil {
+	if _, err := c.Call(context.Background(), opapi.SandboxFile, map[string]any{"project": "calc"}); err == nil {
 		t.Error("missing file arg should error")
 	}
 }
@@ -117,7 +117,7 @@ func TestSandboxDelete_RemovesProject(t *testing.T) {
 	seedProject(t, k.BaseDir(), "calc", map[string]string{"add.py": "x"})
 	seedProject(t, k.BaseDir(), "keep", map[string]string{"y.py": "y"})
 
-	res, err := c.Call(context.Background(), controlplane.CmdSandboxDelete, map[string]any{"project": "calc"})
+	res, err := c.Call(context.Background(), opapi.SandboxDelete, map[string]any{"project": "calc"})
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestSandboxDelete_RejectsTraversalAndNested(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(k.BaseDir(), "creds.json"), []byte("SECRET"), 0o600)
 
 	for _, bad := range []string{"..", "../..", "calc/sub", "../creds.json", "/etc"} {
-		if _, err := c.Call(context.Background(), controlplane.CmdSandboxDelete, map[string]any{"project": bad}); err == nil {
+		if _, err := c.Call(context.Background(), opapi.SandboxDelete, map[string]any{"project": bad}); err == nil {
 			t.Errorf("delete project=%q should be rejected", bad)
 		}
 	}

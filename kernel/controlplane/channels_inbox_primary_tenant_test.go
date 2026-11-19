@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/plugins/providers/mock"
 )
 
@@ -15,7 +15,7 @@ func TestChannelInboxNativeTenantDenialNoAuditOrProvider(t *testing.T) {
 	k, _, _, dir, registry := startPairWithTenants(t, p)
 	client := tenantClient(t, dir, mustTenant(t, registry, "acme"))
 	head, hash := k.Journal().Head()
-	if _, err := client.Call(context.Background(), controlplane.CmdInbox, map[string]any{"tenant": "acme", "limit": 1}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
+	if _, err := client.Call(context.Background(), opapi.Inbox, map[string]any{"tenant": "acme", "limit": 1}); err == nil || (!strings.Contains(err.Error(), "forbidden") && !strings.Contains(err.Error(), "unauthorized")) {
 		t.Fatal(err)
 	}
 	after, afterHash := k.Journal().Head()

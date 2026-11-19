@@ -84,7 +84,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: "redact_test", ReadOnly: true, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"text":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/redact/test"}}, func(ctx context.Context, in TestRequest) (TestOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.RedactTest, ReadOnly: true, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"text":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/redact/test"}}, func(ctx context.Context, in TestRequest) (TestOutput, error) {
 		return provider(ctx).Test(ctx, in)
 	})
 	if err != nil {

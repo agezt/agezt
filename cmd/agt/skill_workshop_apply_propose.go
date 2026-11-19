@@ -21,6 +21,7 @@ import (
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/cmd/agt/jsonout"
 	"github.com/agezt/agezt/internal/brand"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/controlplane"
 )
 
@@ -35,7 +36,7 @@ func callSkillWorkshopImport(callArgs map[string]any, asJSON bool, stdout, stder
 }
 
 func callSkillWorkshopImportWithClient(ctx context.Context, c *controlplane.Client, callArgs map[string]any, asJSON bool, stdout, stderr io.Writer) int {
-	res, err := c.Call(ctx, controlplane.CmdSkillImport, callArgs)
+	res, err := c.Call(ctx, opapi.SkillImport, callArgs)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s skill workshop propose: %v\n", brand.CLI, err)
 		return 1

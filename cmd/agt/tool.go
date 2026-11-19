@@ -16,7 +16,7 @@ import (
 	"encoding/json"
 	dialpkg "github.com/agezt/agezt/cmd/agt/dial"
 	"github.com/agezt/agezt/internal/brand"
-	"github.com/agezt/agezt/kernel/controlplane"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // cmdTool dispatches `agt tool <subcommand>`. Currently the only
@@ -25,20 +25,14 @@ import (
 // `agt tool describe <name>` slot in without renaming.
 func cmdTool(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintf(stderr, "%s tool: subcommand required (list, log, stats)\n", brand.CLI)
+		fmt.Fprintf(stderr, "%s tool: subcommand required %s\n", brand.CLI, cliTool.listNames())
 		return 2
 	}
-	switch args[0] {
-	case "list":
-		return cmdToolList(args[1:], stdout, stderr)
-	case "log":
-		return cmdToolLog(args[1:], stdout, stderr)
-	case "stats":
-		return cmdToolStats(args[1:], stdout, stderr)
-	default:
-		fmt.Fprintf(stderr, "%s tool: unknown subcommand %q\n", brand.CLI, args[0])
-		return 2
+	if sub, ok := cliTool.lookup(args[0]); ok {
+		return sub.run(nil, args, stdout, stderr)
 	}
+	fmt.Fprintf(stderr, "%s tool: unknown subcommand %q\n", brand.CLI, args[0])
+	return 2
 }
 
 // cmdToolList implements `agt tool list` and `agt tool list --json`.
@@ -68,7 +62,7 @@ func cmdToolList(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, err := c.Call(ctx, controlplane.CmdToolList, nil)
+	res, err := c.Call(ctx, opapi.ToolList, nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "%s tool list: %v\n", brand.CLI, err)
 		return 1

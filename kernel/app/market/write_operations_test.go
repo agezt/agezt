@@ -77,7 +77,7 @@ func TestWriteOperationsCanonicalTypesPoliciesSchemasAuditAndProgress(t *testing
 	f := 0
 	var seen context.Context
 	d, ops := writeDispatcher(t, p, a, &f, &seen, opapi.Operator)
-	names := []string{"market_install", "market_uninstall", "market_add_source", "market_remove_source", "market_sync"}
+	names := []string{opapi.MarketInstall, "market_uninstall", "market_add_source", "market_remove_source", "market_sync"}
 	inputs := []reflect.Type{reflect.TypeFor[InstallRequest](), reflect.TypeFor[WriteNameRequest](), reflect.TypeFor[AddSourceRequest](), reflect.TypeFor[WriteNameRequest](), reflect.TypeFor[WriteNameRequest]()}
 	outputs := []reflect.Type{reflect.TypeFor[InstallOutput](), reflect.TypeFor[UninstallOutput](), reflect.TypeFor[AddSourceOutput](), reflect.TypeFor[RemoveSourceOutput](), reflect.TypeFor[SyncOutput]()}
 	ctx := opapi.WithCorrelation(context.Background(), "owned-operation")
@@ -129,7 +129,7 @@ func TestWriteOperationsCanonicalTypesPoliciesSchemasAuditAndProgress(t *testing
 }
 func TestWriteOperationsAdmissionBlocksEveryFactoryAndWriter(t *testing.T) {
 	for _, mode := range []string{"audit", "tenant", "canceled", "after-audit"} {
-		for _, name := range []string{"market_install", "market_uninstall", "market_add_source", "market_remove_source", "market_sync"} {
+		for _, name := range []string{opapi.MarketInstall, "market_uninstall", "market_add_source", "market_remove_source", "market_sync"} {
 			p := &writeProbe{}
 			a := &writeAudit{}
 			f := 0
@@ -162,7 +162,7 @@ func TestWriteOperationsAdmissionBlocksEveryFactoryAndWriter(t *testing.T) {
 func TestWriteOperationsSinkSchemaAndSettlementErrors(t *testing.T) {
 	sink := errors.New("owned sink failure")
 	settlement := errors.New("owned settlement failure")
-	for _, name := range []string{"market_install", "market_uninstall"} {
+	for _, name := range []string{opapi.MarketInstall, "market_uninstall"} {
 		p := &writeProbe{progress: []core.Event{{Stage: "one"}, {Stage: "two"}}}
 		a := &writeAudit{endErr: settlement}
 		f := 0
