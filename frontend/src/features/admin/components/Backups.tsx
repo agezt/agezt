@@ -38,11 +38,10 @@ export function Backups() {
     setLoading(true);
     setError(null);
     try {
-      const qs = runFilter.trim()
-        ? `?run_id=${encodeURIComponent(runFilter.trim())}`
-        : "";
+      const runId = runFilter.trim();
       const r = await getJSON<{ checkpoints?: Checkpoint[] }>(
-        `/api/rollback/checkpoints${qs}`,
+        "/api/rollback/checkpoints",
+        runId ? { run_id: runId } : undefined,
       );
       setCheckpoints(r.checkpoints || []);
     } catch (e) {

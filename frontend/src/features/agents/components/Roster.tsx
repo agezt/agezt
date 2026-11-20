@@ -239,9 +239,9 @@ export function Roster() {
     try {
       const [d, sk, bd, sch] = await Promise.all([
         getJSON<{ profiles?: AgentProfile[] }>("/api/agents", undefined, { signal: ac.signal, timeoutMs }),
-        getJSON<{ skills?: { agent?: string }[] }>("/api/skills", undefined, { signal: ac.signal }).catch(() => ({ skills: [] })),
+        getJSON<{ skills?: { agent?: string }[] }>("/api/skills", { signal: ac.signal }).catch(() => ({ skills: [] })),
         getJSON<{ messages?: RosterBoardMessage[] }>("/api/board", undefined, { signal: ac.signal }).catch(() => ({ messages: [] })),
-        getJSON<{ schedules?: RosterSchedule[] }>("/api/schedules", undefined, { signal: ac.signal }).catch(() => ({ schedules: [] })),
+        getJSON<{ schedules?: RosterSchedule[] }>("/api/schedules", { signal: ac.signal }).catch(() => ({ schedules: [] })),
       ]);
       // If the user navigated or another reload fired, drop this tick's data.
       if (reloadAbortRef.current !== ac) return;
@@ -402,7 +402,7 @@ export function Roster() {
   async function wakeAgent(slug: string) {
     setBusy(slug);
     try {
-      const res = await postAction<{ correlation_id?: string }>("/api/agents/wake", { ref: slug, reason: "manual operator wake" });
+      const res = await postJSON<{ correlation_id?: string }>("/api/agents/wake", { ref: slug, reason: "manual operator wake" });
       ui.toast(`${slug} wake queued`, "success");
       if (res?.correlation_id) setActivityFocus((prev) => ({ ...prev, [slug]: res.correlation_id || "" }));
       setActivityFor(slug);

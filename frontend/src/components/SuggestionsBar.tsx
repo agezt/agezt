@@ -72,16 +72,13 @@ export function SuggestionsBar({
     try {
       // The read-args proxy forwards each query param as a single value, so
       // send recent tool names comma-joined (the backend splits on comma).
-      const params = new URLSearchParams();
-      if (sessionId) params.set("session_id", sessionId);
+      const params: Record<string, string> = {};
+      if (sessionId) params.session_id = sessionId;
       if (recentTools && recentTools.length > 0) {
-        params.set("tools", recentTools.join(","));
+        params.tools = recentTools.join(",");
       }
 
-      const qs = params.toString();
-      const d = await getJSON<{ suggestions?: Suggestion[] }>(
-        "/api/suggestions" + (qs ? `?${qs}` : ""),
-      );
+      const d = await getJSON<{ suggestions?: Suggestion[] }>("/api/suggestions", params);
       const items = d.suggestions || [];
       setSuggestions(items);
       if (items.length > 0) setDismissed(false);

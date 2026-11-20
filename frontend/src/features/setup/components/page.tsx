@@ -241,14 +241,13 @@ export function Setup({
     setBusy(true);
     try {
       await postJSON("/api/config/set", { name: "AGEZT_PROVIDER", value: picked.id });
-      await postAction("/api/provider/reload", {});
+      await postJSON("/api/provider/reload", {});
       const fresh = await getJSON<SetupCatalog>("/api/catalog").catch(() => null);
       if (fresh) {
         setCat(fresh);
         setPicked(fresh.providers?.find((p) => p.id === picked.id) || picked);
       }
-      setProviderReadyText(readyText);
-      setStep("model");
+      setProviderReadyText(readyText);      setStep("model");
     } catch (e) {
       ui.toast((e as Error).message, "error");
     } finally {
@@ -273,7 +272,7 @@ export function Setup({
       try {
         await postJSON("/api/provider/keys/add", { provider: picked.id, env, label: "default", value: key, active: true });
         await postJSON("/api/config/set", { name: "AGEZT_PROVIDER", value: picked.id });
-        await postAction("/api/provider/reload", {});
+        await postJSON("/api/provider/reload", {});
         const fresh = await getJSON<SetupCatalog>("/api/catalog").catch(() => null);
         if (fresh) {
           setCat(fresh);

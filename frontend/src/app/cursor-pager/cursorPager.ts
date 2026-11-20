@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getJSON } from "@/app/api";
+import { getJSON, type ReadArgsPath } from "@/app/api";
 import { usePanel } from "@/lib/usePanel";
 
 /**
@@ -38,7 +38,7 @@ export interface CursorPagerResult<T> {
 }
 
 export function useCursorPager<T extends Record<string, unknown>>(
-  path: string,
+  path: ReadArgsPath,
   itemsKey: string,
   idKey: keyof T & string,
   limit: number = 50,

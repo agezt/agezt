@@ -1221,7 +1221,7 @@ describe("Roster", () => {
   });
 
   it("quick wake posts /api/agents/wake and opens inline activity", async () => {
-    postAction.mockResolvedValueOnce({ correlation_id: "run-roster-wake" });
+    postJSON.mockResolvedValueOnce({ correlation_id: "run-roster-wake" });
     getJSON.mockImplementation((path: string) => {
       if (path === "/api/agents") {
         return Promise.resolve({
@@ -1238,7 +1238,7 @@ describe("Roster", () => {
     await waitFor(() => expect(screen.getByText("researcher")).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: "Wake researcher" }));
     await waitFor(() =>
-      expect(postAction).toHaveBeenCalledWith("/api/agents/wake", {
+      expect(postJSON).toHaveBeenCalledWith("/api/agents/wake", {
         ref: "researcher",
         reason: "manual operator wake",
       }),
@@ -1290,7 +1290,7 @@ describe("Roster", () => {
     expect(wake.disabled).toBe(true);
     expect(wake.title).toBe("managed sub-agent; wake lead instead");
     fireEvent.click(wake);
-    expect(postAction).not.toHaveBeenCalledWith("/api/agents/wake", expect.anything());
+    expect(postJSON).not.toHaveBeenCalledWith("/api/agents/wake", expect.anything());
   });
 
   it("disables quick repair for managed sub-agents", async () => {

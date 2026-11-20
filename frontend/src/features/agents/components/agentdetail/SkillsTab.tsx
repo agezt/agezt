@@ -1,3 +1,4 @@
+import type { WritePath, NativePath } from "@/app/api";
 import { useState } from "react";
 import { Sparkles, ArrowUpRight, Share2 } from "lucide-react";
 import { clip } from "@/app/utils";
@@ -22,7 +23,7 @@ export function SkillsTab({
   skills: SkillLite[] | null;
   busy: boolean;
   onAction: (
-    path: string,
+    path: WritePath | NativePath,
     params: Record<string, string>,
     success: string,
   ) => void;

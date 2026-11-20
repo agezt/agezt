@@ -816,6 +816,21 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The console's API is written down once, and the browser reads it.** The
+  daemon's operations and the console's route table already said what every
+  path accepts and returns; the browser's client said it a third time, in
+  string literals, and the two could disagree. The API document
+  (`docs/openapi.json`) and the browser's client are now generated from those
+  two sources: a path the console does not answer no longer compiles in the
+  browser, and neither does a route called with the wrong verb or with a
+  parameter the route does not forward. Three real defects died on the way —
+  eight console calls sent a JSON body to a route that read the query string,
+  so their arguments never reached the daemon; two reads dropped the
+  parameter their operation declares; and one bulk-forget tried to send a list
+  of ids in a query string, which a query string cannot carry. The console's
+  own endpoints (login, files, voice, rollback, the event feed) keep working
+  and are now named in one place instead of a test file. The browser's token
+  handling, error shape and event feed are unchanged.
 - **The workflow engine's lifecycle moves into the workflows module.** The daemon
   held eight forwarders over the workflows module's own engine operations — a
   second spelling of every engine verb — and the contract had named the family

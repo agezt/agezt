@@ -57,9 +57,9 @@ export function Reflect() {
     try {
       const [mem, jour] = await Promise.all([
         getJSON<{ audit?: MemoryEvent[]; memories?: MemoryEvent[] }>(
-          `/api/memory/audit?limit=120`,
+          "/api/memory/audit",
         ).catch(() => ({ audit: [], memories: [] }) as any),
-        getJSON<{ events?: JournalEvent[] }>(`/api/journal?limit=80`).catch(
+        getJSON<{ events?: JournalEvent[] }>("/api/journal", { limit: "80" }).catch(
           () => ({ events: [] }) as any,
         ),
       ]);

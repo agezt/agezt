@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Radio, ChevronDown, ChevronRight, X, MessageCircle, Send } from "lucide-react";
-import { getJSON, postAction } from "@/app/api";
+import { getJSON, postJSON } from "@/app/api";
 import { useEvents } from "@/app/events";
 import { cn, fmtTime } from "@/app/utils";
 import { Badge } from "@/components/ui/badge";
@@ -138,7 +138,7 @@ function SessionPane({
     if (!text || sending) return;
     setSending(true);
     try {
-      await postAction("/api/send", { channel: session.channelKind, to, text });
+      await postJSON("/api/send", { channel: session.channelKind, to, text });
       setReply("");
       ui.toast(`Sent to ${session.title} on ${session.channelKind}`, "success");
       onSent();

@@ -80,7 +80,7 @@ var consoleRoutes = []HTTPRoute{
 	// (verified in TOPOLOGY-AUDIT-DAY28-VERIFY.md §2) and reachable via the CLI
 	// through opapi.ToolboxDetect / opapi.ToolboxOutdated when an operator needs them.
 	{Op: ACPAgents, Method: "GET", Path: "/api/acp/agents", Kind: HTTPRouteRead},
-	{Op: WorkflowList, Method: "GET", Path: "/api/workflows", Kind: HTTPRouteRead},
+	{Op: WorkflowList, Method: "GET", Path: "/api/workflows", Kind: HTTPRouteReadArgs, Args: []string{"with_runs"}},
 	// Built-in workflow template gallery (M807). Read-only.
 	{Op: WorkflowTemplates, Method: "GET", Path: "/api/workflows/templates", Kind: HTTPRouteRead},
 	// Open (unanswered) help requests agents have raised on the board (M849). Read-only.
@@ -89,7 +89,7 @@ var consoleRoutes = []HTTPRoute{
 	{Op: DataCollections, Method: "GET", Path: "/api/data/collections", Kind: HTTPRouteRead},
 	// Council of Elders (M839): the default membership the panel convenes with. Read-only.
 	{Op: CouncilMembers, Method: "GET", Path: "/api/council/members", Kind: HTTPRouteRead},
-	{Op: AutonomyFeed, Method: "GET", Path: "/api/autonomy", Kind: HTTPRouteRead},
+	{Op: AutonomyFeed, Method: "GET", Path: "/api/autonomy", Kind: HTTPRouteReadArgs, Args: []string{"limit"}},
 	{Op: Approvals, Method: "GET", Path: "/api/approvals", Kind: HTTPRouteRead},
 	{Op: SandboxList, Method: "GET", Path: "/api/sandbox", Kind: HTTPRouteRead},
 	{Op: ConfigSchema, Method: "GET", Path: "/api/config/schema", Kind: HTTPRouteRead},
@@ -257,9 +257,11 @@ var consoleRoutes = []HTTPRoute{
 	{Op: PulseQuiet, Method: "POST", Path: "/api/pulse/quiet", Kind: HTTPRouteWrite, Args: []string{"hours"}},
 	// Reload catalog + providers in place (M745): apply credential/catalog changes
 	// without a daemon restart. No args.
-	{Op: ProviderReload, Method: "POST", Path: "/api/provider/reload", Kind: HTTPRouteWrite},
+	{Op: ProviderReload, Method: "POST", Path: "/api/provider/reload", Kind: HTTPRouteJSON},
 	// Send an outbound message via a configured channel (M747): channel + to + text.
-	{Op: Send, Method: "POST", Path: "/api/send", Kind: HTTPRouteWrite, Args: []string{"channel", "to", "text"}},
+	// The browser sends the three fields as a JSON body, so the route reads them
+	// from the body (W5.1) — a query-string route would drop them silently.
+	{Op: Send, Method: "POST", Path: "/api/send", Kind: HTTPRouteJSON, Args: []string{"channel", "to", "text"}},
 	{Op: CancelRun, Method: "POST", Path: "/api/cancel_run", Kind: HTTPRouteWrite, Args: []string{"correlation"}},
 	// /api/budget_set went un-wired (TOPOLOGY-AUDIT-DAY28-VERIFY.md §2);
 	// reachable via opapi.BudgetSet when an operator needs to adjust the ceiling.
@@ -271,14 +273,14 @@ var consoleRoutes = []HTTPRoute{
 	{Op: MemoryForget, Method: "POST", Path: "/api/memory/forget", Kind: HTTPRouteWrite, Args: []string{"id"}},
 	// Bulk soft-delete: the Memory view's multi-select "forget N records" path.
 	// ids is a JSON array; idempotent (already-tombstoned ids count as forgotten).
-	{Op: MemoryBulkForget, Method: "POST", Path: "/api/memory/bulk_forget", Kind: HTTPRouteWrite, Args: []string{"ids"}},
+	{Op: MemoryBulkForget, Method: "POST", Path: "/api/memory/bulk_forget", Kind: HTTPRouteJSON, Args: []string{"ids"}},
 	// Marketplace install/uninstall stream per-item progress, so they have their
 	// own SSE proxies below (marketStreamProxy) rather than going through jsonProxy.
 	// Remote marketplace sources (Phase 2): add/remove a source, then sync its
 	// catalogue into the local cache. Write path; journaled market.*.
-	{Op: MarketAddSource, Method: "POST", Path: "/api/market/source/add", Kind: HTTPRouteWrite, Args: []string{"url", "name", "pubkey"}},
-	{Op: MarketRemoveSource, Method: "POST", Path: "/api/market/source/remove", Kind: HTTPRouteWrite, Args: []string{"name"}},
-	{Op: MarketSync, Method: "POST", Path: "/api/market/sync", Kind: HTTPRouteWrite, Args: []string{"name"}},
+	{Op: MarketAddSource, Method: "POST", Path: "/api/market/source/add", Kind: HTTPRouteJSON, Args: []string{"url", "name", "pubkey"}},
+	{Op: MarketRemoveSource, Method: "POST", Path: "/api/market/source/remove", Kind: HTTPRouteJSON, Args: []string{"name"}},
+	{Op: MarketSync, Method: "POST", Path: "/api/market/sync", Kind: HTTPRouteJSON, Args: []string{"name"}},
 	// Promote a private (agent-scoped) record into shared memory (M915) —
 	// the selective-sharing valve over per-agent memory.
 	{Op: MemoryPromote, Method: "POST", Path: "/api/memory/promote", Kind: HTTPRouteWrite, Args: []string{"id"}},
@@ -327,7 +329,7 @@ var consoleRoutes = []HTTPRoute{
 	{Op: AgentRetire, Method: "POST", Path: "/api/agents/retire", Kind: HTTPRouteWrite, Args: []string{"ref", "reason"}},
 	{Op: AgentRevive, Method: "POST", Path: "/api/agents/revive", Kind: HTTPRouteWrite, Args: []string{"ref"}},
 	// Agent wake: manual trigger for a roster agent. POST-only.
-	{Op: AgentWake, Method: "POST", Path: "/api/agents/wake", Kind: HTTPRouteWrite, Args: []string{"ref", "intent", "reason", "incident_id", "root_incident_id", "parent_incident_id"}},
+	{Op: AgentWake, Method: "POST", Path: "/api/agents/wake", Kind: HTTPRouteJSON, Args: []string{"ref", "intent", "reason", "incident_id", "root_incident_id", "parent_incident_id"}},
 	// MCP self-install lifecycle (M796): attach spawns the registered server
 	// NOW (its tools go live for the next run); detach is the kill switch;
 	// enable flips auto-attach at daemon start. ref = name or id.
@@ -346,7 +348,7 @@ var consoleRoutes = []HTTPRoute{
 	{Op: ProviderKeyActivate, Method: "POST", Path: "/api/provider/keys/activate", Kind: HTTPRouteWrite, Args: []string{"provider", "env", "label"}},
 	{Op: ProviderKeyRemove, Method: "POST", Path: "/api/provider/keys/remove", Kind: HTTPRouteWrite, Args: []string{"provider", "env", "label"}},
 	// Multi-account channel: remove a labelled account (deletes its stored fields).
-	{Op: ChannelAccountRemove, Method: "POST", Path: "/api/channel/account/remove", Kind: HTTPRouteWrite, Args: []string{"kind", "label"}},
+	{Op: ChannelAccountRemove, Method: "POST", Path: "/api/channel/account/remove", Kind: HTTPRouteJSON, Args: []string{"kind", "label"}},
 	// Mutating proxies that forward an argument allowlist from the JSON request body.
 	{Op: PlanGenerate, Method: "POST", Path: "/api/plan/generate", Kind: HTTPRouteJSON, Args: []string{"intent", "model"}},
 	{Op: PlanRefine, Method: "POST", Path: "/api/plan/refine", Kind: HTTPRouteJSON, Args: []string{"plan_json", "feedback", "model"}},

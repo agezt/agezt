@@ -130,7 +130,7 @@ describe("Setup wizard", () => {
       }),
     );
     expect(postJSON).toHaveBeenCalledWith("/api/config/set", { name: "AGEZT_PROVIDER", value: "minimax" });
-    expect(postAction).toHaveBeenCalledWith("/api/provider/reload", {});
+    expect(postJSON).toHaveBeenCalledWith("/api/provider/reload", {});
 
     // Model step → pick the one model → sets AGEZT_MODEL → password step.
     await waitFor(() => expect(screen.getByRole("button", { name: "Use model MiniMax-M2" })).toBeTruthy());

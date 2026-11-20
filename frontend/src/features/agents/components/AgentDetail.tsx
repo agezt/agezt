@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { X, Activity as ActivityIcon, ArrowUpRight, Play, Pause, Bot, CalendarClock, Coins, Cpu, HeartPulse, Megaphone, Wrench, Zap, Archive, ArchiveRestore } from "lucide-react";
-import { getJSON, postAction, postJSON } from "@/app/api";
+import { getJSON, postAction, postJSON, type WritePath, type NativePath } from "@/app/api";
 import { fmtAgo, fmtDue } from "@/app/utils";
 import { money } from "@/app/format";
 import { Button } from "@/components/ui/button";
@@ -344,7 +344,7 @@ export function AgentDetail({
   }
 
   async function action(
-    path: string,
+    path: WritePath | NativePath,
     params: Record<string, string>,
     success: string,
     opts?: { confirm?: ConfirmOptions },
@@ -400,7 +400,7 @@ export function AgentDetail({
   async function wakeAgentNow() {
     setBusy(true);
     try {
-      const res = await postAction<AgentWakeResult>("/api/agents/wake", {
+      const res = await postJSON<AgentWakeResult>("/api/agents/wake", {
         ref: slug,
         reason: "manual operator wake",
       });

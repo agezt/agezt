@@ -25,7 +25,7 @@ import {
   AlertTriangle,
   Zap,
 } from "lucide-react";
-import { getJSON, postAction, postJSON } from "@/app/api";
+import { getJSON, postAction, postJSON, type WritePath, type NativePath } from "@/app/api";
 import { downloadText } from "@/app/export";
 import { cn, fmtDateTime } from "@/app/utils";
 import { Button } from "@/components/ui/button";
@@ -202,7 +202,7 @@ export function Schedules() {
 
   async function act(
     id: string,
-    path: string,
+    path: WritePath | NativePath,
     params?: Record<string, string>,
     opts?: { confirm?: ConfirmOptions; success?: string },
   ) {

@@ -1392,10 +1392,15 @@ func TestAgentRepairJSONRoutesForwardIncidentBody(t *testing.T) {
 	}
 }
 
-func TestAgentWakeWriteRouteForwardsQueryArgs(t *testing.T) {
+// TestAgentWakeJSONRouteForwardsBodyArgs: the wake route reads its arguments
+// from the BODY (W5.1). It used to read them from the query string — which is
+// why the browser's JSON body never arrived: the console dropped the body,
+// and the operation was called with no arguments at all.
+func TestAgentWakeJSONRouteForwardsBodyArgs(t *testing.T) {
 	fc := &fakeCaller{result: map[string]any{"accepted": true}}
 	s, _ := newServer(t, fc, "secret")
-	req := httptest.NewRequest(http.MethodPost, "/api/agents/wake?token=secret&ref=lead&reason=manual+operator+wake", nil)
+	body := `{"ref":"lead","reason":"manual operator wake","evil":"x"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/agents/wake?token=secret", strings.NewReader(body))
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, req)
 
@@ -1410,6 +1415,31 @@ func TestAgentWakeWriteRouteForwardsQueryArgs(t *testing.T) {
 	}
 	if fc.lastArgs["reason"] != "manual operator wake" {
 		t.Fatalf("reason not forwarded: got %v", fc.lastArgs)
+	}
+	if _, leaked := fc.lastArgs["evil"]; leaked {
+		t.Fatalf("leaked unexpected body key: %v", fc.lastArgs)
+	}
+}
+
+// TestAgentWakeJSONRouteIgnoresQueryArgs: the wake route is a body route, so
+// arguments in the query string do not reach the operation. This is the
+// mirror image of the bug above, and it is pinned here so the route cannot
+// quietly become a query route again.
+func TestAgentWakeJSONRouteIgnoresQueryArgs(t *testing.T) {
+	fc := &fakeCaller{result: map[string]any{"accepted": true}}
+	s, _ := newServer(t, fc, "secret")
+	req := httptest.NewRequest(http.MethodPost, "/api/agents/wake?token=secret&ref=lead", strings.NewReader("{}"))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d want 200", rec.Code)
+	}
+	if len(fc.calls) != 1 || fc.calls[0] != opapi.AgentWake {
+		t.Fatalf("expected one agent_wake call, got %v", fc.calls)
+	}
+	if len(fc.lastArgs) != 0 {
+		t.Fatalf("query args reached a body route: %v", fc.lastArgs)
 	}
 }
 

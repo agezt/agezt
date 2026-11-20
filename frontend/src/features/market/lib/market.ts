@@ -35,7 +35,10 @@ export async function fetchPackDetails(name: string, marketplace?: string): Prom
     mcp_servers?: string[];
     tools?: string[];
     vet?: VetReport;
-  }>(`/api/market/show?name=${encodeURIComponent(name)}&marketplace=${encodeURIComponent(marketplace || "")}`);
+  }>("/api/market/show", {
+    name,
+    marketplace: marketplace || "",
+  });
   return { skills: res.skills || [], mcp_servers: res.mcp_servers || [], tools: res.tools || [], vet: res.vet };
 }
 

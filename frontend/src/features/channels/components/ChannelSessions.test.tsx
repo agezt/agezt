@@ -4,9 +4,11 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 import type { ReactNode } from "react";
 
 const getJSON = vi.fn();
+const postJSON = vi.fn();
 const postAction = vi.fn();
 vi.mock("@/app/api", () => ({
   getJSON: (...a: unknown[]) => getJSON(...a),
+  postJSON: (...a: unknown[]) => postJSON(...a),
   postAction: (...a: unknown[]) => postAction(...a),
 }));
 vi.mock("@/app/events", () => ({ useEvents: () => ({ events: [] }) }));
@@ -50,7 +52,7 @@ describe("ChannelSessions", () => {
     fireEvent.change(replyBox, { target: { value: "hello back" } });
     fireEvent.click(screen.getByRole("button", { name: /send/i }));
     await waitFor(() =>
-      expect(postAction).toHaveBeenCalledWith("/api/send", {
+      expect(postJSON).toHaveBeenCalledWith("/api/send", {
         channel: "telegram",
         to: "123",
         text: "hello back",

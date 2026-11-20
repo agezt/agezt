@@ -52,7 +52,7 @@ import { cn, clip, fmtDateTime, fmtAgo } from "@/app/utils";
 import { money } from "@/app/format";
 import { summarizeAgentRuntimeStatus, fleetCardIssueSummary } from "@/features/agents/lib/agentdetail";
 import { useUI } from "@/components/ui/feedback";
-import { postAction } from "@/app/api";
+import { postAction, postJSON } from "@/app/api";
 
 export function fleetAgentRepairOpsSummary(
   profile: Pick<ApiProfile, "retired" | "retry_policy" | "health_policy" | "self_repair">,
@@ -321,7 +321,7 @@ export function FleetCard({
     }
   }
   const wake = (ev: ReactMouseEvent) =>
-    runAction(ev, () => postAction("/api/agents/wake", { ref: e.slug, reason: "manual operator wake" }), `${e.name} wake queued`);
+    runAction(ev, () => postJSON("/api/agents/wake", { ref: e.slug, reason: "manual operator wake" }), `${e.name} wake queued`);
   const toggleEnabled = (ev: ReactMouseEvent) => {
     const next = !e.enabled;
     return runAction(

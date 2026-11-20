@@ -1,5 +1,58 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.1 the API document and the browser client get one home, 2026-11-19
+
+The W0–W5 objective remains open. W5.1 is the slice the roadmap's W5 row asks
+for: "OpenAPI from op registry; generated TS client in `frontend/src/app/api`;
+delete hand-written wrappers."
+
+### What is on the tree
+
+- `kernel/contract/opapi/openapi.go` — the OpenAPI 3.1 producer (L1). It reads
+  the console's route catalogue and a **schema source** callback, so the
+  contract package stays free of the daemon.
+- `kernel/contract/opapi/native.go` — the console's 21 own endpoints (the SPA
+  shell, login, the event feed, files, voice, rollback, the workflow hook).
+  Their names used to live in a test file; they now live next to the
+  catalogue, and `kernel/webui`'s route guard reads the same list.
+- `kernel/controlplane/openapi.go` — `AppOperationSchemas()`, the bridge from
+  the operation registry (readable at build time; no daemon, no socket).
+- `tools/openapi` — the generator. `go run ./tools/openapi` writes
+  `docs/openapi.json` and `frontend/src/app/api/client.ts`; `-check` fails if
+  the committed files are stale. Six guards live in its test file.
+- `frontend/src/app/api/client.ts` — GENERATED. The path unions are the
+  console's surface; the verb carries the route kind in its type.
+- `frontend/src/app/api/transport.ts` — hand-written and deliberately small:
+  the bearer token, the error shape, the event feed's URL. `api.ts` is gone.
+- `kernel/contract/opapi/http.go` — ten routes corrected: eight `Write` → `JSON`
+  (the browser sent a body; the proxy read the query string, so the arguments
+  never arrived), `/api/autonomy` and `/api/workflows` `Read` → `ReadArgs`.
+
+### The evidence
+
+`architecture/318-w51-openapi-and-the-generated-client-evidence.md` — the
+measurement, the three real defects that died on the way, the seven guards,
+the three mutations and the frontend suite's baseline (measured on a clean
+`b4e83c9e` worktree: the suite was already red, because this machine's Node
+build has no `localStorage`).
+
+### What the next slice should do
+
+The browser's **payload types** are still hand-written: about 160 frontend
+interfaces describe what the registry already describes. Generating the request
+and response types from the same schema — and letting the frontend's own
+interfaces extend them — would make a renamed field a compile error in the
+browser too, the way it is already a compile error in the daemon.
+
+Two smaller open ends:
+
+- `docs/openapi.json` carries the daemon's version, so a version bump makes it
+  stale and the `-check` gate fails. That is intended, but the release step
+  has to regenerate it.
+- The console's native endpoints are **named** in one place, but the console
+  still registers each one by hand. Binding them from the same list would
+  close the last gap in "the console's HTTP surface has one home".
+
 ## Current checkpoint — W3.82 the console's route table gets one home, 2026-11-19
 
 The owner resumed work after the report break. The W0–W5 objective remains open.

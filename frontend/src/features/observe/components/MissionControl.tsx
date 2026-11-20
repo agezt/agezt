@@ -47,7 +47,7 @@ function usePulse(): MissionPulse & { error: string | null } {
         const [runs, agents, approvals, status] = await Promise.all([
           getJSON<{ runs?: { status: string }[] }>("/api/runs", { limit: "100" }),
           getJSON<{ agents?: unknown[] }>("/api/agents", {}),
-          getJSON<{ pending?: number }>("/api/approvals", { pending: "true" }),
+          getJSON<{ pending?: number }>("/api/approvals"),
           getJSON<{ version?: string; revision?: string }>("/api/status", {}),
         ]);
         if (stop) return;

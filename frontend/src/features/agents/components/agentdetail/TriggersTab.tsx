@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Anchor, Clock, ArrowUpRight, Play, Pause, Flame, CalendarClock, Zap, Mail, LifeBuoy, Megaphone, Trash2 } from "lucide-react";
-import { getJSON } from "@/app/api";
+import { getJSON, type WritePath, type NativePath } from "@/app/api";
 import { fmtTime, fmtDateTime, clip } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +37,7 @@ export function TriggersTab({
   triggers: FleetTrigger[];
   busy: boolean;
   onAction: (
-    path: string,
+    path: WritePath | NativePath,
     params: Record<string, string>,
     success: string,
     opts?: { confirm?: ConfirmOptions },

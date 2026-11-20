@@ -16,35 +16,20 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/agezt/agezt/kernel/contract/opapi"
 )
 
 // consoleNativePaths are the console's own endpoints. They are not operation
 // bindings — they serve the SPA shell, the auth surface, the event feed, the
 // file manager, the voice surface, the rollback surface and the workflow hook
 // — so they are registered one by one instead of coming from the catalogue.
-var consoleNativePaths = []string{
-	"/",
-	"/api/authmeta",
-	"/api/login",
-	"/api/logout",
-	"/assets/",
-	"/favicon.ico",
-	"/events",
-	"/api/rollback/checkpoints",
-	"/api/rollback/apply",
-	"/api/sse-token",
-	"/api/voice/status",
-	"/api/transcribe",
-	"/api/tts",
-	"/api/artifact/raw",
-	"/api/files/tree",
-	"/api/files/raw",
-	"/api/files/mkdir",
-	"/api/files/rename",
-	"/api/files/delete",
-	"/hooks/",
-	"/oauth/callback",
-}
+//
+// The NAMES live in the contract package (opapi.ConsoleNativePaths), next to
+// the catalogue they complement: the generated TypeScript client publishes the
+// console's path surface from the same two lists, and this guard reads the
+// same source it checks.
+var consoleNativePaths = opapi.ConsoleNativePaths()
 
 // allowedConsolePaths is every path the console may answer at: the
 // catalogue's, plus the console's own.
@@ -80,6 +65,23 @@ func TestConsoleRegistersTheCatalogueAndNothingElse(t *testing.T) {
 	for _, path := range consoleRoutePaths() {
 		if !registered[path] {
 			t.Errorf("%s is in the catalogue but the console does not serve it", path)
+		}
+	}
+}
+
+// TestConsoleServesEveryNativeEndpoint: the console's own endpoint list is a
+// promise in both directions. A name in the list that the console does not
+// serve is a lie the generated client would publish; an endpoint the console
+// serves that the list omits is a path nobody can check.
+func TestConsoleServesEveryNativeEndpoint(t *testing.T) {
+	s, _ := newServer(t, &fakeCaller{}, "secret")
+	registered := map[string]bool{}
+	for _, route := range s.routeRegistry().Routes() {
+		registered[route.Path] = true
+	}
+	for _, path := range opapi.ConsoleNativePaths() {
+		if !registered[path] {
+			t.Errorf("the console's own endpoint list names %q, but the console does not serve it", path)
 		}
 	}
 }
