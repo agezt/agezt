@@ -160,5 +160,7 @@ func New(b *bus.Bus, client Caller, token string) *Server {
 	}
 }
 
-// apiRoutes maps each GET /api path to the read-only control-plane command it
-// proxies. Read-only by construction: there is no path here that mutates.
+// The console's routes are derived from the operation catalogue
+// (kernel/contract/opapi/http.go): each catalogue entry says which path
+// answers which operation and which arguments the console forwards. Read-only
+// by construction: the catalogue's read kinds carry no mutation.

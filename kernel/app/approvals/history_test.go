@@ -190,14 +190,13 @@ func TestOperations(t *testing.T) {
 	stats, _ := h.Stats(context.Background(), StatsRequest{})
 	for i, w := range []struct {
 		name string
-		http opapi.HTTP
 		out  any
 	}{
-		{"approvals_log", opapi.HTTP{Method: "GET", Path: "/api/approvals_log"}, log},
-		{"approvals_stats", opapi.HTTP{}, stats},
+		{"approvals_log", log},
+		{"approvals_stats", stats},
 	} {
 		spec := ops[i].Spec()
-		if spec.Name != w.name || !spec.ReadOnly || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.HTTP != w.http || spec.Output != reflect.TypeOf(w.out) {
+		if spec.Name != w.name || !spec.ReadOnly || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.Output != reflect.TypeOf(w.out) {
 			t.Fatal(spec)
 		}
 		raw, _ := json.Marshal(w.out)

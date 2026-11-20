@@ -16,7 +16,7 @@ func TestAgentActivityNativeTypedRegistry(t *testing.T) {
 			continue
 		}
 		found++
-		if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || !spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.HTTP != (opapi.HTTP{Method: "GET", Path: "/api/agents/activity"}) {
+		if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || !spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary {
 			t.Fatalf("agent_activity metadata=%+v", spec)
 		}
 	}

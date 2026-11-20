@@ -22,7 +22,7 @@ func TestChannelACPOperationSpecOwnsPrimaryReadOnlyGETAndTypedSchema(t *testing.
 		t.Fatal(operations, err)
 	}
 	spec := operations[0].Spec()
-	if spec.Name != "acp_agents" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.Stream != opapi.StreamNone || !spec.AllowUnknownInput || spec.HTTP.Method != "GET" || spec.HTTP.Path != "/api/acp/agents" || spec.Input != reflect.TypeFor[ACPInput]() || spec.Output != reflect.TypeFor[ACPOutput]() {
+	if spec.Name != "acp_agents" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.Stream != opapi.StreamNone || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[ACPInput]() || spec.Output != reflect.TypeFor[ACPOutput]() {
 		t.Fatal(spec)
 	}
 	for _, raw := range []string{`{}`, `{"force":true,"active_command":42,"tenant":"ignored","unknown":{"token":"owned"}}`} {

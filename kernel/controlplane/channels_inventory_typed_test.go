@@ -27,7 +27,7 @@ func TestChannelInventoryNativeTypedMetadata(t *testing.T) {
 	}
 	spec := channelInventoryOperations[0].Spec()
 	wire := commandRegistry[opapi.ChannelList]
-	if !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || spec.Input != reflect.TypeFor[appchannels.ListInput]() || spec.Output != reflect.TypeFor[appchannels.ListOutput]() || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.HTTP.Method != "GET" || spec.HTTP.Path != "/api/channels" {
+	if !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || spec.Input != reflect.TypeFor[appchannels.ListInput]() || spec.Output != reflect.TypeFor[appchannels.ListOutput]() || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary {
 		t.Fatal(spec, wire)
 	}
 }

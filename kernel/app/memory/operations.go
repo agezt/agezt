@@ -139,7 +139,7 @@ func Operations(service func(context.Context) *Service, distillation func(contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: opapi.MemoryList, ReadOnly: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/memory"}}, func(ctx context.Context, in ListInput) (ListOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.MemoryList, ReadOnly: true}, func(ctx context.Context, in ListInput) (ListOutput, error) {
 				prepared, err := service(ctx).PrepareList(ctx)
 				if err != nil {
 					return ListOutput{}, err
@@ -164,7 +164,7 @@ func Operations(service func(context.Context) *Service, distillation func(contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: opapi.MemoryAdd, InputSchema: rememberSchema(false), HTTP: opapi.HTTP{Method: "POST", Path: "/api/memory/add"}}, func(ctx context.Context, in RememberInput) (RememberOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.MemoryAdd, InputSchema: rememberSchema(false)}, func(ctx context.Context, in RememberInput) (RememberOutput, error) {
 				if in.Content == "" {
 					return RememberOutput{}, errors.New("args.content required")
 				}
@@ -172,7 +172,7 @@ func Operations(service func(context.Context) *Service, distillation func(contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: opapi.MemorySupersede, InputSchema: rememberSchema(true), HTTP: opapi.HTTP{Method: "POST", Path: "/api/memory/supersede"}}, func(ctx context.Context, in SupersedeInput) (SupersedeOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.MemorySupersede, InputSchema: rememberSchema(true)}, func(ctx context.Context, in SupersedeInput) (SupersedeOutput, error) {
 				if in.OldID == "" {
 					return SupersedeOutput{}, errors.New("args.old_id required")
 				}
@@ -183,7 +183,7 @@ func Operations(service func(context.Context) *Service, distillation func(contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: opapi.MemoryForget, HTTP: opapi.HTTP{Method: "POST", Path: "/api/memory/forget"}}, func(ctx context.Context, in GetInput) (ForgetOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.MemoryForget}, func(ctx context.Context, in GetInput) (ForgetOutput, error) {
 				if strings.TrimSpace(in.ID) == "" {
 					return ForgetOutput{}, errors.New("args.id required")
 				}
@@ -191,7 +191,7 @@ func Operations(service func(context.Context) *Service, distillation func(contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: opapi.MemoryPromote, HTTP: opapi.HTTP{Method: "POST", Path: "/api/memory/promote"}}, func(ctx context.Context, in GetInput) (PromoteOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.MemoryPromote}, func(ctx context.Context, in GetInput) (PromoteOutput, error) {
 				if strings.TrimSpace(in.ID) == "" {
 					return PromoteOutput{}, errors.New("args.id required")
 				}
@@ -199,7 +199,7 @@ func Operations(service func(context.Context) *Service, distillation func(contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: opapi.MemoryBulkForget, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ids":{"type":"array","items":{"type":"string"}}},"required":["ids"]}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/memory/bulk_forget"}}, func(ctx context.Context, in BulkForgetInput) (BulkForgetOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.MemoryBulkForget, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ids":{"type":"array","items":{"type":"string"}}},"required":["ids"]}`)}, func(ctx context.Context, in BulkForgetInput) (BulkForgetOutput, error) {
 				ids := make([]string, 0, len(in.IDs))
 				for _, id := range in.IDs {
 					if id = strings.TrimSpace(id); id != "" {
@@ -210,7 +210,7 @@ func Operations(service func(context.Context) *Service, distillation func(contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: opapi.MemoryPrune, InputSchema: maintenanceSchema(true), HTTP: opapi.HTTP{Method: "POST", Path: "/api/memory/prune"}}, func(ctx context.Context, in PruneRequestInput) (PruneOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.MemoryPrune, InputSchema: maintenanceSchema(true)}, func(ctx context.Context, in PruneRequestInput) (PruneOutput, error) {
 				dry, err := admittedDryRun(in.DryRun)
 				if err != nil {
 					return PruneOutput{}, err
@@ -219,7 +219,7 @@ func Operations(service func(context.Context) *Service, distillation func(contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: opapi.MemoryTidy, InputSchema: maintenanceSchema(false), HTTP: opapi.HTTP{Method: "POST", Path: "/api/memory/tidy"}}, func(ctx context.Context, in MaintenanceInput) (TidyOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.MemoryTidy, InputSchema: maintenanceSchema(false)}, func(ctx context.Context, in MaintenanceInput) (TidyOutput, error) {
 				dry, err := admittedDryRun(in.DryRun)
 				if err != nil {
 					return TidyOutput{}, err
@@ -228,12 +228,12 @@ func Operations(service func(context.Context) *Service, distillation func(contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: opapi.MemoryAudit, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, HTTP: opapi.HTTP{Method: "GET", Path: "/api/memory/audit"}}, func(ctx context.Context, _ EmptyInput) (memoryapi.AuditReport, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.MemoryAudit, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant}, func(ctx context.Context, _ EmptyInput) (memoryapi.AuditReport, error) {
 				return service(ctx).Audit(ctx, struct{}{})
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: opapi.MemoryClean, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, InputSchema: maintenanceSchema(false), HTTP: opapi.HTTP{Method: "POST", Path: "/api/memory/clean"}}, func(ctx context.Context, in MaintenanceInput) (memoryapi.CleanReport, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.MemoryClean, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, InputSchema: maintenanceSchema(false)}, func(ctx context.Context, in MaintenanceInput) (memoryapi.CleanReport, error) {
 				dry, err := admittedDryRun(in.DryRun)
 				if err != nil {
 					return memoryapi.CleanReport{}, err
@@ -242,7 +242,7 @@ func Operations(service func(context.Context) *Service, distillation func(contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: opapi.MemoryLog, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, HTTP: opapi.HTTP{Method: "GET", Path: "/api/memory_log"}}, func(ctx context.Context, in LogRequestInput) (LogOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.MemoryLog, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant}, func(ctx context.Context, in LogRequestInput) (LogOutput, error) {
 				return logs(ctx).Log(ctx, admittedLog(in))
 			})
 		},
@@ -252,7 +252,7 @@ func Operations(service func(context.Context) *Service, distillation func(contex
 			})
 		},
 		func() error {
-			return bind(&operations, opapi.Spec{Name: opapi.ProfileRebuild, HTTP: opapi.HTTP{Method: "POST", Path: "/api/profile/rebuild"}}, func(ctx context.Context, in DistillInput) (ProfileOutput, error) {
+			return bind(&operations, opapi.Spec{Name: opapi.ProfileRebuild}, func(ctx context.Context, in DistillInput) (ProfileOutput, error) {
 				return distillation(ctx).RebuildProfile(ctx, in)
 			})
 		},

@@ -1024,9 +1024,7 @@ catalog `<paths.BaseDir()>/rollback/checkpoints.json` (read; `apply` rewrites it
 | `doc.go` | Package doc: embedded SPA, three data paths, security posture. |
 | `embed.go` | `distFS` (`//go:embed all:dist`). |
 | `webui.go` | `Caller`/`Transcriber`/`Synthesizer`, `Server`, `SetTranscriber`, `SetSynthesizer`, `SetAllowedHosts`, `New`. |
-| `webui_routes.go` | `routeRegistry()`: the single route table (see 5.2) built on `httpserver.Router` with a `RequestAuthorize` hook → `s.authorized`; `Handler()`. |
-| `webui_read_routes.go` | `apiRoutes` (36 parameterless GET → cmd) and `readArgsRoutes` (41 GET with allowlisted query args); `writeRoute{cmd,args}` type. |
-| `webui_write_routes.go` | `writeRoutes` (64 POST, args from query string), `jsonRoutes` (57 POST, args from JSON body allowlist), `planRoute`, `jsonBodyMax`=1 MiB, `planRunTimeout`=30 min. |
+| `webui_routes.go` | `routeRegistry()`: the route registry (see 5.2) built on `httpserver.Router` with a `RequestAuthorize` hook → `s.authorized`; `Handler()`; `consolePath`; `jsonBodyMax`=1 MiB, `planRunTimeout`=30 min. The operation routes are DERIVED from the catalogue (`kernel/contract/opapi/http.go`), not declared here. |
 | `webui_proxy.go` | `handleEvents` (SSE firehose), `proxy`, `readArgsProxy`, `writeProxy`, `decodeAllowedBody`, `jsonProxy`, `planRunProxy`, `numericQueryArgs` coercion, `writeJSON` (`Cache-Control: no-store`). |
 | `webui_security.go` | `allowHook` (fixed-window 60/min + 30 burst per workflow|IP, 4096 buckets), `handleWorkflowHook`, `runStreamProxy` (chat → `run` SSE, folds `history` with `convo.TranscriptIntent`), `toolInstallProxy`, `marketStreamProxy`. |
 | `webui_security_auth.go` | `secure` (security headers + Host allowlist + same-origin mutation check), `shellAuth`, `setSecurityHeaders` (CSP etc.), `hostAllowed`, `sameOriginMutation`, `tokenPresented`, `dataTokenPresented`, `authorized`, `tokenMatch`, `sseTokenMatch`. |
@@ -1063,10 +1061,10 @@ proxy's own `context.WithTimeout`.
 | POST | `/api/login` (4 KiB body), `/api/logout` | public | Password login → session cookie; logout revokes |
 | GET | `/events` | user (`?st=` SSE token, Bearer, or legacy `?token=`) | SSE firehose of every bus event (`>`), 20 s ping |
 | GET,OPTIONS | `/api/sse-token` | user | Returns the ephemeral SSE token |
-| GET | 36 `apiRoutes` (`/api/status`, `/api/config`, `/api/budget`, …) | user | `proxy(cmd)`, no args, 5 s |
-| GET | 41 `readArgsRoutes` (`/api/runs`, `/api/agents`, `/api/journal`, …) | user | `readArgsProxy`, allowlisted query args (numeric coercion), 5 s |
-| POST | 64 `writeRoutes` (`/api/halt`, `/api/decide`, `/api/edict/set_level`, …) | user | `writeProxy`, args from query string, 5 s |
-| POST | 57 `jsonRoutes` (`/api/config/set`, `/api/agents/add`, `/api/schedule/add`, …) | user | `jsonProxy`, JSON body allowlist, 1 MiB, 120 s |
+| GET | 36 catalogue reads (`/api/status`, `/api/config`, `/api/budget`, …) | user | `proxy(cmd)`, no args, 5 s |
+| GET | 41 catalogue reads with args (`/api/runs`, `/api/agents`, `/api/journal`, …) | user | `readArgsProxy`, allowlisted query args (numeric coercion), 5 s |
+| POST | 64 catalogue writes (`/api/halt`, `/api/decide`, `/api/edict/set_level`, …) | user | `writeProxy`, args from query string, 5 s |
+| POST | 57 catalogue JSON writes (`/api/config/set`, `/api/agents/add`, `/api/schedule/add`, …) | user | `jsonProxy`, JSON body allowlist, 1 MiB, 120 s |
 | POST | `/api/plan/run` | user | `plan` via `Client.Stream` (events discarded; browser sees them on `/events`), 30 min |
 | POST | `/api/run` | user | Chat: `run` via `Client.Stream`, each event re-emitted as SSE `{kind,subject,payload,correlation_id}`, then `{kind:"done"}`; body keys `intent, model, history, system, agent, execution_profile, auto_approve_caps` |
 | POST | `/api/toolbox/install` | user | `toolbox_install` streamed as SSE |
@@ -1083,6 +1081,9 @@ proxy's own `context.WithTimeout`.
 | GET | `/oauth/callback` | public (state token) | Channel OAuth redirect → `channel_oauth_callback` |
 
 The per-op mapping of the 198 table-driven routes is the "Web UI route(s)" column of §1.10.
+The mapping itself lives in **one place**: the operation catalogue
+(`kernel/contract/opapi/http.go`), which the console reads at start-up. A route
+is added there — never in the console — and the console binds a proxy for it.
 
 ### 5.3 Event streaming path to the browser (deliverable e)
 
@@ -1301,9 +1302,14 @@ and warns when no console password is set.
   `commandSpec` in the domain's `register*Commands` (or a themed group in `registry.go`). Set `TenantAllowed` (+`TenantRouted`) only if
   it must be callable by tenant tokens and acts on `dc.K`/`kernelFor`. Choose `Streaming`. `dispatch_registry_test.go` pins the constant↔registry 1:1.
 - **Journal audit view**: in the owning `kernel/app/<domain>` package, decode typed rows with `journalview.ProjectValues` (see `app/audit`) and bind a read-only spec.
-- **Expose an op in the Web UI**: add one entry to `apiRoutes` / `readArgsRoutes` (GET) or `writeRoutes` / `jsonRoutes` (POST) with an
-  explicit arg allowlist; numeric query keys must be in `numericQueryArgs`; add a `*_route_test.go` (forwarding + GET rejection for writes).
-  Streaming results need a bespoke handler using `httpserver.StartSSE` + `Client.Stream`.
+- **Expose an op in the Web UI**: add one entry to the operation catalogue
+  (`kernel/contract/opapi/http.go`) — the operation, the method, the path and an
+  explicit argument allowlist; numeric query keys must be in `numericQueryArgs`;
+  add a `*_route_test.go` (forwarding + GET rejection for writes). The console
+  derives its routes from the catalogue, so nothing is registered in
+  `kernel/webui`. Streaming results need a bespoke handler using
+  `httpserver.StartSSE` + `Client.Stream` — the catalogue's `HTTPRouteStream`
+  kind carries the path and the forwarded keys for it.
 - **New HTTP surface/route**: use `httpserver.NewRouter` + `RouteOpts{Tier: …}` (mandatory), `httpserver.Start`, `StartSSE` for streams.
 - **New daemon env var**: add to `controlplane/config.go configEnvVars` (guard test).
 - **New late dependency**: add a field to `LateDeps` + setter; nil-skip in `Bind`.

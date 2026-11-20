@@ -39,7 +39,7 @@ func TestRosterListOperationCompleteTypedSchema(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	s := ops[0].Spec()
-	if s.Name != "agent_list" || !s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Input != reflect.TypeFor[ListRequest]() || s.Output != reflect.TypeFor[ListOutput]() || s.Stream != opapi.StreamNone || s.Emission != nil || !s.AllowUnknownInput || s.HTTP.Method != "GET" || s.HTTP.Path != "/api/agents" {
+	if s.Name != "agent_list" || !s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Input != reflect.TypeFor[ListRequest]() || s.Output != reflect.TypeFor[ListOutput]() || s.Stream != opapi.StreamNone || s.Emission != nil || !s.AllowUnknownInput {
 		t.Fatal(s)
 	}
 	var root map[string]any

@@ -54,7 +54,7 @@ func ObservationOperations(provider func(context.Context) *Observations) ([]app.
 	if provider == nil {
 		return nil, errors.New("provider observation service provider required")
 	}
-	log, err := app.NewOperation(opapi.Spec{Name: opapi.ProviderLog, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/provider_log"}}, func(ctx context.Context, in ObservationLogInput) (ObservationLogOutput, error) {
+	log, err := app.NewOperation(opapi.Spec{Name: opapi.ProviderLog, ReadOnly: true, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, AllowUnknownInput: true}, func(ctx context.Context, in ObservationLogInput) (ObservationLogOutput, error) {
 		bounded := observationPage(in.ObservationPageInput)
 		bounded.Cursor, bounded.FallbacksOnly = in.Cursor, in.Fallbacks
 		return provider(ctx).Log(bounded)

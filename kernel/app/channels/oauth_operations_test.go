@@ -31,16 +31,19 @@ func TestChannelOAuthOperationMetadataAndPresence(t *testing.T) {
 			t.Fatal(s)
 		}
 		if i == 1 {
-			if s.HTTP != (opapi.HTTP{}) {
-				t.Fatal("internal callback declared public route", s.HTTP)
+			// The internal callback is driven by the console's own /oauth/callback
+			// page, not by a console route for the operation itself.
+			if _, bound := opapi.ConsoleRoute(opapi.ChannelOAuthCallback); bound {
+				t.Fatal("internal callback declared public route", opapi.ChannelOAuthCallback)
 			}
 		} else {
-			path := "/api/channel/oauth/start"
+			op := opapi.ChannelOAuthStart
 			if i == 2 {
-				path = "/api/channel/oauth/status"
+				op = opapi.ChannelOAuthStatus
 			}
-			if s.HTTP.Method != "POST" || s.HTTP.Path != path {
-				t.Fatal(s.HTTP)
+			route, bound := opapi.ConsoleRoute(op)
+			if !bound || route.Method != "POST" {
+				t.Fatal(op, route)
 			}
 		}
 		var node map[string]any

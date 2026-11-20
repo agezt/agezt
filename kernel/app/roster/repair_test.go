@@ -124,7 +124,7 @@ func TestRosterRepairOperationIsAudited(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "agent_repair" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[RepairRequest]() || spec.Output != reflect.TypeFor[RepairOutput]() || spec.HTTP != (opapi.HTTP{Method: "POST", Path: "/api/agents/repair"}) {
+	if spec.Name != "agent_repair" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[RepairRequest]() || spec.Output != reflect.TypeFor[RepairOutput]() {
 		t.Fatal(spec)
 	}
 	if schema.ValidateJSON(spec.OutputSchema, json.RawMessage(`{"accepted":true,"agent":"a","correlation_id":"c"}`)) != nil || schema.ValidateJSON(spec.OutputSchema, json.RawMessage(`{"accepted":true,"agent":1,"correlation_id":"c"}`)) == nil {

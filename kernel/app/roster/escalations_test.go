@@ -194,7 +194,7 @@ func TestRosterEscalationsOperationSpecAndAdmission(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "agent_escalations" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[EscalationRequest]() || spec.Output != reflect.TypeFor[EscalationsOutput]() || spec.HTTP != (opapi.HTTP{Method: "GET", Path: "/api/agents/escalations"}) {
+	if spec.Name != "agent_escalations" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[EscalationRequest]() || spec.Output != reflect.TypeFor[EscalationsOutput]() {
 		t.Fatal(spec)
 	}
 	for _, principal := range []opapi.Principal{{Kind: opapi.Tenant, Tenant: "acme"}, {Kind: opapi.Agent}} {

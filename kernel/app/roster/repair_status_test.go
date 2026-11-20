@@ -202,7 +202,7 @@ func TestRosterRepairStatusOperationSpecAndAdmission(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "agent_repair_status" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[RepairStatusRequest]() || spec.Output != reflect.TypeFor[RepairStatusOutput]() || spec.HTTP != (opapi.HTTP{Method: "GET", Path: "/api/agents/repair_status"}) {
+	if spec.Name != "agent_repair_status" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[RepairStatusRequest]() || spec.Output != reflect.TypeFor[RepairStatusOutput]() {
 		t.Fatal(spec)
 	}
 	for _, principal := range []opapi.Principal{{Kind: opapi.Tenant, Tenant: "acme"}, {Kind: opapi.Agent}} {

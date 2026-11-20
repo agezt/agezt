@@ -70,7 +70,7 @@ func Operations(reads func(context.Context) (*Service, error), writes func(conte
 	var ops []app.Operation
 	bindings := []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.BoardRead, ReadOnly: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/board"}}, func(ctx context.Context, in ReadRequestInput) (ReadOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.BoardRead, ReadOnly: true}, func(ctx context.Context, in ReadRequestInput) (ReadOutput, error) {
 				service, err := reads(ctx)
 				if err != nil {
 					return ReadOutput{}, err
@@ -79,7 +79,7 @@ func Operations(reads func(context.Context) (*Service, error), writes func(conte
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.BoardHelp, ReadOnly: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/board/help"}}, func(ctx context.Context, in LimitRequestInput) (HelpOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.BoardHelp, ReadOnly: true}, func(ctx context.Context, in LimitRequestInput) (HelpOutput, error) {
 				service, err := reads(ctx)
 				if err != nil {
 					return HelpOutput{}, err
@@ -115,7 +115,7 @@ func Operations(reads func(context.Context) (*Service, error), writes func(conte
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.BoardSend, HTTP: opapi.HTTP{Method: "POST", Path: "/api/board/send"}}, func(ctx context.Context, in SendRequestInput) (SendOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.BoardSend}, func(ctx context.Context, in SendRequestInput) (SendOutput, error) {
 				service, err := writes(ctx)
 				if err != nil {
 					return SendOutput{}, err
@@ -124,7 +124,7 @@ func Operations(reads func(context.Context) (*Service, error), writes func(conte
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.BoardAck, HTTP: opapi.HTTP{Method: "POST", Path: "/api/board/ack"}}, func(ctx context.Context, in AckRequestInput) (AckOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.BoardAck}, func(ctx context.Context, in AckRequestInput) (AckOutput, error) {
 				service, err := writes(ctx)
 				if err != nil {
 					return AckOutput{}, err

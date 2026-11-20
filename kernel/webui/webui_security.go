@@ -151,7 +151,7 @@ func (s *Server) handleWorkflowHook(w http.ResponseWriter, r *http.Request) {
 // IS the chat payload, so it's forwarded inline.
 func (s *Server) runStreamProxy() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		args, ok := s.decodeAllowedBody(w, r, []string{"intent", "model", "history", "system", "agent", "execution_profile", "auto_approve_caps"})
+		args, ok := s.decodeAllowedBody(w, r, opapi.ConsoleArgs(opapi.Run))
 		if !ok {
 			return
 		}
@@ -206,7 +206,7 @@ func (s *Server) runStreamProxy() http.HandlerFunc {
 // it's forwarded inline. Only `names` is forwarded from the body.
 func (s *Server) toolInstallProxy() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		args, ok := s.decodeAllowedBody(w, r, []string{"names"})
+		args, ok := s.decodeAllowedBody(w, r, opapi.ConsoleArgs(opapi.ToolboxInstall))
 		if !ok {
 			return
 		}
@@ -243,9 +243,9 @@ func (s *Server) toolInstallProxy() http.HandlerFunc {
 // marketStreamProxy installs or uninstalls a marketplace pack, streaming the
 // per-item progress events (skill/mcp/tool) + final record to the browser as
 // SSE — mirroring toolInstallProxy. Only the whitelisted keys are forwarded.
-func (s *Server) marketStreamProxy(cmd string, keys []string) http.HandlerFunc {
+func (s *Server) marketStreamProxy(cmd string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		args, ok := s.decodeAllowedBody(w, r, keys)
+		args, ok := s.decodeAllowedBody(w, r, opapi.ConsoleArgs(cmd))
 		if !ok {
 			return
 		}

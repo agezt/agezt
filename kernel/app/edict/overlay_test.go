@@ -137,7 +137,7 @@ func TestOverlayOperations(t *testing.T) {
 		{"edict_compact", opapi.PrimaryOnly, compact},
 	} {
 		spec := ops[i].Spec()
-		if spec.Name != w.name || spec.ReadOnly || spec.Authz != w.authz || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.HTTP != (opapi.HTTP{}) || spec.Output != reflect.TypeOf(w.out) {
+		if spec.Name != w.name || spec.ReadOnly || spec.Authz != w.authz || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.Output != reflect.TypeOf(w.out) {
 			t.Fatal(spec)
 		}
 		raw, _ := json.Marshal(w.out)

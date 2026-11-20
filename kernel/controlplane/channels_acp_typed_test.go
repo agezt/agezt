@@ -25,7 +25,7 @@ func TestChannelACPNativeMetadataComesFromTypedSpec(t *testing.T) {
 	}
 	spec := acpInventoryOperations[0].Spec()
 	wire := commandRegistry[opapi.ACPAgents]
-	if !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || spec.Input != reflect.TypeFor[appchannels.ACPInput]() || spec.Output != reflect.TypeFor[appchannels.ACPOutput]() || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.HTTP.Method != "GET" || spec.HTTP.Path != "/api/acp/agents" {
+	if !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || spec.Input != reflect.TypeFor[appchannels.ACPInput]() || spec.Output != reflect.TypeFor[appchannels.ACPOutput]() || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary {
 		t.Fatal(spec, wire)
 	}
 }

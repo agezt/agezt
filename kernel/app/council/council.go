@@ -185,13 +185,13 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	members, err := app.NewOperation(opapi.Spec{Name: opapi.CouncilMembers, ReadOnly: true, OutputSchema: membersOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/council/members"}}, func(ctx context.Context, in MembersRequest) (MembersOutput, error) {
+	members, err := app.NewOperation(opapi.Spec{Name: opapi.CouncilMembers, ReadOnly: true, OutputSchema: membersOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in MembersRequest) (MembersOutput, error) {
 		return provider(ctx).Members(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	set, err := app.NewOperation(opapi.Spec{Name: opapi.CouncilSet, OutputSchema: setOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"members":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/council/set"}}, func(ctx context.Context, in SetRequest) (SetOutput, error) {
+	set, err := app.NewOperation(opapi.Spec{Name: opapi.CouncilSet, OutputSchema: setOut, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"members":{}}}`)}, func(ctx context.Context, in SetRequest) (SetOutput, error) {
 		return provider(ctx).Set(ctx, in)
 	})
 	if err != nil {

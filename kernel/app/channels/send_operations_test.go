@@ -56,7 +56,7 @@ func TestChannelSendOperationSpecAndTerminalOwnership(t *testing.T) {
 			t.Fatal(ops, err)
 		}
 		s := ops[0].Spec()
-		if s.Name != "send" || s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || !s.AllowUnknownInput || s.Stream != opapi.StreamNone || s.Input != reflect.TypeFor[SendRequest]() || s.Output != reflect.TypeFor[SendOutput]() || s.HTTP.Method != "POST" || s.HTTP.Path != "/api/send" {
+		if s.Name != "send" || s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || !s.AllowUnknownInput || s.Stream != opapi.StreamNone || s.Input != reflect.TypeFor[SendRequest]() || s.Output != reflect.TypeFor[SendOutput]() {
 			t.Fatal(s)
 		}
 		var declaration map[string]any

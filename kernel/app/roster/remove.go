@@ -253,7 +253,7 @@ func RemoveOperations(provider func(context.Context) *RemoveService) ([]app.Oper
 	if err != nil {
 		return nil, err
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentRemove, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"cascade":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/agents/remove"}}, func(ctx context.Context, in RemoveRequest) (RemoveOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentRemove, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"cascade":{}}}`)}, func(ctx context.Context, in RemoveRequest) (RemoveOutput, error) {
 		return provider(ctx).Remove(ctx, in)
 	})
 	if err != nil {

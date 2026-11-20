@@ -1,6 +1,6 @@
 # NEXT — handoff for the next coding agent
 
-## Current checkpoint — W3.81 the CLI top-level vocabulary gets one home, 2026-11-19
+## Current checkpoint — W3.82 the console's route table gets one home, 2026-11-19
 
 The owner resumed work after the report break. The W0–W5 objective remains open.
 
@@ -15640,3 +15640,80 @@ That is the next slice of the programme.
 Evidence:
 `architecture/316-w381-the-cli-top-level-vocabulary-gets-one-home-evidence.md`
 
+## W3.82 — the console's route table gets one home
+
+The fourth part of the vocabulary programme, and the last one that lives in
+this repository's own hand: the **console's route table**. The Web UI bound
+**198** routes by hand across two tables (`webui_read_routes.go`,
+`webui_write_routes.go`), and the application layer repeated a third of the
+same paths on **118** operation specs as an `opapi.Spec.HTTP` "hint" that **no
+production code ever read**.
+
+The home is `kernel/contract/opapi/http.go` — the same package as the operation
+names, and the only place that sees every operation. The measurement decided
+it: **70 of the 198 routed operations have no `opapi.Spec` literal at all**
+(their specs are built by helpers), so a generator reading the specs could
+never have covered them, while the console routes operations *by name* and
+therefore needs the binding where the names already live.
+
+### What moved
+
+- **`kernel/contract/opapi/http.go`** (558 lines) — **203** routes, one entry
+  per operation: the operation (named by its constant), the method, the path
+  and the argument allowlist. Five kinds: read (36), read-with-args (41),
+  write (64), JSON write (57), stream (5). Every comment the old tables
+  carried came across.
+- **The console derives its routes from it** — one loop over the catalogue,
+  one `switch` on the kind, one proxy per kind.
+
+### What is gone
+
+- `kernel/webui/webui_read_routes.go` (202 lines) and
+  `kernel/webui/webui_write_routes.go` (307 lines) — the four tables and the
+  `writeRoute` type.
+- `opapi.HTTP` and `Spec.HTTP` — the type and the field.
+- **118** HTTP hints across 58 application-layer files, including the three
+  written dynamically (the `execprofile` path column, the routing package's
+  `spec(name, method, path, …)` helper, the channel OAuth package's two
+  assignments).
+- **86** test clauses that compared a spec's HTTP hint; the ones that carried
+  a real promise ("this operation has no public route") were repointed at the
+  catalogue.
+- The console's own 60-name hand-written read-command list in its tests — the
+  expected operation is now derived from the catalogue.
+
+### The guard
+
+Eight tests in three packages: the catalogue's invariants
+(`kernel/contract/opapi/http_test.go`, 5), the console's line
+(`kernel/webui/webui_routes_ratchet_test.go`, 2 — including *no file in the
+console may declare a path of its own*), and the strongest one
+(`kernel/controlplane/console_routes_test.go`, 1 — **every operation the
+console binds is one the daemon registers**; the console routes by name, so an
+unregistered name is a route that answers 502). Proved to fire by two reverted
+mutations: a route registered outside the catalogue, and a catalogue entry
+bound to a hand-written operation name.
+
+### The measurement
+
+Places a console route is written **3 → 1**; files holding the route table
+**2 → 1**; operation specs carrying an HTTP path **118 → 0**; production
+readers of a spec's HTTP path **0 → 0**. A separate measurement compared the
+browser's own copy of the paths (`frontend/src`, 218 distinct literals) with
+the catalogue: **every** generic route the browser calls is in the catalogue;
+the paths it calls that the catalogue does not know are the 21 console-native
+endpoints and four test fixtures.
+
+### What is left
+
+The browser's copy of the paths is still hand-written, and the console's 21
+native endpoints (the shell, auth, events, the file manager, voice, rollback,
+the workflow hook, the OAuth callback) stay registered one by one — they are
+not operation bindings. Pinning the browser's copy to the catalogue is
+feasible (the two agree exactly) but needs an allowlist for the frontend's own
+fixture paths, and a permanent allowlist is what this programme has been
+removing. The honest home for it is W5.1 ("OpenAPI from op registry; generated
+TS client"), where the client stops being hand-written at all.
+
+Evidence:
+`architecture/317-w382-the-console-route-table-gets-one-home-evidence.md`

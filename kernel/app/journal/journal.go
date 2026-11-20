@@ -195,7 +195,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.JournalGrep, Tenancy: opapi.Primary, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"pattern":{},"kind":{},"subject":{},"actor":{},"correlation_id":{},"limit":{}}}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/journal"}}, func(ctx context.Context, in GrepRequest) (EventsOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.JournalGrep, Tenancy: opapi.Primary, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"pattern":{},"kind":{},"subject":{},"actor":{},"correlation_id":{},"limit":{}}}`)}, func(ctx context.Context, in GrepRequest) (EventsOutput, error) {
 				return provider(ctx).Grep(ctx, in)
 			})
 		},

@@ -127,7 +127,7 @@ func TestEdictWritesNativeTypedRegistry(t *testing.T) {
 				continue
 			}
 			found++
-			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || spec.HTTP.Method != "POST" {
+			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant {
 				t.Fatalf("%s metadata=%+v", cmd, spec)
 			}
 		}
@@ -218,7 +218,7 @@ func TestEdictDecisionsNativeTypedRegistry(t *testing.T) {
 				continue
 			}
 			found++
-			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || !spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || spec.HTTP.Method != "GET" {
+			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || !spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant {
 				t.Fatalf("%s metadata=%+v", cmd, spec)
 			}
 		}
@@ -319,7 +319,7 @@ func TestEdictOverlayNativeTypedRegistry(t *testing.T) {
 				continue
 			}
 			found++
-			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || spec.ReadOnly || !spec.AllowUnknownInput || (spec.Authz == opapi.OwnTenant) != tenantAllowed || spec.Tenancy != opapi.CallerTenant || spec.HTTP != (opapi.HTTP{}) {
+			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || spec.ReadOnly || !spec.AllowUnknownInput || (spec.Authz == opapi.OwnTenant) != tenantAllowed || spec.Tenancy != opapi.CallerTenant {
 				t.Fatalf("%s metadata=%+v", cmd, spec)
 			}
 		}

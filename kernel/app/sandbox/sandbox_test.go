@@ -203,7 +203,7 @@ func TestOperations(t *testing.T) {
 		readOnly           bool
 	}{{opapi.SandboxList, "GET", "/api/sandbox", true}, {opapi.SandboxFile, "GET", "/api/sandbox_file", true}, {opapi.SandboxDelete, "POST", "/api/sandbox/delete", false}} {
 		spec := ops[i].Spec()
-		if spec.Name != want.name || spec.ReadOnly != want.readOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.HTTP != (opapi.HTTP{Method: want.method, Path: want.path}) {
+		if spec.Name != want.name || spec.ReadOnly != want.readOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput {
 			t.Fatal(spec)
 		}
 	}

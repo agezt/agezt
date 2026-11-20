@@ -77,10 +77,6 @@ func newServer(t *testing.T, client Caller, token string) (*Server, *bus.Bus) {
 func TestRouteMetadataClassifiesWebUIReadsMutationsAndTimeouts(t *testing.T) {
 	s, _ := newServer(t, &fakeCaller{}, "secret")
 	routes := s.routeRegistry().Routes()
-	wantCount := 26 + len(apiRoutes) + len(readArgsRoutes) + len(writeRoutes) + len(jsonRoutes)
-	if len(routes) != wantCount {
-		t.Fatalf("route count = %d, want %d", len(routes), wantCount)
-	}
 	byPath := make(map[string]httpserver.Route, len(routes))
 	for _, route := range routes {
 		if route.Method == "*" {
@@ -102,22 +98,26 @@ func TestRouteMetadataClassifiesWebUIReadsMutationsAndTimeouts(t *testing.T) {
 			t.Errorf("%s metadata = %#v", path, route)
 		}
 	}
-	for path := range apiRoutes {
-		assertRoute(path, http.MethodGet, false, 0, 5*time.Second)
+	// The console's routes come from the operation catalogue: every entry is
+	// registered, with the policy its kind implies.
+	for _, route := range consoleRoutesOfKind(opapi.HTTPRouteRead) {
+		assertRoute(route.Path, http.MethodGet, false, 0, 5*time.Second)
 	}
-	for path := range readArgsRoutes {
-		assertRoute(path, http.MethodGet, false, 0, 5*time.Second)
+	for _, route := range consoleRoutesOfKind(opapi.HTTPRouteReadArgs) {
+		assertRoute(route.Path, http.MethodGet, false, 0, 5*time.Second)
 	}
-	for path := range writeRoutes {
-		assertRoute(path, http.MethodPost, true, 0, 5*time.Second)
+	for _, route := range consoleRoutesOfKind(opapi.HTTPRouteWrite) {
+		assertRoute(route.Path, http.MethodPost, true, 0, 5*time.Second)
 	}
-	for path := range jsonRoutes {
-		assertRoute(path, http.MethodPost, true, jsonBodyMax, 120*time.Second)
+	for _, route := range consoleRoutesOfKind(opapi.HTTPRouteJSON) {
+		assertRoute(route.Path, http.MethodPost, true, jsonBodyMax, 120*time.Second)
+	}
+	for _, route := range consoleRoutesOfKind(opapi.HTTPRouteStream) {
+		assertRoute(route.Path, http.MethodPost, true, jsonBodyMax, planRunTimeout)
 	}
 	assertRoute("/api/authmeta", http.MethodGet, false, 0, 0)
 	assertRoute("/api/login", http.MethodPost, true, loginBodyLimit, 0)
 	assertRoute("/events", http.MethodGet, false, 0, 0)
-	assertRoute("/api/run", http.MethodPost, true, jsonBodyMax, planRunTimeout)
 	assertRoute("/api/sse-token", "GET,OPTIONS", false, 0, 0)
 	assertRoute("/api/voice/status", http.MethodGet, false, 0, 0)
 	assertRoute("/api/artifact/raw", http.MethodGet, false, 0, 15*time.Second)
@@ -818,28 +818,17 @@ func TestAPIProxiesControlPlane(t *testing.T) {
 }
 
 func TestAPIReadOnly(t *testing.T) {
-	// Every GET /api route must map to a read-only command — assert the proxy
-	// never issues anything outside the known read set.
-	readOnly := map[string]bool{
-		"acp_agents": true, "agent_activity": true, "agent_escalations": true, "agent_impact": true,
-		"agent_list": true, "agent_permissions": true, "agent_repair_status": true, "approvals": true,
-		"approvals_log": true, "artifact_list": true, "attention": true, "autonomy_feed": true, "board_help": true,
-		"board_read": true, "budget": true, "catalog_list": true, "chains_get": true, "channel_list": true,
-		"chat_suggestions": true, "config": true, "config_schema": true, "config_values": true,
-		"council_members": true, "data_collections": true, "data_records": true, "edict_log": true,
-		"edict_show": true, "edict_stats": true, "edict_test": true, "execution_profile_check": true,
-		"execution_profiles": true, "inbox": true, "journal_grep": true, "market_list": true, "market_show": true,
-		"market_sources": true, "mcp_list": true, "memory_audit": true, "memory_list": true, "memory_log": true,
-		"netguard_log": true, "node_registry": true, "persona_get": true, "plan_history": true,
-		"prompts_get": true, "provider_key_list": true, "provider_log": true, "pulse_status": true,
-		"ratelimit_log": true, "reaper_scan": true, "routing_get": true, "runs_list": true, "sandbox_file": true,
-		"sandbox_list": true, "schedule_fires": true, "schedule_list": true, "schedule_system_tasks": true,
-		"schedule_test": true, "skill_files": true, "skill_hygiene": true, "skill_list": true, "spend_today": true,
-		"standing_list": true, "standing_why": true, "status": true, "tool_list": true, "tool_log": true,
-		"version": true, "warden_log": true, "webhook_log": true, "workflow_list": true, "workflow_runs": true,
-		"workflow_show": true, "workflow_templates": true, "world_list": true, "world_log": true,
+	// Every GET route must map to the catalogue's read operation for that
+	// path: the console may not issue any other command, and the catalogue is
+	// the only place that says which command a path answers.
+	reads := map[string]string{}
+	for _, route := range consoleRoutesOfKind(opapi.HTTPRouteRead) {
+		reads[route.Path] = route.Op
 	}
-	for path := range apiRoutes {
+	for _, route := range consoleRoutesOfKind(opapi.HTTPRouteReadArgs) {
+		reads[route.Path] = route.Op
+	}
+	for path, want := range reads {
 		fc := &fakeCaller{result: map[string]any{"ok": true}}
 		s, _ := newServer(t, fc, "secret")
 		req := httptest.NewRequest(http.MethodGet, path+"?token=secret", nil)
@@ -847,25 +836,25 @@ func TestAPIReadOnly(t *testing.T) {
 		if len(fc.calls) != 1 {
 			t.Fatalf("%s issued %d calls", path, len(fc.calls))
 		}
-		if !readOnly[fc.calls[0]] {
-			t.Errorf("%s issued non-read command %q", path, fc.calls[0])
+		if fc.calls[0] != want {
+			t.Errorf("%s issued %q, want %q", path, fc.calls[0], want)
 		}
 	}
 }
 
 func TestWriteRequiresPOST(t *testing.T) {
 	// A GET to a write route must NOT issue the mutating command (405).
-	for path := range writeRoutes {
+	for _, route := range consoleRoutesOfKind(opapi.HTTPRouteWrite) {
 		fc := &fakeCaller{result: map[string]any{"ok": true}}
 		s, _ := newServer(t, fc, "secret")
-		req := httptest.NewRequest(http.MethodGet, path+"?token=secret", nil)
+		req := httptest.NewRequest(http.MethodGet, route.Path+"?token=secret", nil)
 		rec := httptest.NewRecorder()
 		s.Handler().ServeHTTP(rec, req)
 		if rec.Code != http.StatusMethodNotAllowed {
-			t.Errorf("GET %s = %d want 405", path, rec.Code)
+			t.Errorf("GET %s = %d want 405", route.Path, rec.Code)
 		}
 		if len(fc.calls) != 0 {
-			t.Errorf("GET %s must not issue a command, issued %v", path, fc.calls)
+			t.Errorf("GET %s must not issue a command, issued %v", route.Path, fc.calls)
 		}
 	}
 }

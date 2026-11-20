@@ -138,7 +138,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	get, err := app.NewOperation(opapi.Spec{Name: opapi.Budget, ReadOnly: true, OutputSchema: out, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/budget"}}, func(ctx context.Context, in GetRequest) (Output, error) {
+	get, err := app.NewOperation(opapi.Spec{Name: opapi.Budget, ReadOnly: true, OutputSchema: out, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true}, func(ctx context.Context, in GetRequest) (Output, error) {
 		return provider(ctx).Get(ctx, in)
 	})
 	if err != nil {

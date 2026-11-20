@@ -304,7 +304,7 @@ func Operations(provider func(context.Context) *History) ([]app.Operation, error
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.ApprovalsLog, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"cursor":{},"denied":{},"since_ms":{}}}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/approvals_log"}}, func(ctx context.Context, in LogRequest) (LogOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.ApprovalsLog, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"cursor":{},"denied":{},"since_ms":{}}}`)}, func(ctx context.Context, in LogRequest) (LogOutput, error) {
 				return provider(ctx).Log(ctx, in)
 			})
 		},

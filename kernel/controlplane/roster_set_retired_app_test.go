@@ -24,7 +24,7 @@ import (
 )
 
 func TestAgentRetireReviveNativeTypedRegistry(t *testing.T) {
-	for cmd, path := range map[string]string{opapi.AgentRetire: "/api/agents/retire", opapi.AgentRevive: "/api/agents/revive"} {
+	for _, cmd := range []string{opapi.AgentRetire, opapi.AgentRevive} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -32,7 +32,7 @@ func TestAgentRetireReviveNativeTypedRegistry(t *testing.T) {
 				continue
 			}
 			found++
-			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.HTTP != (opapi.HTTP{Method: "POST", Path: path}) {
+			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary {
 				t.Fatalf("%s metadata=%+v", cmd, spec)
 			}
 		}

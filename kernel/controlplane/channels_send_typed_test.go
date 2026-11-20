@@ -29,7 +29,7 @@ func TestChannelSendNativeTypedMetadata(t *testing.T) {
 			count++
 		}
 	}
-	if count != 1 || !wire.AppOwned || wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Input != reflect.TypeFor[appchannels.SendRequest]() || s.Output != reflect.TypeFor[appchannels.SendOutput]() || s.HTTP.Method != "POST" || s.HTTP.Path != "/api/send" {
+	if count != 1 || !wire.AppOwned || wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Input != reflect.TypeFor[appchannels.SendRequest]() || s.Output != reflect.TypeFor[appchannels.SendOutput]() {
 		t.Fatal(s, wire, count)
 	}
 }

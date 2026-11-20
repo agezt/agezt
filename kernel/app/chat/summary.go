@@ -144,7 +144,7 @@ func SummaryOperations(provider func(context.Context) *Summarizer) ([]app.Operat
 	if err != nil {
 		return nil, err
 	}
-	op, err := app.NewStreamingOperation(opapi.Spec{Name: opapi.ChatSummarize, Stream: opapi.StreamLive, OutputSchema: out, EmissionSchema: json.RawMessage(event.WireSchema), Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"turns":{},"model":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/chat/summarize"}}, func(ctx context.Context, in SummarizeRequest, _ func(event.Event) error) (SummarizeOutput, error) {
+	op, err := app.NewStreamingOperation(opapi.Spec{Name: opapi.ChatSummarize, Stream: opapi.StreamLive, OutputSchema: out, EmissionSchema: json.RawMessage(event.WireSchema), Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"turns":{},"model":{}}}`)}, func(ctx context.Context, in SummarizeRequest, _ func(event.Event) error) (SummarizeOutput, error) {
 		return provider(ctx).Summarize(ctx, in)
 	})
 	if err != nil {

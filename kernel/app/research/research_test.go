@@ -217,7 +217,7 @@ func TestAskOperations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Name != "research_ask" || s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamLive || !s.AllowUnknownInput || s.HTTP.Method != "POST" || s.HTTP.Path != "/api/research/ask" || s.Output != reflect.TypeFor[AskOutput]() || string(s.OutputSchema) != string(out) {
+	if s.Name != "research_ask" || s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamLive || !s.AllowUnknownInput || s.Output != reflect.TypeFor[AskOutput]() || string(s.OutputSchema) != string(out) {
 		t.Fatalf("research_ask spec: %+v", s)
 	}
 	if len(s.EmissionSchema) == 0 {

@@ -353,7 +353,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 		return nil, errors.New("runs provider required")
 	}
 	var ops []app.Operation
-	if err := bind(&ops, opapi.Spec{Name: opapi.RunsList, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"cursor":{},"status":{},"intent":{},"model":{},"min_cost_mc":{},"max_cost_mc":{}}}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/runs"}}, func(ctx context.Context, in ListRequest) (ListOutput, error) {
+	if err := bind(&ops, opapi.Spec{Name: opapi.RunsList, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"cursor":{},"status":{},"intent":{},"model":{},"min_cost_mc":{},"max_cost_mc":{}}}`)}, func(ctx context.Context, in ListRequest) (ListOutput, error) {
 		return provider(ctx).List(ctx, in)
 	}); err != nil {
 		return nil, err

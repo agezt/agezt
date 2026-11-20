@@ -6474,3 +6474,28 @@ This file holds the active `[Unreleased]` working set.
   and that the registry and the help overview are the table; it was proved to fire
   by two reverted mutations (a second registration outside the table, and an alias
   that shadowed another command).
+
+- **The console's route table has one home.** The Web UI bound **198** routes
+  by hand across two tables (`kernel/webui/webui_read_routes.go`,
+  `webui_write_routes.go`), and the application layer repeated a third of the
+  same paths on **118** operation specs as an `opapi.Spec.HTTP` "hint" that no
+  production code ever read. The console's binding now lives in **one place**,
+  `kernel/contract/opapi/http.go` — next to the operation names it binds, which
+  is the only layer that sees every operation (70 of the 198 routed operations
+  have no spec literal at all, so no generator reading the specs could have
+  covered them). The catalogue holds **203** routes (36 reads, 41 reads with
+  arguments, 64 writes, 57 JSON writes, 5 streamed), each naming the operation
+  by its constant, the method, the path and the argument allowlist; the console
+  derives its routes from it in one loop and binds one proxy per kind. The two
+  route tables (509 lines), the `writeRoute` type, the `opapi.HTTP` type and
+  the `Spec.HTTP` field are gone, along with the 118 path copies and the 86
+  test clauses that compared them — the tests that carried a real promise
+  ("this operation has no public route") were repointed at the catalogue. Eight
+  new tests guard the line: the catalogue's invariants, the console's (no file
+  in the console may declare a path of its own), and the strongest one — every
+  operation the console binds is one **the daemon registers**, because the
+  console routes by name and an unregistered name answers 502. Proved to fire
+  by two reverted mutations (a route registered outside the catalogue, and a
+  catalogue entry bound to a hand-written operation name). The console answers
+  at the same paths, with the same methods, allowlists and timeouts; the
+  operation names and the wire protocol did not change.

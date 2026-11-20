@@ -23,7 +23,7 @@ func TestProbeSpecPreservesPrimaryOnlyAndTypedOptionalOutputs(t *testing.T) {
 		t.Fatalf("operations = %d", len(ops))
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "provider_probe" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Stream != opapi.StreamNone || spec.HTTP.Method != "POST" || spec.HTTP.Path != "/api/provider/probe" || spec.Output != reflect.TypeFor[providers.ProbeOutput]() {
+	if spec.Name != "provider_probe" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Stream != opapi.StreamNone || spec.Output != reflect.TypeFor[providers.ProbeOutput]() {
 		t.Fatalf("probe metadata = %+v", spec)
 	}
 	for _, raw := range []json.RawMessage{

@@ -21,7 +21,7 @@ import (
 )
 
 func TestAgentImpactTombstoneNativeTypedRegistry(t *testing.T) {
-	for cmd, http := range map[string]opapi.HTTP{opapi.AgentImpact: {Method: "GET", Path: "/api/agents/impact"}, opapi.AgentTombstone: {}} {
+	for cmd, bound := range map[string]bool{opapi.AgentImpact: true, opapi.AgentTombstone: false} {
 		found := 0
 		for _, operation := range registeredAppOperations() {
 			spec := operation.Spec()
@@ -29,13 +29,16 @@ func TestAgentImpactTombstoneNativeTypedRegistry(t *testing.T) {
 				continue
 			}
 			found++
-			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || !spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.HTTP != http {
+			if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || !spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary {
 				t.Fatalf("%s metadata=%+v", cmd, spec)
 			}
 		}
 		wire, exists := commandRegistry[cmd]
 		if found != 1 || !exists || !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone {
 			t.Fatalf("%s native wire found=%d metadata=%+v", cmd, found, wire)
+		}
+		if _, routed := opapi.ConsoleRoute(cmd); routed != bound {
+			t.Fatalf("%s console route=%v", cmd, routed)
 		}
 	}
 }

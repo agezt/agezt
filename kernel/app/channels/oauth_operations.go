@@ -45,7 +45,6 @@ func OAuthOperations(provider func(context.Context) *OAuth) ([]app.Operation, er
 			InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{` + properties + `}}`)}
 	}
 	startSpec := spec(opapi.ChannelOAuthStart, false, `"kind":{},"label":{},"client_id":{},"client_secret":{},"redirect_uri":{},"instance_url":{}`)
-	startSpec.HTTP = opapi.HTTP{Method: "POST", Path: "/api/channel/oauth/start"}
 	start, err := app.NewOperation(startSpec, func(ctx context.Context, in OAuthStartRequest) (OAuthStartOutput, error) {
 		return provider(ctx).Start(ctx, OAuthStartInput{Kind: oauthText(in.Kind), Label: oauthText(in.Label), ClientID: oauthText(in.ClientID), ClientSecret: oauthText(in.ClientSecret), RedirectURI: oauthText(in.RedirectURI), InstanceURL: oauthText(in.InstanceURL)})
 	})
@@ -61,7 +60,6 @@ func OAuthOperations(provider func(context.Context) *OAuth) ([]app.Operation, er
 		return nil, err
 	}
 	statusSpec := spec(opapi.ChannelOAuthStatus, true, `"state":{}`)
-	statusSpec.HTTP = opapi.HTTP{Method: "POST", Path: "/api/channel/oauth/status"}
 	status, err := app.NewOperation(statusSpec, func(ctx context.Context, in OAuthStatusRequest) (OAuthStatusOutput, error) {
 		return provider(ctx).Status(ctx, OAuthStatusInput{State: oauthText(in.State)})
 	})

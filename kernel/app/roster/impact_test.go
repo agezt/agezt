@@ -186,10 +186,10 @@ func TestRosterImpactOperations(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	impact, tombstone := ops[0].Spec(), ops[1].Spec()
-	if impact.Name != "agent_impact" || !impact.ReadOnly || impact.Authz != opapi.PrimaryOnly || impact.Tenancy != opapi.Primary || !impact.AllowUnknownInput || impact.Input != reflect.TypeFor[RefPageRequest]() || impact.Output != reflect.TypeFor[ImpactOutput]() || impact.HTTP != (opapi.HTTP{Method: "GET", Path: "/api/agents/impact"}) {
+	if impact.Name != "agent_impact" || !impact.ReadOnly || impact.Authz != opapi.PrimaryOnly || impact.Tenancy != opapi.Primary || !impact.AllowUnknownInput || impact.Input != reflect.TypeFor[RefPageRequest]() || impact.Output != reflect.TypeFor[ImpactOutput]() {
 		t.Fatal(impact)
 	}
-	if tombstone.Name != "agent_tombstone" || !tombstone.ReadOnly || tombstone.Authz != opapi.PrimaryOnly || tombstone.Tenancy != opapi.Primary || !tombstone.AllowUnknownInput || tombstone.Output != reflect.TypeFor[TombstoneOutput]() || tombstone.HTTP != (opapi.HTTP{}) {
+	if tombstone.Name != "agent_tombstone" || !tombstone.ReadOnly || tombstone.Authz != opapi.PrimaryOnly || tombstone.Tenancy != opapi.Primary || !tombstone.AllowUnknownInput || tombstone.Output != reflect.TypeFor[TombstoneOutput]() {
 		t.Fatal(tombstone)
 	}
 	raw, _ := json.Marshal(ImpactOutput{Subagents: []string{}})

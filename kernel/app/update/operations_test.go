@@ -107,7 +107,7 @@ func TestUpdateOperationsSchemasAndPrimaryMetadata(t *testing.T) {
 		if i == 1 {
 			input, output = reflect.TypeFor[ApplyRequest](), reflect.TypeFor[ApplyOutput]()
 		}
-		if s.Input != input || s.Output != output || s.ReadOnly != (i == 0) || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || s.Emission != nil || len(s.EmissionSchema) != 0 || !s.AllowUnknownInput || s.HTTP.Method != "" || s.HTTP.Path != "" {
+		if s.Input != input || s.Output != output || s.ReadOnly != (i == 0) || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || s.Emission != nil || len(s.EmissionSchema) != 0 || !s.AllowUnknownInput {
 			t.Fatal(s)
 		}
 		valid := []string{`{"current":"c","update":null,"up_to_date":true}`, `{"current":"c","update":{"version":"v","sha256":"s","url":"u","notes":""},"up_to_date":false}`, `{"current":"c","update":null,"up_to_date":true,"status":""}`}

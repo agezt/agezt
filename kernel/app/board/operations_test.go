@@ -45,7 +45,6 @@ func TestBoardSpecsRetainNativePolicyAndActualSchemas(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]bool{"board_read": true, "board_help": true, "board_inbox": true, "board_get": true, "board_replies": true, "board_send": false, "board_ack": false}
-	http := map[string]opapi.HTTP{"board_read": {Method: "GET", Path: "/api/board"}, "board_help": {Method: "GET", Path: "/api/board/help"}, "board_send": {Method: "POST", Path: "/api/board/send"}, "board_ack": {Method: "POST", Path: "/api/board/ack"}}
 	seen := map[string]bool{}
 	if len(ops) != 7 {
 		t.Fatalf("operations=%d", len(ops))
@@ -53,7 +52,7 @@ func TestBoardSpecsRetainNativePolicyAndActualSchemas(t *testing.T) {
 	for _, op := range ops {
 		spec := op.Spec()
 		read, found := want[spec.Name]
-		if !found || seen[spec.Name] || spec.ReadOnly != read || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.Stream != opapi.StreamNone || !spec.AllowUnknownInput || spec.HTTP != http[spec.Name] {
+		if !found || seen[spec.Name] || spec.ReadOnly != read || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.Stream != opapi.StreamNone || !spec.AllowUnknownInput {
 			t.Fatalf("metadata=%+v", spec)
 		}
 		seen[spec.Name] = true

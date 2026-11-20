@@ -142,12 +142,12 @@ func LifecycleOperations(provider func(context.Context) *Lifecycle) ([]app.Opera
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
-			return bindPrimary(&ops, opapi.Spec{Name: opapi.Halt, InputSchema: reasonSchema, HTTP: opapi.HTTP{Method: "POST", Path: "/api/halt"}}, func(ctx context.Context, in ReasonRequest) (GateOutput, error) {
+			return bindPrimary(&ops, opapi.Spec{Name: opapi.Halt, InputSchema: reasonSchema}, func(ctx context.Context, in ReasonRequest) (GateOutput, error) {
 				return provider(ctx).Halt(ctx, in)
 			})
 		},
 		func() error {
-			return bindPrimary(&ops, opapi.Spec{Name: opapi.Resume, InputSchema: reasonSchema, HTTP: opapi.HTTP{Method: "POST", Path: "/api/resume"}}, func(ctx context.Context, in ReasonRequest) (GateOutput, error) {
+			return bindPrimary(&ops, opapi.Spec{Name: opapi.Resume, InputSchema: reasonSchema}, func(ctx context.Context, in ReasonRequest) (GateOutput, error) {
 				return provider(ctx).Resume(ctx, in)
 			})
 		},

@@ -49,11 +49,10 @@ func TestSkillSpecsRetainCompleteTypedMetadataAndActualSchemas(t *testing.T) {
 		t.Fatalf("skill operation count=%d", len(ops))
 	}
 	seen := map[string]bool{}
-	http := map[string]opapi.HTTP{"skill_list": {Method: "GET", Path: "/api/skills"}, "skill_files": {Method: "GET", Path: "/api/skill/files"}, "skill_hygiene": {Method: "GET", Path: "/api/skills/hygiene"}, "skill_promote": {Method: "POST", Path: "/api/skill/promote"}, "skill_quarantine": {Method: "POST", Path: "/api/skill/quarantine"}, "skill_archive": {Method: "POST", Path: "/api/skill/archive"}, "skill_revert": {Method: "POST", Path: "/api/skill/revert"}, "skill_share": {Method: "POST", Path: "/api/skill/share"}, "skill_import": {Method: "POST", Path: "/api/skill/import"}}
 	for _, op := range ops {
 		spec := op.Spec()
 		read, found := want[spec.Name]
-		if !found || seen[spec.Name] || spec.ReadOnly != read || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.Stream != opapi.StreamNone || !spec.AllowUnknownInput || spec.Input == nil || spec.Output == nil || spec.HTTP != http[spec.Name] {
+		if !found || seen[spec.Name] || spec.ReadOnly != read || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.Stream != opapi.StreamNone || !spec.AllowUnknownInput || spec.Input == nil || spec.Output == nil {
 			t.Fatalf("skill metadata=%+v", spec)
 		}
 		seen[spec.Name] = true

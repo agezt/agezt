@@ -244,22 +244,17 @@ func TestOperations(t *testing.T) {
 	execs, _ := s.WardenLog(ctx, WardenLogRequest{})
 	ws, _ := s.WardenStats(ctx, WindowRequest{})
 	for i, w := range []struct {
-		name  string
-		route string
-		out   any
+		name string
+		out  any
 	}{
-		{opapi.NetguardLog, "/api/netguard_log", blocks},
-		{opapi.RateLimitLog, "/api/ratelimit_log", throttles},
-		{opapi.RateLimitStats, "", rl},
-		{opapi.WardenLog, "/api/warden_log", execs},
-		{opapi.WardenStats, "", ws},
+		{opapi.NetguardLog, blocks},
+		{opapi.RateLimitLog, throttles},
+		{opapi.RateLimitStats, rl},
+		{opapi.WardenLog, execs},
+		{opapi.WardenStats, ws},
 	} {
 		spec := ops[i].Spec()
-		http := opapi.HTTP{}
-		if w.route != "" {
-			http = opapi.HTTP{Method: "GET", Path: w.route}
-		}
-		if spec.Name != w.name || !spec.ReadOnly || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.HTTP != http || spec.Output != reflect.TypeOf(w.out) {
+		if spec.Name != w.name || !spec.ReadOnly || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.Output != reflect.TypeOf(w.out) {
 			t.Fatal(spec)
 		}
 		raw, _ := json.Marshal(w.out)

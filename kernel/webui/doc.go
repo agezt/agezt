@@ -20,6 +20,6 @@
 // default) and token-authed on every request. Reads are GET; the few
 // mutating actions (halt, resume, approve/deny) are POST-only and pass the
 // same token — a cross-site page can't forge them because it can't read the
-// token, and the surface is loopback. The write set is a fixed allowlist
-// (writeRoutes); there is no generic passthrough.
+// token, and the surface is loopback. The write set is a fixed allowlist (the
+// operation catalogue's argument allowlists); there is no generic passthrough.
 package webui

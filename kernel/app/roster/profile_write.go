@@ -244,13 +244,13 @@ func ProfileWriteOperations(provider func(context.Context) *ProfileWriteService)
 	if err != nil {
 		return nil, err
 	}
-	add, err := app.NewOperation(opapi.Spec{Name: opapi.AgentAdd, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"profile":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/agents/add"}}, func(ctx context.Context, in AddRequest) (ProfileWriteOutput, error) {
+	add, err := app.NewOperation(opapi.Spec{Name: opapi.AgentAdd, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"profile":{}}}`)}, func(ctx context.Context, in AddRequest) (ProfileWriteOutput, error) {
 		return provider(ctx).Add(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	edit, err := app.NewOperation(opapi.Spec{Name: opapi.AgentEdit, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"profile":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/agents/edit"}}, func(ctx context.Context, in EditRequest) (ProfileWriteOutput, error) {
+	edit, err := app.NewOperation(opapi.Spec{Name: opapi.AgentEdit, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"profile":{}}}`)}, func(ctx context.Context, in EditRequest) (ProfileWriteOutput, error) {
 		return provider(ctx).Edit(ctx, in)
 	})
 	if err != nil {

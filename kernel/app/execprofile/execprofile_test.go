@@ -150,23 +150,19 @@ func TestOperations(t *testing.T) {
 		t.Fatal(len(ops), err)
 	}
 	for i, want := range []struct {
-		name, path    string
+		name          string
 		input, output reflect.Type
 	}{
-		{opapi.ExecutionProfiles, "/api/execution_profiles", reflect.TypeFor[ListRequest](), reflect.TypeFor[ListOutput]()},
-		{opapi.ExecutionProfileShow, "", reflect.TypeFor[ShowRequest](), reflect.TypeFor[ShowOutput]()},
-		{opapi.ExecutionProfileCheck, "/api/execution_profile_check", reflect.TypeFor[CheckRequest](), reflect.TypeFor[CheckOutput]()},
+		{opapi.ExecutionProfiles, reflect.TypeFor[ListRequest](), reflect.TypeFor[ListOutput]()},
+		{opapi.ExecutionProfileShow, reflect.TypeFor[ShowRequest](), reflect.TypeFor[ShowOutput]()},
+		{opapi.ExecutionProfileCheck, reflect.TypeFor[CheckRequest](), reflect.TypeFor[CheckOutput]()},
 	} {
 		s := ops[i].Spec()
 		out, err := schema.FromType(want.output, false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		method := ""
-		if want.path != "" {
-			method = "GET"
-		}
-		if s.Name != want.name || !s.ReadOnly || s.Authz != opapi.OwnTenant || s.Tenancy != opapi.CallerTenant || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.HTTP.Method != method || s.HTTP.Path != want.path || s.Input != want.input || s.Output != want.output || string(s.OutputSchema) != string(out) {
+		if s.Name != want.name || !s.ReadOnly || s.Authz != opapi.OwnTenant || s.Tenancy != opapi.CallerTenant || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.Input != want.input || s.Output != want.output || string(s.OutputSchema) != string(out) {
 			t.Fatalf("%s spec: %+v", want.name, s)
 		}
 		for _, in := range []string{`{}`, `{"id":null,"tenant":"acme","x":1}`} {

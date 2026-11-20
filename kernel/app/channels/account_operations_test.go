@@ -39,11 +39,11 @@ func TestChannelAccountOperationTypedSpecsAndOutputPresence(t *testing.T) {
 	}
 	for i, op := range ops {
 		s := op.Spec()
-		name, path, input, output, count := "channel_account_set", "/api/channel/account/set", reflect.TypeFor[SetAccountRequest](), reflect.TypeFor[SetAccountOutput](), 5
+		name, input, output, count := "channel_account_set", reflect.TypeFor[SetAccountRequest](), reflect.TypeFor[SetAccountOutput](), 5
 		if i == 1 {
-			name, path, input, output, count = "channel_account_remove", "/api/channel/account/remove", reflect.TypeFor[RemoveAccountRequest](), reflect.TypeFor[RemoveAccountOutput](), 4
+			name, input, output, count = "channel_account_remove", reflect.TypeFor[RemoveAccountRequest](), reflect.TypeFor[RemoveAccountOutput](), 4
 		}
-		if s.Name != name || s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.HTTP.Method != "POST" || s.HTTP.Path != path || s.Input != input || s.Output != output {
+		if s.Name != name || s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.Input != input || s.Output != output {
 			t.Fatal(s)
 		}
 		var node map[string]any

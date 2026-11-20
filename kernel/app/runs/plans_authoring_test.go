@@ -211,7 +211,7 @@ func TestPlanAuthoringOperations(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if s.Name != want.name || s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamLive || !s.AllowUnknownInput || s.HTTP.Method != "POST" || s.HTTP.Path != want.path || s.Output != reflect.TypeFor[PlanOutput]() || string(s.OutputSchema) != string(out) {
+		if s.Name != want.name || s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamLive || !s.AllowUnknownInput || s.Output != reflect.TypeFor[PlanOutput]() || string(s.OutputSchema) != string(out) {
 			t.Fatalf("%s spec: %+v", want.name, s)
 		}
 		if len(s.EmissionSchema) == 0 {

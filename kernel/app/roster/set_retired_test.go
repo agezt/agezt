@@ -190,7 +190,7 @@ func TestRosterSetRetiredOperationsAreAudited(t *testing.T) {
 		out        reflect.Type
 	}{{opapi.AgentRetire, "/api/agents/retire", reflect.TypeFor[RetireOutput]()}, {opapi.AgentRevive, "/api/agents/revive", reflect.TypeFor[ReviveOutput]()}} {
 		spec := ops[i].Spec()
-		if spec.Name != want.name || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[SetRetiredRequest]() || spec.Output != want.out || spec.HTTP != (opapi.HTTP{Method: "POST", Path: want.path}) {
+		if spec.Name != want.name || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[SetRetiredRequest]() || spec.Output != want.out {
 			t.Fatal(spec)
 		}
 	}

@@ -211,7 +211,7 @@ func TestOperations(t *testing.T) {
 		{opapi.TenantStats, true, opapi.CallerTenant, StatsOutput{Tenants: []StatsRow{{ID: "a", Error: new("x")}, {ID: "b", Runs: new(1), Completed: new(1), Failed: new(0), Active: new(0), SpentMicrocents: new(int64(2)), LastActivityUnixMS: new(int64(3))}}}},
 	} {
 		spec := ops[i].Spec()
-		if spec.Name != w.name || spec.ReadOnly != w.readOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != w.tenancy || !spec.AllowUnknownInput || spec.HTTP != (opapi.HTTP{}) || spec.Output != reflect.TypeOf(w.out) {
+		if spec.Name != w.name || spec.ReadOnly != w.readOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != w.tenancy || !spec.AllowUnknownInput || spec.Output != reflect.TypeOf(w.out) {
 			t.Fatal(spec)
 		}
 		raw, _ := json.Marshal(w.out)

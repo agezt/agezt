@@ -14,25 +14,25 @@ func OAuthOperations(provider func(context.Context) *OAuth) ([]app.Operation, er
 	if provider == nil {
 		return nil, errors.New("OAuth state provider required")
 	}
-	start, err := app.NewOperation(opapi.Spec{Name: opapi.ProviderOAuthStart, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: "POST", Path: "/api/provider/oauth/start"}}, func(ctx context.Context, in OAuthStartInput) (OAuthStartOutput, error) {
+	start, err := app.NewOperation(opapi.Spec{Name: opapi.ProviderOAuthStart, AllowUnknownInput: true}, func(ctx context.Context, in OAuthStartInput) (OAuthStartOutput, error) {
 		return provider(ctx).Start(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	status, err := app.NewOperation(opapi.Spec{Name: opapi.ProviderOAuthStatus, ReadOnly: true, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: "POST", Path: "/api/provider/oauth/status"}}, func(ctx context.Context, in OAuthStatusInput) (OAuthStatusOutput, error) {
+	status, err := app.NewOperation(opapi.Spec{Name: opapi.ProviderOAuthStatus, ReadOnly: true, AllowUnknownInput: true}, func(ctx context.Context, in OAuthStatusInput) (OAuthStatusOutput, error) {
 		return provider(ctx).Status(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	imported, err := app.NewOperation(opapi.Spec{Name: opapi.ProviderOAuthImport, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: "POST", Path: "/api/provider/oauth/import"}}, func(ctx context.Context, in OAuthImportInput) (OAuthImportOutput, error) {
+	imported, err := app.NewOperation(opapi.Spec{Name: opapi.ProviderOAuthImport, AllowUnknownInput: true}, func(ctx context.Context, in OAuthImportInput) (OAuthImportOutput, error) {
 		return provider(ctx).Import(ctx, in)
 	})
 	if err != nil {
 		return nil, err
 	}
-	logout, err := app.NewOperation(opapi.Spec{Name: opapi.ProviderOAuthLogout, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: "POST", Path: "/api/provider/oauth/logout"}}, func(ctx context.Context, in OAuthLogoutInput) (OAuthLogoutOutput, error) {
+	logout, err := app.NewOperation(opapi.Spec{Name: opapi.ProviderOAuthLogout, AllowUnknownInput: true}, func(ctx context.Context, in OAuthLogoutInput) (OAuthLogoutOutput, error) {
 		return provider(ctx).Logout(ctx, in)
 	})
 	if err != nil {

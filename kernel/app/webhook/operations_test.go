@@ -120,11 +120,16 @@ func TestWebhookOperationsTypedMetadataAndAdmission(t *testing.T) {
 		if !s.ReadOnly || s.Authz != opapi.OwnTenant || s.Tenancy != opapi.CallerTenant || s.Input != input || s.Output != output || s.Stream != opapi.StreamNone || s.Emission != nil || !s.AllowUnknownInput {
 			t.Fatal(s)
 		}
-		if i == 0 && (s.HTTP.Method != "GET" || s.HTTP.Path != "/api/webhook_log") {
-			t.Fatal(s.HTTP)
+		if i == 0 {
+			route, bound := opapi.ConsoleRoute(opapi.WebhookLog)
+			if !bound || route.Method != "GET" {
+				t.Fatal(opapi.WebhookLog, route)
+			}
 		}
-		if i == 1 && (s.HTTP.Method != "" || s.HTTP.Path != "") {
-			t.Fatal("invented stats route", s.HTTP)
+		if i == 1 {
+			if _, bound := opapi.ConsoleRoute(opapi.WebhookStats); bound {
+				t.Fatal("invented stats route", opapi.WebhookStats)
+			}
 		}
 		out, err := d.Dispatch(context.Background(), opapi.Caller{}, s.Name, json.RawMessage(`{"unknown":true}`), nil)
 		if err != nil || out == nil {

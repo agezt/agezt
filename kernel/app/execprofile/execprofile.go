@@ -138,22 +138,19 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	}
 	var ops []app.Operation
 	for _, op := range []struct {
-		name, path string
-		output     reflect.Type
-		input      string
+		name   string
+		output reflect.Type
+		input  string
 	}{
-		{opapi.ExecutionProfiles, "/api/execution_profiles", reflect.TypeFor[ListOutput](), ""},
-		{opapi.ExecutionProfileShow, "", reflect.TypeFor[ShowOutput](), `{"type":"object","additionalProperties":true,"properties":{"id":{}}}`},
-		{opapi.ExecutionProfileCheck, "/api/execution_profile_check", reflect.TypeFor[CheckOutput](), ""},
+		{opapi.ExecutionProfiles, reflect.TypeFor[ListOutput](), ""},
+		{opapi.ExecutionProfileShow, reflect.TypeFor[ShowOutput](), `{"type":"object","additionalProperties":true,"properties":{"id":{}}}`},
+		{opapi.ExecutionProfileCheck, reflect.TypeFor[CheckOutput](), ""},
 	} {
 		out, err := schema.FromType(op.output, false)
 		if err != nil {
 			return nil, err
 		}
 		spec := opapi.Spec{Name: op.name, ReadOnly: true, OutputSchema: out, Authz: opapi.OwnTenant, Tenancy: opapi.CallerTenant, AllowUnknownInput: true}
-		if op.path != "" {
-			spec.HTTP = opapi.HTTP{Method: "GET", Path: op.path}
-		}
 		if op.input != "" {
 			spec.InputSchema = json.RawMessage(op.input)
 		}

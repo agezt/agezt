@@ -242,7 +242,7 @@ func TestRosterRemoveOperationIsAudited(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "agent_remove" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[RemoveRequest]() || spec.Output != reflect.TypeFor[RemoveOutput]() || spec.HTTP != (opapi.HTTP{Method: "POST", Path: "/api/agents/remove"}) {
+	if spec.Name != "agent_remove" || spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[RemoveRequest]() || spec.Output != reflect.TypeFor[RemoveOutput]() {
 		t.Fatal(spec)
 	}
 	if schema.ValidateJSON(spec.OutputSchema, json.RawMessage(`{"removed":false}`)) != nil || schema.ValidateJSON(spec.OutputSchema, json.RawMessage(`{"removed":true,"standing_removed":"x"}`)) == nil {

@@ -23,11 +23,11 @@ func TestChannelGatewayOperationSpecsAndResultPresence(t *testing.T) {
 	}
 	for i, op := range ops {
 		s := op.Spec()
-		name, path, output, count := "whatsappgw_status", "/api/whatsappgw/status", reflect.TypeFor[GatewayStatusOutput](), 5
+		name, output, count := "whatsappgw_status", reflect.TypeFor[GatewayStatusOutput](), 5
 		if i == 1 {
-			name, path, output, count = "whatsappgw_qr", "/api/whatsappgw/qr", reflect.TypeFor[GatewayQROutput](), 4
+			name, output, count = "whatsappgw_qr", reflect.TypeFor[GatewayQROutput](), 4
 		}
-		if s.Name != name || !s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.HTTP.Method != "POST" || s.HTTP.Path != path || s.Input != reflect.TypeFor[GatewayRequest]() || s.Output != output {
+		if s.Name != name || !s.ReadOnly || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Stream != opapi.StreamNone || !s.AllowUnknownInput || s.Input != reflect.TypeFor[GatewayRequest]() || s.Output != output {
 			t.Fatal(s)
 		}
 		var node map[string]any

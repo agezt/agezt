@@ -272,27 +272,27 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.CancelRun, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"correlation":{},"tenant":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/cancel_run"}}, func(ctx context.Context, in CancelRequest) (CancelOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.CancelRun, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"correlation":{},"tenant":{}}}`)}, func(ctx context.Context, in CancelRequest) (CancelOutput, error) {
 				return provider(ctx).Cancel(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.RunPause, InputSchema: runInput, HTTP: opapi.HTTP{Method: "POST", Path: "/api/run/pause"}}, func(ctx context.Context, in RunRequest) (ControlOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.RunPause, InputSchema: runInput}, func(ctx context.Context, in RunRequest) (ControlOutput, error) {
 				return provider(ctx).Pause(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.RunResume, InputSchema: runInput, HTTP: opapi.HTTP{Method: "POST", Path: "/api/run/resume"}}, func(ctx context.Context, in RunRequest) (ControlOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.RunResume, InputSchema: runInput}, func(ctx context.Context, in RunRequest) (ControlOutput, error) {
 				return provider(ctx).Resume(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.RunStep, InputSchema: runInput, HTTP: opapi.HTTP{Method: "POST", Path: "/api/run/step"}}, func(ctx context.Context, in RunRequest) (ControlOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.RunStep, InputSchema: runInput}, func(ctx context.Context, in RunRequest) (ControlOutput, error) {
 				return provider(ctx).Step(ctx, in)
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.RunSteer, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"correlation":{},"directive":{},"mode":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/run/steer"}}, func(ctx context.Context, in SteerRequest) (SteerOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.RunSteer, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"correlation":{},"directive":{},"mode":{}}}`)}, func(ctx context.Context, in SteerRequest) (SteerOutput, error) {
 				return provider(ctx).Steer(ctx, in)
 			})
 		},

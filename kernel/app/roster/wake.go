@@ -168,7 +168,7 @@ func WakeOperations(provider func(context.Context) *WakeService) ([]app.Operatio
 	if err != nil {
 		return nil, err
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentWake, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"intent":{},"reason":{},"incident_id":{},"root_incident_id":{},"parent_incident_id":{}}}`), HTTP: opapi.HTTP{Method: "POST", Path: "/api/agents/wake"}}, func(ctx context.Context, in WakeRequest) (WakeOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.AgentWake, OutputSchema: output, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{},"intent":{},"reason":{},"incident_id":{},"root_incident_id":{},"parent_incident_id":{}}}`)}, func(ctx context.Context, in WakeRequest) (WakeOutput, error) {
 		return provider(ctx).Wake(ctx, in)
 	})
 	if err != nil {

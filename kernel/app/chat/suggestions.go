@@ -110,7 +110,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	op, err := app.NewOperation(opapi.Spec{Name: opapi.ChatSuggestions, ReadOnly: true, OutputSchema: out, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"session_id":{},"tools":{}}}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/suggestions"}}, func(ctx context.Context, in SuggestionsRequest) (SuggestionsOutput, error) {
+	op, err := app.NewOperation(opapi.Spec{Name: opapi.ChatSuggestions, ReadOnly: true, OutputSchema: out, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"session_id":{},"tools":{}}}`)}, func(ctx context.Context, in SuggestionsRequest) (SuggestionsOutput, error) {
 		return provider(ctx).Suggestions(ctx, in)
 	})
 	if err != nil {

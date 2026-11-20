@@ -21,8 +21,9 @@ func TestSystemCommandMetadataComesFromAppSpecs(t *testing.T) {
 		if !wire.AppOwned || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.Input == nil || spec.Output == nil {
 			t.Fatalf("pilot contract=%+v", spec)
 		}
-		if spec.HTTP.Method != "GET" || spec.HTTP.Path != "/api/"+spec.Name {
-			t.Fatalf("HTTP hint=%+v", spec.HTTP)
+		route, bound := opapi.ConsoleRoute(spec.Name)
+		if !bound || route.Method != "GET" || route.Path != "/api/"+spec.Name {
+			t.Fatalf("console route=%+v", route)
 		}
 	}
 }

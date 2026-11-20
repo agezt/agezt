@@ -29,11 +29,11 @@ func TestChannelGatewayNativeTypedMetadata(t *testing.T) {
 		}
 		seen[s.Name]++
 		wire := commandRegistry[s.Name]
-		output, path := reflect.TypeFor[appchannels.GatewayStatusOutput](), "/api/whatsappgw/status"
+		output := reflect.TypeFor[appchannels.GatewayStatusOutput]()
 		if s.Name == opapi.WhatsAppGatewayQR {
-			output, path = reflect.TypeFor[appchannels.GatewayQROutput](), "/api/whatsappgw/qr"
+			output = reflect.TypeFor[appchannels.GatewayQROutput]()
 		}
-		if !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.HTTP.Method != "POST" || s.HTTP.Path != path || s.Input != reflect.TypeFor[appchannels.GatewayRequest]() || s.Output != output {
+		if !wire.AppOwned || !wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Input != reflect.TypeFor[appchannels.GatewayRequest]() || s.Output != output {
 			t.Fatal(s, wire)
 		}
 	}

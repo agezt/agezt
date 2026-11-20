@@ -14,15 +14,15 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	if provider == nil {
 		return nil, errors.New("catalog service provider required")
 	}
-	sync, err := app.NewOperation(opapi.Spec{Name: opapi.CatalogSync, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: "POST", Path: "/api/catalog/sync"}}, func(ctx context.Context, in SyncInput) (SyncOutput, error) { return provider(ctx).Sync(ctx, in) })
+	sync, err := app.NewOperation(opapi.Spec{Name: opapi.CatalogSync, AllowUnknownInput: true}, func(ctx context.Context, in SyncInput) (SyncOutput, error) { return provider(ctx).Sync(ctx, in) })
 	if err != nil {
 		return nil, err
 	}
-	list, err := app.NewOperation(opapi.Spec{Name: opapi.CatalogList, ReadOnly: true, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: "GET", Path: "/api/catalog"}}, func(ctx context.Context, in ListInput) (ListOutput, error) { return provider(ctx).List(ctx, in) })
+	list, err := app.NewOperation(opapi.Spec{Name: opapi.CatalogList, ReadOnly: true, AllowUnknownInput: true}, func(ctx context.Context, in ListInput) (ListOutput, error) { return provider(ctx).List(ctx, in) })
 	if err != nil {
 		return nil, err
 	}
-	discover, err := app.NewOperation(opapi.Spec{Name: opapi.CatalogDiscover, AllowUnknownInput: true, HTTP: opapi.HTTP{Method: "POST", Path: "/api/catalog/discover"}}, func(ctx context.Context, in DiscoverInput) (DiscoverOutput, error) {
+	discover, err := app.NewOperation(opapi.Spec{Name: opapi.CatalogDiscover, AllowUnknownInput: true}, func(ctx context.Context, in DiscoverInput) (DiscoverOutput, error) {
 		return provider(ctx).Discover(ctx, in)
 	})
 	if err != nil {

@@ -138,7 +138,7 @@ func TestOperations(t *testing.T) {
 	}
 	for i, want := range []struct{ name, path string }{{opapi.SpendToday, "/api/spend/today"}, {opapi.Attention, "/api/attention"}} {
 		spec := ops[i].Spec()
-		if spec.Name != want.name || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.HTTP != (opapi.HTTP{Method: "GET", Path: want.path}) {
+		if spec.Name != want.name || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput {
 			t.Fatal(spec)
 		}
 	}

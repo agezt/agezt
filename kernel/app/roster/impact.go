@@ -294,7 +294,7 @@ func ImpactOperations(provider func(context.Context) *ImpactService) ([]app.Oper
 		return nil, err
 	}
 	input := json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"ref":{}}}`)
-	impact, err := app.NewOperation(opapi.Spec{Name: opapi.AgentImpact, ReadOnly: true, OutputSchema: impactSchema, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: input, HTTP: opapi.HTTP{Method: "GET", Path: "/api/agents/impact"}}, func(ctx context.Context, in RefPageRequest) (ImpactOutput, error) {
+	impact, err := app.NewOperation(opapi.Spec{Name: opapi.AgentImpact, ReadOnly: true, OutputSchema: impactSchema, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true, InputSchema: input}, func(ctx context.Context, in RefPageRequest) (ImpactOutput, error) {
 		return provider(ctx).Impact(ctx, in)
 	})
 	if err != nil {

@@ -10,6 +10,7 @@ package webui
 import (
 	"context"
 	"encoding/json"
+	"github.com/agezt/agezt/kernel/contract/opapi"
 	"github.com/agezt/agezt/kernel/event"
 	"github.com/agezt/agezt/kernel/httpserver"
 	"net/http"
@@ -108,17 +109,17 @@ func queryArgValue(k, v string) any {
 // takes query arguments. It forwards only the route's allowlisted args (so the
 // browser cannot pass arbitrary parameters) and relays the JSON result. Unlike
 // writeProxy it permits GET, because the command is read-only.
-func (s *Server) readArgsProxy(rr writeRoute) http.HandlerFunc {
+func (s *Server) readArgsProxy(cmd string, allowed []string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		args := map[string]any{}
-		for _, k := range rr.args {
+		for _, k := range allowed {
 			if v := strings.TrimSpace(r.URL.Query().Get(k)); v != "" {
 				args[k] = queryArgValue(k, v)
 			}
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
-		res, err := s.client.Call(ctx, rr.cmd, args)
+		res, err := s.client.Call(ctx, cmd, args)
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
 			return
@@ -130,7 +131,7 @@ func (s *Server) readArgsProxy(rr writeRoute) http.HandlerFunc {
 // writeProxy returns a handler for one allowlisted mutating command. It is
 // POST-only (a GET — e.g. a prefetch or an <img> — must never halt the agent),
 // copies the route's allowed args from the query string, and relays the result.
-func (s *Server) writeProxy(wr writeRoute) http.HandlerFunc {
+func (s *Server) writeProxy(cmd string, allowed []string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.Header().Set("Allow", http.MethodPost)
@@ -138,14 +139,14 @@ func (s *Server) writeProxy(wr writeRoute) http.HandlerFunc {
 			return
 		}
 		args := map[string]any{}
-		for _, k := range wr.args {
+		for _, k := range allowed {
 			if v := strings.TrimSpace(r.URL.Query().Get(k)); v != "" {
 				args[k] = queryArgValue(k, v)
 			}
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
-		res, err := s.client.Call(ctx, wr.cmd, args)
+		res, err := s.client.Call(ctx, cmd, args)
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
 			return
@@ -185,15 +186,15 @@ func (s *Server) decodeAllowedBody(w http.ResponseWriter, r *http.Request, allow
 // (query-string args), this supports large values — a full plan JSON, a
 // multi-line intent. Used by Flow Studio's Generate/Refine. The timeout is
 // generous because these call the LLM.
-func (s *Server) jsonProxy(jr writeRoute) http.HandlerFunc {
+func (s *Server) jsonProxy(cmd string, allowed []string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		args, ok := s.decodeAllowedBody(w, r, jr.args)
+		args, ok := s.decodeAllowedBody(w, r, allowed)
 		if !ok {
 			return
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
 		defer cancel()
-		res, err := s.client.Call(ctx, jr.cmd, args)
+		res, err := s.client.Call(ctx, cmd, args)
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
 			return
@@ -212,13 +213,13 @@ func (s *Server) jsonProxy(jr writeRoute) http.HandlerFunc {
 // (plan_id + node_outputs) is relayed when the plan finishes.
 func (s *Server) planRunProxy() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		args, ok := s.decodeAllowedBody(w, r, planRoute.args)
+		args, ok := s.decodeAllowedBody(w, r, opapi.ConsoleArgs(opapi.Plan))
 		if !ok {
 			return
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), planRunTimeout)
 		defer cancel()
-		res, err := s.client.Stream(ctx, planRoute.cmd, args, func(*event.Event) {})
+		res, err := s.client.Stream(ctx, opapi.Plan, args, func(*event.Event) {})
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
 			return

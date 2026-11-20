@@ -154,15 +154,14 @@ func TestOperations(t *testing.T) {
 	probe, _ := s.Test(context.Background(), decode[TestRequest](t, `{"capability":"x"}`))
 	for i, w := range []struct {
 		name string
-		http opapi.HTTP
 		out  any
 	}{
-		{"edict_show", opapi.HTTP{Method: "GET", Path: "/api/edict_show"}, show},
-		{"edict_deny_list", opapi.HTTP{}, list},
-		{"edict_test", opapi.HTTP{Method: "GET", Path: "/api/edict/test"}, probe},
+		{"edict_show", show},
+		{"edict_deny_list", list},
+		{"edict_test", probe},
 	} {
 		spec := ops[i].Spec()
-		if spec.Name != w.name || !spec.ReadOnly || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.HTTP != w.http || spec.Output != reflect.TypeOf(w.out) {
+		if spec.Name != w.name || !spec.ReadOnly || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.Output != reflect.TypeOf(w.out) {
 			t.Fatal(spec)
 		}
 		raw, _ := json.Marshal(w.out)

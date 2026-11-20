@@ -52,7 +52,7 @@ func InboxOperations(provider func(context.Context) *Inbox) ([]app.Operation, er
 	}
 	op, err := app.NewOperation(opapi.Spec{Name: opapi.Inbox, ReadOnly: true, Authz: opapi.PrimaryOnly, Tenancy: opapi.Primary, AllowUnknownInput: true,
 		InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"limit":{},"channel":{},"cursor":{}}}`),
-		HTTP:        opapi.HTTP{Method: "GET", Path: "/api/inbox"}}, func(ctx context.Context, in InboxRequest) (InboxOutput, error) {
+	}, func(ctx context.Context, in InboxRequest) (InboxOutput, error) {
 		return provider(ctx).List(ctx, in.input())
 	})
 	if err != nil {

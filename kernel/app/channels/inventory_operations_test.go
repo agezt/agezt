@@ -23,7 +23,7 @@ func TestChannelInventoryOperationSpecFullTypedGETAndSecretPublicPresence(t *tes
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "channel_list" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.Stream != opapi.StreamNone || !spec.AllowUnknownInput || spec.HTTP.Method != "GET" || spec.HTTP.Path != "/api/channels" || spec.Input != reflect.TypeFor[ListInput]() || spec.Output != reflect.TypeFor[ListOutput]() {
+	if spec.Name != "channel_list" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.Stream != opapi.StreamNone || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[ListInput]() || spec.Output != reflect.TypeFor[ListOutput]() {
 		t.Fatal(spec)
 	}
 	p := &inventoryProbe{manifests: []channel.Manifest{{Kind: "owned", ConfigSection: "none", SetupSteps: nil}, {Kind: "empty", ConfigSection: "none", SetupSteps: []string{}}}}

@@ -30,7 +30,7 @@ func TestUpdateNativeTwoTypedOperationsExit(t *testing.T) {
 			continue
 		}
 		wire, found := commandRegistry[s.Name]
-		if !found || !wire.AppOwned || wire.ReadOnly != (s.Name == opapi.UpdateCheck) || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Input != types[0] || s.Output != types[1] || !s.AllowUnknownInput || s.Stream != opapi.StreamNone || s.Emission != nil || len(s.EmissionSchema) != 0 || s.HTTP.Method != "" || s.HTTP.Path != "" {
+		if !found || !wire.AppOwned || wire.ReadOnly != (s.Name == opapi.UpdateCheck) || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Input != types[0] || s.Output != types[1] || !s.AllowUnknownInput || s.Stream != opapi.StreamNone || s.Emission != nil || len(s.EmissionSchema) != 0 {
 			t.Fatal(s, wire)
 		}
 		seen[s.Name]++

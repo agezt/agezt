@@ -16,7 +16,7 @@ func TestAgentAddNativeTypedRegistry(t *testing.T) {
 			continue
 		}
 		found++
-		if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || spec.HTTP != (opapi.HTTP{Method: "POST", Path: "/api/agents/add"}) {
+		if spec.Input == nil || spec.Output == nil || len(spec.OutputSchema) == 0 || spec.ReadOnly || !spec.AllowUnknownInput || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary {
 			t.Fatalf("agent_add metadata=%+v", spec)
 		}
 	}

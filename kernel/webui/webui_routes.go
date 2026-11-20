@@ -15,6 +15,16 @@ import (
 	"time"
 )
 
+// jsonBodyMax caps a Flow Studio request body. A generated plan is a few KiB;
+// 1 MiB is far above any legitimate plan or intent and bounds memory per call.
+const jsonBodyMax = 1 << 20
+
+// planRunTimeout bounds an in-UI plan run. Plans can legitimately take minutes
+// (each loop node is a full agent run), so this is generous — far longer than
+// the 5s read-panel timeout. The browser sees progress live on the SSE feed
+// regardless; this only bounds how long the connection is held open.
+const planRunTimeout = 30 * time.Minute
+
 func (s *Server) routeRegistry() *httpserver.Router {
 	router := httpserver.NewRouter(httpserver.Authenticator{
 		RequestAuthorize: func(r *http.Request, _ kernelauth.Tier) bool {
@@ -59,30 +69,40 @@ func (s *Server) routeRegistry() *httpserver.Router {
 	router.Handle("/assets/", publicRead, s.handleAssets())
 	router.Handle("/favicon.ico", publicRead, handleFavicon)
 	router.Handle("/events", protectedRead, s.handleEvents)
-	for path, cmd := range apiRoutes {
-		router.Handle(path, proxyRead, s.proxy(cmd))
-	}
-	for path, rr := range readArgsRoutes {
-		router.Handle(path, proxyRead, s.readArgsProxy(rr))
-	}
-	for path, wr := range writeRoutes {
-		router.Handle(path, protectedMutation, s.writeProxy(wr))
-	}
-	for path, jr := range jsonRoutes {
-		router.Handle(path, jsonProtected, s.jsonProxy(jr))
+	// The console's route table lives in the operation catalogue
+	// (kernel/contract/opapi/http.go): every route below is DERIVED from it —
+	// the path, the operation and the forwarded argument allowlist are read
+	// from one table, not from four hand-written maps kept in this package.
+	// The streamed operations are the one kind this loop does not bind: their
+	// frames are the payload, so each has a handler of its own — they are
+	// registered one by one below.
+	for _, route := range opapi.ConsoleRoutes() {
+		switch route.Kind {
+		case opapi.HTTPRouteRead:
+			router.Handle(route.Path, proxyRead, s.proxy(route.Op))
+		case opapi.HTTPRouteReadArgs:
+			router.Handle(route.Path, proxyRead, s.readArgsProxy(route.Op, route.Args))
+		case opapi.HTTPRouteWrite:
+			router.Handle(route.Path, protectedMutation, s.writeProxy(route.Op, route.Args))
+		case opapi.HTTPRouteJSON:
+			router.Handle(route.Path, jsonProtected, s.jsonProxy(route.Op, route.Args))
+		}
 	}
 	router.Handle("/api/rollback/checkpoints", protectedRead, s.handleRollbackCheckpoints)
 	router.Handle("/api/rollback/apply", jsonProtected, s.handleRollbackApply)
 	streamMutation := jsonProtected
 	streamMutation.Timeout = planRunTimeout
-	router.Handle("/api/plan/run", streamMutation, s.planRunProxy())
-	router.Handle("/api/run", streamMutation, s.runStreamProxy())
+	// The streamed operations bind a bespoke handler each — the frames ARE the
+	// payload — but their path and their forwarded keys come from the same
+	// catalogue as every other console route.
+	router.Handle(consolePath(opapi.Plan), streamMutation, s.planRunProxy())
+	router.Handle(consolePath(opapi.Run), streamMutation, s.runStreamProxy())
 	// CLI Toolbox install (M956): runs the host package manager and streams a
 	// per-tool progress event then a final summary as SSE.
-	router.Handle("/api/toolbox/install", streamMutation, s.toolInstallProxy())
+	router.Handle(consolePath(opapi.ToolboxInstall), streamMutation, s.toolInstallProxy())
 	// Marketplace install/uninstall stream per-item progress (skill/mcp/tool) as SSE.
-	router.Handle("/api/market/install", streamMutation, s.marketStreamProxy(opapi.MarketInstall, []string{"name", "marketplace", "version"}))
-	router.Handle("/api/market/uninstall", streamMutation, s.marketStreamProxy(opapi.MarketUninstall, []string{"name"}))
+	router.Handle(consolePath(opapi.MarketInstall), streamMutation, s.marketStreamProxy(opapi.MarketInstall))
+	router.Handle(consolePath(opapi.MarketUninstall), streamMutation, s.marketStreamProxy(opapi.MarketUninstall))
 	// SSE token endpoint (VULN query-string-token fix): returns the ephemeral
 	// SSE-only token the SPA embeds in the EventSource URL (?st=...) instead of
 	// reusing the main console token. Requires valid WebUI data authorization.
@@ -140,6 +160,18 @@ func (s *Server) routeRegistry() *httpserver.Router {
 
 func (s *Server) Handler() http.Handler {
 	return s.secure(s.routeRegistry().ServeHTTP)
+}
+
+// consolePath returns the path the console answers one operation at, read from
+// the operation catalogue. An operation with no catalogue entry is a programmer
+// error — the console would bind some other path, or none — so it panics at
+// start-up instead of quietly serving a route nobody declared.
+func consolePath(op string) string {
+	route, ok := opapi.ConsoleRoute(op)
+	if !ok {
+		panic("webui: no console route for operation " + op)
+	}
+	return route.Path
 }
 
 // handleOAuthCallback receives the provider's authorization redirect

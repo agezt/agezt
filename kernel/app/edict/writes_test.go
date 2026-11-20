@@ -237,7 +237,7 @@ func TestWriteOperations(t *testing.T) {
 		{opapi.EdictSetMode, "/api/edict/set_mode", SetModeOutput{}},
 	} {
 		spec := ops[i].Spec()
-		if spec.Name != w.name || spec.ReadOnly || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.HTTP != (opapi.HTTP{Method: "POST", Path: w.path}) || spec.Output != reflect.TypeOf(w.out) {
+		if spec.Name != w.name || spec.ReadOnly || spec.Authz != opapi.OwnTenant || spec.Tenancy != opapi.CallerTenant || !spec.AllowUnknownInput || spec.Output != reflect.TypeOf(w.out) {
 			t.Fatal(spec)
 		}
 		raw, _ := json.Marshal(w.out)

@@ -34,11 +34,11 @@ func TestChannelAccountNativeTypedMetadata(t *testing.T) {
 		}
 		seen[s.Name]++
 		wire := commandRegistry[s.Name]
-		input, output, path := reflect.TypeFor[appchannels.SetAccountRequest](), reflect.TypeFor[appchannels.SetAccountOutput](), "/api/channel/account/set"
+		input, output := reflect.TypeFor[appchannels.SetAccountRequest](), reflect.TypeFor[appchannels.SetAccountOutput]()
 		if s.Name == opapi.ChannelAccountRemove {
-			input, output, path = reflect.TypeFor[appchannels.RemoveAccountRequest](), reflect.TypeFor[appchannels.RemoveAccountOutput](), "/api/channel/account/remove"
+			input, output = reflect.TypeFor[appchannels.RemoveAccountRequest](), reflect.TypeFor[appchannels.RemoveAccountOutput]()
 		}
-		if !wire.AppOwned || wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.HTTP.Method != "POST" || s.HTTP.Path != path || s.Input != input || s.Output != output {
+		if !wire.AppOwned || wire.ReadOnly || wire.TenantAllowed || wire.TenantRouted || wire.Streaming != StreamNone || s.Authz != opapi.PrimaryOnly || s.Tenancy != opapi.Primary || s.Input != input || s.Output != output {
 			t.Fatal(s, wire)
 		}
 	}

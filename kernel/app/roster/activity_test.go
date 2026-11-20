@@ -149,7 +149,7 @@ func TestRosterActivityOperationSpecAndAdmission(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	spec := ops[0].Spec()
-	if spec.Name != "agent_activity" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[ActivityRequest]() || spec.Output != reflect.TypeFor[ActivityOutput]() || spec.Stream != opapi.StreamNone || spec.HTTP != (opapi.HTTP{Method: "GET", Path: "/api/agents/activity"}) {
+	if spec.Name != "agent_activity" || !spec.ReadOnly || spec.Authz != opapi.PrimaryOnly || spec.Tenancy != opapi.Primary || !spec.AllowUnknownInput || spec.Input != reflect.TypeFor[ActivityRequest]() || spec.Output != reflect.TypeFor[ActivityOutput]() || spec.Stream != opapi.StreamNone {
 		t.Fatal(spec)
 	}
 	for _, principal := range []opapi.Principal{{Kind: opapi.Tenant, Tenant: "acme"}, {Kind: opapi.Agent}} {

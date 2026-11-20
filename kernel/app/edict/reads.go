@@ -182,7 +182,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 	var ops []app.Operation
 	for _, b := range []func() error{
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.EdictShow, ReadOnly: true, InputSchema: tenantSchema, HTTP: opapi.HTTP{Method: "GET", Path: "/api/edict_show"}}, func(ctx context.Context, in TenantRequest) (ShowOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictShow, ReadOnly: true, InputSchema: tenantSchema}, func(ctx context.Context, in TenantRequest) (ShowOutput, error) {
 				return provider(ctx).Show(ctx, in)
 			})
 		},
@@ -192,7 +192,7 @@ func Operations(provider func(context.Context) *Service) ([]app.Operation, error
 			})
 		},
 		func() error {
-			return bind(&ops, opapi.Spec{Name: opapi.EdictTest, ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"capability":{},"input":{},"tenant":{}}}`), HTTP: opapi.HTTP{Method: "GET", Path: "/api/edict/test"}}, func(ctx context.Context, in TestRequest) (TestOutput, error) {
+			return bind(&ops, opapi.Spec{Name: opapi.EdictTest, ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object","additionalProperties":true,"properties":{"capability":{},"input":{},"tenant":{}}}`)}, func(ctx context.Context, in TestRequest) (TestOutput, error) {
 				return provider(ctx).Test(ctx, in)
 			})
 		},

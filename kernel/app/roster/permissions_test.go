@@ -417,10 +417,10 @@ func TestPermissionOperations(t *testing.T) {
 		t.Fatal(ops, err)
 	}
 	read, write := ops[0].Spec(), ops[1].Spec()
-	if read.Name != "agent_permissions" || !read.ReadOnly || read.Authz != opapi.PrimaryOnly || read.Tenancy != opapi.Primary || !read.AllowUnknownInput || read.HTTP != (opapi.HTTP{Method: "GET", Path: "/api/agents/permissions"}) || read.Output != reflect.TypeFor[PermissionsOutput]() {
+	if read.Name != "agent_permissions" || !read.ReadOnly || read.Authz != opapi.PrimaryOnly || read.Tenancy != opapi.Primary || !read.AllowUnknownInput || read.Output != reflect.TypeFor[PermissionsOutput]() {
 		t.Fatal(read)
 	}
-	if write.Name != "agent_capabilities" || write.ReadOnly || write.Authz != opapi.PrimaryOnly || write.Tenancy != opapi.Primary || !write.AllowUnknownInput || write.HTTP != (opapi.HTTP{Method: "POST", Path: "/api/agents/capabilities"}) || write.Output != reflect.TypeFor[CapabilitiesOutput]() {
+	if write.Name != "agent_capabilities" || write.ReadOnly || write.Authz != opapi.PrimaryOnly || write.Tenancy != opapi.Primary || !write.AllowUnknownInput || write.Output != reflect.TypeFor[CapabilitiesOutput]() {
 		t.Fatal(write)
 	}
 	picture, _ := f.service().Permissions(context.Background(), permRequest(t, `{"ref":"a"}`))
