@@ -111,27 +111,23 @@ Before merging a change to any external or beta surface:
 - [ ] Confirm auth behavior: no secrets in URLs unless the transport limitation is explicitly documented.
 - [ ] Confirm audit behavior: externally triggered actions still produce journal/correlation evidence.
 
-## SDK parity report
+## The SDK surface and its gates
 
-The generated parity report lives at `docs/SDK-PARITY.md` and is checked by:
+The SDK surface has one home: the daemon's REST contract
+(`kernel/contract/restapiapi`) holds every route, query parameter and wire row.
+The daemon registers its routes FROM that table, and `tools/sdkgen` generates
+each SDK's catalog (paths and wire rows) from it. The gate is:
 
-```bash
-go run ./tools/sdkparity -check docs/SDK-PARITY.md
+```
+go run ./tools/sdkgen -check
 ```
 
-Regenerate it after `/api/v1` route or SDK coverage changes:
+It fails when the contract changed and nobody regenerated the SDK catalogs.
+A second gate — `tools/sdkgen`'s own tests — fails when an SDK source spells a
+REST path of its own outside the generated catalog, or when a contract path is
+not reached by every SDK.
 
-```bash
-go run ./tools/sdkparity -out docs/SDK-PARITY.md
-```
-
-The report is static route-string coverage only. It does not replace behavioral SDK tests.
-
-## Known gaps
-
-These are not blockers for using AGEZT, but they matter for platform positioning:
-
-1. **SDK parity is split between static route coverage and behavioral conformance.** `docs/SDK-PARITY.md` distinguishes REST SDK route-string coverage from behavioral SDK tests, documents the native Go SDK's current local control-plane-backed path, and excludes implemented admin update routes from SDK coverage totals. That Go SDK implementation is transitional: the long-term stability target is a client-facing package aligned with `/api/v1`, not direct dependence on internal control-plane packages. New SDK-intended features still need per-SDK behavioral tests for typed request/response shape, auth behavior, error behavior, and streaming/event semantics before they are SDK-complete.
+1. **SDK coverage is now structural, but behavioral conformance is still per-SDK.** The contract decides which endpoints are in the SDK contract (the gate fails when an SDK does not reach one), and the SDKs' own suites cover typed request/response shape, auth behavior, error behavior and streaming semantics. The native Go SDK remains control-plane-backed and transitional: the long-term stability target is a client-facing package aligned with `/api/v1`, not direct dependence on internal control-plane packages. New SDK-intended features still need per-SDK behavioral tests before they are SDK-complete.
 2. **Web UI APIs are broad and internal.** External callers may discover them, but they should not depend on them unless promoted to `/api/v1`.
 3. **Plugin protocol versioning is explicit, but compatibility policy should stay documented.** The protocol has machine-checkable version fields; docs should continue to spell out compatibility expectations for plugin authors.
 4. **Event/journal compatibility is policy-documented.** Events are central to `agt why` and demos; `docs/EVENT-SCHEMA.md` defines append-only compatibility rules and migration expectations. A global numeric schema version remains deferred until a concrete breaking migration requires it.

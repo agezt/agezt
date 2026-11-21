@@ -13,5 +13,5 @@
 - **`tools/docsindex`** — Command docsindex checks the documentation index's own invariants.
 - **`tools/jsonschemagen`** — Command jsonschemagen reads the Agezt wire contract (a JSONC file with embedded JSON Schema definitions) and emits Go types for the SDK.
 - **`tools/openapi`** — Command openapi generates the daemon's API artifacts from its own sources.
-- **`tools/sdkparity`** — Command sdkparity generates a conservative SDK coverage report for the native AGEZT REST API (/api/v1).
+- **`tools/sdkgen`** — Command sdkgen generates the SDK catalogs from the daemon's REST contract.
 - **`tools/structure-md`** — Command structure-md regenerates `.project/STRUCTURE.md` (and its per-section sidecars) from the actual filesystem.

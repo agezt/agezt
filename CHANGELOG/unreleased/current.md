@@ -816,6 +816,19 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The SDK surface has one home.** The daemon's `/api/v1` REST contract moved
+  into `kernel/contract/restapiapi`: every route, tier, query parameter and
+  wire row is data. The daemon now registers its routes FROM that table, and
+  `tools/sdkgen` generates the Python and TypeScript SDK catalogs (paths and
+  wire-row types) from it. The Python and TypeScript clients call the
+  generated paths and use the generated types; the Go SDK's board wire names
+  are derived from the app layer's own rows. New gates: `tools/sdkgen -check`
+  (the catalogs are in sync with the contract), plus ratchets that fail when
+  an SDK source spells a REST path of its own, when a contract path is not
+  reached by an SDK, and when the daemon's registered routes and the contract
+  disagree. `docs/API-STABILITY.md` and the SDK codemap describe the new
+  arrangement.
+
 - **The console's API is written down once, and the browser reads it.** The
   daemon's operations and the console's route table already said what every
   path accepts and returns; the browser's client said it a third time, in
@@ -5635,6 +5648,13 @@ This file holds the active `[Unreleased]` working set.
   vet`, `staticcheck`, gofmt, and a full `go test ./...` run are green.
 
 ### Removed
+
+- **`tools/sdkparity` and `docs/SDK-PARITY.md`.** The static report scraped the
+  daemon's routes with a regex over `kernel/restapi/restapi*.go` and each SDK's
+  sources for the same strings; its `-check` failed only when the REPORT was
+  stale, and it never failed because an SDK lacked a route. The routes now come
+  from a table and the SDKs hold generated constants, so the coverage question
+  is a test. `make sdk-parity` becomes `make sdk-gen-check`.
 
 - **Removed: the kernel's reach on the world model (W3.54).** The kernel held
   the world-model module's concrete graph and **opened the graph's file**

@@ -28,7 +28,7 @@ page, then open the area document you need.
 | 09 | [09-channels.md](09-channels.md) | `Channel` interface, 25 transport packages → 34 channel kinds, `builtinchannels` factories, multi-account `ENV#label`, inbound → run → reply | ~655 lines |
 | 10 | [10-tools.md](10-tools.md) | Tool contract, catalog of 30 registered tools + 10 browser verbs, code_exec/shell/file/browser/research/council/conductor/overseer, guardians, built-in market and skills | ~550 lines |
 | 11 | [11-frontend-console.md](11-frontend-console.md) | React 19 console: build→embed, hash routing, nav IA (36 views), data layer/SSE, design system, every file, guard tests, e2e | ~670 lines |
-| 12 | [12-sdks-and-contract.md](12-sdks-and-contract.md) | Go/Python/Rust/TypeScript SDKs, parity matrix, `contract/` fixtures + codegen, `sdkparity`, API stability | ~450 lines |
+| 12 | [12-sdks-and-contract.md](12-sdks-and-contract.md) | Go/Python/Rust/TypeScript SDKs, parity matrix, `contract/` fixtures + codegen, `sdkgen`, API stability | ~450 lines |
 | 20 | [20-target-architecture.md](20-target-architecture.md) | **The redesign:** structural faults F1–F4, principles P1–P8 (each enforced), layer stack L0–L7, the three pipelines (Operation / Run / Tool), module catalogue, platform layer, exit metrics | proposal |
 | 21 | [21-migration-roadmap.md](21-migration-roadmap.md) | How to get there: waves W0–W5, PR slices, domain migration order, risk register, open owner decisions | proposal |
 
@@ -112,7 +112,7 @@ Tool allowlists, execution profiles and agent resolution remain control-plane fe
 | `sdk/` | Go SDK (control plane) + `python/`, `rust/`, `typescript/` REST SDKs. → [12](12-sdks-and-contract.md) |
 | `contract/` | `fixtures/` (hand-written JSON event fixtures) and `gen/` (generated from `.project/agezt-contract.jsonc`, the plugin JSON-RPC contract). |
 | `frontend/` | React console source (Vite/Vitest/Playwright). Build output goes to `kernel/webui/dist` and is committed and `go:embed`-ded. → [11](11-frontend-console.md) |
-| `tools/` | Repo gates: `changelog-lint`, `changelog-split`, `deadcodecheck`, `depscheck`, `docclaimscheck`, `jsonschemagen`, `sdkparity`, `structure-md`. |
+| `tools/` | Repo gates: `changelog-lint`, `changelog-split`, `deadcodecheck`, `depscheck`, `docclaimscheck`, `jsonschemagen`, `sdkgen`, `structure-md`. |
 | `scripts/` | Build stamping, isolated dev loop (`.dev-home`), e2e/webui smoke harnesses, coverage ranking, nav audits. |
 | `ops/wsl-runners/` | Self-hosted CI runner provisioning (historical; CI moved to GitHub-hosted `ubuntu-latest` on 2026-10-01). |
 | `.github/workflows/` | `ci.yml` (17 gate jobs + 2 aggregator jobs required by branch-protection rulesets), `publish-sdks.yml`. |
@@ -122,7 +122,7 @@ Tool allowlists, execution profiles and agent resolution remain control-plane fe
 | `CHANGELOG/`, `CHANGELOG.md` | Split changelog, enforced by `changelog-lint`. |
 | `security-report/` | Point-in-time security findings (go stale; re-verify). |
 | `Makefile`, `dev.ps1`/`dev.sh`, `install.ps1`/`install.sh` | Build, dev loop, production installers (systemd / NSSM). |
-| `*.exe` at repo root | Stray local build outputs (`agezt.exe`, `agt.exe`, `mcpbridge.exe`, `sdkparity.exe`, `docclaimscheck.exe`). Not source. |
+| `*.exe` at repo root | Stray local build outputs (`agezt.exe`, `agt.exe`, `mcpbridge.exe`, `docclaimscheck.exe`). Not source. |
 
 ### 4.1 Layering rules and the verified import graph
 
@@ -487,7 +487,7 @@ backlog. Details and file references are in the linked documents.
 |---|---|
 | ✅ **Resolved (W3.8, W3.15):** the kernel→plugins edge `kernel/controlplane`, `kernel/selfrepair` → `plugins/tools/overseertool` is gone — the repair engine moved to the app layer behind a contract port. Module→adapter edge: `kernel/runtime` (+`accessors`) → `kernel/agentgw`. All forbidden edges are now tracked by `tools/archcheck` (ratchet). | §4.1, [20](20-target-architecture.md) |
 | ✅ **Removed (W0.5, W3.40):** `kernel/workflowexec` and `kernel/runtime/compose` had no importers. Open: `acpcatalog.ResolveLaunch` and plugin host callbacks/`Reload` have no production caller. `delegation` tool types duplicate runtime's. `ErrHalted`/`ErrNoVisionModel` are each defined twice. — **`runtime/accessors` was constructed but unused and is now deleted (W3.40):** it was a second, unreachable copy of the kernel's read surface, and it carried eleven allowlisted edges that bought nothing (the kernel's module reach was counted twice). The ratchet went 77 → **66**. | [04](04-agent-runtime.md) |
-| ✅ **Fixed (W0.5):** `contract/gen` CI drift check could never fail (gitignored output + `git diff`); it now builds the package. Open: `sdkparity` only checks report freshness. Fixtures are self-validating only. | [12](12-sdks-and-contract.md) |
+| ✅ **Fixed (W0.5):** `contract/gen` CI drift check could never fail (gitignored output + `git diff`); it now builds the package. Open: the SDK surface now has one home (`kernel/contract/restapiapi` + `tools/sdkgen`); the event fixtures are still self-validating only. | [12](12-sdks-and-contract.md) |
 | `designsystem.test.ts` scans only `components/`, not `features/`. 9 frontend modules are used only by their tests. Monaco loads from a CDN the CSP blocks. Fake file tree on 404. Observe badge never clears. | [11](11-frontend-console.md) |
 | ✅ **Fixed (W1.6a):** never-emitted kinds deleted, ad-hoc `event.Kind("…")` strings (market included) made constants; `TestKindRegistryIsClosed` keeps the registry closed. | [06](06-data-memory-state.md), [07](07-autonomy-and-extensibility.md) |
 | Stale package docs: `governor` (`PreferredProvider`), `creds` ("unencrypted"), Edict "ask-first" comments, several provider docs ("unsupported"), `journal` (sidecar index), email ("outbound-only"), `restapi` (doc lost). | [05](05-governance-routing-security.md), [06](06-data-memory-state.md), [08](08-providers.md), [09](09-channels.md) |

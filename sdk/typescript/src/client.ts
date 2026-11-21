@@ -1,68 +1,12 @@
+import { PATHS } from "./generated.js";
+import type { Health, Mail, MailDraft, Models, RunArc, RunResult } from "./generated.js";
 import { APIError } from "./errors.js";
-
-/** Daemon health summary (`GET /api/v1/health`). */
-export interface Health {
-  status: string;
-  version: string;
-  default_model: string;
-  model_count: number;
-}
-
-/** Available models (`GET /api/v1/models`). */
-export interface Models {
-  default: string;
-  models: string[];
-}
-
-/** A completed (non-streaming) run. */
-export interface RunResult {
-  correlation_id: string;
-  model: string;
-  status: string;
-  answer: string;
-}
 
 /** One Server-Sent Event from a streaming run. `event` is one of
  * `start` | `token` | `done` | `error`; `data` is the decoded JSON payload. */
 export interface StreamEvent {
   event: string;
   data: Record<string, unknown>;
-}
-
-/** The journaled event arc of a past run (`GET /api/v1/runs/{id}`). */
-export interface RunArc {
-  correlation_id: string;
-  count: number;
-  events: unknown[];
-}
-
-/** One message on the daemon's shared mailbox (the inter-agent board, M937).
- * Agents and SDK apps leave messages for each other by name (`to`), broadcast
- * to every inbox (`to: "*"`), or post under a `topic`; `reply_to` threads an
- * answer back to the message it answers. */
-export interface Mail {
-  id?: string;
-  topic: string;
-  text: string;
-  from?: string;
-  to?: string;
-  reply_to?: string;
-  help?: boolean;
-  ts_unix_ms?: number;
-}
-
-/** A message to send. `text` is required. Addressing: `to` names a recipient
- * (topic defaults to "dm"); `to: "*"` broadcasts; `to` empty with a `topic` is
- * a plain post; `replyTo` answers a message (it goes back to the original
- * sender); `help: true` raises an assistance request. A directed message wakes
- * a standing order watching `board.dm.<name>`. */
-export interface MailDraft {
-  text: string;
-  from?: string;
-  to?: string;
-  topic?: string;
-  replyTo?: string;
-  help?: boolean;
 }
 
 export interface ClientOptions {
@@ -98,11 +42,11 @@ export class Client {
   }
 
   health(): Promise<Health> {
-    return this.getJSON<Health>("/api/v1/health");
+    return this.getJSON<Health>(PATHS.health);
   }
 
   models(): Promise<Models> {
-    return this.getJSON<Models>("/api/v1/models");
+    return this.getJSON<Models>(PATHS.models);
   }
 
   /** Execute an intent and resolve with the final answer (blocking). Throws
@@ -110,7 +54,7 @@ export class Client {
   async run(intent: string, model?: string): Promise<RunResult> {
     const body: Record<string, unknown> = { intent };
     if (model) body.model = model;
-    const res = await this.fetch("POST", "/api/v1/runs", JSON.stringify(body));
+    const res = await this.fetch("POST", PATHS.run, JSON.stringify(body));
     if (!res.ok) throw await apiError(res);
     return (await res.json()) as RunResult;
   }
@@ -120,14 +64,14 @@ export class Client {
   async *runStream(intent: string, model?: string): AsyncGenerator<StreamEvent> {
     const body: Record<string, unknown> = { intent, stream: true };
     if (model) body.model = model;
-    const res = await this.fetch("POST", "/api/v1/runs", JSON.stringify(body), "text/event-stream");
+    const res = await this.fetch("POST", PATHS.run, JSON.stringify(body), "text/event-stream");
     if (!res.ok) throw await apiError(res);
     if (!res.body) return;
     yield* parseSSE(res.body);
   }
 
   getRun(correlationId: string): Promise<RunArc> {
-    return this.getJSON<RunArc>("/api/v1/runs/" + encodeURIComponent(correlationId));
+    return this.getJSON<RunArc>(PATHS.runArc.replace("{id}", encodeURIComponent(correlationId)));
   }
 
   // --- mailbox (the shared inter-agent message board, M937) ---
@@ -140,7 +84,7 @@ export class Client {
     if (draft.topic) body.topic = draft.topic;
     if (draft.replyTo) body.reply_to = draft.replyTo;
     if (draft.help) body.help = true;
-    const res = await this.fetch("POST", "/api/v1/mailbox/messages", JSON.stringify(body));
+    const res = await this.fetch("POST", PATHS.mailboxMessages, JSON.stringify(body));
     if (!res.ok) throw await apiError(res);
     const out = (await res.json()) as { message: Mail };
     return out.message;
@@ -158,7 +102,7 @@ export class Client {
     const q = new URLSearchParams({ name });
     if (includeRead) q.set("all", "true");
     if (limit > 0) q.set("limit", String(limit));
-    const out = await this.getJSON<{ waiting: Mail[] }>("/api/v1/mailbox/inbox?" + q.toString());
+    const out = await this.getJSON<{ waiting: Mail[] }>(PATHS.mailboxInbox + "?" + q.toString());
     return out.waiting ?? [];
   }
 
@@ -167,7 +111,7 @@ export class Client {
   async mailboxAck(messageId: string, by: string): Promise<void> {
     const res = await this.fetch(
       "POST",
-      "/api/v1/mailbox/messages/" + encodeURIComponent(messageId) + "/ack",
+      PATHS.mailboxAck.replace("{id}", encodeURIComponent(messageId)),
       JSON.stringify({ by }),
     );
     if (!res.ok) throw await apiError(res);
@@ -176,7 +120,7 @@ export class Client {
 
   /** The answers to a sent message, oldest first (conversation order). */
   async mailboxReplies(messageId: string, limit = 0): Promise<Mail[]> {
-    let path = "/api/v1/mailbox/messages/" + encodeURIComponent(messageId) + "/replies";
+    let path = PATHS.mailboxReplies.replace("{id}", encodeURIComponent(messageId));
     if (limit > 0) path += "?limit=" + limit;
     const out = await this.getJSON<{ replies: Mail[] }>(path);
     return out.replies ?? [];
@@ -189,14 +133,14 @@ export class Client {
     if (limit > 0) q.set("limit", String(limit));
     const qs = q.toString();
     const out = await this.getJSON<{ messages: Mail[] }>(
-      "/api/v1/mailbox/messages" + (qs ? "?" + qs : ""),
+      PATHS.mailboxMessages + (qs ? "?" + qs : ""),
     );
     return out.messages ?? [];
   }
 
   /** The mailbox's topics with their message counts. */
   async mailboxTopics(): Promise<Record<string, number>> {
-    const out = await this.getJSON<{ topics: Record<string, number> }>("/api/v1/mailbox/topics");
+    const out = await this.getJSON<{ topics: Record<string, number> }>(PATHS.mailboxTopics);
     return out.topics ?? {};
   }
 
@@ -216,7 +160,7 @@ export class Client {
     const qs = q.toString();
     const res = await this.fetch(
       "GET",
-      "/api/v1/mailbox/watch" + (qs ? "?" + qs : ""),
+      PATHS.mailboxWatch + (qs ? "?" + qs : ""),
       undefined,
       "text/event-stream",
     );

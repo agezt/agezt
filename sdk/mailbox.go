@@ -58,8 +58,8 @@ type MailDraft struct {
 // addressing rules.
 func (c *Client) SendMail(ctx context.Context, d MailDraft) (Mail, error) {
 	res, err := c.cp.Call(ctx, opapi.BoardSend, map[string]any{
-		"from": d.From, "to": d.To, "topic": d.Topic, "reply_to": d.ReplyTo,
-		"text": d.Text, "help": d.Help,
+		mailDraftFieldFrom: d.From, mailDraftFieldTo: d.To, mailDraftFieldTopic: d.Topic,
+		mailDraftFieldReplyTo: d.ReplyTo, mailDraftFieldText: d.Text, mailDraftFieldHelp: d.Help,
 	})
 	if err != nil {
 		return Mail{}, err
@@ -195,14 +195,14 @@ func parseMails(raw any) []Mail {
 // parseMail maps one message view to a Mail.
 func parseMail(m map[string]any) Mail {
 	var out Mail
-	out.ID, _ = m["id"].(string)
-	out.Topic, _ = m["topic"].(string)
-	out.From, _ = m["from"].(string)
-	out.To, _ = m["to"].(string)
-	out.ReplyTo, _ = m["reply_to"].(string)
-	out.Text, _ = m["text"].(string)
-	out.Help, _ = m["help"].(bool)
-	if ts := intFromAny(m["ts_unix_ms"]); ts > 0 {
+	out.ID, _ = m[mailFieldID].(string)
+	out.Topic, _ = m[mailFieldTopic].(string)
+	out.From, _ = m[mailFieldFrom].(string)
+	out.To, _ = m[mailFieldTo].(string)
+	out.ReplyTo, _ = m[mailFieldReplyTo].(string)
+	out.Text, _ = m[mailFieldText].(string)
+	out.Help, _ = m[mailFieldHelp].(bool)
+	if ts := intFromAny(m[mailFieldTSUnixMS]); ts > 0 {
 		out.At = time.UnixMilli(ts)
 	}
 	return out

@@ -272,7 +272,7 @@ Next priorities for platform maturity — all complete:
 
 - ~~Add memory/world/skill audit CLI commands~~ — done: `agt memory audit` (existing), `agt world audit`, `agt skill hygiene`
 - ~~Make plugin protocol versioning machine-checkable~~ — done: `ProtocolVersion` constant + `checkProtocolVersion` at spawn (see `docs/PLUGIN-SECURITY.md` P9)
-- ~~Add behavioral SDK parity tests beyond route-string coverage~~ — done: 20 behavioral dimensions at parity across Python/TypeScript/Rust (see `docs/SDK-PARITY.md`)
+- ~~Add behavioral SDK parity tests beyond route-string coverage~~ — done: 20 behavioral dimensions at parity across Python/TypeScript/Rust (the SDK surface now has one home: `kernel/contract/restapiapi`, generated into each SDK by `tools/sdkgen`)
 
 ## Bottom line
 
@@ -296,4 +296,4 @@ That is meaningfully different from generic agent frameworks. The original posit
 | `examples/autonomous/plugin-governance/` | implemented | plugin trust, allowlists, audit |
 | `docs/PLUGIN-SECURITY.md` | implemented | plugin trust model, pinning, crash/reload |
 | `docs/API-STABILITY.md` | implemented | public/private surface stability, versioning, SDK parity |
-| `docs/SDK-PARITY.md` | implemented | generated `/api/v1` route coverage across SDKs |
+| SDK catalog generation | implemented | `tools/sdkgen` generates each SDK's paths and wire rows from `kernel/contract/restapiapi` |

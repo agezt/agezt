@@ -51,3 +51,8 @@ CHANGELOG/** text eol=lf
 # ones, and the gate fails on a tree nobody changed — the same reasoning as
 # the generated structure docs above.
 docs/openapi.json text eol=lf
+# Generated SDK catalogs: byte-compared by tools/sdkgen -check, so they
+# must not be rewritten to CRLF by a Windows checkout.
+sdk/python/agezt/_generated.py text eol=lf
+sdk/typescript/src/generated.ts text eol=lf
+sdk/generated.go text eol=lf

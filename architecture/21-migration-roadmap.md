@@ -456,6 +456,8 @@ Extract in **increasing coupling order** (each step = move PR, then rewrite PR i
 |---|---|
 | W5.1 | OpenAPI from op registry; generated TS client in `frontend/src/app/api`; delete hand-written wrappers. |
 | W5.2 | Generated Python/TS/Rust/Go SDKs + server-produced golden fixtures consumed by every SDK test; retire `sdkparity` freshness check and self-validating fixtures. |
+| W5.2a ✅ | The `/api/v1` surface gets one home (`kernel/contract/restapiapi`); the daemon registers from it; `tools/sdkgen` generates the Python/TypeScript SDK catalogs; `sdkparity` and its report retired. |
+| W5.2b | The Rust SDK joins the generated catalog (needs a Rust toolchain); server-produced golden fixtures consumed by every SDK test; the self-validating `contract/fixtures` retired. |
 | W5.3 | Frontend boundaries lint (features ↛ features, components/lib ↛ features); `designsystem.test` scans `features/`; delete test-only modules. |
 | W5.4 | Final: archcheck allowlist = 0, forbidden-call allowlist = 0, codemap docs regenerated, `docs/` stale architecture docs archived. |
 

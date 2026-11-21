@@ -1,8 +1,8 @@
 # 12 — SDKs and the Cross-Language Contract
 
 **Scope:** `sdk/` (Go SDK), `sdk/python`, `sdk/typescript`, `sdk/rust`, `contract/` (`fixtures/`, `gen/`), the generators/gates
-`tools/jsonschemagen` + `tools/sdkparity`, `examples/agezt-run`, and the policy docs `docs/SDK-PARITY.md`, `docs/API-STABILITY.md`,
-`docs/EVENT-SCHEMA.md` (claims verified against the code on disk, 2026-10-02).
+`tools/jsonschemagen` + `tools/sdkgen`, `examples/agezt-run`, and the policy docs `docs/API-STABILITY.md`,
+`docs/EVENT-SCHEMA.md` (claims verified against the code on disk, 2026-10-02; the SDK surface rewritten by W5.2a on 2026-11-19).
 
 Sibling docs: server side of the REST / control-plane / agent-gateway surfaces is in [03-control-plane-and-http.md](03-control-plane-and-http.md);
 event kinds and the journal in [06-data-memory-state.md](06-data-memory-state.md); the *plugin-author* SDK (`plugins/sdk`) and providers in
@@ -22,7 +22,8 @@ event kinds and the journal in [06-data-memory-state.md](06-data-memory-state.md
 | `contract/gen` | `types.gen.go`, Go types generated from `.project/agezt-contract.jsonc` (the **plugin JSON-RPC** contract). Git-ignored, zero importers. | n/a | n/a |
 | `contract/fixtures` | 8 hand-written JSON event-payload fixtures + a Go shape-sanity test; 2 of them also read by frontend Vitest tests. | n/a | n/a |
 | `tools/jsonschemagen` | JSONC → Go struct generator (stdlib only). `make gen`. | reads `.project/agezt-contract.jsonc` | — |
-| `tools/sdkparity` | Static route-string coverage report `docs/SDK-PARITY.md`; `-check` fails CI if the doc is stale. | reads `kernel/restapi/restapi*.go`, SDK source trees | — |
+| `kernel/contract/restapiapi` | **The one home of the `/api/v1` surface** (W5.2a): routes, tiers, query parameters, wire rows. The daemon registers FROM it; `tools/sdkgen` generates the SDK catalogs from it. | — | — |
+| `tools/sdkgen` | Generates each SDK's catalog (paths + wire rows) from `kernel/contract/restapiapi`; `-check` fails CI when a generated file is stale. | reads `kernel/contract/restapiapi`, `kernel/app/board` | — |
 | `examples/agezt-run` | Minimal Go SDK program: stream a run, print cost, list last 5 runs. | Go SDK | — |
 
 Import graph (from `internal-deps.txt`): `sdk -> internal/paths kernel/controlplane kernel/event`; `examples/agezt-run -> sdk`;
@@ -286,7 +287,8 @@ Facts that contradict the generator's own header ("CI verifies in sync"):
 - No Go package imports `contract/gen` (import graph + grep). The `multi-arch` CI job regenerates it before cross-build only so `./...`-style
   builds don't miss it. `docs/REFACTORING-SCAN-2026-08.md` already flags it as dead architecture (7-kind `Capability` enum, `RegisterParams`
   never implemented by `kernel/modules/extensions/plugin`).
-- It is **not** the REST SDK contract; none of the four app SDKs is generated from it. REST SDK types are hand-written per language.
+- It is **not** the REST SDK contract. The REST SDK surface's home is `kernel/contract/restapiapi` (W5.2a), and the SDK catalogs are
+  generated from it by `tools/sdkgen`; `contract/gen` still feeds the (unimported) plugin JSON-RPC contract.
 
 Tests: `tools/jsonschemagen/main_test.go` (`TestStripJSONCComments`, `TestExportedName`, `TestRefTypeName`, `TestEndToEndContract`) and
 `coverage_test.go` (every emit branch, error paths via `exitProcess` seam).
@@ -310,23 +312,40 @@ All fixtures are **hand-written** payload examples (not generated, not recorded 
 Frontend tests read them via `readFileSync("../contract/fixtures/<name>")` (relative to `frontend/`). No Python/TS/Rust SDK test and no
 kernel emitter test reads any fixture.
 
-### 8.3 `tools/sdkparity` → `docs/SDK-PARITY.md`
+### 8.3 The REST contract → the SDK catalogs (`kernel/contract/restapiapi` + `tools/sdkgen`)
 
-1. `extractRoutes("kernel/restapi/restapi*.go")` concatenates matching files and applies regex `\.Handle(?:Func)?\("(/api/v1/[^"]*)"`
-   (tied to call shape, not receiver name, after a 17-day silent-miss when `mux.HandleFunc` became `router.Handle`); empty glob = hard error.
-   Trailing `/` ⇒ "prefix" route.
-2. SDK trees: Go `sdk/*.go` (marked `NativeOnly` → `n/a`), Python `sdk/python/agezt/*.py`, TS `sdk/typescript/src/*.ts`, Rust `sdk/rust/src/*.rs`.
-3. `sdkCovers`: substring search of the route path in any SDK file; for prefix routes also the path **without** the trailing slash.
-4. `render` writes the table, per-SDK `covered/total` (excluding `/api/v1/update`, `/api/v1/update/apply` — `intentionallyUnsupportedInSDK`),
-   and fixed prose listing which behavioral test files exist.
-5. `-check <path>` compares CRLF-normalized output to the file and exits 1 if stale; `-out` rewrites. Run by `make sdk-parity` and CI job
-   `deps-check` (`ci.yml` ~L478).
+**One home.** `kernel/contract/restapiapi` holds the `/api/v1` surface as data: every route (path, tier, kind, body policy), every
+SDK-facing endpoint (verb, path template, query) and every wire row (field name, type, optionality). Two consumers read it:
 
-Verified 2026-10-02: `go run ./tools/sdkparity -check docs/SDK-PARITY.md` passes; Python/TS/Rust each 9/11 (both misses are `/api/v1/artifacts*`).
+1. **The daemon registers from it.** `kernel/restapi`'s `Handler` walks `restapiapi.Routes()` and registers each route with the
+   handler the map names. A route in the contract without a handler — or a handler without a contract route — panics at boot.
+   `kernel/restapi/restapi_contract_test.go` compares the registered routes (path, verbs, tier, body cap, mutation flag) with the
+   contract, both ways.
+2. **`tools/sdkgen` generates the SDK catalogs from it.** `-check` fails when a generated file is stale; without it, the tool writes:
 
-What it does **not** enforce: it never fails because an SDK lacks a route (only because the report is stale); method-level parity, request/
-response field parity, the Go SDK, and the Agent SDK (`agent.py`/`agent.ts` routes are `/v1/*`, invisible to the `/api/v1` regex) are out of
-scope. Prefix-route coverage is weak: `/api/v1/runs/` is "covered" by any file containing `/api/v1/runs` (the POST route string).
+   | File | What it holds |
+   |---|---|
+   | `sdk/python/agezt/_generated.py` | `Paths` + the wire rows (dataclasses for the rows Python models as classes, TypedDicts for the rest) |
+   | `sdk/typescript/src/generated.ts` | `PATHS` + one interface per wire row |
+   | `sdk/rust/src/generated.rs` | `paths` + one struct per wire row |
+   | `sdk/generated.go` | the board row's wire field names, derived from `kernel/app/board`'s own structs (the Go SDK speaks the control plane, not REST) |
+
+**The ratchets** (`tools/sdkgen/main_test.go`):
+
+- the generated files match the contract (the `-check` gate, as a test);
+- no SDK source outside the generated catalog spells a REST path of its own;
+- every contract path in the SDK contract is reached by every wired SDK, through the generated constant;
+- the contract's message rows agree with the app layer's wire projection (`kernel/app/board`'s `Message` / `SendInput`).
+
+**What replaced `tools/sdkparity`.** The old tool extracted the daemon's routes with a regex over `kernel/restapi/restapi*.go`,
+scraped each SDK's sources for the same strings, and wrote `docs/SDK-PARITY.md`; its `-check` failed only when that REPORT was
+stale, and it never failed because an SDK lacked a route. Both halves of that are gone: the routes now come from a table (no
+regex), the SDKs now hold generated constants (no string scraping), and the coverage question ("does every SDK reach every
+contract path?") is a test that fails when the answer is no. The report document itself was deleted with the tool.
+
+**Still open (W5.2b):** the *server-produced golden fixtures* — the SDK tests still assert against hand-written payloads, and
+`contract/fixtures/*.json` still validate themselves (`fixtures_test.go` checks a fixture's own shape, not that any emitter
+produces it).
 
 ---
 
@@ -379,9 +398,10 @@ Decide first which surface the feature lives on. REST SDKs can only expose what 
 plane serves.
 
 1. **Server.**
-   - REST: add the handler and `router.Handle("/api/v1/…", <tier RouteOpts>, h)` in `kernel/restapi/restapi_routes*.go` (keep the literal-path
-     call shape — `sdkparity`'s regex depends on it). Use `writeErr(type, message)` for errors; choose user vs admin tier deliberately
-     (admin for anything not tenant-partitioned).
+   - REST: add the route to `kernel/contract/restapiapi` (path, tier, kind, query, wire rows) and the handler to
+     `kernel/restapi`'s handler map; the daemon registers from the table. Use `writeErr(type, message)` for errors; choose user vs
+     admin tier deliberately (admin for anything not tenant-partitioned). Then run `go run ./tools/sdkgen` — the SDK catalogs and
+     their paths are generated from that table.
    - Control plane (for Go): add a `Cmd*` constant + handler in `kernel/controlplane` (see 03), args read via the package's typed accessors.
 2. **Go** (`sdk/<area>.go`): method on `*Client` calling `c.cp.Call` / `Stream` / `StreamUntilCancel`; a `parseX(map[string]any)` that uses
    comma-ok assertions and `intFromAny` so missing fields are zero (tests in `parse_edge_test.go` style); add a `fakeCP` handler case in
@@ -394,8 +414,8 @@ plane serves.
    `test` script in `package.json` (the list is explicit).
 5. **Rust** (`src/client.rs`): typed `pub struct`, method using `get_json`/`post_json`/`send`, `percent_encode` for segments; re-export from
    `lib.rs`; add a branch to the mock `handle` in `tests/client.rs`; run `cargo fmt`.
-6. **Parity report:** `go run ./tools/sdkparity -out docs/SDK-PARITY.md` (and extend `noteForRoute` / the behavioral-coverage prose in
-   `render` if appropriate); `-check` must pass in CI.
+6. **Generated catalogs:** `go run ./tools/sdkgen` (the SDK paths and wire rows are generated from the contract); `go run ./tools/sdkgen
+   -check` must pass in CI, and the SDK clients must reach the new path through the generated constant.
 7. **Docs/versions:** update each SDK README method table, bump the minor version (`pyproject.toml` + `__init__.__version__`,
    `package.json`, `Cargo.toml`), and the "Current SDK versions" table in `docs/API-STABILITY.md`.
 8. **Event payloads consumed by SDKs/UI:** if the feature introduces a payload others parse, add a fixture in `contract/fixtures/` plus a
@@ -416,8 +436,8 @@ For an Agent-SDK capability: add the gateway route + `AgentCapability` in `kerne
 - Agent SDK: every connect site uses the resolved (abstract on Linux) address — SDK-001/SDK-002 in both languages.
 - TS stream consumers that `break` early cancel the HTTP body (no socket leak).
 - Go `WithTools()` with no args ≠ omitting it (`TestWithTools_ExplicitEmptyVsOmitted`); `WithMaxCostUSD(≤0)` is a no-op.
-- `sdkparity` must find live routes (`TestExtractRoutes_FindsLiveRoutes`), so moving registrations to a non-`restapi*.go` file or changing the
-  call shape fails loudly.
+- The daemon's registered routes and the contract must agree, both ways (`kernel/restapi`'s contract test), and the SDK catalogs must
+  match the contract (`tools/sdkgen -check`).
 
 **Verified defects / drift (not fixed here)**
 1. **Agent SDK default socket is unreachable** — daemon binds `@agezt/agentgw-<random>.sock` unless `AGEZT_AGENTGW_SOCKET` is set; SDKs

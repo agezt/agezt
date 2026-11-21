@@ -41,7 +41,6 @@ operation guides, the policies and the evidence.
 |---|---|
 | [API-STABILITY.md](API-STABILITY.md) | understand public/private surface stability, versioning policy, and SDK parity rules |
 | [EVENT-SCHEMA.md](EVENT-SCHEMA.md) | understand event/journal compatibility rules for audit consumers and demos |
-| [SDK-PARITY.md](SDK-PARITY.md) | inspect generated `/api/v1` route coverage across Go/Python/TypeScript/Rust SDKs |
 | [AGENT-SDK-ARCHITECTURE.md](AGENT-SDK-ARCHITECTURE.md) | understand how agent-written code in a subprocess reaches back into AGEZT (gateway, tokens, capabilities) |
 
 ## Engineering program
@@ -69,7 +68,6 @@ in [`../architecture/21-migration-roadmap.md`](../architecture/21-migration-road
 
 | Artifact | Check command |
 |---|---|
-| [SDK-PARITY.md](SDK-PARITY.md) | `go run ./tools/sdkparity -check docs/SDK-PARITY.md` |
 | [../DEPENDENCIES.md](../DEPENDENCIES.md) + `tools/depscheck/allowlist.txt` | `go run ./tools/depscheck` |
 | [COMPETITOR-PARITY.md](COMPETITOR-PARITY.md) | `agt compare audit --json` |
 | repository-local reachability (no unreachable code outside the allowlists) | `go run ./tools/deadcodecheck` |

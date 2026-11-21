@@ -9,64 +9,14 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterator, List, Optional
 
+from ._generated import Health, Mail, Models, Paths, RunArc, RunResult
 from .errors import APIError
 
 __all__ = ["Client", "Mail", "RunResult", "StreamEvent"]
 
 
-@dataclass
-class RunResult:
-    """A completed (non-streaming) run."""
-
-    correlation_id: str
-    model: str
-    status: str
-    answer: str
-
-    @classmethod
-    def _from(cls, d: Dict[str, Any]) -> "RunResult":
-        return cls(
-            correlation_id=d.get("correlation_id", ""),
-            model=d.get("model", ""),
-            status=d.get("status", ""),
-            answer=d.get("answer", ""),
-        )
-
-
-@dataclass
-class Mail:
-    """One message on the daemon's shared mailbox (the inter-agent board).
-
-    Agents and SDK apps leave messages for each other by name (``to``),
-    broadcast to every inbox (``to="*"``), or post under a ``topic``;
-    ``reply_to`` threads an answer back to the message it answers.
-    """
-
-    id: str = ""
-    topic: str = ""
-    text: str = ""
-    from_: str = ""
-    to: str = ""
-    reply_to: str = ""
-    help: bool = False
-    ts_unix_ms: int = 0
-
-    @classmethod
-    def _from(cls, d: Dict[str, Any]) -> "Mail":
-        return cls(
-            id=d.get("id", ""),
-            topic=d.get("topic", ""),
-            text=d.get("text", ""),
-            from_=d.get("from", ""),
-            to=d.get("to", ""),
-            reply_to=d.get("reply_to", ""),
-            help=bool(d.get("help", False)),
-            ts_unix_ms=int(d.get("ts_unix_ms", 0)),
-        )
-
-
 def _mails(raw: Any) -> List[Mail]:
-    return [Mail._from(m) for m in raw or [] if isinstance(m, dict)]
+    return [Mail.from_dict(m) for m in raw or [] if isinstance(m, dict)]
 
 
 _ALLOWED_SCHEMES = ("http", "https")
@@ -164,13 +114,13 @@ class Client:
 
     # --- public API -------------------------------------------------------
 
-    def health(self) -> Dict[str, Any]:
+    def health(self) -> Health:
         """Return the daemon's liveness + version summary."""
-        return self._get("/api/v1/health")
+        return self._get(Paths.HEALTH)
 
-    def models(self) -> Dict[str, Any]:
+    def models(self) -> Models:
         """Return ``{"default": id, "models": [ids…]}``."""
-        return self._get("/api/v1/models")
+        return self._get(Paths.MODELS)
 
     def run(self, intent: str, model: Optional[str] = None) -> RunResult:
         """Execute an intent and return the final answer (blocking).
@@ -180,7 +130,7 @@ class Client:
         body: Dict[str, Any] = {"intent": intent}
         if model:
             body["model"] = model
-        return RunResult._from(self._post_json("/api/v1/runs", body))
+        return RunResult.from_dict(self._post_json(Paths.RUN, body))
 
     def run_stream(
         self, intent: str, model: Optional[str] = None
@@ -192,7 +142,7 @@ class Client:
         if model:
             body["model"] = model
         data = json.dumps(body).encode("utf-8")
-        req = self._request("POST", "/api/v1/runs", data=data, accept="text/event-stream")
+        req = self._request("POST", Paths.RUN, data=data, accept="text/event-stream")
         try:
             resp = self._opener.open(req, timeout=self.timeout)
         except urllib.error.HTTPError as e:
@@ -200,11 +150,11 @@ class Client:
         with resp:
             yield from _parse_sse(resp)
 
-    def get_run(self, correlation_id: str) -> Dict[str, Any]:
+    def get_run(self, correlation_id: str) -> RunArc:
         """Return the journaled event arc of a past run."""
         # safe="" — quote's default leaves "/" unescaped, which would let an id
         # of "../../…" rewrite which endpoint is called (PY-005).
-        return self._get("/api/v1/runs/" + urllib.parse.quote(correlation_id, safe=""))
+        return self._get(Paths.RUN_ARC.replace("{id}", urllib.parse.quote(correlation_id, safe="")))
 
     # --- mailbox (the shared inter-agent message board) --------------------
 
@@ -237,8 +187,8 @@ class Client:
             body["reply_to"] = reply_to
         if help:
             body["help"] = True
-        res = self._post_json("/api/v1/mailbox/messages", body)
-        return Mail._from(res.get("message", {}))
+        res = self._post_json(Paths.MAILBOX_MESSAGES, body)
+        return Mail.from_dict(res.get("message", {}))
 
     def mailbox_broadcast(self, from_: str, text: str) -> Mail:
         """Send an announcement to EVERY inbox except the sender's."""
@@ -255,23 +205,21 @@ class Client:
             q["all"] = "true"
         if limit > 0:
             q["limit"] = str(limit)
-        res = self._get("/api/v1/mailbox/inbox?" + urllib.parse.urlencode(q))
+        res = self._get(Paths.MAILBOX_INBOX + "?" + urllib.parse.urlencode(q))
         return _mails(res.get("waiting"))
 
     def mailbox_ack(self, message_id: str, by: str) -> None:
         """Mark a message read for one reader (it leaves that reader's inbox
         without a reply). Per-reader and idempotent."""
         self._post_json(
-            "/api/v1/mailbox/messages/" + urllib.parse.quote(message_id, safe="") + "/ack",
+            Paths.MAILBOX_ACK.replace("{id}", urllib.parse.quote(message_id, safe="")),
             {"by": by},
         )
 
     def mailbox_replies(self, message_id: str, limit: int = 0) -> List[Mail]:
         """Return the answers to a sent message, oldest first."""
-        path = (
-            "/api/v1/mailbox/messages/"
-            + urllib.parse.quote(message_id, safe="")
-            + "/replies"
+        path = Paths.MAILBOX_REPLIES.replace(
+            "{id}", urllib.parse.quote(message_id, safe="")
         )
         if limit > 0:
             path += "?limit=" + str(limit)
@@ -285,14 +233,14 @@ class Client:
             q["topic"] = topic
         if limit > 0:
             q["limit"] = str(limit)
-        path = "/api/v1/mailbox/messages"
+        path = Paths.MAILBOX_MESSAGES
         if q:
             path += "?" + urllib.parse.urlencode(q)
         return _mails(self._get(path).get("messages"))
 
     def mailbox_topics(self) -> Dict[str, int]:
         """Return the mailbox's topics with their message counts."""
-        return self._get("/api/v1/mailbox/topics").get("topics", {})
+        return self._get(Paths.MAILBOX_TOPICS).get("topics", {})
 
     def mailbox_watch(self, name: str = "", topic: str = "") -> Iterator[Mail]:
         """Stream new mail the moment it lands — the push counterpart of
@@ -309,7 +257,7 @@ class Client:
             q["name"] = name
         if topic:
             q["topic"] = topic
-        path = "/api/v1/mailbox/watch"
+        path = Paths.MAILBOX_WATCH
         if q:
             path += "?" + urllib.parse.urlencode(q)
         req = self._request("GET", path, accept="text/event-stream")
@@ -320,7 +268,7 @@ class Client:
         with resp:
             for ev in _parse_sse(resp):
                 if ev.event == "mail":
-                    yield Mail._from(ev.data)
+                    yield Mail.from_dict(ev.data)
 
     # --- internals --------------------------------------------------------
 

@@ -15770,3 +15770,58 @@ TS client"), where the client stops being hand-written at all.
 
 Evidence:
 `architecture/317-w382-the-console-route-table-gets-one-home-evidence.md`
+
+---
+
+## W5.2a checkpoint — the `/api/v1` surface gets one home
+
+W5.1 gave the console's internal surface (`/api/*`) a home: the catalogue in
+`kernel/contract/opapi` that the OpenAPI document and the generated browser
+client both read. **W5.2a does the same for the other surface** — the
+`/api/v1` one the Python, TypeScript and Rust SDKs speak.
+
+**The contract** (`kernel/contract/restapiapi`, 767 lines): 16 routes, 15
+endpoints (11 in the SDK contract), 17 wire rows. The daemon now registers its
+routes **from** that table — one loop over `restapiapi.Routes()` and a map
+from route id to handler — so a route in the contract without a handler, or a
+handler without a contract route, panics at boot instead of answering 404 on a
+path every SDK was told to call.
+
+**The generator** (`tools/sdkgen`): renders the contract into
+`sdk/python/agezt/_generated.py` (paths + rows),
+`sdk/typescript/src/generated.ts` (paths + interfaces) and `sdk/generated.go`
+(the board row's wire field names, derived by reflection from the app layer's
+own structs — the Go SDK speaks the control plane, so it has no REST paths).
+The Python and TypeScript clients now call the generated paths and use the
+generated rows.
+
+**The retirement**: `tools/sdkparity` (693 lines), `docs/SDK-PARITY.md` and
+its freshness gate are gone. The old tool scraped the daemon's routes with a
+regex and each SDK's sources for the same strings, and its `-check` failed
+only when the *report* was stale — it never failed because an SDK lacked a
+route. The routes now come from a table, the SDKs hold generated constants,
+and "does every SDK reach every contract path?" is a test.
+
+**The guards** (five, in three packages): the daemon's registered routes
+against the contract, both ways; the contract's own invariants; the generated
+catalogs in sync with the contract; no SDK source outside the catalog spelling
+a REST path; every contract path reached by every SDK; the contract's message
+rows against the app layer's wire projection. Four mutations, four catches.
+
+**The measurement**: `router.Handle` calls in the daemon's route table
+**16 → 1**, path literals in `kernel/restapi/restapi_routes.go` **16 → 0**,
+hand-written path literals in the Python client **13 → 0** and in the
+TypeScript client **15 → 0**, hand-written wire rows in the two SDKs
+**8 → 0**, the retired tool + report **748 → 0** lines.
+
+**What is left (W5.2b)**: the Rust SDK joins the catalog (the emitter was
+written and removed on purpose — this machine has no Rust toolchain, and
+shipping unverified code is worse than shipping it a slice later);
+server-produced golden fixtures consumed by every SDK test; the retirement of
+the self-validating `contract/fixtures`; and the message row's second home
+(the REST contract's row and the app layer's board projection name the same
+fields — a ratchet ties them, but one is a copy; the honest end state moves
+the client-visible row down into `boardapi`).
+
+Evidence:
+`architecture/319-w52a-the-rest-surface-gets-one-home-evidence.md`
