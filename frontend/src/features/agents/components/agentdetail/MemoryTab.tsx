@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
-import { type MemoryRecord } from "@/features/agents/lib/agentdetail";
+import { type MemoryRecord } from "@/lib/agentdetail";
 
 // MEMORY_ROW_WINDOW is how many memory records render at once — the records
 // prop is already bounded and filtered per-agent upstream; the window keeps a

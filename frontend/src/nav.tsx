@@ -44,8 +44,8 @@ import {
   Terminal,
   type LucideIcon,
 } from "lucide-react";
-import { agentSlugFromHash } from "@/features/agents/lib/agentnav";
-import { incidentIdFromHash } from "@/features/incidents/lib/incidentnav";
+import { agentSlugFromHash } from "@/lib/agentnav";
+import { incidentIdFromHash } from "@/lib/incidentnav";
 
 type LazyView = LazyExoticComponent<ComponentType<any>>;
 type NavRender = ComponentType<any> | LazyView;
@@ -99,7 +99,7 @@ const Overseer = lazyNamed(() => import("@/features/overseer/components/Overseer
 const Mcp = lazyNamed(() => import("@/features/mcp/components/Mcp"), "Mcp");
 const Workflows = lazyNamed(() => import("@/features/workflows/components/Workflows"), "Workflows");
 const Runs = lazyNamed(() => import("@/features/runs/components/Runs"), "Runs");
-const ConfigCenter = lazyNamed(() => import("@/features/configcenter/components/ConfigCenter"), "ConfigCenter");
+const ConfigCenter = lazyNamed(() => import("@/components/configcenter/ConfigCenter"), "ConfigCenter");
 const Connections = lazyNamed(() => import("@/features/connections/components/Connections"), "Connections");
 const ExecutionProfiles = lazyNamed(() => import("@/features/execution-profiles/components/ExecutionProfiles"), "ExecutionProfiles");
 const Models = lazyNamed(() => import("@/features/models/components/Models"), "Models");

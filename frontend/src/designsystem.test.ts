@@ -26,7 +26,7 @@ function walk(dir: string): string[] {
   return out;
 }
 
-const FILES = [join(SRC, "components")]
+const FILES = [join(SRC, "components"), join(SRC, "features")]
   .flatMap(walk)
   .map((p) => ({ path: p.replace(SRC, "").replace(/\\/g, "/"), src: readFileSync(p, "utf8") }));
 

@@ -4,7 +4,7 @@ import { getJSON } from "@/app/api";
 import { cn } from "@/app/utils";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { ErrorText } from "@/components/JsonView";
-import { type SkillLite } from "@/features/agents/lib/agentdetail";
+import { type SkillLite } from "@/lib/agentdetail";
 import { Row } from "@/features/agents/components/agentdetail/shared";
 
 interface SkillFile {

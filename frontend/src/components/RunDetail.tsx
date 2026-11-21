@@ -27,14 +27,14 @@ import { cn } from "@/app/utils";
 import { fmtTime, clip } from "@/app/utils";
 import { money } from "@/app/format";
 import { useUI } from "@/components/ui/feedback";
-import { deriveDetail, num, mergeEvents, type ToolCall } from "@/features/runs/lib/rundetail";
+import { deriveDetail, num, mergeEvents, type ToolCall } from "@/lib/rundetail";
 import { useEvents, type AgentEvent } from "@/app/events";
-import { IncidentBadges } from "@/features/incidents/components/IncidentBadges";
+import { IncidentBadges } from "@/components/IncidentBadges";
 import {
   incidentBadgeItem,
   incidentEventSummary,
   isIncidentFamilyEvent,
-} from "@/features/incidents/lib/incidentevents";
+} from "@/lib/incidentevents";
 
 interface RunPhaseStep {
   key: string;

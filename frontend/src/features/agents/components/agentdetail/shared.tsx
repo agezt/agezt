@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useUI } from "@/components/ui/feedback";
 import { type AgentProfile } from "@/features/agents/components/Roster";
 import { type FleetState, type ApiOrder, type ApiSchedule } from "@/lib/fleet";
-import { type AgentConfigOverrideSummary, type MemoryRecord, type SkillLite } from "@/features/agents/lib/agentdetail";
+import { type AgentConfigOverrideSummary, type MemoryRecord, type SkillLite } from "@/lib/agentdetail";
 
 // Diagnostics row shapes (mirrors of /api/policy_log + /api/tool_log rows).
 export interface PolicyDecision {

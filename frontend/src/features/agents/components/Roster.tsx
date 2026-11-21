@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Users, RefreshCw, Pause, Play, Trash2, Plus, Pencil, Bot, Archive, ArchiveRestore, Skull, Activity, Sparkles, IdCard, ShieldCheck, Zap, Wrench, Megaphone, Mail, CalendarClock, GitBranch, AlertTriangle, Network } from "lucide-react";
 import { getJSON, postAction, postJSON } from "@/app/api";
-import { openAgent } from "@/features/agents/lib/agentnav";
-import { openIncident } from "@/features/incidents/lib/incidentnav";
+import { openAgent } from "@/lib/agentnav";
+import { openIncident } from "@/lib/incidentnav";
 import { cn, fmtDateTime } from "@/app/utils";
 import { money } from "@/app/format";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import { ErrorText, KeyValue } from "@/components/JsonView";
 import { Disclosure } from "@/components/ui/disclosure";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { AgentActivity } from "@/features/agents/components/AgentActivity";
-import { summarizeConfigOverrides, summarizeAgentRuntimeStatus } from "@/features/agents/lib/agentdetail";
+import { summarizeConfigOverrides, summarizeAgentRuntimeStatus } from "@/lib/agentdetail";
 import { useEvents } from "@/app/events";
 import { applyAgentLivePatches, reduceAgentLivePatchMap, shouldReloadAgentCatalog, type AgentLivePatchMap } from "@/features/agents/lib/agentlive";
 import {
@@ -33,7 +33,7 @@ import {
   type AgentReviveResult,
   type RosterBoardMessage,
   type RosterSchedule,
-} from "./roster/shared";
+} from "@/lib/agentshared";
 import { agentNeedsAttention, agentNeedsRepair, filterAgentRoster, sortAgentRoster, type RosterFilter } from "./roster/filters";
 import {
   agentNoiseBudgetPassport,
@@ -77,7 +77,7 @@ import {
 // colored identity avatar across the UI. The deterministic hue + monogram now
 // live in @/features/agents/lib/agent so the avatar can be shared; re-exported here for
 // existing importers.
-import { agentHue, initials } from "@/features/agents/lib/agent";
+import { agentHue, initials } from "@/lib/agent";
 import { SectionPanel } from "@/components/ui/section-panel";
 import { Segmented } from "@/components/ui/segmented";
 export { agentHue, initials };
@@ -122,7 +122,7 @@ export {
   NewAgentForm,
 };
 export type { AgentEnableResult, AgentProfile, AgentRemoveResult, AgentRetireResult, AgentReviveResult };
-export { slugOk, usdToMc } from "./roster/shared";
+export { slugOk, usdToMc } from "@/lib/agentshared";
 export { systemGuardianSafetyIssues } from "./roster/guardians";
 export { profileFields } from "./roster/form";
 

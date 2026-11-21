@@ -7,9 +7,9 @@ const deps = vi.hoisted(() => ({
   ttsSpeak: vi.fn(),
 }));
 
-vi.mock("@/features/voice", () => ({ transcribeAudio: deps.transcribeAudio }));
+vi.mock("@/lib/voice", () => ({ transcribeAudio: deps.transcribeAudio }));
 vi.mock("@/lib/chat", () => ({ streamRun: deps.streamRun }));
-vi.mock("@/features/voice/lib/tts", () => ({ speak: deps.ttsSpeak }));
+vi.mock("@/lib/tts", () => ({ speak: deps.ttsSpeak }));
 
 import { createBrowserVoiceIO } from "@/features/voice/lib/voiceSession";
 

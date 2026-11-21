@@ -23,7 +23,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { cn, fmtTime } from "@/app/utils";
 import { humanizeIntent } from "@/lib/intent";
 import { RunDetailLoader } from "@/components/RunDetail";
-import { useRunFocus, clearRunFocus } from "@/features/runs/lib/runfocus";
+import { useRunFocus, clearRunFocus } from "@/lib/runfocus";
 import { TabNav } from "@/components/ui/tab-nav";
 import { useCursorPager } from "@/app/cursor-pager";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";

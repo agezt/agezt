@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyAgentLivePatches, reduceAgentLivePatchMap, shouldReloadAgentCatalog } from "@/features/agents/lib/agentlive";
-import type { AgentRuntimeStatus } from "@/features/agents/lib/agentdetail";
+import type { AgentRuntimeStatus } from "@/lib/agentdetail";
 
 describe("shouldReloadAgentCatalog", () => {
   it("reloads on roster, task, and auto-repair events", () => {

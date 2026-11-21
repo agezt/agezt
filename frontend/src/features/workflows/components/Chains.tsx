@@ -11,8 +11,8 @@ import { EmptyState } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
 import { ModelPicker } from "@/components/ModelPicker";
 import { ModelChip } from "@/components/ModelChip";
-import { validateChainName, moveItem, removeAt, renameChain, deleteChain } from "@/features/workflows/lib/chains";
-import { modelHealth, type ModelCatalog } from "@/features/models/lib/models";
+import { validateChainName, moveItem, removeAt, renameChain, deleteChain } from "@/lib/chains";
+import { modelHealth, type ModelCatalog } from "@/lib/models";
 
 // Chains is the registry of named, reusable fallback ladders (M963). A chain is
 // an ordered model list; anywhere a model is picked (agent, routing, chat) you

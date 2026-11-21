@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Bot, ShieldCheck } from "lucide-react";
 import { cn } from "@/app/utils";
-import { agentIdentityKind, type AgentProfile } from "./shared";
+import { agentIdentityKind, type AgentProfile } from "@/lib/agentshared";
 
 
 export function ImpactList({

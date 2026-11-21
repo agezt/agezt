@@ -1,5 +1,5 @@
 import type { AgentEvent } from "@/app/events";
-import type { AgentRuntimeStatus } from "@/features/agents/lib/agentdetail";
+import type { AgentRuntimeStatus } from "@/lib/agentdetail";
 
 interface AgentLivePatch {
   enabled?: boolean;

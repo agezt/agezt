@@ -837,6 +837,23 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The console's module boundaries are lint-enforced, and the debt is zero.**
+  A new `frontend/src/boundaries.test.ts` resolves the whole import graph and
+  fails on two crossings: a feature importing another feature, and the shared
+  layer (`components/`, `lib/`) reaching up into a feature. The ratchet has two
+  teeth — an unlisted crossing fails, and so does a listed crossing that no
+  longer happens — and its debt ledger is **empty**: the 67 crossings that
+  existed (35 feature-to-feature, 32 shared-layer-to-feature) were paid by
+  moving the shared pieces down into `src/lib/` and `src/components/` and each
+  feature's own view into its feature. The two feature cycles that existed are
+  gone with them.
+
+- **The design-system guard now sees the views.** `designsystem.test.ts`
+  scanned `src/components/` only, so the thirty-odd views in `src/features/`
+  were unpoliced. It now scans both, and it found two real copies of the stat
+  tile — a local `Metric` in Mission Control and a local `Stat` in Jarvis.
+  Both are the shared `<StatTile>` now.
+
 - **The Rust SDK reads the daemon's own answers.** `sdk/rust/tests/golden.rs`
   parses `sdk/fixtures/` — recorded from the daemon's REST handlers — with the
   SDK's own types, and checks that the SDK's generated path constants and the
@@ -5686,6 +5703,24 @@ This file holds the active `[Unreleased]` working set.
   vet`, `staticcheck`, gofmt, and a full `go test ./...` run are green.
 
 ### Removed
+
+- **The console's test-only modules — nine of them, and the chain that fell
+  with them.** `lib/{catalog,insights,routingSuggest,snapshot,telemetry,toolbox}.ts`,
+  `components/{FlightRecorder,JarvisPresenceCard}.tsx` and
+  `components/ui/advanced.tsx` were imported only by their own tests: leftovers
+  of retired views (Catalog, Insights, Routing, Backup snapshot, Toolbox,
+  Dashboard) and two components nothing rendered. knip could not catch them —
+  it counts a test's import as usage — so the boundary measurement did. Deleting
+  them fell a chain: `lib/replay.ts` existed only to serve the deleted
+  `FlightRecorder`, and the voice feature's `index.ts` barrel existed only to
+  re-export `transcribeAudio`, which had moved down to the shared layer. Both
+  are gone, with their tests.
+
+- **The `api-keys` and `configcenter` features.** Neither was a feature: both
+  were shared primitives wearing a feature's name, and each was reachable from
+  three others (`Models & Keys`, `Connections`, `Channels`, `Voice`, `Setup`).
+  They live in `src/components/apikeys/` and `src/components/configcenter/`
+  now, where the shared layer belongs.
 
 - **`contract/fixtures/` — the self-validating fixtures.** Eight hand-written
   event payloads and `fixtures_test.go` (194 lines) checked a fixture's own

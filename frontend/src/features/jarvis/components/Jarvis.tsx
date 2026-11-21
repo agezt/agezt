@@ -16,6 +16,7 @@ import { useChat } from "@/lib/chatStore";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/app/utils";
 import { goToView } from "@/lib/nav";
+import { StatTile } from "@/components/ui/metric-widget";
 
 // AgentRow is one entry in the "who's online" list. The daemon exposes a roster
 // at /api/agents; we render the readiness + last-seen for each.
@@ -128,9 +129,9 @@ export default function Jarvis() {
             <p className="text-xs text-muted">your operator-side companion — what's online, what's running, what to nudge</p>
           </header>
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
-            <Stat icon={Ear} label="Agents ready" value={onlineCount} hint={`of ${agents.length} roster`} />
-            <Stat icon={Activity} label="Runs in flight" value={runningCount} hint="right now" />
-            <Stat icon={Brain} label="Recent memories" value={"…"} hint="(stub)" />
+            <StatTile icon={Ear} label="Agents ready" value={onlineCount} suffix={` / ${agents.length}`} />
+            <StatTile icon={Activity} label="Runs in flight" value={runningCount} />
+            <StatTile icon={Brain} label="Recent memories (stub)" value="…" />
           </div>
         </section>
 
@@ -251,19 +252,6 @@ export default function Jarvis() {
           </Button>
         </section>
       </aside>
-    </div>
-  );
-}
-
-function Stat({ icon: Icon, label, value, hint }: { icon: typeof Activity; label: string; value: number | string; hint?: string }) {
-  return (
-    <div className="rounded-xl border border-border/60 bg-card/30 p-3">
-      <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted">
-        <Icon className="size-3.5" />
-        <span>{label}</span>
-      </div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{value}</div>
-      {hint && <div className="text-[10px] text-muted">{hint}</div>}
     </div>
   );
 }

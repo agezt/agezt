@@ -1,5 +1,5 @@
 import { scheduleAgentSlug } from "@/lib/fleet";
-import { trustRank, type AgentProfile, type RosterSchedule } from "./shared";
+import { trustRank, type AgentProfile, type RosterSchedule } from "@/lib/agentshared";
 
 export function agentNoisePolicySummary(profile: Pick<AgentProfile, "noise_policy">): string {
   const policy = profile.noise_policy;

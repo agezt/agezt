@@ -1,5 +1,5 @@
-import type { AgentCardRuntimeSummary } from "@/features/agents/lib/agentdetail";
-import { agentIdentityKind, type AgentProfile, type AgentTask, type RosterBoardMessage } from "./shared";
+import type { AgentCardRuntimeSummary } from "@/lib/agentdetail";
+import { agentIdentityKind, type AgentProfile, type AgentTask, type RosterBoardMessage } from "@/lib/agentshared";
 
 export function agentLifecycleSummary(profile: Pick<AgentProfile, "lifecycle">): string {
   const lifecycle = profile.lifecycle;

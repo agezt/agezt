@@ -22,7 +22,7 @@ import {
   doctorIncidentTreeOpsSummary,
   doctorIncidentTrees,
   type AutonomyItem,
-} from "@/features/autonomy/lib/autonomy";
+} from "@/lib/autonomy";
 import {
   incidentActionContext,
   incidentDelegateCandidates,
@@ -38,24 +38,24 @@ import {
   incidentRootId,
   validateIncidentDelegateTarget,
   type IncidentResolutionRow,
-} from "@/features/incidents/lib/incidents";
-import { openAgent } from "@/features/agents/lib/agentnav";
+} from "@/lib/incidents";
+import { openAgent } from "@/lib/agentnav";
 import {
   summarizeAgentRuntimeStatus,
   summarizeEscalations,
   type AgentEscalation,
-} from "@/features/agents/lib/agentdetail";
-import type { AgentProfile } from "@/features/agents/components/Roster";
+} from "@/lib/agentdetail";
+import type { AgentProfile } from "@/lib/agentshared";
 import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty";
 import { ErrorText, KeyValue } from "@/components/JsonView";
 import { DoctorIncidentTrees } from "@/components/DoctorIncidentTrees";
-import { IncidentBadges, incidentPhaseBadgeClass } from "@/features/incidents/components/IncidentBadges";
+import { IncidentBadges, incidentPhaseBadgeClass } from "@/components/IncidentBadges";
 import { Page } from "@/components/ui/page";
 import { PageHeader } from "@/components/ui/page-header";
 import { Disclosure } from "@/components/ui/disclosure";
-import { AgentRepair } from "@/features/agents/components/AgentRepair";
+import { AgentRepair } from "@/components/AgentRepair";
 import { useUI } from "@/components/ui/feedback";
 import { fmtTime } from "@/app/utils";
 

@@ -16,7 +16,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { useUI } from "@/components/ui/feedback";
 import { Page } from "@/components/ui/page";
 import { Badge } from "@/components/ui/badge";
-import { ApiKeyField, ChatGPTSignInCard, KeyListItem, useApiKeySubmit, type KeyInfo } from "@/features/api-keys";
+import { ApiKeyField, ChatGPTSignInCard, KeyListItem, useApiKeySubmit, type KeyInfo } from "@/components/apikeys/index";
 
 // Models is the LLM model catalog — the providers and models the daemon knows
 // about, synced from models.dev/api.json (the same source as `agt catalog sync`).

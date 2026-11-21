@@ -6,7 +6,7 @@ import { Disclosure } from "@/components/ui/disclosure";
 import { TabNav } from "@/components/ui/tab-nav";
 import { KeyValue } from "@/components/JsonView";
 import { type AgentProfile } from "@/features/agents/components/Roster";
-import { agentScope, type AgentConfigOverrideSummary, type MemoryRecord, type SkillLite } from "@/features/agents/lib/agentdetail";
+import { agentScope, type AgentConfigOverrideSummary, type MemoryRecord, type SkillLite } from "@/lib/agentdetail";
 import { ConfigOverrideBox, LifecycleConfigEditor } from "@/features/agents/components/agentdetail/shared";
 import { AgentTaskList, ToolPolicyBox } from "@/features/agents/components/agentdetail/tasks";
 import { FilesTab } from "@/features/agents/components/agentdetail/FilesTab";

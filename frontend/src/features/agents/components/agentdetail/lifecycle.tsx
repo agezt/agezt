@@ -1,7 +1,7 @@
 import { fmtDateTime, clip } from "@/app/utils";
 import { agentLifecycleSummary, agentRemovalCascadePreset, agentTaskProgressSummary, type AgentProfile, type AgentRemoveResult, type AgentRetireResult, type AgentReviveResult } from "@/features/agents/components/Roster";
 import { type ApiSchedule } from "@/lib/fleet";
-import { incidentLineageLabel, type AgentRepairEvent, type AgentRepairStatus } from "@/features/agents/lib/agentdetail";
+import { incidentLineageLabel, type AgentRepairEvent, type AgentRepairStatus } from "@/lib/agentdetail";
 
 export interface AgentImpactSummary {
   standing_orders?: string[];

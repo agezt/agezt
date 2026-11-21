@@ -30,7 +30,7 @@ import { cn } from "@/app/utils";
 import { Button } from "@/components/ui/button";
 import { useUI } from "@/components/ui/feedback";
 import { Badge } from "@/components/ui/badge";
-import { ApiKeyField, ChatGPTSignInCard } from "@/features/api-keys";
+import { ApiKeyField, ChatGPTSignInCard } from "@/components/apikeys/index";
 import {
   defaultSetupFallbacks,
   mergeSetupTaskRouting,

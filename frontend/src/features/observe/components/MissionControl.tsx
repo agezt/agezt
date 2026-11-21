@@ -19,6 +19,7 @@ import { Activity, AlertTriangle, Bot, Brain, CircleDollarSign, Eye, Gauge, Mic,
 import { getJSON } from "@/app/api";
 import { useEvents } from "@/app/events";
 import { cn } from "@/app/utils";
+import { StatTile } from "@/components/ui/metric-widget";
 
 interface MissionPulse {
   eventsPerSec: number;
@@ -176,10 +177,10 @@ export default function MissionControl() {
             <p className="text-xs text-muted">what the system is doing right now — refreshes every 10 seconds</p>
           </header>
           <div className="mt-3 grid gap-3 sm:grid-cols-4">
-            <Metric icon={Radio} label="Events/sec" value={eventsPerSec.toFixed(2)} tone={eventsPerSec > 1 ? "good" : "muted"} />
-            <Metric icon={Activity} label="Runs in flight" value={pulse.running} tone={pulse.running > 0 ? "accent" : "muted"} />
-            <Metric icon={AlertTriangle} label="Awaiting you" value={pulse.awaiting} tone={pulse.awaiting > 0 ? "warn" : "muted"} />
-            <Metric icon={CircleDollarSign} label="Spend today" value={`$${spend.toFixed(4)}`} tone="muted" />
+            <StatTile icon={Radio} label="Events/sec" value={eventsPerSec.toFixed(2)} tone={eventsPerSec > 1 ? "good" : "muted"} />
+            <StatTile icon={Activity} label="Runs in flight" value={pulse.running} tone={pulse.running > 0 ? "accent" : "muted"} />
+            <StatTile icon={AlertTriangle} label="Awaiting you" value={pulse.awaiting} tone={pulse.awaiting > 0 ? "warn" : "muted"} />
+            <StatTile icon={CircleDollarSign} label="Spend today" value={`$${spend.toFixed(4)}`} tone="muted" />
           </div>
         </section>
 
@@ -257,19 +258,6 @@ export default function MissionControl() {
           </ul>
         </section>
       </aside>
-    </div>
-  );
-}
-
-function Metric({ icon: Icon, label, value, tone }: { icon: typeof Activity; label: string; value: string | number; tone: "good" | "warn" | "accent" | "muted" }) {
-  const cls = tone === "good" ? "text-good" : tone === "warn" ? "text-warn" : tone === "accent" ? "text-accent" : "text-muted";
-  return (
-    <div className="rounded-xl border border-border/60 bg-card/30 p-3">
-      <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted">
-        <Icon className={cn("size-3.5", cls)} />
-        <span>{label}</span>
-      </div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{value}</div>
     </div>
   );
 }

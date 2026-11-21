@@ -15921,11 +15921,64 @@ shape `rustfmt` produces — including its `fn_call_width` rule (a call's
 Evidence:
 `architecture/321-w52c-the-rust-sdk-joins-the-catalog-evidence.md`
 
+## W5.3 checkpoint — the frontend's boundaries are lint-enforced
+
+W5.3 gave the console the same thing the kernel got in W3: a **ratchet on the
+module graph**, not a review habit.
+
+**The rules are two.** **R1** — a feature does not import another feature: a
+feature owns its own vocabulary, and what two features share belongs in
+`lib/` (the shared layer) or `components/` (the design system). **R2** — the
+shared layer does not reach up into a feature: `components/` and `lib/` are
+*below* `features/`, so a shared component that needs a feature's helper needs
+that helper in `lib/`.
+
+**The lint has two teeth.** `frontend/src/boundaries.test.ts` resolves the
+whole import graph (the `@/` alias, the relative specifiers and the
+`.ts`/`.tsx`/`index.ts` spellings) and fails on any crossing that is not on
+the `ALLOWED` list — **and** fails on a listed crossing that no longer
+happens, because a stale allowance is a lie about the code. The list is
+**empty**: the debt was paid, not parked.
+
+**What it paid.** The measurement found **67 crossings** (35 R1, 32 R2). They
+were paid by moving the shared pieces down — nineteen modules into `src/lib/`,
+the shared views into `src/components/`, and each feature's *own* view into
+its feature — and by retiring the two features that were not features at all
+(`api-keys` and `configcenter` were shared primitives with a feature's name
+on them). The two feature cycles that existed (`agents ↔ incidents`,
+`autonomy ↔ incidents`) came from the shared helpers both sides needed; those
+helpers now live in `src/lib/`.
+
+**The design system guard now sees the views.** `designsystem.test.ts` scanned
+`src/components/` only, so all thirty-odd views in `src/features/` were
+un policed — the "one StatTile" rule was, in the views, a rule about nothing.
+Widening it found **two real copies**: a local `Metric` in MissionControl and
+a local `Stat` in Jarvis. Both are the shared `<StatTile>` now.
+
+**The test-only modules are gone.** Nine modules were imported only by their
+own tests — leftovers of retired views (Catalog, Insights, Routing, Backup
+snapshot, Toolbox) plus two components nothing rendered. knip calls them
+"used" because a test imports them, so nothing was going to catch them; the
+measurement did. Deleting them fell a chain: `lib/replay.ts` existed only to
+serve the deleted `FlightRecorder`, and the voice feature's barrel existed
+only to re-export a function that had moved down to `lib/`. Both went too.
+
+**What the measurement found that the code review would not.** The move left
+**sixteen sibling tests behind** — the modules moved, their tests did not — and
+**four `vi.mock` paths stale**, which is the quiet failure: a mock whose
+target moved stops applying, the real module runs instead, and the test
+passes for the wrong reason. One of them (`@/views/Files`) had been broken
+long before this slice. The lint catches crossings; only a measurement
+catches a test that stopped testing.
+
+Evidence:
+`architecture/322-w53-the-frontend-boundaries-are-lint-enforced-evidence.md`
+
 ## What the next slice should do
 
-The roadmap's next row is **W5.3** — the frontend's boundaries lint (features
-↛ features, components/lib ↛ features), a `designsystem.test` that scans
-`features/`, and the deletion of test-only modules.
+The roadmap's next row is **W5.4** — the final one: the `archcheck` allowlist
+at zero, the forbidden-call allowlist at zero, the codemap documents
+regenerated, and the stale `docs/` architecture documents archived.
 
 Two open ends from the W5 program are still open and are worth carrying:
 

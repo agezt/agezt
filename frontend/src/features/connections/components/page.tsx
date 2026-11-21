@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { useUI } from "@/components/ui/feedback";
-import { ApiKeyField } from "@/features/api-keys";
+import { ApiKeyField } from "@/components/apikeys/index";
 
 // Connections — one cockpit for "what's actually wired up". Read-only on the
 // Status tab (AI providers, channels, MCP servers, peer nodes), and the

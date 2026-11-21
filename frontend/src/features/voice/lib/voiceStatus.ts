@@ -1,5 +1,5 @@
 import { getJSON } from "@/app/api";
-import { speechSupported } from "@/features/voice/lib/speech";
+import { speechSupported } from "@/lib/speech";
 
 interface ServerVoiceStatus {
   stt?: { configured?: boolean };
