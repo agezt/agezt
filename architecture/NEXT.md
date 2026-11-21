@@ -15874,3 +15874,64 @@ Two smaller open ends carried over from W5.2a:
 
 Evidence:
 `architecture/320-w52b-the-server-s-own-answers-become-the-fixtures-evidence.md`
+
+## W5.2c checkpoint — the Rust SDK joins the catalog
+
+W5.2b left one SDK out: the Rust one. The reason was honest and, as it turned
+out, wrong — the toolchain was **installed** (`rustup` 1.93.0, `cargo` 1.93.0,
+`rustfmt` 1.8.0) but simply **not on `PATH`** in the shell the agent runs in.
+`~/.cargo/bin` is the path to add. The SDK now builds, formats and tests
+locally.
+
+**The generated Rust** (`sdk/rust/src/generated.rs`, produced by
+`tools/sdkgen`): `paths` — one constant per contract path plus `paths::ALL` —
+and one flat struct per wire row, each with `from_value` (reads the wire names)
+and `to_value` (writes them). The Rust SDK has **no runtime dependency at
+all**, so the generated code cannot lean on serde: it leans on the crate's own
+`json::Value`.
+
+**What moved.** `client.rs` spells **no** REST path and **no** wire field of
+its own any more — 12 hand-written path literals and six hand-written structs
+became the generated constants and rows. `lib.rs` re-exports them, so the
+crate's public API keeps its names (`Health`, `Mail`, `MailDraft`, …) and
+gains the rows it did not have.
+
+**The types stay flat.** A missing field reads as its zero value — an empty
+string, zero, false, an empty list — never an `Option`. That is the Rust SDK's
+existing public shape, and it is the contract's own rule about the daemon's
+answers: a row names the fields every answer carries, and the daemon may add
+fields the SDK ignores.
+
+**The fixtures.** `sdk/rust/tests/golden.rs` (4 tests) parses
+`sdk/fixtures/` — the daemon's own recorded answers — with the SDK's own
+types, and checks that the SDK's path constants and the server's path
+templates are one set.
+
+**The ratchets** now cover Rust: no Rust source outside the catalog may spell
+a REST path, and every contract path must be reached through the generated
+constant. The coverage check matches a **whole identifier** now, so a client
+that calls only `paths::RUN_ARC` no longer looks like one that also calls
+`paths::RUN`.
+
+**The formatter is part of the contract.** `cargo fmt --check` covers the
+generated file like every other file in the crate, so the generator emits the
+shape `rustfmt` produces — including its `fn_call_width` rule (a call's
+*arguments* must fit in 60 columns, which is narrower than `max_width`).
+
+Evidence:
+`architecture/321-w52c-the-rust-sdk-joins-the-catalog-evidence.md`
+
+## What the next slice should do
+
+The roadmap's next row is **W5.3** — the frontend's boundaries lint (features
+↛ features, components/lib ↛ features), a `designsystem.test` that scans
+`features/`, and the deletion of test-only modules.
+
+Two open ends from the W5 program are still open and are worth carrying:
+
+- the **message row's second home**: the REST contract's row and the app
+  layer's board projection name the same fields. A ratchet ties them, but one
+  is a copy; the honest end state moves the client-visible row down into
+  `boardapi`;
+- the **Go SDK's control plane** (NDJSON) has no golden fixture yet — the
+  REST surface is covered, the control plane is not.

@@ -458,7 +458,7 @@ Extract in **increasing coupling order** (each step = move PR, then rewrite PR i
 | W5.2 | Generated Python/TS/Rust/Go SDKs + server-produced golden fixtures consumed by every SDK test; retire `sdkparity` freshness check and self-validating fixtures. |
 | W5.2a ✅ | The `/api/v1` surface gets one home (`kernel/contract/restapiapi`); the daemon registers from it; `tools/sdkgen` generates the Python/TypeScript SDK catalogs; `sdkparity` and its report retired. |
 | W5.2b ✅ | Server-produced golden fixtures (`sdk/fixtures/`, recorded from the daemon's own handlers) consumed by every SDK's test; the self-validating `contract/fixtures` retired (its two console fixtures moved to `frontend/fixtures/`). |
-| W5.2c | The Rust SDK joins the generated catalog and consumes the golden fixtures (needs a Rust toolchain). |
+| W5.2c ✅ | The Rust SDK joins the generated catalog (`sdk/rust/src/generated.rs`: paths + one flat struct per wire row) and reads the golden fixtures (`sdk/rust/tests/golden.rs`). |
 | W5.3 | Frontend boundaries lint (features ↛ features, components/lib ↛ features); `designsystem.test` scans `features/`; delete test-only modules. |
 | W5.4 | Final: archcheck allowlist = 0, forbidden-call allowlist = 0, codemap docs regenerated, `docs/` stale architecture docs archived. |
 

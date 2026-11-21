@@ -248,15 +248,21 @@ single-owner accessor).
 
 | File | What it does |
 |---|---|
-| `src/lib.rs` | Crate docs (doc-test `no_run` example), module wiring, re-exports `Client, Health, Mail, MailDraft, MailWatch, Models, RunArc, RunResult, RunStream, StreamEvent`, `Error, Result`, `Value`. |
-| `src/client.rs` | Typed structs and `Client` methods (§3.1); `RunStream` (SSE iterator: `event:`/`data:`, one leading space stripped, `:` comments skipped, trailing frame flushed at EOF); `MailWatch` (yields only `mail` frames); helpers `run_body` (BTreeMap → sorted keys), `str_field`, `mail_from(s)`, `api_error`, `percent_encode` (RFC 3986 unreserved set). Unit tests inline. |
+| `src/lib.rs` | Crate docs (doc-test `no_run` example), module wiring, re-exports `Client, MailWatch, RunStream, StreamEvent`, the generated rows and `paths` (§8.3), `Error, Result`, `Value`. |
+| `src/generated.rs` | **GENERATED** by `tools/sdkgen`: `paths` (one constant per contract path, plus `paths::ALL`) and one flat struct per wire row, each with `from_value` (reads the wire names) and `to_value` (writes them). |
+| `src/client.rs` | `Client` methods (§3.1), calling the **generated** path constants and rows — it spells no path and no wire field of its own; `RunStream` (SSE iterator: `event:`/`data:`, one leading space stripped, `:` comments skipped, trailing frame flushed at EOF); `MailWatch` (yields only `mail` frames); helpers `run_body` (BTreeMap → sorted keys), `api_error`, `percent_encode` (RFC 3986 unreserved set). `StreamEvent` is the SDK's own (a stream frame is not a contract row). Unit tests inline. |
 | `src/http.rs` | Minimal HTTP/1.1: `Target::parse` (http only; `https://` → explicit "no TLS" error; optional path prefix), `request` (`connect_timeout`, headers, `Content-Length`), `parse_status`, `BodyReader` with `BodyMode::{Length, Chunked, Eof}` usable as streaming `Read`. Does not follow redirects (3xx surfaces as `Error::Api`). Uses only the first resolved address. |
 | `src/json.rs` | Dependency-free recursive-descent JSON `Value` (`Null, Bool, Int(i64), Float(f64), Str, Array, Object(BTreeMap)`), accessors `get/as_str/as_i64/as_f64/as_bool/as_array/str`, `parse` (rejects trailing data, validates surrogate pairs), `to_json`. No nesting-depth limit. |
 | `src/errors.rs` | `Error::{Api{status, kind, message}, Transport(String)}`, `Display`, `From<io::Error>`, `Result<T>`. |
 | `Cargo.toml`, `Cargo.lock`, `README.md` | Manifest, lock (single package), docs (`agezt = "1.0"`). |
 
 Tests: `tests/client.rs` — a `TcpListener` mock (`start_mock`, `handle`) covering health/models/run/502/stream/arc/401/tenant/all mailbox
-methods; CI job `rust-sdk` runs `cargo fmt --check` + `cargo test`.
+methods; `tests/golden.rs` — the daemon's own recorded answers, parsed with the SDK's own types (§8.4). CI job `rust-sdk` runs
+`cargo fmt --check` + `cargo test`.
+
+**The generated file and `rustfmt`.** `cargo fmt --check` covers `src/generated.rs` like every other file in the crate, so the
+generator emits the shape `rustfmt` produces — including its `fn_call_width` rule (a call's *arguments* must fit in 60 columns,
+which is narrower than `max_width`). A generator that merely produced valid Rust would still fail the crate's format gate.
 
 ---
 
@@ -332,7 +338,8 @@ SDK-facing endpoint (verb, path template, query) and every wire row (field name,
 
 - the generated files match the contract (the `-check` gate, as a test);
 - no SDK source outside the generated catalog spells a REST path of its own;
-- every contract path in the SDK contract is reached by every wired SDK, through the generated constant;
+- every contract path in the SDK contract is reached by every wired SDK, through the generated constant — matched as a **whole
+  identifier**, so a client that calls only `paths::RUN_ARC` does not look like one that also calls `paths::RUN`;
 - the contract's message rows agree with the app layer's wire projection (`kernel/app/board`'s `Message` / `SendInput`).
 
 **What replaced `tools/sdkparity`.** The old tool extracted the daemon's routes with a regex over `kernel/restapi/restapi*.go`,
@@ -368,12 +375,18 @@ AGEZT_UPDATE_GOLDEN=1 go test ./kernel/restapi/ -run TestUpdateTheGoldenFixtures
 ```
 
 **Who consumes them.** Every SDK's test reads the bytes and parses them with the SDK's own types: `sdk/python/tests/test_golden.py`
-(7 tests) and `sdk/typescript/test/golden.test.ts` (4 tests). Both also check that the SDK's generated path constants and the
-server's path templates are **one set** — so a path the server serves but the SDK does not know (or the other way round) fails
-here. The Rust SDK joins when a Rust toolchain is available (W5.2c).
+(7 tests), `sdk/typescript/test/golden.test.ts` (4) and `sdk/rust/tests/golden.rs` (4). All three also check that the SDK's
+generated path constants and the server's path templates are **one set** — so a path the server serves but the SDK does not know
+(or the other way round) fails here.
 
 The mailbox **watch** has no fixture: it is an open-ended SSE stream, and a recorded frame would be a snapshot of a race rather
 than a contract. Every SDK's own suite covers the stream format.
+
+**The Rust SDK (W5.2c).** The Rust SDK has **no runtime dependency at all** — standard library only, with its own HTTP/1.1 client
+and its own JSON codec — so the generated Rust cannot lean on serde. It leans on the crate's own `json::Value` instead: every
+generated row gets a `from_value` that reads the wire names and a `to_value` that writes them, which is what moved the wire
+vocabulary out of `client.rs` and into the catalog. The types stay **flat** (a missing field reads as its zero value, never an
+`Option`): the Rust SDK's public API has always been flat, and the contract's rows say the same about the daemon's answers.
 
 ---
 

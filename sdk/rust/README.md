@@ -92,6 +92,24 @@ read fields with `data.str("text")`, `data.get("k")`, and the `as_*` accessors.
 Non-2xx responses become `Error::Api { status, kind, message }`; transport/IO
 failures become `Error::Transport`.
 
+## Generated catalog
+
+`src/generated.rs` is **generated** from the daemon's REST contract
+(`kernel/contract/restapiapi`) by `go run ./tools/sdkgen` — do not edit it. It
+holds:
+
+- `paths` — one constant per contract path (`paths::HEALTH`, `paths::RUN`,
+  `paths::MAILBOX_ACK`, …) plus `paths::ALL`;
+- one flat struct per wire row (`Health`, `Models`, `RunResult`, `RunArc`,
+  `Mail`, `MailDraft`, …), each with `from_value` (reads the daemon's JSON) and
+  `to_value` (writes it).
+
+So the client spells **no** REST path and **no** wire field of its own: a
+renamed field in the daemon changes the catalog, and the SDK's own tests —
+including the golden ones, which parse the daemon's recorded answers — fail
+there. The types stay flat on purpose: a field the answer does not carry
+reads as its zero value, never an `Option`.
+
 ## Scope: plain HTTP
 
 The client speaks **`http://` only** — the Rust standard library ships no TLS,
@@ -108,5 +126,9 @@ Standard-library only — the integration tests run a mock daemon on a
 cd sdk/rust
 cargo test
 ```
+
+`tests/golden.rs` adds the daemon's **own** recorded answers: the fixtures in
+`sdk/fixtures/` are written by `kernel/restapi`'s golden test, and the Rust
+suite parses them with the SDK's own types.
 
 This realizes the Rust quarter of decision A4's "SDKs in Go/TS/Python/Rust".

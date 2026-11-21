@@ -742,7 +742,11 @@ func rows() []Row {
 			Name: RowAPIError,
 			Doc:  "The error body of every non-2xx answer.",
 			Fields: []Field{
-				{Name: "type", Type: TypeString, Required: true, Doc: "The machine-readable error kind."},
+				// `type` is a Rust keyword, and the Rust SDK has always called
+				// this field `kind` (Error::Api's field), so the local name is
+				// declared here rather than spelled `r#type` in the catalog.
+				{Name: "type", Type: TypeString, Required: true, Names: map[string]string{"rust": "kind"},
+					Doc: "The machine-readable error kind."},
 				{Name: "message", Type: TypeString, Required: true, Doc: "The human-readable error text."},
 			},
 		},

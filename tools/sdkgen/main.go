@@ -8,6 +8,7 @@
 //
 //	sdk/python/agezt/_generated.py   paths + wire rows (dataclasses / TypedDicts)
 //	sdk/typescript/src/generated.ts   paths + wire rows (interfaces)
+//	sdk/rust/src/generated.rs        paths + wire rows (flat structs)
 //	sdk/generated.go                  the board row's wire field names
 //
 // The hand-written clients use the generated names, so a path or a wire field
@@ -45,6 +46,8 @@ type pathSpec struct {
 	Name string
 	// Path is the path template ("/api/v1/mailbox/messages/{id}/ack").
 	Path string
+	// Doc is one line of prose about the endpoint that named the path.
+	Doc string
 }
 
 // catalog is the generated view of the contract.
@@ -116,6 +119,7 @@ func generate() ([]generatedFile, error) {
 	return []generatedFile{
 		{Path: filepath.FromSlash("sdk/python/agezt/_generated.py"), Body: renderPython(cat)},
 		{Path: filepath.FromSlash("sdk/typescript/src/generated.ts"), Body: renderTypeScript(cat)},
+		{Path: filepath.FromSlash("sdk/rust/src/generated.rs"), Body: renderRust(cat)},
 		{Path: filepath.FromSlash("sdk/generated.go"), Body: goBody},
 	}, nil
 }
@@ -133,7 +137,7 @@ func buildCatalog() catalog {
 			continue
 		}
 		seen[e.Path] = true
-		paths = append(paths, pathSpec{Name: e.ID, Path: e.Path})
+		paths = append(paths, pathSpec{Name: e.ID, Path: e.Path, Doc: e.Doc})
 	}
 	return catalog{Paths: paths, Rows: restapiapi.Rows()}
 }

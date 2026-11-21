@@ -76,6 +76,13 @@ func sdks() []sdkLang {
 			Clients:   []string{"sdk/typescript/src/client.ts"},
 			Ref:       func(name string) string { return "PATHS." + camel(name) },
 		},
+		{
+			Name:      "rust",
+			Glob:      "sdk/rust/src/*.rs",
+			Generated: "sdk/rust/src/generated.rs",
+			Clients:   []string{"sdk/rust/src/client.rs"},
+			Ref:       func(name string) string { return "paths::" + upperSnake(name) },
+		},
 	}
 }
 
@@ -129,11 +136,35 @@ func TestEveryContractPathIsReachedByEverySDK(t *testing.T) {
 			body += string(raw)
 		}
 		for _, p := range cat.Paths {
-			if !strings.Contains(body, lang.Ref(p.Name)) {
+			if !mentions(body, lang.Ref(p.Name)) {
 				t.Errorf("the %s SDK never calls %q (%s is missing)", lang.Name, p.Path, lang.Ref(p.Name))
 			}
 		}
 	}
+}
+
+// mentions reports whether the body mentions the reference as a WHOLE
+// identifier. Without it, a client that calls only `Paths.RUN_ARC` would look
+// like a client that also calls `Paths.RUN` — the prefix is not the path.
+func mentions(body, ref string) bool {
+	for i := 0; i < len(body); {
+		j := strings.Index(body[i:], ref)
+		if j < 0 {
+			return false
+		}
+		j += i
+		i = j + len(ref)
+		if i >= len(body) {
+			return true
+		}
+		c := body[i]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+			(c >= '0' && c <= '9') || c == '_' {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 // TestTheRestContractAgreesWithTheWireProjection keeps the contract's message

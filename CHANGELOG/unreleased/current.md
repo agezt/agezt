@@ -361,6 +361,15 @@ This file holds the active `[Unreleased]` working set.
 
 ### Added
 
+- **The Rust SDK joins the generated catalog.** `tools/sdkgen` now renders the
+  REST contract into `sdk/rust/src/generated.rs`: the path constants (plus
+  `paths::ALL`) and one flat struct per wire row, each with `from_value` and
+  `to_value`. The Rust SDK has no runtime dependency at all — standard library
+  only, with its own HTTP client and its own JSON codec — so the generated
+  Rust leans on the crate's own `json::Value` instead of serde. `client.rs`
+  now calls the generated paths and rows and spells no path and no wire field
+  of its own.
+
 - **The server's own answers, recorded (`sdk/fixtures/`).** The SDKs parse what
   this daemon answers, but until now each SDK test wrote its own payload and
   called it a contract — so a change in the daemon's wire shape (a renamed
@@ -827,6 +836,15 @@ This file holds the active `[Unreleased]` working set.
   so the one provider you can actually use is not buried among ~180 catalog entries.
 
 ### Changed
+
+- **The Rust SDK reads the daemon's own answers.** `sdk/rust/tests/golden.rs`
+  parses `sdk/fixtures/` — recorded from the daemon's REST handlers — with the
+  SDK's own types, and checks that the SDK's generated path constants and the
+  server's path templates are one set. A renamed field in the daemon now
+  fails the Rust suite the same way it fails the Python and TypeScript ones.
+  The SDK's ratchets cover Rust too: no Rust source outside the catalog may
+  spell a REST path, and every contract path must be reached through the
+  generated constant.
 
 - **The SDK tests now assert against the daemon's own bytes.** The Python and
   TypeScript suites read `sdk/fixtures/` and parse it with the SDK's own types

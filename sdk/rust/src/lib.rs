@@ -47,11 +47,15 @@
 
 mod client;
 mod errors;
+mod generated;
 mod http;
 mod json;
 
-pub use client::{
-    Client, Health, Mail, MailDraft, MailWatch, Models, RunArc, RunResult, RunStream, StreamEvent,
-};
+pub use client::{Client, MailWatch, RunStream, StreamEvent};
 pub use errors::{Error, Result};
+pub use generated::{
+    paths, ApiError, Artifacts, Health, Mail, MailAck, MailAcked, MailDraft, MailboxInbox,
+    MailboxMessages, MailboxReplies, MailboxSent, MailboxTopics, Models, ProbeStatus, RunArc,
+    RunRequest, RunResult,
+};
 pub use json::Value;

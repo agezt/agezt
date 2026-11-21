@@ -61,3 +61,7 @@ sdk/generated.go text eol=lf
 # generated catalogs above: a Windows checkout must not rewrite them to CRLF,
 # or the gate fails on a tree nobody changed.
 sdk/fixtures/** text eol=lf
+# The Rust SDK's generated catalog: byte-compared by tools/sdkgen -check, and
+# covered by the crate's own `cargo fmt --check` gate — both need the bytes
+# the generator wrote, not a checkout's rewriting of them.
+sdk/rust/src/generated.rs text eol=lf
