@@ -51,7 +51,7 @@ For local defaults, copy `.env.example` to your own `.env` and edit it locally.
 ## Useful Focused Checks
 
 ```powershell
-go test ./kernel/controlplane ./kernel/settings ./contract/fixtures
+go test ./kernel/controlplane ./kernel/settings ./kernel/restapi
 cd frontend
 npm test -- src/lib/chat.test.ts src/views/Chat.context.test.tsx src/views/ConfigCenter.test.tsx
 npm run typecheck

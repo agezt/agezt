@@ -15825,3 +15825,52 @@ the client-visible row down into `boardapi`).
 
 Evidence:
 `architecture/319-w52a-the-rest-surface-gets-one-home-evidence.md`
+
+## W5.2b checkpoint — the server's own answers become the fixtures
+
+W5.2a gave the `/api/v1` surface one home. W5.2b answers the question that
+home made urgent: **who says what the wire looks like?**
+
+**The problem.** The SDKs parse what this daemon answers, but each SDK test
+wrote its own payload and called it a contract. A renamed field or a changed
+envelope in the daemon passed every SDK test and still broke every SDK. In the
+other direction, `contract/fixtures/*.json` were checked by a Go test that
+validated a fixture's own shape — it never asked an emitter to produce it, so
+it could not fail when the daemon changed.
+
+**The fixtures** (`sdk/fixtures/`, 11 files): the bytes the daemon's **real
+handlers** answered, recorded by `kernel/restapi`'s golden test — a
+deterministic engine (fixed correlation id, fixed models, one fixed answer,
+one fixed event) and a deterministic board (fixed message ids and timestamps)
+driving the actual routes. `manifest.json` names, per SDK-contract endpoint:
+the id, the verb, the contract's path **template**, the concrete request, the
+status and the fixture's file. The gate compares the recording with the
+committed bytes; `AGEZT_UPDATE_GOLDEN=1` rewrites them.
+
+**The consumers.** `sdk/python/tests/test_golden.py` (7 tests) and
+`sdk/typescript/test/golden.test.ts` (4) read the bytes and parse them with
+the SDK's own types. Both also assert that the SDK's generated path constants
+and the server's path templates are **one set**.
+
+**The retirement**: `contract/fixtures/` (8 hand-written payloads, 194 lines
+including `fixtures_test.go`) and the package itself are gone. The two
+fixtures the console actually reads moved next to their only consumer
+(`frontend/fixtures/`); the other six had no consumer at all.
+
+**What is left (W5.2c)**: the Rust SDK joins the generated catalog and reads
+the golden fixtures — it needs a Rust toolchain, which this machine does not
+have (`cargo` and `rustfmt` are missing). Until it is installed, the Rust
+work is deliberately **not** written: shipping unverified code is worse than
+shipping it a slice later.
+
+Two smaller open ends carried over from W5.2a:
+
+- the message row's second home (the REST contract's row and the app layer's
+  board projection name the same fields — a ratchet ties them, but one is a
+  copy; the honest end state moves the client-visible row down into
+  `boardapi`);
+- the Go SDK's control plane (NDJSON) has no golden fixture yet — the REST
+  surface is covered, the control plane is not.
+
+Evidence:
+`architecture/320-w52b-the-server-s-own-answers-become-the-fixtures-evidence.md`

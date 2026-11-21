@@ -1,0 +1,104 @@
+{
+  "note": "Recorded from the daemon's REST handlers by kernel/restapi's golden test. Regenerate with AGEZT_UPDATE_GOLDEN=1 go test ./kernel/restapi/ -run TestUpdateTheGoldenFixtures.",
+  "fixtures": [
+    {
+      "id": "health",
+      "method": "GET",
+      "path": "/api/v1/health",
+      "request": "/api/v1/health",
+      "status": 200,
+      "file": "health.json",
+      "note": ""
+    },
+    {
+      "id": "mailbox_ack",
+      "method": "POST",
+      "path": "/api/v1/mailbox/messages/{id}/ack",
+      "request": "/api/v1/mailbox/messages/m-1/ack",
+      "status": 200,
+      "file": "mailbox_ack.json",
+      "note": ""
+    },
+    {
+      "id": "mailbox_inbox",
+      "method": "GET",
+      "path": "/api/v1/mailbox/inbox",
+      "request": "/api/v1/mailbox/inbox?name=agent-b",
+      "status": 200,
+      "file": "mailbox_inbox.json",
+      "note": ""
+    },
+    {
+      "id": "mailbox_messages",
+      "method": "GET",
+      "path": "/api/v1/mailbox/messages",
+      "request": "/api/v1/mailbox/messages?topic=dm",
+      "status": 200,
+      "file": "mailbox_messages.json",
+      "note": ""
+    },
+    {
+      "id": "mailbox_replies",
+      "method": "GET",
+      "path": "/api/v1/mailbox/messages/{id}/replies",
+      "request": "/api/v1/mailbox/messages/m-1/replies",
+      "status": 200,
+      "file": "mailbox_replies.json",
+      "note": ""
+    },
+    {
+      "id": "mailbox_send",
+      "method": "POST",
+      "path": "/api/v1/mailbox/messages",
+      "request": "/api/v1/mailbox/messages",
+      "status": 201,
+      "file": "mailbox_send.json",
+      "note": ""
+    },
+    {
+      "id": "mailbox_topics",
+      "method": "GET",
+      "path": "/api/v1/mailbox/topics",
+      "request": "/api/v1/mailbox/topics",
+      "status": 200,
+      "file": "mailbox_topics.json",
+      "note": ""
+    },
+    {
+      "id": "mailbox_watch",
+      "method": "GET",
+      "path": "/api/v1/mailbox/watch",
+      "request": "",
+      "status": 0,
+      "file": "",
+      "note": "an open-ended SSE stream: every SDK's own suite covers its frames"
+    },
+    {
+      "id": "models",
+      "method": "GET",
+      "path": "/api/v1/models",
+      "request": "/api/v1/models",
+      "status": 200,
+      "file": "models.json",
+      "note": ""
+    },
+    {
+      "id": "run",
+      "method": "POST",
+      "path": "/api/v1/runs",
+      "request": "/api/v1/runs",
+      "status": 200,
+      "file": "run.json",
+      "note": ""
+    },
+    {
+      "id": "run_arc",
+      "method": "GET",
+      "path": "/api/v1/runs/{id}",
+      "request": "/api/v1/runs/corr-golden",
+      "status": 200,
+      "file": "run_arc.json",
+      "note": ""
+    }
+  ]
+}

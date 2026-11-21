@@ -361,6 +361,18 @@ This file holds the active `[Unreleased]` working set.
 
 ### Added
 
+- **The server's own answers, recorded (`sdk/fixtures/`).** The SDKs parse what
+  this daemon answers, but until now each SDK test wrote its own payload and
+  called it a contract — so a change in the daemon's wire shape (a renamed
+  field, a different envelope) could pass every SDK test and still break every
+  SDK. `sdk/fixtures/` holds the bytes the daemon's **real handlers** answered,
+  recorded by `kernel/restapi`'s golden test (a deterministic engine and a
+  deterministic board driving the real routes) and compared byte-for-byte with
+  the committed files. `manifest.json` names, for every SDK-contract endpoint,
+  the id, the verb, the contract's path TEMPLATE, the concrete request, the
+  status and the fixture's file. `AGEZT_UPDATE_GOLDEN=1 go test ./kernel/restapi/`
+  regenerates them.
+
 - **Architecture codemap + target architecture (`architecture/`).** `00-README.md` … `12-*.md`
   map every package and file of the current system (purpose, persistence, events, wiring,
   gotchas) with a findings register; `20-target-architecture.md` defines the clean layering
@@ -815,6 +827,14 @@ This file holds the active `[Unreleased]` working set.
   so the one provider you can actually use is not buried among ~180 catalog entries.
 
 ### Changed
+
+- **The SDK tests now assert against the daemon's own bytes.** The Python and
+  TypeScript suites read `sdk/fixtures/` and parse it with the SDK's own types
+  (7 and 4 new tests); both also check that the SDK's generated path constants
+  and the server's path templates are **one set**, so a path the server serves
+  but the SDK does not know — or the other way round — fails there. The
+  mailbox **watch** has no fixture on purpose: it is an open-ended SSE stream,
+  and a recorded frame would be a snapshot of a race rather than a contract.
 
 - **The SDK surface has one home.** The daemon's `/api/v1` REST contract moved
   into `kernel/contract/restapiapi`: every route, tier, query parameter and
@@ -5648,6 +5668,14 @@ This file holds the active `[Unreleased]` working set.
   vet`, `staticcheck`, gofmt, and a full `go test ./...` run are green.
 
 ### Removed
+
+- **`contract/fixtures/` — the self-validating fixtures.** Eight hand-written
+  event payloads and `fixtures_test.go` (194 lines) checked a fixture's own
+  shape instead of asking any emitter to produce it: they could not fail when
+  the daemon changed. The two fixtures the console actually reads moved next to
+  their only consumer (`frontend/fixtures/`); the other six, their Go test and
+  the package are gone. A payload the daemon produces now belongs in
+  `sdk/fixtures/` — recorded, not written by hand.
 
 - **`tools/sdkparity` and `docs/SDK-PARITY.md`.** The static report scraped the
   daemon's routes with a regex over `kernel/restapi/restapi*.go` and each SDK's

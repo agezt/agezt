@@ -4,7 +4,7 @@ import { deriveDetail, num, mergeEvents, eventDedupKey } from "@/features/runs/l
 import type { AgentEvent } from "@/app/events";
 
 function contractFixture<T>(name: string): T {
-  return JSON.parse(readFileSync(`../contract/fixtures/${name}`, "utf8")) as T;
+  return JSON.parse(readFileSync(`./fixtures/${name}`, "utf8")) as T;
 }
 
 describe("eventDedupKey", () => {

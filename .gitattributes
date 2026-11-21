@@ -56,3 +56,8 @@ docs/openapi.json text eol=lf
 sdk/python/agezt/_generated.py text eol=lf
 sdk/typescript/src/generated.ts text eol=lf
 sdk/generated.go text eol=lf
+# The golden fixtures are RECORDED from the daemon's own handlers and compared
+# byte-for-byte by kernel/restapi's golden test. Same reasoning as the
+# generated catalogs above: a Windows checkout must not rewrite them to CRLF,
+# or the gate fails on a tree nobody changed.
+sdk/fixtures/** text eol=lf

@@ -8,7 +8,7 @@ function ev(seq: number, kind: string, payload: any = {}): AgentEvent {
 }
 
 function contractFixture<T>(name: string): T {
-  return JSON.parse(readFileSync(`../contract/fixtures/${name}`, "utf8")) as T;
+  return JSON.parse(readFileSync(`./fixtures/${name}`, "utf8")) as T;
 }
 
 describe("buildReplay", () => {
