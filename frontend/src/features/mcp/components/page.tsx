@@ -431,7 +431,7 @@ export function Mcp() {
   async function reload() {
     setLoading(true);
     try {
-      const d = await getJSON<{ servers?: MCPServer[] }>("/api/mcp");
+      const d = await getJSON("/api/mcp");
       setServers(d.servers || []);
       setErr(null);
     } catch (e) {

@@ -2,7 +2,7 @@
 // Agents view. The backend (kernel/acpcatalog) detects which ACP coding agents
 // are installed on the host; this mirrors its wire shape.
 
-export interface ACPAgentStatus {
+export type ACPAgentStatus = {
   slug: string;
   name: string;
   bin: string;
@@ -14,15 +14,15 @@ export interface ACPAgentStatus {
   version?: string;
   path?: string;
   active: boolean;
-}
+};
 
-export interface ACPInventory {
+export type ACPInventory = {
   os: string;
   active_command?: string;
   agents: ACPAgentStatus[];
   installed_count: number;
   missing_count: number;
-}
+};
 
 export interface ACPCensus {
   total: number;

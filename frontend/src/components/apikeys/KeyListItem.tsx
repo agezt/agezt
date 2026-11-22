@@ -7,11 +7,11 @@ import { Check, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-export interface KeyInfo {
+export type KeyInfo = {
   label: string;
   active: boolean;
   last4: string;
-}
+};
 
 export interface KeyListItemProps {
   keyInfo: KeyInfo;

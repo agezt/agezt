@@ -30,13 +30,13 @@ const iconMap: Record<string, LucideIcon> = {
 };
 
 // Suggestion is one clickable next-prompt chip.
-export interface Suggestion {
+export type Suggestion = {
   id: string;
   label: string;
   prompt: string;
   category: string;
   icon?: string;
-}
+};
 
 // CategoryMeta styles each suggestion category consistently.
 const categoryMeta: Record<string, { label: string; chipClass: string }> = {
@@ -78,7 +78,7 @@ export function SuggestionsBar({
         params.tools = recentTools.join(",");
       }
 
-      const d = await getJSON<{ suggestions?: Suggestion[] }>("/api/suggestions", params);
+      const d = await getJSON("/api/suggestions", params);
       const items = d.suggestions || [];
       setSuggestions(items);
       if (items.length > 0) setDismissed(false);

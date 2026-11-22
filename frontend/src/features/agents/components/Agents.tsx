@@ -68,7 +68,7 @@ import { Segmented } from "@/components/ui/segmented";
 export { statusKind, scheduleAgentSlug } from "@/lib/fleet";
 export type { StatusKind } from "@/lib/fleet";
 
-interface ApiRun {
+type ApiRun = {
   correlation_id?: string;
   parent_correlation?: string;
   status?: string;
@@ -79,7 +79,7 @@ interface ApiRun {
   agent?: string;
   answer_preview?: string;
   started_unix_ms?: number;
-}
+};
 
 function toRunNodes(runs: ApiRun[]): RunNode[] {
   return runs.map((r) => ({
@@ -251,7 +251,7 @@ export function Agents() {
   async function reload() {
     setLoading(true);
     try {
-      const d = await getJSON<{ runs?: ApiRun[] }>("/api/runs", { limit: String(AGENTS_RUN_LIMIT) });
+      const d = await getJSON("/api/runs", { limit: String(AGENTS_RUN_LIMIT) });
       setRuns(d.runs || []);
       setErr(null);
     } catch (e) {
@@ -266,10 +266,10 @@ export function Agents() {
   // (The roster itself is fetched by useAgentsPager above.)
   async function reloadCatalog() {
     const [o, s, w, p] = await Promise.allSettled([
-      getJSON<{ orders?: ApiOrder[] }>("/api/standing"),
-      getJSON<{ schedules?: ApiSchedule[] }>("/api/schedules"),
-      getJSON<{ workflows?: ApiWorkflow[] }>("/api/workflows"),
-      getJSON<ApiPulse>("/api/pulse"),
+      getJSON("/api/standing"),
+      getJSON("/api/schedules"),
+      getJSON("/api/workflows"),
+      getJSON("/api/pulse"),
     ]);
     if (o.status === "fulfilled") setOrders(o.value.orders || []);
     if (s.status === "fulfilled") setSchedules(s.value.schedules || []);

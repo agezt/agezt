@@ -10,6 +10,9 @@
 //     operation registry (what each operation accepts and returns).
 //   - frontend/src/app/api/client.ts — the browser's client, whose path
 //     unions and verbs are the same two sources.
+//   - frontend/src/app/api/types.generated.ts — the browser's payload types,
+//     rendered from the registry's JSON Schema, so the browser stops writing
+//     by hand what the registry already describes.
 //
 // Neither file is written by hand. A hand-written copy of either would be a
 // second source of truth that drifts; the whole point of this slice is that
@@ -38,6 +41,8 @@ const (
 	openAPIPath = "docs/openapi.json"
 	// clientPath is where the generated browser client lives.
 	clientPath = "frontend/src/app/api/client.ts"
+	// typesPath is where the generated browser payload types live.
+	typesPath = "frontend/src/app/api/types.generated.ts"
 )
 
 func main() {
@@ -108,9 +113,14 @@ func generate() ([]artifact, error) {
 		return nil, err
 	}
 	client := renderClient(opapi.ConsoleRoutes(), opapi.ConsoleNativePaths())
+	types, err := renderTypes(opapi.ConsoleRoutes(), doc)
+	if err != nil {
+		return nil, err
+	}
 	return []artifact{
 		{path: openAPIPath, body: raw},
 		{path: clientPath, body: []byte(client)},
+		{path: typesPath, body: []byte(types)},
 	}, nil
 }
 

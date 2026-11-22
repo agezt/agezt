@@ -10,6 +10,7 @@
 // aggressive 8-file attempt that was rolled back).
 
 import type { Tone } from "@/lib/tone";
+import type { WorkflowListResponseWorkflowsItemLastRun } from "@/app/api/types.generated";
 
 export interface WfNode {
   id: string;
@@ -23,43 +24,45 @@ export interface WfNode {
   retries?: number;
   retry_delay_sec?: number;
 }
-export interface WfSettings {
+export type WfSettings = {
   timeout_sec?: number;
   retries?: number;
   retry_delay_sec?: number;
-}
-export interface WfEdge {
+};
+export type WfEdge = {
   from: string;
   to: string;
   port?: string;
-}
-export interface Wf {
+};
+export type Wf = {
   id?: string;
   name: string;
   description?: string;
   enabled?: boolean;
-  nodes: WfNode[];
+  // The LIST answer carries the shape, not the graph: /api/workflows answers
+  // with node_count and edge_count, and the canvas asks for the draft when it
+  // needs the nodes themselves.
+  nodes?: WfNode[];
   edges?: WfEdge[];
   trigger_kind?: string;
   trigger_detail?: string;
   node_count?: number;
-  /** Newest run, folded from the journal by the list handler (with_runs). */
-  last_run?: { status?: string; at_ms?: number; duration_ms?: number };
-}
+  last_run?: WorkflowListResponseWorkflowsItemLastRun;
+};
 export interface WorkflowChainKind {
   label: string;
   /** One short sentence the badge itself cannot say. Rendered as a tooltip. */
   detail: string;
   tone: Tone;
 }
-export interface WfTemplate {
+export type WfTemplate = {
   name: string;
   title: string;
   description: string;
   category: string;
   node_count?: number;
   workflow: Wf;
-}
+};
 export interface WfRunNodeEvent {
   node: string;
   ok?: boolean;
@@ -73,9 +76,9 @@ export interface WfRunNodeEvent {
   output_truncated?: boolean;
   attempts?: number;
 }
-export interface WfRun {
+export type WfRun = {
   correlation_id: string;
-  status: string; // running | completed | failed
+  status: string;
   started_ms?: number;
   finished_ms?: number;
   node_events?: WfRunNodeEvent[];
@@ -87,4 +90,4 @@ export interface WfRun {
   standing_id?: string;
   trigger_subject?: string;
   parent_correlation_id?: string;
-}
+};

@@ -23,9 +23,11 @@ function daemonOk(over: Record<string, unknown> = {}) {
   return (url: unknown) => {
     const u = endpoint(url as string);
     if (u === "/api/runs") return Promise.resolve(over.runs ?? { runs: [] });
-    if (u === "/api/agents") return Promise.resolve(over.agents ?? { agents: [] });
-    if (u === "/api/approvals") return Promise.resolve(over.approvals ?? { pending: 0 });
-    if (u === "/api/status") return Promise.resolve(over.status ?? { version: "1.2.3" });
+    // The daemon's roster answers with `profiles`, its queue with a `pending`
+    // LIST, and the build lives on its own /api/version endpoint.
+    if (u === "/api/agents") return Promise.resolve(over.agents ?? { profiles: [] });
+    if (u === "/api/approvals") return Promise.resolve(over.approvals ?? { pending: [] });
+    if (u === "/api/version") return Promise.resolve(over.version ?? { agezt: "1.2.3", revision: "" });
     if (u === "/api/spend/today") return Promise.resolve(over.spend ?? { total: 0 });
     if (u === "/api/attention") return Promise.resolve(over.attention ?? { items: [] });
     return Promise.resolve({});
@@ -48,9 +50,9 @@ describe("MissionControl", () => {
     getJSON.mockImplementation(
       daemonOk({
         runs: { runs: [{ status: "running" }, { status: "running" }, { status: "completed" }] },
-        agents: { agents: [{}, {}, {}, {}] },
-        approvals: { pending: 2 },
-        status: { version: "9.9.9", revision: "abcdef1234567890" },
+        agents: { profiles: [{}, {}, {}, {}] },
+        approvals: { pending: [{}, {}] },
+        version: { agezt: "9.9.9", revision: "abcdef1234567890" },
         spend: { total: 1.5 },
       }),
     );
@@ -68,7 +70,7 @@ describe("MissionControl", () => {
   });
 
   it("omits the build row when the daemon reports no revision", async () => {
-    getJSON.mockImplementation(daemonOk({ status: { version: "1.0.0" } }));
+    getJSON.mockImplementation(daemonOk({ version: { agezt: "1.0.0", revision: "" } }));
     render(<MissionControl />);
     await waitFor(() => expect(screen.getByText("1.0.0")).toBeTruthy());
     expect(screen.queryByText("Build")).toBeNull();

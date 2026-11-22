@@ -56,10 +56,10 @@ export function Reflect() {
     setError(null);
     try {
       const [mem, jour] = await Promise.all([
-        getJSON<{ audit?: MemoryEvent[]; memories?: MemoryEvent[] }>(
+        getJSON(
           "/api/memory/audit",
         ).catch(() => ({ audit: [], memories: [] }) as any),
-        getJSON<{ events?: JournalEvent[] }>("/api/journal", { limit: "80" }).catch(
+        getJSON("/api/journal", { limit: "80" }).catch(
           () => ({ events: [] }) as any,
         ),
       ]);

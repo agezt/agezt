@@ -68,7 +68,7 @@ export function DiagTab({
     if (repairBlocked) return;
     setRepairing(true);
     try {
-      const res = await postJSON<{ correlation_id?: string }>("/api/agents/repair", {
+      const res = await postJSON("/api/agents/repair", {
         ref: slug,
         reason: `operator requested repair from ${slug} identity page`,
       });

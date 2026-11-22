@@ -6,20 +6,20 @@
 // by (channel_kind, channel_id, sender) into a session whose messages are the
 // union, time-ordered. Pure + unit-tested.
 
-interface ChannelMessage {
-  direction?: string; // "in" | "out"
+type ChannelMessage = {
+  direction?: string;
   sender?: string;
   text?: string;
   ts_unix_ms?: number;
-}
+};
 
-export interface InboxThread {
+export type InboxThread = {
   correlation_id: string;
   channel_kind?: string;
   channel_id?: string;
   messages?: ChannelMessage[];
   last_ts_unix_ms?: number;
-}
+};
 
 export interface ChannelSession {
   key: string; // stable id: channelKind|channelId|sender

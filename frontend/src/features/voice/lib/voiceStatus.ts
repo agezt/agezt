@@ -28,7 +28,7 @@ export function browserVoiceCapabilities(): Pick<VoiceReadiness, "browserInput" 
 // utterance is sent to /api/transcribe. Browser SpeechRecognition is used only
 // for optional wake-word spotting and must never be presented as an STT fallback.
 export async function getVoiceReadiness(): Promise<VoiceReadiness> {
-  const status = await getJSON<ServerVoiceStatus>("/api/voice/status");
+  const status = await getJSON("/api/voice/status");
   const browser = browserVoiceCapabilities();
   const serverSTT = !!status.stt?.configured;
   const serverTTS = !!status.tts?.configured;

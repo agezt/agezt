@@ -13,9 +13,9 @@ import { skillToRef, memoryToRef, runToRef, type AttachRef, type RefKind } from 
 // parameterless read and two query reads, and naming the path inside the
 // loader keeps every one of them checked against the catalogue.
 const TABS: { kind: RefKind; label: string; icon: typeof Sparkles; load: () => Promise<any> }[] = [
-  { kind: "skill", label: "Skills", icon: Sparkles, load: () => getJSON<any>("/api/skills") },
-  { kind: "memory", label: "Memory", icon: Brain, load: () => getJSON<any>("/api/memory") },
-  { kind: "run", label: "Runs", icon: ListTree, load: () => getJSON<any>("/api/runs") },
+  { kind: "skill", label: "Skills", icon: Sparkles, load: () => getJSON("/api/skills") },
+  { kind: "memory", label: "Memory", icon: Brain, load: () => getJSON("/api/memory") },
+  { kind: "run", label: "Runs", icon: ListTree, load: () => getJSON("/api/runs") },
 ];
 
 export function AttachPicker({

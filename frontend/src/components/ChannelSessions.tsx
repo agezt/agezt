@@ -33,14 +33,14 @@ export function ChannelSessions() {
 
   async function reload() {
     try {
-      const d = await getJSON<{ threads?: InboxThread[] }>("/api/inbox", { limit: "100" });
+      const d = await getJSON("/api/inbox", { limit: "100" });
       setSessions(sessionsFromInboxThreads(d.threads ?? []));
     } catch {
       // Non-fatal: the section just stays empty if the inbox isn't reachable.
     }
     try {
       // Inbound images, bucketed by correlation, so a session can show them inline.
-      const imgs = await getJSON<{ entries?: ArtifactEntry[] }>("/api/artifacts", { kind: "image" });
+      const imgs = await getJSON("/api/artifacts", { kind: "image" });
       const byCorr: Record<string, ArtifactEntry[]> = {};
       for (const e of imgs.entries || []) {
         if (e.corr) (byCorr[e.corr] ||= []).push(e);

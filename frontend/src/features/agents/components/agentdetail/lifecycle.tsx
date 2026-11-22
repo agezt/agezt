@@ -3,7 +3,7 @@ import { agentLifecycleSummary, agentRemovalCascadePreset, agentTaskProgressSumm
 import { type ApiSchedule } from "@/lib/fleet";
 import { incidentLineageLabel, type AgentRepairEvent, type AgentRepairStatus } from "@/lib/agentdetail";
 
-export interface AgentImpactSummary {
+export type AgentImpactSummary = {
   standing_orders?: string[];
   schedules?: string[];
   memories?: string[];
@@ -23,7 +23,7 @@ export interface AgentImpactSummary {
   subagent_workspaces?: string[];
   subagent_workflow_refs?: string[];
   subagent_mailbox_messages?: string[];
-}
+};
 
 export interface AgentRemovalCascade {
 	standing: boolean;

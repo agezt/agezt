@@ -11,7 +11,7 @@ import { CHARS_PER_TOKEN, contextTokensUsed, type ChatTurn, type TurnCompaction 
 let catalogPromise: Promise<ModelCatalog> | null = null;
 function loadCatalog(): Promise<ModelCatalog> {
   if (!catalogPromise) {
-    catalogPromise = getJSON<ModelCatalog>("/api/catalog").catch(() => {
+    catalogPromise = getJSON("/api/catalog").catch(() => {
       catalogPromise = null; // transient failure — let a later chip retry
       return {} as ModelCatalog;
     });

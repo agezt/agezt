@@ -390,7 +390,7 @@ function WhyHistory({ id }: { id: string }) {
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
-    getJSON<{ events?: WhyEvent[] }>("/api/standing/why", { id })
+    getJSON("/api/standing/why", { id })
       .then((d) => alive && setEvents(d.events || []))
       .catch((e) => alive && setErr((e as Error).message));
     return () => {
@@ -429,7 +429,7 @@ function ScheduleForecast({
   const [fires, setFires] = useState<number[] | null>(null);
   useEffect(() => {
     let alive = true;
-    getJSON<{ forecasts?: { unix?: number }[] }>("/api/schedule/test", {
+    getJSON("/api/schedule/test", {
       id,
       count: "4",
     })

@@ -9,22 +9,22 @@
 export type FieldType = "text" | "password" | "number" | "bool" | "csv" | "select";
 export type ApplyMode = "live" | "restart";
 
-export interface Field {
+export type Field = {
   env: string;
   label: string;
-  type: FieldType;
+  type: string;
   secret: boolean;
   required: boolean;
   help?: string;
-  apply: ApplyMode;
+  apply: string;
   options?: string[];
-  read_only?: boolean; // system-managed: shown but not editable here
-  locked?: boolean; // value may change but never be cleared
-}
-export interface ValueEntry {
+  read_only?: boolean;
+  locked?: boolean;
+};
+export type ValueEntry = {
   env: string;
   secret: boolean;
   env_pinned: boolean;
   set: boolean;
   value?: string;
-}
+};

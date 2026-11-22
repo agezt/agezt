@@ -454,7 +454,7 @@ Extract in **increasing coupling order** (each step = move PR, then rewrite PR i
 
 | PR | Content |
 |---|---|
-| W5.1 | OpenAPI from op registry; generated TS client in `frontend/src/app/api`; delete hand-written wrappers. |
+| W5.1 ✅ | **The API document, the browser client and the browser's payload types get one home.** OpenAPI from the op registry; the generated TS client in `frontend/src/app/api`; the hand-written wrappers are gone; and the browser's **payload types** are derived from the same schemas. Two halves: [318](318-w51-openapi-and-the-generated-client-evidence.md) gave the document and the client one home (203 routes, the path unions as the console's surface); [324](324-w51-the-browser-payload-types-get-one-home-evidence.md) gave the **payload types** one home (358 generated interfaces + 143 aliases, the client bound to the path via `ResponseOf<P>`, all 217 call-site type arguments gone, 352 → 219 hand-written interfaces). Nine real browser bugs died on the way, and a field renamed in the daemon now breaks the browser at compile time. |
 | W5.2 | Generated Python/TS/Rust/Go SDKs + server-produced golden fixtures consumed by every SDK test; retire `sdkparity` freshness check and self-validating fixtures. |
 | W5.2a ✅ | The `/api/v1` surface gets one home (`kernel/contract/restapiapi`); the daemon registers from it; `tools/sdkgen` generates the Python/TypeScript SDK catalogs; `sdkparity` and its report retired. |
 | W5.2b ✅ | Server-produced golden fixtures (`sdk/fixtures/`, recorded from the daemon's own handlers) consumed by every SDK's test; the self-validating `contract/fixtures` retired (its two console fixtures moved to `frontend/fixtures/`). |

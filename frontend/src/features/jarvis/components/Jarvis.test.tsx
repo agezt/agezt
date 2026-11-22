@@ -47,7 +47,7 @@ describe("Jarvis view", () => {
   });
 
   it("shows the operator-side companion intro when no agents are loaded", async () => {
-    mockedGetJSON.mockImplementation(async () => ({ agents: [], stt: { configured: true }, tts: { configured: true } }));
+    mockedGetJSON.mockImplementation(async () => ({ profiles: [], stt: { configured: true }, tts: { configured: true } }));
     render(<UIProvider><Jarvis /></UIProvider>);
     await waitFor(() => expect(screen.getByText(/Agents ready/i)).toBeTruthy());
     // The empty-state hint in the agents rail is the right thing to assert —
@@ -56,7 +56,7 @@ describe("Jarvis view", () => {
   });
 
   it("renders quick prompts that send to the chat engine", async () => {
-    mockedGetJSON.mockImplementation(async () => ({ agents: [], stt: { configured: true }, tts: { configured: true } }));
+    mockedGetJSON.mockImplementation(async () => ({ profiles: [], stt: { configured: true }, tts: { configured: true } }));
     render(<UIProvider><Jarvis /></UIProvider>);
     await waitFor(() => expect(screen.getByText(/Agents ready/i)).toBeTruthy());
     fireEvent.click(screen.getByText(/Summarize what changed/i));
@@ -67,7 +67,7 @@ describe("Jarvis view", () => {
   // operator on Jarvis with only a toast hint to "switch to Chat to see the
   // stream". Now it both sends the prompt and navigates to Talk › Chat.
   it("QuickPrompt navigates to the chat view after sending", async () => {
-    mockedGetJSON.mockImplementation(async () => ({ agents: [], stt: { configured: true }, tts: { configured: true } }));
+    mockedGetJSON.mockImplementation(async () => ({ profiles: [], stt: { configured: true }, tts: { configured: true } }));
     render(<UIProvider><Jarvis /></UIProvider>);
     await waitFor(() => expect(screen.getByText(/Summarize what changed/i)).toBeTruthy());
     fireEvent.click(screen.getByText(/Summarize what changed/i));
@@ -76,14 +76,14 @@ describe("Jarvis view", () => {
   });
 
   it("shows the recent-runs empty-state when no runs are returned", async () => {
-    mockedGetJSON.mockImplementation(async () => ({ agents: [], runs: [], stt: { configured: true }, tts: { configured: true } }));
+    mockedGetJSON.mockImplementation(async () => ({ profiles: [], runs: [], stt: { configured: true }, tts: { configured: true } }));
     render(<UIProvider><Jarvis /></UIProvider>);
     await waitFor(() => expect(screen.getByText(/No recent runs/i)).toBeTruthy());
   });
 
   it("renders run rows when the daemon returns recent runs", async () => {
     mockedGetJSON.mockImplementation(async (path: string) => {
-      if (path === "/api/agents") return { agents: [{ slug: "g", ready: true }] };
+      if (path === "/api/agents") return { profiles: [{ slug: "g", enabled: true }] };
       if (path === "/api/runs") return { runs: [{ id: "r1", status: "completed", intent: "summarise", correlation_id: "01ABCDEF" }] };
       if (path === "/api/voice/status") return { stt: { configured: true }, tts: { configured: true } };
       return {};
@@ -95,7 +95,7 @@ describe("Jarvis view", () => {
 
   it("shows the Voice-needs-setup card when STT and TTS are not configured", async () => {
     mockedGetJSON.mockImplementation(async (path: string) => {
-      if (path === "/api/agents") return { agents: [] };
+      if (path === "/api/agents") return { profiles: [] };
       if (path === "/api/runs") return { runs: [] };
       if (path === "/api/voice/status") return { stt: { configured: false }, tts: { configured: false } };
       return {};
@@ -112,7 +112,7 @@ describe("Jarvis view", () => {
   // the nav rail. Now it actually navigates.
   it("'Open Talk › Voice' button navigates to the voice view", async () => {
     mockedGetJSON.mockImplementation(async (path: string) => {
-      if (path === "/api/agents") return { agents: [] };
+      if (path === "/api/agents") return { profiles: [] };
       if (path === "/api/runs") return { runs: [] };
       if (path === "/api/voice/status") return { stt: { configured: false }, tts: { configured: false } };
       return {};
@@ -128,7 +128,7 @@ describe("Jarvis view", () => {
   // *toast* — operator had to manually click Talk › Chat. Now it actually
   // navigates, after starting a fresh thread.
   it("'Open chat' button starts a fresh thread and navigates to chat", async () => {
-    mockedGetJSON.mockImplementation(async () => ({ agents: [], stt: { configured: true }, tts: { configured: true } }));
+    mockedGetJSON.mockImplementation(async () => ({ profiles: [], stt: { configured: true }, tts: { configured: true } }));
     render(<UIProvider><Jarvis /></UIProvider>);
     await waitFor(() => expect(screen.getByText(/Need to ask something longer/i)).toBeTruthy());
     const btn = screen.getByRole("button", { name: /Open chat/i });
@@ -146,7 +146,7 @@ describe("Jarvis view", () => {
 
   it("says the voice endpoint is unreachable when the status request rejects", async () => {
     mockedGetJSON.mockImplementation(async (path: string) => {
-      if (path === "/api/agents") return { agents: [] };
+      if (path === "/api/agents") return { profiles: [] };
       if (path === "/api/runs") return { runs: [] };
       if (path === "/api/voice/status") throw new Error("daemon offline");
       return {};
@@ -161,7 +161,7 @@ describe("Jarvis view", () => {
 
   it("treats a null voice status as an empty report instead of crashing", async () => {
     mockedGetJSON.mockImplementation(async (path: string) => {
-      if (path === "/api/agents") return { agents: [] };
+      if (path === "/api/agents") return { profiles: [] };
       if (path === "/api/runs") return { runs: [] };
       if (path === "/api/voice/status") return null;
       return {};
@@ -177,7 +177,7 @@ describe("Jarvis view", () => {
   // tell you which half is missing and which is fine.
   it("reports STT as ready with its provider while TTS is unconfigured but named", async () => {
     mockedGetJSON.mockImplementation(async (path: string) => {
-      if (path === "/api/agents") return { agents: [] };
+      if (path === "/api/agents") return { profiles: [] };
       if (path === "/api/runs") return { runs: [] };
       if (path === "/api/voice/status") {
         return { stt: { configured: true, provider: "whisper.cpp" }, tts: { configured: false, provider: "piper" } };
@@ -197,7 +197,7 @@ describe("Jarvis view", () => {
 
   it("reports TTS as ready with its provider while STT is unconfigured but named", async () => {
     mockedGetJSON.mockImplementation(async (path: string) => {
-      if (path === "/api/agents") return { agents: [] };
+      if (path === "/api/agents") return { profiles: [] };
       if (path === "/api/runs") return { runs: [] };
       if (path === "/api/voice/status") {
         return { stt: { configured: false, provider: "whisper.cpp" }, tts: { configured: true, provider: "piper" } };
@@ -225,7 +225,7 @@ describe("Jarvis view", () => {
 
   it("colours each run status and labels a run that carries no intent", async () => {
     mockedGetJSON.mockImplementation(async (path: string) => {
-      if (path === "/api/agents") return { agents: [] };
+      if (path === "/api/agents") return { profiles: [] };
       if (path === "/api/runs") {
         return {
           runs: [
@@ -254,10 +254,10 @@ describe("Jarvis view", () => {
     mockedGetJSON.mockImplementation(async (path: string) => {
       if (path === "/api/agents") {
         return {
-          agents: [
-            { slug: "a", name: "Alpha", ready: true },
-            { slug: "b", name: "Beta", ready: false, status: "degraded" },
-            { slug: "c", name: "Gamma", ready: false },
+          profiles: [
+            { slug: "a", name: "Alpha", enabled: true },
+            { slug: "b", name: "Beta", enabled: false, status: { operational_label: "degraded" } },
+            { slug: "c", name: "Gamma", enabled: false },
           ],
         };
       }
@@ -307,7 +307,7 @@ describe("Jarvis view", () => {
         unmount();
 
         // The daemon answers now — for a view that is no longer on screen.
-        deferred.get("/api/agents")?.resolve({ agents: [{ slug: "late", ready: true }] });
+        deferred.get("/api/agents")?.resolve({ profiles: [{ slug: "late", enabled: true }] });
         deferred.get("/api/runs")?.resolve({ runs: [{ id: "late", status: "running" }] });
         if (voiceOutcome === "resolve") deferred.get("/api/voice/status")?.resolve({ stt: { configured: true } });
         else deferred.get("/api/voice/status")?.reject(new Error("too late"));

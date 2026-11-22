@@ -65,12 +65,12 @@ function windowSplit<T>(first: T[], second: T[], limit: number): [T[], T[]] {
 // per-collection app views (expense/calendar/…) layer on top in a later milestone,
 // keyed off each schema's `view`.
 
-interface FieldDef {
+type FieldDef = {
   name: string;
   type?: string;
   label?: string;
-}
-interface Collection {
+};
+type Collection = {
   name: string;
   title?: string;
   icon?: string;
@@ -80,15 +80,15 @@ interface Collection {
   builtin?: boolean;
   system?: boolean;
   count?: number;
-}
-interface DataRecord {
+};
+type DataRecord = {
   id: string;
-  fields: Record<string, unknown>;
+  fields: Record<string, any>;
   created_ms?: number;
   updated_ms?: number;
   created_by?: string;
   updated_by?: string;
-}
+};
 
 function fmtCell(v: unknown): string {
   if (v === null || v === undefined) return "";
@@ -153,7 +153,7 @@ export function Data() {
   async function loadCollections() {
     setLoadingCols(true);
     try {
-      const d = await getJSON<{ collections: Collection[] }>("/api/data/collections");
+      const d = await getJSON("/api/data/collections");
       const list = d.collections ?? [];
       setCols(list);
       setError(null);
@@ -170,7 +170,7 @@ export function Data() {
     try {
       const params: Record<string, string> = { collection: name, limit: "500" };
       if (q.trim()) params.search = q.trim();
-      const d = await getJSON<{ records: DataRecord[] }>("/api/data/records", params);
+      const d = await getJSON("/api/data/records", params);
       setRecords(d.records ?? []);
       setError(null);
     } catch (e) {

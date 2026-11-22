@@ -9,10 +9,10 @@
 
 const CHAIN_PREFIX = "@";
 
-export interface ChainsState {
+export type ChainsState = {
   chains: Record<string, string[]>;
   default: string;
-}
+};
 
 // isChainRef reports whether a model value is actually a "@<name>" reference to
 // a named chain rather than a real model id (model ids never start with "@").

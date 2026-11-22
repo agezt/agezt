@@ -61,7 +61,7 @@ export function ChatGPTSignInCard({ onChanged, compact = false, pollTimeoutSec =
 
   const refresh = useCallback(async () => {
     try {
-      const r = await postJSON<{ connected?: boolean; email?: string }>("/api/provider/oauth/status", { state: "" });
+      const r = await postJSON("/api/provider/oauth/status", { state: "" });
       const wasConnected = connectedRef.current;
       const nowConnected = !!r.connected;
       setConnected(nowConnected);
@@ -104,11 +104,11 @@ export function ChatGPTSignInCard({ onChanged, compact = false, pollTimeoutSec =
     setStatus("Opening ChatGPT…");
     abortRef.current = false;
     try {
-      const r = await postJSON<{ authorize_url?: string; state?: string; error?: string }>(
+      const r = await postJSON(
         "/api/provider/oauth/start",
         { provider: "chatgpt" },
       );
-      if (!r.authorize_url || !r.state) throw new Error(r.error || "could not start sign-in");
+      if (!r.authorize_url || !r.state) throw new Error("could not start sign-in");
       window.open(r.authorize_url, "_blank", "noopener,noreferrer");
       setStatus("Waiting for you to authorize in the new tab…");
       const iters = Math.max(1, Math.floor(pollTimeoutSec / 2));
@@ -116,7 +116,7 @@ export function ChatGPTSignInCard({ onChanged, compact = false, pollTimeoutSec =
         if (abortRef.current) return;
         await new Promise((res) => setTimeout(res, 2000));
         if (abortRef.current) return;
-        const st = await postJSON<{ status?: string; error?: string }>("/api/provider/oauth/status", { state: r.state });
+        const st = await postJSON("/api/provider/oauth/status", { state: r.state });
         if (st.status === "done") {
           toast("Connected ChatGPT", "success");
           setStatus("");
@@ -140,11 +140,11 @@ export function ChatGPTSignInCard({ onChanged, compact = false, pollTimeoutSec =
   async function importCodex() {
     setBusy(true);
     try {
-      const r = await postJSON<{ connected?: boolean; email?: string; error?: string }>(
+      const r = await postJSON(
         "/api/provider/oauth/import",
         {},
       );
-      if (!r.connected) throw new Error(r.error || "no Codex CLI login found");
+      if (!r.connected) throw new Error("no Codex CLI login found");
       toast("Imported ChatGPT login from Codex CLI", "success");
       await refresh();
       onChangedRef.current?.();

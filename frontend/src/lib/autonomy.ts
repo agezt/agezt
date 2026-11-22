@@ -1,6 +1,6 @@
 import type { AgentEvent } from "@/app/events";
 
-export interface AutonomyItem {
+export type AutonomyItem = {
   seq: number;
   ts_unix_ms?: number;
   kind: string;
@@ -24,7 +24,7 @@ export interface AutonomyItem {
   routing_task_type?: string;
   routing_task_model_chain?: string[];
   routing_force_generation?: number;
-}
+};
 
 const AUTONOMY_KINDS = new Set([
   "schedule.fired",

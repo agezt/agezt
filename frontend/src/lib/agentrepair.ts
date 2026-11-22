@@ -29,21 +29,21 @@ export interface RepairProfile {
     min_notify_interval_sec?: number;
   };
 }
-interface RepairFailure {
+type RepairFailure = {
   correlation_id?: string;
   status?: string;
   started_unix_ms?: number;
-}
-interface RepairDenial {
+};
+type RepairDenial = {
   capability?: string;
   tool?: string;
   reason?: string;
   hard_denied?: boolean;
-}
-interface RepairToolError {
+};
+type RepairToolError = {
   tool?: string;
   output?: string;
-}
+};
 export interface RepairContext {
   profile: RepairProfile;
   fail?: RepairFailure;

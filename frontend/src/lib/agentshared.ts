@@ -1,74 +1,78 @@
 import { fmtDue } from "@/app/utils";
 import type { AgentRuntimeStatus } from "@/lib/agentdetail";
+import type {
+  AgentListResponseProfilesItem,
+  AgentListResponseProfilesItemLifecycle,
+  AgentListResponseProfilesItemTasklistItem,
+} from "@/app/api/types.generated";
 
+// AgentProfile is the browser's view of one profile from /api/agents. Every
+// field's TYPE comes from the daemon's registry: the browser decides which
+// fields it reads, the daemon decides what they are. A field the daemon
+// renamed breaks this file at compile time, which is the whole point.
 export interface AgentProfile {
-  id: string;
-  slug: string;
-  name?: string;
-  soul?: string;
-  instructions?: string[];
-  model?: string;
-  fallbacks?: string[];
-  task_type?: string;
-  max_cost_mc?: number;
-  max_daily_mc?: number;
-  memory_scope?: string;
-  workdir?: string;
-  owner_agent?: string;
-  parent_agent?: string;
-  direct_callable?: boolean;
-  retry_policy?: { max_attempts?: number; backoff?: string; base_delay_sec?: number; max_delay_sec?: number; retry_on?: string[] };
-  health_policy?: { stale_after_sec?: number; failure_window?: number; failure_threshold?: number; doctor_agent?: string };
-  self_repair?: { enabled?: boolean; max_attempts?: number; escalate_to?: string };
-  noise_policy?: {
-    silent_on_success?: boolean;
-    disable_memory_writes?: boolean;
-    min_notify_severity?: "info" | "warning" | "critical";
-    min_notify_interval_sec?: number;
-  };
-  tool_allow?: string[];
-  tool_deny?: string[];
-  trust_ceiling?: "L0" | "L1" | "L2" | "L3" | "L4";
-  execution_profile?: string;
-  config_overrides?: Record<string, string>;
+  id?: AgentListResponseProfilesItem["id"];
+  slug: AgentListResponseProfilesItem["slug"];
+  name?: AgentListResponseProfilesItem["name"];
+  soul?: AgentListResponseProfilesItem["soul"];
+  instructions?: AgentListResponseProfilesItem["instructions"];
+  model?: AgentListResponseProfilesItem["model"];
+  fallbacks?: AgentListResponseProfilesItem["fallbacks"];
+  task_type?: AgentListResponseProfilesItem["task_type"];
+  max_cost_mc?: AgentListResponseProfilesItem["max_cost_mc"];
+  max_daily_mc?: AgentListResponseProfilesItem["max_daily_mc"];
+  memory_scope?: AgentListResponseProfilesItem["memory_scope"];
+  workdir?: AgentListResponseProfilesItem["workdir"];
+  owner_agent?: AgentListResponseProfilesItem["owner_agent"];
+  parent_agent?: AgentListResponseProfilesItem["parent_agent"];
+  direct_callable?: AgentListResponseProfilesItem["direct_callable"];
+  retry_policy?: AgentListResponseProfilesItem["retry_policy"];
+  health_policy?: AgentListResponseProfilesItem["health_policy"];
+  self_repair?: AgentListResponseProfilesItem["self_repair"];
+  noise_policy?: AgentListResponseProfilesItem["noise_policy"];
+  tool_allow?: AgentListResponseProfilesItem["tool_allow"];
+  tool_deny?: AgentListResponseProfilesItem["tool_deny"];
+  trust_ceiling?: AgentListResponseProfilesItem["trust_ceiling"];
+  execution_profile?: AgentListResponseProfilesItem["execution_profile"];
+  config_overrides?: AgentListResponseProfilesItem["config_overrides"];
   status?: AgentRuntimeStatus;
   lifecycle?: AgentLifecycle;
   tasklist?: AgentTask[];
-  description?: string;
-  kind?: "system" | "custom" | "subagent";
-  managed?: boolean;
-  enabled?: boolean;
-  retired?: boolean;
-  retired_ms?: number;
-  retired_reason?: string;
-  system?: boolean; // shipped internal guardian (M961) — protected from removal
+  description?: AgentListResponseProfilesItem["description"];
+  kind?: AgentListResponseProfilesItem["kind"];
+  managed?: AgentListResponseProfilesItem["managed"];
+  enabled?: AgentListResponseProfilesItem["enabled"];
+  retired?: AgentListResponseProfilesItem["retired"];
+  retired_ms?: AgentListResponseProfilesItem["retired_ms"];
+  retired_reason?: AgentListResponseProfilesItem["retired_reason"];
+  system?: AgentListResponseProfilesItem["system"]; // shipped internal guardian (M961) — protected from removal
 }
 
 export interface AgentLifecycle {
-  mode?: "persistent" | "cycle" | "retire_on_complete";
-  retire_on_complete?: boolean;
-  max_cycles?: number;
-  completed_cycles?: number;
+  mode?: AgentListResponseProfilesItemLifecycle["mode"];
+  retire_on_complete?: AgentListResponseProfilesItemLifecycle["retire_on_complete"];
+  max_cycles?: AgentListResponseProfilesItemLifecycle["max_cycles"];
+  completed_cycles?: AgentListResponseProfilesItemLifecycle["completed_cycles"];
 }
 
 export interface AgentTask {
-  id?: string;
-  title: string;
-  description?: string;
-  scope?: "cycle" | "total";
-  status?: "todo" | "doing" | "done" | "blocked" | "retired";
+  id?: AgentListResponseProfilesItemTasklistItem["id"];
+  title: AgentListResponseProfilesItemTasklistItem["title"];
+  description?: AgentListResponseProfilesItemTasklistItem["description"];
+  scope?: AgentListResponseProfilesItemTasklistItem["scope"];
+  status?: AgentListResponseProfilesItemTasklistItem["status"];
 }
 
-export interface RosterBoardMessage {
+export type RosterBoardMessage = {
   id?: string;
   from?: string;
   to?: string;
   reply_to?: string;
   acked_by?: string[];
   ts_unix_ms?: number;
-}
+};
 
-export interface RosterSchedule {
+export type RosterSchedule = {
   id: string;
   intent?: string;
   agent?: string;
@@ -77,17 +81,17 @@ export interface RosterSchedule {
   interval_sec?: number;
   enabled?: boolean;
   frequency_warning?: string;
-}
+};
 
-export interface AgentRetireResult {
+export type AgentRetireResult = {
   standing_paused?: number;
   schedules_paused?: number;
-}
+};
 
 export type AgentReviveResult = AgentRetireResult;
 export type AgentEnableResult = AgentRetireResult;
 
-export interface AgentRemoveResult {
+export type AgentRemoveResult = {
   removed?: boolean;
   standing_removed?: number;
   schedules_removed?: number;
@@ -102,7 +106,7 @@ export interface AgentRemoveResult {
   mailbox_messages_retained?: number;
   workflow_refs_retained?: number;
   subagent_workflow_refs_retained?: number;
-}
+};
 
 export function agentRetireToast(slug: string, res?: AgentRetireResult): string {
   const standing = res?.standing_paused || 0;

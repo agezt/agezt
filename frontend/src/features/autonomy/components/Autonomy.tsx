@@ -44,10 +44,10 @@ import {
   type AutonomyItem,
 } from "@/lib/autonomy";
 
-interface Feed {
+type Feed = {
   items?: AutonomyItem[];
   count?: number;
-}
+};
 
 // catMeta colours + icons each self-directed category so the feed reads at a
 // glance: timers, standing orders, completion checks, skill lifecycle, pulse.
@@ -77,7 +77,7 @@ export function Autonomy() {
   async function reload() {
     setLoading(true);
     try {
-      const d = await getJSON<Feed>("/api/autonomy", { limit: "150" });
+      const d = await getJSON("/api/autonomy", { limit: "150" });
       setFeed(d);
       setErr(null);
     } catch (e) {
@@ -284,7 +284,7 @@ export function PulseControl() {
 
   async function load() {
     try {
-      setSt(await getJSON<PulseStatus>("/api/pulse"));
+      setSt(await getJSON("/api/pulse"));
     } catch {
       setSt(null);
     }
@@ -363,7 +363,7 @@ export function PulseControl() {
   // waiting for the periodic flush.
   async function flushDigest() {
     try {
-      const r = await postAction<{ flushed?: number }>("/api/pulse/flush", {});
+      const r = await postAction("/api/pulse/flush", {});
       const n = r?.flushed ?? 0;
       ui.toast(
         n > 0
@@ -382,7 +382,7 @@ export function PulseControl() {
   async function addWatch() {
     if (!watchPath.trim()) return;
     try {
-      const r = await postAction<{ observer?: string }>("/api/pulse/watch", {
+      const r = await postAction("/api/pulse/watch", {
         path: watchPath.trim(),
         min_pct: watchPct,
       });
@@ -404,7 +404,7 @@ export function PulseControl() {
   async function addProbe() {
     if (!probeName.trim() || !probeCmd.trim()) return;
     try {
-      const r = await postAction<{ observer?: string }>("/api/pulse/probe", {
+      const r = await postAction("/api/pulse/probe", {
         name: probeName.trim(),
         command: probeCmd.trim(),
       });
@@ -426,7 +426,7 @@ export function PulseControl() {
   // "START-END" 24h (e.g. "22-7"); an empty spec clears it.
   async function setQuiet(spec: string) {
     try {
-      const r = await postAction<{ quiet?: string }>("/api/pulse/quiet", {
+      const r = await postAction("/api/pulse/quiet", {
         hours: spec,
       });
       ui.toast(

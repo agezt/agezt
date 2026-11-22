@@ -7,13 +7,13 @@ import { useCallback, useState } from "react";
 import { postJSON, postAction } from "@/app/api";
 import { useUI } from "@/components/ui/feedback";
 
-export interface AddKeyInput {
+export type AddKeyInput = {
   provider?: string;
-  env: string;
-  label: string;
-  value: string;
+  env?: string;
+  label?: string;
+  value?: string;
   active?: boolean;
-}
+};
 
 export interface UseApiKeySubmitOptions {
   /** Optional provider id to send alongside (some keys/add paths want it). */

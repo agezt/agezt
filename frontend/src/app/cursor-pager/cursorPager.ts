@@ -68,10 +68,13 @@ export function useCursorPager<T extends Record<string, unknown>>(
     setLoadingMore(true);
     setMoreError(null);
     try {
-      const page = await getJSON<{ [k: string]: unknown; next_cursor?: string | null }>(path, {
+      const page = (await getJSON(path, {
         ...query,
         cursor,
-      });
+      })) as unknown as {
+        [k: string]: unknown;
+        next_cursor?: string | null;
+      };
       const next = (page[itemsKey] as T[] | undefined) ?? [];
       setPaged((cur) => {
         // A row with no id value cannot identify itself. `String(undefined)` is
@@ -144,9 +147,9 @@ export function useAgentsPager(limit: number = 100) {
 
 // ───────────────────────── /api/memory ─────────────────────────
 
-export interface MemoryRecordRow extends Record<string, unknown> {
+export type MemoryRecordRow = {
   id: string;
-}
+};
 
 /**
  * useMemoryPager drives the Memory view's record list.
@@ -196,9 +199,9 @@ export function useMemoryLogPager(limit: number = 50) {
 }
 
 /** ScheduleFiresRow — row shape for /api/schedule/fires. */
-export interface ScheduleFiresRow extends Record<string, unknown> {
+export type ScheduleFiresRow = {
   correlation_id: string;
-}
+};
 
 /** useScheduleFiresPager — /api/schedule/fires (cronjob firings; id = correlation_id). */
 export function useScheduleFiresPager(limit: number = 50) {

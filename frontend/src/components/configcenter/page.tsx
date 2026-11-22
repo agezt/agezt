@@ -57,37 +57,37 @@ import type { Field, ValueEntry, ApplyMode } from "./types";
 // (presence only, never the value); externally-pinned fields are read-only because
 // the real process environment wins. Each save reports live (provider/model) vs restart.
 
-interface Section {
+type Section = {
   id: string;
   name: string;
   help?: string;
   source?: string;
   fields: Field[];
-}
-interface ReloadBoundary {
-  apply: ApplyMode;
+};
+type ReloadBoundary = {
+  apply: string;
   envs: string[];
-}
-interface ConfigSchemaResponse {
+};
+type ConfigSchemaResponse = {
   sections?: Section[];
   reload_boundaries?: ReloadBoundary[];
-}
-interface SetResult {
+};
+type SetResult = {
   env: string;
   saved: boolean;
-  applied: "live" | "restart";
+  applied: string;
   env_pinned?: boolean;
   reload_error?: string;
-}
-interface AgentConfigEntry {
+};
+type AgentConfigEntry = {
   key: string;
   value?: string;
-  rating?: "public" | "internal" | "restricted" | "secret";
+  rating?: string;
   description?: string;
   allowed_agents?: string[];
   excluded_agents?: string[];
   updated_at?: number;
-}
+};
 
 type Category = "Core" | "Channels" | "Skills & Plugins";
 const CATEGORY_ORDER: Category[] = ["Core", "Channels", "Skills & Plugins"];
@@ -138,7 +138,10 @@ export function reloadBoundariesFromSections(sections: Array<{ fields: Array<{ e
 export function summarizeReloadBoundaries(boundaries: ReloadBoundary[]): Record<ApplyMode, number> {
   return boundaries.reduce<Record<ApplyMode, number>>(
     (acc, boundary) => {
-      acc[boundary.apply] += boundary.envs.length;
+      // The daemon's schema says the apply mode is a string; the browser's
+      // own vocabulary is live/restart, so the mapping happens here.
+      const key: ApplyMode = boundary.apply === "live" ? "live" : "restart";
+      acc[key] += boundary.envs.length;
       return acc;
     },
     { live: 0, restart: 0 },
@@ -183,7 +186,7 @@ export function ConfigCenter() {
   const [query, setQuery] = useState("");
 
   const loadValues = useCallback(async () => {
-    const v = await getJSON<{ fields?: ValueEntry[] }>("/api/config/values");
+    const v = await getJSON("/api/config/values");
     const map: Record<string, ValueEntry> = {};
     for (const f of v.fields || []) map[f.env] = f;
     setValues(map);
@@ -192,7 +195,7 @@ export function ConfigCenter() {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const [sch] = await Promise.all([getJSON<ConfigSchemaResponse>("/api/config/schema"), loadValues()]);
+      const [sch] = await Promise.all([getJSON("/api/config/schema"), loadValues()]);
       const nextSections = sch.sections || [];
       setSections(nextSections);
       setReloadBoundaries(sch.reload_boundaries?.length ? sch.reload_boundaries : reloadBoundariesFromSections(nextSections));
@@ -501,7 +504,7 @@ function AgentRuntimeConfigPanel({ toast }: { toast: (text: string, kind?: "succ
   const summary = useMemo(() => summarizeAgentConfigEntries(entries || []), [entries]);
 
   const load = useCallback(async () => {
-    const res = await getJSON<{ entries?: AgentConfigEntry[] }>("/api/configcenter/list");
+    const res = await getJSON("/api/configcenter/list");
     setEntries(res.entries || []);
   }, []);
 
@@ -768,7 +771,7 @@ export function FieldRow({
   async function save(value: string, opts?: { cleared?: boolean }): Promise<boolean> {
     setBusy(true);
     try {
-      const r = await postJSON<SetResult>("/api/config/set", { name: field.env, value });
+      const r = await postJSON("/api/config/set", { name: field.env, value });
       await onSaved();
       if (opts?.cleared) {
         toast(`${field.label} cleared`, "success");

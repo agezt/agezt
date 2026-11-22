@@ -20,12 +20,13 @@ import { LogDetail } from "@/components/LogDetail";
 import { getJSON, postAction, postJSON, type WritePath, type NativePath } from "@/app/api";
 import { byDescValue, pct } from "@/app/format";
 import { cn, fmtTime } from "@/app/utils";
+import type { EdictShowResponseHardDenyItem } from "@/app/api/types.generated";
 
-interface EdictShow {
+type EdictShow = {
   ask_policy?: string;
   levels?: Record<string, string>;
-  hard_deny?: { name: string; substring?: string; applies_to?: string[] | null }[];
-}
+  hard_deny?: EdictShowResponseHardDenyItem[];
+};
 
 // The trust ladder (edict L0..L4). Lower = more restrictive.
 const LEVELS: { value: string; label: string }[] = [
@@ -186,7 +187,7 @@ export function Policy() {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      setShow(await getJSON<EdictShow>("/api/edict_show"));
+      setShow(await getJSON("/api/edict_show"));
       setErr(null);
     } catch (e) {
       setErr((e as Error).message);
@@ -589,25 +590,25 @@ export function DenyAddForm({
   );
 }
 
-interface EdictDecision {
-  decision?: string; // "allow" | "deny"
+type EdictDecision = {
+  decision?: string;
   capability?: string;
-  level?: string; // "L0".."L4"
+  level?: string;
   reason?: string;
   hard_denied?: boolean;
   hard_deny_rule?: string;
   would_ask?: boolean;
   requires_approval?: boolean;
-}
+};
 
-interface PolicyLogEntry {
+type PolicyLogEntry = {
   ts_unix_ms?: number;
   allow?: boolean;
   hard_denied?: boolean;
   capability?: string;
   tool?: string;
   reason?: string;
-}
+};
 
 // effectiveOutcome folds the raw decision into the operator-facing verdict: a hard
 // deny, a plain deny, an ask (the call is allowed but would pause for approval), or a
@@ -640,7 +641,7 @@ export function PolicyTestForm({ capabilities }: { capabilities: string[] }) {
     if (!capability) return;
     setRunning(true);
     try {
-      const d = await getJSON<EdictDecision>("/api/edict/test", { capability, input });
+      const d = await getJSON("/api/edict/test", { capability, input });
       setResult(d);
       setErr(null);
     } catch (e) {
@@ -715,13 +716,13 @@ export function PolicyTestForm({ capabilities }: { capabilities: string[] }) {
   );
 }
 
-interface RedactResult {
+type RedactResult = {
   enabled?: boolean;
   would_redact?: boolean;
   redacted?: string;
   categories?: string[];
   literal_hit?: boolean;
-}
+};
 
 // RedactionCheckForm dry-runs the LIVE secret redactor (M754): paste text and see
 // whether the scrubber that guards outbound content (logs, channel messages, prompts)
@@ -739,7 +740,7 @@ export function RedactionCheckForm({ compact = false }: { compact?: boolean } = 
     if (!text.trim()) return;
     setRunning(true);
     try {
-      setResult(await postJSON<RedactResult>("/api/redact/test", { text }));
+      setResult(await postJSON("/api/redact/test", { text }));
       setErr(null);
     } catch (e) {
       setErr((e as Error).message);

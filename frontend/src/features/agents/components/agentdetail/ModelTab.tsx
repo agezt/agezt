@@ -47,10 +47,10 @@ export function ModelTab({
   const [cat, setCat] = useState<ModelCatalog | null>(null);
   useEffect(() => {
     let live = true;
-    getJSON<ChainsState>("/api/chains")
+    getJSON("/api/chains")
       .then((c) => live && setChains(c.chains || {}))
       .catch(() => {});
-    getJSON<ModelCatalog>("/api/catalog")
+    getJSON("/api/catalog")
       .then((c) => live && setCat(c))
       .catch(() => {});
     return () => {

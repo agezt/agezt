@@ -696,7 +696,7 @@ export function RunRollbackDrawer({ correlationId }: { correlationId: string }) 
     setLoading(true);
     setErr(null);
     try {
-      const data = await getJSON<{ checkpoints?: RollbackCheckpoint[] }>("/api/rollback/checkpoints", {
+      const data = await getJSON("/api/rollback/checkpoints", {
         run_id: correlationId,
       });
       setCheckpoints(data.checkpoints || []);
@@ -831,7 +831,7 @@ export function RunDetailLoader({
   useEffect(() => {
     if (fetched.current || !correlationId) return;
     fetched.current = true;
-    getJSON<{ events?: AgentEvent[] }>("/api/journal", { correlation_id: correlationId, limit: "500" })
+    getJSON("/api/journal", { correlation_id: correlationId, limit: "500" })
       .then((dat) => setArc((prev) => mergeEvents(prev || [], dat.events || [])))
       .catch((e) => setErr((e as Error).message));
   }, [correlationId]);

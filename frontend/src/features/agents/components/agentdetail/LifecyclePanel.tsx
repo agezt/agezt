@@ -68,7 +68,7 @@ export function LifecycleInterventionPanel({
 
   useEffect(() => {
     let alive = true;
-    getJSON<AgentImpactSummary>("/api/agents/impact", { ref: slug })
+    getJSON("/api/agents/impact", { ref: slug })
       .then((next) => {
         if (!alive) return;
         setImpact({ ...fallbackImpact, ...next });
@@ -108,7 +108,7 @@ export function LifecycleInterventionPanel({
   async function applyRetire() {
     setWorking(true);
     try {
-      const res = await postAction<AgentRetireResult>(
+      const res = await postAction(
         "/api/agents/retire",
         reason.trim() ? { ref: slug, reason: reason.trim() } : { ref: slug },
       );
@@ -126,7 +126,7 @@ export function LifecycleInterventionPanel({
   async function applyRevive() {
     setWorking(true);
     try {
-      const res = await postAction<AgentReviveResult>("/api/agents/revive", { ref: slug });
+      const res = await postAction("/api/agents/revive", { ref: slug });
       ui.toast(agentReviveToast(slug, res), "success");
       setLastAction(agentLifecycleActionResultSummary("revive", slug, res));
       onChanged();
@@ -152,7 +152,7 @@ export function LifecycleInterventionPanel({
     if (!confirmed) return;
     setWorking(true);
     try {
-      const res = await postJSON<AgentRemoveResult>("/api/agents/remove", { ref: slug, cascade });
+      const res = await postJSON("/api/agents/remove", { ref: slug, cascade });
       ui.toast(
         agentRemoveToast(slug, res),
         res.removed ? "success" : "info",

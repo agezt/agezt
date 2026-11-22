@@ -28,21 +28,15 @@ import { TabNav } from "@/components/ui/tab-nav";
 import { useCursorPager } from "@/app/cursor-pager";
 import { LoadMoreFooter } from "@/components/ui/load-more-footer";
 
-interface Run {
+type Run = {
   correlation_id?: string;
   status?: string;
   intent?: string;
   duration_ms?: number;
   started_unix_ms?: number;
-  // Server-folded live activity (authoritative, present only for running runs) —
-  // a fallback for the client-side event fold so the phase shows on a fresh load.
   phase?: string;
   tool?: string;
-  // Index signature so this shape satisfies useCursorPager's
-  // `Record<string, unknown>` constraint — the helper reads fields by
-  // string key when deduping across pages.
-  [k: string]: unknown;
-}
+};
 
 function RunRow({ run, focus, ctx }: { run: Run; focus?: string | null; ctx?: LiveRunContext }) {
   const [open, setOpen] = useState(false);

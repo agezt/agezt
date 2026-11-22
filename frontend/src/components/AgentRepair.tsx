@@ -19,19 +19,19 @@ import {
 import type { AgentProfile } from "@/lib/agentshared";
 import type { RunLite } from "@/lib/agentdetail";
 
-interface DenialRow {
+type DenialRow = {
   capability?: string;
   tool?: string;
   reason?: string;
   hard_denied?: boolean;
-}
-interface ToolErrRow {
+};
+type ToolErrRow = {
   tool?: string;
   output?: string;
-}
-interface RoutingSnapshot {
+};
+type RoutingSnapshot = {
   chains?: Record<string, string[]>;
-}
+};
 
 export function repairReadinessPassport(
   profile: Pick<AgentProfile, "retired" | "kind" | "managed" | "direct_callable" | "parent_agent" | "owner_agent" | "retry_policy" | "health_policy" | "self_repair">,
@@ -178,7 +178,7 @@ export function AgentRepair({
       if (prop.task_model_chain !== undefined) {
         const taskType = (prop.task_type || next.task_type || profile.task_type || "").trim();
         if (!taskType) throw new Error("task_model_chain proposed without a task_type");
-        const routing = await getJSON<RoutingSnapshot>("/api/routing");
+        const routing = await getJSON("/api/routing");
         prevRouting = { taskType, chain: routing.chains?.[taskType] ? [...(routing.chains?.[taskType] || [])] : undefined };
         const chains = { ...(routing.chains || {}) };
         chains[taskType] = prop.task_model_chain;
@@ -197,7 +197,7 @@ export function AgentRepair({
     try {
       await postJSON("/api/agents/edit", { ref: slug, profile: stripForEdit(applied.prev) });
       if (applied.prevRouting) {
-        const routing = await getJSON<RoutingSnapshot>("/api/routing");
+        const routing = await getJSON("/api/routing");
         const chains = { ...(routing.chains || {}) };
         if (applied.prevRouting.chain && applied.prevRouting.chain.length > 0) chains[applied.prevRouting.taskType] = applied.prevRouting.chain;
         else delete chains[applied.prevRouting.taskType];
@@ -248,7 +248,7 @@ export function AgentRepair({
     setRequestingRepair(true);
     setErr(null);
     try {
-      const res = await postJSON<{ correlation_id?: string }>("/api/agents/repair", {
+      const res = await postJSON("/api/agents/repair", {
         ref: slug,
         reason: `operator requested governed repair from ${slug} repair tab`,
       });

@@ -48,9 +48,9 @@ export function parseConfigBundle(text: string): ConfigBundle {
 // into a versioned, wrapped bundle (the shape downloadText writes / parseConfigBundle reads).
 export async function fetchConfigBundle(): Promise<{ version: number; config: Required<ConfigBundle> }> {
   const [p, pr, r] = await Promise.all([
-    getJSON<{ system?: string }>("/api/persona"),
-    getJSON<{ prompts?: unknown[] }>("/api/prompts"),
-    getJSON<{ chains?: Record<string, string[]> }>("/api/routing"),
+    getJSON("/api/persona"),
+    getJSON("/api/prompts"),
+    getJSON("/api/routing"),
   ]);
   return { version: 1, config: { persona: p.system || "", prompts: pr.prompts || [], chains: r.chains || {} } };
 }

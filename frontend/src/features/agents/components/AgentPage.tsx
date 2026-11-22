@@ -38,7 +38,7 @@ export function AgentPage({ slug, onNavigate }: { slug: string; onNavigate: (vie
 
   async function loadRuns() {
     try {
-      const d = await getJSON<{ runs?: RunLite[] }>("/api/runs");
+      const d = await getJSON("/api/runs");
       setRuns(d.runs || []);
     } catch {
       /* keep prior runs on a transient failure */
@@ -47,11 +47,11 @@ export function AgentPage({ slug, onNavigate }: { slug: string; onNavigate: (vie
 
   async function loadCatalog() {
     const [a, o, s, w, p] = await Promise.allSettled([
-      getJSON<{ profiles?: AgentProfile[] }>("/api/agents"),
-      getJSON<{ orders?: ApiOrder[] }>("/api/standing"),
-      getJSON<{ schedules?: ApiSchedule[] }>("/api/schedules"),
-      getJSON<{ workflows?: ApiWorkflow[] }>("/api/workflows"),
-      getJSON<ApiPulse>("/api/pulse"),
+      getJSON("/api/agents"),
+      getJSON("/api/standing"),
+      getJSON("/api/schedules"),
+      getJSON("/api/workflows"),
+      getJSON("/api/pulse"),
     ]);
     if (a.status === "fulfilled") setProfiles(a.value.profiles || []);
     else setErr((a.reason as Error)?.message || "failed to load agents");

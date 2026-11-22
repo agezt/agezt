@@ -49,7 +49,7 @@ export function ModelPicker({
   const isRef = isChainRef(value);
   useEffect(() => {
     if (!isRef) return;
-    getJSON<ChainsState>("/api/chains")
+    getJSON("/api/chains")
       .then((c) => setChainCount(c.chains?.[chainName(value)]?.length ?? null))
       .catch(() => setChainCount(null));
   }, [isRef, value]);
@@ -125,14 +125,14 @@ function ModelModal({
   }, [onClose]);
 
   useEffect(() => {
-    getJSON<ModelCatalog>("/api/catalog")
+    getJSON("/api/catalog")
       .then(setCat)
       .catch((e) => setErr((e as Error).message));
   }, []);
 
   useEffect(() => {
     if (!allowChains) return;
-    getJSON<ChainsState>("/api/chains")
+    getJSON("/api/chains")
       .then((c) => {
         setChains(c.chains || {});
         setDefaultChain(c.default || "");

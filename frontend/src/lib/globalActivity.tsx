@@ -43,7 +43,7 @@ export function GlobalActivityProvider({ children }: { children: ReactNode }) {
     const eventsAtStart = eventRevision.current;
     setSeeding(true);
     try {
-      const result = await getJSON<{ runs?: Record<string, unknown>[] }>("/api/runs");
+      const result = await getJSON("/api/runs");
       if (request !== requestRevision.current) return;
       const seeded = seedFromRuns(result.runs || []);
       setState((live) =>

@@ -55,7 +55,7 @@ export function Analyst() {
     setLoading(true);
     setError(null);
     try {
-      const r = await getJSON<{ events?: JournalEvent[] }>("/api/journal", {
+      const r = await getJSON("/api/journal", {
         limit: String(limit),
       });
       setEvents(r.events || []);

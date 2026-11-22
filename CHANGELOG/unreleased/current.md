@@ -837,6 +837,27 @@ This file holds the active `[Unreleased]` working set.
 
 ### Changed
 
+- **The browser's payload types come from the daemon's registry.** The console
+  described every payload in its operation registry, and the browser described
+  the same payloads **again**, by hand: **352** hand-written `interface`
+  declarations and **217** call sites naming their payload type themselves.
+  The types are now **generated** from the registry's own JSON Schema
+  (`tools/openapi` writes `frontend/src/app/api/types.generated.ts`: 358
+  interfaces, 143 aliases, 203 response paths, 65 request paths), the client
+  answers with the shape the **path** carries (`ResponseOf<P>` /
+  `RequestOf<P>`), and every type argument at the call site is gone. The
+  browser's own **views** survive — which fields it reads, and whether it reads
+  them as required — but every field's *type* is now the daemon's. A field the
+  daemon renames breaks the browser at compile time, on the view and at the
+  call site. Nine real bugs died on the way: the build row that read "—"
+  forever, the roster that said "0 agents" on a fleet of twelve, the approvals
+  history that was always empty, the skills that all read "never used", the
+  bundled files that rendered as blank lines, and the Research panel that was
+  empty in every section. The registry's exact nullable contract is not lost —
+  `docs/openapi.json` is generated from the same schemas and keeps every null
+  arm; the browser's view folds `null` into absent, which is what its code has
+  always done.
+
 - **The self-repair module holds capabilities, not the daemon.** The agents
   module's doctor asked the kernel handle for **eleven** verbs over
   **twenty-two** call sites — the bus, the journal, the provider, the reaper's

@@ -16,7 +16,7 @@ import { authHeaders } from "@/app/api";
 // layer) import it from a feature. The same argument applies: what several
 // screens share belongs in the shared layer, not in one feature's pocket.
 
-export interface ArtifactEntry {
+export type ArtifactEntry = {
   id: string;
   ref: string;
   name?: string;
@@ -28,12 +28,12 @@ export interface ArtifactEntry {
   size?: number;
   created_ms?: number;
   caption?: string;
-}
+};
 
-export interface ArtifactList {
+export type ArtifactList = {
   count: number;
   entries: ArtifactEntry[];
-}
+};
 
 // isImage decides whether an entry renders as a gallery thumbnail.
 export function isImage(e: ArtifactEntry): boolean {

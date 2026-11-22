@@ -7,10 +7,6 @@ import { ErrorText } from "@/components/JsonView";
 import { type SkillLite } from "@/lib/agentdetail";
 import { Row } from "@/features/agents/components/agentdetail/shared";
 
-interface SkillFile {
-  path?: string;
-  size?: number;
-}
 export function FilesTab({
   workdir,
   skills,
@@ -74,11 +70,14 @@ export function FilesTab({
 }
 
 function SkillFiles({ id }: { id: string }) {
-  const [files, setFiles] = useState<SkillFile[] | null>(null);
+  // The daemon answers /api/skill/files with the bundled file PATHS, one
+  // string per file — not objects. The panel rendered `f.path` of an object
+  // that never arrived, so every row read as a blank line.
+  const [files, setFiles] = useState<string[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
-    getJSON<{ files?: SkillFile[] }>("/api/skill/files", { id })
+    getJSON("/api/skill/files", { id })
       .then((d) => alive && setFiles(d.files || []))
       .catch((e) => alive && setErr((e as Error).message));
     return () => {
@@ -98,10 +97,7 @@ function SkillFiles({ id }: { id: string }) {
           key={i}
           className="flex items-center gap-2 font-mono text-xs text-muted"
         >
-          <span className="truncate">{f.path}</span>
-          {typeof f.size === "number" && (
-            <span className="ml-auto shrink-0">{f.size}B</span>
-          )}
+          <span className="truncate">{f}</span>
         </li>
       ))}
     </ul>

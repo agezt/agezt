@@ -28,11 +28,11 @@ import { Segmented } from "@/components/ui/segmented";
 // rendered cards are windowed.
 const STANDING_ORDER_WINDOW = 60;
 
-interface Trigger {
+type Trigger = {
   type?: string;
   schedule?: string;
   subject?: string;
-}
+};
 interface Order {
   id: string;
   name?: string;
@@ -68,12 +68,12 @@ interface StandingAgent {
   direct_callable?: boolean;
   kind?: string;
 }
-interface WhyEvent {
+type WhyEvent = {
   seq?: number;
   kind?: string;
   ts_unix_ms?: number;
-  payload?: Record<string, unknown>;
-}
+  payload?: Record<string, any>;
+};
 
 type StandingFilter = "all" | "attention";
 const INITIATIVE_MODES = [
@@ -153,7 +153,7 @@ export function Standing() {
       return;
     }
     try {
-      const d = await getJSON<{ events?: WhyEvent[] }>("/api/standing/why", { id });
+      const d = await getJSON("/api/standing/why", { id });
       setHistory({ id, events: d.events || [] });
     } catch (e) {
       ui.toast((e as Error).message, "error");
@@ -164,8 +164,8 @@ export function Standing() {
     setLoading(true);
     try {
       const [standingRes, agentRes] = await Promise.allSettled([
-        getJSON<{ orders?: Order[] }>("/api/standing"),
-        getJSON<{ profiles?: StandingAgent[] }>("/api/agents"),
+        getJSON("/api/standing"),
+        getJSON("/api/agents"),
       ]);
       if (standingRes.status === "rejected") throw standingRes.reason;
       setOrders(standingRes.value.orders || []);

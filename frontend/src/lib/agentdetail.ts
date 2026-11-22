@@ -3,9 +3,11 @@
 // census adapter, reused as-is) so the deep panel adds no surface to it. All
 // functions are pure + unit-tested; the React component owns fetching/rendering.
 
+import type { AgentListResponseProfilesItemStatus } from "@/app/api/types.generated";
+
 // MemoryRecord mirrors the wire shape of /api/memory records (recordView in
 // kernel/controlplane/memory.go). Only the fields the panel reads are typed.
-export interface MemoryRecord {
+export type MemoryRecord = {
   id?: string;
   type?: string;
   subject?: string;
@@ -15,17 +17,17 @@ export interface MemoryRecord {
   last_seen_ms?: number;
   tags?: Record<string, string>;
   added_by?: string;
-}
+};
 
 // SkillLite mirrors the /api/skills list fields the panel reads.
-export interface SkillLite {
+export type SkillLite = {
   id?: string;
   name?: string;
   description?: string;
   status?: string;
   agent?: string;
   triggers?: string[];
-}
+};
 
 // CorrelatedRow is any diagnostics row that can be attributed to a run/agent
 // (policy decisions, tool invocations). Both carry a correlation id and an actor.
@@ -35,21 +37,21 @@ export interface CorrelatedRow {
 }
 
 // RunLite is the subset of /api/runs the panel folds for spend/last-active.
-export interface RunLite {
+export type RunLite = {
   correlation_id?: string;
   agent?: string;
   status?: string;
   spent_mc?: number;
   started_unix_ms?: number;
-}
+};
 
-interface ReaperDeadAgent {
+type ReaperDeadAgent = {
   slug: string;
   name?: string;
   last_active_ms?: number;
-}
+};
 
-interface ReaperDegradedAgent {
+type ReaperDegradedAgent = {
   slug: string;
   name?: string;
   failures?: number;
@@ -60,18 +62,18 @@ interface ReaperDegradedAgent {
   escalate_to?: string;
   last_failure_ms?: number;
   last_reason?: string;
-}
+};
 
-interface ReaperMisconfiguredAgent {
+type ReaperMisconfiguredAgent = {
   slug: string;
   name?: string;
   issues?: string[];
   doctor_agent?: string;
   self_repair_enabled?: boolean;
   escalate_to?: string;
-}
+};
 
-interface ReaperRoutingPressureAgent {
+type ReaperRoutingPressureAgent = {
   slug: string;
   name?: string;
   count?: number;
@@ -85,9 +87,9 @@ interface ReaperRoutingPressureAgent {
   last_failed_model?: string;
   last_next_model?: string;
   task_type?: string;
-}
+};
 
-interface ReaperRoutingForcedProbationAgent {
+type ReaperRoutingForcedProbationAgent = {
   slug: string;
   name?: string;
   count?: number;
@@ -102,9 +104,9 @@ interface ReaperRoutingForcedProbationAgent {
   task_type?: string;
   forced_chain?: string[];
   routing_force_generation?: number;
-}
+};
 
-interface ReaperRoutingForcedFailedAgent {
+type ReaperRoutingForcedFailedAgent = {
   slug: string;
   name?: string;
   count?: number;
@@ -119,9 +121,9 @@ interface ReaperRoutingForcedFailedAgent {
   task_type?: string;
   forced_chain?: string[];
   routing_force_generation?: number;
-}
+};
 
-interface ReaperRoutingForcedExhaustedAgent {
+type ReaperRoutingForcedExhaustedAgent = {
   slug: string;
   count?: number;
   threshold?: number;
@@ -135,9 +137,9 @@ interface ReaperRoutingForcedExhaustedAgent {
   task_type?: string;
   forced_chain?: string[];
   routing_force_generation?: number;
-}
+};
 
-interface ReaperRoutingUnstableAgent {
+type ReaperRoutingUnstableAgent = {
   slug: string;
   name?: string;
   count?: number;
@@ -151,9 +153,9 @@ interface ReaperRoutingUnstableAgent {
   current_chain?: string[];
   previous_chain?: string[];
   last_reason?: string;
-}
+};
 
-export interface ReaperReport {
+export type ReaperReport = {
   dead_agents?: ReaperDeadAgent[];
   degraded_agents?: ReaperDegradedAgent[];
   misconfigured_agents?: ReaperMisconfiguredAgent[];
@@ -162,7 +164,7 @@ export interface ReaperReport {
   routing_forced_failed_agents?: ReaperRoutingForcedFailedAgent[];
   routing_forced_exhausted_agents?: ReaperRoutingForcedExhaustedAgent[];
   routing_unstable_agents?: ReaperRoutingUnstableAgent[];
-}
+};
 
 export interface AgentHealthSnapshot {
   state: "healthy" | "degraded" | "misconfigured" | "stale" | "retired" | "unstable" | "stabilizing" | "force_failed" | "force_exhausted";
@@ -191,7 +193,7 @@ export interface AgentConfigOverrideSummary {
 }
 
 export interface AgentRuntimeStatus {
-  health_state?: "healthy" | "degraded" | "misconfigured" | "stale" | "retired" | "unstable" | "stabilizing" | "force_failed" | "force_exhausted";
+  health_state?: AgentListResponseProfilesItemStatus["health_state"];
   health_label?: string;
   repair_mode?: "misconfigured" | "degraded" | string;
   repair_state?: "idle" | "queued" | "completed" | "failed" | string;
@@ -358,7 +360,7 @@ export function lastAutonomyRunbookSourceLabel(rb?: AgentLastAutonomyRunbook): s
   return src ? `via ${src}` : "";
 }
 
-export interface ProviderRoutingRow {
+export type ProviderRoutingRow = {
   ts_unix_ms?: number;
   kind?: string;
   primary?: string;
@@ -368,7 +370,7 @@ export interface ProviderRoutingRow {
   next?: string;
   reason?: string;
   scope?: string;
-}
+};
 
 export interface ProviderRoutingSummary {
   kindLabel: string;
@@ -434,11 +436,11 @@ export interface AgentCardRuntimeSummary {
   nextWakeMs?: number;
 }
 
-export interface AgentRepairEvent {
+export type AgentRepairEvent = {
   seq?: number;
   ts_unix_ms?: number;
   correlation_id?: string;
-  mode?: "misconfigured" | "degraded" | string;
+  mode?: string;
   phase?: string;
   reason?: string;
   fingerprint?: string;
@@ -450,14 +452,7 @@ export interface AgentRepairEvent {
   error?: string;
   target_agent?: string;
   target_correlation?: string;
-  resolution?:
-    | "handled"
-    | "paused"
-    | "retired"
-    | "delegated"
-    | "force_chain"
-    | "blocked"
-    | string;
+  resolution?: string;
   resolution_summary?: string;
   delegate_to?: string;
   delegated_by?: string;
@@ -472,9 +467,9 @@ export interface AgentRepairEvent {
   previous_routing_task_model_chain?: string[];
   routing_force_generation?: number;
   previous_routing_force_generation?: number;
-}
+};
 
-interface AgentRepairContract {
+type AgentRepairContract = {
   retry_attempts?: number;
   retry_backoff?: string;
   retry_on?: string[];
@@ -485,9 +480,9 @@ interface AgentRepairContract {
   escalate_to?: string;
   cooldown_sec?: number;
   authority_boundary?: string;
-}
+};
 
-interface AgentRepairNextAction {
+type AgentRepairNextAction = {
   action?: string;
   label?: string;
   detail?: string;
@@ -497,9 +492,9 @@ interface AgentRepairNextAction {
   phase?: string;
   next_eligible_ms?: number;
   delegate_to?: string;
-}
+};
 
-export interface AgentRepairStatus {
+export type AgentRepairStatus = {
   slug?: string;
   cooldown_sec?: number;
   next_eligible_ms?: number;
@@ -509,7 +504,7 @@ export interface AgentRepairStatus {
   latest?: AgentRepairEvent;
   contract?: AgentRepairContract;
   next_action?: AgentRepairNextAction;
-}
+};
 
 export interface AgentRepairSnapshot {
   state: "idle" | "queued" | "completed" | "failed";
@@ -519,40 +514,33 @@ export interface AgentRepairSnapshot {
   nextEligibleMs?: number;
 }
 
-export interface AgentEscalation {
+export type AgentEscalation = {
   message_id?: string;
   from?: string;
   to?: string;
   text?: string;
   ts_unix_ms?: number;
-  status?: "open" | "acked" | "answered" | string;
+  status?: string;
   reply_count?: number;
   acked?: boolean;
   source_agent?: string;
-  mode?: "misconfigured" | "degraded" | string;
+  mode?: string;
   wake_phase?: string;
   wake_reason?: string;
   wake_error?: string;
   wake_correlation_id?: string;
   fingerprint?: string;
-  resolution?:
-    | "handled"
-    | "paused"
-    | "retired"
-    | "delegated"
-    | "force_chain"
-    | "blocked"
-    | string;
+  resolution?: string;
   resolution_summary?: string;
   delegate_to?: string;
-  origin_kind?: "doctor" | "delegated" | string;
+  origin_kind?: string;
   origin_agent?: string;
   root_agent?: string;
   chain_depth?: number;
   incident_id?: string;
   root_incident_id?: string;
   parent_incident_id?: string;
-}
+};
 
 export interface AgentEscalationSummary {
   openCount: number;

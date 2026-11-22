@@ -7,18 +7,18 @@ import type { AgentEvent } from "@/app/events";
 // navigation away (the events keep flowing into a module-level store). All folds
 // are pure (time passed in) so they're unit-testable without a live daemon.
 
-export interface CouncilSeat {
+export type CouncilSeat = {
   seat: string;
   model: string;
-}
+};
 
-export interface CouncilOpinion {
+export type CouncilOpinion = {
   seat: string;
   model: string;
   round: number;
   text: string;
   error?: string;
-}
+};
 
 type CouncilPhase = "convening" | "deliberating" | "done";
 

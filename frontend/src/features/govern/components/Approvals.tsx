@@ -12,6 +12,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/app/utils";
 import { approvalLabel, type PendingApproval } from "@/components/ApprovalsBell";
+import type { ApprovalsLogResponseApprovalsItem } from "@/app/api/types.generated";
+
+// ApprovalHistoryRow is one resolved approval, as /api/approvals_log answers it:
+// the row's `status` is the decision (granted, denied, timeout), and the row is
+// keyed by the approval's own id.
+type ApprovalHistoryRow = ApprovalsLogResponseApprovalsItem;
 
 type Filter = "pending" | "granted" | "denied";
 
@@ -19,7 +25,7 @@ export default function Approvals() {
   const { subscribe } = useEvents();
   const ui = useUI();
   const [pending, setPending] = useState<PendingApproval[]>([]);
-  const [history, setHistory] = useState<{ id: string; capability?: string; tool_name?: string; decision: string; ts: number; summary?: string }[]>([]);
+  const [history, setHistory] = useState<ApprovalHistoryRow[]>([]);
   const [filter, setFilter] = useState<Filter>("pending");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,12 +33,9 @@ export default function Approvals() {
   const reload = useCallback(async () => {
     setError(null);
     try {
-      const d = await getJSON<{
-        pending?: PendingApproval[];
-        history?: { id: string; capability?: string; tool_name?: string; decision: string; ts: number; summary?: string }[];
-      }>("/api/approvals");
+      const [d, log] = await Promise.all([getJSON("/api/approvals"), getJSON("/api/approvals_log")]);
       setPending(d.pending || []);
-      setHistory(d.history || []);
+      setHistory(log.approvals || []);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -65,7 +68,7 @@ export default function Approvals() {
     }
   }
 
-  const historyFiltered = filter === "pending" ? [] : history.filter((h) => h.decision === filter);
+  const historyFiltered = filter === "pending" ? [] : history.filter((h) => h.status === filter);
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4">
@@ -173,16 +176,16 @@ export default function Approvals() {
         ) : (
           <ul className="mt-3 space-y-1.5">
             {historyFiltered.map((h) => (
-              <li key={h.id} className="flex items-center gap-2 rounded-md border border-border/40 bg-card/30 px-3 py-1.5 text-sm">
-                {h.decision === "granted" ? (
+              <li key={h.approval_id} className="flex items-center gap-2 rounded-md border border-border/40 bg-card/30 px-3 py-1.5 text-sm">
+                {h.status === "granted" ? (
                   <ShieldCheck className="size-3.5 shrink-0 text-good" />
                 ) : (
                   <X className="size-3.5 shrink-0 text-bad" />
                 )}
                 <span className="min-w-0 flex-1 truncate text-foreground/90">
-                  {h.summary || h.capability || h.tool_name || "decision"}
+                  {h.reason || h.capability || h.tool || "decision"}
                 </span>
-                <span className="font-mono text-[10px] uppercase tracking-wide text-muted">{h.decision}</span>
+                <span className="font-mono text-[10px] uppercase tracking-wide text-muted">{h.status}</span>
                 <ArrowRight className="size-3 text-muted" />
               </li>
             ))}

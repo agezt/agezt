@@ -1,5 +1,88 @@
 # NEXT — handoff for the next coding agent
 
+## Current checkpoint — W5.1 the browser's payload types get one home, 2026-11-22
+
+The W0–W5 objective remains open. This is the **second half** of W5.1: the first
+half ([318](318-w51-openapi-and-the-generated-client-evidence.md)) gave the API
+document and the browser's client one home, and its §10 named what was left —
+*"the browser's payload types are still hand-written: 160 frontend interfaces
+describe what the registry already describes."*
+
+### What is on the tree
+
+- `tools/openapi/types.go` — the JSON Schema → TypeScript renderer (L7). It sits
+  next to the OpenAPI producer that already read the same schemas and writes a
+  third artifact.
+- `frontend/src/app/api/types.generated.ts` — GENERATED. 358 interfaces + 143
+  aliases, 203 response paths, 65 request paths. The naming is derived
+  (operation name + `Response`; a nested object is its parent + the property).
+- `frontend/src/app/api/client.ts` — GENERATED, and now **bound to the path**:
+  `getJSON<P extends ReadPath>(path: P): Promise<ResponseOf<P>>`. Every one of
+  the browser's **217** type arguments is gone.
+- The browser's own **views**: 132 hand-written payload interfaces became
+  projections of the generated types (`export type AgentProfile = { id?:
+  AgentListResponseProfilesItem["id"]; … }`). The browser still says which
+  fields it reads; the daemon says what they are. **352 → 219** interfaces.
+- `frontend/knip.json` — the generated file is an entry, so its 501 exports are
+  not "unused".
+
+### The measured decisions
+
+- **Null folds into absent in the browser's view.** Keeping the registry's null
+  arms broke **149** browser call sites; dropping them broke **38**. The
+  daemon sends `null` for a nil slice and the browser has always read a null
+  field and a missing field the same way. The exact contract is not lost:
+  `docs/openapi.json` keeps every null arm.
+- The registry's **required** list survives on both sides; a request body stays
+  **strict** (the daemon rejects a body that lacks a required field).
+- A shape is declared **once**; the second operation that carries it gets an
+  alias, and the path map still points at the name that belongs to the
+  operation.
+
+### The nine real bugs the compiler found
+
+`/api/status` → `version` (it is `/api/version`); `/api/agents` → `agents` (it
+is `profiles`); the roster's `ready` (it is `enabled`); the approvals `history`
+(it is `/api/approvals_log`); the skills' `uses`/`wins` (they are in
+`metrics`); the skill files' `path`/`size` (they are strings); the Research
+panel's `answer`/`sub_questions[]`/`verified_claims[]` (they are `markdown` /
+strings / `claims[].verdict`); the OAuth answers' `error` (they are
+`authorize_url`/`state`/`ok`); the workflow list row's `nodes` (it is
+`node_count`). Every one of them was a panel that rendered empty.
+
+### The evidence
+
+`architecture/324-w51-the-browser-payload-types-get-one-home-evidence.md` — the
+measurement, the four measured decisions, the nine bugs, the two mutations (a
+field renamed **in the daemon** breaks the browser's view *and* its call site)
+and the frontend suite's baseline (measured on a clean `f252a23c` worktree: the
+suite was already red, and it is red in the same way — this machine's Node
+build has no `localStorage`; the two runs of this tree failed *different*
+sets, and the files that failed pass 146/146 on their own).
+
+### What the next slice should do
+
+The browser's **request bodies** are typed by the generated request map (65
+paths), but the helpers that *build* them are still the browser's own: the
+memory import parses a JSON file into `Record<string, unknown>` and the world
+import does the same. Typing those parsers against the generated request types
+would make a renamed request field a compile error too.
+
+The browser's **view types** are still projections the browser names
+(`AgentProfile`, `ReaperReport`, `ApiOrder`). The daemon's own row types are
+the truth; a browser that wants a narrower view says so with `Pick`. A future
+slice could name the daemon's rows directly and let `Pick` be the browser's
+only narrowing tool.
+
+Two smaller open ends carried from the first half:
+
+- `docs/openapi.json` carries the daemon's version, so a version bump makes it
+  stale and the `-check` gate fails. That is intended, but the release step
+  has to regenerate it.
+- The console's native endpoints are **named** in one place, but the console
+  still registers each one by hand. Binding them from the same list would
+  close the last gap in "the console's HTTP surface has one home".
+
 ## Current checkpoint — W5.1 the API document and the browser client get one home, 2026-11-19
 
 The W0–W5 objective remains open. W5.1 is the slice the roadmap's W5 row asks

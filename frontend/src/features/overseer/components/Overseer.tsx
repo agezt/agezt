@@ -55,7 +55,7 @@ interface AgentProfile {
   enabled?: boolean;
   retired?: boolean;
 }
-interface HelpMsg {
+type HelpMsg = {
   id?: string;
   topic?: string;
   from?: string;
@@ -63,7 +63,7 @@ interface HelpMsg {
   text?: string;
   ts_unix_ms?: number;
   help?: boolean;
-}
+};
 
 interface OverseerData {
   runs: Run[];
@@ -161,9 +161,9 @@ export function Overseer() {
     setLoading(true);
     try {
       const [runsRes, agentsRes, helpRes] = await Promise.all([
-        getJSON<{ runs?: Run[] }>("/api/runs", { limit: "200" }).catch(() => ({ runs: [] })),
-        getJSON<{ profiles?: AgentProfile[] }>("/api/agents", { limit: "200" }).catch(() => ({ profiles: [] })),
-        getJSON<{ open_help?: HelpMsg[] }>("/api/board/help").catch(() => ({ open_help: [] })),
+        getJSON("/api/runs", { limit: "200" }).catch(() => ({ runs: [] })),
+        getJSON("/api/agents", { limit: "200" }).catch(() => ({ profiles: [] })),
+        getJSON("/api/board/help").catch(() => ({ open_help: [] })),
       ]);
       setData({
         runs: runsRes.runs || [],

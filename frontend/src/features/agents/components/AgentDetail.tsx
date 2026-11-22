@@ -97,32 +97,32 @@ export function AgentDetail({
   useEffect(() => {
     let alive = true;
     Promise.allSettled([
-      getJSON<{ records?: MemoryRecord[] }>("/api/memory", { limit: "200" }),
-      getJSON<{ skills?: SkillLite[] }>("/api/skills"),
-      getJSON<{ decisions?: PolicyDecision[] }>("/api/policy_log", {
+      getJSON("/api/memory", { limit: "200" }),
+      getJSON("/api/skills"),
+      getJSON("/api/policy_log", {
         limit: "200",
       }),
-      getJSON<{ invocations?: ToolInvocation[] }>("/api/tool_log", {
+      getJSON("/api/tool_log", {
         limit: "200",
       }),
-      getJSON<{ approvals?: ApprovalDecision[] }>("/api/approvals_log", {
+      getJSON("/api/approvals_log", {
         limit: "200",
       }),
-      getJSON<PolicyStats>("/api/policy"),
-      getJSON<{ ask_policy?: string; levels?: Record<string, string> }>("/api/edict_show"),
-      getJSON<{ tools?: ToolCatalogRow[] }>("/api/tools_catalog"),
-      getJSON<AgentPermissionsSnapshot>("/api/agents/permissions", { ref: slug }),
-      getJSON<{ messages?: BoardMessage[] }>("/api/board", { limit: "200" }),
-      getJSON<RoutingInfo>("/api/routing"),
-      getJSON<{ events?: ProviderRoutingRow[] }>("/api/provider_log", {
+      getJSON("/api/policy"),
+      getJSON("/api/edict_show"),
+      getJSON("/api/tools_catalog"),
+      getJSON("/api/agents/permissions", { ref: slug }),
+      getJSON("/api/board", { limit: "200" }),
+      getJSON("/api/routing"),
+      getJSON("/api/provider_log", {
         limit: "200",
       }),
-      getJSON<ReaperReport>("/api/reaper/scan"),
-      getJSON<AgentRepairStatus>("/api/agents/repair_status", {
+      getJSON("/api/reaper/scan"),
+      getJSON("/api/agents/repair_status", {
         ref: slug,
         limit: "12",
       }),
-      getJSON<{ escalations?: AgentEscalation[] }>("/api/agents/escalations", {
+      getJSON("/api/agents/escalations", {
         ref: slug,
         limit: "12",
       }),
@@ -400,7 +400,7 @@ export function AgentDetail({
   async function wakeAgentNow() {
     setBusy(true);
     try {
-      const res = await postJSON<AgentWakeResult>("/api/agents/wake", {
+      const res = await postJSON("/api/agents/wake", {
         ref: slug,
         reason: "manual operator wake",
       });
@@ -494,7 +494,7 @@ export function AgentDetail({
   async function setAgentEnabled(enabled: boolean) {
     setBusy(true);
     try {
-      const res = await postAction<AgentEnableResult>("/api/agents/enable", {
+      const res = await postAction("/api/agents/enable", {
         ref: slug,
         enabled: enabled ? "true" : "false",
       });
@@ -512,7 +512,7 @@ export function AgentDetail({
     setBusy(true);
     try {
       const path = retired ? "/api/agents/retire" : "/api/agents/revive";
-      const res = await postAction<AgentRetireResult | AgentReviveResult>(path, {
+      const res = await postAction(path, {
         ref: slug,
         ...(retired ? { reason: "operator retired from agent identity header" } : {}),
       });

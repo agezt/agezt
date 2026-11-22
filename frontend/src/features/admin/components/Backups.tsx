@@ -39,7 +39,7 @@ export function Backups() {
     setError(null);
     try {
       const runId = runFilter.trim();
-      const r = await getJSON<{ checkpoints?: Checkpoint[] }>(
+      const r = await getJSON(
         "/api/rollback/checkpoints",
         runId ? { run_id: runId } : undefined,
       );

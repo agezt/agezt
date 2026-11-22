@@ -236,7 +236,7 @@ const inflightTrees = {
     }
     const p = (async () => {
       try {
-        return await getJSON<FileTreeResponse>("/api/files/tree", { path });
+        return await getJSON("/api/files/tree", { path });
       } finally {
         this.pending.delete(path);
       }

@@ -21,6 +21,11 @@ package main
 // the request options for a parameterless read. So a parameter on a
 // parameterless read does not type-check, and neither does a route's kind
 // disagreeing with the verb.
+//
+// The payload types come from the same two sources as well. The path says
+// which operation answers it, and the registry says what that operation
+// returns, so getJSON's answer type is DERIVED from the path (W5.1). The
+// browser does not hand the client a type; the client knows.
 
 import (
 	"fmt"
@@ -47,6 +52,7 @@ const clientHeader = `// SPDX-License-Identifier: MIT
 // route without the compiler saying so first.
 
 import { HTTPError, authHeaders, errMsg } from "./transport";
+import type { RequestOf, ResponseOf } from "./types.generated";
 `
 
 // pathGroups are the route kinds, in the order the unions are written.
@@ -158,34 +164,29 @@ function isRequestOptions(value: unknown): value is RequestOptions {
   return "signal" in candidate || "timeoutMs" in candidate;
 }
 
-export async function getJSON<T = any>(
-  path: ReadPath,
+export async function getJSON<P extends ReadPath>(
+  path: P,
   options?: RequestOptions,
-): Promise<T>;
-export async function getJSON<T = any>(
-  path: ReadArgsPath,
+): Promise<ResponseOf<P>>;
+export async function getJSON<P extends ReadArgsPath | NativePath>(
+  path: P,
   params?: Record<string, string>,
   options?: RequestOptions,
-): Promise<T>;
-export async function getJSON<T = any>(
-  path: NativePath,
+): Promise<ResponseOf<P>>;
+export async function getJSON<P extends RuntimePath>(
+  path: P,
   params?: Record<string, string>,
   options?: RequestOptions,
-): Promise<T>;
-export async function getJSON<T = any>(
-  path: RuntimePath,
-  params?: Record<string, string>,
-  options?: RequestOptions,
-): Promise<T>;
-export async function getJSON<T = any>(
-  path: ReadPath | ReadArgsPath | NativePath | RuntimePath,
+): Promise<ResponseOf<P>>;
+export async function getJSON<P extends ReadPath | ReadArgsPath | NativePath | RuntimePath>(
+  path: P,
   paramsOrOptions?: Record<string, string> | RequestOptions,
   options?: RequestOptions,
-): Promise<T> {
+): Promise<ResponseOf<P>> {
   const raw = paramsOrOptions as Record<string, string> | RequestOptions | undefined;
   const query = isRequestOptions(raw) ? undefined : raw;
   const callOptions = isRequestOptions(raw) ? raw : options;
-  return requestGet<T>(path, query, callOptions);
+  return requestGet<ResponseOf<P>>(path, query, callOptions);
 }
 
 /** requestGet performs the GET itself. */
@@ -238,12 +239,12 @@ async function requestGet<T>(
   }
 }
 
-export async function postJSON<T = any>(
-  path: JsonPath | NativePath,
-  body: unknown,
+export async function postJSON<P extends JsonPath | NativePath>(
+  path: P,
+  body: RequestOf<P>,
   options?: { signal?: AbortSignal },
-): Promise<T> {
-  return postBody<T>(path, body, options);
+): Promise<ResponseOf<P>> {
+  return postBody<ResponseOf<P>>(path, body, options);
 }
 
 /** postJSONAt is the runtime-path twin of postJSON. */
@@ -255,11 +256,11 @@ export async function postJSONAt<T = any>(
   return postBody<T>(path, body, options);
 }
 
-export async function postAction<T = any>(
-  path: WritePath | NativePath,
+export async function postAction<P extends WritePath | NativePath>(
+  path: P,
   params?: Record<string, string>,
-): Promise<T> {
-  return postQuery<T>(path, params);
+): Promise<ResponseOf<P>> {
+  return postQuery<ResponseOf<P>>(path, params);
 }
 
 /** postActionAt is the runtime-path twin of postAction. */

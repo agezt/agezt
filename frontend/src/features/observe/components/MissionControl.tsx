@@ -45,22 +45,22 @@ function usePulse(): MissionPulse & { error: string | null } {
     let stop = false;
     async function load() {
       try {
-        const [runs, agents, approvals, status] = await Promise.all([
-          getJSON<{ runs?: { status: string }[] }>("/api/runs", { limit: "100" }),
-          getJSON<{ agents?: unknown[] }>("/api/agents", {}),
-          getJSON<{ pending?: number }>("/api/approvals"),
-          getJSON<{ version?: string; revision?: string }>("/api/status", {}),
+        const [runs, agents, approvals, version] = await Promise.all([
+          getJSON("/api/runs", { limit: "100" }),
+          getJSON("/api/agents", {}),
+          getJSON("/api/approvals"),
+          getJSON("/api/version"),
         ]);
         if (stop) return;
         setErr(null);
         setP({
           eventsPerSec: 0, // backfilled below from the live event hook
           running: runs.runs?.filter((r) => r.status === "running").length ?? 0,
-          awaiting: approvals.pending ?? 0,
+          awaiting: approvals.pending?.length ?? 0,
           spendToday: 0, // backfilled below from /api/spend
-          agentCount: agents.agents?.length ?? 0,
-          version: status.version || "—",
-          daemonCommit: status.revision?.slice(0, 8),
+          agentCount: agents.profiles?.length ?? 0,
+          version: version.agezt || "—",
+          daemonCommit: version.revision?.slice(0, 8),
         });
       } catch (e) {
         // Kept the previous values rather than zeroing them, which is right for a
@@ -100,7 +100,7 @@ function useSpendToday() {
     let stop = false;
     async function load() {
       try {
-        const r = await getJSON<{ total?: number }>("/api/spend/today", {});
+        const r = await getJSON("/api/spend/today", {});
         if (!stop) setV(r.total || 0);
       } catch {
         /* ignore */
@@ -123,7 +123,7 @@ function useAttentionQueue() {
     let stop = false;
     async function load() {
       try {
-        const r = await getJSON<{ items?: { id: string; kind: string; summary: string; ts: number }[] }>(
+        const r = await getJSON(
           "/api/attention",
           { window: "5m" },
         );

@@ -173,7 +173,7 @@ export function Artifacts() {
   // a confirm actually deletes them — the operator's "approved" path.
   async function collect() {
     try {
-      const dry = await postAction<{ count: number; bytes: number }>("/api/artifact/collect", {
+      const dry = await postAction("/api/artifact/collect", {
         older_than_days: String(COLLECT_DAYS),
         dry_run: "true",
       });
@@ -188,7 +188,7 @@ export function Artifacts() {
         danger: true,
       });
       if (!ok) return;
-      const res = await postAction<{ count: number; bytes: number }>("/api/artifact/collect", {
+      const res = await postAction("/api/artifact/collect", {
         older_than_days: String(COLLECT_DAYS),
         dry_run: "false",
       });

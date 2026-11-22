@@ -238,10 +238,10 @@ export function Roster() {
     setLoading(true);
     try {
       const [d, sk, bd, sch] = await Promise.all([
-        getJSON<{ profiles?: AgentProfile[] }>("/api/agents", undefined, { signal: ac.signal, timeoutMs }),
-        getJSON<{ skills?: { agent?: string }[] }>("/api/skills", { signal: ac.signal }).catch(() => ({ skills: [] })),
-        getJSON<{ messages?: RosterBoardMessage[] }>("/api/board", undefined, { signal: ac.signal }).catch(() => ({ messages: [] })),
-        getJSON<{ schedules?: RosterSchedule[] }>("/api/schedules", { signal: ac.signal }).catch(() => ({ schedules: [] })),
+        getJSON("/api/agents", undefined, { signal: ac.signal, timeoutMs }),
+        getJSON("/api/skills", { signal: ac.signal }).catch(() => ({ skills: [] })),
+        getJSON("/api/board", undefined, { signal: ac.signal }).catch(() => ({ messages: [] })),
+        getJSON("/api/schedules", { signal: ac.signal }).catch(() => ({ schedules: [] })),
       ]);
       // If the user navigated or another reload fired, drop this tick's data.
       if (reloadAbortRef.current !== ac) return;
@@ -357,7 +357,7 @@ export function Roster() {
     setRetiring(null);
     setBusy(slug);
     try {
-      const res = await postAction<AgentRetireResult>(
+      const res = await postAction(
         "/api/agents/retire",
         reason ? { ref: slug, reason } : { ref: slug },
       );
@@ -373,7 +373,7 @@ export function Roster() {
   async function revive(slug: string) {
     setBusy(slug);
     try {
-      const res = await postAction<AgentReviveResult>("/api/agents/revive", { ref: slug });
+      const res = await postAction("/api/agents/revive", { ref: slug });
       ui.toast(agentReviveToast(slug, res), "success");
       await reload();
     } catch (e) {
@@ -386,7 +386,7 @@ export function Roster() {
   async function setAgentEnabled(slug: string, enabled: boolean) {
     setBusy(slug);
     try {
-      const res = await postAction<AgentEnableResult>("/api/agents/enable", {
+      const res = await postAction("/api/agents/enable", {
         ref: slug,
         enabled: enabled ? "true" : "false",
       });
@@ -402,7 +402,7 @@ export function Roster() {
   async function wakeAgent(slug: string) {
     setBusy(slug);
     try {
-      const res = await postJSON<{ correlation_id?: string }>("/api/agents/wake", { ref: slug, reason: "manual operator wake" });
+      const res = await postJSON("/api/agents/wake", { ref: slug, reason: "manual operator wake" });
       ui.toast(`${slug} wake queued`, "success");
       if (res?.correlation_id) setActivityFocus((prev) => ({ ...prev, [slug]: res.correlation_id || "" }));
       setActivityFor(slug);
@@ -417,7 +417,7 @@ export function Roster() {
   async function repairAgent(slug: string) {
     setBusy(slug);
     try {
-      const res = await postJSON<{ correlation_id?: string }>("/api/agents/repair", {
+      const res = await postJSON("/api/agents/repair", {
         ref: slug,
         reason: `operator requested repair from ${slug} roster card`,
       });
@@ -518,7 +518,7 @@ export function Roster() {
     const target = removing;
     setBusy(target.slug);
     try {
-      const res = await postJSON<AgentRemoveResult>("/api/agents/remove", { ref: target.slug, cascade: target.cascade });
+      const res = await postJSON("/api/agents/remove", { ref: target.slug, cascade: target.cascade });
       setRemoving(null);
       ui.toast(
         agentRemoveToast(target.slug, res),
@@ -541,11 +541,16 @@ export function Roster() {
     if (targets.length === 0 && frequentScheduleIds.length === 0) return;
     setBusy("guardians");
     try {
-      await Promise.all(
-        targets.map((profile) =>
+      // Two kinds of work: quiet the guardian, pause its frequent schedules.
+      // The answers differ, so the batch is a list of promises, not a
+      // concatenation of two lists of different shapes.
+      const jobs: Promise<unknown>[] = [
+        ...targets.map((profile) =>
           postJSON("/api/agents/capabilities", guardianQuietPolicyPayload(profile)),
-        ).concat(frequentScheduleIds.map((id) => postAction("/api/schedule/enable", { id, enabled: "false" }))),
-      );
+        ),
+        ...frequentScheduleIds.map((id) => postAction("/api/schedule/enable", { id, enabled: "false" })),
+      ];
+      await Promise.all(jobs);
       ui.toast(
         `${targets.length} system guardian${targets.length === 1 ? "" : "s"} quieted${frequentScheduleIds.length > 0 ? `; ${frequentScheduleIds.length} frequent schedule${frequentScheduleIds.length === 1 ? "" : "s"} paused` : ""}`,
         "success",

@@ -24,7 +24,7 @@ import { ApiKeyField, ChatGPTSignInCard, KeyListItem, useApiKeySubmit, type KeyI
 // one-click Sync to refresh from models.dev. Provider/model SELECTION and
 // multi-key management are separate follow-on areas.
 
-interface Model {
+type Model = {
   id: string;
   name?: string;
   family?: string;
@@ -34,8 +34,8 @@ interface Model {
   output?: number;
   cost_input_usd_per_mtok?: number;
   cost_output_usd_per_mtok?: number;
-}
-interface Provider {
+};
+type Provider = {
   id: string;
   name?: string;
   family?: string;
@@ -45,13 +45,13 @@ interface Provider {
   credentialed?: boolean;
   model_count?: number;
   models?: Model[];
-}
-interface CatalogResp {
+};
+type CatalogResp = {
   providers?: Provider[];
   api_synced_at?: string;
   api_source_url?: string;
   provider_count?: number;
-}
+};
 function ModelsModal({
   title,
   icon: Icon,
@@ -118,7 +118,7 @@ export function Models() {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const d = await getJSON<CatalogResp>("/api/catalog");
+      const d = await getJSON("/api/catalog");
       setData(d);
       setErr(null);
     } catch (e) {
@@ -135,7 +135,7 @@ export function Models() {
   async function sync() {
     setSyncing(true);
     try {
-      const r = await postJSON<{ provider_count?: number; model_count?: number }>("/api/catalog/sync", {});
+      const r = await postJSON("/api/catalog/sync", {});
       toast(`Synced ${r.provider_count ?? 0} providers · ${r.model_count ?? 0} models`, "success");
       await reload();
     } catch (e) {
@@ -340,7 +340,7 @@ function KeyManager({ env, onChanged }: { env: string; onChanged: () => void }) 
 
   const load = useCallback(async () => {
     try {
-      const r = await getJSON<{ keys?: KeyInfo[] }>("/api/provider/keys", { env });
+      const r = await getJSON("/api/provider/keys", { env });
       setKeys(r.keys || []);
     } catch {
       setKeys([]);

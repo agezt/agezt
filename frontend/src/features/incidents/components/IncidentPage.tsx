@@ -132,9 +132,9 @@ export function IncidentPage({
 
   async function load() {
     const [a, j, p] = await Promise.allSettled([
-      getJSON<{ items?: AutonomyItem[] }>("/api/autonomy", { limit: "250" }),
-      getJSON<{ events?: AgentEvent[] }>("/api/journal", { kind: "info", limit: "800" }),
-      getJSON<{ profiles?: AgentProfile[] }>("/api/agents"),
+      getJSON("/api/autonomy", { limit: "250" }),
+      getJSON("/api/journal", { kind: "info", limit: "800" }),
+      getJSON("/api/agents"),
     ]);
     if (a.status === "fulfilled") setItems(a.value.items || []);
     else setErr((a.reason as Error)?.message || "failed to load autonomy feed");
@@ -343,7 +343,7 @@ export function IncidentPage({
       setDelegateEscalations(null);
       return;
     }
-    getJSON<{ escalations?: AgentEscalation[] }>("/api/agents/escalations", {
+    getJSON("/api/agents/escalations", {
       ref: target,
       limit: "12",
     })

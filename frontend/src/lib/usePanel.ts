@@ -28,7 +28,7 @@ export function usePanel<T = any>(
     setLoading(true);
     // The path arrives as a prop, so it cannot be checked against the
     // catalogue again here — the prop's own type is the catalogue's.
-    getJSON<T>(path as RuntimePath, params)
+    getJSON(path as RuntimePath, params)
       .then((d) => {
         setData(d);
         setError(null);

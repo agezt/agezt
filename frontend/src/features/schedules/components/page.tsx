@@ -158,7 +158,7 @@ export function Schedules() {
       return;
     }
     try {
-      const d = await getJSON<{ forecasts?: { unix: number }[] }>("/api/schedule/test", { id, count: "5" });
+      const d = await getJSON("/api/schedule/test", { id, count: "5" });
       setForecast({ id, times: (d.forecasts || []).map((f) => f.unix) });
     } catch (e) {
       ui.toast((e as Error).message, "error");
@@ -169,11 +169,11 @@ export function Schedules() {
     setLoading(true);
     try {
       const [d, a, w, t, st] = await Promise.all([
-        getJSON<{ schedules?: Sched[] }>("/api/schedules"),
-        getJSON<{ profiles?: ScheduleAgent[] }>("/api/agents").catch(() => ({ profiles: [] })),
-        getJSON<{ workflows?: ScheduleWorkflow[] }>("/api/workflows").catch(() => ({ workflows: [] })),
-        getJSON<{ tools?: ScheduleTool[] }>("/api/tools_catalog").catch(() => ({ tools: [] })),
-        getJSON<{ system_tasks?: string[]; system_task_info?: ScheduleSystemTaskInfo[] }>("/api/schedule/system_tasks").catch(() => ({
+        getJSON("/api/schedules"),
+        getJSON("/api/agents").catch(() => ({ profiles: [] })),
+        getJSON("/api/workflows").catch(() => ({ workflows: [] })),
+        getJSON("/api/tools_catalog").catch(() => ({ tools: [] })),
+        getJSON("/api/schedule/system_tasks").catch(() => ({
           system_tasks: FALLBACK_SYSTEM_TASKS,
           system_task_info: FALLBACK_SYSTEM_TASK_INFO,
         })),
